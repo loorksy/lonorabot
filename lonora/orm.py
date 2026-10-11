@@ -23,13 +23,29 @@ class Base(DeclarativeBase):
     pass
 
 
-class AgentRow(Base):
-    __tablename__ = "agents"
+class UserRow(Base):
+    __tablename__ = "users"
+    __table_args__ = (UniqueConstraint("email", name="users_email_key"),)
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    email: Mapped[str] = mapped_column(String(254), nullable=False)
+    password_hash: Mapped[str] = mapped_column(String(512), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    agents: Mapped[list["AgentRow"]] = relationship(back_populates="owner")
+
+
+class AgentRow(Base):
+    __tablename__ = "agents"
+    __table_args__ = (Index("agents_owner_created_idx", "owner_id", "created_at"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    owner_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=True
+    )
     name: Mapped[str] = mapped_column(String(80), nullable=False)
     instructions: Mapped[str] = mapped_column(Text, nullable=False, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    owner: Mapped[UserRow | None] = relationship(back_populates="agents")
     memory: Mapped["MemoryRow"] = relationship(back_populates="agent", cascade="all, delete-orphan")
     threads: Mapped[list["ThreadRow"]] = relationship(
         back_populates="agent", cascade="all, delete-orphan"

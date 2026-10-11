@@ -6,7 +6,8 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select, update
 
 from lonora import api
-from lonora.orm import Base, MessageRow, RoutineRow, utcnow
+from lonora.auth import hash_password
+from lonora.orm import Base, MessageRow, RoutineRow, UserRow, utcnow
 from lonora.worker import Worker
 
 
@@ -24,15 +25,44 @@ async def test_agent_conversation_memory_and_routine_survive_worker_execution():
         await connection.run_sync(Base.metadata.create_all)
 
     try:
+        async with api.sessions() as session, session.begin():
+            session.add_all(
+                [
+                    UserRow(
+                        email="owner@example.com",
+                        password_hash=hash_password("a long test password"),
+                    ),
+                    UserRow(
+                        email="other@example.com",
+                        password_hash=hash_password("another long test password"),
+                    ),
+                ]
+            )
         async with AsyncClient(
             transport=ASGITransport(app=api.app), base_url="http://lonora"
         ) as client:
             assert (await client.get("/health")).status_code == 200
+            assert (await client.get("/agents")).status_code == 401
+            login = await client.post(
+                "/auth/login",
+                json={"email": "OWNER@example.com", "password": "a long test password"},
+            )
+            assert login.status_code == 200
+            client.headers["Authorization"] = f"Bearer {login.json()['access_token']}"
+            assert (await client.get("/auth/me")).json()["email"] == "owner@example.com"
             agent = (
                 await client.post(
                     "/agents", json={"name": "Lonora", "instructions": "Respond in Arabic."}
                 )
             ).json()
+            owner_agent_id = agent["id"]
+            other_login = await client.post(
+                "/auth/login",
+                json={"email": "other@example.com", "password": "another long test password"},
+            )
+            client.headers["Authorization"] = f"Bearer {other_login.json()['access_token']}"
+            assert (await client.get(f"/agents/{owner_agent_id}")).status_code == 404
+            client.headers["Authorization"] = f"Bearer {login.json()['access_token']}"
             thread = (
                 await client.post(
                     f"/agents/{agent['id']}/threads", json={"title": "First conversation"}

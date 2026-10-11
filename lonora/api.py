@@ -2,14 +2,24 @@ import uuid
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 
-from fastapi import FastAPI, HTTPException
+import jwt
+from fastapi import Depends, FastAPI, HTTPException
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select, text
 
+from .auth import DUMMY_PASSWORD_HASH, issue_access_token, read_access_token, verify_password
 from .config import get_settings
 from .database import create_database
-from .orm import AgentRow, MemoryRow, MessageRow, RoutineRow, RunRow, ThreadRow
+from .orm import AgentRow, MemoryRow, MessageRow, RoutineRow, RunRow, ThreadRow, UserRow
 from .provider import GrokProvider
-from .schemas import AgentCreate, MemoryUpdate, MessageCreate, RoutineCreate, ThreadCreate
+from .schemas import (
+    AgentCreate,
+    LoginRequest,
+    MemoryUpdate,
+    MessageCreate,
+    RoutineCreate,
+    ThreadCreate,
+)
 
 settings = get_settings()
 engine, sessions = create_database(settings.database_url)
@@ -23,6 +33,7 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="Lonora", version="0.1.0", lifespan=lifespan)
+bearer = HTTPBearer(auto_error=False)
 
 
 def utcnow() -> datetime:
@@ -33,6 +44,65 @@ def require_row(row, message: str):
     if row is None:
         raise HTTPException(404, message)
     return row
+
+
+def unauthorized() -> HTTPException:
+    return HTTPException(401, "unauthorized", headers={"WWW-Authenticate": "Bearer"})
+
+
+async def authenticated_user(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer),
+) -> UserRow:
+    if credentials is None:
+        raise unauthorized()
+    try:
+        user_id = read_access_token(credentials.credentials, settings)
+    except (jwt.InvalidTokenError, ValueError):
+        raise unauthorized() from None
+    async with sessions() as session:
+        user = await session.get(UserRow, user_id)
+    if user is None:
+        raise unauthorized()
+    return user
+
+
+async def owned_agent(session, user: UserRow, agent_id: uuid.UUID) -> AgentRow:
+    agent = await session.scalar(
+        select(AgentRow).where(AgentRow.id == agent_id, AgentRow.owner_id == user.id)
+    )
+    return require_row(agent, "agent_not_found")
+
+
+async def owned_thread(session, user: UserRow, thread_id: uuid.UUID, *, lock: bool = False):
+    query = (
+        select(ThreadRow)
+        .join(AgentRow, AgentRow.id == ThreadRow.agent_id)
+        .where(ThreadRow.id == thread_id, AgentRow.owner_id == user.id)
+    )
+    if lock:
+        query = query.with_for_update(of=ThreadRow)
+    return require_row(await session.scalar(query), "thread_not_found")
+
+
+@app.post("/auth/login")
+async def login(body: LoginRequest):
+    email = body.email.strip().lower()
+    async with sessions() as session:
+        user = await session.scalar(select(UserRow).where(UserRow.email == email))
+    try:
+        stored_hash = user.password_hash if user is not None else DUMMY_PASSWORD_HASH
+        valid_password = verify_password(body.password, stored_hash)
+    except Exception:
+        valid_password = False
+    if user is None or not valid_password:
+        raise unauthorized()
+    access_token, expires_in = issue_access_token(user.id, settings)
+    return {"access_token": access_token, "token_type": "bearer", "expires_in": expires_in}
+
+
+@app.get("/auth/me")
+async def read_current_user(user: UserRow = Depends(authenticated_user)):
+    return {"id": str(user.id), "email": user.email}
 
 
 @app.get("/health")
@@ -46,9 +116,9 @@ async def health():
 
 
 @app.post("/agents", status_code=201)
-async def create_agent(body: AgentCreate):
+async def create_agent(body: AgentCreate, user: UserRow = Depends(authenticated_user)):
     async with sessions() as session, session.begin():
-        agent = AgentRow(name=body.name, instructions=body.instructions)
+        agent = AgentRow(owner_id=user.id, name=body.name, instructions=body.instructions)
         agent.memory = MemoryRow(content="")
         session.add(agent)
         await session.flush()
@@ -61,9 +131,13 @@ async def create_agent(body: AgentCreate):
 
 
 @app.get("/agents")
-async def list_agents():
+async def list_agents(user: UserRow = Depends(authenticated_user)):
     async with sessions() as session:
-        rows = (await session.scalars(select(AgentRow).order_by(AgentRow.created_at))).all()
+        rows = (
+            await session.scalars(
+                select(AgentRow).where(AgentRow.owner_id == user.id).order_by(AgentRow.created_at)
+            )
+        ).all()
         return [
             {
                 "id": str(row.id),
@@ -76,9 +150,9 @@ async def list_agents():
 
 
 @app.get("/agents/{agent_id}")
-async def read_agent(agent_id: uuid.UUID):
+async def read_agent(agent_id: uuid.UUID, user: UserRow = Depends(authenticated_user)):
     async with sessions() as session:
-        row = require_row(await session.get(AgentRow, agent_id), "agent_not_found")
+        row = await owned_agent(session, user, agent_id)
         return {
             "id": str(row.id),
             "name": row.name,
@@ -88,9 +162,13 @@ async def read_agent(agent_id: uuid.UUID):
 
 
 @app.post("/agents/{agent_id}/threads", status_code=201)
-async def create_thread(agent_id: uuid.UUID, body: ThreadCreate):
+async def create_thread(
+    agent_id: uuid.UUID,
+    body: ThreadCreate,
+    user: UserRow = Depends(authenticated_user),
+):
     async with sessions() as session, session.begin():
-        require_row(await session.get(AgentRow, agent_id), "agent_not_found")
+        await owned_agent(session, user, agent_id)
         thread = ThreadRow(agent_id=agent_id, title=body.title)
         session.add(thread)
         await session.flush()
@@ -102,10 +180,32 @@ async def create_thread(agent_id: uuid.UUID, body: ThreadCreate):
         }
 
 
-@app.get("/threads/{thread_id}")
-async def read_thread(thread_id: uuid.UUID):
+@app.get("/agents/{agent_id}/threads")
+async def list_threads(agent_id: uuid.UUID, user: UserRow = Depends(authenticated_user)):
     async with sessions() as session:
-        thread = require_row(await session.get(ThreadRow, thread_id), "thread_not_found")
+        await owned_agent(session, user, agent_id)
+        rows = (
+            await session.scalars(
+                select(ThreadRow)
+                .where(ThreadRow.agent_id == agent_id)
+                .order_by(ThreadRow.created_at.desc())
+            )
+        ).all()
+        return [
+            {
+                "id": str(row.id),
+                "agent_id": str(row.agent_id),
+                "title": row.title,
+                "created_at": row.created_at.isoformat(),
+            }
+            for row in rows
+        ]
+
+
+@app.get("/threads/{thread_id}")
+async def read_thread(thread_id: uuid.UUID, user: UserRow = Depends(authenticated_user)):
+    async with sessions() as session:
+        thread = await owned_thread(session, user, thread_id)
         messages = (
             await session.scalars(
                 select(MessageRow).where(MessageRow.thread_id == thread_id).order_by(MessageRow.seq)
@@ -132,16 +232,13 @@ async def read_thread(thread_id: uuid.UUID):
 
 
 @app.post("/threads/{thread_id}/messages", status_code=202)
-async def send_message(thread_id: uuid.UUID, body: MessageCreate):
+async def send_message(
+    thread_id: uuid.UUID,
+    body: MessageCreate,
+    user: UserRow = Depends(authenticated_user),
+):
     async with sessions() as session, session.begin():
-        thread = require_row(
-            (
-                await session.execute(
-                    select(ThreadRow).where(ThreadRow.id == thread_id).with_for_update()
-                )
-            ).scalar_one_or_none(),
-            "thread_not_found",
-        )
+        thread = await owned_thread(session, user, thread_id, lock=True)
         message = MessageRow(
             thread_id=thread_id, seq=thread.next_seq, role="user", content=body.content
         )
@@ -153,9 +250,17 @@ async def send_message(thread_id: uuid.UUID, body: MessageCreate):
 
 
 @app.get("/runs/{run_id}")
-async def read_run(run_id: uuid.UUID):
+async def read_run(run_id: uuid.UUID, user: UserRow = Depends(authenticated_user)):
     async with sessions() as session:
-        row = require_row(await session.get(RunRow, run_id), "run_not_found")
+        row = require_row(
+            await session.scalar(
+                select(RunRow)
+                .join(ThreadRow, ThreadRow.id == RunRow.thread_id)
+                .join(AgentRow, AgentRow.id == ThreadRow.agent_id)
+                .where(RunRow.id == run_id, AgentRow.owner_id == user.id)
+            ),
+            "run_not_found",
+        )
         return {
             "id": str(row.id),
             "thread_id": str(row.thread_id),
@@ -167,8 +272,9 @@ async def read_run(run_id: uuid.UUID):
 
 
 @app.get("/agents/{agent_id}/memory")
-async def read_memory(agent_id: uuid.UUID):
+async def read_memory(agent_id: uuid.UUID, user: UserRow = Depends(authenticated_user)):
     async with sessions() as session:
+        await owned_agent(session, user, agent_id)
         row = require_row(await session.get(MemoryRow, agent_id), "agent_not_found")
         return {
             "agent_id": str(row.agent_id),
@@ -178,8 +284,13 @@ async def read_memory(agent_id: uuid.UUID):
 
 
 @app.put("/agents/{agent_id}/memory")
-async def write_memory(agent_id: uuid.UUID, body: MemoryUpdate):
+async def write_memory(
+    agent_id: uuid.UUID,
+    body: MemoryUpdate,
+    user: UserRow = Depends(authenticated_user),
+):
     async with sessions() as session, session.begin():
+        await owned_agent(session, user, agent_id)
         row = require_row(
             await session.get(MemoryRow, agent_id, with_for_update=True), "agent_not_found"
         )
@@ -193,9 +304,13 @@ async def write_memory(agent_id: uuid.UUID, body: MemoryUpdate):
 
 
 @app.post("/agents/{agent_id}/routines", status_code=201)
-async def create_routine(agent_id: uuid.UUID, body: RoutineCreate):
+async def create_routine(
+    agent_id: uuid.UUID,
+    body: RoutineCreate,
+    user: UserRow = Depends(authenticated_user),
+):
     async with sessions() as session, session.begin():
-        require_row(await session.get(AgentRow, agent_id), "agent_not_found")
+        await owned_agent(session, user, agent_id)
         thread = ThreadRow(agent_id=agent_id, title=f"Routine: {body.prompt[:60]}")
         session.add(thread)
         await session.flush()
@@ -218,9 +333,9 @@ async def create_routine(agent_id: uuid.UUID, body: RoutineCreate):
 
 
 @app.get("/agents/{agent_id}/routines")
-async def list_routines(agent_id: uuid.UUID):
+async def list_routines(agent_id: uuid.UUID, user: UserRow = Depends(authenticated_user)):
     async with sessions() as session:
-        require_row(await session.get(AgentRow, agent_id), "agent_not_found")
+        await owned_agent(session, user, agent_id)
         rows = (
             await session.scalars(
                 select(RoutineRow)

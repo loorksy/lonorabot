@@ -1,6 +1,11 @@
 from pydantic import BaseModel, Field
 
 
+class LoginRequest(BaseModel):
+    email: str = Field(min_length=3, max_length=254)
+    password: str = Field(min_length=12, max_length=128)
+
+
 class AgentCreate(BaseModel):
     name: str = Field(min_length=1, max_length=80)
     instructions: str = Field(default="", max_length=8000)
