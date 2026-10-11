@@ -14,7 +14,7 @@ import {
 } from "./api";
 import { errorMessage, translate, type Language, type TranslationKey } from "./i18n";
 
-type View = "chat" | "memory" | "routines" | "settings";
+type View = "overview" | "chat" | "memory" | "routines" | "settings";
 
 const modelProviders: { id: ModelProviderId; label: TranslationKey }[] = [
   { id: "xai", label: "providerXai" },
@@ -73,6 +73,7 @@ export default function App() {
   const [requestError, setRequestError] = useState("");
 
   const selectedAgent = agents.find((agent) => agent.id === selectedAgentId) ?? null;
+  const activeRoutines = routines.filter((routine) => routine.enabled);
 
   useEffect(() => {
     selectedThreadIdRef.current = selectedThreadId;
@@ -109,24 +110,28 @@ export default function App() {
 
   const openAgent = useCallback(
     async (agentId: string) => {
+      setRequestError("");
       setSelectedAgentId(agentId);
       setSelectedThreadId(null);
       setMessages([]);
       setMemory("");
       setRoutines([]);
-      setView("chat");
+      setView("overview");
       setLoading(true);
       try {
-        const result = await api.threads(agentId);
-        setThreads(result);
-        if (result.length > 0) await openThread(result[0].id);
+        const [threadRows, routineRows] = await Promise.all([
+          api.threads(agentId),
+          api.routines(agentId),
+        ]);
+        setThreads(threadRows);
+        setRoutines(routineRows);
       } catch {
         setRequestError("request_failed");
       } finally {
         setLoading(false);
       }
     },
-    [openThread],
+    [],
   );
 
   const loadWorkspace = useCallback(async () => {
@@ -207,6 +212,8 @@ export default function App() {
       setSelectedThreadId(null);
       setThreads([]);
       setMessages([]);
+      setRoutines([]);
+      setView("overview");
     } catch (error) {
       setRequestError(error instanceof Error ? error.message : "request_failed");
     } finally {
@@ -561,6 +568,14 @@ export default function App() {
         {token && (
           <nav className="workspace-nav" aria-label={t("agents")}>
             <button
+              className={view === "overview" ? "selected" : ""}
+              onClick={() => setView("overview")}
+              disabled={!selectedAgent}
+              type="button"
+            >
+              <span>◉</span>{t("overview")}
+            </button>
+            <button
               className={view === "chat" ? "selected" : ""}
               onClick={() => setView("chat")}
               disabled={!selectedAgent}
@@ -607,6 +622,123 @@ export default function App() {
                 + {t("createAgent")}
               </button>
             </div>
+          )}
+
+          {selectedAgent && view === "overview" && (
+            <section className="agent-overview panel-view">
+              <div className="overview-heading">
+                <div className="overview-identity">
+                  <div className="overview-avatar">{selectedAgent.name.slice(0, 1).toUpperCase()}</div>
+                  <div>
+                    <p className="eyebrow">{t("agentWorkspace")}</p>
+                    <h1>{selectedAgent.name}</h1>
+                    <p className="overview-description" dir="auto">
+                      {selectedAgent.instructions || t("defaultInstructions")}
+                    </p>
+                  </div>
+                </div>
+                <div className="overview-actions">
+                  <button
+                    className="button primary"
+                    onClick={() => {
+                      if (threads[0]) {
+                        setView("chat");
+                        void openThread(threads[0].id).catch(() => setRequestError("request_failed"));
+                      } else {
+                        void createThread();
+                      }
+                    }}
+                    type="button"
+                  >
+                    {threads.length ? t("continueConversation") : t("startConversation")}
+                  </button>
+                  <button className="button secondary" onClick={() => void showRoutines()} type="button">
+                    {t("manageRoutines")}
+                  </button>
+                </div>
+              </div>
+
+              {(requestError || notice) && (
+                <div className={`notice ${requestError ? "error" : ""}`}>
+                  {requestError ? errorMessage(requestError, language) : t("saved")}
+                </div>
+              )}
+
+              <div className="overview-stats">
+                <article className="overview-stat">
+                  <span className="overview-stat-icon">◌</span>
+                  <div><strong>{threads.length}</strong><span>{t("conversations")}</span></div>
+                </article>
+                <article className="overview-stat">
+                  <span className="overview-stat-icon routine-stat-icon">◷</span>
+                  <div><strong>{activeRoutines.length}</strong><span>{t("activeRoutines")}</span></div>
+                </article>
+                <article className="overview-stat">
+                  <span className={`overview-stat-icon ${health?.model_configured ? "ready-stat-icon" : ""}`}>✳</span>
+                  <div>
+                    <strong>{health?.model_configured ? t("modelReady") : t("modelMissing")}</strong>
+                    <span>{t("modelConnection")}</span>
+                  </div>
+                </article>
+              </div>
+
+              <div className="overview-lower">
+                <section className="overview-section">
+                  <div className="overview-section-heading">
+                    <div><h2>{t("recentConversations")}</h2><p>{t("recentConversationsHint")}</p></div>
+                    <button className="text-button" onClick={() => setView("chat")} type="button">
+                      {t("openChat")}
+                    </button>
+                  </div>
+                  {threads.length > 0 ? (
+                    <div className="overview-thread-list">
+                      {threads.slice(0, 5).map((thread) => (
+                        <button
+                          className="overview-thread"
+                          key={thread.id}
+                          onClick={() => {
+                            setView("chat");
+                            void openThread(thread.id).catch(() => setRequestError("request_failed"));
+                          }}
+                          type="button"
+                        >
+                          <span className="overview-thread-mark">◌</span>
+                          <span className="overview-thread-title">{thread.title}</span>
+                          <time dir="auto">{formatDate(thread.created_at, language)}</time>
+                          <span className="overview-thread-arrow">›</span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="overview-empty">
+                      <span>◌</span><p>{t("noThreads")}</p>
+                    </div>
+                  )}
+                </section>
+
+                <aside className="overview-section overview-routines">
+                  <div className="overview-section-heading">
+                    <div><h2>{t("routines")}</h2><p>{t("routineHint")}</p></div>
+                    <button className="icon-button" aria-label={t("manageRoutines")} onClick={() => void showRoutines()} type="button">↗</button>
+                  </div>
+                  {activeRoutines.length > 0 ? (
+                    <div className="overview-routine-list">
+                      {activeRoutines.slice(0, 3).map((routine) => (
+                        <article className="overview-routine" key={routine.id}>
+                          <span className="routine-pulse" />
+                          <div><strong dir="auto">{routine.prompt}</strong><span>{t("nextRun")} · {formatDate(routine.next_run_at, language)}</span></div>
+                        </article>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="overview-empty compact"><span>◷</span><p>{t("noRoutines")}</p></div>
+                  )}
+                  <button className="overview-link" onClick={() => void showMemory()} type="button">
+                    <span className="overview-link-icon">◈</span><span>{t("memoryTitle")}</span><span>›</span>
+                  </button>
+                </aside>
+              </div>
+            </section>
           )}
 
           {selectedAgent && view === "chat" && (
