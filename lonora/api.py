@@ -2,9 +2,10 @@ import uuid
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import cast
 
 import jwt
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select, text
@@ -12,20 +13,36 @@ from sqlalchemy import select, text
 from .auth import DUMMY_PASSWORD_HASH, issue_access_token, read_access_token, verify_password
 from .config import get_settings
 from .database import create_database
-from .orm import AgentRow, MemoryRow, MessageRow, RoutineRow, RunRow, ThreadRow, UserRow
-from .provider import GrokProvider
+from .orm import (
+    AgentRow,
+    GlobalModelSettingsRow,
+    MemoryRow,
+    MessageRow,
+    RoutineRow,
+    RunRow,
+    ThreadRow,
+    UserRow,
+)
+from .provider import (
+    PROVIDER_BASE_URLS,
+    GlobalModelRouter,
+    ModelConfigurationError,
+    ModelProviderError,
+)
 from .schemas import (
     AgentCreate,
     LoginRequest,
     MemoryUpdate,
     MessageCreate,
+    ModelSettingsUpdate,
+    ProviderId,
     RoutineCreate,
     ThreadCreate,
 )
 
 settings = get_settings()
 engine, sessions = create_database(settings.database_url)
-provider = GrokProvider(settings)
+provider = GlobalModelRouter(settings)
 
 
 @asynccontextmanager
@@ -86,6 +103,19 @@ async def owned_thread(session, user: UserRow, thread_id: uuid.UUID, *, lock: bo
     return require_row(await session.scalar(query), "thread_not_found")
 
 
+async def global_model_settings(session) -> GlobalModelSettingsRow:
+    row = await session.get(GlobalModelSettingsRow, 1)
+    if row is None:
+        row = GlobalModelSettingsRow(
+            id=1,
+            provider=settings.model_provider,
+            model_name=settings.model_name,
+        )
+        session.add(row)
+        await session.flush()
+    return row
+
+
 @app.post("/auth/login")
 async def login(body: LoginRequest):
     email = body.email.strip().lower()
@@ -115,6 +145,57 @@ async def health():
     except Exception:
         raise HTTPException(503, "database_unavailable") from None
     return {"status": "ok", "model_configured": provider.configured, "worker": "separate process"}
+
+
+@app.get("/settings/model")
+async def read_model_settings(user: UserRow = Depends(authenticated_user)):
+    async with sessions() as session, session.begin():
+        row = await global_model_settings(session)
+        return {
+            "provider": row.provider,
+            "model_name": row.model_name,
+            "key_configured": provider.configured,
+            "supported_providers": list(PROVIDER_BASE_URLS),
+            "updated_at": row.updated_at.isoformat(),
+        }
+
+
+@app.put("/settings/model")
+async def update_model_settings(
+    body: ModelSettingsUpdate,
+    user: UserRow = Depends(authenticated_user),
+):
+    async with sessions() as session, session.begin():
+        row = await global_model_settings(session)
+        row.provider = body.provider
+        row.model_name = body.model_name.strip()
+        row.updated_at = utcnow()
+        await session.flush()
+        return {
+            "provider": row.provider,
+            "model_name": row.model_name,
+            "key_configured": provider.configured,
+            "supported_providers": list(PROVIDER_BASE_URLS),
+            "updated_at": row.updated_at.isoformat(),
+        }
+
+
+@app.get("/settings/model/models")
+async def discover_models(
+    provider_id: ProviderId | None = Query(default=None, alias="provider"),
+    user: UserRow = Depends(authenticated_user),
+):
+    if provider_id is None:
+        async with sessions() as session:
+            row = await session.get(GlobalModelSettingsRow, 1)
+            provider_id = cast(ProviderId, row.provider if row else settings.model_provider)
+    try:
+        models = await provider.discover_models(provider_id)
+    except ModelConfigurationError as exc:
+        raise HTTPException(409, str(exc)) from None
+    except ModelProviderError as exc:
+        raise HTTPException(502, str(exc)) from None
+    return {"provider": provider_id, "models": models}
 
 
 @app.post("/agents", status_code=201)

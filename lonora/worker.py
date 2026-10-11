@@ -3,6 +3,7 @@ import logging
 import socket
 import uuid
 from datetime import UTC, timedelta
+from typing import cast
 
 from sqlalchemy import and_, exists, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -10,8 +11,18 @@ from sqlalchemy.orm import aliased
 
 from .config import Settings, get_settings
 from .database import create_database
-from .orm import AgentRow, MemoryRow, MessageRow, RoutineRow, RunRow, ThreadRow, utcnow
-from .provider import GrokProvider, ModelConfigurationError, ModelProviderError
+from .orm import (
+    AgentRow,
+    GlobalModelSettingsRow,
+    MemoryRow,
+    MessageRow,
+    RoutineRow,
+    RunRow,
+    ThreadRow,
+    utcnow,
+)
+from .provider import GlobalModelRouter, ModelConfigurationError, ModelProviderError
+from .schemas import ProviderId
 
 log = logging.getLogger("lonora.worker")
 
@@ -29,7 +40,7 @@ class Worker:
             self.engine, self.sessions = create_database(self.settings.database_url)
         else:
             self.engine, self.sessions = None, sessions
-        self.provider = GrokProvider(self.settings)
+        self.provider = GlobalModelRouter(self.settings)
         self.worker_id = worker_id or f"{socket.gethostname()}-{uuid.uuid4()}"
         self.stopping = asyncio.Event()
 
@@ -157,6 +168,9 @@ class Worker:
                 await session.flush()
             agent = await session.get(AgentRow, thread.agent_id)
             memory = await session.get(MemoryRow, thread.agent_id)
+            global_model = await session.get(GlobalModelSettingsRow, 1)
+            model_provider = global_model.provider if global_model else self.settings.model_provider
+            model_name = global_model.model_name if global_model else self.settings.model_name
             history = list(
                 (
                     await session.scalars(
@@ -181,7 +195,9 @@ class Worker:
             )
 
         try:
-            answer = await self.provider.respond(messages)
+            answer = await self.provider.respond(
+                messages, provider=cast(ProviderId, model_provider), model_name=model_name
+            )
             error_code = None
         except ModelConfigurationError:
             answer, error_code = "", "model_not_configured"

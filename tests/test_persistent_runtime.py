@@ -8,12 +8,20 @@ from sqlalchemy import select, update
 from lonora import api
 from lonora.auth import hash_password
 from lonora.orm import Base, MessageRow, RoutineRow, UserRow, utcnow
-from lonora.provider import GrokProvider
+from lonora.provider import GlobalModelRouter
 from lonora.worker import Worker
 
 
 class FakeProvider:
-    async def respond(self, messages: list[dict[str, str]]) -> str:
+    def __init__(self):
+        self.provider = ""
+        self.model_name = ""
+
+    async def respond(
+        self, messages: list[dict[str, str]], *, provider: str, model_name: str
+    ) -> str:
+        self.provider = provider
+        self.model_name = model_name
         latest = messages[-1]["content"]
         if latest == "Scheduled task: summarize the market":
             return "Market summary ready"
@@ -52,6 +60,17 @@ async def test_agent_conversation_memory_and_routine_survive_worker_execution():
             assert login.status_code == 200
             client.headers["Authorization"] = f"Bearer {login.json()['access_token']}"
             assert (await client.get("/auth/me")).json()["email"] == "owner@example.com"
+            initial_model = (await client.get("/settings/model")).json()
+            assert initial_model["provider"] == "xai"
+            assert initial_model["key_configured"] is False
+            saved_model = await client.put(
+                "/settings/model", json={"provider": "openai", "model_name": "test-model-id"}
+            )
+            assert saved_model.json()["provider"] == "openai"
+            assert saved_model.json()["model_name"] == "test-model-id"
+            unavailable_models = await client.get("/settings/model/models?provider=openai")
+            assert unavailable_models.status_code == 409
+            assert unavailable_models.json()["detail"] == "model_not_configured"
             agent = (
                 await client.post(
                     "/agents", json={"name": "Lonora", "instructions": "Respond in Arabic."}
@@ -81,6 +100,8 @@ async def test_agent_conversation_memory_and_routine_survive_worker_execution():
             run = await worker._claim_next()
             assert run is not None
             await worker._execute(run)
+            assert worker.provider.provider == "openai"
+            assert worker.provider.model_name == "test-model-id"
 
             status = (await client.get(f"/runs/{run['id']}")).json()
             conversation = (await client.get(f"/threads/{thread['id']}")).json()
@@ -93,7 +114,7 @@ async def test_agent_conversation_memory_and_routine_survive_worker_execution():
             failed_turn = await client.post(
                 f"/threads/{thread['id']}/messages", json={"content": "Another request"}
             )
-            worker.provider = GrokProvider(api.settings)
+            worker.provider = GlobalModelRouter(api.settings)
             failed_run = await worker._claim_next()
             assert failed_run is not None
             await worker._execute(failed_run)

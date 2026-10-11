@@ -142,3 +142,19 @@ class RoutineRow(Base):
     next_run_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     enabled: Mapped[bool] = mapped_column(nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class GlobalModelSettingsRow(Base):
+    __tablename__ = "global_model_settings"
+    __table_args__ = (
+        CheckConstraint("id = 1", name="global_model_settings_singleton_check"),
+        CheckConstraint(
+            "provider IN ('xai', 'openai', 'anthropic', 'deepseek', 'zai', 'openrouter')",
+            name="global_model_settings_provider_check",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
+    provider: Mapped[str] = mapped_column(String(32), nullable=False)
+    model_name: Mapped[str] = mapped_column(String(200), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

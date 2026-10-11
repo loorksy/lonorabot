@@ -42,6 +42,16 @@ export type Health = {
   worker: string;
 };
 
+export type ModelProviderId = "xai" | "openai" | "anthropic" | "deepseek" | "zai" | "openrouter";
+
+export type GlobalModelSettings = {
+  provider: ModelProviderId;
+  model_name: string;
+  key_configured: boolean;
+  supported_providers: ModelProviderId[];
+  updated_at: string;
+};
+
 export class ApiError extends Error {
   constructor(
     public readonly code: string,
@@ -97,6 +107,16 @@ export const api = {
     }),
   me: () => request<{ id: string; email: string }>("/auth/me"),
   health: () => request<Health>("/health"),
+  modelSettings: () => request<GlobalModelSettings>("/settings/model"),
+  saveModelSettings: (provider: ModelProviderId, model_name: string) =>
+    request<GlobalModelSettings>("/settings/model", {
+      method: "PUT",
+      body: JSON.stringify({ provider, model_name }),
+    }),
+  discoverModels: (provider: ModelProviderId) =>
+    request<{ provider: ModelProviderId; models: { id: string; name: string }[] }>(
+      `/settings/model/models?provider=${provider}`,
+    ),
   agents: () => request<Agent[]>("/agents"),
   createAgent: (name: string, instructions: string) =>
     request<Agent>("/agents", {

@@ -1,9 +1,18 @@
+from typing import Literal
+
 from pydantic import BaseModel, Field
+
+ProviderId = Literal["xai", "openai", "anthropic", "deepseek", "zai", "openrouter"]
 
 
 class LoginRequest(BaseModel):
     email: str = Field(min_length=3, max_length=254)
     password: str = Field(min_length=12, max_length=128)
+
+
+class ModelSettingsUpdate(BaseModel):
+    provider: ProviderId
+    model_name: str = Field(min_length=1, max_length=200)
 
 
 class AgentCreate(BaseModel):

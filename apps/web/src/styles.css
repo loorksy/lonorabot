@@ -83,6 +83,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 .language-button:hover { border-color: var(--line-strong); color: var(--text); background: var(--surface-raised); }
 .workspace-nav { display: flex; min-height: 49px; align-items: stretch; gap: 22px; padding: 0 32px; border-bottom: 1px solid var(--line); }
 .workspace-nav button { position: relative; display: flex; align-items: center; gap: 8px; padding: 0 3px; border: 0; color: #74827c; background: transparent; cursor: pointer; font-size: 11px; transition: color 140ms ease; }
+.workspace-nav button:disabled { opacity: .35; cursor: not-allowed; }
 .workspace-nav button:hover { color: #c3cec8; }
 .workspace-nav button.selected { color: var(--accent-strong); }
 .workspace-nav button.selected::after { position: absolute; inset-inline: 0; bottom: -1px; height: 2px; border-radius: 2px 2px 0 0; background: var(--accent); content: ""; }
@@ -149,11 +150,26 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 .panel-heading p { margin: 0; color: #84918b; font-size: 11px; line-height: 1.7; }
 .panel-card { display: grid; gap: 13px; padding: 20px; border: 1px solid var(--line); border-radius: 13px; background: rgba(18, 28, 30, .85); }
 .panel-card > label, .stack-form label > span { color: #a9b5af; font-size: 11px; font-weight: 600; }
-.panel-card textarea, .panel-card input, .stack-form input, .stack-form textarea { width: 100%; border: 1px solid rgba(190, 211, 199, .12); border-radius: 9px; color: #e0e7e2; background: #111a1d; font-size: 12px; transition: border 150ms ease, background 150ms ease; }
+.panel-card textarea, .panel-card input, .panel-card select, .stack-form input, .stack-form textarea { width: 100%; border: 1px solid rgba(190, 211, 199, .12); border-radius: 9px; color: #e0e7e2; background: #111a1d; font-size: 12px; transition: border 150ms ease, background 150ms ease; }
 .panel-card textarea, .stack-form textarea { min-height: 80px; resize: vertical; padding: 11px 12px; line-height: 1.8; }
-.panel-card textarea:focus, .panel-card input:focus, .stack-form input:focus, .stack-form textarea:focus { border-color: rgba(213, 163, 106, .48); outline: 0; background: #131e20; }
+.panel-card input, .panel-card select { min-height: 40px; padding: 0 11px; }
+.panel-card textarea:focus, .panel-card input:focus, .panel-card select:focus, .stack-form input:focus, .stack-form textarea:focus { border-color: rgba(213, 163, 106, .48); outline: 0; background: #131e20; }
 .panel-card textarea:disabled { opacity: .7; }
 .panel-card .button { justify-self: start; }
+.settings-card { gap: 10px; }
+.settings-icon { color: #aebcae; border-color: rgba(174, 188, 174, .18); background: rgba(174, 188, 174, .08); }
+.key-status { display: flex; width: fit-content; align-items: center; gap: 8px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 10px; }
+.key-status.configured { border-color: rgba(128, 181, 156, .2); color: #9ac5af; background: rgba(80, 131, 104, .07); }
+.key-status.missing { border-color: rgba(213, 163, 106, .18); color: #caaa7e; background: rgba(160, 115, 61, .07); }
+.key-hint { max-width: 620px; margin: 0 0 5px; color: #7f8c86; font-size: 10px; line-height: 1.8; }
+.label-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.label-row > label { color: #a9b5af; font-size: 11px; font-weight: 600; }
+.model-name-input { max-width: 100%; }
+.model-options { display: grid; max-height: 210px; gap: 4px; overflow-y: auto; padding: 4px; border: 1px solid var(--line); border-radius: 10px; background: #0f1719; }
+.model-option { display: grid; gap: 4px; padding: 8px 9px; border: 1px solid transparent; border-radius: 7px; color: #9eaca5; background: transparent; text-align: start; cursor: pointer; }
+.model-option:hover, .model-option.selected { border-color: rgba(213, 163, 106, .15); color: #dec6a4; background: rgba(213, 163, 106, .07); }
+.model-option strong { font-size: 10px; font-weight: 500; }
+.model-option span { color: #74817b; font-size: 9px; }
 .interval-input { max-width: 160px; min-height: 39px; padding: 0 11px; }
 .routine-list { display: grid; gap: 8px; margin-top: 15px; }
 .routine-card { display: flex; align-items: center; gap: 12px; padding: 13px 15px; border: 1px solid var(--line); border-radius: 11px; background: rgba(20, 31, 31, .7); }

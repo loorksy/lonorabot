@@ -1,9 +1,29 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { api, type Agent, type Health, type Message, type Routine, type Thread, getToken, saveToken } from "./api";
+import {
+  api,
+  type Agent,
+  type GlobalModelSettings,
+  type Health,
+  type Message,
+  type ModelProviderId,
+  type Routine,
+  type Thread,
+  getToken,
+  saveToken,
+} from "./api";
 import { errorMessage, translate, type Language, type TranslationKey } from "./i18n";
 
-type View = "chat" | "memory" | "routines";
+type View = "chat" | "memory" | "routines" | "settings";
+
+const modelProviders: { id: ModelProviderId; label: TranslationKey }[] = [
+  { id: "xai", label: "providerXai" },
+  { id: "openai", label: "providerOpenai" },
+  { id: "anthropic", label: "providerAnthropic" },
+  { id: "deepseek", label: "providerDeepseek" },
+  { id: "zai", label: "providerZai" },
+  { id: "openrouter", label: "providerOpenrouter" },
+];
 
 function wait(milliseconds: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
@@ -32,6 +52,10 @@ export default function App() {
   const selectedThreadIdRef = useRef<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [health, setHealth] = useState<Health | null>(null);
+  const [modelSettings, setModelSettings] = useState<GlobalModelSettings | null>(null);
+  const [modelProvider, setModelProvider] = useState<ModelProviderId>("xai");
+  const [modelName, setModelName] = useState("grok-4.20-0309-non-reasoning");
+  const [modelOptions, setModelOptions] = useState<{ id: string; name: string }[]>([]);
   const [view, setView] = useState<View>("chat");
   const [showAgentForm, setShowAgentForm] = useState(false);
   const [agentName, setAgentName] = useState("");
@@ -42,6 +66,8 @@ export default function App() {
   const [routinePrompt, setRoutinePrompt] = useState("");
   const [routineMinutes, setRoutineMinutes] = useState(60);
   const [busy, setBusy] = useState(false);
+  const [discovering, setDiscovering] = useState(false);
+  const [savingModel, setSavingModel] = useState(false);
   const [loading, setLoading] = useState(false);
   const [notice, setNotice] = useState("");
   const [requestError, setRequestError] = useState("");
@@ -106,10 +132,18 @@ export default function App() {
   const loadWorkspace = useCallback(async () => {
     setLoading(true);
     try {
-      const [account, agentRows, service] = await Promise.all([api.me(), api.agents(), api.health()]);
+      const [account, agentRows, service, modelConfig] = await Promise.all([
+        api.me(),
+        api.agents(),
+        api.health(),
+        api.modelSettings(),
+      ]);
       setAccountEmail(account.email);
       setAgents(agentRows);
       setHealth(service);
+      setModelSettings(modelConfig);
+      setModelProvider(modelConfig.provider);
+      setModelName(modelConfig.model_name);
       const preferredAgent = agentRows[0];
       if (preferredAgent) await openAgent(preferredAgent.id);
       else {
@@ -308,6 +342,53 @@ export default function App() {
     }
   }
 
+  async function showSettings() {
+    setView("settings");
+    setLoading(true);
+    setRequestError("");
+    try {
+      const result = await api.modelSettings();
+      setModelSettings(result);
+      setModelProvider(result.provider);
+      setModelName(result.model_name);
+    } catch (error) {
+      setRequestError(error instanceof Error ? error.message : "request_failed");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function discoverModels() {
+    setDiscovering(true);
+    setRequestError("");
+    setModelOptions([]);
+    try {
+      const result = await api.discoverModels(modelProvider);
+      setModelOptions(result.models);
+      if (result.models.length === 0) setRequestError("model_provider_models_unavailable");
+    } catch (error) {
+      setRequestError(error instanceof Error ? error.message : "request_failed");
+    } finally {
+      setDiscovering(false);
+    }
+  }
+
+  async function saveModelSettings(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSavingModel(true);
+    setRequestError("");
+    setNotice("");
+    try {
+      const result = await api.saveModelSettings(modelProvider, modelName.trim());
+      setModelSettings(result);
+      setNotice("model_saved");
+    } catch (error) {
+      setRequestError(error instanceof Error ? error.message : "request_failed");
+    } finally {
+      setSavingModel(false);
+    }
+  }
+
   function switchLanguage() {
     setLanguage((current) => (current === "ar" ? "en" : "ar"));
   }
@@ -464,9 +545,7 @@ export default function App() {
           <div className="topbar-title">
             <span className="crumb">{selectedAgent?.name ?? t("brand")}</span>
             <span className="crumb-separator">/</span>
-            <span className="current-view">
-              {view === "chat" ? t("chat") : view === "memory" ? t("memory") : t("routines")}
-            </span>
+            <span className="current-view">{t(view)}</span>
           </div>
           <div className="topbar-actions">
             <div className={`top-status ${health?.status === "ok" ? "good" : "bad"}`}>
@@ -479,11 +558,12 @@ export default function App() {
           </div>
         </header>
 
-        {selectedAgent && (
+        {token && (
           <nav className="workspace-nav" aria-label={t("agents")}>
             <button
               className={view === "chat" ? "selected" : ""}
               onClick={() => setView("chat")}
+              disabled={!selectedAgent}
               type="button"
             >
               <span>◌</span>{t("chat")}
@@ -491,6 +571,7 @@ export default function App() {
             <button
               className={view === "memory" ? "selected" : ""}
               onClick={() => void showMemory()}
+              disabled={!selectedAgent}
               type="button"
             >
               <span>◈</span>{t("memory")}
@@ -498,15 +579,23 @@ export default function App() {
             <button
               className={view === "routines" ? "selected" : ""}
               onClick={() => void showRoutines()}
+              disabled={!selectedAgent}
               type="button"
             >
               <span>◷</span>{t("routines")}
+            </button>
+            <button
+              className={view === "settings" ? "selected" : ""}
+              onClick={() => void showSettings()}
+              type="button"
+            >
+              <span>⚙</span>{t("settings")}
             </button>
           </nav>
         )}
 
         <main className={`content-area ${view === "chat" ? "chat-content" : ""}`}>
-          {!selectedAgent && (
+          {!selectedAgent && view !== "settings" && (
             <div className="empty-workspace">
               <div className="hero-orbit"><span>✳</span></div>
               <p className="eyebrow">{t("tagline")}</p>
@@ -658,6 +747,70 @@ export default function App() {
                 ))}
                 {!loading && routines.length === 0 && <p className="muted empty-routines">{t("noRoutines")}</p>}
               </div>
+            </section>
+          )}
+
+          {view === "settings" && (
+            <section className="panel-view settings-view">
+              <div className="panel-heading">
+                <div className="panel-icon settings-icon">⚙</div>
+                <div><h1>{t("globalModels")}</h1><p>{t("globalModelsHint")}</p></div>
+              </div>
+              <form className="panel-card settings-card" onSubmit={(event) => void saveModelSettings(event)}>
+                <div className={`key-status ${modelSettings?.key_configured ? "configured" : "missing"}`}>
+                  <span className="status-dot" />
+                  <span>{modelSettings?.key_configured ? t("apiKeyReady") : t("apiKeyMissing")}</span>
+                </div>
+                <p className="key-hint">{t("apiKeyHint")}</p>
+                <label htmlFor="model-provider">{t("provider")}</label>
+                <select
+                  id="model-provider"
+                  value={modelProvider}
+                  onChange={(event) => {
+                    setModelProvider(event.target.value as ModelProviderId);
+                    setModelOptions([]);
+                  }}
+                >
+                  {modelProviders.map((option) => (
+                    <option key={option.id} value={option.id}>{t(option.label)}</option>
+                  ))}
+                </select>
+                <div className="label-row">
+                  <label htmlFor="model-name">{t("modelName")}</label>
+                  <button className="text-button" type="button" onClick={() => void discoverModels()} disabled={discovering || savingModel}>
+                    {discovering ? t("discoveringModels") : t("discoverModels")}
+                  </button>
+                </div>
+                <input
+                  id="model-name"
+                  className="model-name-input"
+                  value={modelName}
+                  onChange={(event) => setModelName(event.target.value)}
+                  maxLength={200}
+                  dir="ltr"
+                  required
+                />
+                {modelOptions.length > 0 && (
+                  <div className="model-options" aria-label={t("discoverModels")}>
+                    {modelOptions.map((option) => (
+                      <button
+                        key={option.id}
+                        className={`model-option ${modelName === option.id ? "selected" : ""}`}
+                        type="button"
+                        onClick={() => setModelName(option.id)}
+                      >
+                        <strong dir="ltr">{option.id}</strong>
+                        {option.name !== option.id && <span dir="auto">{option.name}</span>}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {requestError && <div className="notice error">{errorMessage(requestError, language)}</div>}
+                {notice && <div className="notice">{t("modelSaved")}</div>}
+                <button className="button primary" type="submit" disabled={savingModel || discovering || !modelName.trim()}>
+                  {savingModel ? t("saving") : t("saveSettings")}
+                </button>
+              </form>
             </section>
           )}
         </main>

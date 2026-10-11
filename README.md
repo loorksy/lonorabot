@@ -1,8 +1,8 @@
 # Lonora
 
-Lonora is a Python-first platform for persistent AI agents. Agents retain durable identities, conversation history, and long-term memory; a separate worker executes queued and scheduled work so agents keep running when the browser is closed. The initial model adapter targets xAI Grok through its OpenAI-compatible API. The application is an independent implementation inspired by persistent-agent systems; it does not reuse their source code.
+Lonora is a Python-first platform for persistent AI agents. Agents retain durable identities, conversation history, and long-term memory; a separate worker executes queued and scheduled work so agents keep running when the browser is closed. Its global model router defaults to xAI Grok and supports OpenAI, Anthropic, DeepSeek, Z.ai, and OpenRouter. The application is an independent implementation inspired by persistent-agent systems; it does not reuse their source code.
 
-The project is being built from a clean `main` history using the requirements in [`docs/`](docs/). The current backend foundation includes FastAPI, PostgreSQL migrations, durable agents and memory, scheduled runs, worker recovery, password-based single-owner login, and per-owner API access. The full product plan also includes a React/TypeScript Arabic-first RTL client, global model routing, collaboration, tools, market research, safely gated trading, and realtime voice. Those capabilities will be delivered in subsequent milestones; they are not represented as complete here.
+The project is being built from a clean `main` history using the requirements in [`docs/`](docs/). The current foundation includes FastAPI, PostgreSQL migrations, a React/TypeScript Arabic-first RTL client, durable agents and memory, scheduled runs, worker recovery, password-based single-owner login, owner-scoped API access, and global unified model selection. The remaining product plan includes custom capability routing, richer agent tools and collaboration, market research, safely gated trading, and realtime voice. Those capabilities will be delivered in subsequent milestones; they are not represented as complete here.
 
 ## Run locally
 
@@ -35,7 +35,7 @@ Run the persistent worker in a second terminal:
 python -m lonora.worker
 ```
 
-The API serves the built web app at `/`. For frontend development with hot reload, run `npm run dev --prefix apps/web`; its proxy connects to the API at `127.0.0.1:8000`. The model key is optional for startup but required for generated responses. Set `LONORA_MODEL_API_KEY` through your shell or secret manager. Never commit credentials. The default global provider is xAI, with `grok-4.20-0309-non-reasoning` as the configured model. The endpoint and model can be changed without per-agent overrides.
+The API serves the built web app at `/`. For frontend development with hot reload, run `npm run dev --prefix apps/web`; its proxy connects to the API at `127.0.0.1:8000`. The model key is optional for startup but required for generated responses. Set `LONORA_MODEL_API_KEY` through your shell or secret manager. Never commit credentials. The global provider and model are changed in Settings, and discovered models come from the selected provider's API. No agent has a separate provider or model setting.
 
 The admin command prompts for a password and creates the local owner account. There is no public account-registration endpoint. Sign in at the web app, or call `POST /auth/login` and use its bearer token for protected API calls. Check `GET /health`; interactive API documentation is at `/docs`. A basic conversation flow is:
 
@@ -53,7 +53,8 @@ Settings use the `LONORA_` environment prefix and can be set in `.env` for local
 - `LONORA_DATABASE_URL` — async PostgreSQL URL; local Compose default is `postgresql+asyncpg://lonora:lonora@127.0.0.1:5432/lonora`.
 - `LONORA_JWT_SECRET` — private signing key of at least 32 characters; generate a fresh random value for each deployment.
 - `LONORA_AUTH_TOKEN_TTL_SECONDS` — login token lifetime; defaults to 24 hours.
-- `LONORA_MODEL_BASE_URL` — OpenAI-compatible endpoint; defaults to `https://api.x.ai/v1`.
+- `LONORA_MODEL_PROVIDER` — initial global provider; defaults to `xai`.
+- Supported providers are `xai`, `openai`, `anthropic`, `deepseek`, `zai`, and `openrouter`.
 - `LONORA_MODEL_NAME` — global model identifier.
 - `LONORA_MODEL_API_KEY` — server-side provider secret.
 - `LONORA_WORKER_POLL_SECONDS` — queue polling interval; defaults to `0.5`.
