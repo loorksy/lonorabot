@@ -1,10 +1,12 @@
 import uuid
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 import jwt
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select, text
 
 from .auth import DUMMY_PASSWORD_HASH, issue_access_token, read_access_token, verify_password
@@ -327,7 +329,9 @@ async def create_routine(
             "id": str(routine.id),
             "agent_id": str(agent_id),
             "thread_id": str(thread.id),
+            "prompt": routine.prompt,
             "interval_seconds": routine.interval_seconds,
+            "next_run_at": routine.next_run_at.isoformat(),
             "enabled": routine.enabled,
         }
 
@@ -354,3 +358,8 @@ async def list_routines(agent_id: uuid.UUID, user: UserRow = Depends(authenticat
             }
             for row in rows
         ]
+
+
+web_build = Path(__file__).resolve().parents[1] / "apps" / "web" / "dist"
+if web_build.is_dir():
+    app.mount("/", StaticFiles(directory=web_build, html=True), name="web")

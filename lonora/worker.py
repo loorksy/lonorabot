@@ -184,12 +184,12 @@ class Worker:
             answer = await self.provider.respond(messages)
             error_code = None
         except ModelConfigurationError:
-            answer, error_code = "Model provider configuration is required.", "model_not_configured"
+            answer, error_code = "", "model_not_configured"
         except ModelProviderError as exc:
-            answer, error_code = "The model provider request failed.", str(exc)
+            answer, error_code = "", str(exc)
         except Exception as exc:
             log.exception("run_error run_id=%s error_type=%s", run["id"], type(exc).__name__)
-            answer, error_code = "The agent could not complete this run.", "runtime_error"
+            answer, error_code = "", "runtime_error"
 
         now = utcnow()
         async with self.sessions() as session, session.begin():
@@ -210,12 +210,16 @@ class Worker:
             if thread is None:
                 await self._fail_in_session(stored_run, "thread_not_found")
                 return
-            session.add(
-                MessageRow(
-                    thread_id=thread.id, seq=thread.next_seq, role="assistant", content=answer
+            if not error_code:
+                session.add(
+                    MessageRow(
+                        thread_id=thread.id,
+                        seq=thread.next_seq,
+                        role="assistant",
+                        content=answer,
+                    )
                 )
-            )
-            thread.next_seq += 1
+                thread.next_seq += 1
             stored_run.status = "failed" if error_code else "completed"
             stored_run.error_code = error_code
             stored_run.updated_at = now

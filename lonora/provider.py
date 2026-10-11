@@ -19,7 +19,11 @@ class GrokProvider:
 
     @property
     def configured(self) -> bool:
-        return bool(self.settings.model_api_key and self.settings.model_name)
+        return bool(
+            self.settings.model_api_key
+            and self.settings.model_api_key.get_secret_value().strip()
+            and self.settings.model_name.strip()
+        )
 
     async def respond(self, messages: list[dict[str, str]]) -> str:
         if not self.configured:

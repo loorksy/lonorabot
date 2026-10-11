@@ -8,6 +8,7 @@ from sqlalchemy import select, update
 from lonora import api
 from lonora.auth import hash_password
 from lonora.orm import Base, MessageRow, RoutineRow, UserRow, utcnow
+from lonora.provider import GrokProvider
 from lonora.worker import Worker
 
 
@@ -42,6 +43,7 @@ async def test_agent_conversation_memory_and_routine_survive_worker_execution():
             transport=ASGITransport(app=api.app), base_url="http://lonora"
         ) as client:
             assert (await client.get("/health")).status_code == 200
+            assert (await client.get("/")).headers["content-type"].startswith("text/html")
             assert (await client.get("/agents")).status_code == 401
             login = await client.post(
                 "/auth/login",
@@ -68,6 +70,7 @@ async def test_agent_conversation_memory_and_routine_survive_worker_execution():
                     f"/agents/{agent['id']}/threads", json={"title": "First conversation"}
                 )
             ).json()
+            assert len((await client.get(f"/agents/{agent['id']}/threads")).json()) == 1
             queued = await client.post(
                 f"/threads/{thread['id']}/messages", json={"content": "مرحبا"}
             )
@@ -87,6 +90,24 @@ async def test_agent_conversation_memory_and_routine_survive_worker_execution():
                 "Welcome to Lonora",
             ]
 
+            failed_turn = await client.post(
+                f"/threads/{thread['id']}/messages", json={"content": "Another request"}
+            )
+            worker.provider = GrokProvider(api.settings)
+            failed_run = await worker._claim_next()
+            assert failed_run is not None
+            await worker._execute(failed_run)
+            failed_status = (await client.get(f"/runs/{failed_run['id']}")).json()
+            assert failed_turn.status_code == 202
+            assert failed_status["status"] == "failed"
+            assert failed_status["error_code"] == "model_not_configured"
+            failed_conversation = (await client.get(f"/threads/{thread['id']}")).json()
+            assert [message["role"] for message in failed_conversation["messages"]] == [
+                "user",
+                "assistant",
+                "user",
+            ]
+
             saved_memory = await client.put(
                 f"/agents/{agent['id']}/memory", json={"content": "يفضل المستخدم العربية."}
             )
@@ -98,6 +119,9 @@ async def test_agent_conversation_memory_and_routine_survive_worker_execution():
                     json={"prompt": "summarize the market", "interval_seconds": 60},
                 )
             ).json()
+            assert routine["prompt"] == "summarize the market"
+            assert routine["next_run_at"]
+            worker.provider = FakeProvider()
             async with api.sessions() as session, session.begin():
                 await session.execute(
                     update(RoutineRow)

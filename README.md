@@ -6,7 +6,7 @@ The project is being built from a clean `main` history using the requirements in
 
 ## Run locally
 
-Requires Python 3.12+, Docker Compose, and Git.
+Requires Python 3.12+, Node 20.19+, Docker Compose, and Git.
 
 ```bash
 cp .env.example .env
@@ -21,6 +21,8 @@ docker compose up -d db
 python -m venv .venv
 . .venv/bin/activate
 pip install -e '.[dev]'
+npm ci --prefix apps/web
+npm run build --prefix apps/web
 alembic upgrade head
 python -m lonora.admin create-user --email you@example.com
 uvicorn lonora.api:app --reload --host 127.0.0.1 --port 8000
@@ -33,9 +35,9 @@ Run the persistent worker in a second terminal:
 python -m lonora.worker
 ```
 
-The model key is optional for startup but required for generated responses. Set `LONORA_MODEL_API_KEY` through your shell or secret manager. Never commit credentials. The default global provider is xAI, with `grok-4.20-0309-non-reasoning` as the configured model. The endpoint and model can be changed without per-agent overrides.
+The API serves the built web app at `/`. For frontend development with hot reload, run `npm run dev --prefix apps/web`; its proxy connects to the API at `127.0.0.1:8000`. The model key is optional for startup but required for generated responses. Set `LONORA_MODEL_API_KEY` through your shell or secret manager. Never commit credentials. The default global provider is xAI, with `grok-4.20-0309-non-reasoning` as the configured model. The endpoint and model can be changed without per-agent overrides.
 
-The admin command prompts for a password and creates the local owner account. There is no public account-registration endpoint. Sign in with `POST /auth/login`; use its bearer token for protected API calls. Check `GET /health`; interactive API documentation is at `/docs`. A basic conversation flow is:
+The admin command prompts for a password and creates the local owner account. There is no public account-registration endpoint. Sign in at the web app, or call `POST /auth/login` and use its bearer token for protected API calls. Check `GET /health`; interactive API documentation is at `/docs`. A basic conversation flow is:
 
 1. `POST /agents` with `{"name":"Lonora","instructions":"..."}`.
 2. `POST /agents/{agent_id}/threads` with `{"title":"First conversation"}`.

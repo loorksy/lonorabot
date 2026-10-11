@@ -7,3 +7,8 @@ data/
 *.sqlite3
 *.db
 *.egg-info/
+node_modules/
+dist/
+.pytest_cache/
+.ruff_cache/
+*.tsbuildinfo
