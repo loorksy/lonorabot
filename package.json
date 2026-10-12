@@ -9,18 +9,21 @@
   "scripts": {
     "build": "turbo run build",
     "check": "turbo run check",
-    "lint": "biome check apps/web apps/mobile packages/ui-web packages/chat-ui packages/ui-tokens",
-    "format": "biome format --write apps/web apps/mobile packages/ui-web packages/chat-ui packages/ui-tokens",
+    "lint": "biome check apps/web apps/mobile packages/ui-web packages/chat-ui packages/ui-tokens playwright.config.mjs tests/web",
+    "format": "biome format --write apps/web apps/mobile packages/ui-web packages/chat-ui packages/ui-tokens playwright.config.mjs tests/web",
     "i18n": "pnpm --filter @lonora/web i18n",
     "dev:mobile": "pnpm --filter @lonora/mobile start",
     "build:mobile": "pnpm --filter @lonora/mobile build",
-    "check:mobile": "pnpm --filter @lonora/mobile check && pnpm --filter @lonora/mobile check:expo"
+    "check:mobile": "pnpm --filter @lonora/mobile check && pnpm --filter @lonora/mobile check:expo",
+    "test:web": "playwright test",
+    "test:clients": ".venv/bin/python tests/check_clients.py"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.15",
-    "turbo": "^2.8.0",
-    "typescript": "5.9.3",
+    "@playwright/test": "1.58.2",
     "@types/node": "^24.0.0",
-    "tsx": "^4.21.0"
+    "tsx": "^4.21.0",
+    "turbo": "^2.8.0",
+    "typescript": "5.9.3"
   }
 }

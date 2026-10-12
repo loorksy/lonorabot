@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api, type Message, type Run, type Thread } from "../lib/api";
 import { useClient } from "../providers/ClientProvider";
 export function useThreads(agentId?: string, threadId?: string) {
@@ -7,6 +7,7 @@ export function useThreads(agentId?: string, threadId?: string) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [runs, setRuns] = useState<Run[]>([]);
   const [error, setError] = useState<unknown>();
+  const pendingSend = useRef<{ fingerprint: string; nonce: string } | null>(null);
   useEffect(() => {
     // The durable revision (or explicit refresh tick) invalidates this fetched state.
     void revision;
@@ -26,6 +27,7 @@ export function useThreads(agentId?: string, threadId?: string) {
   useEffect(() => {
     // The durable revision (or explicit refresh tick) invalidates this fetched state.
     void threadId;
+    pendingSend.current = null;
     setMessages([]);
     setRuns([]);
   }, [threadId]);
@@ -67,12 +69,19 @@ export function useThreads(agentId?: string, threadId?: string) {
       attachment_ids: string[] = [],
       reply_to: string | null = null,
     ) => {
+      // A response can be lost after the server has committed this intent and its run.
+      // Retry unchanged content with the same receipt key; a confirmed repeat gets a new key.
+      const fingerprint = JSON.stringify([threadId, content, attachment_ids, reply_to]);
+      if (pendingSend.current?.fingerprint !== fingerprint)
+        pendingSend.current = { fingerprint, nonce: crypto.randomUUID() };
+      const nonce = pendingSend.current.nonce;
       await api.post(`/threads/${threadId}/messages`, {
         content,
         attachment_ids,
         reply_to,
-        client_nonce: crypto.randomUUID(),
+        client_nonce: nonce,
       });
+      if (pendingSend.current?.nonce === nonce) pendingSend.current = null;
       refresh();
     },
     cancel: async (id: string) => {

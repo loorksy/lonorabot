@@ -31,3 +31,8 @@ Python dependencies retain their distributions' license notices.
 MetaApiCloud SDK 29.1.1: Copyright 2020-2023 MetaApi DMCC. All rights reserved.
 Service-use license: https://metaapi.cloud/terms . The adapter uses this SDK solely
 with the MetaApi.cloud API service; the SDK license is not Apache-2.0.
+
+Geist Variable font 5.3.0: Copyright 2024 The Geist Project Authors.
+SIL Open Font License 1.1 is distributed with the Web assets at
+apps/web/public/licenses/geist-OFL.txt (served as /licenses/geist-OFL.txt).
+Source: https://github.com/vercel/geist-font ; packaged by @fontsource-variable/geist.

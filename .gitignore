@@ -18,3 +18,7 @@ backups/
 apps/mobile/.expo/
 apps/mobile/ios/
 apps/mobile/android/
+
+# Browser regression output (may contain private test session state).
+playwright-report/
+test-results/
