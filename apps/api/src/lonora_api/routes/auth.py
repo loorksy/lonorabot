@@ -5,14 +5,14 @@ from lonora_auth.sessions import issue_session, revoke
 from lonora_contracts.auth import LoginRequest
 from lonora_core.user_error import LonoraError
 from lonora_db.owner import get_owner
+from lonora_db.schema import OwnerRow
 
 from ..middleware.auth import require_owner, runtime
 
 router = APIRouter(prefix="/auth")
 
 
-@router.post("/login")
-async def login(request: Request, response: Response, body: LoginRequest) -> dict[str, object]:
+async def login_session(request: Request, body: LoginRequest) -> tuple[OwnerRow, str, str]:
     rt = runtime(request)
     async with rt.db.sessions() as session, session.begin():
         owner = await get_owner(session)
@@ -20,6 +20,13 @@ async def login(request: Request, response: Response, body: LoginRequest) -> dic
         if owner is None or owner.email != normalize_email(body.email) or not valid:
             raise LonoraError("unauthorized", 401)
         token, csrf = await issue_session(session, owner, rt.settings.session_seconds)
+    return owner, token, csrf
+
+
+@router.post("/login")
+async def login(request: Request, response: Response, body: LoginRequest) -> dict[str, object]:
+    rt = runtime(request)
+    owner, token, csrf = await login_session(request, body)
     response.set_cookie(
         "lonora_session",
         token,
@@ -37,6 +44,20 @@ async def login(request: Request, response: Response, body: LoginRequest) -> dic
         max_age=rt.settings.session_seconds,
     )
     return {"owner": {"id": owner.id, "email": owner.email}, "csrf": csrf}
+
+
+@router.post("/mobile/login")
+async def mobile_login(
+    request: Request, response: Response, body: LoginRequest
+) -> dict[str, object]:
+    owner, token, _ = await login_session(request, body)
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Pragma"] = "no-cache"
+    return {
+        "owner": {"id": owner.id, "email": owner.email},
+        "token": token,
+        "expires_in": runtime(request).settings.session_seconds,
+    }
 
 
 @router.get("/session")
