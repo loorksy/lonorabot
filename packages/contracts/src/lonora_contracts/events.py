@@ -12,5 +12,5 @@ class EventEnvelope(Contract):
     thread_id: str | None = None
     agent_id: str | None = None
     run_id: str | None = None
-    payload: dict[str, Any] = Field(default_factory=dict)
+    payload: dict[str, Any] = Field(default_factory=dict[str, Any])
     created_at: datetime = Field(default_factory=utcnow)

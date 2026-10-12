@@ -2,3 +2,1340 @@ msgid ""
 msgstr ""
 "Language: en\n"
 "Content-Type: text/plain; charset=UTF-8\n"
+
+#: src/components/chat/ThreadMessages.tsx:5
+msgid "A workspace that remembers"
+msgstr "A workspace that remembers"
+
+#: src/components/market/MarketWatch.tsx:8
+msgid "Above"
+msgstr "Above"
+
+#: src/components/settings/McpSettings.tsx:6
+msgid "Access token"
+msgstr "Access token"
+
+#: src/components/trading/BrokerConnection.tsx:7
+msgid "Account ID"
+msgstr "Account ID"
+
+#: src/components/trading/Positions.tsx:6
+#: src/components/trading/TradeActionCard.tsx:6
+msgid "Action"
+msgstr "Action"
+
+#: src/pages/Shell.tsx:28
+msgid "Activity"
+msgstr "Activity"
+
+#: src/pages/Activity.tsx:9
+msgid "Activity and task boards"
+msgstr "Activity and task boards"
+
+#: src/pages/Knowledge.tsx:9
+msgid "Add"
+msgstr "Add"
+
+#: src/components/settings/ModelsSettings.tsx:8
+msgid "Add a provider credential"
+msgstr "Add a provider credential"
+
+#: src/components/market/EconomicCalendar.tsx:6
+msgid "Add an economic calendar feed in Integrations to load events."
+msgstr "Add an economic calendar feed in Integrations to load events."
+
+#: src/pages/Activity.tsx:9
+msgid "Add board"
+msgstr "Add board"
+
+#: src/components/trading/BrokerConnection.tsx:7
+msgid "Add broker connection"
+msgstr "Add broker connection"
+
+#: src/components/chat/Composer.tsx:9
+msgid "Add direction while the agent works…"
+msgstr "Add direction while the agent works…"
+
+#: src/components/charts/ChartIndicators.tsx:4
+msgid "Add indicator"
+msgstr "Add indicator"
+
+#: src/components/settings/IntegrationsSettings.tsx:6
+msgid "Add integration"
+msgstr "Add integration"
+
+#: src/components/charts/ChartAnnotations.tsx:4
+msgid "Add line"
+msgstr "Add line"
+
+#: src/pages/Activity.tsx:9
+msgid "Add ticket"
+msgstr "Add ticket"
+
+#: src/components/agents/AgentPicker.tsx:3
+#: src/components/chat/MessageBubble.tsx:6
+#: src/pages/Activity.tsx:9
+msgid "Agent"
+msgstr "Agent"
+
+#: src/components/agents/CollaborationMarker.tsx:3
+msgid "Agent collaboration"
+msgstr "Agent collaboration"
+
+#: src/pages/Shell.tsx:30
+msgid "Agents"
+msgstr "Agents"
+
+#: src/components/settings/IntegrationsSettings.tsx:6
+msgid "Allowed destinations · comma separated"
+msgstr "Allowed destinations · comma separated"
+
+#: src/components/settings/ModelsSettings.tsx:8
+msgid "API key"
+msgstr "API key"
+
+#: src/components/settings/SettingsSidebar.tsx:3
+msgid "Appearance"
+msgstr "Appearance"
+
+#: src/components/settings/OverviewSettings.tsx:5
+msgid "Appearance and workspace"
+msgstr "Appearance and workspace"
+
+#: src/pages/Artifacts.tsx:9
+#: src/pages/Shell.tsx:28
+msgid "Artifacts"
+msgstr "Artifacts"
+
+#: src/components/market/MarketQuote.tsx:3
+msgid "Ask"
+msgstr "Ask"
+
+#: src/components/chat/Composer.tsx:9
+msgid "Attach"
+msgstr "Attach"
+
+#: src/components/chat/Composer.tsx:8
+msgid "Attached files"
+msgstr "Attached files"
+
+#: src/components/chat/MessageBubble.tsx:6
+msgid "Attachment"
+msgstr "Attachment"
+
+#: src/pages/Shell.tsx:30
+msgid "Avatar shape"
+msgstr "Avatar shape"
+
+#: src/components/trading/TradingJournal.tsx:3
+msgid "Awaiting reconciliation"
+msgstr "Awaiting reconciliation"
+
+#: src/components/trading/TradeActionCard.tsx:6
+msgid "Awaiting reconciliation. This operation will not be sent again."
+msgstr "Awaiting reconciliation. This operation will not be sent again."
+
+#: src/components/settings/ModelRoutingSettings.tsx:7
+msgid "Background work"
+msgstr "Background work"
+
+#: src/components/trading/AccountSummary.tsx:3
+msgid "Balance"
+msgstr "Balance"
+
+#: src/components/market/MarketWatch.tsx:8
+msgid "Below"
+msgstr "Below"
+
+#: src/components/market/MarketQuote.tsx:3
+msgid "Bid"
+msgstr "Bid"
+
+#: src/pages/Activity.tsx:9
+msgid "Board"
+msgstr "Board"
+
+#: src/pages/Activity.tsx:9
+msgid "Board title"
+msgstr "Board title"
+
+#: src/components/settings/IntegrationsSettings.tsx:6
+msgid "Brave web search"
+msgstr "Brave web search"
+
+#: src/pages/Market.tsx:13
+#: src/pages/Trading.tsx:15
+msgid "Broker account"
+msgstr "Broker account"
+
+#: src/components/market/SymbolSearch.tsx:4
+msgid "Broker symbol"
+msgstr "Broker symbol"
+
+#: src/components/trading/Positions.tsx:6
+msgid "Buy"
+msgstr "Buy"
+
+#: src/components/trading/TradeActionCard.tsx:6
+msgid "Buy limit"
+msgstr "Buy limit"
+
+#: src/components/trading/TradeActionCard.tsx:6
+msgid "Buy stop"
+msgstr "Buy stop"
+
+#: src/components/common/AttachmentTile.tsx:4
+msgid "bytes"
+msgstr "bytes"
+
+#: src/components/settings/TokenUsage.tsx:5
+msgid "Cached"
+msgstr "Cached"
+
+#: src/components/trading/Orders.tsx:6
+msgid "Cancel order"
+msgstr "Cancel order"
+
+#: src/components/chat/WorkingIndicator.tsx:3
+msgid "Cancelled"
+msgstr "Cancelled"
+
+#: src/components/settings/ModelsSettings.tsx:8
+msgid "Capabilities unverified"
+msgstr "Capabilities unverified"
+
+#: src/components/trading/TradeActionCard.tsx:6
+msgid "Check existing operation"
+msgstr "Check existing operation"
+
+#: src/lib/user_error.ts:3
+msgid "Check the required fields and try again."
+msgstr "Check the required fields and try again."
+
+#: src/pages/Shell.tsx:30
+msgid "Child"
+msgstr "Child"
+
+#: src/pages/Activity.tsx:9
+msgid "Choose a board"
+msgstr "Choose a board"
+
+#: src/components/market/MarketQuote.tsx:3
+msgid "Choose a connected account and an instrument to load market data."
+msgstr "Choose a connected account and an instrument to load market data."
+
+#: src/pages/Market.tsx:13
+#: src/pages/Trading.tsx:15
+msgid "Choose a connection"
+msgstr "Choose a connection"
+
+#: src/components/settings/ModelRoutingSettings.tsx:8
+msgid "Choose a discovered model"
+msgstr "Choose a discovered model"
+
+#: src/pages/Group.tsx:11
+msgid "Choose a group"
+msgstr "Choose a group"
+
+#: src/components/agents/AgentPicker.tsx:3
+#: src/pages/Activity.tsx:9
+msgid "Choose an agent"
+msgstr "Choose an agent"
+
+#: src/components/market/SymbolSearch.tsx:4
+#: src/components/trading/TradeActionCard.tsx:6
+msgid "Choose an instrument"
+msgstr "Choose an instrument"
+
+#: src/lib/user_error.ts:3
+msgid "Choose supported global speech models in Settings."
+msgstr "Choose supported global speech models in Settings."
+
+#: ../../packages/ui-web/src/components/ui/dialog.tsx:67
+#: ../../packages/ui-web/src/components/ui/dialog.tsx:100
+#: src/components/agents/AgentSettings.tsx:8
+#: src/components/common/FilePreviewPanel.tsx:7
+#: src/pages/Shell.tsx:30
+msgid "Close"
+msgstr "Close"
+
+#: src/components/trading/Positions.tsx:6
+msgid "Close position"
+msgstr "Close position"
+
+#: src/pages/Shell.tsx:30
+msgid "Color"
+msgstr "Color"
+
+#: src/components/chat/ToolActivity.tsx:3
+#: src/components/chat/WorkingIndicator.tsx:3
+#: src/pages/Activity.tsx:9
+msgid "Completed"
+msgstr "Completed"
+
+#: src/components/market/MarketWatch.tsx:8
+msgid "Condition"
+msgstr "Condition"
+
+#: src/lib/user_error.ts:3
+msgid "Configure LiveKit to start a voice call."
+msgstr "Configure LiveKit to start a voice call."
+
+#: src/components/trading/TradingJournal.tsx:3
+msgid "Confirmed"
+msgstr "Confirmed"
+
+#: src/lib/user_error.ts:3
+msgid "Connect a provider and choose a global model in Settings."
+msgstr "Connect a provider and choose a global model in Settings."
+
+#: src/components/settings/McpSettings.tsx:6
+msgid "Connect a server to make its tools available to your agents."
+msgstr "Connect a server to make its tools available to your agents."
+
+#: src/components/trading/BrokerConnection.tsx:7
+msgid "Connect account"
+msgstr "Connect account"
+
+#: src/components/settings/McpSettings.tsx:6
+msgid "Connect server"
+msgstr "Connect server"
+
+#: src/pages/Shell.tsx:30
+msgid "Connected"
+msgstr "Connected"
+
+#: src/components/voice/VoiceStatus.tsx:2
+msgid "Connecting microphone"
+msgstr "Connecting microphone"
+
+#: src/components/trading/BrokerConnection.tsx:7
+msgid "Connection type"
+msgstr "Connection type"
+
+#: src/pages/Knowledge.tsx:9
+msgid "Content"
+msgstr "Content"
+
+#: src/components/settings/ModelRoutingSettings.tsx:7
+msgid "Conversation"
+msgstr "Conversation"
+
+#: src/components/settings/IntegrationsSettings.tsx:6
+msgid "Conversation ID for incoming messages"
+msgstr "Conversation ID for incoming messages"
+
+#: src/components/voice/Transcript.tsx:3
+msgid "Conversation transcript"
+msgstr "Conversation transcript"
+
+#: src/pages/Shell.tsx:28
+#: src/pages/Shell.tsx:30
+msgid "Conversations"
+msgstr "Conversations"
+
+#: ../../packages/chat-ui/src/markdown-table.tsx:7
+#: ../../packages/chat-ui/src/markdown.web.tsx:13
+msgid "Copied"
+msgstr "Copied"
+
+#: ../../packages/chat-ui/src/markdown.web.tsx:13
+msgid "Copy message"
+msgstr "Copy message"
+
+#: ../../packages/chat-ui/src/markdown-table.tsx:7
+msgid "Copy table"
+msgstr "Copy table"
+
+#: src/pages/Group.tsx:11
+msgid "Create a group"
+msgstr "Create a group"
+
+#: src/pages/Shell.tsx:30
+#: src/pages/Shell.tsx:30
+#: src/pages/Shell.tsx:30
+msgid "Create agent"
+msgstr "Create agent"
+
+#: src/pages/Group.tsx:11
+msgid "Create group"
+msgstr "Create group"
+
+#: src/pages/Routines.tsx:8
+msgid "Create routine"
+msgstr "Create routine"
+
+#: src/pages/Onboarding.tsx:6
+msgid "Create the owner account using the setup token from your server configuration."
+msgstr "Create the owner account using the setup token from your server configuration."
+
+#: src/components/market/MarketWatch.tsx:8
+msgid "Create watch"
+msgstr "Create watch"
+
+#: src/pages/Onboarding.tsx:6
+msgid "Create workspace"
+msgstr "Create workspace"
+
+#: src/pages/Shell.tsx:30
+msgid "Create your first agent"
+msgstr "Create your first agent"
+
+#: src/components/settings/ModelsSettings.tsx:8
+msgid "Credential configured"
+msgstr "Credential configured"
+
+#: src/pages/Routines.tsx:8
+#: src/pages/Routines.tsx:8
+msgid "Cron expression"
+msgstr "Cron expression"
+
+#: src/components/market/MarketWatch.tsx:8
+msgid "Crosses above"
+msgstr "Crosses above"
+
+#: src/components/market/MarketWatch.tsx:8
+msgid "Crosses below"
+msgstr "Crosses below"
+
+#: src/components/settings/OverviewSettings.tsx:5
+msgid "Dark"
+msgstr "Dark"
+
+#: src/components/agents/CollaborationMarker.tsx:3
+msgid "Delegated task"
+msgstr "Delegated task"
+
+#: src/components/market/MarketWatch.tsx:8
+#: src/components/settings/IntegrationsSettings.tsx:6
+#: src/components/settings/McpSettings.tsx:6
+#: src/pages/Knowledge.tsx:9
+#: src/pages/Routines.tsx:8
+msgid "Delete"
+msgstr "Delete"
+
+#: src/pages/Shell.tsx:30
+msgid "Diamond"
+msgstr "Diamond"
+
+#: src/components/settings/IntegrationsSettings.tsx:6
+#: src/components/settings/McpSettings.tsx:6
+msgid "Disable"
+msgstr "Disable"
+
+#: src/pages/Trading.tsx:15
+msgid "Disconnect account"
+msgstr "Disconnect account"
+
+#: src/components/settings/ModelsSettings.tsx:8
+msgid "Discovered models"
+msgstr "Discovered models"
+
+#: src/components/common/AttachmentTile.tsx:4
+msgid "Download"
+msgstr "Download"
+
+#: src/components/common/FilePreviewPanel.tsx:7
+msgid "Download this file to view it"
+msgstr "Download this file to view it"
+
+#: src/components/trading/TradingJournal.tsx:3
+msgid "Durable trading journal"
+msgstr "Durable trading journal"
+
+#: src/components/market/EconomicCalendar.tsx:6
+msgid "Economic calendar"
+msgstr "Economic calendar"
+
+#: src/components/settings/IntegrationsSettings.tsx:6
+msgid "Economic calendar feed"
+msgstr "Economic calendar feed"
+
+#: src/pages/Auth.tsx:5
+#: src/pages/Onboarding.tsx:6
+msgid "Email"
+msgstr "Email"
+
+#: src/components/trading/TradingStatus.tsx:7
+msgid "Emergency Stop"
+msgstr "Emergency Stop"
+
+#: src/components/trading/TradingStatus.tsx:7
+msgid "Emergency stop active"
+msgstr "Emergency stop active"
+
+#: src/lib/user_error.ts:3
+msgid "Emergency stop is active."
+msgstr "Emergency stop is active."
+
+#: src/components/settings/IntegrationsSettings.tsx:6
+#: src/components/settings/McpSettings.tsx:6
+msgid "Enable"
+msgstr "Enable"
+
+#: src/pages/Routines.tsx:8
+msgid "Enabled"
+msgstr "Enabled"
+
+#: src/components/voice/VoiceChatCard.tsx:9
+msgid "End call"
+msgstr "End call"
+
+#: src/components/chat/Composer.tsx:9
+msgid "Enter to send · Shift+Enter for a new line"
+msgstr "Enter to send · Shift+Enter for a new line"
+
+#: src/components/trading/AccountSummary.tsx:3
+msgid "Equity"
+msgstr "Equity"
+
+#: src/pages/Routines.tsx:8
+msgid "Every · minutes"
+msgstr "Every · minutes"
+
+#: src/components/market/SymbolSearch.tsx:4
+#: src/components/trading/TradeActionCard.tsx:6
+msgid "Exact broker symbol"
+msgstr "Exact broker symbol"
+
+#: src/components/trading/TradeActionCard.tsx:6
+msgid "Execute"
+msgstr "Execute"
+
+#: src/pages/Routines.tsx:8
+msgid "Execution history"
+msgstr "Execution history"
+
+#: src/components/chat/ToolActivity.tsx:3
+#: src/components/chat/WorkingIndicator.tsx:3
+#: src/components/trading/TradingJournal.tsx:3
+#: src/pages/Activity.tsx:9
+msgid "Failed"
+msgstr "Failed"
+
+#: src/components/settings/IntegrationsSettings.tsx:6
+msgid "Feed or webhook URL"
+msgstr "Feed or webhook URL"
+
+#: src/pages/Artifacts.tsx:9
+msgid "Files and outputs from your agents will appear here."
+msgstr "Files and outputs from your agents will appear here."
+
+#: src/components/trading/AccountSummary.tsx:3
+msgid "Free margin"
+msgstr "Free margin"
+
+#: src/components/settings/SettingsSidebar.tsx:3
+msgid "Global models"
+msgstr "Global models"
+
+#: src/components/settings/ModelRoutingSettings.tsx:9
+msgid "Global routing"
+msgstr "Global routing"
+
+#: src/components/settings/TradingSettings.tsx:4
+msgid "Global trading settings"
+msgstr "Global trading settings"
+
+#: src/components/groups/GroupSettings.tsx:6
+#: src/pages/Group.tsx:11
+msgid "Group name"
+msgstr "Group name"
+
+#: src/pages/Group.tsx:11
+msgid "Group settings"
+msgstr "Group settings"
+
+#: src/pages/Group.tsx:11
+#: src/pages/Shell.tsx:28
+msgid "Groups"
+msgstr "Groups"
+
+#: src/pages/Routines.tsx:8
+msgid "History"
+msgstr "History"
+
+#: src/components/common/ImageGallery.tsx:2
+msgid "Image attachment"
+msgstr "Image attachment"
+
+#: src/lib/user_error.ts:3
+msgid "Import a market snapshot before using the demo account."
+msgstr "Import a market snapshot before using the demo account."
+
+#: src/components/charts/ChartIndicators.tsx:4
+msgid "Indicator"
+msgstr "Indicator"
+
+#: src/components/charts/ChartIndicators.tsx:4
+msgid "Indicators"
+msgstr "Indicators"
+
+#: src/components/settings/TokenUsage.tsx:5
+msgid "Input"
+msgstr "Input"
+
+#: src/components/agents/AgentPanel.tsx:4
+#: src/components/agents/AgentSettings.tsx:8
+msgid "Instructions"
+msgstr "Instructions"
+
+#: src/components/settings/IntegrationsSettings.tsx:6
+#: src/components/settings/SettingsSidebar.tsx:3
+msgid "Integrations"
+msgstr "Integrations"
+
+#: src/components/voice/VoiceChatCard.tsx:9
+msgid "Interrupt"
+msgstr "Interrupt"
+
+#: src/pages/Routines.tsx:8
+msgid "Interval"
+msgstr "Interval"
+
+#: src/components/common/SandboxedHtmlViewer.tsx:2
+msgid "Isolated document preview"
+msgstr "Isolated document preview"
+
+#: src/pages/Knowledge.tsx:9
+#: src/pages/Shell.tsx:28
+msgid "Knowledge"
+msgstr "Knowledge"
+
+#: src/components/charts/ChartAnnotations.tsx:4
+msgid "Label"
+msgstr "Label"
+
+#: src/components/settings/OverviewSettings.tsx:5
+msgid "Language"
+msgstr "Language"
+
+#: src/components/settings/OverviewSettings.tsx:5
+msgid "Light"
+msgstr "Light"
+
+#: src/components/voice/VoiceStatus.tsx:2
+msgid "Listening · speak to interrupt"
+msgstr "Listening · speak to interrupt"
+
+#: src/components/settings/OverviewSettings.tsx:5
+msgid "Live connection active"
+msgstr "Live connection active"
+
+#: src/components/chat/ThreadMessages.tsx:5
+msgid "Load earlier messages"
+msgstr "Load earlier messages"
+
+#: ../../packages/ui-web/src/components/ui/spinner.tsx:11
+msgid "Loading"
+msgstr "Loading"
+
+#: src/pages/Knowledge.tsx:9
+msgid "Long-term memory"
+msgstr "Long-term memory"
+
+#: src/components/trading/AccountSummary.tsx:3
+msgid "Margin"
+msgstr "Margin"
+
+#: src/pages/Market.tsx:13
+#: src/pages/Shell.tsx:28
+msgid "Market"
+msgstr "Market"
+
+#: src/components/trading/TradeActionCard.tsx:6
+msgid "Market buy"
+msgstr "Market buy"
+
+#: src/components/trading/TradeActionCard.tsx:6
+msgid "Market sell"
+msgstr "Market sell"
+
+#: src/components/market/MarketWatch.tsx:8
+msgid "Market watches"
+msgstr "Market watches"
+
+#: src/components/market/MarketOverview.tsx:3
+msgid "Maximum volume"
+msgstr "Maximum volume"
+
+#: src/components/settings/McpSettings.tsx:6
+#: src/components/settings/SettingsSidebar.tsx:3
+msgid "MCP servers"
+msgstr "MCP servers"
+
+#: src/components/groups/GroupMembers.tsx:4
+msgid "Members"
+msgstr "Members"
+
+#: src/pages/Search.tsx:5
+msgid "Memory"
+msgstr "Memory"
+
+#: src/pages/Group.tsx:11
+msgid "Mention agents with @name. Without a mention, the first member responds."
+msgstr "Mention agents with @name. Without a mention, the first member responds."
+
+#: src/components/chat/Composer.tsx:9
+msgid "Message"
+msgstr "Message"
+
+#: src/components/chat/Composer.tsx:9
+msgid "Message your agent…"
+msgstr "Message your agent…"
+
+#: src/pages/Search.tsx:5
+msgid "Messages"
+msgstr "Messages"
+
+#: src/components/trading/BrokerConnection.tsx:7
+msgid "MetaApi token"
+msgstr "MetaApi token"
+
+#: src/components/market/MarketOverview.tsx:3
+msgid "Minimum volume"
+msgstr "Minimum volume"
+
+#: src/components/settings/ModelRoutingSettings.tsx:9
+msgid "Mode"
+msgstr "Mode"
+
+#: src/components/settings/IntegrationsSettings.tsx:6
+#: src/components/settings/McpSettings.tsx:6
+#: src/pages/Shell.tsx:30
+msgid "Name"
+msgstr "Name"
+
+#: src/pages/Shell.tsx:30
+#: src/pages/Shell.tsx:30
+msgid "New conversation"
+msgstr "New conversation"
+
+#: src/pages/Routines.tsx:8
+msgid "Next run"
+msgstr "Next run"
+
+#: src/components/charts/ChartWorkspace.tsx:11
+msgid "No candles available for this instrument and timeframe."
+msgstr "No candles available for this instrument and timeframe."
+
+#: src/components/trading/Positions.tsx:6
+msgid "No open positions"
+msgstr "No open positions"
+
+#: src/components/trading/TradingJournal.tsx:3
+msgid "No operations yet"
+msgstr "No operations yet"
+
+#: src/components/trading/Orders.tsx:6
+msgid "No pending orders"
+msgstr "No pending orders"
+
+#: src/pages/Search.tsx:5
+msgid "Notes and files"
+msgstr "Notes and files"
+
+#: src/components/settings/ModelRoutingSettings.tsx:9
+msgid "One model for text work"
+msgstr "One model for text work"
+
+#: src/components/trading/Positions.tsx:6
+msgid "Open price"
+msgstr "Open price"
+
+#: src/App.tsx:11
+msgid "Opening workspace…"
+msgstr "Opening workspace…"
+
+#: src/components/trading/TradeActionCard.tsx:6
+msgid "Operation confirmed"
+msgstr "Operation confirmed"
+
+#: src/components/trading/TradeActionCard.tsx:6
+msgid "Operation failed"
+msgstr "Operation failed"
+
+#: src/pages/Shell.tsx:30
+msgid "Orb"
+msgstr "Orb"
+
+#: src/components/trading/TradeActionCard.tsx:6
+msgid "Order price"
+msgstr "Order price"
+
+#: src/components/settings/TokenUsage.tsx:5
+msgid "Output"
+msgstr "Output"
+
+#: src/pages/Auth.tsx:5
+msgid "Password"
+msgstr "Password"
+
+#: src/pages/Onboarding.tsx:6
+msgid "Password · at least 12 characters"
+msgstr "Password · at least 12 characters"
+
+#: src/components/market/MarketWatch.tsx:8
+#: src/pages/Routines.tsx:8
+msgid "Pause"
+msgstr "Pause"
+
+#: src/components/agents/AgentSettings.tsx:8
+msgid "Pause agent and scheduled work"
+msgstr "Pause agent and scheduled work"
+
+#: src/components/agents/AgentPanel.tsx:4
+#: src/pages/Routines.tsx:8
+msgid "Paused"
+msgstr "Paused"
+
+#: src/components/common/PdfViewer.tsx:2
+msgid "PDF preview"
+msgstr "PDF preview"
+
+#: src/components/trading/Orders.tsx:6
+msgid "Pending orders"
+msgstr "Pending orders"
+
+#: src/components/charts/ChartIndicators.tsx:4
+msgid "Period"
+msgstr "Period"
+
+#: src/components/agents/AgentPanel.tsx:4
+msgid "Persistent agent"
+msgstr "Persistent agent"
+
+#: src/pages/Shell.tsx:30
+msgid "Persistent agents, shared knowledge and continuous work in one place."
+msgstr "Persistent agents, shared knowledge and continuous work in one place."
+
+#: src/pages/Shell.tsx:30
+msgid "Persistent workspace"
+msgstr "Persistent workspace"
+
+#: src/components/trading/Positions.tsx:6
+msgid "Positions"
+msgstr "Positions"
+
+#: src/components/common/AttachmentTile.tsx:4
+msgid "Preview"
+msgstr "Preview"
+
+#: src/components/charts/ChartAnnotations.tsx:4
+msgid "Price"
+msgstr "Price"
+
+#: src/components/charts/ChartAnnotations.tsx:4
+msgid "Price annotations"
+msgstr "Price annotations"
+
+#: src/components/market/MarketWatch.tsx:8
+msgid "Price level"
+msgstr "Price level"
+
+#: src/components/chat/AgentActivity.tsx:3
+msgid "Processing the task"
+msgstr "Processing the task"
+
+#: src/components/trading/Positions.tsx:6
+msgid "Profit"
+msgstr "Profit"
+
+#: src/components/settings/ModelsSettings.tsx:8
+msgid "Provider"
+msgstr "Provider"
+
+#: src/components/settings/ModelsSettings.tsx:8
+msgid "Providers and official catalog"
+msgstr "Providers and official catalog"
+
+#: src/components/chat/WorkingIndicator.tsx:3
+msgid "Queued"
+msgstr "Queued"
+
+#: src/components/settings/VoiceSettings.tsx:5
+msgid "Realtime conversation"
+msgstr "Realtime conversation"
+
+#: src/components/settings/ModelRoutingSettings.tsx:7
+msgid "Realtime voice"
+msgstr "Realtime voice"
+
+#: src/components/settings/ModelRoutingSettings.tsx:7
+msgid "Reasoning"
+msgstr "Reasoning"
+
+#: src/pages/Activity.tsx:9
+msgid "Recent runs"
+msgstr "Recent runs"
+
+#: src/pages/Shell.tsx:30
+msgid "Reconnecting"
+msgstr "Reconnecting"
+
+#: src/components/settings/OverviewSettings.tsx:5
+msgid "Reconnecting to live updates"
+msgstr "Reconnecting to live updates"
+
+#: src/components/charts/ChartToolbar.tsx:2
+msgid "Refresh chart"
+msgstr "Refresh chart"
+
+#: src/components/charts/ChartLiveFeed.tsx:2
+msgid "Refresh live candles"
+msgstr "Refresh live candles"
+
+#: src/components/common/ErrorBoundary.tsx:3
+msgid "Reload"
+msgstr "Reload"
+
+#: src/components/chat/Composer.tsx:9
+msgid "Remove reply"
+msgstr "Remove reply"
+
+#: src/components/chat/MessageBubble.tsx:6
+msgid "Reply"
+msgstr "Reply"
+
+#: src/components/chat/MessageBubble.tsx:6
+msgid "Reply to an earlier message"
+msgstr "Reply to an earlier message"
+
+#: src/components/settings/ModelRoutingSettings.tsx:7
+msgid "Research"
+msgstr "Research"
+
+#: src/components/trading/TradingStatus.tsx:7
+msgid "Reset emergency stop"
+msgstr "Reset emergency stop"
+
+#: src/components/chat/ThreadViewport.tsx:18
+#: src/components/market/MarketWatch.tsx:8
+#: src/pages/Activity.tsx:9
+#: src/pages/Routines.tsx:8
+msgid "Resume"
+msgstr "Resume"
+
+#: src/App.tsx:11
+msgid "Retry"
+msgstr "Retry"
+
+#: src/components/settings/ModelRoutingSettings.tsx:9
+msgid "Route by capability"
+msgstr "Route by capability"
+
+#: src/pages/Routines.tsx:8
+#: src/pages/Shell.tsx:28
+msgid "Routines"
+msgstr "Routines"
+
+#: src/pages/Activity.tsx:9
+msgid "Run task"
+msgstr "Run task"
+
+#: src/components/chat/ToolActivity.tsx:3
+msgid "Running"
+msgstr "Running"
+
+#: src/components/agents/AgentSettings.tsx:8
+msgid "Save"
+msgstr "Save"
+
+#: src/components/settings/ModelsSettings.tsx:8
+msgid "Save and discover models"
+msgstr "Save and discover models"
+
+#: src/components/settings/ModelRoutingSettings.tsx:9
+msgid "Save global routing"
+msgstr "Save global routing"
+
+#: src/components/groups/GroupSettings.tsx:6
+msgid "Save members"
+msgstr "Save members"
+
+#: src/pages/Knowledge.tsx:9
+msgid "Save memory"
+msgstr "Save memory"
+
+#: src/components/settings/ModelRoutingSettings.tsx:9
+#: src/pages/Knowledge.tsx:9
+msgid "Saved"
+msgstr "Saved"
+
+#: src/pages/Routines.tsx:8
+msgid "Schedule"
+msgstr "Schedule"
+
+#: src/pages/Routines.tsx:8
+msgid "Scheduled work runs through the same agents, memory, tools and global model settings."
+msgstr "Scheduled work runs through the same agents, memory, tools and global model settings."
+
+#: src/pages/Knowledge.tsx:9
+msgid "Scratchpad"
+msgstr "Scratchpad"
+
+#: src/pages/Search.tsx:5
+#: src/pages/Shell.tsx:28
+msgid "Search"
+msgstr "Search"
+
+#: src/pages/Search.tsx:5
+msgid "Search messages, memory and notes"
+msgstr "Search messages, memory and notes"
+
+#: src/pages/Search.tsx:5
+msgid "Search your workspace"
+msgstr "Search your workspace"
+
+#: src/components/settings/IntegrationsSettings.tsx:6
+msgid "Secret or API token"
+msgstr "Secret or API token"
+
+#: src/components/trading/Positions.tsx:6
+msgid "Sell"
+msgstr "Sell"
+
+#: src/components/trading/TradeActionCard.tsx:6
+msgid "Sell limit"
+msgstr "Sell limit"
+
+#: src/components/trading/TradeActionCard.tsx:6
+msgid "Sell stop"
+msgstr "Sell stop"
+
+#: src/components/chat/Composer.tsx:9
+msgid "Send"
+msgstr "Send"
+
+#: src/components/chat/Composer.tsx:9
+msgid "Send direction"
+msgstr "Send direction"
+
+#: src/components/settings/McpSettings.tsx:6
+msgid "Server URL"
+msgstr "Server URL"
+
+#: src/components/settings/VoiceSettings.tsx:5
+msgid "Set speech recognition and speech synthesis under global model routing. Configure LiveKit on the server to enable calls."
+msgstr "Set speech recognition and speech synthesis under global model routing. Configure LiveKit on the server to enable calls."
+
+#: src/pages/Settings.tsx:11
+#: src/pages/Shell.tsx:28
+msgid "Settings"
+msgstr "Settings"
+
+#: src/pages/Onboarding.tsx:6
+msgid "Setup token"
+msgstr "Setup token"
+
+#: src/components/charts/ChartWorkspace.tsx:11
+msgid "Shared chart workspace"
+msgstr "Shared chart workspace"
+
+#: src/components/trading/Positions.tsx:6
+msgid "Side"
+msgstr "Side"
+
+#: src/pages/Auth.tsx:5
+msgid "Sign in"
+msgstr "Sign in"
+
+#: src/pages/Auth.tsx:5
+msgid "Sign in to your persistent workspace"
+msgstr "Sign in to your persistent workspace"
+
+#: src/pages/Shell.tsx:30
+msgid "Sign out"
+msgstr "Sign out"
+
+#: src/lib/user_error.ts:3
+msgid "Sign-in failed. Check your email and password."
+msgstr "Sign-in failed. Check your email and password."
+
+#: src/components/settings/IntegrationsSettings.tsx:6
+msgid "Signed webhook"
+msgstr "Signed webhook"
+
+#: src/pages/Market.tsx:13
+#: src/pages/Trading.tsx:15
+msgid "Simulation · imported snapshot"
+msgstr "Simulation · imported snapshot"
+
+#: src/components/trading/BrokerConnection.tsx:7
+msgid "Simulation snapshot JSON"
+msgstr "Simulation snapshot JSON"
+
+#: src/components/trading/BrokerConnection.tsx:7
+msgid "Simulation with an imported snapshot"
+msgstr "Simulation with an imported snapshot"
+
+#: src/pages/Knowledge.tsx:9
+msgid "Skills"
+msgstr "Skills"
+
+#: src/components/market/MarketQuote.tsx:3
+msgid "Source"
+msgstr "Source"
+
+#: src/components/settings/VoiceSettings.tsx:5
+msgid "Speech becomes a message in the current conversation. The same agent answers and uses its normal tools."
+msgstr "Speech becomes a message in the current conversation. The same agent answers and uses its normal tools."
+
+#: src/components/settings/ModelRoutingSettings.tsx:7
+msgid "Speech recognition"
+msgstr "Speech recognition"
+
+#: src/components/settings/ModelRoutingSettings.tsx:7
+msgid "Speech synthesis"
+msgstr "Speech synthesis"
+
+#: src/components/market/MarketQuote.tsx:3
+msgid "Spread"
+msgstr "Spread"
+
+#: src/pages/Shell.tsx:30
+msgid "Square"
+msgstr "Square"
+
+#: src/pages/Knowledge.tsx:9
+msgid "Stable facts and preferences kept separately from conversation history."
+msgstr "Stable facts and preferences kept separately from conversation history."
+
+#: src/pages/Shell.tsx:30
+msgid "Start a conversation"
+msgstr "Start a conversation"
+
+#: src/components/chat/ThreadMessages.tsx:5
+msgid "Start a conversation. Your agent keeps its memory and continues scheduled work here."
+msgstr "Start a conversation. Your agent keeps its memory and continues scheduled work here."
+
+#: src/components/voice/VoiceChatCard.tsx:9
+msgid "Start voice conversation"
+msgstr "Start voice conversation"
+
+#: src/components/chat/Composer.tsx:9
+#: src/pages/Activity.tsx:9
+msgid "Stop"
+msgstr "Stop"
+
+#: src/components/trading/TradeActionCard.tsx:6
+msgid "Stop loss · optional"
+msgstr "Stop loss · optional"
+
+#: src/components/trading/BrokerConnection.tsx:7
+msgid "Supply account, instruments, quotes and candles explicitly. Simulation data is labelled in the workspace."
+msgstr "Supply account, instruments, quotes and candles explicitly. Simulation data is labelled in the workspace."
+
+#: src/components/trading/Positions.tsx:6
+msgid "Symbol"
+msgstr "Symbol"
+
+#: src/components/trading/TradeActionCard.tsx:6
+msgid "Take profit · optional"
+msgstr "Take profit · optional"
+
+#: src/pages/Activity.tsx:9
+#: src/pages/Routines.tsx:8
+msgid "Task"
+msgstr "Task"
+
+#: src/pages/Activity.tsx:9
+msgid "Task boards"
+msgstr "Task boards"
+
+#: src/components/market/MarketWatch.tsx:8
+msgid "Task when triggered"
+msgstr "Task when triggered"
+
+#: src/components/chat/SubagentTasks.tsx:4
+msgid "Temporary delegated tasks"
+msgstr "Temporary delegated tasks"
+
+#: src/lib/user_error.ts:3
+msgid "The broker connection is unavailable."
+msgstr "The broker connection is unavailable."
+
+#: src/components/settings/ModelsSettings.tsx:8
+msgid "The catalog is read from the provider. Unknown capabilities are shown as unverified."
+msgstr "The catalog is read from the provider. Unknown capabilities are shown as unverified."
+
+#: src/lib/user_error.ts:3
+msgid "The model provider rate limit was reached. Try again shortly."
+msgstr "The model provider rate limit was reached. Try again shortly."
+
+#: src/components/common/ErrorBoundary.tsx:3
+msgid "The page could not be displayed"
+msgstr "The page could not be displayed"
+
+#: src/lib/user_error.ts:3
+msgid "The provider rejected this API key."
+msgstr "The provider rejected this API key."
+
+#: src/lib/user_error.ts:3
+msgid "The request could not be completed. Try again."
+msgstr "The request could not be completed. Try again."
+
+#: src/lib/user_error.ts:3
+msgid "The setup code is incorrect."
+msgstr "The setup code is incorrect."
+
+#: src/components/chat/RecoveryNotice.tsx:3
+msgid "The task resumed from its saved state after reconnection."
+msgstr "The task resumed from its saved state after reconnection."
+
+#: src/components/settings/OverviewSettings.tsx:5
+msgid "Theme"
+msgstr "Theme"
+
+#: src/components/settings/ModelRoutingSettings.tsx:9
+msgid "These settings apply to every agent and routine. Voice routes require models that support audio."
+msgstr "These settings apply to every agent and routine. Voice routes require models that support audio."
+
+#: src/lib/user_error.ts:3
+msgid "This item changed. Reload it before saving."
+msgstr "This item changed. Reload it before saving."
+
+#: src/lib/user_error.ts:3
+msgid "This run was recovered by another worker."
+msgstr "This run was recovered by another worker."
+
+#: src/components/market/MarketOverview.tsx:3
+msgid "Tick size"
+msgstr "Tick size"
+
+#: src/components/charts/ChartToolbar.tsx:2
+msgid "Timeframe"
+msgstr "Timeframe"
+
+#: src/pages/Routines.tsx:8
+msgid "Timezone"
+msgstr "Timezone"
+
+#: src/pages/Knowledge.tsx:9
+msgid "Title"
+msgstr "Title"
+
+#: src/pages/Activity.tsx:9
+msgid "To do"
+msgstr "To do"
+
+#: src/pages/Shell.tsx:30
+msgid "Toggle sidebar"
+msgstr "Toggle sidebar"
+
+#: src/components/settings/SettingsSidebar.tsx:3
+#: src/components/settings/TokenUsage.tsx:5
+msgid "Token usage"
+msgstr "Token usage"
+
+#: src/lib/user_error.ts:3
+msgid "Too many attempts. Wait a minute and retry."
+msgstr "Too many attempts. Wait a minute and retry."
+
+#: src/components/chat/ToolActivity.tsx:3
+msgid "Tool activity"
+msgstr "Tool activity"
+
+#: src/components/trading/TradeActionCard.tsx:6
+msgid "Trade action"
+msgstr "Trade action"
+
+#: src/components/settings/SettingsSidebar.tsx:3
+#: src/pages/Shell.tsx:28
+#: src/pages/Trading.tsx:15
+msgid "Trading"
+msgstr "Trading"
+
+#: src/components/trading/TradingStatus.tsx:7
+msgid "Trading control"
+msgstr "Trading control"
+
+#: src/lib/user_error.ts:3
+msgid "Trading is off."
+msgstr "Trading is off."
+
+#: src/components/trading/TradingStatus.tsx:7
+msgid "Trading OFF"
+msgstr "Trading OFF"
+
+#: src/components/trading/TradingStatus.tsx:7
+msgid "Trading ON"
+msgstr "Trading ON"
+
+#: src/components/trading/TradingStatus.tsx:7
+msgid "Turn trading OFF"
+msgstr "Turn trading OFF"
+
+#: src/components/trading/TradingStatus.tsx:7
+msgid "Turn trading ON"
+msgstr "Turn trading ON"
+
+#: src/components/settings/IntegrationsSettings.tsx:6
+msgid "Type"
+msgstr "Type"
+
+#: src/components/settings/ModelRoutingSettings.tsx:9
+msgid "Unified model"
+msgstr "Unified model"
+
+#: src/pages/Artifacts.tsx:9
+msgid "Upload file"
+msgstr "Upload file"
+
+#: src/components/settings/ModelsSettings.tsx:8
+msgid "Verified metadata"
+msgstr "Verified metadata"
+
+#: src/components/settings/ModelRoutingSettings.tsx:7
+msgid "Vision"
+msgstr "Vision"
+
+#: src/components/settings/SettingsSidebar.tsx:3
+msgid "Voice"
+msgstr "Voice"
+
+#: src/components/voice/VoiceStatus.tsx:2
+msgid "Voice disconnected"
+msgstr "Voice disconnected"
+
+#: src/components/settings/VoiceSettings.tsx:5
+msgid "Voice transport configured"
+msgstr "Voice transport configured"
+
+#: src/components/settings/VoiceSettings.tsx:5
+msgid "Voice transport needs configuration"
+msgstr "Voice transport needs configuration"
+
+#: src/components/trading/Positions.tsx:6
+#: src/components/trading/TradeActionCard.tsx:6
+msgid "Volume"
+msgstr "Volume"
+
+#: src/components/market/MarketOverview.tsx:3
+msgid "Volume step"
+msgstr "Volume step"
+
+#: src/components/chat/WorkingIndicator.tsx:3
+msgid "Waiting for handover"
+msgstr "Waiting for handover"
+
+#: src/components/chat/WorkingIndicator.tsx:3
+msgid "Waiting for your reply"
+msgstr "Waiting for your reply"
+
+#: src/pages/Shell.tsx:30
+msgid "Welcome to Lonora"
+msgstr "Welcome to Lonora"
+
+#: src/components/chat/WorkingIndicator.tsx:3
+#: src/pages/Activity.tsx:9
+msgid "Working"
+msgstr "Working"
+
+#: src/components/chat/MessageBubble.tsx:6
+msgid "You"
+msgstr "You"
+
+#: src/pages/Onboarding.tsx:6
+msgid "Your Lonora workspace"
+msgstr "Your Lonora workspace"

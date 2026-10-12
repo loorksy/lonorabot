@@ -2,6 +2,7 @@ import asyncio
 import io
 import wave
 from array import array
+from typing import Any, cast
 
 from livekit import rtc
 from lonora_adapters.voice.livekit import LiveKitTransport
@@ -40,6 +41,7 @@ class RealtimeVoiceSession:
         url: str,
         key: str,
         secret: str,
+        gateway_id: str = "",
     ):
         self.db, self.credentials, self.session_id, self.url = db, credentials, session_id, url
         self.transport = LiveKitTransport(key, secret)
@@ -48,8 +50,28 @@ class RealtimeVoiceSession:
         self.tasks: set[asyncio.Task[None]] = set()
         self.owner_id = ""
         self.thread_id = ""
+        self.gateway_id = gateway_id
+        self.failure: str | None = None
         self.speaking = False
         self.interrupted = asyncio.Event()
+
+    def task_finished(self, task: asyncio.Task[None]) -> None:
+        self.tasks.discard(task)
+        if not task.cancelled() and task.exception():
+            error = task.exception()
+            self.failure = (
+                error.code if isinstance(error, LonoraError) else "voice_transport_failed"
+            )
+
+    async def assert_connection(self) -> None:
+        async with self.db.sessions() as session:
+            row = await session.get(VoiceSessionRow, self.session_id)
+            if (
+                row is None
+                or row.payload.get("status") != "connected"
+                or (self.gateway_id and row.state.get("gateway") != self.gateway_id)
+            ):
+                raise LonoraError("voice_session_closed", 409)
 
     async def input_track(self, track: rtc.Track) -> None:
         stream = rtc.AudioStream(track, sample_rate=24000, num_channels=1)
@@ -80,6 +102,7 @@ class RealtimeVoiceSession:
                 voiced = False
                 silence = 0
                 text = await transcribe(self.db, self.credentials, audio)
+                await self.assert_connection()
                 if text.strip():
                     await commit_transcript(
                         self.db,
@@ -93,11 +116,12 @@ class RealtimeVoiceSession:
             payload = event["payload"]
             if event["kind"] != "message.created" or payload.get("role") != "assistant":
                 continue
+            await self.assert_connection()
+            self.interrupted.clear()
+            self.speaking = True
             audio = pcm_24000(
                 await synthesize(self.db, self.credentials, str(payload.get("content", "")))
             )
-            self.interrupted.clear()
-            self.speaking = True
             try:
                 for offset in range(0, len(audio), 960):
                     if self.interrupted.is_set():
@@ -125,19 +149,19 @@ class RealtimeVoiceSession:
             cursor = (await session.scalar(select(func.max(EventRow.cursor)))) or 0
         token = await self.transport.join_token(room_name, "agent:" + self.session_id)
 
-        @self.room.on("track_subscribed")
         def on_track(
             track: rtc.Track,
             publication: rtc.RemoteTrackPublication,
             participant: rtc.RemoteParticipant,
         ) -> None:
             if track.kind == rtc.TrackKind.KIND_AUDIO and participant.identity.startswith(
-                "owner:" + self.owner_id + ":"
+                "owner:" + self.owner_id + ":" + self.session_id
             ):
                 task = asyncio.create_task(self.input_track(track))
                 self.tasks.add(task)
-                task.add_done_callback(self.tasks.discard)
+                task.add_done_callback(self.task_finished)
 
+        cast(Any, self.room).on("track_subscribed", on_track)
         try:
             await self.room.connect(self.url, token)
             track = rtc.LocalAudioTrack.create_audio_track("lonora-voice", self.source)
@@ -146,6 +170,7 @@ class RealtimeVoiceSession:
             )
             output = asyncio.create_task(self.output_messages(cursor))
             self.tasks.add(output)
+            output.add_done_callback(self.task_finished)
             async with self.db.sessions() as session, session.begin():
                 row = await session.get(VoiceSessionRow, self.session_id, with_for_update=True)
                 if row:
@@ -154,13 +179,24 @@ class RealtimeVoiceSession:
                 await asyncio.sleep(2)
                 async with self.db.sessions() as session:
                     row = await session.get(VoiceSessionRow, self.session_id)
-                    if row is None or row.payload.get("status") == "closed":
+                    if self.failure:
+                        raise LonoraError(self.failure, 502)
+                    if (
+                        row is None
+                        or row.payload.get("status") == "closed"
+                        or (self.gateway_id and row.state.get("gateway") != self.gateway_id)
+                    ):
                         break
-        except LonoraError as error:
+        except Exception as error:
             async with self.db.sessions() as session, session.begin():
                 row = await session.get(VoiceSessionRow, self.session_id, with_for_update=True)
                 if row:
-                    row.state = {"code": error.code}
+                    row.state = {
+                        **row.state,
+                        "code": error.code
+                        if isinstance(error, LonoraError)
+                        else "voice_transport_failed",
+                    }
                     row.payload = {**row.payload, "status": "failed"}
         finally:
             for task in self.tasks:

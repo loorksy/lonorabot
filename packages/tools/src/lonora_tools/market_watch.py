@@ -41,7 +41,7 @@ def tools() -> list[Tool]:
     return [
         Tool(
             "watch_create",
-            "Persist a server-side price watch that wakes this same agent when its condition is met.",
+            "Persist a server-side price, indicator, position, account or economic-calendar watch that wakes this same agent when its condition is met.",
             Watch,
             create,
         ),

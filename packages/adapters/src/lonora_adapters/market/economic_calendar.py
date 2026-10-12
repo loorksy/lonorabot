@@ -1,3 +1,5 @@
+from typing import Any, cast
+
 import httpx
 from lonora_contracts.market import CalendarEvent
 from lonora_core.user_error import LonoraError
@@ -17,4 +19,6 @@ class EconomicCalendarAdapter:
             payload = response.json()
             if not isinstance(payload, list):
                 raise LonoraError("calendar_response_invalid", 502)
-            return [CalendarEvent.model_validate(value) for value in payload[:1000]]
+            return [
+                CalendarEvent.model_validate(value) for value in cast(list[Any], payload)[:1000]
+            ]

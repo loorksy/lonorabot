@@ -1,0 +1,20 @@
+[Unit]
+Description=Lonora persistent Agent Gateway
+After=network-online.target
+Wants=network-online.target
+[Service]
+User=lonora
+Group=lonora
+WorkingDirectory=/opt/lonora
+EnvironmentFile=/opt/lonora/.env
+ExecStart=/opt/lonora/.venv/bin/lonora-gateway
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=40
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/opt/lonora/.runtime
+[Install]
+WantedBy=multi-user.target

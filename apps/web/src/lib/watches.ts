@@ -1,2 +1,2 @@
 import { resources } from "./rpc";
-export const watches=resources("/watches");
+export const watches = resources("/watches");

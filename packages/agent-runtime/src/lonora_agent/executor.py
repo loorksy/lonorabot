@@ -104,6 +104,7 @@ async def execute_run(
             try:
                 async with context.db.sessions() as session, session.begin():
                     await fail_run(session, context.lease, error.code)
+                await return_outcome(context.db, context.lease.run_id)
             except LonoraError:
                 log.info("stale_failure_discarded")
     except Exception as error:
@@ -111,6 +112,7 @@ async def execute_run(
         try:
             async with context.db.sessions() as session, session.begin():
                 await fail_run(session, context.lease, "runtime_error")
+            await return_outcome(context.db, context.lease.run_id)
         except LonoraError:
             log.info("stale_failure_discarded")
     finally:

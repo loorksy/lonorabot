@@ -81,11 +81,11 @@ def configure_sdk_transport() -> None:
                 return original_connect(url, **options)
 
             session.ws_connect = connect
-            super().__init__(*args, http_session=session, **kwargs)
+            socketio.AsyncClient.__init__(self, *args, http_session=session, **kwargs)
 
         async def connect(self, url: str, *args: Any, **kwargs: Any) -> Any:
             validate_sdk_url(url)
-            return await super().connect(url, *args, **kwargs)
+            return await socketio.AsyncClient.connect(self, url, *args, **kwargs)
 
     http_module.HttpClient._make_request = request
     websocket_module.socketio = SimpleNamespace(AsyncClient=ProxySocketClient)

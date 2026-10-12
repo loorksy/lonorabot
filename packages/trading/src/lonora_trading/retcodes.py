@@ -1,7 +1,89 @@
-def normalize_retcode(code: str | int | None) -> str:
+from typing import Literal
+
+
+def normalize_retcode(code: str | int | None) -> Literal["confirmed", "failed", "ambiguous"]:
     value = str(code or "unknown")
-    if value in {"TRADE_RETCODE_DONE", "TRADE_RETCODE_PLACED", "10009", "10008"}:
+    confirmed = {
+        "TRADE_RETCODE_DONE",
+        "TRADE_RETCODE_DONE_PARTIAL",
+        "TRADE_RETCODE_PLACED",
+        "TRADE_RETCODE_NO_CHANGES",
+        "10008",
+        "10009",
+        "10010",
+        "10025",
+    }
+    rejected = {
+        "10004",
+        "10006",
+        "10007",
+        "10013",
+        "10014",
+        "10015",
+        "10016",
+        "10017",
+        "10018",
+        "10019",
+        "10020",
+        "10021",
+        "10022",
+        "10024",
+        "10026",
+        "10027",
+        "10028",
+        "10029",
+        "10030",
+        "10032",
+        "10033",
+        "10034",
+        "10035",
+        "10036",
+        "10038",
+        "10039",
+        "10040",
+        "10041",
+        "10042",
+        "10043",
+        "10044",
+        "10045",
+        "10046",
+    }
+    if value in confirmed:
         return "confirmed"
-    if value in {"TRADE_RETCODE_TIMEOUT", "10012", "unknown"}:
-        return "ambiguous"
-    return "failed"
+    if value in rejected or value.removeprefix("TRADE_RETCODE_") in {
+        "REQUOTE",
+        "REJECT",
+        "CANCEL",
+        "INVALID",
+        "INVALID_VOLUME",
+        "INVALID_PRICE",
+        "INVALID_STOPS",
+        "TRADE_DISABLED",
+        "MARKET_CLOSED",
+        "NO_MONEY",
+        "PRICE_CHANGED",
+        "PRICE_OFF",
+        "INVALID_EXPIRATION",
+        "TOO_MANY_REQUESTS",
+        "SERVER_DISABLES_AT",
+        "CLIENT_DISABLES_AT",
+        "LOCKED",
+        "FROZEN",
+        "INVALID_FILL",
+        "ONLY_REAL",
+        "LIMIT_ORDERS",
+        "LIMIT_VOLUME",
+        "INVALID_ORDER",
+        "POSITION_CLOSED",
+        "INVALID_CLOSE_VOLUME",
+        "CLOSE_ORDER_EXIST",
+        "LIMIT_POSITIONS",
+        "REJECT_CANCEL",
+        "LONG_ONLY",
+        "SHORT_ONLY",
+        "CLOSE_ONLY",
+        "FIFO_CLOSE",
+        "HEDGE_PROHIBITED",
+    }:
+        return "failed"
+    return "ambiguous"

@@ -1,0 +1,10 @@
+# Install a matching lonora-backup.service invoking /opt/lonora/infra/compose/backup-prod.sh.
+[Unit]
+Description=Daily Lonora backup
+[Timer]
+OnCalendar=*-*-* 03:00:00
+Persistent=true
+RandomizedDelaySec=600
+Unit=lonora-backup.service
+[Install]
+WantedBy=timers.target

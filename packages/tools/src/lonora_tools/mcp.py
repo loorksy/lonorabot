@@ -18,7 +18,7 @@ class McpRead(Contract):
 
 class McpExecute(McpRead):
     name: str
-    arguments: dict[str, Any] = Field(default_factory=dict)
+    arguments: dict[str, Any] = Field(default_factory=dict[str, Any])
 
 
 async def connector(context: ToolContext, connection_id: str) -> McpConnector:

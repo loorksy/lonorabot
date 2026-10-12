@@ -1,0 +1,11 @@
+# Optional override: docker compose -f docker-compose.prod.yml -f docker-compose.postgres-host.yml up -d
+# Set LONORA_HOST_DATABASE_URL to the host PostgreSQL URL; PostgreSQL must allow the container bridge.
+services:
+  api:
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    environment:
+      LONORA_DATABASE_URL: ${LONORA_HOST_DATABASE_URL:?set host database URL}
+  gateway:
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    environment:
+      LONORA_DATABASE_URL: ${LONORA_HOST_DATABASE_URL:?set host database URL}

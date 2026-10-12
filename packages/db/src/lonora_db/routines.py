@@ -10,7 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .runs import create_run
-from .schema import RoutineRow, ThreadRow
+from .schema import AgentRow, RoutineRow, ThreadRow
 from .transactions import owned_agent
 
 
@@ -69,7 +69,12 @@ async def enqueue_due(session: AsyncSession, limit: int = 30) -> int:
         (
             await session.scalars(
                 select(RoutineRow)
-                .where(RoutineRow.enabled.is_(True), RoutineRow.next_run_at <= now)
+                .join(AgentRow, AgentRow.id == RoutineRow.agent_id)
+                .where(
+                    RoutineRow.enabled.is_(True),
+                    RoutineRow.next_run_at <= now,
+                    AgentRow.paused.is_(False),
+                )
                 .order_by(RoutineRow.next_run_at)
                 .limit(limit)
                 .with_for_update(skip_locked=True)

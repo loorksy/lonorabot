@@ -4,10 +4,11 @@ from collections import defaultdict, deque
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
+from starlette.types import ASGIApp
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
-    def __init__(self, app):
+    def __init__(self, app: ASGIApp):
         super().__init__(app)
         self.calls: dict[str, deque[float]] = defaultdict(deque)
 
@@ -26,5 +27,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             return JSONResponse({"code": "rate_limited"}, 429, headers={"Retry-After": "60"})
         queue.append(now)
         if len(self.calls) > 10000:
-            self.calls = {k: v for k, v in self.calls.items() if v and v[-1] > now - 60}
+            self.calls = defaultdict(
+                deque, {k: v for k, v in self.calls.items() if v and v[-1] > now - 60}
+            )
         return await call_next(request)

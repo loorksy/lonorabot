@@ -1,0 +1,14 @@
+.git
+.env
+.env.*
+!.env.example
+.venv
+**/node_modules
+**/dist
+**/__pycache__
+**/*.egg-info
+.runtime
+.turbo
+.ruff_cache
+.pytest_cache
+backups

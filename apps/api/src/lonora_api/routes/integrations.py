@@ -19,7 +19,7 @@ class Integration(Contract):
     secret_id: str | None = None
     enabled: bool = False
     thread_id: str | None = None
-    allowed_destinations: list[str] = Field(default_factory=list)
+    allowed_destinations: list[str] = Field(default_factory=list[str])
 
 
 class IntegrationRepository(ResourceRepository):

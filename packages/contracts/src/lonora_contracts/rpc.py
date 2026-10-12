@@ -8,7 +8,7 @@ from .domain import Contract
 class RpcRequest(Contract):
     id: str
     method: str
-    params: dict[str, Any] = Field(default_factory=dict)
+    params: dict[str, Any] = Field(default_factory=dict[str, Any])
 
 
 class RpcError(Contract):

@@ -45,6 +45,7 @@ def rsi(values: list[float], period: int) -> list[float | None]:
 def indicator_series(
     name: str, candles: list[Candle], period: int = 14
 ) -> dict[str, list[float | None]]:
+    name = name.casefold()
     validate_indicator(name, period)
     values = [float(c.close) for c in candles]
     if name == "sma":

@@ -12,4 +12,12 @@ def condition_met(
         return previous is not None and previous <= level < current
     if condition == "cross_below":
         return previous is not None and previous >= level > current
+    if condition == "changed":
+        return previous is not None and previous != current
+    if condition == "closed":
+        return previous is not None and previous > 0 and current == 0
+    if condition == "opened":
+        return previous == 0 and current > 0
+    if condition == "due":
+        return current > 0
     return False

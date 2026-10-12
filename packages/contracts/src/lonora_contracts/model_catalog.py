@@ -8,7 +8,7 @@ class ModelDescriptor(Contract):
     id: str
     provider: ProviderId
     name: str
-    capabilities: list[str] = Field(default_factory=list)
+    capabilities: list[str] = Field(default_factory=list[str])
     verified: bool = False
     context_window: int | None = None
     source: str

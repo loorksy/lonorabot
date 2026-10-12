@@ -14,16 +14,16 @@ class ToolCall(Contract):
 class ModelMessage(Contract):
     role: Literal["system", "user", "assistant", "tool"]
     content: str
-    tool_calls: list[ToolCall] = Field(default_factory=list)
+    tool_calls: list[ToolCall] = Field(default_factory=list[ToolCall])
     tool_call_id: str | None = None
-    images: list[str] = Field(default_factory=list)
+    images: list[str] = Field(default_factory=list[str])
 
 
 class ModelReply(Contract):
     text: str = ""
-    tool_calls: list[ToolCall] = Field(default_factory=list)
+    tool_calls: list[ToolCall] = Field(default_factory=list[ToolCall])
     usage: TokenUsage = Field(default_factory=TokenUsage)
-    provider_metadata: dict[str, Any] = Field(default_factory=dict)
+    provider_metadata: dict[str, Any] = Field(default_factory=dict[str, Any])
 
 
 class ToolDefinition(Contract):

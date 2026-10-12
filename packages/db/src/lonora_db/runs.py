@@ -9,7 +9,7 @@ from sqlalchemy import and_, exists, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .events import emit
-from .schema import AgentRow, MessageRow, RunRow, SteeringRow, ThreadRow
+from .schema import AgentRow, GroupRow, MessageRow, RunRow, SteeringRow, ThreadRow
 from .transactions import owned_agent, owned_thread
 
 
@@ -38,6 +38,17 @@ async def create_run(
 ) -> RunRow:
     thread = await owned_thread(session, owner_id, request.thread_id, lock=True)
     agent = await owned_agent(session, owner_id, request.agent_id)
+    if thread.agent_id and thread.agent_id != agent.id:
+        raise LonoraError("agent_thread_mismatch", 409)
+    if thread.group_id:
+        group = await session.get(GroupRow, thread.group_id)
+        if group is None or agent.id not in group.payload.get("member_ids", []):
+            raise LonoraError("agent_not_group_member", 409)
+    if request.parent_run_id:
+        parent = await session.get(RunRow, request.parent_run_id)
+        if parent is None:
+            raise LonoraError("parent_run_not_found", 404)
+        await owned_thread(session, owner_id, parent.thread_id)
     if agent.paused:
         raise LonoraError("agent_paused", 409)
     row = RunRow(

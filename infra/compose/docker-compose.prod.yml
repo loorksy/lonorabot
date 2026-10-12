@@ -1,0 +1,67 @@
+name: lonora
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: lonora
+      POSTGRES_USER: lonora
+      POSTGRES_PASSWORD: ${LONORA_POSTGRES_PASSWORD:?set a strong production database password}
+    volumes: ["database:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lonora -d lonora"]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+  api:
+    image: ${LONORA_IMAGE:-ghcr.io/loorksy/lonorabot:main}
+    restart: unless-stopped
+    env_file: ../../.env
+    environment: &runtime
+      LONORA_DATABASE_URL: postgresql+asyncpg://lonora:${LONORA_POSTGRES_PASSWORD:?set password}@db:5432/lonora
+      LONORA_ALLOWED_ORIGIN: https://${LONORA_DOMAIN:?set public domain}
+      LONORA_COOKIE_SECURE: "true"
+      LONORA_LIVEKIT_URL: wss://${LONORA_DOMAIN}/livekit
+      LONORA_LIVEKIT_INTERNAL_URL: ws://livekit:7880
+    command: ["api"]
+    volumes: ["artifacts:/app/.runtime/artifacts"]
+    depends_on:
+      db: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=5)"]
+      interval: 10s
+      timeout: 6s
+      retries: 15
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+  gateway:
+    image: ${LONORA_IMAGE:-ghcr.io/loorksy/lonorabot:main}
+    restart: unless-stopped
+    env_file: ../../.env
+    environment: *runtime
+    command: ["gateway"]
+    volumes: ["artifacts:/app/.runtime/artifacts"]
+    depends_on:
+      api: {condition: service_healthy}
+    stop_grace_period: 40s
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+  livekit:
+    image: livekit/livekit-server:v1.9.12
+    restart: unless-stopped
+    command: ["--config", "/etc/livekit.yaml", "--keys", "${LONORA_LIVEKIT_API_KEY:?set voice key}: ${LONORA_LIVEKIT_API_SECRET:?set voice secret}"]
+    ports: ["7881:7881", "7882:7882/udp"]
+    volumes: ["../livekit/livekit.yaml:/etc/livekit.yaml:ro"]
+  caddy:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    environment:
+      LONORA_DOMAIN: ${LONORA_DOMAIN:?set public domain}
+    volumes: ["./Caddyfile.prod:/etc/caddy/Caddyfile:ro", "caddy-data:/data", "caddy-config:/config"]
+    depends_on: [api,livekit]
+volumes:
+  database:
+  artifacts:
+  caddy-data:
+  caddy-config:

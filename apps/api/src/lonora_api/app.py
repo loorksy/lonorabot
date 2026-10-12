@@ -1,7 +1,6 @@
 import importlib
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -57,7 +56,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     rt = ApiRuntime.create(configuration)
 
     @asynccontextmanager
-    async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         yield
         await rt.close()
 
@@ -81,7 +80,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     for name in ["events", "market", "voice"]:
         module = importlib.import_module("lonora_api.websocket." + name)
         app.include_router(module.router, prefix="/api")
-    build = Path(__file__).resolve().parents[3] / "web/dist"
+    build = configuration.web_root.resolve()
     if build.is_dir():
 
         @app.get("/{path:path}", include_in_schema=False)

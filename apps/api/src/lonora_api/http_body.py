@@ -1,22 +1,45 @@
-from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
-from starlette.requests import Request
-from starlette.responses import JSONResponse, Response
+from starlette.datastructures import Headers
+from starlette.responses import JSONResponse
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 
-class BodyLimitMiddleware(BaseHTTPMiddleware):
+class BodyLimitMiddleware:
+    """Bound buffered mutation bodies before parsers consume chunked uploads."""
+
     maximum = 20 * 1024 * 1024
 
-    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
-        length = request.headers.get("content-length")
+    def __init__(self, app: ASGIApp):
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http" or scope["method"] not in {"POST", "PUT", "PATCH"}:
+            await self.app(scope, receive, send)
+            return
+        length = Headers(scope=scope).get("content-length")
         if length and (not length.isdigit() or int(length) > self.maximum):
-            return JSONResponse({"code": "request_body_too_large"}, 413)
-        if request.method in {"POST", "PUT", "PATCH"}:
-            chunks = []
-            size = 0
-            async for chunk in request.stream():
-                size += len(chunk)
-                if size > self.maximum:
-                    return JSONResponse({"code": "request_body_too_large"}, 413)
-                chunks.append(chunk)
-            request._body = b"".join(chunks)
-        return await call_next(request)
+            await JSONResponse({"code": "request_body_too_large"}, 413)(scope, receive, send)
+            return
+        chunks: list[bytes] = []
+        size = 0
+        while True:
+            message = await receive()
+            if message["type"] == "http.disconnect":
+                return
+            chunk = message.get("body", b"")
+            size += len(chunk)
+            if size > self.maximum:
+                await JSONResponse({"code": "request_body_too_large"}, 413)(scope, receive, send)
+                return
+            chunks.append(chunk)
+            if not message.get("more_body", False):
+                break
+        replayed = False
+
+        async def replay() -> Message:
+            nonlocal replayed
+            if replayed:
+                return await receive()
+            replayed = True
+            return {"type": "http.request", "body": b"".join(chunks), "more_body": False}
+
+        await self.app(scope, replay, send)

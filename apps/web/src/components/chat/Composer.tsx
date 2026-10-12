@@ -1,9 +1,130 @@
-import { useRef,useState } from "react";
 import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
-import type { Message,Resource } from "../../lib/api";
+import { useRef, useState } from "react";
+import type { Message, Resource } from "../../lib/api";
 import { api } from "../../lib/api";
 import { userError } from "../../lib/user_error";
-export function Composer({threadId,working,reply,onClearReply,onSend,onCancel}:{threadId:string;working:boolean;reply:Message|null;onClearReply:()=>void;onSend:(text:string,ids:string[],reply:string|null)=>Promise<void>;onCancel:()=>void}){const [text,setText]=useState("");const [files,setFiles]=useState<Resource[]>([]);const [busy,setBusy]=useState(false);const [error,setError]=useState<unknown>();const input=useRef<HTMLInputElement>(null);
-async function send(){if((!text.trim()&&!files.length)||busy)return;setBusy(true);try{await onSend(text,files.map(f=>f.id),reply?.id??null);setText("");setFiles([]);onClearReply();setError(undefined);}catch(e){setError(e);}finally{setBusy(false);}}
-return <form className="composer" onSubmit={e=>{e.preventDefault();void send();}}>{reply&&<div className="reply-preview"><span>{reply.content.slice(0,140)}</span><button type="button" onClick={onClearReply} aria-label={t`Remove reply`}>×</button></div>}{files.length>0&&<div className="attachments">{files.map(f=><button type="button" key={f.id} onClick={()=>setFiles(old=>old.filter(x=>x.id!==f.id))}><bdi>{String(f.payload.filename??"")}</bdi> ×</button>)}</div>}<textarea aria-label={t`Message`} placeholder={working?t`Add direction while the agent works…`:t`Message your agent…`} value={text} onChange={e=>setText(e.target.value)} rows={3} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey&&!e.nativeEvent.isComposing){e.preventDefault();void send();}}}/><div className="composer-actions"><input hidden ref={input} type="file" multiple onChange={async e=>{const picked=Array.from(e.target.files??[]);e.target.value="";setBusy(true);try{const uploaded=await Promise.all(picked.map(f=>api.upload(f,threadId)));setFiles(old=>[...old,...uploaded]);}catch(err){setError(err);}finally{setBusy(false);}}}/><button type="button" disabled={busy} onClick={()=>input.current?.click()}><Trans>Attach</Trans></button><span className="muted"><Trans>Enter to send · Shift+Enter for a new line</Trans></span>{working&&<button type="button" className="danger" onClick={onCancel}><Trans>Stop</Trans></button>}<button className="primary" disabled={busy||(!text.trim()&&!files.length)}>{working?<Trans>Send direction</Trans>:<Trans>Send</Trans>}</button></div>{error!=null&&<p role="alert">{userError(error)}</p>}</form>;}
+export function Composer({
+  threadId,
+  working,
+  reply,
+  onClearReply,
+  onSend,
+  onCancel,
+}: {
+  threadId: string;
+  working: boolean;
+  reply: Message | null;
+  onClearReply: () => void;
+  onSend: (text: string, ids: string[], reply: string | null) => Promise<void>;
+  onCancel: () => void;
+}) {
+  const [text, setText] = useState("");
+  const [files, setFiles] = useState<Resource[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>();
+  const input = useRef<HTMLInputElement>(null);
+  async function send() {
+    if ((!text.trim() && !files.length) || busy) return;
+    setBusy(true);
+    try {
+      await onSend(
+        text.trim() || t`Attached files`,
+        files.map((f) => f.id),
+        reply?.id ?? null,
+      );
+      setText("");
+      setFiles([]);
+      onClearReply();
+      setError(undefined);
+    } catch (e) {
+      setError(e);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <form
+      className="composer"
+      onSubmit={(e) => {
+        e.preventDefault();
+        void send();
+      }}
+    >
+      {reply && (
+        <div className="reply-preview">
+          <span>{reply.content.slice(0, 140)}</span>
+          <button type="button" onClick={onClearReply} aria-label={t`Remove reply`}>
+            ×
+          </button>
+        </div>
+      )}
+      {files.length > 0 && (
+        <div className="attachments">
+          {files.map((f) => (
+            <button
+              type="button"
+              key={f.id}
+              onClick={() => setFiles((old) => old.filter((x) => x.id !== f.id))}
+            >
+              <bdi>{String(f.payload.filename ?? "")}</bdi> ×
+            </button>
+          ))}
+        </div>
+      )}
+      <textarea
+        aria-label={t`Message`}
+        placeholder={working ? t`Add direction while the agent works…` : t`Message your agent…`}
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        rows={3}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+            e.preventDefault();
+            void send();
+          }
+        }}
+      />
+      <div className="composer-actions">
+        <input
+          hidden
+          ref={input}
+          type="file"
+          multiple
+          onChange={async (e) => {
+            const picked = Array.from(e.target.files ?? []);
+            e.target.value = "";
+            setBusy(true);
+            try {
+              const uploaded = await Promise.all(picked.map((f) => api.upload(f, threadId)));
+              setFiles((old) => [...old, ...uploaded]);
+            } catch (err) {
+              setError(err);
+            } finally {
+              setBusy(false);
+            }
+          }}
+        />
+        <button type="button" disabled={busy} onClick={() => input.current?.click()}>
+          <Trans>Attach</Trans>
+        </button>
+        <span className="muted">
+          <Trans>Enter to send · Shift+Enter for a new line</Trans>
+        </span>
+        {working && (
+          <button type="button" className="danger" onClick={onCancel}>
+            <Trans>Stop</Trans>
+          </button>
+        )}
+        <button
+          type="submit"
+          className="primary"
+          disabled={busy || (!text.trim() && !files.length)}
+        >
+          {working ? <Trans>Send direction</Trans> : <Trans>Send</Trans>}
+        </button>
+      </div>
+      {error != null && <p role="alert">{userError(error)}</p>}
+    </form>
+  );
+}

@@ -24,6 +24,22 @@ class ExecutionService:
     async def execute(
         self, owner_id: str, request: TradeRequest, lease: Lease | None = None
     ) -> TradeResult:
+        async with self.db.sessions() as session:
+            previous = await session.get(TradingJournalRow, request.operation_id)
+            if previous:
+                if previous.owner_id != owner_id or previous.request_hash != trade_fingerprint(
+                    request
+                ):
+                    raise LonoraError("idempotency_conflict", 409)
+                return (
+                    TradeResult.model_validate(previous.result)
+                    if previous.result
+                    else TradeResult(
+                        operation_id=request.operation_id,
+                        status="ambiguous",
+                        code="operation_in_progress",
+                    )
+                )
         require_trading(await read_controls(self.db))
         broker = await self.brokers.get(owner_id, request.account_id)
         await preflight(broker, request)
@@ -59,9 +75,17 @@ class ExecutionService:
                 if row is None or row.status != "submitted":
                     raise LonoraError("operation_not_submitted", 409)
 
+        cancelled = False
         try:
             result = await broker.execute(request, before_send)
-        except (TimeoutError, asyncio.CancelledError):
+        except asyncio.CancelledError:
+            cancelled = True
+            result = TradeResult(
+                operation_id=request.operation_id,
+                status="ambiguous",
+                code="broker_result_ambiguous",
+            )
+        except TimeoutError:
             result = TradeResult(
                 operation_id=request.operation_id,
                 status="ambiguous",
@@ -86,4 +110,6 @@ class ExecutionService:
             await persist_result(
                 session, request.operation_id, result.status, result.model_dump(mode="json")
             )
+        if cancelled:
+            raise asyncio.CancelledError
         return result

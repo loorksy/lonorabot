@@ -1,0 +1,12 @@
+# Keys are supplied through the LiveKit --keys option, never committed.
+port: 7880
+logging:
+  level: warn
+rtc:
+  tcp_port: 7881
+  udp_port: 7882
+  use_external_ip: true
+room:
+  auto_create: true
+  empty_timeout: 60
+  departure_timeout: 30

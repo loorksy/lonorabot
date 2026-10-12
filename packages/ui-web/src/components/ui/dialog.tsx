@@ -1,6 +1,7 @@
 import { Trans } from "@lingui/react/macro";
+
 // Modified for Lonora from Rakazo lonora-rakazo-reference; Apache-2.0.
-"use client";
+("use client");
 
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { Button } from "@lonora/ui-web/components/ui/button";
@@ -64,7 +65,9 @@ function DialogContent({
             render={<Button variant="ghost" className="absolute top-2 right-2" size="icon-sm" />}
           >
             <XIcon />
-            <span className="sr-only"><Trans>Close</Trans></span>
+            <span className="sr-only">
+              <Trans>Close</Trans>
+            </span>
           </DialogPrimitive.Close>
         )}
       </DialogPrimitive.Popup>
@@ -97,7 +100,9 @@ function DialogFooter({
     >
       {children}
       {showCloseButton && (
-        <DialogPrimitive.Close render={<Button variant="outline" />}><Trans>Close</Trans></DialogPrimitive.Close>
+        <DialogPrimitive.Close render={<Button variant="outline" />}>
+          <Trans>Close</Trans>
+        </DialogPrimitive.Close>
       )}
     </div>
   );

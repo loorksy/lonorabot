@@ -59,3 +59,11 @@ async def interrupt(
     async with runtime(request).db.sessions() as session:
         row = await VoiceSessionRepository().get(session, owner.id, session_id)
     return {"cancelled": await barge_in(runtime(request).db, owner.id, row.thread_id or "")}
+
+
+@router.get("/status")
+async def status(
+    request: Request, owner: OwnerIdentity = Depends(require_owner)
+) -> dict[str, bool]:
+    settings = runtime(request).settings
+    return {"transport_configured": bool(settings.livekit_api_key and settings.livekit_api_secret)}

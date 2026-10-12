@@ -1,4 +1,5 @@
 from collections import deque
+from collections.abc import Awaitable, Callable
 
 from lonora_adapter_kit.types import ModelMessage, ModelReply, ToolDefinition
 from lonora_contracts.model_catalog import ModelDescriptor
@@ -13,15 +14,23 @@ class ScriptedModelAdapter:
         self.requests: list[list[ModelMessage]] = []
 
     async def complete(
-        self, model: str, messages: list[ModelMessage], tools: list[ToolDefinition]
+        self,
+        model: str,
+        messages: list[ModelMessage],
+        tools: list[ToolDefinition],
+        *,
+        on_delta: Callable[[str], Awaitable[None]] | None = None,
     ) -> ModelReply:
         self.requests.append(list(messages))
         if not self.replies:
             raise LonoraError("scripted_model_exhausted", 500)
-        return self.replies.popleft()
+        reply = self.replies.popleft()
+        if on_delta and reply.text:
+            await on_delta(reply.text)
+        return reply
 
     async def discover(self) -> list[ModelDescriptor]:
         return []
 
     async def close(self) -> None:
-        self.replies.clear()
+        return None

@@ -58,4 +58,4 @@ class TradeResult(Contract):
     status: Literal["confirmed", "failed", "ambiguous", "submitted"]
     broker_id: str | None = None
     code: str | None = None
-    details: dict[str, Any] = Field(default_factory=dict)
+    details: dict[str, Any] = Field(default_factory=dict[str, Any])

@@ -4,7 +4,8 @@ from .user_error import LonoraError
 
 
 def select_model(policy: RoutingPolicy, capability: Capability) -> ModelSelection:
-    selected = policy.routes.get(capability) if policy.mode == "custom" else policy.unified
+    audio = capability in {Capability.STT, Capability.TTS, Capability.REALTIME_VOICE}
+    selected = policy.routes.get(capability) if policy.mode == "custom" or audio else policy.unified
     if selected is None and capability in {
         Capability.CONVERSATION,
         Capability.REASONING,

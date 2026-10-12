@@ -1,6 +1,56 @@
 import { Trans } from "@lingui/react/macro";
-import { Markdown } from "@lonora/chat-ui";
-import type { Agent,Message,Resource } from "../../lib/api";
+import { ChatMarkdown } from "@lonora/chat-ui/web";
+import type { Agent, Message, Resource } from "../../lib/api";
 import { AgentAvatar } from "../agents/AgentAvatar";
 import { AttachmentTile } from "../common/AttachmentTile";
-export function MessageBubble({message,agent,artifacts,onReply,onPreview}:{message:Message;agent?:Agent;artifacts:Resource[];onReply:(message:Message)=>void;onPreview:(artifact:Resource)=>void}){return <article className={`message ${message.role}`} dir="auto">{agent&&<AgentAvatar agent={agent}/>}<div className="message-body"><div className="message-meta"><strong>{message.role==="user"?<Trans>You</Trans>:agent?.name??<Trans>Agent</Trans>}</strong><time dateTime={message.created_at}>{new Date(message.created_at).toLocaleTimeString(undefined,{hour:"2-digit",minute:"2-digit"})}</time><button onClick={()=>onReply(message)}><Trans>Reply</Trans></button></div>{message.reply_to&&<span className="muted"><Trans>Reply to an earlier message</Trans></span>}<Markdown content={message.content}/>{message.attachment_ids.map(id=>{const file=artifacts.find(a=>a.id===id);return file?<AttachmentTile key={id} artifact={file} onPreview={()=>onPreview(file)}/>:<a key={id} href={`/api/artifacts/${id}/file`}><Trans>Attachment</Trans></a>;})}</div></article>;}
+export function MessageBubble({
+  message,
+  agent,
+  artifacts,
+  onReply,
+  onPreview,
+}: {
+  message: Message;
+  agent?: Agent;
+  artifacts: Resource[];
+  onReply: (message: Message) => void;
+  onPreview: (artifact: Resource) => void;
+}) {
+  return (
+    <article className={`message ${message.role}`} dir="auto">
+      {agent && <AgentAvatar agent={agent} />}
+      <div className="message-body">
+        <div className="message-meta">
+          <strong>
+            {message.role === "user" ? <Trans>You</Trans> : (agent?.name ?? <Trans>Agent</Trans>)}
+          </strong>
+          <time dateTime={message.created_at}>
+            {new Date(message.created_at).toLocaleTimeString(undefined, {
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+          </time>
+          <button type="button" onClick={() => onReply(message)}>
+            <Trans>Reply</Trans>
+          </button>
+        </div>
+        {message.reply_to && (
+          <span className="muted">
+            <Trans>Reply to an earlier message</Trans>
+          </span>
+        )}
+        <ChatMarkdown>{message.content}</ChatMarkdown>
+        {message.attachment_ids.map((id) => {
+          const file = artifacts.find((a) => a.id === id);
+          return file ? (
+            <AttachmentTile key={id} artifact={file} onPreview={() => onPreview(file)} />
+          ) : (
+            <a key={id} href={`/api/artifacts/${id}/file`}>
+              <Trans>Attachment</Trans>
+            </a>
+          );
+        })}
+      </div>
+    </article>
+  );
+}

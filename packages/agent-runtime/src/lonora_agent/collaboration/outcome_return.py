@@ -9,7 +9,7 @@ from lonora_db.schema import EffectReceiptRow, MessageRow, RunRow, SteeringRow, 
 async def return_outcome(db: Database, run_id: str) -> None:
     async with db.sessions() as session, session.begin():
         child = await session.get(RunRow, run_id, with_for_update=True)
-        if child is None or child.status != "completed":
+        if child is None or child.status not in {"completed", "failed", "cancelled"}:
             return
         receipt = "outcome:" + run_id
         if await session.get(EffectReceiptRow, receipt):
@@ -19,7 +19,10 @@ async def return_outcome(db: Database, run_id: str) -> None:
                 TicketRow, child.model_metadata.get("ticket_id", ""), with_for_update=True
             )
             if ticket:
-                ticket.payload = {**ticket.payload, "status": "done"}
+                ticket.payload = {
+                    **ticket.payload,
+                    "status": "done" if child.status == "completed" else "failed",
+                }
                 ticket.state = {**ticket.state, "result": child.result}
                 ticket.version += 1
         if child.parent_run_id:
@@ -31,7 +34,7 @@ async def return_outcome(db: Database, run_id: str) -> None:
                         "<peer_outcome run_id='"
                         + child.id
                         + "'>\n"
-                        + (child.result or "")
+                        + (child.result or child.error_code or child.status)
                         + "\n</peer_outcome>"
                     )
                     message = MessageRow(

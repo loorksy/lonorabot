@@ -1,6 +1,6 @@
 from typing import Any
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Request
 from lonora_auth.identity import OwnerIdentity
 from lonora_contracts.domain import ResourceInput, ResourceUpdate
 from lonora_db.transactions import ResourceRepository, resource_data
@@ -13,11 +13,15 @@ def resource_router(path: str, repository: ResourceRepository) -> APIRouter:
 
     @router.get("")
     async def read_resources(
-        request: Request, agent_id: str | None = None, owner: OwnerIdentity = Depends(require_owner)
+        request: Request,
+        agent_id: str | None = None,
+        thread_id: str | None = None,
+        owner: OwnerIdentity = Depends(require_owner),
     ) -> list[dict[str, Any]]:
         async with runtime(request).db.sessions() as session:
             return [
-                resource_data(row) for row in await repository.list(session, owner.id, agent_id)
+                resource_data(row)
+                for row in await repository.list(session, owner.id, agent_id, thread_id)
             ]
 
     @router.post("", status_code=201)

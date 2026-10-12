@@ -1,10 +1,10 @@
 import time
-from typing import Generic, TypeVar
+from typing import TypeVar
 
 T = TypeVar("T")
 
 
-class MarketCache(Generic[T]):
+class MarketCache[T]:
     def __init__(self, maximum: int = 256):
         self.entries: dict[str, tuple[float, T]] = {}
         self.maximum = maximum

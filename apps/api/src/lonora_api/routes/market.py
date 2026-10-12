@@ -44,3 +44,34 @@ async def candles(
     return [
         item.model_dump(mode="json") for item in await provider.candles(symbol, timeframe, limit)
     ]
+
+
+@router.get("/calendar")
+async def calendar(
+    request: Request, owner: OwnerIdentity = Depends(require_owner)
+) -> list[dict[str, Any]]:
+    from lonora_adapters.market.economic_calendar import EconomicCalendarAdapter
+    from lonora_core.user_error import LonoraError
+    from lonora_db.schema import IntegrationRow
+    from sqlalchemy import select
+
+    async with runtime(request).db.sessions() as session:
+        rows = (
+            await session.scalars(select(IntegrationRow).where(IntegrationRow.owner_id == owner.id))
+        ).all()
+    events: list[dict[str, Any]] = []
+    for row in rows:
+        if (
+            row.payload.get("enabled")
+            and row.payload.get("type") == "economic_calendar"
+            and row.payload.get("url")
+        ):
+            try:
+                events.extend(
+                    event.model_dump(mode="json")
+                    for event in await EconomicCalendarAdapter(row.payload["url"]).events()
+                )
+            except LonoraError:
+                if len(rows) == 1:
+                    raise
+    return sorted(events, key=lambda event: event["scheduled_at"])[:1000]

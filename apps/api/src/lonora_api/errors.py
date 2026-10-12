@@ -1,7 +1,9 @@
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from lonora_core.user_error import LonoraError
+from pydantic import ValidationError
 from sqlalchemy.exc import IntegrityError
+from starlette.exceptions import HTTPException
 from starlette.responses import JSONResponse
 
 
@@ -29,3 +31,14 @@ def install_errors(app: FastAPI) -> None:
     @app.exception_handler(IntegrityError)
     async def conflict(request: Request, error: IntegrityError) -> JSONResponse:
         return JSONResponse({"code": "resource_conflict"}, 409)
+
+    @app.exception_handler(ValidationError)
+    async def invalid_payload(request: Request, error: ValidationError) -> JSONResponse:
+        return JSONResponse({"code": "invalid_request"}, 422)
+
+    @app.exception_handler(HTTPException)
+    async def http_error(request: Request, error: HTTPException) -> JSONResponse:
+        return JSONResponse(
+            {"code": "endpoint_not_found" if error.status_code == 404 else "request_failed"},
+            error.status_code,
+        )

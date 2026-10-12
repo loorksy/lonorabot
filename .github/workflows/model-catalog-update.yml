@@ -1,0 +1,30 @@
+# Refresh the deployed catalog through authenticated endpoints; no guessed static model list is committed.
+name: Refresh official model catalog
+on:
+  workflow_dispatch:
+    inputs:
+      provider:
+        type: choice
+        options: [openai, anthropic, deepseek, zai, openrouter]
+        required: true
+permissions: {contents: read}
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Discover using the owner's configured credential
+        env:
+          LONORA_ORIGIN: ${{ vars.LONORA_ORIGIN }}
+          LONORA_SESSION_TOKEN: ${{ secrets.LONORA_SESSION_TOKEN }}
+          PROVIDER: ${{ inputs.provider }}
+        run: |
+          test -n "$LONORA_ORIGIN" && test -n "$LONORA_SESSION_TOKEN"
+          python - <<'PY'
+          import os,urllib.request
+          url=os.environ['LONORA_ORIGIN'].rstrip('/')+'/api/providers/'+os.environ['PROVIDER']+'/discover'
+          if not url.startswith('https://'): raise SystemExit('HTTPS is required')
+          request=urllib.request.Request(url,data=b'{}',method='POST',headers={'Authorization':'Bearer '+os.environ['LONORA_SESSION_TOKEN'],'Content-Type':'application/json'})
+          with urllib.request.urlopen(request,timeout=60) as response:
+              if response.status != 200: raise SystemExit('Discovery failed')
+          print('Official catalog refreshed')
+          PY

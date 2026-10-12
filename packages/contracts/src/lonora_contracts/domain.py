@@ -41,13 +41,13 @@ class MessageCreate(Contract):
     content: str = Field(min_length=1, max_length=30000)
     client_nonce: str = Field(default_factory=new_id, min_length=1, max_length=80)
     reply_to: str | None = None
-    attachment_ids: list[str] = Field(default_factory=list, max_length=10)
+    attachment_ids: list[str] = Field(default_factory=list[str], max_length=10)
 
 
 class ResourceInput(Contract):
     agent_id: str | None = None
     thread_id: str | None = None
-    payload: dict[str, Any] = Field(default_factory=dict)
+    payload: dict[str, Any] = Field(default_factory=dict[str, Any])
 
 
 class ResourceUpdate(Contract):

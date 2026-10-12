@@ -1,2 +1,16 @@
-import { api,type Resource,type Payload } from "./api";
-export function resources<T=Payload>(path:string){return {list:(agentId?:string)=>api.get<Resource<T>[]>(path+(agentId?`?agent_id=${encodeURIComponent(agentId)}`:"")),create:(payload:T,agent_id?:string,thread_id?:string)=>api.post<Resource<T>>(path,{payload,agent_id:agent_id??null,thread_id:thread_id??null}),update:(row:Resource<T>,payload:T)=>api.put<Resource<T>>(`${path}/${row.id}`,{payload,version:row.version}),delete:(id:string)=>api.delete<{deleted:boolean}>(`${path}/${id}`)};}
+import { api, type Payload, type Resource } from "./api";
+export function resources<T = Payload>(path: string) {
+  return {
+    list: (agentId?: string) =>
+      api.get<Resource<T>[]>(path + (agentId ? `?agent_id=${encodeURIComponent(agentId)}` : "")),
+    create: (payload: T, agent_id?: string, thread_id?: string) =>
+      api.post<Resource<T>>(path, {
+        payload,
+        agent_id: agent_id ?? null,
+        thread_id: thread_id ?? null,
+      }),
+    update: (row: Resource<T>, payload: T) =>
+      api.put<Resource<T>>(`${path}/${row.id}`, { payload, version: row.version }),
+    delete: (id: string) => api.delete<{ deleted: boolean }>(`${path}/${id}`),
+  };
+}

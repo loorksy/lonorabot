@@ -1,5 +1,5 @@
 import re
-from typing import Any
+from typing import Any, cast
 
 from cryptography.fernet import Fernet, InvalidToken
 from lonora_core.user_error import LonoraError
@@ -11,10 +11,10 @@ def redact(value: Any) -> Any:
     if isinstance(value, dict):
         return {
             str(k): "[redacted]" if SENSITIVE.search(str(k)) else redact(v)
-            for k, v in value.items()
+            for k, v in cast(dict[str, Any], value).items()
         }
     if isinstance(value, (list, tuple)):
-        return [redact(v) for v in value]
+        return [redact(v) for v in cast(list[Any], value)]
     if isinstance(value, str):
         return re.sub(r"(?i)(Bearer\s+)[^\s]+", r"\1[redacted]", value)
     return value

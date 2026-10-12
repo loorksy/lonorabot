@@ -18,7 +18,10 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 class Base(DeclarativeBase):
     def __init__(self, **kwargs: Any) -> None:
-        super().__init__(**kwargs)
+        for name, value in kwargs.items():
+            if not hasattr(type(self), name):
+                raise TypeError("invalid_model_field")
+            setattr(self, name, value)
 
 
 class OwnerRow(Base):

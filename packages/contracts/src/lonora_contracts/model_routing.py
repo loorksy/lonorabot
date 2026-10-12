@@ -27,10 +27,15 @@ class ModelSelection(Contract):
 class RoutingPolicy(Contract):
     mode: Literal["unified", "custom"] = "unified"
     unified: ModelSelection | None = None
-    routes: dict[Capability, ModelSelection] = Field(default_factory=dict)
+    routes: dict[Capability, ModelSelection] = Field(
+        default_factory=dict[Capability, ModelSelection]
+    )
 
     @model_validator(mode="after")
     def validate_policy(self) -> "RoutingPolicy":
-        if self.mode == "unified" and self.routes:
+        if self.mode == "unified" and any(
+            capability not in {Capability.STT, Capability.TTS, Capability.REALTIME_VOICE}
+            for capability in self.routes
+        ):
             raise ValueError("unified_has_custom_routes")
         return self

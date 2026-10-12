@@ -5,6 +5,7 @@ from typing import Any
 import httpx
 from lonora_contracts.domain import Contract
 from lonora_core.user_error import LonoraError
+from lonora_db.client import Database
 from lonora_db.schema import AgentRow, IntegrationRow, MemoryRow, MessageRow, ThreadRow
 from lonora_security.network import validate_public_url
 from pydantic import Field
@@ -41,7 +42,7 @@ class TextParser(HTMLParser):
             self.parts.append(data.strip())
 
 
-async def internal_search(db, owner_id: str, query: str) -> dict[str, Any]:
+async def internal_search(db: Database, owner_id: str, query: str) -> dict[str, Any]:
     async with db.sessions() as session:
         agents = (
             await session.scalars(
@@ -97,7 +98,7 @@ async def fetch(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         ) as response:
             if response.is_error or response.is_redirect:
                 raise LonoraError("research_source_unavailable", 502)
-            chunks = []
+            chunks: list[bytes] = []
             size = 0
             async for chunk in response.aiter_bytes():
                 size += len(chunk)

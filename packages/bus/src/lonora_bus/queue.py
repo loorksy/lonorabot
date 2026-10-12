@@ -1,10 +1,10 @@
 import asyncio
-from typing import Generic, TypeVar
+from typing import TypeVar
 
 T = TypeVar("T")
 
 
-class EventQueue(Generic[T]):
+class EventQueue[T]:
     def __init__(self, capacity: int = 256):
         self.queue: asyncio.Queue[T] = asyncio.Queue(capacity)
 

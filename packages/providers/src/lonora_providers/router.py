@@ -1,4 +1,4 @@
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 
 from lonora_adapter_kit.model import ModelAdapter
 from lonora_adapter_kit.types import ModelMessage, ModelReply, ToolDefinition
@@ -24,7 +24,12 @@ class GlobalModelRouter:
         self.db, self.credentials, self.factory = db, credentials, factory
 
     async def complete(
-        self, capability: Capability, messages: list[ModelMessage], tools: list[ToolDefinition]
+        self,
+        capability: Capability,
+        messages: list[ModelMessage],
+        tools: list[ToolDefinition],
+        *,
+        on_delta: Callable[[str], Awaitable[None]] | None = None,
     ) -> tuple[ModelReply, ModelSelection]:
         choice = select_model(await read_policy(self.db), capability)
         async with self.db.sessions() as session:
@@ -38,7 +43,9 @@ class GlobalModelRouter:
                 selection.provider, await self.credentials.resolve(selection.provider)
             )
             try:
-                return await adapter.complete(selection.model, messages, tools), selection
+                return await adapter.complete(
+                    selection.model, messages, tools, on_delta=on_delta
+                ), selection
             except LonoraError as error:
                 failure = error
                 if not may_fallback(error):

@@ -1,5 +1,5 @@
 import asyncio
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 from lonora_contracts.events import EventEnvelope
@@ -10,7 +10,7 @@ class RuntimeEvents:
         self.subscribers: set[asyncio.Queue[EventEnvelope]] = set()
 
     @asynccontextmanager
-    async def subscribe(self) -> AsyncIterator[asyncio.Queue[EventEnvelope]]:
+    async def subscribe(self) -> AsyncGenerator[asyncio.Queue[EventEnvelope]]:
         queue: asyncio.Queue[EventEnvelope] = asyncio.Queue(128)
         self.subscribers.add(queue)
         try:

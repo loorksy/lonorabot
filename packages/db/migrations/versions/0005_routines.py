@@ -1,7 +1,7 @@
 """0005 routines schema revision."""
 
+import sqlalchemy as sa
 from alembic import op
-from lonora_db.schema import Base
 
 revision = "0005_routines"
 down_revision = "0004_memory_skills"
@@ -10,8 +10,28 @@ depends_on = None
 
 
 def upgrade() -> None:
-    Base.metadata.tables["ln_routines"].create(bind=op.get_bind())
+    op.create_table(
+        "ln_routines",
+        sa.Column("id", sa.String(length=36), nullable=False),
+        sa.Column("owner_id", sa.String(length=36), nullable=False),
+        sa.Column("agent_id", sa.String(length=36), nullable=False),
+        sa.Column("thread_id", sa.String(length=36), nullable=False),
+        sa.Column("prompt", sa.Text(), nullable=False),
+        sa.Column("interval_seconds", sa.Integer(), nullable=True),
+        sa.Column("cron", sa.String(length=100), nullable=True),
+        sa.Column("timezone", sa.String(length=80), nullable=False),
+        sa.Column("enabled", sa.Boolean(), nullable=False),
+        sa.Column("next_run_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("last_run_at", sa.DateTime(timezone=True), nullable=True),
+        sa.ForeignKeyConstraint(["agent_id"], ["ln_agents.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["owner_id"], ["ln_owners.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["thread_id"], ["ln_threads.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index(
+        op.f("ix_ln_routines_next_run_at"), "ln_routines", ["next_run_at"], unique=False
+    )
 
 
 def downgrade() -> None:
-    Base.metadata.tables["ln_routines"].drop(bind=op.get_bind())
+    op.drop_table("ln_routines")

@@ -1,12 +1,12 @@
 from collections.abc import Callable
-from typing import Generic, TypeVar
+from typing import TypeVar
 
 from lonora_core.user_error import LonoraError
 
 T = TypeVar("T")
 
 
-class AdapterRegistry(Generic[T]):
+class AdapterRegistry[T]:
     def __init__(self) -> None:
         self._factories: dict[str, Callable[..., T]] = {}
 

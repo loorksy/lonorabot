@@ -10,7 +10,7 @@ from .env import Settings
 class ApiRuntime:
     settings: Settings
     db: Database
-    owners: dict[str, OwnerServices] = field(default_factory=dict)
+    owners: dict[str, OwnerServices] = field(default_factory=dict[str, OwnerServices])
 
     @classmethod
     def create(cls, settings: Settings) -> "ApiRuntime":

@@ -1,11 +1,10 @@
-from fastapi import Depends, Request
+from fastapi import APIRouter, Depends, Request
 from lonora_auth.identity import OwnerIdentity
 from lonora_db.usage import UsageRepository
 
 from ..middleware.auth import require_owner, runtime
-from . import resource_router
 
-router = resource_router("/usage", UsageRepository())
+router = APIRouter(prefix="/usage")
 
 
 @router.get("/summary")

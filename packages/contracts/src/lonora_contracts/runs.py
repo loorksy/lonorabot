@@ -22,7 +22,7 @@ class RunRequest(Contract):
     trigger: str = "user"
     prompt: str = Field(default="", max_length=30000)
     parent_run_id: str | None = None
-    metadata: dict[str, Any] = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict[str, Any])
 
 
 class Lease(Contract):

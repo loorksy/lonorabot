@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     session_seconds: int = Field(default=86400, ge=300, le=2592000)
     cookie_secure: bool = True
     allowed_origin: str = "http://localhost:8000"
+    web_root: Path = Path("apps/web/dist")
     artifact_root: Path = Path(".runtime/artifacts")
     worker_poll_seconds: float = Field(default=0.5, ge=0.1)
     run_lease_seconds: int = Field(default=120, ge=30)
@@ -28,4 +29,4 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
-    return Settings()
+    return Settings()  # pyright: ignore[reportCallIssue] -- BaseSettings reads required fields from environment.

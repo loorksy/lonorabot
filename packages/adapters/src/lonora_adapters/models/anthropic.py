@@ -1,3 +1,5 @@
+import json
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 import httpx
@@ -63,7 +65,12 @@ class AnthropicAdapter(BaseModelAdapter):
         return {"x-api-key": self.api_key, "anthropic-version": "2023-06-01"}
 
     async def complete(
-        self, model: str, messages: list[ModelMessage], tools: list[ToolDefinition]
+        self,
+        model: str,
+        messages: list[ModelMessage],
+        tools: list[ToolDefinition],
+        *,
+        on_delta: Callable[[str], Awaitable[None]] | None = None,
     ) -> ModelReply:
         system, wire = anthropic_messages(messages)
         payload: dict[str, Any] = {
@@ -81,6 +88,8 @@ class AnthropicAdapter(BaseModelAdapter):
                 }
                 for tool in tools
             ]
+        if on_delta:
+            return await self.stream_complete(payload, on_delta)
         value = await self.request("POST", "/messages", headers=self.headers(), json=payload)
         try:
             blocks = value["content"]
@@ -127,3 +136,70 @@ class AnthropicAdapter(BaseModelAdapter):
                 break
             params["after_id"] = value["last_id"]
         return descriptors
+
+    async def stream_complete(
+        self, payload: dict[str, Any], on_delta: Callable[[str], Awaitable[None]]
+    ) -> ModelReply:
+        text = ""
+        blocks: dict[int, dict[str, Any]] = {}
+        usage: dict[str, Any] = {}
+        response_id: str | None = None
+        ended = False
+        try:
+            async for value in self.stream_request(
+                "/messages", {**payload, "stream": True}, self.headers()
+            ):
+                kind = value.get("type")
+                if kind == "error":
+                    raise LonoraError("model_request_rejected", 502)
+                if kind == "message_start":
+                    usage.update(value["message"].get("usage", {}))
+                    response_id = value["message"].get("id")
+                elif kind == "content_block_start":
+                    blocks[value["index"]] = {**value["content_block"], "partial_json": ""}
+                    initial = value["content_block"].get("text", "")
+                    if initial:
+                        text += initial
+                        await on_delta(initial)
+                elif kind == "content_block_delta":
+                    delta = value["delta"]
+                    chunk = delta.get("text", "")
+                    if chunk:
+                        text += chunk
+                        if len(text) > 120000:
+                            raise ValueError()
+                        await on_delta(chunk)
+                    partial = delta.get("partial_json", "")
+                    if partial:
+                        blocks[value["index"]]["partial_json"] += partial
+                        if len(blocks[value["index"]]["partial_json"]) > 120000:
+                            raise ValueError()
+                elif kind == "message_delta":
+                    usage.update(value.get("usage", {}))
+                elif kind == "message_stop":
+                    ended = True
+            calls = [
+                ToolCall(
+                    id=block["id"],
+                    name=block["name"],
+                    arguments=json.loads(block["partial_json"])
+                    if block["partial_json"]
+                    else block.get("input", {}),
+                )
+                for block in blocks.values()
+                if block.get("type") == "tool_use"
+            ]
+            if not ended or (not text and not calls):
+                raise ValueError()
+            return ModelReply(
+                text=text,
+                tool_calls=calls,
+                usage=TokenUsage(
+                    input_tokens=usage.get("input_tokens", 0),
+                    output_tokens=usage.get("output_tokens", 0),
+                    cached_tokens=usage.get("cache_read_input_tokens", 0),
+                ),
+                provider_metadata={"response_id": response_id},
+            )
+        except (KeyError, TypeError, ValueError):
+            raise LonoraError("model_response_invalid", 502) from None

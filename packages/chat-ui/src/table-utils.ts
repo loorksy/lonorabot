@@ -1,5 +1,4 @@
 // Modified for Lonora; Rakazo, Apache-2.0.
-import { droppedTableHtmlText } from "@rakazo/contracts";
 
 /**
  * Pure helpers behind the markdown table card: hast extraction, type
@@ -236,5 +235,42 @@ export function tableToTsv(columns: string[], rows: string[][]): string {
   const line = (cells: string[]) => cells.map(clean).join("\t");
   return [line(columns), ...rows.map((row) => line(columns.map((_, i) => row[i] ?? "")))].join(
     "\n",
+  );
+}
+
+/**
+ * Raw HTML that the renderer drops inside table cells still contributes text:
+ * the web markdown renderer turns `<br>` into a space and `<img alt>` into its
+ * alt text (preserveSkippedTableText in @rakazo/chat-ui). Quote validation must
+ * reconstruct that same canonical text server-side, so the salvage semantics
+ * live here as the single implementation both sides share.
+ */
+export function droppedTableHtmlText(html: string): string | null {
+  if (/^<br[\s/>]/i.test(html)) return " ";
+  const alt = html.match(/<img[^>]*\balt\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+))/i);
+  return alt ? decodeHtmlEntities(alt[1] ?? alt[2] ?? alt[3] ?? "") : null;
+}
+
+function decodeHtmlEntities(value: string): string {
+  const named: Record<string, string> = {
+    amp: "&",
+    apos: "'",
+    gt: ">",
+    lt: "<",
+    nbsp: "\u00a0",
+    quot: '"',
+  };
+  return value.replace(
+    /&(#(?:x[\da-f]+|\d+)|amp|apos|gt|lt|nbsp|quot);/gi,
+    (entity, code: string) => {
+      if (!code.startsWith("#")) return named[code.toLowerCase()] ?? entity;
+      const point = Number.parseInt(
+        code.slice(code[1]?.toLowerCase() === "x" ? 2 : 1),
+        code[1]?.toLowerCase() === "x" ? 16 : 10,
+      );
+      return Number.isInteger(point) && point > 0 && point <= 0x10ffff
+        ? String.fromCodePoint(point)
+        : entity;
+    },
   );
 }

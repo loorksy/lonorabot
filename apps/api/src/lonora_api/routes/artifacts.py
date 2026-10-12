@@ -53,7 +53,10 @@ async def upload(
 
 @router.get("/{artifact_id}/file")
 async def download(
-    request: Request, artifact_id: str, owner: OwnerIdentity = Depends(require_owner)
+    request: Request,
+    artifact_id: str,
+    preview: bool = False,
+    owner: OwnerIdentity = Depends(require_owner),
 ) -> FileResponse:
     async with runtime(request).db.sessions() as session:
         row = await ArtifactRepository().get(session, owner.id, artifact_id)
@@ -64,6 +67,19 @@ async def download(
         path,
         media_type=row.payload["media_type"],
         filename=row.payload["name"],
+        content_disposition_type="inline"
+        if preview
+        and row.payload["media_type"]
+        in {
+            "image/png",
+            "image/jpeg",
+            "image/webp",
+            "image/gif",
+            "application/pdf",
+            "text/html",
+            "image/svg+xml",
+        }
+        else "attachment",
         headers={
             "Content-Security-Policy": "sandbox; default-src 'none'; style-src 'unsafe-inline'",
             "X-Content-Type-Options": "nosniff",

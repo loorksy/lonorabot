@@ -3,10 +3,11 @@ import asyncio
 from alembic import context
 from lonora_api.env import get_settings
 from lonora_db.schema import Base
+from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import create_async_engine
 
 
-def migrate(connection):
+def migrate(connection: Connection) -> None:
     context.configure(
         connection=connection, target_metadata=Base.metadata, version_table="lonora_v2_alembic"
     )
