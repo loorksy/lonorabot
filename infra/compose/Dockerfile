@@ -8,20 +8,19 @@ COPY packages/ui-web ./packages/ui-web
 COPY packages/chat-ui ./packages/chat-ui
 RUN --mount=type=secret,id=proxy_ca,required=false \
     if [ -f /run/secrets/proxy_ca ]; then export NODE_EXTRA_CA_CERTS=/run/secrets/proxy_ca; fi; \
-    npm install --global pnpm@11.25.0 && pnpm install --frozen-lockfile
-RUN pnpm build
+    npm install --global pnpm@11.25.0 && pnpm install --frozen-lockfile --filter @lonora/web...
+RUN pnpm --filter @lonora/web... build
 FROM python:3.12-slim-bookworm AS server
-LABEL org.opencontainers.image.source="https://github.com/loorksy/lonorabot"
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 LONORA_WEB_ROOT=/app/apps/web/dist
 WORKDIR /app
 COPY pyproject.toml LICENSE THIRD_PARTY_NOTICES.md ./
 COPY packages ./packages
 COPY apps/api ./apps/api
 COPY apps/worker ./apps/worker
-COPY --from=web /build/apps/web/dist ./apps/web/dist
 RUN --mount=type=secret,id=system_ca,required=false \
     if [ -f /run/secrets/system_ca ]; then export PIP_CERT=/run/secrets/system_ca; fi; \
     python -m pip install --no-cache-dir .
+COPY --from=web /build/apps/web/dist ./apps/web/dist
 COPY scripts ./scripts
 COPY entrypoint.sh ./entrypoint.sh
 RUN useradd --system --uid 10001 --create-home lonora && mkdir -p /app/.runtime/artifacts && chmod -R a+rX /app && chown -R lonora:lonora /app/.runtime && chmod +x /app/entrypoint.sh /app/scripts/*.sh

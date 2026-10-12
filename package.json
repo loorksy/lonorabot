@@ -4,14 +4,17 @@
   "version": "0.2.0",
   "packageManager": "pnpm@11.25.0",
   "engines": {
-    "node": ">=22"
+    "node": ">=22.22"
   },
   "scripts": {
     "build": "turbo run build",
     "check": "turbo run check",
-    "lint": "biome check apps/web packages/ui-web packages/chat-ui packages/ui-tokens",
-    "format": "biome format --write apps/web packages/ui-web packages/chat-ui packages/ui-tokens",
-    "i18n": "pnpm --filter @lonora/web i18n"
+    "lint": "biome check apps/web apps/mobile packages/ui-web packages/chat-ui packages/ui-tokens",
+    "format": "biome format --write apps/web apps/mobile packages/ui-web packages/chat-ui packages/ui-tokens",
+    "i18n": "pnpm --filter @lonora/web i18n",
+    "dev:mobile": "pnpm --filter @lonora/mobile start",
+    "build:mobile": "pnpm --filter @lonora/mobile build",
+    "check:mobile": "pnpm --filter @lonora/mobile check && pnpm --filter @lonora/mobile check:expo"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.15",

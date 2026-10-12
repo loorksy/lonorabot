@@ -5,4 +5,5 @@ cd "$(dirname "$0")/.."
 .venv/bin/ruff format --check .
 .venv/bin/pyright
 pnpm lint
+pnpm check
 pnpm build

@@ -13,3 +13,8 @@ dist/
 *.tsbuildinfo
 .runtime/
 backups/
+
+# Generated Expo/native projects (signing and device state stay local).
+apps/mobile/.expo/
+apps/mobile/ios/
+apps/mobile/android/

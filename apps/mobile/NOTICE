@@ -1,0 +1,45 @@
+Tampletgrok
+Copyright 2026 Tampletgrok contributors
+
+This project is a frontend extraction of the Rakazo web and Expo applications.
+Rakazo is Copyright 2026 the Rakazo authors and is licensed under the Apache License, Version 2.0.
+
+Upstream repository: https://github.com/elie222/rakazo
+Upstream commit: c9375d4291d19ac35bbfe826255d19d976c81c38
+
+Files under apps/web, apps/mobile, packages/ui-web, packages/ui-tokens,
+packages/chat-ui, packages/contracts, and packages/core are derived from that
+commit. Package names were changed from @rakazo/* to @tampletgrok/*. Unless a
+file says it was modified or added by Tampletgrok, treat it as that upstream
+source with the package-name change.
+
+The following were added by Tampletgrok and are not upstream Rakazo code:
+
+- packages/mock-adapters
+- packages/contracts/src/adapters.ts
+- packages/ui-tokens/src/brand.ts
+- examples/api-integration
+- docs/
+- the demo session in apps/web/src/lib/auth.ts
+- the demo procedure client in apps/web/src/lib/rpc.ts
+- the standalone Vite config in apps/web/vite.config.ts
+
+Tampletgrok does not claim ownership of unmodified upstream code. The Apache
+License 2.0 is in the LICENSE file. The Rakazo name remains the name of the
+upstream project; it is not the default product name of this template.
+
+The orange assistant mark in packages/ui-tokens/assets/AppIcon.icon is the
+upstream icon source, renamed only as a path. Review it before you ship a
+product that uses a different brand.
+
+Lonora mobile modifications
+Copyright 2026 Lonora contributors
+
+Source reference: https://github.com/loorksy/Tampletgrok
+Reference revision: 20fc9ac862bb833d1578968a7aba5ea18ff88a29
+Modified components: simplified classic assistant avatar, Inbox layout metrics
+and colors, and native Inbox-to-thread navigation adapted to the Lonora API.
+Native-only notifications, demo adapters, spaces, billing and computer screens
+are excluded. Session authentication, bilingual labels, group creation, uploads
+and shared-runtime run controls are implemented for Lonora.
+The complete Apache License 2.0 is included at the repository root in LICENSE.
