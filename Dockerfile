@@ -6,6 +6,8 @@ COPY apps/web ./apps/web
 COPY packages/ui-tokens ./packages/ui-tokens
 COPY packages/ui-web ./packages/ui-web
 COPY packages/chat-ui ./packages/chat-ui
+COPY packages/contracts ./packages/contracts
+COPY packages/core ./packages/core
 RUN --mount=type=secret,id=proxy_ca,required=false \
     if [ -f /run/secrets/proxy_ca ]; then export NODE_EXTRA_CA_CERTS=/run/secrets/proxy_ca; fi; \
     npm install --global pnpm@11.25.0 && pnpm install --frozen-lockfile --filter @lonora/web...

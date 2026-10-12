@@ -1,5 +1,6 @@
 // Layout metrics and palette adapted from Tampletgrok's Expo inbox (Apache-2.0).
 // See NOTICE for retained attribution. All network behavior uses the Lonora API.
+import { appearance } from "@lonora/ui-tokens";
 import type { ReactNode } from "react";
 import {
   ActivityIndicator,
@@ -14,15 +15,15 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useSession } from "../lib/session";
 
 export const colors = {
-  background: "#0B0C0E",
-  foreground: "#ECECEE",
-  muted: "#141518",
-  secondary: "#85858A",
-  border: "#1E2026",
-  accent: "#1A1B20",
-  chatUser: "#22242B",
+  background: appearance.dark.background,
+  foreground: appearance.dark.foreground,
+  muted: appearance.dark.muted,
+  secondary: appearance.dark["muted-foreground"],
+  border: appearance.dark.border,
+  accent: appearance.dark.accent,
+  chatUser: appearance.dark["chat-user"],
   error: "#EF8C8C",
-  primary: "#F1F1EF",
+  primary: appearance.dark.primary,
 };
 export function Screen({ children }: { children: ReactNode }) {
   return (

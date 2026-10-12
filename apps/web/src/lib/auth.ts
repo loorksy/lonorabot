@@ -1,5 +1,7 @@
+import type { Owner } from "@lonora/contracts";
 import { api } from "./api";
-export type Owner = { id: string; email: string };
+
+export type { Owner } from "@lonora/contracts";
 export const auth = {
   session: () => api.get<Owner>("/auth/session"),
   login: (email: string, password: string) =>

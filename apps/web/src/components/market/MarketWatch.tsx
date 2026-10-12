@@ -3,8 +3,8 @@ import { useEffect, useMemo, useState } from "react";
 import type { Agent, Resource } from "../../lib/api";
 import { resources } from "../../lib/rpc";
 import { userError } from "../../lib/user_error";
+import { AgentPicker } from "../../pages/shell/bot-picker";
 import { useClient } from "../../providers/ClientProvider";
-import { AgentPicker } from "../agents/AgentPicker";
 export function MarketWatch({
   accountId,
   symbol,

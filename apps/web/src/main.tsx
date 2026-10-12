@@ -1,13 +1,15 @@
 import { i18n } from "@lingui/core";
 import { I18nProvider } from "@lingui/react";
+import { brand } from "@lonora/ui-tokens";
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import App from "./App";
-import { ErrorBoundary } from "./components/common/ErrorBoundary";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { activateLocale } from "./i18n/config";
 import "./styles.css";
 
+document.title = brand.name;
 activateLocale(localStorage.getItem("lonora.locale") === "en" ? "en" : "ar");
 const root = document.getElementById("root");
 if (!root) throw new Error("root_element_missing");

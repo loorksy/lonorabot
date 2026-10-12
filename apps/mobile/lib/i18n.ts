@@ -1,5 +1,27 @@
 export type Locale = "ar" | "en";
 export const labels = {
+  edit: ["تعديل", "Edit"],
+
+  integrations: ["التكاملات", "Integrations"],
+  voice: ["الصوت", "Voice"],
+  providers: ["المزودون", "Providers"],
+  configured: ["تم الإعداد", "Configured"],
+  openWebSettings: ["فتح الإعدادات في الويب", "Open Web settings"],
+  nativeVoiceHint: [
+    "المكالمات الصوتية متاحة من واجهة الويب. تعرض هذه الصفحة حالة إعداد الصوت على الخادم.",
+    "Voice calls are available in the Web interface. This screen shows the server’s voice configuration.",
+  ],
+  changeServerHint: [
+    "تغيير الخادم يسجّل خروجك من الجلسة الحالية. سجّل الدخول إلى الخادم الجديد باستخدام حسابه.",
+    "Changing servers signs out of your current session. Sign in with the new server’s account.",
+  ],
+
+  previewTruncated: [
+    "المعاينة مختصرة. نزّل الملف لقراءة المحتوى كاملًا.",
+    "Preview is truncated. Download the file to read all content.",
+  ],
+  openConversation: ["فتح المحادثة", "Open conversation"],
+
   inbox: ["المحادثات", "Inbox"],
   agents: ["الوكلاء", "Agents"],
   groups: ["المجموعات", "Groups"],
@@ -96,6 +118,78 @@ export const labels = {
     "Could not connect to the server. Check its address and your network.",
   ],
   pageMissing: ["الصفحة غير موجودة", "Page not found"],
+  artifacts: ["الملفات", "Artifacts"],
+  artifactSearch: ["ابحث في الملفات…", "Search files…"],
+  emptyArtifacts: [
+    "لا توجد ملفات بعد. ستظهر مرفقات المحادثات وملفات الوكلاء هنا.",
+    "No files yet. Conversation attachments and agent files appear here.",
+  ],
+  download: ["تنزيل", "Download"],
+  share: ["مشاركة", "Share"],
+  preview: ["معاينة", "Preview"],
+  image: ["صورة", "Image"],
+  unsupportedPreview: [
+    "هذا النوع لا يدعم المعاينة. نزّل الملف أو شاركه لفتحه.",
+    "Preview is unavailable for this file type. Download or share it to open.",
+  ],
+  nativeHtmlPreview: [
+    "يُعرض HTML كنص آمن هنا. شارك الملف لفتحه في تطبيق موثوق.",
+    "HTML is shown as safe source here. Share the file to open it in a trusted app.",
+  ],
+  nativePdfPreview: [
+    "شارك PDF لفتحه في عارض المستندات على جهازك.",
+    "Share this PDF to open it in your device’s document viewer.",
+  ],
+  noImage: ["هذا الملف ليس صورة.", "This file is not an image."],
+  fileMissing: ["الملف غير موجود", "File not found"],
+  sharingUnavailable: [
+    "المشاركة غير متاحة على هذا الجهاز.",
+    "Sharing is unavailable on this device.",
+  ],
+  refresh: ["تحديث", "Refresh"],
+  save: ["حفظ", "Save"],
+  saved: ["تم الحفظ", "Saved"],
+  instructions: ["التعليمات", "Instructions"],
+  agentSettings: ["إعدادات الوكيل", "Agent settings"],
+  groupSettings: ["إعدادات المجموعة", "Group settings"],
+  enabled: ["مفعّل", "Enabled"],
+  pause: ["إيقاف مؤقت", "Pause"],
+  memory: ["الذاكرة الدائمة", "Persistent memory"],
+  memoryHint: [
+    "ذاكرة الوكيل الدائمة مشتركة مع المحادثة والمهام المجدولة.",
+    "This agent’s persistent memory is shared with conversation and scheduled work.",
+  ],
+  routines: ["المهام المجدولة", "Routines"],
+  routineTask: ["المهمة", "Task"],
+  routineSchedule: ["الجدولة", "Schedule"],
+  interval: ["فترة زمنية", "Interval"],
+  cron: ["تعبير Cron", "Cron expression"],
+  minutes: ["كل · دقائق", "Every · minutes"],
+  timezone: ["المنطقة الزمنية", "Timezone"],
+  createRoutine: ["إنشاء مهمة مجدولة", "Create routine"],
+  nextRun: ["التنفيذ التالي", "Next run"],
+  history: ["سجل التنفيذ", "Execution history"],
+  noHistory: ["لا يوجد تنفيذ بعد", "No executions yet"],
+  delete: ["حذف", "Delete"],
+  emptyRoutines: ["لم تُنشأ مهام مجدولة بعد.", "No routines have been created yet."],
+  routineHint: [
+    "تنفذ المهام على الخادم عبر نفس الوكيل والذاكرة والأدوات حتى عند إغلاق التطبيق.",
+    "Routines run on the server through the same agent, memory and tools, even when this app closes.",
+  ],
+  mentionsOrLead: ["الإشارات أو الوكيل الأول", "Mentions or lead agent"],
+  allMembers: ["كل الأعضاء", "All members"],
+  participation: ["المشاركة", "Participation"],
+  today: ["اليوم", "Today"],
+  yesterday: ["أمس", "Yesterday"],
+  agentMissing: ["الوكيل غير موجود", "Agent not found"],
+  groupMissing: ["المجموعة غير موجودة", "Group not found"],
+  avatarRound: ["دائري", "Round"],
+  avatarSquare: ["مربع", "Square"],
+  attachments: ["المرفقات", "Attachments"],
+  version_conflict: [
+    "عُدّلت البيانات من جهاز آخر. حدّث الصفحة ثم حاول مجددًا.",
+    "This was changed on another device. Refresh and try again.",
+  ],
 } as const;
 export type Label = keyof typeof labels;
 export function translate(locale: Locale, key: Label): string {

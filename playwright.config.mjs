@@ -21,10 +21,13 @@ if (
 )
   throw new Error("UI tests refuse a database whose name does not end in _ci, _test or _verify.");
 const root = fileURLToPath(new URL(".", import.meta.url));
-const baseURL = "http://127.0.0.1:8830";
+const mobile = process.env.LONORA_UI_TEST_APP === "mobile";
+const port = mobile ? 8831 : 8830;
+const baseURL = `http://127.0.0.1:${port}`;
+const output = `${root}.runtime/${mobile ? "mobile" : "web"}-ui-tests`;
 
 export default defineConfig({
-  testDir: "./tests/web",
+  testDir: mobile ? "./tests/mobile" : "./tests/web",
   testMatch: "**/*.spec.mjs",
   fullyParallel: false,
   workers: 1,
@@ -34,7 +37,7 @@ export default defineConfig({
   reporter: "list",
   use: {
     baseURL,
-    viewport: { width: 1440, height: 900 },
+    viewport: mobile ? { width: 390, height: 844 } : { width: 1440, height: 900 },
     launchOptions: process.env.LONORA_UI_TEST_BROWSER_PATH
       ? { executablePath: process.env.LONORA_UI_TEST_BROWSER_PATH }
       : {},
@@ -44,19 +47,20 @@ export default defineConfig({
   webServer: {
     // The development React bundle exercises StrictMode effect replay. Build it
     // separately so regression checks do not replace the production Web build.
-    command:
-      "pnpm --filter @lonora/web exec vite build --outDir ../../.runtime/web-ui-tests --emptyOutDir && .venv/bin/lonora-api --host 127.0.0.1 --port 8830",
+    command: mobile
+      ? "pnpm --filter @lonora/mobile exec expo export --platform web --output-dir ../../.runtime/mobile-ui-tests && .venv/bin/lonora-api --host 127.0.0.1 --port 8831"
+      : "pnpm --filter @lonora/web exec vite build --outDir ../../.runtime/web-ui-tests --emptyOutDir && .venv/bin/lonora-api --host 127.0.0.1 --port 8830",
     cwd: root,
     url: `${baseURL}/health`,
     reuseExistingServer: false,
     timeout: 120_000,
     env: {
       ...process.env,
-      NODE_ENV: "development",
+      NODE_ENV: mobile ? "production" : "development",
       LONORA_DATABASE_URL: database,
       LONORA_COOKIE_SECURE: "false",
       LONORA_ALLOWED_ORIGIN: baseURL,
-      LONORA_WEB_ROOT: `${root}.runtime/web-ui-tests`,
+      LONORA_WEB_ROOT: output,
       LONORA_ARTIFACT_ROOT: `${root}.runtime/ui-regression-artifacts`,
       LONORA_BOOTSTRAP_TOKEN:
         process.env.LONORA_BOOTSTRAP_TOKEN ?? "lonora-ui-bootstrap-ci-only-2026",

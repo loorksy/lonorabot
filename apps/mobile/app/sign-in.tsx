@@ -1,3 +1,4 @@
+import { brand } from "@lonora/ui-tokens";
 import { Redirect } from "expo-router";
 import { useState } from "react";
 import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from "react-native";
@@ -28,7 +29,7 @@ export default function SignIn() {
   return (
     <Screen>
       <Header
-        title="Lonora"
+        title={brand.name}
         right={
           <Button
             label={session.locale === "ar" ? "English" : "العربية"}

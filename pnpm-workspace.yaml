@@ -1,6 +1,8 @@
 packages:
   - apps/web
   - apps/mobile
+  - packages/contracts
+  - packages/core
   - packages/chat-ui
   - packages/ui-web
   - packages/ui-tokens
@@ -19,3 +21,4 @@ minimumReleaseAgeExclude:
   - expo-modules-jsi@57.1.2
   - expo-router@57.0.26
   - expo@57.0.28
+  - expo-sharing@57.0.23

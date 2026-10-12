@@ -1,12 +1,15 @@
+import type { Agent, Group, Run, Thread } from "@lonora/contracts";
+import { activeStatuses } from "@lonora/core";
 // Inbox structure adapted from Tampletgrok apps/mobile/app/index.tsx; see NOTICE.
 import { Redirect, useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
-import { AppState, FlatList, Pressable, RefreshControl, Text, View } from "react-native";
-import { AgentAvatar } from "../components/AgentAvatar";
+import { AppState, FlatList, RefreshControl, Text, View } from "react-native";
+import { BotAvatar } from "../components/bot-avatar";
+import { ConversationRow } from "../components/conversation-row";
+import { GroupAvatar } from "../components/group-avatar";
 import { Button, colors, ErrorNotice, Field, Header, Loading, Screen } from "../components/ui";
 import { api } from "../lib/api";
 import { useSession } from "../lib/session";
-import { type Agent, activeStatuses, type Group, type Run, type Thread } from "../lib/types";
 
 type Row = { kind: "agent"; value: Agent } | { kind: "group"; value: Group };
 
@@ -77,14 +80,8 @@ export default function Inbox() {
           {},
         );
       } else {
-        const threads = await api.get<Thread[]>("/threads");
-        const existing = threads.find((value) => value.group_id === row.value.id);
-        thread =
-          existing ??
-          (await api.post<Thread>("/threads", {
-            group_id: row.value.id,
-            title: row.value.payload.name,
-          }));
+        router.push({ pathname: "/group-thread", params: { groupId: row.value.id } });
+        return;
       }
       router.push({ pathname: "/thread", params: { id: thread.id } });
     } catch (reason) {
@@ -138,62 +135,51 @@ export default function Inbox() {
             (value) => value.agent_id === agent?.id && activeStatuses.includes(value.status),
           );
           return (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={name}
+            <ConversationRow
+              title={name}
               disabled={opening !== null}
+              busy={opening === item.value.id}
               onPress={() => void open(item)}
-              style={({ pressed }) => ({
-                flexDirection: rtl ? "row-reverse" : "row",
-                alignItems: "center",
-                paddingHorizontal: 16,
-                paddingVertical: 12,
-                gap: 12,
-                opacity: pressed || opening === item.value.id ? 0.55 : 1,
-              })}
-            >
-              <AgentAvatar
-                color={agent?.color ?? "#85858A"}
-                variant={agent?.avatar}
-                working={Boolean(run)}
-              />
-              <View style={{ flex: 1, gap: 5 }}>
-                <Text
-                  numberOfLines={1}
-                  style={{
-                    color: colors.foreground,
-                    fontSize: 17,
-                    fontWeight: "600",
-                    textAlign: rtl ? "right" : "left",
-                  }}
-                >
-                  {name}
-                </Text>
-                <Text
-                  numberOfLines={1}
-                  style={{
-                    color: colors.secondary,
-                    fontSize: 15,
-                    textAlign: rtl ? "right" : "left",
-                  }}
-                >
-                  {item.kind === "group"
-                    ? item.value.payload.member_ids
-                        .map((id) => agents.find((value) => value.id === id)?.name)
-                        .filter(Boolean)
-                        .join(" · ")
-                    : item.value.paused
-                      ? t("paused")
-                      : run
-                        ? t(run.status)
-                        : item.value.instructions || t("threadsPersist")}
-                </Text>
-              </View>
-            </Pressable>
+              onLongPress={() =>
+                router.push(
+                  item.kind === "agent"
+                    ? { pathname: "/bot-settings", params: { botId: item.value.id } }
+                    : { pathname: "/group-settings", params: { groupId: item.value.id } },
+                )
+              }
+              avatar={
+                item.kind === "group" ? (
+                  <GroupAvatar
+                    members={agents.filter((value) =>
+                      item.value.payload.member_ids.includes(value.id),
+                    )}
+                  />
+                ) : (
+                  <BotAvatar
+                    color={agent?.color ?? "#85858A"}
+                    variant={agent?.avatar}
+                    working={Boolean(run)}
+                  />
+                )
+              }
+              preview={
+                item.kind === "group"
+                  ? item.value.payload.member_ids
+                      .map((memberId) => agents.find((value) => value.id === memberId)?.name)
+                      .filter(Boolean)
+                      .join(" · ")
+                  : item.value.paused
+                    ? t("paused")
+                    : run
+                      ? t(run.status)
+                      : item.value.instructions || t("threadsPersist")
+              }
+            />
           );
         }}
       />
-      <View style={{ paddingHorizontal: 16, paddingBottom: 12 }}>
+      <View style={{ paddingHorizontal: 16, paddingBottom: 12, gap: 8 }}>
+        <Button label={t("artifacts")} secondary onPress={() => router.push("/artifacts")} />
         <Button
           label={t("newGroup")}
           secondary

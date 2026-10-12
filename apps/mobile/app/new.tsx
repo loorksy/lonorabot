@@ -1,11 +1,11 @@
+import type { Agent, Thread } from "@lonora/contracts";
 import { Redirect, useRouter } from "expo-router";
 import { useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
-import { AgentAvatar } from "../components/AgentAvatar";
+import { BotAvatar } from "../components/bot-avatar";
 import { Button, colors, ErrorNotice, Field, Header, Loading, Screen } from "../components/ui";
 import { api } from "../lib/api";
 import { useSession } from "../lib/session";
-import type { Agent, Thread } from "../lib/types";
 
 const palette = ["#FF8A4C", "#A78BFA", "#5DA8FF", "#7ED6A0", "#F7CF67", "#F27BA8"];
 export default function NewAgent() {
@@ -45,7 +45,7 @@ export default function NewAgent() {
         contentContainerStyle={{ padding: 24, gap: 24 }}
       >
         <View style={{ alignItems: "center" }}>
-          <AgentAvatar color={color} variant={avatar} size={100} />
+          <BotAvatar color={color} variant={avatar} size={100} />
         </View>
         <Field label={t("name")} value={name} onChangeText={setName} maxLength={80} autoFocus />
         <Text style={{ color: colors.secondary, textAlign: rtl ? "right" : "left" }}>
@@ -87,7 +87,7 @@ export default function NewAgent() {
                 backgroundColor: avatar === value ? colors.accent : "transparent",
               }}
             >
-              <AgentAvatar color={color} variant={value} />
+              <BotAvatar color={color} variant={value} />
             </Pressable>
           ))}
         </View>

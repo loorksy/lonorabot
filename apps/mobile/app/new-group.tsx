@@ -1,11 +1,11 @@
+import type { Agent, Group } from "@lonora/contracts";
 import { Redirect, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { Pressable, ScrollView, Text } from "react-native";
-import { AgentAvatar } from "../components/AgentAvatar";
+import { BotAvatar } from "../components/bot-avatar";
 import { Button, colors, ErrorNotice, Field, Header, Loading, Screen } from "../components/ui";
 import { api } from "../lib/api";
 import { useSession } from "../lib/session";
-import type { Agent, Group } from "../lib/types";
 
 export default function NewGroup() {
   const { ready, owner, rtl, t, errorText } = useSession();
@@ -78,7 +78,7 @@ export default function NewGroup() {
               backgroundColor: members.includes(agent.id) ? colors.accent : colors.muted,
             }}
           >
-            <AgentAvatar color={agent.color} size={40} variant={agent.avatar} />
+            <BotAvatar color={agent.color} size={40} variant={agent.avatar} />
             <Text
               style={{
                 color: colors.foreground,

@@ -1,9 +1,9 @@
+import type { Owner } from "@lonora/contracts";
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useState } from "react";
 import { Platform } from "react-native";
 import { ApiError, api, configureApi, normalizeServer, setCredentials } from "./api";
 import { type Label, type Locale, labels, translate } from "./i18n";
 import { loadNativeToken, loadSetting, saveNativeToken, saveSetting } from "./storage";
-import type { Owner } from "./types";
 
 type Session = {
   ready: boolean;
@@ -13,6 +13,7 @@ type Session = {
   rtl: boolean;
   login: (server: string, email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  changeServer: (server: string) => Promise<void>;
   changeLocale: (locale: Locale) => Promise<void>;
   t: (key: Label) => string;
   errorText: (error: unknown) => string;
@@ -94,6 +95,23 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setCredentials(null);
     setOwner(null);
   };
+  const changeServer = async (value: string) => {
+    let normalized: string;
+    try {
+      normalized = normalizeServer(value);
+    } catch {
+      throw new ApiError("invalid_server", 0);
+    }
+    if (owner) await logout();
+    else {
+      await saveNativeToken(null);
+      setCredentials(null);
+    }
+    await saveSetting("lonora.server", normalized);
+    configureApi(normalized, null, expire);
+    setServer(normalized);
+    setOwner(null);
+  };
   const changeLocale = async (next: Locale) => {
     await saveSetting("lonora.locale", next);
     setLocale(next);
@@ -118,6 +136,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         login,
         logout,
         changeLocale,
+        changeServer,
         t,
         errorText,
       }}

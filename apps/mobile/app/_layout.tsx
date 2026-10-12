@@ -19,6 +19,9 @@ export default function Layout() {
         <Stack.Screen name="thread" />
         <Stack.Screen name="new" options={{ presentation: "modal" }} />
         <Stack.Screen name="new-group" options={{ presentation: "modal" }} />
+        <Stack.Screen name="(settings)" />
+        <Stack.Screen name="bot-settings" options={{ presentation: "modal" }} />
+        <Stack.Screen name="group-settings" options={{ presentation: "modal" }} />
         <Stack.Screen name="settings" options={{ presentation: "modal" }} />
       </Stack>
     </SessionProvider>

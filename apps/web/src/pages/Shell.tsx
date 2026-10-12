@@ -7,6 +7,7 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  GroupAvatar,
 } from "@lonora/ui-web";
 import {
   Activity as ActivityIcon,
@@ -37,17 +38,7 @@ import {
   useNavigate,
   useSearchParams,
 } from "react-router-dom";
-import { AgentAvatar } from "../components/agents/AgentAvatar";
-import { AgentCreatePanel } from "../components/agents/AgentCreatePanel";
-import { AgentSettings } from "../components/agents/AgentSettings";
-import { ThreadViewport } from "../components/chat/ThreadViewport";
-import { GroupAvatar } from "../components/groups/GroupAvatar";
-import { GroupCreatePanel } from "../components/groups/GroupCreatePanel";
-import { GroupSettings } from "../components/groups/GroupSettings";
-import type { SettingsTab } from "../components/settings/SettingsSidebar";
-import { NewConversationPicker } from "../components/template/NewConversationPicker";
-import { SidebarRow } from "../components/template/SidebarRow";
-import { SwitchAgentDialog } from "../components/template/SwitchAgentDialog";
+import { AgentAvatar } from "../components/ai/AgentAvatar";
 import { useAgents } from "../hooks/useAgents";
 import { dismissOverlays, useOverlayHistory } from "../hooks/useOverlayHistory";
 import { usePersistentThread } from "../hooks/usePersistentThread";
@@ -62,16 +53,27 @@ import {
 } from "../lib/right-panel-state";
 import { userError } from "../lib/user_error";
 import { useClient } from "../providers/ClientProvider";
-import { Activity } from "./Activity";
+import { ActivityList } from "./ActivityList";
 import { Artifacts } from "./Artifacts";
+import { BoardPage } from "./Board";
+import { GroupCreatePanel, GroupSettings } from "./GroupPanel";
 import { Knowledge } from "./Knowledge";
 import { ResizableSidePanel } from "./ResizableSidePanel";
 import { Routines } from "./Routines";
-import { Search } from "./Search";
+import { SpaceSearch } from "./SpaceSearch";
+import type { SettingsTab } from "./settings-sidebar";
+import { AgentCreatePanel } from "./shell/bot-panel";
+import { NewConversationPicker } from "./shell/bot-picker";
+import { SidebarRow } from "./shell/bot-roster-row";
+import { AgentSettings } from "./shell/bot-settings";
+import { ThreadViewport } from "./shell/chat-context";
+import { SwitchAgentDialog } from "./shell/command-palette";
 
 const Market = lazy(() => import("./Market").then((module) => ({ default: module.Market })));
 const Trading = lazy(() => import("./Trading").then((module) => ({ default: module.Trading })));
-const Settings = lazy(() => import("./Settings").then((module) => ({ default: module.Settings })));
+const Settings = lazy(() =>
+  import("./SettingsOverlay").then((module) => ({ default: module.SettingsOverlay })),
+);
 const surfaces = [
   "activity",
   "board",
@@ -223,6 +225,18 @@ export function Shell({ onLogout }: { onLogout: () => void }) {
     "create-group": t`Create group`,
     "group-settings": t`Group settings`,
   }[panel ?? "settings"];
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const tab = params.get("settings");
+    if (
+      tab &&
+      ["overview", "models", "voice", "trading", "integrations", "mcp", "usage"].includes(tab)
+    ) {
+      setGlobalSettings(tab as SettingsTab);
+      params.delete("settings");
+      navigate({ pathname: location.pathname, search: params.toString() }, { replace: true });
+    }
+  }, [location.pathname, location.search, navigate]);
   useOverlayHistory(drawer, () => setDrawer(false));
   useOverlayHistory(picker, () => setPicker(false));
   useOverlayHistory(accountMenu, () => setAccountMenu(false));
@@ -617,7 +631,7 @@ export function Shell({ onLogout }: { onLogout: () => void }) {
               {agent ? (
                 <AgentAvatar agent={agent} />
               ) : group ? (
-                <GroupAvatar name={String(group.payload.name)} />
+                <GroupAvatar members={memberAgents} />
               ) : null}
               <span dir="auto">{title}</span>
               {agent?.paused && (
@@ -710,7 +724,7 @@ export function Shell({ onLogout }: { onLogout: () => void }) {
               path="/app/activity"
               element={
                 <div className="tpl-surface">
-                  <Activity agents={agents} view="activity" />
+                  <ActivityList agents={agents} />
                 </div>
               }
             />
@@ -718,7 +732,7 @@ export function Shell({ onLogout }: { onLogout: () => void }) {
               path="/app/board"
               element={
                 <div className="tpl-surface">
-                  <Activity agents={agents} view="board" />
+                  <BoardPage agents={agents} />
                 </div>
               }
             />
@@ -742,7 +756,7 @@ export function Shell({ onLogout }: { onLogout: () => void }) {
               path="/app/search"
               element={
                 <div className="tpl-surface">
-                  <Search />
+                  <SpaceSearch />
                 </div>
               }
             />

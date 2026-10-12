@@ -31,10 +31,15 @@ The export lives in `apps/mobile/dist`. Serve it with an `/api` proxy to Lonora 
 - Agent creation with name, avatar and color only; group creation with real members.
 - Continuous existing thread history, older-message pagination, sending, stable retry nonce, server run status, cancellation and takeover resume.
 - Native/Web file selection and real server upload, attachments shown in messages.
-- Global model routing and token usage read from the server; account and server identity; durable logout.
+- Editable agent identity/instructions/pause and versioned persistent memory; editable group membership.
+- Routine creation/editing/pause/delete, interval or Cron/timezone schedules, actual execution history.
+- Authenticated artifact library, search/filter, image/text preview, isolated HTML and PDF Web previews, native share/download with cache cleanup.
+- Global settings routes for account, model routing, integrations and server voice status; safe server change revokes the old session; durable logout.
 
 ## Current scope and validation
 
-Mobile is a companion surface. Provider configuration, broker controls, markets/charts, boards, knowledge editing, routines, artifact preview/download and realtime voice remain in the full Web interface. Message bodies currently render selectable text rather than the Web Markdown/artifact renderer. The agent runtime, memory, tools and trading still execute on the shared Python server when used through a thread.
+Mobile is a companion surface. Provider/integration configuration, broker controls, markets/charts, boards, skills/scratchpad/semantic knowledge editing and realtime voice remain in the full Web interface. Native model/integration/voice settings read real state and open the matching Web settings dialog. Native PDF/HTML files can be shared to a trusted external viewer; HTML previews show safe source. Message bodies currently render selectable text rather than the Web Markdown/artifact renderer. The agent runtime, memory, tools and trading still execute on the shared Python server when used through a thread.
 
 `pnpm --filter @lonora/mobile build` exports the Web, iOS and Android JavaScript bundles. TypeScript, Expo dependency compatibility and these exports are checked in the cloud workspace. Native binary builds, permissions, SecureStore persistence on a physical device and native file picker/upload require a simulator or physical device and are not claimed as validated here. No model/provider or broker account is bundled or simulated by the app.
+
+The retained `pnpm test:mobile` browser regression serves a fresh Expo Web export against the real Python API on port 8831, using the same explicit disposable-database guard as Web tests. It checks profile/memory edits, routine creation/history, authenticated artifact preview/download, group editing, bilingual global settings and logout. This is browser validation of Expo, not a native binary or device certification.

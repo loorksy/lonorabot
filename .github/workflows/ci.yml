@@ -749,3 +749,5 @@ jobs:
         run: pnpm exec playwright install --with-deps chromium
       - name: Verify real Web workspace under React StrictMode
         run: pnpm test:web
+      - name: Verify real Expo companion against Python API
+        run: pnpm test:mobile

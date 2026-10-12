@@ -9,14 +9,15 @@
   "scripts": {
     "build": "turbo run build",
     "check": "turbo run check",
-    "lint": "biome check apps/web apps/mobile packages/ui-web packages/chat-ui packages/ui-tokens playwright.config.mjs tests/web",
-    "format": "biome format --write apps/web apps/mobile packages/ui-web packages/chat-ui packages/ui-tokens playwright.config.mjs tests/web",
+    "lint": "biome check apps/web apps/mobile packages/ui-web packages/chat-ui packages/ui-tokens packages/contracts/src/*.ts packages/contracts/package.json packages/contracts/tsconfig.json packages/core/src/*.ts packages/core/package.json packages/core/tsconfig.json playwright.config.mjs tests/web tests/mobile",
+    "format": "biome format --write apps/web apps/mobile packages/ui-web packages/chat-ui packages/ui-tokens packages/contracts/src/*.ts packages/contracts/package.json packages/contracts/tsconfig.json packages/core/src/*.ts packages/core/package.json packages/core/tsconfig.json playwright.config.mjs tests/web tests/mobile",
     "i18n": "pnpm --filter @lonora/web i18n",
     "dev:mobile": "pnpm --filter @lonora/mobile start",
     "build:mobile": "pnpm --filter @lonora/mobile build",
     "check:mobile": "pnpm --filter @lonora/mobile check && pnpm --filter @lonora/mobile check:expo",
     "test:web": "playwright test",
-    "test:clients": ".venv/bin/python tests/check_clients.py"
+    "test:clients": ".venv/bin/python tests/check_clients.py",
+    "test:mobile": "LONORA_UI_TEST_APP=mobile playwright test"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.15",

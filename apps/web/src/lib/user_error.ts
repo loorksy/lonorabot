@@ -1,14 +1,7 @@
 import { t } from "@lingui/core/macro";
-import { ApiError } from "./api";
+import { errorCode } from "@lonora/core";
 export function userError(error: unknown) {
-  const code =
-    error instanceof ApiError
-      ? error.code
-      : typeof error === "string"
-        ? error
-        : error && typeof error === "object" && "code" in error
-          ? String(error.code)
-          : "request_failed";
+  const code = errorCode(error);
   switch (code) {
     case "unauthorized":
       return t`Sign-in failed. Check your email and password.`;

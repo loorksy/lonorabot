@@ -6,7 +6,13 @@ import { test as base, expect } from "@playwright/test";
 const test = base.extend({
   workspace: async ({ context, page }, use) => {
     const prefix = `UI regression ${randomUUID()}`;
-    const owned = { agents: new Set(), boards: new Set(), tickets: new Set() };
+    const owned = {
+      agents: new Set(),
+      boards: new Set(),
+      tickets: new Set(),
+      routines: new Set(),
+      skills: new Set(),
+    };
     const status = await context.request.get("/api/onboarding");
     expect(status.ok()).toBeTruthy();
     const credentials = {
@@ -48,7 +54,7 @@ const test = base.extend({
       expect(errors).toEqual([]);
     } finally {
       // Only IDs created by this fixture or explicitly remembered by its test.
-      for (const kind of ["tickets", "boards", "agents"])
+      for (const kind of ["skills", "routines", "tickets", "boards", "agents"])
         for (const id of owned[kind]) {
           const response = await context.request.delete(`/api/${kind}/${id}`, { headers });
           expect([200, 404]).toContain(response.status());
@@ -260,4 +266,88 @@ test("retry after a committed message response is lost reuses its real receipt",
   } finally {
     for (const id of ownedRuns) await post(`/runs/${id}/cancel`, {});
   }
+});
+
+test("knowledge and recurring trading work use durable API edits", async ({
+  page,
+  context,
+  workspace,
+}) => {
+  const { agent, prefix, remember, headers } = workspace;
+  await page.goto(`/app/${agent.id}`);
+  await page
+    .locator(".tpl-chat-header")
+    .getByRole("button", { name: "Knowledge", exact: true })
+    .click();
+  const panel = page.getByTestId("side-panel");
+  await panel.getByRole("button", { name: "Skills", exact: true }).click();
+  await panel.getByLabel("Title", { exact: true }).fill(`${prefix} market checklist`);
+  await panel
+    .getByLabel("Content", { exact: true })
+    .fill("Read current positions and spreads before preparing an order.");
+  const createdSkill = page.waitForResponse(
+    (response) => response.url().endsWith("/api/skills") && response.request().method() === "POST",
+  );
+  await panel.getByRole("button", { name: "Add", exact: true }).click();
+  const skill = remember("skills", await (await createdSkill).json());
+  const item = panel
+    .locator("details")
+    .filter({ has: page.locator("summary", { hasText: `${prefix} market checklist` }) });
+  await item.locator("summary").click();
+  await item
+    .getByLabel("Content", { exact: true })
+    .fill("Check the economic calendar and spread before preparing an order.");
+  const editedSkill = page.waitForResponse(
+    (response) =>
+      response.url().endsWith(`/api/skills/${skill.id}`) && response.request().method() === "PUT",
+  );
+  await item.getByRole("button", { name: "Save", exact: true }).click();
+  const version = await (await editedSkill).json();
+  expect(version.version).toBe(skill.version + 1);
+  expect(version.payload.content).toContain("economic calendar");
+  await page.goto("/app/routines");
+  await page.getByRole("button", { name: "Create routine", exact: true }).click();
+  let dialog = page.getByRole("dialog", { name: "Create routine", exact: true });
+  await dialog.getByRole("combobox", { name: "Agent", exact: true }).selectOption(agent.id);
+  await dialog.getByLabel("Task", { exact: true }).fill(`${prefix} scheduled market review`);
+  await dialog.getByLabel("Every · minutes", { exact: true }).fill("17");
+  await dialog.getByLabel("Timezone", { exact: true }).fill("UTC");
+  const createdRoutine = page.waitForResponse(
+    (response) =>
+      response.url().endsWith(`/api/routines/${agent.id}`) &&
+      response.request().method() === "POST",
+  );
+  await dialog.getByRole("button", { name: "Save", exact: true }).click();
+  const routine = remember("routines", await (await createdRoutine).json());
+  expect(routine.interval_seconds).toBe(1020);
+  const row = page.getByTestId(`routine-row-${routine.id}`);
+  await row.getByRole("button", { name: "Edit", exact: true }).click();
+  dialog = page.getByRole("dialog", { name: "Edit routine", exact: true });
+  await dialog
+    .getByLabel("Task", { exact: true })
+    .fill(`${prefix} revised scheduled market review`);
+  const updatedRoutine = page.waitForResponse(
+    (response) =>
+      response.url().endsWith(`/api/routines/${routine.id}`) &&
+      response.request().method() === "PUT",
+  );
+  await dialog.getByRole("button", { name: "Save", exact: true }).click();
+  expect((await (await updatedRoutine).json()).prompt).toContain("revised");
+  await row.getByRole("button", { name: "Pause", exact: true }).click();
+  await expect
+    .poll(
+      async () =>
+        (await (await context.request.get(`/api/routines?agent_id=${agent.id}`)).json()).find(
+          (entry) => entry.id === routine.id,
+        )?.enabled,
+    )
+    .toBe(false);
+  await row.locator("summary", { hasText: "Execution history" }).click();
+  await expect(row.getByText("No executions yet", { exact: true })).toBeVisible();
+  await page.goto(`/app/${agent.id}?settings=trading`);
+  await expect(page.getByRole("dialog", { name: "Workspace settings", exact: true })).toBeVisible();
+  await expect(page).toHaveURL(new RegExp(`/app/${agent.id}$`));
+  // The test owns this routine; no scheduler or provider credentials are needed.
+  const durable = await context.request.get(`/api/skills/${skill.id}`, { headers });
+  expect((await durable.json()).payload.content).toContain("economic calendar");
 });

@@ -18,7 +18,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./css": "./src/tokens.css",
-    "./tokens.css": "./src/tokens.css"
+    "./tokens.css": "./src/tokens.css",
+    "./brand": "./src/brand.ts"
   },
   "peerDependencies": {
     "react": "^19.2.3",

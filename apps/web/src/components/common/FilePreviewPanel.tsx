@@ -4,9 +4,9 @@ import { Component, type ReactNode, useEffect, useId, useRef } from "react";
 import { useOverlayHistory } from "../../hooks/useOverlayHistory";
 import type { Resource } from "../../lib/api";
 import { artifactUrl } from "../../lib/artifacts";
+import { PdfViewer } from "../PdfViewer";
+import { SandboxedHtmlViewer } from "../SandboxedHtmlViewer";
 import { ImageGallery } from "./ImageGallery";
-import { PdfViewer } from "./PdfViewer";
-import { SandboxedHtmlViewer } from "./SandboxedHtmlViewer";
 
 class PreviewBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
   state = { failed: false };

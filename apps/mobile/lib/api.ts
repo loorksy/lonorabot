@@ -1,6 +1,7 @@
+import type { Artifact } from "@lonora/contracts";
+import { attachmentTooLarge } from "@lonora/core";
 import type { DocumentPickerAsset } from "expo-document-picker";
 import { Platform } from "react-native";
-import type { Artifact } from "./types";
 
 let base = Platform.OS === "web" && typeof window !== "undefined" ? window.location.origin : "";
 let bearer: string | null = null;
@@ -82,10 +83,43 @@ export const api = {
   get: <T>(path: string) => request<T>(path),
   post: <T>(path: string, body: unknown) =>
     request<T>(path, { method: "POST", body: JSON.stringify(body) }),
+  put: <T>(path: string, body: unknown) =>
+    request<T>(path, { method: "PUT", body: JSON.stringify(body) }),
+  patch: <T>(path: string, body: unknown) =>
+    request<T>(path, { method: "PATCH", body: JSON.stringify(body) }),
+  delete: <T>(path: string) => request<T>(path, { method: "DELETE" }),
 };
 
+export async function getArtifactFile(
+  id: string,
+): Promise<{ bytes: Uint8Array; mediaType: string }> {
+  const requestGeneration = generation;
+  const headers = new Headers();
+  if (bearer) headers.set("Authorization", `Bearer ${bearer}`);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30_000);
+  try {
+    const response = await fetch(`${base}/api/artifacts/${encodeURIComponent(id)}/file`, {
+      headers,
+      credentials: "include",
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      if (response.status === 401 && requestGeneration === generation) expired?.();
+      const data = await response.json().catch(() => ({ code: "request_failed" }));
+      throw new ApiError(data.code ?? "request_failed", response.status);
+    }
+    return {
+      bytes: new Uint8Array(await response.arrayBuffer()),
+      mediaType: response.headers.get("content-type")?.split(";")[0] ?? "application/octet-stream",
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 export async function upload(asset: DocumentPickerAsset, threadId: string): Promise<Artifact> {
-  if (asset.size && asset.size > 20 * 1024 * 1024) throw new ApiError("attachment_too_large", 400);
+  if (attachmentTooLarge(asset.size)) throw new ApiError("attachment_too_large", 400);
   const body = new FormData();
   if (Platform.OS === "web") {
     const file = asset.file ?? (await (await fetch(asset.uri)).blob());

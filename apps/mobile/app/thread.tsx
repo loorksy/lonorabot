@@ -1,3 +1,5 @@
+import type { Agent, Artifact, Group, Message, Run, Thread } from "@lonora/contracts";
+import { activeStatuses } from "@lonora/core";
 // Persistent-thread navigation follows Tampletgrok's native thread screen; see NOTICE.
 import * as DocumentPicker from "expo-document-picker";
 import { Redirect, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
@@ -9,22 +11,17 @@ import {
   Platform,
   Pressable,
   Text,
-  TextInput,
   View,
 } from "react-native";
-import { AgentAvatar } from "../components/AgentAvatar";
+import { BotAvatar } from "../components/bot-avatar";
+import { GroupAvatar } from "../components/group-avatar";
+import { MessageBubble } from "../components/message-bubble";
+import { ThreadComposer } from "../components/thread-composer";
+import { TimeSeparator } from "../components/time-separator";
 import { Button, colors, ErrorNotice, Header, Loading, Screen } from "../components/ui";
+import { WorkingIndicator } from "../components/WorkingIndicator";
 import { ApiError, api, upload } from "../lib/api";
 import { useSession } from "../lib/session";
-import {
-  type Agent,
-  type Artifact,
-  activeStatuses,
-  type Group,
-  type Message,
-  type Run,
-  type Thread,
-} from "../lib/types";
 
 function mergeMessages(previous: Message[], incoming: Message[]): Message[] {
   const rows = new Map(previous.map((row) => [row.id, row]));
@@ -32,9 +29,10 @@ function mergeMessages(previous: Message[], incoming: Message[]): Message[] {
   return [...rows.values()].sort((a, b) => a.seq - b.seq);
 }
 
-export default function Conversation() {
-  const { id } = useLocalSearchParams<{ id: string }>();
-  const { ready, owner, rtl, locale, t, errorText } = useSession();
+export default function Conversation({ threadId }: { threadId?: string } = {}) {
+  const params = useLocalSearchParams<{ id: string }>();
+  const id = threadId ?? params.id;
+  const { ready, owner, rtl, t, errorText } = useSession();
   const router = useRouter();
   const [thread, setThread] = useState<Thread | null>(null);
   const [agents, setAgents] = useState<Agent[]>([]);
@@ -221,15 +219,58 @@ export default function Conversation() {
         }
         right={
           agent ? (
-            <AgentAvatar
-              color={agent.color}
-              variant={agent.avatar}
-              size={38}
-              working={runs.some((run) => activeStatuses.includes(run.status))}
-            />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t("agentSettings")}
+              onPress={() =>
+                router.push({ pathname: "/bot-settings", params: { botId: agent.id } })
+              }
+            >
+              <BotAvatar
+                color={agent.color}
+                variant={agent.avatar}
+                size={38}
+                working={runs.some((run) => activeStatuses.includes(run.status))}
+              />
+            </Pressable>
+          ) : group ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t("groupSettings")}
+              onPress={() =>
+                router.push({ pathname: "/group-settings", params: { groupId: group.id } })
+              }
+            >
+              <GroupAvatar
+                members={agents.filter((value) => group.payload.member_ids.includes(value.id))}
+                size={38}
+              />
+            </Pressable>
           ) : undefined
         }
       />
+      <View
+        style={{
+          flexDirection: rtl ? "row-reverse" : "row",
+          flexWrap: "wrap",
+          gap: 8,
+          paddingHorizontal: 16,
+          paddingBottom: 10,
+        }}
+      >
+        {agent ? (
+          <Button
+            label={t("routines")}
+            secondary
+            onPress={() => router.push({ pathname: "/routine", params: { botId: agent.id } })}
+          />
+        ) : null}
+        <Button
+          label={t("artifacts")}
+          secondary
+          onPress={() => router.push({ pathname: "/artifacts", params: { threadId: id } })}
+        />
+      </View>
       <ErrorNotice text={error} />
       {runs
         .filter((run) => run.status !== "completed" && run.status !== "cancelled")
@@ -299,129 +340,38 @@ export default function Conversation() {
               {thread ? t("waitingMessage") : t("connecting")}
             </Text>
           }
-          renderItem={({ item }) => {
-            const author = agents.find((value) => value.id === item.agent_id);
-            const isOwner = item.role === "user";
-            return (
-              <View
-                style={{
-                  alignSelf: isOwner ? (rtl ? "flex-start" : "flex-end") : "stretch",
-                  maxWidth: isOwner ? "90%" : "100%",
-                  backgroundColor: isOwner ? colors.chatUser : "transparent",
-                  borderRadius: 18,
-                  padding: isOwner ? 14 : 4,
-                  gap: 8,
-                }}
-              >
-                <View
-                  style={{
-                    flexDirection: rtl ? "row-reverse" : "row",
-                    alignItems: "center",
-                    gap: 8,
-                  }}
-                >
-                  {author && !isOwner ? (
-                    <AgentAvatar color={author.color} variant={author.avatar} size={24} />
-                  ) : null}
-                  <Text style={{ color: colors.secondary, fontSize: 12 }}>
-                    {isOwner
-                      ? t("you")
-                      : item.role === "tool"
-                        ? t("tool")
-                        : (author?.name ?? t("system"))}
-                  </Text>
-                  <Text style={{ color: colors.secondary, fontSize: 11 }}>
-                    {new Date(item.created_at).toLocaleTimeString(locale, {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </Text>
-                </View>
-                <Text
-                  selectable
-                  style={{
-                    color: colors.foreground,
-                    fontSize: item.role === "tool" ? 13 : 16,
-                    lineHeight: 25,
-                    writingDirection: "auto",
-                  }}
-                >
-                  {item.content}
-                </Text>
-                {item.attachment_ids.map((fileId) => (
-                  <Text
-                    key={fileId}
-                    style={{ color: colors.secondary, fontSize: 13, writingDirection: "auto" }}
-                  >
-                    ↗ {files.find((file) => file.id === fileId)?.payload.name ?? t("attach")}
-                  </Text>
-                ))}
-              </View>
-            );
-          }}
+          renderItem={({ item, index }) => (
+            <View>
+              {index === 0 ||
+              new Date(messages[index - 1].created_at).toDateString() !==
+                new Date(item.created_at).toDateString() ? (
+                <TimeSeparator createdAt={item.created_at} />
+              ) : null}
+              <MessageBubble
+                message={item}
+                agent={agents.find((value) => value.id === item.agent_id)}
+                files={files}
+                onArtifact={(fileId) =>
+                  router.push({ pathname: "/artifact", params: { artifactId: fileId } })
+                }
+              />
+            </View>
+          )}
+          ListFooterComponent={
+            runs.some((run) => activeStatuses.includes(run.status)) ? <WorkingIndicator /> : null
+          }
         />
-        <View
-          style={{
-            borderTopWidth: 1,
-            borderColor: colors.border,
-            paddingHorizontal: 16,
-            paddingTop: 10,
-            paddingBottom: 12,
-            gap: 8,
-          }}
-        >
-          {attachments.map((file) => (
-            <Pressable
-              key={file.id}
-              accessibilityLabel={`${t("removeAttachment")}: ${file.payload.name}`}
-              onPress={() => setAttachments((old) => old.filter((value) => value.id !== file.id))}
-            >
-              <Text style={{ color: colors.secondary, writingDirection: "auto" }}>
-                × {file.payload.name}
-              </Text>
-            </Pressable>
-          ))}
-          <TextInput
-            accessibilityLabel={t("message")}
-            placeholder={t("message")}
-            value={draft}
-            onChangeText={setDraft}
-            multiline
-            maxLength={30000}
-            editable={!busy}
-            placeholderTextColor={colors.secondary}
-            style={{
-              color: colors.foreground,
-              backgroundColor: colors.muted,
-              borderRadius: 18,
-              minHeight: 52,
-              maxHeight: 160,
-              fontSize: 16,
-              padding: 14,
-              textAlign: rtl ? "right" : "left",
-              writingDirection: "auto",
-            }}
-          />
-          <View
-            style={{
-              flexDirection: rtl ? "row-reverse" : "row",
-              justifyContent: "space-between",
-              gap: 12,
-            }}
-          >
-            <Button
-              label={uploading ? t("connecting") : t("attach")}
-              secondary
-              onPress={() => void attach()}
-              disabled={busy || uploading || !thread || attachments.length >= 10}
-            />
-            <Button
-              label={busy ? t("connecting") : t("send")}
-              onPress={() => void send()}
-              disabled={busy || uploading || !thread || (!draft.trim() && !attachments.length)}
-            />
-          </View>
-        </View>
+        <ThreadComposer
+          draft={draft}
+          onChange={setDraft}
+          attachments={attachments}
+          onRemove={(fileId) => setAttachments((old) => old.filter((file) => file.id !== fileId))}
+          onAttach={() => void attach()}
+          onSend={() => void send()}
+          busy={busy}
+          uploading={uploading}
+          disabled={!thread}
+        />
       </KeyboardAvoidingView>
     </Screen>
   );

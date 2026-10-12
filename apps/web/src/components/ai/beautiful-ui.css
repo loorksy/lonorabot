@@ -1,0 +1,60 @@
+/* Modified for Lonora from beautifului.dev, MIT © 2026 Turbo, as ported by Tampletgrok. */
+.lonora-loading-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  width: fit-content;
+}
+.lonora-pixel-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 4px);
+  gap: 1.5px;
+  flex-shrink: 0;
+}
+.lonora-pixel-grid > span {
+  width: 4px;
+  height: 4px;
+  border-radius: 1px;
+  background: currentColor;
+  opacity: 0.15;
+  animation: lonora-pixel-on 650ms ease-in-out infinite;
+}
+.lonora-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--muted-foreground) 35%,
+    var(--foreground) 50%,
+    var(--muted-foreground) 65%
+  );
+  background-size: 200% 100%;
+  background-clip: text;
+  color: transparent;
+  animation: lonora-shimmer-text 1.4s linear infinite;
+}
+@keyframes lonora-pixel-on {
+  0%,
+  100% {
+    opacity: 0.15;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+@keyframes lonora-shimmer-text {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lonora-pixel-grid > span,
+  .lonora-shimmer {
+    animation: none;
+  }
+  .lonora-shimmer {
+    background: none;
+    color: inherit;
+  }
+}

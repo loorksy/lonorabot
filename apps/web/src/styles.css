@@ -3,9 +3,8 @@
 @import "@lonora/ui-web/styles.css";
 @import "@lonora/ui-tokens/tokens.css";
 @import "@fontsource-variable/geist/wght.css";
-@import "./components/template/template.css";
-@import "./template-shell.css";
-@import "./workspace-surfaces.css";
+@import "./pages/shell/shell.css";
+@import "./theme.overrides.css";
 @source "../../../packages/ui-web/src";
 :root {
   font-family: "Geist Variable", "Noto Sans Arabic", Tahoma, system-ui, sans-serif;
