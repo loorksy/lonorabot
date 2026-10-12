@@ -66,8 +66,16 @@ export function Shell({ onLogout }: { onLogout: () => void }) {
   const [shape, setShape] = useState("orb");
   const [error, setError] = useState<unknown>();
   const [busy, setBusy] = useState(false);
-  const [sidebar, setSidebar] = useState(true);
+  const [sidebar, setSidebar] = useState(() => window.innerWidth > 650);
   const agent = agents.find((a) => a.id === selected);
+  useEffect(() => {
+    const query = window.matchMedia("(max-width:650px)");
+    const resized = () => {
+      if (query.matches) setSidebar(false);
+    };
+    query.addEventListener("change", resized);
+    return () => query.removeEventListener("change", resized);
+  }, []);
   useEffect(() => {
     if (!selected && agents.length) setSelected(agents[0].id);
   }, [agents, selected]);

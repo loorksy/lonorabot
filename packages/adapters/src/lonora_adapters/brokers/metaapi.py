@@ -93,13 +93,13 @@ def configure_sdk_transport() -> None:
 
 
 class MetaApiBroker:
-    def __init__(self, account_id: str, region: str, token: str):
+    def __init__(self, account_id: str, region: str | None, token: str):
         configure_sdk_transport()
         sdk: Any = importlib.import_module("metaapi_cloud_sdk")
         self.api: Any = sdk.MetaApi(
             token,
             {
-                "region": region,
+                **({"region": region} if region else {}),
                 "requestTimeout": 20,
                 "connectTimeout": 20,
                 "historicalMarketDataRequestTimeout": 30,

@@ -1,5 +1,6 @@
 import asyncio
 import io
+import time
 import wave
 from array import array
 from typing import Any, cast
@@ -54,6 +55,7 @@ class RealtimeVoiceSession:
         self.failure: str | None = None
         self.speaking = False
         self.interrupted = asyncio.Event()
+        self.owner_seen = False
 
     def task_finished(self, task: asyncio.Task[None]) -> None:
         self.tasks.discard(task)
@@ -175,8 +177,26 @@ class RealtimeVoiceSession:
                 row = await session.get(VoiceSessionRow, self.session_id, with_for_update=True)
                 if row:
                     row.payload = {**row.payload, "status": "connected"}
+            idle_since = time.monotonic()
             while True:
                 await asyncio.sleep(2)
+                present = any(
+                    participant.identity == "owner:" + self.owner_id + ":" + self.session_id
+                    for participant in self.room.remote_participants.values()
+                )
+                if present:
+                    self.owner_seen = True
+                    idle_since = time.monotonic()
+                elif time.monotonic() - idle_since > (10 if self.owner_seen else 30):
+                    async with self.db.sessions() as session, session.begin():
+                        row = await session.get(
+                            VoiceSessionRow, self.session_id, with_for_update=True
+                        )
+                        if row and (
+                            not self.gateway_id or row.state.get("gateway") == self.gateway_id
+                        ):
+                            row.payload = {**row.payload, "status": "closed"}
+                    break
                 async with self.db.sessions() as session:
                     row = await session.get(VoiceSessionRow, self.session_id)
                     if self.failure:
@@ -203,3 +223,42 @@ class RealtimeVoiceSession:
                 task.cancel()
             await asyncio.gather(*self.tasks, return_exceptions=True)
             await self.room.disconnect()
+            await self.source.aclose()
+
+
+async def serve_local_session(session_id: str, gateway_id: str) -> None:
+    from lonora_api.env import get_settings
+    from lonora_gateway.runtime import OwnerServices
+
+    settings = get_settings()
+    db = Database.connect(settings.database_url)
+    async with db.sessions() as session:
+        row = await session.get(VoiceSessionRow, session_id)
+    if row is None or not settings.livekit_api_key or not settings.livekit_api_secret:
+        await db.close()
+        return
+    services = OwnerServices.create(db, row.owner_id, settings.encryption_key.get_secret_value())
+    voice = RealtimeVoiceSession(
+        db,
+        ProviderCredentials(db, services.secrets),
+        session_id,
+        settings.livekit_internal_url,
+        settings.livekit_api_key,
+        settings.livekit_api_secret.get_secret_value(),
+        gateway_id,
+    )
+    try:
+        await voice.serve()
+    finally:
+        await services.close()
+        await db.close()
+
+
+if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Gateway-owned local RTC transport")
+    parser.add_argument("--session", required=True)
+    parser.add_argument("--gateway", required=True)
+    options = parser.parse_args()
+    asyncio.run(serve_local_session(options.session, options.gateway))

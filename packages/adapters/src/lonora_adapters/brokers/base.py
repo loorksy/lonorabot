@@ -1,3 +1,5 @@
+import asyncio
+
 from lonora_adapter_kit.broker import BrokerAdapter
 from lonora_adapter_kit.secrets import SecretStore
 from lonora_contracts.broker import BrokerConnection
@@ -9,9 +11,14 @@ from lonora_db.client import Database
 class BrokerManager:
     def __init__(self, db: Database, secrets: SecretStore):
         self.db, self.secrets = db, secrets
+        self.lock = asyncio.Lock()
         self.connections: dict[str, tuple[int, BrokerAdapter]] = {}
 
     async def get(self, owner_id: str, connection_id: str) -> BrokerAdapter:
+        async with self.lock:
+            return await self.connect(owner_id, connection_id)
+
+    async def connect(self, owner_id: str, connection_id: str) -> BrokerAdapter:
         async with self.db.sessions() as session:
             row = await BrokerSessionRepository().get(session, owner_id, connection_id)
             config = BrokerConnection.model_validate(row.payload)

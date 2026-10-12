@@ -29,7 +29,19 @@ async def model_turn(
             buffer = ""
             last_emit = time.monotonic()
 
-    reply, selection = await context.router.complete(capability, messages, tools, on_delta=delta)
+    async def attempt(selection: ModelSelection) -> None:
+        nonlocal turn_id, buffer
+        turn_id = new_id()
+        buffer = ""
+        await progress(
+            context,
+            "run.reply_started",
+            {"turn_id": turn_id, "provider": selection.provider, "model": selection.model},
+        )
+
+    reply, selection = await context.router.complete(
+        capability, messages, tools, on_delta=delta, on_attempt=attempt
+    )
     if buffer:
         await progress(context, "run.delta", {"turn_id": turn_id, "text": buffer})
     await save_usage(

@@ -46,7 +46,7 @@ class MarketWatchRepository(ResourceRepository):
                 owner_id,
                 ThreadCreate(
                     agent_id=agent_id,
-                    title=str(payload.get("symbol") or payload.get("kind") or "Watch"),
+                    title=str(payload.get("prompt", ""))[:80],
                 ),
             )
             thread_id = thread.id

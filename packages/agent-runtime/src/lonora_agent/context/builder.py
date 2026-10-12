@@ -2,6 +2,7 @@ from lonora_adapter_kit.types import ModelMessage
 from lonora_core.user_error import LonoraError
 from lonora_db.runs import require_lease
 from lonora_db.schema import AgentRow, ThreadRow
+from lonora_memory.semantic import retrieve_memory
 from lonora_tools.context import ToolContext
 
 from ..skills.loader import load_prompt
@@ -61,6 +62,15 @@ async def build_context(context: ToolContext) -> list[ModelMessage]:
         ] + await history_context(session, thread.id, run.input_seq, thread.summary_seq)
         if run.prompt:
             messages.append(ModelMessage(role="user", content=run.prompt))
+        query = run.prompt or next(
+            (message.content for message in reversed(messages) if message.role == "user"), ""
+        )
+        if query:
+            semantic = await retrieve_memory(
+                context.db, context.router.credentials, context.owner_id, agent.id, query
+            )
+            if semantic:
+                messages[0].content += "\n\n" + semantic
         if images:
             target = next(
                 (message for message in reversed(messages) if message.role == "user"), None

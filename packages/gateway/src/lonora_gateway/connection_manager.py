@@ -1,6 +1,9 @@
 import asyncio
+import os
+import sys
 from datetime import timedelta
 from typing import Any
+from urllib.parse import urlparse
 
 from lonora_contracts.domain import utcnow
 from lonora_db.client import Database
@@ -10,6 +13,40 @@ from lonora_voice.realtime import RealtimeVoiceSession
 from sqlalchemy import select
 
 from .runtime import OwnerServices
+
+
+async def isolated_local_voice(db: Database, session_id: str, gateway_id: str) -> None:
+    """The RTC SDK ignores NO_PROXY; isolate its loopback WS transport from HTTPS egress."""
+    environment = dict(os.environ)
+    environment["LONORA_DATABASE_URL"] = db.engine.url.render_as_string(hide_password=False)
+    # Only the local, plain-WebSocket transport uses HTTP_PROXY. Preserve HTTPS_PROXY
+    # and CA trust so STT/TTS still use the configured HTTPS proxy and credential injection.
+    if not environment.get("HTTPS_PROXY") and not environment.get("https_proxy"):
+        environment["HTTPS_PROXY"] = environment.get("HTTP_PROXY") or environment.get(
+            "http_proxy", ""
+        )
+    environment["HTTP_PROXY"] = ""
+    environment["http_proxy"] = ""
+    process = await asyncio.create_subprocess_exec(
+        sys.executable,
+        "-m",
+        "lonora_voice.realtime",
+        "--session",
+        session_id,
+        "--gateway",
+        gateway_id,
+        env=environment,
+    )
+    try:
+        await process.wait()
+    finally:
+        if process.returncode is None:
+            process.terminate()
+            try:
+                await asyncio.wait_for(process.wait(), 10)
+            except TimeoutError:
+                process.kill()
+                await process.wait()
 
 
 async def maintain_voice(
@@ -55,6 +92,16 @@ async def maintain_voice(
                 claims.append(row.id)
     credentials = ProviderCredentials(db, services.secrets)
     for session_id in claims:
+        url = urlparse(configuration["url"])
+        if (
+            url.scheme == "ws"
+            and url.hostname in {"localhost", "127.0.0.1", "::1", "livekit"}
+            and (os.environ.get("HTTP_PROXY") or os.environ.get("http_proxy"))
+        ):
+            tasks[session_id] = asyncio.create_task(
+                isolated_local_voice(db, session_id, gateway_id)
+            )
+            continue
         voice = RealtimeVoiceSession(
             db,
             credentials,

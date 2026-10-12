@@ -78,6 +78,7 @@ class MessageRow(Base):
     __table_args__ = (
         UniqueConstraint("thread_id", "seq"),
         UniqueConstraint("thread_id", "client_nonce"),
+        Index("ln_message_sequence_page", "thread_id", "seq"),
         CheckConstraint("role IN ('user','assistant','system','tool')"),
     )
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
@@ -221,6 +222,7 @@ class ResourceRow(Base):
 
 class TradingJournalRow(Base):
     __tablename__ = "ln_trading_journal"
+    __table_args__ = (Index("ln_journal_reconcile_due", "status", "submitted_at"),)
     operation_id: Mapped[str] = mapped_column(String(80), primary_key=True)
     owner_id: Mapped[str] = mapped_column(ForeignKey("ln_owners.id", ondelete="CASCADE"))
     account_id: Mapped[str] = mapped_column(String(120), index=True)

@@ -26,7 +26,7 @@ export function BrokerConnection() {
             const row = await connectBroker({
               provider,
               account_id: account,
-              region: "london",
+              region: null,
               enabled: true,
               secret_id: null,
               api_key: key || null,

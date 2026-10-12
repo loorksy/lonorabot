@@ -1,4 +1,6 @@
 import asyncio
+from collections.abc import Mapping
+from typing import Literal
 
 from alembic import context
 from lonora_api.env import get_settings
@@ -7,9 +9,22 @@ from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import create_async_engine
 
 
+def include_name(
+    name: str | None,
+    kind: str,
+    parent_names: Mapping[
+        Literal["schema_name", "table_name", "schema_qualified_table_name"], str | None
+    ],
+) -> bool:
+    return kind != "table" or bool(name and name.startswith("ln_"))
+
+
 def migrate(connection: Connection) -> None:
     context.configure(
-        connection=connection, target_metadata=Base.metadata, version_table="lonora_v2_alembic"
+        connection=connection,
+        target_metadata=Base.metadata,
+        version_table="lonora_v2_alembic",
+        include_name=include_name,
     )
     with context.begin_transaction():
         context.run_migrations()
@@ -28,6 +43,7 @@ if context.is_offline_mode():
         target_metadata=Base.metadata,
         literal_binds=True,
         version_table="lonora_v2_alembic",
+        include_name=include_name,
     )
     with context.begin_transaction():
         context.run_migrations()

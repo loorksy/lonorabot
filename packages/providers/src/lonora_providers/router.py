@@ -30,6 +30,7 @@ class GlobalModelRouter:
         tools: list[ToolDefinition],
         *,
         on_delta: Callable[[str], Awaitable[None]] | None = None,
+        on_attempt: Callable[[ModelSelection], Awaitable[None]] | None = None,
     ) -> tuple[ModelReply, ModelSelection]:
         choice = select_model(await read_policy(self.db), capability)
         async with self.db.sessions() as session:
@@ -43,6 +44,8 @@ class GlobalModelRouter:
                 selection.provider, await self.credentials.resolve(selection.provider)
             )
             try:
+                if on_attempt:
+                    await on_attempt(selection)
                 return await adapter.complete(
                     selection.model, messages, tools, on_delta=on_delta
                 ), selection

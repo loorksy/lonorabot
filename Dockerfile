@@ -23,7 +23,7 @@ COPY --from=web /build/apps/web/dist ./apps/web/dist
 RUN --mount=type=secret,id=system_ca,required=false \
     if [ -f /run/secrets/system_ca ]; then export PIP_CERT=/run/secrets/system_ca; fi; \
     python -m pip install --no-cache-dir .
-RUN useradd --system --uid 10001 --create-home lonora && mkdir -p /app/.runtime/artifacts && chown -R lonora:lonora /app/.runtime && chmod +x /app/entrypoint.sh /app/scripts/*.sh
+RUN useradd --system --uid 10001 --create-home lonora && mkdir -p /app/.runtime/artifacts && chmod -R a+rX /app && chown -R lonora:lonora /app/.runtime && chmod +x /app/entrypoint.sh /app/scripts/*.sh
 USER lonora
 EXPOSE 8000
 ENTRYPOINT ["/app/entrypoint.sh"]

@@ -1,5 +1,6 @@
 import os
 
+from dotenv import dotenv_values
 from lonora_adapter_kit.secrets import SecretStore
 from lonora_core.user_error import LonoraError
 from lonora_db.client import Database
@@ -15,7 +16,8 @@ class ProviderCredentials:
             secret_id = await credential_id(session, provider)
         if secret_id:
             return await self.store.read(secret_id)
-        value = os.environ.get("LONORA_" + provider.upper() + "_API_KEY")
+        name = "LONORA_" + provider.upper() + "_API_KEY"
+        value = os.environ.get(name) or dotenv_values(".env").get(name)
         if value:
             return value
         raise LonoraError("model_not_configured", 409)
