@@ -12,6 +12,7 @@ from lonora_contracts.domain import new_id
 from lonora_contracts.voice import VoiceTranscript
 from lonora_core.user_error import LonoraError
 from lonora_db.client import Database
+from lonora_db.events import PUBLIC_CURSOR, publish_committed
 from lonora_db.schema import VoiceSessionRow
 from lonora_providers.credentials import ProviderCredentials
 
@@ -143,12 +144,15 @@ class RealtimeVoiceSession:
         from sqlalchemy import func, select
 
         async with self.db.sessions() as session:
+            await publish_committed(session, force=True)
             row = await session.get(VoiceSessionRow, self.session_id)
             if row is None or not row.thread_id:
                 return
             self.owner_id, self.thread_id = row.owner_id, row.thread_id
             room_name = row.payload["room"]
-            cursor = (await session.scalar(select(func.max(EventRow.cursor)))) or 0
+            cursor = (
+                await session.scalar(select(func.max(EventRow.payload[PUBLIC_CURSOR].as_integer())))
+            ) or 0
         token = await self.transport.join_token(room_name, "agent:" + self.session_id)
 
         def on_track(

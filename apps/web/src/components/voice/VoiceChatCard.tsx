@@ -1,9 +1,13 @@
 import { Trans } from "@lingui/react/macro";
-import { useCallback, useState } from "react";
+import { lazy, Suspense, useCallback, useState } from "react";
 import { useVoice } from "../../hooks/useVoice";
 import type { Message } from "../../lib/api";
 import { userError } from "../../lib/user_error";
-import { RealtimeVoice } from "./RealtimeVoice";
+
+const RealtimeVoice = lazy(() =>
+  import("./RealtimeVoice").then((module) => ({ default: module.RealtimeVoice })),
+);
+
 import { Transcript } from "./Transcript";
 import { VoiceStatus } from "./VoiceStatus";
 export function VoiceChatCard({
@@ -30,7 +34,9 @@ export function VoiceChatCard({
           <button type="button" onClick={() => void voice.stop()}>
             <Trans>End call</Trans>
           </button>
-          <RealtimeVoice session={voice.session} onStatus={setConnected} onError={onError} />
+          <Suspense fallback={<VoiceStatus connected={false} busy={true} />}>
+            <RealtimeVoice session={voice.session} onStatus={setConnected} onError={onError} />
+          </Suspense>
           <Transcript messages={messages} />
         </>
       ) : (

@@ -17,7 +17,7 @@ msgstr "رمز الوصول"
 
 #: src/components/market/MarketWatch.tsx:111
 msgid "Account changes"
-msgstr ""
+msgstr "تغيرات الحساب"
 
 #: src/components/trading/BrokerConnection.tsx:56
 msgid "Account ID"
@@ -211,7 +211,7 @@ msgstr "القدرات غير مؤكدة"
 
 #: src/components/market/MarketWatch.tsx:223
 msgid "Changes"
-msgstr ""
+msgstr "يتغيّر"
 
 #: src/components/trading/TradeActionCard.tsx:153
 msgid "Check existing operation"
@@ -245,7 +245,7 @@ msgstr "اختر نموذجًا من الكتالوج"
 
 #: src/components/market/MarketWatch.tsx:202
 msgid "Choose a feed"
-msgstr ""
+msgstr "اختر مصدرًا"
 
 #: src/pages/Group.tsx:34
 msgid "Choose a group"
@@ -279,7 +279,7 @@ msgstr "إغلاق الصفقة"
 
 #: src/components/market/MarketWatch.tsx:229
 msgid "Closes"
-msgstr ""
+msgstr "يُغلق"
 
 #: src/pages/Shell.tsx:341
 msgid "Color"
@@ -495,7 +495,7 @@ msgstr "تفعيل"
 
 #: src/pages/Knowledge.tsx:227
 msgid "Enable semantic retrieval"
-msgstr ""
+msgstr "تفعيل الاسترجاع الدلالي"
 
 #: src/pages/Routines.tsx:102
 msgid "Enabled"
@@ -516,7 +516,7 @@ msgstr "قيمة الحساب"
 
 #: src/components/market/MarketWatch.tsx:218
 msgid "Event is due"
-msgstr ""
+msgstr "حان موعد الحدث"
 
 #: src/pages/Routines.tsx:72
 msgid "Every · minutes"
@@ -557,7 +557,7 @@ msgstr "الهامش المتاح"
 
 #: src/pages/Knowledge.tsx:230
 msgid "Global embedding model"
-msgstr ""
+msgstr "نموذج التضمين العالمي"
 
 #: src/components/settings/SettingsSidebar.tsx:19
 msgid "Global models"
@@ -599,7 +599,7 @@ msgstr "استورد بيانات السوق قبل استخدام حساب ال
 
 #: src/pages/Knowledge.tsx:268
 msgid "Index note"
-msgstr ""
+msgstr "فهرسة الملاحظة"
 
 #: src/components/charts/ChartIndicators.tsx:20
 #: src/components/market/MarketWatch.tsx:105
@@ -644,7 +644,7 @@ msgstr "المعرفة"
 
 #: src/pages/Knowledge.tsx:264
 msgid "Knowledge note"
-msgstr ""
+msgstr "ملاحظة معرفية"
 
 #: src/components/charts/ChartAnnotations.tsx:30
 msgid "Label"
@@ -740,7 +740,7 @@ msgstr "رمز MetaApi"
 
 #: src/components/market/MarketWatch.tsx:163
 msgid "Metric"
-msgstr ""
+msgstr "المقياس"
 
 #: src/components/market/MarketOverview.tsx:17
 msgid "Minimum volume"
@@ -799,7 +799,7 @@ msgstr "جارٍ فتح مساحة العمل…"
 
 #: src/components/market/MarketWatch.tsx:232
 msgid "Opens"
-msgstr ""
+msgstr "يُفتح"
 
 #: src/components/trading/TradeActionCard.tsx:159
 msgid "Operation confirmed"
@@ -870,11 +870,11 @@ msgstr "مساحة عمل دائمة"
 
 #: src/components/market/MarketWatch.tsx:108
 msgid "Position"
-msgstr ""
+msgstr "الصفقة"
 
 #: src/components/market/MarketWatch.tsx:152
 msgid "Position ID"
-msgstr ""
+msgstr "معرّف الصفقة"
 
 #: src/components/trading/Positions.tsx:37
 msgid "Positions"
@@ -1051,7 +1051,7 @@ msgstr "ابحث في الرسائل والذاكرة والملاحظات"
 
 #: src/pages/Knowledge.tsx:206
 msgid "Search separate knowledge notes using real embeddings from a globally selected OpenAI model."
-msgstr ""
+msgstr "ابحث في الملاحظات المعرفية المنفصلة باستخدام تضمينات فعلية من نموذج OpenAI تختاره عالميًا."
 
 #: src/pages/Search.tsx:13
 msgid "Search your workspace"
@@ -1075,7 +1075,7 @@ msgstr "بيع عند الكسر"
 
 #: src/pages/Knowledge.tsx:203
 msgid "Semantic memory · optional"
-msgstr ""
+msgstr "الذاكرة الدلالية · اختيارية"
 
 #: src/components/chat/Composer.tsx:124
 msgid "Send"
@@ -1401,7 +1401,7 @@ msgstr "بانتظار ردك"
 
 #: src/components/market/MarketWatch.tsx:83
 msgid "Watch source"
-msgstr ""
+msgstr "مصدر المراقبة"
 
 #: src/pages/Shell.tsx:235
 msgid "Welcome to Lonora"

@@ -2,7 +2,7 @@ import { Trans } from "@lingui/react/macro";
 import type { Run } from "../../lib/api";
 import { WorkingIndicator } from "./WorkingIndicator";
 export function SubagentTasks({ runs }: { runs: Run[] }) {
-  const children = runs.filter((r) => r.parent_run_id);
+  const children = runs.filter((r) => r.parent_run_id && r.trigger === "subagent");
   return children.length ? (
     <details>
       <summary>

@@ -3,6 +3,23 @@ on: [push, pull_request]
 jobs:
   build:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: lonora_ci
+          POSTGRES_USER: lonora
+          POSTGRES_PASSWORD: ci-only-password
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U lonora -d lonora_ci"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      LONORA_DATABASE_URL: postgresql+asyncpg://lonora:ci-only-password@127.0.0.1:5432/lonora_ci
+      # Disposable CI fixtures; production installation generates fresh private keys.
+      LONORA_ENCRYPTION_KEY: MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA=
+      LONORA_BOOTSTRAP_TOKEN: ci-only-bootstrap-token-32-characters
+      LONORA_COOKIE_SECURE: 'false'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -15,3 +32,71 @@ jobs:
       - run: .venv/bin/pip install -e '.[dev]'
       - run: pnpm install --frozen-lockfile
       - run: bash scripts/build.sh
+      - run: bash scripts/migrate.sh
+      - name: Verify authenticated durable runtime with explicit model fixture
+        run: |
+          .venv/bin/python - <<'PY'
+          import asyncio
+          import httpx
+          from sqlalchemy import select
+          from lonora_api.app import create_app
+          from lonora_api.env import get_settings
+          from lonora_adapter_kit.types import ModelReply, ToolCall
+          from lonora_adapters.models.fake import ScriptedModelAdapter
+          from lonora_db.schema import SecretRow
+          from lonora_gateway.service import Gateway
+          from lonora_gateway.run_dispatch import dispatch_one
+
+          async def verify():
+              settings = get_settings()
+              app = create_app(settings)
+              rt = app.state.runtime
+              gateway = Gateway(rt.db, settings.encryption_key.get_secret_value(), settings.artifact_root)
+              try:
+                  async with httpx.AsyncClient(transport=httpx.ASGITransport(app), base_url='http://localhost') as client:
+                      async def request(method, path, body=None, expected=200):
+                          response = await client.request(method, '/api'+path, json=body)
+                          assert response.status_code == expected, (path, response.status_code, response.text)
+                          return response.json()
+
+                      await request('GET', '/agents', expected=401)
+                      await request('POST', '/onboarding', {'email':'ci@example.com', 'password':'ci-only-owner-password', 'bootstrap_token':settings.bootstrap_token.get_secret_value()}, 201)
+                      login = await request('POST', '/auth/login', {'email':'ci@example.com', 'password':'ci-only-owner-password'})
+                      await request('POST', '/agents', {'name':'Denied'}, 403)
+                      client.headers['X-CSRF-Token'] = login['csrf']
+                      agent = await request('POST', '/agents', {'name':'CI agent'}, 201)
+                      thread = await request('POST', '/threads', {'agent_id':agent['id']}, 201)
+                      await request('PUT', '/providers/openai/credential', {'api_key':'explicit-ci-fixture-key'})
+                      await request('PUT', '/settings/models', {'mode':'unified', 'unified':{'provider':'openai', 'model':'explicit-ci-fixture'}, 'routes':{}})
+                      services = rt.services(login['owner']['id'])
+                      fixture = ScriptedModelAdapter([ModelReply(tool_calls=[ToolCall(id='remember', name='memory_write', arguments={'content':'Durable CI fact', 'version':1})]), ModelReply(text='CI reply')])
+                      services.router.factory = lambda provider, key: fixture
+                      gateway.services[login['owner']['id']] = services
+                      body = {'content':'Remember this fact', 'client_nonce':'ci-dedup-nonce'}
+                      first = await request('POST', f"/threads/{thread['id']}/messages", body, 202)
+                      repeated = await request('POST', f"/threads/{thread['id']}/messages", body, 202)
+                      assert first['message']['id'] == repeated['message']['id']
+                      assert first['run_ids'] == repeated['run_ids']
+                      assert await dispatch_one(rt.db, 'ci-gateway', gateway.runtime, gateway.services, settings.encryption_key.get_secret_value(), settings.artifact_root, 120, 4)
+                      run = await request('GET', '/runs/'+first['run_ids'][0])
+                      assert run['status'] == 'completed'
+                      memory = await request('GET', f"/agents/{agent['id']}/memory")
+                      assert memory['content'].strip() == 'Durable CI fact' and memory['version'] == 2
+                      messages = await request('GET', f"/threads/{thread['id']}/messages")
+                      assert len(messages) == 2 and messages[-1]['content'] == 'CI reply'
+                      events = await request('GET', '/events')
+                      assert any(row['kind'] == 'tool.completed' for row in events)
+                      assert all('_ln_public_cursor' not in row['payload'] for row in events)
+                      async with rt.db.sessions() as session:
+                          credentials = list((await session.scalars(select(SecretRow))).all())
+                          assert credentials and all('explicit-ci-fixture-key' not in str(row.ciphertext) for row in credentials)
+                      await request('POST', '/auth/logout')
+                      await request('GET', '/agents', expected=401)
+                      print('PASS owner/CSRF, encrypted credentials, turn deduplication, shared runtime, durable memory/reply/events and logout')
+              finally:
+                  for services in gateway.services.values():
+                      await services.brokers.close()
+                  await rt.db.close()
+
+          asyncio.run(verify())
+          PY

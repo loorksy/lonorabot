@@ -7,7 +7,7 @@ name = "lonora-channels"
 version = "0.2.0"
 requires-python = ">=3.12"
 license = "Apache-2.0"
-dependencies = []
+dependencies = ["lonora-contracts==0.2.0", "lonora-core==0.2.0", "lonora-db==0.2.0", "pydantic>=2.10,<3"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

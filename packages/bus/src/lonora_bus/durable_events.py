@@ -15,5 +15,6 @@ async def stream_events(
         if not rows:
             await asyncio.sleep(0.5)
         for row in rows:
-            cursor = row.cursor
-            yield event_data(row)
+            event = event_data(row)
+            cursor = event["cursor"]
+            yield event

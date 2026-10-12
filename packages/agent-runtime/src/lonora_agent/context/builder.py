@@ -59,7 +59,9 @@ async def build_context(context: ToolContext) -> list[ModelMessage]:
             blocks.append(attachments)
         messages = [
             ModelMessage(role="system", content="\n\n".join(block for block in blocks if block))
-        ] + await history_context(session, thread.id, run.input_seq, thread.summary_seq)
+        ] + await history_context(
+            session, thread.id, run.input_seq, thread.summary_seq, context.agent_id
+        )
         if run.prompt:
             messages.append(ModelMessage(role="user", content=run.prompt))
         query = run.prompt or next(

@@ -1,5 +1,5 @@
 import { Trans } from "@lingui/react/macro";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AgentPicker } from "../components/agents/AgentPicker";
 import { type Agent, api, type Model, type Resource } from "../lib/api";
 import { resources } from "../lib/rpc";
@@ -17,6 +17,7 @@ export function Knowledge({ agents, initialAgent }: { agents: Agent[]; initialAg
   const [title, setTitle] = useState("");
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<unknown>();
+  const dirty = useRef(false);
   const [saved, setSaved] = useState(false);
   useEffect(() => {
     // The durable revision (or explicit refresh tick) invalidates this fetched state.
@@ -27,8 +28,10 @@ export function Knowledge({ agents, initialAgent }: { agents: Agent[]; initialAg
       void api
         .get<Memory>(`/agents/${agent}/memory`)
         .then((v) => {
-          setMemory(v);
-          setContent(v.content);
+          if (!dirty.current) {
+            setMemory(v);
+            setContent(v.content);
+          }
         })
         .catch(setError);
     else
@@ -43,7 +46,14 @@ export function Knowledge({ agents, initialAgent }: { agents: Agent[]; initialAg
         <h1>
           <Trans>Knowledge</Trans>
         </h1>
-        <AgentPicker agents={agents} value={agent} onChange={setAgent} />
+        <AgentPicker
+          agents={agents}
+          value={agent}
+          onChange={(id) => {
+            dirty.current = false;
+            setAgent(id);
+          }}
+        />
       </div>
       <div className="tabs">
         <button
@@ -80,6 +90,7 @@ export function Knowledge({ agents, initialAgent }: { agents: Agent[]; initialAg
                 version: memory.version,
               });
               setMemory(m);
+              dirty.current = false;
               setSaved(true);
             } catch (err) {
               setError(err);
@@ -93,6 +104,7 @@ export function Knowledge({ agents, initialAgent }: { agents: Agent[]; initialAg
             rows={18}
             value={content}
             onChange={(e) => {
+              dirty.current = true;
               setContent(e.target.value);
               setSaved(false);
             }}

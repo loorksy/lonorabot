@@ -107,6 +107,8 @@ async def claim_next(session: AsyncSession, worker_id: str, lease_seconds: int) 
     if row is None:
         return None
     recovered = row.status != "queued"
+    if thread.group_id and not row.execution_state:
+        row.input_seq = max(row.input_seq, thread.next_seq - 1)
     row.status = "leased"
     row.lease_owner = worker_id
     row.lease_fence += 1

@@ -7,7 +7,7 @@ name = "lonora-contracts"
 version = "0.2.0"
 requires-python = ">=3.12"
 license = "Apache-2.0"
-dependencies = []
+dependencies = ["pydantic>=2.10,<3"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

@@ -203,6 +203,8 @@ export async function request<T>(path: string, init: RequestInit = {}): Promise<
     headers.set("X-CSRF-Token", decodeURIComponent(csrfToken()));
   const response = await fetch(`/api${path}`, { ...init, headers, credentials: "include" });
   if (!response.ok) {
+    if (response.status === 401 && !path.startsWith("/auth/"))
+      window.dispatchEvent(new CustomEvent("lonora:session-expired"));
     const data = await response.json().catch(() => ({ code: "request_failed" }));
     throw new ApiError(data.code ?? "request_failed", response.status);
   }

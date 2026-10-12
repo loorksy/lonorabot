@@ -7,7 +7,7 @@ name = "lonora-db"
 version = "0.2.0"
 requires-python = ">=3.12"
 license = "Apache-2.0"
-dependencies = []
+dependencies = ["alembic>=1.14,<2", "asyncpg>=0.30,<1", "lonora-contracts==0.2.0", "lonora-core==0.2.0", "pydantic>=2.10,<3", "sqlalchemy[asyncio]>=2.0.36,<3"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

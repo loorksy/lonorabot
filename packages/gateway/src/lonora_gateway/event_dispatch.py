@@ -8,6 +8,7 @@ from lonora_contracts.domain import MessageCreate
 from lonora_contracts.events import EventEnvelope
 from lonora_core.user_error import LonoraError
 from lonora_db.client import Database
+from lonora_db.events import PUBLIC_CURSOR, publish_committed
 from lonora_db.messages import send_message
 from lonora_db.schema import EffectReceiptRow, EventRow, IntegrationRow
 from sqlalchemy import select
@@ -21,6 +22,7 @@ def dispatch_event(bus: RuntimeEvents, event: EventEnvelope) -> None:
 
 async def dispatch_channels(db: Database, services: OwnerServices) -> None:
     async with db.sessions() as session:
+        await publish_committed(session)
         rows = (
             await session.scalars(
                 select(IntegrationRow).where(IntegrationRow.owner_id == services.owner_id)
@@ -70,15 +72,23 @@ async def dispatch_channels(db: Database, services: OwnerServices) -> None:
                     continue
                 query = select(EventRow).where(
                     EventRow.owner_id == services.owner_id,
-                    EventRow.cursor > int(locked.state.get("event_cursor", 0)),
+                    EventRow.payload[PUBLIC_CURSOR].as_integer()
+                    > int(locked.state.get("event_cursor", 0)),
                     EventRow.kind == "message.created",
                 )
                 if config.get("thread_id"):
                     query = query.where(EventRow.thread_id == config["thread_id"])
-                events = (await session.scalars(query.order_by(EventRow.cursor).limit(100))).all()
+                events = (
+                    await session.scalars(
+                        query.order_by(EventRow.payload[PUBLIC_CURSOR].as_integer()).limit(100)
+                    )
+                ).all()
                 deliveries: list[tuple[str, str, dict[str, Any]]] = []
                 for event in events:
-                    locked.state = {**locked.state, "event_cursor": event.cursor}
+                    locked.state = {
+                        **locked.state,
+                        "event_cursor": int(event.payload[PUBLIC_CURSOR]),
+                    }
                     if event.payload.get("role") != "assistant":
                         continue
                     destinations = (

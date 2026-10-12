@@ -7,7 +7,7 @@ name = "lonora-logging"
 version = "0.2.0"
 requires-python = ">=3.12"
 license = "Apache-2.0"
-dependencies = []
+dependencies = ["lonora-core==0.2.0", "lonora-security==0.2.0"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

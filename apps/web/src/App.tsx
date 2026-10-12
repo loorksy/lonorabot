@@ -13,6 +13,11 @@ export default function App() {
   const [initialized, setInitialized] = useState<boolean>();
   const [error, setError] = useState<unknown>();
   useEffect(() => {
+    const expired = () => setOwner(null);
+    window.addEventListener("lonora:session-expired", expired);
+    return () => window.removeEventListener("lonora:session-expired", expired);
+  }, []);
+  useEffect(() => {
     void onboardingStatus()
       .then(async (status) => {
         setInitialized(status.owner_initialized);

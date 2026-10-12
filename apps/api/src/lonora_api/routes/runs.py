@@ -8,7 +8,7 @@ from lonora_db.runs import create_run, run_data
 from lonora_db.schema import RunRow, ThreadRow
 from lonora_db.transactions import owned_thread
 from lonora_session.continuation import continuation_state
-from sqlalchemy import select
+from sqlalchemy import or_, select
 
 from ..middleware.auth import require_owner, runtime
 
@@ -26,7 +26,14 @@ async def list_runs(
             .where(ThreadRow.owner_id == owner.id)
         )
         if thread_id:
-            query = query.where(RunRow.thread_id == thread_id)
+            query = query.where(
+                or_(
+                    RunRow.thread_id == thread_id,
+                    RunRow.parent_run_id.in_(
+                        select(RunRow.id).where(RunRow.thread_id == thread_id)
+                    ),
+                )
+            )
         rows = (await session.scalars(query.order_by(RunRow.created_at.desc()).limit(100))).all()
         return [run_data(row) for row in rows]
 

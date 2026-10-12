@@ -12,3 +12,16 @@ ufw allow 7882/udp
 ufw --force enable
 systemctl enable --now unattended-upgrades
 echo 'Host firewall and unattended security updates enabled. Keep PostgreSQL private.'
+
+cat >/etc/systemd/system/lonora-backup.service <<'UNIT'
+[Unit]
+Description=Lonora encrypted settings, database and artifact backup
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/lonora
+ExecStart=/usr/bin/bash /opt/lonora/infra/compose/backup-prod.sh
+UMask=0077
+UNIT
+cp /opt/lonora/infra/systemd/lonora-backup.timer /etc/systemd/system/lonora-backup.timer
+systemctl daemon-reload
+systemctl enable --now lonora-backup.timer

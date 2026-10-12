@@ -36,8 +36,10 @@ export function ThreadViewport({
     void api.get<Resource[]>(`/artifacts?thread_id=${threadId}`).then(setArtifacts);
   }, [threadId, revision]);
   const local = events.filter((e) => e.thread_id === threadId);
-  const active = thread.runs.find((r) =>
-    ["queued", "leased", "running", "waiting_input", "waiting_takeover"].includes(r.status),
+  const active = thread.runs.find(
+    (r) =>
+      r.thread_id === threadId &&
+      ["queued", "leased", "running", "waiting_input", "waiting_takeover"].includes(r.status),
   );
   const working = !!active && ["queued", "leased", "running"].includes(active.status);
   return (
