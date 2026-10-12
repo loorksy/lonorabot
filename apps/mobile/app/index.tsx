@@ -70,20 +70,22 @@ export default function Inbox() {
     setOpening(row.value.id);
     setError(null);
     try {
-      const threads = await api.get<Thread[]>(
-        row.kind === "agent" ? `/threads?agent_id=${encodeURIComponent(row.value.id)}` : "/threads",
-      );
-      let thread =
-        row.kind === "agent"
-          ? threads[0]
-          : threads.find((value) => value.group_id === row.value.id);
-      if (!thread)
+      let thread: Thread;
+      if (row.kind === "agent") {
         thread = await api.post<Thread>(
-          "/threads",
-          row.kind === "agent"
-            ? { agent_id: row.value.id, title: "" }
-            : { group_id: row.value.id, title: row.value.payload.name },
+          `/agents/${encodeURIComponent(row.value.id)}/conversation`,
+          {},
         );
+      } else {
+        const threads = await api.get<Thread[]>("/threads");
+        const existing = threads.find((value) => value.group_id === row.value.id);
+        thread =
+          existing ??
+          (await api.post<Thread>("/threads", {
+            group_id: row.value.id,
+            title: row.value.payload.name,
+          }));
+      }
       router.push({ pathname: "/thread", params: { id: thread.id } });
     } catch (reason) {
       setError(errorText(reason));

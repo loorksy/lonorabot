@@ -1,3 +1,4 @@
+import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
 import { useCallback, useEffect, useState } from "react";
 import { api, type Model, type Provider, type Routing } from "../../lib/api";
@@ -53,7 +54,11 @@ export function ModelsSettings() {
         </h2>
         <label>
           <Trans>Provider</Trans>
-          <select value={provider} onChange={(e) => setProvider(e.target.value as Provider)}>
+          <select
+            aria-label={t`Provider`}
+            value={provider}
+            onChange={(e) => setProvider(e.target.value as Provider)}
+          >
             {providers.map((p) => (
               <option key={p} value={p}>
                 {p}

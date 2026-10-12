@@ -1,6 +1,6 @@
 import { Trans } from "@lingui/react/macro";
 
-// Modified for Lonora from Rakazo lonora-rakazo-reference; Apache-2.0.
+// Modified for Lonora; source attribution in THIRD_PARTY_NOTICES.md. Apache-2.0.
 ("use client");
 
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";

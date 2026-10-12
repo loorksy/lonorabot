@@ -1,3 +1,4 @@
+import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
 import { useTheme } from "../../hooks/useTheme";
 import { activateLocale, i18n } from "../../i18n/config";
@@ -13,6 +14,7 @@ export function OverviewSettings() {
       <label>
         <Trans>Language</Trans>
         <select
+          aria-label={t`Language`}
           value={i18n.locale}
           onChange={(e) => activateLocale(e.target.value === "en" ? "en" : "ar")}
         >
@@ -23,6 +25,7 @@ export function OverviewSettings() {
       <label>
         <Trans>Theme</Trans>
         <select
+          aria-label={t`Theme`}
           value={theme}
           onChange={(e) => setTheme(e.target.value === "light" ? "light" : "dark")}
         >

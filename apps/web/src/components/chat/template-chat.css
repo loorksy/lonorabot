@@ -1,0 +1,579 @@
+/* Adapted from Tampletgrok's ThreadView/Composer layout; Apache-2.0. Modified for Lonora. */
+.template-thread {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+  padding: 0;
+  margin: 0;
+  overflow: hidden;
+}
+.template-transcript-region {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+.template-thread .template-transcript {
+  flex: 1;
+  overflow-y: auto;
+  width: 100%;
+  min-height: 0;
+  overscroll-behavior: contain;
+  overflow-anchor: none;
+  padding: 20px 28px 8px;
+}
+.template-transcript-content {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  max-width: 900px;
+  margin-inline: auto;
+}
+.template-thread-status {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 24px 0;
+  min-height: 28px;
+  height: auto;
+  flex-shrink: 0;
+  justify-content: flex-start;
+}
+.template-thread-status button {
+  border: 0;
+  padding: 2px 7px;
+  font-size: 12px;
+}
+.template-thread-error {
+  font-size: 13px;
+  margin: 6px 24px;
+  color: var(--lonora-danger, #e95c68);
+  flex-shrink: 0;
+}
+.template-thread .notice {
+  font-size: 12px;
+  margin: 8px 24px;
+}
+.template-time-separator {
+  display: flex;
+  justify-content: center;
+  padding: 12px 0 18px;
+  color: var(--lonora-muted);
+  font-size: 11px;
+}
+.template-thread .template-message {
+  padding: 0;
+  margin: 5px 0 10px;
+  border-radius: 0;
+  background: transparent;
+  display: flex;
+  width: 100%;
+  justify-content: flex-start;
+}
+.template-thread .template-message.user {
+  justify-content: flex-end;
+}
+.template-message-frame {
+  min-width: 0;
+  width: fit-content;
+  max-width: 88%;
+}
+.template-message.user .template-message-frame {
+  max-width: 84%;
+}
+.template-speaker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--lonora-muted);
+  margin: 0 0 7px;
+}
+.template-speaker strong {
+  font-weight: 500;
+}
+.template-thread .template-speaker .lonora-agent-avatar {
+  width: 22px;
+  height: 22px;
+  margin: 0;
+}
+.template-message-body {
+  position: relative;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--lonora-text);
+  font-size: 15px;
+  line-height: 1.7;
+}
+.template-message.user .template-message-body {
+  padding: 10px 16px;
+  border-radius: 18px;
+  background: var(--lonora-panel);
+}
+.template-message-quote {
+  border-inline-start: 2px solid var(--lonora-line);
+  padding: 2px 10px;
+  margin: 0 0 8px;
+  opacity: 0.65;
+  font-size: 12px;
+  white-space: pre-wrap;
+}
+.template-thread .template-message-meta {
+  display: flex;
+  align-items: center;
+  margin: 3px 0 0;
+  padding-inline-end: 28px;
+  min-height: 22px;
+  gap: 8px;
+  color: var(--lonora-muted);
+  opacity: 0;
+  transition: opacity 120ms;
+}
+.template-thread .template-message-meta time {
+  font-size: 10px;
+}
+.template-message.user .template-message-meta {
+  justify-content: flex-end;
+}
+.template-message:hover .template-message-meta,
+.template-message:focus-within .template-message-meta {
+  opacity: 1;
+}
+.template-message-body .message-copy {
+  position: absolute;
+  bottom: -25px;
+  right: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--lonora-muted);
+  opacity: 0;
+}
+.template-message:hover .message-copy,
+.template-message:focus-within .message-copy {
+  opacity: 1;
+}
+html[dir="rtl"] .template-message-body .message-copy {
+  right: auto;
+  left: 0;
+}
+.template-unresolved-attachment {
+  display: block;
+  margin-top: 6px;
+  font-size: 12px;
+}
+.template-thread .template-streaming-reply {
+  max-width: 88%;
+  padding: 8px 0;
+  font-size: 15px;
+  line-height: 1.7;
+}
+.template-thread-progress {
+  font-size: 12px;
+  margin: 0 0 8px;
+}
+.template-thread-progress .progress {
+  padding-inline: 0;
+}
+.template-thread-progress details {
+  padding: 4px 0;
+  color: var(--lonora-muted);
+}
+.template-thread-progress summary {
+  width: fit-content;
+}
+.template-thread-empty {
+  flex: 1;
+  min-height: 240px;
+  padding: 36px 15px;
+}
+.template-thread-empty h2 {
+  font-size: 21px;
+  font-weight: 500;
+  margin: 20px 0 8px;
+}
+.template-thread-empty p {
+  font-size: 13px;
+  line-height: 1.8;
+  margin: 0;
+}
+.template-empty-glyph {
+  display: grid;
+  place-items: center;
+  width: 60px;
+  height: 60px;
+  border-radius: 20px;
+  background: var(--lonora-panel);
+  color: var(--lonora-muted);
+}
+.template-load-older {
+  display: flex;
+  align-items: center;
+  align-self: center;
+  gap: 6px;
+  border: 0;
+  background: transparent;
+  font-size: 12px;
+  padding: 5px 10px;
+  color: var(--lonora-muted);
+}
+.template-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--lonora-line);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--lonora-muted);
+  cursor: pointer;
+  line-height: 1;
+}
+.template-icon-button:hover {
+  background: var(--lonora-panel);
+  color: var(--lonora-text);
+}
+.template-icon-button:disabled {
+  cursor: default;
+  opacity: 0.35;
+}
+.template-icon-button:focus-visible {
+  outline: 2px solid var(--lonora-accent);
+  outline-offset: 3px;
+}
+.template-jump-latest {
+  position: absolute;
+  bottom: 12px;
+  inset-inline-start: 50%;
+  transform: translateX(-50%);
+  width: 36px;
+  height: 36px;
+  background: var(--lonora-panel);
+  box-shadow: 0 2px 12px #0003;
+  z-index: 2;
+}
+[dir="rtl"] .template-jump-latest {
+  transform: translateX(50%);
+}
+.template-thread .template-composer {
+  position: relative;
+  z-index: 3;
+  flex-shrink: 0;
+  min-width: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 10px 24px 22px;
+  margin: 0;
+}
+.template-composer[data-dragging="files"] {
+  box-shadow: inset 0 0 0 2px var(--lonora-accent);
+}
+.template-composer-bar {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 9px 10px 9px 12px;
+  border: 1px solid var(--lonora-line);
+  border-radius: 26px;
+  background: var(--lonora-surface);
+  transition: border-color 120ms;
+  min-width: 0;
+  max-width: 900px;
+  margin-inline: auto;
+}
+.template-composer-bar:focus-within {
+  border-color: var(--lonora-muted);
+}
+.template-composer-field {
+  display: flex;
+  min-width: 0;
+}
+.template-thread .template-composer textarea {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  min-height: 24px;
+  max-height: 120px;
+  padding: 1px 0;
+  margin: 0;
+  font-size: 15px;
+  line-height: 24px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  resize: none;
+  outline: none;
+  color: var(--lonora-text);
+  overflow-y: auto;
+}
+.template-composer textarea::placeholder {
+  color: var(--lonora-muted);
+}
+.template-composer .template-composer-actions {
+  grid-column: 3;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  flex-wrap: nowrap;
+}
+.template-attach-button {
+  grid-column: 1;
+  background: var(--lonora-panel);
+}
+.template-composer-bar[data-expanded="true"] {
+  gap: 8px;
+  padding-top: 12px;
+}
+.template-composer-bar[data-expanded="true"] .template-composer-field {
+  grid-column: 1 / 4;
+  grid-row: 1;
+  padding-inline: 4px;
+}
+.template-composer-bar[data-expanded="true"] .template-attach-button,
+.template-composer-bar[data-expanded="true"] .template-composer-actions {
+  grid-row: 2;
+}
+.template-composer .template-send-button {
+  background: var(--lonora-text);
+  color: var(--lonora-surface);
+  border-color: transparent;
+}
+.template-composer .template-send-button:disabled {
+  opacity: 0.2;
+}
+.template-voice-button[aria-expanded="true"] {
+  color: var(--lonora-accent);
+  border-color: var(--lonora-accent);
+}
+.template-composer-menu {
+  max-width: 900px;
+  margin: 0 auto 8px;
+  border: 1px solid var(--lonora-line);
+  border-radius: 14px;
+  background: var(--lonora-panel);
+  overflow: hidden;
+}
+.template-composer-menu button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  border: 0;
+  border-radius: 0;
+  padding: 10px 14px;
+  background: transparent;
+  text-align: start;
+  font-size: 13px;
+}
+.template-composer-menu button:hover,
+.template-composer-menu button[aria-selected="true"] {
+  background: var(--lonora-glow);
+}
+.template-mention-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.template-reply-preview,
+.template-attachment-chips,
+.template-composer-error {
+  max-width: 900px;
+  margin: 0 auto 10px;
+}
+.template-thread .template-reply-preview {
+  display: flex;
+  gap: 12px;
+  border-inline-start: 3px solid var(--lonora-accent);
+  font-size: 12px;
+  align-items: center;
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: var(--lonora-panel);
+}
+.template-reply-preview > div {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  gap: 3px;
+}
+.template-reply-preview small {
+  color: var(--lonora-muted);
+  font-size: 10px;
+}
+.template-reply-preview .template-icon-button {
+  width: 24px;
+  height: 24px;
+  border: 0;
+}
+.template-attachment-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.template-attachment-chip {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--lonora-line);
+  border-radius: 20px;
+  padding: 5px 8px 5px 10px;
+  color: var(--lonora-muted);
+  background: var(--lonora-panel);
+  font-size: 12px;
+  max-width: 100%;
+}
+.template-attachment-chip bdi {
+  max-width: 180px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.template-attachment-chip .template-icon-button {
+  width: 20px;
+  height: 20px;
+  border: 0;
+}
+.template-composer-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border: 1px solid var(--lonora-danger, #e95c68);
+  border-radius: 14px;
+  color: var(--lonora-danger, #e95c68);
+  font-size: 12px;
+}
+.template-composer-error > span {
+  flex: 1;
+  min-width: 0;
+}
+.template-composer-error button {
+  width: 24px;
+  height: 24px;
+  border: 0;
+}
+.template-voice-panel {
+  margin: 0 24px 4px;
+  border: 1px solid var(--lonora-line);
+  border-radius: 14px;
+  padding: 8px 12px;
+  flex-shrink: 0;
+  max-height: 30dvh;
+  overflow-y: auto;
+}
+.template-voice-panel[hidden] {
+  display: none;
+}
+.template-voice-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--lonora-muted);
+  font-size: 12px;
+}
+.template-voice-panel-header button {
+  width: 24px;
+  height: 24px;
+  border: 0;
+}
+.template-voice-panel .voice-card {
+  margin: 5px 0 0;
+}
+.template-composer .template-composer-actions button {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+}
+.template-thread .template-message-meta button {
+  margin: 0;
+  padding: 0;
+  opacity: 1;
+}
+.template-spinning {
+  animation: template-spin 1s linear infinite;
+}
+@keyframes template-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.template-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+@media (hover: none) {
+  .template-thread .template-message-meta,
+  .template-message-body .message-copy {
+    opacity: 1;
+  }
+}
+@media (max-width: 767px) {
+  .template-thread .template-transcript {
+    padding: 14px 16px 6px;
+  }
+  .template-thread .template-composer {
+    padding: 8px 12px max(12px, env(safe-area-inset-bottom));
+  }
+  .template-composer-bar {
+    gap: 9px;
+    padding-inline: 10px;
+  }
+  .template-message-frame {
+    max-width: 92%;
+  }
+  .template-message.user .template-message-frame {
+    max-width: 88%;
+  }
+  .template-message-body {
+    font-size: 14px;
+  }
+  .template-thread .template-composer textarea {
+    font-size: 16px;
+  }
+  .template-thread-status {
+    padding-inline: 16px;
+  }
+  .template-voice-panel {
+    margin-inline: 12px;
+  }
+  .template-thread-empty h2 {
+    font-size: 19px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .template-spinning {
+    animation: none;
+  }
+  .template-message-meta,
+  .template-composer-bar {
+    transition: none;
+  }
+}

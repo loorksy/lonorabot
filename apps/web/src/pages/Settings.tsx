@@ -1,4 +1,3 @@
-import { Trans } from "@lingui/react/macro";
 import { useState } from "react";
 import { IntegrationsSettings } from "../components/settings/IntegrationsSettings";
 import { McpSettings } from "../components/settings/McpSettings";
@@ -8,13 +7,10 @@ import { SettingsSidebar, type SettingsTab } from "../components/settings/Settin
 import { TokenUsage } from "../components/settings/TokenUsage";
 import { TradingSettings } from "../components/settings/TradingSettings";
 import { VoiceSettings } from "../components/settings/VoiceSettings";
-export function Settings() {
-  const [tab, setTab] = useState<SettingsTab>("overview");
+export function Settings({ initialTab = "overview" }: { initialTab?: SettingsTab }) {
+  const [tab, setTab] = useState<SettingsTab>(initialTab);
   return (
     <section>
-      <h1>
-        <Trans>Settings</Trans>
-      </h1>
       <div className="settings-layout">
         <SettingsSidebar selected={tab} onSelect={setTab} />
         <div>

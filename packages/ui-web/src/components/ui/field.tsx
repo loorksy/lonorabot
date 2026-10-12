@@ -1,4 +1,4 @@
-// Modified for Lonora from Rakazo lonora-rakazo-reference; Apache-2.0.
+// Modified for Lonora; source attribution in THIRD_PARTY_NOTICES.md. Apache-2.0.
 import { Label } from "@lonora/ui-web/components/ui/label";
 import { Separator } from "@lonora/ui-web/components/ui/separator";
 

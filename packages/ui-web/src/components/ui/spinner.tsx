@@ -1,5 +1,5 @@
 import { t } from "@lingui/core/macro";
-// Modified for Lonora from Rakazo lonora-rakazo-reference; Apache-2.0.
+// Modified for Lonora; source attribution in THIRD_PARTY_NOTICES.md. Apache-2.0.
 import { cn } from "@lonora/ui-web/lib/utils";
 import { Loader2Icon } from "lucide-react";
 

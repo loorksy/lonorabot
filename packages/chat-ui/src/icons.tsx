@@ -1,4 +1,4 @@
-// Modified for Lonora; Rakazo, Apache-2.0.
+// Modified for Lonora; source attribution in THIRD_PARTY_NOTICES.md. Apache-2.0.
 export function CopyIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">

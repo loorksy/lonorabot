@@ -1,4 +1,4 @@
-// Modified for Lonora from Rakazo lonora-rakazo-reference; Apache-2.0.
+// Modified for Lonora; source attribution in THIRD_PARTY_NOTICES.md. Apache-2.0.
 import { Separator as SeparatorPrimitive } from "@base-ui/react/separator";
 
 import { cn } from "@lonora/ui-web/lib/utils";

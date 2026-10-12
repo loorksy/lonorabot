@@ -1,4 +1,4 @@
-// Modified for Lonora; Rakazo, Apache-2.0.
+// Modified for Lonora; source attribution in THIRD_PARTY_NOTICES.md. Apache-2.0.
 import LinkifyIt from "linkify-it";
 import type { ReactNode } from "react";
 import { createContext, useContext, useEffect, useSyncExternalStore } from "react";
@@ -288,7 +288,7 @@ export function linkFaviconOrigin(href: string): string | undefined {
 }
 
 /**
- * Where link icons come from. Apps load them through the Rakazo API, which fetches and caches
+ * Where link icons come from. Apps load them through the application API, which fetches and caches
  * them, so a device never contacts the linked site or an icon service. `globe` is the native
  * fallback glyph; web draws its own.
  */

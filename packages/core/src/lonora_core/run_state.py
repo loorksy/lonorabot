@@ -1,4 +1,4 @@
-# Modified Python port of Rakazo core/run-state.ts at the pinned source revision.
+# Modified Python port; source attribution in THIRD_PARTY_NOTICES.md.
 from lonora_contracts.runs import RunStatus
 
 from .user_error import LonoraError

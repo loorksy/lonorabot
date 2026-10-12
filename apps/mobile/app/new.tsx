@@ -23,7 +23,10 @@ export default function NewAgent() {
     setError(null);
     try {
       const agent = await api.post<Agent>("/agents", { name: name.trim(), avatar, color });
-      const thread = await api.post<Thread>("/threads", { agent_id: agent.id, title: "" });
+      const thread = await api.post<Thread>(
+        `/agents/${encodeURIComponent(agent.id)}/conversation`,
+        {},
+      );
       router.replace({ pathname: "/thread", params: { id: thread.id } });
     } catch (reason) {
       setError(errorText(reason));

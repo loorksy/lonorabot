@@ -45,7 +45,17 @@ export default function App() {
         <Trans>Opening workspace…</Trans>
       </main>
     );
-  if (!owner) return initialized ? <Auth onLogin={setOwner} /> : <Onboarding onLogin={setOwner} />;
+  if (!owner)
+    return initialized ? (
+      <Auth onLogin={setOwner} />
+    ) : (
+      <Onboarding
+        onLogin={(account) => {
+          setInitialized(true);
+          setOwner(account);
+        }}
+      />
+    );
   return (
     <ClientProvider owner={owner}>
       <Shell onLogout={() => setOwner(null)} />

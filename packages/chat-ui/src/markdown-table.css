@@ -1,4 +1,4 @@
-/* Modified for Lonora; Rakazo, Apache-2.0. */
+/* Modified for Lonora; source attribution in THIRD_PARTY_NOTICES.md. Apache-2.0. */
 /* Interactive card for GFM markdown tables (rk-table-*). `.rk-table-box` is
    the shared scope for internal styles — it sits on the inline card and on
    the portaled dialog, so cell/scroll rules reach both. */

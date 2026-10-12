@@ -1,4 +1,4 @@
-// Modified for Lonora; Rakazo, Apache-2.0.
+// Modified for Lonora; source attribution in THIRD_PARTY_NOTICES.md. Apache-2.0.
 
 /**
  * Pure helpers behind the markdown table card: hast extraction, type
@@ -241,7 +241,7 @@ export function tableToTsv(columns: string[], rows: string[][]): string {
 /**
  * Raw HTML that the renderer drops inside table cells still contributes text:
  * the web markdown renderer turns `<br>` into a space and `<img alt>` into its
- * alt text (preserveSkippedTableText in @rakazo/chat-ui). Quote validation must
+ * alt text (preserveSkippedTableText in @lonora/chat-ui). Quote validation must
  * reconstruct that same canonical text server-side, so the salvage semantics
  * live here as the single implementation both sides share.
  */
