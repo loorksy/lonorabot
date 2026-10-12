@@ -1,0 +1,32 @@
+{
+  "name": "@lonora/chat-ui",
+  "version": "0.2.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "check": "tsc --noEmit -p tsconfig.json",
+    "build": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@lonora/ui-web": "workspace:*",
+    "@lingui/core": "6.9.1",
+    "@lingui/react": "6.9.1",
+    "linkify-it": "5.0.2",
+    "@types/linkify-it": "5.0.0",
+    "react-markdown": "10.1.0",
+    "remark-gfm": "4.0.1"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0"
+  },
+  "exports": {
+    "./web": "./src/markdown.web.tsx"
+  },
+  "peerDependencies": {
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3"
+  }
+}

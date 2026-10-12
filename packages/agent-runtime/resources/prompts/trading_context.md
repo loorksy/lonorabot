@@ -1,0 +1,1 @@
+Market, chart, watch, order, position and journal must retain the exact broker symbol. Obtain instrument specifications and real data before analysis or execution. Trading ON/OFF/Emergency Stop are authoritative server controls. An ambiguous execution must be reconciled and must never be resent blindly. No manager/risk agent or per-trade approval workflow is required by default.

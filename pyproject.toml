@@ -1,42 +1,77 @@
 [build-system]
-requires = ["setuptools>=68"]
-build-backend = "setuptools.build_meta"
+        requires = ["setuptools>=75", "wheel"]
+        build-backend = "setuptools.build_meta"
 
-[project]
-name = "lonora"
-version = "0.1.0"
-description = "Persistent AI agents with durable memory and background work"
-requires-python = ">=3.12"
-dependencies = [
-  "alembic>=1.14,<2",
-  "asyncpg>=0.30,<1",
-  "fastapi>=0.115,<1",
-  "httpx>=0.27,<1",
-  "pydantic>=2.10,<3",
-  "pydantic-settings>=2.6,<3",
-  "PyJWT>=2.10,<3",
-  "pwdlib[argon2]>=0.2.1,<1",
-  "sqlalchemy[asyncio]>=2.0.36,<3",
-  "uvicorn[standard]>=0.30,<1",
-]
+        [project]
+        name = "lonora"
+        version = "0.2.0"
+        description = "Persistent agents with a resident Python gateway"
+        requires-python = ">=3.12"
+        license = "Apache-2.0"
+    dependencies = ["alembic>=1.14,<2", "asyncpg>=0.30,<1", "fastapi>=0.115,<1", "httpx>=0.27,<1", "pydantic>=2.10,<3", "pydantic-settings>=2.6,<3", "sqlalchemy[asyncio]>=2.0.36,<3", "uvicorn[standard]>=0.30,<1", "PyJWT>=2.10,<3", "pwdlib[argon2]>=0.2,<1", "cryptography>=44,<48", "python-multipart>=0.0.20,<1", "croniter>=6,<7", "websockets>=14,<17", "livekit>=1,<2", "livekit-api>=1,<2", "metaapi-cloud-sdk==29.1.1"]
 
-[project.optional-dependencies]
-dev = ["aiosqlite>=0.20,<1", "pytest>=8.3,<9", "pytest-asyncio>=0.25,<2", "ruff>=0.8,<1"]
+        [project.optional-dependencies]
+        dev = ["aiosqlite>=0.20", "pytest>=8.3,<9", "pytest-asyncio>=0.25,<2", "ruff>=0.11,<1", "pyright>=1.1.406,<2"]
 
-[project.scripts]
-lonora-admin = "lonora.admin:main"
+        [project.scripts]
+        lonora-api = "lonora_api.server:main"
+        lonora-gateway = "lonora_worker.main:main"
 
-[tool.setuptools.packages.find]
-include = ["lonora*"]
+        [tool.ruff]
+        target-version = "py312"
+        line-length = 100
 
-[tool.ruff]
-line-length = 100
-target-version = "py312"
+        [tool.ruff.lint]
+        select = ["E", "F", "I", "UP", "B", "ASYNC"]
+        ignore = ["E501", "B008"]
 
-[tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B"]
-ignore = ["B008"]
-
-[tool.pytest.ini_options]
-asyncio_mode = "auto"
-testpaths = ["tests"]
+        [tool.pyright]
+        typeCheckingMode = "strict"
+        pythonVersion = "3.12"
+        venvPath = "."
+        venv = ".venv"
+    extraPaths = ["apps/api/src", "apps/worker/src", "packages/adapter-kit/src", "packages/adapters/src", "packages/agent-runtime/src", "packages/auth/src", "packages/automation/src", "packages/bus/src", "packages/channels/src", "packages/charts/src", "packages/contracts/src", "packages/core/src", "packages/db/src", "packages/gateway/src", "packages/llm-usage/src", "packages/logging/src", "packages/market/src", "packages/memory/src", "packages/providers/src", "packages/security/src", "packages/session/src", "packages/tools/src", "packages/trading/src", "packages/voice/src"]
+[tool.setuptools]
+packages = ["lonora_api", "lonora_api.middleware", "lonora_api.routes", "lonora_api.websocket", "lonora_worker", "lonora_gateway", "lonora_agent", "lonora_agent.context", "lonora_agent.collaboration", "lonora_agent.automation", "lonora_agent.skills", "lonora_adapter_kit", "lonora_adapters", "lonora_adapters.models", "lonora_adapters.voice", "lonora_adapters.brokers", "lonora_adapters.market", "lonora_adapters.channels", "lonora_adapters.mcp", "lonora_adapters.storage", "lonora_providers", "lonora_tools", "lonora_bus", "lonora_session", "lonora_automation", "lonora_market", "lonora_charts", "lonora_trading", "lonora_voice", "lonora_channels", "lonora_channels.telegram", "lonora_channels.websocket", "lonora_channels.webhook", "lonora_contracts", "lonora_core", "lonora_db", "lonora_memory", "lonora_auth", "lonora_security", "lonora_logging", "lonora_llm_usage"]
+[tool.setuptools.package-dir]
+"lonora_api" = "apps/api/src/lonora_api"
+"lonora_api.middleware" = "apps/api/src/lonora_api/middleware"
+"lonora_api.routes" = "apps/api/src/lonora_api/routes"
+"lonora_api.websocket" = "apps/api/src/lonora_api/websocket"
+"lonora_worker" = "apps/worker/src/lonora_worker"
+"lonora_gateway" = "packages/gateway/src/lonora_gateway"
+"lonora_agent" = "packages/agent-runtime/src/lonora_agent"
+"lonora_agent.context" = "packages/agent-runtime/src/lonora_agent/context"
+"lonora_agent.collaboration" = "packages/agent-runtime/src/lonora_agent/collaboration"
+"lonora_agent.automation" = "packages/agent-runtime/src/lonora_agent/automation"
+"lonora_agent.skills" = "packages/agent-runtime/src/lonora_agent/skills"
+"lonora_adapter_kit" = "packages/adapter-kit/src/lonora_adapter_kit"
+"lonora_adapters" = "packages/adapters/src/lonora_adapters"
+"lonora_adapters.models" = "packages/adapters/src/lonora_adapters/models"
+"lonora_adapters.voice" = "packages/adapters/src/lonora_adapters/voice"
+"lonora_adapters.brokers" = "packages/adapters/src/lonora_adapters/brokers"
+"lonora_adapters.market" = "packages/adapters/src/lonora_adapters/market"
+"lonora_adapters.channels" = "packages/adapters/src/lonora_adapters/channels"
+"lonora_adapters.mcp" = "packages/adapters/src/lonora_adapters/mcp"
+"lonora_adapters.storage" = "packages/adapters/src/lonora_adapters/storage"
+"lonora_providers" = "packages/providers/src/lonora_providers"
+"lonora_tools" = "packages/tools/src/lonora_tools"
+"lonora_bus" = "packages/bus/src/lonora_bus"
+"lonora_session" = "packages/session/src/lonora_session"
+"lonora_automation" = "packages/automation/src/lonora_automation"
+"lonora_market" = "packages/market/src/lonora_market"
+"lonora_charts" = "packages/charts/src/lonora_charts"
+"lonora_trading" = "packages/trading/src/lonora_trading"
+"lonora_voice" = "packages/voice/src/lonora_voice"
+"lonora_channels" = "packages/channels/src/lonora_channels"
+"lonora_channels.telegram" = "packages/channels/src/lonora_channels/telegram"
+"lonora_channels.websocket" = "packages/channels/src/lonora_channels/websocket"
+"lonora_channels.webhook" = "packages/channels/src/lonora_channels/webhook"
+"lonora_contracts" = "packages/contracts/src/lonora_contracts"
+"lonora_core" = "packages/core/src/lonora_core"
+"lonora_db" = "packages/db/src/lonora_db"
+"lonora_memory" = "packages/memory/src/lonora_memory"
+"lonora_auth" = "packages/auth/src/lonora_auth"
+"lonora_security" = "packages/security/src/lonora_security"
+"lonora_logging" = "packages/logging/src/lonora_logging"
+"lonora_llm_usage" = "packages/llm-usage/src/lonora_llm_usage"

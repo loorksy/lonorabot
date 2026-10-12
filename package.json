@@ -1,0 +1,23 @@
+{
+  "name": "lonora-workspace",
+  "private": true,
+  "version": "0.2.0",
+  "packageManager": "pnpm@11.25.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "check": "turbo run check",
+    "lint": "biome check apps/web packages/ui-web packages/chat-ui packages/ui-tokens",
+    "format": "biome format --write apps/web packages/ui-web packages/chat-ui packages/ui-tokens",
+    "i18n": "pnpm --filter @lonora/web i18n"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.15",
+    "turbo": "^2.8.0",
+    "typescript": "5.9.3",
+    "@types/node": "^24.0.0",
+    "tsx": "^4.21.0"
+  }
+}

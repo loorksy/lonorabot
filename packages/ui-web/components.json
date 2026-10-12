@@ -1,0 +1,16 @@
+{
+  "$schema": "https://ui.shadcn.com/schema.json",
+  "style": "base-vega",
+  "rsc": false,
+  "tsx": true,
+  "tailwind": {
+    "css": "src/styles.css",
+    "baseColor": "neutral",
+    "cssVariables": true
+  },
+  "aliases": {
+    "components": "@lonora/ui-web/components",
+    "utils": "@lonora/ui-web/lib/utils",
+    "ui": "@lonora/ui-web/components/ui"
+  }
+}

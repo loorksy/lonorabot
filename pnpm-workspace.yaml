@@ -1,0 +1,7 @@
+packages:
+  - apps/web
+  - packages/chat-ui
+  - packages/ui-web
+  - packages/ui-tokens
+allowBuilds:
+  esbuild: set this to true or false

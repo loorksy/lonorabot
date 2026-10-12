@@ -1,0 +1,155 @@
+from typing import Any
+
+from lonora_contracts.domain import MessageCreate
+from lonora_core.group_mentions import mentions
+from lonora_core.message_replies import require_same_thread
+from lonora_core.run_state import is_conversational
+from lonora_core.user_error import LonoraError
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from .events import emit
+from .schema import AgentRow, ArtifactRow, GroupRow, MessageRow, RunRow, SteeringRow
+from .transactions import owned_agent, owned_thread
+
+
+def message_data(row: MessageRow) -> dict[str, Any]:
+    return {
+        "id": row.id,
+        "thread_id": row.thread_id,
+        "agent_id": row.agent_id,
+        "seq": row.seq,
+        "role": row.role,
+        "content": row.content,
+        "reply_to": row.reply_to,
+        "attachment_ids": row.attachment_ids,
+        "created_at": row.created_at.isoformat(),
+    }
+
+
+async def history(
+    session: AsyncSession,
+    owner_id: str,
+    thread_id: str,
+    limit: int = 100,
+    before: int | None = None,
+) -> list[MessageRow]:
+    await owned_thread(session, owner_id, thread_id)
+    query = select(MessageRow).where(MessageRow.thread_id == thread_id)
+    if before:
+        query = query.where(MessageRow.seq < before)
+    rows = list(
+        (await session.scalars(query.order_by(MessageRow.seq.desc()).limit(min(limit, 200)))).all()
+    )
+    return list(reversed(rows))
+
+
+async def send_message(
+    session: AsyncSession, owner_id: str, thread_id: str, request: MessageCreate
+) -> dict[str, Any]:
+    thread = await owned_thread(session, owner_id, thread_id, lock=True)
+    existing = await session.scalar(
+        select(MessageRow).where(
+            MessageRow.thread_id == thread_id, MessageRow.client_nonce == request.client_nonce
+        )
+    )
+    if existing:
+        runs = list(
+            (
+                await session.scalars(
+                    select(RunRow)
+                    .where(RunRow.thread_id == thread_id, RunRow.input_seq >= existing.seq)
+                    .order_by(RunRow.created_at)
+                    .limit(12)
+                )
+            ).all()
+        )
+        return {
+            "message": message_data(existing),
+            "run_ids": [r.id for r in runs],
+            "deduplicated": True,
+        }
+    if request.reply_to:
+        reply = await session.get(MessageRow, request.reply_to)
+        if reply is None:
+            raise LonoraError("reply_not_found", 404)
+        require_same_thread(thread_id, reply.thread_id)
+    for artifact_id in request.attachment_ids:
+        artifact = await session.get(ArtifactRow, artifact_id)
+        if artifact is None or artifact.owner_id != owner_id:
+            raise LonoraError("artifact_not_found", 404)
+    message = MessageRow(
+        thread_id=thread_id,
+        seq=thread.next_seq,
+        role="user",
+        **request.model_dump(exclude={"client_nonce"}),
+        client_nonce=request.client_nonce,
+    )
+    # reply_to/attachment_ids are part of the message; no model or provider is selected here.
+    thread.next_seq += 1
+    if not thread.title:
+        thread.title = request.content[:80]
+    session.add(message)
+    await session.flush()
+    targets: list[str] = []
+    if thread.agent_id:
+        targets = [thread.agent_id]
+    elif thread.group_id:
+        group = await session.get(GroupRow, thread.group_id)
+        if group:
+            member_ids = list(group.payload.get("member_ids", []))
+            agents = list(
+                (
+                    await session.scalars(
+                        select(AgentRow).where(
+                            AgentRow.id.in_(member_ids), AgentRow.owner_id == owner_id
+                        )
+                    )
+                ).all()
+            )
+            targets = mentions(request.content, {a.id: a.name for a in agents})
+            if not targets and member_ids:
+                targets = [member_ids[0]]
+    run_ids: list[str] = []
+    for agent_id in targets:
+        agent = await owned_agent(session, owner_id, agent_id)
+        if agent.paused:
+            continue
+        active = await session.scalar(
+            select(RunRow)
+            .where(
+                RunRow.thread_id == thread_id,
+                RunRow.agent_id == agent_id,
+                RunRow.status.in_(["queued", "leased", "running", "waiting_input"]),
+            )
+            .order_by(RunRow.created_at)
+            .limit(1)
+        )
+        if active and is_conversational(active.trigger):
+            if active.status == "queued":
+                active.input_seq = message.seq
+            else:
+                session.add(SteeringRow(run_id=active.id, message_id=message.id))
+                if active.status == "waiting_input":
+                    active.status = "queued"
+            run_ids.append(active.id)
+        else:
+            run = RunRow(
+                thread_id=thread_id,
+                agent_id=agent_id,
+                input_seq=message.seq,
+                trigger="group" if thread.group_id else "user",
+            )
+            session.add(run)
+            await session.flush()
+            run_ids.append(run.id)
+            emit(
+                session,
+                owner_id,
+                "run.queued",
+                thread_id=thread_id,
+                agent_id=agent_id,
+                run_id=run.id,
+            )
+    emit(session, owner_id, "message.created", thread_id=thread_id, payload=message_data(message))
+    return {"message": message_data(message), "run_ids": run_ids, "deduplicated": False}

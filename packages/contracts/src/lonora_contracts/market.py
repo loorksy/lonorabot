@@ -1,0 +1,63 @@
+from datetime import datetime
+from decimal import Decimal
+
+from pydantic import Field, model_validator
+
+from .domain import Contract
+
+
+class Instrument(Contract):
+    symbol: str = Field(min_length=1, max_length=80)
+    description: str = ""
+    digits: int = Field(ge=0, le=12)
+    tick_size: Decimal = Field(gt=0)
+    volume_min: Decimal = Field(gt=0)
+    volume_max: Decimal = Field(gt=0)
+    volume_step: Decimal = Field(gt=0)
+
+
+class Quote(Contract):
+    symbol: str
+    bid: Decimal = Field(gt=0)
+    ask: Decimal = Field(gt=0)
+    observed_at: datetime
+    source: str
+
+    @model_validator(mode="after")
+    def validate_spread(self) -> "Quote":
+        if self.ask < self.bid:
+            raise ValueError("invalid_spread")
+        return self
+
+
+class Candle(Contract):
+    symbol: str
+    timeframe: str
+    time: datetime
+    open: Decimal = Field(gt=0)
+    high: Decimal = Field(gt=0)
+    low: Decimal = Field(gt=0)
+    close: Decimal = Field(gt=0)
+    volume: Decimal = Field(default=Decimal(0), ge=0)
+
+    @model_validator(mode="after")
+    def validate_ohlc(self) -> "Candle":
+        if (
+            self.high < max(self.open, self.close)
+            or self.low > min(self.open, self.close)
+            or self.low > self.high
+        ):
+            raise ValueError("invalid_candle")
+        return self
+
+
+class CalendarEvent(Contract):
+    id: str
+    name: str
+    currency: str
+    observed_at: datetime
+    scheduled_at: datetime
+    impact: str
+    actual: str | None = None
+    forecast: str | None = None
+    source: str

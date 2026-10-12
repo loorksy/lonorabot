@@ -1,0 +1,35 @@
+from typing import Any, Literal
+
+from pydantic import Field
+
+from .domain import Contract
+
+RunStatus = Literal[
+    "queued",
+    "leased",
+    "running",
+    "waiting_input",
+    "waiting_takeover",
+    "completed",
+    "failed",
+    "cancelled",
+]
+
+
+class RunRequest(Contract):
+    thread_id: str
+    agent_id: str
+    trigger: str = "user"
+    prompt: str = Field(default="", max_length=30000)
+    parent_run_id: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class Lease(Contract):
+    run_id: str
+    owner: str
+    fence: int
+
+
+class SteeringInput(Contract):
+    content: str = Field(min_length=1, max_length=30000)

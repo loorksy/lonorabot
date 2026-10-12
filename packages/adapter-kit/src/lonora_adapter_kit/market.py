@@ -1,0 +1,9 @@
+from typing import Protocol
+
+from lonora_contracts.market import Candle, Instrument, Quote
+
+
+class MarketAdapter(Protocol):
+    async def instruments(self) -> list[Instrument]: ...
+    async def quote(self, symbol: str) -> Quote: ...
+    async def candles(self, symbol: str, timeframe: str, limit: int) -> list[Candle]: ...

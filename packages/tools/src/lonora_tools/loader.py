@@ -1,0 +1,32 @@
+import importlib
+from typing import Any
+
+from .base import Tool
+from .registry import ToolRegistry
+
+MODULES = (
+    "message",
+    "memory",
+    "scratchpad",
+    "routine",
+    "search",
+    "artifacts",
+    "mcp",
+    "subagent",
+    "market",
+    "market_watch",
+    "chart",
+    "chart_indicator",
+    "chart_snapshot",
+    "account",
+    "trade",
+    "runtime_control",
+)
+
+
+def load_tools() -> ToolRegistry:
+    tools: list[Tool] = []
+    for name in MODULES:
+        module: Any = importlib.import_module("lonora_tools." + name)
+        tools.extend(module.tools())
+    return ToolRegistry(tools)
