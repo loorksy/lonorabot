@@ -1,11 +1,28 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")/../.."
+mode="${1:---pull}"
+[[ "$#" -le 1 && "$mode" =~ ^--(pull|build)$ ]] || { echo 'Usage: deploy-main.sh [--pull|--build]' >&2; exit 2; }
 [[ -z "$(git status --porcelain)" ]] || { echo 'Deployment checkout has local changes.' >&2; exit 1; }
 git fetch origin main
 git merge --ff-only origin/main
 compose='infra/compose/docker-compose.prod.yml'
-docker compose --env-file .env -f "$compose" pull
+docker compose --env-file .env -f "$compose" config --quiet
+if [[ "$mode" == '--build' ]]; then
+    image="$(docker compose --env-file .env -f "$compose" config --format json | python3 -c 'import json,sys; print(json.load(sys.stdin)["services"]["api"]["image"])')"
+    build_args=(--build-arg HTTP_PROXY --build-arg HTTPS_PROXY --build-arg NO_PROXY)
+    proxy_ca="${LONORA_BUILD_PROXY_CA_FILE:-${CODEX_PROXY_CERT:-}}"
+    system_ca="${LONORA_BUILD_SYSTEM_CA_FILE:-/etc/ssl/certs/ca-certificates.crt}"
+    if [[ -n "$proxy_ca" ]]; then
+        [[ -f "$proxy_ca" ]] || { echo 'Build proxy CA file is missing.' >&2; exit 1; }
+        build_args+=(--secret "id=proxy_ca,src=$proxy_ca")
+    fi
+    if [[ -f "$system_ca" ]]; then build_args+=(--secret "id=system_ca,src=$system_ca"); fi
+    docker build "${build_args[@]}" --tag "$image" .
+    docker compose --env-file .env -f "$compose" pull db livekit caddy
+else
+    docker compose --env-file .env -f "$compose" pull
+fi
 # Back up an existing installation before migrations change the schema.
 if [[ -n "$(docker compose --env-file .env -f "$compose" ps -q db)" ]]; then LONORA_COMPOSE_FILE="$compose" bash scripts/backup.sh; fi
 docker compose --env-file .env -f "$compose" up -d --wait

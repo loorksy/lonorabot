@@ -36,7 +36,7 @@ msgstr "النشاط"
 msgid "Activity and task boards"
 msgstr "النشاط ولوحات المهام"
 
-#: src/pages/Knowledge.tsx:146
+#: src/pages/Knowledge.tsx:158
 msgid "Add"
 msgstr "إضافة"
 
@@ -201,6 +201,7 @@ msgstr "من الذاكرة المؤقتة"
 msgid "Cancel order"
 msgstr "إلغاء الأمر"
 
+#: src/components/chat/ToolActivity.tsx:22
 #: src/components/chat/WorkingIndicator.tsx:19
 msgid "Cancelled"
 msgstr "ملغى"
@@ -239,7 +240,7 @@ msgid "Choose a connection"
 msgstr "اختر اتصالًا"
 
 #: src/components/settings/ModelRoutingSettings.tsx:34
-#: src/pages/Knowledge.tsx:236
+#: src/pages/Knowledge.tsx:248
 msgid "Choose a discovered model"
 msgstr "اختر نموذجًا من الكتالوج"
 
@@ -285,7 +286,7 @@ msgstr "يُغلق"
 msgid "Color"
 msgstr "اللون"
 
-#: src/components/chat/ToolActivity.tsx:18
+#: src/components/chat/ToolActivity.tsx:26
 #: src/components/chat/WorkingIndicator.tsx:21
 #: src/pages/Activity.tsx:122
 msgid "Completed"
@@ -331,7 +332,7 @@ msgstr "جارٍ توصيل الميكروفون"
 msgid "Connection type"
 msgstr "نوع الاتصال"
 
-#: src/pages/Knowledge.tsx:137
+#: src/pages/Knowledge.tsx:149
 msgid "Content"
 msgstr "المحتوى"
 
@@ -427,7 +428,7 @@ msgstr "مهمة مفوّضة"
 #: src/components/market/MarketWatch.tsx:301
 #: src/components/settings/IntegrationsSettings.tsx:123
 #: src/components/settings/McpSettings.tsx:98
-#: src/pages/Knowledge.tsx:169
+#: src/pages/Knowledge.tsx:181
 #: src/pages/Routines.tsx:145
 msgid "Delete"
 msgstr "حذف"
@@ -493,7 +494,7 @@ msgstr "الإيقاف الطارئ مفعّل."
 msgid "Enable"
 msgstr "تفعيل"
 
-#: src/pages/Knowledge.tsx:227
+#: src/pages/Knowledge.tsx:239
 msgid "Enable semantic retrieval"
 msgstr "تفعيل الاسترجاع الدلالي"
 
@@ -501,7 +502,7 @@ msgstr "تفعيل الاسترجاع الدلالي"
 msgid "Enabled"
 msgstr "مفعّل"
 
-#: src/components/voice/VoiceChatCard.tsx:31
+#: src/components/voice/VoiceChatCard.tsx:35
 msgid "End call"
 msgstr "إنهاء المكالمة"
 
@@ -535,7 +536,7 @@ msgstr "تنفيذ"
 msgid "Execution history"
 msgstr "سجل التنفيذ"
 
-#: src/components/chat/ToolActivity.tsx:16
+#: src/components/chat/ToolActivity.tsx:24
 #: src/components/chat/WorkingIndicator.tsx:17
 #: src/components/trading/TradingJournal.tsx:22
 #: src/pages/Activity.tsx:126
@@ -555,7 +556,7 @@ msgstr "ستظهر ملفات وكلائك ومخرجاتهم هنا."
 msgid "Free margin"
 msgstr "الهامش المتاح"
 
-#: src/pages/Knowledge.tsx:230
+#: src/pages/Knowledge.tsx:242
 msgid "Global embedding model"
 msgstr "نموذج التضمين العالمي"
 
@@ -597,7 +598,7 @@ msgstr "صورة مرفقة"
 msgid "Import a market snapshot before using the demo account."
 msgstr "استورد بيانات السوق قبل استخدام حساب المحاكاة."
 
-#: src/pages/Knowledge.tsx:268
+#: src/pages/Knowledge.tsx:280
 msgid "Index note"
 msgstr "فهرسة الملاحظة"
 
@@ -625,7 +626,7 @@ msgstr "التعليمات"
 msgid "Integrations"
 msgstr "التكاملات"
 
-#: src/components/voice/VoiceChatCard.tsx:28
+#: src/components/voice/VoiceChatCard.tsx:32
 msgid "Interrupt"
 msgstr "مقاطعة"
 
@@ -637,12 +638,12 @@ msgstr "فاصل زمني"
 msgid "Isolated document preview"
 msgstr "معاينة المستند المعزولة"
 
-#: src/pages/Knowledge.tsx:44
+#: src/pages/Knowledge.tsx:47
 #: src/pages/Shell.tsx:86
 msgid "Knowledge"
 msgstr "المعرفة"
 
-#: src/pages/Knowledge.tsx:264
+#: src/pages/Knowledge.tsx:276
 msgid "Knowledge note"
 msgstr "ملاحظة معرفية"
 
@@ -675,7 +676,7 @@ msgstr "تحميل الرسائل السابقة"
 msgid "Loading"
 msgstr "جارٍ التحميل"
 
-#: src/pages/Knowledge.tsx:54
+#: src/pages/Knowledge.tsx:64
 msgid "Long-term memory"
 msgstr "الذاكرة الدائمة"
 
@@ -793,7 +794,7 @@ msgstr "نموذج واحد للمهام النصية"
 msgid "Open price"
 msgstr "سعر الفتح"
 
-#: src/App.tsx:40
+#: src/App.tsx:45
 msgid "Opening workspace…"
 msgstr "جارٍ فتح مساحة العمل…"
 
@@ -974,14 +975,14 @@ msgstr "البحث المعمق"
 msgid "Reset emergency stop"
 msgstr "إلغاء الإيقاف الطارئ"
 
-#: src/components/chat/ThreadViewport.tsx:49
+#: src/components/chat/ThreadViewport.tsx:51
 #: src/components/market/MarketWatch.tsx:294
 #: src/pages/Activity.tsx:181
 #: src/pages/Routines.tsx:130
 msgid "Resume"
 msgstr "استئناف"
 
-#: src/App.tsx:33
+#: src/App.tsx:38
 msgid "Retry"
 msgstr "إعادة المحاولة"
 
@@ -998,12 +999,12 @@ msgstr "المهام المجدولة"
 msgid "Run task"
 msgstr "تنفيذ المهمة"
 
-#: src/components/chat/ToolActivity.tsx:20
+#: src/components/chat/ToolActivity.tsx:28
 msgid "Running"
 msgstr "جارٍ التنفيذ"
 
 #: src/components/agents/AgentSettings.tsx:50
-#: src/pages/Knowledge.tsx:246
+#: src/pages/Knowledge.tsx:258
 msgid "Save"
 msgstr "حفظ"
 
@@ -1019,12 +1020,12 @@ msgstr "حفظ التوجيه العالمي"
 msgid "Save members"
 msgstr "حفظ الأعضاء"
 
-#: src/pages/Knowledge.tsx:107
+#: src/pages/Knowledge.tsx:119
 msgid "Save memory"
 msgstr "حفظ الذاكرة"
 
 #: src/components/settings/ModelRoutingSettings.tsx:156
-#: src/pages/Knowledge.tsx:103
+#: src/pages/Knowledge.tsx:115
 msgid "Saved"
 msgstr "تم الحفظ"
 
@@ -1036,7 +1037,7 @@ msgstr "الجدولة"
 msgid "Scheduled work runs through the same agents, memory, tools and global model settings."
 msgstr "تستخدم المهام المجدولة الوكلاء والذاكرة والأدوات وإعدادات النماذج العالمية نفسها."
 
-#: src/pages/Knowledge.tsx:68
+#: src/pages/Knowledge.tsx:78
 msgid "Scratchpad"
 msgstr "مسودة العمل"
 
@@ -1049,7 +1050,7 @@ msgstr "بحث"
 msgid "Search messages, memory and notes"
 msgstr "ابحث في الرسائل والذاكرة والملاحظات"
 
-#: src/pages/Knowledge.tsx:206
+#: src/pages/Knowledge.tsx:218
 msgid "Search separate knowledge notes using real embeddings from a globally selected OpenAI model."
 msgstr "ابحث في الملاحظات المعرفية المنفصلة باستخدام تضمينات فعلية من نموذج OpenAI تختاره عالميًا."
 
@@ -1073,7 +1074,7 @@ msgstr "بيع بحد سعري"
 msgid "Sell stop"
 msgstr "بيع عند الكسر"
 
-#: src/pages/Knowledge.tsx:203
+#: src/pages/Knowledge.tsx:215
 msgid "Semantic memory · optional"
 msgstr "الذاكرة الدلالية · اختيارية"
 
@@ -1143,7 +1144,7 @@ msgstr "بيانات المحاكاة بصيغة JSON"
 msgid "Simulation with an imported snapshot"
 msgstr "محاكاة باستخدام بيانات مستوردة"
 
-#: src/pages/Knowledge.tsx:61
+#: src/pages/Knowledge.tsx:71
 msgid "Skills"
 msgstr "المهارات"
 
@@ -1171,7 +1172,7 @@ msgstr "فارق السعر"
 msgid "Square"
 msgstr "مربع"
 
-#: src/pages/Knowledge.tsx:90
+#: src/pages/Knowledge.tsx:101
 msgid "Stable facts and preferences kept separately from conversation history."
 msgstr "حقائق وتفضيلات ثابتة محفوظة بشكل مستقل عن سجل المحادثة."
 
@@ -1183,7 +1184,7 @@ msgstr "بدء محادثة"
 msgid "Start a conversation. Your agent keeps its memory and continues scheduled work here."
 msgstr "ابدأ محادثة. يحتفظ وكيلك بذاكرته ويواصل مهامه المجدولة هنا."
 
-#: src/components/voice/VoiceChatCard.tsx:38
+#: src/components/voice/VoiceChatCard.tsx:44
 msgid "Start voice conversation"
 msgstr "بدء محادثة صوتية"
 
@@ -1225,6 +1226,10 @@ msgstr "المهمة عند تحقق الشرط"
 msgid "Temporary delegated tasks"
 msgstr "المهام المفوّضة المؤقتة"
 
+#: src/lib/user_error.ts:52
+msgid "The agent reached the step limit for this run. Send another message to continue."
+msgstr "بلغ الوكيل الحد الأقصى لخطوات هذا التشغيل. أرسل رسالة أخرى للمتابعة."
+
 #: src/lib/user_error.ts:34
 msgid "The broker connection is unavailable."
 msgstr "الاتصال بالوسيط غير متاح."
@@ -1232,6 +1237,10 @@ msgstr "الاتصال بالوسيط غير متاح."
 #: src/components/settings/ModelsSettings.tsx:88
 msgid "The catalog is read from the provider. Unknown capabilities are shown as unverified."
 msgstr "يُقرأ الكتالوج من المزود. تظهر القدرات غير المعروفة على أنها غير مؤكدة."
+
+#: src/lib/user_error.ts:48
+msgid "The model could not summarize this conversation. Retry or choose another global model."
+msgstr "تعذّر على النموذج تلخيص هذه المحادثة. أعد المحاولة أو اختر نموذجًا عالميًا آخر."
 
 #: src/lib/user_error.ts:20
 msgid "The model provider rate limit was reached. Try again shortly."
@@ -1245,7 +1254,7 @@ msgstr "تعذر عرض الصفحة"
 msgid "The provider rejected this API key."
 msgstr "رفض المزود مفتاح API هذا."
 
-#: src/lib/user_error.ts:44
+#: src/lib/user_error.ts:54
 msgid "The request could not be completed. Try again."
 msgstr "تعذر إكمال الطلب. أعد المحاولة."
 
@@ -1264,6 +1273,14 @@ msgstr "المظهر"
 #: src/components/settings/ModelRoutingSettings.tsx:77
 msgid "These settings apply to every agent and routine. Voice routes require models that support audio."
 msgstr "تنطبق هذه الإعدادات على جميع الوكلاء والمهام المجدولة. تتطلب المسارات الصوتية نماذج تدعم الصوت."
+
+#: src/lib/user_error.ts:50
+msgid "This conversation could not be resumed. Start a new conversation."
+msgstr "تعذّر استئناف هذه المحادثة. ابدأ محادثة جديدة."
+
+#: src/lib/user_error.ts:46
+msgid "This conversation is too large to process. Shorten instructions, use fewer attachments, or start a new conversation."
+msgstr "هذه المحادثة أكبر من الحد المتاح. اختصر التعليمات أو قلّل المرفقات أو ابدأ محادثة جديدة."
 
 #: src/lib/user_error.ts:28
 msgid "This item changed. Reload it before saving."
@@ -1286,7 +1303,7 @@ msgstr "الفترة الزمنية"
 msgid "Timezone"
 msgstr "المنطقة الزمنية"
 
-#: src/pages/Knowledge.tsx:133
+#: src/pages/Knowledge.tsx:145
 msgid "Title"
 msgstr "العنوان"
 
@@ -1307,7 +1324,7 @@ msgstr "استهلاك الرموز"
 msgid "Too many attempts. Wait a minute and retry."
 msgstr "محاولات كثيرة. انتظر دقيقة وأعد المحاولة."
 
-#: src/components/chat/ToolActivity.tsx:9
+#: src/components/chat/ToolActivity.tsx:15
 msgid "Tool activity"
 msgstr "نشاط الأدوات"
 

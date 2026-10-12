@@ -7,6 +7,7 @@ from lonora_llm_usage.models import UsageRecord
 from lonora_llm_usage.store import save_usage
 from lonora_tools.context import ToolContext
 
+from .context.governance import MAXIMUM_CONTEXT_CHARS, govern_context
 from .progress import progress
 
 
@@ -16,6 +17,9 @@ async def model_turn(
     tools: list[ToolDefinition],
     capability: Capability,
 ) -> tuple[ModelReply, ModelSelection]:
+    messages = govern_context(
+        messages, MAXIMUM_CONTEXT_CHARS - sum(len(tool.model_dump_json()) for tool in tools)
+    )
     turn_id = new_id()
     await progress(context, "run.reply_started", {"turn_id": turn_id})
     buffer = ""

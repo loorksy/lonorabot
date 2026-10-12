@@ -8,7 +8,19 @@ from lonora_db.schema import EffectReceiptRow, MessageRow, RunRow, SteeringRow, 
 
 async def return_outcome(db: Database, run_id: str) -> None:
     async with db.sessions() as session, session.begin():
-        child = await session.get(RunRow, run_id, with_for_update=True)
+        child = await session.get(RunRow, run_id)
+        if child is None or child.status not in {"completed", "failed", "cancelled"}:
+            return
+        parent = await session.get(RunRow, child.parent_run_id) if child.parent_run_id else None
+        thread = (
+            await session.get(ThreadRow, parent.thread_id, with_for_update=True) if parent else None
+        )
+        # Parent message admission and cancellation lock its thread before its run.
+        if parent:
+            parent = await session.get(
+                RunRow, parent.id, with_for_update=True, populate_existing=True
+            )
+        child = await session.get(RunRow, run_id, with_for_update=True, populate_existing=True)
         if child is None or child.status not in {"completed", "failed", "cancelled"}:
             return
         receipt = "outcome:" + run_id
@@ -26,9 +38,7 @@ async def return_outcome(db: Database, run_id: str) -> None:
                 ticket.state = {**ticket.state, "result": child.result}
                 ticket.version += 1
         if child.parent_run_id:
-            parent = await session.get(RunRow, child.parent_run_id, with_for_update=True)
             if parent:
-                thread = await session.get(ThreadRow, parent.thread_id, with_for_update=True)
                 if thread:
                     outcome = (
                         "<peer_outcome run_id='"

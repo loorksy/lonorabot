@@ -11,7 +11,7 @@ if [[ -n "${LONORA_COMPOSE_FILE:-}" ]]; then
 else
     docker compose exec -T db pg_dump -U lonora -d lonora -Fc >"$destination/database.dump"
 fi
-if [[ -n "${LONORA_COMPOSE_FILE:-}" ]]; then docker compose --env-file .env -f "$LONORA_COMPOSE_FILE" exec -T api tar -C /app -czf - .runtime/artifacts >"$destination/artifacts.tar.gz"; fi
+if [[ -n "${LONORA_COMPOSE_FILE:-}" ]]; then docker compose --env-file .env -f "$LONORA_COMPOSE_FILE" run --rm --no-deps -T --entrypoint tar api -C /app -czf - .runtime/artifacts >"$destination/artifacts.tar.gz"; fi
 tar -czf "$destination/files.tar.gz" --ignore-failed-read .env .runtime/artifacts
 (cd "$destination"; sha256sum database.dump files.tar.gz ${LONORA_COMPOSE_FILE:+artifacts.tar.gz} >SHA256SUMS)
 echo "Encrypted provider keys, database and artifacts saved to $destination. Protect this directory: it includes the encryption key."

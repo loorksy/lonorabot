@@ -9,7 +9,15 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .events import emit
-from .schema import AgentRow, ArtifactRow, GroupRow, MessageRow, RunRow, SteeringRow
+from .schema import (
+    AgentRow,
+    ArtifactRow,
+    EffectReceiptRow,
+    GroupRow,
+    MessageRow,
+    RunRow,
+    SteeringRow,
+)
 from .transactions import owned_agent, owned_thread
 
 
@@ -54,19 +62,38 @@ async def send_message(
         )
     )
     if existing:
-        runs = list(
-            (
+        receipt = await session.get(EffectReceiptRow, "message:" + existing.id)
+        if receipt is None:
+            # Backfill older messages using their steering link or creation interval.
+            # A later turn must never be returned as this message's original run.
+            run_ids = list(
                 await session.scalars(
-                    select(RunRow)
-                    .where(RunRow.thread_id == thread_id, RunRow.input_seq >= existing.seq)
-                    .order_by(RunRow.created_at)
-                    .limit(12)
+                    select(SteeringRow.run_id).where(SteeringRow.message_id == existing.id)
                 )
-            ).all()
-        )
+            )
+            next_message = await session.scalar(
+                select(MessageRow)
+                .where(
+                    MessageRow.thread_id == thread_id,
+                    MessageRow.seq > existing.seq,
+                    MessageRow.role == "user",
+                )
+                .order_by(MessageRow.seq)
+                .limit(1)
+            )
+            created = select(RunRow.id).where(
+                RunRow.thread_id == thread_id,
+                RunRow.created_at >= existing.created_at,
+                RunRow.trigger.in_(["user", "group"]),
+            )
+            if next_message:
+                created = created.where(RunRow.created_at < next_message.created_at)
+            run_ids = list(dict.fromkeys(run_ids + list(await session.scalars(created))))
+            receipt = EffectReceiptRow(key="message:" + existing.id, result={"run_ids": run_ids})
+            session.add(receipt)
         return {
             "message": message_data(existing),
-            "run_ids": [r.id for r in runs],
+            "run_ids": receipt.result.get("run_ids", []),
             "deduplicated": True,
         }
     if request.reply_to:
@@ -151,5 +178,6 @@ async def send_message(
                 agent_id=agent_id,
                 run_id=run.id,
             )
+    session.add(EffectReceiptRow(key="message:" + message.id, result={"run_ids": run_ids}))
     emit(session, owner_id, "message.created", thread_id=thread_id, payload=message_data(message))
     return {"message": message_data(message), "run_ids": run_ids, "deduplicated": False}

@@ -10,10 +10,13 @@ from .transactions import owned_thread
 
 
 async def cancel_run(session: AsyncSession, owner_id: str, run_id: str) -> RunRow:
-    row = await session.get(RunRow, run_id, with_for_update=True)
+    row = await session.get(RunRow, run_id)
     if row is None:
         raise LonoraError("run_not_found", 404)
     thread = await owned_thread(session, owner_id, row.thread_id, lock=True)
+    row = await session.get(RunRow, run_id, with_for_update=True, populate_existing=True)
+    if row is None:
+        raise LonoraError("run_not_found", 404)
     if row.status not in TERMINAL:
         row.status = "cancelled"
         row.lease_fence += 1

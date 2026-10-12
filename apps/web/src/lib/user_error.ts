@@ -40,6 +40,16 @@ export function userError(error: unknown) {
       return t`Too many attempts. Wait a minute and retry.`;
     case "stale_lease":
       return t`This run was recovered by another worker.`;
+    case "context_limit_exceeded":
+    case "history_message_too_large":
+    case "history_summary_too_large":
+      return t`This conversation is too large to process. Shorten instructions, use fewer attachments, or start a new conversation.`;
+    case "history_summary_empty":
+      return t`The model could not summarize this conversation. Retry or choose another global model.`;
+    case "invalid_tool_exchange":
+      return t`This conversation could not be resumed. Start a new conversation.`;
+    case "tool_round_limit":
+      return t`The agent reached the step limit for this run. Send another message to continue.`;
     default:
       return t`The request could not be completed. Try again.`;
   }

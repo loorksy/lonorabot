@@ -132,7 +132,7 @@ async def require_lease(session: AsyncSession, lease: Lease, lock: bool = False)
     query = select(RunRow).where(RunRow.id == lease.run_id)
     if lock:
         query = query.with_for_update()
-    row = await session.scalar(query)
+    row = await session.scalar(query.execution_options(populate_existing=True))
     if (
         row is None
         or row.status not in {"leased", "running"}
@@ -143,6 +143,17 @@ async def require_lease(session: AsyncSession, lease: Lease, lock: bool = False)
     ):
         raise LonoraError("stale_lease", 409)
     return row
+
+
+async def locked_run_thread(session: AsyncSession, lease: Lease) -> tuple[RunRow, ThreadRow]:
+    """Use the same thread-before-run lock order as message admission and claiming."""
+    row = await require_lease(session, lease)
+    thread = await session.get(
+        ThreadRow, row.thread_id, with_for_update=True, populate_existing=True
+    )
+    if thread is None:
+        raise LonoraError("thread_not_found", 404)
+    return await require_lease(session, lease, lock=True), thread
 
 
 async def renew_lease(session: AsyncSession, lease: Lease, lease_seconds: int) -> None:
@@ -159,10 +170,7 @@ async def checkpoint(session: AsyncSession, lease: Lease, state: dict[str, Any])
 async def complete_run(
     session: AsyncSession, lease: Lease, answer: str, metadata: dict[str, Any]
 ) -> bool:
-    row = await require_lease(session, lease, lock=True)
-    thread = await session.get(ThreadRow, row.thread_id, with_for_update=True)
-    if thread is None:
-        raise LonoraError("thread_not_found", 404)
+    row, thread = await locked_run_thread(session, lease)
     outstanding = await session.scalar(
         select(SteeringRow.id)
         .where(SteeringRow.run_id == row.id, SteeringRow.consumed.is_(False))

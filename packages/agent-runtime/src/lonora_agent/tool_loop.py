@@ -14,7 +14,7 @@ from .context.builder import build_context
 from .model_runtime import model_turn
 from .progress import progress
 from .recovery import restore_execution
-from .steering import merge_steering
+from .steering import merge_steering, owner_steering_pending
 from .tool_guard import advance_guard
 
 
@@ -52,13 +52,30 @@ async def execute_tool_loop(
     messages, pending = restore_execution(state)
     if not messages:
         messages = await build_context(context)
-    if any(message.images for message in messages):
-        capability = Capability.VISION
     await persist(context, state, messages, pending)
     while int(state.get("rounds", 0)) < maximum_rounds:
         await cancellation_checkpoint(context)
-        await merge_steering(context, state, messages)
+        # New user input follows the complete tool-result block, never splits it.
         while pending:
+            if await owner_steering_pending(context):
+                superseded = list(pending)
+                for call in superseded:
+                    messages.append(
+                        ModelMessage(
+                            role="tool",
+                            tool_call_id=call.id,
+                            content=json.dumps({"ok": False, "code": "tool_call_superseded"}),
+                        )
+                    )
+                pending.clear()
+                await persist(context, state, messages, pending)
+                for call in superseded:
+                    await progress(
+                        context,
+                        "tool.cancelled",
+                        {"name": call.name, "call_id": call.id, "code": "tool_call_superseded"},
+                    )
+                break
             call = pending[0]
             state["guard"] = advance_guard(state.get("guard", {}), call.name, call.arguments)
             await progress(context, "tool.started", {"name": call.name, "call_id": call.id})
@@ -90,14 +107,17 @@ async def execute_tool_loop(
             if result.get("_runtime_silence"):
                 return LoopOutcome("", state.get("selection", {}))
         await merge_steering(context, state, messages)
+        turn_capability = (
+            Capability.VISION if any(message.images for message in messages) else capability
+        )
         reply, selection = await model_turn(
-            context, messages, registry.definitions(read_only), capability
+            context, messages, registry.definitions(read_only), turn_capability
         )
         state["rounds"] = int(state.get("rounds", 0)) + 1
         state["selection"] = {
             "provider": selection.provider,
             "model": selection.model,
-            "capability": capability.value,
+            "capability": turn_capability.value,
         }
         messages.append(
             ModelMessage(role="assistant", content=reply.text, tool_calls=reply.tool_calls)

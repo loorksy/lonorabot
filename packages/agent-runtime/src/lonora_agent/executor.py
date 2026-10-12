@@ -4,10 +4,11 @@ import logging
 from lonora_contracts.domain import utcnow
 from lonora_core.user_error import LonoraError
 from lonora_db.events import emit
-from lonora_db.runs import complete_run, fail_run, renew_lease, require_lease
-from lonora_db.schema import MessageRow, ThreadRow
+from lonora_db.runs import complete_run, fail_run, locked_run_thread, renew_lease, require_lease
+from lonora_db.schema import MessageRow, SteeringRow
 from lonora_tools.context import ToolContext
 from lonora_tools.registry import ToolRegistry
+from sqlalchemy import select
 
 from .collaboration.outcome_return import return_outcome
 from .context.compaction import compact_history
@@ -57,8 +58,14 @@ async def execute_run(
             outcome = await execute_tool_loop(context, registry, maximum_rounds)
             async with context.db.sessions() as session, session.begin():
                 if outcome.waiting:
-                    row = await require_lease(session, context.lease, lock=True)
-                    thread = await session.get(ThreadRow, context.thread_id, with_for_update=True)
+                    row, thread = await locked_run_thread(session, context.lease)
+                    outstanding = await session.scalar(
+                        select(SteeringRow.id)
+                        .where(SteeringRow.run_id == row.id, SteeringRow.consumed.is_(False))
+                        .limit(1)
+                    )
+                    if outstanding:
+                        continue
                     if thread:
                         message = MessageRow(
                             thread_id=thread.id,
