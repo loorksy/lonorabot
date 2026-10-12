@@ -18,17 +18,27 @@ export default function App() {
     return () => window.removeEventListener("lonora:session-expired", expired);
   }, []);
   useEffect(() => {
+    let live = true;
     void onboardingStatus()
       .then(async (status) => {
-        setInitialized(status.owner_initialized);
+        let account: Owner | null = null;
         if (status.owner_initialized)
           try {
-            setOwner(await auth.session());
+            account = await auth.session();
           } catch (e) {
-            if (!(e instanceof ApiError && e.status === 401)) setError(e);
+            if (!(e instanceof ApiError && e.status === 401)) throw e;
           }
+        if (live) {
+          setOwner(account);
+          setInitialized(status.owner_initialized);
+        }
       })
-      .catch(setError);
+      .catch((failure) => {
+        if (live) setError(failure);
+      });
+    return () => {
+      live = false;
+    };
   }, []);
   if (error != null)
     return (
@@ -41,7 +51,10 @@ export default function App() {
     );
   if (initialized === undefined)
     return (
-      <main className="auth-card" role="status">
+      <main className="workspace-loading" role="status" data-testid="workspace-loading">
+        <span className="workspace-loading-mark" aria-hidden="true">
+          L
+        </span>
         <Trans>Opening workspace…</Trans>
       </main>
     );

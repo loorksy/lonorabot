@@ -63,6 +63,48 @@ const test = base.extend({
   },
 });
 
+test("refresh waits for the real session without flashing sign-in or workspace sections", async ({
+  page,
+  context,
+  workspace,
+}) => {
+  const { agent } = workspace;
+  await context.addInitScript(() => {
+    localStorage.setItem("lonora.theme", JSON.stringify("light"));
+  });
+  let release;
+  let started;
+  const gated = new Promise((resolve) => {
+    release = resolve;
+  });
+  const requested = new Promise((resolve) => {
+    started = resolve;
+  });
+  await page.route("**/api/auth/session", async (route) => {
+    const response = await route.fetch();
+    expect(response.status()).toBe(200);
+    started();
+    await gated;
+    await route.fulfill({ response });
+  });
+  try {
+    await page.goto(`/app/${agent.id}`, { waitUntil: "domcontentloaded" });
+    await requested;
+    await expect(page.getByTestId("workspace-loading")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Sign in", exact: true })).toHaveCount(0);
+    await expect(page.getByTestId("transcript")).toHaveCount(0);
+    await expect(page.locator(".tpl-shell")).toHaveCount(0);
+    await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+    release();
+    await expect(page.getByTestId("transcript")).toHaveCount(1);
+    await expect(page.getByTestId("workspace-loading")).toHaveCount(0);
+    await page.reload();
+    await expect(page.getByTestId("transcript")).toHaveCount(1);
+  } finally {
+    release();
+  }
+});
+
 test("send, cancel and reload retain one real transcript", async ({ page, context, workspace }) => {
   const { agent, prefix } = workspace;
   await page.goto(`/app/${agent.id}`);

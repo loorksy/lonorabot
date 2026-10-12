@@ -564,3 +564,18 @@ body {
     padding: 12px;
   }
 }
+
+.workspace-loading {
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 1rem;
+  color: var(--muted);
+}
+.workspace-loading-mark {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--text);
+}
