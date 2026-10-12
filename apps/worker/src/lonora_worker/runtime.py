@@ -13,12 +13,5 @@ def create_gateway(settings: Settings) -> tuple[Database, Gateway]:
         settings.maximum_tool_rounds,
         settings.maximum_subagents,
         settings.worker_poll_seconds,
-        voice_configuration={
-            "url": settings.livekit_internal_url,
-            "key": settings.livekit_api_key or "",
-            "secret": settings.livekit_api_secret.get_secret_value()
-            if settings.livekit_api_secret
-            else "",
-        },
     )
     return db, gateway

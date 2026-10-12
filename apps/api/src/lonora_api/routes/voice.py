@@ -2,11 +2,18 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, Request
 from lonora_auth.identity import OwnerIdentity
-from lonora_contracts.voice import VoiceSessionCreate, VoiceTranscript
+from lonora_contracts.voice import VoiceInitCancel, VoiceSessionCreate, VoiceTranscript
 from lonora_core.user_error import LonoraError
 from lonora_db.voice import VoiceSessionRepository
+from lonora_providers.credentials import ProviderCredentials
 from lonora_voice.barge_in import barge_in
-from lonora_voice.sessions import create_voice_session, end_voice_session
+from lonora_voice.routing import live_model
+from lonora_voice.sessions import (
+    cancel_voice_initialization,
+    create_voice_session,
+    end_voice_session,
+    voice_session_data,
+)
 from lonora_voice.transcript import commit_transcript
 
 from ..middleware.auth import require_owner, runtime
@@ -19,17 +26,8 @@ async def create(
     request: Request, body: VoiceSessionCreate, owner: OwnerIdentity = Depends(require_owner)
 ) -> dict[str, Any]:
     rt = runtime(request)
-    settings = rt.settings
-    if not settings.livekit_api_key or not settings.livekit_api_secret:
-        raise LonoraError("voice_transport_not_configured", 409)
-    return await create_voice_session(
-        rt.db,
-        owner.id,
-        body,
-        settings.livekit_url,
-        settings.livekit_api_key,
-        settings.livekit_api_secret.get_secret_value(),
-    )
+    credentials = ProviderCredentials(rt.db, rt.services(owner.id).secrets)
+    return await create_voice_session(rt.db, credentials, owner.id, body)
 
 
 @router.delete("/sessions/{session_id}")
@@ -49,6 +47,8 @@ async def transcript(
 ) -> dict[str, Any]:
     async with runtime(request).db.sessions() as session:
         row = await VoiceSessionRepository().get(session, owner.id, session_id)
+        if row.payload.get("status") != "connected":
+            raise LonoraError("voice_session_closed", 409)
     return await commit_transcript(runtime(request).db, owner.id, row.thread_id or "", body)
 
 
@@ -62,8 +62,25 @@ async def interrupt(
 
 
 @router.get("/status")
-async def status(
-    request: Request, owner: OwnerIdentity = Depends(require_owner)
+async def status(request: Request, owner: OwnerIdentity = Depends(require_owner)) -> dict[str, Any]:
+    rt = runtime(request)
+    model = await live_model(rt.db)
+    configured = await ProviderCredentials(rt.db, rt.services(owner.id).secrets).configured(
+        "openai"
+    )
+    return {"transport": "gpt_live", "transport_configured": configured, "model": model.model}
+
+
+@router.get("/sessions/{session_id}")
+async def session_status(
+    request: Request, session_id: str, owner: OwnerIdentity = Depends(require_owner)
+) -> dict[str, Any]:
+    return await voice_session_data(runtime(request).db, owner.id, session_id)
+
+
+@router.post("/cancel-initialization")
+async def cancel_initialization(
+    request: Request, body: VoiceInitCancel, owner: OwnerIdentity = Depends(require_owner)
 ) -> dict[str, bool]:
-    settings = runtime(request).settings
-    return {"transport_configured": bool(settings.livekit_api_key and settings.livekit_api_secret)}
+    await cancel_voice_initialization(runtime(request).db, owner.id, body.client_nonce)
+    return {"cancelled": True}

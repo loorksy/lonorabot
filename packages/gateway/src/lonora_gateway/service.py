@@ -30,7 +30,6 @@ class Gateway:
         maximum_rounds: int = 24,
         maximum_subagents: int = 4,
         poll_seconds: float = 0.5,
-        voice_configuration: dict[str, str] | None = None,
     ):
         self.db, self.key, self.root = db, key, artifact_root
         self.lease_seconds, self.maximum_subagents, self.poll_seconds = (
@@ -38,7 +37,6 @@ class Gateway:
             maximum_subagents,
             poll_seconds,
         )
-        self.voice_configuration = voice_configuration or {}
         self.voice_tasks: dict[str, asyncio.Task[None]] = {}
         self.identity = process_identity()
         self.stop = asyncio.Event()
@@ -73,10 +71,13 @@ class Gateway:
                 service = self.services[owner.id]
                 await dispatch_market_wakes(self.db, service.brokers)
                 await reconcile_ambiguous(self.db, service.brokers)
-                await maintain_voice(
-                    self.db, service, self.identity, self.voice_tasks, self.voice_configuration
-                )
             await asyncio.sleep(10)
+
+    async def voice_loop(self) -> None:
+        while not self.stop.is_set():
+            for service in list(self.services.values()):
+                await maintain_voice(self.db, service, self.identity, self.voice_tasks)
+            await asyncio.sleep(0.5)
 
     async def channels_loop(self) -> None:
         while not self.stop.is_set():
@@ -94,6 +95,7 @@ class Gateway:
             asyncio.create_task(supervise("maintenance", self.maintenance_loop, self.stop))
         )
         loops.append(asyncio.create_task(supervise("channels", self.channels_loop, self.stop)))
+        loops.append(asyncio.create_task(supervise("voice", self.voice_loop, self.stop)))
         await self.stop.wait()
         self.state = GatewayState.DRAINING
         await write_heartbeat(self.db, self.identity, self.state.value)

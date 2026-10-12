@@ -21,10 +21,9 @@ services:
       LONORA_DATABASE_URL: postgresql+asyncpg://lonora:${LONORA_POSTGRES_PASSWORD:?set password}@db:5432/lonora
       LONORA_ALLOWED_ORIGIN: https://${LONORA_DOMAIN:?set public domain}
       LONORA_COOKIE_SECURE: "true"
-      LONORA_LIVEKIT_URL: wss://${LONORA_DOMAIN}/livekit
-      LONORA_LIVEKIT_INTERNAL_URL: ws://livekit:7880
+      LONORA_ANDROID_APK_PATH: /app/releases/android/lonora.apk
     command: ["api"]
-    volumes: ["artifacts:/app/.runtime/artifacts"]
+    volumes: ["artifacts:/app/.runtime/artifacts", "../../.runtime/releases/android:/app/releases/android:ro"]
     depends_on:
       db: {condition: service_healthy}
     healthcheck:
@@ -46,12 +45,6 @@ services:
     stop_grace_period: 40s
     security_opt: ["no-new-privileges:true"]
     cap_drop: ["ALL"]
-  livekit:
-    image: livekit/livekit-server:v1.9.12
-    restart: unless-stopped
-    command: ["--config", "/etc/livekit.yaml", "--node-ip", "${LONORA_LIVEKIT_NODE_IP:?set public RTC address}", "--keys", "${LONORA_LIVEKIT_API_KEY:?set voice key}: ${LONORA_LIVEKIT_API_SECRET:?set voice secret}"]
-    ports: ["7881:7881", "7882:7882/udp"]
-    volumes: ["../livekit/livekit.yaml:/etc/livekit.yaml:ro"]
   caddy:
     image: caddy:2.10-alpine
     restart: unless-stopped
@@ -59,7 +52,7 @@ services:
     environment:
       LONORA_DOMAIN: ${LONORA_DOMAIN:?set public domain}
     volumes: ["./Caddyfile.prod:/etc/caddy/Caddyfile:ro", "caddy-data:/data", "caddy-config:/config"]
-    depends_on: [api,livekit]
+    depends_on: [api]
 volumes:
   database:
   artifacts:

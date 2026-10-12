@@ -12,7 +12,7 @@ from cryptography.fernet import Fernet
 p=Path('.env')
 if not p.exists(): p.write_text(Path('.env.example').read_text())
 values=dotenv_values(p);text=p.read_text()
-for key,value in {'LONORA_ENCRYPTION_KEY':Fernet.generate_key().decode(),'LONORA_BOOTSTRAP_TOKEN':secrets.token_urlsafe(32),'LONORA_LIVEKIT_API_KEY':'lonora'+secrets.token_hex(8),'LONORA_LIVEKIT_API_SECRET':secrets.token_urlsafe(36)}.items():
+for key,value in {'LONORA_ENCRYPTION_KEY':Fernet.generate_key().decode(),'LONORA_BOOTSTRAP_TOKEN':secrets.token_urlsafe(32),}.items():
     if not values.get(key): text='\n'.join(line for line in text.splitlines() if not line.startswith(key+'='))+'\n'+key+'='+value+'\n'
 p.write_text(text)
 '@

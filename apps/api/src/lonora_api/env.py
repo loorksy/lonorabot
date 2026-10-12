@@ -15,14 +15,11 @@ class Settings(BaseSettings):
     allowed_origin: str = "http://localhost:8000"
     web_root: Path = Path("apps/web/dist")
     artifact_root: Path = Path(".runtime/artifacts")
+    android_apk_path: Path = Path(".runtime/releases/android/lonora.apk")
     worker_poll_seconds: float = Field(default=0.5, ge=0.1)
     run_lease_seconds: int = Field(default=120, ge=30)
     maximum_tool_rounds: int = Field(default=24, ge=1, le=100)
     maximum_subagents: int = Field(default=4, ge=1, le=12)
-    livekit_url: str = "ws://localhost:7880"
-    livekit_internal_url: str = "ws://localhost:7880"
-    livekit_api_key: str | None = None
-    livekit_api_secret: SecretStr | None = None
     webhook_secret: SecretStr | None = None
     log_level: str = "INFO"
 

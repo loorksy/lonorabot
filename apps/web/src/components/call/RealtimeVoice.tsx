@@ -1,46 +1,39 @@
-import { Room, RoomEvent, Track } from "livekit-client";
+import { Trans } from "@lingui/react/macro";
 import { useEffect, useRef } from "react";
 import type { VoiceJoin } from "../../lib/voice";
+
+/** Present the click-created native WebRTC audio without renegotiating on React effect replay. */
 export function RealtimeVoice({
   session,
-  onStatus,
-  onError,
+  captions,
 }: {
   session: VoiceJoin;
-  onStatus: (connected: boolean) => void;
-  onError: (error: unknown) => void;
+  captions: { input: string; output: string };
 }) {
-  const audio = useRef<HTMLDivElement>(null);
+  const container = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    // The durable revision (or explicit refresh tick) invalidates this fetched state.
-    void session.session_id;
-    const room = new Room({ adaptiveStream: true });
-    let stopped = false;
-    room.on(RoomEvent.TrackSubscribed, (track) => {
-      if (track.kind === Track.Kind.Audio) {
-        const element = track.attach();
-        audio.current?.appendChild(element);
-      }
-    });
-    room.on(RoomEvent.TrackUnsubscribed, (track) => {
-      for (const element of track.detach()) element.remove();
-    });
-    room.on(RoomEvent.Disconnected, () => onStatus(false));
-    void room
-      .connect(session.url, session.token)
-      .then(async () => {
-        if (stopped) {
-          await room.disconnect();
-          return;
-        }
-        await room.localParticipant.setMicrophoneEnabled(true);
-        onStatus(true);
-      })
-      .catch(onError);
+    container.current?.appendChild(session.audio);
     return () => {
-      stopped = true;
-      void room.disconnect();
+      session.audio.remove();
     };
-  }, [session.session_id, session.url, session.token, onStatus, onError]);
-  return <div ref={audio} />;
+  }, [session]);
+  return (
+    <div>
+      <div ref={container} />
+      {captions.input && (
+        <p dir="auto">
+          <strong>
+            <Trans>You</Trans>:{" "}
+          </strong>
+          {captions.input}
+        </p>
+      )}
+      {captions.output && (
+        <p dir="auto" aria-live="polite">
+          <strong>GPT-Live: </strong>
+          {captions.output}
+        </p>
+      )}
+    </div>
+  );
 }

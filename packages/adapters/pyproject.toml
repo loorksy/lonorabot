@@ -7,7 +7,7 @@ name = "lonora-adapters"
 version = "0.2.0"
 requires-python = ">=3.12"
 license = "Apache-2.0"
-dependencies = ["httpx>=0.28,<0.29", "livekit-api>=1,<2", "livekit>=1,<2", "lonora-adapter-kit==0.2.0", "lonora-contracts==0.2.0", "lonora-core==0.2.0", "lonora-db==0.2.0", "lonora-security==0.2.0", "lonora-trading==0.2.0", "metaapi-cloud-sdk==29.1.1", "sqlalchemy[asyncio]>=2.0.36,<3", "websockets>=14,<17"]
+dependencies = ["httpx>=0.28,<0.29", "lonora-adapter-kit==0.2.0", "lonora-contracts==0.2.0", "lonora-core==0.2.0", "lonora-db==0.2.0", "lonora-security==0.2.0", "lonora-trading==0.2.0", "metaapi-cloud-sdk==29.1.1", "sqlalchemy[asyncio]>=2.0.36,<3", "websockets>=14,<17"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

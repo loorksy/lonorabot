@@ -12,10 +12,6 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
-  livekit:
-    image: livekit/livekit-server:v1.9.12
-    command: ["--config", "/etc/livekit.yaml", "--node-ip", "127.0.0.1", "--keys", "${LONORA_LIVEKIT_API_KEY:?run scripts/install.sh}: ${LONORA_LIVEKIT_API_SECRET:?run scripts/install.sh}"]
-    ports: ["127.0.0.1:7880:7880", "7881:7881", "7882:7882/udp"]
-    volumes: ["./infra/livekit/livekit.yaml:/etc/livekit.yaml:ro"]
+
 volumes:
   lonora-postgres:

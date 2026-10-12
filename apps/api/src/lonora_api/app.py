@@ -80,6 +80,22 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     for name in ["events", "market", "voice"]:
         module = importlib.import_module("lonora_api.websocket." + name)
         app.include_router(module.router, prefix="/api")
+
+    @app.api_route("/download/lonora.apk", methods=["GET", "HEAD"], include_in_schema=False)
+    async def android_download() -> FileResponse:
+        apk = configuration.android_apk_path
+        if not apk.is_file():
+            raise LonoraError("android_release_unavailable", 404)
+        with apk.open("rb") as stream:
+            if stream.read(4) != b"PK\x03\x04":
+                raise LonoraError("android_release_invalid", 503)
+        return FileResponse(
+            apk,
+            media_type="application/vnd.android.package-archive",
+            filename="lonora.apk",
+            headers={"Cache-Control": "no-cache", "X-Content-Type-Options": "nosniff"},
+        )
+
     build = configuration.web_root.resolve()
     if build.is_dir():
 

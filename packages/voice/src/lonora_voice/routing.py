@@ -11,3 +11,13 @@ async def voice_routes(db: Database) -> tuple[ModelSelection, ModelSelection]:
     if stt.provider != "openai" or tts.provider != "openai":
         raise LonoraError("voice_provider_unsupported", 409)
     return stt, tts
+
+
+async def live_model(db: Database) -> ModelSelection:
+    policy = await read_policy(db)
+    selected = policy.routes.get(Capability.REALTIME_VOICE)
+    if selected is None:
+        return ModelSelection(provider="openai", model="gpt-live-1")
+    if selected.provider != "openai" or selected.model not in {"gpt-live-1", "gpt-live-1-mini"}:
+        raise LonoraError("voice_model_unsupported", 409)
+    return selected

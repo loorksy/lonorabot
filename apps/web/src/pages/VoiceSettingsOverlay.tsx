@@ -15,22 +15,22 @@ export function VoiceSettingsOverlay() {
       </h2>
       <p>
         <Trans>
-          Speech becomes a message in the current conversation. The same agent answers and uses its
-          normal tools.
+          Spoken tasks are saved in the current conversation. GPT-Live can keep listening and
+          speaking while the same agent performs delegated work.
         </Trans>
       </p>
       <p className="muted">
         <Trans>
-          Set speech recognition and speech synthesis under global model routing. Configure LiveKit
-          on the server to enable calls.
+          GPT-Live connects directly over WebRTC using your server-stored OpenAI credential. Choose
+          the voice model in global routing; delegated work uses the same Lonora agent and tools.
         </Trans>
       </p>
       {status && (
         <p role="status">
           {status.transport_configured ? (
-            <Trans>Voice transport configured</Trans>
+            <Trans>OpenAI voice credential configured</Trans>
           ) : (
-            <Trans>Voice transport needs configuration</Trans>
+            <Trans>Configure an OpenAI credential with GPT-Live API access</Trans>
           )}
         </p>
       )}

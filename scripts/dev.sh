@@ -2,7 +2,6 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 docker compose up -d --wait db
-docker compose up -d livekit
 bash scripts/migrate.sh
 mkdir -p .runtime
 .venv/bin/lonora-api >.runtime/api.log 2>&1 & api_pid=$!

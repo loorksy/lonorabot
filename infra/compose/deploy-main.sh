@@ -19,11 +19,11 @@ if [[ "$mode" == '--build' ]]; then
     fi
     if [[ -f "$system_ca" ]]; then build_args+=(--secret "id=system_ca,src=$system_ca"); fi
     docker build "${build_args[@]}" --tag "$image" .
-    docker compose --env-file .env -f "$compose" pull db livekit caddy
+    docker compose --env-file .env -f "$compose" pull db caddy
 else
     docker compose --env-file .env -f "$compose" pull
 fi
 # Back up an existing installation before migrations change the schema.
 if [[ -n "$(docker compose --env-file .env -f "$compose" ps -q db)" ]]; then LONORA_COMPOSE_FILE="$compose" bash scripts/backup.sh; fi
-docker compose --env-file .env -f "$compose" up -d --wait
+docker compose --env-file .env -f "$compose" up -d --wait --remove-orphans
 echo 'Main deployed. Check the authenticated workspace and /ready through your domain.'

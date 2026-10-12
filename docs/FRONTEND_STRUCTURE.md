@@ -184,7 +184,7 @@ tests/
 | `components/ai/primitives.tsx` | عرض حالة التنفيذ والعمل الجاري والتحميل؛ يعتمد على حالة Run وأحداثه |
 | `components/ai/CollaborationMarker.tsx` | إظهار التنفيذ الفرعي والتعاون مع الفصل بين Child Bot وSubagent وPeer |
 | `components/ToolActivityDisclosure.tsx` | المصدر الوحيد لعرض مجموعات خطوات الأدوات ونتائجها والفشل والإلغاء؛ تستخدمه المحادثة بدل تكرار التجميع |
-| `components/call` | جلسة WebRTC وLiveKit ونص الصوت وحالته وبطاقته؛ نفس الوكيل وThread والأدوات |
+| `components/call` | جلسة WebRTC وGPT-Live ونص الصوت وحالته وبطاقته؛ نفس الوكيل وThread والأدوات |
 | `components/integrations/IntegrationSetup.tsx` | إعداد التكاملات الموجودة وحفظ أسرارها على الخادم؛ لا ينشئ محاكاة OAuth أو نجاحًا محليًا |
 | `pages/Board.tsx` و`ActivityList.tsx` | فصل واجهة Tickets عن سجل Runs؛ تبقى خدمة البيانات مشتركة إذا احتاجت الشاشتان نفس البيانات |
 | `pages/SpaceSearch.tsx` | بحث Lonora الحقيقي وروابط نتائج تفتح الوكيل أو Thread أو المعرفة؛ الاسم يطابق حد البحث في القالب |

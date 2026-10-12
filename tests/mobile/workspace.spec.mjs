@@ -131,7 +131,7 @@ test("Expo profile, routines, groups and authenticated artifacts use the persist
       page.getByRole("button", { name: "Open Web settings", exact: true }),
     ).toBeVisible();
     await page.goto("/voice");
-    await expect(page.getByText("LiveKit", { exact: true })).toBeVisible();
+    await expect(page.getByText("GPT-Live", { exact: true })).toBeVisible();
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1),
     ).toBeTruthy();

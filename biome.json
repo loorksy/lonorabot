@@ -1,7 +1,17 @@
 {
   "$schema": "https://biomejs.dev/schemas/2.5.15/schema.json",
   "files": {
-    "includes": ["**", "!!**/node_modules", "!!**/dist", "!!**/.venv", "!!**/.runtime", "!!backups"]
+    "includes": [
+      "**",
+      "!!**/node_modules",
+      "!!**/dist",
+      "!!**/.venv",
+      "!!**/.runtime",
+      "!!backups",
+      "!!apps/mobile/android",
+      "!!apps/mobile/ios",
+      "!!apps/mobile/.expo"
+    ]
   },
   "formatter": {
     "enabled": true,

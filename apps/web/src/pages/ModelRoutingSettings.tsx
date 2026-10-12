@@ -34,6 +34,11 @@ function selector(
       <option value="">{t`Choose a discovered model`}</option>
       {models
         .filter(
+          (m) =>
+            cap !== "realtime_voice" ||
+            (m.provider === "openai" && ["gpt-live-1", "gpt-live-1-mini"].includes(m.id)),
+        )
+        .filter(
           (m) => !cap || !m.verified || !m.capabilities.length || m.capabilities.includes(cap),
         )
         .map((m) => (
@@ -134,7 +139,7 @@ export function ModelRoutingSettings({
         ))
       )}
       {policy.mode === "unified" &&
-        (["stt", "tts"] as Capability[]).map((cap) => (
+        (["realtime_voice", "stt", "tts"] as Capability[]).map((cap) => (
           <label key={cap} htmlFor={cap}>
             {label(cap)}
             {selector(

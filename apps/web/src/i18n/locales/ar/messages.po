@@ -7,7 +7,7 @@ msgstr ""
 msgid "A new teammate"
 msgstr "زميل جديد"
 
-#: src/pages/shell/chat-context.tsx:731
+#: src/pages/shell/chat-context.tsx:790
 msgid "A workspace that remembers"
 msgstr "مساحة عمل تتذكر"
 
@@ -38,10 +38,6 @@ msgstr "الإجراء"
 msgid "Activity"
 msgstr "النشاط"
 
-#: src/pages/Activity.tsx:37
-#~ msgid "Activity and task boards"
-#~ msgstr "النشاط ولوحات المهام"
-
 #: src/pages/ScratchpadSection.tsx:89
 msgid "Add"
 msgstr "إضافة"
@@ -63,7 +59,7 @@ msgstr "إضافة لوحة"
 msgid "Add broker connection"
 msgstr "إضافة اتصال بالوسيط"
 
-#: src/pages/shell/chat-context.tsx:516
+#: src/pages/shell/chat-context.tsx:575
 msgid "Add direction while the agent works…"
 msgstr "أضف توجيهًا أثناء عمل الوكيل…"
 
@@ -79,14 +75,12 @@ msgstr "إضافة تكامل"
 msgid "Add line"
 msgstr "إضافة خط"
 
-#: src/pages/Activity.tsx:112
-#~ msgid "Add ticket"
-#~ msgstr "إضافة مهمة"
-
 #: src/pages/Board.tsx:371
 #: src/pages/Board.tsx:373
 #: src/pages/shell/bot-picker.tsx:109
-#: src/pages/shell/message-cards.tsx:33
+#: src/pages/shell/chat-context.tsx:161
+#: src/pages/shell/message-cards.tsx:34
+#: src/pages/shell/message-cards.tsx:116
 msgid "Agent"
 msgstr "الوكيل"
 
@@ -126,6 +120,10 @@ msgstr "كل الحالات"
 msgid "All time"
 msgstr "كل الأوقات"
 
+#: src/lib/user_error.ts:25
+msgid "Allow microphone access to start a voice conversation."
+msgstr "اسمح بالوصول إلى الميكروفون لبدء محادثة صوتية."
+
 #: src/components/integrations/IntegrationSetup.tsx:96
 msgid "Allowed destinations · comma separated"
 msgstr "الوجهات المسموح بها · مفصولة بفواصل"
@@ -157,20 +155,16 @@ msgstr "سعر العرض"
 msgid "Assign work to your agents and follow each task."
 msgstr "أسند العمل إلى وكلائك وتابع كل مهمة."
 
-#: src/components/chat/Composer.tsx:109
-#~ msgid "Attach"
-#~ msgstr "إرفاق"
-
-#: src/pages/shell/chat-context.tsx:496
-#: src/pages/shell/chat-context.tsx:497
+#: src/pages/shell/chat-context.tsx:555
+#: src/pages/shell/chat-context.tsx:556
 msgid "Attach file"
 msgstr "إرفاق ملف"
 
-#: src/pages/shell/chat-context.tsx:333
+#: src/pages/shell/chat-context.tsx:392
 msgid "Attached files"
 msgstr "ملفات مرفقة"
 
-#: src/pages/shell/message-cards.tsx:57
+#: src/pages/shell/message-cards.tsx:58
 msgid "Attachment"
 msgstr "مرفق"
 
@@ -180,10 +174,6 @@ msgstr "مرفق"
 #: src/pages/shell/bot-settings.tsx:58
 msgid "Avatar"
 msgstr "الصورة الرمزية"
-
-#: src/pages/Shell.tsx:327
-#~ msgid "Avatar shape"
-#~ msgstr "شكل الصورة الرمزية"
 
 #: src/components/trading/TradingJournal.tsx:24
 msgid "Awaiting reconciliation"
@@ -294,21 +284,13 @@ msgstr "يتغيّر"
 msgid "Check existing operation"
 msgstr "فحص العملية الحالية"
 
-#: src/lib/user_error.ts:31
+#: src/lib/user_error.ts:44
 msgid "Check the required fields and try again."
 msgstr "تحقق من الحقول المطلوبة وأعد المحاولة."
-
-#: src/pages/Shell.tsx:152
-#~ msgid "Child"
-#~ msgstr "فرعي"
 
 #: src/pages/shell/bot-roster-row.tsx:33
 msgid "Child agent"
 msgstr "وكيل ابن"
-
-#: src/pages/Activity.tsx:85
-#~ msgid "Choose a board"
-#~ msgstr "اختر لوحة"
 
 #: src/components/market/MarketQuote.tsx:36
 msgid "Choose a connected account and an instrument to load market data."
@@ -328,10 +310,6 @@ msgstr "اختر نموذجًا من الكتالوج"
 msgid "Choose a feed"
 msgstr "اختر مصدرًا"
 
-#: src/pages/Group.tsx:34
-#~ msgid "Choose a group"
-#~ msgstr "اختر مجموعة"
-
 #: src/pages/Knowledge.tsx:50
 #: src/pages/shell/bot-picker.tsx:110
 msgid "Choose an agent"
@@ -346,7 +324,11 @@ msgstr "اختر وكيلاً أو عد إلى مساحة عملك."
 msgid "Choose an instrument"
 msgstr "اختر أداة مالية"
 
-#: src/lib/user_error.ts:25
+#: src/lib/user_error.ts:36
+msgid "Choose GPT-Live 1 or GPT-Live 1 mini as the global voice model."
+msgstr "اختر GPT-Live 1 أو GPT-Live 1 mini كنموذج الصوت العام."
+
+#: src/lib/user_error.ts:38
 msgid "Choose supported global speech models in Settings."
 msgstr "اختر نماذج صوت مدعومة من الإعدادات العالمية."
 
@@ -357,7 +339,7 @@ msgstr "اختر نماذج صوت مدعومة من الإعدادات العا
 #: src/pages/RoutineEditor.tsx:100
 #: src/pages/Shell.tsx:589
 #: src/pages/shell/bot-settings.tsx:114
-#: src/pages/shell/chat-context.tsx:161
+#: src/pages/shell/chat-context.tsx:220
 msgid "Close"
 msgstr "إغلاق"
 
@@ -398,8 +380,12 @@ msgid "Condition"
 msgstr "الشرط"
 
 #: src/lib/user_error.ts:23
-msgid "Configure LiveKit to start a voice call."
-msgstr "اضبط LiveKit لبدء مكالمة صوتية."
+msgid "Configure an OpenAI credential with GPT-Live access to start a voice call."
+msgstr "اضبط مفتاح OpenAI يتيح الوصول إلى GPT-Live لبدء المكالمة."
+
+#: src/pages/VoiceSettingsOverlay.tsx:33
+msgid "Configure an OpenAI credential with GPT-Live API access"
+msgstr "اضبط مفتاح OpenAI يتيح الوصول إلى واجهة GPT-Live"
 
 #: src/components/trading/TradingJournal.tsx:20
 msgid "Confirmed"
@@ -445,7 +431,7 @@ msgid "Context panel"
 msgstr "لوحة السياق"
 
 #: src/pages/ModelRoutingSettings.tsx:10
-#: src/pages/shell/chat-context.tsx:692
+#: src/pages/shell/chat-context.tsx:751
 msgid "Conversation"
 msgstr "المحادثة"
 
@@ -461,11 +447,6 @@ msgstr "معرّف المحادثة للرسائل الواردة"
 #: src/components/call/Transcript.tsx:7
 msgid "Conversation transcript"
 msgstr "نص المحادثة"
-
-#: src/pages/Shell.tsx:83
-#: src/pages/Shell.tsx:162
-#~ msgid "Conversations"
-#~ msgstr "المحادثات"
 
 #: ../../packages/chat-ui/src/markdown-table.tsx:20
 #: ../../packages/chat-ui/src/markdown.web.tsx:40
@@ -545,10 +526,6 @@ msgstr "إنشاء مراقبة"
 msgid "Create workspace"
 msgstr "إنشاء مساحة العمل"
 
-#: src/pages/Shell.tsx:250
-#~ msgid "Create your first agent"
-#~ msgstr "أنشئ وكيلك الأول"
-
 #: src/pages/ModelSettingsOverlay.tsx:71
 msgid "Credential configured"
 msgstr "تم إعداد مفتاح الوصول"
@@ -609,7 +586,7 @@ msgstr "فصل الحساب"
 msgid "Discovered models"
 msgstr "النماذج المكتشفة"
 
-#: src/pages/shell/chat-context.tsx:392
+#: src/pages/shell/chat-context.tsx:451
 msgid "Dismiss error"
 msgstr "إخفاء الخطأ"
 
@@ -683,7 +660,7 @@ msgstr "مفعّل"
 msgid "End call"
 msgstr "إنهاء المكالمة"
 
-#: src/pages/shell/chat-context.tsx:597
+#: src/pages/shell/chat-context.tsx:656
 msgid "Enter to send · Shift+Enter for a new line"
 msgstr "Enter للإرسال · Shift+Enter لسطر جديد"
 
@@ -777,6 +754,14 @@ msgstr "التوجيه العالمي"
 msgid "Global trading settings"
 msgstr "إعدادات التداول العالمية"
 
+#: src/pages/VoiceSettingsOverlay.tsx:23
+msgid "GPT-Live connects directly over WebRTC using your server-stored OpenAI credential. Choose the voice model in global routing; delegated work uses the same Lonora agent and tools."
+msgstr "يتصل GPT-Live مباشرة عبر WebRTC باستخدام مفتاح OpenAI المحفوظ على الخادم. اختر نموذج الصوت في التوجيه العام؛ وينفذ وكيل Lonora نفسه المهام المفوضة بأدواته."
+
+#: src/lib/user_error.ts:29
+msgid "GPT-Live is not available for this OpenAI project. Check its API access."
+msgstr "GPT-Live غير متاح لمشروع OpenAI هذا. تحقق من صلاحية الوصول إلى واجهته."
+
 #: src/pages/GroupPanel.tsx:48
 #: src/pages/GroupPanel.tsx:120
 msgid "Group name"
@@ -790,15 +775,11 @@ msgstr "إعدادات المجموعة"
 msgid "Groups"
 msgstr "المجموعات"
 
-#: src/pages/Routines.tsx:138
-#~ msgid "History"
-#~ msgstr "السجل"
-
 #: src/components/common/ImageGallery.tsx:5
 msgid "Image attachment"
 msgstr "صورة مرفقة"
 
-#: src/lib/user_error.ts:29
+#: src/lib/user_error.ts:42
 msgid "Import a market snapshot before using the demo account."
 msgstr "استورد بيانات السوق قبل استخدام حساب المحاكاة."
 
@@ -841,7 +822,7 @@ msgstr "فاصل زمني"
 msgid "Isolated document preview"
 msgstr "معاينة المستند المعزولة"
 
-#: src/pages/shell/chat-context.tsx:777
+#: src/pages/shell/chat-context.tsx:836
 msgid "Jump to latest"
 msgstr "الانتقال إلى الأحدث"
 
@@ -887,7 +868,7 @@ msgstr "أستمع إليك · تحدث للمقاطعة"
 msgid "Live connection active"
 msgstr "الاتصال المباشر فعّال"
 
-#: src/pages/shell/chat-context.tsx:720
+#: src/pages/shell/chat-context.tsx:779
 msgid "Load earlier messages"
 msgstr "تحميل الرسائل السابقة"
 
@@ -925,7 +906,7 @@ msgstr "جارٍ تحميل مساحة العمل…"
 #: src/pages/RoutineRunHistory.tsx:43
 #: src/pages/Routines.tsx:176
 #: src/pages/ScratchpadSection.tsx:94
-#: src/pages/shell/chat-context.tsx:717
+#: src/pages/shell/chat-context.tsx:776
 msgid "Loading…"
 msgstr "جارٍ التحميل…"
 
@@ -988,20 +969,20 @@ msgstr "الذاكرة والمهارات والعمل المفتوح"
 msgid "Mention agents with @name. Without a mention, the first member responds."
 msgstr "اذكر الوكلاء باستخدام ‎@الاسم. عند عدم تحديد وكيل، يرد العضو الأول."
 
-#: src/pages/shell/chat-context.tsx:445
+#: src/pages/shell/chat-context.tsx:504
 msgid "Mentions"
 msgstr "الإشارات"
 
-#: src/pages/shell/chat-context.tsx:508
+#: src/pages/shell/chat-context.tsx:567
 #: src/pages/SpaceSearch.tsx:164
 msgid "Message"
 msgstr "الرسالة"
 
-#: src/pages/shell/chat-context.tsx:358
+#: src/pages/shell/chat-context.tsx:417
 msgid "Message composer"
 msgstr "محرر الرسالة"
 
-#: src/pages/shell/chat-context.tsx:516
+#: src/pages/shell/chat-context.tsx:575
 msgid "Message your agent…"
 msgstr "اكتب رسالة لوكيلك…"
 
@@ -1039,11 +1020,6 @@ msgstr "النماذج والصوت واتصالات التداول إعدادا
 #: src/pages/shell/bot-settings.tsx:46
 msgid "Name"
 msgstr "الاسم"
-
-#: src/pages/Shell.tsx:166
-#: src/pages/Shell.tsx:186
-#~ msgid "New conversation"
-#~ msgstr "محادثة جديدة"
 
 #: src/pages/Board.tsx:98
 #: src/pages/Board.tsx:298
@@ -1101,10 +1077,6 @@ msgstr "لا توجد عمليات تنفيذ تطابق هذه المرشحات
 msgid "No tickets yet"
 msgstr "لا توجد مهام بعد"
 
-#: src/pages/Search.tsx:48
-#~ msgid "Notes and files"
-#~ msgstr "الملاحظات والملفات"
-
 #: src/pages/ActivityList.tsx:190
 msgid "Now"
 msgstr "الآن"
@@ -1127,11 +1099,15 @@ msgstr "فتح قائمة التنقل"
 msgid "Open price"
 msgstr "سعر الفتح"
 
+#: src/pages/VoiceSettingsOverlay.tsx:31
+msgid "OpenAI voice credential configured"
+msgstr "تم ضبط مفتاح OpenAI للصوت"
+
 #: src/pages/Shell.tsx:129
 msgid "Opening conversation…"
 msgstr "جارٍ فتح المحادثة…"
 
-#: src/App.tsx:45
+#: src/App.tsx:58
 msgid "Opening workspace…"
 msgstr "جارٍ فتح مساحة العمل…"
 
@@ -1200,21 +1176,9 @@ msgstr "الأوامر المعلقة"
 msgid "Period"
 msgstr "الفترة"
 
-#: src/components/agents/AgentPanel.tsx:11
-#~ msgid "Persistent agent"
-#~ msgstr "وكيل دائم"
-
-#: src/pages/Shell.tsx:238
-#~ msgid "Persistent agents, shared knowledge and continuous work in one place."
-#~ msgstr "وكلاء دائمون ومعرفة مشتركة وعمل متواصل في مكان واحد."
-
 #: src/pages/shell/bot-settings.tsx:108
 msgid "Persistent child agent"
 msgstr "وكيل ابن دائم"
-
-#: src/pages/Shell.tsx:212
-#~ msgid "Persistent workspace"
-#~ msgstr "مساحة عمل دائمة"
 
 #: src/components/market/MarketWatch.tsx:108
 msgid "Position"
@@ -1288,10 +1252,6 @@ msgstr "الاستدلال"
 msgid "Recent"
 msgstr "حديثًا"
 
-#: src/pages/Activity.tsx:145
-#~ msgid "Recent runs"
-#~ msgstr "التنفيذات الأخيرة"
-
 #: src/pages/Shell.tsx:391
 msgid "Reconnecting"
 msgstr "جارٍ إعادة الاتصال"
@@ -1313,21 +1273,21 @@ msgstr "تحديث الشموع المباشر"
 msgid "Reload"
 msgstr "إعادة تحميل"
 
-#: src/pages/shell/chat-context.tsx:431
+#: src/pages/shell/chat-context.tsx:490
 msgid "Remove {name}"
 msgstr "إزالة {name}"
 
-#: src/pages/shell/chat-context.tsx:414
+#: src/pages/shell/chat-context.tsx:473
 msgid "Remove reply"
 msgstr "إزالة الرد"
 
-#: src/pages/shell/message-cards.tsx:76
 #: src/pages/shell/message-cards.tsx:77
+#: src/pages/shell/message-cards.tsx:78
 msgid "Reply"
 msgstr "رد"
 
-#: src/pages/shell/chat-context.tsx:403
-#: src/pages/shell/message-cards.tsx:42
+#: src/pages/shell/chat-context.tsx:462
+#: src/pages/shell/message-cards.tsx:43
 msgid "Reply to an earlier message"
 msgstr "رد على رسالة سابقة"
 
@@ -1350,11 +1310,11 @@ msgstr "تغيير عرض اللوحة"
 #: src/components/market/MarketWatch.tsx:294
 #: src/pages/ActivityList.tsx:279
 #: src/pages/Routines.tsx:100
-#: src/pages/shell/chat-context.tsx:118
+#: src/pages/shell/chat-context.tsx:168
 msgid "Resume"
 msgstr "استئناف"
 
-#: src/App.tsx:38
+#: src/App.tsx:48
 #: src/pages/ActivityList.tsx:163
 #: src/pages/Artifacts.tsx:251
 #: src/pages/Board.tsx:106
@@ -1431,10 +1391,6 @@ msgstr "جدول العمل المتكرر لوكلائك."
 #: src/pages/Shell.tsx:932
 msgid "Scheduled work"
 msgstr "العمل المجدول"
-
-#: src/pages/Routines.tsx:30
-#~ msgid "Scheduled work runs through the same agents, memory, tools and global model settings."
-#~ msgstr "تستخدم المهام المجدولة الوكلاء والذاكرة والأدوات وإعدادات النماذج العالمية نفسها."
 
 #: src/pages/Knowledge.tsx:39
 msgid "Scratchpad"
@@ -1515,13 +1471,13 @@ msgstr "بيع عند الكسر"
 msgid "Semantic memory · optional"
 msgstr "الذاكرة الدلالية · اختيارية"
 
-#: src/pages/shell/chat-context.tsx:573
-#: src/pages/shell/chat-context.tsx:574
+#: src/pages/shell/chat-context.tsx:632
+#: src/pages/shell/chat-context.tsx:633
 msgid "Send"
 msgstr "إرسال"
 
-#: src/pages/shell/chat-context.tsx:573
-#: src/pages/shell/chat-context.tsx:574
+#: src/pages/shell/chat-context.tsx:632
+#: src/pages/shell/chat-context.tsx:633
 msgid "Send direction"
 msgstr "إرسال توجيه"
 
@@ -1529,13 +1485,9 @@ msgstr "إرسال توجيه"
 msgid "Server URL"
 msgstr "رابط الخادم"
 
-#: src/pages/VoiceSettingsOverlay.tsx:23
-msgid "Set speech recognition and speech synthesis under global model routing. Configure LiveKit on the server to enable calls."
-msgstr "حدد تحويل الكلام إلى نص وتحويل النص إلى كلام في التوجيه العالمي للنماذج. اضبط LiveKit على الخادم لتفعيل المكالمات."
-
 #: src/pages/Shell.tsx:563
 #: src/pages/Shell.tsx:680
-#: src/pages/shell/chat-context.tsx:469
+#: src/pages/shell/chat-context.tsx:528
 msgid "Settings"
 msgstr "الإعدادات"
 
@@ -1600,10 +1552,6 @@ msgstr "المهارات"
 msgid "Source"
 msgstr "المصدر"
 
-#: src/pages/VoiceSettingsOverlay.tsx:17
-msgid "Speech becomes a message in the current conversation. The same agent answers and uses its normal tools."
-msgstr "يصبح كلامك رسالة في المحادثة الحالية. يجيب الوكيل نفسه ويستخدم أدواته المعتادة."
-
 #: src/pages/ModelRoutingSettings.tsx:15
 msgid "Speech recognition"
 msgstr "تحويل الكلام إلى نص"
@@ -1611,6 +1559,10 @@ msgstr "تحويل الكلام إلى نص"
 #: src/pages/ModelRoutingSettings.tsx:16
 msgid "Speech synthesis"
 msgstr "تحويل النص إلى كلام"
+
+#: src/pages/VoiceSettingsOverlay.tsx:17
+msgid "Spoken tasks are saved in the current conversation. GPT-Live can keep listening and speaking while the same agent performs delegated work."
+msgstr "تُحفظ المهام الصوتية في المحادثة الحالية. يستطيع GPT-Live مواصلة الاستماع والتحدث أثناء تنفيذ الوكيل نفسه للمهام المفوضة."
 
 #: src/components/market/MarketQuote.tsx:24
 msgid "Spread"
@@ -1625,11 +1577,7 @@ msgstr "مربع"
 msgid "Stable facts and preferences kept separately from conversation history."
 msgstr "حقائق وتفضيلات ثابتة محفوظة بشكل مستقل عن سجل المحادثة."
 
-#: src/pages/Shell.tsx:248
-#~ msgid "Start a conversation"
-#~ msgstr "بدء محادثة"
-
-#: src/pages/shell/chat-context.tsx:734
+#: src/pages/shell/chat-context.tsx:793
 msgid "Start a conversation. Your agent keeps its memory and continues scheduled work here."
 msgstr "ابدأ محادثة. يحتفظ وكيلك بذاكرته ويواصل مهامه المجدولة هنا."
 
@@ -1645,8 +1593,8 @@ msgid "Status"
 msgstr "الحالة"
 
 #: src/pages/ActivityList.tsx:269
-#: src/pages/shell/chat-context.tsx:588
-#: src/pages/shell/chat-context.tsx:589
+#: src/pages/shell/chat-context.tsx:647
+#: src/pages/shell/chat-context.tsx:648
 msgid "Stop"
 msgstr "إيقاف"
 
@@ -1697,11 +1645,11 @@ msgstr "المهمة عند تحقق الشرط"
 msgid "Temporary delegated tasks"
 msgstr "المهام المفوّضة المؤقتة"
 
-#: src/lib/user_error.ts:45
+#: src/lib/user_error.ts:58
 msgid "The agent reached the step limit for this run. Send another message to continue."
 msgstr "بلغ الوكيل الحد الأقصى لخطوات هذا التشغيل. أرسل رسالة أخرى للمتابعة."
 
-#: src/lib/user_error.ts:27
+#: src/lib/user_error.ts:40
 msgid "The broker connection is unavailable."
 msgstr "الاتصال بالوسيط غير متاح."
 
@@ -1713,7 +1661,11 @@ msgstr "يُقرأ الكتالوج من المزود. تظهر القدرات �
 msgid "The file preview could not be displayed"
 msgstr "تعذّر عرض معاينة الملف"
 
-#: src/lib/user_error.ts:41
+#: src/pages/shell/message-cards.tsx:126
+msgid "The full response will appear when complete."
+msgstr "ستظهر الإجابة كاملة عند الانتهاء."
+
+#: src/lib/user_error.ts:54
 msgid "The model could not summarize this conversation. Retry or choose another global model."
 msgstr "تعذّر على النموذج تلخيص هذه المحادثة. أعد المحاولة أو اختر نموذجًا عالميًا آخر."
 
@@ -1729,17 +1681,25 @@ msgstr "تعذر عرض الصفحة"
 msgid "The provider rejected this API key."
 msgstr "رفض المزود مفتاح API هذا."
 
-#: src/lib/user_error.ts:47
+#: src/lib/user_error.ts:60
 msgid "The request could not be completed. Try again."
 msgstr "تعذر إكمال الطلب. أعد المحاولة."
+
+#: src/lib/user_error.ts:31
+msgid "The resident voice worker is unavailable. Check server readiness and retry."
+msgstr "خدمة الصوت المقيمة غير متاحة. تحقق من جاهزية الخادم وأعد المحاولة."
 
 #: src/lib/user_error.ts:9
 msgid "The setup code is incorrect."
 msgstr "رمز الإعداد غير صحيح."
 
-#: src/pages/shell/message-cards.tsx:90
+#: src/pages/shell/message-cards.tsx:91
 msgid "The task resumed from its saved state after reconnection."
 msgstr "استؤنفت المهمة من حالتها المحفوظة بعد إعادة الاتصال."
+
+#: src/lib/user_error.ts:34
+msgid "The voice connection failed. Retry the call."
+msgstr "تعذر اتصال الصوت. أعد محاولة المكالمة."
 
 #: src/pages/LocalSettings.tsx:26
 #: src/pages/LocalSettings.tsx:28
@@ -1750,11 +1710,11 @@ msgstr "المظهر"
 msgid "These settings apply to every agent and routine. Voice routes require models that support audio."
 msgstr "تنطبق هذه الإعدادات على جميع الوكلاء والمهام المجدولة. تتطلب المسارات الصوتية نماذج تدعم الصوت."
 
-#: src/lib/user_error.ts:43
+#: src/lib/user_error.ts:56
 msgid "This conversation could not be resumed. Start a new conversation."
 msgstr "تعذّر استئناف هذه المحادثة. ابدأ محادثة جديدة."
 
-#: src/lib/user_error.ts:39
+#: src/lib/user_error.ts:52
 msgid "This conversation is too large to process. Shorten instructions, use fewer attachments, or start a new conversation."
 msgstr "هذه المحادثة أكبر من الحد المتاح. اختصر التعليمات أو قلّل المرفقات أو ابدأ محادثة جديدة."
 
@@ -1770,7 +1730,7 @@ msgstr "هذا الشهر"
 msgid "This page is unavailable"
 msgstr "هذه الصفحة غير متاحة"
 
-#: src/lib/user_error.ts:35
+#: src/lib/user_error.ts:48
 msgid "This run was recovered by another worker."
 msgstr "استعاد عامل آخر هذا التنفيذ."
 
@@ -1813,17 +1773,13 @@ msgstr "إلى:"
 msgid "Today"
 msgstr "اليوم"
 
-#: src/pages/Shell.tsx:205
-#~ msgid "Toggle sidebar"
-#~ msgstr "إظهار أو إخفاء الشريط الجانبي"
-
 #: src/pages/settings-sidebar.tsx:24
 #: src/pages/Shell.tsx:567
 #: src/pages/UsageSettingsPanel.tsx:18
 msgid "Token usage"
 msgstr "استهلاك الرموز"
 
-#: src/lib/user_error.ts:33
+#: src/lib/user_error.ts:46
 msgid "Too many attempts. Wait a minute and retry."
 msgstr "محاولات كثيرة. انتظر دقيقة وأعد المحاولة."
 
@@ -1895,9 +1851,9 @@ msgid "Vision"
 msgstr "الرؤية"
 
 #: src/pages/settings-sidebar.tsx:20
-#: src/pages/shell/chat-context.tsx:156
-#: src/pages/shell/chat-context.tsx:562
-#: src/pages/shell/chat-context.tsx:563
+#: src/pages/shell/chat-context.tsx:215
+#: src/pages/shell/chat-context.tsx:621
+#: src/pages/shell/chat-context.tsx:622
 msgid "Voice"
 msgstr "الصوت"
 
@@ -1905,13 +1861,9 @@ msgstr "الصوت"
 msgid "Voice disconnected"
 msgstr "الصوت غير متصل"
 
-#: src/pages/VoiceSettingsOverlay.tsx:31
-msgid "Voice transport configured"
-msgstr "تم إعداد الاتصال الصوتي"
-
-#: src/pages/VoiceSettingsOverlay.tsx:33
-msgid "Voice transport needs configuration"
-msgstr "الاتصال الصوتي يحتاج إلى إعداد"
+#: src/lib/user_error.ts:27
+msgid "Voice requires a browser with WebRTC and microphone support on HTTPS."
+msgstr "يتطلب الصوت متصفحًا يدعم WebRTC والميكروفون عبر HTTPS."
 
 #: src/components/market/MarketWatch.tsx:186
 #: src/components/trading/Positions.tsx:51
@@ -1938,10 +1890,6 @@ msgstr "بانتظار ردك"
 msgid "Watch source"
 msgstr "مصدر المراقبة"
 
-#: src/pages/Shell.tsx:235
-#~ msgid "Welcome to Lonora"
-#~ msgstr "مرحبًا بك في Lonora"
-
 #: src/pages/shell/bot-settings.tsx:91
 msgid "What should this agent know about its work?"
 msgstr "ما الذي يجب أن يعرفه هذا الوكيل عن عمله؟"
@@ -1961,9 +1909,9 @@ msgstr "قائمة مساحة العمل"
 msgid "Workspace settings"
 msgstr "إعدادات مساحة العمل"
 
-#: src/components/chat/MessageBubble.tsx:25
-#~ msgid "You"
-#~ msgstr "أنت"
+#: src/components/call/RealtimeVoice.tsx:26
+msgid "You"
+msgstr "أنت"
 
 #: src/pages/ActivityList.tsx:176
 msgid "Your agents’ activity will appear here."

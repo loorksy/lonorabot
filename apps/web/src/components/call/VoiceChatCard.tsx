@@ -1,5 +1,5 @@
 // Real voice controller for Tampletgrok's call UI boundary. Modified for Lonora; Apache-2.0.
-import { lazy, Suspense, useCallback, useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { useVoice } from "../../hooks/useVoice";
 import type { Message } from "../../lib/api";
 import { CallCard } from "./CallCard";
@@ -20,9 +20,7 @@ export function VoiceChatCard({
 }) {
   // This controller owns the server session; closing its parent still invokes useVoice teardown.
   const voice = useVoice(agentId, threadId);
-  const [connected, setConnected] = useState(false);
   const [transportError, setTransportError] = useState<unknown>();
-  const onError = useCallback((error: unknown) => setTransportError(error), []);
   async function invoke(action: () => Promise<void>) {
     setTransportError(undefined);
     try {
@@ -34,12 +32,11 @@ export function VoiceChatCard({
   return (
     <CallCard
       active={Boolean(voice.session)}
-      connected={connected}
+      connected={voice.connected}
       busy={voice.busy}
       messages={messages}
       error={voice.error ?? transportError}
       onStart={() => {
-        setConnected(false);
         void invoke(voice.start);
       }}
       onInterrupt={() => {
@@ -51,7 +48,7 @@ export function VoiceChatCard({
       transport={
         voice.session && (
           <Suspense fallback={<VoiceStatus connected={false} busy={true} />}>
-            <RealtimeVoice session={voice.session} onStatus={setConnected} onError={onError} />
+            <RealtimeVoice session={voice.session} captions={voice.captions} />
           </Suspense>
         )
       }

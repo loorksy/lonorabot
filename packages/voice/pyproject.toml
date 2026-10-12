@@ -7,7 +7,7 @@ name = "lonora-voice"
 version = "0.2.0"
 requires-python = ">=3.12"
 license = "Apache-2.0"
-dependencies = ["livekit>=1,<2", "lonora-adapters==0.2.0", "lonora-api==0.2.0", "lonora-bus==0.2.0", "lonora-contracts==0.2.0", "lonora-core==0.2.0", "lonora-db==0.2.0", "lonora-gateway==0.2.0", "lonora-providers==0.2.0", "numpy>=2,<3", "sqlalchemy[asyncio]>=2.0.36,<3"]
+dependencies = ["lonora-adapters==0.2.0", "lonora-api==0.2.0", "lonora-bus==0.2.0", "lonora-contracts==0.2.0", "lonora-core==0.2.0", "lonora-db==0.2.0", "lonora-gateway==0.2.0", "lonora-providers==0.2.0", "numpy>=2,<3", "sqlalchemy[asyncio]>=2.0.36,<3"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

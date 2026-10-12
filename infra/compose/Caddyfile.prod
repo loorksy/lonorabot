@@ -6,9 +6,6 @@
         Referrer-Policy "same-origin"
         Permissions-Policy "microphone=(self), camera=()"
     }
-    handle_path /livekit/* {
-        reverse_proxy livekit:7880
-    }
     handle {
         reverse_proxy api:8000
     }

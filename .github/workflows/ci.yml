@@ -751,3 +751,6 @@ jobs:
         run: pnpm test:web
       - name: Verify real Expo companion against Python API
         run: pnpm test:mobile
+
+      - name: Verify GPT-Live admission and delegation with explicit API fixtures
+        run: .venv/bin/python -m pytest tests/voice -q

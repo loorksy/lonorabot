@@ -1,268 +1,358 @@
+"""Resident GPT-Live sideband: microphone stays on WebRTC; tools stay in Lonora."""
+
 import asyncio
-import io
+import hashlib
+import json
 import time
-import wave
-from array import array
-from typing import Any, cast
+from copy import deepcopy
+from typing import Any
 
-from livekit import rtc
-from lonora_adapters.voice.livekit import LiveKitTransport
-from lonora_bus.durable_events import stream_events
-from lonora_contracts.domain import new_id
-from lonora_contracts.voice import VoiceTranscript
-from lonora_core.user_error import LonoraError
+from lonora_adapters.voice.realtime import OpenAILiveAdapter
+from lonora_contracts.domain import MessageCreate
 from lonora_db.client import Database
-from lonora_db.events import PUBLIC_CURSOR, publish_committed
-from lonora_db.schema import VoiceSessionRow
+from lonora_db.events import emit
+from lonora_db.messages import send_message
+from lonora_db.schema import MessageRow, RunRow, VoiceSessionRow
 from lonora_providers.credentials import ProviderCredentials
-
-from .barge_in import barge_in
-from .synthesis import pcm_24000, synthesize
-from .transcript import commit_transcript
-from .transcription import transcribe
+from sqlalchemy import select
+from websockets.asyncio.client import ClientConnection
 
 
-def wav_segment(pcm: bytes) -> bytes:
-    target = io.BytesIO()
-    with wave.open(target, "wb") as wav:
-        wav.setnchannels(1)
-        wav.setsampwidth(2)
-        wav.setframerate(24000)
-        wav.writeframes(pcm)
-    return target.getvalue()
+def text_chunks(content: str) -> list[str]:
+    """Every append is under 500 UTF-8 bytes, conservatively below 500 tokens."""
+    chunks: list[str] = []
+    current = ""
+    if len(content) > 2400:
+        content = content[:2400] + "\nThe full backend result is available in the chat transcript."
+    for character in content:
+        if len((current + character).encode()) > 480:
+            chunks.append(current)
+            current = ""
+        current += character
+    if current:
+        chunks.append(current)
+    return chunks
 
 
 class RealtimeVoiceSession:
-    """LiveKit transports audio; all transcripts execute through the existing agent run path."""
-
     def __init__(
-        self,
-        db: Database,
-        credentials: ProviderCredentials,
-        session_id: str,
-        url: str,
-        key: str,
-        secret: str,
-        gateway_id: str = "",
+        self, db: Database, credentials: ProviderCredentials, session_id: str, gateway: str
     ):
-        self.db, self.credentials, self.session_id, self.url = db, credentials, session_id, url
-        self.transport = LiveKitTransport(key, secret)
-        self.room = rtc.Room()
-        self.source = rtc.AudioSource(24000, 1)
-        self.tasks: set[asyncio.Task[None]] = set()
-        self.owner_id = ""
-        self.thread_id = ""
-        self.gateway_id = gateway_id
-        self.failure: str | None = None
-        self.speaking = False
-        self.interrupted = asyncio.Event()
-        self.owner_seen = False
+        self.db, self.credentials, self.session_id, self.gateway = (
+            db,
+            credentials,
+            session_id,
+            gateway,
+        )
+        self.last_audio_write = 0.0
+        self.lost_lease = False
+        self.adapter: OpenAILiveAdapter | None = None
+        self.connection: ClientConnection | None = None
 
-    def task_finished(self, task: asyncio.Task[None]) -> None:
-        self.tasks.discard(task)
-        if not task.cancelled() and task.exception():
-            error = task.exception()
-            self.failure = (
-                error.code if isinstance(error, LonoraError) else "voice_transport_failed"
-            )
-
-    async def assert_connection(self) -> None:
-        async with self.db.sessions() as session:
-            row = await session.get(VoiceSessionRow, self.session_id)
-            if (
-                row is None
-                or row.payload.get("status") != "connected"
-                or (self.gateway_id and row.state.get("gateway") != self.gateway_id)
-            ):
-                raise LonoraError("voice_session_closed", 409)
-
-    async def input_track(self, track: rtc.Track) -> None:
-        stream = rtc.AudioStream(track, sample_rate=24000, num_channels=1)
-        segment = bytearray()
-        silence = 0.0
-        voiced = False
-        async for event in stream:
-            frame = event.frame
-            data = bytes(frame.data)
-            samples = array("h", data)
-            energy = sum(abs(value) for value in samples) / max(1, len(samples))
-            duration = frame.samples_per_channel / frame.sample_rate
-            audible = energy > 220
-            if audible:
-                if self.speaking:
-                    self.interrupted.set()
-                    self.source.clear_queue()
-                    await barge_in(self.db, self.owner_id, self.thread_id)
-                voiced = True
-                silence = 0
-            else:
-                silence += duration
-            if voiced:
-                segment.extend(data)
-            if voiced and (silence >= 0.75 or len(segment) >= 24000 * 2 * 15):
-                audio = wav_segment(bytes(segment))
-                segment.clear()
-                voiced = False
-                silence = 0
-                text = await transcribe(self.db, self.credentials, audio)
-                await self.assert_connection()
-                if text.strip():
-                    await commit_transcript(
-                        self.db,
-                        self.owner_id,
-                        self.thread_id,
-                        VoiceTranscript(text=text, client_nonce=self.session_id + ":" + new_id()),
+    async def update(self, event: dict[str, Any]) -> None:
+        async with self.db.sessions() as session, session.begin():
+            row = await session.get(VoiceSessionRow, self.session_id, with_for_update=True)
+            if row is None or row.state.get("gateway") != self.gateway:
+                return
+            state = deepcopy(row.state)
+            kind = event.get("type")
+            if kind in {"session.input_transcript.delta", "session.output_transcript.delta"}:
+                channel = "input" if kind == "session.input_transcript.delta" else "output"
+                fragments = list(state.get(channel, []))
+                fragment = {
+                    key: event.get(key) for key in ("event_id", "start_ms", "end_ms", "delta")
+                }
+                if isinstance(fragment["delta"], str) and not any(
+                    item.get("event_id") == fragment["event_id"] for item in fragments
+                ):
+                    fragments.append(fragment)
+                    removed = fragments[:-2048]
+                    state[channel] = fragments[-2048:]
+                    if channel == "input" and removed:
+                        state["input_trimmed_until"] = max(
+                            float(state.get("input_trimmed_until", -1)),
+                            max(float(item.get("end_ms") or 0) for item in removed),
+                        )
+                    emit(
+                        session,
+                        row.owner_id,
+                        "voice.transcript",
+                        thread_id=row.thread_id,
+                        agent_id=row.agent_id,
+                        payload={"session_id": row.id, "channel": channel, **fragment},
                     )
-
-    async def output_messages(self, cursor: int) -> None:
-        async for event in stream_events(self.db, self.owner_id, cursor, self.thread_id):
-            payload = event["payload"]
-            if event["kind"] != "message.created" or payload.get("role") != "assistant":
-                continue
-            await self.assert_connection()
-            self.interrupted.clear()
-            self.speaking = True
-            audio = pcm_24000(
-                await synthesize(self.db, self.credentials, str(payload.get("content", "")))
-            )
-            try:
-                for offset in range(0, len(audio), 960):
-                    if self.interrupted.is_set():
-                        break
-                    chunk = audio[offset : offset + 960]
-                    if len(chunk) < 960:
-                        chunk += b"\0" * (960 - len(chunk))
-                    await self.source.capture_frame(
-                        rtc.AudioFrame(chunk, 24000, 1, len(chunk) // 2)
+            elif kind == "session.delegation.created":
+                delegation = event.get("delegation", {})
+                if delegation.get("target") == "client" and isinstance(delegation.get("id"), str):
+                    entries = dict(state.get("delegations", {}))
+                    entries.setdefault(
+                        delegation["id"],
+                        {
+                            "offset": event.get("offset_ms", 0),
+                            "received_at": time.time(),
+                            "status": "pending",
+                        },
                     )
-                await self.source.wait_for_playout()
-            finally:
-                self.speaking = False
+                    state["delegations"] = entries
+            elif kind == "session.commentary.appended":
+                entries = dict(state.get("delegations", {}))
+                for task in entries.values():
+                    if task.get("event_id") == event.get("client_event_id"):
+                        task["next_chunk"] = int(task.get("next_chunk", 0)) + 1
+                        task.pop("event_id", None)
+                        task.pop("sent_at", None)
+                state["delegations"] = entries
+            elif kind in {"session.usage", "session.closed"}:
+                state["usage"] = event.get("usage", {})
+                if kind == "session.closed":
+                    state["finalized"] = True
+                    row.payload = {**row.payload, "status": "closed"}
+            elif kind == "error":
+                # Provider error messages may contain request details; persist only its code.
+                state["provider_error"] = str(
+                    event.get("error", {}).get("code") or "voice_connection_failed"
+                )
+                row.payload = {
+                    **row.payload,
+                    "status": "failed",
+                    "error": "voice_connection_failed",
+                }
+            if kind not in {"session.usage", "session.input_audio.append"}:
+                state["last_activity"] = time.time()
+            elif kind == "session.input_audio.append":
+                state["last_activity"] = time.time()
+            row.state = state
+
+    async def delegate(self) -> None:
+        async with self.db.sessions() as session, session.begin():
+            row = await session.get(VoiceSessionRow, self.session_id, with_for_update=True)
+            if row is None or row.state.get("gateway") != self.gateway:
+                return
+            state = deepcopy(row.state)
+            entries = dict(state.get("delegations", {}))
+            fragments = list(state.get("input", []))
+            for identity, task in entries.items():
+                if task.get("status") != "pending":
+                    continue
+                offset = float(task.get("offset", 0))
+                previous = float(state.get("input_offset", -1))
+                selected = [
+                    fragment
+                    for fragment in fragments
+                    if float(fragment.get("start_ms") or 0) <= offset
+                    and float(fragment.get("end_ms") or 0) > previous
+                ]
+                spoken = "".join(str(fragment.get("delta") or "") for fragment in selected).strip()
+                caught_up = (
+                    selected
+                    and max(float(fragment.get("end_ms") or 0) for fragment in selected) >= offset
+                )
+                if (
+                    not spoken
+                    or not caught_up
+                    or float(state.get("input_trimmed_until", -1)) > previous
+                    or len(spoken) > 30000
+                ):
+                    if time.time() - float(task["received_at"]) > 5:
+                        task.update(
+                            {
+                                "status": "result",
+                                "chunks": [
+                                    "The full request was not transcribed. Ask the user to repeat it before taking any action."
+                                ],
+                                "next_chunk": 0,
+                            }
+                        )
+                        state["input_offset"] = offset
+                    continue
+                nonce = "voice:" + hashlib.sha256((row.id + identity).encode()).hexdigest()[:64]
+                receipt = await send_message(
+                    session,
+                    row.owner_id,
+                    row.thread_id or "",
+                    MessageCreate(content=spoken, client_nonce=nonce),
+                )
+                task.update({"status": "running", "run_ids": receipt["run_ids"]})
+                state["input_offset"] = offset
+            state["delegations"] = entries
+            row.state = state
+
+    async def tick(self) -> bool:
+        commands: list[dict[str, Any]] = []
+        async with self.db.sessions() as session, session.begin():
+            row = await session.get(VoiceSessionRow, self.session_id, with_for_update=True)
+            if row is None or row.state.get("gateway") != self.gateway:
+                self.lost_lease = True
+                return False
+            state = deepcopy(row.state)
+            state["lease_until"] = time.time() + 60
+            if row.payload.get("status") in {"closing", "closed", "failed"}:
+                row.state = state
+                return False
+            entries = dict(state.get("delegations", {}))
+            for identity, task in entries.items():
+                if task.get("status") == "running":
+                    runs = [await session.get(RunRow, run_id) for run_id in task.get("run_ids", [])]
+                    if not runs:
+                        task.update(
+                            {
+                                "status": "result",
+                                "chunks": [
+                                    "The agent is paused or unavailable. No work was started."
+                                ],
+                                "next_chunk": 0,
+                            }
+                        )
+                    elif all(
+                        run
+                        and run.status
+                        in {"completed", "failed", "cancelled", "waiting_input", "waiting_takeover"}
+                        for run in runs
+                    ):
+                        result: list[str] = []
+                        for run in runs:
+                            if run is None:
+                                continue
+                            if run.status == "completed":
+                                result.append(
+                                    run.result
+                                    or "The backend finished; no additional result was returned."
+                                )
+                            elif run.status == "waiting_input":
+                                message = await session.scalar(
+                                    select(MessageRow)
+                                    .where(
+                                        MessageRow.thread_id == run.thread_id,
+                                        MessageRow.agent_id == run.agent_id,
+                                        MessageRow.role == "assistant",
+                                        MessageRow.created_at >= run.created_at,
+                                    )
+                                    .order_by(MessageRow.seq.desc())
+                                    .limit(1)
+                                )
+                                result.append(
+                                    message.content
+                                    if message
+                                    else "Ask the user for the information the backend still needs."
+                                )
+                            else:
+                                result.append(
+                                    "Backend status: " + run.status + ". " + (run.error_code or "")
+                                )
+                        task.update(
+                            {
+                                "status": "result",
+                                "chunks": text_chunks("\n".join(result)),
+                                "next_chunk": 0,
+                            }
+                        )
+                if task.get("status") == "result":
+                    index = int(task.get("next_chunk", 0))
+                    parts = task.get("chunks", [])
+                    if index >= len(parts):
+                        task["status"] = "delivered"
+                    elif (
+                        not task.get("event_id") or time.time() - float(task.get("sent_at", 0)) > 8
+                    ):
+                        event_id = (
+                            "result-"
+                            + hashlib.sha256((identity + ":" + str(index)).encode()).hexdigest()[
+                                :32
+                            ]
+                        )
+                        task.update({"event_id": event_id, "sent_at": time.time()})
+                        commands.append(
+                            {
+                                "type": "session.commentary.append",
+                                "event_id": event_id,
+                                "delegation_id": identity,
+                                "content": parts[index],
+                            }
+                        )
+            state["delegations"] = entries
+            if time.time() - float(state.get("last_activity", time.time())) > 120:
+                row.payload = {**row.payload, "status": "closing", "reason": "inactive_transport"}
+                row.state = state
+                return False
+            row.state = state
+        if self.connection:
+            for command in commands:
+                await self.connection.send(json.dumps(command))
+        return True
 
     async def serve(self) -> None:
-        from lonora_db.schema import EventRow
-        from sqlalchemy import func, select
-
-        async with self.db.sessions() as session:
-            await publish_committed(session, force=True)
-            row = await session.get(VoiceSessionRow, self.session_id)
-            if row is None or not row.thread_id:
-                return
-            self.owner_id, self.thread_id = row.owner_id, row.thread_id
-            room_name = row.payload["room"]
-            cursor = (
-                await session.scalar(select(func.max(EventRow.payload[PUBLIC_CURSOR].as_integer())))
-            ) or 0
-        token = await self.transport.join_token(room_name, "agent:" + self.session_id)
-
-        def on_track(
-            track: rtc.Track,
-            publication: rtc.RemoteTrackPublication,
-            participant: rtc.RemoteParticipant,
-        ) -> None:
-            if track.kind == rtc.TrackKind.KIND_AUDIO and participant.identity.startswith(
-                "owner:" + self.owner_id + ":" + self.session_id
-            ):
-                task = asyncio.create_task(self.input_track(track))
-                self.tasks.add(task)
-                task.add_done_callback(self.task_finished)
-
-        cast(Any, self.room).on("track_subscribed", on_track)
+        remote_id = ""
+        finalized = False
         try:
-            await self.room.connect(self.url, token)
-            track = rtc.LocalAudioTrack.create_audio_track("lonora-voice", self.source)
-            await self.room.local_participant.publish_track(
-                track, rtc.TrackPublishOptions(source=rtc.TrackSource.SOURCE_MICROPHONE)
-            )
-            output = asyncio.create_task(self.output_messages(cursor))
-            self.tasks.add(output)
-            output.add_done_callback(self.task_finished)
+            self.adapter = OpenAILiveAdapter(await self.credentials.resolve("openai"))
+            async with self.db.sessions() as session:
+                row = await session.get(VoiceSessionRow, self.session_id)
+                if row is None:
+                    return
+                remote_id = str(row.payload["remote_id"])
+            async with self.adapter.attach(remote_id) as connection:
+                self.connection = connection
+                async with self.db.sessions() as session, session.begin():
+                    row = await session.get(VoiceSessionRow, self.session_id, with_for_update=True)
+                    if row is None or row.state.get("gateway") != self.gateway:
+                        return
+                    if row.payload.get("status") not in {"closing", "closed", "failed"}:
+                        row.payload = {**row.payload, "status": "connected"}
+                receiver = asyncio.create_task(self.receive(connection))
+                try:
+                    while not receiver.done() and await self.tick():
+                        await self.delegate()
+                        await asyncio.sleep(0.35)
+                    if self.lost_lease:
+                        return
+                    await connection.send(json.dumps({"type": "session.close"}))
+                    try:
+                        await asyncio.wait_for(asyncio.shield(receiver), 5)
+                    except TimeoutError:
+                        pass
+                    async with self.db.sessions() as session:
+                        row = await session.get(VoiceSessionRow, self.session_id)
+                        finalized = bool(row and row.state.get("finalized"))
+                finally:
+                    receiver.cancel()
+                    await asyncio.gather(receiver, return_exceptions=True)
+        except asyncio.CancelledError:
+            # Gateway shutdown must not resubmit or cancel the separate durable backend run.
+            if self.adapter and remote_id:
+                finalized = await self.adapter.close_session(remote_id)
+            raise
+        except Exception:
+            if self.adapter and remote_id and not self.lost_lease:
+                finalized = await self.adapter.close_session(remote_id)
             async with self.db.sessions() as session, session.begin():
                 row = await session.get(VoiceSessionRow, self.session_id, with_for_update=True)
-                if row:
-                    row.payload = {**row.payload, "status": "connected"}
-            idle_since = time.monotonic()
-            while True:
-                await asyncio.sleep(2)
-                present = any(
-                    participant.identity == "owner:" + self.owner_id + ":" + self.session_id
-                    for participant in self.room.remote_participants.values()
-                )
-                if present:
-                    self.owner_seen = True
-                    idle_since = time.monotonic()
-                elif time.monotonic() - idle_since > (10 if self.owner_seen else 30):
-                    async with self.db.sessions() as session, session.begin():
-                        row = await session.get(
-                            VoiceSessionRow, self.session_id, with_for_update=True
-                        )
-                        if row and (
-                            not self.gateway_id or row.state.get("gateway") == self.gateway_id
-                        ):
-                            row.payload = {**row.payload, "status": "closed"}
-                    break
-                async with self.db.sessions() as session:
-                    row = await session.get(VoiceSessionRow, self.session_id)
-                    if self.failure:
-                        raise LonoraError(self.failure, 502)
-                    if (
-                        row is None
-                        or row.payload.get("status") == "closed"
-                        or (self.gateway_id and row.state.get("gateway") != self.gateway_id)
-                    ):
-                        break
-        except Exception as error:
+                if row and row.state.get("gateway") == self.gateway:
+                    row.payload = {
+                        **row.payload,
+                        "status": "failed",
+                        "error": "voice_connection_failed",
+                    }
+        finally:
             async with self.db.sessions() as session, session.begin():
                 row = await session.get(VoiceSessionRow, self.session_id, with_for_update=True)
-                if row:
+                if row and row.state.get("gateway") == self.gateway:
+                    row.payload = {
+                        **row.payload,
+                        "status": "closed" if row.payload.get("status") != "failed" else "failed",
+                    }
                     row.state = {
                         **row.state,
-                        "code": error.code
-                        if isinstance(error, LonoraError)
-                        else "voice_transport_failed",
+                        "finalized": bool(row.state.get("finalized") or finalized),
                     }
-                    row.payload = {**row.payload, "status": "failed"}
-        finally:
-            for task in self.tasks:
-                task.cancel()
-            await asyncio.gather(*self.tasks, return_exceptions=True)
-            await self.room.disconnect()
-            await self.source.aclose()
 
-
-async def serve_local_session(session_id: str, gateway_id: str) -> None:
-    from lonora_api.env import get_settings
-    from lonora_gateway.runtime import OwnerServices
-
-    settings = get_settings()
-    db = Database.connect(settings.database_url)
-    async with db.sessions() as session:
-        row = await session.get(VoiceSessionRow, session_id)
-    if row is None or not settings.livekit_api_key or not settings.livekit_api_secret:
-        await db.close()
-        return
-    services = OwnerServices.create(db, row.owner_id, settings.encryption_key.get_secret_value())
-    voice = RealtimeVoiceSession(
-        db,
-        ProviderCredentials(db, services.secrets),
-        session_id,
-        settings.livekit_internal_url,
-        settings.livekit_api_key,
-        settings.livekit_api_secret.get_secret_value(),
-        gateway_id,
-    )
-    try:
-        await voice.serve()
-    finally:
-        await services.close()
-        await db.close()
-
-
-if __name__ == "__main__":
-    import argparse
-
-    parser = argparse.ArgumentParser(description="Gateway-owned local RTC transport")
-    parser.add_argument("--session", required=True)
-    parser.add_argument("--gateway", required=True)
-    options = parser.parse_args()
-    asyncio.run(serve_local_session(options.session, options.gateway))
+    async def receive(self, connection: ClientConnection) -> None:
+        async for raw in connection:
+            event: dict[str, Any] = json.loads(raw)
+            if event.get("type") in {"session.input_audio.append", "session.output_audio.delta"}:
+                # Do not retain raw audio; record transport activity at a bounded cadence.
+                if time.monotonic() - self.last_audio_write < 5:
+                    continue
+                self.last_audio_write = time.monotonic()
+            await self.update(event)
+            if event.get("type") == "session.closed":
+                return

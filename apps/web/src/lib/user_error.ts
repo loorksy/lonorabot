@@ -20,7 +20,20 @@ export function userError(error: unknown) {
     case "version_conflict":
       return t`This item changed. Reload it before saving.`;
     case "voice_transport_not_configured":
-      return t`Configure LiveKit to start a voice call.`;
+      return t`Configure an OpenAI credential with GPT-Live access to start a voice call.`;
+    case "voice_permission_denied":
+      return t`Allow microphone access to start a voice conversation.`;
+    case "voice_browser_unsupported":
+      return t`Voice requires a browser with WebRTC and microphone support on HTTPS.`;
+    case "voice_model_unavailable":
+      return t`GPT-Live is not available for this OpenAI project. Check its API access.`;
+    case "voice_backend_unavailable":
+      return t`The resident voice worker is unavailable. Check server readiness and retry.`;
+    case "voice_response_invalid":
+    case "voice_connection_failed":
+      return t`The voice connection failed. Retry the call.`;
+    case "voice_model_unsupported":
+      return t`Choose GPT-Live 1 or GPT-Live 1 mini as the global voice model.`;
     case "voice_provider_unsupported":
       return t`Choose supported global speech models in Settings.`;
     case "broker_connection_unavailable":

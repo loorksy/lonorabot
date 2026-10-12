@@ -37,7 +37,7 @@ export default function Voice() {
       <SheetHeader title={t("voice")} />
       <ScrollView contentContainerStyle={{ padding: 20, gap: 20 }}>
         <ErrorNotice text={error} />
-        <SettingsGroup title="LiveKit">
+        <SettingsGroup title="GPT-Live">
           <Text style={{ color: colors.foreground }}>
             {status
               ? t(status.transport_configured ? "configured" : "notConfigured")

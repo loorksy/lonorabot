@@ -25,7 +25,7 @@ remain solely to preserve required source and copyright attribution.
 UI primitives include shadcn/Base UI components (MIT); React (MIT), Lingui (MIT),
 Tailwind CSS (MIT), lucide-react (ISC), react-markdown and remark-gfm (MIT).
 Charts use TradingView Lightweight Charts (Apache-2.0); the chart renderer includes
-the required TradingView attribution link. LiveKit transport uses its Apache-2.0 SDKs.
+the required TradingView attribution link. Voice uses browser WebRTC and the OpenAI GPT-Live API.
 Python dependencies retain their distributions' license notices.
 
 MetaApiCloud SDK 29.1.1: Copyright 2020-2023 MetaApi DMCC. All rights reserved.
