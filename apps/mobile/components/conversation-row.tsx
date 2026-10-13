@@ -12,6 +12,7 @@ export function ConversationRow({
   onLongPress,
   disabled = false,
   busy = false,
+  time,
 }: {
   title: string;
   preview: string;
@@ -20,6 +21,7 @@ export function ConversationRow({
   onLongPress?: () => void;
   disabled?: boolean;
   busy?: boolean;
+  time?: string;
 }) {
   const { rtl } = useSession();
   return (
@@ -33,24 +35,32 @@ export function ConversationRow({
         flexDirection: rtl ? "row-reverse" : "row",
         alignItems: "center",
         paddingHorizontal: 16,
-        paddingVertical: 12,
+        paddingVertical: 10,
         gap: 12,
         opacity: pressed || busy ? 0.55 : 1,
       })}
     >
       {avatar}
-      <View style={{ flex: 1, gap: 5 }}>
-        <Text
-          numberOfLines={1}
-          style={{
-            color: colors.foreground,
-            fontSize: 17,
-            fontWeight: "600",
-            textAlign: rtl ? "right" : "left",
-          }}
-        >
-          {title}
-        </Text>
+      <View style={{ flex: 1, gap: 2 }}>
+        <View style={{ flexDirection: rtl ? "row-reverse" : "row", alignItems: "center", gap: 8 }}>
+          <Text
+            numberOfLines={1}
+            style={{
+              color: colors.foreground,
+              flex: 1,
+              fontSize: 17,
+              fontWeight: "600",
+              textAlign: rtl ? "right" : "left",
+            }}
+          >
+            {title}
+          </Text>
+          {time ? (
+            <Text style={{ color: colors.secondary, fontSize: 12, writingDirection: "auto" }}>
+              {time}
+            </Text>
+          ) : null}
+        </View>
         <Text
           numberOfLines={1}
           style={{ color: colors.secondary, fontSize: 15, textAlign: rtl ? "right" : "left" }}

@@ -3,8 +3,8 @@
 import type { Agent, Group } from "@lonora/contracts";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { Pressable, ScrollView, Text } from "react-native";
-import { BotAvatar } from "../components/bot-avatar";
+import { ScrollView, Text } from "react-native";
+import { BotMemberPicker } from "../components/bot-member-picker";
 import { SheetHeader } from "../components/sheet-header";
 import { colors, ErrorNotice, Field, Loading, Screen } from "../components/ui";
 import { agents as agentApi } from "../lib/agents";
@@ -76,55 +76,22 @@ export default function GroupSettings() {
           <Text style={{ color: colors.secondary, textAlign: rtl ? "right" : "left" }}>
             {t("members")}
           </Text>
-          {agents.map((agent) => {
-            const checked = group.payload.member_ids.includes(agent.id);
-            return (
-              <Pressable
-                key={agent.id}
-                accessibilityRole="checkbox"
-                accessibilityState={{ checked }}
-                accessibilityLabel={agent.name}
-                disabled={busy}
-                onPress={() => {
-                  const member_ids = checked
-                    ? group.payload.member_ids.filter((id) => id !== agent.id)
-                    : group.payload.member_ids.length < 12
-                      ? [...group.payload.member_ids, agent.id]
-                      : group.payload.member_ids;
-                  setGroup({ ...group, payload: { ...group.payload, member_ids } });
-                  setSaved(false);
-                }}
-                style={{
-                  flexDirection: rtl ? "row-reverse" : "row",
-                  alignItems: "center",
-                  gap: 12,
-                  padding: 12,
-                  borderRadius: 14,
-                  backgroundColor: checked ? colors.accent : colors.muted,
-                }}
-              >
-                <BotAvatar color={agent.color} variant={agent.avatar} size={40} />
-                <Text
-                  style={{
-                    color: colors.foreground,
-                    flex: 1,
-                    textAlign: rtl ? "right" : "left",
-                    fontSize: 16,
-                  }}
-                >
-                  {agent.name}
-                </Text>
-                <Text style={{ color: colors.foreground }}>{checked ? "✓" : "○"}</Text>
-              </Pressable>
-            );
-          })}
+          <BotMemberPicker
+            agents={agents}
+            selected={group.payload.member_ids}
+            disabled={busy}
+            onChange={(member_ids) => {
+              setGroup({ ...group, payload: { ...group.payload, member_ids } });
+              setSaved(false);
+            }}
+          />
           <Text
             style={{ color: colors.secondary, lineHeight: 24, textAlign: rtl ? "right" : "left" }}
           >
             {t("participation")}: {t("mentionsOrLead")}
           </Text>
           {saved ? (
-            <Text style={{ color: "#7ED6A0", textAlign: "center" }}>{t("saved")}</Text>
+            <Text style={{ color: colors.success, textAlign: "center" }}>{t("saved")}</Text>
           ) : null}
         </ScrollView>
       ) : error ? null : (

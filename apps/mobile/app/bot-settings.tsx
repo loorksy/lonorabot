@@ -3,10 +3,11 @@
 import type { Agent } from "@lonora/contracts";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { ScrollView, Switch, Text, View } from "react-native";
-import { BotAvatar } from "../components/bot-avatar";
+import { ScrollView, Text, View } from "react-native";
+import { AvatarPicker } from "../components/avatar-picker";
+import { SettingsGroup, SettingsRow, SettingsSwitch } from "../components/settings-group";
 import { SheetHeader } from "../components/sheet-header";
-import { Button, colors, ErrorNotice, Field, Loading, Screen, styles } from "../components/ui";
+import { colors, ErrorNotice, Field, Loading, Screen } from "../components/ui";
 import { agents } from "../lib/agents";
 import { api } from "../lib/api";
 import { useSession } from "../lib/session";
@@ -57,6 +58,8 @@ export default function BotSettings() {
       setAgent(
         await agents.update(agent.id, {
           name: agent.name.trim(),
+          title: agent.title ?? "",
+          description: agent.description ?? "",
           avatar: agent.avatar,
           color: agent.color,
           instructions: agent.instructions,
@@ -94,9 +97,15 @@ export default function BotSettings() {
           contentContainerStyle={{ padding: 20, gap: 22 }}
           keyboardShouldPersistTaps="handled"
         >
-          <View style={{ alignItems: "center" }}>
-            <BotAvatar color={agent.color} variant={agent.avatar} size={90} />
-          </View>
+          <AvatarPicker
+            name={agent.name}
+            color={agent.color}
+            avatar={agent.avatar}
+            onChange={(avatar, color) => {
+              setAgent({ ...agent, avatar, color });
+              setSaved(false);
+            }}
+          />
           <Field
             label={t("name")}
             value={agent.name}
@@ -107,23 +116,25 @@ export default function BotSettings() {
             }}
           />
           <Field
-            label={t("color")}
-            value={agent.color}
-            maxLength={7}
-            autoCapitalize="none"
-            onChangeText={(color) => setAgent({ ...agent, color })}
-            style={{ writingDirection: "ltr", textAlign: "left" }}
+            label={t("title")}
+            value={agent.title ?? ""}
+            maxLength={160}
+            onChangeText={(title) => {
+              setAgent({ ...agent, title });
+              setSaved(false);
+            }}
           />
-          <View style={{ flexDirection: rtl ? "row-reverse" : "row", gap: 12 }}>
-            {["orb", "square"].map((avatar) => (
-              <Button
-                key={avatar}
-                label={t(avatar === "orb" ? "avatarRound" : "avatarSquare")}
-                secondary={agent.avatar !== avatar}
-                onPress={() => setAgent({ ...agent, avatar })}
-              />
-            ))}
-          </View>
+          <Field
+            label={t("description")}
+            value={agent.description ?? ""}
+            maxLength={2000}
+            multiline
+            onChangeText={(description) => {
+              setAgent({ ...agent, description });
+              setSaved(false);
+            }}
+            style={{ minHeight: 90, textAlignVertical: "top" }}
+          />
           <Field
             label={t("instructions")}
             value={agent.instructions}
@@ -132,21 +143,21 @@ export default function BotSettings() {
             multiline
             style={{ minHeight: 130, textAlignVertical: "top" }}
           />
-          <View
-            style={[
-              styles.card,
-              { flexDirection: rtl ? "row-reverse" : "row", alignItems: "center" },
-            ]}
-          >
-            <Text style={{ color: colors.foreground, flex: 1, textAlign: rtl ? "right" : "left" }}>
-              {t("paused")}
-            </Text>
-            <Switch
-              accessibilityLabel={t("paused")}
+          <SettingsGroup>
+            <SettingsSwitch
+              label={t("paused")}
               value={agent.paused}
-              onValueChange={(paused) => setAgent({ ...agent, paused })}
+              onChange={(paused) => {
+                setAgent({ ...agent, paused });
+                setSaved(false);
+              }}
             />
-          </View>
+            <SettingsRow
+              title={t("routines")}
+              icon="clock"
+              onPress={() => router.push({ pathname: "/routine", params: { botId } })}
+            />
+          </SettingsGroup>
           {memory ? (
             <View style={{ gap: 8 }}>
               <Field
@@ -169,13 +180,8 @@ export default function BotSettings() {
             </View>
           ) : null}
           {saved ? (
-            <Text style={{ color: "#7ED6A0", textAlign: "center" }}>{t("saved")}</Text>
+            <Text style={{ color: colors.success, textAlign: "center" }}>{t("saved")}</Text>
           ) : null}
-          <Button
-            label={t("routines")}
-            secondary
-            onPress={() => router.push({ pathname: "/routine", params: { botId } })}
-          />
         </ScrollView>
       ) : error ? null : (
         <Loading />

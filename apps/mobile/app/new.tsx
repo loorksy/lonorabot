@@ -1,18 +1,20 @@
 import type { Agent, Thread } from "@lonora/contracts";
 import { Redirect, useRouter } from "expo-router";
 import { useState } from "react";
-import { Pressable, ScrollView, Text, View } from "react-native";
-import { BotAvatar } from "../components/bot-avatar";
-import { Button, colors, ErrorNotice, Field, Header, Loading, Screen } from "../components/ui";
+import { ScrollView } from "react-native";
+import { AvatarPicker } from "../components/avatar-picker";
+import { SheetHeader } from "../components/sheet-header";
+import { Button, ErrorNotice, Field, Loading, Screen } from "../components/ui";
 import { api } from "../lib/api";
 import { useSession } from "../lib/session";
 
-const palette = ["#FF8A4C", "#A78BFA", "#5DA8FF", "#7ED6A0", "#F7CF67", "#F27BA8"];
 export default function NewAgent() {
-  const { ready, owner, rtl, t, errorText } = useSession();
+  const { ready, owner, t, errorText } = useSession();
   const router = useRouter();
   const [name, setName] = useState("");
-  const [color, setColor] = useState(palette[0]);
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [color, setColor] = useState("#8B5CF6");
   const [avatar, setAvatar] = useState("orb");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -22,7 +24,13 @@ export default function NewAgent() {
     setBusy(true);
     setError(null);
     try {
-      const agent = await api.post<Agent>("/agents", { name: name.trim(), avatar, color });
+      const agent = await api.post<Agent>("/agents", {
+        name: name.trim(),
+        title: title.trim(),
+        description: description.trim(),
+        avatar,
+        color,
+      });
       const thread = await api.post<Thread>(
         `/agents/${encodeURIComponent(agent.id)}/conversation`,
         {},
@@ -36,61 +44,30 @@ export default function NewAgent() {
   };
   return (
     <Screen>
-      <Header
-        title={t("newAgent")}
-        left={<Button label={t("back")} secondary onPress={() => router.back()} />}
-      />
+      <SheetHeader title={t("newAgent")} onClose={() => router.back()} />
       <ScrollView
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={{ padding: 24, gap: 24 }}
       >
-        <View style={{ alignItems: "center" }}>
-          <BotAvatar color={color} variant={avatar} size={100} />
-        </View>
+        <AvatarPicker
+          name={name}
+          color={color}
+          avatar={avatar}
+          onChange={(shape, value) => {
+            setAvatar(shape);
+            setColor(value);
+          }}
+        />
         <Field label={t("name")} value={name} onChangeText={setName} maxLength={80} autoFocus />
-        <Text style={{ color: colors.secondary, textAlign: rtl ? "right" : "left" }}>
-          {t("color")}
-        </Text>
-        <View style={{ flexDirection: rtl ? "row-reverse" : "row", flexWrap: "wrap", gap: 12 }}>
-          {palette.map((value) => (
-            <Pressable
-              key={value}
-              accessibilityRole="radio"
-              accessibilityState={{ checked: color === value }}
-              accessibilityLabel={value}
-              onPress={() => setColor(value)}
-              style={{
-                width: 44,
-                height: 44,
-                borderRadius: 22,
-                backgroundColor: value,
-                borderWidth: color === value ? 3 : 0,
-                borderColor: colors.foreground,
-              }}
-            />
-          ))}
-        </View>
-        <Text style={{ color: colors.secondary, textAlign: rtl ? "right" : "left" }}>
-          {t("avatar")}
-        </Text>
-        <View style={{ flexDirection: rtl ? "row-reverse" : "row", gap: 18 }}>
-          {["orb", "square"].map((value) => (
-            <Pressable
-              key={value}
-              accessibilityRole="radio"
-              accessibilityState={{ checked: avatar === value }}
-              accessibilityLabel={`${t("avatar")} ${value}`}
-              onPress={() => setAvatar(value)}
-              style={{
-                padding: 8,
-                borderRadius: 14,
-                backgroundColor: avatar === value ? colors.accent : "transparent",
-              }}
-            >
-              <BotAvatar color={color} variant={value} />
-            </Pressable>
-          ))}
-        </View>
+        <Field label={t("title")} value={title} onChangeText={setTitle} maxLength={160} />
+        <Field
+          label={t("description")}
+          value={description}
+          onChangeText={setDescription}
+          maxLength={2000}
+          multiline
+          style={{ minHeight: 108, textAlignVertical: "top" }}
+        />
         <ErrorNotice text={error} />
         <Button
           label={busy ? t("connecting") : t("create")}

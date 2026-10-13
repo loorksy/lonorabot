@@ -1,0 +1,110 @@
+// biome-ignore-all lint/suspicious/noArrayIndexKey: Stateless text tokens have positional identity within a server message.
+// Native, selectable message typography. Links open only on explicit user action.
+import { Linking, Platform, Text, View } from "react-native";
+import { useSession } from "../lib/session";
+import { colors } from "./ui";
+
+function Inline({ value }: { value: string }) {
+  return (
+    <>
+      {value
+        .split(/(\*\*[^*]+\*\*|`[^`]+`|\[[^\]]+\]\(https?:\/\/[^\s)]+\))/g)
+        .map((part, index) => {
+          const link = /^\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)$/.exec(part);
+          if (link)
+            return (
+              <Text
+                key={index}
+                accessibilityRole="link"
+                style={{ color: colors.link }}
+                onPress={() => void Linking.openURL(link[2]).catch(() => undefined)}
+              >
+                {link[1]}
+              </Text>
+            );
+          if (part.startsWith("**") && part.endsWith("**"))
+            return (
+              <Text key={index} style={{ fontWeight: "600" }}>
+                {part.slice(2, -2)}
+              </Text>
+            );
+          if (part.startsWith("`") && part.endsWith("`"))
+            return (
+              <Text
+                key={index}
+                style={{
+                  fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+                  backgroundColor: colors.accent,
+                  fontSize: 14,
+                }}
+              >
+                {part.slice(1, -1)}
+              </Text>
+            );
+          return <Text key={index}>{part}</Text>;
+        })}
+    </>
+  );
+}
+export function Markdown({ content }: { content: string }) {
+  const { rtl } = useSession();
+  const blocks = content.split(/(```[^\n]*\n[\s\S]*?```)/g).filter(Boolean);
+  return (
+    <View style={{ gap: 8 }}>
+      {blocks.map((block, index) => {
+        if (block.startsWith("```")) {
+          const firstLine = block.indexOf("\n");
+          return (
+            <View
+              key={index}
+              style={{ borderRadius: 12, padding: 14, backgroundColor: colors.muted, gap: 8 }}
+            >
+              <Text style={{ color: colors.secondary, fontSize: 12 }}>
+                {block.slice(3, firstLine)}
+              </Text>
+              <Text
+                selectable
+                style={{
+                  fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+                  fontSize: 13,
+                  lineHeight: 20,
+                  color: colors.foreground,
+                  writingDirection: "ltr",
+                }}
+              >
+                {block.slice(firstLine + 1, -3)}
+              </Text>
+            </View>
+          );
+        }
+        return (
+          <View key={index} style={{ gap: 5 }}>
+            {block
+              .trim()
+              .split("\n")
+              .map((line, lineIndex) => {
+                const heading = /^(#{1,3})\s+(.+)$/.exec(line);
+                const value = heading ? heading[2] : line.replace(/^\s*[-*]\s+/, "• ");
+                return (
+                  <Text
+                    key={lineIndex}
+                    selectable
+                    style={{
+                      color: colors.foreground,
+                      fontSize: heading ? 19 : 16,
+                      lineHeight: heading ? 28 : 25,
+                      fontWeight: heading ? "600" : "400",
+                      writingDirection: "auto",
+                      textAlign: rtl ? "right" : "left",
+                    }}
+                  >
+                    <Inline value={value} />
+                  </Text>
+                );
+              })}
+          </View>
+        );
+      })}
+    </View>
+  );
+}

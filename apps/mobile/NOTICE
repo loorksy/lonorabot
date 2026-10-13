@@ -43,3 +43,12 @@ Native-only notifications, demo adapters, spaces, billing and computer screens
 are excluded. Session authentication, bilingual labels, group creation, uploads
 and shared-runtime run controls are implemented for Lonora.
 The complete Apache License 2.0 is included at the repository root in LICENSE.
+
+Additional native interface adaptation
+Source reference: https://github.com/elie222/rakazo
+Reference revision: afa31774788e5aaf9599a0834430d597ea07260b
+Native inbox toolbar, title/composer geometry, grouped settings, member picker
+and file-card hierarchy were adapted to the Lonora Python API. The SVG avatar
+geometry and identity colors are shared through @lonora/core. Computer actions
+are replaced by actual persistent broker/chart scenes; vendor sandbox, billing,
+SSO and notifications are not included.

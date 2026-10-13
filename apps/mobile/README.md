@@ -1,6 +1,6 @@
 # Lonora mobile
 
-An Expo Router companion to the Lonora Python server. The Inbox layout, native navigation and classic assistant avatar are adapted from the actual Tampletgrok Expo interface at `20fc9ac862bb833d1578968a7aba5ea18ff88a29`; see `NOTICE` for upstream licensing. It uses the real Lonora API and never starts a separate agent runtime.
+An Expo Router interface to the Lonora Python server. Native toolbar, title capsules, composer, member picker, settings groups and message/file cards follow the actual template source. Shared avatar geometry is used across Web and mobile; see `NOTICE` for source revisions and licensing. It uses the real Lonora API and never starts a separate agent runtime.
 
 ## Run
 
@@ -50,19 +50,21 @@ The export lives in `apps/mobile/dist`. Serve it with an `/api` proxy to Lonora 
 ## Included
 
 - Arabic first and English, with RTL layout and logical Inbox → thread navigation.
-- Live server roster, groups, search by name, running status and pull to refresh.
-- Agent creation with name, avatar and color only; group creation with real members.
+- Live server roster and activity, groups, toolbar search, creation/actions sheets and pull to refresh.
+- Agent creation/profile editing with name, title, description, shared avatar shapes/color, instructions and pause state; group creation with real members.
 - Continuous existing thread history, older-message pagination, sending, stable retry nonce, server run status, cancellation and takeover resume.
 - Native/Web file selection and real server upload, attachments shown in messages.
 - Editable agent identity/instructions/pause and versioned persistent memory; editable group membership.
 - Routine creation/editing/pause/delete, interval or Cron/timezone schedules, actual execution history.
-- Authenticated artifact library, search/filter, image/text preview, isolated HTML and PDF Web previews, native share/download with cache cleanup.
+- Authenticated artifact library, inline generated images/chart PNGs, selectable Markdown, tool result cards, image/text preview, isolated HTML and PDF Web previews, native sharing with cache cleanup.
+- Group mention suggestions, persisted replies, retry nonces, live server reply snapshots and shared 15-minute/date separators.
+- Persistent chart scenes with real candles, price annotations, MA overlays and RSI; chart creation uses enabled broker connections and exact server symbols, and refresh requests the resident worker.
 - Global settings routes for account, model routing, integrations and server voice status; safe server change revokes the old session; durable logout.
 
 ## Current scope and validation
 
-Mobile is a companion surface. Provider/integration configuration, broker controls, markets/charts, boards, skills/scratchpad/semantic knowledge editing and realtime voice remain in the full Web interface. Native model/integration/voice settings read real state and open the matching Web settings dialog. Native PDF/HTML files can be shared to a trusted external viewer; HTML previews show safe source. Message bodies currently render selectable text rather than the Web Markdown/artifact renderer. The agent runtime, memory, tools and trading still execute on the shared Python server when used through a thread.
+Mobile is a companion surface. Provider/integration configuration, financial execution controls, boards, skills/scratchpad/semantic knowledge editing and realtime voice remain in the full Web interface. Native charts read persistent server scenes and never synthesize market data. Native model/integration/voice settings read real state and open the matching Web settings dialog. Native PDF/HTML files can be shared to a trusted external viewer; HTML previews show safe source. The agent runtime, memory, tools and trading still execute on the shared Python server when used through a thread.
 
-`pnpm --filter @lonora/mobile build` exports the Web, iOS and Android JavaScript bundles. TypeScript, Expo dependency compatibility and these exports are checked in the cloud workspace. The Android release APK is compiled and verified with real Android signing/alignment tools. Both the published version0.2.0 APK and the new version0.2.1 candidate install and reach the actual native sign-in screen on clean Android7/API24 x86_64 emulator state, without Metro. Updating the production APK with the candidate produces `INSTALL_FAILED_UPDATE_INCOMPATIBLE` because their signing identities differ; restore the original release key before publishing an update. Physical-device permissions, native file picker/upload and iOS binaries are not claimed as validated here. No model/provider or broker account is bundled or simulated by the app.
+The current Expo configuration is version `0.2.2`, Android versionCode `3`. `pnpm --filter @lonora/mobile build` exports the Web, iOS and Android JavaScript bundles. TypeScript, Expo dependency compatibility and these exports are checked in the cloud workspace. The Android release APK is compiled and verified with real Android signing/alignment tools. Both the published version0.2.0 APK and the new version0.2.1 candidate install and reach the actual native sign-in screen on clean Android7/API24 x86_64 emulator state, without Metro. Updating the production APK with the candidate produces `INSTALL_FAILED_UPDATE_INCOMPATIBLE` because their signing identities differ; restore the original release key before publishing an update. Physical-device permissions, native file picker/upload and iOS binaries are not claimed as validated here. No model/provider or broker account is bundled or simulated by the app.
 
-The retained `pnpm test:mobile` browser regression serves a fresh Expo Web export against the real Python API on port 8831, using the same explicit disposable-database guard as Web tests. It checks profile/memory edits, routine creation/history, authenticated artifact preview/download, group editing, bilingual global settings and logout. This is browser validation of Expo, not a native binary or device certification.
+The retained `pnpm test:mobile` browser regression serves a fresh Expo Web export against the real Python API on port 8831, using the same explicit disposable-database guard as Web tests. It checks profile/memory edits, routine creation/history, authenticated artifact preview/download, lost-response message retry deduplication, continuous Inbox reopening, persisted replies, group mentions, generated PNG pixels, stored candlestick/RSI scenes, chart creation/refresh, bilingual global settings and logout. The chart fixture invokes the real executor with scripted model responses and explicitly imported test candles/instruments in a disposable PostgreSQL database. This is browser validation of Expo, not a native binary or device certification.

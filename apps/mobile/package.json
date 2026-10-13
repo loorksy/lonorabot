@@ -17,6 +17,9 @@
   },
   "dependencies": {
     "@expo/metro-runtime": "57.0.16",
+    "@lonora/contracts": "workspace:*",
+    "@lonora/core": "workspace:*",
+    "@lonora/ui-tokens": "workspace:*",
     "expo": "57.0.28",
     "expo-constants": "57.0.21",
     "expo-document-picker": "57.0.3",
@@ -32,11 +35,9 @@
     "react-native-reanimated": "4.5.1",
     "react-native-safe-area-context": "5.7.0",
     "react-native-screens": "4.26.2",
+    "react-native-svg": "15.15.4",
     "react-native-web": "0.21.2",
-    "react-native-worklets": "0.10.1",
-    "@lonora/contracts": "workspace:*",
-    "@lonora/core": "workspace:*",
-    "@lonora/ui-tokens": "workspace:*"
+    "react-native-worklets": "0.10.1"
   },
   "devDependencies": {
     "@react-native/metro-config": "0.86.3",

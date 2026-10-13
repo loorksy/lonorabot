@@ -1,24 +1,19 @@
 import type { Agent, Artifact, Group, Message, Run, Thread } from "@lonora/contracts";
-import { activeStatuses } from "@lonora/core";
+import { activeStatuses, needsTimeSeparator } from "@lonora/core";
 // Persistent-thread navigation follows Tampletgrok's native thread screen; see NOTICE.
 import * as DocumentPicker from "expo-document-picker";
 import { Redirect, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  AppState,
-  FlatList,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  Text,
-  View,
-} from "react-native";
+import { AppState, FlatList, KeyboardAvoidingView, Platform, Text, View } from "react-native";
+import { ActionMenu } from "../components/action-menu";
 import { BotAvatar } from "../components/bot-avatar";
 import { GroupAvatar } from "../components/group-avatar";
+import { Markdown } from "../components/markdown";
 import { MessageBubble } from "../components/message-bubble";
 import { ThreadComposer } from "../components/thread-composer";
+import { ThreadHeader } from "../components/thread-header";
 import { TimeSeparator } from "../components/time-separator";
-import { Button, colors, ErrorNotice, Header, Loading, Screen } from "../components/ui";
+import { Button, colors, ErrorNotice, Loading, Screen } from "../components/ui";
 import { WorkingIndicator } from "../components/WorkingIndicator";
 import { ApiError, api, upload } from "../lib/api";
 import { useSession } from "../lib/session";
@@ -40,12 +35,14 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [runs, setRuns] = useState<Run[]>([]);
   const [draft, setDraft] = useState("");
+  const [reply, setReply] = useState<Message | null>(null);
   const [attachments, setAttachments] = useState<Artifact[]>([]);
   const [files, setFiles] = useState<Artifact[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [hasOlder, setHasOlder] = useState(true);
+  const [actionsVisible, setActionsVisible] = useState(false);
   const list = useRef<FlatList<Message>>(null);
   const lastMessage = useRef<string | null>(null);
   const receipt = useRef<{ signature: string; nonce: string } | null>(null);
@@ -85,6 +82,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     setAttachments([]);
     setFiles([]);
     setDraft("");
+    setReply(null);
     setHasOlder(true);
     lastMessage.current = null;
     receipt.current = null;
@@ -119,6 +117,16 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
         if (AppState.currentState === "active") await snapshot(() => !disposed);
         if (!disposed) timer = setTimeout(() => void tick(), 2500);
       };
+      void Promise.all([api.get<Agent[]>("/agents"), api.get<Group[]>("/groups")])
+        .then(([nextAgents, nextGroups]) => {
+          if (!disposed) {
+            setAgents(nextAgents);
+            setGroups(nextGroups);
+          }
+        })
+        .catch((reason) => {
+          if (!disposed) setError(reportError.current(reason));
+        });
       void tick();
       return () => {
         disposed = true;
@@ -136,7 +144,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     if (busy || uploading || !thread || (!draft.trim() && !attachments.length)) return;
     const content = draft.trim() || t("attach");
     const attachment_ids = attachments.map((file) => file.id);
-    const signature = JSON.stringify({ content, attachment_ids });
+    const signature = JSON.stringify({ content, attachment_ids, reply_to: reply?.id ?? null });
     if (receipt.current?.signature !== signature)
       receipt.current = {
         signature,
@@ -148,10 +156,12 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
       await api.post(`/threads/${encodeURIComponent(id)}/messages`, {
         content,
         attachment_ids,
+        reply_to: reply?.id ?? null,
         client_nonce: receipt.current.nonce,
       });
       setDraft("");
       setAttachments([]);
+      setReply(null);
       receipt.current = null;
       await snapshot();
     } catch (reason) {
@@ -208,73 +218,80 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
   };
   return (
     <Screen>
-      <Header
+      <ThreadHeader
         title={title}
-        left={
-          <Button
-            label={t("back")}
-            secondary
-            onPress={() => (router.canGoBack() ? router.back() : router.replace("/"))}
-          />
-        }
-        right={
+        settingsLabel={group ? t("groupSettings") : t("agentSettings")}
+        onBack={() => (router.canGoBack() ? router.back() : router.replace("/"))}
+        onSettings={() => {
+          if (agent) router.push({ pathname: "/bot-settings", params: { botId: agent.id } });
+          else if (group)
+            router.push({ pathname: "/group-settings", params: { groupId: group.id } });
+        }}
+        onActions={() => setActionsVisible(true)}
+        avatar={
           agent ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={t("agentSettings")}
-              onPress={() =>
-                router.push({ pathname: "/bot-settings", params: { botId: agent.id } })
-              }
-            >
-              <BotAvatar
-                color={agent.color}
-                variant={agent.avatar}
-                size={38}
-                working={runs.some((run) => activeStatuses.includes(run.status))}
-              />
-            </Pressable>
+            <BotAvatar
+              identity={agent.name}
+              color={agent.color}
+              variant={agent.avatar}
+              size={28}
+              working={runs.some((run) => activeStatuses.includes(run.status))}
+            />
           ) : group ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={t("groupSettings")}
-              onPress={() =>
-                router.push({ pathname: "/group-settings", params: { groupId: group.id } })
-              }
-            >
-              <GroupAvatar
-                members={agents.filter((value) => group.payload.member_ids.includes(value.id))}
-                size={38}
-              />
-            </Pressable>
+            <GroupAvatar
+              members={agents.filter((value) => group.payload.member_ids.includes(value.id))}
+              size={28}
+            />
           ) : undefined
         }
       />
-      <View
-        style={{
-          flexDirection: rtl ? "row-reverse" : "row",
-          flexWrap: "wrap",
-          gap: 8,
-          paddingHorizontal: 16,
-          paddingBottom: 10,
-        }}
-      >
-        {agent ? (
-          <Button
-            label={t("routines")}
-            secondary
-            onPress={() => router.push({ pathname: "/routine", params: { botId: agent.id } })}
-          />
-        ) : null}
-        <Button
-          label={t("artifacts")}
-          secondary
-          onPress={() => router.push({ pathname: "/artifacts", params: { threadId: id } })}
-        />
-      </View>
+      <ActionMenu
+        visible={actionsVisible}
+        onClose={() => setActionsVisible(false)}
+        actions={[
+          {
+            label: t("charts"),
+            icon: "chart",
+            onPress: () =>
+              router.push({
+                pathname: "/charts",
+                params: { threadId: id, ...(agent ? { botId: agent.id } : {}) },
+              }),
+          },
+          ...(agent
+            ? [
+                {
+                  label: t("routines"),
+                  icon: "clock" as const,
+                  onPress: () => router.push({ pathname: "/routine", params: { botId: agent.id } }),
+                },
+              ]
+            : []),
+          {
+            label: t("artifacts"),
+            icon: "layers",
+            onPress: () => router.push({ pathname: "/artifacts", params: { threadId: id } }),
+          },
+          {
+            label: group ? t("groupSettings") : t("agentSettings"),
+            icon: "settings",
+            onPress: () => {
+              if (agent) router.push({ pathname: "/bot-settings", params: { botId: agent.id } });
+              else if (group)
+                router.push({ pathname: "/group-settings", params: { groupId: group.id } });
+            },
+          },
+        ]}
+      />
       <ErrorNotice text={error} />
       {runs
-        .filter((run) => run.status !== "completed" && run.status !== "cancelled")
-        .slice(0, 5)
+        .filter(
+          (run) =>
+            run.status === "waiting_input" ||
+            run.status === "waiting_takeover" ||
+            run.status === "failed",
+        )
+        .slice(0, 1)
         .map((run) => (
           <View
             key={run.id}
@@ -328,7 +345,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
             paddingHorizontal: 16,
             paddingVertical: 14,
             flexGrow: 1,
-            gap: 16,
+            gap: 12,
           }}
           ListHeaderComponent={
             messages.length >= 100 && hasOlder ? (
@@ -342,13 +359,21 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
           }
           renderItem={({ item, index }) => (
             <View>
-              {index === 0 ||
-              new Date(messages[index - 1].created_at).toDateString() !==
-                new Date(item.created_at).toDateString() ? (
+              {needsTimeSeparator(item.created_at, messages[index - 1]?.created_at) ? (
                 <TimeSeparator createdAt={item.created_at} />
               ) : null}
               <MessageBubble
                 message={item}
+                reply={messages.find((row) => row.id === item.reply_to)}
+                onReply={setReply}
+                grouped={
+                  index > 0 &&
+                  messages[index - 1].role === item.role &&
+                  messages[index - 1].agent_id === item.agent_id &&
+                  new Date(item.created_at).getTime() -
+                    new Date(messages[index - 1].created_at).getTime() <
+                    180000
+                }
                 agent={agents.find((value) => value.id === item.agent_id)}
                 files={files}
                 onArtifact={(fileId) =>
@@ -358,11 +383,32 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
             </View>
           )}
           ListFooterComponent={
-            runs.some((run) => activeStatuses.includes(run.status)) ? <WorkingIndicator /> : null
+            <View style={{ gap: 12 }}>
+              {runs
+                .filter(
+                  (run) =>
+                    activeStatuses.includes(run.status) &&
+                    run.stream?.phase === "streaming" &&
+                    run.stream.text,
+                )
+                .map((run) => (
+                  <View key={run.id} accessibilityLabel={t("running")} style={{ gap: 8 }}>
+                    <Markdown content={run.stream?.text ?? ""} />
+                  </View>
+                ))}
+              {runs.some((run) => activeStatuses.includes(run.status)) ? (
+                <WorkingIndicator />
+              ) : null}
+            </View>
           }
         />
         <ThreadComposer
           draft={draft}
+          members={
+            group ? agents.filter((value) => group.payload.member_ids.includes(value.id)) : []
+          }
+          reply={reply}
+          onCancelReply={() => setReply(null)}
           onChange={setDraft}
           attachments={attachments}
           onRemove={(fileId) => setAttachments((old) => old.filter((file) => file.id !== fileId))}
@@ -371,6 +417,11 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
           busy={busy}
           uploading={uploading}
           disabled={!thread}
+          working={runs.some((run) => activeStatuses.includes(run.status))}
+          onStop={() => {
+            const run = runs.find((value) => activeStatuses.includes(value.status));
+            if (run) void changeRun(run, "cancel");
+          }}
         />
       </KeyboardAvoidingView>
     </Screen>

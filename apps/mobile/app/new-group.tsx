@@ -1,9 +1,10 @@
 import type { Agent, Group } from "@lonora/contracts";
 import { Redirect, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { Pressable, ScrollView, Text } from "react-native";
-import { BotAvatar } from "../components/bot-avatar";
-import { Button, colors, ErrorNotice, Field, Header, Loading, Screen } from "../components/ui";
+import { ScrollView, Text } from "react-native";
+import { BotMemberPicker } from "../components/bot-member-picker";
+import { SheetHeader } from "../components/sheet-header";
+import { Button, colors, ErrorNotice, Field, Loading, Screen } from "../components/ui";
 import { api } from "../lib/api";
 import { useSession } from "../lib/session";
 
@@ -42,10 +43,7 @@ export default function NewGroup() {
   };
   return (
     <Screen>
-      <Header
-        title={t("newGroup")}
-        left={<Button label={t("back")} secondary onPress={() => router.back()} />}
-      />
+      <SheetHeader title={t("newGroup")} />
       <ScrollView
         contentContainerStyle={{ padding: 24, gap: 20 }}
         keyboardShouldPersistTaps="handled"
@@ -54,46 +52,7 @@ export default function NewGroup() {
         <Text style={{ color: colors.secondary, textAlign: rtl ? "right" : "left" }}>
           {t("chooseMembers")}
         </Text>
-        {agents.map((agent) => (
-          <Pressable
-            key={agent.id}
-            accessibilityRole="checkbox"
-            accessibilityState={{ checked: members.includes(agent.id) }}
-            accessibilityLabel={agent.name}
-            onPress={() =>
-              setMembers((old) =>
-                old.includes(agent.id)
-                  ? old.filter((id) => id !== agent.id)
-                  : old.length < 12
-                    ? [...old, agent.id]
-                    : old,
-              )
-            }
-            style={{
-              flexDirection: rtl ? "row-reverse" : "row",
-              alignItems: "center",
-              gap: 12,
-              padding: 12,
-              borderRadius: 14,
-              backgroundColor: members.includes(agent.id) ? colors.accent : colors.muted,
-            }}
-          >
-            <BotAvatar color={agent.color} size={40} variant={agent.avatar} />
-            <Text
-              style={{
-                color: colors.foreground,
-                flex: 1,
-                fontSize: 17,
-                textAlign: rtl ? "right" : "left",
-              }}
-            >
-              {agent.name}
-            </Text>
-            <Text style={{ color: colors.foreground }}>
-              {members.includes(agent.id) ? "✓" : "○"}
-            </Text>
-          </Pressable>
-        ))}
+        <BotMemberPicker agents={agents} selected={members} onChange={setMembers} disabled={busy} />
         <ErrorNotice text={error} />
         <Button
           label={busy ? t("connecting") : t("create")}

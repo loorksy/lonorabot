@@ -5,7 +5,9 @@ import { Redirect, useFocusEffect, useLocalSearchParams, useRouter } from "expo-
 import { useCallback, useMemo, useRef, useState } from "react";
 import { FlatList, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
 import { BotAvatar } from "../components/bot-avatar";
-import { Button, colors, ErrorNotice, Field, Header, Loading, Screen } from "../components/ui";
+import { NativeSymbol } from "../components/native-symbol";
+import { SheetHeader } from "../components/sheet-header";
+import { Button, colors, ErrorNotice, Field, Loading, Screen } from "../components/ui";
 import { api } from "../lib/api";
 import { type ArtifactRecord, formatFileSize, mimeBadge } from "../lib/artifacts";
 import { useSession } from "../lib/session";
@@ -74,10 +76,7 @@ export default function ArtifactsScreen() {
   if (!owner) return <Redirect href="/sign-in" />;
   return (
     <Screen>
-      <Header
-        title={t("artifacts")}
-        left={<Button label={t("back")} secondary onPress={() => router.back()} />}
-      />
+      <SheetHeader title={t("artifacts")} />
       <View style={{ paddingHorizontal: 16, paddingBottom: 12 }}>
         <Field placeholder={t("artifactSearch")} value={query} onChangeText={setQuery} />
       </View>
@@ -159,55 +158,85 @@ export default function ArtifactsScreen() {
                   opacity: pressed ? 0.5 : 1,
                 })}
               >
-                {agent ? (
-                  <BotAvatar color={agent.color} variant={agent.avatar} />
-                ) : (
+                <View
+                  style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: 8,
+                    backgroundColor: colors.muted,
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <NativeSymbol name="file" size={17} color={colors.secondary} />
+                </View>
+                <View style={{ flex: 1, gap: 5 }}>
                   <View
                     style={{
-                      width: 48,
-                      height: 48,
-                      borderRadius: 12,
-                      backgroundColor: colors.muted,
+                      flexDirection: rtl ? "row-reverse" : "row",
                       alignItems: "center",
-                      justifyContent: "center",
+                      gap: 8,
                     }}
                   >
                     <Text
                       numberOfLines={1}
-                      style={{ color: colors.secondary, fontSize: 11, maxWidth: 42 }}
+                      style={{
+                        color: colors.foreground,
+                        flex: 1,
+                        fontSize: 16,
+                        fontWeight: "600",
+                        textAlign: rtl ? "right" : "left",
+                      }}
+                    >
+                      {item.payload.name}
+                    </Text>
+                    <Text
+                      style={{
+                        color: colors.secondary,
+                        fontSize: 10,
+                        backgroundColor: colors.muted,
+                        borderRadius: 4,
+                        paddingHorizontal: 5,
+                        paddingVertical: 3,
+                      }}
                     >
                       {mimeBadge(item.payload.media_type)}
                     </Text>
                   </View>
-                )}
-                <View style={{ flex: 1, gap: 5 }}>
-                  <Text
-                    numberOfLines={1}
+                  <View
                     style={{
-                      color: colors.foreground,
-                      fontSize: 16,
-                      fontWeight: "600",
-                      textAlign: rtl ? "right" : "left",
+                      flexDirection: rtl ? "row-reverse" : "row",
+                      gap: 6,
+                      alignItems: "center",
                     }}
                   >
-                    {item.payload.name}
-                  </Text>
-                  <Text
-                    numberOfLines={1}
-                    style={{
-                      color: colors.secondary,
-                      fontSize: 13,
-                      textAlign: rtl ? "right" : "left",
-                    }}
-                  >
-                    {[
-                      agent?.name,
-                      formatFileSize(item.payload.size, locale),
-                      item.created_at ? new Date(item.created_at).toLocaleDateString(locale) : null,
-                    ]
-                      .filter(Boolean)
-                      .join(" · ")}
-                  </Text>
+                    {agent ? (
+                      <BotAvatar
+                        identity={agent.name}
+                        color={agent.color}
+                        variant={agent.avatar}
+                        size={14}
+                      />
+                    ) : null}
+                    <Text
+                      numberOfLines={1}
+                      style={{
+                        color: colors.secondary,
+                        fontSize: 12,
+                        textAlign: rtl ? "right" : "left",
+                      }}
+                    >
+                      {[
+                        agent?.name,
+                        formatFileSize(item.payload.size, locale),
+                        item.created_at
+                          ? new Date(item.created_at).toLocaleDateString(locale)
+                          : null,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </Text>
+                  </View>
                 </View>
               </Pressable>
             );

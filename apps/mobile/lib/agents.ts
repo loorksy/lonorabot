@@ -7,6 +7,9 @@ export const agents = {
     api.post<Thread>(`/agents/${encodeURIComponent(id)}/conversation`, {}),
   update: (
     id: string,
-    body: Pick<Agent, "name" | "avatar" | "color" | "instructions" | "paused">,
+    body: Pick<
+      Agent,
+      "name" | "title" | "description" | "avatar" | "color" | "instructions" | "paused"
+    >,
   ) => api.patch<Agent>(`/agents/${encodeURIComponent(id)}`, body),
 };

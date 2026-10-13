@@ -4,22 +4,28 @@ import { activeStatuses } from "@lonora/core";
 import { Redirect, useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
 import { AppState, FlatList, RefreshControl, Text, View } from "react-native";
+import { ActionMenu } from "../components/action-menu";
 import { BotAvatar } from "../components/bot-avatar";
 import { ConversationRow } from "../components/conversation-row";
 import { GroupAvatar } from "../components/group-avatar";
-import { Button, colors, ErrorNotice, Field, Header, Loading, Screen } from "../components/ui";
+import { HeaderButton } from "../components/header-button";
+import { NativeSymbol } from "../components/native-symbol";
+import { Button, colors, ErrorNotice, Field, Loading, Screen } from "../components/ui";
 import { api } from "../lib/api";
 import { useSession } from "../lib/session";
 
 type Row = { kind: "agent"; value: Agent } | { kind: "group"; value: Group };
 
 export default function Inbox() {
-  const { ready, owner, rtl, t, errorText } = useSession();
+  const { ready, owner, rtl, locale, t, errorText } = useSession();
   const router = useRouter();
   const [agents, setAgents] = useState<Agent[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
   const [runs, setRuns] = useState<Run[]>([]);
   const [query, setQuery] = useState("");
+  const [searching, setSearching] = useState(false);
+  const [activity, setActivity] = useState(false);
+  const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [opening, setOpening] = useState<string | null>(null);
@@ -92,17 +98,97 @@ export default function Inbox() {
   };
   return (
     <Screen>
-      <Header
-        title={t("inbox")}
-        left={<Button label={t("settings")} secondary onPress={() => router.push("/settings")} />}
-        right={<Button label="+" onPress={() => router.push("/new")} />}
-      />
-      <View style={{ paddingHorizontal: 16, paddingBottom: 12 }}>
-        <Field placeholder={t("search")} value={query} onChangeText={setQuery} />
+      <View
+        style={{
+          flexDirection: rtl ? "row-reverse" : "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+          paddingHorizontal: 16,
+          paddingTop: 8,
+          paddingBottom: 10,
+        }}
+      >
+        <View
+          style={{
+            width: 44,
+            height: 44,
+            borderRadius: 22,
+            backgroundColor: colors.accent,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <HeaderButton label={t("settings")} onPress={() => router.push("/settings")}>
+            <Text style={{ color: colors.foreground, fontSize: 15, fontWeight: "600" }}>
+              {owner.email.slice(0, 2).toUpperCase()}
+            </Text>
+          </HeaderButton>
+        </View>
+        <View
+          style={{
+            flexDirection: rtl ? "row-reverse" : "row",
+            padding: 2,
+            borderRadius: 22,
+            backgroundColor: colors.accent,
+          }}
+        >
+          <HeaderButton
+            label={t("activity")}
+            active={activity}
+            filled={activity}
+            onPress={() => setActivity(!activity)}
+          >
+            <NativeSymbol
+              name="activity"
+              size={17}
+              color={activity ? colors.primaryForeground : colors.foreground}
+            />
+          </HeaderButton>
+          <HeaderButton
+            label={t("search")}
+            active={searching}
+            onPress={() => {
+              setSearching(!searching);
+              if (searching) setQuery("");
+            }}
+          >
+            <NativeSymbol name="search" size={17} />
+          </HeaderButton>
+          <HeaderButton label={t("artifacts")} onPress={() => router.push("/artifacts")}>
+            <NativeSymbol name="layers" size={17} />
+          </HeaderButton>
+          <HeaderButton label={t("create")} onPress={() => setCreating(true)}>
+            <NativeSymbol name="plus" size={18} />
+          </HeaderButton>
+        </View>
       </View>
+      {searching ? (
+        <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
+          <Field
+            placeholder={t("search")}
+            value={query}
+            onChangeText={setQuery}
+            autoFocus
+            style={{ minHeight: 44, paddingVertical: 10, borderRadius: 10, fontSize: 17 }}
+          />
+        </View>
+      ) : null}
+      <ActionMenu
+        visible={creating}
+        onClose={() => setCreating(false)}
+        actions={[
+          { label: t("newAgent"), icon: "agent", onPress: () => router.push("/new") },
+          {
+            label: t("newGroup"),
+            icon: "group",
+            disabled: !agents.length,
+            onPress: () => router.push("/new-group"),
+          },
+        ]}
+      />
       <ErrorNotice text={error} />
       <FlatList
-        data={rows}
+        data={activity ? [] : rows}
         keyExtractor={(row) => `${row.kind}:${row.value.id}`}
         contentContainerStyle={{ paddingBottom: 24, flexGrow: 1 }}
         refreshControl={
@@ -115,15 +201,55 @@ export default function Inbox() {
             }}
           />
         }
+        ListHeaderComponent={
+          activity ? (
+            <View>
+              {runs.map((run) => {
+                const agent = agents.find((value) => value.id === run.agent_id);
+                if (!agent || (needle && !agent.name.toLowerCase().includes(needle))) return null;
+                return (
+                  <ConversationRow
+                    key={run.id}
+                    title={agent.name}
+                    preview={t(run.status)}
+                    time={new Date(run.updated_at).toLocaleTimeString(locale, {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                    avatar={
+                      <BotAvatar
+                        identity={agent.name}
+                        color={agent.color}
+                        variant={agent.avatar}
+                        working={activeStatuses.includes(run.status)}
+                      />
+                    }
+                    onPress={() =>
+                      router.push({ pathname: "/thread", params: { id: run.thread_id } })
+                    }
+                  />
+                );
+              })}
+            </View>
+          ) : null
+        }
         ListEmptyComponent={
-          <View style={{ padding: 24, gap: 20 }}>
-            <Text
-              style={{ color: colors.secondary, textAlign: rtl ? "right" : "left", lineHeight: 24 }}
-            >
-              {needle ? t("noResults") : t("emptyInbox")}
-            </Text>
-            {!needle ? <Button label={t("newAgent")} onPress={() => router.push("/new")} /> : null}
-          </View>
+          activity && runs.length ? null : (
+            <View style={{ padding: 24, gap: 20 }}>
+              <Text
+                style={{
+                  color: colors.secondary,
+                  textAlign: rtl ? "right" : "left",
+                  lineHeight: 24,
+                }}
+              >
+                {needle ? t("noResults") : t("emptyInbox")}
+              </Text>
+              {!needle ? (
+                <Button label={t("newAgent")} onPress={() => router.push("/new")} />
+              ) : null}
+            </View>
+          )
         }
         renderItem={({ item }) => {
           const agent =
@@ -156,12 +282,17 @@ export default function Inbox() {
                   />
                 ) : (
                   <BotAvatar
+                    identity={agent?.name}
                     color={agent?.color ?? "#85858A"}
                     variant={agent?.avatar}
                     working={Boolean(run)}
                   />
                 )
               }
+              time={new Date(run?.updated_at ?? item.value.created_at).toLocaleDateString(locale, {
+                month: "short",
+                day: "numeric",
+              })}
               preview={
                 item.kind === "group"
                   ? item.value.payload.member_ids
@@ -172,21 +303,12 @@ export default function Inbox() {
                     ? t("paused")
                     : run
                       ? t(run.status)
-                      : item.value.instructions || t("threadsPersist")
+                      : item.value.title || item.value.description || ""
               }
             />
           );
         }}
       />
-      <View style={{ paddingHorizontal: 16, paddingBottom: 12, gap: 8 }}>
-        <Button label={t("artifacts")} secondary onPress={() => router.push("/artifacts")} />
-        <Button
-          label={t("newGroup")}
-          secondary
-          onPress={() => router.push("/new-group")}
-          disabled={!agents.length}
-        />
-      </View>
     </Screen>
   );
 }

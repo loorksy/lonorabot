@@ -22,8 +22,13 @@ export const colors = {
   border: appearance.dark.border,
   accent: appearance.dark.accent,
   chatUser: appearance.dark["chat-user"],
-  error: "#EF8C8C",
+  error: appearance.dark.destructive,
   primary: appearance.dark.primary,
+  primaryForeground: appearance.dark["primary-foreground"],
+  success: appearance.dark.success,
+  warning: appearance.dark.warning,
+  overlay: appearance.dark.overlay,
+  link: appearance.dark.link,
 };
 export function Screen({ children }: { children: ReactNode }) {
   return (

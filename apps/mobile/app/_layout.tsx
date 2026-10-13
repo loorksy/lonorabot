@@ -18,6 +18,7 @@ export default function Layout() {
         <Stack.Screen name="sign-in" />
         <Stack.Screen name="thread" />
         <Stack.Screen name="new" options={{ presentation: "modal" }} />
+        <Stack.Screen name="charts" />
         <Stack.Screen name="new-group" options={{ presentation: "modal" }} />
         <Stack.Screen name="(settings)" />
         <Stack.Screen name="bot-settings" options={{ presentation: "modal" }} />

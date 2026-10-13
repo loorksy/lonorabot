@@ -1,15 +1,16 @@
 import type { Usage } from "@lonora/contracts";
 import { Redirect, useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
-import { ScrollView, Text, View } from "react-native";
-import { SettingsGroup } from "../../components/settings-group";
+import { ScrollView, Text } from "react-native";
+import { NativeSymbol } from "../../components/native-symbol";
+import { SettingsGroup, SettingsRow } from "../../components/settings-group";
 import { SheetHeader } from "../../components/sheet-header";
-import { Button, colors, ErrorNotice, Loading, Screen } from "../../components/ui";
+import { colors, ErrorNotice, Loading, Screen } from "../../components/ui";
 import { api } from "../../lib/api";
 import { useSession } from "../../lib/session";
 
 export default function Account() {
-  const { ready, owner, server, locale, rtl, t, errorText, changeLocale, logout } = useSession();
+  const { ready, owner, server, locale, t, errorText, changeLocale, logout } = useSession();
   const router = useRouter();
   const [usage, setUsage] = useState<Usage | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -42,26 +43,20 @@ export default function Account() {
       <ScrollView contentContainerStyle={{ padding: 20, gap: 20 }}>
         <ErrorNotice text={error} />
         <SettingsGroup title={t("account")}>
-          <Text selectable style={{ color: colors.foreground, writingDirection: "ltr" }}>
-            {owner.email}
-          </Text>
-          <Text selectable style={{ color: colors.secondary, writingDirection: "ltr" }}>
-            {server}
-          </Text>
+          <SettingsRow title={t("email")} detail={owner.email} />
+          <SettingsRow title={t("server")} detail={server} onPress={() => router.push("/server")} />
         </SettingsGroup>
         <SettingsGroup title={t("language")}>
-          <View style={{ flexDirection: rtl ? "row-reverse" : "row", gap: 12 }}>
-            <Button
-              label="العربية"
-              secondary={locale !== "ar"}
-              onPress={() => void changeLocale("ar")}
-            />
-            <Button
-              label="English"
-              secondary={locale !== "en"}
-              onPress={() => void changeLocale("en")}
-            />
-          </View>
+          <SettingsRow
+            title="العربية"
+            onPress={() => void changeLocale("ar")}
+            trailing={locale === "ar" ? <NativeSymbol name="check" size={17} /> : undefined}
+          />
+          <SettingsRow
+            title="English"
+            onPress={() => void changeLocale("en")}
+            trailing={locale === "en" ? <NativeSymbol name="check" size={17} /> : undefined}
+          />
         </SettingsGroup>
         <SettingsGroup title={t("usage")}>
           {usage ? (
@@ -72,33 +67,26 @@ export default function Account() {
                 ["cachedTokens", usage.cached_tokens],
               ] as const
             ).map(([label, value]) => (
-              <View
-                key={label}
-                style={{
-                  flexDirection: rtl ? "row-reverse" : "row",
-                  justifyContent: "space-between",
-                }}
-              >
-                <Text style={{ color: colors.secondary }}>{t(label)}</Text>
-                <Text style={{ color: colors.foreground }}>{value.toLocaleString(locale)}</Text>
-              </View>
+              <SettingsRow key={label} title={t(label)} value={value.toLocaleString(locale)} />
             ))
           ) : (
             <Text style={{ color: colors.secondary }}>{t("connecting")}</Text>
           )}
         </SettingsGroup>
-        <Button
-          label={t("logout")}
-          secondary
-          disabled={busy}
-          onPress={() => {
-            setBusy(true);
-            void logout()
-              .then(() => router.replace("/sign-in"))
-              .catch((cause) => setError(errorText(cause)))
-              .finally(() => setBusy(false));
-          }}
-        />
+        <SettingsGroup>
+          <SettingsRow
+            title={t("logout")}
+            destructive
+            disabled={busy}
+            onPress={() => {
+              setBusy(true);
+              void logout()
+                .then(() => router.replace("/sign-in"))
+                .catch((cause) => setError(errorText(cause)))
+                .finally(() => setBusy(false));
+            }}
+          />
+        </SettingsGroup>
       </ScrollView>
     </Screen>
   );

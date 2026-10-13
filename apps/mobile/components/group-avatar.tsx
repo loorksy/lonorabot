@@ -3,6 +3,7 @@
 import type { Agent } from "@lonora/contracts";
 import { Text, View, type ViewStyle } from "react-native";
 import { BotAvatar } from "./bot-avatar";
+import { NativeSymbol } from "./native-symbol";
 import { colors } from "./ui";
 
 export function GroupAvatar({ members, size = 54 }: { members: Agent[]; size?: number }) {
@@ -18,11 +19,18 @@ export function GroupAvatar({ members, size = 54 }: { members: Agent[]; size?: n
           backgroundColor: colors.accent,
         }}
       >
-        <Text style={{ fontSize: size * 0.35 }}>👥</Text>
+        <NativeSymbol name="group" size={size * 0.4} color={colors.secondary} />
       </View>
     );
   if (members.length === 1)
-    return <BotAvatar color={members[0].color} variant={members[0].avatar} size={size} />;
+    return (
+      <BotAvatar
+        identity={members[0].name}
+        color={members[0].color}
+        variant={members[0].avatar}
+        size={size}
+      />
+    );
   const pair = members.length === 2;
   const miniSize = Math.round(size * (pair ? 0.65 : 0.54));
   const positions: ViewStyle[] = pair
@@ -42,7 +50,12 @@ export function GroupAvatar({ members, size = 54 }: { members: Agent[]; size?: n
           key={member.id}
           style={{ position: "absolute", ...positions[index], zIndex: index + 1 }}
         >
-          <BotAvatar color={member.color} variant={member.avatar} size={miniSize} />
+          <BotAvatar
+            identity={member.name}
+            color={member.color}
+            variant={member.avatar}
+            size={miniSize}
+          />
         </View>
       ))}
       {members.length > 3 ? (
