@@ -4,6 +4,7 @@ from typing import Any
 
 from lonora_adapter_kit.types import ModelMessage, ToolCall
 from lonora_contracts.model_routing import Capability
+from lonora_core.run_state import is_conversational
 from lonora_core.user_error import LonoraError
 from lonora_db.runs import checkpoint, require_lease
 from lonora_tools.context import ToolContext
@@ -142,10 +143,10 @@ async def execute_tool_loop(
             continue
         if await merge_steering(context, state, messages):
             continue
-        if not reply.text.strip() and run.trigger in {"user", "group", "peer"}:
+        if not reply.text.strip() and is_conversational(run.trigger):
             messages.append(
                 ModelMessage(
-                    role="user",
+                    role="system",
                     content="No answer was provided for the selected request. Provide the substantive result or ask a necessary clarification with wait_for_input. Do not invent results.",
                 )
             )

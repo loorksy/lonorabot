@@ -106,6 +106,14 @@ async def checks() -> None:
             [ModelReply(), ModelReply(text="Actual response after empty completion")]
         )
         assert result["result"] == "Actual response after empty completion"
+        assert [m.content for m in result["seen"][1] if m.role == "user"] == [
+            "Explicit scripted fixture request"
+        ]
+
+        result = await execute(
+            [silence, ModelReply(text="Returned teammate result relayed")], "follow_up"
+        )
+        assert result["result"] == "Returned teammate result relayed"
 
         result = await execute([silence], "watch")
         assert result["result"] == "" and result["metadata"]["reply_outcome"] == "silent"
@@ -121,6 +129,12 @@ async def checks() -> None:
         direct_context = await fixture.lease(direct_run)
         refused = await ToolRegistry(tools()).execute(silence.tool_calls[0], direct_context)
         assert refused["code"] == "silence_requires_group"
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            direct_row = await session.get(RunRow, direct_run["id"])
+            assert direct_row is not None
+            direct_row.trigger = "watch"
+        no_report = await ToolRegistry(tools()).execute(silence.tool_calls[0], direct_context)
+        assert no_report["_runtime_silence"]
 
         previous = result["messages"][-1]
         reply = await fixture.request(
@@ -137,7 +151,7 @@ async def checks() -> None:
             assert routed is not None and routed.agent_id == active["id"]
         print(
             json.dumps(
-                {"checks": 7, "result": "passed", "provider": "scripted; no real model calls"}
+                {"checks": 9, "result": "passed", "provider": "scripted; no real model calls"}
             )
         )
     finally:

@@ -1,6 +1,7 @@
 from typing import Any
 
 from lonora_contracts.domain import Board, Contract, Ticket
+from lonora_core.run_state import is_conversational
 from lonora_db.boards import BoardRepository
 from lonora_db.runs import require_lease
 from lonora_db.schema import ThreadRow
@@ -33,13 +34,13 @@ async def silence(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     async with context.db.sessions() as session:
         run = await require_lease(session, context.lease)
         thread = await session.get(ThreadRow, context.thread_id)
-        if thread is None or not thread.group_id:
+        if thread is None or (not thread.group_id and is_conversational(run.trigger)):
             return {
                 "ok": False,
                 "code": "silence_requires_group",
                 "guidance": "Respond to the request in this conversation.",
             }
-        if run.trigger in {"user", "group", "peer"}:
+        if is_conversational(run.trigger):
             return {
                 "ok": False,
                 "code": "reply_required",
