@@ -63,7 +63,7 @@ msgstr "Add broker connection"
 msgid "Add direction while the agent works…"
 msgstr "Add direction while the agent works…"
 
-#: src/components/charts/ChartIndicators.tsx:47
+#: src/components/charts/ChartIndicators.tsx:53
 msgid "Add indicator"
 msgstr "Add indicator"
 
@@ -71,7 +71,7 @@ msgstr "Add indicator"
 msgid "Add integration"
 msgstr "Add integration"
 
-#: src/components/charts/ChartAnnotations.tsx:44
+#: src/components/charts/ChartAnnotations.tsx:52
 msgid "Add line"
 msgstr "Add line"
 
@@ -238,7 +238,15 @@ msgstr "Bring agents together in a group."
 msgid "Broker account"
 msgstr "Broker account"
 
-#: src/components/market/SymbolSearch.tsx:15
+#: src/lib/user_error.ts:43
+msgid "Broker candles are unavailable for this symbol and timeframe."
+msgstr "Broker candles are unavailable for this symbol and timeframe."
+
+#: src/lib/user_error.ts:55
+msgid "Broker deal history is unavailable for this time range."
+msgstr "Broker deal history is unavailable for this time range."
+
+#: src/components/market/SymbolSearch.tsx:14
 msgid "Broker symbol"
 msgstr "Broker symbol"
 
@@ -268,7 +276,7 @@ msgid "Cancel order"
 msgstr "Cancel order"
 
 #: src/components/ai/primitives.tsx:56
-#: src/components/ToolActivityDisclosure.tsx:22
+#: src/components/ToolActivityDisclosure.tsx:23
 #: src/pages/ActivityList.tsx:120
 #: src/pages/shell/message-cards.tsx:161
 msgid "Cancelled"
@@ -290,7 +298,7 @@ msgstr "Changes"
 msgid "Check existing operation"
 msgstr "Check existing operation"
 
-#: src/lib/user_error.ts:44
+#: src/lib/user_error.ts:61
 msgid "Check the required fields and try again."
 msgstr "Check the required fields and try again."
 
@@ -325,7 +333,7 @@ msgstr "Choose an agent"
 msgid "Choose an agent or return to your workspace."
 msgstr "Choose an agent or return to your workspace."
 
-#: src/components/market/SymbolSearch.tsx:22
+#: src/components/market/SymbolSearch.tsx:21
 #: src/components/trading/TradeActionCard.tsx:69
 msgid "Choose an instrument"
 msgstr "Choose an instrument"
@@ -367,6 +375,10 @@ msgstr "Close position"
 msgid "Closes"
 msgstr "Closes"
 
+#: src/components/charts/ChartLiveFeed.tsx:19
+msgid "Cloud chart"
+msgstr "Cloud chart"
+
 #: src/pages/shell/bot-panel.tsx:77
 #: src/pages/shell/bot-panel.tsx:84
 #: src/pages/shell/bot-settings.tsx:77
@@ -375,7 +387,7 @@ msgid "Color"
 msgstr "Color"
 
 #: src/components/ai/primitives.tsx:58
-#: src/components/ToolActivityDisclosure.tsx:26
+#: src/components/ToolActivityDisclosure.tsx:27
 #: src/pages/ActivityList.tsx:117
 #: src/pages/Board.tsx:18
 #: src/pages/shell/message-cards.tsx:165
@@ -684,7 +696,7 @@ msgstr "Event is due"
 msgid "Every · minutes"
 msgstr "Every · minutes"
 
-#: src/components/market/SymbolSearch.tsx:18
+#: src/components/market/SymbolSearch.tsx:17
 #: src/components/trading/TradeActionCard.tsx:61
 msgid "Exact broker symbol"
 msgstr "Exact broker symbol"
@@ -698,7 +710,7 @@ msgid "Execution history"
 msgstr "Execution history"
 
 #: src/components/ai/primitives.tsx:54
-#: src/components/ToolActivityDisclosure.tsx:24
+#: src/components/ToolActivityDisclosure.tsx:25
 #: src/components/trading/TradingJournal.tsx:22
 #: src/pages/ActivityList.tsx:119
 #: src/pages/Board.tsx:24
@@ -787,7 +799,7 @@ msgstr "Groups"
 msgid "Image attachment"
 msgstr "Image attachment"
 
-#: src/lib/user_error.ts:42
+#: src/lib/user_error.ts:59
 msgid "Import a market snapshot before using the demo account."
 msgstr "Import a market snapshot before using the demo account."
 
@@ -795,13 +807,13 @@ msgstr "Import a market snapshot before using the demo account."
 msgid "Index note"
 msgstr "Index note"
 
-#: src/components/charts/ChartIndicators.tsx:20
+#: src/components/charts/ChartIndicators.tsx:22
 #: src/components/market/MarketWatch.tsx:105
 #: src/components/market/MarketWatch.tsx:121
 msgid "Indicator"
 msgstr "Indicator"
 
-#: src/components/charts/ChartIndicators.tsx:16
+#: src/components/charts/ChartIndicators.tsx:18
 msgid "Indicators"
 msgstr "Indicators"
 
@@ -851,7 +863,7 @@ msgstr "Knowledge"
 msgid "Knowledge note"
 msgstr "Knowledge note"
 
-#: src/components/charts/ChartAnnotations.tsx:30
+#: src/components/charts/ChartAnnotations.tsx:32
 msgid "Label"
 msgstr "Label"
 
@@ -892,6 +904,10 @@ msgstr "Loading activity…"
 #: src/pages/Shell.tsx:819
 msgid "Loading agents…"
 msgstr "Loading agents…"
+
+#: src/components/charts/ChartWorkspace.tsx:54
+msgid "Loading chart…"
+msgstr "Loading chart…"
 
 #: src/pages/Shell.tsx:800
 msgid "Loading group…"
@@ -1049,7 +1065,7 @@ msgstr "No agents match"
 msgid "No artifacts found."
 msgstr "No artifacts found."
 
-#: src/components/charts/ChartWorkspace.tsx:97
+#: src/components/charts/ChartWorkspace.tsx:65
 msgid "No candles available for this instrument and timeframe."
 msgstr "No candles available for this instrument and timeframe."
 
@@ -1096,6 +1112,10 @@ msgstr "Now"
 #: src/pages/ModelRoutingSettings.tsx:109
 msgid "One model for text work"
 msgstr "One model for text work"
+
+#: src/components/charts/ChartWorkspace.tsx:40
+msgid "Open chart"
+msgstr "Open chart"
 
 #: src/pages/ActivityList.tsx:260
 #: src/pages/Board.tsx:411
@@ -1183,7 +1203,7 @@ msgstr "PDF preview"
 msgid "Pending orders"
 msgstr "Pending orders"
 
-#: src/components/charts/ChartIndicators.tsx:30
+#: src/components/charts/ChartIndicators.tsx:32
 #: src/components/market/MarketWatch.tsx:131
 msgid "Period"
 msgstr "Period"
@@ -1208,12 +1228,12 @@ msgstr "Positions"
 msgid "Preview"
 msgstr "Preview"
 
-#: src/components/charts/ChartAnnotations.tsx:20
+#: src/components/charts/ChartAnnotations.tsx:22
 #: src/components/market/MarketWatch.tsx:102
 msgid "Price"
 msgstr "Price"
 
-#: src/components/charts/ChartAnnotations.tsx:16
+#: src/components/charts/ChartAnnotations.tsx:18
 msgid "Price annotations"
 msgstr "Price annotations"
 
@@ -1273,13 +1293,13 @@ msgstr "Reconnecting"
 msgid "Reconnecting to live updates"
 msgstr "Reconnecting to live updates"
 
-#: src/components/charts/ChartToolbar.tsx:24
+#: src/components/charts/ChartToolbar.tsx:26
 msgid "Refresh chart"
 msgstr "Refresh chart"
 
 #: src/components/charts/ChartLiveFeed.tsx:15
-msgid "Refresh live candles"
-msgstr "Refresh live candles"
+#~ msgid "Refresh live candles"
+#~ msgstr "Refresh live candles"
 
 #: src/components/ErrorBoundary.tsx:15
 #: src/pages/KnowledgeSection.tsx:48
@@ -1355,7 +1375,7 @@ msgstr "Routines"
 msgid "Run task"
 msgstr "Run task"
 
-#: src/components/ToolActivityDisclosure.tsx:28
+#: src/components/ToolActivityDisclosure.tsx:29
 msgid "Running"
 msgstr "Running"
 
@@ -1387,6 +1407,10 @@ msgstr "Save memory"
 #: src/pages/ModelRoutingSettings.tsx:161
 msgid "Saved"
 msgstr "Saved"
+
+#: src/components/charts/ChartWorkspace.tsx:24
+msgid "Saved chart"
+msgstr "Saved chart"
 
 #: src/pages/Board.tsx:161
 #: src/pages/Board.tsx:441
@@ -1508,7 +1532,7 @@ msgstr "Settings"
 msgid "Setup token"
 msgstr "Setup token"
 
-#: src/components/charts/ChartWorkspace.tsx:85
+#: src/components/charts/ChartWorkspace.tsx:20
 msgid "Shared chart workspace"
 msgstr "Shared chart workspace"
 
@@ -1658,13 +1682,29 @@ msgstr "Task when triggered"
 msgid "Temporary delegated tasks"
 msgstr "Temporary delegated tasks"
 
-#: src/lib/user_error.ts:58
+#: src/lib/user_error.ts:75
 msgid "The agent reached the step limit for this run. Send another message to continue."
 msgstr "The agent reached the step limit for this run. Send another message to continue."
 
-#: src/lib/user_error.ts:40
+#: src/lib/user_error.ts:51
+msgid "The broker connection changed. Reload it before continuing."
+msgstr "The broker connection changed. Reload it before continuing."
+
+#: src/lib/user_error.ts:57
 msgid "The broker connection is unavailable."
 msgstr "The broker connection is unavailable."
+
+#: src/lib/user_error.ts:53
+msgid "The broker mutation is uncertain. Execution remains blocked until its result can be verified."
+msgstr "The broker mutation is uncertain. Execution remains blocked until its result can be verified."
+
+#: src/lib/user_error.ts:45
+msgid "The broker quote is unavailable for this exact symbol."
+msgstr "The broker quote is unavailable for this exact symbol."
+
+#: src/lib/user_error.ts:47
+msgid "The broker specifications are unavailable for this exact symbol."
+msgstr "The broker specifications are unavailable for this exact symbol."
 
 #: src/pages/ModelSettingsOverlay.tsx:93
 msgid "The catalog is read from the provider. Unknown capabilities are shown as unverified."
@@ -1678,7 +1718,7 @@ msgstr "The file preview could not be displayed"
 msgid "The full response will appear when complete."
 msgstr "The full response will appear when complete."
 
-#: src/lib/user_error.ts:54
+#: src/lib/user_error.ts:71
 msgid "The model could not summarize this conversation. Retry or choose another global model."
 msgstr "The model could not summarize this conversation. Retry or choose another global model."
 
@@ -1694,13 +1734,17 @@ msgstr "The page could not be displayed"
 msgid "The provider rejected this API key."
 msgstr "The provider rejected this API key."
 
-#: src/lib/user_error.ts:60
+#: src/lib/user_error.ts:77
 msgid "The request could not be completed. Try again."
 msgstr "The request could not be completed. Try again."
 
 #: src/lib/user_error.ts:31
 msgid "The resident voice worker is unavailable. Check server readiness and retry."
 msgstr "The resident voice worker is unavailable. Check server readiness and retry."
+
+#: src/lib/user_error.ts:40
+msgid "The resident worker is preparing this chart."
+msgstr "The resident worker is preparing this chart."
 
 #: src/lib/user_error.ts:9
 msgid "The setup code is incorrect."
@@ -1723,11 +1767,15 @@ msgstr "Theme"
 msgid "These settings apply to every agent and routine. Voice routes require models that support audio."
 msgstr "These settings apply to every agent and routine. Voice routes require models that support audio."
 
-#: src/lib/user_error.ts:56
+#: src/lib/user_error.ts:49
+msgid "This broker connection is disabled."
+msgstr "This broker connection is disabled."
+
+#: src/lib/user_error.ts:73
 msgid "This conversation could not be resumed. Start a new conversation."
 msgstr "This conversation could not be resumed. Start a new conversation."
 
-#: src/lib/user_error.ts:52
+#: src/lib/user_error.ts:69
 msgid "This conversation is too large to process. Shorten instructions, use fewer attachments, or start a new conversation."
 msgstr "This conversation is too large to process. Shorten instructions, use fewer attachments, or start a new conversation."
 
@@ -1743,7 +1791,7 @@ msgstr "This month"
 msgid "This page is unavailable"
 msgstr "This page is unavailable"
 
-#: src/lib/user_error.ts:48
+#: src/lib/user_error.ts:65
 msgid "This run was recovered by another worker."
 msgstr "This run was recovered by another worker."
 
@@ -1755,7 +1803,7 @@ msgstr "This week"
 msgid "Tick size"
 msgstr "Tick size"
 
-#: src/components/charts/ChartToolbar.tsx:14
+#: src/components/charts/ChartToolbar.tsx:16
 #: src/components/market/MarketWatch.tsx:141
 msgid "Timeframe"
 msgstr "Timeframe"
@@ -1792,7 +1840,7 @@ msgstr "Today"
 msgid "Token usage"
 msgstr "Token usage"
 
-#: src/lib/user_error.ts:46
+#: src/lib/user_error.ts:63
 msgid "Too many attempts. Wait a minute and retry."
 msgstr "Too many attempts. Wait a minute and retry."
 

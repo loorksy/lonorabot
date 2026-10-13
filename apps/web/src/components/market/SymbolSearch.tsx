@@ -1,12 +1,11 @@
 import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
-import type { Instrument } from "../../lib/api";
 export function SymbolSearch({
-  instruments,
+  symbols,
   value,
   onChange,
 }: {
-  instruments: Instrument[];
+  symbols: string[];
   value: string;
   onChange: (symbol: string) => void;
 }) {
@@ -20,9 +19,9 @@ export function SymbolSearch({
         onChange={(e) => onChange(e.target.value)}
       >
         <option value="">{t`Choose an instrument`}</option>
-        {instruments.map((i) => (
-          <option key={i.symbol} value={i.symbol}>
-            {i.symbol} · {i.description}
+        {symbols.map((symbol) => (
+          <option key={symbol} value={symbol}>
+            {symbol}
           </option>
         ))}
       </select>

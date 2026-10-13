@@ -36,6 +36,24 @@ export function userError(error: unknown) {
       return t`Choose GPT-Live 1 or GPT-Live 1 mini as the global voice model.`;
     case "voice_provider_unsupported":
       return t`Choose supported global speech models in Settings.`;
+    case "chart_initializing":
+      return t`The resident worker is preparing this chart.`;
+    case "chart_data_unavailable":
+    case "broker_candles_unavailable":
+      return t`Broker candles are unavailable for this symbol and timeframe.`;
+    case "broker_quote_unavailable":
+      return t`The broker quote is unavailable for this exact symbol.`;
+    case "broker_instrument_unavailable":
+      return t`The broker specifications are unavailable for this exact symbol.`;
+    case "broker_disabled":
+      return t`This broker connection is disabled.`;
+    case "broker_connection_changed":
+    case "broker_configuration_changed":
+      return t`The broker connection changed. Reload it before continuing.`;
+    case "mutation_evidence_required":
+      return t`The broker mutation is uncertain. Execution remains blocked until its result can be verified.`;
+    case "broker_history_unavailable":
+      return t`Broker deal history is unavailable for this time range.`;
     case "broker_connection_unavailable":
       return t`The broker connection is unavailable.`;
     case "simulation_snapshot_required":

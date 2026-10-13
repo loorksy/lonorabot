@@ -1,115 +1,92 @@
 import { Trans } from "@lingui/react/macro";
-import { useEffect, useState } from "react";
-import type { Resource } from "../../lib/api";
-import { type ChartScene, type ChartState, charts, readScene } from "../../lib/charts";
+import { useCharts } from "../../hooks/useCharts";
 import { userError } from "../../lib/user_error";
 import { ChartAnnotations } from "./ChartAnnotations";
 import { ChartIndicators } from "./ChartIndicators";
 import { ChartLiveFeed } from "./ChartLiveFeed";
 import { ChartToolbar } from "./ChartToolbar";
 import { TradingChart } from "./TradingChart";
+
 export function ChartWorkspace({ accountId, symbol }: { accountId: string; symbol: string }) {
-  const [row, setRow] = useState<Resource<ChartState>>();
-  const [scene, setScene] = useState<ChartScene>();
-  const [timeframe, setTimeframe] = useState("1h");
-  const [live, setLive] = useState(false);
-  const [observedAt, setObservedAt] = useState<string | null>(null);
-  const [error, setError] = useState<unknown>();
-  const [tick, setTick] = useState(0);
-  useEffect(() => {
-    if (!live) return;
-    const timer = setInterval(() => setTick((v) => v + 1), 10000);
-    return () => clearInterval(timer);
-  }, [live]);
-  useEffect(() => {
-    setRow(undefined);
-    setScene(undefined);
-    if (!accountId || !symbol) return;
-    let active = true;
-    void charts
-      .list()
-      .then(async (rows) => {
-        const found = rows.find(
-          (c) =>
-            c.payload.account_id === accountId &&
-            c.payload.symbol === symbol &&
-            c.payload.timeframe === timeframe,
-        );
-        const chart =
-          found ??
-          (await charts.create({
-            account_id: accountId,
-            symbol,
-            timeframe,
-            indicators: [],
-            annotations: [],
-          }));
-        if (active) setRow(chart);
-      })
-      .catch(setError);
-    return () => {
-      active = false;
-    };
-  }, [accountId, symbol, timeframe]);
-  useEffect(() => {
-    // The durable revision (or explicit refresh tick) invalidates this fetched state.
-    void tick;
-    if (!row) return;
-    let active = true;
-    void readScene(row.id)
-      .then((s) => {
-        if (active) {
-          setScene(s);
-          setObservedAt(new Date().toISOString());
-          setError(undefined);
-        }
-      })
-      .catch((e) => {
-        if (active) setError(e);
-      });
-    return () => {
-      active = false;
-    };
-  }, [row, tick]);
-  async function update(payload: ChartState) {
-    if (!row) return;
-    try {
-      setRow(await charts.update(row, payload));
-    } catch (e) {
-      setError(e);
-    }
-  }
+  const workspace = useCharts(accountId, symbol);
+  const { row, scene, loading, initializing, busy, error } = workspace;
   return (
-    <section className="card chart-workspace">
+    <section
+      className="card chart-workspace"
+      data-chart-id={row?.id}
+      data-chart-scene-version={scene?.scene_version}
+    >
       <h2>
         <Trans>Shared chart workspace</Trans>
       </h2>
-      <ChartToolbar
-        timeframe={timeframe}
-        onChange={setTimeframe}
-        onRefresh={() => setTick((v) => v + 1)}
-      />
+      {workspace.rows.length > 0 && (
+        <label>
+          <Trans>Saved chart</Trans>
+          <select
+            value={row?.id ?? ""}
+            disabled={busy}
+            onChange={(event) => workspace.select(event.target.value)}
+          >
+            {workspace.rows.map((item) => (
+              <option value={item.id} key={item.id}>
+                {item.payload.symbol} · {item.payload.timeframe} · {item.id.slice(-8)}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      {!loading && !row && (
+        <button type="button" disabled={busy} onClick={() => void workspace.create()}>
+          <Trans>Open chart</Trans>
+        </button>
+      )}
+      {row && (
+        <ChartToolbar
+          timeframe={row.payload.timeframe}
+          disabled={busy}
+          onChange={(timeframe) => void workspace.update({ ...row.payload, timeframe })}
+          onRefresh={() => void workspace.refresh()}
+        />
+      )}
       {error != null && <p role="alert">{userError(error)}</p>}
+      {(loading || initializing) && (
+        <p role="status">
+          <Trans>Loading chart…</Trans>
+        </p>
+      )}
       {scene && scene.candles.length > 0 ? (
         <TradingChart scene={scene} />
       ) : (
-        <div className="empty">
-          <Trans>No candles available for this instrument and timeframe.</Trans>
-        </div>
+        row &&
+        !loading &&
+        !initializing &&
+        error == null && (
+          <div className="empty">
+            <Trans>No candles available for this instrument and timeframe.</Trans>
+          </div>
+        )
       )}
       {row && (
         <>
           <ChartIndicators
+            disabled={busy}
             indicators={row.payload.indicators}
-            onChange={(items) => void update({ ...row.payload, indicators: items })}
+            onChange={(indicators) => void workspace.update({ ...row.payload, indicators })}
           />
           <ChartAnnotations
+            disabled={busy}
             annotations={row.payload.annotations}
-            onChange={(items) => void update({ ...row.payload, annotations: items })}
+            onChange={(annotations) => void workspace.update({ ...row.payload, annotations })}
           />
         </>
       )}
-      <ChartLiveFeed observedAt={observedAt} live={live} onToggle={() => setLive((v) => !v)} />
+      {scene && (
+        <ChartLiveFeed
+          observedAt={scene.updated_at}
+          status={scene.status}
+          errorCode={scene.error_code}
+        />
+      )}
     </section>
   );
 }

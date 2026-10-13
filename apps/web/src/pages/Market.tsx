@@ -41,7 +41,7 @@ export function Market({ agents }: { agents: Agent[] }) {
             ))}
           </select>
         </label>
-        <SymbolSearch instruments={market.instruments} value={symbol} onChange={setSymbol} />
+        <SymbolSearch symbols={market.symbols} value={symbol} onChange={setSymbol} />
       </div>
       {connection?.payload.provider === "simulation" && (
         <p className="notice">
@@ -50,7 +50,7 @@ export function Market({ agents }: { agents: Agent[] }) {
       )}
       {market.error != null && <p role="alert">{userError(market.error)}</p>}
       <MarketQuote quote={market.quote} />
-      <MarketOverview instrument={market.instruments.find((i) => i.symbol === symbol)} />
+      <MarketOverview instrument={market.instrument} />
       {account && symbol && (
         <ChartWorkspace key={`${account}:${symbol}`} accountId={account} symbol={symbol} />
       )}

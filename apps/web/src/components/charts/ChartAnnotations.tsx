@@ -4,8 +4,10 @@ import type { ChartState } from "../../lib/charts";
 export function ChartAnnotations({
   annotations,
   onChange,
+  disabled = false,
 }: {
   annotations: ChartState["annotations"];
+  disabled?: boolean;
   onChange: (items: ChartState["annotations"]) => void;
 }) {
   const [price, setPrice] = useState("");
@@ -32,7 +34,13 @@ export function ChartAnnotations({
         </label>
         <button
           type="button"
-          disabled={!price || annotations.length >= 100}
+          disabled={
+            disabled ||
+            !price ||
+            !Number.isFinite(Number(price)) ||
+            Number(price) <= 0 ||
+            annotations.length >= 100
+          }
           onClick={() => {
             onChange([
               ...annotations,
@@ -46,6 +54,7 @@ export function ChartAnnotations({
       </div>
       {annotations.map((a, i) => (
         <button
+          disabled={disabled}
           type="button"
           key={String(a.id ?? JSON.stringify(a))}
           onClick={() => onChange(annotations.filter((_, n) => n !== i))}

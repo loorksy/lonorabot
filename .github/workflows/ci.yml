@@ -748,6 +748,11 @@ jobs:
           .venv/bin/python tests/check_team.py
           .venv/bin/python tests/check_group_replies.py
           .venv/bin/python tests/check_broker_discovery.py
+          .venv/bin/python tests/check_market_runtime.py
+          .venv/bin/python tests/check_chart_tools.py
+          .venv/bin/python tests/check_trading.py
+          .venv/bin/python tests/check_metaapi_adapter.py
+          .venv/bin/python tests/check_agent_market.py
 
       - name: Verify native sessions and concurrent persistent conversations
         run: .venv/bin/python tests/check_clients.py

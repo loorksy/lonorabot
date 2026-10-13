@@ -1,46 +1,92 @@
 import { useEffect, useState } from "react";
 import type { Instrument, Quote } from "../lib/api";
-import { readInstruments, readQuote } from "../lib/market";
-export function useMarket(accountId: string, symbol: string) {
+import { readInstrument, readInstruments, readQuote, readSymbols } from "../lib/market";
+export function useMarket(accountId: string, symbol: string, instrumentCatalog = false) {
   const [instruments, setInstruments] = useState<Instrument[]>([]);
+  const [symbols, setSymbols] = useState<string[]>([]);
+  const [instrument, setInstrument] = useState<Instrument>();
   const [quote, setQuote] = useState<Quote>();
-  const [error, setError] = useState<unknown>();
+  const [symbolsError, setSymbolsError] = useState<unknown>();
+  const [instrumentError, setInstrumentError] = useState<unknown>();
+  const [quoteError, setQuoteError] = useState<unknown>();
   useEffect(() => {
     setInstruments([]);
+    if (!accountId || !instrumentCatalog) return;
+    let live = true;
+    void readInstruments(accountId)
+      .then((value) => {
+        if (live) setInstruments(value);
+      })
+      .catch((caught: unknown) => {
+        if (live) setSymbolsError(caught);
+      });
+    return () => {
+      live = false;
+    };
+  }, [accountId, instrumentCatalog]);
+  useEffect(() => {
+    setSymbols([]);
+    setSymbolsError(undefined);
     if (!accountId) return;
     let live = true;
-    readInstruments(accountId)
-      .then((v) => {
-        if (live) setInstruments(v);
+    void readSymbols(accountId)
+      .then((value) => {
+        if (live) setSymbols(value);
       })
-      .catch((e) => {
-        if (live) setError(e);
+      .catch((caught: unknown) => {
+        if (live) setSymbolsError(caught);
       });
     return () => {
       live = false;
     };
   }, [accountId]);
   useEffect(() => {
-    setQuote(undefined);
+    setInstrument(undefined);
+    setInstrumentError(undefined);
     if (!accountId || !symbol) return;
     let live = true;
-    const poll = () =>
-      void readQuote(accountId, symbol)
-        .then((q) => {
-          if (live) {
-            setQuote(q);
-            setError(undefined);
-          }
-        })
-        .catch((e) => {
-          if (live) setError(e);
-        });
-    poll();
-    const timer = setInterval(poll, 5000);
+    void readInstrument(accountId, symbol)
+      .then((value) => {
+        if (live) setInstrument(value);
+      })
+      .catch((caught: unknown) => {
+        if (live) setInstrumentError(caught);
+      });
     return () => {
       live = false;
-      clearInterval(timer);
     };
   }, [accountId, symbol]);
-  return { instruments, quote, error };
+  useEffect(() => {
+    setQuote(undefined);
+    setQuoteError(undefined);
+    if (!accountId || !symbol) return;
+    let live = true;
+    // Serialize reads: a slow provider must not overlap requests or reverse observation order.
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const poll = async () => {
+      try {
+        const value = await readQuote(accountId, symbol);
+        if (live) {
+          setQuote(value);
+          setQuoteError(undefined);
+        }
+      } catch (caught) {
+        if (live) setQuoteError(caught);
+      } finally {
+        if (live) timer = setTimeout(() => void poll(), 5000);
+      }
+    };
+    void poll();
+    return () => {
+      live = false;
+      if (timer) clearTimeout(timer);
+    };
+  }, [accountId, symbol]);
+  return {
+    symbols,
+    instruments,
+    instrument,
+    quote,
+    error: symbolsError ?? instrumentError ?? quoteError,
+  };
 }

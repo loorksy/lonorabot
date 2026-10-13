@@ -16,7 +16,7 @@ export function Trading() {
   const { refresh } = useClient();
   const [id, setId] = useState("");
   const trading = useTrading(id);
-  const market = useMarket(id, "");
+  const market = useMarket(id, "", true);
   const [error, setError] = useState<unknown>();
   return (
     <section>

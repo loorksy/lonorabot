@@ -4,8 +4,10 @@ import type { ChartState } from "../../lib/charts";
 export function ChartIndicators({
   indicators,
   onChange,
+  disabled = false,
 }: {
   indicators: ChartState["indicators"];
+  disabled?: boolean;
   onChange: (items: ChartState["indicators"]) => void;
 }) {
   const [name, setName] = useState("EMA");
@@ -39,6 +41,10 @@ export function ChartIndicators({
         <button
           type="button"
           disabled={
+            disabled ||
+            !Number.isInteger(period) ||
+            period < 2 ||
+            period > 500 ||
             indicators.length >= 12 ||
             indicators.some((i) => i.name === name && i.period === period)
           }

@@ -1,20 +1,27 @@
-import { Trans } from "@lingui/react/macro";
+import { Trans, useLingui } from "@lingui/react/macro";
+import { userError } from "../../lib/user_error";
 export function ChartLiveFeed({
   observedAt,
-  live,
-  onToggle,
+  status,
+  errorCode,
 }: {
   observedAt: string | null;
-  live: boolean;
-  onToggle: () => void;
+  status: string;
+  errorCode?: string | null;
 }) {
+  const { i18n } = useLingui();
   return (
-    <div className="row muted">
-      <label className="check">
-        <input type="checkbox" checked={live} onChange={onToggle} />
-        <Trans>Refresh live candles</Trans>
-      </label>
-      {observedAt && <time>{new Date(observedAt).toLocaleTimeString()}</time>}
+    <div className="row muted" role="status">
+      {status === "failed" ? (
+        <span>{userError(errorCode ?? "chart_unavailable")}</span>
+      ) : (
+        <span>
+          <Trans>Cloud chart</Trans>
+        </span>
+      )}
+      {observedAt && (
+        <time dateTime={observedAt}>{new Date(observedAt).toLocaleString(i18n.locale)}</time>
+      )}
     </div>
   );
 }

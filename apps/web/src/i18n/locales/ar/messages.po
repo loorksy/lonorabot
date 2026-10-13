@@ -63,7 +63,7 @@ msgstr "إضافة اتصال بالوسيط"
 msgid "Add direction while the agent works…"
 msgstr "أضف توجيهًا أثناء عمل الوكيل…"
 
-#: src/components/charts/ChartIndicators.tsx:47
+#: src/components/charts/ChartIndicators.tsx:53
 msgid "Add indicator"
 msgstr "إضافة مؤشر"
 
@@ -71,7 +71,7 @@ msgstr "إضافة مؤشر"
 msgid "Add integration"
 msgstr "إضافة تكامل"
 
-#: src/components/charts/ChartAnnotations.tsx:44
+#: src/components/charts/ChartAnnotations.tsx:52
 msgid "Add line"
 msgstr "إضافة خط"
 
@@ -238,7 +238,15 @@ msgstr "اجمع الوكلاء في مجموعة."
 msgid "Broker account"
 msgstr "حساب الوسيط"
 
-#: src/components/market/SymbolSearch.tsx:15
+#: src/lib/user_error.ts:43
+msgid "Broker candles are unavailable for this symbol and timeframe."
+msgstr "شموع الوسيط غير متاحة لهذا الرمز والإطار الزمني."
+
+#: src/lib/user_error.ts:55
+msgid "Broker deal history is unavailable for this time range."
+msgstr "سجل صفقات الوسيط غير متاح لهذه الفترة."
+
+#: src/components/market/SymbolSearch.tsx:14
 msgid "Broker symbol"
 msgstr "رمز الوسيط"
 
@@ -268,7 +276,7 @@ msgid "Cancel order"
 msgstr "إلغاء الأمر"
 
 #: src/components/ai/primitives.tsx:56
-#: src/components/ToolActivityDisclosure.tsx:22
+#: src/components/ToolActivityDisclosure.tsx:23
 #: src/pages/ActivityList.tsx:120
 #: src/pages/shell/message-cards.tsx:161
 msgid "Cancelled"
@@ -290,7 +298,7 @@ msgstr "يتغيّر"
 msgid "Check existing operation"
 msgstr "فحص العملية الحالية"
 
-#: src/lib/user_error.ts:44
+#: src/lib/user_error.ts:61
 msgid "Check the required fields and try again."
 msgstr "تحقق من الحقول المطلوبة وأعد المحاولة."
 
@@ -325,7 +333,7 @@ msgstr "اختر وكيلًا"
 msgid "Choose an agent or return to your workspace."
 msgstr "اختر وكيلاً أو عد إلى مساحة عملك."
 
-#: src/components/market/SymbolSearch.tsx:22
+#: src/components/market/SymbolSearch.tsx:21
 #: src/components/trading/TradeActionCard.tsx:69
 msgid "Choose an instrument"
 msgstr "اختر أداة مالية"
@@ -367,6 +375,10 @@ msgstr "إغلاق الصفقة"
 msgid "Closes"
 msgstr "يُغلق"
 
+#: src/components/charts/ChartLiveFeed.tsx:19
+msgid "Cloud chart"
+msgstr "الشارت السحابي"
+
 #: src/pages/shell/bot-panel.tsx:77
 #: src/pages/shell/bot-panel.tsx:84
 #: src/pages/shell/bot-settings.tsx:77
@@ -375,7 +387,7 @@ msgid "Color"
 msgstr "اللون"
 
 #: src/components/ai/primitives.tsx:58
-#: src/components/ToolActivityDisclosure.tsx:26
+#: src/components/ToolActivityDisclosure.tsx:27
 #: src/pages/ActivityList.tsx:117
 #: src/pages/Board.tsx:18
 #: src/pages/shell/message-cards.tsx:165
@@ -684,7 +696,7 @@ msgstr "حان موعد الحدث"
 msgid "Every · minutes"
 msgstr "التكرار · بالدقائق"
 
-#: src/components/market/SymbolSearch.tsx:18
+#: src/components/market/SymbolSearch.tsx:17
 #: src/components/trading/TradeActionCard.tsx:61
 msgid "Exact broker symbol"
 msgstr "رمز الوسيط كما هو"
@@ -698,7 +710,7 @@ msgid "Execution history"
 msgstr "سجل التنفيذ"
 
 #: src/components/ai/primitives.tsx:54
-#: src/components/ToolActivityDisclosure.tsx:24
+#: src/components/ToolActivityDisclosure.tsx:25
 #: src/components/trading/TradingJournal.tsx:22
 #: src/pages/ActivityList.tsx:119
 #: src/pages/Board.tsx:24
@@ -787,7 +799,7 @@ msgstr "المجموعات"
 msgid "Image attachment"
 msgstr "صورة مرفقة"
 
-#: src/lib/user_error.ts:42
+#: src/lib/user_error.ts:59
 msgid "Import a market snapshot before using the demo account."
 msgstr "استورد بيانات السوق قبل استخدام حساب المحاكاة."
 
@@ -795,13 +807,13 @@ msgstr "استورد بيانات السوق قبل استخدام حساب ال
 msgid "Index note"
 msgstr "فهرسة الملاحظة"
 
-#: src/components/charts/ChartIndicators.tsx:20
+#: src/components/charts/ChartIndicators.tsx:22
 #: src/components/market/MarketWatch.tsx:105
 #: src/components/market/MarketWatch.tsx:121
 msgid "Indicator"
 msgstr "المؤشر"
 
-#: src/components/charts/ChartIndicators.tsx:16
+#: src/components/charts/ChartIndicators.tsx:18
 msgid "Indicators"
 msgstr "المؤشرات"
 
@@ -851,7 +863,7 @@ msgstr "المعرفة"
 msgid "Knowledge note"
 msgstr "ملاحظة معرفية"
 
-#: src/components/charts/ChartAnnotations.tsx:30
+#: src/components/charts/ChartAnnotations.tsx:32
 msgid "Label"
 msgstr "التسمية"
 
@@ -892,6 +904,10 @@ msgstr "جارٍ تحميل النشاط…"
 #: src/pages/Shell.tsx:819
 msgid "Loading agents…"
 msgstr "جارٍ تحميل الوكلاء…"
+
+#: src/components/charts/ChartWorkspace.tsx:54
+msgid "Loading chart…"
+msgstr "جارٍ تحميل الشارت…"
 
 #: src/pages/Shell.tsx:800
 msgid "Loading group…"
@@ -1049,7 +1065,7 @@ msgstr "لا يوجد وكلاء مطابقون"
 msgid "No artifacts found."
 msgstr "لم يتم العثور على ملفات."
 
-#: src/components/charts/ChartWorkspace.tsx:97
+#: src/components/charts/ChartWorkspace.tsx:65
 msgid "No candles available for this instrument and timeframe."
 msgstr "لا تتوفر شموع لهذه الأداة والفترة الزمنية."
 
@@ -1096,6 +1112,10 @@ msgstr "الآن"
 #: src/pages/ModelRoutingSettings.tsx:109
 msgid "One model for text work"
 msgstr "نموذج واحد للمهام النصية"
+
+#: src/components/charts/ChartWorkspace.tsx:40
+msgid "Open chart"
+msgstr "افتح شارت"
 
 #: src/pages/ActivityList.tsx:260
 #: src/pages/Board.tsx:411
@@ -1183,7 +1203,7 @@ msgstr "معاينة PDF"
 msgid "Pending orders"
 msgstr "الأوامر المعلقة"
 
-#: src/components/charts/ChartIndicators.tsx:30
+#: src/components/charts/ChartIndicators.tsx:32
 #: src/components/market/MarketWatch.tsx:131
 msgid "Period"
 msgstr "الفترة"
@@ -1208,12 +1228,12 @@ msgstr "الصفقات"
 msgid "Preview"
 msgstr "معاينة"
 
-#: src/components/charts/ChartAnnotations.tsx:20
+#: src/components/charts/ChartAnnotations.tsx:22
 #: src/components/market/MarketWatch.tsx:102
 msgid "Price"
 msgstr "السعر"
 
-#: src/components/charts/ChartAnnotations.tsx:16
+#: src/components/charts/ChartAnnotations.tsx:18
 msgid "Price annotations"
 msgstr "التعليقات السعرية"
 
@@ -1273,13 +1293,13 @@ msgstr "جارٍ إعادة الاتصال"
 msgid "Reconnecting to live updates"
 msgstr "جارٍ إعادة الاتصال بالتحديثات المباشرة"
 
-#: src/components/charts/ChartToolbar.tsx:24
+#: src/components/charts/ChartToolbar.tsx:26
 msgid "Refresh chart"
 msgstr "تحديث الرسم البياني"
 
 #: src/components/charts/ChartLiveFeed.tsx:15
-msgid "Refresh live candles"
-msgstr "تحديث الشموع المباشر"
+#~ msgid "Refresh live candles"
+#~ msgstr "تحديث الشموع المباشر"
 
 #: src/components/ErrorBoundary.tsx:15
 #: src/pages/KnowledgeSection.tsx:48
@@ -1355,7 +1375,7 @@ msgstr "المهام المجدولة"
 msgid "Run task"
 msgstr "تنفيذ المهمة"
 
-#: src/components/ToolActivityDisclosure.tsx:28
+#: src/components/ToolActivityDisclosure.tsx:29
 msgid "Running"
 msgstr "جارٍ التنفيذ"
 
@@ -1387,6 +1407,10 @@ msgstr "حفظ الذاكرة"
 #: src/pages/ModelRoutingSettings.tsx:161
 msgid "Saved"
 msgstr "تم الحفظ"
+
+#: src/components/charts/ChartWorkspace.tsx:24
+msgid "Saved chart"
+msgstr "الشارت المحفوظ"
 
 #: src/pages/Board.tsx:161
 #: src/pages/Board.tsx:441
@@ -1508,7 +1532,7 @@ msgstr "الإعدادات"
 msgid "Setup token"
 msgstr "رمز الإعداد"
 
-#: src/components/charts/ChartWorkspace.tsx:85
+#: src/components/charts/ChartWorkspace.tsx:20
 msgid "Shared chart workspace"
 msgstr "مساحة الرسم البياني المشتركة"
 
@@ -1658,13 +1682,29 @@ msgstr "المهمة عند تحقق الشرط"
 msgid "Temporary delegated tasks"
 msgstr "المهام المفوّضة المؤقتة"
 
-#: src/lib/user_error.ts:58
+#: src/lib/user_error.ts:75
 msgid "The agent reached the step limit for this run. Send another message to continue."
 msgstr "بلغ الوكيل الحد الأقصى لخطوات هذا التشغيل. أرسل رسالة أخرى للمتابعة."
 
-#: src/lib/user_error.ts:40
+#: src/lib/user_error.ts:51
+msgid "The broker connection changed. Reload it before continuing."
+msgstr "تغيّر اتصال الوسيط. أعد تحميله قبل المتابعة."
+
+#: src/lib/user_error.ts:57
 msgid "The broker connection is unavailable."
 msgstr "الاتصال بالوسيط غير متاح."
+
+#: src/lib/user_error.ts:53
+msgid "The broker mutation is uncertain. Execution remains blocked until its result can be verified."
+msgstr "نتيجة العملية لدى الوسيط غير مؤكدة. يبقى التنفيذ محظورًا حتى التحقق من نتيجتها."
+
+#: src/lib/user_error.ts:45
+msgid "The broker quote is unavailable for this exact symbol."
+msgstr "سعر الوسيط غير متاح لهذا الرمز المحدد."
+
+#: src/lib/user_error.ts:47
+msgid "The broker specifications are unavailable for this exact symbol."
+msgstr "مواصفات الوسيط غير متاحة لهذا الرمز المحدد."
 
 #: src/pages/ModelSettingsOverlay.tsx:93
 msgid "The catalog is read from the provider. Unknown capabilities are shown as unverified."
@@ -1678,7 +1718,7 @@ msgstr "تعذّر عرض معاينة الملف"
 msgid "The full response will appear when complete."
 msgstr "ستظهر الإجابة كاملة عند الانتهاء."
 
-#: src/lib/user_error.ts:54
+#: src/lib/user_error.ts:71
 msgid "The model could not summarize this conversation. Retry or choose another global model."
 msgstr "تعذّر على النموذج تلخيص هذه المحادثة. أعد المحاولة أو اختر نموذجًا عالميًا آخر."
 
@@ -1694,13 +1734,17 @@ msgstr "تعذر عرض الصفحة"
 msgid "The provider rejected this API key."
 msgstr "رفض المزود مفتاح API هذا."
 
-#: src/lib/user_error.ts:60
+#: src/lib/user_error.ts:77
 msgid "The request could not be completed. Try again."
 msgstr "تعذر إكمال الطلب. أعد المحاولة."
 
 #: src/lib/user_error.ts:31
 msgid "The resident voice worker is unavailable. Check server readiness and retry."
 msgstr "خدمة الصوت المقيمة غير متاحة. تحقق من جاهزية الخادم وأعد المحاولة."
+
+#: src/lib/user_error.ts:40
+msgid "The resident worker is preparing this chart."
+msgstr "العامل المقيم يجهّز هذا الشارت."
 
 #: src/lib/user_error.ts:9
 msgid "The setup code is incorrect."
@@ -1723,11 +1767,15 @@ msgstr "المظهر"
 msgid "These settings apply to every agent and routine. Voice routes require models that support audio."
 msgstr "تنطبق هذه الإعدادات على جميع الوكلاء والمهام المجدولة. تتطلب المسارات الصوتية نماذج تدعم الصوت."
 
-#: src/lib/user_error.ts:56
+#: src/lib/user_error.ts:49
+msgid "This broker connection is disabled."
+msgstr "اتصال الوسيط هذا معطّل."
+
+#: src/lib/user_error.ts:73
 msgid "This conversation could not be resumed. Start a new conversation."
 msgstr "تعذّر استئناف هذه المحادثة. ابدأ محادثة جديدة."
 
-#: src/lib/user_error.ts:52
+#: src/lib/user_error.ts:69
 msgid "This conversation is too large to process. Shorten instructions, use fewer attachments, or start a new conversation."
 msgstr "هذه المحادثة أكبر من الحد المتاح. اختصر التعليمات أو قلّل المرفقات أو ابدأ محادثة جديدة."
 
@@ -1743,7 +1791,7 @@ msgstr "هذا الشهر"
 msgid "This page is unavailable"
 msgstr "هذه الصفحة غير متاحة"
 
-#: src/lib/user_error.ts:48
+#: src/lib/user_error.ts:65
 msgid "This run was recovered by another worker."
 msgstr "استعاد عامل آخر هذا التنفيذ."
 
@@ -1755,7 +1803,7 @@ msgstr "هذا الأسبوع"
 msgid "Tick size"
 msgstr "أصغر حركة سعرية"
 
-#: src/components/charts/ChartToolbar.tsx:14
+#: src/components/charts/ChartToolbar.tsx:16
 #: src/components/market/MarketWatch.tsx:141
 msgid "Timeframe"
 msgstr "الفترة الزمنية"
@@ -1792,7 +1840,7 @@ msgstr "اليوم"
 msgid "Token usage"
 msgstr "استهلاك الرموز"
 
-#: src/lib/user_error.ts:46
+#: src/lib/user_error.ts:63
 msgid "Too many attempts. Wait a minute and retry."
 msgstr "محاولات كثيرة. انتظر دقيقة وأعد المحاولة."
 
