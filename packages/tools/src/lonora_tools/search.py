@@ -160,7 +160,9 @@ def tools() -> list[Tool]:
     return [
         Tool(
             "search_internal",
-            "Search durable conversations, agents and memory.",
+            "Search durable conversations, agent names and memory for a literal text "
+            "substring. An empty result means no text match, not that the team is empty. "
+            "Use list_agents to discover colleagues.",
             SearchInput,
             search,
             True,

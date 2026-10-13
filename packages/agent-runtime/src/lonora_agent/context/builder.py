@@ -15,6 +15,7 @@ from .reply import reply_context
 from .routine import wake_context
 from .scratchpad import scratchpad_context
 from .skills import read_skill_context
+from .team import team_context
 
 
 async def build_context(context: ToolContext) -> list[ModelMessage]:
@@ -37,6 +38,7 @@ async def build_context(context: ToolContext) -> list[ModelMessage]:
         blocks.extend(
             [
                 "Agent identity: " + agent.name,
+                await team_context(session, context.owner_id, context.agent_id),
                 agent.instructions,
                 await read_memory_context(session, agent.id),
                 await scratchpad_context(session, agent.id),
