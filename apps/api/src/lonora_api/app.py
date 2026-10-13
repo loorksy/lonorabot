@@ -84,11 +84,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.api_route("/download/lonora.apk", methods=["GET", "HEAD"], include_in_schema=False)
     async def android_download() -> FileResponse:
         apk = configuration.android_apk_path
-        if not apk.is_file():
-            raise LonoraError("android_release_unavailable", 404)
-        with apk.open("rb") as stream:
-            if stream.read(4) != b"PK\x03\x04":
-                raise LonoraError("android_release_invalid", 503)
+        try:
+            if not apk.is_file():
+                raise LonoraError("android_release_unavailable", 404)
+            with apk.open("rb") as stream:
+                if stream.read(4) != b"PK\x03\x04":
+                    raise LonoraError("android_release_invalid", 503)
+        except OSError:
+            raise LonoraError("android_release_unavailable", 503) from None
         return FileResponse(
             apk,
             media_type="application/vnd.android.package-archive",

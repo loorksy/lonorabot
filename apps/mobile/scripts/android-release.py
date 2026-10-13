@@ -89,4 +89,8 @@ subprocess.run(
 )
 os.replace(candidate, destination)
 os.replace(candidate.with_suffix(".json"), destination.with_suffix(".json"))
+# These verified artifacts are public downloads, unlike the private signing directory.
+destination.parent.chmod(0o755)
+destination.chmod(0o644)
+destination.with_suffix(".json").chmod(0o644)
 print(f"Signed universal release APK: {destination}")

@@ -2,6 +2,7 @@
 
 import os
 import re
+import stat
 import subprocess
 import sys
 import tempfile
@@ -57,6 +58,12 @@ class AndroidArtifactChecks(unittest.TestCase):
         response = self.verify(APK, "0" * 64)
         self.assertNotEqual(response.returncode, 0)
         self.assertIn("does not match the required production identity", response.stderr)
+
+    @unittest.skipUnless(READY, "Requires the real locally built APK and Android signing tools")
+    def test_public_release_is_readable_by_server_uid(self) -> None:
+        self.assertEqual(stat.S_IMODE(APK.parent.stat().st_mode), 0o755)
+        self.assertEqual(stat.S_IMODE(APK.stat().st_mode), 0o644)
+        self.assertEqual(stat.S_IMODE(APK.with_suffix(".json").stat().st_mode), 0o644)
 
 
 if __name__ == "__main__":
