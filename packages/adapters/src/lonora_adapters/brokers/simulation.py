@@ -33,6 +33,15 @@ class SimulationBroker:
                 raise LonoraError("simulation_snapshot_required", 409)
             return row.payload
 
+    async def symbols(self) -> list[str]:
+        return sorted(item.symbol for item in await self.instruments())
+
+    async def instrument(self, symbol: str) -> Instrument:
+        for item in await self.instruments():
+            if item.symbol == symbol:
+                return item
+        raise LonoraError("broker_instrument_unavailable", 404)
+
     async def instruments(self) -> list[Instrument]:
         return [
             Instrument.model_validate(item)

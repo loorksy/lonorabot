@@ -19,8 +19,20 @@ class QuoteInput(AccountInput):
 
 
 class CandlesInput(QuoteInput):
-    timeframe: str
+    timeframe: str = Field(
+        description="Broker timeframe: 1m, 5m, 15m, 30m, 1h, 4h, 1d or 1w; not M15/H1."
+    )
     limit: int = Field(default=300, ge=1, le=1000)
+
+
+async def symbols(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+    broker = await context.brokers.get(context.owner_id, args["account_id"])
+    return {"symbols": await broker.symbols()}
+
+
+async def instrument(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+    broker = await context.brokers.get(context.owner_id, args["account_id"])
+    return (await broker.instrument(args["symbol"])).model_dump(mode="json")
 
 
 async def instruments(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
@@ -45,6 +57,20 @@ async def candles(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
 
 def tools() -> list[Tool]:
     return [
+        Tool(
+            "market_symbols",
+            "Discover exact broker symbol names without loading specifications for every instrument. Use before guessing XAUUSD or GOLD; suffixes matter.",
+            AccountInput,
+            symbols,
+            True,
+        ),
+        Tool(
+            "market_instrument",
+            "Read specifications for ONE exact broker symbol from market_symbols. Prefer this to loading every instrument for a single-symbol analysis.",
+            QuoteInput,
+            instrument,
+            True,
+        ),
         Tool(
             "market_instruments",
             "Discover exact broker symbols and contract specifications.",

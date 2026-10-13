@@ -128,6 +128,23 @@ class MetaApiBroker:
             except Exception:
                 raise LonoraError("broker_connection_unavailable", 502) from None
 
+    async def symbols(self) -> list[str]:
+        rpc = await self.prepare()
+        try:
+            return sorted(await rpc.get_symbols())
+        except Exception:
+            raise LonoraError("broker_symbols_unavailable", 502) from None
+
+    async def instrument(self, symbol: str) -> Instrument:
+        rpc = await self.prepare()
+        try:
+            result = normalize.instrument(await rpc.get_symbol_specification(symbol))
+            if result.symbol != symbol:
+                raise ValueError("broker_symbol_mismatch")
+            return result
+        except Exception:
+            raise LonoraError("broker_instrument_unavailable", 502) from None
+
     async def instruments(self) -> list[Instrument]:
         rpc = await self.prepare()
         try:
