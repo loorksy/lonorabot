@@ -1,11 +1,12 @@
 from datetime import datetime, timedelta
 from decimal import Decimal
-from typing import Any
+from typing import Any, cast
 
 from lonora_adapters.brokers.base import BrokerManager
 from lonora_adapters.market.economic_calendar import EconomicCalendarAdapter
 from lonora_charts.indicators import indicator_series
 from lonora_contracts.domain import utcnow
+from lonora_contracts.market import Quote
 from lonora_contracts.market_watch import Watch
 from lonora_contracts.runs import RunRequest
 from lonora_core.market_watch import condition_met
@@ -86,18 +87,29 @@ async def observe(
     return current, request_hash(payload), {"position": payload, "position_id": config.position_id}
 
 
-async def check_watches(db: Database, brokers: BrokerManager) -> int:
+async def check_watches(
+    db: Database,
+    brokers: BrokerManager,
+    *,
+    price_update: Quote | None = None,
+    connection_id: str | None = None,
+    owner_id: str | None = None,
+) -> int:
     async with db.sessions() as session:
-        watches = list(
-            (
-                await session.scalars(
-                    select(MarketWatchRow)
-                    .join(AgentRow, AgentRow.id == MarketWatchRow.agent_id)
-                    .where(AgentRow.paused.is_(False))
-                    .limit(200)
-                )
-            ).all()
+        query = (
+            select(MarketWatchRow)
+            .join(AgentRow, AgentRow.id == MarketWatchRow.agent_id)
+            .where(AgentRow.paused.is_(False))
         )
+        if owner_id:
+            query = query.where(MarketWatchRow.owner_id == owner_id)
+        if price_update:
+            query = query.where(
+                MarketWatchRow.payload["kind"].as_string() == "price",
+                MarketWatchRow.payload["account_id"].as_string() == connection_id,
+                MarketWatchRow.payload["symbol"].as_string() == price_update.symbol,
+            )
+        watches = list((await session.scalars(query.limit(200))).all())
     triggered = 0
     for original in watches:
         config = Watch.model_validate(original.payload)
@@ -105,12 +117,20 @@ async def check_watches(db: Database, brokers: BrokerManager) -> int:
         if not config.enabled or not original.agent_id or not original.thread_id:
             continue
         if (
-            original.state.get("next_check")
+            price_update is None
+            and original.state.get("next_check")
             and datetime.fromisoformat(original.state["next_check"]) > now
         ):
             continue
         try:
-            current, observation, metadata = await observe(db, brokers, original, config)
+            if price_update:
+                current, observation, metadata = (
+                    price_update.bid,
+                    price_update.observed_at.isoformat(),
+                    {"quote": price_update.model_dump(mode="json")},
+                )
+            else:
+                current, observation, metadata = await observe(db, brokers, original, config)
         except LonoraError as error:
             async with db.sessions() as session, session.begin():
                 row = await session.get(MarketWatchRow, original.id, with_for_update=True)
@@ -132,10 +152,18 @@ async def check_watches(db: Database, brokers: BrokerManager) -> int:
             ):
                 continue
             if (
-                row.state.get("next_check")
+                price_update is None
+                and row.state.get("next_check")
                 and datetime.fromisoformat(row.state["next_check"]) > now
             ):
                 continue
+            quote_data = metadata.get("quote")
+            if config.kind == "price" and isinstance(quote_data, dict):
+                previous_time = row.state.get("quote_observed_at")
+                if previous_time and datetime.fromisoformat(
+                    previous_time
+                ) >= datetime.fromisoformat(observation):
+                    continue
             previous = (
                 Decimal(str(row.state["last_value"]))
                 if row.state.get("last_value") is not None
@@ -151,6 +179,8 @@ async def check_watches(db: Database, brokers: BrokerManager) -> int:
                 "last_value": str(current),
                 "next_check": (now + timedelta(seconds=config.interval_seconds)).isoformat(),
             }
+            if config.kind == "price":
+                state["quote_observed_at"] = observation
             state.pop("code", None)
             matched = condition_met(config.condition, config.level, current, previous)
             if matched and watch_can_trigger(
@@ -186,7 +216,8 @@ async def check_watches(db: Database, brokers: BrokerManager) -> int:
                     state["last_triggered"] = now.isoformat()
                     if config.kind == "calendar":
                         state["seen_events"] = (
-                            list(state.get("seen_events", [])) + metadata.get("event_ids", [])
+                            list(state.get("seen_events", []))
+                            + cast(list[str], metadata.get("event_ids", []))
                         )[-1000:]
                     triggered += 1
             row.state = state

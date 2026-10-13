@@ -207,6 +207,38 @@ async def main() -> None:
         print(
             "PASS persistent watch wakes an ordinary agent once from broker-runtime observations without browser timers"
         )
+        # Price stream bypasses a future periodic deadline while preserving cooldown.
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            watched = await session.get(MarketWatchRow, watch_id)
+            assert watched is not None
+            watched.payload = {**watched.payload, "condition": "cross_below", "level": "2700"}
+            watched.version += 1
+            watched.state = {
+                "last_value": "2701",
+                "next_check": (utcnow() + timedelta(minutes=10)).isoformat(),
+            }
+            account_row = await session.get(TradingAccountRow, connection_id)
+            assert account_row is not None
+            account_row.payload = {
+                **account_row.payload,
+                "quotes": {
+                    symbol: {
+                        **imported_quote,
+                        "bid": "2690",
+                        "ask": "2691",
+                        "observed_at": utcnow().isoformat(),
+                    }
+                },
+            }
+        for _ in range(60):
+            async with fixture.runtime.db.sessions() as session:
+                watched = await session.get(MarketWatchRow, watch_id)
+                assert watched is not None
+                if watched.state.get("last_triggered"):
+                    break
+            await asyncio.sleep(0.05)
+        assert watched.state.get("last_triggered") and watched.state["last_value"] == "2690"
+        print("PASS native quote delivery wakes crossing watch before its periodic deadline")
         async with fixture.runtime.db.sessions() as session, session.begin():
             row = await session.get(BrokerSessionRow, connection_id, with_for_update=True)
             assert row is not None

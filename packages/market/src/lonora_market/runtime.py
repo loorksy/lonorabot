@@ -147,6 +147,16 @@ class MarketRuntime:
                         self.versions.get((connection_id, symbol)),
                         self.identity,
                     )
+                    if accepted:
+                        from .watchers import check_watches
+
+                        await check_watches(
+                            self.db,
+                            self.brokers,
+                            price_update=quote,
+                            connection_id=connection_id,
+                            owner_id=self.owner_id,
+                        )
                     key = (connection_id, symbol)
                     if accepted and time.monotonic() - self.last_events.get(key, 0) >= 1:
                         async with self.db.sessions() as session, session.begin():
