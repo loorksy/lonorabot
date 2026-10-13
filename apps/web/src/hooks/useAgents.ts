@@ -33,8 +33,13 @@ export function useAgents() {
     agents,
     error,
     loading,
-    create: async (name: string, avatar: string, color: string) => {
-      const agent = await api.post<Agent>("/agents", { name, avatar, color });
+    create: async (
+      name: string,
+      avatar: string,
+      color: string,
+      profile?: { title?: string; description?: string },
+    ) => {
+      const agent = await api.post<Agent>("/agents", { name, avatar, color, ...profile });
       setAgents((rows) => (rows.some((row) => row.id === agent.id) ? rows : [...rows, agent]));
       refresh();
       return agent;

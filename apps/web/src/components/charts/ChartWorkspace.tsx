@@ -7,8 +7,16 @@ import { ChartLiveFeed } from "./ChartLiveFeed";
 import { ChartToolbar } from "./ChartToolbar";
 import { TradingChart } from "./TradingChart";
 
-export function ChartWorkspace({ accountId, symbol }: { accountId: string; symbol: string }) {
-  const workspace = useCharts(accountId, symbol);
+export function ChartWorkspace({
+  accountId,
+  symbol,
+  initialChartId,
+}: {
+  accountId: string;
+  symbol: string;
+  initialChartId?: string;
+}) {
+  const workspace = useCharts(accountId, symbol, initialChartId);
   const { row, scene, loading, initializing, busy, error } = workspace;
   return (
     <section

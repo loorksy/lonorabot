@@ -4,8 +4,10 @@ import { t } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import {
   canCancel,
+  formatTimeSeparator,
   isWorking,
   mentionCandidates,
+  needsTimeSeparator,
   mentionQuery as readMentionQuery,
 } from "@lonora/core";
 import {
@@ -16,7 +18,6 @@ import {
   Paperclip,
   Plus,
   Settings,
-  Sparkles,
   Square,
   X,
 } from "lucide-react";
@@ -48,7 +49,9 @@ export function ThreadViewport({
   threadId,
   agentId,
   agents,
+  conversationName,
 }: {
+  conversationName?: string;
   threadId: string;
   agentId: string;
   agents: Agent[];
@@ -152,6 +155,11 @@ export function ThreadViewport({
       ? activeRuns
       : [...latestByAgent.values()].filter((run) => run.agent_id === agentId)
     : [...latestByAgent.values()];
+  const notices = statusRuns.filter(
+    (run) =>
+      !isWorking(run.status) &&
+      (run.status !== "completed" || run.model_metadata.reply_outcome === "silent"),
+  );
   const working = activeRuns.some((run) => isWorking(run.status));
   const messageIds = new Set(thread.messages.map((message) => message.id));
   const streamingRows = thread.runs
@@ -178,9 +186,9 @@ export function ThreadViewport({
 
   return (
     <section className="thread-view template-thread">
-      {statusRuns.length > 0 && (
+      {notices.length > 0 && (
         <div className="thread-status template-thread-status">
-          {statusRuns.map(
+          {notices.map(
             (run) =>
               run && (
                 <div className="template-run-status" key={run.id} data-run-status-id={run.id}>
@@ -211,6 +219,7 @@ export function ThreadViewport({
       <ThreadMessages
         key={`messages:${threadId}`}
         messages={thread.messages}
+        showSpeakers={!agentId}
         agents={agents}
         artifacts={artifacts}
         peers={peers}
@@ -226,13 +235,20 @@ export function ThreadViewport({
                   <StreamingMessageCard
                     key={`${run.id}:${stream.turn_id}`}
                     run={run}
+                    showSpeaker={!agentId}
                     stream={stream}
                     agent={agents.find((agent) => agent.id === run.agent_id)}
                   />
                 ),
             )}
             <div className="thread-progress template-thread-progress">
-              <AgentActivity events={local} runs={thread.runs} agents={agents} />
+              <AgentActivity
+                events={local}
+                runs={thread.runs.filter(
+                  (run) => !streamingRows.some((entry) => entry.run.id === run.id),
+                )}
+                agents={agents}
+              />
               <ToolActivityDisclosure events={local} />
               <SubagentTasks runs={thread.runs} />
             </div>
@@ -267,6 +283,7 @@ export function ThreadViewport({
         threadId={threadId}
         working={working}
         reply={reply}
+        recipientName={conversationName ?? agents.find((agent) => agent.id === agentId)?.name}
         mentionTargets={agentId ? [] : agents}
         onClearReply={() => setReply(null)}
         onSend={thread.send}
@@ -286,6 +303,7 @@ export function Composer({
   working,
   reply,
   mentionTargets = [],
+  recipientName,
   onClearReply,
   onSend,
   onCancel,
@@ -296,6 +314,7 @@ export function Composer({
   working: boolean;
   reply: Message | null;
   mentionTargets?: Agent[];
+  recipientName?: string;
   onClearReply: () => void;
   onSend: (text: string, ids: string[], reply: string | null) => Promise<void>;
   onCancel: () => void;
@@ -603,7 +622,13 @@ export function Composer({
             aria-expanded={mentionOpen}
             aria-controls={mentionOpen ? listboxId : undefined}
             aria-activedescendant={mentionOpen ? `${listboxId}-${activeMention}` : undefined}
-            placeholder={working ? t`Add direction while the agent works…` : t`Message your agent…`}
+            placeholder={
+              working
+                ? t`Add direction while the agent works…`
+                : recipientName
+                  ? t`Message ${recipientName}`
+                  : t`Message your agent…`
+            }
             value={text}
             onChange={(event) => updateDraft(event.target.value)}
             rows={1}
@@ -713,7 +738,9 @@ export function ThreadMessages({
   onPreview,
   onOlder,
   trailing,
+  showSpeakers = true,
 }: {
+  showSpeakers?: boolean;
   messages: Message[];
   agents: Agent[];
   artifacts: Resource[];
@@ -832,42 +859,24 @@ export function ThreadMessages({
             </button>
           )}
           {olderError != null && <p role="alert">{userError(olderError)}</p>}
-          {!messages.length && (
-            <div className="empty template-thread-empty">
-              <div className="template-empty-glyph">
-                <Sparkles size={30} strokeWidth={1.2} />
-              </div>
-              <h2>
-                <Trans>A workspace that remembers</Trans>
-              </h2>
-              <p>
-                <Trans>
-                  Start a conversation. Your agent keeps its memory and continues scheduled work
-                  here.
-                </Trans>
-              </p>
-            </div>
-          )}
           {messages.map((message, index) => {
             const previousMessage = messages[index - 1];
-            const day = new Date(message.created_at).toDateString();
-            const separator =
-              !previousMessage || new Date(previousMessage.created_at).toDateString() !== day;
+            const separator = needsTimeSeparator(message.created_at, previousMessage?.created_at);
             return (
               <Fragment key={message.id}>
                 {separator && (
                   <div className="template-time-separator">
                     <time dateTime={message.created_at}>
-                      {new Date(message.created_at).toLocaleDateString(i18n.locale, {
-                        day: "numeric",
-                        month: "short",
-                        year: "numeric",
+                      {formatTimeSeparator(message.created_at, i18n.locale, {
+                        today: t`Today`,
+                        yesterday: t`Yesterday`,
                       })}
                     </time>
                   </div>
                 )}
                 <MessageBubble
                   message={message}
+                  showSpeaker={showSpeakers}
                   agent={agents.find((agent) => agent.id === message.agent_id)}
                   artifacts={artifacts}
                   replyParent={message.reply_to ? byId.get(message.reply_to) : undefined}

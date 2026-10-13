@@ -148,10 +148,22 @@
   font-size: 15px;
   line-height: 1.7;
 }
-.template-message.user .template-message-body {
-  padding: 10px 16px;
-  border-radius: 18px;
-  background: var(--lonora-panel);
+.template-message-text {
+  padding: 12px 18px;
+  border-radius: 20px;
+  background: var(--muted);
+  font-size: 15.5px;
+  line-height: 1.5;
+  color: var(--foreground);
+}
+.template-message.user .template-message-text {
+  background: var(--chat-user);
+  color: var(--chat-user-foreground);
+  line-height: 1.45;
+}
+.template-user-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 .template-message-quote {
   border-inline-start: 2px solid var(--lonora-line);
@@ -613,4 +625,17 @@ html[dir="rtl"] .template-message-body .message-copy {
   .template-composer-bar {
     transition: none;
   }
+}
+.template-active-agents {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding-block: 12px;
+}
+.template-thread .template-active-agents .lonora-agent-avatar {
+  width: 30px;
+  height: 30px;
+}
+.template-active-agents .lonora-loading-state {
+  gap: 9px;
 }

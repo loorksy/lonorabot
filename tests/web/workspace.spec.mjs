@@ -188,10 +188,8 @@ test("ticket modal and profile creation remain usable under StrictMode and Back"
     .click();
   const teammate = remember("agents", await (await created).json());
   await expect(page).toHaveURL(new RegExp(`/app/${teammate.id}$`));
-  await page
-    .locator(".tpl-chat-header")
-    .getByRole("button", { name: "Settings", exact: true })
-    .click();
+  await page.locator(".tpl-account-trigger").click();
+  await page.getByRole("menuitem", { name: "Settings", exact: true }).click();
   await expect(page.getByRole("dialog", { name: "Workspace settings", exact: true })).toBeVisible();
   await page.goBack();
   await expect(page.getByRole("dialog", { name: "Workspace settings", exact: true })).toHaveCount(
@@ -317,8 +315,9 @@ test("knowledge and recurring trading work use durable API edits", async ({
 }) => {
   const { agent, prefix, remember, headers } = workspace;
   await page.goto(`/app/${agent.id}`);
+  await page.locator(".tpl-chat-identity").click();
   await page
-    .locator(".tpl-chat-header")
+    .getByTestId("side-panel")
     .getByRole("button", { name: "Knowledge", exact: true })
     .click();
   const panel = page.getByTestId("side-panel");

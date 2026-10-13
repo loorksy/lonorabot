@@ -128,6 +128,10 @@ async def fixture_data(data: dict[str, Any]) -> dict[str, Any]:
             assert message is not None and len(message.attachment_ids) == 1
             artifact = await fixture.request("GET", "/artifacts/" + message.attachment_ids[0])
         return {
+            "cookies": [
+                {"name": cookie.name, "value": cookie.value}
+                for cookie in fixture.client.cookies.jar
+            ],
             "agent_id": agent["id"],
             "agent_name": agent["name"],
             "thread_id": thread["id"],

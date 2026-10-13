@@ -23,7 +23,8 @@
     "@types/react-dom": "^19.2.0"
   },
   "exports": {
-    "./web": "./src/markdown.web.tsx"
+    "./web": "./src/markdown.web.tsx",
+    "./markdown": "./src/markdown.ts"
   },
   "peerDependencies": {
     "react": "^19.2.3",

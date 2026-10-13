@@ -1,0 +1,38 @@
+.artifact-file-card {
+  max-width: 100%;
+  margin-block: 10px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--card);
+}
+.artifact-image-preview {
+  display: block;
+  width: 100%;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  overflow: hidden;
+  background: var(--muted);
+}
+.artifact-image-preview:disabled {
+  opacity: 1;
+  cursor: default;
+}
+.artifact-image-preview img {
+  display: block;
+  width: 100%;
+  max-width: 620px;
+  max-height: 440px;
+  object-fit: contain;
+  margin-inline: auto;
+}
+.artifact-file-card .attachment {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+}
+.artifact-image-preview:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}

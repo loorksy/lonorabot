@@ -11,10 +11,17 @@ export function AgentCreatePanel({
   create,
   onCreated,
 }: {
-  create: (name: string, avatar: string, color: string) => Promise<Agent>;
+  create: (
+    name: string,
+    avatar: string,
+    color: string,
+    profile?: { title?: string; description?: string },
+  ) => Promise<Agent>;
   onCreated: (agent: Agent) => void;
 }) {
   const [name, setName] = useState("");
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
   const [color, setColor] = useState(colors[0]);
   const [avatar, setAvatar] = useState("orb");
   const [busy, setBusy] = useState(false);
@@ -27,7 +34,12 @@ export function AgentCreatePanel({
         setBusy(true);
         setError(undefined);
         try {
-          onCreated(await create(name.trim(), avatar, color));
+          onCreated(
+            await create(name.trim(), avatar, color, {
+              title: title.trim(),
+              description: description.trim(),
+            }),
+          );
         } catch (failure) {
           setError(failure);
         } finally {
@@ -35,15 +47,6 @@ export function AgentCreatePanel({
         }
       }}
     >
-      <div className="tpl-profile-preview">
-        <AgentAvatar name={name || "L"} color={color} shape={avatar} />
-      </div>
-      <h2>
-        <Trans>A new teammate</Trans>
-      </h2>
-      <p className="muted">
-        <Trans>Give your persistent agent an identity. Add instructions after creating it.</Trans>
-      </p>
       <label>
         <Trans>Name</Trans>
         <input
@@ -55,44 +58,71 @@ export function AgentCreatePanel({
         />
       </label>
       <label>
-        <Trans>Avatar</Trans>
-        <select
-          aria-label={t`Avatar`}
-          value={avatar}
-          onChange={(event) => setAvatar(event.target.value)}
-        >
-          <option value="orb">
-            <Trans>Orb</Trans>
-          </option>
-          <option value="square">
-            <Trans>Square</Trans>
-          </option>
-          <option value="diamond">
-            <Trans>Diamond</Trans>
-          </option>
-        </select>
-      </label>
-      <fieldset className="tpl-colors">
-        <legend>
-          <Trans>Color</Trans>
-        </legend>
-        {colors.map((value) => (
-          <button
-            type="button"
-            key={value}
-            style={{ backgroundColor: value }}
-            aria-label={`${t`Color`} ${value}`}
-            aria-pressed={value === color}
-            onClick={() => setColor(value)}
-          />
-        ))}
+        <Trans>Title</Trans>
         <input
-          type="color"
-          aria-label={t`Custom color`}
-          value={color}
-          onChange={(event) => setColor(event.target.value)}
+          maxLength={120}
+          value={title}
+          onChange={(event) => setTitle(event.target.value)}
+          placeholder={t`Describe this agent's role`}
         />
-      </fieldset>
+      </label>
+      <label>
+        <Trans>Description</Trans>
+        <textarea
+          rows={3}
+          maxLength={2000}
+          value={description}
+          onChange={(event) => setDescription(event.target.value)}
+          placeholder={t`What this agent is for`}
+        />
+      </label>
+      <details className="tpl-profile-appearance">
+        <summary>
+          <Trans>Appearance</Trans>
+        </summary>
+        <div className="tpl-profile-preview">
+          <AgentAvatar name={name || "L"} color={color} shape={avatar} />
+        </div>
+        <label>
+          <Trans>Avatar</Trans>
+          <select
+            aria-label={t`Avatar`}
+            value={avatar}
+            onChange={(event) => setAvatar(event.target.value)}
+          >
+            <option value="orb">
+              <Trans>Orb</Trans>
+            </option>
+            <option value="square">
+              <Trans>Square</Trans>
+            </option>
+            <option value="diamond">
+              <Trans>Diamond</Trans>
+            </option>
+          </select>
+        </label>
+        <fieldset className="tpl-colors">
+          <legend>
+            <Trans>Color</Trans>
+          </legend>
+          {colors.map((value) => (
+            <button
+              type="button"
+              key={value}
+              style={{ backgroundColor: value }}
+              aria-label={`${t`Color`} ${value}`}
+              aria-pressed={value === color}
+              onClick={() => setColor(value)}
+            />
+          ))}
+          <input
+            type="color"
+            aria-label={t`Custom color`}
+            value={color}
+            onChange={(event) => setColor(event.target.value)}
+          />
+        </fieldset>
+      </details>
       {error != null && <p role="alert">{userError(error)}</p>}
       <button className="primary" type="submit" disabled={!name.trim() || busy}>
         <Trans>Create agent</Trans>

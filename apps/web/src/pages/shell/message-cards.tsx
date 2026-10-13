@@ -1,6 +1,7 @@
 // Lonora message cards adapted from Tampletgrok's ThreadView; Apache-2.0.
 import { t } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
+import { plainTextLinkParts } from "@lonora/chat-ui/markdown";
 import { ChatMarkdown } from "@lonora/chat-ui/web";
 import { ArrowRight, CornerUpLeft, MessagesSquare } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -18,6 +19,7 @@ export function MessageBubble({
   onPreview,
   peer,
   peerRun,
+  showSpeaker = true,
 }: {
   message: Message;
   agent?: Agent;
@@ -27,14 +29,23 @@ export function MessageBubble({
   onPreview: (artifact: Resource) => void;
   peer?: Resource;
   peerRun?: Run;
+  showSpeaker?: boolean;
 }) {
   const { i18n } = useLingui();
   if (peer) return <PeerMessageCard message={message} peer={peer} run={peerRun} />;
   const user = message.role === "user";
+  let partOffset = 0;
+  const literalParts = user
+    ? plainTextLinkParts(message.content).map((part) => {
+        const offset = partOffset;
+        partOffset += part.value.length;
+        return { ...part, offset };
+      })
+    : [];
   return (
     <article className={`message template-message ${message.role}`} data-message-id={message.id}>
       <div className="template-message-frame">
-        {!user && (
+        {!user && showSpeaker && (
           <div className="template-speaker">
             {agent && <AgentAvatar agent={agent} />}
             <strong dir="auto">{agent?.name ?? <Trans>Agent</Trans>}</strong>
@@ -50,7 +61,30 @@ export function MessageBubble({
               )}
             </blockquote>
           )}
-          <ChatMarkdown>{message.content}</ChatMarkdown>
+          {message.content && (
+            <div className="template-message-text">
+              {user ? (
+                <div className="template-user-text">
+                  {literalParts.map((part) =>
+                    part.type === "link" ? (
+                      <a
+                        key={part.offset}
+                        href={part.href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        {part.value}
+                      </a>
+                    ) : (
+                      <span key={part.offset}>{part.value}</span>
+                    ),
+                  )}
+                </div>
+              ) : (
+                <ChatMarkdown>{message.content}</ChatMarkdown>
+              )}
+            </div>
+          )}
           {message.attachment_ids.map((id) => {
             const file = artifacts.find((artifact) => artifact.id === id);
             return file ? (
@@ -185,10 +219,12 @@ export function StreamingMessageCard({
   run,
   stream,
   agent,
+  showSpeaker = true,
 }: {
   run: Run;
   stream: ReplyStreamSnapshot;
   agent?: Agent;
+  showSpeaker?: boolean;
 }) {
   return (
     <article
@@ -198,11 +234,13 @@ export function StreamingMessageCard({
       data-stream-sequence={stream.sequence}
     >
       <div className="template-message-frame">
-        <div className="template-speaker">
-          {agent && <AgentAvatar agent={agent} />}
-          <strong dir="auto">{agent?.name ?? <Trans>Agent</Trans>}</strong>
-        </div>
-        <div className="message-body template-message-body" dir="auto">
+        {showSpeaker && (
+          <div className="template-speaker">
+            {agent && <AgentAvatar agent={agent} />}
+            <strong dir="auto">{agent?.name ?? <Trans>Agent</Trans>}</strong>
+          </div>
+        )}
+        <div className="message-body template-message-body template-message-text" dir="auto">
           <ChatMarkdown streaming={stream.phase === "streaming"}>{stream.text}</ChatMarkdown>
         </div>
         <div className="message-meta template-message-meta">

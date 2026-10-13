@@ -9,6 +9,8 @@ import { useClient } from "../../providers/ClientProvider";
 export function AgentSettings({ agent, onClose }: { agent: Agent; onClose: () => void }) {
   const { refresh } = useClient();
   const [name, setName] = useState(agent.name);
+  const [title, setTitle] = useState(agent.title ?? "");
+  const [description, setDescription] = useState(agent.description ?? "");
   const [avatar, setAvatar] = useState(agent.avatar);
   const [color, setColor] = useState(agent.color);
   const [instructions, setInstructions] = useState(agent.instructions);
@@ -25,6 +27,8 @@ export function AgentSettings({ agent, onClose }: { agent: Agent; onClose: () =>
         try {
           await api.patch(`/agents/${agent.id}`, {
             name: name.trim(),
+            title: title.trim(),
+            description: description.trim(),
             avatar,
             color,
             instructions,
@@ -51,63 +55,83 @@ export function AgentSettings({ agent, onClose }: { agent: Agent; onClose: () =>
           onChange={(event) => setName(event.target.value)}
         />
       </label>
-      <div className="tpl-profile-identity">
+      <label>
+        <Trans>Title</Trans>
+        <input maxLength={120} value={title} onChange={(event) => setTitle(event.target.value)} />
+      </label>
+      <label>
+        <Trans>Description</Trans>
+        <textarea
+          rows={3}
+          maxLength={2000}
+          value={description}
+          onChange={(event) => setDescription(event.target.value)}
+        />
+      </label>
+      <details className="tpl-profile-advanced">
+        <summary>
+          <Trans>Advanced</Trans>
+        </summary>
+        <details className="tpl-profile-appearance">
+          <summary>
+            <Trans>Appearance</Trans>
+          </summary>
+          <div className="tpl-profile-identity">
+            <label>
+              <Trans>Avatar</Trans>
+              <select
+                aria-label={t`Avatar`}
+                value={avatar}
+                onChange={(event) => setAvatar(event.target.value)}
+              >
+                <option value="orb">
+                  <Trans>Orb</Trans>
+                </option>
+                <option value="square">
+                  <Trans>Square</Trans>
+                </option>
+                <option value="diamond">
+                  <Trans>Diamond</Trans>
+                </option>
+                <option value="organic">
+                  <Trans>Organic</Trans>
+                </option>
+              </select>
+            </label>
+            <label>
+              <Trans>Color</Trans>
+              <input
+                type="color"
+                aria-label={t`Color`}
+                value={color}
+                onChange={(event) => setColor(event.target.value)}
+              />
+            </label>
+          </div>
+        </details>
         <label>
-          <Trans>Avatar</Trans>
-          <select
-            aria-label={t`Avatar`}
-            value={avatar}
-            onChange={(event) => setAvatar(event.target.value)}
-          >
-            <option value="orb">
-              <Trans>Orb</Trans>
-            </option>
-            <option value="square">
-              <Trans>Square</Trans>
-            </option>
-            <option value="diamond">
-              <Trans>Diamond</Trans>
-            </option>
-            <option value="organic">
-              <Trans>Organic</Trans>
-            </option>
-          </select>
-        </label>
-        <label>
-          <Trans>Color</Trans>
-          <input
-            type="color"
-            aria-label={t`Color`}
-            value={color}
-            onChange={(event) => setColor(event.target.value)}
+          <Trans>Instructions</Trans>
+          <textarea
+            rows={9}
+            value={instructions}
+            placeholder={t`What should this agent know about its work?`}
+            onChange={(event) => setInstructions(event.target.value)}
           />
         </label>
-      </div>
-      <label>
-        <Trans>Instructions</Trans>
-        <textarea
-          rows={9}
-          value={instructions}
-          placeholder={t`What should this agent know about its work?`}
-          onChange={(event) => setInstructions(event.target.value)}
-        />
-      </label>
-      <p className="muted">
-        <Trans>Models, voice and trading connections are shared workspace settings.</Trans>
-      </p>
-      <label className="check">
-        <input
-          type="checkbox"
-          checked={paused}
-          onChange={(event) => setPaused(event.target.checked)}
-        />
-        <Trans>Pause agent and scheduled work</Trans>
-      </label>
-      {agent.parent_id && (
-        <p className="muted">
-          <Trans>Persistent child agent</Trans>
-        </p>
-      )}
+        <label className="check">
+          <input
+            type="checkbox"
+            checked={paused}
+            onChange={(event) => setPaused(event.target.checked)}
+          />
+          <Trans>Pause agent and scheduled work</Trans>
+        </label>
+        {agent.parent_id && (
+          <p className="muted">
+            <Trans>Persistent child agent</Trans>
+          </p>
+        )}
+      </details>
       {error != null && <p role="alert">{userError(error)}</p>}
       <div className="actions">
         <button type="button" onClick={onClose}>

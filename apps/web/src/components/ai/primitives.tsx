@@ -1,10 +1,12 @@
 // Modified for Lonora from Tampletgrok's AI presentation primitives; Apache-2.0.
 // Pixel grid and shimmer adapted from beautifului.dev, MIT © 2026 Turbo.
 
+import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
 import { isWorking } from "@lonora/core";
 import type { ReactNode } from "react";
 import type { Agent, Event, Run } from "../../lib/api";
+import { AgentAvatar } from "./AgentAvatar";
 import "./beautiful-ui.css";
 
 const CHEVRON_CELLS = Array.from({ length: 9 }, (_, index) => {
@@ -70,42 +72,25 @@ export function AgentActivity({
   runs: Run[];
   agents: Agent[];
 }) {
-  const workingRuns = new Map(
-    runs.filter((run) => isWorking(run.status)).map((run) => [run.id, run]),
-  );
-  const latest = new Map<string, Event>();
-  for (const event of events) {
-    if (
-      event.run_id &&
-      workingRuns.has(event.run_id) &&
-      (event.kind === "run.progress" || event.kind === "run.model")
-    )
-      latest.set(event.run_id, event);
-  }
-  const recent = [...latest.values()];
-  if (!recent.length) return null;
+  void events;
+  const working = runs.filter((run) => isWorking(run.status));
+  if (!working.length) return null;
   return (
-    <div className="progress" aria-live="polite">
-      {recent.map((event) => (
-        <p key={event.cursor} data-progress-run-id={event.run_id}>
-          <bdi>
-            {
-              agents.find((agent) => agent.id === workingRuns.get(event.run_id ?? "")?.agent_id)
-                ?.name
-            }
-          </bdi>{" "}
-          <Trans>Processing the task</Trans>
-          {event.payload.provider && (
-            <>
-              {" "}
-              ·{" "}
-              <bdi>
-                {String(event.payload.provider)} / {String(event.payload.model ?? "")}
-              </bdi>
-            </>
-          )}
-        </p>
-      ))}
+    <div className="progress template-active-agents" aria-live="polite">
+      {working.map((run) => {
+        const agent = agents.find((item) => item.id === run.agent_id);
+        const name = agent?.name ?? t`Agent`;
+        return (
+          <div key={run.id} data-progress-run-id={run.id}>
+            <LoadingState
+              indicator={agent ? <AgentAvatar agent={agent} working /> : undefined}
+              label={
+                <bdi>{run.status === "queued" ? t`${name} is queued` : t`${name} is working`}</bdi>
+              }
+            />
+          </div>
+        );
+      })}
     </div>
   );
 }

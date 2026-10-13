@@ -4,10 +4,10 @@ import { type ChartScene, type ChartState, charts, readScene, refreshChart } fro
 import { useClient } from "../providers/ClientProvider";
 
 /** Reads resident chart state. Only an explicit owner action creates or changes a chart. */
-export function useCharts(accountId: string, symbol: string) {
+export function useCharts(accountId: string, symbol: string, initialChartId = "") {
   const { events, connected } = useClient();
   const [rows, setRows] = useState<Resource<ChartState>[]>([]);
-  const [selected, setSelected] = useState("");
+  const [selected, setSelected] = useState(initialChartId);
   const [scene, setScene] = useState<ChartScene>();
   const [loading, setLoading] = useState(true);
   const [initializing, setInitializing] = useState(false);
@@ -44,6 +44,7 @@ export function useCharts(accountId: string, symbol: string) {
         const matching = all
           .filter(
             (item) =>
+              (!initialChartId || item.id === initialChartId) &&
               item.payload.account_id === accountId &&
               (item.payload.symbol === symbol || item.id === selectedId.current),
           )
@@ -63,7 +64,7 @@ export function useCharts(accountId: string, symbol: string) {
     return () => {
       live = false;
     };
-  }, [accountId, symbol, connected, eventCursor, refresh]);
+  }, [accountId, symbol, connected, eventCursor, refresh, initialChartId]);
 
   const id = row?.id;
   const version = row?.version;

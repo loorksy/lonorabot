@@ -506,8 +506,8 @@
 }
 .tpl-picker-popover {
   position: absolute;
-  inset-inline-start: 14px;
-  top: 60px;
+  inset-inline-start: 284px;
+  top: 52px;
   max-width: calc(100vw - 28px);
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -1374,5 +1374,14 @@ a.workspace-search-result:hover {
     width: 16px;
     height: 16px;
     flex-shrink: 0;
+  }
+}
+
+.tpl-shell[data-sidebar-collapsed="true"] .tpl-picker-popover {
+  inset-inline-start: 14px;
+}
+@media (max-width: 767px) {
+  .tpl-picker-popover {
+    inset-inline-start: 14px;
   }
 }

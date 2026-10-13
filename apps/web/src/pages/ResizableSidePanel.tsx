@@ -4,11 +4,11 @@ import type { CSSProperties, PointerEvent, ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 
 const STORAGE_KEY = "lonora:context-panel-width";
-const MIN_WIDTH = 360;
+const MIN_WIDTH = 320;
 const DEFAULT_WIDTH = 384;
-const ABSOLUTE_MAX = 760;
+const ABSOLUTE_MAX = 1000;
 const BOTS_SIDEBAR_WIDTH = 316;
-const MIN_CHAT_WIDTH = 360;
+const MIN_CHAT_WIDTH = 320;
 const DESKTOP_QUERY = "(min-width: 1150px)";
 
 function maximumWidth(reservedLeadingPx: number) {

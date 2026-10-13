@@ -39,6 +39,7 @@ import {
   useSearchParams,
 } from "react-router-dom";
 import { AgentAvatar } from "../components/ai/AgentAvatar";
+import { ConversationCharts } from "../components/charts/ConversationCharts";
 import { useAgents } from "../hooks/useAgents";
 import { dismissOverlays, useOverlayHistory } from "../hooks/useOverlayHistory";
 import { usePersistentThread } from "../hooks/usePersistentThread";
@@ -68,6 +69,7 @@ import { SidebarRow } from "./shell/bot-roster-row";
 import { AgentSettings } from "./shell/bot-settings";
 import { ThreadViewport } from "./shell/chat-context";
 import { SwitchAgentDialog } from "./shell/command-palette";
+import { SidebarActivity } from "./shell/sidebar-activity";
 
 const Market = lazy(() => import("./Market").then((module) => ({ default: module.Market })));
 const Trading = lazy(() => import("./Trading").then((module) => ({ default: module.Trading })));
@@ -171,6 +173,7 @@ export function Shell({ onLogout }: { onLogout: () => void }) {
   const panelOverlay = useMedia("(max-width: 1149px)");
   const [groups, setGroups] = useState<Resource[]>([]);
   const [runs, setRuns] = useState<Run[]>([]);
+  const [activityMode, setActivityMode] = useState(false);
   const [groupsLoading, setGroupsLoading] = useState(true);
   const [drawer, setDrawer] = useState(false);
   const [collapsed, setCollapsed] = useState(() => {
@@ -221,6 +224,7 @@ export function Shell({ onLogout }: { onLogout: () => void }) {
     knowledge: t`Knowledge`,
     routines: t`Routines`,
     workspace: t`Agent workspace`,
+    charts: t`Charts`,
     create: t`Create agent`,
     "create-group": t`Create group`,
     "group-settings": t`Group settings`,
@@ -396,8 +400,8 @@ export function Shell({ onLogout }: { onLogout: () => void }) {
               type="button"
               className="tpl-icon-button"
               aria-label={t`Activity`}
-              aria-pressed={segments[1] === "activity"}
-              onClick={() => open("/app/activity")}
+              aria-pressed={activityMode}
+              onClick={() => setActivityMode((value) => !value)}
             >
               <Bell />
             </button>
@@ -450,6 +454,22 @@ export function Shell({ onLogout }: { onLogout: () => void }) {
           </button>
         </form>
         <div className="tpl-roster-scroll lonora-scroll">
+          {activityMode && (
+            <SidebarActivity
+              runs={runs}
+              agents={agents}
+              onShowAll={() => open("/app/activity")}
+              onOpen={(run) => {
+                const target = groups.find((item) => item.state?.thread_id === run.thread_id);
+                open(
+                  target
+                    ? `/app/g/${target.id}`
+                    : `/app/${run.agent_id}?thread=${encodeURIComponent(run.thread_id)}`,
+                );
+              }}
+            />
+          )}
+
           <div className="tpl-section-label">
             <Trans>Agents</Trans>
             <button
@@ -526,6 +546,14 @@ export function Shell({ onLogout }: { onLogout: () => void }) {
             </p>
           )}
         </div>
+        <button
+          type="button"
+          className="tpl-integrations-entry"
+          onClick={() => openSettings("integrations")}
+        >
+          <PanelsTopLeft />
+          <Trans>Integrations</Trans>
+        </button>
         <div className="tpl-account">
           <button
             type="button"
@@ -633,7 +661,10 @@ export function Shell({ onLogout }: { onLogout: () => void }) {
               ) : group ? (
                 <GroupAvatar members={memberAgents} />
               ) : null}
-              <span dir="auto">{title}</span>
+              <span className="tpl-chat-title" dir="auto">
+                <span>{title}</span>
+                {agent?.title && <small>{agent.title}</small>}
+              </span>
               {agent?.paused && (
                 <span className="badge">
                   <Trans>Paused</Trans>
@@ -643,45 +674,27 @@ export function Shell({ onLogout }: { onLogout: () => void }) {
           </div>
           <div className="tpl-toolbar">
             {(agent || group) && (
-              <>
-                <button
-                  type="button"
-                  className="tpl-icon-button"
-                  aria-label={t`Knowledge`}
-                  title={t`Knowledge`}
-                  onClick={() => openPanel("knowledge")}
-                >
-                  <BookOpen />
-                </button>
-                <button
-                  type="button"
-                  className="tpl-icon-button"
-                  aria-label={t`Routines`}
-                  title={t`Routines`}
-                  onClick={() => openPanel("routines")}
-                >
-                  <Clock />
-                </button>
-                <button
-                  type="button"
-                  className="tpl-icon-button"
-                  aria-label={t`Agent workspace`}
-                  title={t`Agent workspace`}
-                  aria-pressed={panel === "workspace"}
-                  onClick={() => openPanel(panel === "workspace" ? null : "workspace")}
-                >
-                  <PanelsTopLeft />
-                </button>
-              </>
+              <button
+                type="button"
+                className="tpl-icon-button"
+                aria-label={t`Charts`}
+                title={t`Charts`}
+                aria-pressed={panel === "charts"}
+                onClick={() => openPanel(panel === "charts" ? null : "charts")}
+              >
+                <ChartCandlestick />
+              </button>
             )}
-            <button
-              type="button"
-              className="tpl-icon-button"
-              aria-label={t`Settings`}
-              onClick={() => openSettings("overview")}
-            >
-              <SettingsIcon />
-            </button>
+            {!agent && !group && (
+              <button
+                type="button"
+                className="tpl-icon-button"
+                aria-label={t`Settings`}
+                onClick={() => openSettings("overview")}
+              >
+                <SettingsIcon />
+              </button>
+            )}
           </div>
         </header>
         {(error ?? agentError) != null && (
@@ -804,6 +817,7 @@ export function Shell({ onLogout }: { onLogout: () => void }) {
                     key={String(group.state.thread_id)}
                     threadId={String(group.state.thread_id)}
                     agentId=""
+                    conversationName={String(group.payload.name)}
                     agents={memberAgents}
                   />
                 ) : (
@@ -864,6 +878,10 @@ export function Shell({ onLogout }: { onLogout: () => void }) {
                 <BookOpen />
                 <Trans>Knowledge</Trans>
               </button>
+              <button type="button" onClick={() => openPanel("workspace")}>
+                <PanelsTopLeft />
+                <Trans>Agent workspace</Trans>
+              </button>
               <button type="button" onClick={() => openPanel("routines")}>
                 <Clock />
                 <Trans>Routines</Trans>
@@ -915,6 +933,14 @@ export function Shell({ onLogout }: { onLogout: () => void }) {
           {panel === "routines" && (
             <Routines key={agent?.id ?? group?.id} agents={agent ? [agent] : memberAgents} />
           )}
+          {panel === "charts" && (
+            <ConversationCharts
+              key={entityKey}
+              agentId={agent?.id}
+              threadId={group?.state?.thread_id ? String(group.state.thread_id) : undefined}
+              onOpenMarket={() => open("/app/market")}
+            />
+          )}
           {panel === "workspace" && (
             <div className="tpl-workspace-links">
               <p className="muted">
@@ -932,7 +958,7 @@ export function Shell({ onLogout }: { onLogout: () => void }) {
                   <Trans>Scheduled work</Trans>
                 </span>
               </button>
-              <button type="button" onClick={() => open("/app/market")}>
+              <button type="button" onClick={() => openPanel("charts")}>
                 <ChartCandlestick />
                 <span>
                   <Trans>Market and charts</Trans>

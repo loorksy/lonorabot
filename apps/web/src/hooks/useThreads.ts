@@ -61,7 +61,11 @@ export function useThreads(agentId?: string, threadId?: string) {
   const visibleMessages = useMemo(() => {
     const visible = new Map(messages.map((message) => [message.id, message]));
     for (const event of events) {
-      if (event.kind !== "message.created" || event.thread_id !== threadId) continue;
+      if (
+        !["message.created", "message.updated"].includes(event.kind) ||
+        event.thread_id !== threadId
+      )
+        continue;
       const payload = event.payload;
       if (
         typeof payload.id !== "string" ||

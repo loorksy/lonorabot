@@ -105,11 +105,11 @@ export function FilePreviewPanel({
         </header>
         <div className="workspace-file-preview-body">
           <PreviewBoundary key={artifact.id}>
-            {mime.startsWith("image/") && mime !== "image/svg+xml" ? (
+            {mime.startsWith("image/") ? (
               <ImageGallery url={url} name={name} />
             ) : mime === "application/pdf" ? (
               <PdfViewer url={url} />
-            ) : mime === "text/html" || mime === "image/svg+xml" ? (
+            ) : mime === "text/html" ? (
               <SandboxedHtmlViewer url={url} />
             ) : (
               <div className="workspace-empty">

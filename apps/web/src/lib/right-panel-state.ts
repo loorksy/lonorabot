@@ -4,6 +4,7 @@ export type Panel =
   | "knowledge"
   | "routines"
   | "workspace"
+  | "charts"
   | "create"
   | "create-group"
   | "group-settings"
@@ -13,6 +14,7 @@ const durable: readonly Panel[] = [
   "knowledge",
   "routines",
   "workspace",
+  "charts",
   "group-settings",
   null,
 ];
