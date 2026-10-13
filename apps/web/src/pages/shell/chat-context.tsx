@@ -141,6 +141,17 @@ export function ThreadViewport({
     (run) => run.thread_id === threadId && canCancel(run.status),
   );
   const active = activeRuns[0];
+  const latestByAgent = new Map<string, Run>();
+  for (const run of thread.runs) {
+    if (run.thread_id !== threadId) continue;
+    const previous = latestByAgent.get(run.agent_id);
+    if (!previous || run.created_at > previous.created_at) latestByAgent.set(run.agent_id, run);
+  }
+  const statusRuns = agentId
+    ? activeRuns.length
+      ? activeRuns
+      : [...latestByAgent.values()].filter((run) => run.agent_id === agentId)
+    : [...latestByAgent.values()];
   const working = activeRuns.some((run) => isWorking(run.status));
   const messageIds = new Set(thread.messages.map((message) => message.id));
   const streamingRows = thread.runs
@@ -167,13 +178,13 @@ export function ThreadViewport({
 
   return (
     <section className="thread-view template-thread">
-      {(active || thread.runs[0]) && (
+      {statusRuns.length > 0 && (
         <div className="thread-status template-thread-status">
-          {(activeRuns.length ? activeRuns : [thread.runs[0]]).map(
+          {statusRuns.map(
             (run) =>
               run && (
-                <div className="template-run-status" key={run.id}>
-                  {activeRuns.length > 1 && (
+                <div className="template-run-status" key={run.id} data-run-status-id={run.id}>
+                  {!agentId && (
                     <span dir="auto">
                       {agents.find((agent) => agent.id === run.agent_id)?.name ?? (
                         <Trans>Agent</Trans>
@@ -221,7 +232,7 @@ export function ThreadViewport({
                 ),
             )}
             <div className="thread-progress template-thread-progress">
-              <AgentActivity events={local} />
+              <AgentActivity events={local} runs={thread.runs} agents={agents} />
               <ToolActivityDisclosure events={local} />
               <SubagentTasks runs={thread.runs} />
             </div>

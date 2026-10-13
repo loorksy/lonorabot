@@ -4,7 +4,7 @@
 import { Trans } from "@lingui/react/macro";
 import { isWorking } from "@lonora/core";
 import type { ReactNode } from "react";
-import type { Event, Run } from "../../lib/api";
+import type { Agent, Event, Run } from "../../lib/api";
 import "./beautiful-ui.css";
 
 const CHEVRON_CELLS = Array.from({ length: 9 }, (_, index) => {
@@ -44,7 +44,9 @@ export function WorkingIndicator({ run }: { run?: Run }) {
     );
   return (
     <span className="working" role="status">
-      {run.status === "waiting_input" ? (
+      {run.status === "completed" && run.model_metadata.reply_outcome === "silent" ? (
+        <Trans>No reply needed</Trans>
+      ) : run.status === "waiting_input" ? (
         <Trans>Waiting for your reply</Trans>
       ) : run.status === "waiting_takeover" ? (
         <Trans>Waiting for handover</Trans>
@@ -59,15 +61,39 @@ export function WorkingIndicator({ run }: { run?: Run }) {
   );
 }
 
-export function AgentActivity({ events }: { events: Event[] }) {
-  const recent = events
-    .filter((event) => event.kind === "run.progress" || event.kind === "run.model")
-    .slice(-4);
+export function AgentActivity({
+  events,
+  runs,
+  agents,
+}: {
+  events: Event[];
+  runs: Run[];
+  agents: Agent[];
+}) {
+  const workingRuns = new Map(
+    runs.filter((run) => isWorking(run.status)).map((run) => [run.id, run]),
+  );
+  const latest = new Map<string, Event>();
+  for (const event of events) {
+    if (
+      event.run_id &&
+      workingRuns.has(event.run_id) &&
+      (event.kind === "run.progress" || event.kind === "run.model")
+    )
+      latest.set(event.run_id, event);
+  }
+  const recent = [...latest.values()];
   if (!recent.length) return null;
   return (
     <div className="progress" aria-live="polite">
       {recent.map((event) => (
-        <p key={event.cursor}>
+        <p key={event.cursor} data-progress-run-id={event.run_id}>
+          <bdi>
+            {
+              agents.find((agent) => agent.id === workingRuns.get(event.run_id ?? "")?.agent_id)
+                ?.name
+            }
+          </bdi>{" "}
           <Trans>Processing the task</Trans>
           {event.payload.provider && (
             <>

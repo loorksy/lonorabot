@@ -37,6 +37,7 @@
 }
 .template-thread-status {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 12px;
   padding: 8px 24px 0;
