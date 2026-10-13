@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import re
+import shlex
 import struct
 import subprocess
 import zipfile
@@ -118,7 +119,7 @@ if args.device:
     installed = run([str(adb), "-s", args.device, "shell", "pm", "path", package_id]).strip()
     if installed.startswith("package:"):
         destination = apk.parent / "installed-base.apk"
-        subprocess.run(
+        copied = subprocess.run(
             [
                 str(adb),
                 "-s",
@@ -127,8 +128,26 @@ if args.device:
                 installed.splitlines()[0].removeprefix("package:"),
                 str(destination),
             ],
-            check=True,
+            text=True,
+            capture_output=True,
+            check=False,
         )
+        if copied.returncode:
+            # Old Android adb file-stat protocols can reject an existing readable APK.
+            with destination.open("wb") as stream:
+                subprocess.run(
+                    [
+                        str(adb),
+                        "-s",
+                        args.device,
+                        "exec-out",
+                        "cat " + shlex.quote(installed.splitlines()[0].removeprefix("package:")),
+                    ],
+                    stdout=stream,
+                    stderr=subprocess.PIPE,
+                    check=True,
+                    timeout=30,
+                )
         original = run([str(tools / "apksigner"), "verify", "--print-certs", str(destination)])
         old_certificate = re.search(r"Signer #1 certificate SHA-256 digest: (.+)", original)
         old_badging = run([str(tools / "aapt"), "dump", "badging", str(destination)])
