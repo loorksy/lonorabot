@@ -8,14 +8,13 @@ from lonora_tools.context import ToolContext
 from ..skills.loader import load_prompt
 from .attachments import attachment_context
 from .governance import govern_context
-from .group import group_context
 from .history import history_context
 from .memory import read_memory_context
 from .reply import reply_context
 from .routine import wake_context
 from .scratchpad import scratchpad_context
 from .skills import read_skill_context
-from .team import team_context
+from .team import routing_frame
 
 
 async def build_context(context: ToolContext) -> list[ModelMessage]:
@@ -37,13 +36,10 @@ async def build_context(context: ToolContext) -> list[ModelMessage]:
         ]
         blocks.extend(
             [
-                "Agent identity: " + agent.name,
-                await team_context(session, context.owner_id, context.agent_id),
                 agent.instructions,
                 await read_memory_context(session, agent.id),
                 await scratchpad_context(session, agent.id),
                 await read_skill_context(session, agent.id),
-                await group_context(session, thread.group_id, context.agent_id),
                 await reply_context(session, thread.id, run.input_seq),
                 wake_context(run),
             ]
@@ -60,7 +56,13 @@ async def build_context(context: ToolContext) -> list[ModelMessage]:
         if attachments:
             blocks.append(attachments)
         messages = [
-            ModelMessage(role="system", content="\n\n".join(block for block in blocks if block))
+            ModelMessage(role="system", content="\n\n".join(block for block in blocks if block)),
+            ModelMessage(
+                role="system",
+                content=await routing_frame(
+                    session, context.owner_id, context.agent_id, context.thread_id
+                ),
+            ),
         ] + await history_context(
             session, thread.id, run.input_seq, thread.summary_seq, context.agent_id
         )

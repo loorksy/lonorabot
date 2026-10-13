@@ -8,6 +8,7 @@ from lonora_llm_usage.store import save_usage
 from lonora_tools.context import ToolContext
 
 from .context.governance import MAXIMUM_CONTEXT_CHARS, govern_context
+from .context.team import refresh_routing_context
 from .progress import progress
 
 
@@ -17,6 +18,7 @@ async def model_turn(
     tools: list[ToolDefinition],
     capability: Capability,
 ) -> tuple[ModelReply, ModelSelection]:
+    await refresh_routing_context(context, messages)
     messages = govern_context(
         messages, MAXIMUM_CONTEXT_CHARS - sum(len(tool.model_dump_json()) for tool in tools)
     )

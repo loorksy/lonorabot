@@ -743,6 +743,11 @@ jobs:
           asyncio.run(main())
           PY
 
+      - name: Verify live teammate directory and selected group replies
+        run: |
+          .venv/bin/python tests/check_team.py
+          .venv/bin/python tests/check_group_replies.py
+
       - name: Verify native sessions and concurrent persistent conversations
         run: .venv/bin/python tests/check_clients.py
       - name: Verify durable reply streams and idempotent peer communication
