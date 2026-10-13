@@ -1,6 +1,7 @@
 import asyncio
 from pathlib import Path
 
+from lonora_agent.collaboration.outcome_return import return_pending_outcomes
 from lonora_agent.runtime import AgentRuntime
 from lonora_db.client import Database
 from lonora_db.owner import get_owner
@@ -63,6 +64,7 @@ class Gateway:
         while not self.stop.is_set():
             await write_heartbeat(self.db, self.identity, self.state.value)
             await scheduler_tick(self.db)
+            await return_pending_outcomes(self.db)
             async with self.db.sessions() as session:
                 owner = await get_owner(session)
             if owner:

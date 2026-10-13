@@ -5,13 +5,15 @@ import type { Owner } from "../lib/auth";
 type Client = {
   owner: Owner;
   events: ReturnType<typeof useEvents>["events"];
+  streams: ReturnType<typeof useEvents>["streams"];
+  seedStreams: ReturnType<typeof useEvents>["seedStreams"];
   connected: boolean;
   revision: number;
   refresh: () => void;
 };
 const Context = createContext<Client | null>(null);
 export function ClientProvider({ owner, children }: { owner: Owner; children: ReactNode }) {
-  const { events, connected } = useEvents(true);
+  const { events, streams, seedStreams, connected, revision } = useEvents(true);
   const [manual, setManual] = useState(0);
   const [tick, setTick] = useState(0);
   useEffect(() => {
@@ -22,17 +24,13 @@ export function ClientProvider({ owner, children }: { owner: Owner; children: Re
     () => ({
       owner,
       events,
+      streams,
+      seedStreams,
       connected,
-      revision:
-        manual +
-        tick +
-        ([...events]
-          .reverse()
-          .find((event) => !["run.delta", "run.reply_started", "run.progress"].includes(event.kind))
-          ?.cursor ?? 0),
+      revision: manual + tick + revision,
       refresh: () => setManual((v) => v + 1),
     }),
-    [owner, events, connected, manual, tick],
+    [owner, events, streams, seedStreams, connected, manual, tick, revision],
   );
   return <Context.Provider value={value}>{children}</Context.Provider>;
 }

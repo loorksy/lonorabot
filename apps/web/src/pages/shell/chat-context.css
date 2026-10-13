@@ -45,6 +45,37 @@
   flex-shrink: 0;
   justify-content: flex-start;
 }
+.template-run-status {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.template-streaming-card .template-message-meta {
+  opacity: 1;
+  font-size: 11px;
+}
+.template-peer-heading,
+.template-peer-participants {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--lonora-muted);
+}
+.template-peer-participants {
+  margin: 4px 0 9px;
+}
+.template-peer-participants a {
+  color: var(--lonora-text);
+  text-decoration: none;
+}
+.template-peer-status {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--lonora-muted);
+}
 .template-thread-status button {
   border: 0;
   padding: 2px 7px;
@@ -83,6 +114,11 @@
   min-width: 0;
   width: fit-content;
   max-width: 88%;
+}
+.template-peer-card .template-message-frame {
+  padding: 12px 16px;
+  border: 1px solid var(--lonora-line);
+  border-radius: 14px;
 }
 .template-message.user .template-message-frame {
   max-width: 84%;

@@ -7,7 +7,7 @@ msgstr ""
 msgid "A new teammate"
 msgstr "A new teammate"
 
-#: src/pages/shell/chat-context.tsx:790
+#: src/pages/shell/chat-context.tsx:830
 msgid "A workspace that remembers"
 msgstr "A workspace that remembers"
 
@@ -59,7 +59,7 @@ msgstr "Add board"
 msgid "Add broker connection"
 msgstr "Add broker connection"
 
-#: src/pages/shell/chat-context.tsx:575
+#: src/pages/shell/chat-context.tsx:595
 msgid "Add direction while the agent works…"
 msgstr "Add direction while the agent works…"
 
@@ -78,13 +78,18 @@ msgstr "Add line"
 #: src/pages/Board.tsx:371
 #: src/pages/Board.tsx:373
 #: src/pages/shell/bot-picker.tsx:109
-#: src/pages/shell/chat-context.tsx:161
-#: src/pages/shell/message-cards.tsx:34
-#: src/pages/shell/message-cards.tsx:116
+#: src/pages/shell/chat-context.tsx:179
+#: src/pages/shell/message-cards.tsx:40
+#: src/pages/shell/message-cards.tsx:140
+#: src/pages/shell/message-cards.tsx:143
+#: src/pages/shell/message-cards.tsx:148
+#: src/pages/shell/message-cards.tsx:151
+#: src/pages/shell/message-cards.tsx:203
 msgid "Agent"
 msgstr "Agent"
 
 #: src/components/ai/CollaborationMarker.tsx:11
+#: src/pages/shell/message-cards.tsx:132
 msgid "Agent collaboration"
 msgstr "Agent collaboration"
 
@@ -155,16 +160,16 @@ msgstr "Ask"
 msgid "Assign work to your agents and follow each task."
 msgstr "Assign work to your agents and follow each task."
 
-#: src/pages/shell/chat-context.tsx:555
-#: src/pages/shell/chat-context.tsx:556
+#: src/pages/shell/chat-context.tsx:575
+#: src/pages/shell/chat-context.tsx:576
 msgid "Attach file"
 msgstr "Attach file"
 
-#: src/pages/shell/chat-context.tsx:392
+#: src/pages/shell/chat-context.tsx:412
 msgid "Attached files"
 msgstr "Attached files"
 
-#: src/pages/shell/message-cards.tsx:58
+#: src/pages/shell/message-cards.tsx:64
 msgid "Attachment"
 msgstr "Attachment"
 
@@ -265,6 +270,7 @@ msgstr "Cancel order"
 #: src/components/ai/primitives.tsx:54
 #: src/components/ToolActivityDisclosure.tsx:22
 #: src/pages/ActivityList.tsx:120
+#: src/pages/shell/message-cards.tsx:161
 msgid "Cancelled"
 msgstr "Cancelled"
 
@@ -339,7 +345,7 @@ msgstr "Choose supported global speech models in Settings."
 #: src/pages/RoutineEditor.tsx:100
 #: src/pages/Shell.tsx:589
 #: src/pages/shell/bot-settings.tsx:114
-#: src/pages/shell/chat-context.tsx:220
+#: src/pages/shell/chat-context.tsx:240
 msgid "Close"
 msgstr "Close"
 
@@ -372,6 +378,7 @@ msgstr "Color"
 #: src/components/ToolActivityDisclosure.tsx:26
 #: src/pages/ActivityList.tsx:117
 #: src/pages/Board.tsx:18
+#: src/pages/shell/message-cards.tsx:165
 msgid "Completed"
 msgstr "Completed"
 
@@ -431,7 +438,7 @@ msgid "Context panel"
 msgstr "Context panel"
 
 #: src/pages/ModelRoutingSettings.tsx:10
-#: src/pages/shell/chat-context.tsx:751
+#: src/pages/shell/chat-context.tsx:791
 msgid "Conversation"
 msgstr "Conversation"
 
@@ -586,7 +593,7 @@ msgstr "Disconnect account"
 msgid "Discovered models"
 msgstr "Discovered models"
 
-#: src/pages/shell/chat-context.tsx:451
+#: src/pages/shell/chat-context.tsx:471
 msgid "Dismiss error"
 msgstr "Dismiss error"
 
@@ -660,7 +667,7 @@ msgstr "Enabled"
 msgid "End call"
 msgstr "End call"
 
-#: src/pages/shell/chat-context.tsx:656
+#: src/pages/shell/chat-context.tsx:676
 msgid "Enter to send · Shift+Enter for a new line"
 msgstr "Enter to send · Shift+Enter for a new line"
 
@@ -695,6 +702,7 @@ msgstr "Execution history"
 #: src/components/trading/TradingJournal.tsx:22
 #: src/pages/ActivityList.tsx:119
 #: src/pages/Board.tsx:24
+#: src/pages/shell/message-cards.tsx:163
 msgid "Failed"
 msgstr "Failed"
 
@@ -746,7 +754,7 @@ msgstr "Global embedding model"
 msgid "Global models"
 msgstr "Global models"
 
-#: src/pages/ModelRoutingSettings.tsx:74
+#: src/pages/ModelRoutingSettings.tsx:79
 msgid "Global routing"
 msgstr "Global routing"
 
@@ -822,7 +830,7 @@ msgstr "Interval"
 msgid "Isolated document preview"
 msgstr "Isolated document preview"
 
-#: src/pages/shell/chat-context.tsx:836
+#: src/pages/shell/chat-context.tsx:880
 msgid "Jump to latest"
 msgstr "Jump to latest"
 
@@ -868,7 +876,7 @@ msgstr "Listening · speak to interrupt"
 msgid "Live connection active"
 msgstr "Live connection active"
 
-#: src/pages/shell/chat-context.tsx:779
+#: src/pages/shell/chat-context.tsx:819
 msgid "Load earlier messages"
 msgstr "Load earlier messages"
 
@@ -906,7 +914,7 @@ msgstr "Loading workspace…"
 #: src/pages/RoutineRunHistory.tsx:43
 #: src/pages/Routines.tsx:176
 #: src/pages/ScratchpadSection.tsx:94
-#: src/pages/shell/chat-context.tsx:776
+#: src/pages/shell/chat-context.tsx:816
 msgid "Loading…"
 msgstr "Loading…"
 
@@ -969,20 +977,20 @@ msgstr "Memory, skills and open work"
 msgid "Mention agents with @name. Without a mention, the first member responds."
 msgstr "Mention agents with @name. Without a mention, the first member responds."
 
-#: src/pages/shell/chat-context.tsx:504
+#: src/pages/shell/chat-context.tsx:524
 msgid "Mentions"
 msgstr "Mentions"
 
-#: src/pages/shell/chat-context.tsx:567
+#: src/pages/shell/chat-context.tsx:587
 #: src/pages/SpaceSearch.tsx:164
 msgid "Message"
 msgstr "Message"
 
-#: src/pages/shell/chat-context.tsx:417
+#: src/pages/shell/chat-context.tsx:437
 msgid "Message composer"
 msgstr "Message composer"
 
-#: src/pages/shell/chat-context.tsx:575
+#: src/pages/shell/chat-context.tsx:595
 msgid "Message your agent…"
 msgstr "Message your agent…"
 
@@ -1006,7 +1014,7 @@ msgstr "Minimize agents"
 msgid "Minimum volume"
 msgstr "Minimum volume"
 
-#: src/pages/ModelRoutingSettings.tsx:83
+#: src/pages/ModelRoutingSettings.tsx:88
 msgid "Mode"
 msgstr "Mode"
 
@@ -1081,7 +1089,7 @@ msgstr "No tickets yet"
 msgid "Now"
 msgstr "Now"
 
-#: src/pages/ModelRoutingSettings.tsx:104
+#: src/pages/ModelRoutingSettings.tsx:109
 msgid "One model for text work"
 msgstr "One model for text work"
 
@@ -1233,6 +1241,7 @@ msgstr "Providers and official catalog"
 
 #: src/components/ai/primitives.tsx:42
 #: src/pages/ActivityList.tsx:109
+#: src/pages/shell/message-cards.tsx:167
 msgid "Queued"
 msgstr "Queued"
 
@@ -1273,21 +1282,21 @@ msgstr "Refresh live candles"
 msgid "Reload"
 msgstr "Reload"
 
-#: src/pages/shell/chat-context.tsx:490
+#: src/pages/shell/chat-context.tsx:510
 msgid "Remove {name}"
 msgstr "Remove {name}"
 
-#: src/pages/shell/chat-context.tsx:473
+#: src/pages/shell/chat-context.tsx:493
 msgid "Remove reply"
 msgstr "Remove reply"
 
-#: src/pages/shell/message-cards.tsx:77
-#: src/pages/shell/message-cards.tsx:78
+#: src/pages/shell/message-cards.tsx:83
+#: src/pages/shell/message-cards.tsx:84
 msgid "Reply"
 msgstr "Reply"
 
-#: src/pages/shell/chat-context.tsx:462
-#: src/pages/shell/message-cards.tsx:43
+#: src/pages/shell/chat-context.tsx:482
+#: src/pages/shell/message-cards.tsx:49
 msgid "Reply to an earlier message"
 msgstr "Reply to an earlier message"
 
@@ -1310,7 +1319,7 @@ msgstr "Resize panel"
 #: src/components/market/MarketWatch.tsx:294
 #: src/pages/ActivityList.tsx:279
 #: src/pages/Routines.tsx:100
-#: src/pages/shell/chat-context.tsx:168
+#: src/pages/shell/chat-context.tsx:186
 msgid "Resume"
 msgstr "Resume"
 
@@ -1325,7 +1334,7 @@ msgstr "Resume"
 msgid "Retry"
 msgstr "Retry"
 
-#: src/pages/ModelRoutingSettings.tsx:107
+#: src/pages/ModelRoutingSettings.tsx:112
 msgid "Route by capability"
 msgstr "Route by capability"
 
@@ -1358,7 +1367,7 @@ msgstr "Save"
 msgid "Save and discover models"
 msgstr "Save and discover models"
 
-#: src/pages/ModelRoutingSettings.tsx:160
+#: src/pages/ModelRoutingSettings.tsx:165
 msgid "Save global routing"
 msgstr "Save global routing"
 
@@ -1371,7 +1380,7 @@ msgid "Save memory"
 msgstr "Save memory"
 
 #: src/pages/KnowledgeSection.tsx:92
-#: src/pages/ModelRoutingSettings.tsx:156
+#: src/pages/ModelRoutingSettings.tsx:161
 msgid "Saved"
 msgstr "Saved"
 
@@ -1471,13 +1480,13 @@ msgstr "Sell stop"
 msgid "Semantic memory · optional"
 msgstr "Semantic memory · optional"
 
-#: src/pages/shell/chat-context.tsx:632
-#: src/pages/shell/chat-context.tsx:633
+#: src/pages/shell/chat-context.tsx:652
+#: src/pages/shell/chat-context.tsx:653
 msgid "Send"
 msgstr "Send"
 
-#: src/pages/shell/chat-context.tsx:632
-#: src/pages/shell/chat-context.tsx:633
+#: src/pages/shell/chat-context.tsx:652
+#: src/pages/shell/chat-context.tsx:653
 msgid "Send direction"
 msgstr "Send direction"
 
@@ -1487,7 +1496,7 @@ msgstr "Server URL"
 
 #: src/pages/Shell.tsx:563
 #: src/pages/Shell.tsx:680
-#: src/pages/shell/chat-context.tsx:528
+#: src/pages/shell/chat-context.tsx:548
 msgid "Settings"
 msgstr "Settings"
 
@@ -1577,7 +1586,7 @@ msgstr "Square"
 msgid "Stable facts and preferences kept separately from conversation history."
 msgstr "Stable facts and preferences kept separately from conversation history."
 
-#: src/pages/shell/chat-context.tsx:793
+#: src/pages/shell/chat-context.tsx:833
 msgid "Start a conversation. Your agent keeps its memory and continues scheduled work here."
 msgstr "Start a conversation. Your agent keeps its memory and continues scheduled work here."
 
@@ -1593,8 +1602,8 @@ msgid "Status"
 msgstr "Status"
 
 #: src/pages/ActivityList.tsx:269
-#: src/pages/shell/chat-context.tsx:647
-#: src/pages/shell/chat-context.tsx:648
+#: src/pages/shell/chat-context.tsx:667
+#: src/pages/shell/chat-context.tsx:668
 msgid "Stop"
 msgstr "Stop"
 
@@ -1661,7 +1670,7 @@ msgstr "The catalog is read from the provider. Unknown capabilities are shown as
 msgid "The file preview could not be displayed"
 msgstr "The file preview could not be displayed"
 
-#: src/pages/shell/message-cards.tsx:126
+#: src/pages/shell/message-cards.tsx:213
 msgid "The full response will appear when complete."
 msgstr "The full response will appear when complete."
 
@@ -1693,7 +1702,7 @@ msgstr "The resident voice worker is unavailable. Check server readiness and ret
 msgid "The setup code is incorrect."
 msgstr "The setup code is incorrect."
 
-#: src/pages/shell/message-cards.tsx:91
+#: src/pages/shell/message-cards.tsx:178
 msgid "The task resumed from its saved state after reconnection."
 msgstr "The task resumed from its saved state after reconnection."
 
@@ -1706,7 +1715,7 @@ msgstr "The voice connection failed. Retry the call."
 msgid "Theme"
 msgstr "Theme"
 
-#: src/pages/ModelRoutingSettings.tsx:77
+#: src/pages/ModelRoutingSettings.tsx:82
 msgid "These settings apply to every agent and routine. Voice routes require models that support audio."
 msgstr "These settings apply to every agent and routine. Voice routes require models that support audio."
 
@@ -1830,7 +1839,7 @@ msgstr "Turn trading ON"
 msgid "Type"
 msgstr "Type"
 
-#: src/pages/ModelRoutingSettings.tsx:113
+#: src/pages/ModelRoutingSettings.tsx:118
 msgid "Unified model"
 msgstr "Unified model"
 
@@ -1851,9 +1860,9 @@ msgid "Vision"
 msgstr "Vision"
 
 #: src/pages/settings-sidebar.tsx:20
-#: src/pages/shell/chat-context.tsx:215
-#: src/pages/shell/chat-context.tsx:621
-#: src/pages/shell/chat-context.tsx:622
+#: src/pages/shell/chat-context.tsx:235
+#: src/pages/shell/chat-context.tsx:641
+#: src/pages/shell/chat-context.tsx:642
 msgid "Voice"
 msgstr "Voice"
 

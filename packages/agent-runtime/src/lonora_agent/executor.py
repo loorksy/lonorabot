@@ -6,6 +6,7 @@ from lonora_core.user_error import LonoraError
 from lonora_db.events import emit
 from lonora_db.runs import complete_run, fail_run, locked_run_thread, renew_lease, require_lease
 from lonora_db.schema import MessageRow, SteeringRow
+from lonora_db.streaming import settle_stream, stream_identity
 from lonora_tools.context import ToolContext
 from lonora_tools.registry import ToolRegistry
 from sqlalchemy import select
@@ -77,6 +78,19 @@ async def execute_run(
                         thread.next_seq += 1
                         session.add(message)
                         await session.flush()
+                        snapshot = settle_stream(
+                            row, "committed", message_id=message.id, text=outcome.text
+                        )
+                        if snapshot:
+                            emit(
+                                session,
+                                context.owner_id,
+                                "run.reply_committed",
+                                thread_id=thread.id,
+                                agent_id=context.agent_id,
+                                run_id=row.id,
+                                payload=stream_identity(snapshot),
+                            )
                         from lonora_db.messages import message_data
 
                         emit(

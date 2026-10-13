@@ -62,9 +62,16 @@ async def build_context(context: ToolContext) -> list[ModelMessage]:
         ] + await history_context(
             session, thread.id, run.input_seq, thread.summary_seq, context.agent_id
         )
-        if run.prompt:
-            messages.append(ModelMessage(role="user", content=run.prompt))
-        query = run.prompt or next(
+        # New peer requests already exist as attributed messages in the canonical history.
+        # Appending their task again would duplicate context and override later owner steering.
+        explicit_prompt = (
+            ""
+            if run.trigger == "peer" and run.model_metadata.get("peer_message_id")
+            else run.prompt
+        )
+        if explicit_prompt:
+            messages.append(ModelMessage(role="user", content=explicit_prompt))
+        query = explicit_prompt or next(
             (message.content for message in reversed(messages) if message.role == "user"), ""
         )
         if query:

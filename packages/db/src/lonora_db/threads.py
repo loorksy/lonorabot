@@ -5,7 +5,7 @@ from lonora_core.user_error import LonoraError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .schema import GroupRow, ThreadRow
+from .schema import AgentRow, GroupRow, ThreadRow
 from .transactions import owned_agent
 
 
@@ -32,6 +32,34 @@ async def create_thread(session: AsyncSession, owner_id: str, request: ThreadCre
     session.add(row)
     await session.flush()
     return row
+
+
+async def conversation_thread(session: AsyncSession, owner_id: str, agent_id: str) -> ThreadRow:
+    """One atomic canonical direct conversation shared by owner messages and peer requests."""
+    # Serialize canonical creation without blocking FK KEY SHARE on messages/runs.
+    # FOR UPDATE here would invert agent/thread locks with an owner send or reverse peer.
+    agent = await session.scalar(
+        select(AgentRow)
+        .where(AgentRow.id == agent_id, AgentRow.owner_id == owner_id)
+        .with_for_update(key_share=True)
+    )
+    if agent is None:
+        raise LonoraError("agent_not_found", 404)
+    row = await session.scalar(
+        select(ThreadRow)
+        .where(
+            ThreadRow.owner_id == owner_id,
+            ThreadRow.agent_id == agent_id,
+            ThreadRow.group_id.is_(None),
+        )
+        .order_by(ThreadRow.created_at, ThreadRow.id)
+        .limit(1)
+    )
+    return (
+        row
+        if row is not None
+        else await create_thread(session, owner_id, ThreadCreate(agent_id=agent_id, title=""))
+    )
 
 
 async def list_threads(

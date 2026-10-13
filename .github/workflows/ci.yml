@@ -745,6 +745,8 @@ jobs:
 
       - name: Verify native sessions and concurrent persistent conversations
         run: .venv/bin/python tests/check_clients.py
+      - name: Verify durable reply streams and idempotent peer communication
+        run: .venv/bin/python tests/check_streaming.py
       - name: Install browser for actual workspace regressions
         run: pnpm exec playwright install --with-deps chromium
       - name: Verify real Web workspace under React StrictMode

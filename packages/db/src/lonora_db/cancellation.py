@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .events import emit
 from .schema import RunRow
+from .streaming import settle_stream
 from .transactions import owned_thread
 
 
@@ -19,6 +20,7 @@ async def cancel_run(session: AsyncSession, owner_id: str, run_id: str) -> RunRo
         raise LonoraError("run_not_found", 404)
     if row.status not in TERMINAL:
         row.status = "cancelled"
+        settle_stream(row, "cancelled")
         row.lease_fence += 1
         row.lease_expires_at = None
         row.updated_at = utcnow()
@@ -41,6 +43,7 @@ async def cancel_run(session: AsyncSession, owner_id: str, run_id: str) -> RunRo
     )
     for child in children:
         child.status = "cancelled"
+        settle_stream(child, "cancelled")
         child.lease_fence += 1
         child.lease_expires_at = None
     return row

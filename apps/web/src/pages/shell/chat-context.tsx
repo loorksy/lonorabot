@@ -2,7 +2,6 @@
 
 import { t } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { ChatMarkdown } from "@lonora/chat-ui/web";
 import {
   canCancel,
   isWorking,
@@ -37,12 +36,12 @@ import { FilePreviewPanel } from "../../components/common/FilePreviewPanel";
 import { ToolActivityDisclosure } from "../../components/ToolActivityDisclosure";
 import { useOverlayHistory } from "../../hooks/useOverlayHistory";
 import { useThreads } from "../../hooks/useThreads";
-import type { Agent, Message, Resource } from "../../lib/api";
+import type { Agent, Message, Resource, Run } from "../../lib/api";
 import { api } from "../../lib/api";
-import { streamText } from "../../lib/response_streaming";
+import { streamForRun } from "../../lib/response_streaming";
 import { userError } from "../../lib/user_error";
 import { useClient } from "../../providers/ClientProvider";
-import { MessageBubble, RecoveryNotice } from "./message-cards";
+import { MessageBubble, RecoveryNotice, StreamingMessageCard } from "./message-cards";
 import "./chat-context.css";
 
 export function ThreadViewport({
@@ -55,9 +54,12 @@ export function ThreadViewport({
   agents: Agent[];
 }) {
   const thread = useThreads(undefined, threadId);
-  const { events, revision } = useClient();
+  const { events, revision, streams, seedStreams, connected } = useClient();
+  const repairingStreams = useRef(new Set<string>());
+  const lastRepair = useRef(new Map<string, number>());
   const [reply, setReply] = useState<Message | null>(null);
   const [artifacts, setArtifacts] = useState<Resource[]>([]);
+  const [peers, setPeers] = useState<Resource[]>([]);
   const [preview, setPreview] = useState<Resource | null>(null);
   const [voiceOpen, setVoiceOpen] = useState(false);
   const [actionError, setActionError] = useState<unknown>();
@@ -71,6 +73,7 @@ export function ThreadViewport({
     setVoiceOpen(false);
     setActionError(undefined);
     setArtifacts([]);
+    setPeers([]);
   }, [threadId]);
 
   useEffect(() => {
@@ -92,17 +95,71 @@ export function ThreadViewport({
     };
   }, [threadId, revision]);
 
-  const local = events.filter((event) => event.thread_id === threadId);
-  const active = thread.runs.find((run) => run.thread_id === threadId && canCancel(run.status));
-  const working = Boolean(active && isWorking(active.status));
-  const streaming = working && active ? streamText(local, active.id) : "";
+  useEffect(() => {
+    void revision;
+    let live = true;
+    void api
+      .get<Resource[]>(`/peer-messages?thread_id=${threadId}`)
+      .then((rows) => {
+        if (live) setPeers(rows);
+      })
+      .catch((error: unknown) => {
+        if (live) setArtifactError(error);
+      });
+    return () => {
+      live = false;
+    };
+  }, [threadId, revision]);
 
-  async function changeRun(action: "resume" | "cancel") {
-    if (!active) return;
+  useEffect(() => {
+    seedStreams(thread.runs);
+  }, [thread.runs, seedStreams]);
+
+  useEffect(() => {
+    void connected;
+    for (const stream of Object.values(streams)) {
+      if (
+        !stream.gap ||
+        stream.thread_id !== threadId ||
+        repairingStreams.current.has(stream.run_id) ||
+        Date.now() - (lastRepair.current.get(stream.run_id) ?? 0) < 500
+      )
+        continue;
+      const id = stream.run_id;
+      repairingStreams.current.add(id);
+      lastRepair.current.set(id, Date.now());
+      void api
+        .get<Run>(`/runs/${id}`)
+        .then((run) => seedStreams([run]))
+        .catch(() => undefined)
+        .finally(() => repairingStreams.current.delete(id));
+    }
+  }, [streams, threadId, seedStreams, connected]);
+
+  const local = events.filter((event) => event.thread_id === threadId);
+  const activeRuns = thread.runs.filter(
+    (run) => run.thread_id === threadId && canCancel(run.status),
+  );
+  const active = activeRuns[0];
+  const working = activeRuns.some((run) => isWorking(run.status));
+  const messageIds = new Set(thread.messages.map((message) => message.id));
+  const streamingRows = thread.runs
+    .filter((run) => run.thread_id === threadId)
+    .map((run) => ({ run, stream: streamForRun(run, streams[run.id]) }))
+    .filter(
+      ({ stream }) =>
+        stream?.text &&
+        stream.phase !== "discarded" &&
+        (!stream.message_id || !messageIds.has(stream.message_id)),
+    )
+    .sort((a, b) => a.run.created_at.localeCompare(b.run.created_at));
+
+  async function changeRun(action: "resume" | "cancel", id?: string) {
+    if (!activeRuns.length) return;
     setActionError(undefined);
     try {
-      if (action === "resume") await thread.resume(active.id);
-      else await thread.cancel(active.id);
+      if (action === "resume") await thread.resume(id ?? active.id);
+      else await Promise.all((id ? [id] : activeRuns.map((run) => run.id)).map(thread.cancel));
     } catch (caught) {
       setActionError(caught);
     }
@@ -112,11 +169,25 @@ export function ThreadViewport({
     <section className="thread-view template-thread">
       {(active || thread.runs[0]) && (
         <div className="thread-status template-thread-status">
-          <WorkingIndicator run={active ?? thread.runs[0]} />
-          {active?.status === "waiting_takeover" && (
-            <button type="button" onClick={() => void changeRun("resume")}>
-              <Trans>Resume</Trans>
-            </button>
+          {(activeRuns.length ? activeRuns : [thread.runs[0]]).map(
+            (run) =>
+              run && (
+                <div className="template-run-status" key={run.id}>
+                  {activeRuns.length > 1 && (
+                    <span dir="auto">
+                      {agents.find((agent) => agent.id === run.agent_id)?.name ?? (
+                        <Trans>Agent</Trans>
+                      )}
+                    </span>
+                  )}
+                  <WorkingIndicator run={run} />
+                  {run.status === "waiting_takeover" && (
+                    <button type="button" onClick={() => void changeRun("resume", run.id)}>
+                      <Trans>Resume</Trans>
+                    </button>
+                  )}
+                </div>
+              ),
           )}
         </div>
       )}
@@ -131,15 +202,23 @@ export function ThreadViewport({
         messages={thread.messages}
         agents={agents}
         artifacts={artifacts}
+        peers={peers}
+        runs={thread.runs}
         onReply={setReply}
         onPreview={setPreview}
         onOlder={thread.older}
         trailing={
           <>
-            {streaming && (
-              <div className="streaming-reply template-streaming-reply" aria-live="polite">
-                <ChatMarkdown streaming>{streaming}</ChatMarkdown>
-              </div>
+            {streamingRows.map(
+              ({ run, stream }) =>
+                stream && (
+                  <StreamingMessageCard
+                    key={`${run.id}:${stream.turn_id}`}
+                    run={run}
+                    stream={stream}
+                    agent={agents.find((agent) => agent.id === run.agent_id)}
+                  />
+                ),
             )}
             <div className="thread-progress template-thread-progress">
               <AgentActivity events={local} />
@@ -617,6 +696,8 @@ export function ThreadMessages({
   messages,
   agents,
   artifacts,
+  peers = [],
+  runs = [],
   onReply,
   onPreview,
   onOlder,
@@ -625,6 +706,8 @@ export function ThreadMessages({
   messages: Message[];
   agents: Agent[];
   artifacts: Resource[];
+  peers?: Resource[];
+  runs?: Run[];
   onReply: (message: Message) => void;
   onPreview: (artifact: Resource) => void;
   onOlder: () => Promise<void>;
@@ -639,6 +722,22 @@ export function ThreadMessages({
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [olderError, setOlderError] = useState<unknown>();
   const byId = new Map(messages.map((message) => [message.id, message]));
+  const runsById = new Map(runs.map((run) => [run.id, run]));
+  const peersByMessageId = new Map<string, Resource>();
+  for (const peer of peers) {
+    const payload = peer.payload;
+    for (const id of [
+      payload.source_message_id,
+      payload.target_message_id,
+      payload.source_outcome_message_id,
+      payload.target_outcome_message_id,
+      ...(Array.isArray(payload.source_outcome_message_ids)
+        ? payload.source_outcome_message_ids
+        : []),
+    ]) {
+      if (typeof id === "string") peersByMessageId.set(id, peer);
+    }
+  }
 
   useLayoutEffect(() => {
     const element = scroll.current;
@@ -763,6 +862,10 @@ export function ThreadMessages({
                   replyParent={message.reply_to ? byId.get(message.reply_to) : undefined}
                   onReply={onReply}
                   onPreview={onPreview}
+                  peer={peersByMessageId.get(message.id)}
+                  peerRun={runsById.get(
+                    String(peersByMessageId.get(message.id)?.payload.run_id ?? ""),
+                  )}
                 />
               </Fragment>
             );

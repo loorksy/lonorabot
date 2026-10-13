@@ -2,10 +2,12 @@
 import { t } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { ChatMarkdown } from "@lonora/chat-ui/web";
-import { CornerUpLeft } from "lucide-react";
+import { ArrowRight, CornerUpLeft, MessagesSquare } from "lucide-react";
+import { Link } from "react-router-dom";
 import { ArtifactFileCard } from "../../components/ArtifactFileCard";
 import { AgentAvatar } from "../../components/ai/AgentAvatar";
-import type { Agent, Event, Message, Resource } from "../../lib/api";
+import { WorkingIndicator } from "../../components/ai/primitives";
+import type { Agent, Event, Message, ReplyStreamSnapshot, Resource, Run } from "../../lib/api";
 
 export function MessageBubble({
   message,
@@ -14,6 +16,8 @@ export function MessageBubble({
   replyParent,
   onReply,
   onPreview,
+  peer,
+  peerRun,
 }: {
   message: Message;
   agent?: Agent;
@@ -21,8 +25,11 @@ export function MessageBubble({
   replyParent?: Message;
   onReply: (message: Message) => void;
   onPreview: (artifact: Resource) => void;
+  peer?: Resource;
+  peerRun?: Run;
 }) {
   const { i18n } = useLingui();
+  if (peer) return <PeerMessageCard message={message} peer={peer} run={peerRun} />;
   const user = message.role === "user";
   return (
     <article className={`message template-message ${message.role}`} data-message-id={message.id}>
@@ -84,10 +91,129 @@ export function MessageBubble({
   );
 }
 
+/** Actual persisted agent requests and results, with links to their two continuous conversations. */
+export function PeerMessageCard({
+  message,
+  peer,
+  run,
+}: {
+  message: Message;
+  peer: Resource;
+  run?: Run;
+}) {
+  const payload = peer.payload;
+  const request =
+    payload.source_message_id === message.id || payload.target_message_id === message.id;
+  const wrapped =
+    /^<peer_outcome\b[^>]*status=['"]([^'"]+)['"][^>]*>\n([\s\S]*)\n<\/peer_outcome>$/.exec(
+      message.content,
+    );
+  const body = wrapped?.[2] ?? message.content;
+  const sourceName = String(payload.source_agent_name ?? "");
+  const targetName = String(payload.target_agent_name ?? "");
+  const sender = request ? sourceName : targetName;
+  const recipient = request ? targetName : sourceName;
+  const fromId = String((request ? payload.source_agent_id : payload.target_agent_id) ?? "");
+  const toId = String((request ? payload.target_agent_id : payload.source_agent_id) ?? "");
+  const fromThread = String((request ? payload.source_thread_id : payload.target_thread_id) ?? "");
+  const toThread = String((request ? payload.target_thread_id : payload.source_thread_id) ?? "");
+  const status = wrapped?.[1] ?? run?.status ?? String(payload.status ?? "queued");
+  return (
+    <article
+      className="message template-message assistant template-peer-card"
+      data-message-id={message.id}
+      data-peer-message-id={peer.id}
+      data-peer-kind={request ? "request" : "outcome"}
+    >
+      <div className="template-message-frame">
+        <div className="template-peer-heading">
+          <MessagesSquare size={15} aria-hidden="true" />
+          <span>
+            <Trans>Agent collaboration</Trans>
+          </span>
+        </div>
+        <div className="template-peer-participants">
+          {fromId ? (
+            <Link
+              to={`/app/${encodeURIComponent(fromId)}?thread=${encodeURIComponent(fromThread)}`}
+            >
+              <bdi>{sender || <Trans>Agent</Trans>}</bdi>
+            </Link>
+          ) : (
+            <bdi>{sender || <Trans>Agent</Trans>}</bdi>
+          )}
+          <ArrowRight size={13} aria-hidden="true" />
+          {toId ? (
+            <Link to={`/app/${encodeURIComponent(toId)}?thread=${encodeURIComponent(toThread)}`}>
+              <bdi>{recipient || <Trans>Agent</Trans>}</bdi>
+            </Link>
+          ) : (
+            <bdi>{recipient || <Trans>Agent</Trans>}</bdi>
+          )}
+        </div>
+        <div className="message-body template-message-body" dir="auto">
+          {!(status === "cancelled" && body === "cancelled") && <ChatMarkdown>{body}</ChatMarkdown>}
+        </div>
+        <div className="template-peer-status">
+          {request && run ? (
+            <WorkingIndicator run={run} />
+          ) : status === "cancelled" ? (
+            <Trans>Cancelled</Trans>
+          ) : status === "failed" ? (
+            <Trans>Failed</Trans>
+          ) : status === "completed" ? (
+            <Trans>Completed</Trans>
+          ) : (
+            <Trans>Queued</Trans>
+          )}
+        </div>
+      </div>
+    </article>
+  );
+}
+
 export function RecoveryNotice({ events }: { events: Event[] }) {
   return events.some((e) => e.kind.includes("recover")) ? (
     <p className="notice">
       <Trans>The task resumed from its saved state after reconnection.</Trans>
     </p>
   ) : null;
+}
+
+/** A preview from a real fenced model turn, replaced only by its identified durable message. */
+export function StreamingMessageCard({
+  run,
+  stream,
+  agent,
+}: {
+  run: Run;
+  stream: ReplyStreamSnapshot;
+  agent?: Agent;
+}) {
+  return (
+    <article
+      className="message template-message assistant template-streaming-card"
+      data-stream-run-id={run.id}
+      data-stream-turn-id={stream.turn_id}
+      data-stream-sequence={stream.sequence}
+    >
+      <div className="template-message-frame">
+        <div className="template-speaker">
+          {agent && <AgentAvatar agent={agent} />}
+          <strong dir="auto">{agent?.name ?? <Trans>Agent</Trans>}</strong>
+        </div>
+        <div className="message-body template-message-body" dir="auto">
+          <ChatMarkdown streaming={stream.phase === "streaming"}>{stream.text}</ChatMarkdown>
+        </div>
+        <div className="message-meta template-message-meta">
+          <WorkingIndicator run={run} />
+        </div>
+        {stream.truncated && (
+          <p className="muted">
+            <Trans>The full response will appear when complete.</Trans>
+          </p>
+        )}
+      </div>
+    </article>
+  );
 }

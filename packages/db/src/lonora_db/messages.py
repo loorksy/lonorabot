@@ -155,6 +155,9 @@ async def send_message(
         if active and is_conversational(active.trigger):
             if active.status == "queued":
                 active.input_seq = message.seq
+                if active.execution_state:
+                    # A queued continuation restores its checkpoint instead of rebuilding history.
+                    session.add(SteeringRow(run_id=active.id, message_id=message.id))
             else:
                 session.add(SteeringRow(run_id=active.id, message_id=message.id))
                 if active.status == "waiting_input":

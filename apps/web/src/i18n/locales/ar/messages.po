@@ -7,7 +7,7 @@ msgstr ""
 msgid "A new teammate"
 msgstr "زميل جديد"
 
-#: src/pages/shell/chat-context.tsx:790
+#: src/pages/shell/chat-context.tsx:830
 msgid "A workspace that remembers"
 msgstr "مساحة عمل تتذكر"
 
@@ -59,7 +59,7 @@ msgstr "إضافة لوحة"
 msgid "Add broker connection"
 msgstr "إضافة اتصال بالوسيط"
 
-#: src/pages/shell/chat-context.tsx:575
+#: src/pages/shell/chat-context.tsx:595
 msgid "Add direction while the agent works…"
 msgstr "أضف توجيهًا أثناء عمل الوكيل…"
 
@@ -78,13 +78,18 @@ msgstr "إضافة خط"
 #: src/pages/Board.tsx:371
 #: src/pages/Board.tsx:373
 #: src/pages/shell/bot-picker.tsx:109
-#: src/pages/shell/chat-context.tsx:161
-#: src/pages/shell/message-cards.tsx:34
-#: src/pages/shell/message-cards.tsx:116
+#: src/pages/shell/chat-context.tsx:179
+#: src/pages/shell/message-cards.tsx:40
+#: src/pages/shell/message-cards.tsx:140
+#: src/pages/shell/message-cards.tsx:143
+#: src/pages/shell/message-cards.tsx:148
+#: src/pages/shell/message-cards.tsx:151
+#: src/pages/shell/message-cards.tsx:203
 msgid "Agent"
 msgstr "الوكيل"
 
 #: src/components/ai/CollaborationMarker.tsx:11
+#: src/pages/shell/message-cards.tsx:132
 msgid "Agent collaboration"
 msgstr "تعاون الوكلاء"
 
@@ -155,16 +160,16 @@ msgstr "سعر العرض"
 msgid "Assign work to your agents and follow each task."
 msgstr "أسند العمل إلى وكلائك وتابع كل مهمة."
 
-#: src/pages/shell/chat-context.tsx:555
-#: src/pages/shell/chat-context.tsx:556
+#: src/pages/shell/chat-context.tsx:575
+#: src/pages/shell/chat-context.tsx:576
 msgid "Attach file"
 msgstr "إرفاق ملف"
 
-#: src/pages/shell/chat-context.tsx:392
+#: src/pages/shell/chat-context.tsx:412
 msgid "Attached files"
 msgstr "ملفات مرفقة"
 
-#: src/pages/shell/message-cards.tsx:58
+#: src/pages/shell/message-cards.tsx:64
 msgid "Attachment"
 msgstr "مرفق"
 
@@ -265,6 +270,7 @@ msgstr "إلغاء الأمر"
 #: src/components/ai/primitives.tsx:54
 #: src/components/ToolActivityDisclosure.tsx:22
 #: src/pages/ActivityList.tsx:120
+#: src/pages/shell/message-cards.tsx:161
 msgid "Cancelled"
 msgstr "ملغى"
 
@@ -339,7 +345,7 @@ msgstr "اختر نماذج صوت مدعومة من الإعدادات العا
 #: src/pages/RoutineEditor.tsx:100
 #: src/pages/Shell.tsx:589
 #: src/pages/shell/bot-settings.tsx:114
-#: src/pages/shell/chat-context.tsx:220
+#: src/pages/shell/chat-context.tsx:240
 msgid "Close"
 msgstr "إغلاق"
 
@@ -372,6 +378,7 @@ msgstr "اللون"
 #: src/components/ToolActivityDisclosure.tsx:26
 #: src/pages/ActivityList.tsx:117
 #: src/pages/Board.tsx:18
+#: src/pages/shell/message-cards.tsx:165
 msgid "Completed"
 msgstr "مكتمل"
 
@@ -431,7 +438,7 @@ msgid "Context panel"
 msgstr "لوحة السياق"
 
 #: src/pages/ModelRoutingSettings.tsx:10
-#: src/pages/shell/chat-context.tsx:751
+#: src/pages/shell/chat-context.tsx:791
 msgid "Conversation"
 msgstr "المحادثة"
 
@@ -586,7 +593,7 @@ msgstr "فصل الحساب"
 msgid "Discovered models"
 msgstr "النماذج المكتشفة"
 
-#: src/pages/shell/chat-context.tsx:451
+#: src/pages/shell/chat-context.tsx:471
 msgid "Dismiss error"
 msgstr "إخفاء الخطأ"
 
@@ -660,7 +667,7 @@ msgstr "مفعّل"
 msgid "End call"
 msgstr "إنهاء المكالمة"
 
-#: src/pages/shell/chat-context.tsx:656
+#: src/pages/shell/chat-context.tsx:676
 msgid "Enter to send · Shift+Enter for a new line"
 msgstr "Enter للإرسال · Shift+Enter لسطر جديد"
 
@@ -695,6 +702,7 @@ msgstr "سجل التنفيذ"
 #: src/components/trading/TradingJournal.tsx:22
 #: src/pages/ActivityList.tsx:119
 #: src/pages/Board.tsx:24
+#: src/pages/shell/message-cards.tsx:163
 msgid "Failed"
 msgstr "فشل"
 
@@ -746,7 +754,7 @@ msgstr "نموذج التضمين العالمي"
 msgid "Global models"
 msgstr "النماذج العالمية"
 
-#: src/pages/ModelRoutingSettings.tsx:74
+#: src/pages/ModelRoutingSettings.tsx:79
 msgid "Global routing"
 msgstr "التوجيه العالمي"
 
@@ -822,7 +830,7 @@ msgstr "فاصل زمني"
 msgid "Isolated document preview"
 msgstr "معاينة المستند المعزولة"
 
-#: src/pages/shell/chat-context.tsx:836
+#: src/pages/shell/chat-context.tsx:880
 msgid "Jump to latest"
 msgstr "الانتقال إلى الأحدث"
 
@@ -868,7 +876,7 @@ msgstr "أستمع إليك · تحدث للمقاطعة"
 msgid "Live connection active"
 msgstr "الاتصال المباشر فعّال"
 
-#: src/pages/shell/chat-context.tsx:779
+#: src/pages/shell/chat-context.tsx:819
 msgid "Load earlier messages"
 msgstr "تحميل الرسائل السابقة"
 
@@ -906,7 +914,7 @@ msgstr "جارٍ تحميل مساحة العمل…"
 #: src/pages/RoutineRunHistory.tsx:43
 #: src/pages/Routines.tsx:176
 #: src/pages/ScratchpadSection.tsx:94
-#: src/pages/shell/chat-context.tsx:776
+#: src/pages/shell/chat-context.tsx:816
 msgid "Loading…"
 msgstr "جارٍ التحميل…"
 
@@ -969,20 +977,20 @@ msgstr "الذاكرة والمهارات والعمل المفتوح"
 msgid "Mention agents with @name. Without a mention, the first member responds."
 msgstr "اذكر الوكلاء باستخدام ‎@الاسم. عند عدم تحديد وكيل، يرد العضو الأول."
 
-#: src/pages/shell/chat-context.tsx:504
+#: src/pages/shell/chat-context.tsx:524
 msgid "Mentions"
 msgstr "الإشارات"
 
-#: src/pages/shell/chat-context.tsx:567
+#: src/pages/shell/chat-context.tsx:587
 #: src/pages/SpaceSearch.tsx:164
 msgid "Message"
 msgstr "الرسالة"
 
-#: src/pages/shell/chat-context.tsx:417
+#: src/pages/shell/chat-context.tsx:437
 msgid "Message composer"
 msgstr "محرر الرسالة"
 
-#: src/pages/shell/chat-context.tsx:575
+#: src/pages/shell/chat-context.tsx:595
 msgid "Message your agent…"
 msgstr "اكتب رسالة لوكيلك…"
 
@@ -1006,7 +1014,7 @@ msgstr "طي قائمة الوكلاء"
 msgid "Minimum volume"
 msgstr "أدنى حجم"
 
-#: src/pages/ModelRoutingSettings.tsx:83
+#: src/pages/ModelRoutingSettings.tsx:88
 msgid "Mode"
 msgstr "الوضع"
 
@@ -1081,7 +1089,7 @@ msgstr "لا توجد مهام بعد"
 msgid "Now"
 msgstr "الآن"
 
-#: src/pages/ModelRoutingSettings.tsx:104
+#: src/pages/ModelRoutingSettings.tsx:109
 msgid "One model for text work"
 msgstr "نموذج واحد للمهام النصية"
 
@@ -1233,6 +1241,7 @@ msgstr "المزودون والكتالوج الرسمي"
 
 #: src/components/ai/primitives.tsx:42
 #: src/pages/ActivityList.tsx:109
+#: src/pages/shell/message-cards.tsx:167
 msgid "Queued"
 msgstr "في الانتظار"
 
@@ -1273,21 +1282,21 @@ msgstr "تحديث الشموع المباشر"
 msgid "Reload"
 msgstr "إعادة تحميل"
 
-#: src/pages/shell/chat-context.tsx:490
+#: src/pages/shell/chat-context.tsx:510
 msgid "Remove {name}"
 msgstr "إزالة {name}"
 
-#: src/pages/shell/chat-context.tsx:473
+#: src/pages/shell/chat-context.tsx:493
 msgid "Remove reply"
 msgstr "إزالة الرد"
 
-#: src/pages/shell/message-cards.tsx:77
-#: src/pages/shell/message-cards.tsx:78
+#: src/pages/shell/message-cards.tsx:83
+#: src/pages/shell/message-cards.tsx:84
 msgid "Reply"
 msgstr "رد"
 
-#: src/pages/shell/chat-context.tsx:462
-#: src/pages/shell/message-cards.tsx:43
+#: src/pages/shell/chat-context.tsx:482
+#: src/pages/shell/message-cards.tsx:49
 msgid "Reply to an earlier message"
 msgstr "رد على رسالة سابقة"
 
@@ -1310,7 +1319,7 @@ msgstr "تغيير عرض اللوحة"
 #: src/components/market/MarketWatch.tsx:294
 #: src/pages/ActivityList.tsx:279
 #: src/pages/Routines.tsx:100
-#: src/pages/shell/chat-context.tsx:168
+#: src/pages/shell/chat-context.tsx:186
 msgid "Resume"
 msgstr "استئناف"
 
@@ -1325,7 +1334,7 @@ msgstr "استئناف"
 msgid "Retry"
 msgstr "إعادة المحاولة"
 
-#: src/pages/ModelRoutingSettings.tsx:107
+#: src/pages/ModelRoutingSettings.tsx:112
 msgid "Route by capability"
 msgstr "التوجيه حسب القدرة"
 
@@ -1358,7 +1367,7 @@ msgstr "حفظ"
 msgid "Save and discover models"
 msgstr "حفظ واكتشاف النماذج"
 
-#: src/pages/ModelRoutingSettings.tsx:160
+#: src/pages/ModelRoutingSettings.tsx:165
 msgid "Save global routing"
 msgstr "حفظ التوجيه العالمي"
 
@@ -1371,7 +1380,7 @@ msgid "Save memory"
 msgstr "حفظ الذاكرة"
 
 #: src/pages/KnowledgeSection.tsx:92
-#: src/pages/ModelRoutingSettings.tsx:156
+#: src/pages/ModelRoutingSettings.tsx:161
 msgid "Saved"
 msgstr "تم الحفظ"
 
@@ -1471,13 +1480,13 @@ msgstr "بيع عند الكسر"
 msgid "Semantic memory · optional"
 msgstr "الذاكرة الدلالية · اختيارية"
 
-#: src/pages/shell/chat-context.tsx:632
-#: src/pages/shell/chat-context.tsx:633
+#: src/pages/shell/chat-context.tsx:652
+#: src/pages/shell/chat-context.tsx:653
 msgid "Send"
 msgstr "إرسال"
 
-#: src/pages/shell/chat-context.tsx:632
-#: src/pages/shell/chat-context.tsx:633
+#: src/pages/shell/chat-context.tsx:652
+#: src/pages/shell/chat-context.tsx:653
 msgid "Send direction"
 msgstr "إرسال توجيه"
 
@@ -1487,7 +1496,7 @@ msgstr "رابط الخادم"
 
 #: src/pages/Shell.tsx:563
 #: src/pages/Shell.tsx:680
-#: src/pages/shell/chat-context.tsx:528
+#: src/pages/shell/chat-context.tsx:548
 msgid "Settings"
 msgstr "الإعدادات"
 
@@ -1577,7 +1586,7 @@ msgstr "مربع"
 msgid "Stable facts and preferences kept separately from conversation history."
 msgstr "حقائق وتفضيلات ثابتة محفوظة بشكل مستقل عن سجل المحادثة."
 
-#: src/pages/shell/chat-context.tsx:793
+#: src/pages/shell/chat-context.tsx:833
 msgid "Start a conversation. Your agent keeps its memory and continues scheduled work here."
 msgstr "ابدأ محادثة. يحتفظ وكيلك بذاكرته ويواصل مهامه المجدولة هنا."
 
@@ -1593,8 +1602,8 @@ msgid "Status"
 msgstr "الحالة"
 
 #: src/pages/ActivityList.tsx:269
-#: src/pages/shell/chat-context.tsx:647
-#: src/pages/shell/chat-context.tsx:648
+#: src/pages/shell/chat-context.tsx:667
+#: src/pages/shell/chat-context.tsx:668
 msgid "Stop"
 msgstr "إيقاف"
 
@@ -1661,7 +1670,7 @@ msgstr "يُقرأ الكتالوج من المزود. تظهر القدرات �
 msgid "The file preview could not be displayed"
 msgstr "تعذّر عرض معاينة الملف"
 
-#: src/pages/shell/message-cards.tsx:126
+#: src/pages/shell/message-cards.tsx:213
 msgid "The full response will appear when complete."
 msgstr "ستظهر الإجابة كاملة عند الانتهاء."
 
@@ -1693,7 +1702,7 @@ msgstr "خدمة الصوت المقيمة غير متاحة. تحقق من جا
 msgid "The setup code is incorrect."
 msgstr "رمز الإعداد غير صحيح."
 
-#: src/pages/shell/message-cards.tsx:91
+#: src/pages/shell/message-cards.tsx:178
 msgid "The task resumed from its saved state after reconnection."
 msgstr "استؤنفت المهمة من حالتها المحفوظة بعد إعادة الاتصال."
 
@@ -1706,7 +1715,7 @@ msgstr "تعذر اتصال الصوت. أعد محاولة المكالمة."
 msgid "Theme"
 msgstr "المظهر"
 
-#: src/pages/ModelRoutingSettings.tsx:77
+#: src/pages/ModelRoutingSettings.tsx:82
 msgid "These settings apply to every agent and routine. Voice routes require models that support audio."
 msgstr "تنطبق هذه الإعدادات على جميع الوكلاء والمهام المجدولة. تتطلب المسارات الصوتية نماذج تدعم الصوت."
 
@@ -1830,7 +1839,7 @@ msgstr "تفعيل التداول"
 msgid "Type"
 msgstr "النوع"
 
-#: src/pages/ModelRoutingSettings.tsx:113
+#: src/pages/ModelRoutingSettings.tsx:118
 msgid "Unified model"
 msgstr "النموذج الموحد"
 
@@ -1851,9 +1860,9 @@ msgid "Vision"
 msgstr "الرؤية"
 
 #: src/pages/settings-sidebar.tsx:20
-#: src/pages/shell/chat-context.tsx:215
-#: src/pages/shell/chat-context.tsx:621
-#: src/pages/shell/chat-context.tsx:622
+#: src/pages/shell/chat-context.tsx:235
+#: src/pages/shell/chat-context.tsx:641
+#: src/pages/shell/chat-context.tsx:642
 msgid "Voice"
 msgstr "الصوت"
 

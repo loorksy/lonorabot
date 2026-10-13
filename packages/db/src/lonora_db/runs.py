@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .events import emit
 from .schema import AgentRow, GroupRow, MessageRow, RunRow, SteeringRow, ThreadRow
+from .streaming import STREAM_KEY, settle_stream, stream_data, stream_identity
 from .transactions import owned_agent, owned_thread
 
 
@@ -28,6 +29,7 @@ def run_data(row: RunRow) -> dict[str, Any]:
         "error_code": row.error_code,
         "result": row.result,
         "model_metadata": row.model_metadata,
+        "stream": stream_data(row),
         "created_at": row.created_at.isoformat(),
         "updated_at": row.updated_at.isoformat(),
     }
@@ -58,7 +60,11 @@ async def create_run(
         prompt=request.prompt,
         parent_run_id=request.parent_run_id,
         input_seq=thread.next_seq - 1,
-        model_metadata=request.metadata,
+        model_metadata={
+            key: value
+            for key, value in request.metadata.items()
+            if key not in {STREAM_KEY, "result_message_id"}
+        },
     )
     if run_id:
         row.id = run_id
@@ -179,6 +185,8 @@ async def complete_run(
     if outstanding:
         return False
     assert_transition(row.status, "completed")
+    final_message_id: str | None = None
+    final_message: MessageRow | None = None
     if answer and row.trigger != "tickets":
         message = MessageRow(
             thread_id=thread.id,
@@ -190,6 +198,25 @@ async def complete_run(
         thread.next_seq += 1
         session.add(message)
         await session.flush()
+        final_message_id = message.id
+        final_message = message
+    snapshot = settle_stream(
+        row,
+        "committed" if final_message_id else "discarded",
+        message_id=final_message_id,
+        text=answer if final_message_id else "",
+    )
+    if snapshot:
+        emit(
+            session,
+            thread.owner_id,
+            "run.reply_committed",
+            thread_id=thread.id,
+            agent_id=row.agent_id,
+            run_id=row.id,
+            payload=stream_identity(snapshot),
+        )
+    if final_message:
         from .messages import message_data
 
         emit(
@@ -199,11 +226,19 @@ async def complete_run(
             thread_id=thread.id,
             agent_id=row.agent_id,
             run_id=row.id,
-            payload=message_data(message),
+            payload=message_data(final_message),
         )
     row.status = "completed"
     row.result = answer
-    row.model_metadata = {**row.model_metadata, **metadata}
+    row.model_metadata = {
+        **row.model_metadata,
+        **{
+            key: value
+            for key, value in metadata.items()
+            if key not in {STREAM_KEY, "result_message_id"}
+        },
+    }
+    row.model_metadata = {**row.model_metadata, "result_message_id": final_message_id}
     row.updated_at = utcnow()
     row.lease_expires_at = None
     emit(
@@ -220,6 +255,7 @@ async def complete_run(
 async def fail_run(session: AsyncSession, lease: Lease, code: str) -> None:
     row = await require_lease(session, lease, lock=True)
     row.status = "failed"
+    settle_stream(row, "failed")
     row.error_code = code
     row.updated_at = utcnow()
     row.lease_expires_at = None
