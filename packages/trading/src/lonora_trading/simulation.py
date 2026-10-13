@@ -35,6 +35,7 @@ async def import_simulation(
         "positions": [],
         "orders": [],
         "operations": {},
+        "history": snapshot.get("history", [])[:1000],
     }
     async with db.sessions() as session, session.begin():
         existing = await session.get(TradingAccountRepository.row_type, connection_id)

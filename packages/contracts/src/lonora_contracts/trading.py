@@ -12,8 +12,8 @@ class TradingControl(Contract):
 
 
 class TradeRequest(Contract):
-    account_id: str
-    operation_id: str = Field(default_factory=new_id, max_length=80)
+    account_id: str = Field(min_length=1, max_length=120)
+    operation_id: str = Field(default_factory=new_id, min_length=1, max_length=80)
     action: Literal[
         "buy",
         "sell",
