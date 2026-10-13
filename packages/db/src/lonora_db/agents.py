@@ -12,6 +12,8 @@ def agent_data(row: AgentRow) -> dict[str, Any]:
     return {
         "id": row.id,
         "name": row.name,
+        "title": row.title,
+        "description": row.description,
         "avatar": row.avatar,
         "color": row.color,
         "instructions": row.instructions,

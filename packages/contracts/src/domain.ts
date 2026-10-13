@@ -1,6 +1,8 @@
 export type Json = string | number | boolean | null | Json[] | { [key: string]: Json };
 export type Payload = Record<string, Json>;
 export type Agent = {
+  title?: string;
+  description?: string;
   id: string;
   name: string;
   avatar: string;

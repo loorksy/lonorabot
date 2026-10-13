@@ -15,6 +15,13 @@ async def agent_directory(
         query = query.where(AgentRow.name.icontains(name, autoescape=True))
     rows = (await session.scalars(query.order_by(AgentRow.created_at, AgentRow.id))).all()
     return [
-        {"id": row.id, "name": row.name, "paused": row.paused, "is_self": row.id == agent_id}
+        {
+            "id": row.id,
+            "name": row.name,
+            "title": row.title,
+            "description": row.description,
+            "paused": row.paused,
+            "is_self": row.id == agent_id,
+        }
         for row in rows
     ]

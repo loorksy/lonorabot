@@ -62,7 +62,9 @@ async def routing_frame(session: AsyncSession, owner_id: str, agent_id: str, thr
         group = await session.get(GroupRow, thread.group_id)
         if group is None or group.owner_id != owner_id:
             raise LonoraError("context_identity_missing", 404)
-    identity = encode_metadata({"id": agent.id, "name": agent.name})
+    identity = encode_metadata(
+        {"id": agent.id, "name": agent.name, "title": agent.title, "description": agent.description}
+    )
     return (
         ROUTING_FRAME_PREFIX
         + "This is the current routing snapshot. It supersedes older agent names, "

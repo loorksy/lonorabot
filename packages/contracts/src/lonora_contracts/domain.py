@@ -19,11 +19,16 @@ class Contract(BaseModel):
 
 class AgentCreate(Contract):
     name: str = Field(min_length=1, max_length=80)
+    title: str = Field(default="", max_length=160)
+    description: str = Field(default="", max_length=2000)
+    instructions: str = Field(default="", max_length=16000)
     avatar: str = "orb"
     color: str = Field(default="#7c83fd", pattern=r"^#[0-9a-fA-F]{6}$")
 
 
 class AgentUpdate(Contract):
+    title: str | None = Field(default=None, max_length=160)
+    description: str | None = Field(default=None, max_length=2000)
     name: str | None = Field(default=None, min_length=1, max_length=80)
     instructions: str | None = Field(default=None, max_length=16000)
     avatar: str | None = None

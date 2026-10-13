@@ -51,6 +51,8 @@ class AgentRow(Base):
     )
     parent_id: Mapped[str | None] = mapped_column(ForeignKey("ln_agents.id", ondelete="SET NULL"))
     name: Mapped[str] = mapped_column(String(80))
+    title: Mapped[str] = mapped_column(String(160), default="")
+    description: Mapped[str] = mapped_column(Text, default="")
     avatar: Mapped[str] = mapped_column(String(24), default="orb")
     color: Mapped[str] = mapped_column(String(7), default="#7c83fd")
     instructions: Mapped[str] = mapped_column(Text, default="")
