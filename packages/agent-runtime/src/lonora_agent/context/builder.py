@@ -43,7 +43,7 @@ async def build_context(context: ToolContext) -> list[ModelMessage]:
                 await read_memory_context(session, agent.id),
                 await scratchpad_context(session, agent.id),
                 await read_skill_context(session, agent.id),
-                await group_context(session, thread.group_id),
+                await group_context(session, thread.group_id, context.agent_id),
                 await reply_context(session, thread.id, run.input_seq),
                 wake_context(run),
             ]

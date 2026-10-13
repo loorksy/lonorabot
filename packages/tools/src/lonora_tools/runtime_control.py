@@ -3,6 +3,7 @@ from typing import Any
 from lonora_contracts.domain import Board, Contract, Ticket
 from lonora_db.boards import BoardRepository
 from lonora_db.runs import require_lease
+from lonora_db.schema import ThreadRow
 from lonora_db.tickets import TicketRepository
 from lonora_db.transactions import resource_data
 from lonora_trading.controls import read_controls
@@ -29,6 +30,21 @@ async def wait(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
 
 
 async def silence(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+    async with context.db.sessions() as session:
+        run = await require_lease(session, context.lease)
+        thread = await session.get(ThreadRow, context.thread_id)
+        if thread is None or not thread.group_id:
+            return {
+                "ok": False,
+                "code": "silence_requires_group",
+                "guidance": "Respond to the request in this conversation.",
+            }
+        if run.trigger in {"user", "group", "peer"}:
+            return {
+                "ok": False,
+                "code": "reply_required",
+                "guidance": "You were selected to answer this request. Give the substantive answer, or use wait_for_input for a necessary clarification. Do not stay silent.",
+            }
     return {"_runtime_silence": True}
 
 
@@ -114,7 +130,7 @@ def tools() -> list[Tool]:
         ),
         Tool(
             "group_silence",
-            "Choose silence when a group reply would add no useful information.",
+            "Skip redundant background group participation only. Owner-selected requests, direct messages, and peer requests require a substantive answer or clarification.",
             Empty,
             silence,
             True,

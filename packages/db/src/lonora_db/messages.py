@@ -96,6 +96,7 @@ async def send_message(
             "run_ids": receipt.result.get("run_ids", []),
             "deduplicated": True,
         }
+    reply = None
     if request.reply_to:
         reply = await session.get(MessageRow, request.reply_to)
         if reply is None:
@@ -135,8 +136,14 @@ async def send_message(
                 ).all()
             )
             targets = mentions(request.content, {a.id: a.name for a in agents})
-            if not targets and member_ids:
-                targets = [member_ids[0]]
+            if not targets and request.reply_to and reply and reply.agent_id:
+                targets = [a.id for a in agents if a.id == reply.agent_id]
+            if not targets:
+                available = {a.id for a in agents if not a.paused}
+                for member_id in member_ids:
+                    if member_id in available:
+                        targets = [member_id]
+                        break
     run_ids: list[str] = []
     for agent_id in targets:
         agent = await owned_agent(session, owner_id, agent_id)

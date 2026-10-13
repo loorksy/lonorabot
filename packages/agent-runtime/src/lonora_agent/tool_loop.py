@@ -104,8 +104,22 @@ async def execute_tool_loop(
             )
             if result.get("_runtime_wait"):
                 return LoopOutcome(str(result["question"]), state.get("selection", {}), True)
-            if result.get("_runtime_silence"):
-                return LoopOutcome("", state.get("selection", {}))
+            if result.get("_runtime_silence") and not pending:
+                prose = next(
+                    (
+                        message.content
+                        for message in reversed(messages)
+                        if message.role == "assistant"
+                    ),
+                    "",
+                ).strip()
+                return LoopOutcome(
+                    prose,
+                    {
+                        **state.get("selection", {}),
+                        "reply_outcome": "answered" if prose else "silent",
+                    },
+                )
         await merge_steering(context, state, messages)
         turn_capability = (
             Capability.VISION if any(message.images for message in messages) else capability
@@ -128,5 +142,17 @@ async def execute_tool_loop(
             continue
         if await merge_steering(context, state, messages):
             continue
-        return LoopOutcome(reply.text, state["selection"])
+        if not reply.text.strip() and run.trigger in {"user", "group", "peer"}:
+            messages.append(
+                ModelMessage(
+                    role="user",
+                    content="No answer was provided for the selected request. Provide the substantive result or ask a necessary clarification with wait_for_input. Do not invent results.",
+                )
+            )
+            await persist(context, state, messages, pending)
+            continue
+        return LoopOutcome(
+            reply.text,
+            {**state["selection"], "reply_outcome": "answered" if reply.text.strip() else "silent"},
+        )
     raise LonoraError("tool_round_limit", 409)
