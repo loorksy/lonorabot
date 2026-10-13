@@ -16,6 +16,7 @@ from lonora_db.schema import AgentRow, IntegrationRow, MarketWakeReceiptRow, Mar
 from lonora_session.idempotency import request_hash, stable_id
 from sqlalchemy import select
 
+from .broker import broker_market
 from .watch_control import watch_can_trigger
 
 
@@ -47,11 +48,12 @@ async def observe(
             },
         )
     broker = await brokers.get(row.owner_id, config.account_id)
+    market = await broker_market(brokers, row.owner_id, config.account_id)
     if config.kind == "price":
-        quote = await broker.quote(config.symbol)
+        quote = await market.quote(config.symbol)
         return quote.bid, quote.observed_at.isoformat(), {"quote": quote.model_dump(mode="json")}
     if config.kind == "indicator":
-        candles = await broker.candles(
+        candles = await market.candles(
             config.symbol, config.timeframe, max(100, config.period + 35)
         )
         if not candles:

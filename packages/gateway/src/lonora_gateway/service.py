@@ -3,6 +3,7 @@ from pathlib import Path
 
 from lonora_agent.collaboration.outcome_return import return_pending_outcomes
 from lonora_agent.runtime import AgentRuntime
+from lonora_charts.runtime import chart_runtime_tick
 from lonora_db.client import Database
 from lonora_db.owner import get_owner
 from lonora_tools.loader import load_tools
@@ -71,9 +72,20 @@ class Gateway:
                 if owner.id not in self.services:
                     self.services[owner.id] = OwnerServices.create(self.db, owner.id, self.key)
                 service = self.services[owner.id]
-                await dispatch_market_wakes(self.db, service.brokers)
                 await reconcile_ambiguous(self.db, service.brokers)
             await asyncio.sleep(10)
+
+    async def market_loop(self) -> None:
+        while not self.stop.is_set():
+            for service in list(self.services.values()):
+                await chart_runtime_tick(self.db, service.brokers, service.owner_id, self.identity)
+            await asyncio.sleep(2)
+
+    async def watches_loop(self) -> None:
+        while not self.stop.is_set():
+            for service in list(self.services.values()):
+                await dispatch_market_wakes(self.db, service.brokers)
+            await asyncio.sleep(2)
 
     async def voice_loop(self) -> None:
         while not self.stop.is_set():
@@ -98,6 +110,8 @@ class Gateway:
         )
         loops.append(asyncio.create_task(supervise("channels", self.channels_loop, self.stop)))
         loops.append(asyncio.create_task(supervise("voice", self.voice_loop, self.stop)))
+        loops.append(asyncio.create_task(supervise("market", self.market_loop, self.stop)))
+        loops.append(asyncio.create_task(supervise("watches", self.watches_loop, self.stop)))
         await self.stop.wait()
         self.state = GatewayState.DRAINING
         await write_heartbeat(self.db, self.identity, self.state.value)

@@ -83,5 +83,7 @@ def order(value: dict[str, Any]) -> Order:
         side=value["type"],
         volume=value["volume"],
         price=value["openPrice"],
+        stop_loss=value.get("stopLoss"),
+        take_profit=value.get("takeProfit"),
         operation_id=value.get("clientId"),
     )

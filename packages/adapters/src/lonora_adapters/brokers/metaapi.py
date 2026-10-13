@@ -2,7 +2,7 @@ import asyncio
 import hashlib
 import importlib
 import os
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from types import SimpleNamespace
@@ -111,6 +111,8 @@ class MetaApiBroker:
         self.account_id = account_id
         self.account_instance: Any = None
         self.rpc: Any = None
+        self.streaming: Any = None
+        self.stream_lock = asyncio.Lock()
         self.lock = asyncio.Lock()
 
     async def prepare(self) -> Any:
@@ -164,6 +166,70 @@ class MetaApiBroker:
         except Exception:
             raise LonoraError("broker_instruments_unavailable", 502) from None
 
+    async def stream_quotes(self, symbol: str) -> AsyncGenerator[Quote, None]:
+        # SDK streaming is shared by symbol listeners and survives without a browser.
+        await self.prepare()
+        queue: asyncio.Queue[Quote] = asyncio.Queue(maxsize=1)
+        listener_base: Any = importlib.import_module(
+            "metaapi_cloud_sdk.clients.metaapi.synchronization_listener"
+        ).SynchronizationListener
+
+        async def prices(
+            listener: Any,
+            instance_index: str,
+            values: list[dict[str, Any]],
+            *args: Any,
+            **kwargs: Any,
+        ) -> None:
+            for value in values:
+                if value.get("symbol") != symbol:
+                    continue
+                try:
+                    quote = normalize.quote(value)
+                except (ValueError, KeyError):
+                    continue
+                if queue.full():
+                    queue.get_nowait()
+                queue.put_nowait(quote)
+
+        listener: Any = type(
+            "LonoraPriceListener",
+            (listener_base,),
+            {
+                "on_symbol_prices_updated": prices,
+            },
+        )()
+        async with self.stream_lock:
+            if self.streaming is None:
+                self.streaming = self.account_instance.get_streaming_connection()
+                await self.streaming.connect()
+            stream = self.streaming
+            stream.add_synchronization_listener(listener)
+        try:
+            await stream.wait_synchronized({"timeoutInSeconds": 30})
+            await stream.subscribe_to_market_data(symbol, [{"type": "quotes"}])
+            yield await self.quote(symbol)
+            while True:
+                try:
+                    yield await asyncio.wait_for(queue.get(), timeout=30)
+                except TimeoutError:
+                    # Verify synchronization and resubscribe after SDK reconnects. A fresh
+                    # RPC observation provides recovery; never synthesize price/timestamps.
+                    await stream.wait_synchronized({"timeoutInSeconds": 20})
+                    await stream.subscribe_to_market_data(symbol, [{"type": "quotes"}])
+                    yield await self.quote(symbol)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            raise LonoraError("broker_stream_unavailable", 502) from None
+        finally:
+            stream.remove_synchronization_listener(listener)
+            # This generator is the sole resident consumer of this exact symbol.
+            try:
+                await stream.unsubscribe_from_market_data(symbol, [{"type": "quotes"}])
+            except Exception:
+                pass
+
     async def quote(self, symbol: str) -> Quote:
         rpc = await self.prepare()
         try:
@@ -180,6 +246,34 @@ class MetaApiBroker:
             return [normalize.candle(value, symbol, timeframe) for value in values]
         except Exception:
             raise LonoraError("broker_candles_unavailable", 502) from None
+
+    async def history(self, start: datetime, end: datetime, limit: int) -> list[dict[str, Any]]:
+        rpc = await self.prepare()
+        try:
+            response = await rpc.get_deals_by_time_range(start, end, 0, min(limit, 1000))
+            fields = {
+                "id",
+                "orderId",
+                "positionId",
+                "symbol",
+                "type",
+                "entryType",
+                "volume",
+                "price",
+                "profit",
+                "commission",
+                "swap",
+                "clientId",
+            }
+            return [
+                {
+                    **{key: value for key, value in row.items() if key in fields},
+                    "time": normalize.observed(row["time"]).isoformat(),
+                }
+                for row in response.get("deals", [])[:limit]
+            ]
+        except Exception:
+            raise LonoraError("broker_history_unavailable", 502) from None
 
     async def account(self) -> AccountState:
         rpc = await self.prepare()
@@ -230,7 +324,12 @@ class MetaApiBroker:
                     *args, stop_loss=sl, take_profit=tp, options=options
                 )
             elif request.action == "close_position":
-                response = await rpc.close_position(request.position_id, options=options)
+                if volume is not None:
+                    response = await rpc.close_position_partially(
+                        request.position_id, volume, options=options
+                    )
+                else:
+                    response = await rpc.close_position(request.position_id, options=options)
             elif request.action == "modify_position":
                 response = await rpc.modify_position(
                     request.position_id, stop_loss=sl, take_profit=tp
@@ -249,7 +348,12 @@ class MetaApiBroker:
                 status=status,
                 broker_id=str(response.get("orderId") or response.get("positionId") or "") or None,
                 code=str(response.get("stringCode") or ""),
-                details={"numeric_code": response.get("numericCode")},
+                details={
+                    "numeric_code": response.get("numericCode"),
+                    "order_id": response.get("orderId"),
+                    "position_id": response.get("positionId"),
+                    "deal_id": response.get("dealId"),
+                },
             )
         except Exception:
             return TradeResult(
@@ -261,6 +365,12 @@ class MetaApiBroker:
     async def reconcile(
         self, operation_id: str, request: TradeRequest | None = None
     ) -> TradeResult:
+        # Modification/cancellation evidence cannot be inferred merely from an order
+        # or position carrying an old clientId. Keep uncertainty blocked conservatively.
+        if request and request.action in {"modify_order", "modify_position", "cancel_order"}:
+            return TradeResult(
+                operation_id=operation_id, status="ambiguous", code="mutation_evidence_required"
+            )
         rpc = await self.prepare()
         target = client_id(operation_id)
         try:
@@ -268,14 +378,20 @@ class MetaApiBroker:
             history = await rpc.get_deals_by_time_range(
                 datetime.now(UTC) - timedelta(days=7), datetime.now(UTC), 0, 1000
             )
-            items = current + list(history.get("deals", []))
+            deals = list(history.get("deals", []))
+            items = deals if request and request.action == "close_position" else current + deals
             matches = [item for item in items if item.get("clientId") == target]
             if matches:
                 return TradeResult(
                     operation_id=operation_id,
                     status="confirmed",
                     broker_id=str(matches[0].get("id") or ""),
-                    details={"reconciled": True},
+                    details={
+                        "reconciled": True,
+                        "order_id": matches[0].get("orderId"),
+                        "position_id": matches[0].get("positionId"),
+                        "deal_id": matches[0].get("id") if matches[0] in deals else None,
+                    },
                 )
             return TradeResult(
                 operation_id=operation_id, status="ambiguous", code="execution_not_observed"
@@ -284,6 +400,9 @@ class MetaApiBroker:
             raise LonoraError("broker_reconciliation_unavailable", 502) from None
 
     async def close(self) -> None:
+        if self.streaming is not None:
+            await self.streaming.close()
+            self.streaming = None
         if self.rpc is not None:
             await self.rpc.close()
         self.api.close()

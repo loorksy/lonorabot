@@ -6,6 +6,7 @@ from lonora_adapters.brokers.base import BrokerManager
 from lonora_adapters.storage.secret_store import EncryptedSecretStore
 from lonora_contracts.runs import Lease
 from lonora_db.client import Database
+from lonora_market.runtime import MarketRuntime
 from lonora_providers.credentials import ProviderCredentials
 from lonora_providers.router import GlobalModelRouter
 from lonora_tools.context import ToolContext
@@ -20,13 +21,16 @@ class OwnerServices:
     brokers: BrokerManager
     router: GlobalModelRouter
     trading: ExecutionService
+    market: MarketRuntime
 
     @classmethod
     def create(cls, db: Database, owner_id: str, key: str) -> "OwnerServices":
         secrets = EncryptedSecretStore(db, key, owner_id)
         brokers = BrokerManager(db, secrets)
         router = GlobalModelRouter(db, ProviderCredentials(db, secrets))
-        return cls(owner_id, db, secrets, brokers, router, ExecutionService(db, brokers))
+        market = MarketRuntime(db, brokers, owner_id)
+        brokers.market = market
+        return cls(owner_id, db, secrets, brokers, router, ExecutionService(db, brokers), market)
 
     def tool_context(
         self,
@@ -53,4 +57,5 @@ class OwnerServices:
         )
 
     async def close(self) -> None:
+        await self.market.close()
         await self.brokers.close()

@@ -1,4 +1,8 @@
 import asyncio
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from lonora_market.runtime import MarketRuntime
 
 from lonora_adapter_kit.broker import BrokerAdapter
 from lonora_adapter_kit.secrets import SecretStore
@@ -11,6 +15,7 @@ from lonora_db.client import Database
 class BrokerManager:
     def __init__(self, db: Database, secrets: SecretStore):
         self.db, self.secrets = db, secrets
+        self.market: MarketRuntime | None = None
         self.lock = asyncio.Lock()
         self.connections: dict[str, tuple[int, BrokerAdapter]] = {}
 

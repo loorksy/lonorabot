@@ -1,4 +1,6 @@
-from collections.abc import Awaitable, Callable
+import asyncio
+from collections.abc import AsyncIterator, Awaitable, Callable
+from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
@@ -48,6 +50,15 @@ class SimulationBroker:
             for item in (await self.snapshot()).get("instruments", [])
         ]
 
+    async def stream_quotes(self, symbol: str) -> AsyncIterator[Quote]:
+        previous: Quote | None = None
+        while not self.closed:
+            quote = await self.quote(symbol)
+            if quote != previous:
+                previous = quote
+                yield quote
+            await asyncio.sleep(1)
+
     async def quote(self, symbol: str) -> Quote:
         payload = (await self.snapshot()).get("quotes", {}).get(symbol)
         if payload is None:
@@ -57,6 +68,14 @@ class SimulationBroker:
     async def candles(self, symbol: str, timeframe: str, limit: int) -> list[Candle]:
         values = (await self.snapshot()).get("candles", {}).get(symbol + ":" + timeframe, [])
         return [Candle.model_validate(value) for value in values[-limit:]]
+
+    async def history(self, start: datetime, end: datetime, limit: int) -> list[dict[str, Any]]:
+        rows = (await self.snapshot()).get("history", [])
+        return [
+            row
+            for row in rows
+            if start <= datetime.fromisoformat(row["time"].replace("Z", "+00:00")) <= end
+        ][:limit]
 
     async def account(self) -> AccountState:
         state = await self.snapshot()
@@ -128,6 +147,8 @@ class SimulationBroker:
                         side=request.action,
                         volume=request.volume or Decimal(0),
                         price=request.price or Decimal(0),
+                        stop_loss=request.stop_loss,
+                        take_profit=request.take_profit,
                         operation_id=request.operation_id,
                     ).model_dump(mode="json")
                 )
@@ -144,7 +165,19 @@ class SimulationBroker:
                     raise LonoraError("position_not_found", 404)
                 broker_id = str(target["id"])
                 if request.action == "close_position":
-                    positions.remove(target)
+                    remaining = Decimal(str(target["volume"])) - (
+                        request.volume or Decimal(str(target["volume"]))
+                    )
+                    if remaining < 0:
+                        raise LonoraError("position_volume_exceeded", 409)
+                    if remaining == 0:
+                        positions.remove(target)
+                    else:
+                        target = {**target, "volume": str(remaining)}
+                        positions = [
+                            target if item["id"] == request.position_id else item
+                            for item in positions
+                        ]
                 else:
                     target = {
                         **target,
@@ -169,7 +202,12 @@ class SimulationBroker:
                 if request.action == "cancel_order":
                     orders.remove(target)
                 else:
-                    target = {**target, "price": str(request.price or target["price"])}
+                    target = {
+                        **target,
+                        "price": str(request.price or target["price"]),
+                        "stop_loss": str(request.stop_loss) if request.stop_loss else None,
+                        "take_profit": str(request.take_profit) if request.take_profit else None,
+                    }
                     orders = [target if item["id"] == request.order_id else item for item in orders]
             result = TradeResult(
                 operation_id=request.operation_id,

@@ -320,3 +320,24 @@ class IntegrationRow(ResourceRow):
 
 class SemanticMemoryRow(ResourceRow):
     __tablename__ = "ln_semantic_memory"
+
+
+class MarketSnapshotRow(Base):
+    __tablename__ = "ln_market_snapshots"
+    __table_args__ = (
+        UniqueConstraint(
+            "owner_id", "connection_id", "symbol", "timeframe", name="market_snapshot_identity"
+        ),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    owner_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_owners.id", ondelete="CASCADE"), index=True
+    )
+    connection_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_broker_sessions.id", ondelete="CASCADE")
+    )
+    symbol: Mapped[str] = mapped_column(String(80))
+    timeframe: Mapped[str] = mapped_column(String(12))
+    connection_version: Mapped[int] = mapped_column(Integer)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

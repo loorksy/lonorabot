@@ -32,4 +32,6 @@ class Order(Contract):
     side: str
     volume: Decimal
     price: Decimal
+    stop_loss: Decimal | None = None
+    take_profit: Decimal | None = None
     operation_id: str | None = None
