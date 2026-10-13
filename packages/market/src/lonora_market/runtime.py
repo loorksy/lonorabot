@@ -16,7 +16,7 @@ from lonora_core.user_error import LonoraError
 from lonora_db.client import Database
 from lonora_db.events import emit
 from lonora_db.market_snapshots import save_snapshot, snapshot_id
-from lonora_db.schema import BrokerSessionRow, MarketSnapshotRow
+from lonora_db.schema import BrokerSessionRow, CloudChartRow, MarketSnapshotRow, MarketWatchRow
 from sqlalchemy import select
 
 from .candles import validate_candle_series
@@ -227,6 +227,28 @@ class MarketRuntime:
             self.tasks[key] = asyncio.create_task(
                 self.consume(*key), name="market:" + connection_id + ":" + symbol
             )
+
+    async def maintain(self) -> None:
+        # Renewal is a separate gateway loop: slow chart history requests must not
+        # expire a healthy stream's account lease.
+        async with self.db.sessions() as session:
+            chart_payloads = (
+                await session.scalars(
+                    select(CloudChartRow.payload).where(CloudChartRow.owner_id == self.owner_id)
+                )
+            ).all()
+            watch_payloads = (
+                await session.scalars(
+                    select(MarketWatchRow.payload).where(MarketWatchRow.owner_id == self.owner_id)
+                )
+            ).all()
+        targets = {(str(value["account_id"]), str(value["symbol"])) for value in chart_payloads}
+        targets.update(
+            (str(value["account_id"]), str(value["symbol"]))
+            for value in watch_payloads
+            if value.get("enabled", True) and value.get("kind", "price") in {"price", "indicator"}
+        )
+        await self.synchronize(targets)
 
     async def close(self) -> None:
         self.closed = True

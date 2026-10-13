@@ -166,6 +166,17 @@ async def main() -> None:
                 )
             )
             await ready.wait()
+            async with fixture.runtime.db.sessions() as session:
+                connection_row = await session.get(BrokerSessionRow, connection_id)
+                assert connection_row is not None
+                previous_until = connection_row.state["market_stream_until"]
+            await service.market.maintain()
+            async with fixture.runtime.db.sessions() as session:
+                connection_row = await session.get(BrokerSessionRow, connection_id)
+                assert connection_row is not None
+                assert connection_row.state["market_stream_until"] > previous_until
+            assert not task.done()
+            print("PASS stream lease renews independently while chart history is blocked")
             async with fixture.runtime.db.sessions() as session, session.begin():
                 row = await session.get(CloudChartRow, chart_id, with_for_update=True)
                 assert row is not None

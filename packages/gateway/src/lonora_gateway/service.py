@@ -78,7 +78,19 @@ class Gateway:
     async def market_loop(self) -> None:
         while not self.stop.is_set():
             for service in list(self.services.values()):
-                await chart_runtime_tick(self.db, service.brokers, service.owner_id, self.identity)
+                await service.market.maintain()
+            await asyncio.sleep(2)
+
+    async def charts_loop(self) -> None:
+        while not self.stop.is_set():
+            for service in list(self.services.values()):
+                await chart_runtime_tick(
+                    self.db,
+                    service.brokers,
+                    service.owner_id,
+                    self.identity,
+                    maintain_streams=False,
+                )
             await asyncio.sleep(2)
 
     async def watches_loop(self) -> None:
@@ -111,6 +123,7 @@ class Gateway:
         loops.append(asyncio.create_task(supervise("channels", self.channels_loop, self.stop)))
         loops.append(asyncio.create_task(supervise("voice", self.voice_loop, self.stop)))
         loops.append(asyncio.create_task(supervise("market", self.market_loop, self.stop)))
+        loops.append(asyncio.create_task(supervise("charts", self.charts_loop, self.stop)))
         loops.append(asyncio.create_task(supervise("watches", self.watches_loop, self.stop)))
         await self.stop.wait()
         self.state = GatewayState.DRAINING

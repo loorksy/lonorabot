@@ -124,7 +124,12 @@ async def refresh_chart(
 
 
 async def chart_runtime_tick(
-    db: Database, brokers: BrokerManager, owner_id: str, identity: str
+    db: Database,
+    brokers: BrokerManager,
+    owner_id: str,
+    identity: str,
+    *,
+    maintain_streams: bool = True,
 ) -> int:
     async with db.sessions() as session:
         charts = list(
@@ -141,7 +146,7 @@ async def chart_runtime_tick(
                 )
             ).all()
         )
-    if brokers.market:
+    if maintain_streams and brokers.market:
         targets = {(str(row.payload["account_id"]), str(row.payload["symbol"])) for row in charts}
         targets.update(
             (str(row.payload["account_id"]), str(row.payload["symbol"]))
