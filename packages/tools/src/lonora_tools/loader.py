@@ -17,6 +17,7 @@ MODULES = (
     "market",
     "market_watch",
     "chart",
+    "chart_state",
     "chart_indicator",
     "chart_snapshot",
     "account",

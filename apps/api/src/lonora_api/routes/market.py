@@ -19,6 +19,23 @@ async def instruments(
     return [item.model_dump(mode="json") for item in await provider.instruments()]
 
 
+@router.get("/symbols")
+async def symbols(
+    request: Request, account_id: str, owner: OwnerIdentity = Depends(require_owner)
+) -> list[str]:
+    return await (
+        await runtime(request).services(owner.id).brokers.get(owner.id, account_id)
+    ).symbols()
+
+
+@router.get("/instrument")
+async def instrument(
+    request: Request, account_id: str, symbol: str, owner: OwnerIdentity = Depends(require_owner)
+) -> dict[str, Any]:
+    broker = await runtime(request).services(owner.id).brokers.get(owner.id, account_id)
+    return (await broker.instrument(symbol)).model_dump(mode="json")
+
+
 @router.get("/quote")
 async def quote(
     request: Request, account_id: str, symbol: str, owner: OwnerIdentity = Depends(require_owner)

@@ -1,12 +1,41 @@
+from datetime import datetime
 from typing import Any
 
 from lonora_contracts.domain import Contract
 from lonora_db.broker_sessions import BrokerSessionRepository
 from lonora_trading.accounts import account_snapshot
+from pydantic import Field, model_validator
 
 from .base import Tool
 from .context import ToolContext
 from .market import AccountInput
+
+
+class HistoryInput(AccountInput):
+    start: datetime
+    end: datetime
+    limit: int = Field(default=100, ge=1, le=1000)
+
+    @model_validator(mode="after")
+    def check_range(self) -> "HistoryInput":
+        if (
+            self.start.tzinfo is None
+            or self.end.tzinfo is None
+            or self.end < self.start
+            or (self.end - self.start).days > 90
+        ):
+            raise ValueError("invalid_history_range")
+        return self
+
+
+async def history(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+    params = HistoryInput.model_validate(args)
+    broker = await context.brokers.get(context.owner_id, params.account_id)
+    return {
+        "history": await broker.history(params.start, params.end, params.limit),
+        "start": params.start.isoformat(),
+        "end": params.end.isoformat(),
+    }
 
 
 class ListAccountsInput(Contract):
@@ -38,6 +67,13 @@ async def read(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
 
 def tools() -> list[Tool]:
     return [
+        Tool(
+            "account_history",
+            "Read bounded broker deal history over an explicit timezone-aware time range of at most 90 days; use the internal connection ID.",
+            HistoryInput,
+            history,
+            True,
+        ),
         Tool(
             "list_accounts",
             "List the owner's saved broker connections with exact internal "

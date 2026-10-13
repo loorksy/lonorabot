@@ -8,7 +8,9 @@ from lonora_db.transactions import ResourceRepository, resource_data
 from ..middleware.auth import require_owner, runtime
 
 
-def resource_router(path: str, repository: ResourceRepository) -> APIRouter:
+def resource_router(
+    path: str, repository: ResourceRepository, *, omit_catalog_state: tuple[str, ...] = ()
+) -> APIRouter:
     router = APIRouter(prefix=path)
 
     @router.get("")
@@ -19,10 +21,16 @@ def resource_router(path: str, repository: ResourceRepository) -> APIRouter:
         owner: OwnerIdentity = Depends(require_owner),
     ) -> list[dict[str, Any]]:
         async with runtime(request).db.sessions() as session:
-            return [
-                resource_data(row)
-                for row in await repository.list(session, owner.id, agent_id, thread_id)
-            ]
+            rows = await repository.list(session, owner.id, agent_id, thread_id)
+            result = [resource_data(row) for row in rows]
+            if omit_catalog_state:
+                for item in result:
+                    item["state"] = {
+                        key: value
+                        for key, value in item["state"].items()
+                        if key not in omit_catalog_state
+                    }
+            return result
 
     @router.post("", status_code=201)
     async def create_resource(
