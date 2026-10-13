@@ -9,7 +9,9 @@ from .context import ToolContext
 
 
 class AccountInput(Contract):
-    account_id: str
+    account_id: str = Field(
+        description="Internal connection_id returned by list_accounts; not the external broker account ID."
+    )
 
 
 class QuoteInput(AccountInput):
