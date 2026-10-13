@@ -15,6 +15,11 @@ parser.add_argument(
     "--serial", required=True, help="The explicit disposable emulator/test-device adb serial"
 )
 parser.add_argument("--output", type=Path, default=Path("/tmp/lonora-android-smoke"))
+parser.add_argument(
+    "--already-installed",
+    action="store_true",
+    help="Begin startup checks after this task has installed the exact APK on its disposable test device",
+)
 args = parser.parse_args()
 sdk = Path(os.environ.get("ANDROID_HOME") or os.environ.get("ANDROID_SDK_ROOT") or "")
 adb = str(sdk / "platform-tools" / "adb")
@@ -24,7 +29,7 @@ package = "ai.lonora.mobile"
 
 def command(*values: str) -> str:
     return subprocess.check_output(
-        [adb, "-s", args.serial, *values], text=True, stderr=subprocess.STDOUT
+        [adb, "-s", args.serial, *values], text=True, stderr=subprocess.STDOUT, timeout=120
     )
 
 
@@ -54,7 +59,12 @@ def wait_screen() -> ET.Element:
 
 
 command("logcat", "-c")
-print(command("install", "-r", str(args.apk.resolve())).strip())
+if not args.already_installed:
+    print(
+        command(
+            "install", "--no-streaming", "--no-incremental", "-r", str(args.apk.resolve())
+        ).strip()
+    )
 command("shell", "am", "start", "-n", package + "/.MainActivity")
 root = wait_screen()
 print("PASS signed release installs and starts without Metro")
@@ -86,7 +96,9 @@ root = wait_screen()
 if "Sign in" not in labels(root):
     raise SystemExit("SecureStore locale preference did not survive cold restart.")
 print("PASS native preference survives cold restart")
-print(command("install", "-r", str(args.apk.resolve())).strip())
+print(
+    command("install", "--no-streaming", "--no-incremental", "-r", str(args.apk.resolve())).strip()
+)
 command("shell", "am", "force-stop", package)
 command("shell", "am", "start", "-n", package + "/.MainActivity")
 root = wait_screen()
