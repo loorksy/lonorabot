@@ -8,6 +8,8 @@
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
+    "android:release": "python3 scripts/android-release.py",
+    "android:verify": "python3 scripts/android-verify.py",
     "check": "tsc --noEmit -p tsconfig.json",
     "check:expo": "expo install --check",
     "build": "expo export --platform all",

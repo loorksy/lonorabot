@@ -15,6 +15,29 @@ Open with an Expo client compatible with SDK 57, or run `pnpm --filter @lonora/m
 
 Native login calls `/api/auth/mobile/login`. The server returns an opaque, expiring session token, stored only in Expo SecureStore. Every request sends that token as `Authorization: Bearer`; server logout revokes it. Provider keys and passwords are never stored by the app. Closing the app does not stop resident server workers. No push notifications or native voice APIs are imported, so Expo Web does not call unavailable notification modules.
 
+## Signed Android APK
+
+Install Java 17 or later, official Android SDK command-line tools, API 36, build-tools 36.0.0, NDK 27.1.12297006 and CMake 3.22.1. Set `ANDROID_HOME` to that SDK. Use the system proxy and its trusted CA when your build host requires them; Java/Gradle also needs the matching proxy and trust-store configuration. Keep TLS verification enabled.
+
+```sh
+sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0" "ndk;27.1.12297006" "cmake;3.22.1"
+pnpm --filter @lonora/mobile android:release
+```
+
+The release builder creates or reuses a private RSA release key at `$XDG_CONFIG_HOME/lonora/android` (normally `~/.config/lonora/android`), outside the Git checkout. `LONORA_SIGNING_DIR` can point at your existing private build-key directory. Securely back up both `lonora-release.p12` and `signing.json` from that directory and restore them on future build hosts. These files contain the release identity and passwords and must never be committed, published or copied into the APK. The builder refuses to replace an existing key with missing credentials. Expo prebuild retains signing through the config plugin, and a release build without the private identity fails instead of using the Android debug key.
+
+The deliverable is `.runtime/releases/android/lonora.apk` with public verification metadata in `lonora.json`; JavaScript exports do not overwrite it. It is a universal, non-debuggable APK with embedded Hermes JavaScript and the four Android ABIs, requiring Android 7/API 24 or later. The verifier checks its Android package, signature, native library alignment and archive alignment, and rejects HTML or an unsigned/debug-signed artifact.
+
+```sh
+pnpm --filter @lonora/mobile android:verify ../../.runtime/releases/android/lonora.apk
+# Diagnose a device's existing installation before attempting an update:
+pnpm --filter @lonora/mobile android:verify ../../.runtime/releases/android/lonora.apk --device DEVICE_SERIAL
+# Run native smoke checks on an explicitly selected test device/emulator:
+python3 tests/mobile/android-smoke.py .runtime/releases/android/lonora.apk --serial DEVICE_SERIAL
+```
+
+An APK download URL must serve the actual binary with `Content-Type: application/vnd.android.package-archive`, not the Web application's HTML fallback. A previous installation can update only when the signing certificate matches and the new version code is not lower. Use the verifier/`adb install -r` result to distinguish signature conflict, version downgrade, unsupported Android version/ABI or an invalid download. Do not uninstall an existing app as a generic repair: uninstalling discards app-local state. If an earlier release used another key, restore that original key before building an update.
+
 ## Web preview
 
 ```sh
