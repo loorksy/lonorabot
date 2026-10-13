@@ -1,5 +1,7 @@
 import hashlib
 import os
+import tempfile
+from pathlib import Path
 from typing import Any
 
 from lonora_contracts.attachments import ArtifactCreate
@@ -19,6 +21,19 @@ class ArtifactRead(Contract):
     artifact_id: str
 
 
+def write_artifact_file(path: Path, content: bytes, digest: str) -> None:
+    if path.is_file() and hashlib.sha256(path.read_bytes()).hexdigest() == digest:
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(dir=path.parent, suffix=".partial", delete=False) as temporary:
+        temporary.write(content)
+        temporary_path = Path(temporary.name)
+    try:
+        os.replace(temporary_path, path)
+    finally:
+        temporary_path.unlink(missing_ok=True)
+
+
 async def store_artifact(
     context: ToolContext, name: str, content: bytes, media_type: str
 ) -> dict[str, Any]:
@@ -26,10 +41,6 @@ async def store_artifact(
     name = safe_filename(name)
     key = context.resource_id + "/" + name
     path = confined_path(context.artifact_root, key)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_suffix(path.suffix + ".partial")
-    temporary.write_bytes(content)
-    os.replace(temporary, path)
     payload = {
         "name": name,
         "key": key,
@@ -40,14 +51,32 @@ async def store_artifact(
     async with context.db.sessions() as session, session.begin():
         await require_lease(session, context.lease, lock=True)
         row = await session.get(ArtifactRepository.row_type, context.resource_id)
-        row = row or await ArtifactRepository().create(
-            session,
-            context.owner_id,
-            payload,
-            agent_id=context.agent_id,
-            thread_id=context.thread_id,
-            resource_id=context.resource_id,
-        )
+        if row is not None:
+            if (
+                row.owner_id != context.owner_id
+                or row.thread_id != context.thread_id
+                or row.agent_id != context.agent_id
+            ):
+                raise LonoraError("artifacts_not_found", 404)
+            if row.payload != payload:
+                raise LonoraError("artifact_nonce_conflict", 409)
+        else:
+            row = await ArtifactRepository().create(
+                session,
+                context.owner_id,
+                payload,
+                agent_id=context.agent_id,
+                thread_id=context.thread_id,
+                resource_id=context.resource_id,
+            )
+        row.state = {
+            **row.state,
+            "producer_run_id": context.lease.run_id,
+            "producer_call_id": context.call_id,
+        }
+        # A stale worker must never replace a file before proving its lease. Replay
+        # returns the original bytes; missing files can be repaired from the same hash.
+        write_artifact_file(path, content, str(payload["sha256"]))
         return resource_data(row)
 
 

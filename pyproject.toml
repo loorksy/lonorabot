@@ -8,7 +8,7 @@ version = "0.2.0"
 description = "Persistent agents with a resident Python gateway"
 requires-python = ">=3.12"
 license = "Apache-2.0"
-dependencies = ["alembic>=1.14,<2", "asyncpg>=0.30,<1", "fastapi>=0.115,<1", "httpx>=0.27,<1", "pydantic>=2.10,<3", "pydantic-settings>=2.6,<3", "sqlalchemy[asyncio]>=2.0.36,<3", "uvicorn[standard]>=0.30,<1", "PyJWT>=2.10,<3", "pwdlib[argon2]>=0.2,<1", "cryptography>=44,<48", "python-multipart>=0.0.20,<1", "croniter>=6,<7", "websockets>=14,<17", "metaapi-cloud-sdk==29.1.1", "numpy>=2,<3", "python-dotenv>=1,<2"]
+dependencies = ["alembic>=1.14,<2", "asyncpg>=0.30,<1", "fastapi>=0.115,<1", "httpx>=0.27,<1", "pydantic>=2.10,<3", "pydantic-settings>=2.6,<3", "sqlalchemy[asyncio]>=2.0.36,<3", "uvicorn[standard]>=0.30,<1", "PyJWT>=2.10,<3", "pwdlib[argon2]>=0.2,<1", "cryptography>=44,<48", "python-multipart>=0.0.20,<1", "croniter>=6,<7", "websockets>=14,<17", "metaapi-cloud-sdk==29.1.1", "numpy>=2,<3", "python-dotenv>=1,<2", "Pillow>=11,<13"]
 
 [project.optional-dependencies]
 dev = ["aiosqlite>=0.20", "pytest>=8.3,<9", "pytest-asyncio>=0.25,<2", "ruff>=0.11,<1", "pyright>=1.1.406,<2"]

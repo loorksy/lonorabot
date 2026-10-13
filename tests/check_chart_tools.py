@@ -3,6 +3,7 @@
 import asyncio
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
+from io import BytesIO
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -15,6 +16,7 @@ from lonora_db.schema import CloudChartRow
 from lonora_security.runtime_storage import confined_path
 from lonora_tools.context import ToolContext
 from lonora_tools.loader import load_tools
+from PIL import Image
 from sqlalchemy import func, select
 
 
@@ -140,7 +142,7 @@ async def main() -> None:
             },
         )
         assert changed["scene"]["annotations"][0]["price"] == 125
-        picture = await call("chart_snapshot", {"chart_id": chart_id})
+        picture = await call("chart_snapshot", {"chart_id": chart_id, "format": "svg"})
         path = confined_path(context.artifact_root, picture["payload"]["key"])
         snapshot_paths.append(path)
         svg = fromstring(path.read_text())
@@ -153,6 +155,9 @@ async def main() -> None:
             "chart_snapshot", {"account_id": connection_id, "symbol": "XAUUSD", "timeframe": "1h"}
         )
         snapshot_paths.append(confined_path(context.artifact_root, legacy["payload"]["key"]))
+        assert legacy["payload"]["media_type"] == "image/png"
+        with Image.open(BytesIO(snapshot_paths[-1].read_bytes())) as png:
+            assert png.format == "PNG" and png.width == 960
         print(
             "PASS persisted scene snapshot includes configured indicators/annotations and legacy candle snapshot remains available"
         )

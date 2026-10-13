@@ -4,6 +4,7 @@ import logging
 from lonora_contracts.domain import utcnow
 from lonora_core.user_error import LonoraError
 from lonora_db.events import emit
+from lonora_db.generated_artifacts import link_generated_artifacts, pending_generated_artifacts
 from lonora_db.runs import complete_run, fail_run, locked_run_thread, renew_lease, require_lease
 from lonora_db.schema import MessageRow, SteeringRow
 from lonora_db.streaming import settle_stream, stream_identity
@@ -78,6 +79,10 @@ async def execute_run(
                         thread.next_seq += 1
                         session.add(message)
                         await session.flush()
+                        artifacts = await pending_generated_artifacts(
+                            session, context.owner_id, row
+                        )
+                        link_generated_artifacts(message, artifacts)
                         snapshot = settle_stream(
                             row, "committed", message_id=message.id, text=outcome.text
                         )
