@@ -2,7 +2,9 @@
 
 import asyncio
 import json
+import os
 import sys
+from pathlib import Path
 from typing import Any
 
 from check_chart_browser import action as chart_fixture
@@ -11,8 +13,14 @@ from lonora_db.runs import complete_run
 from lonora_security.runtime_storage import confined_path
 from lonora_tools.artifacts import store_artifact
 
+UI_ARTIFACT_ROOT = str(Path(__file__).resolve().parent.parent / ".runtime/ui-regression-artifacts")
+
 
 async def action(data: dict[str, Any]):
+    os.environ.setdefault(
+        "LONORA_ARTIFACT_ROOT",
+        UI_ARTIFACT_ROOT,
+    )
     if data["action"] == "init":
         chart = await chart_fixture({"action": "init"})
         fixture = await Fixture().open()
