@@ -60,7 +60,10 @@ def provider_error(error: Exception, stage: str) -> LonoraError:
     if isinstance(error, ValidationError):
         return LonoraError("broker_candles_invalid", 502)
     if status == 400:
-        return LonoraError("broker_candles_request_rejected", 422)
+        return LonoraError(
+            "broker_candles_request_rejected" if stage == "candles" else "broker_request_rejected",
+            422,
+        )
     return LonoraError(
         "broker_candles_unavailable" if stage == "candles" else "broker_connection_unavailable", 502
     )
@@ -790,7 +793,22 @@ class MetaApiBroker:
             from lonora_trading.retcodes import normalize_response
 
             # The official SDK raises TradeException on a received broker rejection.
+            # A validation error rejects the request itself, so no order exists to reconcile.
             # Transport/timeouts and contradictory codes remain uncertain.
+            validation_exception: Any = importlib.import_module(
+                "metaapi_cloud_sdk.clients.error_handler"
+            ).ValidationException
+            if isinstance(error, validation_exception):
+                return TradeResult(
+                    operation_id=request.operation_id,
+                    status="failed",
+                    code="broker_request_rejected",
+                    details={
+                        "description": safe_exception_message(
+                            error, getattr(self, "_log_redactions", ())
+                        )
+                    },
+                )
             trade_exception: Any = importlib.import_module(
                 "metaapi_cloud_sdk.clients.metaapi.trade_exception"
             ).TradeException

@@ -15,5 +15,10 @@ def request_hash(payload: dict[str, Any]) -> str:
 
 
 def broker_operation_tag(operation_id: str) -> str:
-    """Bounded stable correlation tag shared by broker adapters and neutral reconciliation."""
-    return "LN_" + hashlib.sha256(operation_id.encode()).hexdigest()[:24]
+    """Stable broker correlation id.
+
+    MetaApi stores this in the order comment as strategyId_positionId_orderId and rejects any
+    other shape. The tag stays within the 31-character comment budget.
+    """
+    digest = hashlib.sha256(operation_id.encode()).hexdigest()
+    return "LN_" + digest[:12] + "_" + digest[12:24]

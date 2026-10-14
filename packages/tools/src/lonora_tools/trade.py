@@ -4,7 +4,8 @@ from lonora_contracts.domain import Contract, utcnow
 from lonora_contracts.trading import TradeRequest, TradeResult
 from lonora_core.user_error import LonoraError
 from lonora_db.runs import require_lease
-from lonora_db.schema import SteeringRow, TradeApprovalRow
+from lonora_db.schema import TradeApprovalRow
+from lonora_db.steering import user_interrupt_pending
 from lonora_db.trade_approvals import approval_event
 from lonora_session.idempotency import request_hash, stable_id
 from lonora_trading.idempotency import trade_fingerprint
@@ -58,11 +59,7 @@ async def approved_execution(
             raise LonoraError("trade_approval_unavailable", 409)
         frozen = [TradeRequest.model_validate(item) for item in row.requests]
         if gate_only:
-            if await session.scalar(
-                select(SteeringRow.id)
-                .where(SteeringRow.run_id == context.lease.run_id, SteeringRow.consumed.is_(False))
-                .limit(1)
-            ):
+            if await user_interrupt_pending(session, context.lease.run_id):
                 raise LonoraError("tool_call_superseded", 409)
             if row.requests != [r.model_dump(mode="json") for r in requests]:
                 raise LonoraError("trade_approval_request_changed", 409)
@@ -87,13 +84,7 @@ async def approved_execution(
                     for item in approval.requests
                 ):
                     raise LonoraError("trade_approval_request_changed", 409)
-                if await session.scalar(
-                    select(SteeringRow.id)
-                    .where(
-                        SteeringRow.run_id == context.lease.run_id, SteeringRow.consumed.is_(False)
-                    )
-                    .limit(1)
-                ):
+                if await user_interrupt_pending(session, context.lease.run_id):
                     raise LonoraError("tool_call_superseded", 409)
 
         try:

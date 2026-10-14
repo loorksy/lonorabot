@@ -1,6 +1,7 @@
 """Actual adapter calls against explicit scripted SDK transports; never submits live orders."""
 
 import asyncio
+import importlib
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from types import SimpleNamespace
@@ -87,14 +88,33 @@ async def main() -> None:
             volume=Decimal("0.1"),
         )
         result = await broker.execute(request)
-        rpc.close_position_partially.assert_awaited_once_with(
-            "p1", 0.1, options={"clientId": client_id("partial-close")}
-        )
+        tag = client_id("partial-close")
+        assert len(tag) <= 31 and tag.startswith("LN_") and tag.count("_") == 2
+        rpc.close_position_partially.assert_awaited_once_with("p1", 0.1, options={"clientId": tag})
         rpc.close_position.assert_not_awaited()
         assert result.status == "confirmed" and result.details["deal_id"] == "d1"
         print(
             "PASS partial close uses SDK partial-volume method and preserves separate order/position/deal IDs"
         )
+        validation_exception: Any = importlib.import_module(
+            "metaapi_cloud_sdk.clients.error_handler"
+        ).ValidationException
+        rpc.create_market_buy_order = AsyncMock(
+            side_effect=validation_exception(
+                "Validation failed", [{"parameter": "clientId", "message": "Invalid value"}]
+            )
+        )
+        rejected = await broker.execute(
+            TradeRequest(
+                account_id="fixture",
+                operation_id="rejected-shape",
+                action="buy",
+                symbol="XAUUSDm",
+                volume=Decimal("0.1"),
+            )
+        )
+        assert rejected.status == "failed" and rejected.code == "broker_request_rejected"
+        print("PASS a rejected trade request stays failed instead of becoming an uncertain receipt")
         uncertain = await broker.reconcile(
             "modify-fixture",
             TradeRequest(

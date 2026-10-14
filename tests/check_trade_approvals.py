@@ -439,6 +439,39 @@ async def main():
         outcome = await registry.execute(steering_call, steering_context)
         assert outcome["status"] == "failed" and outcome["code"] == "tool_call_superseded"
         assert await broker.snapshot() == before
+        peer_context = await fixture.lease(await fixture.run(agent, thread))
+        peer_call = ToolCall(
+            id="peer-outcome-intent",
+            name="trade_execute",
+            arguments={
+                "account_id": connection_id,
+                "symbol": symbol,
+                "action": "buy",
+                "volume": "0.15",
+            },
+        )
+        proposal = await registry.execute(peer_call, peer_context)
+        await fixture.request(
+            "POST",
+            f"/trading/approvals/{proposal['approval_id']}/decision",
+            {"decision": "approve"},
+        )
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            current_thread = await session.get(ThreadRow, thread["id"], with_for_update=True)
+            assert current_thread is not None
+            message = MessageRow(
+                thread_id=thread["id"],
+                seq=current_thread.next_seq,
+                role="assistant",
+                content="<peer_outcome>The research run finished.</peer_outcome>",
+            )
+            current_thread.next_seq += 1
+            session.add(message)
+            await session.flush()
+            session.add(SteeringRow(run_id=peer_context.lease.run_id, message_id=message.id))
+        outcome = await registry.execute(peer_call, peer_context)
+        assert outcome["status"] == "failed" and outcome["code"] == "volume_step_mismatch"
+        assert await broker.snapshot() == before
         invalid_call = ToolCall(
             id="invalid-volume",
             name="trade_execute",
