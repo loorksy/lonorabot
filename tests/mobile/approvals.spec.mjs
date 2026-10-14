@@ -24,7 +24,11 @@ test("Expo approval buttons show durable real broker receipts", async ({ page, c
   );
   const created = await context.request.post("/api/agents", {
     headers,
-    data: { name: `Mobile approval ${randomUUID()}` },
+    data: {
+      name: `Mobile approval ${randomUUID()}`,
+      trading_account_id: data.account,
+      trading_symbol: data.symbol,
+    },
   });
   expect(created.status()).toBe(201);
   const agent = await created.json();
@@ -69,6 +73,33 @@ test("Expo approval buttons show durable real broker receipts", async ({ page, c
     await page.reload();
     await expect(page.getByText("manual-ticket-5 · 65000.25", { exact: true })).toBeVisible();
     expect(decisions).toBe(1);
+    const rejected = {
+      ...approval,
+      id: randomUUID(),
+      status: "pending",
+      results: [],
+      requests: [
+        {
+          action: "buy",
+          symbol: "BTCUSD.demo",
+          volume: "0.01",
+          operation_id: "declined-operation",
+        },
+      ],
+    };
+    await page.unroute("**/api/trading/approvals?*");
+    await page.route("**/api/trading/approvals?*", (route) =>
+      route.fulfill({ json: [approval, rejected] }),
+    );
+    await page.route(`**/api/trading/approvals/${rejected.id}/decision`, async (route) => {
+      expect(route.request().postDataJSON()).toEqual({ decision: "reject" });
+      rejected.status = "rejected";
+      await route.fulfill({ json: rejected });
+    });
+    await page.reload();
+    await page.getByRole("button", { name: "رفض", exact: true }).click();
+    await expect(page.getByText("مرفوض", { exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "موافقة", exact: true })).toHaveCount(0);
   } finally {
     await context.request.delete(`/api/agents/${agent.id}`, { headers });
     fixture({ ...data, action: "cleanup" });

@@ -1,5 +1,45 @@
 export type Locale = "ar" | "en";
 export const labels = {
+  chooseBrokerAccount: ["اختر حساب الوسيط", "Choose broker account"],
+  chooseTradingPair: ["اختر زوج التداول", "Choose trading pair"],
+  searchBrokerSymbols: ["ابحث في رموز الوسيط", "Search broker symbols"],
+  immutableTradingPair: [
+    "هذا الزوج ثابت للبوت. أنشئ بوتًا آخر لاستخدام زوج مختلف.",
+    "This pair is permanent for this agent. Create another agent to use a different pair.",
+  ],
+  connectBrokerFirst: [
+    "اربط حساب الوسيط قبل إنشاء بوت التداول.",
+    "Connect a broker account before creating a trading agent.",
+  ],
+  callAgent: ["اتصل بالوكيل", "Call agent"],
+  endCall: ["إنهاء المكالمة", "End call"],
+  muteCall: ["كتم الميكروفون", "Mute microphone"],
+  unmuteCall: ["تشغيل الميكروفون", "Unmute microphone"],
+  minimizeCall: ["تصغير المكالمة", "Minimize call"],
+  reopenCall: ["فتح المكالمة", "Open call"],
+  callListening: ["يستمع", "Listening"],
+  callSpeaking: ["يتحدث", "Speaking"],
+  nativeCallHint: [
+    "ابدأ مكالمة من زر الاتصال أعلى محادثة البوت. تستخدم المكالمة ذاكرة البوت والمحادثة نفسها. تنتهي المكالمة عند انتقال التطبيق إلى الخلفية.",
+    "Start a call from the call button in your bot conversation. Calls use the same bot memory and thread. Calls end when the app enters the background.",
+  ],
+  voice_permission_denied: [
+    "اسمح للتطبيق باستخدام الميكروفون لإجراء المكالمة.",
+    "Allow microphone access to start the call.",
+  ],
+  voice_connection_failed: [
+    "تعذر الاتصال الصوتي. حاول مجددًا.",
+    "Voice connection failed. Try again.",
+  ],
+  voice_response_invalid: ["تعذر إكمال إعداد المكالمة.", "The call could not be initialized."],
+  voice_browser_unsupported: [
+    "هذا المتصفح لا يدعم المكالمات الصوتية.",
+    "This browser does not support voice calls.",
+  ],
+  voice_transport_unconfigured: [
+    "الخدمة الصوتية غير مهيأة بعد.",
+    "Voice service is not configured yet.",
+  ],
   tradeApproval: ["طلب تداول", "Trading request"],
   approve: ["موافقة", "Approve"],
   reject: ["رفض", "Reject"],

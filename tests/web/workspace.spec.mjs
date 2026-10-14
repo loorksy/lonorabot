@@ -4,6 +4,8 @@ import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { test as base, expect } from "@playwright/test";
 
+import { brokerFixture } from "./broker-fixture.mjs";
+
 const test = base.extend({
   workspace: async ({ context, page }, use) => {
     const prefix = `UI regression ${randomUUID()}`;
@@ -32,7 +34,9 @@ const test = base.extend({
     const login = await context.request.post("/api/auth/login", { data: credentials });
     expect(login.status()).toBe(200);
     const headers = { "X-CSRF-Token": (await login.json()).csrf };
+    const broker = await brokerFixture(context, headers);
     const post = async (path, data) => {
+      if (path === "/agents") data = { ...data, ...broker.binding };
       const response = await context.request.post(`/api${path}`, { data, headers });
       expect(response.ok(), `POST ${path}`).toBeTruthy();
       return response.json();
@@ -51,9 +55,10 @@ const test = base.extend({
       if (!localStorage.getItem("lonora.locale")) localStorage.setItem("lonora.locale", "en");
     });
     try {
-      await use({ agent, prefix, post, remember, headers });
+      await use({ agent, prefix, post, remember, headers, broker });
       expect(errors).toEqual([]);
     } finally {
+      await broker.close();
       // Only IDs created by this fixture or explicitly remembered by its test.
       for (const kind of ["skills", "routines", "tickets", "boards", "agents"])
         for (const id of owned[kind]) {
@@ -180,6 +185,12 @@ test("ticket modal and profile creation remain usable under StrictMode and Back"
     .getByTestId("side-panel")
     .getByLabel("Name", { exact: true })
     .fill(`${prefix} teammate`);
+  await page
+    .getByTestId("side-panel")
+    .getByLabel("Broker account", { exact: true })
+    .selectOption(agent.trading_account_id);
+  await page.getByRole("button", { name: "Choose trading pair", exact: true }).click();
+  await page.getByRole("option", { name: agent.trading_symbol, exact: true }).click();
   const created = page.waitForResponse(
     (response) => response.url().endsWith("/api/agents") && response.request().method() === "POST",
   );
@@ -423,7 +434,11 @@ test("financial approval buttons persist decisions and display broker receipts a
     expect(response.ok()).toBeTruthy();
     return response.json();
   };
-  const agent = await post("/agents", { name: `Approval UI ${randomUUID()}` });
+  const agent = await post("/agents", {
+    name: `Approval UI ${randomUUID()}`,
+    trading_account_id: data.account,
+    trading_symbol: data.symbol,
+  });
   try {
     const thread = await post(`/agents/${agent.id}/conversation`, {});
     const approval = {

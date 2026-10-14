@@ -2,21 +2,15 @@ import type { Artifact } from "@lonora/contracts";
 import { attachmentTooLarge } from "@lonora/core";
 import type { DocumentPickerAsset } from "expo-document-picker";
 import { Platform } from "react-native";
+import { ApiError } from "./api-error";
+
+export { ApiError } from "./api-error";
 
 let base = Platform.OS === "web" && typeof window !== "undefined" ? window.location.origin : "";
 let bearer: string | null = null;
 let csrf = "";
 let expired: (() => void) | null = null;
 let generation = 0;
-
-export class ApiError extends Error {
-  constructor(
-    public code: string,
-    public status: number,
-  ) {
-    super(code);
-  }
-}
 
 export function normalizeServer(value: string): string {
   const url = new URL(value.trim());

@@ -4,6 +4,7 @@ from lonora_contracts.domain import AgentCreate, AgentUpdate
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from .agent_binding import assert_payload_binding
 from .schema import AgentRow, MemoryRow
 from .transactions import owned_agent
 
@@ -18,6 +19,8 @@ def agent_data(row: AgentRow) -> dict[str, Any]:
         "color": row.color,
         "instructions": row.instructions,
         "paused": row.paused,
+        "trading_account_id": row.trading_account_id,
+        "trading_symbol": row.trading_symbol,
         "parent_id": row.parent_id,
         "created_at": row.created_at.isoformat(),
     }
@@ -31,7 +34,17 @@ async def create_agent(
     agent_id: str | None = None,
 ) -> AgentRow:
     if parent_id:
-        await owned_agent(session, owner_id, parent_id)
+        parent = await owned_agent(session, owner_id, parent_id)
+        if request.trading_account_id is not None:
+            assert_payload_binding(
+                parent, {"account_id": request.trading_account_id, "symbol": request.trading_symbol}
+            )
+        request = request.model_copy(
+            update={
+                "trading_account_id": parent.trading_account_id,
+                "trading_symbol": parent.trading_symbol,
+            }
+        )
     row = AgentRow(owner_id=owner_id, parent_id=parent_id, **request.model_dump())
     if agent_id:
         row.id = agent_id

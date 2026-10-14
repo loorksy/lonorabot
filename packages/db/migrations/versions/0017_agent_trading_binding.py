@@ -15,8 +15,7 @@ def upgrade() -> None:
     op.create_check_constraint(
         "ln_agent_trading_binding_paired",
         "ln_agents",
-        "(trading_account_id IS NULL AND trading_symbol IS NULL) OR "
-        "(trading_account_id IS NOT NULL AND trading_symbol IS NOT NULL)",
+        "(trading_account_id IS NULL AND trading_symbol IS NULL) OR (trading_account_id IS NOT NULL AND trading_symbol IS NOT NULL)",
     )
 
 

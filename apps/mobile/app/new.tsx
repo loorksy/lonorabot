@@ -3,6 +3,7 @@ import { Redirect, useRouter } from "expo-router";
 import { useState } from "react";
 import { ScrollView } from "react-native";
 import { AvatarPicker } from "../components/avatar-picker";
+import { type BrokerPair, BrokerPairPicker } from "../components/broker-pair-picker";
 import { SheetHeader } from "../components/sheet-header";
 import { Button, ErrorNotice, Field, Loading, Screen } from "../components/ui";
 import { api } from "../lib/api";
@@ -11,6 +12,7 @@ import { useSession } from "../lib/session";
 export default function NewAgent() {
   const { ready, owner, t, errorText } = useSession();
   const router = useRouter();
+  const [pair, setPair] = useState<BrokerPair>({ trading_account_id: "", trading_symbol: "" });
   const [name, setName] = useState("");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -25,6 +27,7 @@ export default function NewAgent() {
     setError(null);
     try {
       const agent = await api.post<Agent>("/agents", {
+        ...pair,
         name: name.trim(),
         title: title.trim(),
         description: description.trim(),
@@ -68,11 +71,12 @@ export default function NewAgent() {
           multiline
           style={{ minHeight: 108, textAlignVertical: "top" }}
         />
+        <BrokerPairPicker value={pair} onChange={setPair} />
         <ErrorNotice text={error} />
         <Button
           label={busy ? t("connecting") : t("create")}
           onPress={() => void create()}
-          disabled={busy || !name.trim()}
+          disabled={busy || !name.trim() || !pair.trading_account_id || !pair.trading_symbol}
         />
       </ScrollView>
     </Screen>

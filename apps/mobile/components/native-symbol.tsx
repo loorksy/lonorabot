@@ -3,6 +3,10 @@ import Svg, { Circle, Path, Rect } from "react-native-svg";
 import { colors } from "./ui";
 
 export type SymbolName =
+  | "call"
+  | "mic"
+  | "mic-off"
+  | "minimize"
   | "search"
   | "activity"
   | "layers"
@@ -25,6 +29,12 @@ export type SymbolName =
   | "globe";
 
 const paths: Partial<Record<SymbolName, string>> = {
+  call: "M22 16.9v3a2 2 0 0 1-2.2 2A19.8 19.8 0 0 1 3.1 5.2 2 2 0 0 1 5.1 3h3a2 2 0 0 1 2 1.7l.4 3a2 2 0 0 1-.6 1.7L8.6 10.7a16 16 0 0 0 4.7 4.7l1.3-1.3a2 2 0 0 1 1.7-.6l3 .4a2 2 0 0 1 1.7 2Z",
+  mic: "M9 6a3 3 0 0 1 6 0v6a3 3 0 0 1-6 0V6ZM5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8",
+  "mic-off":
+    "m3 3 18 18M9 9v3a3 3 0 0 0 5 2M15 9V6a3 3 0 0 0-5-2M5 10v2a7 7 0 0 0 12 5M19 10v2M12 19v3M8 22h8",
+  minimize: "M6 12h12",
+
   search: "m21 21-5.2-5.2",
   activity: "M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4",
   layers: "m12 3 9 5-9 5-9-5 9-5ZM3 12l9 5 9-5M3 16l9 5 9-5",

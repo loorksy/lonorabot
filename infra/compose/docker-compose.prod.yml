@@ -21,9 +21,10 @@ services:
       LONORA_DATABASE_URL: postgresql+asyncpg://lonora:${LONORA_POSTGRES_PASSWORD:?set password}@db:5432/lonora
       LONORA_ALLOWED_ORIGIN: https://${LONORA_DOMAIN:?set public domain}
       LONORA_COOKIE_SECURE: "true"
+      LONORA_OTA_ROOT: /app/releases/ota
       LONORA_ANDROID_APK_PATH: /app/releases/android/lonora.apk
     command: ["api"]
-    volumes: ["artifacts:/app/.runtime/artifacts", "../../.runtime/releases/android:/app/releases/android:ro"]
+    volumes: ["artifacts:/app/.runtime/artifacts", "../../.runtime/releases/android:/app/releases/android:ro", "../../.runtime/releases/ota:/app/releases/ota:ro"]
     depends_on:
       db: {condition: service_healthy}
     healthcheck:

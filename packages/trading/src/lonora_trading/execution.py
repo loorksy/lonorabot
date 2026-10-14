@@ -9,6 +9,7 @@ from lonora_contracts.trading import TradeRequest, TradeResult
 from lonora_contracts.trading_goal import GoalExecution
 from lonora_core.trading_control import require_trading
 from lonora_core.user_error import LonoraError
+from lonora_db.agent_binding import agent_binding, assert_market_binding
 from lonora_db.broker_sessions import BrokerSessionRepository
 from lonora_db.client import Database
 from lonora_db.runs import require_lease
@@ -32,9 +33,19 @@ def receipt(row: TradingJournalRow) -> TradeResult:
 
 
 async def require_goal_lineage(
-    session: AsyncSession, lease: Lease, goal: GoalExecution | None
+    session: AsyncSession,
+    lease: Lease,
+    goal: GoalExecution | None,
+    owner_id: str | None = None,
+    request: TradeRequest | None = None,
 ) -> None:
     origin_run = await require_lease(session, lease)
+    if owner_id is not None and request is not None:
+        assert_market_binding(
+            await agent_binding(session, owner_id, origin_run.agent_id),
+            request.account_id,
+            request.symbol,
+        )
     linked_goal = origin_run.model_metadata.get("goal_id")
     ancestor = origin_run
     seen = {origin_run.id}
@@ -47,6 +58,12 @@ async def require_goal_lineage(
         ancestor = await session.get(RunRow, ancestor.parent_run_id)
         if ancestor is None:
             raise LonoraError("goal_run_ancestry_invalid", 409)
+        if owner_id is not None and request is not None:
+            assert_market_binding(
+                await agent_binding(session, owner_id, ancestor.agent_id),
+                request.account_id,
+                request.symbol,
+            )
         if ancestor.model_metadata.get("goal_id"):
             raise LonoraError("goal_delegated_trade_forbidden", 409)
     else:
@@ -74,7 +91,7 @@ class ExecutionService:
     ) -> TradeResult:
         async with self.db.sessions() as session:
             if lease:
-                await require_goal_lineage(session, lease, goal)
+                await require_goal_lineage(session, lease, goal, owner_id, request)
             previous = await session.get(TradingJournalRow, request.operation_id)
             if previous:
                 if previous.owner_id != owner_id or previous.request_hash != trade_fingerprint(
@@ -169,7 +186,7 @@ class ExecutionService:
                     raise LonoraError("broker_connection_changed", 409)
                 if lease:
                     await require_lease(session, lease, lock=True)
-                    await require_goal_lineage(session, lease, goal)
+                    await require_goal_lineage(session, lease, goal, owner_id, request)
                 if goal:
                     await guard_goal_execution(
                         session, owner_id, goal, request, lease, goal_evidence

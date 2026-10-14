@@ -18,7 +18,7 @@ from lonora_api.app import create_app
 from lonora_api.env import get_settings
 from lonora_contracts.voice import VoiceSessionCreate
 from lonora_core.user_error import LonoraError
-from lonora_db.schema import MessageRow, RunRow, VoiceSessionRow
+from lonora_db.schema import MessageRow, RunRow, TradeApprovalRow, VoiceSessionRow
 from lonora_providers.credentials import ProviderCredentials
 from lonora_voice.realtime import RealtimeVoiceSession, text_chunks
 from lonora_voice.sessions import (
@@ -57,8 +57,41 @@ async def workspace(monkeypatch: pytest.MonkeyPatch) -> AsyncGenerator[dict[str,
         assert login.status_code == 200
         owner = login.json()["owner"]["id"]
         client.headers["X-CSRF-Token"] = login.json()["csrf"]
+        connected = await client.post(
+            "/api/trading/connections",
+            json={
+                "provider": "simulation",
+                "account_id": "voice-demo-" + uuid4().hex,
+                "enabled": True,
+            },
+        )
+        assert connected.status_code == 201
+        account_id = connected.json()["id"]
+        imported = await client.post(
+            f"/api/trading/connections/{account_id}/simulation",
+            json={
+                "snapshot": {
+                    "balance": "10000",
+                    "currency": "USD",
+                    "instruments": [
+                        {
+                            "symbol": "EURUSD.voice",
+                            "digits": 5,
+                            "tick_size": "0.00001",
+                            "volume_min": "0.01",
+                            "volume_max": "100",
+                            "volume_step": "0.01",
+                        }
+                    ],
+                }
+            },
+        )
+        assert imported.is_success
+        binding = {"trading_account_id": account_id, "trading_symbol": "EURUSD.voice"}
         agent = (
-            await client.post("/api/agents", json={"name": "Voice fixture " + uuid4().hex[:12]})
+            await client.post(
+                "/api/agents", json={"name": "Voice fixture " + uuid4().hex[:12], **binding}
+            )
         ).json()
         thread = (await client.post(f"/api/agents/{agent['id']}/conversation")).json()
         provider = ProviderCredentials(runtime.db, runtime.services(owner).secrets)
@@ -76,9 +109,11 @@ async def workspace(monkeypatch: pytest.MonkeyPatch) -> AsyncGenerator[dict[str,
                 "agent": agent["id"],
                 "thread": thread["id"],
                 "credentials": provider,
+                "binding": binding,
             }
         finally:
             await client.delete(f"/api/agents/{agent['id']}")
+            await client.delete(f"/api/trading/connections/{account_id}")
             await runtime.close()
 
 
@@ -473,3 +508,65 @@ async def test_apk_route_cannot_fall_through_to_spa(tmp_path: Path) -> None:
             assert (await client.get("/download/lonora.apk")).status_code == 503
     finally:
         await app.state.runtime.close()
+
+
+@pytest.mark.asyncio
+async def test_approval_pause_keeps_voice_delegation_until_original_run_finishes(
+    workspace: dict[str, Any],
+) -> None:
+    voice = await resident(workspace)
+    async with workspace["runtime"].db.sessions() as session, session.begin():
+        run = RunRow(
+            agent_id=workspace["agent"],
+            thread_id=workspace["thread"],
+            status="waiting_input",
+            model_metadata={},
+        )
+        session.add(run)
+        await session.flush()
+        run_id = run.id
+        session.add(
+            TradeApprovalRow(
+                id=str(uuid4()),
+                owner_id=workspace["owner"],
+                agent_id=workspace["agent"],
+                thread_id=workspace["thread"],
+                run_id=run_id,
+                call_id="explicit-approval-fixture",
+                requests=[],
+                results=[],
+                status="pending",
+            )
+        )
+        row = await session.get(VoiceSessionRow, voice.session_id)
+        assert row is not None
+        row.state = {
+            **row.state,
+            "delegations": {"approval-request": {"status": "running", "run_ids": [run_id]}},
+        }
+    assert await voice.tick()
+    assert await voice.tick()
+    async with workspace["runtime"].db.sessions() as session:
+        row = await session.get(VoiceSessionRow, voice.session_id)
+        assert row is not None
+        task = row.state["delegations"]["approval-request"]
+        assert task["status"] == "running" and task["approval_notice_sent"]
+        assert "chunks" not in task
+    async with workspace["runtime"].db.sessions() as session, session.begin():
+        run = await session.get(RunRow, run_id)
+        assert run is not None
+        run.status = "queued"
+    assert await voice.tick()
+    async with workspace["runtime"].db.sessions() as session, session.begin():
+        run = await session.get(RunRow, run_id)
+        assert run is not None
+        run.status = "completed"
+        run.result = "Confirmed broker ticket native-42 at 1.23456"
+    assert await voice.tick()
+    async with workspace["runtime"].db.sessions() as session:
+        row = await session.get(VoiceSessionRow, voice.session_id)
+        assert row is not None
+        task = row.state["delegations"]["approval-request"]
+        assert task["status"] == "result"
+        assert "native-42" in "".join(task["chunks"])
+        assert "1.23456" in "".join(task["chunks"])

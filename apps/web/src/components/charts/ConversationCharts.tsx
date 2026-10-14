@@ -11,12 +11,16 @@ export function ConversationCharts({
   agentId,
   threadId,
   onOpenMarket,
+  binding,
 }: {
+  binding?: { accountId: string; symbol: string };
   agentId?: string;
   threadId?: string;
   onOpenMarket: () => void;
 }) {
   const { events, connected } = useClient();
+  const boundAccount = binding?.accountId;
+  const boundSymbol = binding?.symbol;
   const [rows, setRows] = useState<Resource<ChartState>[]>([]);
   const [selected, setSelected] = useState("");
   const [loading, setLoading] = useState(true);
@@ -33,9 +37,11 @@ export function ConversationCharts({
         if (!live) return;
         const matching = all.filter(
           (row) =>
-            (!row.agent_id && !row.thread_id) ||
-            (agentId && row.agent_id === agentId) ||
-            (threadId && row.thread_id === threadId),
+            ((!row.agent_id && !row.thread_id) ||
+              (agentId && row.agent_id === agentId) ||
+              (threadId && row.thread_id === threadId)) &&
+            (!boundAccount ||
+              (row.payload.account_id === boundAccount && row.payload.symbol === boundSymbol)),
         );
         setRows(matching);
         setSelected((id) => (matching.some((row) => row.id === id) ? id : (matching[0]?.id ?? "")));
@@ -50,7 +56,7 @@ export function ConversationCharts({
     return () => {
       live = false;
     };
-  }, [agentId, threadId, connected, cursor]);
+  }, [agentId, threadId, connected, cursor, boundAccount, boundSymbol]);
   const row = rows.find((item) => item.id === selected);
   return (
     <div className="conversation-charts">

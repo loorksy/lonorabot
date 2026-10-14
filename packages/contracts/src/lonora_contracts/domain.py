@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 from typing import Any, Literal
 from uuid import uuid4
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 def new_id() -> str:
@@ -18,6 +18,15 @@ class Contract(BaseModel):
 
 
 class AgentCreate(Contract):
+    trading_account_id: str | None = Field(default=None, min_length=1, max_length=36)
+    trading_symbol: str | None = Field(default=None, min_length=1, max_length=80)
+
+    @model_validator(mode="after")
+    def market_binding(self) -> "AgentCreate":
+        if (self.trading_account_id is None) != (self.trading_symbol is None):
+            raise ValueError("agent_trading_binding_required")
+        return self
+
     name: str = Field(min_length=1, max_length=80)
     title: str = Field(default="", max_length=160)
     description: str = Field(default="", max_length=2000)

@@ -34,7 +34,8 @@ async def context_workspace(workspace: dict[str, Any]) -> AsyncGenerator[dict[st
 
 async def extra_agent(workspace: dict[str, Any]) -> str:
     response = await workspace["client"].post(
-        "/api/agents", json={"name": "Other voice context " + uuid4().hex[:10]}
+        "/api/agents",
+        json={"name": "Other voice context " + uuid4().hex[:10], **workspace["binding"]},
     )
     assert response.status_code == 201
     agent_id = str(response.json()["id"])
@@ -141,10 +142,11 @@ async def negotiate(workspace: dict[str, Any], monkeypatch: pytest.MonkeyPatch) 
 
 def context(configuration: dict[str, Any]) -> dict[str, Any]:
     instructions = str(configuration["instructions"])
-    prefix = VOICE_INSTRUCTIONS + "\n\n" + CONTEXT_PREAMBLE + "\n\n"
+    prefix = CONTEXT_PREAMBLE + "\n\n"
     suffix = "\n\n" + CONTEXT_AUTHORITY
-    assert instructions.startswith(prefix) and instructions.endswith(suffix)
-    return cast(dict[str, Any], json.loads(instructions[len(prefix) : -len(suffix)]))
+    assert instructions.startswith(VOICE_INSTRUCTIONS) and instructions.endswith(suffix)
+    assert instructions.count(prefix) == 1
+    return cast(dict[str, Any], json.loads(instructions.split(prefix, 1)[1][: -len(suffix)]))
 
 
 @pytest.mark.asyncio

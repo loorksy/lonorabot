@@ -37,7 +37,12 @@ export function useAgents() {
       name: string,
       avatar: string,
       color: string,
-      profile?: { title?: string; description?: string },
+      profile?: {
+        title?: string;
+        description?: string;
+        trading_account_id: string;
+        trading_symbol: string;
+      },
     ) => {
       const agent = await api.post<Agent>("/agents", { name, avatar, color, ...profile });
       setAgents((rows) => (rows.some((row) => row.id === agent.id) ? rows : [...rows, agent]));

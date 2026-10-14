@@ -105,10 +105,7 @@ class RealtimeVoiceSession:
                 entries = dict(state.get("delegations", {}))
                 for task in entries.values():
                     if task.get("event_id") == event.get("client_event_id"):
-                        if task.get("approval_notice") and not task.get("approval_notice_done"):
-                            task["approval_notice_done"] = True
-                        else:
-                            task["next_chunk"] = int(task.get("next_chunk", 0)) + 1
+                        task["next_chunk"] = int(task.get("next_chunk", 0)) + 1
                         task.pop("event_id", None)
                         task.pop("sent_at", None)
                 state["delegations"] = entries
@@ -224,6 +221,36 @@ class RealtimeVoiceSession:
             for identity, task in entries.items():
                 if task.get("status") == "running":
                     runs = [await session.get(RunRow, run_id) for run_id in task.get("run_ids", [])]
+                    waiting_ids = [run.id for run in runs if run and run.status == "waiting_input"]
+                    pending_approval = (
+                        await session.scalar(
+                            select(TradeApprovalRow.id)
+                            .where(
+                                TradeApprovalRow.owner_id == row.owner_id,
+                                TradeApprovalRow.thread_id == row.thread_id,
+                                TradeApprovalRow.run_id.in_(waiting_ids),
+                                TradeApprovalRow.status.in_(["pending", "approved"]),
+                            )
+                            .limit(1)
+                        )
+                        if waiting_ids
+                        else None
+                    )
+                    if pending_approval:
+                        # Approval is a pause of the same durable delegation, not its
+                        # final outcome. Continue observing the resumed original run.
+                        if not task.get("approval_notice_sent"):
+                            task["approval_notice_sent"] = True
+                            commands.append(
+                                {
+                                    "type": "session.commentary.append",
+                                    "event_id": "approval-"
+                                    + hashlib.sha256(identity.encode()).hexdigest()[:32],
+                                    "delegation_id": identity,
+                                    "content": APPROVAL_CARD,
+                                }
+                            )
+                        continue
                     if not runs:
                         task.update(
                             {
@@ -240,53 +267,6 @@ class RealtimeVoiceSession:
                         in {"completed", "failed", "cancelled", "waiting_input", "waiting_takeover"}
                         for run in runs
                     ):
-                        waiting = any(run and run.status == "waiting_input" for run in runs)
-                        pending_approval = bool(
-                            waiting
-                            and await session.scalar(
-                                select(TradeApprovalRow.id)
-                                .where(
-                                    TradeApprovalRow.run_id.in_(
-                                        [run.id for run in runs if run is not None]
-                                    ),
-                                    TradeApprovalRow.status == "pending",
-                                )
-                                .limit(1)
-                            )
-                        )
-                        if waiting and (pending_approval or task.get("approval_notice")):
-                            # Stay on this proposal until the button decision finishes.
-                            # Say once that the card in this call is the only approval.
-                            if (
-                                pending_approval
-                                and not task.get("approval_notice_done")
-                                and (
-                                    not task.get("event_id")
-                                    or time.time() - float(task.get("sent_at", 0)) > 8
-                                )
-                            ):
-                                event_id = (
-                                    "approval-" + hashlib.sha256(identity.encode()).hexdigest()[:32]
-                                )
-                                task.update(
-                                    {
-                                        "approval_notice": True,
-                                        "event_id": event_id,
-                                        "sent_at": time.time(),
-                                    }
-                                )
-                                commands.append(
-                                    {
-                                        "type": "session.commentary.append",
-                                        "event_id": event_id,
-                                        "delegation_id": identity,
-                                        "content": APPROVAL_CARD,
-                                    }
-                                )
-                            continue
-                        if task.get("approval_notice"):
-                            task.pop("event_id", None)
-                            task.pop("sent_at", None)
                         result: list[str] = []
                         for run in runs:
                             if run is None:

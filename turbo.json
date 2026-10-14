@@ -1,18 +1,13 @@
 {
   "$schema": "https://turbo.build/schema.json",
+  "globalEnv": ["LONORA_OTA_URL", "LONORA_OTA_CHANNEL"],
   "tasks": {
     "build": {
-      "dependsOn": [
-        "^build"
-      ],
-      "outputs": [
-        "dist/**"
-      ]
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**"]
     },
     "check": {
-      "dependsOn": [
-        "^check"
-      ],
+      "dependsOn": ["^check"],
       "outputs": []
     },
     "dev": {
@@ -23,9 +18,7 @@
       "outputs": []
     },
     "@lonora/chat-ui#build": {
-      "dependsOn": [
-        "^build"
-      ],
+      "dependsOn": ["^build"],
       "outputs": []
     },
     "@lonora/ui-tokens#build": {
@@ -35,9 +28,7 @@
       "outputs": []
     },
     "@lonora/core#build": {
-      "dependsOn": [
-        "^build"
-      ],
+      "dependsOn": ["^build"],
       "outputs": []
     }
   }

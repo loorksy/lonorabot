@@ -10,6 +10,8 @@ export type Agent = {
   instructions: string;
   paused: boolean;
   parent_id: string | null;
+  trading_account_id?: string | null;
+  trading_symbol?: string | null;
   created_at: string;
 };
 export type Thread = {

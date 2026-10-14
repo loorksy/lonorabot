@@ -2,6 +2,7 @@
 // Negotiation is a deterministic harness; auth, agents and selected conversation APIs remain real.
 import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
+import { brokerFixture } from "./broker-fixture.mjs";
 
 test("compact call survives navigation with its origin, real track mute and ordered logout", async ({
   page,
@@ -30,10 +31,12 @@ test("compact call survives navigation with its origin, real track mute and orde
   const headers = { "X-CSRF-Token": (await login.json()).csrf };
   const ids = [];
   const post = async (path, data) => {
+    if (path === "/agents") data = { ...data, ...broker.binding };
     const response = await context.request.post(`/api${path}`, { data, headers });
     expect(response.ok()).toBeTruthy();
     return response.json();
   };
+  const broker = await brokerFixture(context, headers);
   const calls = [],
     closes = [],
     ordering = [],
@@ -183,9 +186,77 @@ test("compact call survives navigation with its origin, real track mute and orde
     await expect(
       page.locator(".tpl-chat-header").getByRole("button", { name: "Call", exact: true }),
     ).toBeVisible();
+    const approval = {
+      id: randomUUID(),
+      thread_id: history.id,
+      created_at: new Date().toISOString(),
+      status: "pending",
+      requests: [
+        {
+          action: "buy",
+          symbol: broker.symbol,
+          volume: "0.01",
+          operation_id: "voice-approved-operation",
+        },
+      ],
+      results: [],
+    };
+    const rejectable = {
+      ...approval,
+      id: randomUUID(),
+      requests: [
+        {
+          action: "sell",
+          symbol: broker.symbol,
+          volume: "0.01",
+          operation_id: "voice-rejected-operation",
+        },
+      ],
+      results: [],
+    };
+    await page.route(`**/api/trading/approvals/${rejectable.id}/decision`, async (route) => {
+      expect(route.request().postDataJSON()).toEqual({ decision: "reject" });
+      rejectable.status = "rejected";
+      await route.fulfill({ json: rejectable });
+    });
+    await page.route("**/api/trading/approvals?*", (route) =>
+      route.fulfill({
+        json:
+          new URL(route.request().url()).searchParams.get("thread_id") === history.id
+            ? [approval, rejectable]
+            : [],
+      }),
+    );
+    let decisions = 0;
+    await page.route(`**/api/trading/approvals/${approval.id}/decision`, async (route) => {
+      expect(route.request().postDataJSON()).toEqual({ decision: "approve" });
+      decisions++;
+      approval.status = "completed";
+      approval.results = [
+        {
+          operation_id: "voice-approved-operation",
+          status: "confirmed",
+          broker_id: "voice-native-ticket",
+          details: { price: "1.23456" },
+        },
+      ];
+      await route.fulfill({ json: approval });
+    });
     await page.getByRole("button", { name: "Call", exact: true }).dblclick();
     await expect(page.getByTestId("call-view")).toBeVisible();
     await expect.poll(() => calls.length).toBe(1);
+    const call = page.getByTestId("call-view");
+    const approvedCard = call.locator(`[data-trade-approval="${approval.id}"]`);
+    await expect(approvedCard.getByRole("button", { name: "Reject", exact: true })).toBeVisible();
+    await approvedCard.getByRole("button", { name: "Approve", exact: true }).click();
+    await expect(call.getByText("voice-native-ticket", { exact: true })).toBeVisible();
+    await expect(approvedCard.getByRole("button", { name: "Approve", exact: true })).toHaveCount(0);
+    const rejectedCard = call.locator(`[data-trade-approval="${rejectable.id}"]`);
+    await rejectedCard.getByRole("button", { name: "Reject", exact: true }).click();
+    await expect(rejectedCard.getByText("Rejected", { exact: true })).toBeVisible();
+    await expect(rejectedCard.getByRole("button", { name: "Approve", exact: true })).toHaveCount(0);
+    expect(decisions).toBe(1);
+
     expect(calls[0].agent_id).toBe(first.id);
     expect(calls[0].thread_id).toBe(history.id);
     expect(calls[0].thread_id).not.toBe(canonical.id);
@@ -281,6 +352,7 @@ test("compact call survives navigation with its origin, real track mute and orde
     ).toBe(true);
     expect(errors).toEqual([]);
   } finally {
+    await broker.close();
     const renewed = await context.request.post("/api/auth/login", { data: credentials });
     if (renewed.ok())
       for (const id of ids)

@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     web_root: Path = Path("apps/web/dist")
     artifact_root: Path = Path(".runtime/artifacts")
     android_apk_path: Path = Path(".runtime/releases/android/lonora.apk")
+    ota_root: Path = Path(".runtime/releases/ota")
     worker_poll_seconds: float = Field(default=0.5, ge=0.1)
     run_lease_seconds: int = Field(default=120, ge=30)
     maximum_tool_rounds: int = Field(default=24, ge=1, le=100)

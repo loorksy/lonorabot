@@ -1,5 +1,5 @@
 // Real persistent market scenes replace the template's computer destination.
-import type { Resource } from "@lonora/contracts";
+import type { Agent, Resource } from "@lonora/contracts";
 import { Redirect, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AppState, ScrollView, Text, View } from "react-native";
@@ -28,6 +28,23 @@ export default function Charts() {
   const { threadId, botId } = useLocalSearchParams<{ threadId?: string; botId?: string }>();
   const { ready, owner, server, rtl, locale, t, errorText } = useSession();
   const router = useRouter();
+  const [agent, setAgent] = useState<Agent | null>(null);
+  useEffect(() => {
+    setAgent(null);
+    if (!botId || !owner) return;
+    let live = true;
+    void api
+      .get<Agent>(`/agents/${encodeURIComponent(botId)}`)
+      .then((row) => {
+        if (live) setAgent(row);
+      })
+      .catch((reason) => {
+        if (live) setError(errorText(reason));
+      });
+    return () => {
+      live = false;
+    };
+  }, [botId, owner, errorText]);
   const [charts, setCharts] = useState<Chart[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [scene, setScene] = useState<ChartScene | null>(null);
@@ -46,11 +63,21 @@ export default function Charts() {
   const selectedRef = useRef(selected);
   selectedRef.current = selected;
   const load = useCallback(async () => {
-    const rows = await readCharts(threadId);
+    const all = await readCharts(threadId);
+    const rows =
+      botId && !agent
+        ? []
+        : all.filter(
+            (row) =>
+              !agent?.trading_account_id ||
+              (row.payload.account_id === agent.trading_account_id &&
+                row.payload.symbol === agent.trading_symbol &&
+                (!row.agent_id || row.agent_id === agent.id)),
+          );
     setCharts(rows);
     setSelected((old) => (old && rows.some((row) => row.id === old) ? old : (rows[0]?.id ?? null)));
     setLoading(false);
-  }, [threadId]);
+  }, [threadId, botId, agent]);
   useFocusEffect(
     useCallback(() => {
       if (!owner) return;
@@ -156,7 +183,11 @@ export default function Charts() {
         .get<Connection[]>("/trading/connections")
         .then((rows) => {
           if (live) {
-            const enabled = rows.filter((row) => row.payload.enabled);
+            const enabled = rows.filter(
+              (row) =>
+                row.payload.enabled &&
+                (!agent?.trading_account_id || row.id === agent.trading_account_id),
+            );
             setConnections(enabled);
             setAccount((old) =>
               enabled.some((row) => row.id === old) ? old : (enabled[0]?.id ?? ""),
@@ -173,7 +204,7 @@ export default function Charts() {
       live = false;
       if (connectionRefresh.current === refresh) connectionRefresh.current = null;
     };
-  }, [creating, owner, errorText]);
+  }, [creating, owner, errorText, agent?.trading_account_id]);
   useEffect(() => {
     setSymbols([]);
     setSymbol("");
@@ -183,8 +214,11 @@ export default function Charts() {
       .get<string[]>(`/market/symbols?account_id=${encodeURIComponent(account)}`)
       .then((rows) => {
         if (live) {
-          setSymbols(rows);
-          setSymbol(rows[0] ?? "");
+          const matching = agent?.trading_symbol
+            ? rows.filter((symbol) => symbol === agent.trading_symbol)
+            : rows;
+          setSymbols(matching);
+          setSymbol(matching[0] ?? "");
         }
       })
       .catch((reason) => {
@@ -193,7 +227,7 @@ export default function Charts() {
     return () => {
       live = false;
     };
-  }, [account, creating, errorText]);
+  }, [account, creating, errorText, agent?.trading_symbol]);
   const create = async () => {
     if (!account || !symbol || busy) return;
     setBusy(true);
@@ -224,7 +258,7 @@ export default function Charts() {
         title={t("charts")}
         action={creating ? t("save") : undefined}
         onAction={creating ? () => void create() : undefined}
-        disabled={busy || !account || !symbol}
+        disabled={busy || !account || !symbol || Boolean(botId && !agent)}
         onClose={creating ? () => setCreating(false) : undefined}
       />
       <ErrorNotice text={error} />
@@ -238,12 +272,13 @@ export default function Charts() {
                   ? brokerIdentityLabel(connection, connectionIndex, t)
                   : t("chooseAccount")
               }
+              disabled={Boolean(agent?.trading_account_id)}
               onPress={() => setPicker("account")}
             />
             <SettingsRow
               title={t("symbol")}
               value={symbol || t("chooseSymbol")}
-              disabled={!symbols.length}
+              disabled={!symbols.length || Boolean(agent?.trading_symbol)}
               onPress={() => setPicker("symbol")}
             />
             <SettingsRow

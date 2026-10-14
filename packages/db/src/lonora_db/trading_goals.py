@@ -8,6 +8,7 @@ from lonora_core.user_error import LonoraError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from .agent_binding import assert_payload_binding
 from .broker_sessions import BrokerSessionRepository
 from .events import emit
 from .schema import GoalDecisionRow, TradingGoalRow
@@ -68,7 +69,9 @@ async def create_goal(
     owner_authorized: bool = False,
 ) -> TradingGoalRow:
     thread = await owned_thread(session, owner_id, request.thread_id, lock=True)
-    await owned_agent(session, owner_id, request.agent_id)
+    assert_payload_binding(
+        await owned_agent(session, owner_id, request.agent_id), request.model_dump(mode="json")
+    )
     if thread.agent_id and thread.agent_id != request.agent_id:
         raise LonoraError("agent_thread_mismatch", 409)
     await BrokerSessionRepository().get(session, owner_id, request.account_id)
@@ -224,6 +227,7 @@ async def update_plan(
         raise LonoraError("goal_terminal", 409)
     payload = {**row.payload, "steps": [step.model_dump(mode="json") for step in body.steps]}
     GoalCreate.model_validate({**payload, "autonomous": False})
+    assert_payload_binding(await owned_agent(session, owner_id, row.agent_id or ""), payload)
     protected = set(
         await session.scalars(
             select(GoalDecisionRow.step_id).where(GoalDecisionRow.goal_id == row.id)

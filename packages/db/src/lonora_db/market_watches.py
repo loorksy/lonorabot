@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .schema import IntegrationRow, MarketWatchRow
 from .threads import create_thread
 from .trading_goals import owned_goal, planned_step
-from .transactions import ResourceRepository, ResourceRow, owned_thread
+from .transactions import ResourceRepository, ResourceRow, owned_agent, owned_thread
 
 
 class MarketWatchRepository(ResourceRepository):
@@ -41,6 +41,9 @@ class MarketWatchRepository(ResourceRepository):
     ) -> ResourceRow:
         if not agent_id:
             raise LonoraError("watch_agent_required", 422)
+        agent = await owned_agent(session, owner_id, agent_id)
+        if agent.trading_symbol and not payload.get("symbol"):
+            payload = {**payload, "symbol": agent.trading_symbol}
         if payload.get("goal_id"):
             goal = await owned_goal(session, owner_id, str(payload["goal_id"]))
             if thread_id and thread_id != goal.thread_id or agent_id != goal.agent_id:

@@ -87,7 +87,17 @@ class Fixture:
         return response.json()
 
     async def agent(self, name: str) -> dict[str, Any]:
-        row = await self.request("POST", "/agents", {"name": name + " " + uuid4().hex[:8]})
+        # Legacy unbound fixture identities model migrated agents. Production
+        # POST /agents requires a real, owner-selected broker market.
+        from lonora_contracts.domain import AgentCreate
+        from lonora_db.agents import agent_data, create_agent
+
+        async with self.runtime.db.sessions() as session, session.begin():
+            row = agent_data(
+                await create_agent(
+                    session, self.owner, AgentCreate(name=name + " " + uuid4().hex[:8])
+                )
+            )
         self.agents.append(row["id"])
         return row
 

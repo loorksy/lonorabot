@@ -17,6 +17,7 @@ from .middleware.request_id import RequestIdMiddleware
 from .runtime import ApiRuntime
 
 ROUTES = (
+    "mobile_updates",
     "auth",
     "onboarding",
     "agents",
