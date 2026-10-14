@@ -123,3 +123,66 @@ test("opening an empty instrument creates exactly one chart through an explicit 
     fixture({ ...data, action: "cleanup" });
   }
 });
+
+test("resident live OHLC updates the selected chart through SSE without catalog or historical fetches", async ({
+  page,
+  context,
+}) => {
+  const data = fixture({ action: "init" });
+  const errors = [];
+  let catalogs = 0;
+  let candleReads = 0;
+  page.on("pageerror", (error) => errors.push(error.message));
+  page.on("request", (request) => {
+    const path = new URL(request.url()).pathname;
+    if (path === "/api/charts" && request.method() === "GET") catalogs++;
+    if (path === "/api/market/candles") candleReads++;
+  });
+  try {
+    await context.addCookies(
+      data.cookies.map((cookie) => ({
+        ...cookie,
+        url: test.info().project.use.baseURL,
+        httpOnly: cookie.name === "lonora_session",
+        sameSite: "Strict",
+      })),
+    );
+    await context.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
+    await page.goto("/app/market");
+    await page
+      .getByRole("combobox", { name: "Broker account", exact: true })
+      .selectOption(data.account);
+    await page.getByLabel("Exact broker symbol", { exact: true }).selectOption(data.symbol);
+    const chart = page.locator(`[data-chart-id='${data.chart}']`);
+    await expect(chart.locator("canvas").first()).toBeVisible();
+    const initial = Number(await chart.getAttribute("data-chart-scene-version"));
+    expect(initial).toBeGreaterThan(0);
+    const before = await chart.locator(".chart-renderer").screenshot();
+    const initialCatalogs = catalogs;
+    const published = fixture({ ...data, action: "live", close: "250" });
+    expect(published.candles.at(-1).close).toBe("250");
+    await expect
+      .poll(async () => Number(await chart.getAttribute("data-chart-scene-version")))
+      .toBeGreaterThanOrEqual(published.scene_version);
+    await expect(chart.getByText("Loading chart…", { exact: true })).toHaveCount(0);
+    const after = await chart.locator(".chart-renderer").screenshot();
+    expect(after.equals(before)).toBe(false);
+    expect(catalogs).toBe(initialCatalogs);
+    expect(candleReads).toBe(0);
+    const persisted = await page.request.get(`/api/charts/${data.chart}/scene`);
+    expect(persisted.ok()).toBeTruthy();
+    expect((await persisted.json()).candles.at(-1).close).toBe("250");
+    await page.reload();
+    await page
+      .getByRole("combobox", { name: "Broker account", exact: true })
+      .selectOption(data.account);
+    await page.getByLabel("Exact broker symbol", { exact: true }).selectOption(data.symbol);
+    await expect(chart.locator("canvas").first()).toBeVisible();
+    await expect
+      .poll(async () => Number(await chart.getAttribute("data-chart-scene-version")))
+      .toBeGreaterThanOrEqual(published.scene_version);
+    expect(errors).toEqual([]);
+  } finally {
+    fixture({ ...data, action: "cleanup" });
+  }
+});

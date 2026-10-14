@@ -9,6 +9,7 @@ import { SymbolSearch } from "../components/market/SymbolSearch";
 import { useMarket } from "../hooks/useMarket";
 import { useTrading } from "../hooks/useTrading";
 import type { Agent } from "../lib/api";
+import { brokerIdentityLabel } from "../lib/broker-identity";
 import { userError } from "../lib/user_error";
 export function Market({ agents }: { agents: Agent[] }) {
   const [account, setAccount] = useState("");
@@ -34,9 +35,9 @@ export function Market({ agents }: { agents: Agent[] }) {
             <option value="">
               <Trans>Choose a connection</Trans>
             </option>
-            {trading.connections.map((c) => (
+            {trading.connections.map((c, index) => (
               <option key={c.id} value={c.id}>
-                {String(c.payload.account_id)} · {String(c.payload.provider)}
+                {brokerIdentityLabel(c, index)}
               </option>
             ))}
           </select>

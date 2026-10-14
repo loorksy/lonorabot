@@ -4,6 +4,8 @@
 
 بنية الملفات ووظائفها في [docs/FRONTEND_STRUCTURE.md](docs/FRONTEND_STRUCTURE.md). خطة النقل ومصادر المكونات ومعايير القبول في [docs/UI_MIGRATION_PLAN.md](docs/UI_MIGRATION_PLAN.md). إشعارات المصادر والتراخيص في [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
+أهداف التداول الدائمة متاحة من لوحة «الأهداف» في ملف الوكيل، مع حدود الحجم والعمليات وتفعيل التداول التلقائي بواسطة المالك. تفاصيل التشغيل والاسترجاع في [docs/trading-goals.md](docs/trading-goals.md). طبّق ترحيل `0015_trading_goals` قبل تشغيل هذه النسخة.
+
 ## التشغيل المحلي
 
 المتطلبات: Python 3.12، Node.js 22.22 أو أحدث، pnpm 11.25.0، وDocker مع Compose.

@@ -16,6 +16,13 @@ export const labels = {
   symbol: ["الرمز", "Symbol"],
   timeframe: ["الفاصل الزمني", "Timeframe"],
   brokerAccount: ["حساب الوسيط", "Broker account"],
+  unverifiedBrokerAccount: ["حساب وسيط غير متحقق منه", "Unverified broker account"],
+  simulation: ["المحاكاة", "Simulation"],
+  unsupported_timeframe: ["هذا الفاصل الزمني غير مدعوم.", "This timeframe is unsupported."],
+  broker_candles_request_rejected: [
+    "رفض الوسيط طلب الشموع لهذا الرمز أو الفاصل الزمني. اختر فاصلًا يدعمه الحساب.",
+    "The broker rejected candles for this symbol or timeframe. Choose an interval supported by the account.",
+  ],
   createChart: ["إنشاء رسم بياني", "Create chart"],
   chooseAccount: ["اختر الحساب", "Choose account"],
   chooseSymbol: ["اختر الرمز", "Choose symbol"],

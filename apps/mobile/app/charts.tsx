@@ -1,7 +1,7 @@
 // Real persistent market scenes replace the template's computer destination.
 import type { Resource } from "@lonora/contracts";
 import { Redirect, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AppState, ScrollView, Text, View } from "react-native";
 import { ActionMenu } from "../components/action-menu";
 import { CandlestickChart } from "../components/candlestick-chart";
@@ -11,13 +11,22 @@ import { SettingsGroup, SettingsRow } from "../components/settings-group";
 import { SheetHeader } from "../components/sheet-header";
 import { Button, colors, ErrorNotice, Loading, Screen } from "../components/ui";
 import { ApiError, api } from "../lib/api";
-import { type Chart, type ChartScene, readCharts, readScene, requestRefresh } from "../lib/charts";
+import { brokerIdentityLabel } from "../lib/broker-identity";
+import {
+  CHART_TIMEFRAMES,
+  type Chart,
+  type ChartScene,
+  readCharts,
+  readScene,
+  requestRefresh,
+  subscribeChartEvents,
+} from "../lib/charts";
 import { useSession } from "../lib/session";
 
 type Connection = Resource<{ account_id: string; provider: string; enabled: boolean }>;
 export default function Charts() {
   const { threadId, botId } = useLocalSearchParams<{ threadId?: string; botId?: string }>();
-  const { ready, owner, rtl, locale, t, errorText } = useSession();
+  const { ready, owner, server, rtl, locale, t, errorText } = useSession();
   const router = useRouter();
   const [charts, setCharts] = useState<Chart[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
@@ -32,6 +41,10 @@ export default function Charts() {
   const [symbol, setSymbol] = useState("");
   const [timeframe, setTimeframe] = useState("1h");
   const [picker, setPicker] = useState<"account" | "symbol" | "timeframe" | null>(null);
+  const sceneRefresh = useRef<(() => void) | null>(null);
+  const connectionRefresh = useRef<(() => void) | null>(null);
+  const selectedRef = useRef(selected);
+  selectedRef.current = selected;
   const load = useCallback(async () => {
     const rows = await readCharts(threadId);
     setCharts(rows);
@@ -65,12 +78,23 @@ export default function Charts() {
     setScene(null);
     if (!selected || !owner) return;
     let live = true;
+    let pending = false;
+    let dirty = false;
     let timer: ReturnType<typeof setTimeout>;
-    const tick = async () => {
+    const refresh = async () => {
+      dirty = true;
+      if (pending || !live || AppState.currentState !== "active") return;
+      pending = true;
+      dirty = false;
       try {
         const value = await readScene(selected);
         if (live) {
-          setScene(value);
+          setScene((old) =>
+            old?.chart_id === value.chart_id &&
+            (old.revision > value.revision || old.scene_version > value.scene_version)
+              ? old
+              : value,
+          );
           setError(null);
         }
       } catch (reason) {
@@ -80,34 +104,74 @@ export default function Charts() {
               ? t("chartInitializing")
               : errorText(reason),
           );
+      } finally {
+        pending = false;
+        if (live && dirty) void refresh();
       }
-      if (live) timer = setTimeout(() => void tick(), 5000);
     };
-    void tick();
+    const request = () => {
+      void refresh();
+    };
+    sceneRefresh.current = request;
+    const tick = () => {
+      request();
+      if (live) timer = setTimeout(tick, 5000);
+    };
+    const state = AppState.addEventListener("change", (value) => {
+      if (value === "active") request();
+    });
+    tick();
     return () => {
       live = false;
       clearTimeout(timer);
+      state.remove();
+      if (sceneRefresh.current === request) sceneRefresh.current = null;
     };
   }, [selected, owner, errorText, t]);
   useEffect(() => {
+    if (!owner || !server) return;
+    return subscribeChartEvents(
+      server,
+      (event) => {
+        if (event.kind === "cloud_charts.scene_updated") {
+          if (event.payload.id === selectedRef.current) sceneRefresh.current?.();
+        } else if (event.kind.startsWith("cloud_charts.")) {
+          void load().catch((reason) => setError(errorText(reason)));
+        } else if (event.kind === "broker_identity.updated") {
+          connectionRefresh.current?.();
+        }
+      },
+      () => {
+        sceneRefresh.current?.();
+        connectionRefresh.current?.();
+        void load().catch((reason) => setError(errorText(reason)));
+      },
+    );
+  }, [owner, server, load, errorText]);
+  useEffect(() => {
     if (!creating || !owner) return;
     let live = true;
-    void api
-      .get<Connection[]>("/trading/connections")
-      .then((rows) => {
-        if (live) {
-          const enabled = rows.filter((row) => row.payload.enabled);
-          setConnections(enabled);
-          setAccount((old) =>
-            enabled.some((row) => row.id === old) ? old : (enabled[0]?.id ?? ""),
-          );
-        }
-      })
-      .catch((reason) => {
-        if (live) setError(errorText(reason));
-      });
+    const refresh = () => {
+      void api
+        .get<Connection[]>("/trading/connections")
+        .then((rows) => {
+          if (live) {
+            const enabled = rows.filter((row) => row.payload.enabled);
+            setConnections(enabled);
+            setAccount((old) =>
+              enabled.some((row) => row.id === old) ? old : (enabled[0]?.id ?? ""),
+            );
+          }
+        })
+        .catch((reason) => {
+          if (live) setError(errorText(reason));
+        });
+    };
+    connectionRefresh.current = refresh;
+    refresh();
     return () => {
       live = false;
+      if (connectionRefresh.current === refresh) connectionRefresh.current = null;
     };
   }, [creating, owner, errorText]);
   useEffect(() => {
@@ -152,6 +216,8 @@ export default function Charts() {
   if (!ready) return <Loading />;
   if (!owner) return <Redirect href="/sign-in" />;
   const current = charts.find((row) => row.id === selected);
+  const connectionIndex = connections.findIndex((row) => row.id === account);
+  const connection = connections[connectionIndex];
   return (
     <Screen>
       <SheetHeader
@@ -168,8 +234,9 @@ export default function Charts() {
             <SettingsRow
               title={t("brokerAccount")}
               value={
-                connections.find((row) => row.id === account)?.payload.account_id ??
-                t("chooseAccount")
+                connection
+                  ? brokerIdentityLabel(connection, connectionIndex, t)
+                  : t("chooseAccount")
               }
               onPress={() => setPicker("account")}
             />
@@ -301,8 +368,8 @@ export default function Charts() {
         onClose={() => setPicker(null)}
         actions={
           picker === "account"
-            ? connections.map((row) => ({
-                label: row.payload.account_id,
+            ? connections.map((row, index) => ({
+                label: brokerIdentityLabel(row, index, t),
                 icon: "chart",
                 onPress: () => setAccount(row.id),
               }))
@@ -312,7 +379,7 @@ export default function Charts() {
                   icon: "chart",
                   onPress: () => setSymbol(value),
                 }))
-              : ["1m", "5m", "15m", "30m", "1h", "4h", "1d"].map((value) => ({
+              : CHART_TIMEFRAMES.map((value) => ({
                   label: value,
                   icon: "clock",
                   onPress: () => setTimeframe(value),

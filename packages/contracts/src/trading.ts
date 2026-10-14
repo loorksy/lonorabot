@@ -45,6 +45,11 @@ export type AccountSummary = {
     margin: string;
     free_margin: string;
     observed_at: string;
+    broker?: string | null;
+    login?: string | null;
+    server?: string | null;
+    name?: string | null;
+    platform?: string | null;
   };
   positions: Position[];
   orders: Order[];

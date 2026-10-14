@@ -51,7 +51,13 @@ export function useEvents(enabled: boolean) {
               streams: stream
                 ? trimStreams({ ...old.streams, [stream.run_id]: stream })
                 : old.streams,
-              revision: ["run.delta", "run.reply_started", "run.progress"].includes(event.kind)
+              revision: [
+                "run.delta",
+                "run.reply_started",
+                "run.progress",
+                "market.quote_updated",
+                "cloud_charts.scene_updated",
+              ].includes(event.kind)
                 ? old.revision
                 : event.cursor,
             };

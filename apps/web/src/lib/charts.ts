@@ -11,6 +11,9 @@ export type ChartScene = {
   chart_id: string;
   revision: number;
   scene_version: number;
+  data_revision?: string;
+  candle_observed_at?: string | null;
+  observation_source?: string;
   status: "ready" | "failed" | "initializing";
   updated_at: string;
   error_code?: string | null;

@@ -17,6 +17,27 @@ export function userError(error: unknown) {
       return t`Trading is off.`;
     case "emergency_stop":
       return t`Emergency stop is active.`;
+    case "broker_trading_not_allowed":
+      return t`This broker account does not permit trading. Check its trading permissions.`;
+    case "goal_autonomy_required":
+    case "goal_owner_control_required":
+      return t`Enable autonomous trading for this goal in its owner controls first.`;
+    case "goal_volume_limit_required":
+    case "goal_volume_limit":
+    case "goal_action_limit":
+      return t`Review this goal's volume and action limits before continuing.`;
+    case "goal_reconciliation_required":
+    case "goal_target_ambiguous":
+    case "goal_owner_retry_required":
+      return t`This goal is waiting for broker verification. Its financial operation will not be repeated automatically.`;
+    case "goal_not_active":
+    case "goal_terminal":
+      return t`This goal is paused, cancelled or completed. Reload its current state.`;
+    case "goal_condition_unmet":
+    case "goal_condition_stale":
+      return t`The current market no longer confirms this goal's condition. No trade was sent.`;
+    case "goal_target_pending":
+      return t`Waiting for the broker to report the entry position. The accepted order will not be submitted again.`;
     case "version_conflict":
       return t`This item changed. Reload it before saving.`;
     case "voice_transport_not_configured":

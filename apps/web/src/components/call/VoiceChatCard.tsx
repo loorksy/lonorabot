@@ -1,56 +1,32 @@
-// Real voice controller for Tampletgrok's call UI boundary. Modified for Lonora; Apache-2.0.
-import { lazy, Suspense, useState } from "react";
 import { useVoice } from "../../hooks/useVoice";
-import type { Message } from "../../lib/api";
+import type { Agent } from "../../lib/api";
 import { CallCard } from "./CallCard";
-import { VoiceStatus } from "./VoiceStatus";
-
-const RealtimeVoice = lazy(() =>
-  import("./RealtimeVoice").then((module) => ({ default: module.RealtimeVoice })),
-);
-
+/** A view of the globally owned call; navigating or minimizing never closes transport. */
 export function VoiceChatCard({
-  agentId,
-  threadId,
-  messages,
+  agents,
+  onSettings,
+  onOpenConversation,
 }: {
-  agentId: string;
-  threadId: string;
-  messages: Message[];
+  agents: Agent[];
+  onSettings: () => void;
+  onOpenConversation: () => void;
 }) {
-  // This controller owns the server session; closing its parent still invokes useVoice teardown.
-  const voice = useVoice(agentId, threadId);
-  const [transportError, setTransportError] = useState<unknown>();
-  async function invoke(action: () => Promise<void>) {
-    setTransportError(undefined);
-    try {
-      await action();
-    } catch (error) {
-      setTransportError(error);
-    }
-  }
+  const voice = useVoice();
+  const target = voice.target;
   return (
     <CallCard
-      active={Boolean(voice.session)}
-      connected={voice.connected}
-      busy={voice.busy}
-      messages={messages}
-      error={voice.error ?? transportError}
-      onStart={() => {
-        void invoke(voice.start);
+      onSettings={() => {
+        voice.minimize();
+        onSettings();
       }}
-      onInterrupt={() => {
-        void invoke(voice.interrupt);
-      }}
-      onEnd={() => {
-        void invoke(voice.stop);
-      }}
-      transport={
-        voice.session && (
-          <Suspense fallback={<VoiceStatus connected={false} busy={true} />}>
-            <RealtimeVoice session={voice.session} captions={voice.captions} />
-          </Suspense>
-        )
+      onOpenConversation={onOpenConversation}
+      onRetry={
+        target
+          ? () => {
+              const agent = agents.find((row) => row.id === target.agentId);
+              if (agent) void voice.start(agent, target.threadId || null);
+            }
+          : undefined
       }
     />
   );
