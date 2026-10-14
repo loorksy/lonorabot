@@ -12,7 +12,7 @@ from lonora_contracts.domain import MessageCreate
 from lonora_db.client import Database
 from lonora_db.events import emit
 from lonora_db.messages import send_message
-from lonora_db.schema import MessageRow, RunRow, VoiceSessionRow
+from lonora_db.schema import MessageRow, RunRow, TradeApprovalRow, VoiceSessionRow
 from lonora_providers.credentials import ProviderCredentials
 from sqlalchemy import select
 from websockets.asyncio.client import ClientConnection
@@ -169,6 +169,26 @@ class RealtimeVoiceSession:
                         )
                         state["input_offset"] = offset
                     continue
+                pending_approval = await session.scalar(
+                    select(TradeApprovalRow.id).where(
+                        TradeApprovalRow.thread_id == row.thread_id,
+                        TradeApprovalRow.status == "pending",
+                    )
+                )
+                if pending_approval:
+                    # Another spoken fragment must not become a user message: that steering
+                    # cancels the approval before the owner can press the button.
+                    task.update(
+                        {
+                            "status": "result",
+                            "chunks": text_chunks(
+                                "A trade proposal is already waiting for the on-screen approve or reject button. "
+                                "Do not start another order and do not ask the user to retype the symbol."
+                            ),
+                            "next_chunk": 0,
+                        }
+                    )
+                    continue
                 nonce = "voice:" + hashlib.sha256((row.id + identity).encode()).hexdigest()[:64]
                 receipt = await send_message(
                     session,
@@ -213,6 +233,20 @@ class RealtimeVoiceSession:
                         in {"completed", "failed", "cancelled", "waiting_input", "waiting_takeover"}
                         for run in runs
                     ):
+                        if any(
+                            run and run.status == "waiting_input" for run in runs
+                        ) and await session.scalar(
+                            select(TradeApprovalRow.id)
+                            .where(
+                                TradeApprovalRow.run_id.in_(
+                                    [run.id for run in runs if run is not None]
+                                ),
+                                TradeApprovalRow.status == "pending",
+                            )
+                            .limit(1)
+                        ):
+                            # The owner still has to approve. Keep the call on this proposal.
+                            continue
                         result: list[str] = []
                         for run in runs:
                             if run is None:

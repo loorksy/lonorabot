@@ -13,6 +13,7 @@ from sqlalchemy import select
 
 from .base import Tool
 from .context import ToolContext
+from .symbols import canonical_broker_symbol
 
 
 class ClosePositions(Contract):
@@ -124,6 +125,9 @@ async def approved_execution(
 async def execute(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     args = dict(args)
     args.pop("operation_id", None)
+    if args.get("symbol") and args.get("account_id"):
+        broker = await context.brokers.get(context.owner_id, str(args["account_id"]))
+        args["symbol"] = await canonical_broker_symbol(broker, str(args["symbol"]))
     for field in ("clear_stop_loss", "clear_take_profit"):
         if args.get(field) is False:
             args.pop(field)

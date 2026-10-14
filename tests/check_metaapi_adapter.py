@@ -10,6 +10,7 @@ from unittest.mock import AsyncMock, patch
 
 from lonora_adapters.brokers.metaapi import MetaApiBroker, client_id
 from lonora_contracts.trading import TradeRequest
+from lonora_tools.symbols import canonical_broker_symbol
 
 
 async def main() -> None:
@@ -234,6 +235,17 @@ async def streamed_market_state() -> None:
         print("PASS stale unsubscribed prices and unsynchronized state still use broker RPC")
 
 
+async def symbol_case() -> None:
+    class Catalog:
+        async def symbols(self) -> list[str]:
+            return ["XAUUSDm", "EURUSDm"]
+
+    assert await canonical_broker_symbol(Catalog(), "XAUUSDM") == "XAUUSDm"
+    assert await canonical_broker_symbol(Catalog(), "XAUUSD") == "XAUUSD"
+    print("PASS a unique broker symbol matches ignoring letter case")
+
+
 if __name__ == "__main__":
     asyncio.run(main())
     asyncio.run(streamed_market_state())
+    asyncio.run(symbol_case())
