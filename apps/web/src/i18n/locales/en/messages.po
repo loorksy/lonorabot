@@ -259,11 +259,23 @@ msgstr "Bring agents together in a group."
 msgid "Broker account"
 msgstr "Broker account"
 
+#: src/lib/user_error.ts:47
+msgid "Broker account not found."
+msgstr "Broker account not found."
+
+#: src/lib/user_error.ts:49
+msgid "Broker authentication was rejected."
+msgstr "Broker authentication was rejected."
+
 #: src/lib/user_error.ts:43
 msgid "Broker candles are unavailable for this symbol and timeframe."
 msgstr "Broker candles are unavailable for this symbol and timeframe."
 
-#: src/lib/user_error.ts:56
+#: src/lib/user_error.ts:59
+msgid "Broker candles contain invalid or mismatched data."
+msgstr "Broker candles contain invalid or mismatched data."
+
+#: src/lib/user_error.ts:74
 msgid "Broker deal history is unavailable for this time range."
 msgstr "Broker deal history is unavailable for this time range."
 
@@ -326,7 +338,7 @@ msgstr "Charts"
 msgid "Check existing operation"
 msgstr "Check existing operation"
 
-#: src/lib/user_error.ts:62
+#: src/lib/user_error.ts:80
 msgid "Check the required fields and try again."
 msgstr "Check the required fields and try again."
 
@@ -832,11 +844,15 @@ msgstr "Group settings"
 msgid "Groups"
 msgstr "Groups"
 
+#: src/lib/user_error.ts:51
+msgid "Historical broker candles timed out. Retry the chart refresh."
+msgstr "Historical broker candles timed out. Retry the chart refresh."
+
 #: src/components/common/ImageGallery.tsx:5
 msgid "Image attachment"
 msgstr "Image attachment"
 
-#: src/lib/user_error.ts:60
+#: src/lib/user_error.ts:78
 msgid "Import a market snapshot before using the demo account."
 msgstr "Import a market snapshot before using the demo account."
 
@@ -941,7 +957,7 @@ msgstr "Loading activity…"
 msgid "Loading agents…"
 msgstr "Loading agents…"
 
-#: src/components/charts/ChartWorkspace.tsx:62
+#: src/components/charts/ChartWorkspace.tsx:67
 #: src/components/charts/ConversationCharts.tsx:60
 msgid "Loading chart…"
 msgstr "Loading chart…"
@@ -1107,7 +1123,11 @@ msgstr "No agents match"
 msgid "No artifacts found."
 msgstr "No artifacts found."
 
-#: src/components/charts/ChartWorkspace.tsx:73
+#: src/lib/user_error.ts:57
+msgid "No candle history was found for this symbol and timeframe."
+msgstr "No candle history was found for this symbol and timeframe."
+
+#: src/components/charts/ChartWorkspace.tsx:78
 msgid "No candles available for this instrument and timeframe."
 msgstr "No candles available for this instrument and timeframe."
 
@@ -1160,7 +1180,7 @@ msgstr "Now"
 msgid "One model for text work"
 msgstr "One model for text work"
 
-#: src/components/charts/ChartWorkspace.tsx:48
+#: src/components/charts/ChartWorkspace.tsx:49
 msgid "Open chart"
 msgstr "Open chart"
 
@@ -1346,7 +1366,7 @@ msgstr "Reconnecting"
 msgid "Reconnecting to live updates"
 msgstr "Reconnecting to live updates"
 
-#: src/components/charts/ChartToolbar.tsx:26
+#: src/components/charts/ChartToolbar.tsx:48
 msgid "Refresh chart"
 msgstr "Refresh chart"
 
@@ -1459,7 +1479,7 @@ msgstr "Save memory"
 msgid "Saved"
 msgstr "Saved"
 
-#: src/components/charts/ChartWorkspace.tsx:32
+#: src/components/charts/ChartWorkspace.tsx:33
 #: src/components/charts/ConversationCharts.tsx:65
 msgid "Saved chart"
 msgstr "Saved chart"
@@ -1586,7 +1606,7 @@ msgstr "Settings"
 msgid "Setup token"
 msgstr "Setup token"
 
-#: src/components/charts/ChartWorkspace.tsx:28
+#: src/components/charts/ChartWorkspace.tsx:29
 msgid "Shared chart workspace"
 msgstr "Shared chart workspace"
 
@@ -1737,27 +1757,39 @@ msgstr "Task when triggered"
 msgid "Temporary delegated tasks"
 msgstr "Temporary delegated tasks"
 
-#: src/lib/user_error.ts:76
+#: src/lib/user_error.ts:61
+msgid "That chart timeframe is not supported by this broker."
+msgstr "That chart timeframe is not supported by this broker."
+
+#: src/lib/user_error.ts:94
 msgid "The agent reached the step limit for this run. Send another message to continue."
 msgstr "The agent reached the step limit for this run. Send another message to continue."
 
-#: src/lib/user_error.ts:52
+#: src/lib/user_error.ts:70
 msgid "The broker connection changed. Reload it before continuing."
 msgstr "The broker connection changed. Reload it before continuing."
 
-#: src/lib/user_error.ts:58
+#: src/lib/user_error.ts:76
 msgid "The broker connection is unavailable."
 msgstr "The broker connection is unavailable."
 
-#: src/lib/user_error.ts:54
+#: src/lib/user_error.ts:55
+msgid "The broker market-data service is rate limited."
+msgstr "The broker market-data service is rate limited."
+
+#: src/lib/user_error.ts:72
 msgid "The broker mutation is uncertain. Execution remains blocked until its result can be verified."
 msgstr "The broker mutation is uncertain. Execution remains blocked until its result can be verified."
 
-#: src/lib/user_error.ts:45
+#: src/lib/user_error.ts:63
 msgid "The broker quote is unavailable for this exact symbol."
 msgstr "The broker quote is unavailable for this exact symbol."
 
-#: src/lib/user_error.ts:47
+#: src/lib/user_error.ts:53
+msgid "The broker rejected this timeframe or candle request."
+msgstr "The broker rejected this timeframe or candle request."
+
+#: src/lib/user_error.ts:65
 msgid "The broker specifications are unavailable for this exact symbol."
 msgstr "The broker specifications are unavailable for this exact symbol."
 
@@ -1773,7 +1805,7 @@ msgstr "The file preview could not be displayed"
 msgid "The full response will appear when complete."
 msgstr "The full response will appear when complete."
 
-#: src/lib/user_error.ts:72
+#: src/lib/user_error.ts:90
 msgid "The model could not summarize this conversation. Retry or choose another global model."
 msgstr "The model could not summarize this conversation. Retry or choose another global model."
 
@@ -1789,7 +1821,7 @@ msgstr "The page could not be displayed"
 msgid "The provider rejected this API key."
 msgstr "The provider rejected this API key."
 
-#: src/lib/user_error.ts:78
+#: src/lib/user_error.ts:96
 msgid "The request could not be completed. Try again."
 msgstr "The request could not be completed. Try again."
 
@@ -1822,17 +1854,21 @@ msgstr "Theme"
 msgid "These settings apply to every agent and routine. Voice routes require models that support audio."
 msgstr "These settings apply to every agent and routine. Voice routes require models that support audio."
 
-#: src/lib/user_error.ts:49
+#: src/lib/user_error.ts:67
 msgid "This broker connection is disabled."
 msgstr "This broker connection is disabled."
 
-#: src/lib/user_error.ts:74
+#: src/lib/user_error.ts:92
 msgid "This conversation could not be resumed. Start a new conversation."
 msgstr "This conversation could not be resumed. Start a new conversation."
 
-#: src/lib/user_error.ts:70
+#: src/lib/user_error.ts:88
 msgid "This conversation is too large to process. Shorten instructions, use fewer attachments, or start a new conversation."
 msgstr "This conversation is too large to process. Shorten instructions, use fewer attachments, or start a new conversation."
+
+#: src/lib/user_error.ts:45
+msgid "This exact symbol is not available from your broker."
+msgstr "This exact symbol is not available from your broker."
 
 #: src/lib/user_error.ts:21
 msgid "This item changed. Reload it before saving."
@@ -1846,7 +1882,7 @@ msgstr "This month"
 msgid "This page is unavailable"
 msgstr "This page is unavailable"
 
-#: src/lib/user_error.ts:66
+#: src/lib/user_error.ts:84
 msgid "This run was recovered by another worker."
 msgstr "This run was recovered by another worker."
 
@@ -1899,7 +1935,7 @@ msgstr "Today"
 msgid "Token usage"
 msgstr "Token usage"
 
-#: src/lib/user_error.ts:64
+#: src/lib/user_error.ts:82
 msgid "Too many attempts. Wait a minute and retry."
 msgstr "Too many attempts. Wait a minute and retry."
 

@@ -1,6 +1,7 @@
 import asyncio
 import hashlib
 import importlib
+import logging
 import os
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from datetime import UTC, datetime, timedelta
@@ -13,9 +14,48 @@ import httpx
 from lonora_contracts.account import AccountState, Order, Position
 from lonora_contracts.market import Candle, Instrument, Quote
 from lonora_contracts.trading import TradeRequest, TradeResult
+from lonora_core.chart_controller import validate_timeframe
+from lonora_core.error_logging import safe_exception_message
 from lonora_core.user_error import LonoraError
+from pydantic import ValidationError
 
 from . import normalize
+
+log = logging.getLogger("lonora.metaapi")
+
+
+def provider_error(error: Exception, stage: str) -> LonoraError:
+    if isinstance(error, LonoraError):
+        return error
+    status = getattr(error, "status_code", None)
+    if status == 404:
+        message = str(error).split("Request URL:", 1)[0].casefold()
+        missing = any(
+            term in message for term in ("not found", "unknown", "does not exist", "not exist")
+        )
+        if stage != "candles" or "account" in message and missing:
+            return LonoraError("broker_account_not_found", 404)
+        if "symbol" in message and missing:
+            return LonoraError("symbol_not_found", 404)
+        return LonoraError("broker_candles_not_found", 404)
+    if status in {401, 403}:
+        return LonoraError("broker_credentials_rejected", 409)
+    if status == 429:
+        return LonoraError("broker_rate_limited", 429)
+    if (
+        isinstance(error, (TimeoutError, httpx.TimeoutException))
+        or "Timeout" in type(error).__name__
+    ):
+        return LonoraError(
+            "broker_candles_timeout" if stage == "candles" else "broker_connection_timeout", 504
+        )
+    if isinstance(error, ValidationError):
+        return LonoraError("broker_candles_invalid", 502)
+    if status == 400:
+        return LonoraError("broker_candles_request_rejected", 422)
+    return LonoraError(
+        "broker_candles_unavailable" if stage == "candles" else "broker_connection_unavailable", 502
+    )
 
 
 def sdk_number(value: Decimal | None) -> float | None:
@@ -112,26 +152,52 @@ class MetaApiBroker:
         )
         self.account_id = account_id
         self.connection_id = connection_id
+        self._log_redactions = (token, account_id)
         self.account_instance: Any = None
         self.rpc: Any = None
         self.streaming: Any = None
         self.stream_lock = asyncio.Lock()
         self.lock = asyncio.Lock()
+        self.account_lock = asyncio.Lock()
 
-    async def prepare(self) -> Any:
-        async with self.lock:
-            try:
-                if self.account_instance is None:
+    def diagnose(self, error: Exception, stage: str) -> LonoraError:
+        failure = provider_error(error, stage)
+        failure.diagnostic_type = type(error).__name__
+        failure.diagnostic_message = safe_exception_message(
+            error, getattr(self, "_log_redactions", ())
+        )
+        log.warning(
+            "broker_%s_failed code=%s type=%s message=%s",
+            stage,
+            failure.code,
+            type(error).__name__,
+            failure.diagnostic_message,
+        )
+        return failure
+
+    async def resolve_account(self) -> Any:
+        # Historical REST data needs the account's own region, not an RPC lease.
+        async with self.account_lock:
+            if self.account_instance is None:
+                try:
                     self.account_instance = await self.api.metatrader_account_api.get_account(
                         self.account_id
                     )
+                except Exception as error:
+                    raise self.diagnose(error, "account") from error
+            return self.account_instance
+
+    async def prepare(self) -> Any:
+        account = await self.resolve_account()
+        async with self.lock:
+            try:
                 if self.rpc is None:
-                    self.rpc = self.account_instance.get_rpc_connection()
+                    self.rpc = account.get_rpc_connection()
                     await self.rpc.connect()
                 await self.rpc.wait_synchronized(timeout_in_seconds=20)
                 return self.rpc
-            except Exception:
-                raise LonoraError("broker_connection_unavailable", 502) from None
+            except Exception as error:
+                raise self.diagnose(error, "rpc") from error
 
     async def symbols(self) -> list[str]:
         rpc = await self.prepare()
@@ -241,14 +307,23 @@ class MetaApiBroker:
             raise LonoraError("broker_quote_unavailable", 502) from None
 
     async def candles(self, symbol: str, timeframe: str, limit: int) -> list[Candle]:
-        await self.prepare()
+        validate_timeframe(timeframe)
+        if limit < 1:
+            raise LonoraError("candle_limit_invalid")
+        account = await self.resolve_account()
         try:
-            values = await self.account_instance.get_historical_candles(
-                symbol, timeframe, None, min(limit, 1000)
+            values = await account.get_historical_candles(
+                symbol=symbol, timeframe=timeframe, start_time=None, limit=min(limit, 1000)
             )
+            if any(
+                value.get("symbol", symbol) != symbol
+                or value.get("timeframe", timeframe) != timeframe
+                for value in values
+            ):
+                raise LonoraError("broker_candles_mismatch", 502)
             return [normalize.candle(value, symbol, timeframe) for value in values]
-        except Exception:
-            raise LonoraError("broker_candles_unavailable", 502) from None
+        except Exception as error:
+            raise self.diagnose(error, "candles") from error
 
     async def history(self, start: datetime, end: datetime, limit: int) -> list[dict[str, Any]]:
         rpc = await self.prepare()
