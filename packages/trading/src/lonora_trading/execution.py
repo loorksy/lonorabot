@@ -5,15 +5,19 @@ from lonora_contracts.broker import BrokerConnection
 from lonora_contracts.domain import utcnow
 from lonora_contracts.runs import Lease
 from lonora_contracts.trading import TradeRequest, TradeResult
+from lonora_contracts.trading_goal import GoalExecution
 from lonora_core.trading_control import require_trading
 from lonora_core.user_error import LonoraError
 from lonora_db.broker_sessions import BrokerSessionRepository
 from lonora_db.client import Database
 from lonora_db.runs import require_lease
-from lonora_db.schema import TradingJournalRow
+from lonora_db.schema import RunRow, TradingJournalRow
 from lonora_db.trading_journal import persist_result, reserve_operation
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from .controls import read_controls
+from .goals import guard_goal_execution
+from .goals_market import fresh_goal_evidence
 from .idempotency import trade_fingerprint
 from .preflight import preflight
 
@@ -26,14 +30,49 @@ def receipt(row: TradingJournalRow) -> TradeResult:
     )
 
 
+async def require_goal_lineage(
+    session: AsyncSession, lease: Lease, goal: GoalExecution | None
+) -> None:
+    origin_run = await require_lease(session, lease)
+    linked_goal = origin_run.model_metadata.get("goal_id")
+    ancestor = origin_run
+    seen = {origin_run.id}
+    for _ in range(16):
+        if not ancestor.parent_run_id:
+            break
+        if ancestor.parent_run_id in seen:
+            raise LonoraError("goal_run_ancestry_invalid", 409)
+        seen.add(ancestor.parent_run_id)
+        ancestor = await session.get(RunRow, ancestor.parent_run_id)
+        if ancestor is None:
+            raise LonoraError("goal_run_ancestry_invalid", 409)
+        if ancestor.model_metadata.get("goal_id"):
+            raise LonoraError("goal_delegated_trade_forbidden", 409)
+    else:
+        raise LonoraError("goal_run_ancestry_invalid", 409)
+    if linked_goal and (
+        goal is None
+        or goal.goal_id != linked_goal
+        or goal.step_id != origin_run.model_metadata.get("step_id")
+    ):
+        raise LonoraError("goal_step_required", 409)
+
+
 class ExecutionService:
     def __init__(self, db: Database, brokers: BrokerManager):
         self.db, self.brokers = db, brokers
 
     async def execute(
-        self, owner_id: str, request: TradeRequest, lease: Lease | None = None
+        self,
+        owner_id: str,
+        request: TradeRequest,
+        lease: Lease | None = None,
+        *,
+        goal: GoalExecution | None = None,
     ) -> TradeResult:
         async with self.db.sessions() as session:
+            if lease:
+                await require_goal_lineage(session, lease, goal)
             previous = await session.get(TradingJournalRow, request.operation_id)
             if previous:
                 if previous.owner_id != owner_id or previous.request_hash != trade_fingerprint(
@@ -56,6 +95,8 @@ class ExecutionService:
             if not configuration.enabled:
                 raise LonoraError("broker_disabled", 409)
             leased_run = await require_lease(session, lease, lock=True) if lease else None
+            if goal:
+                await guard_goal_execution(session, owner_id, goal, request, lease)
             journal, fresh = await reserve_operation(
                 session,
                 owner_id,
@@ -79,6 +120,16 @@ class ExecutionService:
                         "agent_id": leased_run.agent_id if leased_run else None,
                         "provider": configuration.provider,
                         "broker_account_id": configuration.account_id,
+                        **(
+                            {
+                                "goal_id": goal.goal_id,
+                                "step_id": goal.step_id,
+                                "decision_id": goal.decision_id,
+                                "attempt": goal.attempt,
+                            }
+                            if goal
+                            else {}
+                        ),
                     },
                 },
             ).model_dump(mode="json")
@@ -89,8 +140,20 @@ class ExecutionService:
             nonlocal send_authorized
             if send_authorized:
                 raise LonoraError("operation_send_already_authorized", 409)
+            goal_evidence = (
+                await fresh_goal_evidence(
+                    self.db,
+                    self.brokers,
+                    owner_id,
+                    goal.goal_id,
+                    goal.step_id,
+                    lease.run_id if lease else None,
+                )
+                if goal
+                else None
+            )
             require_trading(await read_controls(self.db))
-            async with self.db.sessions() as session:
+            async with self.db.sessions() as session, session.begin():
                 connection = await BrokerSessionRepository().get(
                     session, owner_id, request.account_id
                 )
@@ -99,7 +162,12 @@ class ExecutionService:
                 if connection.version != connection_version:
                     raise LonoraError("broker_connection_changed", 409)
                 if lease:
-                    await require_lease(session, lease)
+                    await require_lease(session, lease, lock=True)
+                    await require_goal_lineage(session, lease, goal)
+                if goal:
+                    await guard_goal_execution(
+                        session, owner_id, goal, request, lease, goal_evidence
+                    )
                 row = await session.get(TradingJournalRow, request.operation_id)
                 if row is None or row.status != "submitted":
                     raise LonoraError("operation_not_submitted", 409)
@@ -133,6 +201,22 @@ class ExecutionService:
                     "stale_lease",
                     "broker_disabled",
                     "broker_connection_changed",
+                    "broker_numeric_precision_loss",
+                    "order_not_found",
+                    "goal_not_active",
+                    "goal_autonomy_required",
+                    "goal_condition_unmet",
+                    "goal_condition_stale",
+                    "goal_plan_changed",
+                    "goal_step_unavailable",
+                    "goal_watch_evidence_required",
+                    "goal_volume_limit",
+                    "goal_volume_limit_required",
+                    "goal_action_limit",
+                    "goal_delegated_trade_forbidden",
+                    "goal_run_ancestry_invalid",
+                    "goal_decision_mismatch",
+                    "goal_run_mismatch",
                 }
                 else "ambiguous",
                 code=error.code,

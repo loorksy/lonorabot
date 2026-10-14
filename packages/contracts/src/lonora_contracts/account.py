@@ -11,6 +11,8 @@ class AccountState(Contract):
     server: str | None = None
     name: str | None = None
     platform: str | None = None
+    trade_allowed: bool | None = None
+    investor_mode: bool | None = None
     currency: str
     balance: Decimal
     equity: Decimal

@@ -161,7 +161,9 @@ class MemoryRow(Base):
 
 
 class RoutineRow(Base):
-    goal_id: Mapped[str | None] = mapped_column(ForeignKey("ln_trading_goals.id", ondelete="CASCADE"))
+    goal_id: Mapped[str | None] = mapped_column(
+        ForeignKey("ln_trading_goals.id", ondelete="CASCADE")
+    )
     step_id: Mapped[str | None] = mapped_column(String(64))
     __tablename__ = "ln_routines"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
@@ -355,7 +357,9 @@ class GoalDecisionRow(Base):
     __tablename__ = "ln_goal_decisions"
     __table_args__ = (UniqueConstraint("goal_id", "step_id", "attempt", name="goal_step_attempt"),)
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
-    goal_id: Mapped[str] = mapped_column(ForeignKey("ln_trading_goals.id", ondelete="CASCADE"), index=True)
+    goal_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_trading_goals.id", ondelete="CASCADE"), index=True
+    )
     owner_id: Mapped[str] = mapped_column(ForeignKey("ln_owners.id", ondelete="CASCADE"))
     step_id: Mapped[str] = mapped_column(String(64))
     attempt: Mapped[int] = mapped_column(Integer, default=1)

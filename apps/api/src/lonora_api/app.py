@@ -45,6 +45,7 @@ ROUTES = (
     "market",
     "charts",
     "trading",
+    "trading_goals",
     "watches",
     "webhook",
     "events",

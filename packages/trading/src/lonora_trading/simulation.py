@@ -1,6 +1,8 @@
 from decimal import Decimal
 from typing import Any
 
+from lonora_contracts.account import AccountState
+from lonora_contracts.domain import utcnow
 from lonora_contracts.market import Candle, Instrument, Quote
 from lonora_core.user_error import LonoraError
 from lonora_db.client import Database
@@ -37,6 +39,30 @@ async def import_simulation(
         "operations": {},
         "history": snapshot.get("history", [])[:1000],
     }
+    native_fields = {
+        key: snapshot.get(key)
+        for key in ("broker", "server", "name", "platform", "trade_allowed", "investor_mode")
+    }
+    native_fields["login"] = str(snapshot["login"]) if snapshot.get("login") is not None else None
+    identity = AccountState.model_validate(
+        {
+            "id": connection_id,
+            "currency": snapshot["currency"],
+            "balance": snapshot["balance"],
+            "equity": snapshot.get("equity", snapshot["balance"]),
+            "margin": snapshot.get("margin", 0),
+            "free_margin": snapshot.get("free_margin", snapshot["balance"]),
+            "observed_at": utcnow(),
+            **native_fields,
+        }
+    )
+    payload.update(
+        {
+            key: value
+            for key, value in identity.model_dump(mode="json").items()
+            if key not in {"id", "observed_at"}
+        }
+    )
     async with db.sessions() as session, session.begin():
         existing = await session.get(TradingAccountRepository.row_type, connection_id)
         if existing:

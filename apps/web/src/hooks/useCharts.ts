@@ -19,15 +19,29 @@ export function useCharts(accountId: string, symbol: string, initialChartId = ""
   const selectedId = useRef("");
   selectedId.current = selected;
   const chartCursor = useRef(0);
+  const sceneRequest = useRef<(() => void) | undefined>(undefined);
+  const sceneRef = useRef(scene);
+  sceneRef.current = scene;
+  const liveSceneCursor = useRef(0);
   const entity = useRef(`${accountId}:${symbol}`);
   entity.current = `${accountId}:${symbol}`;
   const eventCursor = events.reduce(
     (cursor, event) =>
-      event.kind.startsWith("cloud_charts.") ? Math.max(cursor, event.cursor) : cursor,
+      event.kind.startsWith("cloud_charts.") && event.kind !== "cloud_charts.scene_updated"
+        ? Math.max(cursor, event.cursor)
+        : cursor,
     chartCursor.current,
   );
   chartCursor.current = eventCursor;
   const row = rows.find((item) => item.id === selected);
+  const sceneEventCursor = events.reduce(
+    (cursor, event) =>
+      event.kind === "cloud_charts.scene_updated" && event.payload.id === selected
+        ? Math.max(cursor, event.cursor)
+        : cursor,
+    liveSceneCursor.current,
+  );
+  liveSceneCursor.current = sceneEventCursor;
 
   useEffect(() => {
     void connected;
@@ -79,36 +93,65 @@ export function useCharts(accountId: string, symbol: string, initialChartId = ""
       return;
     }
     let live = true;
+    let pending = false;
+    let dirty = false;
     let retry: ReturnType<typeof setTimeout> | undefined;
     const until = Date.now() + 60_000;
-    setInitializing(true);
-    const load = () =>
+    setInitializing(
+      !sceneRef.current ||
+        sceneRef.current.chart_id !== id ||
+        sceneRef.current.revision !== version,
+    );
+    const request = () => {
+      dirty = true;
+      if (pending || !live) return;
+      if (retry) clearTimeout(retry);
+      pending = true;
+      dirty = false;
       void readScene(id)
         .then((value) => {
           if (!live) return;
-          setScene(value);
+          setScene((old) =>
+            old?.chart_id === value.chart_id &&
+            (old.revision > value.revision || old.scene_version > value.scene_version)
+              ? old
+              : value,
+          );
           setInitializing(false);
           setError(undefined);
         })
         .catch((caught: unknown) => {
           if (!live) return;
           if (caught instanceof ApiError && caught.code === "chart_initializing") {
-            if (Date.now() < until) retry = setTimeout(load, 1000);
+            if (Date.now() < until) retry = setTimeout(request, 1000);
             else {
               setInitializing(false);
               setError(caught);
             }
             return;
           }
+          setScene(undefined);
           setInitializing(false);
           setError(caught);
+        })
+        .finally(() => {
+          pending = false;
+          if (live && dirty) request();
         });
-    load();
+    };
+    sceneRequest.current = request;
+    request();
     return () => {
       live = false;
+      if (sceneRequest.current === request) sceneRequest.current = undefined;
       if (retry) clearTimeout(retry);
     };
   }, [id, version, sceneVersion, refresh, connected]);
+
+  useEffect(() => {
+    void sceneEventCursor;
+    sceneRequest.current?.();
+  }, [sceneEventCursor]);
 
   const act = useCallback(async (perform: () => Promise<void>) => {
     if (action.current) return;

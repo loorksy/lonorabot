@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import type { Instrument, Quote } from "../lib/api";
 import { readInstrument, readInstruments, readQuote, readSymbols } from "../lib/market";
+import { useClient } from "../providers/ClientProvider";
 export function useMarket(accountId: string, symbol: string, instrumentCatalog = false) {
+  const { events } = useClient();
   const [instruments, setInstruments] = useState<Instrument[]>([]);
   const [symbols, setSymbols] = useState<string[]>([]);
   const [instrument, setInstrument] = useState<Instrument>();
@@ -57,6 +59,30 @@ export function useMarket(accountId: string, symbol: string, instrumentCatalog =
     };
   }, [accountId, symbol]);
   useEffect(() => {
+    const event = [...events]
+      .reverse()
+      .find(
+        (value) =>
+          value.kind === "market.quote_updated" &&
+          value.payload.connection_id === accountId &&
+          value.payload.symbol === symbol,
+      );
+    if (
+      !event?.payload.quote ||
+      typeof event.payload.quote !== "object" ||
+      Array.isArray(event.payload.quote)
+    )
+      return;
+    const value = event.payload.quote as unknown as Quote;
+    if (value.symbol !== symbol || !Number.isFinite(Date.parse(value.observed_at))) return;
+    setQuote((previous) =>
+      !previous || Date.parse(value.observed_at) > Date.parse(previous.observed_at)
+        ? value
+        : previous,
+    );
+    setQuoteError(undefined);
+  }, [events, accountId, symbol]);
+  useEffect(() => {
     setQuote(undefined);
     setQuoteError(undefined);
     if (!accountId || !symbol) return;
@@ -67,7 +93,11 @@ export function useMarket(accountId: string, symbol: string, instrumentCatalog =
       try {
         const value = await readQuote(accountId, symbol);
         if (live) {
-          setQuote(value);
+          setQuote((previous) =>
+            !previous || Date.parse(value.observed_at) >= Date.parse(previous.observed_at)
+              ? value
+              : previous,
+          );
           setQuoteError(undefined);
         }
       } catch (caught) {

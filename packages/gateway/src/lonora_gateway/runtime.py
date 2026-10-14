@@ -29,6 +29,17 @@ class OwnerServices:
         brokers = BrokerManager(db, secrets)
         router = GlobalModelRouter(db, ProviderCredentials(db, secrets))
         market = MarketRuntime(db, brokers, owner_id)
+
+        async def publish_market_update(
+            connection_id: str, symbol: str, timeframe: str | None, stream_identity: str
+        ) -> None:
+            from lonora_charts.runtime import publish_stream_update
+
+            await publish_stream_update(
+                db, owner_id, connection_id, symbol, timeframe, stream_identity
+            )
+
+        market.on_update = publish_market_update
         brokers.market = market
         return cls(owner_id, db, secrets, brokers, router, ExecutionService(db, brokers), market)
 

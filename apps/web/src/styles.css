@@ -512,6 +512,7 @@ body {
   padding: 10px 0;
 }
 :where(.chart-renderer) {
+  height: 420px;
   margin: 14px -8px;
 }
 :where(.streaming-reply) {

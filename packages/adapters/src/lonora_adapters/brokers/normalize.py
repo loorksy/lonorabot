@@ -58,6 +58,8 @@ def account(value: dict[str, Any], account_id: str) -> AccountState:
         server=str(value["server"]) if value.get("server") is not None else None,
         name=str(value["name"]) if value.get("name") is not None else None,
         platform=str(value["platform"]) if value.get("platform") is not None else None,
+        trade_allowed=value.get("tradeAllowed"),
+        investor_mode=value.get("investorMode"),
         currency=value["currency"],
         balance=value["balance"],
         equity=value["equity"],

@@ -24,9 +24,11 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   PanelsTopLeft,
+  Phone,
   Plus,
   Search as SearchIcon,
   Settings as SettingsIcon,
+  Target,
   X,
 } from "lucide-react";
 import { lazy, Suspense, useEffect, useState } from "react";
@@ -39,11 +41,15 @@ import {
   useSearchParams,
 } from "react-router-dom";
 import { AgentAvatar } from "../components/ai/AgentAvatar";
+import { CallPill } from "../components/call/CallPill";
+import { VoiceChatCard } from "../components/call/VoiceChatCard";
 import { ConversationCharts } from "../components/charts/ConversationCharts";
+import { TradingGoals } from "../components/goals/TradingGoals";
 import { useAgents } from "../hooks/useAgents";
 import { dismissOverlays, useOverlayHistory } from "../hooks/useOverlayHistory";
 import { usePersistentThread } from "../hooks/usePersistentThread";
 import { useTheme } from "../hooks/useTheme";
+import { useVoice } from "../hooks/useVoice";
 import { type Agent, api, type Resource, type Run } from "../lib/api";
 import { auth } from "../lib/auth";
 import {
@@ -54,6 +60,7 @@ import {
 } from "../lib/right-panel-state";
 import { userError } from "../lib/user_error";
 import { useClient } from "../providers/ClientProvider";
+import { VoiceProvider } from "../providers/VoiceProvider";
 import { ActivityList } from "./ActivityList";
 import { Artifacts } from "./Artifacts";
 import { BoardPage } from "./Board";
@@ -164,6 +171,15 @@ function AgentConversation({ agent, agents }: { agent: Agent; agents: Agent[] })
   );
 }
 export function Shell({ onLogout }: { onLogout: () => void }) {
+  const { owner } = useClient();
+  return (
+    <VoiceProvider ownerId={owner.id}>
+      <WorkspaceShell onLogout={onLogout} />
+    </VoiceProvider>
+  );
+}
+function WorkspaceShell({ onLogout }: { onLogout: () => void }) {
+  const voice = useVoice();
   useTheme();
   const { owner, connected, revision, refresh } = useClient();
   const { agents, create, loading, error: agentError } = useAgents();
@@ -223,6 +239,7 @@ export function Shell({ onLogout }: { onLogout: () => void }) {
     settings: t`Agent settings`,
     knowledge: t`Knowledge`,
     routines: t`Routines`,
+    goals: t`Goals`,
     workspace: t`Agent workspace`,
     charts: t`Charts`,
     create: t`Create agent`,
@@ -599,7 +616,12 @@ export function Shell({ onLogout }: { onLogout: () => void }) {
               role="menuitem"
               className="danger"
               onClick={() => {
-                void auth.logout().then(onLogout).catch(setError);
+                void voice
+                  .stop()
+                  .catch(() => undefined)
+                  .then(() => auth.logout())
+                  .then(onLogout)
+                  .catch(setError);
               }}
             >
               <LogOut />
@@ -673,6 +695,24 @@ export function Shell({ onLogout }: { onLogout: () => void }) {
             </button>
           </div>
           <div className="tpl-toolbar">
+            <CallPill />
+            {(agent || voice.target) && (
+              <button
+                type="button"
+                className="tpl-icon-button"
+                aria-label={voice.target ? t`Open active call` : t`Call`}
+                title={voice.target ? t`Open active call` : t`Call`}
+                aria-expanded={Boolean(voice.target && !voice.minimized)}
+                disabled={Boolean(agent?.paused && !voice.target)}
+                onClick={() => {
+                  if (voice.target) voice.expand();
+                  else if (agent)
+                    void voice.start(agent, new URLSearchParams(location.search).get("thread"));
+                }}
+              >
+                <Phone />
+              </button>
+            )}
             {(agent || group) && (
               <button
                 type="button"
@@ -886,6 +926,12 @@ export function Shell({ onLogout }: { onLogout: () => void }) {
                 <Clock />
                 <Trans>Routines</Trans>
               </button>
+              {agent && (
+                <button type="button" onClick={() => openPanel("goals")}>
+                  <Target />
+                  <Trans>Goals</Trans>
+                </button>
+              )}
             </>
           )}
         </div>
@@ -941,6 +987,7 @@ export function Shell({ onLogout }: { onLogout: () => void }) {
               onOpenMarket={() => open("/app/market")}
             />
           )}
+          {panel === "goals" && agent && <TradingGoals agentId={agent.id} />}
           {panel === "workspace" && (
             <div className="tpl-workspace-links">
               <p className="muted">
@@ -992,6 +1039,17 @@ export function Shell({ onLogout }: { onLogout: () => void }) {
           )}
         </div>
       </ResizableSidePanel>
+      <VoiceChatCard
+        agents={agents}
+        onSettings={() => openSettings("voice")}
+        onOpenConversation={() => {
+          const target = voice.target;
+          if (target)
+            open(
+              `/app/${target.agentId}${target.threadId ? `?thread=${encodeURIComponent(target.threadId)}` : ""}`,
+            );
+        }}
+      />
       <Dialog
         open={globalSettings !== null}
         onOpenChange={(value) => {

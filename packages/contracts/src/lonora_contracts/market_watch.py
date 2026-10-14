@@ -7,6 +7,9 @@ from .domain import Contract
 
 
 class Watch(Contract):
+    goal_id: str | None = None
+    step_id: str | None = None
+    goal_plan_version: int | None = Field(default=None, ge=1)
     kind: Literal["price", "indicator", "position", "account", "calendar"] = "price"
     account_id: str = ""
     symbol: str = ""
@@ -30,6 +33,8 @@ class Watch(Contract):
 
     @model_validator(mode="after")
     def validate_source(self) -> "Watch":
+        if bool(self.goal_id) != bool(self.step_id):
+            raise ValueError("goal_and_step_required_together")
         if not self.level.is_finite():
             raise ValueError("invalid_watch_level")
         if self.kind != "calendar" and not self.account_id:

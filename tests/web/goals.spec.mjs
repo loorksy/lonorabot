@@ -1,0 +1,107 @@
+import { execFileSync } from "node:child_process";
+import { randomUUID } from "node:crypto";
+import { expect, test } from "@playwright/test";
+
+function fixture(data) {
+  return JSON.parse(
+    execFileSync(".venv/bin/python", ["tests/check_chart_browser.py"], {
+      input: JSON.stringify(data),
+      encoding: "utf8",
+    }),
+  );
+}
+
+test("owner reviews a durable goal and controls limits, autonomy, pause, same-thread wake and cancellation", async ({
+  page,
+  context,
+}) => {
+  const data = fixture({ action: "init" });
+  let agent;
+  const headers = {
+    "X-CSRF-Token": data.cookies.find((cookie) => cookie.name === "lonora_csrf").value,
+  };
+  const errors = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  try {
+    await context.addCookies(
+      data.cookies.map((cookie) => ({
+        ...cookie,
+        url: test.info().project.use.baseURL,
+        httpOnly: cookie.name === "lonora_session",
+        sameSite: "Strict",
+      })),
+    );
+    await context.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
+    const created = await context.request.post("/api/agents", {
+      headers,
+      data: { name: `Goal UI ${randomUUID()}` },
+    });
+    expect(created.status()).toBe(201);
+    agent = await created.json();
+    const conversation = await context.request.post(`/api/agents/${agent.id}/conversation`, {
+      headers,
+      data: {},
+    });
+    expect(conversation.ok()).toBeTruthy();
+    const thread = await conversation.json();
+    const goalResponse = await context.request.post("/api/trading/goals", {
+      headers,
+      data: {
+        agent_id: agent.id,
+        thread_id: thread.id,
+        title: "Review market evidence",
+        objective: "Wait and review without an automatic financial order.",
+        account_id: data.account,
+        symbol: data.symbol,
+        maximum_volume: "0.1",
+        max_trade_actions: 2,
+        steps: [{ id: "review", title: "Read current broker evidence", kind: "analysis" }],
+      },
+    });
+    expect(goalResponse.status()).toBe(201);
+    const goal = await goalResponse.json();
+    await page.goto(`/app/${agent.id}`);
+    await page.getByRole("button", { name: `Agent settings: ${agent.name}`, exact: true }).click();
+    await page.getByRole("button", { name: "Goals", exact: true }).click();
+    const card = page.locator(`[data-goal-id='${goal.id}']`);
+    await expect(card.getByText(goal.payload.title, { exact: true })).toBeVisible();
+    const autonomy = card.getByLabel("Allow autonomous trading for this goal", { exact: true });
+    await expect(autonomy).not.toBeChecked();
+    await card.getByLabel("Maximum volume", { exact: true }).fill("0.2");
+    // The controlled value follows durable server admission, not an optimistic toggle.
+    await autonomy.click();
+    await expect(autonomy).toBeChecked();
+    let current = await (await context.request.get(`/api/trading/goals/${goal.id}`)).json();
+    expect(current.state.autonomous).toBe(true);
+    expect(current.payload.maximum_volume).toBe("0.2");
+    await card.getByRole("button", { name: "Pause", exact: true }).click();
+    await expect(card.getByRole("button", { name: "Resume", exact: true })).toBeVisible();
+    await page.reload();
+    await expect(card.getByRole("button", { name: "Resume", exact: true })).toBeVisible();
+    await card.getByRole("button", { name: "Resume", exact: true }).click();
+    await expect(card.getByRole("button", { name: "Pause", exact: true })).toBeVisible();
+    const waking = page.waitForResponse(
+      (response) =>
+        response.url().endsWith(`/trading/goals/${goal.id}/wake`) &&
+        response.request().method() === "POST",
+    );
+    await card.getByRole("button", { name: "Review now", exact: true }).click();
+    const wake = await (await waking).json();
+    const run = await (await context.request.get(`/api/runs/${wake.id}`)).json();
+    expect(run.thread_id).toBe(thread.id);
+    expect(run.agent_id).toBe(agent.id);
+    await card.getByText("Execution history", { exact: true }).click();
+    await expect(card.getByText("No financial executions yet.", { exact: true })).toBeVisible();
+    await card.getByRole("button", { name: "Cancel goal", exact: true }).click();
+    await expect(autonomy).toBeDisabled();
+    current = await (await context.request.get(`/api/trading/goals/${goal.id}`)).json();
+    expect(current.state.status).toBe("cancelled");
+    expect(errors).toEqual([]);
+  } finally {
+    if (agent)
+      expect([200, 404]).toContain(
+        (await context.request.delete(`/api/agents/${agent.id}`, { headers })).status(),
+      );
+    fixture({ ...data, action: "cleanup" });
+  }
+});

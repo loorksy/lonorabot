@@ -1,5 +1,4 @@
 import asyncio
-import hashlib
 import importlib
 import logging
 import os
@@ -17,6 +16,7 @@ from lonora_contracts.trading import TradeRequest, TradeResult
 from lonora_core.chart_controller import validate_timeframe
 from lonora_core.error_logging import safe_exception_message
 from lonora_core.user_error import LonoraError
+from lonora_session.idempotency import broker_operation_tag
 from pydantic import ValidationError
 
 from . import normalize
@@ -68,7 +68,7 @@ def sdk_number(value: Decimal | None) -> float | None:
 
 
 def client_id(operation_id: str) -> str:
-    return "LN_" + hashlib.sha256(operation_id.encode()).hexdigest()[:24]
+    return broker_operation_tag(operation_id)
 
 
 def validate_sdk_url(url: str) -> str:
@@ -299,6 +299,70 @@ class MetaApiBroker:
             except Exception:
                 pass
 
+    async def stream_candles(self, symbol: str, timeframe: str) -> AsyncGenerator[Candle, None]:
+        validate_timeframe(timeframe)
+        account = await self.resolve_account()
+        queue: asyncio.Queue[Candle | LonoraError] = asyncio.Queue(maxsize=1000)
+        listener_base: Any = importlib.import_module(
+            "metaapi_cloud_sdk.clients.metaapi.synchronization_listener"
+        ).SynchronizationListener
+
+        async def updated(
+            listener: Any,
+            instance_index: str,
+            values: list[dict[str, Any]],
+            *args: Any,
+            **kwargs: Any,
+        ) -> None:
+            for value in values:
+                if value.get("symbol") != symbol or value.get("timeframe") != timeframe:
+                    continue
+                try:
+                    candle = normalize.candle(value, symbol, timeframe)
+                except (ValueError, KeyError):
+                    continue
+                if queue.full():
+                    queue.get_nowait()
+                    queue.put_nowait(LonoraError("broker_candle_stream_overflow", 502))
+                    return
+                queue.put_nowait(candle)
+
+        listener: Any = type(
+            "LonoraCandleListener", (listener_base,), {"on_candles_updated": updated}
+        )()
+        subscription = [{"type": "candles", "timeframe": timeframe}]
+        async with self.stream_lock:
+            if self.streaming is None:
+                self.streaming = account.get_streaming_connection()
+                await self.streaming.connect()
+            stream = self.streaming
+            stream.add_synchronization_listener(listener)
+        try:
+            await stream.wait_synchronized({"timeoutInSeconds": 30})
+            await stream.subscribe_to_market_data(symbol, subscription)
+            while True:
+                try:
+                    candle = await asyncio.wait_for(queue.get(), timeout=30)
+                    if isinstance(candle, LonoraError):
+                        raise candle
+                    yield candle
+                except TimeoutError:
+                    await stream.wait_synchronized({"timeoutInSeconds": 20})
+                    await stream.subscribe_to_market_data(symbol, subscription)
+                    # Recovery is exact broker history, never OHLC inferred from quotes.
+                    for candle in await self.candles(symbol, timeframe, 2):
+                        yield candle
+        except asyncio.CancelledError:
+            raise
+        except Exception as error:
+            raise self.diagnose(error, "candles") from error
+        finally:
+            stream.remove_synchronization_listener(listener)
+            try:
+                await stream.unsubscribe_from_market_data(symbol, subscription)
+            except Exception:
+                pass
+
     async def quote(self, symbol: str) -> Quote:
         rpc = await self.prepare()
         try:
@@ -356,8 +420,23 @@ class MetaApiBroker:
     async def account(self) -> AccountState:
         rpc = await self.prepare()
         try:
+            payload = dict(await rpc.get_account_information())
+            entity = getattr(self, "account_instance", None)
+            for field in ("login", "server"):
+                if payload.get(field) is None and entity is not None:
+                    try:
+                        payload[field] = getattr(entity, field, None)
+                    except (KeyError, AttributeError):
+                        pass
+            if payload.get("platform") is None and entity is not None:
+                try:
+                    version = getattr(entity, "version", None)
+                    if version in {4, 5}:
+                        payload["platform"] = "mt" + str(version)
+                except (KeyError, AttributeError):
+                    pass
             return normalize.account(
-                await rpc.get_account_information(),
+                payload,
                 getattr(self, "connection_id", None) or self.account_id,
             )
         except Exception:
@@ -444,7 +523,13 @@ class MetaApiBroker:
             return TradeResult(
                 operation_id=request.operation_id,
                 status=status,
-                broker_id=str(response.get("orderId") or response.get("positionId") or "") or None,
+                broker_id=str(
+                    response.get("orderId")
+                    or response.get("positionId")
+                    or (request.order_id or request.position_id if status == "confirmed" else None)
+                    or ""
+                )
+                or None,
                 code=str(response.get("stringCode") or ""),
                 details={
                     "partial_execution": response.get("stringCode") == "TRADE_RETCODE_DONE_PARTIAL"

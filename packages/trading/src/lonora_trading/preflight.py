@@ -7,9 +7,12 @@ from lonora_security.financial import validate_trade
 
 
 async def preflight(broker: BrokerAdapter, request: TradeRequest) -> None:
-    instrument = await broker.instrument(request.symbol)
-    validate_trade(request, instrument)
-    await broker.account()
+    if request.action != "cancel_order":
+        instrument = await broker.instrument(request.symbol)
+        validate_trade(request, instrument)
+    account = await broker.account()
+    if account.trade_allowed is False or account.investor_mode is True:
+        raise LonoraError("broker_trading_not_allowed", 409)
     target_order = None
     if request.position_id:
         positions = await broker.positions()
@@ -33,15 +36,15 @@ async def preflight(broker: BrokerAdapter, request: TradeRequest) -> None:
         if target_order is None:
             raise LonoraError("order_not_found", 404)
     pending = {"buy_limit", "sell_limit", "buy_stop", "sell_stop"}
-    if request.action in pending or request.action == "modify_order":
+    if request.action in pending | {"buy", "sell"} or request.action == "modify_order":
         kind = (
             request.action
-            if request.action in pending
+            if request.action in pending | {"buy", "sell"}
             else str(target_order.side if target_order else "")
             .removeprefix("ORDER_TYPE_")
             .casefold()
         )
-        if kind not in pending:
+        if kind not in pending | {"buy", "sell"}:
             raise LonoraError("unsupported_pending_order", 409)
         price = (
             request.price
@@ -50,18 +53,23 @@ async def preflight(broker: BrokerAdapter, request: TradeRequest) -> None:
             if target_order
             else None
         )
-        assert price is not None
         quote = await broker.quote(request.symbol)
         require_exact_symbol(request.symbol, quote.symbol)
         if (
             quote.observed_at.tzinfo is None
-            or not 0 <= (utcnow() - quote.observed_at).total_seconds() <= 60
+            or not -5 <= (utcnow() - quote.observed_at).total_seconds() <= 60
         ):
             raise LonoraError("market_quote_stale", 409)
         market = quote.ask if kind.startswith("buy") else quote.bid
-        below = kind in {"buy_limit", "sell_stop"}
-        if price >= market if below else price <= market:
-            raise LonoraError("pending_price_wrong_side", 409)
+        if kind in {"buy", "sell"}:
+            price = market
+        else:
+            assert price is not None
+            below = kind in {"buy_limit", "sell_stop"}
+            wrong_side = price >= market if below else price <= market
+            if wrong_side:
+                raise LonoraError("pending_price_wrong_side", 409)
+        assert price is not None
         stop_loss = (
             None
             if request.clear_stop_loss

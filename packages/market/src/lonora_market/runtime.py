@@ -1,6 +1,7 @@
 """Resident broker-neutral observations. PostgreSQL snapshots survive process/browser loss."""
 
 import asyncio
+import logging
 import time
 from collections.abc import Awaitable, Callable, Iterable
 from datetime import datetime, timedelta
@@ -11,6 +12,7 @@ from lonora_adapters.brokers.base import BrokerManager
 from lonora_contracts.domain import utcnow
 from lonora_contracts.market import Candle, Instrument, Quote
 from lonora_core.chart_controller import validate_timeframe
+from lonora_core.error_logging import safe_exception_message
 from lonora_core.trading_run_market import require_exact_symbol
 from lonora_core.user_error import LonoraError
 from lonora_db.client import Database
@@ -21,6 +23,8 @@ from sqlalchemy import select
 
 from .candle_store import merge_candle, merge_history
 from .candles import validate_candle_series
+
+logger = logging.getLogger(__name__)
 
 
 class RuntimeMarketAdapter:
@@ -127,6 +131,7 @@ class MarketRuntime:
         async with self.fetch_slots:
             broker = await self.brokers.get(self.owner_id, connection_id)
             version = self.brokers.connections[connection_id][0]
+            requested_at = utcnow()
             candles = validate_candle_series(await broker.candles(symbol, timeframe, limit))
             for candle in candles:
                 require_exact_symbol(symbol, candle.symbol)
@@ -140,10 +145,25 @@ class MarketRuntime:
                     candles,
                     limit,
                     version,
+                    requested_at,
+                )
+
+    async def notify(self, connection_id: str, symbol: str, timeframe: str | None) -> None:
+        if self.on_update:
+            try:
+                await self.on_update(connection_id, symbol, timeframe, self.identity)
+            except asyncio.CancelledError:
+                raise
+            except Exception as error:
+                logger.warning(
+                    "market_scene_update_failed error_type=%s message=%s",
+                    type(error).__name__,
+                    safe_exception_message(error),
                 )
 
     async def consume(self, connection_id: str, symbol: str) -> None:
         failures = 0
+        version = self.versions[(connection_id, symbol)]
         while not self.closed:
             try:
                 broker = await self.brokers.get(self.owner_id, connection_id)
@@ -154,7 +174,7 @@ class MarketRuntime:
                         symbol,
                         "",
                         quote.model_dump(mode="json"),
-                        self.versions.get((connection_id, symbol)),
+                        version,
                         self.identity,
                     )
                     if accepted:
@@ -181,12 +201,17 @@ class MarketRuntime:
                                 },
                             )
                         self.last_events[key] = time.monotonic()
-                        if self.on_update:
-                            await self.on_update(connection_id, symbol, None, self.identity)
+                    if accepted:
+                        await self.notify(connection_id, symbol, None)
                     failures = 0
             except asyncio.CancelledError:
                 raise
-            except Exception:
+            except Exception as error:
+                logger.warning(
+                    "market_stream_failed error_type=%s message=%s",
+                    type(error).__name__,
+                    safe_exception_message(error),
+                )
                 failures += 1
             await asyncio.sleep(min(30, 2 ** min(failures, 5)))
 
@@ -206,15 +231,29 @@ class MarketRuntime:
                             self.owner_id,
                             connection_id,
                             candle,
-                            self.versions[(connection_id, symbol)],
+                            version,
                             self.identity,
                         )
-                    if accepted and self.on_update:
-                        await self.on_update(connection_id, symbol, timeframe, self.identity)
+                    if accepted:
+                        await self.notify(connection_id, symbol, timeframe)
+                        from .watchers import check_watches
+
+                        await check_watches(
+                            self.db,
+                            self.brokers,
+                            candle_update=candle,
+                            connection_id=connection_id,
+                            owner_id=self.owner_id,
+                        )
                     failures = 0
             except asyncio.CancelledError:
                 raise
-            except Exception:
+            except Exception as error:
+                logger.warning(
+                    "market_stream_failed error_type=%s message=%s",
+                    type(error).__name__,
+                    safe_exception_message(error),
+                )
                 failures += 1
             await asyncio.sleep(min(30, 2 ** min(failures, 5)))
 

@@ -20,6 +20,9 @@ export function TradingChart({ scene }: { scene: ChartScene }) {
   const priceLines = useRef<IPriceLine[]>([]);
   const linePalette = useRef<string[]>([]);
   const binding = useRef("");
+  const barCount = useRef(0);
+  const seriesByKey = useRef(new Map<string, ISeriesApi<"Line">>());
+  const renderedRevision = useRef("");
 
   useEffect(() => {
     const element = container.current;
@@ -72,6 +75,9 @@ export function TradingChart({ scene }: { scene: ChartScene }) {
       linePalette.current = [];
       priceLines.current = [];
       binding.current = "";
+      barCount.current = 0;
+      seriesByKey.current.clear();
+      renderedRevision.current = "";
     };
   }, []);
 
@@ -79,7 +85,9 @@ export function TradingChart({ scene }: { scene: ChartScene }) {
     const instance = chart.current;
     const candleSeries = candles.current;
     if (!instance || !candleSeries || !container.current) return;
-    const sameBinding = binding.current === `${scene.symbol}:${scene.timeframe}`;
+    const revision = `${scene.chart_id}:${scene.data_revision ?? scene.scene_version}`;
+    if (renderedRevision.current === revision) return;
+    const sameBinding = binding.current === `${scene.chart_id}:${scene.symbol}:${scene.timeframe}`;
     const viewport = sameBinding ? instance.timeScale().getVisibleLogicalRange() : null;
     candleSeries.setData(
       scene.candles.map((c) => ({
@@ -90,7 +98,7 @@ export function TradingChart({ scene }: { scene: ChartScene }) {
         close: Number(c.close),
       })),
     );
-    for (const line of lines.current) instance.removeSeries(line);
+    const used = new Set<string>();
     lines.current = [];
     linePalette.current = [];
     const tokens = getComputedStyle(container.current);
@@ -100,15 +108,21 @@ export function TradingChart({ scene }: { scene: ChartScene }) {
     for (const [index, indicator] of scene.indicators.entries()) {
       const pane = ["RSI", "MACD", "ATR"].includes(indicator.name.toUpperCase()) ? nextPane++ : 0;
       for (const [name, values] of Object.entries(indicator.series)) {
-        const line = instance.addSeries(
-          LineSeries,
-          {
-            color: colors[index % colors.length],
-            lineWidth: 1,
-            title: `${indicator.name} ${indicator.period} ${name}`,
-          },
-          pane,
-        );
+        const key = `${index}:${indicator.name}:${indicator.period}:${name}:${pane}`;
+        used.add(key);
+        let line = seriesByKey.current.get(key);
+        if (!line) {
+          line = instance.addSeries(
+            LineSeries,
+            {
+              color: colors[index % colors.length],
+              lineWidth: 1,
+              title: `${indicator.name} ${indicator.period} ${name}`,
+            },
+            pane,
+          );
+          seriesByKey.current.set(key, line);
+        }
         lines.current.push(line);
         linePalette.current.push(palette[index % palette.length]);
         line.setData(
@@ -127,6 +141,12 @@ export function TradingChart({ scene }: { scene: ChartScene }) {
         );
       }
     }
+    for (const [key, line] of seriesByKey.current) {
+      if (!used.has(key)) {
+        instance.removeSeries(line);
+        seriesByKey.current.delete(key);
+      }
+    }
     for (const priceLine of priceLines.current) candleSeries.removePriceLine(priceLine);
     priceLines.current = [];
     for (const annotation of scene.annotations) {
@@ -143,9 +163,16 @@ export function TradingChart({ scene }: { scene: ChartScene }) {
           }),
         );
     }
-    if (viewport) instance.timeScale().setVisibleLogicalRange(viewport);
-    else instance.timeScale().fitContent();
-    binding.current = `${scene.symbol}:${scene.timeframe}`;
+    if (viewport) {
+      const appended = scene.candles.length - barCount.current;
+      const offset = appended > 0 && viewport.to >= barCount.current - 1 ? appended : 0;
+      instance
+        .timeScale()
+        .setVisibleLogicalRange({ from: viewport.from + offset, to: viewport.to + offset });
+    } else instance.timeScale().fitContent();
+    binding.current = `${scene.chart_id}:${scene.symbol}:${scene.timeframe}`;
+    barCount.current = scene.candles.length;
+    renderedRevision.current = revision;
   }, [scene]);
   return <div className="chart-renderer" ref={container} dir="ltr" />;
 }

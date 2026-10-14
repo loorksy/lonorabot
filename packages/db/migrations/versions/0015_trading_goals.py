@@ -13,7 +13,12 @@ def upgrade() -> None:
     op.create_table(
         "ln_trading_goals",
         sa.Column("id", sa.String(36), primary_key=True),
-        sa.Column("owner_id", sa.String(36), sa.ForeignKey("ln_owners.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "owner_id",
+            sa.String(36),
+            sa.ForeignKey("ln_owners.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
         sa.Column("agent_id", sa.String(36), sa.ForeignKey("ln_agents.id", ondelete="CASCADE")),
         sa.Column("thread_id", sa.String(36), sa.ForeignKey("ln_threads.id", ondelete="CASCADE")),
         sa.Column("payload", sa.JSON(), nullable=False),
@@ -26,8 +31,18 @@ def upgrade() -> None:
     op.create_table(
         "ln_goal_decisions",
         sa.Column("id", sa.String(36), primary_key=True),
-        sa.Column("goal_id", sa.String(36), sa.ForeignKey("ln_trading_goals.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("owner_id", sa.String(36), sa.ForeignKey("ln_owners.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "goal_id",
+            sa.String(36),
+            sa.ForeignKey("ln_trading_goals.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
+        sa.Column(
+            "owner_id",
+            sa.String(36),
+            sa.ForeignKey("ln_owners.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
         sa.Column("step_id", sa.String(64), nullable=False),
         sa.Column("attempt", sa.Integer(), nullable=False),
         sa.Column("run_id", sa.String(36), sa.ForeignKey("ln_runs.id", ondelete="SET NULL")),
@@ -41,7 +56,12 @@ def upgrade() -> None:
         sa.UniqueConstraint("goal_id", "step_id", "attempt", name="goal_step_attempt"),
     )
     op.create_index("ix_ln_goal_decisions_goal_id", "ln_goal_decisions", ["goal_id"])
-    op.add_column("ln_routines", sa.Column("goal_id", sa.String(36), sa.ForeignKey("ln_trading_goals.id", ondelete="CASCADE")))
+    op.add_column(
+        "ln_routines",
+        sa.Column(
+            "goal_id", sa.String(36), sa.ForeignKey("ln_trading_goals.id", ondelete="CASCADE")
+        ),
+    )
     op.add_column("ln_routines", sa.Column("step_id", sa.String(64)))
 
 

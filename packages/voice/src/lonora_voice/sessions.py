@@ -7,13 +7,13 @@ from lonora_adapters.voice.realtime import OpenAILiveAdapter
 from lonora_contracts.voice import VoiceSessionCreate
 from lonora_core.user_error import LonoraError
 from lonora_db.client import Database
-from lonora_db.messages import history
 from lonora_db.schema import EffectReceiptRow, VoiceSessionRow
 from lonora_db.transactions import owned_agent, owned_thread
 from lonora_db.voice import VoiceSessionRepository
 from lonora_providers.credentials import ProviderCredentials
 from sqlalchemy import text
 
+from .context import voice_context
 from .routing import live_model
 
 VOICE_INSTRUCTIONS = (
@@ -35,6 +35,7 @@ async def create_voice_session(
     digest = hashlib.sha256((owner_id + ":" + request.client_nonce).encode()).hexdigest()
     session_id = digest[:36]
     allocate = False
+    instructions = VOICE_INSTRUCTIONS
     seed: list[dict[str, Any]] = []
     # Commit admission before the external paid effect: an ambiguous HTTP failure
     # must never admit the same client receipt as another paid negotiation.
@@ -64,28 +65,9 @@ async def create_voice_session(
             if previous.payload.get("status") not in {"allocating", "joining", "connected"}:
                 raise LonoraError("voice_session_closed", 409)
         else:
-            remaining = 7500  # UTF-8 byte bound below Live's 8192-token seed limit.
-            for message in reversed(await history(session, owner_id, thread.id, 48)):
-                if message.role not in {"user", "assistant"} or not message.content:
-                    continue
-                content = message.content[-min(remaining, 3000) :]
-                remaining -= len(content.encode())
-                if not content or remaining < 0:
-                    break
-                seed.append(
-                    {
-                        "type": "message",
-                        "role": message.role,
-                        "content": [
-                            {
-                                "type": "output_text"
-                                if message.role == "assistant"
-                                else "input_text",
-                                "text": content,
-                            }
-                        ],
-                    }
-                )
+            instructions, seed = await voice_context(
+                session, owner_id, agent, thread.id, VOICE_INSTRUCTIONS
+            )
             row = await VoiceSessionRepository().create(
                 session,
                 owner_id,
@@ -113,9 +95,9 @@ async def create_voice_session(
             result = await adapter.create(
                 {
                     "model": model.model,
-                    "instructions": VOICE_INSTRUCTIONS,
+                    "instructions": instructions,
                     "delegation": {"type": "client"},
-                    "input": list(reversed(seed)),
+                    "input": seed,
                     "store": False,
                 },
                 request.sdp,

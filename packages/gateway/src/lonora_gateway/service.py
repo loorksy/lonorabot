@@ -73,6 +73,9 @@ class Gateway:
                     self.services[owner.id] = OwnerServices.create(self.db, owner.id, self.key)
                 service = self.services[owner.id]
                 await reconcile_ambiguous(self.db, service.brokers)
+                from lonora_trading.goals import recover_goals
+
+                await recover_goals(self.db)
             await asyncio.sleep(10)
 
     async def market_loop(self) -> None:

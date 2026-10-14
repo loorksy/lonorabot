@@ -65,6 +65,22 @@ class SimulationBroker:
             raise LonoraError("quote_unavailable", 404)
         return Quote.model_validate(payload)
 
+    async def stream_candles(self, symbol: str, timeframe: str) -> AsyncIterator[Candle]:
+        from lonora_core.chart_controller import validate_timeframe
+
+        validate_timeframe(timeframe)
+        previous: dict[datetime, Candle] = {}
+        while not self.closed:
+            # Simulation streams only explicitly imported broker bars, including
+            # corrections at an existing timestamp. No candles are fabricated.
+            for candle in await self.candles(symbol, timeframe, 1000):
+                if candle.symbol != symbol or candle.timeframe != timeframe:
+                    raise LonoraError("broker_candles_mismatch", 502)
+                if previous.get(candle.time) != candle:
+                    previous[candle.time] = candle
+                    yield candle
+            await asyncio.sleep(1)
+
     async def candles(self, symbol: str, timeframe: str, limit: int) -> list[Candle]:
         values = (await self.snapshot()).get("candles", {}).get(symbol + ":" + timeframe, [])
         return [Candle.model_validate(value) for value in values[-limit:]]
@@ -86,6 +102,8 @@ class SimulationBroker:
             server=state.get("server"),
             name=state.get("name"),
             platform=state.get("platform"),
+            trade_allowed=state.get("trade_allowed"),
+            investor_mode=state.get("investor_mode"),
             currency=state["currency"],
             balance=state["balance"],
             equity=state.get("equity", state["balance"]),

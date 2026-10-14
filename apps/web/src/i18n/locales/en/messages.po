@@ -35,14 +35,22 @@ msgstr "Account changes"
 msgid "Account ID"
 msgstr "Account ID"
 
+#: src/components/trading/AccountSummary.tsx:21
+msgid "Account number"
+msgstr "Account number"
+
 #: src/components/trading/Positions.tsx:60
 #: src/components/trading/TradeActionCard.tsx:79
 msgid "Action"
 msgstr "Action"
 
+#: src/components/goals/TradingGoals.tsx:13
+msgid "Active"
+msgstr "Active"
+
 #: src/pages/ActivityList.tsx:80
-#: src/pages/Shell.tsx:213
-#: src/pages/Shell.tsx:402
+#: src/pages/Shell.tsx:229
+#: src/pages/Shell.tsx:419
 #: src/pages/shell/sidebar-activity.tsx:39
 msgid "Activity"
 msgstr "Activity"
@@ -68,7 +76,7 @@ msgstr "Add board"
 msgid "Add broker connection"
 msgstr "Add broker connection"
 
-#: src/pages/shell/chat-context.tsx:627
+#: src/pages/shell/chat-context.tsx:592
 msgid "Add direction while the agent works…"
 msgstr "Add direction while the agent works…"
 
@@ -92,7 +100,7 @@ msgstr "Advanced"
 #: src/pages/Board.tsx:371
 #: src/pages/Board.tsx:373
 #: src/pages/shell/bot-picker.tsx:109
-#: src/pages/shell/chat-context.tsx:198
+#: src/pages/shell/chat-context.tsx:192
 #: src/pages/shell/message-cards.tsx:51
 #: src/pages/shell/message-cards.tsx:174
 #: src/pages/shell/message-cards.tsx:177
@@ -112,22 +120,22 @@ msgstr "Agent collaboration"
 msgid "Agent name"
 msgstr "Agent name"
 
-#: src/pages/Shell.tsx:223
-#: src/pages/Shell.tsx:501
+#: src/pages/Shell.tsx:239
+#: src/pages/Shell.tsx:518
 msgid "Agent settings"
 msgstr "Agent settings"
 
-#: src/pages/Shell.tsx:226
-#: src/pages/Shell.tsx:883
+#: src/pages/Shell.tsx:243
+#: src/pages/Shell.tsx:923
 msgid "Agent workspace"
 msgstr "Agent workspace"
 
-#: src/pages/Shell.tsx:474
+#: src/pages/Shell.tsx:491
 #: src/pages/SpaceSearch.tsx:21
 msgid "Agents"
 msgstr "Agents"
 
-#: src/pages/Shell.tsx:388
+#: src/pages/Shell.tsx:405
 msgid "Agents and groups"
 msgstr "Agents and groups"
 
@@ -144,7 +152,11 @@ msgstr "All statuses"
 msgid "All time"
 msgstr "All time"
 
-#: src/lib/user_error.ts:25
+#: src/components/goals/TradingGoals.tsx:326
+msgid "Allow autonomous trading for this goal"
+msgstr "Allow autonomous trading for this goal"
+
+#: src/lib/user_error.ts:46
 msgid "Allow microphone access to start a voice conversation."
 msgstr "Allow microphone access to start a voice conversation."
 
@@ -167,9 +179,9 @@ msgid "Appearance and workspace"
 msgstr "Appearance and workspace"
 
 #: src/pages/Artifacts.tsx:140
-#: src/pages/Shell.tsx:215
-#: src/pages/Shell.tsx:579
-#: src/pages/Shell.tsx:982
+#: src/pages/Shell.tsx:231
+#: src/pages/Shell.tsx:596
+#: src/pages/Shell.tsx:1029
 msgid "Artifacts"
 msgstr "Artifacts"
 
@@ -177,16 +189,20 @@ msgstr "Artifacts"
 msgid "Ask"
 msgstr "Ask"
 
+#: src/components/goals/TradingGoals.tsx:210
+msgid "Ask this agent to create a trading goal. Its plan, watches and execution history remain on the server."
+msgstr "Ask this agent to create a trading goal. Its plan, watches and execution history remain on the server."
+
 #: src/pages/Board.tsx:78
 msgid "Assign work to your agents and follow each task."
 msgstr "Assign work to your agents and follow each task."
 
-#: src/pages/shell/chat-context.tsx:605
-#: src/pages/shell/chat-context.tsx:606
+#: src/pages/shell/chat-context.tsx:570
+#: src/pages/shell/chat-context.tsx:571
 msgid "Attach file"
 msgstr "Attach file"
 
-#: src/pages/shell/chat-context.tsx:442
+#: src/pages/shell/chat-context.tsx:407
 msgid "Attached files"
 msgstr "Attached files"
 
@@ -213,7 +229,7 @@ msgstr "Awaiting reconciliation. This operation will not be sent again."
 msgid "Back to artifacts"
 msgstr "Back to artifacts"
 
-#: src/pages/Shell.tsx:110
+#: src/pages/Shell.tsx:117
 msgid "Back to workspace"
 msgstr "Back to workspace"
 
@@ -222,7 +238,7 @@ msgid "Background work"
 msgstr "Background work"
 
 #: src/components/market/MarketWatch.tsx:171
-#: src/components/trading/AccountSummary.tsx:10
+#: src/components/trading/AccountSummary.tsx:40
 msgid "Balance"
 msgstr "Balance"
 
@@ -250,34 +266,46 @@ msgstr "Board title"
 msgid "Brave web search"
 msgstr "Brave web search"
 
-#: src/pages/Shell.tsx:545
+#: src/pages/Shell.tsx:562
 msgid "Bring agents together in a group."
 msgstr "Bring agents together in a group."
 
-#: src/pages/Market.tsx:26
-#: src/pages/Trading.tsx:30
+#: src/components/trading/AccountSummary.tsx:11
+msgid "Broker"
+msgstr "Broker"
+
+#: src/pages/Market.tsx:27
+#: src/pages/Trading.tsx:31
 msgid "Broker account"
 msgstr "Broker account"
 
-#: src/lib/user_error.ts:47
+#: src/lib/user_error.ts:68
 msgid "Broker account not found."
 msgstr "Broker account not found."
 
-#: src/lib/user_error.ts:49
+#: src/lib/user_error.ts:70
 msgid "Broker authentication was rejected."
 msgstr "Broker authentication was rejected."
 
-#: src/lib/user_error.ts:43
+#: src/lib/user_error.ts:64
 msgid "Broker candles are unavailable for this symbol and timeframe."
 msgstr "Broker candles are unavailable for this symbol and timeframe."
 
-#: src/lib/user_error.ts:59
+#: src/lib/user_error.ts:81
 msgid "Broker candles contain invalid or mismatched data."
 msgstr "Broker candles contain invalid or mismatched data."
 
-#: src/lib/user_error.ts:74
+#: src/lib/user_error.ts:96
 msgid "Broker deal history is unavailable for this time range."
 msgstr "Broker deal history is unavailable for this time range."
+
+#: src/components/goals/TradingGoals.tsx:113
+msgid "Broker result"
+msgstr "Broker result"
+
+#: src/components/trading/AccountSummary.tsx:31
+msgid "Broker server"
+msgstr "Broker server"
 
 #: src/components/market/SymbolSearch.tsx:14
 msgid "Broker symbol"
@@ -304,11 +332,29 @@ msgstr "bytes"
 msgid "Cached"
 msgstr "Cached"
 
+#: src/pages/Shell.tsx:703
+#: src/pages/Shell.tsx:704
+msgid "Call"
+msgstr "Call"
+
+#: src/components/call/VoiceStatus.tsx:23
+msgid "Call ended"
+msgstr "Call ended"
+
+#: src/components/call/CallCard.tsx:49
+msgid "Call with {name}"
+msgstr "Call with {name}"
+
+#: src/components/goals/TradingGoals.tsx:361
+msgid "Cancel goal"
+msgstr "Cancel goal"
+
 #: src/components/trading/Orders.tsx:49
 msgid "Cancel order"
 msgstr "Cancel order"
 
 #: src/components/ai/primitives.tsx:58
+#: src/components/goals/TradingGoals.tsx:49
 #: src/components/ToolActivityDisclosure.tsx:23
 #: src/pages/ActivityList.tsx:120
 #: src/pages/shell/message-cards.tsx:195
@@ -328,9 +374,9 @@ msgstr "Card view"
 msgid "Changes"
 msgstr "Changes"
 
-#: src/pages/Shell.tsx:227
-#: src/pages/Shell.tsx:680
-#: src/pages/Shell.tsx:681
+#: src/pages/Shell.tsx:244
+#: src/pages/Shell.tsx:720
+#: src/pages/Shell.tsx:721
 msgid "Charts"
 msgstr "Charts"
 
@@ -338,7 +384,7 @@ msgstr "Charts"
 msgid "Check existing operation"
 msgstr "Check existing operation"
 
-#: src/lib/user_error.ts:80
+#: src/lib/user_error.ts:102
 msgid "Check the required fields and try again."
 msgstr "Check the required fields and try again."
 
@@ -350,8 +396,8 @@ msgstr "Child agent"
 msgid "Choose a connected account and an instrument to load market data."
 msgstr "Choose a connected account and an instrument to load market data."
 
-#: src/pages/Market.tsx:35
-#: src/pages/Trading.tsx:33
+#: src/pages/Market.tsx:36
+#: src/pages/Trading.tsx:34
 msgid "Choose a connection"
 msgstr "Choose a connection"
 
@@ -369,7 +415,7 @@ msgstr "Choose a feed"
 msgid "Choose an agent"
 msgstr "Choose an agent"
 
-#: src/pages/Shell.tsx:107
+#: src/pages/Shell.tsx:114
 msgid "Choose an agent or return to your workspace."
 msgstr "Choose an agent or return to your workspace."
 
@@ -378,11 +424,11 @@ msgstr "Choose an agent or return to your workspace."
 msgid "Choose an instrument"
 msgstr "Choose an instrument"
 
-#: src/lib/user_error.ts:36
+#: src/lib/user_error.ts:57
 msgid "Choose GPT-Live 1 or GPT-Live 1 mini as the global voice model."
 msgstr "Choose GPT-Live 1 or GPT-Live 1 mini as the global voice model."
 
-#: src/lib/user_error.ts:38
+#: src/lib/user_error.ts:59
 msgid "Choose supported global speech models in Settings."
 msgstr "Choose supported global speech models in Settings."
 
@@ -391,19 +437,18 @@ msgstr "Choose supported global speech models in Settings."
 #: src/components/common/FilePreviewPanel.tsx:99
 #: src/pages/Board.tsx:300
 #: src/pages/RoutineEditor.tsx:100
-#: src/pages/Shell.tsx:617
+#: src/pages/Shell.tsx:639
 #: src/pages/shell/bot-settings.tsx:138
-#: src/pages/shell/chat-context.tsx:267
 msgid "Close"
 msgstr "Close"
 
 #: src/pages/ResizableSidePanel.tsx:112
-#: src/pages/Shell.tsx:858
+#: src/pages/Shell.tsx:898
 msgid "Close context panel"
 msgstr "Close context panel"
 
-#: src/pages/Shell.tsx:380
-#: src/pages/Shell.tsx:427
+#: src/pages/Shell.tsx:397
+#: src/pages/Shell.tsx:444
 msgid "Close navigation"
 msgstr "Close navigation"
 
@@ -415,7 +460,7 @@ msgstr "Close position"
 msgid "Closes"
 msgstr "Closes"
 
-#: src/components/charts/ChartLiveFeed.tsx:19
+#: src/components/charts/ChartLiveFeed.tsx:22
 msgid "Cloud chart"
 msgstr "Cloud chart"
 
@@ -427,6 +472,7 @@ msgid "Color"
 msgstr "Color"
 
 #: src/components/ai/primitives.tsx:60
+#: src/components/goals/TradingGoals.tsx:43
 #: src/components/ToolActivityDisclosure.tsx:27
 #: src/pages/ActivityList.tsx:117
 #: src/pages/Board.tsx:18
@@ -439,7 +485,11 @@ msgstr "Completed"
 msgid "Condition"
 msgstr "Condition"
 
-#: src/lib/user_error.ts:23
+#: src/components/goals/TradingGoals.tsx:23
+msgid "Condition triggered"
+msgstr "Condition triggered"
+
+#: src/lib/user_error.ts:44
 msgid "Configure an OpenAI credential with GPT-Live access to start a voice call."
 msgstr "Configure an OpenAI credential with GPT-Live access to start a voice call."
 
@@ -467,13 +517,17 @@ msgstr "Connect account"
 msgid "Connect server"
 msgstr "Connect server"
 
-#: src/pages/Shell.tsx:395
+#: src/pages/Shell.tsx:412
 msgid "Connected"
 msgstr "Connected"
 
+#: src/components/call/VoiceStatus.tsx:21
+msgid "Connecting"
+msgstr "Connecting"
+
 #: src/components/call/VoiceStatus.tsx:8
-msgid "Connecting microphone"
-msgstr "Connecting microphone"
+#~ msgid "Connecting microphone"
+#~ msgstr "Connecting microphone"
 
 #: src/components/trading/BrokerConnection.tsx:47
 msgid "Connection type"
@@ -491,12 +545,12 @@ msgid "Context panel"
 msgstr "Context panel"
 
 #: src/pages/ModelRoutingSettings.tsx:10
-#: src/pages/shell/chat-context.tsx:829
+#: src/pages/shell/chat-context.tsx:782
 msgid "Conversation"
 msgstr "Conversation"
 
-#: src/pages/Shell.tsx:147
-#: src/pages/Shell.tsx:149
+#: src/pages/Shell.tsx:154
+#: src/pages/Shell.tsx:156
 msgid "Conversation history"
 msgstr "Conversation history"
 
@@ -504,6 +558,7 @@ msgstr "Conversation history"
 msgid "Conversation ID for incoming messages"
 msgstr "Conversation ID for incoming messages"
 
+#: src/components/call/CallCard.tsx:155
 #: src/components/call/Transcript.tsx:7
 msgid "Conversation transcript"
 msgstr "Conversation transcript"
@@ -521,7 +576,7 @@ msgstr "Copy message"
 msgid "Copy table"
 msgstr "Copy table"
 
-#: src/pages/Shell.tsx:419
+#: src/pages/Shell.tsx:436
 msgid "Create"
 msgstr "Create"
 
@@ -533,7 +588,7 @@ msgstr "Create a board to organize your agents’ tasks."
 msgid "Create a group"
 msgstr "Create a group"
 
-#: src/pages/Shell.tsx:727
+#: src/pages/Shell.tsx:767
 msgid "Create a persistent agent and start a conversation."
 msgstr "Create a persistent agent and start a conversation."
 
@@ -541,8 +596,8 @@ msgstr "Create a persistent agent and start a conversation."
 msgid "Create a routine to schedule recurring work."
 msgstr "Create a routine to schedule recurring work."
 
-#: src/pages/Shell.tsx:228
-#: src/pages/Shell.tsx:731
+#: src/pages/Shell.tsx:245
+#: src/pages/Shell.tsx:771
 #: src/pages/shell/bot-panel.tsx:128
 msgid "Create agent"
 msgstr "Create agent"
@@ -556,8 +611,8 @@ msgid "Create an agent before adding a routine."
 msgstr "Create an agent before adding a routine."
 
 #: src/pages/GroupPanel.tsx:87
-#: src/pages/Shell.tsx:229
-#: src/pages/Shell.tsx:524
+#: src/pages/Shell.tsx:246
+#: src/pages/Shell.tsx:541
 msgid "Create group"
 msgstr "Create group"
 
@@ -611,6 +666,10 @@ msgstr "Custom color"
 msgid "Dark"
 msgstr "Dark"
 
+#: src/components/goals/TradingGoals.tsx:107
+msgid "Decision evidence"
+msgstr "Decision evidence"
+
 #: src/components/ai/CollaborationMarker.tsx:7
 msgid "Delegated task"
 msgstr "Delegated task"
@@ -644,7 +703,7 @@ msgstr "Diamond"
 msgid "Disable"
 msgstr "Disable"
 
-#: src/pages/Trading.tsx:56
+#: src/pages/Trading.tsx:57
 msgid "Disconnect account"
 msgstr "Disconnect account"
 
@@ -652,7 +711,7 @@ msgstr "Disconnect account"
 msgid "Discovered models"
 msgstr "Discovered models"
 
-#: src/pages/shell/chat-context.tsx:501
+#: src/pages/shell/chat-context.tsx:466
 msgid "Dismiss error"
 msgstr "Dismiss error"
 
@@ -712,6 +771,10 @@ msgstr "Emergency stop is active."
 msgid "Enable"
 msgstr "Enable"
 
+#: src/lib/user_error.ts:24
+msgid "Enable autonomous trading for this goal in its owner controls first."
+msgstr "Enable autonomous trading for this goal in its owner controls first."
+
 #: src/pages/KnowledgeSection.tsx:152
 msgid "Enable semantic retrieval"
 msgstr "Enable semantic retrieval"
@@ -722,16 +785,21 @@ msgstr "Enable semantic retrieval"
 msgid "Enabled"
 msgstr "Enabled"
 
-#: src/components/call/CallCard.tsx:43
+#: src/components/call/CallCard.tsx:115
+#: src/components/call/CallCard.tsx:116
 msgid "End call"
 msgstr "End call"
 
-#: src/pages/shell/chat-context.tsx:712
+#: src/components/call/VoiceStatus.tsx:18
+msgid "Ending call"
+msgstr "Ending call"
+
+#: src/pages/shell/chat-context.tsx:665
 msgid "Enter to send · Shift+Enter for a new line"
 msgstr "Enter to send · Shift+Enter for a new line"
 
 #: src/components/market/MarketWatch.tsx:168
-#: src/components/trading/AccountSummary.tsx:18
+#: src/components/trading/AccountSummary.tsx:48
 msgid "Equity"
 msgstr "Equity"
 
@@ -752,11 +820,21 @@ msgstr "Exact broker symbol"
 msgid "Execute"
 msgstr "Execute"
 
+#: src/components/goals/TradingGoals.tsx:29
+msgid "Executing"
+msgstr "Executing"
+
+#: src/components/goals/TradingGoals.tsx:84
 #: src/pages/RoutineRunHistory.tsx:37
 msgid "Execution history"
 msgstr "Execution history"
 
+#: src/components/goals/TradingGoals.tsx:33
+msgid "Execution requires reconciliation"
+msgstr "Execution requires reconciliation"
+
 #: src/components/ai/primitives.tsx:56
+#: src/components/goals/TradingGoals.tsx:45
 #: src/components/ToolActivityDisclosure.tsx:25
 #: src/components/trading/TradingJournal.tsx:22
 #: src/pages/ActivityList.tsx:119
@@ -792,7 +870,7 @@ msgid "Follow your agents’ runs and pick up unfinished work."
 msgstr "Follow your agents’ runs and pick up unfinished work."
 
 #: src/components/market/MarketWatch.tsx:177
-#: src/components/trading/AccountSummary.tsx:30
+#: src/components/trading/AccountSummary.tsx:60
 msgid "Free margin"
 msgstr "Free margin"
 
@@ -811,7 +889,7 @@ msgid "Global embedding model"
 msgstr "Global embedding model"
 
 #: src/pages/settings-sidebar.tsx:19
-#: src/pages/Shell.tsx:988
+#: src/pages/Shell.tsx:1035
 msgid "Global models"
 msgstr "Global models"
 
@@ -819,15 +897,24 @@ msgstr "Global models"
 msgid "Global routing"
 msgstr "Global routing"
 
+#: src/components/goals/TradingGoals.tsx:329
+msgid "Global Trading and Emergency Stop still govern every financial operation. Pausing a goal does not close existing broker positions."
+msgstr "Global Trading and Emergency Stop still govern every financial operation. Pausing a goal does not close existing broker positions."
+
 #: src/pages/TradingSettingsPanel.tsx:8
 msgid "Global trading settings"
 msgstr "Global trading settings"
+
+#: src/pages/Shell.tsx:242
+#: src/pages/Shell.tsx:932
+msgid "Goals"
+msgstr "Goals"
 
 #: src/pages/VoiceSettingsOverlay.tsx:23
 msgid "GPT-Live connects directly over WebRTC using your server-stored OpenAI credential. Choose the voice model in global routing; delegated work uses the same Lonora agent and tools."
 msgstr "GPT-Live connects directly over WebRTC using your server-stored OpenAI credential. Choose the voice model in global routing; delegated work uses the same Lonora agent and tools."
 
-#: src/lib/user_error.ts:29
+#: src/lib/user_error.ts:50
 msgid "GPT-Live is not available for this OpenAI project. Check its API access."
 msgstr "GPT-Live is not available for this OpenAI project. Check its API access."
 
@@ -836,15 +923,15 @@ msgstr "GPT-Live is not available for this OpenAI project. Check its API access.
 msgid "Group name"
 msgstr "Group name"
 
-#: src/pages/Shell.tsx:230
+#: src/pages/Shell.tsx:247
 msgid "Group settings"
 msgstr "Group settings"
 
-#: src/pages/Shell.tsx:520
+#: src/pages/Shell.tsx:537
 msgid "Groups"
 msgstr "Groups"
 
-#: src/lib/user_error.ts:51
+#: src/lib/user_error.ts:72
 msgid "Historical broker candles timed out. Retry the chart refresh."
 msgstr "Historical broker candles timed out. Retry the chart refresh."
 
@@ -852,7 +939,7 @@ msgstr "Historical broker candles timed out. Retry the chart refresh."
 msgid "Image attachment"
 msgstr "Image attachment"
 
-#: src/lib/user_error.ts:78
+#: src/lib/user_error.ts:100
 msgid "Import a market snapshot before using the demo account."
 msgstr "Import a market snapshot before using the demo account."
 
@@ -880,11 +967,12 @@ msgstr "Instructions"
 
 #: src/components/integrations/IntegrationSetup.tsx:57
 #: src/pages/settings-sidebar.tsx:22
-#: src/pages/Shell.tsx:555
+#: src/pages/Shell.tsx:572
 msgid "Integrations"
 msgstr "Integrations"
 
-#: src/components/call/CallCard.tsx:39
+#: src/components/call/CallCard.tsx:163
+#: src/components/call/CallCard.tsx:165
 msgid "Interrupt"
 msgstr "Interrupt"
 
@@ -896,18 +984,18 @@ msgstr "Interval"
 msgid "Isolated document preview"
 msgstr "Isolated document preview"
 
-#: src/pages/shell/chat-context.tsx:900
+#: src/pages/shell/chat-context.tsx:853
 msgid "Jump to latest"
 msgstr "Jump to latest"
 
-#: src/pages/Shell.tsx:947
+#: src/pages/Shell.tsx:994
 msgid "Keep working beside the conversation."
 msgstr "Keep working beside the conversation."
 
 #: src/pages/Knowledge.tsx:15
-#: src/pages/Shell.tsx:220
-#: src/pages/Shell.tsx:224
-#: src/pages/Shell.tsx:879
+#: src/pages/Shell.tsx:236
+#: src/pages/Shell.tsx:240
+#: src/pages/Shell.tsx:919
 msgid "Knowledge"
 msgstr "Knowledge"
 
@@ -932,15 +1020,19 @@ msgstr "Light"
 msgid "List view"
 msgstr "List view"
 
+#: src/components/call/VoiceStatus.tsx:30
+msgid "Listening"
+msgstr "Listening"
+
 #: src/components/call/VoiceStatus.tsx:6
-msgid "Listening · speak to interrupt"
-msgstr "Listening · speak to interrupt"
+#~ msgid "Listening · speak to interrupt"
+#~ msgstr "Listening · speak to interrupt"
 
 #: src/pages/LocalSettings.tsx:45
 msgid "Live connection active"
 msgstr "Live connection active"
 
-#: src/pages/shell/chat-context.tsx:857
+#: src/pages/shell/chat-context.tsx:810
 msgid "Load earlier messages"
 msgstr "Load earlier messages"
 
@@ -952,8 +1044,8 @@ msgstr "Loading"
 msgid "Loading activity…"
 msgstr "Loading activity…"
 
-#: src/pages/Shell.tsx:486
-#: src/pages/Shell.tsx:833
+#: src/pages/Shell.tsx:503
+#: src/pages/Shell.tsx:873
 msgid "Loading agents…"
 msgstr "Loading agents…"
 
@@ -962,7 +1054,7 @@ msgstr "Loading agents…"
 msgid "Loading chart…"
 msgstr "Loading chart…"
 
-#: src/pages/Shell.tsx:813
+#: src/pages/Shell.tsx:853
 msgid "Loading group…"
 msgstr "Loading group…"
 
@@ -970,20 +1062,22 @@ msgstr "Loading group…"
 msgid "Loading preview…"
 msgstr "Loading preview…"
 
-#: src/pages/Shell.tsx:1013
+#: src/pages/Shell.tsx:1071
 msgid "Loading settings…"
 msgstr "Loading settings…"
 
-#: src/pages/Shell.tsx:711
+#: src/pages/Shell.tsx:751
 msgid "Loading workspace…"
 msgstr "Loading workspace…"
 
+#: src/components/goals/TradingGoals.tsx:88
+#: src/components/goals/TradingGoals.tsx:218
 #: src/pages/Artifacts.tsx:271
 #: src/pages/Board.tsx:169
 #: src/pages/RoutineRunHistory.tsx:43
 #: src/pages/Routines.tsx:176
 #: src/pages/ScratchpadSection.tsx:94
-#: src/pages/shell/chat-context.tsx:854
+#: src/pages/shell/chat-context.tsx:807
 msgid "Loading…"
 msgstr "Loading…"
 
@@ -993,18 +1087,18 @@ msgid "Long-term memory"
 msgstr "Long-term memory"
 
 #: src/components/market/MarketWatch.tsx:174
-#: src/components/trading/AccountSummary.tsx:24
+#: src/components/trading/AccountSummary.tsx:54
 msgid "Margin"
 msgstr "Margin"
 
-#: src/pages/Market.tsx:22
-#: src/pages/Shell.tsx:217
-#: src/pages/Shell.tsx:583
+#: src/pages/Market.tsx:23
+#: src/pages/Shell.tsx:233
+#: src/pages/Shell.tsx:600
 msgid "Market"
 msgstr "Market"
 
 #: src/components/charts/ConversationCharts.tsx:90
-#: src/pages/Shell.tsx:964
+#: src/pages/Shell.tsx:1011
 msgid "Market and charts"
 msgstr "Market and charts"
 
@@ -1020,6 +1114,11 @@ msgstr "Market sell"
 msgid "Market watches"
 msgstr "Market watches"
 
+#: src/components/goals/TradingGoals.tsx:294
+msgid "Maximum trade actions"
+msgstr "Maximum trade actions"
+
+#: src/components/goals/TradingGoals.tsx:278
 #: src/components/market/MarketOverview.tsx:29
 msgid "Maximum volume"
 msgstr "Maximum volume"
@@ -1030,7 +1129,7 @@ msgid "MCP servers"
 msgstr "MCP servers"
 
 #: src/pages/GroupPanel.tsx:58
-#: src/pages/Shell.tsx:539
+#: src/pages/Shell.tsx:556
 msgid "Members"
 msgstr "Members"
 
@@ -1039,7 +1138,7 @@ msgstr "Members"
 msgid "Memory"
 msgstr "Memory"
 
-#: src/pages/Shell.tsx:952
+#: src/pages/Shell.tsx:999
 msgid "Memory, skills and open work"
 msgstr "Memory, skills and open work"
 
@@ -1047,24 +1146,24 @@ msgstr "Memory, skills and open work"
 msgid "Mention agents with @name. Without a mention, the first member responds."
 msgstr "Mention agents with @name. Without a mention, the first member responds."
 
-#: src/pages/shell/chat-context.tsx:554
+#: src/pages/shell/chat-context.tsx:519
 msgid "Mentions"
 msgstr "Mentions"
 
-#: src/pages/shell/chat-context.tsx:617
+#: src/pages/shell/chat-context.tsx:582
 #: src/pages/SpaceSearch.tsx:164
 msgid "Message"
 msgstr "Message"
 
-#: src/pages/shell/chat-context.tsx:629
+#: src/pages/shell/chat-context.tsx:594
 msgid "Message {recipientName}"
 msgstr "Message {recipientName}"
 
-#: src/pages/shell/chat-context.tsx:467
+#: src/pages/shell/chat-context.tsx:432
 msgid "Message composer"
 msgstr "Message composer"
 
-#: src/pages/shell/chat-context.tsx:630
+#: src/pages/shell/chat-context.tsx:595
 msgid "Message your agent…"
 msgstr "Message your agent…"
 
@@ -1080,9 +1179,18 @@ msgstr "MetaApi token"
 msgid "Metric"
 msgstr "Metric"
 
-#: src/pages/Shell.tsx:411
+#: src/components/call/VoiceStatus.tsx:28
+msgid "Microphone muted"
+msgstr "Microphone muted"
+
+#: src/pages/Shell.tsx:428
 msgid "Minimize agents"
 msgstr "Minimize agents"
+
+#: src/components/call/CallCard.tsx:128
+#: src/components/call/CallCard.tsx:129
+msgid "Minimize call"
+msgstr "Minimize call"
 
 #: src/components/market/MarketOverview.tsx:17
 msgid "Minimum volume"
@@ -1096,12 +1204,25 @@ msgstr "Mode"
 #~ msgid "Models, voice and trading connections are shared workspace settings."
 #~ msgstr "Models, voice and trading connections are shared workspace settings."
 
+#: src/components/goals/TradingGoals.tsx:39
+msgid "Monitoring"
+msgstr "Monitoring"
+
+#: src/components/call/CallCard.tsx:104
+#: src/components/call/CallCard.tsx:105
+msgid "Mute microphone"
+msgstr "Mute microphone"
+
 #: src/components/integrations/IntegrationSetup.tsx:75
 #: src/pages/McpServersOverlay.tsx:52
 #: src/pages/shell/bot-panel.tsx:51
 #: src/pages/shell/bot-settings.tsx:50
 msgid "Name"
 msgstr "Name"
+
+#: src/components/goals/TradingGoals.tsx:17
+msgid "Needs attention"
+msgstr "Needs attention"
 
 #: src/pages/Board.tsx:98
 #: src/pages/Board.tsx:298
@@ -1112,7 +1233,7 @@ msgstr "New ticket"
 msgid "Next run"
 msgstr "Next run"
 
-#: src/pages/Shell.tsx:516
+#: src/pages/Shell.tsx:533
 #: src/pages/shell/bot-picker.tsx:80
 #: src/pages/shell/bot-picker.tsx:92
 #: src/pages/shell/command-palette.tsx:76
@@ -1123,7 +1244,7 @@ msgstr "No agents match"
 msgid "No artifacts found."
 msgstr "No artifacts found."
 
-#: src/lib/user_error.ts:57
+#: src/lib/user_error.ts:78
 msgid "No candle history was found for this symbol and timeframe."
 msgstr "No candle history was found for this symbol and timeframe."
 
@@ -1134,6 +1255,10 @@ msgstr "No candles available for this instrument and timeframe."
 #: src/pages/RoutineRunHistory.tsx:47
 msgid "No executions yet"
 msgstr "No executions yet"
+
+#: src/components/goals/TradingGoals.tsx:94
+msgid "No financial executions yet."
+msgstr "No financial executions yet."
 
 #: src/pages/Artifacts.tsx:279
 msgid "No matching artifacts"
@@ -1168,9 +1293,17 @@ msgstr "No runs match these filters."
 msgid "No saved chart in this conversation"
 msgstr "No saved chart in this conversation"
 
+#: src/components/call/CallCard.tsx:180
+msgid "No speech yet"
+msgstr "No speech yet"
+
 #: src/pages/Board.tsx:215
 msgid "No tickets yet"
 msgstr "No tickets yet"
+
+#: src/components/goals/TradingGoals.tsx:223
+msgid "No trading goals yet."
+msgstr "No trading goals yet."
 
 #: src/pages/ActivityList.tsx:190
 msgid "Now"
@@ -1179,6 +1312,15 @@ msgstr "Now"
 #: src/pages/ModelRoutingSettings.tsx:109
 msgid "One model for text work"
 msgstr "One model for text work"
+
+#: src/pages/Shell.tsx:703
+#: src/pages/Shell.tsx:704
+msgid "Open active call"
+msgstr "Open active call"
+
+#: src/components/call/CallPill.tsx:14
+msgid "Open call with {name}"
+msgstr "Open call with {name}"
 
 #: src/components/charts/ChartWorkspace.tsx:49
 msgid "Open chart"
@@ -1190,7 +1332,11 @@ msgstr "Open chart"
 msgid "Open conversation"
 msgstr "Open conversation"
 
-#: src/pages/Shell.tsx:636
+#: src/components/call/CallCard.tsx:57
+msgid "Open conversation with {name}"
+msgstr "Open conversation with {name}"
+
+#: src/pages/Shell.tsx:658
 msgid "Open navigation"
 msgstr "Open navigation"
 
@@ -1202,7 +1348,7 @@ msgstr "Open price"
 msgid "OpenAI voice credential configured"
 msgstr "OpenAI voice credential configured"
 
-#: src/pages/Shell.tsx:131
+#: src/pages/Shell.tsx:138
 msgid "Opening conversation…"
 msgstr "Opening conversation…"
 
@@ -1213,6 +1359,10 @@ msgstr "Opening workspace…"
 #: src/components/market/MarketWatch.tsx:232
 msgid "Opens"
 msgstr "Opens"
+
+#: src/components/goals/TradingGoals.tsx:103
+msgid "Operation"
+msgstr "Operation"
 
 #: src/components/trading/TradeActionCard.tsx:159
 msgid "Operation confirmed"
@@ -1247,6 +1397,7 @@ msgstr "Password"
 msgid "Password · at least 12 characters"
 msgstr "Password · at least 12 characters"
 
+#: src/components/goals/TradingGoals.tsx:345
 #: src/components/market/MarketWatch.tsx:294
 #: src/pages/Routines.tsx:100
 msgid "Pause"
@@ -1256,8 +1407,9 @@ msgstr "Pause"
 msgid "Pause agent and scheduled work"
 msgstr "Pause agent and scheduled work"
 
+#: src/components/goals/TradingGoals.tsx:47
 #: src/pages/Routines.tsx:83
-#: src/pages/Shell.tsx:670
+#: src/pages/Shell.tsx:692
 #: src/pages/shell/bot-roster-row.tsx:33
 msgid "Paused"
 msgstr "Paused"
@@ -1265,6 +1417,10 @@ msgstr "Paused"
 #: src/components/PdfViewer.tsx:3
 msgid "PDF preview"
 msgstr "PDF preview"
+
+#: src/components/goals/TradingGoals.tsx:51
+msgid "Pending"
+msgstr "Pending"
 
 #: src/components/trading/Orders.tsx:20
 msgid "Pending orders"
@@ -1279,6 +1435,14 @@ msgstr "Period"
 msgid "Persistent child agent"
 msgstr "Persistent child agent"
 
+#: src/components/goals/TradingGoals.tsx:19
+msgid "Planning"
+msgstr "Planning"
+
+#: src/components/call/CallCard.tsx:138
+msgid "Play audio"
+msgstr "Play audio"
+
 #: src/components/market/MarketWatch.tsx:108
 msgid "Position"
 msgstr "Position"
@@ -1286,6 +1450,10 @@ msgstr "Position"
 #: src/components/market/MarketWatch.tsx:152
 msgid "Position ID"
 msgstr "Position ID"
+
+#: src/components/goals/TradingGoals.tsx:37
+msgid "Position open"
+msgstr "Position open"
 
 #: src/components/trading/Positions.tsx:37
 msgid "Positions"
@@ -1316,7 +1484,7 @@ msgstr "Price level"
 #~ msgid "Processing the task"
 #~ msgstr "Processing the task"
 
-#: src/pages/Shell.tsx:875
+#: src/pages/Shell.tsx:915
 msgid "Profile"
 msgstr "Profile"
 
@@ -1341,6 +1509,10 @@ msgstr "Providers and official catalog"
 msgid "Queued"
 msgstr "Queued"
 
+#: src/components/goals/TradingGoals.tsx:27
+msgid "Ready to execute"
+msgstr "Ready to execute"
+
 #: src/pages/VoiceSettingsOverlay.tsx:14
 msgid "Realtime conversation"
 msgstr "Realtime conversation"
@@ -1358,7 +1530,15 @@ msgstr "Reasoning"
 msgid "Recent"
 msgstr "Recent"
 
-#: src/pages/Shell.tsx:395
+#: src/components/goals/TradingGoals.tsx:25
+msgid "Rechecking market conditions"
+msgstr "Rechecking market conditions"
+
+#: src/components/goals/TradingGoals.tsx:35
+msgid "Reconciling with broker"
+msgstr "Reconciling with broker"
+
+#: src/pages/Shell.tsx:412
 msgid "Reconnecting"
 msgstr "Reconnecting"
 
@@ -1379,11 +1559,11 @@ msgstr "Refresh chart"
 msgid "Reload"
 msgstr "Reload"
 
-#: src/pages/shell/chat-context.tsx:540
+#: src/pages/shell/chat-context.tsx:505
 msgid "Remove {name}"
 msgstr "Remove {name}"
 
-#: src/pages/shell/chat-context.tsx:523
+#: src/pages/shell/chat-context.tsx:488
 msgid "Remove reply"
 msgstr "Remove reply"
 
@@ -1392,7 +1572,7 @@ msgstr "Remove reply"
 msgid "Reply"
 msgstr "Reply"
 
-#: src/pages/shell/chat-context.tsx:512
+#: src/pages/shell/chat-context.tsx:477
 #: src/pages/shell/message-cards.tsx:60
 msgid "Reply to an earlier message"
 msgstr "Reply to an earlier message"
@@ -1413,32 +1593,42 @@ msgstr "Reset emergency stop"
 msgid "Resize panel"
 msgstr "Resize panel"
 
+#: src/components/goals/TradingGoals.tsx:343
 #: src/components/market/MarketWatch.tsx:294
 #: src/pages/ActivityList.tsx:279
 #: src/pages/Routines.tsx:100
-#: src/pages/shell/chat-context.tsx:205
+#: src/pages/shell/chat-context.tsx:199
 msgid "Resume"
 msgstr "Resume"
 
 #: src/App.tsx:48
+#: src/components/call/CallCard.tsx:147
 #: src/pages/ActivityList.tsx:163
 #: src/pages/Artifacts.tsx:251
 #: src/pages/Board.tsx:106
 #: src/pages/Routines.tsx:169
-#: src/pages/Shell.tsx:124
-#: src/pages/Shell.tsx:140
-#: src/pages/Shell.tsx:704
+#: src/pages/Shell.tsx:131
+#: src/pages/Shell.tsx:147
+#: src/pages/Shell.tsx:744
 msgid "Retry"
 msgstr "Retry"
+
+#: src/components/goals/TradingGoals.tsx:353
+msgid "Review now"
+msgstr "Review now"
+
+#: src/lib/user_error.ts:28
+msgid "Review this goal's volume and action limits before continuing."
+msgstr "Review this goal's volume and action limits before continuing."
 
 #: src/pages/ModelRoutingSettings.tsx:112
 msgid "Route by capability"
 msgstr "Route by capability"
 
 #: src/pages/Routines.tsx:24
-#: src/pages/Shell.tsx:219
-#: src/pages/Shell.tsx:225
-#: src/pages/Shell.tsx:887
+#: src/pages/Shell.tsx:235
+#: src/pages/Shell.tsx:241
+#: src/pages/Shell.tsx:927
 msgid "Routines"
 msgstr "Routines"
 
@@ -1497,7 +1687,7 @@ msgstr "Schedule"
 msgid "Schedule recurring work for your agents."
 msgstr "Schedule recurring work for your agents."
 
-#: src/pages/Shell.tsx:958
+#: src/pages/Shell.tsx:1005
 msgid "Scheduled work"
 msgstr "Scheduled work"
 
@@ -1505,9 +1695,9 @@ msgstr "Scheduled work"
 msgid "Scratchpad"
 msgstr "Scratchpad"
 
-#: src/pages/Shell.tsx:216
-#: src/pages/Shell.tsx:443
-#: src/pages/Shell.tsx:444
+#: src/pages/Shell.tsx:232
+#: src/pages/Shell.tsx:460
+#: src/pages/Shell.tsx:461
 #: src/pages/SpaceSearch.tsx:124
 msgid "Search"
 msgstr "Search"
@@ -1550,8 +1740,8 @@ msgstr "Search runs"
 msgid "Search separate knowledge notes using real embeddings from a globally selected OpenAI model."
 msgstr "Search separate knowledge notes using real embeddings from a globally selected OpenAI model."
 
-#: src/pages/Shell.tsx:450
-#: src/pages/Shell.tsx:451
+#: src/pages/Shell.tsx:467
+#: src/pages/Shell.tsx:468
 #: src/pages/SpaceSearch.tsx:88
 #: src/pages/SpaceSearch.tsx:115
 msgid "Search your workspace"
@@ -1582,13 +1772,13 @@ msgstr "Sell stop"
 msgid "Semantic memory · optional"
 msgstr "Semantic memory · optional"
 
-#: src/pages/shell/chat-context.tsx:688
-#: src/pages/shell/chat-context.tsx:689
+#: src/pages/shell/chat-context.tsx:641
+#: src/pages/shell/chat-context.tsx:642
 msgid "Send"
 msgstr "Send"
 
-#: src/pages/shell/chat-context.tsx:688
-#: src/pages/shell/chat-context.tsx:689
+#: src/pages/shell/chat-context.tsx:641
+#: src/pages/shell/chat-context.tsx:642
 msgid "Send direction"
 msgstr "Send direction"
 
@@ -1596,9 +1786,9 @@ msgstr "Send direction"
 msgid "Server URL"
 msgstr "Server URL"
 
-#: src/pages/Shell.tsx:591
-#: src/pages/Shell.tsx:692
-#: src/pages/shell/chat-context.tsx:578
+#: src/pages/Shell.tsx:608
+#: src/pages/Shell.tsx:732
+#: src/pages/shell/chat-context.tsx:543
 msgid "Settings"
 msgstr "Settings"
 
@@ -1610,11 +1800,11 @@ msgstr "Setup token"
 msgid "Shared chart workspace"
 msgstr "Shared chart workspace"
 
-#: src/pages/Shell.tsx:1007
+#: src/pages/Shell.tsx:1065
 msgid "Shared preferences and connections for all your agents."
 msgstr "Shared preferences and connections for all your agents."
 
-#: src/pages/Shell.tsx:645
+#: src/pages/Shell.tsx:667
 msgid "Show agents"
 msgstr "Show agents"
 
@@ -1630,7 +1820,7 @@ msgstr "Sign in"
 msgid "Sign in to your persistent workspace"
 msgstr "Sign in to your persistent workspace"
 
-#: src/pages/Shell.tsx:606
+#: src/pages/Shell.tsx:628
 msgid "Sign out"
 msgstr "Sign out"
 
@@ -1642,8 +1832,12 @@ msgstr "Sign-in failed. Check your email and password."
 msgid "Signed webhook"
 msgstr "Signed webhook"
 
-#: src/pages/Market.tsx:48
-#: src/pages/Trading.tsx:62
+#: src/lib/broker-identity.ts:17
+msgid "Simulation"
+msgstr "Simulation"
+
+#: src/pages/Market.tsx:49
+#: src/pages/Trading.tsx:63
 msgid "Simulation · imported snapshot"
 msgstr "Simulation · imported snapshot"
 
@@ -1662,6 +1856,10 @@ msgstr "Skills"
 #: src/components/market/MarketQuote.tsx:30
 msgid "Source"
 msgstr "Source"
+
+#: src/components/call/VoiceStatus.tsx:26
+msgid "Speaking"
+msgstr "Speaking"
 
 #: src/pages/ModelRoutingSettings.tsx:15
 msgid "Speech recognition"
@@ -1693,8 +1891,8 @@ msgstr "Stable facts and preferences kept separately from conversation history."
 #~ msgstr "Start a conversation. Your agent keeps its memory and continues scheduled work here."
 
 #: src/components/call/CallCard.tsx:51
-msgid "Start voice conversation"
-msgstr "Start voice conversation"
+#~ msgid "Start voice conversation"
+#~ msgstr "Start voice conversation"
 
 #: src/pages/ActivityList.tsx:97
 #: src/pages/ActivityList.tsx:99
@@ -1705,10 +1903,14 @@ msgid "Status"
 msgstr "Status"
 
 #: src/pages/ActivityList.tsx:269
-#: src/pages/shell/chat-context.tsx:703
-#: src/pages/shell/chat-context.tsx:704
+#: src/pages/shell/chat-context.tsx:656
+#: src/pages/shell/chat-context.tsx:657
 msgid "Stop"
 msgstr "Stop"
+
+#: src/components/goals/TradingGoals.tsx:267
+msgid "Stop loss"
+msgstr "Stop loss"
 
 #: src/components/trading/TradeActionCard.tsx:132
 msgid "Stop loss · optional"
@@ -1718,7 +1920,7 @@ msgstr "Stop loss · optional"
 msgid "Supply account, instruments, quotes and candles explicitly. Simulation data is labelled in the workspace."
 msgstr "Supply account, instruments, quotes and candles explicitly. Simulation data is labelled in the workspace."
 
-#: src/pages/Shell.tsx:478
+#: src/pages/Shell.tsx:495
 #: src/pages/shell/command-palette.tsx:62
 msgid "Switch agent"
 msgstr "Switch agent"
@@ -1726,6 +1928,10 @@ msgstr "Switch agent"
 #: src/components/trading/Positions.tsx:45
 msgid "Symbol"
 msgstr "Symbol"
+
+#: src/components/goals/TradingGoals.tsx:268
+msgid "Take profit"
+msgstr "Take profit"
 
 #: src/components/trading/TradeActionCard.tsx:142
 msgid "Take profit · optional"
@@ -1739,9 +1945,9 @@ msgid "Task"
 msgstr "Task"
 
 #: src/pages/Board.tsx:75
-#: src/pages/Shell.tsx:214
-#: src/pages/Shell.tsx:575
-#: src/pages/Shell.tsx:976
+#: src/pages/Shell.tsx:230
+#: src/pages/Shell.tsx:592
+#: src/pages/Shell.tsx:1023
 msgid "Task boards"
 msgstr "Task boards"
 
@@ -1757,45 +1963,49 @@ msgstr "Task when triggered"
 msgid "Temporary delegated tasks"
 msgstr "Temporary delegated tasks"
 
-#: src/lib/user_error.ts:61
+#: src/lib/user_error.ts:83
 msgid "That chart timeframe is not supported by this broker."
 msgstr "That chart timeframe is not supported by this broker."
 
-#: src/lib/user_error.ts:94
+#: src/lib/user_error.ts:116
 msgid "The agent reached the step limit for this run. Send another message to continue."
 msgstr "The agent reached the step limit for this run. Send another message to continue."
 
-#: src/lib/user_error.ts:70
+#: src/lib/user_error.ts:92
 msgid "The broker connection changed. Reload it before continuing."
 msgstr "The broker connection changed. Reload it before continuing."
 
-#: src/lib/user_error.ts:76
+#: src/lib/user_error.ts:98
 msgid "The broker connection is unavailable."
 msgstr "The broker connection is unavailable."
 
-#: src/lib/user_error.ts:55
+#: src/lib/user_error.ts:76
 msgid "The broker market-data service is rate limited."
 msgstr "The broker market-data service is rate limited."
 
-#: src/lib/user_error.ts:72
+#: src/lib/user_error.ts:94
 msgid "The broker mutation is uncertain. Execution remains blocked until its result can be verified."
 msgstr "The broker mutation is uncertain. Execution remains blocked until its result can be verified."
 
-#: src/lib/user_error.ts:63
+#: src/lib/user_error.ts:85
 msgid "The broker quote is unavailable for this exact symbol."
 msgstr "The broker quote is unavailable for this exact symbol."
 
-#: src/lib/user_error.ts:53
+#: src/lib/user_error.ts:74
 msgid "The broker rejected this timeframe or candle request."
 msgstr "The broker rejected this timeframe or candle request."
 
-#: src/lib/user_error.ts:65
+#: src/lib/user_error.ts:87
 msgid "The broker specifications are unavailable for this exact symbol."
 msgstr "The broker specifications are unavailable for this exact symbol."
 
 #: src/pages/ModelSettingsOverlay.tsx:93
 msgid "The catalog is read from the provider. Unknown capabilities are shown as unverified."
 msgstr "The catalog is read from the provider. Unknown capabilities are shown as unverified."
+
+#: src/lib/user_error.ts:38
+msgid "The current market no longer confirms this goal's condition. No trade was sent."
+msgstr "The current market no longer confirms this goal's condition. No trade was sent."
 
 #: src/components/common/FilePreviewPanel.tsx:20
 msgid "The file preview could not be displayed"
@@ -1805,7 +2015,7 @@ msgstr "The file preview could not be displayed"
 msgid "The full response will appear when complete."
 msgstr "The full response will appear when complete."
 
-#: src/lib/user_error.ts:90
+#: src/lib/user_error.ts:112
 msgid "The model could not summarize this conversation. Retry or choose another global model."
 msgstr "The model could not summarize this conversation. Retry or choose another global model."
 
@@ -1821,15 +2031,15 @@ msgstr "The page could not be displayed"
 msgid "The provider rejected this API key."
 msgstr "The provider rejected this API key."
 
-#: src/lib/user_error.ts:96
+#: src/lib/user_error.ts:118
 msgid "The request could not be completed. Try again."
 msgstr "The request could not be completed. Try again."
 
-#: src/lib/user_error.ts:31
+#: src/lib/user_error.ts:52
 msgid "The resident voice worker is unavailable. Check server readiness and retry."
 msgstr "The resident voice worker is unavailable. Check server readiness and retry."
 
-#: src/lib/user_error.ts:40
+#: src/lib/user_error.ts:61
 msgid "The resident worker is preparing this chart."
 msgstr "The resident worker is preparing this chart."
 
@@ -1841,7 +2051,7 @@ msgstr "The setup code is incorrect."
 msgid "The task resumed from its saved state after reconnection."
 msgstr "The task resumed from its saved state after reconnection."
 
-#: src/lib/user_error.ts:34
+#: src/lib/user_error.ts:55
 msgid "The voice connection failed. Retry the call."
 msgstr "The voice connection failed. Retry the call."
 
@@ -1854,23 +2064,35 @@ msgstr "Theme"
 msgid "These settings apply to every agent and routine. Voice routes require models that support audio."
 msgstr "These settings apply to every agent and routine. Voice routes require models that support audio."
 
-#: src/lib/user_error.ts:67
+#: src/lib/user_error.ts:21
+msgid "This broker account does not permit trading. Check its trading permissions."
+msgstr "This broker account does not permit trading. Check its trading permissions."
+
+#: src/lib/user_error.ts:89
 msgid "This broker connection is disabled."
 msgstr "This broker connection is disabled."
 
-#: src/lib/user_error.ts:92
+#: src/lib/user_error.ts:114
 msgid "This conversation could not be resumed. Start a new conversation."
 msgstr "This conversation could not be resumed. Start a new conversation."
 
-#: src/lib/user_error.ts:88
+#: src/lib/user_error.ts:110
 msgid "This conversation is too large to process. Shorten instructions, use fewer attachments, or start a new conversation."
 msgstr "This conversation is too large to process. Shorten instructions, use fewer attachments, or start a new conversation."
 
-#: src/lib/user_error.ts:45
+#: src/lib/user_error.ts:66
 msgid "This exact symbol is not available from your broker."
 msgstr "This exact symbol is not available from your broker."
 
-#: src/lib/user_error.ts:21
+#: src/lib/user_error.ts:35
+msgid "This goal is paused, cancelled or completed. Reload its current state."
+msgstr "This goal is paused, cancelled or completed. Reload its current state."
+
+#: src/lib/user_error.ts:32
+msgid "This goal is waiting for broker verification. Its financial operation will not be repeated automatically."
+msgstr "This goal is waiting for broker verification. Its financial operation will not be repeated automatically."
+
+#: src/lib/user_error.ts:42
 msgid "This item changed. Reload it before saving."
 msgstr "This item changed. Reload it before saving."
 
@@ -1878,11 +2100,11 @@ msgstr "This item changed. Reload it before saving."
 msgid "This month"
 msgstr "This month"
 
-#: src/pages/Shell.tsx:104
+#: src/pages/Shell.tsx:111
 msgid "This page is unavailable"
 msgstr "This page is unavailable"
 
-#: src/lib/user_error.ts:84
+#: src/lib/user_error.ts:106
 msgid "This run was recovered by another worker."
 msgstr "This run was recovered by another worker."
 
@@ -1925,17 +2147,17 @@ msgid "To:"
 msgstr "To:"
 
 #: src/pages/Artifacts.tsx:235
-#: src/pages/shell/chat-context.tsx:871
+#: src/pages/shell/chat-context.tsx:824
 msgid "Today"
 msgstr "Today"
 
 #: src/pages/settings-sidebar.tsx:24
-#: src/pages/Shell.tsx:595
+#: src/pages/Shell.tsx:612
 #: src/pages/UsageSettingsPanel.tsx:18
 msgid "Token usage"
 msgstr "Token usage"
 
-#: src/lib/user_error.ts:82
+#: src/lib/user_error.ts:104
 msgid "Too many attempts. Wait a minute and retry."
 msgstr "Too many attempts. Wait a minute and retry."
 
@@ -1948,19 +2170,23 @@ msgid "Trade action"
 msgstr "Trade action"
 
 #: src/pages/settings-sidebar.tsx:21
-#: src/pages/Shell.tsx:218
-#: src/pages/Shell.tsx:587
-#: src/pages/Trading.tsx:24
+#: src/pages/Shell.tsx:234
+#: src/pages/Shell.tsx:604
+#: src/pages/Trading.tsx:25
 msgid "Trading"
 msgstr "Trading"
 
-#: src/pages/Shell.tsx:970
+#: src/pages/Shell.tsx:1017
 msgid "Trading and operation journal"
 msgstr "Trading and operation journal"
 
 #: src/components/trading/TradingStatus.tsx:32
 msgid "Trading control"
 msgstr "Trading control"
+
+#: src/components/goals/TradingGoals.tsx:208
+msgid "Trading goals"
+msgstr "Trading goals"
 
 #: src/lib/user_error.ts:17
 msgid "Trading is off."
@@ -1973,6 +2199,10 @@ msgstr "Trading OFF"
 #: src/components/trading/TradingStatus.tsx:38
 msgid "Trading ON"
 msgstr "Trading ON"
+
+#: src/components/call/CallCard.tsx:160
+msgid "Transcript"
+msgstr "Transcript"
 
 #: src/components/trading/TradingStatus.tsx:51
 msgid "Turn trading OFF"
@@ -1990,6 +2220,16 @@ msgstr "Type"
 msgid "Unified model"
 msgstr "Unified model"
 
+#: src/components/call/CallCard.tsx:104
+#: src/components/call/CallCard.tsx:105
+msgid "Unmute microphone"
+msgstr "Unmute microphone"
+
+#: src/lib/broker-identity.ts:10
+#: src/lib/broker-identity.ts:18
+msgid "Unverified broker account"
+msgstr "Unverified broker account"
+
 #: src/pages/Artifacts.tsx:183
 msgid "Upload file"
 msgstr "Upload file"
@@ -2002,24 +2242,30 @@ msgstr "Uploading…"
 msgid "Verified metadata"
 msgstr "Verified metadata"
 
+#: src/components/goals/TradingGoals.tsx:31
+msgid "Verifying execution"
+msgstr "Verifying execution"
+
 #: src/pages/ModelRoutingSettings.tsx:13
 msgid "Vision"
 msgstr "Vision"
 
 #: src/pages/settings-sidebar.tsx:20
-#: src/pages/shell/chat-context.tsx:262
-#: src/pages/shell/chat-context.tsx:677
-#: src/pages/shell/chat-context.tsx:678
 msgid "Voice"
 msgstr "Voice"
 
 #: src/components/call/VoiceStatus.tsx:10
-msgid "Voice disconnected"
-msgstr "Voice disconnected"
+#~ msgid "Voice disconnected"
+#~ msgstr "Voice disconnected"
 
-#: src/lib/user_error.ts:27
+#: src/lib/user_error.ts:48
 msgid "Voice requires a browser with WebRTC and microphone support on HTTPS."
 msgstr "Voice requires a browser with WebRTC and microphone support on HTTPS."
+
+#: src/components/call/CallCard.tsx:95
+#: src/components/call/CallCard.tsx:96
+msgid "Voice settings"
+msgstr "Voice settings"
 
 #: src/components/market/MarketWatch.tsx:186
 #: src/components/trading/Positions.tsx:51
@@ -2031,11 +2277,20 @@ msgstr "Volume"
 msgid "Volume step"
 msgstr "Volume step"
 
+#: src/components/goals/TradingGoals.tsx:15
+#: src/components/goals/TradingGoals.tsx:21
+msgid "Waiting for a condition"
+msgstr "Waiting for a condition"
+
 #: src/components/ai/primitives.tsx:54
 #: src/pages/ActivityList.tsx:115
 #: src/pages/shell/sidebar-activity.tsx:68
 msgid "Waiting for handover"
 msgstr "Waiting for handover"
+
+#: src/lib/user_error.ts:40
+msgid "Waiting for the broker to report the entry position. The accepted order will not be submitted again."
+msgstr "Waiting for the broker to report the entry position. The accepted order will not be submitted again."
 
 #: src/components/ai/primitives.tsx:52
 #: src/pages/ActivityList.tsx:113
@@ -2064,19 +2319,19 @@ msgstr "What this agent is for"
 msgid "Working"
 msgstr "Working"
 
-#: src/pages/Shell.tsx:572
+#: src/pages/Shell.tsx:589
 msgid "Workspace menu"
 msgstr "Workspace menu"
 
-#: src/pages/Shell.tsx:1004
+#: src/pages/Shell.tsx:1062
 msgid "Workspace settings"
 msgstr "Workspace settings"
 
-#: src/pages/shell/chat-context.tsx:872
+#: src/pages/shell/chat-context.tsx:825
 msgid "Yesterday"
 msgstr "Yesterday"
 
-#: src/components/call/RealtimeVoice.tsx:26
+#: src/components/call/CallCard.tsx:174
 msgid "You"
 msgstr "You"
 
@@ -2088,6 +2343,6 @@ msgstr "Your agents’ activity will appear here."
 msgid "Your Lonora workspace"
 msgstr "Your Lonora workspace"
 
-#: src/pages/Shell.tsx:724
+#: src/pages/Shell.tsx:764
 msgid "Your team starts here"
 msgstr "Your team starts here"

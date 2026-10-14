@@ -1,5 +1,6 @@
 """Merge official broker bars under the same account fence as quotes."""
 
+from datetime import UTC, datetime
 from typing import Any
 
 from lonora_contracts.domain import utcnow
@@ -26,12 +27,18 @@ async def merge_candle(
     )
     payload: dict[str, Any] = dict(row.payload) if row and row.connection_version == version else {}
     bars = {value["time"]: value for value in payload.get("candles", [])}
-    value = candle.model_dump(mode="json")
+    value = candle.model_copy(update={"time": candle.time.astimezone(UTC)}).model_dump(mode="json")
     previous = bars.get(value["time"])
     if previous == value:
         return False
     bars[value["time"]] = value
-    values = sorted(bars.values(), key=lambda bar: bar["time"])[-1000:]
+    values = sorted(bars.values(), key=lambda bar: datetime.fromisoformat(bar["time"]))[-1000:]
+    updates = {
+        key: value
+        for key, value in payload.get("stream_bar_updates", {}).items()
+        if key in {bar["time"] for bar in values}
+    }
+    updates[value["time"]] = utcnow().isoformat()
     return await save_snapshot(
         session,
         owner_id,
@@ -44,6 +51,7 @@ async def merge_candle(
             "limit": payload.get("limit", 0),
             "stream_updated_at": utcnow().isoformat(),
             "stream_bar_time": value["time"],
+            "stream_bar_updates": updates,
         },
         version,
         identity,
@@ -59,6 +67,7 @@ async def merge_history(
     candles: list[Candle],
     limit: int,
     version: int,
+    requested_at: datetime,
 ) -> list[Candle]:
     await BrokerSessionRepository().get(session, owner_id, connection_id, lock=True)
     row = await session.get(
@@ -67,15 +76,28 @@ async def merge_history(
         with_for_update=True,
     )
     previous = dict(row.payload) if row and row.connection_version == version else {}
-    values = {value.time.isoformat(): value.model_dump(mode="json") for value in candles}
+    values = {
+        value.time.astimezone(UTC).isoformat().replace("+00:00", "Z"): value.model_copy(
+            update={"time": value.time.astimezone(UTC)}
+        ).model_dump(mode="json")
+        for value in candles
+    }
     existing = previous.get("candles", [])
     # Historical reads reconcile completed bars. Preserve the newest official
     # streamed bar, which historical endpoints commonly deliver one packet behind.
     if previous.get("stream_updated_at") and existing:
-        latest = max(existing, key=lambda value: value["time"])
-        if not values or latest["time"] >= max(values):
+        latest = max(existing, key=lambda value: datetime.fromisoformat(value["time"]))
+        if not values or datetime.fromisoformat(latest["time"]) >= max(
+            datetime.fromisoformat(key) for key in values
+        ):
             values[latest["time"]] = latest
-    merged = sorted(values.values(), key=lambda value: value["time"])[-max(limit, 1) :]
+    for value in existing:
+        updated = previous.get("stream_bar_updates", {}).get(value["time"])
+        if updated and datetime.fromisoformat(updated) >= requested_at:
+            values[value["time"]] = value
+    merged = sorted(values.values(), key=lambda value: datetime.fromisoformat(value["time"]))[
+        -max(limit, 1) :
+    ]
     await save_snapshot(
         session,
         owner_id,

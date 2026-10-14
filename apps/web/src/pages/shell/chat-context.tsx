@@ -14,7 +14,6 @@ import {
   ArrowDown,
   ArrowUp,
   LoaderCircle,
-  Mic,
   Paperclip,
   Plus,
   Settings,
@@ -32,10 +31,8 @@ import {
 } from "react";
 import { SubagentTasks } from "../../components/ai/CollaborationMarker";
 import { AgentActivity, WorkingIndicator } from "../../components/ai/primitives";
-import { VoiceChatCard } from "../../components/call/VoiceChatCard";
 import { FilePreviewPanel } from "../../components/common/FilePreviewPanel";
 import { ToolActivityDisclosure } from "../../components/ToolActivityDisclosure";
-import { useOverlayHistory } from "../../hooks/useOverlayHistory";
 import { useThreads } from "../../hooks/useThreads";
 import type { Agent, Message, Resource, Run } from "../../lib/api";
 import { api } from "../../lib/api";
@@ -64,16 +61,13 @@ export function ThreadViewport({
   const [artifacts, setArtifacts] = useState<Resource[]>([]);
   const [peers, setPeers] = useState<Resource[]>([]);
   const [preview, setPreview] = useState<Resource | null>(null);
-  const [voiceOpen, setVoiceOpen] = useState(false);
   const [actionError, setActionError] = useState<unknown>();
   const [artifactError, setArtifactError] = useState<unknown>();
-  useOverlayHistory(voiceOpen, () => setVoiceOpen(false));
 
   useEffect(() => {
     void threadId;
     setReply(null);
     setPreview(null);
-    setVoiceOpen(false);
     setActionError(undefined);
     setArtifacts([]);
     setPeers([]);
@@ -255,29 +249,6 @@ export function ThreadViewport({
           </>
         }
       />
-      {agentId && voiceOpen && (
-        <div className="template-voice-panel">
-          <div className="template-voice-panel-header">
-            <strong>
-              <Trans>Voice</Trans>
-            </strong>
-            <button
-              type="button"
-              className="template-icon-button"
-              aria-label={t`Close`}
-              onClick={() => setVoiceOpen(false)}
-            >
-              <X size={14} />
-            </button>
-          </div>
-          <VoiceChatCard
-            key={`${agentId}:${threadId}`}
-            agentId={agentId}
-            threadId={threadId}
-            messages={thread.messages}
-          />
-        </div>
-      )}
       <Composer
         key={`composer:${threadId}`}
         threadId={threadId}
@@ -290,8 +261,6 @@ export function ThreadViewport({
         onCancel={() => {
           void changeRun("cancel");
         }}
-        onVoice={agentId ? () => setVoiceOpen((open) => !open) : undefined}
-        voiceOpen={voiceOpen}
       />
       {preview && <FilePreviewPanel artifact={preview} onClose={() => setPreview(null)} />}
     </section>
@@ -307,8 +276,6 @@ export function Composer({
   onClearReply,
   onSend,
   onCancel,
-  onVoice,
-  voiceOpen = false,
 }: {
   threadId: string;
   working: boolean;
@@ -318,8 +285,6 @@ export function Composer({
   onClearReply: () => void;
   onSend: (text: string, ids: string[], reply: string | null) => Promise<void>;
   onCancel: () => void;
-  onVoice?: () => void;
-  voiceOpen?: boolean;
 }) {
   const [text, setText] = useState("");
   const [files, setFiles] = useState<Resource[]>([]);
@@ -670,18 +635,6 @@ export function Composer({
           />
         </div>
         <div ref={actions} className="composer-actions template-composer-actions">
-          {onVoice && !text.trim() && (
-            <button
-              type="button"
-              className="template-icon-button template-voice-button"
-              aria-label={t`Voice`}
-              title={t`Voice`}
-              aria-expanded={voiceOpen}
-              onClick={onVoice}
-            >
-              <Mic size={16} />
-            </button>
-          )}
           <button
             type="submit"
             className="template-icon-button template-send-button"

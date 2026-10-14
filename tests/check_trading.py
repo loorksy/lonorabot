@@ -70,11 +70,20 @@ class ScriptedBroker:
     async def instruments(self) -> list[Instrument]:
         return [await self.instrument("FIXTURE")]
 
+    def stream_candles(self, symbol: str, timeframe: str) -> AsyncIterator[Candle]:
+        raise NotImplementedError("Scripted trade fixture has no market stream")
+
     def stream_quotes(self, symbol: str) -> AsyncIterator[Quote]:
         raise NotImplementedError("Not needed by this scripted execution fixture")
 
     async def quote(self, symbol: str) -> Quote:
-        raise NotImplementedError("Not needed by this scripted execution fixture")
+        return Quote(
+            symbol="FIXTURE",
+            bid=Decimal("100"),
+            ask=Decimal("100.01"),
+            observed_at=utcnow(),
+            source="explicit-scripted-trading-fixture",
+        )
 
     async def candles(self, symbol: str, timeframe: str, limit: int) -> list[Candle]:
         raise NotImplementedError("Not needed by this scripted execution fixture")
