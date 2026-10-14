@@ -17,32 +17,55 @@ function merge(previous: Approval[], rows: Approval[]) {
   });
 }
 
-export function TradeApprovals({ threadId }: { threadId: string }) {
+export function TradeApprovals({
+  threadId,
+  since,
+  onPending,
+}: {
+  threadId: string;
+  since?: number;
+  onPending?: (pending: boolean) => void;
+}) {
   const { revision } = useClient();
   const [rows, setRows] = useState<Approval[]>([]);
   const [error, setError] = useState<unknown>();
   const [busy, setBusy] = useState<string>();
   const pending = useRef(false);
+  const callRequests = useRef(new Set<string>());
   const currentThread = useRef(threadId);
   currentThread.current = threadId;
+  const watching = since !== undefined;
   useEffect(() => {
     void revision;
     let live = true;
-    void api
-      .get<Approval[]>(`/trading/approvals?thread_id=${encodeURIComponent(threadId)}`)
-      .then((data) => {
-        if (live) {
-          setRows((old) => merge(old, data));
-          setError(undefined);
-        }
-      })
-      .catch((caught: unknown) => {
-        if (live) setError(caught);
-      });
+    const load = () => {
+      void api
+        .get<Approval[]>(`/trading/approvals?thread_id=${encodeURIComponent(threadId)}`)
+        .then((data) => {
+          if (live) {
+            for (const row of data) if (row.status === "pending") callRequests.current.add(row.id);
+            setRows((old) => merge(old, data));
+            setError(undefined);
+          }
+        })
+        .catch((caught: unknown) => {
+          if (live) setError(caught);
+        });
+    };
+    load();
+    if (!watching)
+      return () => {
+        live = false;
+      };
+    const timer = window.setInterval(load, 2000);
     return () => {
       live = false;
+      window.clearInterval(timer);
     };
-  }, [threadId, revision]);
+  }, [threadId, revision, watching]);
+  useEffect(() => {
+    onPending?.(rows.some((row) => row.thread_id === threadId && row.status === "pending"));
+  }, [onPending, rows, threadId]);
   async function decide(id: string, decision: "approve" | "reject") {
     if (pending.current) return;
     pending.current = true;
@@ -68,7 +91,14 @@ export function TradeApprovals({ threadId }: { threadId: string }) {
     <>
       {error != null && <p role="alert">{userError(error)}</p>}
       {rows
-        .filter((row) => row.thread_id === threadId)
+        .filter(
+          (row) =>
+            row.thread_id === threadId &&
+            (since === undefined ||
+              row.status === "pending" ||
+              Date.parse(row.created_at) >= since ||
+              callRequests.current.has(row.id)),
+        )
         .map((row) => (
           <article className="card" key={row.id} data-trade-approval={row.id}>
             <strong>

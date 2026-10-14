@@ -50,6 +50,8 @@ class AgentRow(Base):
         ForeignKey("ln_owners.id", ondelete="CASCADE"), index=True
     )
     parent_id: Mapped[str | None] = mapped_column(ForeignKey("ln_agents.id", ondelete="SET NULL"))
+    trading_account_id: Mapped[str | None] = mapped_column(String(36))
+    trading_symbol: Mapped[str | None] = mapped_column(String(80))
     name: Mapped[str] = mapped_column(String(80))
     title: Mapped[str] = mapped_column(String(160), default="")
     description: Mapped[str] = mapped_column(Text, default="")

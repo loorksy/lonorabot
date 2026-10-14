@@ -65,7 +65,9 @@ def tools() -> list[Tool]:
     return [
         Tool(
             "market_symbols",
-            "Discover exact broker symbol names without loading specifications for every instrument. Use before guessing XAUUSD or GOLD; suffixes matter.",
+            "Discover exact broker symbol names without loading specifications for every instrument. "
+            "Use before guessing XAUUSD or GOLD; suffixes matter. When an immutable trading market "
+            "is bound, omit account_id and do not ask the owner to repeat the symbol.",
             AccountInput,
             symbols,
             True,

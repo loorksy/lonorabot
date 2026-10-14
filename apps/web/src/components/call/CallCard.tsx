@@ -11,9 +11,10 @@ import {
   Play,
   Settings,
 } from "lucide-react";
-import type { CSSProperties } from "react";
+import { type CSSProperties, useCallback, useState } from "react";
 import { useVoice } from "../../hooks/useVoice";
 import { userError } from "../../lib/user_error";
+import { TradeApprovals } from "../trading/TradeApprovals";
 import { CallWaveform } from "./CallWaveform";
 import { VoiceStatus } from "./VoiceStatus";
 import "./call.css";
@@ -28,13 +29,19 @@ export function CallCard({
   onRetry?: () => void;
 }) {
   const voice = useVoice();
-  if (!voice.target || voice.minimized) return null;
+  const [pendingApproval, setPendingApproval] = useState(false);
+  const onPending = useCallback((pending: boolean) => {
+    setPendingApproval((current) => (current === pending ? current : pending));
+  }, []);
+  if (!voice.target) return null;
   const { name, avatar, color } = voice.target;
+  const expanded = !voice.minimized || pendingApproval;
   return (
     <section
       className="call-overlay"
       aria-label={t`Call with ${name}`}
       data-testid="call-view"
+      hidden={!expanded}
       style={{ "--call-color": color } as CSSProperties}
     >
       <div className="call-pill">
@@ -111,6 +118,14 @@ export function CallCard({
         <span aria-hidden="true" />
         <ChevronDown size={12} />
       </button>
+      <div className="call-approvals">
+        <TradeApprovals
+          key={voice.target.threadId}
+          threadId={voice.target.threadId}
+          since={voice.startedAt ?? Number.POSITIVE_INFINITY}
+          onPending={onPending}
+        />
+      </div>
       {voice.playbackBlocked && (
         <button
           type="button"

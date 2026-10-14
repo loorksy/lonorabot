@@ -6,6 +6,7 @@ from lonora_db.runs import require_lease
 
 from .base import Tool
 from .context import ToolContext
+from .market_binding import guard_market_tool, prepare_market_arguments, scope_market_result
 from .schema import validate_arguments
 
 
@@ -28,5 +29,10 @@ class ToolRegistry:
             raise LonoraError("tool_not_allowed", 403)
         async with context.db.sessions() as session:
             await require_lease(session, context.lease)
-        arguments = validate_arguments(tool.input_type, call.arguments)
-        return await tool.handler(context.for_call(call.id), arguments)
+        arguments = await prepare_market_arguments(
+            context, call.name, dict(call.arguments), tool.input_type
+        )
+        arguments = validate_arguments(tool.input_type, arguments)
+        arguments = await guard_market_tool(context, call.name, arguments)
+        result = await tool.handler(context.for_call(call.id), arguments)
+        return await scope_market_result(context, call.name, result)

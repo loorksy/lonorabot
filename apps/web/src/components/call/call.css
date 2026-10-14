@@ -208,3 +208,16 @@
     animation: none;
   }
 }
+
+.call-approvals:has(article) {
+  max-height: min(50vh, 360px);
+  overflow-y: auto;
+  margin-top: 12px;
+}
+.call-approvals .card {
+  margin: 0 0 8px;
+  padding: 12px;
+}
+.call-approvals .actions button {
+  flex: 1;
+}

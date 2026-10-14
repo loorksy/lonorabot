@@ -4,6 +4,7 @@ import json
 import math
 from typing import Any, Literal, cast
 
+from lonora_db.agent_binding import binding_context
 from lonora_db.messages import history
 from lonora_db.schema import AgentRow, MemoryRow, ScratchpadRow, VoiceSessionRow
 from sqlalchemy import select
@@ -158,7 +159,12 @@ async def voice_context(
         "scratchpad": await _scratchpad(session, owner_id, agent.id),
         "previous_call_transcript": await _previous_call(session, owner_id, agent.id, thread_id),
     }
-    instructions = "\n\n".join([authority, CONTEXT_PREAMBLE, _json(context), CONTEXT_AUTHORITY])
+    parts = [authority]
+    market = binding_context(agent)
+    if market:
+        parts.append(market)
+    parts.extend([CONTEXT_PREAMBLE, _json(context), CONTEXT_AUTHORITY])
+    instructions = "\n\n".join(parts)
     remaining = MAX_CONTEXT_BYTES - len(instructions.encode()) - 2
     seed: list[dict[str, Any]] = []
     for message in reversed(await history(session, owner_id, thread_id, 48)):
