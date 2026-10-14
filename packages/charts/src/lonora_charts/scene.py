@@ -1,3 +1,5 @@
+import json
+from hashlib import sha256
 from typing import Any
 
 from lonora_contracts.chart import ChartState
@@ -7,10 +9,18 @@ from .indicators import indicator_series
 
 
 def chart_scene(state: ChartState, candles: list[Candle]) -> dict[str, Any]:
+    candle_data = [c.model_dump(mode="json") for c in candles]
     return {
+        "data_revision": sha256(
+            json.dumps(
+                {"state": state.model_dump(mode="json"), "candles": candle_data},
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode()
+        ).hexdigest(),
         "symbol": state.symbol,
         "timeframe": state.timeframe,
-        "candles": [c.model_dump(mode="json") for c in candles],
+        "candles": candle_data,
         "indicators": [
             {
                 "name": i.name,

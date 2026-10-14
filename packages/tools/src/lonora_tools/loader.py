@@ -22,6 +22,7 @@ MODULES = (
     "chart_snapshot",
     "account",
     "trade",
+    "trading_goal",
     "runtime_control",
 )
 

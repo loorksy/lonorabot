@@ -6,6 +6,13 @@ from .domain import Contract
 
 class AccountState(Contract):
     id: str
+    broker: str | None = None
+    login: str | None = None
+    server: str | None = None
+    name: str | None = None
+    platform: str | None = None
+    trade_allowed: bool | None = None
+    investor_mode: bool | None = None
     currency: str
     balance: Decimal
     equity: Decimal

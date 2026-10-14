@@ -49,7 +49,9 @@ async def list_accounts(context: ToolContext, args: dict[str, Any]) -> dict[str,
             "accounts": [
                 {
                     "connection_id": row.id,
-                    "broker_account_id": row.payload["account_id"],
+                    "broker_identity": row.state.get("broker_identity")
+                    if row.state.get("broker_identity", {}).get("connection_version") == row.version
+                    else None,
                     "provider": row.payload["provider"],
                     "enabled": row.payload["enabled"],
                     "credentials_configured": bool(row.payload.get("secret_id")),
@@ -57,12 +59,16 @@ async def list_accounts(context: ToolContext, args: dict[str, Any]) -> dict[str,
                 for row in rows
             ],
             "guidance": "Use connection_id as account_id in account, market and trading tools. "
-            "A saved connection is not proof of live broker connectivity; verify using account_read.",
+            "Present accounts to the user using broker_identity broker/login/server, never transport IDs as account numbers. "
+            "Missing identity means it has not been observed. Verify using account_read, which refreshes native identity; a saved connection is not proof of live broker connectivity.",
         }
 
 
 async def read(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
-    return await account_snapshot(await context.brokers.get(context.owner_id, args["account_id"]))
+    return await account_snapshot(
+        await context.brokers.get(context.owner_id, args["account_id"]),
+        await context.brokers.account(context.owner_id, args["account_id"]),
+    )
 
 
 def tools() -> list[Tool]:
@@ -77,7 +83,7 @@ def tools() -> list[Tool]:
         Tool(
             "list_accounts",
             "List the owner's saved broker connections with exact internal "
-            "connection_id and external broker_account_id. No credentials are returned. "
+            "connection_id for tool routing and cached broker-native identity. No credentials or MetaApi transport account IDs are returned. "
             "Discover these before account_read; do not guess IDs.",
             ListAccountsInput,
             list_accounts,

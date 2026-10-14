@@ -1,8 +1,9 @@
 """Resident broker-neutral observations. PostgreSQL snapshots survive process/browser loss."""
 
 import asyncio
+import logging
 import time
-from collections.abc import Iterable
+from collections.abc import Awaitable, Callable, Iterable
 from datetime import datetime, timedelta
 from typing import Any
 from uuid import uuid4
@@ -11,6 +12,7 @@ from lonora_adapters.brokers.base import BrokerManager
 from lonora_contracts.domain import utcnow
 from lonora_contracts.market import Candle, Instrument, Quote
 from lonora_core.chart_controller import validate_timeframe
+from lonora_core.error_logging import safe_exception_message
 from lonora_core.trading_run_market import require_exact_symbol
 from lonora_core.user_error import LonoraError
 from lonora_db.client import Database
@@ -19,7 +21,10 @@ from lonora_db.market_snapshots import save_snapshot, snapshot_id
 from lonora_db.schema import BrokerSessionRow, CloudChartRow, MarketSnapshotRow, MarketWatchRow
 from sqlalchemy import select
 
+from .candle_store import merge_candle, merge_history
 from .candles import validate_candle_series
+
+logger = logging.getLogger(__name__)
 
 
 class RuntimeMarketAdapter:
@@ -42,6 +47,9 @@ class MarketRuntime:
     def __init__(self, db: Database, brokers: BrokerManager, owner_id: str):
         self.db, self.brokers, self.owner_id = db, brokers, owner_id
         self.tasks: dict[tuple[str, str], asyncio.Task[None]] = {}
+        self.candle_tasks: dict[tuple[str, str, str], asyncio.Task[None]] = {}
+        self.candle_versions: dict[tuple[str, str, str], int] = {}
+        self.on_update: Callable[[str, str, str | None, str], Awaitable[None]] | None = None
         self.versions: dict[tuple[str, str], int] = {}
         self.last_events: dict[tuple[str, str], float] = {}
         self.closed = False
@@ -111,29 +119,51 @@ class MarketRuntime:
         self, connection_id: str, symbol: str, timeframe: str, limit: int = 500
     ) -> list[Candle]:
         validate_timeframe(timeframe)
-        cached = await self.cached(connection_id, symbol, timeframe, 15)
-        if cached and int(cached.get("limit", 0)) >= limit:
+        cached = await self.cached(connection_id, symbol, timeframe, 60)
+        if (
+            cached
+            and int(cached.get("limit", 0)) >= limit
+            and cached.get("history_updated_at")
+            and datetime.fromisoformat(cached["history_updated_at"])
+            > utcnow() - timedelta(seconds=60)
+        ):
             return [Candle.model_validate(value) for value in cached["candles"]][-limit:]
         async with self.fetch_slots:
             broker = await self.brokers.get(self.owner_id, connection_id)
             version = self.brokers.connections[connection_id][0]
+            requested_at = utcnow()
             candles = validate_candle_series(await broker.candles(symbol, timeframe, limit))
             for candle in candles:
                 require_exact_symbol(symbol, candle.symbol)
-            await self.store(
-                connection_id,
-                symbol,
-                timeframe,
-                {
-                    "candles": [value.model_dump(mode="json") for value in candles],
-                    "limit": limit,
-                },
-                version,
-            )
-            return candles
+            async with self.db.sessions() as session, session.begin():
+                return await merge_history(
+                    session,
+                    self.owner_id,
+                    connection_id,
+                    symbol,
+                    timeframe,
+                    candles,
+                    limit,
+                    version,
+                    requested_at,
+                )
+
+    async def notify(self, connection_id: str, symbol: str, timeframe: str | None) -> None:
+        if self.on_update:
+            try:
+                await self.on_update(connection_id, symbol, timeframe, self.identity)
+            except asyncio.CancelledError:
+                raise
+            except Exception as error:
+                logger.warning(
+                    "market_scene_update_failed error_type=%s message=%s",
+                    type(error).__name__,
+                    safe_exception_message(error),
+                )
 
     async def consume(self, connection_id: str, symbol: str) -> None:
         failures = 0
+        version = self.versions[(connection_id, symbol)]
         while not self.closed:
             try:
                 broker = await self.brokers.get(self.owner_id, connection_id)
@@ -144,7 +174,7 @@ class MarketRuntime:
                         symbol,
                         "",
                         quote.model_dump(mode="json"),
-                        self.versions.get((connection_id, symbol)),
+                        version,
                         self.identity,
                     )
                     if accepted:
@@ -171,12 +201,79 @@ class MarketRuntime:
                                 },
                             )
                         self.last_events[key] = time.monotonic()
+                    if accepted:
+                        await self.notify(connection_id, symbol, None)
                     failures = 0
             except asyncio.CancelledError:
                 raise
-            except Exception:
+            except Exception as error:
+                logger.warning(
+                    "market_stream_failed error_type=%s message=%s",
+                    type(error).__name__,
+                    safe_exception_message(error),
+                )
                 failures += 1
             await asyncio.sleep(min(30, 2 ** min(failures, 5)))
+
+    async def consume_candles(self, connection_id: str, symbol: str, timeframe: str) -> None:
+        failures = 0
+        version = self.candle_versions[(connection_id, symbol, timeframe)]
+        while not self.closed:
+            try:
+                broker = await self.brokers.get(self.owner_id, connection_id)
+                async for candle in broker.stream_candles(symbol, timeframe):
+                    require_exact_symbol(symbol, candle.symbol)
+                    if candle.timeframe != timeframe:
+                        raise LonoraError("broker_candle_timeframe_mismatch", 502)
+                    async with self.db.sessions() as session, session.begin():
+                        accepted = await merge_candle(
+                            session,
+                            self.owner_id,
+                            connection_id,
+                            candle,
+                            version,
+                            self.identity,
+                        )
+                    if accepted:
+                        await self.notify(connection_id, symbol, timeframe)
+                        from .watchers import check_watches
+
+                        await check_watches(
+                            self.db,
+                            self.brokers,
+                            candle_update=candle,
+                            connection_id=connection_id,
+                            owner_id=self.owner_id,
+                        )
+                    failures = 0
+            except asyncio.CancelledError:
+                raise
+            except Exception as error:
+                logger.warning(
+                    "market_stream_failed error_type=%s message=%s",
+                    type(error).__name__,
+                    safe_exception_message(error),
+                )
+                failures += 1
+            await asyncio.sleep(min(30, 2 ** min(failures, 5)))
+
+    async def synchronize_candles(self, targets: Iterable[tuple[str, str, str]]) -> None:
+        wanted = {key for key in targets if key[:2] in self.tasks}
+        for key, task in list(self.candle_tasks.items()):
+            if (
+                key not in wanted
+                or task.done()
+                or self.candle_versions.get(key) != self.versions.get(key[:2])
+            ):
+                task.cancel()
+                await asyncio.gather(task, return_exceptions=True)
+                del self.candle_tasks[key]
+                self.candle_versions.pop(key, None)
+        for key in sorted(wanted - self.candle_tasks.keys()):
+            self.candle_versions[key] = self.versions[key[:2]]
+            self.candle_tasks[key] = asyncio.create_task(
+                self.consume_candles(*key), name="candles:" + ":".join(key)
+            )
 
     async def synchronize(self, targets: Iterable[tuple[str, str]]) -> None:
         async with self.db.sessions() as session:
@@ -249,13 +346,26 @@ class MarketRuntime:
             if value.get("enabled", True) and value.get("kind", "price") in {"price", "indicator"}
         )
         await self.synchronize(targets)
+        candle_targets = {
+            (str(value["account_id"]), str(value["symbol"]), str(value.get("timeframe", "1h")))
+            for value in chart_payloads
+        }
+        candle_targets.update(
+            (str(value["account_id"]), str(value["symbol"]), str(value.get("timeframe", "1h")))
+            for value in watch_payloads
+            if value.get("enabled", True) and value.get("kind") == "indicator"
+        )
+        await self.synchronize_candles(candle_targets)
 
     async def close(self) -> None:
         self.closed = True
-        for task in self.tasks.values():
+        for task in [*self.tasks.values(), *self.candle_tasks.values()]:
             task.cancel()
-        await asyncio.gather(*self.tasks.values(), return_exceptions=True)
+        await asyncio.gather(
+            *self.tasks.values(), *self.candle_tasks.values(), return_exceptions=True
+        )
         self.tasks.clear()
+        self.candle_tasks.clear()
         async with self.db.sessions() as session, session.begin():
             rows = (
                 await session.scalars(

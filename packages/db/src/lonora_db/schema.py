@@ -161,6 +161,10 @@ class MemoryRow(Base):
 
 
 class RoutineRow(Base):
+    goal_id: Mapped[str | None] = mapped_column(
+        ForeignKey("ln_trading_goals.id", ondelete="CASCADE")
+    )
+    step_id: Mapped[str | None] = mapped_column(String(64))
     __tablename__ = "ln_routines"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     owner_id: Mapped[str] = mapped_column(ForeignKey("ln_owners.id", ondelete="CASCADE"))
@@ -342,4 +346,28 @@ class MarketSnapshotRow(Base):
     timeframe: Mapped[str] = mapped_column(String(12))
     connection_version: Mapped[int] = mapped_column(Integer)
     payload: Mapped[dict[str, Any]] = mapped_column(JSON)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class TradingGoalRow(ResourceRow):
+    __tablename__ = "ln_trading_goals"
+
+
+class GoalDecisionRow(Base):
+    __tablename__ = "ln_goal_decisions"
+    __table_args__ = (UniqueConstraint("goal_id", "step_id", "attempt", name="goal_step_attempt"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    goal_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_trading_goals.id", ondelete="CASCADE"), index=True
+    )
+    owner_id: Mapped[str] = mapped_column(ForeignKey("ln_owners.id", ondelete="CASCADE"))
+    step_id: Mapped[str] = mapped_column(String(64))
+    attempt: Mapped[int] = mapped_column(Integer, default=1)
+    run_id: Mapped[str | None] = mapped_column(ForeignKey("ln_runs.id", ondelete="SET NULL"))
+    operation_id: Mapped[str] = mapped_column(String(80), unique=True)
+    status: Mapped[str] = mapped_column(String(24), default="planned")
+    request: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    evidence: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    result: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

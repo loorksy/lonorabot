@@ -7,6 +7,7 @@ from lonora_tools.context import ToolContext
 
 from ..skills.loader import load_prompt
 from .attachments import attachment_context
+from .goals import goal_context
 from .governance import govern_context
 from .history import history_context
 from .memory import read_memory_context
@@ -42,6 +43,13 @@ async def build_context(context: ToolContext) -> list[ModelMessage]:
                 await read_skill_context(session, agent.id),
                 await reply_context(session, thread.id, run.input_seq),
                 wake_context(run),
+                await goal_context(
+                    session,
+                    context.owner_id,
+                    context.agent_id,
+                    context.thread_id,
+                    run.model_metadata.get("goal_id"),
+                ),
             ]
         )
         if thread.group_id:

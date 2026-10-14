@@ -282,10 +282,53 @@ async def test_delegated_transcript_is_durable_once_and_close_keeps_work(
     assert [row.content for row in messages] == [delta["delta"]]
     assert len(runs) == 1 and runs[0].status == "queued"
     await end_voice_session(workspace["runtime"].db, workspace["owner"], voice.session_id)
+    await voice.delegate()
     assert not await voice.tick()
     async with workspace["runtime"].db.sessions() as session:
         run = await session.get(RunRow, runs[0].id)
         assert run and run.status == "queued"
+
+
+@pytest.mark.asyncio
+async def test_close_before_delegation_does_not_submit_new_agent_work(
+    workspace: dict[str, Any],
+) -> None:
+    voice = await resident(workspace)
+    await voice.update(
+        {
+            "type": "session.input_transcript.delta",
+            "event_id": "speech-before-close",
+            "start_ms": 0,
+            "end_ms": 1200,
+            "delta": "Analyze my portfolio risk.",
+        }
+    )
+    await voice.update(
+        {
+            "type": "session.delegation.created",
+            "offset_ms": 1200,
+            "delegation": {"id": "pending-before-close", "target": "client"},
+        }
+    )
+    await end_voice_session(workspace["runtime"].db, workspace["owner"], voice.session_id)
+    # A Gateway tick may have admitted another delegate pass just before DELETE
+    # committed. A closing call must not turn the buffered speech into new work.
+    await asyncio.gather(voice.delegate(), voice.delegate())
+    async with workspace["runtime"].db.sessions() as session:
+        messages = list(
+            (
+                await session.scalars(
+                    select(MessageRow).where(MessageRow.thread_id == workspace["thread"])
+                )
+            ).all()
+        )
+        runs = list(
+            (
+                await session.scalars(select(RunRow).where(RunRow.thread_id == workspace["thread"]))
+            ).all()
+        )
+    assert messages == []
+    assert runs == []
 
 
 @pytest.mark.asyncio

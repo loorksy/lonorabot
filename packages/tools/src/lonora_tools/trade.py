@@ -9,6 +9,9 @@ from .context import ToolContext
 
 async def execute(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     args.pop("operation_id", None)
+    for field in ("clear_stop_loss", "clear_take_profit"):
+        if args.get(field) is False:
+            args.pop(field)
     args["operation_id"] = stable_id(context.lease.run_id, "trade:" + request_hash(args))
     request = TradeRequest.model_validate(args)
     return (await context.trading.execute(context.owner_id, request, context.lease)).model_dump(
@@ -20,7 +23,7 @@ def tools() -> list[Tool]:
     return [
         Tool(
             "trade_execute",
-            "Execute a structured broker operation only when global Trading ON allows it. Identical operations within one run are deduplicated; ambiguous results are reconciled without blind resend.",
+            "Execute a structured broker operation only when global Trading ON allows it. For a saved goal use goal_step_execute, never this tool. Identical operations within one run are deduplicated; ambiguous results are reconciled without blind resend.",
             TradeRequest,
             execute,
         )

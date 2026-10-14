@@ -3,4 +3,8 @@ from lonora_session.idempotency import request_hash
 
 
 def trade_fingerprint(request: TradeRequest) -> str:
-    return request_hash(request.model_dump(mode="json"))
+    payload = request.model_dump(mode="json")
+    for flag in ("clear_stop_loss", "clear_take_profit"):
+        if not payload[flag]:
+            payload.pop(flag)
+    return request_hash(payload)

@@ -6,14 +6,22 @@ from lonora_adapters.brokers.base import BrokerManager
 from lonora_adapters.market.economic_calendar import EconomicCalendarAdapter
 from lonora_charts.indicators import indicator_series
 from lonora_contracts.domain import utcnow
-from lonora_contracts.market import Quote
+from lonora_contracts.market import Candle, Quote
 from lonora_contracts.market_watch import Watch
 from lonora_contracts.runs import RunRequest
 from lonora_core.market_watch import condition_met
 from lonora_core.user_error import LonoraError
+from lonora_db.broker_sessions import BrokerSessionRepository
 from lonora_db.client import Database
+from lonora_db.market_snapshots import snapshot_id
 from lonora_db.runs import create_run
-from lonora_db.schema import AgentRow, IntegrationRow, MarketWakeReceiptRow, MarketWatchRow
+from lonora_db.schema import (
+    AgentRow,
+    IntegrationRow,
+    MarketSnapshotRow,
+    MarketWakeReceiptRow,
+    MarketWatchRow,
+)
 from lonora_session.idempotency import request_hash, stable_id
 from sqlalchemy import select
 
@@ -87,11 +95,44 @@ async def observe(
     return current, request_hash(payload), {"position": payload, "position_id": config.position_id}
 
 
+async def observe_stream_indicator(
+    db: Database, row: MarketWatchRow, config: Watch
+) -> tuple[Decimal, str, dict[str, Any]]:
+    async with db.sessions() as session:
+        connection = await BrokerSessionRepository().get(session, row.owner_id, config.account_id)
+        snapshot = await session.get(
+            MarketSnapshotRow,
+            snapshot_id(row.owner_id, config.account_id, config.symbol, config.timeframe),
+        )
+        if (
+            snapshot is None
+            or snapshot.connection_version != connection.version
+            or not connection.payload.get("enabled")
+        ):
+            raise LonoraError("watch_candles_unavailable", 409)
+        candles = [Candle.model_validate(value) for value in snapshot.payload.get("candles", [])]
+    if not candles:
+        raise LonoraError("watch_candles_unavailable", 409)
+    values = indicator_series(config.indicator, candles, config.period).get(config.series)
+    if not values or values[-1] is None:
+        raise LonoraError("watch_indicator_unavailable", 409)
+    metadata = {
+        "indicator": config.indicator,
+        "series": config.series,
+        "value": values[-1],
+        "time": candles[-1].time.isoformat(),
+        "symbol": config.symbol,
+        "timeframe": config.timeframe,
+    }
+    return Decimal(str(values[-1])), request_hash(metadata), metadata
+
+
 async def check_watches(
     db: Database,
     brokers: BrokerManager,
     *,
     price_update: Quote | None = None,
+    candle_update: Candle | None = None,
     connection_id: str | None = None,
     owner_id: str | None = None,
 ) -> int:
@@ -109,6 +150,13 @@ async def check_watches(
                 MarketWatchRow.payload["account_id"].as_string() == connection_id,
                 MarketWatchRow.payload["symbol"].as_string() == price_update.symbol,
             )
+        if candle_update:
+            query = query.where(
+                MarketWatchRow.payload["kind"].as_string() == "indicator",
+                MarketWatchRow.payload["account_id"].as_string() == connection_id,
+                MarketWatchRow.payload["symbol"].as_string() == candle_update.symbol,
+                MarketWatchRow.payload["timeframe"].as_string() == candle_update.timeframe,
+            )
         watches = list((await session.scalars(query.limit(200))).all())
     triggered = 0
     for original in watches:
@@ -116,8 +164,27 @@ async def check_watches(
         now = utcnow()
         if not config.enabled or not original.agent_id or not original.thread_id:
             continue
+        if config.goal_id:
+            from lonora_db.trading_goals import owned_goal
+
+            async with db.sessions() as session:
+                goal = await owned_goal(session, original.owner_id, config.goal_id)
+            if (
+                goal.state.get("status") in {"cancelled", "completed"}
+                or config.goal_plan_version is not None
+                and config.goal_plan_version != goal.state.get("plan_version", 1)
+            ):
+                async with db.sessions() as session, session.begin():
+                    obsolete = await session.get(MarketWatchRow, original.id, with_for_update=True)
+                    if obsolete is not None:
+                        obsolete.payload = {**obsolete.payload, "enabled": False}
+                        obsolete.version += 1
+                continue
+            if goal.state.get("status") == "paused":
+                continue
         if (
             price_update is None
+            and candle_update is None
             and original.state.get("next_check")
             and datetime.fromisoformat(original.state["next_check"]) > now
         ):
@@ -128,6 +195,10 @@ async def check_watches(
                     price_update.bid,
                     price_update.observed_at.isoformat(),
                     {"quote": price_update.model_dump(mode="json")},
+                )
+            elif candle_update:
+                current, observation, metadata = await observe_stream_indicator(
+                    db, original, config
                 )
             else:
                 current, observation, metadata = await observe(db, brokers, original, config)
@@ -153,6 +224,7 @@ async def check_watches(
                 continue
             if (
                 price_update is None
+                and candle_update is None
                 and row.state.get("next_check")
                 and datetime.fromisoformat(row.state["next_check"]) > now
             ):
@@ -188,6 +260,22 @@ async def check_watches(
             ):
                 receipt_id = stable_id(row.id, observation + ":" + config.condition)
                 if await session.get(MarketWakeReceiptRow, receipt_id) is None:
+                    if config.goal_id:
+                        from lonora_db.trading_goals import owned_goal
+                        from lonora_db.transactions import owned_thread
+
+                        await owned_thread(session, row.owner_id, row.thread_id or "", lock=True)
+                        goal = await owned_goal(session, row.owner_id, config.goal_id, True)
+                        if (
+                            config.goal_plan_version is not None
+                            and config.goal_plan_version != goal.state.get("plan_version", 1)
+                            or goal.state.get("status") not in {"active", "waiting"}
+                            or goal.state.get("current_step") != config.step_id
+                            or goal.state["steps"].get(config.step_id, {}).get("status")
+                            in {"completed", "blocked", "executing"}
+                        ):
+                            row.state = state
+                            continue
                     run = await create_run(
                         session,
                         row.owner_id,
@@ -198,6 +286,14 @@ async def check_watches(
                             prompt=config.prompt,
                             metadata={
                                 "watch_id": row.id,
+                                "wake_receipt_id": receipt_id,
+                                "previous_value": str(previous) if previous is not None else None,
+                                "current_value": str(current),
+                                **(
+                                    {"goal_id": config.goal_id, "step_id": config.step_id}
+                                    if config.goal_id
+                                    else {}
+                                ),
                                 "symbol": config.symbol,
                                 "observation": observation,
                                 **metadata,

@@ -3,7 +3,7 @@ from typing import Any
 from lonora_contracts.domain import Contract
 from lonora_contracts.routines import RoutineCreate
 from lonora_db.routines import create_routine, owned_routine, routine_data
-from lonora_db.runs import require_lease
+from lonora_db.runs import locked_run_thread, require_lease
 from lonora_db.schema import RoutineRow
 from sqlalchemy import select
 
@@ -19,7 +19,7 @@ class RoutineToggle(Contract):
 
 async def create(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     async with context.db.sessions() as session, session.begin():
-        await require_lease(session, context.lease, lock=True)
+        await locked_run_thread(session, context.lease)
         row = await create_routine(
             session,
             context.owner_id,

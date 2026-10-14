@@ -38,6 +38,9 @@ async def main() -> None:
                 "snapshot": {
                     "balance": "1234.50",
                     "currency": "USD",
+                    "broker": "Explicit fixture broker",
+                    "login": "123456",
+                    "server": "Fixture-Demo",
                     "instruments": [
                         {
                             "symbol": "XAUUSD.a",
@@ -87,7 +90,7 @@ async def main() -> None:
             ToolCall(id="list", name="list_accounts", arguments={}), context, read_only=True
         )
         row = next(item for item in directory["accounts"] if item["connection_id"] == connection_id)
-        assert row["broker_account_id"] == external_id
+        assert "broker_account_id" not in row and external_id not in str(directory)
         assert "secret_id" not in row and "api_key" not in row
         try:
             await registry.execute(
@@ -106,6 +109,21 @@ async def main() -> None:
             read_only=True,
         )
         assert "1234.50" in str(actual) and "USD" in str(actual), actual
+        refreshed = await registry.execute(
+            ToolCall(id="native-identity", name="list_accounts", arguments={}),
+            context,
+            read_only=True,
+        )
+        identity = next(
+            item["broker_identity"]
+            for item in refreshed["accounts"]
+            if item["connection_id"] == connection_id
+        )
+        assert (
+            identity["broker"] == "Explicit fixture broker"
+            and identity["login"] == "123456"
+            and identity["server"] == "Fixture-Demo"
+        )
         print(
             "PASS saved account discovery uses the internal connection ID and reads actual imported balance without exposing secrets"
         )
@@ -155,7 +173,11 @@ async def main() -> None:
         )
         assert len(candles["candles"]) == 2
         artifact = await registry.execute(
-            ToolCall(id="chart", name="chart_snapshot", arguments={**base, "timeframe": "15m"}),
+            ToolCall(
+                id="chart",
+                name="chart_snapshot",
+                arguments={**base, "timeframe": "15m", "format": "svg"},
+            ),
             context,
         )
         assert artifact["payload"]["media_type"] == "image/svg+xml"

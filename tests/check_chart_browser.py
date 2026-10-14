@@ -3,12 +3,15 @@
 import asyncio
 import json
 import sys
+from copy import deepcopy
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, cast
 from uuid import uuid4
 
 from check_streaming import Fixture
 from lonora_charts.runtime import refresh_chart
+from lonora_charts.state import inspect_chart
+from lonora_db.schema import TradingAccountRow
 
 
 async def action(data: dict[str, Any]):
@@ -124,6 +127,36 @@ async def action(data: dict[str, Any]):
                 force=True,
             )
             return await fixture.request("GET", f"/charts/{data['chart']}/scene")
+        if data["action"] == "live":
+            chart = cast(list[dict[str, Any]], await fixture.request("GET", "/charts"))
+            selected = next(row for row in chart if row["id"] == data["chart"])
+            timeframe = selected["payload"]["timeframe"]
+            async with fixture.runtime.db.sessions() as session:
+                row = await session.get(TradingAccountRow, data["account"])
+                assert row is not None
+                snapshot = deepcopy(row.payload)
+            values = snapshot["candles"][data["symbol"] + ":" + timeframe]
+            value = values[int(data.get("index", -1))]
+            value["close"] = str(data.get("close", "250"))
+            value["high"] = str(max(float(value["high"]), float(value["close"])))
+            # The import API intentionally initializes once. Feed the explicit
+            # simulator source rather than attempting a second account import.
+            async with fixture.runtime.db.sessions() as session, session.begin():
+                row = await session.get(TradingAccountRow, data["account"], with_for_update=True)
+                assert row is not None
+                row.payload = snapshot
+            market = fixture.runtime.services(fixture.owner).market
+            await market.maintain()
+            for _ in range(200):
+                result = await inspect_chart(fixture.runtime.db, fixture.owner, data["chart"])
+                if (
+                    result["scene"]
+                    and result["scene"]["candles"][int(data.get("index", -1))]["close"]
+                    == value["close"]
+                ):
+                    return result["scene"]
+                await asyncio.sleep(0.02)
+            raise AssertionError("resident simulation stream did not publish its imported bar")
         if data["action"] == "cleanup":
             if data.get("chart"):
                 await fixture.request("DELETE", "/charts/" + data["chart"])
