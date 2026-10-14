@@ -41,6 +41,25 @@ export function userError(error: unknown) {
     case "chart_data_unavailable":
     case "broker_candles_unavailable":
       return t`Broker candles are unavailable for this symbol and timeframe.`;
+    case "symbol_not_found":
+      return t`This exact symbol is not available from your broker.`;
+    case "broker_account_not_found":
+      return t`Broker account not found.`;
+    case "broker_credentials_rejected":
+      return t`Broker authentication was rejected.`;
+    case "broker_candles_timeout":
+      return t`Historical broker candles timed out. Retry the chart refresh.`;
+    case "broker_candles_request_rejected":
+      return t`The broker rejected this timeframe or candle request.`;
+    case "broker_rate_limited":
+      return t`The broker market-data service is rate limited.`;
+    case "broker_candles_not_found":
+      return t`No candle history was found for this symbol and timeframe.`;
+    case "broker_candles_mismatch":
+    case "broker_candles_invalid":
+      return t`Broker candles contain invalid or mismatched data.`;
+    case "unsupported_timeframe":
+      return t`That chart timeframe is not supported by this broker.`;
     case "broker_quote_unavailable":
       return t`The broker quote is unavailable for this exact symbol.`;
     case "broker_instrument_unavailable":

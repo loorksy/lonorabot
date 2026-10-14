@@ -13,7 +13,10 @@ export function ChartLiveFeed({
   return (
     <div className="row muted" role="status">
       {status === "failed" ? (
-        <span>{userError(errorCode ?? "chart_unavailable")}</span>
+        <span>
+          {userError(errorCode ?? "chart_unavailable")}{" "}
+          <code>{errorCode ?? "chart_unavailable"}</code>
+        </span>
       ) : (
         <span>
           <Trans>Cloud chart</Trans>

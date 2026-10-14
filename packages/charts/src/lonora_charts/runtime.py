@@ -1,6 +1,7 @@
 """Gateway-owned, fenced chart refresh. Browser requests read durable derived evidence."""
 
 import asyncio
+import logging
 from datetime import datetime, timedelta
 from typing import Any
 from uuid import uuid4
@@ -9,6 +10,7 @@ from lonora_adapters.brokers.base import BrokerManager
 from lonora_contracts.chart import ChartState
 from lonora_contracts.domain import utcnow
 from lonora_contracts.runs import Lease
+from lonora_core.error_logging import safe_exception_message
 from lonora_core.user_error import LonoraError
 from lonora_db.client import Database
 from lonora_db.events import emit
@@ -17,6 +19,18 @@ from lonora_db.schema import CloudChartRow, MarketWatchRow
 from sqlalchemy import select
 
 from .controller import render_scene
+
+logger = logging.getLogger(__name__)
+
+
+def log_safe_exception(logger: logging.Logger, event: str, error: Exception, *, code: str) -> None:
+    logger.warning(
+        "%s code=%s error_type=%s message=%s",
+        event,
+        code,
+        (error.diagnostic_type if isinstance(error, LonoraError) else None) or type(error).__name__,
+        safe_exception_message(error),
+    )
 
 
 async def refresh_chart(
@@ -54,7 +68,7 @@ async def refresh_chart(
         ):
             return False
         fence = int(state.get("runtime_fence", 0)) + 1
-        revision, config = row.version, ChartState.model_validate(row.payload)
+        revision, payload = row.version, row.payload
         row.state = {
             **state,
             "runtime_owner": identity,
@@ -64,11 +78,14 @@ async def refresh_chart(
     scene: dict[str, Any] | None = None
     code: str | None = None
     try:
+        config = ChartState.model_validate(payload)
         scene = await render_scene(brokers, owner_id, config)
     except LonoraError as error:
         code = error.code
-    except Exception:
+        log_safe_exception(logger, "chart_refresh_failed", error, code=code)
+    except Exception as error:
         code = "chart_refresh_unavailable"
+        log_safe_exception(logger, "chart_refresh_failed", error, code=code)
     async with db.sessions() as session, session.begin():
         row = await session.get(CloudChartRow, chart_id, with_for_update=True)
         if row is None or row.owner_id != owner_id or row.version != revision:
@@ -161,7 +178,13 @@ async def chart_runtime_tick(
         async with semaphore:
             try:
                 return await refresh_chart(db, brokers, owner_id, row.id, identity)
-            except LonoraError:
+            except LonoraError as error:
+                log_safe_exception(logger, "chart_runtime_failed", error, code=error.code)
+                return False
+            except Exception as error:
+                log_safe_exception(
+                    logger, "chart_runtime_failed", error, code="chart_refresh_unavailable"
+                )
                 return False
 
     return sum(await asyncio.gather(*(refresh(row) for row in charts)))

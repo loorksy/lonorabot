@@ -1,4 +1,5 @@
 import { Trans } from "@lingui/react/macro";
+import { errorCode } from "@lonora/core";
 import { useCharts } from "../../hooks/useCharts";
 import { userError } from "../../lib/user_error";
 import { ChartAnnotations } from "./ChartAnnotations";
@@ -56,7 +57,11 @@ export function ChartWorkspace({
           onRefresh={() => void workspace.refresh()}
         />
       )}
-      {error != null && <p role="alert">{userError(error)}</p>}
+      {error != null && (
+        <p role="alert" data-error-code={errorCode(error)}>
+          {userError(error)} <code>{errorCode(error)}</code>
+        </p>
+      )}
       {(loading || initializing) && (
         <p role="status">
           <Trans>Loading chart…</Trans>
