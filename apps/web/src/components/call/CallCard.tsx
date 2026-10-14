@@ -1,9 +1,7 @@
 // Floating call controls adapted from the template, with Lonora's click-owned WebRTC transport.
 import { t } from "@lingui/core/macro";
-import { Trans } from "@lingui/react/macro";
 import { AgentAvatar } from "@lonora/ui-web";
 import {
-  Captions,
   ChevronDown,
   LoaderCircle,
   Mic,
@@ -12,10 +10,8 @@ import {
   PhoneOff,
   Play,
   Settings,
-  Square,
 } from "lucide-react";
 import type { CSSProperties } from "react";
-import { useEffect, useState } from "react";
 import { useVoice } from "../../hooks/useVoice";
 import { userError } from "../../lib/user_error";
 import { CallWaveform } from "./CallWaveform";
@@ -32,15 +28,6 @@ export function CallCard({
   onRetry?: () => void;
 }) {
   const voice = useVoice();
-  const [elapsed, setElapsed] = useState(0);
-  useEffect(() => {
-    if (!voice.startedAt) return;
-    const update = () =>
-      setElapsed(Math.floor((Date.now() - (voice.startedAt ?? Date.now())) / 1000));
-    update();
-    const timer = setInterval(update, 1000);
-    return () => clearInterval(timer);
-  }, [voice.startedAt]);
   if (!voice.target || voice.minimized) return null;
   const { name, avatar, color } = voice.target;
   return (
@@ -66,15 +53,12 @@ export function CallCard({
           />
         </button>
         <div className="call-center">
-          <button type="button" className="call-name" dir="auto" onClick={onOpenConversation}>
-            {name}
-          </button>
           {voice.busy && !voice.connected ? (
             <LoaderCircle className="call-connecting" size={20} aria-hidden="true" />
           ) : (
             <CallWaveform meter={voice.meter} />
           )}
-          <div className="call-state">
+          <div className="call-accessible-status">
             <VoiceStatus
               connected={voice.connected}
               busy={voice.busy}
@@ -82,11 +66,6 @@ export function CallCard({
               muted={voice.muted}
               ending={voice.ending}
             />
-            {voice.connected && (
-              <span className="call-duration" dir="ltr">
-                {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, "0")}
-              </span>
-            )}
           </div>
         </div>
         <button
@@ -133,53 +112,24 @@ export function CallCard({
         <ChevronDown size={12} />
       </button>
       {voice.playbackBlocked && (
-        <button type="button" className="call-playback" onClick={() => void voice.playAudio()}>
+        <button
+          type="button"
+          className="call-playback"
+          aria-label={t`Play audio`}
+          title={t`Play audio`}
+          onClick={() => void voice.playAudio()}
+        >
           <Play size={14} />
-          <Trans>Play audio</Trans>
         </button>
       )}
       {voice.error != null && (
         <div className="call-error" role="alert">
           <p>{userError(voice.error)}</p>
           {!voice.session && !voice.busy && onRetry ? (
-            <button type="button" onClick={onRetry}>
+            <button type="button" aria-label={t`Retry`} title={t`Retry`} onClick={onRetry}>
               <Phone size={14} />
-              <Trans>Retry</Trans>
             </button>
           ) : null}
-        </div>
-      )}
-      <div className="call-secondary">
-        <button
-          type="button"
-          aria-label={t`Conversation transcript`}
-          aria-expanded={voice.transcriptOpen}
-          onClick={voice.toggleTranscript}
-        >
-          <Captions size={14} />
-          <Trans>Transcript</Trans>
-        </button>
-        {voice.connected && (
-          <button type="button" aria-label={t`Interrupt`} onClick={() => void voice.interrupt()}>
-            <Square size={11} />
-            <Trans>Interrupt</Trans>
-          </button>
-        )}
-      </div>
-      {voice.transcriptOpen && (
-        <div className="call-transcript" aria-live="polite">
-          {voice.exchanges.length ? (
-            voice.exchanges.map((exchange) => (
-              <p key={exchange.id} dir="auto">
-                <strong>{exchange.channel === "input" ? <Trans>You</Trans> : name}: </strong>
-                {exchange.text}
-              </p>
-            ))
-          ) : (
-            <p className="muted">
-              <Trans>No speech yet</Trans>
-            </p>
-          )}
         </div>
       )}
     </section>

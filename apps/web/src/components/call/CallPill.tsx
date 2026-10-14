@@ -23,7 +23,6 @@ export function CallPill() {
           working={voice.phase === "speaking" && voice.connected}
         />
       </span>
-      <span dir="auto">{name}</span>
       <CallWaveform meter={voice.meter} compact />
       {voice.muted ? <MicOff size={13} /> : null}
       <ChevronDown size={13} />

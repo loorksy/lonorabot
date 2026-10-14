@@ -10,7 +10,7 @@
   z-index: 55;
   top: 82px;
   inset-inline-end: 24px;
-  width: min(470px, calc(100vw - 32px));
+  width: min(440px, calc(100vw - 32px));
   color: var(--foreground);
   border: 1px solid var(--border);
   border-radius: 32px;
@@ -45,17 +45,6 @@
   align-items: center;
   gap: 3px;
 }
-.call-name {
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  padding: 0;
-  border: 0;
-  color: var(--muted-foreground);
-  background: transparent;
-  font-size: 12px;
-}
 .call-waveform {
   height: 34px;
   display: inline-flex;
@@ -73,19 +62,13 @@
   background: var(--call-color, var(--foreground));
   transition: height 80ms linear;
 }
-.call-state {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  max-width: 100%;
-  color: var(--muted-foreground);
-  font-size: 11px;
+.call-accessible-status {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
   white-space: nowrap;
-}
-.call-duration {
-  font-size: 10px;
-  font-variant-numeric: tabular-nums;
 }
 .call-control {
   display: grid;
@@ -132,25 +115,6 @@
   border-radius: 4px;
   background: var(--border);
 }
-.call-secondary {
-  display: flex;
-  justify-content: center;
-  gap: 18px;
-  margin-top: 7px;
-}
-.call-secondary button,
-.call-playback,
-.call-error button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  background: transparent;
-  border: 0;
-  color: var(--muted-foreground);
-  font-size: 11px;
-  padding: 3px;
-}
 .call-playback {
   margin: 5px auto;
   color: var(--foreground);
@@ -163,22 +127,18 @@
   color: var(--destructive);
   font-size: 12px;
 }
+.call-playback,
 .call-error button {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--muted);
   color: var(--foreground);
   margin: 5px auto 0;
-}
-.call-transcript {
-  border-top: 1px solid var(--border);
-  margin-top: 8px;
-  padding: 6px 10px;
-  max-height: 180px;
-  overflow-y: auto;
-  font-size: 13px;
-  line-height: 1.5;
-}
-.call-transcript p {
-  margin: 6px 0;
-  overflow-wrap: anywhere;
 }
 .call-header-pill {
   display: flex;
@@ -202,13 +162,6 @@
 .call-mini-avatar .lonora-agent-avatar {
   width: 24px;
   height: 24px;
-}
-.call-header-pill > span[dir] {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 12px;
-  max-width: 100px;
 }
 .call-header-pill .compact {
   width: 32px;
@@ -234,9 +187,6 @@
   }
   .call-header-pill {
     max-width: 150px;
-  }
-  .call-header-pill > span[dir] {
-    max-width: 54px;
   }
   .call-control {
     width: 38px;

@@ -341,7 +341,7 @@ msgstr "Call"
 msgid "Call ended"
 msgstr "Call ended"
 
-#: src/components/call/CallCard.tsx:49
+#: src/components/call/CallCard.tsx:36
 msgid "Call with {name}"
 msgstr "Call with {name}"
 
@@ -558,7 +558,6 @@ msgstr "Conversation history"
 msgid "Conversation ID for incoming messages"
 msgstr "Conversation ID for incoming messages"
 
-#: src/components/call/CallCard.tsx:155
 #: src/components/call/Transcript.tsx:7
 msgid "Conversation transcript"
 msgstr "Conversation transcript"
@@ -785,8 +784,8 @@ msgstr "Enable semantic retrieval"
 msgid "Enabled"
 msgstr "Enabled"
 
-#: src/components/call/CallCard.tsx:115
-#: src/components/call/CallCard.tsx:116
+#: src/components/call/CallCard.tsx:94
+#: src/components/call/CallCard.tsx:95
 msgid "End call"
 msgstr "End call"
 
@@ -973,8 +972,8 @@ msgstr "Integrations"
 
 #: src/components/call/CallCard.tsx:163
 #: src/components/call/CallCard.tsx:165
-msgid "Interrupt"
-msgstr "Interrupt"
+#~ msgid "Interrupt"
+#~ msgstr "Interrupt"
 
 #: src/pages/RoutineSchedule.tsx:26
 msgid "Interval"
@@ -1187,8 +1186,8 @@ msgstr "Microphone muted"
 msgid "Minimize agents"
 msgstr "Minimize agents"
 
-#: src/components/call/CallCard.tsx:128
-#: src/components/call/CallCard.tsx:129
+#: src/components/call/CallCard.tsx:107
+#: src/components/call/CallCard.tsx:108
 msgid "Minimize call"
 msgstr "Minimize call"
 
@@ -1208,8 +1207,8 @@ msgstr "Mode"
 msgid "Monitoring"
 msgstr "Monitoring"
 
-#: src/components/call/CallCard.tsx:104
-#: src/components/call/CallCard.tsx:105
+#: src/components/call/CallCard.tsx:83
+#: src/components/call/CallCard.tsx:84
 msgid "Mute microphone"
 msgstr "Mute microphone"
 
@@ -1294,8 +1293,8 @@ msgid "No saved chart in this conversation"
 msgstr "No saved chart in this conversation"
 
 #: src/components/call/CallCard.tsx:180
-msgid "No speech yet"
-msgstr "No speech yet"
+#~ msgid "No speech yet"
+#~ msgstr "No speech yet"
 
 #: src/pages/Board.tsx:215
 msgid "No tickets yet"
@@ -1332,7 +1331,7 @@ msgstr "Open chart"
 msgid "Open conversation"
 msgstr "Open conversation"
 
-#: src/components/call/CallCard.tsx:57
+#: src/components/call/CallCard.tsx:44
 msgid "Open conversation with {name}"
 msgstr "Open conversation with {name}"
 
@@ -1439,7 +1438,8 @@ msgstr "Persistent child agent"
 msgid "Planning"
 msgstr "Planning"
 
-#: src/components/call/CallCard.tsx:138
+#: src/components/call/CallCard.tsx:118
+#: src/components/call/CallCard.tsx:119
 msgid "Play audio"
 msgstr "Play audio"
 
@@ -1602,7 +1602,8 @@ msgid "Resume"
 msgstr "Resume"
 
 #: src/App.tsx:48
-#: src/components/call/CallCard.tsx:147
+#: src/components/call/CallCard.tsx:129
+#: src/components/call/CallCard.tsx:129
 #: src/pages/ActivityList.tsx:163
 #: src/pages/Artifacts.tsx:251
 #: src/pages/Board.tsx:106
@@ -2201,8 +2202,8 @@ msgid "Trading ON"
 msgstr "Trading ON"
 
 #: src/components/call/CallCard.tsx:160
-msgid "Transcript"
-msgstr "Transcript"
+#~ msgid "Transcript"
+#~ msgstr "Transcript"
 
 #: src/components/trading/TradingStatus.tsx:51
 msgid "Turn trading OFF"
@@ -2220,8 +2221,8 @@ msgstr "Type"
 msgid "Unified model"
 msgstr "Unified model"
 
-#: src/components/call/CallCard.tsx:104
-#: src/components/call/CallCard.tsx:105
+#: src/components/call/CallCard.tsx:83
+#: src/components/call/CallCard.tsx:84
 msgid "Unmute microphone"
 msgstr "Unmute microphone"
 
@@ -2262,8 +2263,8 @@ msgstr "Voice"
 msgid "Voice requires a browser with WebRTC and microphone support on HTTPS."
 msgstr "Voice requires a browser with WebRTC and microphone support on HTTPS."
 
-#: src/components/call/CallCard.tsx:95
-#: src/components/call/CallCard.tsx:96
+#: src/components/call/CallCard.tsx:74
+#: src/components/call/CallCard.tsx:75
 msgid "Voice settings"
 msgstr "Voice settings"
 
@@ -2332,8 +2333,8 @@ msgid "Yesterday"
 msgstr "Yesterday"
 
 #: src/components/call/CallCard.tsx:174
-msgid "You"
-msgstr "You"
+#~ msgid "You"
+#~ msgstr "You"
 
 #: src/pages/ActivityList.tsx:176
 msgid "Your agents’ activity will appear here."

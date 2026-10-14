@@ -3,7 +3,7 @@
 import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
 
-test("call survives navigation with its origin, real track mute, transcript dedupe and ordered logout", async ({
+test("compact call survives navigation with its origin, real track mute and ordered logout", async ({
   page,
   context,
 }) => {
@@ -223,12 +223,13 @@ test("call survives navigation with its origin, real track mute, transcript dedu
       channel.onmessage({ data: JSON.stringify(event) });
       channel.onmessage({ data: JSON.stringify(event) });
     }, fragment);
-    await page.getByRole("button", { name: "Conversation transcript", exact: true }).click();
-    await expect(page.locator(".call-transcript")).toContainText("A unique spoken phrase.");
+    await expect(
+      page.getByRole("button", { name: "Conversation transcript", exact: true }),
+    ).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Interrupt", exact: true })).toHaveCount(0);
+    await expect(page.locator(".call-name, .call-duration, .call-transcript")).toHaveCount(0);
     await page.waitForTimeout(2200);
-    expect(
-      (await page.locator(".call-transcript").innerText()).match(/A unique spoken phrase\./g),
-    ).toHaveLength(1);
+    await expect(page.getByText("A unique spoken phrase.", { exact: true })).toHaveCount(0);
     await page.screenshot({ path: ".runtime/rakazo-parity/voice-floating-card.png" });
     await page.getByRole("button", { name: "Voice settings", exact: true }).click();
     await expect(page.getByRole("dialog")).toBeVisible();

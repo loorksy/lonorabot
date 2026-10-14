@@ -54,7 +54,6 @@ type CallState = {
   ending: boolean;
   muted: boolean;
   minimized: boolean;
-  transcriptOpen: boolean;
   playbackBlocked: boolean;
   phase: "listening" | "speaking";
   startedAt: number | null;
@@ -69,7 +68,6 @@ const initial: CallState = {
   ending: false,
   muted: false,
   minimized: false,
-  transcriptOpen: false,
   playbackBlocked: false,
   phase: "listening",
   startedAt: null,
@@ -326,8 +324,6 @@ export function useVoiceController(ownerId: string) {
     stop,
     expand: () => setState((previous) => ({ ...previous, minimized: false })),
     minimize: () => setState((previous) => ({ ...previous, minimized: true })),
-    toggleTranscript: () =>
-      setState((previous) => ({ ...previous, transcriptOpen: !previous.transcriptOpen })),
     toggleMute: () => {
       const transport = current.current;
       if (!transport) return;

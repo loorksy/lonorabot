@@ -341,7 +341,7 @@ msgstr "اتصال"
 msgid "Call ended"
 msgstr "انتهت المكالمة"
 
-#: src/components/call/CallCard.tsx:49
+#: src/components/call/CallCard.tsx:36
 msgid "Call with {name}"
 msgstr "مكالمة مع {name}"
 
@@ -558,7 +558,6 @@ msgstr "سجل المحادثات"
 msgid "Conversation ID for incoming messages"
 msgstr "معرّف المحادثة للرسائل الواردة"
 
-#: src/components/call/CallCard.tsx:155
 #: src/components/call/Transcript.tsx:7
 msgid "Conversation transcript"
 msgstr "نص المحادثة"
@@ -785,8 +784,8 @@ msgstr "تفعيل الاسترجاع الدلالي"
 msgid "Enabled"
 msgstr "مفعّل"
 
-#: src/components/call/CallCard.tsx:115
-#: src/components/call/CallCard.tsx:116
+#: src/components/call/CallCard.tsx:94
+#: src/components/call/CallCard.tsx:95
 msgid "End call"
 msgstr "إنهاء المكالمة"
 
@@ -973,8 +972,8 @@ msgstr "التكاملات"
 
 #: src/components/call/CallCard.tsx:163
 #: src/components/call/CallCard.tsx:165
-msgid "Interrupt"
-msgstr "مقاطعة"
+#~ msgid "Interrupt"
+#~ msgstr "مقاطعة"
 
 #: src/pages/RoutineSchedule.tsx:26
 msgid "Interval"
@@ -1187,8 +1186,8 @@ msgstr "الميكروفون مكتوم"
 msgid "Minimize agents"
 msgstr "طي قائمة الوكلاء"
 
-#: src/components/call/CallCard.tsx:128
-#: src/components/call/CallCard.tsx:129
+#: src/components/call/CallCard.tsx:107
+#: src/components/call/CallCard.tsx:108
 msgid "Minimize call"
 msgstr "تصغير المكالمة"
 
@@ -1208,8 +1207,8 @@ msgstr "الوضع"
 msgid "Monitoring"
 msgstr "جارٍ المراقبة"
 
-#: src/components/call/CallCard.tsx:104
-#: src/components/call/CallCard.tsx:105
+#: src/components/call/CallCard.tsx:83
+#: src/components/call/CallCard.tsx:84
 msgid "Mute microphone"
 msgstr "كتم الميكروفون"
 
@@ -1294,8 +1293,8 @@ msgid "No saved chart in this conversation"
 msgstr "لا يوجد رسم بياني محفوظ في هذه المحادثة"
 
 #: src/components/call/CallCard.tsx:180
-msgid "No speech yet"
-msgstr "لم يبدأ الحديث بعد"
+#~ msgid "No speech yet"
+#~ msgstr "لم يبدأ الحديث بعد"
 
 #: src/pages/Board.tsx:215
 msgid "No tickets yet"
@@ -1332,7 +1331,7 @@ msgstr "افتح شارت"
 msgid "Open conversation"
 msgstr "فتح المحادثة"
 
-#: src/components/call/CallCard.tsx:57
+#: src/components/call/CallCard.tsx:44
 msgid "Open conversation with {name}"
 msgstr "فتح المحادثة مع {name}"
 
@@ -1439,7 +1438,8 @@ msgstr "وكيل ابن دائم"
 msgid "Planning"
 msgstr "جارٍ التخطيط"
 
-#: src/components/call/CallCard.tsx:138
+#: src/components/call/CallCard.tsx:118
+#: src/components/call/CallCard.tsx:119
 msgid "Play audio"
 msgstr "تشغيل الصوت"
 
@@ -1602,7 +1602,8 @@ msgid "Resume"
 msgstr "استئناف"
 
 #: src/App.tsx:48
-#: src/components/call/CallCard.tsx:147
+#: src/components/call/CallCard.tsx:129
+#: src/components/call/CallCard.tsx:129
 #: src/pages/ActivityList.tsx:163
 #: src/pages/Artifacts.tsx:251
 #: src/pages/Board.tsx:106
@@ -2201,8 +2202,8 @@ msgid "Trading ON"
 msgstr "التداول مفعّل"
 
 #: src/components/call/CallCard.tsx:160
-msgid "Transcript"
-msgstr "نص المكالمة"
+#~ msgid "Transcript"
+#~ msgstr "نص المكالمة"
 
 #: src/components/trading/TradingStatus.tsx:51
 msgid "Turn trading OFF"
@@ -2220,8 +2221,8 @@ msgstr "النوع"
 msgid "Unified model"
 msgstr "النموذج الموحد"
 
-#: src/components/call/CallCard.tsx:104
-#: src/components/call/CallCard.tsx:105
+#: src/components/call/CallCard.tsx:83
+#: src/components/call/CallCard.tsx:84
 msgid "Unmute microphone"
 msgstr "إلغاء كتم الميكروفون"
 
@@ -2262,8 +2263,8 @@ msgstr "الصوت"
 msgid "Voice requires a browser with WebRTC and microphone support on HTTPS."
 msgstr "يتطلب الصوت متصفحًا يدعم WebRTC والميكروفون عبر HTTPS."
 
-#: src/components/call/CallCard.tsx:95
-#: src/components/call/CallCard.tsx:96
+#: src/components/call/CallCard.tsx:74
+#: src/components/call/CallCard.tsx:75
 msgid "Voice settings"
 msgstr "إعدادات الصوت"
 
@@ -2332,8 +2333,8 @@ msgid "Yesterday"
 msgstr "أمس"
 
 #: src/components/call/CallCard.tsx:174
-msgid "You"
-msgstr "أنت"
+#~ msgid "You"
+#~ msgstr "أنت"
 
 #: src/pages/ActivityList.tsx:176
 msgid "Your agents’ activity will appear here."
