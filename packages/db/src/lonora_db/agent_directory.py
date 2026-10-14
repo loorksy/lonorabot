@@ -22,6 +22,8 @@ async def agent_directory(
             "description": row.description,
             "paused": row.paused,
             "is_self": row.id == agent_id,
+            "trading_account_id": row.trading_account_id,
+            "trading_symbol": row.trading_symbol,
         }
         for row in rows
     ]

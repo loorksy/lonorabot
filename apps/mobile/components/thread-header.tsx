@@ -12,6 +12,7 @@ export function ThreadHeader({
   onBack,
   onSettings,
   onActions,
+  onCall,
 }: {
   title: string;
   avatar?: ReactNode;
@@ -19,6 +20,7 @@ export function ThreadHeader({
   onBack: () => void;
   onSettings: () => void;
   onActions: () => void;
+  onCall?: () => void;
 }) {
   const { rtl, t } = useSession();
   return (
@@ -63,6 +65,11 @@ export function ThreadHeader({
           </Text>
         </Pressable>
       </View>
+      {onCall ? (
+        <HeaderButton label={t("callAgent")} onPress={onCall}>
+          <NativeSymbol name="call" size={21} />
+        </HeaderButton>
+      ) : null}
       <HeaderButton label={t("actions")} onPress={onActions}>
         <NativeSymbol name="more" size={21} />
       </HeaderButton>

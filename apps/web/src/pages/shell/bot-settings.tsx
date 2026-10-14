@@ -46,6 +46,11 @@ export function AgentSettings({ agent, onClose }: { agent: Agent; onClose: () =>
       <div className="tpl-profile-preview">
         <AgentAvatar name={name} shape={avatar} color={color} />
       </div>
+      {agent.trading_symbol && (
+        <p>
+          <Trans>Trading pair</Trans>: <bdi>{agent.trading_symbol}</bdi>
+        </p>
+      )}
       <label>
         <Trans>Name</Trans>
         <input

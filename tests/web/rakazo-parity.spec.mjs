@@ -105,6 +105,9 @@ test("conversation shows safe generated SVG, cloud chart side panel and persiste
     await panel.getByLabel("Name", { exact: true }).fill("Role parity fixture");
     await panel.getByLabel("Title", { exact: true }).fill("Risk analyst");
     await panel.getByLabel("Description", { exact: true }).fill("Review exposure before trading.");
+    await panel.getByLabel("Broker account", { exact: true }).selectOption(data.account);
+    await page.getByRole("button", { name: "Choose trading pair", exact: true }).click();
+    await page.getByRole("option", { name: data.symbol, exact: true }).click();
     const creation = page.waitForResponse(
       (response) =>
         new URL(response.url()).pathname === "/api/agents" &&

@@ -983,6 +983,11 @@ function WorkspaceShell({ onLogout }: { onLogout: () => void }) {
             <ConversationCharts
               key={entityKey}
               agentId={agent?.id}
+              binding={
+                agent?.trading_account_id && agent.trading_symbol
+                  ? { accountId: agent.trading_account_id, symbol: agent.trading_symbol }
+                  : undefined
+              }
               threadId={group?.state?.thread_id ? String(group.state.thread_id) : undefined}
               onOpenMarket={() => open("/app/market")}
             />

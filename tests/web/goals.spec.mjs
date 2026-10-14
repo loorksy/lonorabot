@@ -34,7 +34,11 @@ test("owner reviews a durable goal and controls limits, autonomy, pause, same-th
     await context.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
     const created = await context.request.post("/api/agents", {
       headers,
-      data: { name: `Goal UI ${randomUUID()}` },
+      data: {
+        name: `Goal UI ${randomUUID()}`,
+        trading_account_id: data.account,
+        trading_symbol: data.symbol,
+      },
     });
     expect(created.status()).toBe(201);
     agent = await created.json();
@@ -71,7 +75,7 @@ test("owner reviews a durable goal and controls limits, autonomy, pause, same-th
     // The controlled value follows durable server admission, not an optimistic toggle.
     await autonomy.click();
     await expect(autonomy).toBeChecked();
-    let current = await (await context.request.get(`/api/trading/goals/${goal.id}`)).json();
+    const current = await (await context.request.get(`/api/trading/goals/${goal.id}`)).json();
     expect(current.state.autonomous).toBe(true);
     expect(current.payload.maximum_volume).toBe("0.2");
     await card.getByRole("button", { name: "Pause", exact: true }).click();
@@ -94,8 +98,12 @@ test("owner reviews a durable goal and controls limits, autonomy, pause, same-th
     await expect(card.getByText("No financial executions yet.", { exact: true })).toBeVisible();
     await card.getByRole("button", { name: "Cancel goal", exact: true }).click();
     await expect(autonomy).toBeDisabled();
-    current = await (await context.request.get(`/api/trading/goals/${goal.id}`)).json();
-    expect(current.state.status).toBe("cancelled");
+    await expect
+      .poll(
+        async () =>
+          (await (await context.request.get(`/api/trading/goals/${goal.id}`)).json()).state.status,
+      )
+      .toBe("cancelled");
     expect(errors).toEqual([]);
   } finally {
     if (agent)

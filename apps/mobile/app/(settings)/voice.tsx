@@ -44,7 +44,7 @@ export default function Voice() {
               : t("connecting")}
           </Text>
         </SettingsGroup>
-        <Text style={{ color: colors.secondary, lineHeight: 24 }}>{t("nativeVoiceHint")}</Text>
+        <Text style={{ color: colors.secondary, lineHeight: 24 }}>{t("nativeCallHint")}</Text>
         <Button
           label={t("openWebSettings")}
           onPress={() => {

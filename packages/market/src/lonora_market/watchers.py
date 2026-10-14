@@ -11,6 +11,7 @@ from lonora_contracts.market_watch import Watch
 from lonora_contracts.runs import RunRequest
 from lonora_core.market_watch import condition_met
 from lonora_core.user_error import LonoraError
+from lonora_db.agent_binding import agent_binding, assert_payload_binding
 from lonora_db.broker_sessions import BrokerSessionRepository
 from lonora_db.client import Database
 from lonora_db.market_snapshots import snapshot_id
@@ -32,6 +33,12 @@ from .watch_control import watch_can_trigger
 async def observe(
     db: Database, brokers: BrokerManager, row: MarketWatchRow, config: Watch
 ) -> tuple[Decimal, str, dict[str, Any]]:
+    bound_symbol = None
+    if row.agent_id:
+        async with db.sessions() as session:
+            agent = await agent_binding(session, row.owner_id, row.agent_id)
+            assert_payload_binding(agent, config.model_dump(mode="json"))
+            bound_symbol = agent.trading_symbol
     if config.kind == "calendar":
         async with db.sessions() as session:
             source = await session.get(IntegrationRow, config.integration_id or "")
@@ -86,6 +93,10 @@ async def observe(
         return Decimal(str(payload[config.metric])), request_hash(payload), {"account": payload}
     positions = await broker.positions()
     position = next((item for item in positions if item.id == config.position_id), None)
+    if position and bound_symbol and position.symbol != bound_symbol:
+        raise LonoraError("agent_trading_symbol_mismatch", 409)
+    if position and config.symbol and position.symbol != config.symbol:
+        raise LonoraError("watch_position_symbol_mismatch", 409)
     payload = position.model_dump(mode="json") if position else {}
     current = (
         Decimal(int(position is not None))

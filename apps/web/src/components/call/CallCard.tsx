@@ -14,6 +14,7 @@ import {
 import type { CSSProperties } from "react";
 import { useVoice } from "../../hooks/useVoice";
 import { userError } from "../../lib/user_error";
+import { TradeApprovals } from "../trading/TradeApprovals";
 import { CallWaveform } from "./CallWaveform";
 import { VoiceStatus } from "./VoiceStatus";
 import "./call.css";
@@ -111,6 +112,13 @@ export function CallCard({
         <span aria-hidden="true" />
         <ChevronDown size={12} />
       </button>
+      <div className="call-approvals">
+        <TradeApprovals
+          key={voice.target.threadId}
+          threadId={voice.target.threadId}
+          since={voice.startedAt ?? Date.now()}
+        />
+      </div>
       {voice.playbackBlocked && (
         <button
           type="button"

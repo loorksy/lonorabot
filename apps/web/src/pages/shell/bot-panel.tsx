@@ -3,6 +3,7 @@ import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
 import { AgentAvatar } from "@lonora/ui-web";
 import { useState } from "react";
+import { type BrokerPair, BrokerPairPicker } from "../../components/trading/BrokerPairPicker";
 import type { Agent } from "../../lib/api";
 import { userError } from "../../lib/user_error";
 
@@ -15,10 +16,11 @@ export function AgentCreatePanel({
     name: string,
     avatar: string,
     color: string,
-    profile?: { title?: string; description?: string },
+    profile?: { title?: string; description?: string } & BrokerPair,
   ) => Promise<Agent>;
   onCreated: (agent: Agent) => void;
 }) {
+  const [pair, setPair] = useState<BrokerPair>({ trading_account_id: "", trading_symbol: "" });
   const [name, setName] = useState("");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -36,6 +38,7 @@ export function AgentCreatePanel({
         try {
           onCreated(
             await create(name.trim(), avatar, color, {
+              ...pair,
               title: title.trim(),
               description: description.trim(),
             }),
@@ -76,6 +79,7 @@ export function AgentCreatePanel({
           placeholder={t`What this agent is for`}
         />
       </label>
+      <BrokerPairPicker value={pair} onChange={setPair} />
       <details className="tpl-profile-appearance">
         <summary>
           <Trans>Appearance</Trans>
@@ -124,7 +128,11 @@ export function AgentCreatePanel({
         </fieldset>
       </details>
       {error != null && <p role="alert">{userError(error)}</p>}
-      <button className="primary" type="submit" disabled={!name.trim() || busy}>
+      <button
+        className="primary"
+        type="submit"
+        disabled={!name.trim() || !pair.trading_account_id || !pair.trading_symbol || busy}
+      >
         <Trans>Create agent</Trans>
       </button>
     </form>

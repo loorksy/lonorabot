@@ -44,6 +44,8 @@ jobs:
           from lonora_api.app import create_app
           from lonora_api.env import get_settings
           from lonora_db.schema import SecretRow
+          from lonora_db.agents import create_agent, agent_data
+          from lonora_contracts.domain import AgentCreate
           from lonora_gateway.run_dispatch import dispatch_one
           from lonora_gateway.service import Gateway
           from sqlalchemy import select
@@ -82,7 +84,9 @@ jobs:
                       )
                       await request("POST", "/agents", {"name": "Denied"}, 403)
                       client.headers["X-CSRF-Token"] = login["csrf"]
-                      agent = await request("POST", "/agents", {"name": "CI agent"}, 201)
+                      await request("POST", "/agents", {"name": "Unbound new bot"}, 422)
+                      async with rt.db.sessions() as session, session.begin():
+                          agent = agent_data(await create_agent(session, login["owner"]["id"], AgentCreate(name="CI legacy agent")))
                       thread = await request("POST", "/threads", {"agent_id": agent["id"]}, 201)
                       await request(
                           "PUT", "/providers/openai/credential", {"api_key": "explicit-ci-fixture-key"}
@@ -182,11 +186,12 @@ jobs:
           from lonora_agent.runtime import AgentRuntime
           from lonora_api.app import create_app
           from lonora_api.env import get_settings
-          from lonora_contracts.domain import Contract, MessageCreate, utcnow
+          from lonora_contracts.domain import AgentCreate, Contract, MessageCreate, utcnow
           from lonora_contracts.model_routing import Capability
           from lonora_contracts.runs import Lease, RunRequest
           from lonora_contracts.usage import TokenUsage
           from lonora_core.user_error import LonoraError
+          from lonora_db.agents import create_agent, agent_data
           from lonora_db.cancellation import cancel_run
           from lonora_db.messages import send_message
           from lonora_db.runs import complete_run, create_run, require_lease
@@ -248,9 +253,8 @@ jobs:
                   services = rt.services(owner)
 
                   async def new_context(history_contents=None):
-                      agent = await req(
-                          "POST", "/agents", {"name": "Regression actor " + str(uuid.uuid4())[:6]}, 201
-                      )
+                      async with rt.db.sessions() as session, session.begin():
+                          agent = agent_data(await create_agent(session, owner, AgentCreate(name="Legacy regression actor " + str(uuid.uuid4())[:6])))
                       thread = await req("POST", "/threads", {"agent_id": agent["id"]}, 201)
                       async with rt.db.sessions() as session, session.begin():
                           row = await session.get(ThreadRow, thread["id"])
@@ -446,7 +450,8 @@ jobs:
                   )
                   await finish(context)
 
-                  agent = await req("POST", "/agents", {"name": "Replay actor"}, 201)
+                  async with rt.db.sessions() as session, session.begin():
+                      agent = agent_data(await create_agent(session, owner, AgentCreate(name="Legacy replay actor")))
                   thread = await req("POST", "/threads", {"agent_id": agent["id"]}, 201)
                   first_body = {"content": "first turn", "client_nonce": "original-message"}
                   first = await req("POST", f"/threads/{thread['id']}/messages", first_body, 202)
@@ -757,6 +762,7 @@ jobs:
           .venv/bin/python tests/check_broker_history.py
           .venv/bin/python tests/check_broker_recovery.py
           .venv/bin/python tests/check_trade_approvals.py
+          .venv/bin/python tests/check_agent_binding.py
           .venv/bin/python tests/check_broker_orders.py
           .venv/bin/python tests/check_pending_orders.py
           .venv/bin/python tests/check_chart_streaming.py
@@ -773,6 +779,11 @@ jobs:
         run: pnpm test:web
       - name: Verify real Expo companion against Python API
         run: pnpm test:mobile
+
+      - name: Verify signed mobile OTA service and safe client update lifecycle
+        run: |
+          .venv/bin/python -m pytest tests/test_mobile_updates.py -q
+          pnpm exec tsx --test tests/mobile/ota-checker.test.ts tests/mobile/voice-transport.test.ts
 
       - name: Verify GPT-Live admission and delegation with explicit API fixtures
         run: .venv/bin/python -m pytest tests/voice -q

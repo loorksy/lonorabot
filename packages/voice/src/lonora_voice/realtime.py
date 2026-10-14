@@ -12,7 +12,7 @@ from lonora_contracts.domain import MessageCreate
 from lonora_db.client import Database
 from lonora_db.events import emit
 from lonora_db.messages import send_message
-from lonora_db.schema import MessageRow, RunRow, VoiceSessionRow
+from lonora_db.schema import MessageRow, RunRow, TradeApprovalRow, VoiceSessionRow
 from lonora_providers.credentials import ProviderCredentials
 from sqlalchemy import select
 from websockets.asyncio.client import ClientConnection
@@ -197,6 +197,36 @@ class RealtimeVoiceSession:
             for identity, task in entries.items():
                 if task.get("status") == "running":
                     runs = [await session.get(RunRow, run_id) for run_id in task.get("run_ids", [])]
+                    waiting_ids = [run.id for run in runs if run and run.status == "waiting_input"]
+                    pending_approval = (
+                        await session.scalar(
+                            select(TradeApprovalRow.id)
+                            .where(
+                                TradeApprovalRow.owner_id == row.owner_id,
+                                TradeApprovalRow.thread_id == row.thread_id,
+                                TradeApprovalRow.run_id.in_(waiting_ids),
+                                TradeApprovalRow.status.in_(["pending", "approved"]),
+                            )
+                            .limit(1)
+                        )
+                        if waiting_ids
+                        else None
+                    )
+                    if pending_approval:
+                        # Approval is a pause of the same durable delegation, not its
+                        # final outcome. Continue observing the resumed original run.
+                        if not task.get("approval_notice_sent"):
+                            task["approval_notice_sent"] = True
+                            commands.append(
+                                {
+                                    "type": "session.commentary.append",
+                                    "event_id": "approval-"
+                                    + hashlib.sha256(identity.encode()).hexdigest()[:32],
+                                    "delegation_id": identity,
+                                    "content": "Owner approval is required using the call approve/reject controls. No financial operation has executed. Keep waiting for the same backend run's final result.",
+                                }
+                            )
+                        continue
                     if not runs:
                         task.update(
                             {

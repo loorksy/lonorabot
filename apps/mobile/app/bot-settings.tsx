@@ -106,6 +106,11 @@ export default function BotSettings() {
               setSaved(false);
             }}
           />
+          {agent.trading_symbol && (
+            <SettingsGroup footer={t("immutableTradingPair")}>
+              <SettingsRow title={t("symbol")} value={agent.trading_symbol} />
+            </SettingsGroup>
+          )}
           <Field
             label={t("name")}
             value={agent.name}

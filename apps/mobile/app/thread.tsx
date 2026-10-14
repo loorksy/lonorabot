@@ -26,6 +26,7 @@ import { Button, colors, ErrorNotice, Loading, Screen } from "../components/ui";
 import { WorkingIndicator } from "../components/WorkingIndicator";
 import { ApiError, api, upload } from "../lib/api";
 import { useSession } from "../lib/session";
+import { useVoiceSession } from "../lib/voice-session";
 
 function mergeMessages(previous: Message[], incoming: Message[]): Message[] {
   const rows = new Map(previous.map((row) => [row.id, row]));
@@ -38,6 +39,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
   const id = threadId ?? params.id;
   const { ready, owner, rtl, t, errorText } = useSession();
   const router = useRouter();
+  const voice = useVoiceSession();
   const [thread, setThread] = useState<Thread | null>(null);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
@@ -251,6 +253,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
             router.push({ pathname: "/group-settings", params: { groupId: group.id } });
         }}
         onActions={() => setActionsVisible(true)}
+        onCall={agent && thread ? () => void voice.start(agent, thread.id) : undefined}
         avatar={
           agent ? (
             <BotAvatar

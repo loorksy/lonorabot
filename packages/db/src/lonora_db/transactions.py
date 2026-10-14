@@ -128,9 +128,24 @@ class ResourceRepository:
         resource_id: str | None = None,
     ) -> ResourceRow:
         if agent_id:
-            await owned_agent(session, owner_id, agent_id)
+            agent = await owned_agent(session, owner_id, agent_id)
+            if self.kind in {"charts", "watches", "cloud_charts", "market_watches"}:
+                from .agent_binding import assert_payload_binding
+
+                assert_payload_binding(agent, payload)
         if thread_id:
-            await owned_thread(session, owner_id, thread_id)
+            thread = await owned_thread(session, owner_id, thread_id)
+            if (
+                self.kind in {"charts", "watches", "cloud_charts", "market_watches"}
+                and thread.agent_id
+            ):
+                from .agent_binding import assert_payload_binding
+
+                assert_payload_binding(
+                    await owned_agent(session, owner_id, thread.agent_id), payload
+                )
+                if agent_id and agent_id != thread.agent_id:
+                    raise LonoraError("agent_thread_mismatch", 409)
         validated = self.validate(payload)
         await self.validate_references(session, owner_id, validated)
         row = self.row_type(
@@ -167,6 +182,18 @@ class ResourceRepository:
             raise LonoraError("version_conflict", 409)
         validated = self.validate(payload)
         await self.validate_references(session, owner_id, validated)
+        if row.agent_id and self.kind in {"charts", "watches", "cloud_charts", "market_watches"}:
+            from .agent_binding import assert_payload_binding
+
+            assert_payload_binding(await owned_agent(session, owner_id, row.agent_id), validated)
+        if row.thread_id and self.kind in {"charts", "watches", "cloud_charts", "market_watches"}:
+            thread = await owned_thread(session, owner_id, row.thread_id)
+            if thread.agent_id:
+                from .agent_binding import assert_payload_binding
+
+                assert_payload_binding(
+                    await owned_agent(session, owner_id, thread.agent_id), validated
+                )
         row.payload = validated
         row.version += 1
         row.updated_at = utcnow()

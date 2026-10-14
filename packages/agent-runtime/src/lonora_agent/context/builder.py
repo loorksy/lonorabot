@@ -1,5 +1,6 @@
 from lonora_adapter_kit.types import ModelMessage
 from lonora_core.user_error import LonoraError
+from lonora_db.agent_binding import binding_context
 from lonora_db.runs import require_lease
 from lonora_db.schema import AgentRow, ThreadRow
 from lonora_memory.semantic import retrieve_memory
@@ -38,6 +39,7 @@ async def build_context(context: ToolContext) -> list[ModelMessage]:
         blocks.extend(
             [
                 agent.instructions,
+                binding_context(agent),
                 await read_memory_context(session, agent.id),
                 await scratchpad_context(session, agent.id),
                 await read_skill_context(session, agent.id),

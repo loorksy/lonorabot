@@ -17,12 +17,13 @@ function merge(previous: Approval[], rows: Approval[]) {
   });
 }
 
-export function TradeApprovals({ threadId }: { threadId: string }) {
+export function TradeApprovals({ threadId, since }: { threadId: string; since?: number }) {
   const { revision } = useClient();
   const [rows, setRows] = useState<Approval[]>([]);
   const [error, setError] = useState<unknown>();
   const [busy, setBusy] = useState<string>();
   const pending = useRef(false);
+  const callRequests = useRef(new Set<string>());
   const currentThread = useRef(threadId);
   currentThread.current = threadId;
   useEffect(() => {
@@ -32,6 +33,7 @@ export function TradeApprovals({ threadId }: { threadId: string }) {
       .get<Approval[]>(`/trading/approvals?thread_id=${encodeURIComponent(threadId)}`)
       .then((data) => {
         if (live) {
+          for (const row of data) if (row.status === "pending") callRequests.current.add(row.id);
           setRows((old) => merge(old, data));
           setError(undefined);
         }
@@ -68,7 +70,14 @@ export function TradeApprovals({ threadId }: { threadId: string }) {
     <>
       {error != null && <p role="alert">{userError(error)}</p>}
       {rows
-        .filter((row) => row.thread_id === threadId)
+        .filter(
+          (row) =>
+            row.thread_id === threadId &&
+            (since === undefined ||
+              row.status === "pending" ||
+              Date.parse(row.created_at) >= since ||
+              callRequests.current.has(row.id)),
+        )
         .map((row) => (
           <article className="card" key={row.id} data-trade-approval={row.id}>
             <strong>

@@ -208,3 +208,9 @@
     animation: none;
   }
 }
+
+.call-approvals:has(article) {
+  max-height: min(50vh, 360px);
+  overflow-y: auto;
+  margin-top: 12px;
+}

@@ -119,13 +119,18 @@ async def main() -> None:
                 native.headers["Authorization"] = peer.headers["Authorization"] = "Bearer " + token
                 identity = await request(peer, "GET", "/auth/session")
                 check("native bearer survives a separate API runtime", identity == login["owner"])
-                agent = await request(
-                    browser,
-                    "POST",
-                    "/agents",
-                    {"name": "Client regression " + uuid4().hex[:12]},
-                    201,
-                )
+                from lonora_contracts.domain import AgentCreate
+                from lonora_db.agents import agent_data, create_agent
+
+                async with runtime.db.sessions() as session, session.begin():
+                    # This auth/conversation fixture represents a migrated legacy bot.
+                    agent = agent_data(
+                        await create_agent(
+                            session,
+                            login["owner"]["id"],
+                            AgentCreate(name="Client regression " + uuid4().hex[:12]),
+                        )
+                    )
                 agent_id: str = agent["id"]
                 agents.append(agent_id)
                 path = "/agents/" + agent_id + "/conversation"

@@ -3,6 +3,7 @@ import { createContext, type ReactNode, useCallback, useContext, useEffect, useS
 import { Platform } from "react-native";
 import { ApiError, api, configureApi, normalizeServer, setCredentials } from "./api";
 import { type Label, type Locale, labels, translate } from "./i18n";
+import { closeSessionResources } from "./session-lifecycle";
 import { loadNativeToken, loadSetting, saveNativeToken, saveSetting } from "./storage";
 
 type Session = {
@@ -86,6 +87,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = async () => {
+    await closeSessionResources();
     try {
       await api.post("/auth/logout", {});
     } catch (error) {
