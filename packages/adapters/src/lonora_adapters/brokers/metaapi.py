@@ -93,7 +93,9 @@ def configure_sdk_transport() -> None:
 
 
 class MetaApiBroker:
-    def __init__(self, account_id: str, region: str | None, token: str):
+    def __init__(
+        self, account_id: str, region: str | None, token: str, connection_id: str | None = None
+    ):
         configure_sdk_transport()
         sdk: Any = importlib.import_module("metaapi_cloud_sdk")
         self.api: Any = sdk.MetaApi(
@@ -109,6 +111,7 @@ class MetaApiBroker:
             },
         )
         self.account_id = account_id
+        self.connection_id = connection_id
         self.account_instance: Any = None
         self.rpc: Any = None
         self.streaming: Any = None
@@ -278,7 +281,10 @@ class MetaApiBroker:
     async def account(self) -> AccountState:
         rpc = await self.prepare()
         try:
-            return normalize.account(await rpc.get_account_information(), self.account_id)
+            return normalize.account(
+                await rpc.get_account_information(),
+                getattr(self, "connection_id", None) or self.account_id,
+            )
         except Exception:
             raise LonoraError("broker_account_unavailable", 502) from None
 
@@ -300,13 +306,30 @@ class MetaApiBroker:
         self, request: TradeRequest, before_send: Callable[[], Awaitable[None]] | None = None
     ) -> TradeResult:
         rpc = await self.prepare()
-        if before_send:
-            await before_send()
         volume, price, sl, tp = (
             sdk_number(v)
             for v in (request.volume, request.price, request.stop_loss, request.take_profit)
         )
+        if request.clear_stop_loss:
+            sl = 0.0
+        if request.clear_take_profit:
+            tp = 0.0
+        if request.action == "modify_order" and price is None:
+            target = next(
+                (
+                    order
+                    for order in await rpc.get_orders()
+                    if str(order.get("id")) == request.order_id
+                    and order.get("symbol") == request.symbol
+                ),
+                None,
+            )
+            if target is None:
+                raise LonoraError("order_not_found", 404)
+            price = sdk_number(Decimal(str(target["openPrice"])))
         options = {"clientId": client_id(request.operation_id)}
+        if before_send:
+            await before_send()
         try:
             creators = {
                 "buy": "create_market_buy_order",
@@ -338,24 +361,44 @@ class MetaApiBroker:
                 response = await rpc.cancel_order(request.order_id)
             else:
                 response = await rpc.modify_order(
-                    request.order_id, price, stop_loss=sl, take_profit=tp, options=options
+                    request.order_id, price, stop_loss=sl, take_profit=tp
                 )
-            from lonora_trading.retcodes import normalize_retcode
+            from lonora_trading.retcodes import normalize_response
 
-            status = normalize_retcode(response.get("stringCode", response.get("numericCode")))
+            status = normalize_response(response.get("stringCode"), response.get("numericCode"))
             return TradeResult(
                 operation_id=request.operation_id,
                 status=status,
                 broker_id=str(response.get("orderId") or response.get("positionId") or "") or None,
                 code=str(response.get("stringCode") or ""),
                 details={
+                    "partial_execution": response.get("stringCode") == "TRADE_RETCODE_DONE_PARTIAL"
+                    or response.get("numericCode") == 10010,
                     "numeric_code": response.get("numericCode"),
                     "order_id": response.get("orderId"),
                     "position_id": response.get("positionId"),
                     "deal_id": response.get("dealId"),
                 },
             )
-        except Exception:
+        except Exception as error:
+            from lonora_trading.retcodes import normalize_response
+
+            # The official SDK raises TradeException on a received broker rejection.
+            # Transport/timeouts and contradictory codes remain uncertain.
+            trade_exception: Any = importlib.import_module(
+                "metaapi_cloud_sdk.clients.metaapi.trade_exception"
+            ).TradeException
+            if isinstance(error, trade_exception):
+                string_code = getattr(error, "stringCode", None)
+                numeric_code = getattr(error, "numericCode", None)
+                status = normalize_response(string_code, numeric_code)
+                if status == "failed":
+                    return TradeResult(
+                        operation_id=request.operation_id,
+                        status="failed",
+                        code=string_code,
+                        details={"numeric_code": numeric_code},
+                    )
             return TradeResult(
                 operation_id=request.operation_id,
                 status="ambiguous",

@@ -5,6 +5,36 @@ export function AccountSummary({ data }: { data?: Summary }) {
   const a = data.account;
   return (
     <dl className="card stats">
+      {a.broker && (
+        <div>
+          <dt>
+            <Trans>Broker</Trans>
+          </dt>
+          <dd>
+            <bdi>{a.broker}</bdi>
+          </dd>
+        </div>
+      )}
+      {a.login && (
+        <div>
+          <dt>
+            <Trans>Account number</Trans>
+          </dt>
+          <dd>
+            <bdi>{a.login}</bdi>
+          </dd>
+        </div>
+      )}
+      {a.server && (
+        <div>
+          <dt>
+            <Trans>Broker server</Trans>
+          </dt>
+          <dd>
+            <bdi>{a.server}</bdi>
+          </dd>
+        </div>
+      )}
       <div>
         <dt>
           <Trans>Balance</Trans>

@@ -53,6 +53,11 @@ def candle(value: dict[str, Any], symbol: str, timeframe: str) -> Candle:
 def account(value: dict[str, Any], account_id: str) -> AccountState:
     return AccountState(
         id=account_id,
+        broker=str(value["broker"]) if value.get("broker") is not None else None,
+        login=str(value["login"]) if value.get("login") is not None else None,
+        server=str(value["server"]) if value.get("server") is not None else None,
+        name=str(value["name"]) if value.get("name") is not None else None,
+        platform=str(value["platform"]) if value.get("platform") is not None else None,
         currency=value["currency"],
         balance=value["balance"],
         equity=value["equity"],
@@ -80,7 +85,7 @@ def order(value: dict[str, Any]) -> Order:
     return Order(
         id=str(value["id"]),
         symbol=value["symbol"],
-        side=value["type"],
+        side=str(value["type"]).removeprefix("ORDER_TYPE_").casefold(),
         volume=value["volume"],
         price=value["openPrice"],
         stop_loss=value.get("stopLoss"),

@@ -87,7 +87,8 @@ async def account(
     request: Request, connection_id: str, owner: OwnerIdentity = Depends(require_owner)
 ) -> dict[str, Any]:
     return await account_snapshot(
-        await runtime(request).services(owner.id).brokers.get(owner.id, connection_id)
+        await runtime(request).services(owner.id).brokers.get(owner.id, connection_id),
+        await runtime(request).services(owner.id).brokers.account(owner.id, connection_id),
     )
 
 

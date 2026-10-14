@@ -81,6 +81,11 @@ class SimulationBroker:
         state = await self.snapshot()
         return AccountState(
             id=self.connection_id,
+            broker=state.get("broker"),
+            login=str(state["login"]) if state.get("login") is not None else None,
+            server=state.get("server"),
+            name=state.get("name"),
+            platform=state.get("platform"),
             currency=state["currency"],
             balance=state["balance"],
             equity=state.get("equity", state["balance"]),
@@ -181,8 +186,16 @@ class SimulationBroker:
                 else:
                     target = {
                         **target,
-                        "stop_loss": str(request.stop_loss) if request.stop_loss else None,
-                        "take_profit": str(request.take_profit) if request.take_profit else None,
+                        "stop_loss": None
+                        if request.clear_stop_loss
+                        else str(request.stop_loss)
+                        if request.stop_loss is not None
+                        else target.get("stop_loss"),
+                        "take_profit": None
+                        if request.clear_take_profit
+                        else str(request.take_profit)
+                        if request.take_profit is not None
+                        else target.get("take_profit"),
                     }
                     positions = [
                         target if item["id"] == request.position_id else item for item in positions
@@ -205,8 +218,16 @@ class SimulationBroker:
                     target = {
                         **target,
                         "price": str(request.price or target["price"]),
-                        "stop_loss": str(request.stop_loss) if request.stop_loss else None,
-                        "take_profit": str(request.take_profit) if request.take_profit else None,
+                        "stop_loss": None
+                        if request.clear_stop_loss
+                        else str(request.stop_loss)
+                        if request.stop_loss is not None
+                        else target.get("stop_loss"),
+                        "take_profit": None
+                        if request.clear_take_profit
+                        else str(request.take_profit)
+                        if request.take_profit is not None
+                        else target.get("take_profit"),
                     }
                     orders = [target if item["id"] == request.order_id else item for item in orders]
             result = TradeResult(

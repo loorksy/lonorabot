@@ -126,7 +126,11 @@ class RealtimeVoiceSession:
     async def delegate(self) -> None:
         async with self.db.sessions() as session, session.begin():
             row = await session.get(VoiceSessionRow, self.session_id, with_for_update=True)
-            if row is None or row.state.get("gateway") != self.gateway:
+            if (
+                row is None
+                or row.state.get("gateway") != self.gateway
+                or row.payload.get("status") != "connected"
+            ):
                 return
             state = deepcopy(row.state)
             entries = dict(state.get("delegations", {}))
