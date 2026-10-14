@@ -245,6 +245,7 @@ async def main() -> None:
     with (
         patch.object(MetaApiBroker, "resolve_account", AsyncMock(return_value=SimpleNamespace())),
         patch.object(MetaApiBroker, "prepare", AsyncMock(return_value=SimpleNamespace())),
+        patch.object(MetaApiBroker, "prepare_stream", AsyncMock(return_value=stream)),
         patch.object(
             MetaApiBroker,
             "quote",

@@ -14,6 +14,8 @@ class Instrument(Contract):
     volume_min: Decimal = Field(gt=0)
     volume_max: Decimal = Field(gt=0)
     volume_step: Decimal = Field(gt=0)
+    stops_level: int = Field(default=0, ge=0)
+    point_size: Decimal | None = Field(default=None, gt=0)
 
 
 class Quote(Contract):

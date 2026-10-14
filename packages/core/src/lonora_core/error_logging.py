@@ -3,6 +3,8 @@
 import re
 from collections.abc import Iterable
 
+from lonora_core.user_error import LonoraError
+
 
 def safe_exception_message(error: BaseException, secrets: Iterable[str] = ()) -> str:
     message = str(error)
@@ -31,5 +33,7 @@ def safe_exception_message(error: BaseException, secrets: Iterable[str] = ()) ->
     message = re.sub(
         r"\beyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b", "[redacted]", message
     )
-    message = re.sub(r"(?<![\w])[A-Za-z0-9_-]{24,}(?![\w])", "[redacted]", message)
+    # Stable domain codes are useful diagnostics, not opaque credentials.
+    if not (isinstance(error, LonoraError) and message == error.code):
+        message = re.sub(r"(?<![\w])[A-Za-z0-9_-]{24,}(?![\w])", "[redacted]", message)
     return " ".join(message.split())[:320]

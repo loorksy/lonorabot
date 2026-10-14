@@ -52,8 +52,16 @@ async def main() -> None:
         add_synchronization_listener=add_listener,
         remove_synchronization_listener=remove_listener,
     )
-    broker.account_instance = SimpleNamespace(get_streaming_connection=lambda: stream)
-    with patch.object(MetaApiBroker, "prepare", AsyncMock(return_value=rpc)):
+
+    def streaming_connection(storage: Any) -> SimpleNamespace:
+        return stream
+
+    broker.account_instance = SimpleNamespace(get_streaming_connection=streaming_connection)
+    with (
+        patch.object(MetaApiBroker, "prepare", AsyncMock(return_value=rpc)),
+        patch.object(MetaApiBroker, "prepare_stream", AsyncMock(return_value=stream)),
+    ):
+        broker.streaming = stream
         quotes = broker.stream_quotes("XAUUSDm")
         assert (await anext(quotes)).symbol == "XAUUSDm"
         stream.subscribe_to_market_data.assert_awaited_once_with("XAUUSDm", [{"type": "quotes"}])

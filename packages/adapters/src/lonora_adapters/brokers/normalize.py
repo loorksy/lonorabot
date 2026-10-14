@@ -24,6 +24,8 @@ def instrument(value: dict[str, Any]) -> Instrument:
         volume_min=value["minVolume"],
         volume_max=value["maxVolume"],
         volume_step=value["volumeStep"],
+        stops_level=value.get("stopsLevel", 0),
+        point_size=value.get("point"),
     )
 
 

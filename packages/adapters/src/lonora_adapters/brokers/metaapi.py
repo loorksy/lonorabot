@@ -20,6 +20,13 @@ from lonora_session.idempotency import broker_operation_tag
 from pydantic import ValidationError
 
 from . import normalize
+from .metaapi_lifecycle import (
+    ConnectionSlot,
+    closed_error,
+    history_storage,
+    is_closed,
+    synchronized,
+)
 
 log = logging.getLogger("lonora.metaapi")
 
@@ -159,8 +166,13 @@ class MetaApiBroker:
         self.stream_lock = asyncio.Lock()
         self.lock = asyncio.Lock()
         self.account_lock = asyncio.Lock()
+        self.rpc_slot = ConnectionSlot("rpc")
+        self.stream_slot = ConnectionSlot("streaming")
+        self._closing = False
 
     def diagnose(self, error: Exception, stage: str) -> LonoraError:
+        if isinstance(error, LonoraError) and error.diagnostic_message:
+            return error
         failure = provider_error(error, stage)
         failure.diagnostic_type = type(error).__name__
         failure.diagnostic_message = safe_exception_message(
@@ -187,39 +199,149 @@ class MetaApiBroker:
                     raise self.diagnose(error, "account") from error
             return self.account_instance
 
-    async def prepare(self) -> Any:
-        account = await self.resolve_account()
-        async with self.lock:
+    def _slot(self, kind: str) -> ConnectionSlot:
+        # Some scripted adapter tests instantiate without __init__.
+        name = "rpc_slot" if kind == "rpc" else "stream_slot"
+        if not hasattr(self, name):
+            setattr(self, name, ConnectionSlot(kind))
+        return getattr(self, name)
+
+    async def _discard_locked(self, kind: str, connection: Any) -> None:
+        attr = "rpc" if kind == "rpc" else "streaming"
+        if getattr(self, attr, None) is not connection:
+            return
+        setattr(self, attr, None)
+        shared = getattr(connection, "_meta_api_connection", None)
+        account: Any = getattr(self, "account_instance", None)
+        registry = getattr(account, "_connection_registry", None)
+        # close() removes the SDK registry when this owned instance is the last user.
+        try:
+            async with asyncio.timeout(5):
+                if kind == "rpc" and shared is not None:
+                    # SDK RpcMetaApiConnectionInstance.close schedules shared.close
+                    # without awaiting it. Await ownership release before registry reuse,
+                    # or that late task could remove the replacement connection.
+                    connection._closed = True
+                    await shared.close(connection.instance_id)
+                else:
+                    await connection.close()
+        except Exception as error:
+            self.diagnose(error, "connection_cleanup")
+        if shared is not None:
+            shared._closed = True
+        if registry is not None and shared is not None:
+            entries = getattr(registry, "_" + kind + "_connections", {})
+            # A closed instance's close() is a no-op. The shared closed connection may
+            # still be registered; remove it before requesting another SDK wrapper.
+            if entries.get(account.id) is shared:
+                try:
+                    async with asyncio.timeout(5):
+                        await getattr(registry, "remove_" + kind)(account)
+                except Exception as error:
+                    self.diagnose(error, "connection_cleanup")
+                    if entries.get(account.id) is shared:
+                        entries.pop(account.id, None)
+                        getattr(registry, "_" + kind + "_connection_instances", {}).pop(
+                            account.id, None
+                        )
+
+    async def invalidate(self, kind: str, connection: Any) -> None:
+        lock = self.lock if kind == "rpc" else self.stream_lock
+        async with lock:
+            await self._discard_locked(kind, connection)
+
+    async def _prepare_connection(self, kind: str) -> Any:
+        if getattr(self, "_closing", False):
+            raise LonoraError("broker_connection_closed", 503)
+        attr = "rpc" if kind == "rpc" else "streaming"
+        existing = getattr(self, attr, None)
+        slot = self._slot(kind)
+        if (
+            existing is not None
+            and not is_closed(existing)
+            and synchronized(existing, kind)
+            and (slot.task is None or slot.task.done())
+        ):
+            return existing
+
+        async def create() -> Any:
             try:
-                if self.rpc is None:
-                    self.rpc = account.get_rpc_connection()
-                    await self.rpc.connect()
-                await self.rpc.wait_synchronized(timeout_in_seconds=20)
-                return self.rpc
+                account = await self.resolve_account()
             except Exception as error:
+                failure = self.diagnose(error, kind)
+                slot.failed(failure)
+                raise failure from error
+            lock = self.lock if kind == "rpc" else self.stream_lock
+            async with lock:
+                connection = getattr(self, attr, None)
+                if connection is not None and is_closed(connection):
+                    await self._discard_locked(kind, connection)
+                    connection = None
+                try:
+                    async with asyncio.timeout(25):
+                        if connection is None:
+                            connection = (
+                                account.get_rpc_connection()
+                                if kind == "rpc"
+                                else account.get_streaming_connection(history_storage())
+                            )
+                            setattr(self, attr, connection)
+                            await connection.connect()
+                        if not synchronized(connection, kind):
+                            if kind == "rpc":
+                                await connection.wait_synchronized(timeout_in_seconds=15)
+                            else:
+                                await connection.wait_synchronized({"timeoutInSeconds": 15})
+                    slot.ready()
+                    return connection
+                except Exception as error:
+                    if connection is not None:
+                        await self._discard_locked(kind, connection)
+                    failure = self.diagnose(error, kind)
+                    slot.failed(failure)
+                    raise failure from error
+
+        return await slot.get(create)
+
+    async def prepare(self) -> Any:
+        return await self._prepare_connection("rpc")
+
+    async def prepare_stream(self) -> Any:
+        return await self._prepare_connection("streaming")
+
+    async def read_rpc(self, method: str, *args: Any) -> Any:
+        # Read-only calls can be repeated once after a definitively closed connection.
+        # Never use this helper for a financial mutation.
+        for attempt in range(2):
+            rpc = await self.prepare()
+            try:
+                return await getattr(rpc, method)(*args)
+            except Exception as error:
+                if closed_error(error) or is_closed(rpc):
+                    await self.invalidate("rpc", rpc)
+                    if attempt == 0:
+                        continue
                 raise self.diagnose(error, "rpc") from error
+        raise LonoraError("broker_connection_unavailable", 502)
 
     async def symbols(self) -> list[str]:
-        rpc = await self.prepare()
         try:
-            return sorted(await rpc.get_symbols())
-        except Exception:
-            raise LonoraError("broker_symbols_unavailable", 502) from None
+            return sorted(await self.read_rpc("get_symbols"))
+        except Exception as error:
+            raise self.diagnose(error, "symbols") from error
 
     async def instrument(self, symbol: str) -> Instrument:
-        rpc = await self.prepare()
         try:
-            result = normalize.instrument(await rpc.get_symbol_specification(symbol))
+            result = normalize.instrument(await self.read_rpc("get_symbol_specification", symbol))
             if result.symbol != symbol:
                 raise ValueError("broker_symbol_mismatch")
             return result
-        except Exception:
-            raise LonoraError("broker_instrument_unavailable", 502) from None
+        except Exception as error:
+            raise self.diagnose(error, "instrument") from error
 
     async def instruments(self) -> list[Instrument]:
-        rpc = await self.prepare()
         try:
-            symbols = await rpc.get_symbols()
+            symbols = await self.read_rpc("get_symbols")
             if len(symbols) > 2000:
                 symbols = symbols[:2000]
             result: list[Instrument] = []
@@ -227,17 +349,16 @@ class MetaApiBroker:
 
             async def read(symbol: str) -> None:
                 async with semaphore:
-                    value = await rpc.get_symbol_specification(symbol)
+                    value = await self.read_rpc("get_symbol_specification", symbol)
                     result.append(normalize.instrument(value))
 
             await asyncio.gather(*(read(symbol) for symbol in symbols))
             return sorted(result, key=lambda instrument: instrument.symbol)
-        except Exception:
-            raise LonoraError("broker_instruments_unavailable", 502) from None
+        except Exception as error:
+            raise self.diagnose(error, "instruments") from error
 
     async def stream_quotes(self, symbol: str) -> AsyncGenerator[Quote, None]:
         # SDK streaming is shared by symbol listeners and survives without a browser.
-        await self.prepare()
         queue: asyncio.Queue[Quote] = asyncio.Queue(maxsize=1)
         listener_base: Any = importlib.import_module(
             "metaapi_cloud_sdk.clients.metaapi.synchronization_listener"
@@ -268,14 +389,9 @@ class MetaApiBroker:
                 "on_symbol_prices_updated": prices,
             },
         )()
-        async with self.stream_lock:
-            if self.streaming is None:
-                self.streaming = self.account_instance.get_streaming_connection()
-                await self.streaming.connect()
-            stream = self.streaming
-            stream.add_synchronization_listener(listener)
+        stream = await self.prepare_stream()
+        stream.add_synchronization_listener(listener)
         try:
-            await stream.wait_synchronized({"timeoutInSeconds": 30})
             await stream.subscribe_to_market_data(symbol, [{"type": "quotes"}])
             yield await self.quote(symbol)
             while True:
@@ -284,24 +400,38 @@ class MetaApiBroker:
                 except TimeoutError:
                     # Verify synchronization and resubscribe after SDK reconnects. A fresh
                     # RPC observation provides recovery; never synthesize price/timestamps.
-                    await stream.wait_synchronized({"timeoutInSeconds": 20})
+                    if is_closed(stream):
+                        raise Exception(
+                            "This connection has been closed, please create a new connection"
+                        ) from None
+                    if not synchronized(stream, "streaming"):
+                        async with asyncio.timeout(20):
+                            await stream.wait_synchronized({"timeoutInSeconds": 15})
                     await stream.subscribe_to_market_data(symbol, [{"type": "quotes"}])
                     yield await self.quote(symbol)
         except asyncio.CancelledError:
             raise
-        except Exception:
-            raise LonoraError("broker_stream_unavailable", 502) from None
+        except Exception as error:
+            failure = self.diagnose(error, "streaming")
+            if (
+                closed_error(error)
+                or is_closed(stream)
+                or (not synchronized(stream, "streaming") and failure.status == 504)
+            ):
+                await self.invalidate("streaming", stream)
+                self._slot("streaming").failed(failure)
+            raise failure from error
         finally:
             stream.remove_synchronization_listener(listener)
             # This generator is the sole resident consumer of this exact symbol.
             try:
-                await stream.unsubscribe_from_market_data(symbol, [{"type": "quotes"}])
+                if stream is self.streaming and not is_closed(stream):
+                    await stream.unsubscribe_from_market_data(symbol, [{"type": "quotes"}])
             except Exception:
                 pass
 
     async def stream_candles(self, symbol: str, timeframe: str) -> AsyncGenerator[Candle, None]:
         validate_timeframe(timeframe)
-        account = await self.resolve_account()
         queue: asyncio.Queue[Candle | LonoraError] = asyncio.Queue(maxsize=1000)
         listener_base: Any = importlib.import_module(
             "metaapi_cloud_sdk.clients.metaapi.synchronization_listener"
@@ -331,14 +461,9 @@ class MetaApiBroker:
             "LonoraCandleListener", (listener_base,), {"on_candles_updated": updated}
         )()
         subscription = [{"type": "candles", "timeframe": timeframe}]
-        async with self.stream_lock:
-            if self.streaming is None:
-                self.streaming = account.get_streaming_connection()
-                await self.streaming.connect()
-            stream = self.streaming
-            stream.add_synchronization_listener(listener)
+        stream = await self.prepare_stream()
+        stream.add_synchronization_listener(listener)
         try:
-            await stream.wait_synchronized({"timeoutInSeconds": 30})
             await stream.subscribe_to_market_data(symbol, subscription)
             while True:
                 try:
@@ -347,7 +472,13 @@ class MetaApiBroker:
                         raise candle
                     yield candle
                 except TimeoutError:
-                    await stream.wait_synchronized({"timeoutInSeconds": 20})
+                    if is_closed(stream):
+                        raise Exception(
+                            "This connection has been closed, please create a new connection"
+                        ) from None
+                    if not synchronized(stream, "streaming"):
+                        async with asyncio.timeout(20):
+                            await stream.wait_synchronized({"timeoutInSeconds": 15})
                     await stream.subscribe_to_market_data(symbol, subscription)
                     # Recovery is exact broker history, never OHLC inferred from quotes.
                     for candle in await self.candles(symbol, timeframe, 2):
@@ -355,20 +486,40 @@ class MetaApiBroker:
         except asyncio.CancelledError:
             raise
         except Exception as error:
-            raise self.diagnose(error, "candles") from error
+            failure = self.diagnose(error, "candles")
+            if (
+                closed_error(error)
+                or is_closed(stream)
+                or (not synchronized(stream, "streaming") and failure.status == 504)
+            ):
+                await self.invalidate("streaming", stream)
+                self._slot("streaming").failed(failure)
+            raise failure from error
         finally:
             stream.remove_synchronization_listener(listener)
             try:
-                await stream.unsubscribe_from_market_data(symbol, subscription)
+                if stream is self.streaming and not is_closed(stream):
+                    await stream.unsubscribe_from_market_data(symbol, subscription)
             except Exception:
                 pass
 
     async def quote(self, symbol: str) -> Quote:
-        rpc = await self.prepare()
+        # A synchronized SDK price is authoritative. Do not make a working price
+        # stream depend on a separate RPC application finishing startup.
+        stream = getattr(self, "streaming", None)
+        if stream is not None and not is_closed(stream) and synchronized(stream, "streaming"):
+            terminal = getattr(stream, "terminal_state", None)
+            if terminal is not None:
+                value = terminal.price(symbol)
+                if value:
+                    observed = normalize.observed(value["time"])
+                    age = (datetime.now(UTC) - observed).total_seconds()
+                    if -1 <= age <= 30:
+                        return normalize.quote(value)
         try:
-            return normalize.quote(await rpc.get_symbol_price(symbol))
-        except Exception:
-            raise LonoraError("broker_quote_unavailable", 502) from None
+            return normalize.quote(await self.read_rpc("get_symbol_price", symbol))
+        except Exception as error:
+            raise self.diagnose(error, "quote") from error
 
     async def candles(self, symbol: str, timeframe: str, limit: int) -> list[Candle]:
         validate_timeframe(timeframe)
@@ -390,9 +541,10 @@ class MetaApiBroker:
             raise self.diagnose(error, "candles") from error
 
     async def history(self, start: datetime, end: datetime, limit: int) -> list[dict[str, Any]]:
-        rpc = await self.prepare()
         try:
-            response = await rpc.get_deals_by_time_range(start, end, 0, min(limit, 1000))
+            response = await self.read_rpc(
+                "get_deals_by_time_range", start, end, 0, min(limit, 1000)
+            )
             fields = {
                 "id",
                 "orderId",
@@ -414,13 +566,12 @@ class MetaApiBroker:
                 }
                 for row in response.get("deals", [])[:limit]
             ]
-        except Exception:
-            raise LonoraError("broker_history_unavailable", 502) from None
+        except Exception as error:
+            raise self.diagnose(error, "history") from error
 
     async def account(self) -> AccountState:
-        rpc = await self.prepare()
         try:
-            payload = dict(await rpc.get_account_information())
+            payload = dict(await self.read_rpc("get_account_information"))
             entity = getattr(self, "account_instance", None)
             for field in ("login", "server"):
                 if payload.get(field) is None and entity is not None:
@@ -439,27 +590,24 @@ class MetaApiBroker:
                 payload,
                 getattr(self, "connection_id", None) or self.account_id,
             )
-        except Exception:
-            raise LonoraError("broker_account_unavailable", 502) from None
+        except Exception as error:
+            raise self.diagnose(error, "account") from error
 
     async def positions(self) -> list[Position]:
-        rpc = await self.prepare()
         try:
-            return [normalize.position(value) for value in await rpc.get_positions()]
-        except Exception:
-            raise LonoraError("broker_positions_unavailable", 502) from None
+            return [normalize.position(value) for value in await self.read_rpc("get_positions")]
+        except Exception as error:
+            raise self.diagnose(error, "positions") from error
 
     async def orders(self) -> list[Order]:
-        rpc = await self.prepare()
         try:
-            return [normalize.order(value) for value in await rpc.get_orders()]
-        except Exception:
-            raise LonoraError("broker_orders_unavailable", 502) from None
+            return [normalize.order(value) for value in await self.read_rpc("get_orders")]
+        except Exception as error:
+            raise self.diagnose(error, "orders") from error
 
     async def execute(
         self, request: TradeRequest, before_send: Callable[[], Awaitable[None]] | None = None
     ) -> TradeResult:
-        rpc = await self.prepare()
         volume, price, sl, tp = (
             sdk_number(v)
             for v in (request.volume, request.price, request.stop_loss, request.take_profit)
@@ -472,7 +620,7 @@ class MetaApiBroker:
             target = next(
                 (
                     order
-                    for order in await rpc.get_orders()
+                    for order in await self.read_rpc("get_orders")
                     if str(order.get("id")) == request.order_id
                     and order.get("symbol") == request.symbol
                 ),
@@ -481,6 +629,9 @@ class MetaApiBroker:
             if target is None:
                 raise LonoraError("order_not_found", 404)
             price = sdk_number(Decimal(str(target["openPrice"])))
+        # A read-only target lookup can replace a closed RPC wrapper. Take the
+        # current ready wrapper immediately before recording the send boundary.
+        rpc = await self.prepare()
         options = {"clientId": client_id(request.operation_id)}
         if before_send:
             await before_send()
@@ -538,9 +689,20 @@ class MetaApiBroker:
                     "order_id": response.get("orderId"),
                     "position_id": response.get("positionId"),
                     "deal_id": response.get("dealId"),
+                    "price": response.get("price"),
+                    "description": safe_exception_message(
+                        Exception(
+                            str(response.get("message") or response.get("description") or "")
+                        ),
+                        getattr(self, "_log_redactions", ()),
+                    )
+                    or None,
                 },
             )
         except Exception as error:
+            if closed_error(error) or is_closed(rpc):
+                await self.invalidate("rpc", rpc)
+            self.diagnose(error, "trade")
             from lonora_trading.retcodes import normalize_response
 
             # The official SDK raises TradeException on a received broker rejection.
@@ -557,7 +719,12 @@ class MetaApiBroker:
                         operation_id=request.operation_id,
                         status="failed",
                         code=string_code,
-                        details={"numeric_code": numeric_code},
+                        details={
+                            "numeric_code": numeric_code,
+                            "description": safe_exception_message(
+                                error, getattr(self, "_log_redactions", ())
+                            ),
+                        },
                     )
             return TradeResult(
                 operation_id=request.operation_id,
@@ -574,12 +741,15 @@ class MetaApiBroker:
             return TradeResult(
                 operation_id=operation_id, status="ambiguous", code="mutation_evidence_required"
             )
-        rpc = await self.prepare()
         target = client_id(operation_id)
         try:
-            current = [*await rpc.get_positions(), *await rpc.get_orders()]
-            history = await rpc.get_deals_by_time_range(
-                datetime.now(UTC) - timedelta(days=7), datetime.now(UTC), 0, 1000
+            current = [*await self.read_rpc("get_positions"), *await self.read_rpc("get_orders")]
+            history = await self.read_rpc(
+                "get_deals_by_time_range",
+                datetime.now(UTC) - timedelta(days=7),
+                datetime.now(UTC),
+                0,
+                1000,
             )
             deals = list(history.get("deals", []))
             items = deals if request and request.action == "close_position" else current + deals
@@ -599,13 +769,17 @@ class MetaApiBroker:
             return TradeResult(
                 operation_id=operation_id, status="ambiguous", code="execution_not_observed"
             )
-        except Exception:
-            raise LonoraError("broker_reconciliation_unavailable", 502) from None
+        except Exception as error:
+            raise self.diagnose(error, "reconciliation") from error
 
     async def close(self) -> None:
-        if self.streaming is not None:
-            await self.streaming.close()
-            self.streaming = None
-        if self.rpc is not None:
-            await self.rpc.close()
+        self._closing = True
+        for kind in ("streaming", "rpc"):
+            slot = self._slot(kind)
+            if slot.task is not None and not slot.task.done():
+                slot.task.cancel()
+                await asyncio.gather(slot.task, return_exceptions=True)
+            connection = getattr(self, "streaming" if kind == "streaming" else "rpc", None)
+            if connection is not None:
+                await self.invalidate(kind, connection)
         self.api.close()
