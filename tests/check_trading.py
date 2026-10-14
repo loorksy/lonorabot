@@ -553,8 +553,33 @@ async def checks() -> None:
                     )
         assert await reconcile_ambiguous(db, manager) == 0
         assert await reconcile_ambiguous(db, manager) == 1
+
+        # An unresolved operation checked minutes ago waits; an hour-old attempt is observed again.
+        resting = request()
+        async with db.sessions() as session, session.begin():
+            row, _ = await reserve_operation(
+                session,
+                owner_id,
+                resting.operation_id,
+                resting.account_id,
+                trade_fingerprint(resting),
+                resting.model_dump(mode="json"),
+            )
+            row.status = "ambiguous"
+            row.submitted_at = utcnow() - timedelta(days=2)
+            row.updated_at = utcnow() - timedelta(minutes=5)
+        observed_before = broker.reconciled
+        assert await reconcile_ambiguous(db, manager) == 0 and broker.reconciled == observed_before
+        async with db.sessions() as session, session.begin():
+            rested = await session.get(TradingJournalRow, resting.operation_id)
+            assert rested is not None
+            rested.updated_at = utcnow() - timedelta(hours=2)
+        broker.receipts[resting.operation_id] = TradeResult(
+            operation_id=resting.operation_id, status="confirmed"
+        )
+        assert await reconcile_ambiguous(db, manager) == 1
         print(
-            "Trading: 18 PostgreSQL/scripted-broker safety scenarios passed; no live broker calls"
+            "Trading: 19 PostgreSQL/scripted-broker safety scenarios passed; no live broker calls"
         )
     finally:
         await save_controls(db, original_controls)

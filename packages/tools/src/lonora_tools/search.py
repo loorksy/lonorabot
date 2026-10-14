@@ -176,7 +176,7 @@ def tools() -> list[Tool]:
         ),
         Tool(
             "web_search",
-            "Research web sources through the configured search integration.",
+            "Search the public web through the owner's enabled Brave Search integration. research_provider_not_configured means that integration is not saved in settings; use search_internal or web_fetch instead of retrying.",
             SearchInput,
             web_search,
             True,

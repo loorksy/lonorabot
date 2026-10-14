@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from lonora_adapters.brokers.base import BrokerManager
 from lonora_contracts.domain import utcnow
@@ -7,10 +7,23 @@ from lonora_contracts.trading import TradeRequest
 from lonora_db.client import Database
 from lonora_db.schema import RunRow, TradingJournalRow
 from lonora_db.trading_journal import mark_reconciliation_attempt, persist_result
-from sqlalchemy import select
+from sqlalchemy import ColumnElement, and_, or_, select
+
+
+def observation_due(now: datetime) -> ColumnElement[bool]:
+    # Every observation costs broker RPC quota. Fresh uncertainty is checked each pass;
+    # operations that stay unresolved rotate progressively slower instead of every 10 seconds.
+    submitted, attempted = TradingJournalRow.submitted_at, TradingJournalRow.updated_at
+    return or_(
+        submitted > now - timedelta(minutes=5),
+        and_(submitted > now - timedelta(hours=1), attempted <= now - timedelta(minutes=1)),
+        and_(submitted > now - timedelta(days=1), attempted <= now - timedelta(minutes=10)),
+        attempted <= now - timedelta(hours=1),
+    )
 
 
 async def reconcile_ambiguous(db: Database, brokers: BrokerManager) -> int:
+    now = utcnow()
     async with db.sessions() as session:
         rows = list(
             (
@@ -20,8 +33,9 @@ async def reconcile_ambiguous(db: Database, brokers: BrokerManager) -> int:
                         (TradingJournalRow.status == "ambiguous")
                         | (
                             (TradingJournalRow.status == "submitted")
-                            & (TradingJournalRow.submitted_at < utcnow() - timedelta(seconds=60))
-                        )
+                            & (TradingJournalRow.submitted_at < now - timedelta(seconds=60))
+                        ),
+                        observation_due(now),
                     )
                     .order_by(TradingJournalRow.updated_at, TradingJournalRow.operation_id)
                     .limit(50)

@@ -7,13 +7,20 @@ from lonora_contracts.mcp import McpConnection
 from lonora_core.user_error import LonoraError
 from lonora_db.schema import McpConnectionRow
 from pydantic import Field
+from sqlalchemy import select
 
 from .base import Tool
 from .context import ToolContext
 
 
+class McpList(Contract):
+    pass
+
+
 class McpRead(Contract):
-    connection_id: str
+    connection_id: str = Field(
+        description="Internal connection_id returned by mcp_connections; not a server name or URL."
+    )
 
 
 class McpExecute(McpRead):
@@ -40,6 +47,28 @@ async def connector(context: ToolContext, connection_id: str) -> McpConnector:
     return result
 
 
+async def connections(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+    async with context.db.sessions() as session:
+        rows = (
+            await session.scalars(
+                select(McpConnectionRow).where(McpConnectionRow.owner_id == context.owner_id)
+            )
+        ).all()
+    return {
+        "connections": [
+            {
+                "connection_id": row.id,
+                "name": row.payload.get("name"),
+                "transport": row.payload.get("transport"),
+                "enabled": bool(row.payload.get("enabled")),
+                "credentials_configured": bool(row.payload.get("secret_id")),
+            }
+            for row in rows
+        ],
+        "guidance": "Pass connection_id to mcp_tools and mcp_execute. An empty list means the owner has not saved an MCP server. mcp_not_found means the supplied id is not one of these connections.",
+    }
+
+
 async def read(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     adapter = await connector(context, args["connection_id"])
     try:
@@ -62,15 +91,22 @@ async def execute(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
 def tools() -> list[Tool]:
     return [
         Tool(
+            "mcp_connections",
+            "List the owner's saved MCP servers and their internal connection_id values. No URLs, commands, or credentials are returned. Discover these before mcp_tools; do not guess ids.",
+            McpList,
+            connections,
+            True,
+        ),
+        Tool(
             "mcp_tools",
-            "Inspect tools advertised by an enabled owner-configured MCP connection.",
+            "Inspect tools advertised by one enabled MCP connection. connection_id must come from mcp_connections. mcp_not_found means that id is not saved for this owner.",
             McpRead,
             read,
             True,
         ),
         Tool(
             "mcp_execute",
-            "Execute a tool on an enabled connection. Credentials remain on the server.",
+            "Execute one advertised tool on an enabled connection from mcp_connections. Credentials remain on the server.",
             McpExecute,
             execute,
         ),

@@ -29,6 +29,7 @@ from .metaapi_lifecycle import (
 )
 
 log = logging.getLogger("lonora.metaapi")
+EVIDENCE_SECONDS = 15
 
 
 def provider_error(error: Exception, stage: str) -> LonoraError:
@@ -92,9 +93,24 @@ def validate_sdk_url(url: str) -> str:
     return url
 
 
+def proxy_session() -> Any:
+    aiohttp: Any = importlib.import_module("aiohttp")
+    session = aiohttp.ClientSession(trust_env=True)
+    original_connect = session.ws_connect
+
+    def connect(url: str, **options: Any) -> Any:
+        validate_sdk_url(str(url))
+        proxy = os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy")
+        if proxy:
+            options["proxy"] = proxy
+        return original_connect(url, **options)
+
+    session.ws_connect = connect
+    return session
+
+
 def configure_sdk_transport() -> None:
     """Keep official SDK domain discovery and route its transports through inherited proxies."""
-    aiohttp: Any = importlib.import_module("aiohttp")
     socketio: Any = importlib.import_module("socketio")
     http_module: Any = importlib.import_module("metaapi_cloud_sdk.clients.http_client")
     websocket_module: Any = importlib.import_module(
@@ -116,26 +132,44 @@ def configure_sdk_transport() -> None:
             )
 
     class ProxySocketClient(socketio.AsyncClient):
-        def __init__(self, *args: Any, **kwargs: Any):
-            session = aiohttp.ClientSession(trust_env=True)
-            original_connect = session.ws_connect
-
-            def connect(url: str, **options: Any) -> Any:
-                validate_sdk_url(str(url))
-                proxy = os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy")
-                if proxy:
-                    options["proxy"] = proxy
-                return original_connect(url, **options)
-
-            session.ws_connect = connect
-            socketio.AsyncClient.__init__(self, *args, http_session=session, **kwargs)
-
         async def connect(self, url: str, *args: Any, **kwargs: Any) -> Any:
             validate_sdk_url(url)
+            if self.eio.state == "disconnected":
+                # Engine.IO closes the previous session from a background task when a
+                # connection resets. The SDK reconnects immediately, so reusing that session
+                # cancels the new handshake mid-flight.
+                previous = self.eio.http
+                self.eio.http = proxy_session()
+                if previous is not None and not previous.closed:
+                    await previous.close()
             return await socketio.AsyncClient.connect(self, url, *args, **kwargs)
+
+    original_reconnect = websocket_module.MetaApiWebsocketClient._reconnect
+
+    async def reconnect(
+        client: Any, instance_number: int, socket_instance_index: int, region: str
+    ) -> None:
+        while True:
+            try:
+                return await original_reconnect(
+                    client, instance_number, socket_instance_index, region
+                )
+            except asyncio.CancelledError:
+                task = asyncio.current_task()
+                if task is None or task.cancelling():
+                    raise
+                # A cancelled transport future, not a cancelled owner. Socket.IO runs this
+                # from its disconnect handler and swallows the cancellation, which would
+                # leave isReconnecting set and the socket permanently disconnected.
+                try:
+                    instances = client._socket_instances[region][instance_number]
+                    instances[socket_instance_index]["isReconnecting"] = False
+                except (KeyError, IndexError):
+                    return
 
     http_module.HttpClient._make_request = request
     websocket_module.socketio = SimpleNamespace(AsyncClient=ProxySocketClient)
+    websocket_module.MetaApiWebsocketClient._reconnect = reconnect
     http_module._lonora_transport_configured = True
 
 
@@ -168,6 +202,8 @@ class MetaApiBroker:
         self.account_lock = asyncio.Lock()
         self.rpc_slot = ConnectionSlot("rpc")
         self.stream_slot = ConnectionSlot("streaming")
+        self.evidence: tuple[float, list[dict[str, Any]], list[dict[str, Any]]] | None = None
+        self.evidence_lock = asyncio.Lock()
         self._closing = False
 
     def diagnose(self, error: Exception, stage: str) -> LonoraError:
@@ -324,15 +360,39 @@ class MetaApiBroker:
                 raise self.diagnose(error, "rpc") from error
         raise LonoraError("broker_connection_unavailable", 502)
 
+    def synchronized_terminal(self) -> Any:
+        stream = getattr(self, "streaming", None)
+        if stream is None or is_closed(stream) or not synchronized(stream, "streaming"):
+            return None
+        return getattr(stream, "terminal_state", None)
+
+    def streamed_specifications(self) -> list[dict[str, Any]]:
+        # Synchronized streaming state is free; RPC symbol reads cost broker CPU credits
+        # (500 for get_symbols, 50 per specification).
+        terminal = self.synchronized_terminal()
+        if terminal is None:
+            return []
+        specifications: list[dict[str, Any]] = terminal.specifications or []
+        return [dict(value) for value in specifications]
+
     async def symbols(self) -> list[str]:
         try:
+            streamed = self.streamed_specifications()
+            if streamed:
+                return sorted(str(value["symbol"]) for value in streamed)
             return sorted(await self.read_rpc("get_symbols"))
         except Exception as error:
             raise self.diagnose(error, "symbols") from error
 
     async def instrument(self, symbol: str) -> Instrument:
         try:
-            result = normalize.instrument(await self.read_rpc("get_symbol_specification", symbol))
+            terminal = self.synchronized_terminal()
+            streamed = terminal.specification(symbol) if terminal is not None else None
+            result = normalize.instrument(
+                dict(streamed)
+                if streamed
+                else await self.read_rpc("get_symbol_specification", symbol)
+            )
             if result.symbol != symbol:
                 raise ValueError("broker_symbol_mismatch")
             return result
@@ -341,6 +401,20 @@ class MetaApiBroker:
 
     async def instruments(self) -> list[Instrument]:
         try:
+            streamed = self.streamed_specifications()
+            if not streamed:
+                try:
+                    # One streaming synchronization replaces one RPC per symbol, which
+                    # exhausts the per-account quota on brokers with hundreds of symbols.
+                    await self.prepare_stream()
+                    streamed = self.streamed_specifications()
+                except LonoraError:
+                    streamed = []
+            if streamed:
+                return sorted(
+                    (normalize.instrument(value) for value in streamed[:2000]),
+                    key=lambda instrument: instrument.symbol,
+                )
             symbols = await self.read_rpc("get_symbols")
             if len(symbols) > 2000:
                 symbols = symbols[:2000]
@@ -516,6 +590,15 @@ class MetaApiBroker:
                     age = (datetime.now(UTC) - observed).total_seconds()
                     if -1 <= age <= 30:
                         return normalize.quote(value)
+                    # The server pushes every tick of a subscribed symbol, so an old price
+                    # means a quiet market; RPC would return that same tick at a quota cost.
+                    subscriptions: list[dict[str, Any]] = []
+                    try:
+                        subscriptions = stream.subscriptions(symbol) or []
+                    except Exception:
+                        subscriptions = []
+                    if age > 30 and any(item.get("type") == "quotes" for item in subscriptions):
+                        return normalize.quote(value)
         try:
             return normalize.quote(await self.read_rpc("get_symbol_price", symbol))
         except Exception as error:
@@ -635,6 +718,7 @@ class MetaApiBroker:
         options = {"clientId": client_id(request.operation_id)}
         if before_send:
             await before_send()
+        self.evidence = None
         try:
             creators = {
                 "buy": "create_market_buy_order",
@@ -732,6 +816,29 @@ class MetaApiBroker:
                 code="broker_result_ambiguous",
             )
 
+    async def reconciliation_evidence(
+        self,
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+        # The observer checks every uncertain operation of an account in one pass. Share one
+        # broker snapshot between them instead of three RPC reads per operation.
+        lock = self.__dict__.setdefault("evidence_lock", asyncio.Lock())
+        async with lock:
+            now = asyncio.get_running_loop().time()
+            cached = getattr(self, "evidence", None)
+            if cached is not None and now - cached[0] < EVIDENCE_SECONDS:
+                return cached[1], cached[2]
+            current = [*await self.read_rpc("get_positions"), *await self.read_rpc("get_orders")]
+            history = await self.read_rpc(
+                "get_deals_by_time_range",
+                datetime.now(UTC) - timedelta(days=7),
+                datetime.now(UTC),
+                0,
+                1000,
+            )
+            deals = list(history.get("deals", []))
+            self.evidence = (now, current, deals)
+            return current, deals
+
     async def reconcile(
         self, operation_id: str, request: TradeRequest | None = None
     ) -> TradeResult:
@@ -743,15 +850,7 @@ class MetaApiBroker:
             )
         target = client_id(operation_id)
         try:
-            current = [*await self.read_rpc("get_positions"), *await self.read_rpc("get_orders")]
-            history = await self.read_rpc(
-                "get_deals_by_time_range",
-                datetime.now(UTC) - timedelta(days=7),
-                datetime.now(UTC),
-                0,
-                1000,
-            )
-            deals = list(history.get("deals", []))
+            current, deals = await self.reconciliation_evidence()
             items = deals if request and request.action == "close_position" else current + deals
             matches = [item for item in items if item.get("clientId") == target]
             if matches:

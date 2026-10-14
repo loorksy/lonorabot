@@ -1,7 +1,7 @@
 """Actual adapter calls against explicit scripted SDK transports; never submits live orders."""
 
 import asyncio
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from types import SimpleNamespace
 from typing import Any
@@ -126,7 +126,94 @@ async def main() -> None:
         assert history[0]["symbol"] == "XAUUSDm" and "token" not in history[0]
         rpc.get_deals_by_time_range.assert_awaited_once_with(start, end, 0, 20)
         print("PASS bounded broker deal history normalizes timestamps and excludes credentials")
+        rpc.get_deals_by_time_range.reset_mock()
+        rpc.get_positions.return_value = [
+            {"id": "p7", "symbol": "XAUUSDm", "clientId": client_id("observed-buy")}
+        ]
+        buy = TradeRequest(
+            account_id="fixture", action="buy", symbol="XAUUSDm", volume=Decimal("0.1")
+        )
+        observed = await broker.reconcile("observed-buy", buy)
+        missing = await broker.reconcile("missing-buy", buy)
+        assert observed.status == "confirmed" and missing.code == "execution_not_observed"
+        assert rpc.get_positions.await_count == 1
+        assert rpc.get_deals_by_time_range.await_count == 1
+        await broker.execute(request)
+        await broker.reconcile("missing-buy", buy)
+        assert rpc.get_positions.await_count == 2
+        print(
+            "PASS one broker snapshot serves every uncertain operation in a pass and refreshes after a send"
+        )
+
+
+async def streamed_market_state() -> None:
+    broker = object.__new__(MetaApiBroker)
+    quiet_time = datetime.now(UTC) - timedelta(hours=2)
+    quiet = {
+        "symbol": "ABTm",
+        "bid": 102.13,
+        "ask": 102.22,
+        "time": quiet_time,
+    }
+    specifications = [
+        {
+            "symbol": "XAUUSDm",
+            "digits": 3,
+            "tickSize": 0.001,
+            "minVolume": 0.01,
+            "maxVolume": 200,
+            "volumeStep": 0.01,
+        },
+        {
+            "symbol": "ABTm",
+            "digits": 2,
+            "tickSize": 0.01,
+            "minVolume": 1,
+            "maxVolume": 1000,
+            "volumeStep": 1,
+        },
+    ]
+
+    def specification(symbol: str) -> dict[str, Any] | None:
+        return next((item for item in specifications if item["symbol"] == symbol), None)
+
+    def price(symbol: str) -> dict[str, Any] | None:
+        return quiet if symbol == "ABTm" else None
+
+    subscriptions = {"ABTm": [{"type": "quotes"}]}
+    shared = SimpleNamespace(synchronized=True, _closed=False)
+    broker.streaming = SimpleNamespace(
+        _meta_api_connection=shared,
+        terminal_state=SimpleNamespace(
+            specifications=specifications, specification=specification, price=price
+        ),
+        subscriptions=subscriptions.get,
+    )
+    rpc = SimpleNamespace(
+        get_symbols=AsyncMock(return_value=["XAUUSDm"]),
+        get_symbol_specification=AsyncMock(),
+        get_symbol_price=AsyncMock(return_value={**quiet, "time": datetime.now(UTC)}),
+    )
+    with patch.object(MetaApiBroker, "prepare", AsyncMock(return_value=rpc)):
+        assert await broker.symbols() == ["ABTm", "XAUUSDm"]
+        assert (await broker.instrument("ABTm")).volume_min == 1
+        assert [item.symbol for item in await broker.instruments()] == ["ABTm", "XAUUSDm"]
+        assert (await broker.quote("ABTm")).observed_at == quiet_time
+        rpc.get_symbols.assert_not_awaited()
+        rpc.get_symbol_specification.assert_not_awaited()
+        rpc.get_symbol_price.assert_not_awaited()
+        print(
+            "PASS synchronized streaming state serves symbols, specifications and quiet subscribed quotes without RPC credits"
+        )
+        del subscriptions["ABTm"]
+        assert (await broker.quote("ABTm")).observed_at > quiet_time
+        rpc.get_symbol_price.assert_awaited_once_with("ABTm")
+        shared.synchronized = False
+        assert await broker.symbols() == ["XAUUSDm"]
+        rpc.get_symbols.assert_awaited_once()
+        print("PASS stale unsubscribed prices and unsynchronized state still use broker RPC")
 
 
 if __name__ == "__main__":
     asyncio.run(main())
+    asyncio.run(streamed_market_state())
