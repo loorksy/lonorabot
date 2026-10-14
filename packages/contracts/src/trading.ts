@@ -76,3 +76,19 @@ export type Journal = {
   updated_at: string;
 };
 export type TradingControls = { enabled: boolean; emergency_stop: boolean };
+export type TradeApproval = {
+  id: string;
+  run_id: string;
+  thread_id: string;
+  agent_id: string;
+  status: "pending" | "approved" | "rejected" | "completed" | "cancelled";
+  requests: Payload[];
+  results: {
+    operation_id: string;
+    status: "confirmed" | "failed" | "ambiguous" | "submitted";
+    broker_id?: string | null;
+    code?: string | null;
+    details: Payload;
+  }[];
+  created_at: string;
+};

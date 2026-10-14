@@ -1,4 +1,12 @@
-import type { Agent, Artifact, Group, Message, Run, Thread } from "@lonora/contracts";
+import type {
+  Agent,
+  Artifact,
+  Group,
+  Message,
+  Run,
+  Thread,
+  TradeApproval,
+} from "@lonora/contracts";
 import { activeStatuses, needsTimeSeparator } from "@lonora/core";
 // Persistent-thread navigation follows Tampletgrok's native thread screen; see NOTICE.
 import * as DocumentPicker from "expo-document-picker";
@@ -13,6 +21,7 @@ import { MessageBubble } from "../components/message-bubble";
 import { ThreadComposer } from "../components/thread-composer";
 import { ThreadHeader } from "../components/thread-header";
 import { TimeSeparator } from "../components/time-separator";
+import { TradeApprovalCard } from "../components/trade-approval";
 import { Button, colors, ErrorNotice, Loading, Screen } from "../components/ui";
 import { WorkingIndicator } from "../components/WorkingIndicator";
 import { ApiError, api, upload } from "../lib/api";
@@ -33,6 +42,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [approvals, setApprovals] = useState<TradeApproval[]>([]);
   const [runs, setRuns] = useState<Run[]>([]);
   const [draft, setDraft] = useState("");
   const [reply, setReply] = useState<Message | null>(null);
@@ -53,15 +63,27 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     async (stillLive: () => boolean = () => true) => {
       if (!id) return;
       try {
-        const [nextMessages, nextRuns, nextFiles] = await Promise.all([
+        const [nextMessages, nextRuns, nextFiles, nextApprovals] = await Promise.all([
           api.get<Message[]>(`/threads/${encodeURIComponent(id)}/messages`),
           api.get<Run[]>(`/runs?thread_id=${encodeURIComponent(id)}`),
           api.get<Artifact[]>(`/artifacts?thread_id=${encodeURIComponent(id)}`),
+          api.get<TradeApproval[]>(`/trading/approvals?thread_id=${encodeURIComponent(id)}`),
         ]);
         if (!stillLive()) return;
         setMessages((old) => mergeMessages(old, nextMessages));
         setRuns(nextRuns);
         setFiles(nextFiles);
+        setApprovals((old) =>
+          nextApprovals.map((row) => {
+            const previous = old.find((item) => item.id === row.id);
+            const rank = { pending: 0, approved: 1, rejected: 1, completed: 2, cancelled: 2 };
+            return previous &&
+              (rank[previous.status] > rank[row.status] ||
+                (previous.status === row.status && previous.results.length > row.results.length))
+              ? previous
+              : row;
+          }),
+        );
         setError(null);
         const latest = nextMessages.at(-1)?.id ?? null;
         if (latest && lastMessage.current !== latest) {
@@ -79,6 +101,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     setThread(null);
     setMessages([]);
     setRuns([]);
+    setApprovals([]);
     setAttachments([]);
     setFiles([]);
     setDraft("");
@@ -384,6 +407,19 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
           )}
           ListFooterComponent={
             <View style={{ gap: 12 }}>
+              {approvals
+                .filter((row) => row.thread_id === id)
+                .map((row) => (
+                  <TradeApprovalCard
+                    key={row.id}
+                    row={row}
+                    onChange={(updated) =>
+                      setApprovals((old) =>
+                        old.map((item) => (item.id === updated.id ? updated : item)),
+                      )
+                    }
+                  />
+                ))}
               {runs
                 .filter(
                   (run) =>

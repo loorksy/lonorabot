@@ -83,6 +83,10 @@ class TradeRequest(Contract):
             and self.price is None
         ):
             raise ValueError("price_required")
+        if self.position_id and "position" not in self.action:
+            raise ValueError("position_not_supported_for_action")
+        if self.order_id and "order" not in self.action:
+            raise ValueError("order_not_supported_for_action")
         if "position" in self.action and not self.position_id:
             raise ValueError("position_required")
         if "order" in self.action and not self.order_id:

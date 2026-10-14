@@ -168,6 +168,22 @@ async def main() -> None:
 
         with patch.object(context.router, "complete", complete):
             await execute_run(context, load_tools(), 120, 12)
+            waiting = await fixture.request("GET", "/runs/" + run["id"])
+            assert waiting["status"] == "waiting_input"
+            approvals = cast(
+                list[dict[str, Any]],
+                await fixture.request("GET", f"/trading/approvals?thread_id={thread['id']}"),
+            )
+            approval = next(card for card in approvals if card["run_id"] == run["id"])
+            assert approval["status"] == "pending"
+            broker = await context.brokers.get(context.owner_id, connection_id)
+            assert not await broker.positions()
+            await fixture.request(
+                "POST", f"/trading/approvals/{approval['id']}/decision", {"decision": "approve"}
+            )
+            assert not await broker.positions()
+            context = await fixture.lease(run)
+            await execute_run(context, load_tools(), 120, 12)
         async with fixture.runtime.db.sessions() as session:
             row = await session.get(RunRow, run["id"])
             assert (

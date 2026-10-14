@@ -1,5 +1,15 @@
 export type Locale = "ar" | "en";
 export const labels = {
+  tradeApproval: ["طلب تداول", "Trading request"],
+  approve: ["موافقة", "Approve"],
+  reject: ["رفض", "Reject"],
+  approved: ["تمت الموافقة — بانتظار الوسيط", "Approved — awaiting broker"],
+  rejected: ["مرفوض", "Rejected"],
+  confirmed: ["مؤكد", "Confirmed"],
+  ambiguous: ["بانتظار التحقق من الوسيط", "Awaiting reconciliation"],
+  submitted: ["أُرسل", "Submitted"],
+  clearStopLoss: ["إزالة وقف الخسارة", "Remove stop loss"],
+  clearTakeProfit: ["إزالة جني الربح", "Remove take profit"],
   reply: ["رد", "Reply"],
   cancelReply: ["إلغاء الرد", "Cancel reply"],
   activity: ["النشاط", "Activity"],

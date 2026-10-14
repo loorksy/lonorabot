@@ -33,6 +33,7 @@ import { SubagentTasks } from "../../components/ai/CollaborationMarker";
 import { AgentActivity, WorkingIndicator } from "../../components/ai/primitives";
 import { FilePreviewPanel } from "../../components/common/FilePreviewPanel";
 import { ToolActivityDisclosure } from "../../components/ToolActivityDisclosure";
+import { TradeApprovals } from "../../components/trading/TradeApprovals";
 import { useThreads } from "../../hooks/useThreads";
 import type { Agent, Message, Resource, Run } from "../../lib/api";
 import { api } from "../../lib/api";
@@ -235,6 +236,7 @@ export function ThreadViewport({
                   />
                 ),
             )}
+            <TradeApprovals key={threadId} threadId={threadId} />
             <div className="thread-progress template-thread-progress">
               <AgentActivity
                 events={local}

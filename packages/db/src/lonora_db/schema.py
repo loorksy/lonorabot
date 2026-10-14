@@ -371,3 +371,22 @@ class GoalDecisionRow(Base):
     result: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class TradeApprovalRow(Base):
+    __tablename__ = "ln_trade_approvals"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    owner_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_owners.id", ondelete="CASCADE"), index=True
+    )
+    run_id: Mapped[str] = mapped_column(ForeignKey("ln_runs.id", ondelete="CASCADE"), index=True)
+    thread_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_threads.id", ondelete="CASCADE"), index=True
+    )
+    agent_id: Mapped[str] = mapped_column(ForeignKey("ln_agents.id", ondelete="CASCADE"))
+    call_id: Mapped[str] = mapped_column(String(120))
+    requests: Mapped[list[dict[str, Any]]] = mapped_column(JSON)
+    status: Mapped[str] = mapped_column(String(24), default="pending")
+    results: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

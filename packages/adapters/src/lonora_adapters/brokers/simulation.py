@@ -143,11 +143,14 @@ class SimulationBroker:
             positions = list(data.get("positions", []))
             orders = list(data.get("orders", []))
             broker_id: str | None = None
+            executed_price: Decimal | None = None
+            executed_volume = request.volume
             if request.action in {"buy", "sell"}:
                 payload = data.get("quotes", {}).get(request.symbol)
                 if payload is None:
                     raise LonoraError("quote_unavailable", 404)
                 price = Decimal(str(payload["ask" if request.action == "buy" else "bid"]))
+                executed_price = price
                 broker_id = new_id()
                 positions.append(
                     Position(
@@ -188,6 +191,12 @@ class SimulationBroker:
                     raise LonoraError("position_not_found", 404)
                 broker_id = str(target["id"])
                 if request.action == "close_position":
+                    executed_volume = request.volume or Decimal(str(target["volume"]))
+                    quote = data.get("quotes", {}).get(request.symbol)
+                    if quote is not None:
+                        executed_price = Decimal(
+                            str(quote["bid" if target["side"] == "buy" else "ask"])
+                        )
                     remaining = Decimal(str(target["volume"])) - (
                         request.volume or Decimal(str(target["volume"]))
                     )
@@ -252,7 +261,13 @@ class SimulationBroker:
                 operation_id=request.operation_id,
                 status="confirmed",
                 broker_id=broker_id,
-                details={"simulation": True},
+                details={
+                    "simulation": True,
+                    "symbol": request.symbol,
+                    "action": request.action,
+                    **({"price": str(executed_price)} if executed_price is not None else {}),
+                    **({"volume": str(executed_volume)} if executed_volume is not None else {}),
+                },
             )
             operations[request.operation_id] = result.model_dump(mode="json")
             row.payload = {
@@ -260,6 +275,18 @@ class SimulationBroker:
                 "positions": positions,
                 "orders": orders,
                 "operations": operations,
+                "history": [
+                    *data.get("history", []),
+                    {
+                        "id": broker_id,
+                        "operation_id": request.operation_id,
+                        "time": utcnow().isoformat(),
+                        "symbol": request.symbol,
+                        "action": request.action,
+                        "simulation": True,
+                        **result.details,
+                    },
+                ][-1000:],
             }
             row.version += 1
             return result

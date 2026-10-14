@@ -1,4 +1,5 @@
 // biome-ignore-all lint/suspicious/noUndeclaredEnvVars: Playwright runs directly without Turborepo caching.
+import { execFileSync } from "node:child_process";
 
 import { randomUUID } from "node:crypto";
 import { test as base, expect } from "@playwright/test";
@@ -391,4 +392,100 @@ test("knowledge and recurring trading work use durable API edits", async ({
   // The test owns this routine; no scheduler or provider credentials are needed.
   const durable = await context.request.get(`/api/skills/${skill.id}`, { headers });
   expect((await durable.json()).payload.content).toContain("economic calendar");
+});
+
+test("financial approval buttons persist decisions and display broker receipts after refresh", async ({
+  page,
+  context,
+}) => {
+  const fixture = (data) =>
+    JSON.parse(
+      execFileSync(".venv/bin/python", ["tests/check_chart_browser.py"], {
+        input: JSON.stringify(data),
+        encoding: "utf8",
+      }),
+    );
+  const data = fixture({ action: "init" });
+  const headers = {
+    "X-CSRF-Token": data.cookies.find((cookie) => cookie.name === "lonora_csrf").value,
+  };
+  await context.addCookies(
+    data.cookies.map((cookie) => ({
+      ...cookie,
+      url: test.info().project.use.baseURL,
+      httpOnly: cookie.name === "lonora_session",
+      sameSite: "Strict",
+    })),
+  );
+  await context.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
+  const post = async (path, body) => {
+    const response = await context.request.post(`/api${path}`, { headers, data: body });
+    expect(response.ok()).toBeTruthy();
+    return response.json();
+  };
+  const agent = await post("/agents", { name: `Approval UI ${randomUUID()}` });
+  try {
+    const thread = await post(`/agents/${agent.id}/conversation`, {});
+    const approval = {
+      id: randomUUID(),
+      thread_id: thread.id,
+      status: "pending",
+      requests: [
+        {
+          operation_id: "fixed-operation",
+          action: "buy_limit",
+          symbol: "EURUSD.demo",
+          volume: "0.1",
+          price: "99",
+          stop_loss: "98",
+          take_profit: "102",
+        },
+      ],
+      results: [],
+    };
+    let decisions = 0;
+    await page.route("**/api/trading/approvals?*", (route) => route.fulfill({ json: [approval] }));
+    await page.route(`**/api/trading/approvals/${approval.id}/decision`, async (route) => {
+      decisions++;
+      expect(route.request().postDataJSON()).toEqual({ decision: "approve" });
+      approval.status = "completed";
+      approval.results = [
+        {
+          operation_id: "fixed-operation",
+          status: "confirmed",
+          broker_id: "native-ticket-42",
+          details: { price: "99.02" },
+        },
+      ];
+      await route.fulfill({ json: approval });
+    });
+    await page.goto(`/app/${agent.id}`);
+    const card = page.locator(`[data-trade-approval='${approval.id}']`);
+    await expect(card.getByText("EURUSD.demo", { exact: true })).toBeVisible();
+    await expect(card.locator("[data-trade-result]")).toHaveCount(0);
+    await card.getByRole("button", { name: "Approve", exact: true }).click();
+    await expect(card.locator("[data-trade-result='confirmed']")).toBeVisible();
+    await expect(card.getByText("native-ticket-42", { exact: true })).toBeVisible();
+    await expect(card.getByText("99.02", { exact: true })).toBeVisible();
+    await expect(card.getByRole("button", { name: "Approve", exact: true })).toHaveCount(0);
+    await page.reload();
+    await expect(card.getByText("native-ticket-42", { exact: true })).toBeVisible();
+    expect(decisions).toBe(1);
+    // A rejection is never rendered as broker success, including after reconnection.
+    approval.results = [
+      {
+        operation_id: "fixed-operation",
+        status: "failed",
+        code: "TRADE_RETCODE_INVALID_VOLUME",
+        details: { description: "Invalid volume" },
+      },
+    ];
+    await page.reload();
+    await expect(card.locator("[data-trade-result='failed']")).toBeVisible();
+    await expect(card.getByText("TRADE_RETCODE_INVALID_VOLUME", { exact: true })).toBeVisible();
+    await expect(card.getByText("Invalid volume", { exact: true })).toBeVisible();
+  } finally {
+    await context.request.delete(`/api/agents/${agent.id}`, { headers });
+    fixture({ ...data, action: "cleanup" });
+  }
 });

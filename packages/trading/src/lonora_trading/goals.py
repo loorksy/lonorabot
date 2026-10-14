@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any
 
 from lonora_adapters.brokers.base import BrokerManager
@@ -253,6 +254,7 @@ async def execute_goal_step(
     lease: Lease,
     note: str = "",
     evidence_refs: list[str] | None = None,
+    approval_gate: Callable[[TradeRequest], Awaitable[dict[str, Any] | None]] | None = None,
 ) -> dict[str, Any]:
     # Observe authoritative broker data anew on every wake, never the triggering quote alone.
     async with db.sessions() as session:
@@ -289,6 +291,12 @@ async def execute_goal_step(
         if error.code == "goal_target_not_observed":
             return await wait_for_goal_target(db, owner_id, goal_id, step.id, lease)
         raise
+    if origin.trigger in {"user", "group"}:
+        if approval_gate is None:
+            raise LonoraError("trade_approval_required", 409)
+        pending_approval = await approval_gate(request)
+        if pending_approval is not None:
+            return pending_approval
     async with db.sessions() as session, session.begin():
         run, _ = await locked_run_thread(session, lease)
         goal = await owned_goal(session, owner_id, goal_id, True)
@@ -362,8 +370,20 @@ async def execute_goal_step(
             attempt=attempt,
             plan_version=int(state.get("plan_version", 1)),
         )
+
+    async def require_approved_goal() -> None:
+        if origin.trigger in {"user", "group"}:
+            if approval_gate is None or await approval_gate(request) is not None:
+                raise LonoraError("trade_approval_unavailable", 409)
+
     try:
-        result = await executor.execute(owner_id, request, lease, goal=context)
+        result = await executor.execute(
+            owner_id,
+            request,
+            lease,
+            goal=context,
+            authorization=require_approved_goal if origin.trigger in {"user", "group"} else None,
+        )
     except LonoraError as error:
         async with db.sessions() as session, session.begin():
             goal = await owned_goal(session, owner_id, goal_id, True)

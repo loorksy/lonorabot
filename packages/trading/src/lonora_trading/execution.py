@@ -1,4 +1,5 @@
 import asyncio
+from collections.abc import Awaitable, Callable
 
 from lonora_adapters.brokers.base import BrokerManager
 from lonora_contracts.broker import BrokerConnection
@@ -69,6 +70,7 @@ class ExecutionService:
         lease: Lease | None = None,
         *,
         goal: GoalExecution | None = None,
+        authorization: Callable[[], Awaitable[None]] | None = None,
     ) -> TradeResult:
         async with self.db.sessions() as session:
             if lease:
@@ -82,6 +84,8 @@ class ExecutionService:
                 return receipt(previous)
             connection = await BrokerSessionRepository().get(session, owner_id, request.account_id)
             connection_version = connection.version
+        if authorization:
+            await authorization()
         require_trading(await read_controls(self.db))
         broker = await self.brokers.get(owner_id, request.account_id)
         await preflight(broker, request)
@@ -140,6 +144,8 @@ class ExecutionService:
             nonlocal send_authorized
             if send_authorized:
                 raise LonoraError("operation_send_already_authorized", 409)
+            if authorization:
+                await authorization()
             goal_evidence = (
                 await fresh_goal_evidence(
                     self.db,
@@ -196,6 +202,9 @@ class ExecutionService:
                 if not send_authorized
                 and error.code
                 in {
+                    "trade_approval_unavailable",
+                    "trade_approval_request_changed",
+                    "tool_call_superseded",
                     "trading_disabled",
                     "emergency_stop",
                     "stale_lease",

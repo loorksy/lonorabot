@@ -2,6 +2,7 @@ import copy
 from typing import Any
 
 from lonora_contracts.routines import RoutineCreate
+from lonora_contracts.trading import TradeRequest
 from lonora_contracts.trading_goal import (
     GoalControl,
     GoalCreate,
@@ -12,7 +13,7 @@ from lonora_contracts.trading_goal import (
 from lonora_core.user_error import LonoraError
 from lonora_db.market_watches import MarketWatchRepository
 from lonora_db.routines import create_routine, routine_data
-from lonora_db.runs import locked_run_thread
+from lonora_db.runs import locked_run_thread, require_lease
 from lonora_db.schema import GoalDecisionRow, TradingGoalRow
 from lonora_db.trading_goals import (
     control_goal,
@@ -323,7 +324,19 @@ async def wait(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
 
 
 async def execute(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
-    return await execute_goal_step(
+    from .trade import approved_execution
+
+    approval_id = None
+
+    async def gate(request: TradeRequest) -> dict[str, Any] | None:
+        nonlocal approval_id
+        proposal = await approved_execution(context, [request], gate_only=True)
+        if not proposal.get("approved"):
+            return proposal
+        approval_id = proposal["approval_id"]
+        return None
+
+    result = await execute_goal_step(
         context.db,
         context.brokers,
         context.trading,
@@ -333,7 +346,19 @@ async def execute(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         context.lease,
         args.get("note", ""),
         args.get("evidence_refs", []),
+        approval_gate=gate,
     )
+    if approval_id and result.get("result"):
+        from lonora_db.schema import TradeApprovalRow
+        from lonora_db.trade_approvals import approval_event
+
+        async with context.db.sessions() as session, session.begin():
+            await require_lease(session, context.lease, lock=True)
+            row = await session.get(TradeApprovalRow, approval_id, with_for_update=True)
+            assert row is not None
+            row.status, row.results = "completed", [result["result"]]
+            approval_event(session, row)
+    return result
 
 
 async def toggle(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:

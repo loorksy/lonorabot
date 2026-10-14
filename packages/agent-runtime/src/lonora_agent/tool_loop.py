@@ -60,6 +60,22 @@ async def execute_tool_loop(
         while pending:
             if await owner_steering_pending(context):
                 superseded = list(pending)
+                from lonora_db.schema import TradeApprovalRow
+                from lonora_db.trade_approvals import approval_event
+                from lonora_session.idempotency import stable_id
+
+                async with context.db.sessions() as session, session.begin():
+                    await require_lease(session, context.lease, lock=True)
+                    for superseded_call in superseded:
+                        approval = await session.get(
+                            TradeApprovalRow,
+                            stable_id(context.lease.run_id, "approval:" + superseded_call.id),
+                            with_for_update=True,
+                        )
+                        if approval and approval.status in {"pending", "approved"}:
+                            approval.status = "cancelled"
+                            approval_event(session, approval)
+
                 for call in superseded:
                     messages.append(
                         ModelMessage(
@@ -69,6 +85,7 @@ async def execute_tool_loop(
                         )
                     )
                 pending.clear()
+                state.pop("waiting_call_id", None)
                 await persist(context, state, messages, pending)
                 for call in superseded:
                     await progress(
@@ -78,7 +95,8 @@ async def execute_tool_loop(
                     )
                 break
             call = pending[0]
-            state["guard"] = advance_guard(state.get("guard", {}), call.name, call.arguments)
+            if state.get("waiting_call_id") != call.id:
+                state["guard"] = advance_guard(state.get("guard", {}), call.name, call.arguments)
             await progress(context, "tool.started", {"name": call.name, "call_id": call.id})
             try:
                 result = await registry.execute(call, context, read_only)
@@ -87,6 +105,15 @@ async def execute_tool_loop(
                 if error.code == "stale_lease":
                     raise
                 result = {"ok": False, "code": error.code}
+            if result.get("_runtime_retry"):
+                state["waiting_call_id"] = call.id
+                await persist(context, state, messages, pending)
+                return LoopOutcome(
+                    str(result.get("question", "")),
+                    {**state.get("selection", {}), "trade_approval_id": result.get("approval_id")},
+                    True,
+                )
+            state.pop("waiting_call_id", None)
             content = json.dumps(result, ensure_ascii=False)
             if len(content) > 120000:
                 content = json.dumps({"ok": False, "code": "tool_result_too_large"})

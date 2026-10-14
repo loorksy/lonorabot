@@ -6,7 +6,7 @@ from lonora_core.user_error import LonoraError
 from lonora_db.events import emit
 from lonora_db.generated_artifacts import link_generated_artifacts, pending_generated_artifacts
 from lonora_db.runs import complete_run, fail_run, locked_run_thread, renew_lease, require_lease
-from lonora_db.schema import MessageRow, SteeringRow
+from lonora_db.schema import MessageRow, SteeringRow, TradeApprovalRow
 from lonora_db.streaming import settle_stream, stream_identity
 from lonora_tools.context import ToolContext
 from lonora_tools.registry import ToolRegistry
@@ -66,9 +66,14 @@ async def execute_run(
                         .where(SteeringRow.run_id == row.id, SteeringRow.consumed.is_(False))
                         .limit(1)
                     )
+                    approval_id = outcome.metadata.get("trade_approval_id")
+                    if approval_id:
+                        approval = await session.get(TradeApprovalRow, approval_id)
+                        if approval and approval.status != "pending":
+                            continue
                     if outstanding:
                         continue
-                    if thread:
+                    if thread and outcome.text:
                         message = MessageRow(
                             thread_id=thread.id,
                             agent_id=context.agent_id,

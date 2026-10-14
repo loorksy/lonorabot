@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from lonora_adapter_kit.broker import BrokerAdapter
 from lonora_contracts.domain import utcnow
 from lonora_contracts.trading import TradeRequest
@@ -7,6 +9,7 @@ from lonora_security.financial import validate_trade
 
 
 async def preflight(broker: BrokerAdapter, request: TradeRequest) -> None:
+    instrument = None
     if request.action != "cancel_order":
         instrument = await broker.instrument(request.symbol)
         validate_trade(request, instrument)
@@ -14,6 +17,7 @@ async def preflight(broker: BrokerAdapter, request: TradeRequest) -> None:
     if account.trade_allowed is False or account.investor_mode is True:
         raise LonoraError("broker_trading_not_allowed", 409)
     target_order = None
+    position = None
     if request.position_id:
         positions = await broker.positions()
         position = next(
@@ -28,6 +32,15 @@ async def preflight(broker: BrokerAdapter, request: TradeRequest) -> None:
             and request.volume > position.volume
         ):
             raise LonoraError("position_volume_exceeded", 409)
+        if request.action == "close_position" and request.volume is not None:
+            assert instrument is not None
+            remaining = position.volume - request.volume
+            if remaining and (
+                remaining < instrument.volume_min
+                or (remaining - instrument.volume_min) % instrument.volume_step != 0
+            ):
+                raise LonoraError("position_remaining_volume_invalid", 409)
+
     if request.order_id:
         orders = await broker.orders()
         target_order = next(
@@ -36,11 +49,14 @@ async def preflight(broker: BrokerAdapter, request: TradeRequest) -> None:
         if target_order is None:
             raise LonoraError("order_not_found", 404)
     pending = {"buy_limit", "sell_limit", "buy_stop", "sell_stop"}
-    if request.action in pending | {"buy", "sell"} or request.action == "modify_order":
+    if request.action in pending | {"buy", "sell"} or request.action in {
+        "modify_order",
+        "modify_position",
+    }:
         kind = (
             request.action
             if request.action in pending | {"buy", "sell"}
-            else str(target_order.side if target_order else "")
+            else str(position.side if position else target_order.side if target_order else "")
             .removeprefix("ORDER_TYPE_")
             .casefold()
         )
@@ -77,6 +93,8 @@ async def preflight(broker: BrokerAdapter, request: TradeRequest) -> None:
             if request.stop_loss is not None
             else target_order.stop_loss
             if target_order
+            else position.stop_loss
+            if position
             else None
         )
         take_profit = (
@@ -86,10 +104,23 @@ async def preflight(broker: BrokerAdapter, request: TradeRequest) -> None:
             if request.take_profit is not None
             else target_order.take_profit
             if target_order
+            else position.take_profit
+            if position
             else None
         )
         buy = kind.startswith("buy")
-        if stop_loss and (stop_loss >= price if buy else stop_loss <= price):
+        reference = (quote.bid if buy else quote.ask) if kind in {"buy", "sell"} else price
+        if stop_loss and (stop_loss >= reference if buy else stop_loss <= reference):
             raise LonoraError("stop_loss_wrong_side", 409)
-        if take_profit and (take_profit <= price if buy else take_profit >= price):
+        if take_profit and (take_profit <= reference if buy else take_profit >= reference):
             raise LonoraError("take_profit_wrong_side", 409)
+        assert instrument is not None
+        minimum = instrument.stops_level * (
+            instrument.point_size or Decimal(10) ** -instrument.digits
+        )
+        if kind in pending and minimum and abs(price - market) < minimum:
+            raise LonoraError("pending_stops_level", 409)
+        if stop_loss is not None and abs(reference - stop_loss) < minimum:
+            raise LonoraError("stop_loss_stops_level", 409)
+        if take_profit is not None and abs(reference - take_profit) < minimum:
+            raise LonoraError("take_profit_stops_level", 409)
