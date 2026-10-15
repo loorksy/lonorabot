@@ -1,0 +1,76 @@
+{
+  "additionalProperties": false,
+  "description": "Describes an existing domain workflow; never creates a second workflow executor.",
+  "properties": {
+    "id": {
+      "pattern": "^[a-z0-9][a-z0-9_-]{0,79}$",
+      "title": "Id",
+      "type": "string"
+    },
+    "version": {
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$",
+      "title": "Version",
+      "type": "string"
+    },
+    "required_skills": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 16,
+      "minItems": 1,
+      "title": "Required Skills",
+      "type": "array"
+    },
+    "required_tools": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 32,
+      "minItems": 1,
+      "title": "Required Tools",
+      "type": "array"
+    },
+    "state_owner": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "State Owner",
+      "type": "string"
+    },
+    "entry_conditions": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 16,
+      "minItems": 1,
+      "title": "Entry Conditions",
+      "type": "array"
+    },
+    "terminal_states": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 16,
+      "minItems": 1,
+      "title": "Terminal States",
+      "type": "array"
+    },
+    "recovery": {
+      "maxLength": 1000,
+      "minLength": 1,
+      "title": "Recovery",
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "version",
+    "required_skills",
+    "required_tools",
+    "state_owner",
+    "entry_conditions",
+    "terminal_states",
+    "recovery"
+  ],
+  "title": "PlaybookManifest",
+  "type": "object"
+}

@@ -1,0 +1,22 @@
+{
+  "id": "ambiguous-execution-recovery",
+  "version": "1.0.0",
+  "required_skills": [
+    "trade-management"
+  ],
+  "required_tools": [
+    "account_read",
+    "account_history"
+  ],
+  "state_owner": "TradingJournal ambiguous/reconciliation transitions",
+  "entry_conditions": [
+    "owned_scope",
+    "current_evidence"
+  ],
+  "terminal_states": [
+    "completed",
+    "cancelled",
+    "failed"
+  ],
+  "recovery": "Resume existing leased Run/checkpoint or reconcile existing TradingJournal operation. Never create a second execution engine."
+}

@@ -1,0 +1,31 @@
+{
+  "id": "market-analysis",
+  "version": "1.0.0",
+  "title": "Market Analysis",
+  "description": "Lonora market-analysis workflow.",
+  "source": "builtin",
+  "stability": "stable",
+  "activation": {
+    "mode": "automatic",
+    "intents": [
+      "market"
+    ],
+    "triggers": []
+  },
+  "risk_class": "read_only",
+  "required_capabilities": [
+    "market.read"
+  ],
+  "required_tools": [
+    "market_symbols",
+    "market_instrument",
+    "market_quote",
+    "market_candles"
+  ],
+  "dependencies": [
+    "chart-analysis"
+  ],
+  "conflicts": [],
+  "priority": 70,
+  "context_budget": 6000
+}

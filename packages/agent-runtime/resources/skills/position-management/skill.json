@@ -1,0 +1,30 @@
+{
+  "id": "position-management",
+  "version": "1.0.0",
+  "title": "Position Management",
+  "description": "Lonora position-management workflow.",
+  "source": "builtin",
+  "stability": "stable",
+  "activation": {
+    "mode": "automatic",
+    "intents": [
+      "position_management"
+    ],
+    "triggers": []
+  },
+  "risk_class": "financial",
+  "required_capabilities": [
+    "account.read",
+    "trade.propose"
+  ],
+  "required_tools": [
+    "account_read",
+    "trade_execute"
+  ],
+  "dependencies": [
+    "trade-management"
+  ],
+  "conflicts": [],
+  "priority": 80,
+  "context_budget": 6000
+}

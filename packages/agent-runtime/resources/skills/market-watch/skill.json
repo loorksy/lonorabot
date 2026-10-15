@@ -1,0 +1,30 @@
+{
+  "id": "market-watch",
+  "version": "1.0.0",
+  "title": "Market Watch",
+  "description": "Lonora market-watch workflow.",
+  "source": "builtin",
+  "stability": "stable",
+  "activation": {
+    "mode": "automatic",
+    "intents": [
+      "watch"
+    ],
+    "triggers": [
+      "watch"
+    ]
+  },
+  "risk_class": "state_mutating",
+  "required_capabilities": [
+    "watch.manage"
+  ],
+  "required_tools": [
+    "watch_create",
+    "watch_list",
+    "market_quote"
+  ],
+  "dependencies": [],
+  "conflicts": [],
+  "priority": 60,
+  "context_budget": 6000
+}

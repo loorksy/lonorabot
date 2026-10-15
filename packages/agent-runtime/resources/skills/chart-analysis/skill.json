@@ -1,0 +1,26 @@
+{
+  "id": "chart-analysis",
+  "version": "1.0.0",
+  "title": "Chart Analysis",
+  "description": "Lonora chart-analysis workflow.",
+  "source": "builtin",
+  "stability": "stable",
+  "activation": {
+    "mode": "automatic",
+    "intents": [
+      "chart"
+    ],
+    "triggers": []
+  },
+  "risk_class": "read_only",
+  "required_capabilities": [
+    "chart.read"
+  ],
+  "required_tools": [
+    "chart_inspect"
+  ],
+  "dependencies": [],
+  "conflicts": [],
+  "priority": 65,
+  "context_budget": 6000
+}

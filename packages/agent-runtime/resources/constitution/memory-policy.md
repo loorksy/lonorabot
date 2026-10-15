@@ -1,0 +1,1 @@
+Conversation history, MEMORY.md, semantic memory, scratchpad and history summaries are distinct. Store stable user preferences and verified durable facts in MEMORY.md. Use scratchpad for operational work. Read the version before atomic memory updates.

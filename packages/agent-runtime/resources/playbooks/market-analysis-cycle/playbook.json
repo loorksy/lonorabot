@@ -1,0 +1,22 @@
+{
+  "id": "market-analysis-cycle",
+  "version": "1.0.0",
+  "required_skills": [
+    "market-analysis"
+  ],
+  "required_tools": [
+    "market_quote",
+    "market_candles"
+  ],
+  "state_owner": "Run checkpoint and persisted chart/watch state",
+  "entry_conditions": [
+    "owned_scope",
+    "current_evidence"
+  ],
+  "terminal_states": [
+    "completed",
+    "cancelled",
+    "failed"
+  ],
+  "recovery": "Resume existing leased Run/checkpoint or reconcile existing TradingJournal operation. Never create a second execution engine."
+}

@@ -1,0 +1,152 @@
+{
+  "$defs": {
+    "SkillActivation": {
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "default": "automatic",
+          "enum": [
+            "automatic",
+            "explicit",
+            "trigger_based"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "intents": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 32,
+          "title": "Intents",
+          "type": "array"
+        },
+        "triggers": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 32,
+          "title": "Triggers",
+          "type": "array"
+        }
+      },
+      "title": "SkillActivation",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "pattern": "^[a-z0-9][a-z0-9_-]{0,79}$",
+      "title": "Id",
+      "type": "string"
+    },
+    "version": {
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$",
+      "title": "Version",
+      "type": "string"
+    },
+    "title": {
+      "maxLength": 160,
+      "minLength": 1,
+      "title": "Title",
+      "type": "string"
+    },
+    "description": {
+      "maxLength": 1000,
+      "minLength": 1,
+      "title": "Description",
+      "type": "string"
+    },
+    "source": {
+      "default": "owner",
+      "enum": [
+        "builtin",
+        "owner",
+        "installed",
+        "external",
+        "legacy"
+      ],
+      "title": "Source",
+      "type": "string"
+    },
+    "stability": {
+      "default": "stable",
+      "enum": [
+        "stable",
+        "experimental",
+        "legacy"
+      ],
+      "title": "Stability",
+      "type": "string"
+    },
+    "activation": {
+      "$ref": "#/$defs/SkillActivation"
+    },
+    "risk_class": {
+      "default": "read_only",
+      "enum": [
+        "read_only",
+        "state_mutating",
+        "external_action",
+        "financial"
+      ],
+      "title": "Risk Class",
+      "type": "string"
+    },
+    "required_capabilities": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 32,
+      "title": "Required Capabilities",
+      "type": "array"
+    },
+    "required_tools": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 64,
+      "title": "Required Tools",
+      "type": "array"
+    },
+    "dependencies": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 32,
+      "title": "Dependencies",
+      "type": "array"
+    },
+    "conflicts": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 32,
+      "title": "Conflicts",
+      "type": "array"
+    },
+    "priority": {
+      "default": 50,
+      "maximum": 100,
+      "minimum": 0,
+      "title": "Priority",
+      "type": "integer"
+    },
+    "context_budget": {
+      "default": 6000,
+      "maximum": 16000,
+      "minimum": 128,
+      "title": "Context Budget",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "id",
+    "version",
+    "title",
+    "description"
+  ],
+  "title": "SkillManifest",
+  "type": "object"
+}

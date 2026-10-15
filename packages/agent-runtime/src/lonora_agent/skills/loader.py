@@ -22,3 +22,22 @@ def load_prompt(name: str) -> str:
     if not path.is_file():
         raise LonoraError("prompt_resource_missing", 500)
     return path.read_text()
+
+
+def load_constitution() -> list[str]:
+    """Mandatory runtime laws stay outside selectable skill context budgets."""
+    names = (
+        "identity",
+        "tool-policy",
+        "memory-policy",
+        "security-policy",
+        "collaboration-policy",
+        "trading-policy",
+    )
+    result: list[str] = []
+    for name in names:
+        path = resources_root() / "constitution" / (name + ".md")
+        if not path.is_file() or not path.read_text().strip():
+            raise LonoraError("policy_resource_missing", 500)
+        result.append(path.read_text())
+    return result

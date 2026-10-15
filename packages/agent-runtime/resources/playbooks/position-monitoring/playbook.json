@@ -1,0 +1,23 @@
+{
+  "id": "position-monitoring",
+  "version": "1.0.0",
+  "required_skills": [
+    "position-management",
+    "market-watch"
+  ],
+  "required_tools": [
+    "account_read",
+    "watch_create"
+  ],
+  "state_owner": "TradingGoal steps and durable MarketWatch wakes",
+  "entry_conditions": [
+    "owned_scope",
+    "current_evidence"
+  ],
+  "terminal_states": [
+    "completed",
+    "cancelled",
+    "failed"
+  ],
+  "recovery": "Resume existing leased Run/checkpoint or reconcile existing TradingJournal operation. Never create a second execution engine."
+}

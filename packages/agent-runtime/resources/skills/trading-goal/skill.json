@@ -1,0 +1,30 @@
+{
+  "id": "trading-goal",
+  "version": "1.0.0",
+  "title": "Trading Goal",
+  "description": "Lonora trading-goal workflow.",
+  "source": "builtin",
+  "stability": "stable",
+  "activation": {
+    "mode": "automatic",
+    "intents": [
+      "goal"
+    ],
+    "triggers": []
+  },
+  "risk_class": "state_mutating",
+  "required_capabilities": [
+    "goal.manage"
+  ],
+  "required_tools": [
+    "goal_read",
+    "goal_plan",
+    "goal_control"
+  ],
+  "dependencies": [
+    "trade-management"
+  ],
+  "conflicts": [],
+  "priority": 75,
+  "context_budget": 6000
+}

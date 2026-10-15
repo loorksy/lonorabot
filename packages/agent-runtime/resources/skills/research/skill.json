@@ -1,0 +1,27 @@
+{
+  "id": "research",
+  "version": "1.0.0",
+  "title": "Research",
+  "description": "Lonora research workflow.",
+  "source": "builtin",
+  "stability": "stable",
+  "activation": {
+    "mode": "automatic",
+    "intents": [
+      "research"
+    ],
+    "triggers": []
+  },
+  "risk_class": "read_only",
+  "required_capabilities": [
+    "research.read"
+  ],
+  "required_tools": [
+    "search_internal",
+    "web_fetch"
+  ],
+  "dependencies": [],
+  "conflicts": [],
+  "priority": 50,
+  "context_budget": 6000
+}

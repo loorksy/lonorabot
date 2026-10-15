@@ -1,0 +1,28 @@
+{
+  "id": "memory",
+  "version": "1.0.0",
+  "title": "Memory",
+  "description": "Lonora memory workflow.",
+  "source": "builtin",
+  "stability": "stable",
+  "activation": {
+    "mode": "automatic",
+    "intents": [
+      "memory"
+    ],
+    "triggers": []
+  },
+  "risk_class": "state_mutating",
+  "required_capabilities": [
+    "memory.read",
+    "memory.write"
+  ],
+  "required_tools": [
+    "memory_read",
+    "memory_write"
+  ],
+  "dependencies": [],
+  "conflicts": [],
+  "priority": 60,
+  "context_budget": 6000
+}

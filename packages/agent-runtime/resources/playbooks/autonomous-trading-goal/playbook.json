@@ -1,0 +1,23 @@
+{
+  "id": "autonomous-trading-goal",
+  "version": "1.0.0",
+  "required_skills": [
+    "trading-goal"
+  ],
+  "required_tools": [
+    "goal_read",
+    "goal_wait",
+    "goal_step_execute"
+  ],
+  "state_owner": "TradingGoal state and step transitions",
+  "entry_conditions": [
+    "owned_scope",
+    "current_evidence"
+  ],
+  "terminal_states": [
+    "completed",
+    "cancelled",
+    "failed"
+  ],
+  "recovery": "Resume existing leased Run/checkpoint or reconcile existing TradingJournal operation. Never create a second execution engine."
+}

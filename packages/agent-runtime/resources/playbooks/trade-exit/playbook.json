@@ -1,0 +1,22 @@
+{
+  "id": "trade-exit",
+  "version": "1.0.0",
+  "required_skills": [
+    "position-management"
+  ],
+  "required_tools": [
+    "trade_execute",
+    "account_read"
+  ],
+  "state_owner": "TradingJournal exit operation and reconciliation",
+  "entry_conditions": [
+    "owned_scope",
+    "current_evidence"
+  ],
+  "terminal_states": [
+    "completed",
+    "cancelled",
+    "failed"
+  ],
+  "recovery": "Resume existing leased Run/checkpoint or reconcile existing TradingJournal operation. Never create a second execution engine."
+}

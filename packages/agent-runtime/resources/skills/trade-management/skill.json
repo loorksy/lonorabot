@@ -1,0 +1,31 @@
+{
+  "id": "trade-management",
+  "version": "1.0.0",
+  "title": "Trade Management",
+  "description": "Lonora trade-management workflow.",
+  "source": "builtin",
+  "stability": "stable",
+  "activation": {
+    "mode": "automatic",
+    "intents": [
+      "trade"
+    ],
+    "triggers": []
+  },
+  "risk_class": "financial",
+  "required_capabilities": [
+    "account.read",
+    "trade.propose"
+  ],
+  "required_tools": [
+    "list_accounts",
+    "account_read",
+    "trade_execute"
+  ],
+  "dependencies": [
+    "market-analysis"
+  ],
+  "conflicts": [],
+  "priority": 80,
+  "context_budget": 6000
+}

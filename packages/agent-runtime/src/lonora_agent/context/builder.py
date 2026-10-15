@@ -5,8 +5,10 @@ from lonora_db.runs import require_lease
 from lonora_db.schema import AgentRow, ThreadRow
 from lonora_memory.semantic import retrieve_memory
 from lonora_tools.context import ToolContext
+from lonora_tools.loader import load_tools
+from lonora_tools.registry import ToolRegistry
 
-from ..skills.loader import load_prompt
+from ..skills.loader import load_constitution, load_prompt
 from .attachments import attachment_context
 from .goals import goal_context
 from .governance import govern_context
@@ -19,30 +21,23 @@ from .skills import read_skill_context
 from .team import routing_frame
 
 
-async def build_context(context: ToolContext) -> list[ModelMessage]:
+async def build_context(
+    context: ToolContext, registry: ToolRegistry | None = None
+) -> list[ModelMessage]:
     async with context.db.sessions() as session:
         run = await require_lease(session, context.lease)
         agent = await session.get(AgentRow, context.agent_id)
         thread = await session.get(ThreadRow, context.thread_id)
         if agent is None or thread is None:
             raise LonoraError("context_identity_missing", 404)
-        blocks = [
-            load_prompt(name)
-            for name in [
-                "identity",
-                "tool_contract",
-                "memory_policy",
-                "trading_context",
-                "untrusted_content",
-            ]
-        ]
+        blocks = load_constitution()
         blocks.extend(
             [
                 agent.instructions,
                 binding_context(agent),
                 await read_memory_context(session, agent.id),
                 await scratchpad_context(session, agent.id),
-                await read_skill_context(session, agent.id),
+                await read_skill_context(session, context, agent, registry or load_tools()),
                 await reply_context(session, thread.id, run.input_seq),
                 wake_context(run),
                 await goal_context(
