@@ -53,7 +53,20 @@ async def main() -> None:
         rows = {row["id"]: row for row in result["agents"]}
         assert rows[me["id"]]["is_self"]
         assert not rows[peer["id"]]["is_self"] and rows[peer["id"]]["paused"]
-        assert set(rows[peer["id"]]) == {"id", "name", "title", "description", "is_self", "paused"}
+        assert set(rows[peer["id"]]) == {
+            "id",
+            "name",
+            "title",
+            "description",
+            "is_self",
+            "paused",
+            "role",
+            "scope",
+            "trading_account_id",
+            "trading_symbol",
+        }
+        assert rows[peer["id"]]["role"] == "legacy"
+        assert rows[peer["id"]]["scope"]["visibility"] == "legacy"
         assert rows[peer["id"]]["title"] == "Market research"
         assert rows[peer["id"]]["description"] == "Reviews gold quotes"
         assert "PRIVATE_SENTINEL" not in json.dumps(rows)

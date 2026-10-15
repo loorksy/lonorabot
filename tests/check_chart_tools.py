@@ -190,7 +190,7 @@ async def main() -> None:
         await fails(
             "chart_inspect",
             {"chart_id": chart_id},
-            "cloud_charts_not_found",
+            "agent_not_found",  # Agent ownership now fails before any chart lookup.
             actor=replace(context, owner_id="unrelated-owner"),
         )
         await fails(

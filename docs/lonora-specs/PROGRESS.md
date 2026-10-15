@@ -37,10 +37,11 @@ Root owns integration after the scoped parallel foundation work: identity/skills
 - Node: 15 timeline/native readiness/transport/OTA cases passed.
 - Browser: 18 Web and six Expo Web tests. These do not certify native Android behavior.
 - PostgreSQL integration: streaming, clients, binding, collaboration, trading, approvals, pending orders, execution quality, account recovery, goals, market health/runtime/dynamic watches, chart streaming/history passed in isolated databases. Original MetaApi SDK recovery suite preserved and passed separately.
+- Ten additional existing regression suites passed (team, group replies, broker discovery/binding, MetaApi, broker history/recovery/orders, charts and generated artifacts). Two assertions were updated for the explicit directory scope fields and earlier Agent ownership rejection; private-data and owner-isolation checks remain.
 - Latest account work-lane test passed: actual manual ticket read, observe-only authority, isolated work thread, one returned conversation result, owner SL intervention, reconnect and deduplication.
-- Ruff passes. Pyright reports zero errors; client type checks and lint passed; all retained integration scripts and the new isolated foundation runner passed after work-lane integration. The latest evidence changes are undergoing their own build/browser rerun.
+- Ruff passes. Pyright reports zero errors; client type checks and lint passed; all retained integration scripts and the new isolated foundation runner passed after work-lane integration. After the historical-evidence integration, the full build, Pyright, 95 pytest cases, all 18 Web tests and all six Expo Web tests passed. Expo Web used a fresh disposable database to exclude old interrupted chart fixtures.
 
-No live-money test, real broker mutation, VPS deployment or native runtime claim.
+No live-money test, real broker mutation, VPS deployment or native runtime claim. Integration branch has been pushed; draft PR: https://github.com/loorksy/lonorabot/pull/2 . Main was not merged.
 
 ## Historical evidence integration
 
@@ -54,10 +55,14 @@ This is a partial foundation for specifications 08/09/11/16. It does not yet sup
 
 Versioned decision/evidence snapshots and opportunity/thesis lifecycle; shadow lifecycle/performance; attention policy/coalescing; measured intermarket relationships; advanced market engines; Super Bot proposal/trusted device authorization; collaboration evidence fusion/fresh final market validation; full task retry/recovery policy; dependent UI and end-to-end acceptance. None is silently deferred or marked complete.
 
+## Remote CI
+
+GitHub Actions run 38775590819 did not start any build step. Its check annotation states: "The job was not started because your account is locked due to a billing issue." This is an external runner/account blocker, not a passing remote CI result. Local checks above were actually executed. No attempt was made to modify billing/account settings.
+
 ## Concrete blockers
 
 Physical Android voice/keyboard/OS-authentication acceptance requires a device/emulator (no attached device or KVM here). Real order-flow/depth/official speech sources require actual supported feeds; unavailable evidence stays unknown. Production deployment is outside the branch-only instruction.
 
 ## Next integration point
 
-Finish the evidence build/browser checks and commit this vertical capability. Then extend the same decision/evidence foundation with thesis identity/lifecycle and pre-trade confirmation linkage before opportunity memory, shadow/performance and attention. Preserve current controls, approval authority, exact broker symbols and no-blind-retry journal semantics throughout.
+Evidence build/browser checks passed and the vertical capability is committed (`4deae52`). Continue by extending the same decision/evidence foundation with thesis identity/lifecycle and pre-trade confirmation linkage before opportunity memory, shadow/performance and attention. Preserve current controls, approval authority, exact broker symbols and no-blind-retry journal semantics throughout.
