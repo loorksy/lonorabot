@@ -46,7 +46,7 @@ class Gateway:
         self.services: dict[str, OwnerServices] = {}
         self.runtime = AgentRuntime(load_tools(), lease_seconds, maximum_rounds)
 
-    async def worker_loop(self) -> None:
+    async def worker_loop(self, lane: str | None = None) -> None:
         while not self.stop.is_set():
             claimed = await dispatch_one(
                 self.db,
@@ -57,6 +57,7 @@ class Gateway:
                 self.root,
                 self.lease_seconds,
                 self.maximum_subagents,
+                lane,
             )
             if not claimed:
                 await asyncio.sleep(self.poll_seconds)
@@ -120,6 +121,11 @@ class Gateway:
             asyncio.create_task(supervise("worker-" + str(index), self.worker_loop, self.stop))
             for index in range(self.maximum_subagents + 1)
         ]
+
+        async def foreground() -> None:
+            await self.worker_loop("conversation")
+
+        loops.append(asyncio.create_task(supervise("conversation", foreground, self.stop)))
         loops.append(
             asyncio.create_task(supervise("maintenance", self.maintenance_loop, self.stop))
         )

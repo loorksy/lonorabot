@@ -26,6 +26,8 @@ async def start_ticket(
             if existing:
                 return existing.result
         ticket = await TicketRepository().get(session, owner_id, ticket_id, lock=True)
+        if ticket.state.get("task"):
+            raise LonoraError("task_use_control", 409)
         if not ticket.agent_id:
             raise LonoraError("ticket_agent_required", 409)
         if ticket.payload.get("status") == "working":

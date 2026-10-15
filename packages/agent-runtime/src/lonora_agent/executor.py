@@ -14,6 +14,7 @@ from sqlalchemy import select
 
 from .collaboration.outcome_return import return_outcome
 from .context.compaction import compact_history
+from .tasks import TaskSuspended
 from .tool_loop import execute_tool_loop
 
 log = logging.getLogger("lonora.executor")
@@ -127,6 +128,8 @@ async def execute_run(
             if complete:
                 await return_outcome(context.db, context.lease.run_id)
                 return
+    except TaskSuspended:
+        return
     except asyncio.CancelledError:
         if not lost_lease.is_set():
             raise

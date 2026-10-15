@@ -57,13 +57,55 @@ async def return_outcome(db: Database, run_id: str) -> None:
             ticket = await session.get(
                 TicketRow, child.model_metadata.get("ticket_id", ""), with_for_update=True
             )
-            if ticket:
+            if ticket and ticket.agent_id == child.agent_id and ticket.thread_id == child.thread_id:
                 ticket.payload = {
                     **ticket.payload,
                     "status": "done" if child.status == "completed" else "failed",
                 }
                 ticket.state = {**ticket.state, "result": child.result}
                 ticket.version += 1
+                if ticket.state.get("task"):
+                    from lonora_contracts.tasks import TaskState
+                    from lonora_db.tasks import save_task
+
+                    task = TaskState.model_validate(ticket.state["task"])
+                    task.status = (
+                        "completed"
+                        if child.status == "completed"
+                        else "cancelled"
+                        if child.status == "cancelled"
+                        else "failed"
+                    )
+                    task.phase = task.status
+                    save_task(session, ticket, task)
+                    origin = await session.get(
+                        ThreadRow, task.origin_thread_id, with_for_update=True
+                    )
+                    if (
+                        origin
+                        and origin.owner_id == ticket.owner_id
+                        and origin.agent_id == child.agent_id
+                        and child.result
+                    ):
+                        final = MessageRow(
+                            thread_id=origin.id,
+                            agent_id=child.agent_id,
+                            role="assistant",
+                            seq=origin.next_seq,
+                            content=child.result,
+                        )
+                        origin.next_seq += 1
+                        session.add(final)
+                        await session.flush()
+                        emit(
+                            session,
+                            ticket.owner_id,
+                            "message.created",
+                            thread_id=origin.id,
+                            agent_id=child.agent_id,
+                            run_id=child.id,
+                            payload=message_data(final),
+                        )
         returned_message: MessageRow | None = None
         if parent and thread:
             outcome = f"<peer_outcome run_id='{child.id}' status='{child.status}'>\n{child.result or child.error_code or child.status}\n</peer_outcome>"
@@ -106,6 +148,9 @@ async def return_outcome(db: Database, run_id: str) -> None:
                         metadata={"depth": parent.model_metadata.get("depth", 0)},
                     ),
                 )
+        from lonora_db.collaboration import record_outcome
+
+        await record_outcome(session, child, returned_message)
         peer = await session.get(PeerMessageRow, child.id, with_for_update=True)
         if peer:
             prior_ids = peer.payload.get("source_outcome_message_ids", [])

@@ -18,9 +18,10 @@ async def dispatch_one(
     root: Path,
     lease_seconds: int,
     maximum_subagents: int,
+    lane: str | None = None,
 ) -> bool:
     async with db.sessions() as session, session.begin():
-        run = await claim_next(session, identity, lease_seconds)
+        run = await claim_next(session, identity, lease_seconds, lane)
         if run is None:
             return False
         thread = await session.get(ThreadRow, run.thread_id)

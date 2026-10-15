@@ -78,12 +78,22 @@ async def create_run(
     return row
 
 
-async def claim_next(session: AsyncSession, worker_id: str, lease_seconds: int) -> RunRow | None:
+async def claim_next(
+    session: AsyncSession, worker_id: str, lease_seconds: int, lane: str | None = None
+) -> RunRow | None:
     now = utcnow()
     eligible = or_(
         RunRow.status == "queued",
         and_(RunRow.status.in_(["leased", "running"]), RunRow.lease_expires_at <= now),
     )
+    if lane == "conversation":
+        eligible = and_(
+            eligible, RunRow.trigger.not_in(["tickets", "routine", "watch", "webhook", "subagent"])
+        )
+    elif lane == "work":
+        eligible = and_(
+            eligible, RunRow.trigger.in_(["tickets", "routine", "watch", "webhook", "subagent"])
+        )
     active = exists(
         select(RunRow.id).where(
             RunRow.thread_id == ThreadRow.id,
