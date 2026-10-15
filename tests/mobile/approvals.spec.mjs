@@ -41,6 +41,10 @@ test("Expo approval buttons show durable real broker receipts", async ({ page, c
     const approval = {
       id: randomUUID(),
       thread_id: thread.id,
+      run_id: "approval-run",
+      agent_id: agent.id,
+      created_at: new Date().toISOString(),
+      timeline_seq: 1,
       status: "pending",
       requests: [
         { action: "close_position", symbol: "BTCUSD.demo", position_id: "manual-ticket-5" },

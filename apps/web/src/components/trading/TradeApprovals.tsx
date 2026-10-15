@@ -17,15 +17,7 @@ function merge(previous: Approval[], rows: Approval[]) {
   });
 }
 
-export function TradeApprovals({
-  threadId,
-  since,
-  onPending,
-}: {
-  threadId: string;
-  since?: number;
-  onPending?: (pending: boolean) => void;
-}) {
+export function useTradeApprovals(threadId: string, watching = false) {
   const { revision } = useClient();
   const [rows, setRows] = useState<Approval[]>([]);
   const [error, setError] = useState<unknown>();
@@ -34,7 +26,6 @@ export function TradeApprovals({
   const callRequests = useRef(new Set<string>());
   const currentThread = useRef(threadId);
   currentThread.current = threadId;
-  const watching = since !== undefined;
   useEffect(() => {
     void revision;
     let live = true;
@@ -63,9 +54,6 @@ export function TradeApprovals({
       window.clearInterval(timer);
     };
   }, [threadId, revision, watching]);
-  useEffect(() => {
-    onPending?.(rows.some((row) => row.thread_id === threadId && row.status === "pending"));
-  }, [onPending, rows, threadId]);
   async function decide(id: string, decision: "approve" | "reject") {
     if (pending.current) return;
     pending.current = true;
@@ -87,174 +75,204 @@ export function TradeApprovals({
       setBusy(undefined);
     }
   }
+  return {
+    rows: rows.filter((row) => row.thread_id === threadId),
+    error,
+    busy,
+    decide,
+    callRequests: callRequests.current,
+  };
+}
+
+export function TradeApprovalCard({
+  row,
+  busy,
+  decide,
+}: {
+  row: Approval;
+  busy: boolean;
+  decide: (id: string, decision: "approve" | "reject") => Promise<void>;
+}) {
+  return (
+    <article className="card" data-trade-approval={row.id}>
+      <strong>
+        <Trans>Trading request</Trans>
+      </strong>
+      {row.requests.map((request, index) => (
+        <dl key={String(request.operation_id ?? index)}>
+          <dt>
+            <Trans>Action</Trans>
+          </dt>
+          <dd>
+            <bdi>{String(request.action)}</bdi>
+          </dd>
+          <dt>
+            <Trans>Symbol</Trans>
+          </dt>
+          <dd>
+            <bdi>{String(request.symbol)}</bdi>
+          </dd>
+          {request.volume != null && (
+            <>
+              <dt>
+                <Trans>Volume</Trans>
+              </dt>
+              <dd>
+                <bdi>{String(request.volume)}</bdi>
+              </dd>
+            </>
+          )}
+          {request.price != null && (
+            <>
+              <dt>
+                <Trans>Price</Trans>
+              </dt>
+              <dd>
+                <bdi>{String(request.price)}</bdi>
+              </dd>
+            </>
+          )}
+          {request.stop_loss != null && (
+            <>
+              <dt>
+                <Trans>Stop loss</Trans>
+              </dt>
+              <dd>
+                <bdi>{String(request.stop_loss)}</bdi>
+              </dd>
+            </>
+          )}
+          {request.clear_stop_loss === true && (
+            <p>
+              <Trans>Remove stop loss</Trans>
+            </p>
+          )}
+          {request.clear_take_profit === true && (
+            <p>
+              <Trans>Remove take profit</Trans>
+            </p>
+          )}
+          {request.take_profit != null && (
+            <>
+              <dt>
+                <Trans>Take profit</Trans>
+              </dt>
+              <dd>
+                <bdi>{String(request.take_profit)}</bdi>
+              </dd>
+            </>
+          )}
+          {(request.position_id ?? request.order_id) != null && (
+            <>
+              <dt>
+                <Trans>Broker ticket</Trans>
+              </dt>
+              <dd>
+                <bdi>{String(request.position_id ?? request.order_id)}</bdi>
+              </dd>
+            </>
+          )}
+        </dl>
+      ))}
+      {row.status === "pending" ? (
+        <div className="actions">
+          <button type="button" disabled={busy} onClick={() => void decide(row.id, "approve")}>
+            <Trans>Approve</Trans>
+          </button>
+          <button type="button" disabled={busy} onClick={() => void decide(row.id, "reject")}>
+            <Trans>Reject</Trans>
+          </button>
+        </div>
+      ) : (
+        <p>
+          {row.status === "cancelled" ? (
+            <Trans>Cancelled</Trans>
+          ) : row.status === "rejected" ? (
+            <Trans>Rejected</Trans>
+          ) : row.status === "approved" ? (
+            <Trans>Approved — awaiting broker result</Trans>
+          ) : (
+            <Trans>Broker result</Trans>
+          )}
+        </p>
+      )}
+      {row.results.map((result) => (
+        <div key={result.operation_id} data-trade-result={result.status}>
+          <p>
+            {result.status === "confirmed" ? (
+              <Trans>Confirmed</Trans>
+            ) : result.status === "ambiguous" ? (
+              <Trans>Awaiting reconciliation</Trans>
+            ) : result.status === "failed" ? (
+              <Trans>Failed</Trans>
+            ) : (
+              <Trans>Submitted</Trans>
+            )}
+          </p>
+          {result.broker_id && (
+            <p>
+              <Trans>Broker ticket</Trans>: <bdi>{result.broker_id}</bdi>
+            </p>
+          )}
+          {result.code && (
+            <p>
+              <bdi>{result.code}</bdi>
+            </p>
+          )}
+          {Object.entries(result.details ?? {})
+            .filter(([key]) =>
+              [
+                "price",
+                "execution_price",
+                "order_id",
+                "deal_id",
+                "position_id",
+                "numeric_code",
+                "string_code",
+                "message",
+                "description",
+              ].includes(key),
+            )
+            .map(([key, value]) => (
+              <p key={key}>
+                <bdi>{String(value)}</bdi>
+              </p>
+            ))}
+        </div>
+      ))}
+    </article>
+  );
+}
+
+export function TradeApprovals({
+  threadId,
+  since,
+  onPending,
+}: {
+  threadId: string;
+  since?: number;
+  onPending?: (pending: boolean) => void;
+}) {
+  const { rows, error, busy, decide, callRequests } = useTradeApprovals(
+    threadId,
+    since !== undefined,
+  );
+  useEffect(() => {
+    onPending?.(rows.some((row) => row.status === "pending"));
+  }, [onPending, rows]);
   return (
     <>
       {error != null && <p role="alert">{userError(error)}</p>}
       {rows
         .filter(
           (row) =>
-            row.thread_id === threadId &&
-            (since === undefined ||
-              row.status === "pending" ||
-              Date.parse(row.created_at) >= since ||
-              callRequests.current.has(row.id)),
+            since === undefined ||
+            row.status === "pending" ||
+            Date.parse(row.created_at) >= since ||
+            callRequests.has(row.id),
         )
         .map((row) => (
-          <article className="card" key={row.id} data-trade-approval={row.id}>
-            <strong>
-              <Trans>Trading request</Trans>
-            </strong>
-            {row.requests.map((request, index) => (
-              <dl key={String(request.operation_id ?? index)}>
-                <dt>
-                  <Trans>Action</Trans>
-                </dt>
-                <dd>
-                  <bdi>{String(request.action)}</bdi>
-                </dd>
-                <dt>
-                  <Trans>Symbol</Trans>
-                </dt>
-                <dd>
-                  <bdi>{String(request.symbol)}</bdi>
-                </dd>
-                {request.volume != null && (
-                  <>
-                    <dt>
-                      <Trans>Volume</Trans>
-                    </dt>
-                    <dd>
-                      <bdi>{String(request.volume)}</bdi>
-                    </dd>
-                  </>
-                )}
-                {request.price != null && (
-                  <>
-                    <dt>
-                      <Trans>Price</Trans>
-                    </dt>
-                    <dd>
-                      <bdi>{String(request.price)}</bdi>
-                    </dd>
-                  </>
-                )}
-                {request.stop_loss != null && (
-                  <>
-                    <dt>
-                      <Trans>Stop loss</Trans>
-                    </dt>
-                    <dd>
-                      <bdi>{String(request.stop_loss)}</bdi>
-                    </dd>
-                  </>
-                )}
-                {request.clear_stop_loss === true && (
-                  <p>
-                    <Trans>Remove stop loss</Trans>
-                  </p>
-                )}
-                {request.clear_take_profit === true && (
-                  <p>
-                    <Trans>Remove take profit</Trans>
-                  </p>
-                )}
-                {request.take_profit != null && (
-                  <>
-                    <dt>
-                      <Trans>Take profit</Trans>
-                    </dt>
-                    <dd>
-                      <bdi>{String(request.take_profit)}</bdi>
-                    </dd>
-                  </>
-                )}
-                {(request.position_id ?? request.order_id) != null && (
-                  <>
-                    <dt>
-                      <Trans>Broker ticket</Trans>
-                    </dt>
-                    <dd>
-                      <bdi>{String(request.position_id ?? request.order_id)}</bdi>
-                    </dd>
-                  </>
-                )}
-              </dl>
-            ))}
-            {row.status === "pending" ? (
-              <div className="actions">
-                <button
-                  type="button"
-                  disabled={busy != null}
-                  onClick={() => void decide(row.id, "approve")}
-                >
-                  <Trans>Approve</Trans>
-                </button>
-                <button
-                  type="button"
-                  disabled={busy != null}
-                  onClick={() => void decide(row.id, "reject")}
-                >
-                  <Trans>Reject</Trans>
-                </button>
-              </div>
-            ) : (
-              <p>
-                {row.status === "cancelled" ? (
-                  <Trans>Cancelled</Trans>
-                ) : row.status === "rejected" ? (
-                  <Trans>Rejected</Trans>
-                ) : row.status === "approved" ? (
-                  <Trans>Approved — awaiting broker result</Trans>
-                ) : (
-                  <Trans>Broker result</Trans>
-                )}
-              </p>
-            )}
-            {row.results.map((result) => (
-              <div key={result.operation_id} data-trade-result={result.status}>
-                <p>
-                  {result.status === "confirmed" ? (
-                    <Trans>Confirmed</Trans>
-                  ) : result.status === "ambiguous" ? (
-                    <Trans>Awaiting reconciliation</Trans>
-                  ) : result.status === "failed" ? (
-                    <Trans>Failed</Trans>
-                  ) : (
-                    <Trans>Submitted</Trans>
-                  )}
-                </p>
-                {result.broker_id && (
-                  <p>
-                    <Trans>Broker ticket</Trans>: <bdi>{result.broker_id}</bdi>
-                  </p>
-                )}
-                {result.code && (
-                  <p>
-                    <bdi>{result.code}</bdi>
-                  </p>
-                )}
-                {Object.entries(result.details ?? {})
-                  .filter(([key]) =>
-                    [
-                      "price",
-                      "execution_price",
-                      "order_id",
-                      "deal_id",
-                      "position_id",
-                      "numeric_code",
-                      "string_code",
-                      "message",
-                      "description",
-                    ].includes(key),
-                  )
-                  .map(([key, value]) => (
-                    <p key={key}>
-                      <bdi>{String(value)}</bdi>
-                    </p>
-                  ))}
-              </div>
-            ))}
-          </article>
+          <TradeApprovalCard key={row.id} row={row} busy={busy != null} decide={decide} />
         ))}
     </>
   );

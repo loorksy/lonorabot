@@ -166,8 +166,13 @@ test("Expo profile, routines, groups and authenticated artifacts use the persist
     await page.goto("/");
     await page.getByRole("button", { name: prefix, exact: true }).click();
     await expect(page).toHaveURL(threadUrl);
-    await expect(page.getByText(content, { exact: true })).toBeVisible();
-    await page.getByText(content, { exact: true }).click({ delay: 650 });
+    await expect(
+      page.getByTestId("conversation-transcript").getByText(content, { exact: true }),
+    ).toBeVisible();
+    await page
+      .getByTestId("conversation-transcript")
+      .getByText(content, { exact: true })
+      .click({ delay: 650 });
     await expect(page.getByRole("button", { name: "إلغاء الرد", exact: true })).toBeVisible();
     await page.getByLabel("اكتب رسالة…", { exact: true }).fill("A reply to the persistent message");
     const replying = page.waitForResponse(

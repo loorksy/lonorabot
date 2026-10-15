@@ -2,7 +2,7 @@ import type { Agent, Group, Run, Thread } from "@lonora/contracts";
 import { activeStatuses } from "@lonora/core";
 // Inbox structure adapted from Tampletgrok apps/mobile/app/index.tsx; see NOTICE.
 import { Redirect, useFocusEffect, useRouter } from "expo-router";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AppState, FlatList, RefreshControl, Text, View } from "react-native";
 import { ActionMenu } from "../components/action-menu";
 import { BotAvatar } from "../components/bot-avatar";
@@ -14,11 +14,36 @@ import { Button, colors, ErrorNotice, Field, Loading, Screen } from "../componen
 import { api } from "../lib/api";
 import { useSession } from "../lib/session";
 
+type InboxEntry = {
+  thread_id: string;
+  agent_id: string | null;
+  group_id: string | null;
+  last_message: {
+    id: string;
+    role: string;
+    content: string;
+    created_at: string;
+    seq: number;
+  } | null;
+  last_activity_at: string;
+};
 type Row = { kind: "agent"; value: Agent } | { kind: "group"; value: Group };
 
 export default function Inbox() {
   const { ready, owner, rtl, locale, t, errorText } = useSession();
   const router = useRouter();
+  const currentOwner = useRef(owner?.id);
+  currentOwner.current = owner?.id;
+  const [loadedOwner, setLoadedOwner] = useState<string>();
+  const [inbox, setInbox] = useState<InboxEntry[]>([]);
+  useEffect(() => {
+    void owner?.id;
+    setInbox([]);
+    setAgents([]);
+    setGroups([]);
+    setRuns([]);
+    setLoadedOwner(undefined);
+  }, [owner?.id]);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
   const [runs, setRuns] = useState<Run[]>([]);
@@ -30,21 +55,29 @@ export default function Inbox() {
   const [refreshing, setRefreshing] = useState(false);
   const [opening, setOpening] = useState<string | null>(null);
 
-  const refresh = useCallback(async () => {
-    try {
-      const [nextAgents, nextGroups, nextRuns] = await Promise.all([
-        api.get<Agent[]>("/agents"),
-        api.get<Group[]>("/groups"),
-        api.get<Run[]>("/runs"),
-      ]);
-      setAgents(nextAgents);
-      setGroups(nextGroups);
-      setRuns(nextRuns);
-      setError(null);
-    } catch (reason) {
-      setError(errorText(reason));
-    }
-  }, [errorText]);
+  const refresh = useCallback(
+    async (stillLive: () => boolean = () => true) => {
+      const requestOwner = currentOwner.current;
+      try {
+        const [nextAgents, nextGroups, nextRuns, nextInbox] = await Promise.all([
+          api.get<Agent[]>("/agents"),
+          api.get<Group[]>("/groups"),
+          api.get<Run[]>("/runs"),
+          api.get<InboxEntry[]>("/threads/inbox"),
+        ]);
+        if (!stillLive() || requestOwner !== currentOwner.current) return;
+        setLoadedOwner(requestOwner);
+        setInbox(nextInbox);
+        setAgents(nextAgents);
+        setGroups(nextGroups);
+        setRuns(nextRuns);
+        setError(null);
+      } catch (reason) {
+        if (stillLive() && requestOwner === currentOwner.current) setError(errorText(reason));
+      }
+    },
+    [errorText],
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -52,7 +85,7 @@ export default function Inbox() {
       let disposed = false;
       let timer: ReturnType<typeof setTimeout>;
       const tick = async () => {
-        if (AppState.currentState === "active") await refresh();
+        if (AppState.currentState === "active") await refresh(() => !disposed);
         if (!disposed) timer = setTimeout(() => void tick(), 5000);
       };
       void tick();
@@ -66,6 +99,12 @@ export default function Inbox() {
   if (!ready) return <Loading />;
   if (!owner) return <Redirect href="/sign-in" />;
   const needle = query.trim().toLowerCase();
+  const entries = new Map(
+    inbox.map((entry) => [
+      entry.agent_id ? `agent:${entry.agent_id}` : `group:${entry.group_id}`,
+      entry,
+    ]),
+  );
   const rows: Row[] = [
     ...agents
       .filter((agent) => agent.name.toLowerCase().includes(needle))
@@ -74,6 +113,14 @@ export default function Inbox() {
       .filter((group) => group.payload.name.toLowerCase().includes(needle))
       .map((value) => ({ kind: "group" as const, value })),
   ];
+  rows.sort((a, b) => {
+    const personalA = a.kind === "agent" && a.value.role === "personal";
+    const personalB = b.kind === "agent" && b.value.role === "personal";
+    if (personalA !== personalB) return personalA ? -1 : 1;
+    return (
+      entries.get(`${b.kind}:${b.value.id}`)?.last_activity_at ?? b.value.created_at
+    ).localeCompare(entries.get(`${a.kind}:${a.value.id}`)?.last_activity_at ?? a.value.created_at);
+  });
   const open = async (row: Row) => {
     if (opening) return;
     setOpening(row.value.id);
@@ -234,7 +281,9 @@ export default function Inbox() {
           ) : null
         }
         ListEmptyComponent={
-          activity && runs.length ? null : (
+          loadedOwner !== owner.id ? (
+            <Loading />
+          ) : activity && runs.length ? null : (
             <View style={{ padding: 24, gap: 20 }}>
               <Text
                 style={{
@@ -252,6 +301,7 @@ export default function Inbox() {
           )
         }
         renderItem={({ item }) => {
+          const entry = entries.get(`${item.kind}:${item.value.id}`);
           const agent =
             item.kind === "agent"
               ? item.value
@@ -289,12 +339,17 @@ export default function Inbox() {
                   />
                 )
               }
-              time={new Date(run?.updated_at ?? item.value.created_at).toLocaleDateString(locale, {
-                month: "short",
-                day: "numeric",
-              })}
+              time={(() => {
+                const at = new Date(
+                  entry?.last_activity_at ?? run?.updated_at ?? item.value.created_at,
+                );
+                return at.toDateString() === new Date().toDateString()
+                  ? at.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" })
+                  : at.toLocaleDateString(locale, { month: "short", day: "numeric" });
+              })()}
               preview={
-                item.kind === "group"
+                entry?.last_message?.content ||
+                (item.kind === "group"
                   ? item.value.payload.member_ids
                       .map((memberId) => agents.find((value) => value.id === memberId)?.name)
                       .filter(Boolean)
@@ -303,7 +358,7 @@ export default function Inbox() {
                     ? t("paused")
                     : run
                       ? t(run.status)
-                      : item.value.title || item.value.description || ""
+                      : item.value.title || item.value.description || "")
               }
             />
           );

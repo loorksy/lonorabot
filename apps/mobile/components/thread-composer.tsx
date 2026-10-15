@@ -1,8 +1,15 @@
 // Native composer structure and metrics adapted from the template; see NOTICE.
 
 import type { Agent, Artifact, Message } from "@lonora/contracts";
-import { mentionCandidates, mentionQuery } from "@lonora/core";
-import { useEffect, useState } from "react";
+import {
+  type MentionAddress,
+  type MentionRange,
+  mentionAddress,
+  mentionCandidates,
+  mentionQuery,
+  rebaseMentions,
+} from "@lonora/core";
+import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { useSession } from "../lib/session";
 import { BotAvatar } from "./bot-avatar";
@@ -23,6 +30,7 @@ export function ThreadComposer({
   disabled,
   working = false,
   members = [],
+  mentionAll = false,
   reply,
   onCancelReply,
 }: {
@@ -31,24 +39,29 @@ export function ThreadComposer({
   attachments: Artifact[];
   onRemove: (id: string) => void;
   onAttach: () => void;
-  onSend: () => void;
+  onSend: (mentions?: MentionAddress) => void;
   onStop?: () => void;
   busy: boolean;
   uploading: boolean;
   disabled: boolean;
   working?: boolean;
   members?: Agent[];
+  mentionAll?: boolean;
   reply?: Message | null;
   onCancelReply?: () => void;
 }) {
   const { rtl, t } = useSession();
   const [inputHeight, setInputHeight] = useState(44);
   const [cursor, setCursor] = useState(0);
+  const committed = useRef<MentionRange[]>([]);
   const textBeforeCaret = draft.slice(0, cursor);
   const query = mentionQuery(textBeforeCaret);
-  const candidates = query === null ? [] : mentionCandidates(members, query).slice(0, 6);
+  const candidates: Array<Agent | null> =
+    query === null ? [] : mentionCandidates(members, query).slice(0, 6);
+  if (query !== null && mentionAll && "all".startsWith(query.toLowerCase())) candidates.push(null);
   useEffect(() => {
     if (!draft) {
+      committed.current = [];
       setInputHeight(44);
       setCursor(0);
     }
@@ -69,12 +82,19 @@ export function ThreadComposer({
         <View style={{ backgroundColor: colors.muted, borderRadius: 14, overflow: "hidden" }}>
           {candidates.map((agent) => (
             <Pressable
-              key={agent.id}
+              key={agent?.id ?? "session-all"}
               accessibilityRole="button"
-              accessibilityLabel={`@${agent.name}`}
+              accessibilityLabel={`@${agent?.name ?? "all"}`}
               onPress={() => {
-                const prefix = textBeforeCaret.replace(/@[^\s@]*$/, `@${agent.name} `);
-                onChange(prefix + draft.slice(cursor));
+                const start = textBeforeCaret.lastIndexOf("@");
+                const token = `@${agent?.name ?? "all"}`;
+                const prefix = `${draft.slice(0, start)}${token} `;
+                const next = prefix + draft.slice(cursor);
+                committed.current = [
+                  ...rebaseMentions(draft, next, committed.current),
+                  { agent_id: agent?.id ?? null, token, start, end: start + token.length },
+                ];
+                onChange(next);
                 setCursor(prefix.length);
               }}
               style={({ pressed }) => ({
@@ -87,12 +107,19 @@ export function ThreadComposer({
               })}
             >
               <BotAvatar
-                identity={agent.name}
-                color={agent.color}
-                variant={agent.avatar}
+                identity={agent?.name ?? "all"}
+                color={agent?.color ?? colors.accent}
+                variant={agent?.avatar}
                 size={24}
               />
-              <Text style={{ color: colors.foreground, fontSize: 15 }}>{agent.name}</Text>
+              <Text style={{ color: colors.foreground, fontSize: 15 }}>
+                {agent?.name ?? "@all"}
+              </Text>
+              {agent?.trading_symbol ? (
+                <Text style={{ color: colors.secondary, writingDirection: "ltr" }}>
+                  {agent.trading_symbol}
+                </Text>
+              ) : null}
             </Pressable>
           ))}
         </View>
@@ -180,6 +207,7 @@ export function ThreadComposer({
             placeholder={t("message")}
             value={draft}
             onChangeText={(value) => {
+              committed.current = rebaseMentions(draft, value, committed.current);
               setCursor(Math.max(0, Math.min(value.length, cursor + value.length - draft.length)));
               onChange(value);
             }}
@@ -212,7 +240,7 @@ export function ThreadComposer({
             accessibilityRole="button"
             accessibilityLabel={t("send")}
             disabled={!canSend}
-            onPress={onSend}
+            onPress={() => onSend(mentionAddress(draft, committed.current))}
             style={({ pressed }) => ({
               marginBottom: 8,
               width: 32,

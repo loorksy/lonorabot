@@ -20,6 +20,20 @@ export function ClientProvider({ owner, children }: { owner: Owner; children: Re
     const timer = setInterval(() => setTick((v) => v + 1), 15000);
     return () => clearInterval(timer);
   }, []);
+  useEffect(() => {
+    if (connected) setManual((value) => value + 1);
+  }, [connected]);
+  useEffect(() => {
+    const reconcile = () => {
+      if (document.visibilityState === "visible") setManual((value) => value + 1);
+    };
+    document.addEventListener("visibilitychange", reconcile);
+    window.addEventListener("online", reconcile);
+    return () => {
+      document.removeEventListener("visibilitychange", reconcile);
+      window.removeEventListener("online", reconcile);
+    };
+  }, []);
   const value = useMemo(
     () => ({
       owner,

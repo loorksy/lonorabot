@@ -1,3 +1,4 @@
+import type { MentionAddress } from "@lonora/core";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api, type Message, type Run, type Thread } from "../lib/api";
 import { useClient } from "../providers/ClientProvider";
@@ -7,6 +8,7 @@ export function useThreads(agentId?: string, threadId?: string) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [runs, setRuns] = useState<Run[]>([]);
   const [error, setError] = useState<unknown>();
+  const [listingError, setListingError] = useState<unknown>();
   const pendingSend = useRef<{ fingerprint: string; nonce: string } | null>(null);
   useEffect(() => {
     // The durable revision (or explicit refresh tick) invalidates this fetched state.
@@ -15,10 +17,13 @@ export function useThreads(agentId?: string, threadId?: string) {
     api
       .get<Thread[]>(`/threads${agentId ? `?agent_id=${agentId}` : ""}`)
       .then((v) => {
-        if (live) setThreads(v);
+        if (live) {
+          setThreads(v);
+          setListingError(undefined);
+        }
       })
       .catch((e) => {
-        if (live) setError(e);
+        if (live) setListingError(e);
       });
     return () => {
       live = false;
@@ -30,6 +35,7 @@ export function useThreads(agentId?: string, threadId?: string) {
     pendingSend.current = null;
     setMessages([]);
     setRuns([]);
+    setError(undefined);
   }, [threadId]);
   useEffect(() => {
     // The durable revision (or explicit refresh tick) invalidates this fetched state.
@@ -84,7 +90,7 @@ export function useThreads(agentId?: string, threadId?: string) {
     threads,
     messages: visibleMessages,
     runs,
-    error,
+    error: error ?? listingError,
     create: async (id: string) => {
       const thread = await api.post<Thread>("/threads", { agent_id: id, title: "" });
       refresh();
@@ -94,10 +100,11 @@ export function useThreads(agentId?: string, threadId?: string) {
       content: string,
       attachment_ids: string[] = [],
       reply_to: string | null = null,
+      mentions?: MentionAddress,
     ) => {
       // A response can be lost after the server has committed this intent and its run.
       // Retry unchanged content with the same receipt key; a confirmed repeat gets a new key.
-      const fingerprint = JSON.stringify([threadId, content, attachment_ids, reply_to]);
+      const fingerprint = JSON.stringify([threadId, content, attachment_ids, reply_to, mentions]);
       if (pendingSend.current?.fingerprint !== fingerprint)
         pendingSend.current = { fingerprint, nonce: crypto.randomUUID() };
       const nonce = pendingSend.current.nonce;
@@ -106,6 +113,8 @@ export function useThreads(agentId?: string, threadId?: string) {
         attachment_ids,
         reply_to,
         client_nonce: nonce,
+        mention_agent_ids: mentions?.agent_ids ?? [],
+        mention_all: mentions?.all ?? false,
       });
       if (pendingSend.current?.nonce === nonce) pendingSend.current = null;
       refresh();

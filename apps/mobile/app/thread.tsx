@@ -7,17 +7,33 @@ import type {
   Thread,
   TradeApproval,
 } from "@lonora/contracts";
-import { activeStatuses, needsTimeSeparator } from "@lonora/core";
+import {
+  activeStatuses,
+  type ConversationItem,
+  conversationTimeline,
+  type MentionAddress,
+  needsTimeSeparator,
+} from "@lonora/core";
 // Persistent-thread navigation follows Tampletgrok's native thread screen; see NOTICE.
 import * as DocumentPicker from "expo-document-picker";
 import { Redirect, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AppState, FlatList, KeyboardAvoidingView, Platform, Text, View } from "react-native";
+import {
+  AppState,
+  FlatList,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  Text,
+  View,
+} from "react-native";
 import { ActionMenu } from "../components/action-menu";
+import { AgentLiveStatus } from "../components/agent-live-status";
 import { BotAvatar } from "../components/bot-avatar";
 import { GroupAvatar } from "../components/group-avatar";
 import { Markdown } from "../components/markdown";
 import { MessageBubble } from "../components/message-bubble";
+import { NativeSymbol } from "../components/native-symbol";
 import { ThreadComposer } from "../components/thread-composer";
 import { ThreadHeader } from "../components/thread-header";
 import { TimeSeparator } from "../components/time-separator";
@@ -44,6 +60,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [collaborationActive, setCollaborationActive] = useState(false);
   const [approvals, setApprovals] = useState<TradeApproval[]>([]);
   const [runs, setRuns] = useState<Run[]>([]);
   const [draft, setDraft] = useState("");
@@ -55,8 +72,10 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
   const [uploading, setUploading] = useState(false);
   const [hasOlder, setHasOlder] = useState(true);
   const [actionsVisible, setActionsVisible] = useState(false);
-  const list = useRef<FlatList<Message>>(null);
-  const lastMessage = useRef<string | null>(null);
+  const list = useRef<FlatList<ConversationItem>>(null);
+  const following = useRef(true);
+  const [atEnd, setAtEnd] = useState(true);
+  const [loaded, setLoaded] = useState(false);
   const receipt = useRef<{ signature: string; nonce: string } | null>(null);
   const reportError = useRef(errorText);
   reportError.current = errorText;
@@ -65,14 +84,25 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     async (stillLive: () => boolean = () => true) => {
       if (!id) return;
       try {
-        const [nextMessages, nextRuns, nextFiles, nextApprovals] = await Promise.all([
-          api.get<Message[]>(`/threads/${encodeURIComponent(id)}/messages`),
-          api.get<Run[]>(`/runs?thread_id=${encodeURIComponent(id)}`),
-          api.get<Artifact[]>(`/artifacts?thread_id=${encodeURIComponent(id)}`),
-          api.get<TradeApproval[]>(`/trading/approvals?thread_id=${encodeURIComponent(id)}`),
-        ]);
+        const [nextMessages, nextRuns, nextFiles, nextApprovals, collaboration] = await Promise.all(
+          [
+            api.get<Message[]>(`/threads/${encodeURIComponent(id)}/messages`),
+            api.get<Run[]>(`/runs?thread_id=${encodeURIComponent(id)}`),
+            api.get<Artifact[]>(`/artifacts?thread_id=${encodeURIComponent(id)}`),
+            api.get<TradeApproval[]>(`/trading/approvals?thread_id=${encodeURIComponent(id)}`),
+            api.get<{ state: { status: string } } | null>(
+              `/threads/${encodeURIComponent(id)}/collaboration`,
+            ),
+          ],
+        );
         if (!stillLive()) return;
         setMessages((old) => mergeMessages(old, nextMessages));
+        setCollaborationActive(
+          Boolean(
+            collaboration &&
+              !["completed", "cancelled", "expired", "failed"].includes(collaboration.state.status),
+          ),
+        );
         setRuns(nextRuns);
         setFiles(nextFiles);
         setApprovals((old) =>
@@ -87,11 +117,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
           }),
         );
         setError(null);
-        const latest = nextMessages.at(-1)?.id ?? null;
-        if (latest && lastMessage.current !== latest) {
-          lastMessage.current = latest;
-          requestAnimationFrame(() => list.current?.scrollToEnd({ animated: false }));
-        }
+        setLoaded(true);
       } catch (reason) {
         if (stillLive()) setError(errorText(reason));
       }
@@ -104,12 +130,15 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     setMessages([]);
     setRuns([]);
     setApprovals([]);
+    setCollaborationActive(false);
     setAttachments([]);
     setFiles([]);
     setDraft("");
     setReply(null);
     setHasOlder(true);
-    lastMessage.current = null;
+    following.current = true;
+    setAtEnd(true);
+    setLoaded(false);
     receipt.current = null;
     if (!id || !owner) return;
     let live = true;
@@ -165,11 +194,16 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
   const agent = agents.find((value) => value.id === thread?.agent_id);
   const group = groups.find((value) => value.id === thread?.group_id);
   const title = agent?.name ?? group?.payload.name ?? thread?.title ?? t("inbox");
-  const send = async () => {
+  const send = async (mentions?: MentionAddress) => {
     if (busy || uploading || !thread || (!draft.trim() && !attachments.length)) return;
     const content = draft.trim() || t("attach");
     const attachment_ids = attachments.map((file) => file.id);
-    const signature = JSON.stringify({ content, attachment_ids, reply_to: reply?.id ?? null });
+    const signature = JSON.stringify({
+      content,
+      attachment_ids,
+      reply_to: reply?.id ?? null,
+      mentions,
+    });
     if (receipt.current?.signature !== signature)
       receipt.current = {
         signature,
@@ -183,7 +217,11 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
         attachment_ids,
         reply_to: reply?.id ?? null,
         client_nonce: receipt.current.nonce,
+        mention_agent_ids: mentions?.agent_ids ?? [],
+        mention_all: mentions?.all ?? false,
       });
+      following.current = true;
+      setAtEnd(true);
       setDraft("");
       setAttachments([]);
       setReply(null);
@@ -228,6 +266,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
   };
   const older = async () => {
     if (!messages.length || busy) return;
+    following.current = false;
     setBusy(true);
     try {
       const rows = await api.get<Message[]>(
@@ -359,100 +398,158 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
             ) : null}
           </View>
         ))}
+      {thread?.agent_id && <AgentLiveStatus agentId={thread.agent_id} />}
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        <FlatList
-          ref={list}
-          data={messages}
-          keyExtractor={(message) => message.id}
-          contentContainerStyle={{
-            paddingHorizontal: 16,
-            paddingVertical: 14,
-            flexGrow: 1,
-            gap: 12,
-          }}
-          ListHeaderComponent={
-            messages.length >= 100 && hasOlder ? (
-              <Button label={t("older")} secondary disabled={busy} onPress={() => void older()} />
-            ) : null
-          }
-          ListEmptyComponent={
-            <Text style={{ color: colors.secondary, textAlign: "center", padding: 24 }}>
-              {thread ? t("waitingMessage") : t("connecting")}
-            </Text>
-          }
-          renderItem={({ item, index }) => (
-            <View>
-              {needsTimeSeparator(item.created_at, messages[index - 1]?.created_at) ? (
-                <TimeSeparator createdAt={item.created_at} />
-              ) : null}
-              <MessageBubble
-                message={item}
-                reply={messages.find((row) => row.id === item.reply_to)}
-                onReply={setReply}
-                grouped={
-                  index > 0 &&
-                  messages[index - 1].role === item.role &&
-                  messages[index - 1].agent_id === item.agent_id &&
-                  new Date(item.created_at).getTime() -
-                    new Date(messages[index - 1].created_at).getTime() <
-                    180000
-                }
-                agent={agents.find((value) => value.id === item.agent_id)}
-                files={files}
-                onArtifact={(fileId) =>
-                  router.push({ pathname: "/artifact", params: { artifactId: fileId } })
-                }
-              />
-            </View>
-          )}
-          ListFooterComponent={
-            <View style={{ gap: 12 }}>
-              {approvals
-                .filter((row) => row.thread_id === id)
-                .map((row) => (
-                  <TradeApprovalCard
-                    key={row.id}
-                    row={row}
-                    onChange={(updated) =>
-                      setApprovals((old) =>
-                        old.map((item) => (item.id === updated.id ? updated : item)),
-                      )
-                    }
+        <View style={{ flex: 1 }}>
+          {!loaded || !thread ? (
+            <Loading />
+          ) : (
+            <FlatList
+              ref={list}
+              testID="conversation-transcript"
+              inverted
+              data={conversationTimeline(
+                messages,
+                approvals.filter((row) => row.thread_id === id),
+              ).reverse()}
+              keyExtractor={(item) => item.id}
+              maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
+              scrollEventThrottle={16}
+              onScroll={(event) => {
+                const near = event.nativeEvent.contentOffset.y <= 80;
+                following.current = near;
+                setAtEnd(near);
+              }}
+              onContentSizeChange={() => {
+                if (following.current) list.current?.scrollToOffset({ offset: 0, animated: false });
+              }}
+              contentContainerStyle={{
+                paddingHorizontal: 16,
+                paddingVertical: 14,
+                flexGrow: 1,
+                gap: 12,
+              }}
+              ListFooterComponent={
+                messages.length >= 100 && hasOlder ? (
+                  <Button
+                    label={t("older")}
+                    secondary
+                    disabled={busy}
+                    onPress={() => void older()}
                   />
-                ))}
-              {runs
-                .filter(
-                  (run) =>
-                    activeStatuses.includes(run.status) &&
-                    run.stream?.phase === "streaming" &&
-                    run.stream.text,
-                )
-                .map((run) => (
-                  <View key={run.id} accessibilityLabel={t("running")} style={{ gap: 8 }}>
-                    <Markdown content={run.stream?.text ?? ""} />
+                ) : null
+              }
+              ListEmptyComponent={
+                <Text style={{ color: colors.secondary, textAlign: "center", padding: 24 }}>
+                  {t("waitingMessage")}
+                </Text>
+              }
+              renderItem={({ item }) => {
+                if (item.kind === "approval")
+                  return (
+                    <TradeApprovalCard
+                      row={item.approval}
+                      onChange={(updated) =>
+                        setApprovals((old) =>
+                          old.map((row) => (row.id === updated.id ? updated : row)),
+                        )
+                      }
+                    />
+                  );
+                const message = item.message;
+                const previous = messages[messages.findIndex((row) => row.id === message.id) - 1];
+                return (
+                  <View>
+                    {needsTimeSeparator(message.created_at, previous?.created_at) ? (
+                      <TimeSeparator createdAt={message.created_at} />
+                    ) : null}
+                    <MessageBubble
+                      message={message}
+                      reply={messages.find((row) => row.id === message.reply_to)}
+                      onReply={setReply}
+                      grouped={Boolean(
+                        previous &&
+                          previous.role === message.role &&
+                          previous.agent_id === message.agent_id &&
+                          new Date(message.created_at).getTime() -
+                            new Date(previous.created_at).getTime() <
+                            180000,
+                      )}
+                      agent={agents.find((value) => value.id === message.agent_id)}
+                      files={files}
+                      onArtifact={(fileId) =>
+                        router.push({ pathname: "/artifact", params: { artifactId: fileId } })
+                      }
+                    />
                   </View>
-                ))}
-              {runs.some((run) => activeStatuses.includes(run.status)) ? (
-                <WorkingIndicator />
-              ) : null}
-            </View>
-          }
-        />
+                );
+              }}
+              ListHeaderComponent={
+                <View style={{ gap: 12 }}>
+                  {runs
+                    .filter(
+                      (run) =>
+                        activeStatuses.includes(run.status) &&
+                        run.stream?.phase === "streaming" &&
+                        run.stream.text &&
+                        (!run.stream.message_id ||
+                          !messages.some((message) => message.id === run.stream?.message_id)),
+                    )
+                    .map((run) => (
+                      <View key={run.id} accessibilityLabel={t("running")} style={{ gap: 8 }}>
+                        <Markdown content={run.stream?.text ?? ""} />
+                      </View>
+                    ))}
+                  {runs.some((run) => activeStatuses.includes(run.status)) ? (
+                    <WorkingIndicator />
+                  ) : null}
+                </View>
+              }
+            />
+          )}
+          {!atEnd && (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t("jumpLatest")}
+              onPress={() => {
+                following.current = true;
+                setAtEnd(true);
+                list.current?.scrollToOffset({ offset: 0, animated: false });
+              }}
+              style={{
+                position: "absolute",
+                bottom: 12,
+                alignSelf: "center",
+                width: 44,
+                height: 44,
+                borderRadius: 22,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: colors.accent,
+                borderColor: colors.border,
+                borderWidth: 1,
+              }}
+            >
+              <NativeSymbol name="download" />
+            </Pressable>
+          )}
+        </View>
         <ThreadComposer
           draft={draft}
-          members={
-            group ? agents.filter((value) => group.payload.member_ids.includes(value.id)) : []
-          }
+          members={agents}
+          mentionAll={collaborationActive}
           reply={reply}
           onCancelReply={() => setReply(null)}
           onChange={setDraft}
           attachments={attachments}
           onRemove={(fileId) => setAttachments((old) => old.filter((file) => file.id !== fileId))}
           onAttach={() => void attach()}
-          onSend={() => void send()}
+          onSend={(mentions) => void send(mentions)}
           busy={busy}
           uploading={uploading}
           disabled={!thread}

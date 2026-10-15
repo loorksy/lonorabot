@@ -2,13 +2,20 @@
 
 import { t } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
+import type { TradeApproval } from "@lonora/contracts";
 import {
   canCancel,
+  conversationTimeline,
   formatTimeSeparator,
   isWorking,
+  type MentionAddress,
+  type MentionRange,
+  mentionAddress,
   mentionCandidates,
+  nearConversationBottom,
   needsTimeSeparator,
   mentionQuery as readMentionQuery,
+  rebaseMentions,
 } from "@lonora/core";
 import {
   ArrowDown,
@@ -29,11 +36,12 @@ import {
   useRef,
   useState,
 } from "react";
+import { AgentLiveStatus } from "../../components/ai/AgentLiveStatus";
 import { SubagentTasks } from "../../components/ai/CollaborationMarker";
 import { AgentActivity, WorkingIndicator } from "../../components/ai/primitives";
 import { FilePreviewPanel } from "../../components/common/FilePreviewPanel";
 import { ToolActivityDisclosure } from "../../components/ToolActivityDisclosure";
-import { TradeApprovals } from "../../components/trading/TradeApprovals";
+import { TradeApprovalCard, useTradeApprovals } from "../../components/trading/TradeApprovals";
 import { useThreads } from "../../hooks/useThreads";
 import type { Agent, Message, Resource, Run } from "../../lib/api";
 import { api } from "../../lib/api";
@@ -55,21 +63,26 @@ export function ThreadViewport({
   agents: Agent[];
 }) {
   const thread = useThreads(undefined, threadId);
+  const approvalState = useTradeApprovals(threadId);
   const { events, revision, streams, seedStreams, connected } = useClient();
   const repairingStreams = useRef(new Set<string>());
   const lastRepair = useRef(new Map<string, number>());
   const [reply, setReply] = useState<Message | null>(null);
   const [artifacts, setArtifacts] = useState<Resource[]>([]);
+  const [collaboration, setCollaboration] = useState<Resource | null>(null);
   const [peers, setPeers] = useState<Resource[]>([]);
   const [preview, setPreview] = useState<Resource | null>(null);
   const [actionError, setActionError] = useState<unknown>();
   const [artifactError, setArtifactError] = useState<unknown>();
+  const [peerError, setPeerError] = useState<unknown>();
 
   useEffect(() => {
     void threadId;
     setReply(null);
     setPreview(null);
     setActionError(undefined);
+    setArtifactError(undefined);
+    setPeerError(undefined);
     setArtifacts([]);
     setPeers([]);
   }, [threadId]);
@@ -99,10 +112,29 @@ export function ThreadViewport({
     void api
       .get<Resource[]>(`/peer-messages?thread_id=${threadId}`)
       .then((rows) => {
-        if (live) setPeers(rows);
+        if (live) {
+          setPeers(rows);
+          setPeerError(undefined);
+        }
       })
       .catch((error: unknown) => {
-        if (live) setArtifactError(error);
+        if (live) setPeerError(error);
+      });
+    return () => {
+      live = false;
+    };
+  }, [threadId, revision]);
+
+  useEffect(() => {
+    void revision;
+    let live = true;
+    void api
+      .get<Resource | null>(`/threads/${threadId}/collaboration`)
+      .then((row) => {
+        if (live) setCollaboration(row);
+      })
+      .catch(() => {
+        if (live) setCollaboration(null);
       });
     return () => {
       live = false;
@@ -181,6 +213,7 @@ export function ThreadViewport({
 
   return (
     <section className="thread-view template-thread">
+      {agentId && <AgentLiveStatus agentId={agentId} />}
       {notices.length > 0 && (
         <div className="thread-status template-thread-status">
           {notices.map(
@@ -206,14 +239,25 @@ export function ThreadViewport({
         </div>
       )}
       <RecoveryNotice events={local} />
-      {(thread.error ?? actionError ?? artifactError) != null && (
+      {(thread.error ?? actionError ?? artifactError ?? peerError ?? approvalState.error) !=
+        null && (
         <p className="template-thread-error" role="alert">
-          {userError(thread.error ?? actionError ?? artifactError)}
+          {userError(
+            thread.error ?? actionError ?? artifactError ?? peerError ?? approvalState.error,
+          )}
         </p>
       )}
       <ThreadMessages
         key={`messages:${threadId}`}
         messages={thread.messages}
+        approvals={approvalState.rows}
+        renderApproval={(row) => (
+          <TradeApprovalCard
+            row={row}
+            busy={approvalState.busy != null}
+            decide={approvalState.decide}
+          />
+        )}
         showSpeakers={!agentId}
         agents={agents}
         artifacts={artifacts}
@@ -236,7 +280,6 @@ export function ThreadViewport({
                   />
                 ),
             )}
-            <TradeApprovals key={threadId} threadId={threadId} />
             <div className="thread-progress template-thread-progress">
               <AgentActivity
                 events={local}
@@ -257,7 +300,13 @@ export function ThreadViewport({
         working={working}
         reply={reply}
         recipientName={conversationName ?? agents.find((agent) => agent.id === agentId)?.name}
-        mentionTargets={agentId ? [] : agents}
+        mentionTargets={agents}
+        mentionAll={Boolean(
+          collaboration &&
+            !["completed", "cancelled", "expired", "failed"].includes(
+              String(collaboration.state?.status),
+            ),
+        )}
         onClearReply={() => setReply(null)}
         onSend={thread.send}
         onCancel={() => {
@@ -274,6 +323,7 @@ export function Composer({
   working,
   reply,
   mentionTargets = [],
+  mentionAll = false,
   recipientName,
   onClearReply,
   onSend,
@@ -283,12 +333,20 @@ export function Composer({
   working: boolean;
   reply: Message | null;
   mentionTargets?: Agent[];
+  mentionAll?: boolean;
   recipientName?: string;
   onClearReply: () => void;
-  onSend: (text: string, ids: string[], reply: string | null) => Promise<void>;
+  onSend: (
+    text: string,
+    ids: string[],
+    reply: string | null,
+    mentions?: MentionAddress,
+  ) => Promise<void>;
   onCancel: () => void;
 }) {
   const [text, setText] = useState("");
+  const committedMentions = useRef<MentionRange[]>([]);
+  const caret = useRef(0);
   const [files, setFiles] = useState<Resource[]>([]);
   const [sending, setSending] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -313,7 +371,11 @@ export function Composer({
   latestReply.current = reply?.id;
   const replyId = reply?.id;
   const canSend = Boolean(text.trim() || files.length);
-  const mentionOptions = mentionCandidates(mentionTargets, mentionQuery ?? "").slice(0, 6);
+  const mentionOptions: Array<Agent | null> = mentionCandidates(
+    mentionTargets,
+    mentionQuery ?? "",
+  ).slice(0, 6);
+  if (mentionAll && "all".startsWith((mentionQuery ?? "").toLowerCase())) mentionOptions.push(null);
   const mentionOpen = mentionQuery !== null && mentionOptions.length > 0;
   const activeMention = Math.min(highlight, Math.max(0, mentionOptions.length - 1));
   const settingsCommand = /^\/(?:settings)?$/i.test(text.trim());
@@ -363,19 +425,32 @@ export function Composer({
     return () => observer.disconnect();
   }, [text]);
 
-  function updateDraft(value: string) {
+  function updateDraft(value: string, position = value.length) {
+    committedMentions.current = rebaseMentions(text, value, committedMentions.current);
+    caret.current = position;
     draftRevision.current += 1;
     setText(value);
-    setMentionQuery(readMentionQuery(value));
+    setMentionQuery(readMentionQuery(value.slice(0, position)));
     setHighlight(0);
   }
 
-  function insertMention(agent: Agent) {
+  function insertMention(agent: Agent | null) {
     draftRevision.current += 1;
-    setText((value) => value.replace(/@[^\s@]*$/, `@${agent.name} `));
+    const before = text.slice(0, caret.current);
+    const start = before.lastIndexOf("@");
+    if (start < 0) return;
+    const token = `@${agent?.name ?? "all"}`;
+    const next = `${text.slice(0, start)}${token} ${text.slice(caret.current)}`;
+    committedMentions.current = [
+      ...rebaseMentions(text, next, committedMentions.current),
+      { agent_id: agent?.id ?? null, token, start, end: start + token.length },
+    ];
+    caret.current = start + token.length + 1;
+    setText(next);
     setMentionQuery(null);
     setHighlight(0);
     textarea.current?.focus();
+    requestAnimationFrame(() => textarea.current?.setSelectionRange(caret.current, caret.current));
   }
 
   async function upload(picked: File[]) {
@@ -406,10 +481,16 @@ export function Composer({
     const attachments = files.map((file) => file.id);
     const sentReply = reply?.id ?? null;
     try {
-      await onSend(text.trim() || t`Attached files`, attachments, sentReply);
+      await onSend(
+        text.trim() || t`Attached files`,
+        attachments,
+        sentReply,
+        mentionAddress(text, committedMentions.current),
+      );
       if (!mounted.current) return;
       if (draftRevision.current === revision) {
         setText("");
+        committedMentions.current = [];
         setMentionQuery(null);
       }
       setFiles((old) => old.filter((file) => !attachments.includes(file.id)));
@@ -524,7 +605,7 @@ export function Composer({
           {mentionOptions.map((agent, index) => (
             <button
               id={`${listboxId}-${index}`}
-              key={agent.id}
+              key={agent?.id ?? "session-all"}
               type="button"
               role="option"
               aria-selected={index === activeMention}
@@ -532,8 +613,9 @@ export function Composer({
               onClick={() => insertMention(agent)}
               onMouseMove={() => setHighlight(index)}
             >
-              <span className="template-mention-dot" style={{ backgroundColor: agent.color }} />
-              <span dir="auto">@{agent.name}</span>
+              <span className="template-mention-dot" style={{ backgroundColor: agent?.color }} />
+              <bdi>@{agent?.name ?? "all"}</bdi>
+              {agent?.trading_symbol && <bdi>{agent.trading_symbol}</bdi>}
             </button>
           ))}
         </div>
@@ -597,7 +679,11 @@ export function Composer({
                   : t`Message your agent…`
             }
             value={text}
-            onChange={(event) => updateDraft(event.target.value)}
+            onChange={(event) => updateDraft(event.target.value, event.target.selectionStart)}
+            onSelect={(event) => {
+              caret.current = event.currentTarget.selectionStart;
+              setMentionQuery(readMentionQuery(text.slice(0, caret.current)));
+            }}
             rows={1}
             dir="auto"
             name="chat-message"
@@ -623,7 +709,7 @@ export function Composer({
               ) {
                 event.preventDefault();
                 const agent = mentionOptions[activeMention];
-                if (agent) insertMention(agent);
+                if (agent !== undefined) insertMention(agent);
               } else if (mentionOpen && event.key === "Escape") {
                 event.preventDefault();
                 event.stopPropagation();
@@ -694,9 +780,13 @@ export function ThreadMessages({
   onOlder,
   trailing,
   showSpeakers = true,
+  approvals = [],
+  renderApproval,
 }: {
   showSpeakers?: boolean;
   messages: Message[];
+  approvals?: TradeApproval[];
+  renderApproval?: (row: TradeApproval) => ReactNode;
   agents: Agent[];
   artifacts: Resource[];
   peers?: Resource[];
@@ -744,7 +834,7 @@ export function ThreadMessages({
       element.scrollTop = element.scrollHeight;
     }
     previous.current = { first, last, height: element.scrollHeight };
-    setAtEnd(element.scrollHeight - element.clientHeight - element.scrollTop < 80);
+    setAtEnd(nearConversationBottom(element.scrollHeight, element.clientHeight, element.scrollTop));
   }, [messages]);
 
   useEffect(() => {
@@ -755,7 +845,9 @@ export function ThreadMessages({
       if (!element) return;
       if (following.current) element.scrollTop = element.scrollHeight;
       previous.current.height = element.scrollHeight;
-      setAtEnd(element.scrollHeight - element.clientHeight - element.scrollTop < 80);
+      setAtEnd(
+        nearConversationBottom(element.scrollHeight, element.clientHeight, element.scrollTop),
+      );
     });
     observer.observe(transcript);
     return () => observer.disconnect();
@@ -790,7 +882,11 @@ export function ThreadMessages({
         }}
         onScroll={(event) => {
           const element = event.currentTarget;
-          const nearEnd = element.scrollHeight - element.clientHeight - element.scrollTop < 80;
+          const nearEnd = nearConversationBottom(
+            element.scrollHeight,
+            element.clientHeight,
+            element.scrollTop,
+          );
           following.current = nearEnd;
           setAtEnd(nearEnd);
         }}
@@ -814,8 +910,12 @@ export function ThreadMessages({
             </button>
           )}
           {olderError != null && <p role="alert">{userError(olderError)}</p>}
-          {messages.map((message, index) => {
-            const previousMessage = messages[index - 1];
+          {conversationTimeline(messages, approvals).map((item) => {
+            if (item.kind === "approval")
+              return <Fragment key={item.id}>{renderApproval?.(item.approval)}</Fragment>;
+            const message = item.message;
+            const previousMessage =
+              messages[messages.findIndex((row) => row.id === message.id) - 1];
             const separator = needsTimeSeparator(message.created_at, previousMessage?.created_at);
             return (
               <Fragment key={message.id}>

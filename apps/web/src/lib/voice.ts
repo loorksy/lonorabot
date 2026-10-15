@@ -243,7 +243,8 @@ export class VoiceJoin {
           type: "session.instructions.append",
           event_id: crypto.randomUUID(),
           delegation_id: null,
-          content: "Stop speaking and listen. The owner explicitly interrupted the current work.",
+          content:
+            "Stop speaking and listen. Preserve ongoing background work unless the owner explicitly requests changing it.",
         }),
       );
     if (this.session_id) await interruptVoice(this.session_id);

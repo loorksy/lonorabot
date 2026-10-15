@@ -27,6 +27,7 @@ const config: ExpoConfig = {
   android: {
     package: brand.applicationId,
     versionCode: 5,
+    softwareKeyboardLayoutMode: "resize",
     permissions: ["RECORD_AUDIO", "MODIFY_AUDIO_SETTINGS"],
     blockedPermissions: ["android.permission.CAMERA"],
   },

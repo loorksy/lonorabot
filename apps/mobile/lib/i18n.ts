@@ -1,5 +1,10 @@
 export type Locale = "ar" | "en";
 export const labels = {
+  jumpLatest: ["انتقل إلى أحدث رسالة", "Jump to latest"],
+  voice_native_unavailable: [
+    "المكالمات غير متاحة في نسخة التطبيق الحالية. حدّث التطبيق وحاول مجددًا.",
+    "Voice is unavailable in this app build. Update the app and try again.",
+  ],
   chooseBrokerAccount: ["اختر حساب الوسيط", "Choose broker account"],
   chooseTradingPair: ["اختر زوج التداول", "Choose trading pair"],
   searchBrokerSymbols: ["ابحث في رموز الوسيط", "Search broker symbols"],
@@ -276,6 +281,13 @@ export const labels = {
     "عُدّلت البيانات من جهاز آخر. حدّث الصفحة ثم حاول مجددًا.",
     "This was changed on another device. Refresh and try again.",
   ],
+  live_idle: ["جاهز", "Idle"],
+  live_working: ["يعمل", "Working"],
+  live_waiting: ["ينتظر", "Waiting"],
+  live_action_required: ["بانتظار موافقتك", "Action required"],
+  live_degraded: ["بيانات السوق غير متاحة", "Market data unavailable"],
+  live_paused: ["متوقف مؤقتًا", "Paused"],
+  activeWatches: ["المراقبات النشطة", "Active watches"],
 } as const;
 export type Label = keyof typeof labels;
 export function translate(locale: Locale, key: Label): string {

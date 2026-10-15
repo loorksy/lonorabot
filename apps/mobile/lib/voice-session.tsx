@@ -146,6 +146,12 @@ export function VoiceSessionProvider({ children }: { children: ReactNode }) {
       const status = await api.get<{ transport_configured: boolean }>("/voice/status");
       if (capturedGeneration !== generation.current || capturedOwner !== ownerId.current) return;
       if (!status.transport_configured) throw new ApiError("voice_transport_unconfigured", 409);
+      const device = await createVoiceDevice();
+      if (capturedGeneration !== generation.current || capturedOwner !== ownerId.current) {
+        device.stopAudio();
+        device.peer.close();
+        return;
+      }
       let current: MobileVoiceJoin;
       current = new MobileVoiceJoin(
         setConnected,
@@ -159,7 +165,7 @@ export function VoiceSessionProvider({ children }: { children: ReactNode }) {
             setApprovals([]);
           }
         },
-        createVoiceDevice(),
+        device,
         api,
       );
       join.current = current;
