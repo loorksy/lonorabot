@@ -3,10 +3,12 @@
 import os
 from collections.abc import AsyncGenerator
 from datetime import timedelta
+from typing import Any, cast
 from uuid import uuid4
 
 import pytest
 import pytest_asyncio
+from lonora_adapter_kit.types import ModelMessage
 from lonora_contracts.domain import MessageCreate, utcnow
 from lonora_contracts.runs import Lease
 from lonora_contracts.tasks import TaskControl, TaskCreate, TaskStep
@@ -61,7 +63,9 @@ async def task_db() -> AsyncGenerator[tuple[Database, str, str, str]]:
 
 
 @pytest.mark.asyncio
-async def test_same_agent_work_does_not_block_conversation(task_db):
+async def test_same_agent_work_does_not_block_conversation(
+    task_db: tuple[Database, str, str, str],
+) -> None:
     db, owner, agent, thread = task_db
     async with db.sessions() as session, session.begin():
         task = await create_task(
@@ -73,6 +77,7 @@ async def test_same_agent_work_does_not_block_conversation(task_db):
         )
         work = await claim_next(session, "background", 60, "work")
         assert work and work.thread_id != thread and work.agent_id == agent
+        assert work is not None
         work.status = "running"
         work_id = work.id
     async with db.sessions() as session, session.begin():
@@ -81,18 +86,22 @@ async def test_same_agent_work_does_not_block_conversation(task_db):
         assert foreground and foreground.thread_id == thread
         assert foreground.id in sent["run_ids"]
         assert foreground.agent_id == agent
-        assert (await session.get(RunRow, work_id)).status == "running"
+        active_work = await session.get(RunRow, work_id)
+        assert active_work is not None and active_work.status == "running"
         state = await snapshot(session, await get_task(session, owner, task.id))
         assert state["status"] == "running"
         assert state["origin_thread_id"] == thread
 
 
 @pytest.mark.asyncio
-async def test_pause_resume_checkpoint_and_fence_recovery(task_db):
+async def test_pause_resume_checkpoint_and_fence_recovery(
+    task_db: tuple[Database, str, str, str],
+) -> None:
     db, owner, agent, thread = task_db
     async with db.sessions() as session, session.begin():
         task = await create_task(session, owner, agent, thread, TaskCreate(title="Observe"))
         run = await claim_next(session, "first", 60, "work")
+        assert run is not None
         run.status = "running"
         run.execution_state = {"rounds": 2, "pending": [{"id": "stable-operation"}]}
         lease = Lease(run_id=run.id, owner="first", fence=run.lease_fence)
@@ -104,7 +113,8 @@ async def test_pause_resume_checkpoint_and_fence_recovery(task_db):
             TaskControl(task_id=row.id, action="pause", expected_version=row.version),
             agent_id=agent,
         )
-        assert (await session.get(RunRow, lease.run_id)).status == "running"
+        running = await session.get(RunRow, lease.run_id)
+        assert running is not None and running.status == "running"
     async with db.sessions() as session, session.begin():
         assert await checkpoint_task(session, lease)
         row = await get_task(session, owner, task.id)
@@ -116,6 +126,7 @@ async def test_pause_resume_checkpoint_and_fence_recovery(task_db):
         )
     async with db.sessions() as session, session.begin():
         recovered = await claim_next(session, "second", 60, "work")
+        assert recovered is not None
         assert recovered.id == lease.run_id and recovered.lease_fence > lease.fence
         assert recovered.execution_state["pending"][0]["id"] == "stable-operation"
         with pytest.raises(LonoraError, match="stale_lease"):
@@ -127,7 +138,9 @@ async def test_pause_resume_checkpoint_and_fence_recovery(task_db):
 
 
 @pytest.mark.asyncio
-async def test_controls_validate_owner_version_and_history(task_db):
+async def test_controls_validate_owner_version_and_history(
+    task_db: tuple[Database, str, str, str],
+) -> None:
     db, owner, agent, thread = task_db
     async with db.sessions() as session, session.begin():
         task = await create_task(session, owner, agent, thread, TaskCreate(title="Work"))
@@ -174,10 +187,11 @@ async def test_controls_validate_owner_version_and_history(task_db):
 
 
 @pytest.mark.asyncio
-async def test_semantic_tool_control_and_revision_resume(task_db):
+async def test_semantic_tool_control_and_revision_resume(
+    task_db: tuple[Database, str, str, str],
+) -> None:
     """The model's structured tool request is authoritative input, not phrase routing."""
     from pathlib import Path
-    from typing import cast
 
     from lonora_adapter_kit.types import ToolCall
     from lonora_agent.tasks import task_checkpoint
@@ -203,10 +217,10 @@ async def test_semantic_tool_control_and_revision_resume(task_db):
         agent,
         thread,
         lease,
-        cast(object, None),
-        cast(object, None),
-        cast(object, None),
-        cast(object, None),
+        cast(Any, None),
+        cast(Any, None),
+        cast(Any, None),
+        cast(Any, None),
         Path("/tmp"),
     )
     registry = ToolRegistry(tools())
@@ -248,6 +262,7 @@ async def test_semantic_tool_control_and_revision_resume(task_db):
     assert inspected["tasks"][0]["status"] == "queued"
     async with db.sessions() as session, session.begin():
         work = await claim_next(session, "work", 60, "work")
+        assert work is not None
         work.status = "running"
         work_lease = Lease(run_id=work.id, owner="work", fence=work.lease_fence)
     work_context = ToolContext(
@@ -262,11 +277,82 @@ async def test_semantic_tool_control_and_revision_resume(task_db):
         context.router,
         Path("/tmp"),
     )
-    state, messages = {}, []
+    state: dict[str, Any] = {}
+    messages: list[ModelMessage] = []
     await task_checkpoint(work_context, state, messages)
     assert state["task_plan_revision"] == 2
     assert "omit report publication" in messages[0].content
     async with db.sessions() as session:
         work = await session.get(RunRow, work_lease.run_id)
+        assert work is not None
         assert work.execution_state["task_plan_revision"] == 2
         assert work.execution_state["messages"][0]["role"] == "user"
+
+
+@pytest.mark.asyncio
+async def test_step_completion_requires_real_checkpoint_evidence(
+    task_db: tuple[Database, str, str, str],
+) -> None:
+    import json
+
+    from lonora_contracts.tasks import TaskStepUpdate
+    from lonora_db.tasks import update_task_step
+
+    db, owner, agent, thread = task_db
+    async with db.sessions() as session, session.begin():
+        task = await create_task(
+            session,
+            owner,
+            agent,
+            thread,
+            TaskCreate(title="Verify evidence", steps=[TaskStep(id="read", title="Read state")]),
+        )
+        run = await claim_next(session, "proof-worker", 60, "work")
+        assert run
+        run.status = "running"
+        lease = Lease(run_id=run.id, owner="proof-worker", fence=run.lease_fence)
+        with pytest.raises(LonoraError, match="task_step_evidence_required"):
+            await update_task_step(
+                session, lease, TaskStepUpdate(step_id="read", plan_revision=1, state="completed")
+            )
+        with pytest.raises(LonoraError, match="task_step_evidence_invalid"):
+            await update_task_step(
+                session,
+                lease,
+                TaskStepUpdate(
+                    step_id="read",
+                    plan_revision=1,
+                    state="completed",
+                    evidence_call_ids=["invented"],
+                ),
+            )
+        run.execution_state = {
+            "messages": [
+                {
+                    "role": "assistant",
+                    "tool_calls": [{"id": "actual-read", "name": "account_read"}],
+                },
+                {
+                    "role": "tool",
+                    "tool_call_id": "actual-read",
+                    "content": json.dumps({"ok": True, "account": {"balance": "1000"}}),
+                },
+            ]
+        }
+        await update_task_step(
+            session,
+            lease,
+            TaskStepUpdate(
+                step_id="read",
+                plan_revision=1,
+                state="completed",
+                evidence_call_ids=["actual-read"],
+            ),
+        )
+        actual = await get_task(session, owner, task.id)
+        assert actual.state["task"]["steps"][0]["state"] == "completed"
+        assert actual.state["task"]["steps"][0]["evidence_call_ids"] == ["actual-read"]
+        with pytest.raises(LonoraError, match="task_completed_step_immutable"):
+            await update_task_step(
+                session, lease, TaskStepUpdate(step_id="read", plan_revision=1, state="running")
+            )

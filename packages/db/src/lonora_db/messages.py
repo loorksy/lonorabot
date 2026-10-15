@@ -30,6 +30,7 @@ def message_data(row: MessageRow) -> dict[str, Any]:
         "role": row.role,
         "content": row.content,
         "reply_to": row.reply_to,
+        "mentions": row.mentions,
         "attachment_ids": row.attachment_ids,
         "created_at": row.created_at.isoformat(),
     }
@@ -96,6 +97,15 @@ async def send_message(
             "run_ids": receipt.result.get("run_ids", []),
             "deduplicated": True,
         }
+    for mentioned_id in request.mention_agent_ids:
+        await owned_agent(session, owner_id, mentioned_id)
+    collaboration = None
+    if request.mention_all:
+        from .collaboration import current_session
+
+        collaboration = await current_session(session, owner_id, thread_id)
+        if collaboration is None:
+            raise LonoraError("collaboration_session_required", 409)
     reply = None
     if request.reply_to:
         reply = await session.get(MessageRow, request.reply_to)
@@ -110,7 +120,11 @@ async def send_message(
         thread_id=thread_id,
         seq=thread.next_seq,
         role="user",
-        **request.model_dump(exclude={"client_nonce"}),
+        **request.model_dump(exclude={"client_nonce", "mention_agent_ids", "mention_all"}),
+        mentions={
+            "agent_ids": list(dict.fromkeys(request.mention_agent_ids)),
+            "all": request.mention_all,
+        },
         client_nonce=request.client_nonce,
     )
     # reply_to/attachment_ids are part of the message; no model or provider is selected here.
@@ -135,7 +149,14 @@ async def send_message(
                     )
                 ).all()
             )
-            targets = mentions(request.content, {a.id: a.name for a in agents})
+            explicit = set(request.mention_agent_ids)
+            if explicit and not explicit.issubset({a.id for a in agents}):
+                raise LonoraError("agent_not_group_member", 409)
+            targets = (
+                [a.id for a in agents if a.id in explicit]
+                if explicit
+                else mentions(request.content, {a.id: a.name for a in agents})
+            )
             if not targets and request.reply_to and reply and reply.agent_id:
                 targets = [a.id for a in agents if a.id == reply.agent_id]
             if not targets:
@@ -187,6 +208,31 @@ async def send_message(
                 thread_id=thread_id,
                 agent_id=agent_id,
                 run_id=run.id,
+            )
+    if thread.agent_id and (request.mention_agent_ids or request.mention_all):
+        from .collaboration import invite
+
+        participant_ids = list(request.mention_agent_ids)
+        if collaboration:
+            participant_ids.extend(
+                p["agent_id"] for p in collaboration.state.get("participants", [])
+            )
+        participant_ids = [
+            identifier
+            for identifier in dict.fromkeys(participant_ids)
+            if identifier != thread.agent_id
+        ]
+        if participant_ids and run_ids:
+            host_run = await session.get(RunRow, run_ids[0])
+            assert host_run is not None
+            await invite(
+                session,
+                owner_id,
+                thread,
+                host_run,
+                participant_ids,
+                request.content,
+                message_id=message.id,
             )
     session.add(EffectReceiptRow(key="message:" + message.id, result={"run_ids": run_ids}))
     emit(session, owner_id, "message.created", thread_id=thread_id, payload=message_data(message))

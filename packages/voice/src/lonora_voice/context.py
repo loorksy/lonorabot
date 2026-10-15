@@ -5,6 +5,7 @@ import math
 from typing import Any, Literal, cast
 
 from lonora_db.agent_binding import binding_context
+from lonora_db.agent_state import agent_live_state
 from lonora_db.messages import history
 from lonora_db.schema import AgentRow, MemoryRow, ScratchpadRow, VoiceSessionRow
 from sqlalchemy import select
@@ -145,7 +146,7 @@ async def voice_context(
 ) -> tuple[str, list[dict[str, Any]]]:
     """The caller has admitted an owned agent/thread pair before any paid negotiation."""
     memory = await session.get(MemoryRow, agent.id)
-    context = {
+    context: dict[str, Any] = {
         "agent": {
             "name": bounded_text(agent.name, 192),
             "title": bounded_text(agent.title, 256),
@@ -159,6 +160,10 @@ async def voice_context(
         "scratchpad": await _scratchpad(session, owner_id, agent.id),
         "previous_call_transcript": await _previous_call(session, owner_id, agent.id, thread_id),
     }
+    live = await agent_live_state(session, owner_id, agent.id)
+    context["live_state"] = bounded_text(
+        _json(live.model_dump(mode="json", exclude={"health", "runs", "collaborations"})), 900
+    )
     parts = [authority]
     market = binding_context(agent)
     if market:

@@ -1,10 +1,11 @@
 """Task lifecycle backed by the existing ticket, run and event ledger."""
 
-from typing import Any
+import json
+from typing import Any, cast
 
 from lonora_contracts.domain import ThreadCreate, utcnow
 from lonora_contracts.runs import Lease, RunRequest
-from lonora_contracts.tasks import TaskControl, TaskCreate, TaskState
+from lonora_contracts.tasks import TaskControl, TaskCreate, TaskState, TaskStepUpdate
 from lonora_core.user_error import LonoraError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -78,7 +79,7 @@ async def create_task(
     session.add(board)
     await session.flush()
     work = await create_thread(
-        session, owner_id, ThreadCreate(agent_id=agent_id, title=request.title)
+        session, owner_id, ThreadCreate(agent_id=agent_id, title=request.title), purpose="work"
     )
     row = TicketRow(
         owner_id=owner_id,
@@ -290,6 +291,10 @@ async def control_task(
                 step.id: step for step in state.steps if step.state in {"completed", "skipped"}
             }
             if any(
+                step.state == "completed" and step.id not in completed for step in request.steps
+            ):
+                raise LonoraError("task_step_evidence_required", 409)
+            if any(
                 next((step for step in request.steps if step.id == key), None) != value
                 for key, value in completed.items()
             ):
@@ -304,6 +309,22 @@ async def control_task(
             state.status = "paused" if request.action == "pause" else "cancelled"
             state.phase = state.status
             state.control_requested = None
+        if request.action == "cancel":
+            approvals = await session.scalars(
+                select(TradeApprovalRow).where(
+                    TradeApprovalRow.run_id == run.id,
+                    TradeApprovalRow.status.in_(
+                        ["pending"]
+                        if run.status in {"leased", "running"}
+                        else ["pending", "approved"]
+                    ),
+                )
+            )
+            from .trade_approvals import approval_event
+
+            for approval in approvals:
+                approval.status = "cancelled"
+                approval_event(session, approval)
     save_task(session, row, state)
     return row
 
@@ -339,3 +360,75 @@ async def checkpoint_task(session: AsyncSession, lease: Lease) -> bool:
         row.state = {**row.state, "task": state.model_dump(mode="json")}
         row.updated_at = utcnow()
     return False
+
+
+async def update_task_step(
+    session: AsyncSession, lease: Lease, request: TaskStepUpdate
+) -> TicketRow:
+    run = await require_lease(session, lease, lock=True)
+    row = await session.get(TicketRow, run.model_metadata.get("task_id", ""), with_for_update=True)
+    if row is None or row.agent_id != run.agent_id or row.thread_id != run.thread_id:
+        raise LonoraError("task_run_mismatch", 409)
+    state = task_state(row)
+    if state.status in {"paused", "cancelled", "completed", "failed"} or state.control_requested:
+        raise LonoraError("task_not_running", 409)
+    if state.plan_revision != request.plan_revision:
+        raise LonoraError("task_plan_changed", 409)
+    step = next((item for item in state.steps if item.id == request.step_id), None)
+    if step is None:
+        raise LonoraError("task_step_not_found", 404)
+    if step.state in {"completed", "skipped"}:
+        if step.state == request.state and step.evidence_call_ids == request.evidence_call_ids:
+            return row
+        raise LonoraError("task_completed_step_immutable", 409)
+    if request.state == "completed":
+        if not request.evidence_call_ids:
+            raise LonoraError("task_step_evidence_required", 409)
+        names: dict[str, str] = {}
+        successful: set[str] = set()
+        for execution in await task_runs(session, row):
+            for message in execution.execution_state.get("messages", []):
+                for call in message.get("tool_calls", []):
+                    names[str(call["id"])] = str(call["name"])
+                if message.get("role") != "tool":
+                    continue
+                try:
+                    raw_result = json.loads(message.get("content", ""))
+                except (ValueError, TypeError):
+                    continue
+                if not isinstance(raw_result, dict):
+                    continue
+                result = cast(dict[str, Any], raw_result)
+                if result.get("ok") is True and result.get("status") not in {
+                    "failed",
+                    "ambiguous",
+                    "rejected",
+                    "submitted",
+                    "pending",
+                    "approved",
+                    "cancelled",
+                }:
+                    identifier = str(message.get("tool_call_id", ""))
+                    if names.get(identifier) in {
+                        "trade_execute",
+                        "trade_close_positions",
+                        "goal_step_execute",
+                    }:
+                        outcomes = result.get("results")
+                        if result.get("status") != "confirmed" and (
+                            not isinstance(outcomes, list)
+                            or not outcomes
+                            or any(
+                                not isinstance(item, dict)
+                                or cast(dict[str, Any], item).get("status") != "confirmed"
+                                for item in cast(list[Any], outcomes)
+                            )
+                        ):
+                            continue
+                    if names.get(identifier) not in {"task_step_update", "task_control"}:
+                        successful.add(identifier)
+        if not set(request.evidence_call_ids).issubset(successful):
+            raise LonoraError("task_step_evidence_invalid", 409)
+    step.state, step.evidence_call_ids = request.state, request.evidence_call_ids
+    save_task(session, row, state)
+    return row

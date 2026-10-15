@@ -52,6 +52,8 @@ class ThreadCreate(Contract):
 
 
 class MessageCreate(Contract):
+    mention_agent_ids: list[str] = Field(default_factory=list[str], max_length=16)
+    mention_all: bool = False
     content: str = Field(min_length=1, max_length=30000)
     client_nonce: str = Field(default_factory=new_id, min_length=1, max_length=80)
     reply_to: str | None = None

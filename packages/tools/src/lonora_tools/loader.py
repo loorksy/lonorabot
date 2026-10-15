@@ -24,6 +24,8 @@ MODULES = (
     "trade",
     "trading_goal",
     "runtime_control",
+    "tasks",
+    "collaboration",
 )
 
 

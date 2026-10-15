@@ -36,7 +36,7 @@ class BrokerManager:
         if not config.enabled:
             raise LonoraError("broker_disabled", 409)
         previous = self.connections.get(connection_id)
-        if previous and previous[0] == version:
+        if previous and previous[0] == version and not getattr(previous[1], "closed", False):
             return previous[1]
         if previous:
             await previous[1].close()

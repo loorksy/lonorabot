@@ -20,9 +20,14 @@ class WaitInput(Contract):
 
 
 async def status(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+    from lonora_db.agent_state import agent_live_state
+
+    async with context.db.sessions() as session:
+        live = await agent_live_state(session, context.owner_id, context.agent_id)
     return {
         "run_id": context.lease.run_id,
         "trading": (await read_controls(context.db)).model_dump(),
+        "agent_state": live.model_dump(mode="json"),
     }
 
 

@@ -107,6 +107,33 @@ async def return_outcome(db: Database, run_id: str) -> None:
                             payload=message_data(final),
                         )
         returned_message: MessageRow | None = None
+        if child.trigger == "broker_event" and child.model_metadata.get("origin_thread_id"):
+            origin = await session.get(
+                ThreadRow, child.model_metadata["origin_thread_id"], with_for_update=True
+            )
+            if origin and origin.agent_id == child.agent_id and child.result:
+                source = await session.get(ThreadRow, child.thread_id)
+                if source is None or source.owner_id != origin.owner_id:
+                    raise ValueError("broker_event_owner_mismatch")
+                final = MessageRow(
+                    thread_id=origin.id,
+                    agent_id=child.agent_id,
+                    role="assistant",
+                    seq=origin.next_seq,
+                    content=child.result,
+                )
+                origin.next_seq += 1
+                session.add(final)
+                await session.flush()
+                emit(
+                    session,
+                    origin.owner_id,
+                    "message.created",
+                    thread_id=origin.id,
+                    agent_id=child.agent_id,
+                    run_id=child.id,
+                    payload=message_data(final),
+                )
         if parent and thread:
             outcome = f"<peer_outcome run_id='{child.id}' status='{child.status}'>\n{child.result or child.error_code or child.status}\n</peer_outcome>"
             message = MessageRow(
@@ -203,7 +230,10 @@ async def return_pending_outcomes(db: Database, limit: int = 20) -> int:
                 select(RunRow.id)
                 .where(
                     RunRow.status.in_(["completed", "failed", "cancelled"]),
-                    or_(RunRow.parent_run_id.is_not(None), RunRow.trigger == "tickets"),
+                    or_(
+                        RunRow.parent_run_id.is_not(None),
+                        RunRow.trigger.in_(["tickets", "broker_event"]),
+                    ),
                     ~exists(select(EffectReceiptRow.key).where(EffectReceiptRow.key == receipt)),
                 )
                 .order_by(RunRow.updated_at, RunRow.id)

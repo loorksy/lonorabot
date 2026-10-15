@@ -77,6 +77,7 @@ export type Journal = {
 };
 export type TradingControls = { enabled: boolean; emergency_stop: boolean };
 export type TradeApproval = {
+  timeline_seq?: number | null;
   id: string;
   run_id: string;
   thread_id: string;

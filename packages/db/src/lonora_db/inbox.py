@@ -22,7 +22,7 @@ async def inbox_projection(session: AsyncSession, owner_id: str) -> list[dict[st
             )
             .label("canonical_rank"),
         )
-        .where(ThreadRow.owner_id == owner_id)
+        .where(ThreadRow.owner_id == owner_id, ThreadRow.purpose == "conversation")
         .subquery()
     )
     messages = (

@@ -1,6 +1,7 @@
 export type Json = string | number | boolean | null | Json[] | { [key: string]: Json };
 export type Payload = Record<string, Json>;
 export type Agent = {
+  role?: "personal" | "specialist" | "legacy";
   title?: string;
   description?: string;
   id: string;
@@ -22,6 +23,7 @@ export type Thread = {
   created_at: string;
 };
 export type Message = {
+  mentions?: { agent_ids: string[]; all: boolean };
   id: string;
   thread_id: string;
   agent_id: string | null;

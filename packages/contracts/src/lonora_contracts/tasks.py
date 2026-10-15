@@ -13,6 +13,7 @@ class TaskStep(Contract):
     id: str = Field(min_length=1, max_length=80)
     title: str = Field(min_length=1, max_length=300)
     state: Literal["pending", "running", "completed", "skipped"] = "pending"
+    evidence_call_ids: list[str] = Field(default_factory=list[str], max_length=16)
 
 
 class TaskCreate(Contract):
@@ -52,3 +53,10 @@ class TaskControl(Contract):
     expected_version: int = Field(ge=1)
     instruction: str = Field(default="", max_length=8000)
     steps: list[TaskStep] | None = Field(default=None, max_length=50)
+
+
+class TaskStepUpdate(Contract):
+    step_id: str
+    plan_revision: int = Field(ge=1)
+    state: Literal["running", "completed"]
+    evidence_call_ids: list[str] = Field(default_factory=list[str], max_length=16)

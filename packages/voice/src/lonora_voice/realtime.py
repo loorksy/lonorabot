@@ -217,6 +217,17 @@ class RealtimeVoiceSession:
             if row.payload.get("status") in {"closing", "closed", "failed"}:
                 row.state = state
                 return False
+            interruption = int(state.get("speech_interrupt_requested", 0))
+            if interruption > int(state.get("speech_interrupt_consumed", 0)):
+                commands.append(
+                    {
+                        "type": "session.instructions.append",
+                        "event_id": f"speech-interrupt:{row.id}:{interruption}",
+                        "delegation_id": None,
+                        "content": "Stop speaking and listen. Preserve ongoing background tasks and financial operations; speech interruption does not cancel or pause work.",
+                    }
+                )
+                state["speech_interrupt_consumed"] = interruption
             entries = dict(state.get("delegations", {}))
             for identity, task in entries.items():
                 if task.get("status") == "running":

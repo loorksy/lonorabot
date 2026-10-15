@@ -1,6 +1,6 @@
 from typing import Any
 
-from lonora_contracts.tasks import TaskControl, TaskCreate, TaskInspect
+from lonora_contracts.tasks import TaskControl, TaskCreate, TaskInspect, TaskStepUpdate
 from lonora_core.user_error import LonoraError
 from lonora_db.runs import require_lease
 from lonora_db.schema import TicketRow
@@ -9,6 +9,16 @@ from sqlalchemy import select
 
 from .base import Tool
 from .context import ToolContext
+
+
+async def step_update(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+    from lonora_db.tasks import update_task_step
+
+    async with context.db.sessions() as session, session.begin():
+        return await snapshot(
+            session,
+            await update_task_step(session, context.lease, TaskStepUpdate.model_validate(args)),
+        )
 
 
 async def start(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
@@ -57,6 +67,12 @@ async def control(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
 
 def tools() -> list[Tool]:
     return [
+        Tool(
+            "task_step_update",
+            "Update this background task's declared step using actual successful persisted tool-call IDs. Completed steps cannot be rewritten; do not invent percentages or evidence.",
+            TaskStepUpdate,
+            step_update,
+        ),
         Tool(
             "task_start",
             "Start durable background work as this same agent while the current conversation remains responsive. Use for substantial multi-step work; never report invented progress.",

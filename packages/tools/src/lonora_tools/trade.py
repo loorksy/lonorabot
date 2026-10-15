@@ -10,6 +10,7 @@ from lonora_db.trade_approvals import approval_event
 from lonora_db.transactions import owned_thread
 from lonora_session.idempotency import request_hash, stable_id
 from lonora_trading.idempotency import trade_fingerprint
+from lonora_trading.manual_activity import material_state
 from sqlalchemy import select
 
 from .base import Tool
@@ -22,12 +23,45 @@ class ClosePositions(Contract):
     symbol: str | None = None
 
 
+async def management_snapshot(context: ToolContext, requests: list[TradeRequest]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for account_id in sorted(
+        {request.account_id for request in requests if request.position_id or request.order_id}
+    ):
+        broker = await context.brokers.get(context.owner_id, account_id)
+        selected = [request for request in requests if request.account_id == account_id]
+        if any(request.position_id for request in selected):
+            positions = {item.id: item for item in await broker.positions()}
+            for request in selected:
+                if request.position_id:
+                    position = positions.get(request.position_id)
+                    result[account_id + ":position:" + request.position_id] = (
+                        material_state(position) if position else None
+                    )
+        if any(request.order_id for request in selected):
+            orders = {item.id: item for item in await broker.orders()}
+            for request in selected:
+                if request.order_id:
+                    order = orders.get(request.order_id)
+                    result[account_id + ":order:" + request.order_id] = (
+                        material_state(order) if order else None
+                    )
+    return result
+
+
 async def approved_execution(
     context: ToolContext, requests: list[TradeRequest], *, gate_only: bool = False
 ) -> dict[str, Any]:
     approval_id = stable_id(context.lease.run_id, "approval:" + context.call_id)
+    async with context.db.sessions() as reader:
+        previous = await reader.get(TradeApprovalRow, approval_id)
+    initial_snapshot = await management_snapshot(context, requests) if previous is None else {}
     async with context.db.sessions() as session, session.begin():
-        thread = await owned_thread(session, context.owner_id, context.thread_id, lock=True)
+        current = await require_lease(session, context.lease)
+        visible_thread_id = current.model_metadata.get("origin_thread_id") or context.thread_id
+        thread = await owned_thread(session, context.owner_id, visible_thread_id, lock=True)
+        if thread.agent_id != context.agent_id and not thread.group_id:
+            raise LonoraError("agent_thread_mismatch", 409)
         await require_lease(session, context.lease, lock=True)
         row = await session.get(TradeApprovalRow, approval_id)
         if row is None:
@@ -35,10 +69,11 @@ async def approved_execution(
                 id=approval_id,
                 owner_id=context.owner_id,
                 run_id=context.lease.run_id,
-                thread_id=context.thread_id,
+                thread_id=thread.id,
                 agent_id=context.agent_id,
                 call_id=context.call_id,
                 timeline_seq=thread.next_seq,
+                broker_snapshot=initial_snapshot,
                 requests=[r.model_dump(mode="json") for r in requests],
                 status="pending",
                 results=[],
@@ -62,6 +97,7 @@ async def approved_execution(
         if row.status != "approved":
             raise LonoraError("trade_approval_unavailable", 409)
         frozen = [TradeRequest.model_validate(item) for item in row.requests]
+        expected_snapshot = row.broker_snapshot
         if gate_only:
             if await user_interrupt_pending(session, context.lease.run_id):
                 raise LonoraError("tool_call_superseded", 409)
@@ -90,6 +126,12 @@ async def approved_execution(
                     raise LonoraError("trade_approval_request_changed", 409)
                 if await user_interrupt_pending(session, context.lease.run_id):
                     raise LonoraError("tool_call_superseded", 409)
+            # Current owner intervention invalidates this management proposal.
+            # Never restore old SL/TP/volume merely because an old card was approved.
+            observed = await management_snapshot(context, [request])
+            for key, value in observed.items():
+                if key in expected_snapshot and expected_snapshot[key] != value:
+                    raise LonoraError("trade_approval_broker_state_changed", 409)
 
         try:
             result = await context.trading.execute(

@@ -21,6 +21,7 @@ ROUTES = (
     "auth",
     "onboarding",
     "agents",
+    "agent_state",
     "agent_secrets",
     "agent_skills",
     "threads",
@@ -47,6 +48,9 @@ ROUTES = (
     "charts",
     "trading",
     "trading_goals",
+    "execution_policy",
+    "tasks",
+    "collaboration",
     "watches",
     "webhook",
     "events",
@@ -59,6 +63,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
+        from lonora_db.owner import get_owner
+        from lonora_db.personal_agent import ensure_personal_agent
+
+        async with rt.db.sessions() as session, session.begin():
+            owner = await get_owner(session)
+            if owner:
+                await ensure_personal_agent(session, owner.id)
         yield
         await rt.close()
 

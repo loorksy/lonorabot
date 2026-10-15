@@ -88,11 +88,17 @@ async def claim_next(
     )
     if lane == "conversation":
         eligible = and_(
-            eligible, RunRow.trigger.not_in(["tickets", "routine", "watch", "webhook", "subagent"])
+            eligible,
+            RunRow.trigger.not_in(
+                ["tickets", "routine", "watch", "webhook", "subagent", "broker_event"]
+            ),
         )
     elif lane == "work":
         eligible = and_(
-            eligible, RunRow.trigger.in_(["tickets", "routine", "watch", "webhook", "subagent"])
+            eligible,
+            RunRow.trigger.in_(
+                ["tickets", "routine", "watch", "webhook", "subagent", "broker_event"]
+            ),
         )
     active = exists(
         select(RunRow.id).where(

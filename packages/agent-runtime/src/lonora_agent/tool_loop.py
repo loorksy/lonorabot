@@ -12,10 +12,12 @@ from lonora_tools.registry import ToolRegistry
 
 from .cancellation import cancellation_checkpoint
 from .context.builder import build_context
+from .context.skills import refresh_skill_context
 from .model_runtime import model_turn
 from .progress import progress
 from .recovery import restore_execution
 from .steering import merge_steering, owner_steering_pending
+from .tasks import task_checkpoint
 from .tool_guard import advance_guard
 
 
@@ -44,7 +46,9 @@ async def execute_tool_loop(
     async with context.db.sessions() as session:
         run = await require_lease(session, context.lease)
         state = dict(run.execution_state)
-        read_only = run.trigger == "subagent"
+        read_only = (
+            run.trigger == "subagent" or run.model_metadata.get("authority") == "observe_only"
+        )
         capability = (
             Capability.BACKGROUND
             if run.trigger in {"routine", "watch", "webhook", "tickets", "subagent"}
@@ -52,12 +56,14 @@ async def execute_tool_loop(
         )
     messages, pending = restore_execution(state)
     if not messages:
-        messages = await build_context(context)
+        messages = await build_context(context, registry)
     await persist(context, state, messages, pending)
     while int(state.get("rounds", 0)) < maximum_rounds:
         await cancellation_checkpoint(context)
+        await task_checkpoint(context)
         # New user input follows the complete tool-result block, never splits it.
         while pending:
+            await task_checkpoint(context)
             if await owner_steering_pending(context):
                 superseded = list(pending)
                 from lonora_db.schema import TradeApprovalRow
@@ -148,7 +154,9 @@ async def execute_tool_loop(
                         "reply_outcome": "answered" if prose else "silent",
                     },
                 )
-        await merge_steering(context, state, messages)
+        if await merge_steering(context, state, messages):
+            await refresh_skill_context(context, registry, messages)
+        await task_checkpoint(context, state, messages)
         turn_capability = (
             Capability.VISION if any(message.images for message in messages) else capability
         )
@@ -169,6 +177,7 @@ async def execute_tool_loop(
         if pending:
             continue
         if await merge_steering(context, state, messages):
+            await refresh_skill_context(context, registry, messages)
             continue
         if not reply.text.strip() and is_conversational(run.trigger):
             messages.append(

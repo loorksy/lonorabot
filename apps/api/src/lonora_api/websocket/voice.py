@@ -51,7 +51,11 @@ async def voice(socket: WebSocket) -> None:
                     if current.payload.get("status") != "connected":
                         raise LonoraError("voice_session_closed", 409)
                 if event.get("type") == "interrupt":
-                    result = {"cancelled": await barge_in(rt.db, owner.id, row.thread_id or "")}
+                    result = {
+                        "cancelled": await barge_in(
+                            rt.db, owner.id, row.thread_id or "", session_id=row.id
+                        )
+                    }
                 else:
                     result = await commit_transcript(
                         rt.db,

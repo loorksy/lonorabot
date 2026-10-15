@@ -82,6 +82,12 @@ class ThreadRow(Base):
     context_summary: Mapped[str] = mapped_column(Text, default="")
     summary_seq: Mapped[int] = mapped_column(Integer, default=0)
     __tablename__ = "ln_threads"
+    __table_args__ = (
+        CheckConstraint("purpose IN ('conversation','work')", name="ln_thread_purpose"),
+    )
+    purpose: Mapped[str] = mapped_column(
+        String(16), default="conversation", server_default="conversation"
+    )
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     owner_id: Mapped[str] = mapped_column(
         ForeignKey("ln_owners.id", ondelete="CASCADE"), index=True
@@ -397,6 +403,7 @@ class GoalDecisionRow(Base):
 
 class TradeApprovalRow(Base):
     __tablename__ = "ln_trade_approvals"
+    broker_snapshot: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     timeline_seq: Mapped[int | None] = mapped_column(Integer)
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     owner_id: Mapped[str] = mapped_column(

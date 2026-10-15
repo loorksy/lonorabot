@@ -58,7 +58,11 @@ async def interrupt(
 ) -> dict[str, list[str]]:
     async with runtime(request).db.sessions() as session:
         row = await VoiceSessionRepository().get(session, owner.id, session_id)
-    return {"cancelled": await barge_in(runtime(request).db, owner.id, row.thread_id or "")}
+    return {
+        "cancelled": await barge_in(
+            runtime(request).db, owner.id, row.thread_id or "", session_id=row.id
+        )
+    }
 
 
 @router.get("/status")

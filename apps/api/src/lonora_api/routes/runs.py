@@ -68,4 +68,10 @@ async def resume(
             raise LonoraError("run_not_found", 404)
         await owned_thread(session, owner.id, row.thread_id)
         row.status = continuation_state(row.status)
+        if row.model_metadata.get("task_id"):
+            from lonora_db.tasks import get_task, task_state
+
+            task = await get_task(session, owner.id, row.model_metadata["task_id"])
+            if task_state(task).status == "paused":
+                raise LonoraError("task_resume_required", 409)
         return run_data(row)

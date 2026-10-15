@@ -19,7 +19,11 @@ def thread_data(row: ThreadRow) -> dict[str, Any]:
     }
 
 
-async def create_thread(session: AsyncSession, owner_id: str, request: ThreadCreate) -> ThreadRow:
+async def create_thread(
+    session: AsyncSession, owner_id: str, request: ThreadCreate, *, purpose: str = "conversation"
+) -> ThreadRow:
+    if purpose not in {"conversation", "work"}:
+        raise LonoraError("thread_purpose_invalid", 422)
     if bool(request.agent_id) == bool(request.group_id):
         raise LonoraError("thread_target_required")
     if request.agent_id:
@@ -28,7 +32,7 @@ async def create_thread(session: AsyncSession, owner_id: str, request: ThreadCre
         group = await session.get(GroupRow, request.group_id)
         if group is None or group.owner_id != owner_id:
             raise LonoraError("group_not_found", 404)
-    row = ThreadRow(owner_id=owner_id, **request.model_dump())
+    row = ThreadRow(owner_id=owner_id, purpose=purpose, **request.model_dump())
     session.add(row)
     await session.flush()
     return row
@@ -51,6 +55,7 @@ async def conversation_thread(session: AsyncSession, owner_id: str, agent_id: st
             ThreadRow.owner_id == owner_id,
             ThreadRow.agent_id == agent_id,
             ThreadRow.group_id.is_(None),
+            ThreadRow.purpose == "conversation",
         )
         .order_by(ThreadRow.created_at, ThreadRow.id)
         .limit(1)
@@ -65,7 +70,9 @@ async def conversation_thread(session: AsyncSession, owner_id: str, agent_id: st
 async def list_threads(
     session: AsyncSession, owner_id: str, agent_id: str | None = None
 ) -> list[ThreadRow]:
-    query = select(ThreadRow).where(ThreadRow.owner_id == owner_id)
+    query = select(ThreadRow).where(
+        ThreadRow.owner_id == owner_id, ThreadRow.purpose == "conversation"
+    )
     if agent_id:
         query = query.where(ThreadRow.agent_id == agent_id)
     return list(
