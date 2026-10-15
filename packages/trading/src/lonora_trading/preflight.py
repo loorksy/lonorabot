@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-from lonora_adapter_kit.broker import BrokerAdapter
+from lonora_adapter_kit.broker import BrokerStateReader
 from lonora_contracts.domain import utcnow
 from lonora_contracts.execution_quality import ExecutionSnapshot
 from lonora_contracts.trading import TradeRequest
@@ -9,14 +9,16 @@ from lonora_core.user_error import LonoraError
 from lonora_security.financial import validate_trade
 
 
-async def preflight(broker: BrokerAdapter, request: TradeRequest) -> ExecutionSnapshot:
+async def preflight(
+    broker: BrokerStateReader, request: TradeRequest, *, financial_authority: bool = True
+) -> ExecutionSnapshot:
     instrument = None
     if request.action != "cancel_order":
         instrument = await broker.instrument(request.symbol)
         validate_trade(request, instrument)
     account = await broker.account()
     account.id = request.account_id
-    if account.trade_allowed is False or account.investor_mode is True:
+    if financial_authority and (account.trade_allowed is False or account.investor_mode is True):
         raise LonoraError("broker_trading_not_allowed", 409)
     positions = await broker.positions()
     orders = await broker.orders()

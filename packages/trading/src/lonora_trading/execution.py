@@ -121,8 +121,10 @@ class ExecutionService:
                 await require_goal_lineage(session, lease, goal, owner_id, request)
             previous = await session.get(TradingJournalRow, request.operation_id)
             if previous:
-                if previous.owner_id != owner_id or previous.request_hash != trade_fingerprint(
-                    request
+                if (
+                    previous.execution_mode != "live"
+                    or previous.owner_id != owner_id
+                    or previous.request_hash != trade_fingerprint(request)
                 ):
                     raise LonoraError("idempotency_conflict", 409)
                 return receipt(previous)

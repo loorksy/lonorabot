@@ -82,9 +82,7 @@ async def agent_binding(session: AsyncSession, owner_id: str, agent_id: str) -> 
     return agent
 
 
-async def require_financial_agent(
-    session: AsyncSession, owner_id: str, agent_id: str
-) -> AgentRow:
+async def require_financial_agent(session: AsyncSession, owner_id: str, agent_id: str) -> AgentRow:
     """Enforce persisted authority across identity ancestry, not model instructions.
 
     Personal/root legacy identities retain existing approval-based execution.
@@ -98,6 +96,8 @@ async def require_financial_agent(
         if current.id in seen:
             raise LonoraError("agent_ancestry_invalid", 409)
         seen.add(current.id)
+        if current.execution_mode == "shadow":
+            raise LonoraError("shadow_execution_forbidden", 403)
         if current.role == "delegated" or (
             current.parent_id and not current.trading_account_id and not current.trading_symbol
         ):
@@ -110,6 +110,18 @@ async def require_financial_agent(
 
 
 def binding_context(agent: AgentRow) -> str:
+    shadow = ""
+    if getattr(agent, "execution_mode", "live") == "shadow":
+        shadow = (
+            "<shadow_execution_mode>Persisted Shadow mode is active. All trade commands are virtual; no broker mutation is allowed. "
+            "Account reads remain actual broker data. Use market_shadow_read for virtual positions/orders. "
+            "Record actual market evidence before virtual entry; show every result as shadow, never live. "
+            "Virtual monetary P/L is unavailable without contract/currency valuation. Good shadow results never authorize live autonomy.</shadow_execution_mode>"
+        )
+    return shadow + _identity_context(agent)
+
+
+def _identity_context(agent: AgentRow) -> str:
     if agent.role == "delegated":
         return (
             "<delegated_research_scope>"

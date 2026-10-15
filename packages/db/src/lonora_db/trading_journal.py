@@ -17,6 +17,7 @@ async def reserve_operation(
     account_id: str,
     request_hash: str,
     request: dict[str, Any],
+    execution_mode: str = "live",
 ) -> tuple[TradingJournalRow, bool]:
     # INSERT arbitrates even when no row exists yet; locking a missing row does not.
     created = await session.scalar(
@@ -27,6 +28,7 @@ async def reserve_operation(
             account_id=account_id,
             request_hash=request_hash,
             request=request,
+            execution_mode=execution_mode,
         )
         .on_conflict_do_nothing(index_elements=[TradingJournalRow.operation_id])
         .returning(TradingJournalRow.operation_id)
@@ -34,15 +36,24 @@ async def reserve_operation(
     row = await session.get(TradingJournalRow, operation_id, with_for_update=True)
     if row is None:
         raise LonoraError("operation_not_found", 404)
-    if row.owner_id != owner_id or row.request_hash != request_hash:
+    if (
+        row.owner_id != owner_id
+        or row.request_hash != request_hash
+        or row.execution_mode != execution_mode
+    ):
         raise LonoraError("operation_id_conflict", 409)
     return row, created is not None
 
 
 async def journal_entries(
-    session: AsyncSession, owner_id: str, account_id: str | None = None
+    session: AsyncSession,
+    owner_id: str,
+    account_id: str | None = None,
+    execution_mode: str = "live",
 ) -> list[TradingJournalRow]:
-    query = select(TradingJournalRow).where(TradingJournalRow.owner_id == owner_id)
+    query = select(TradingJournalRow).where(
+        TradingJournalRow.owner_id == owner_id, TradingJournalRow.execution_mode == execution_mode
+    )
     if account_id:
         query = query.where(TradingJournalRow.account_id == account_id)
     return list(

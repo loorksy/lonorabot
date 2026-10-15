@@ -5,6 +5,7 @@ import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 import { AvatarPicker } from "../components/avatar-picker";
+import { ExecutionModeSettings } from "../components/execution-mode-settings";
 import { SettingsGroup, SettingsRow, SettingsSwitch } from "../components/settings-group";
 import { SheetHeader } from "../components/sheet-header";
 import { colors, ErrorNotice, Field, Loading, Screen } from "../components/ui";
@@ -120,6 +121,7 @@ export default function BotSettings() {
               setSaved(false);
             }}
           />
+          <ExecutionModeSettings agent={agent} onChange={setAgent} />
           <Field
             label={t("title")}
             value={agent.title ?? ""}

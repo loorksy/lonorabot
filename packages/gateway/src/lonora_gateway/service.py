@@ -89,6 +89,9 @@ class Gateway:
         while not self.stop.is_set():
             for service in list(self.services.values()):
                 await service.market.maintain()
+                from lonora_trading.shadow import advance_shadow
+
+                await advance_shadow(self.db, service.brokers, service.owner_id)
             await asyncio.sleep(2)
 
     async def charts_loop(self) -> None:

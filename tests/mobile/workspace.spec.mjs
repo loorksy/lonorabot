@@ -81,6 +81,19 @@ test("Expo profile, routines, groups and authenticated artifacts use the persist
     await expect(page.getByRole("button", { name: "اتصل بالوكيل", exact: true })).toBeVisible();
     const threadUrl = page.url();
     await page.getByRole("button", { name: "إعدادات الوكيل", exact: true }).click();
+    const shadow = page.getByRole("switch", {
+      name: "تداول ظلي — أوامر افتراضية فقط",
+      exact: true,
+    });
+    await expect(shadow).not.toBeChecked();
+    await shadow.click();
+    await expect(shadow).toBeChecked();
+    await expect
+      .poll(async () => {
+        const rows = await (await context.request.get("/api/agents")).json();
+        return rows.find((row) => row.id === agent.id).execution_mode;
+      })
+      .toBe("shadow");
     await page
       .getByLabel("التعليمات", { exact: true })
       .fill("Review spreads and current positions before proposing trades.");

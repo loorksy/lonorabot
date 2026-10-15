@@ -206,6 +206,7 @@ async def main() -> None:
         legacy_payload = requests[0][0].model_dump(mode="json")
         legacy_payload.pop("clear_stop_loss")
         legacy_payload.pop("clear_take_profit")
+        legacy_payload.pop("thesis_id")
         assert trade_fingerprint(requests[0][0]) == request_hash(legacy_payload)
         print(
             "PASS invalid pending geometry is rejected before submission and default-false clear fields preserve legacy journal fingerprints"

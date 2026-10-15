@@ -36,6 +36,7 @@ async def reconcile_ambiguous(db: Database, brokers: BrokerManager) -> int:
                             & (TradingJournalRow.submitted_at < now - timedelta(seconds=60))
                         ),
                         observation_due(now),
+                        TradingJournalRow.execution_mode == "live",
                     )
                     .order_by(TradingJournalRow.updated_at, TradingJournalRow.operation_id)
                     .limit(50)

@@ -6,6 +6,10 @@ import { test as base, expect } from "@playwright/test";
 
 import { brokerFixture } from "./broker-fixture.mjs";
 
+// Reuse this worker's authenticated session, not repeated password logins that
+// consume the real anti-brute-force budget. Each test still has its own context.
+let authenticatedSession;
+
 const test = base.extend({
   workspace: async ({ context, page }, use) => {
     const prefix = `UI regression ${randomUUID()}`;
@@ -31,9 +35,16 @@ const test = base.extend({
       });
       expect(initialized.status()).toBe(201);
     }
-    const login = await context.request.post("/api/auth/login", { data: credentials });
-    expect(login.status()).toBe(200);
-    const headers = { "X-CSRF-Token": (await login.json()).csrf };
+    if (authenticatedSession) await context.addCookies(authenticatedSession.cookies);
+    if (
+      !authenticatedSession ||
+      (await context.request.get("/api/auth/session")).status() !== 200
+    ) {
+      const login = await context.request.post("/api/auth/login", { data: credentials });
+      expect(login.status()).toBe(200);
+      authenticatedSession = { cookies: await context.cookies(), csrf: (await login.json()).csrf };
+    }
+    const headers = { "X-CSRF-Token": authenticatedSession.csrf };
     const broker = await brokerFixture(context, headers);
     const post = async (path, data) => {
       if (path === "/agents") data = { ...data, ...broker.binding };
@@ -109,6 +120,41 @@ test("refresh waits for the real session without flashing sign-in or workspace s
   } finally {
     release();
   }
+});
+
+test("owner shadow mode persists through reload without enabling live trading", async ({
+  page,
+  context,
+  workspace,
+}) => {
+  const { agent } = workspace;
+  await page.goto(`/app/${agent.id}`);
+  await page.getByRole("button", { name: `Agent settings: ${agent.name}`, exact: true }).click();
+  let control = page.getByRole("checkbox", {
+    name: "Shadow trading — virtual orders only",
+    exact: true,
+  });
+  await expect(control).not.toBeChecked();
+  // The controlled checkbox reflects the server response, not an optimistic
+  // checked state before the owner mode is actually persisted.
+  await control.click();
+  await expect(control).toBeChecked();
+  await expect
+    .poll(async () => {
+      const agents = await (await context.request.get("/api/agents")).json();
+      return agents.find((row) => row.id === agent.id).execution_mode;
+    })
+    .toBe("shadow");
+  await expect(page.getByText("Shadow observations", { exact: false })).toBeVisible();
+  await page.reload();
+  await page.getByRole("button", { name: `Agent settings: ${agent.name}`, exact: true }).click();
+  control = page.getByRole("checkbox", {
+    name: "Shadow trading — virtual orders only",
+    exact: true,
+  });
+  await expect(control).toBeChecked();
+  const controls = await (await context.request.get("/api/trading/controls")).json();
+  expect(controls.enabled).toBe(false);
 });
 
 test("send, cancel and reload retain one real transcript", async ({ page, context, workspace }) => {

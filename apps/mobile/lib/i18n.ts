@@ -1,5 +1,23 @@
 export type Locale = "ar" | "en";
 export const labels = {
+  executionMode: ["وضع التنفيذ", "Execution mode"],
+  shadowTrading: ["تداول ظلي — أوامر افتراضية فقط", "Shadow trading — virtual orders only"],
+  executionModeHint: [
+    "تغيير الوضع يوقف أهداف التداول النشطة مؤقتًا. التنفيذ الحقيقي يبقى خاضعًا للموافقات وضوابط الأمان.",
+    "Changing mode pauses active trading goals. Live trading still requires existing approvals and safety controls.",
+  ],
+  shadowObservations: ["ملاحظات التداول الظلي", "Shadow observations"],
+  liveObservations: ["ملاحظات التداول الحقيقي", "Live observations"],
+  performanceInsufficient: [
+    "بيانات غير كافية لاستنتاجات الأداء",
+    "Insufficient data for performance conclusions",
+  ],
+  shadowHistory: ["سجل التداول الظلي", "Shadow history"],
+  shadowFillHint: [
+    "التنفيذ بأسعار مأخوذة دوريًا افتراضي. الربح المالي غير متاح.",
+    "Sampled quote fills are hypothetical. Monetary profit is unavailable.",
+  ],
+  virtualTrade: ["افتراضي", "Virtual"],
   jumpLatest: ["انتقل إلى أحدث رسالة", "Jump to latest"],
   voice_native_unavailable: [
     "المكالمات غير متاحة في نسخة التطبيق الحالية. حدّث التطبيق وحاول مجددًا.",

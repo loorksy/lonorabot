@@ -22,6 +22,7 @@ ROUTES = (
     "onboarding",
     "agents",
     "agent_state",
+    "execution_mode",
     "agent_secrets",
     "agent_skills",
     "threads",

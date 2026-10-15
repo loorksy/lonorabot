@@ -68,6 +68,7 @@ async def reconcile_broker_account(
                             .where(
                                 TradingJournalRow.owner_id == owner_id,
                                 TradingJournalRow.account_id == account_id,
+                                TradingJournalRow.execution_mode == "live",
                             )
                             .order_by(TradingJournalRow.updated_at.desc())
                             .limit(1000)

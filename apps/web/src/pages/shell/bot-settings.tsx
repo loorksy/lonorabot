@@ -3,6 +3,7 @@ import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
 import { AgentAvatar } from "@lonora/ui-web";
 import { useState } from "react";
+import { ExecutionModeSettings } from "../../components/trading/ExecutionModeSettings";
 import { type Agent, api } from "../../lib/api";
 import { userError } from "../../lib/user_error";
 import { useClient } from "../../providers/ClientProvider";
@@ -51,6 +52,7 @@ export function AgentSettings({ agent, onClose }: { agent: Agent; onClose: () =>
           <Trans>Trading pair</Trans>: <bdi>{agent.trading_symbol}</bdi>
         </p>
       )}
+      <ExecutionModeSettings agent={agent} />
       <label>
         <Trans>Name</Trans>
         <input

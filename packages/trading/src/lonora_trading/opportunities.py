@@ -206,6 +206,8 @@ async def require_entry_thesis(session: AsyncSession, owner_id: str, request: Tr
 
 
 async def sync_opportunity_execution(session: AsyncSession, journal: TradingJournalRow) -> None:
+    if journal.execution_mode != "live":
+        return
     identifier = journal.request.get("thesis_id")
     if not identifier or journal.status not in {"confirmed", "failed"}:
         return
