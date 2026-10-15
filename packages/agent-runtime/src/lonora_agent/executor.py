@@ -137,7 +137,14 @@ async def execute_run(
         if error.code != "stale_lease":
             try:
                 async with context.db.sessions() as session, session.begin():
-                    await fail_run(session, context.lease, error.code)
+                    await fail_run(
+                        session,
+                        context.lease,
+                        error.code,
+                        read_only_names={
+                            tool.name for tool in registry.tools.values() if tool.read_only
+                        },
+                    )
                 await return_outcome(context.db, context.lease.run_id)
             except LonoraError:
                 log.info("stale_failure_discarded")
@@ -145,7 +152,14 @@ async def execute_run(
         log.error("run_failed type=%s", type(error).__name__)
         try:
             async with context.db.sessions() as session, session.begin():
-                await fail_run(session, context.lease, "runtime_error")
+                await fail_run(
+                    session,
+                    context.lease,
+                    "runtime_error",
+                    read_only_names={
+                        tool.name for tool in registry.tools.values() if tool.read_only
+                    },
+                )
             await return_outcome(context.db, context.lease.run_id)
         except LonoraError:
             log.info("stale_failure_discarded")

@@ -371,7 +371,7 @@ msgstr "انتهت المكالمة"
 msgid "Call with {name}"
 msgstr "مكالمة مع {name}"
 
-#: src/components/ai/AgentLiveStatus.tsx:81
+#: src/components/ai/AgentLiveStatus.tsx:95
 #: src/pages/Board.tsx:547
 msgid "Cancel"
 msgstr ""
@@ -407,7 +407,7 @@ msgstr "عرض البطاقات"
 msgid "Changes"
 msgstr "يتغيّر"
 
-#: src/components/trading/ExecutionModeSettings.tsx:72
+#: src/components/trading/ExecutionModeSettings.tsx:68
 msgid "Changing mode pauses active trading goals. Live trading still requires existing approvals and safety controls."
 msgstr "تغيير الوضع يوقف أهداف التداول النشطة مؤقتًا. التنفيذ الحقيقي يبقى خاضعًا للموافقات وضوابط الأمان."
 
@@ -880,7 +880,7 @@ msgstr "جارٍ التنفيذ"
 msgid "Execution history"
 msgstr "سجل التنفيذ"
 
-#: src/components/trading/ExecutionModeSettings.tsx:46
+#: src/components/trading/ExecutionModeSettings.tsx:42
 msgid "Execution mode"
 msgstr "وضع التنفيذ"
 
@@ -1025,7 +1025,7 @@ msgstr "الإدخال"
 msgid "Instructions"
 msgstr "التعليمات"
 
-#: src/components/trading/ExecutionModeSettings.tsx:88
+#: src/components/trading/ExecutionModeSettings.tsx:84
 msgid "Insufficient data for performance conclusions"
 msgstr "بيانات غير كافية لاستنتاجات الأداء"
 
@@ -1096,7 +1096,7 @@ msgstr "يستمع"
 msgid "Live connection active"
 msgstr "الاتصال المباشر فعّال"
 
-#: src/components/trading/ExecutionModeSettings.tsx:82
+#: src/components/trading/ExecutionModeSettings.tsx:78
 msgid "Live observations"
 msgstr "ملاحظات التداول الحقيقي"
 
@@ -1176,7 +1176,7 @@ msgid "Market buy"
 msgstr "شراء بسعر السوق"
 
 #: src/components/ai/AgentLiveStatus.tsx:37
-#: src/components/ai/AgentLiveStatus.tsx:89
+#: src/components/ai/AgentLiveStatus.tsx:103
 msgid "Market data unavailable"
 msgstr "بيانات السوق غير متاحة"
 
@@ -1479,7 +1479,7 @@ msgstr "كلمة المرور"
 msgid "Password · at least 12 characters"
 msgstr "كلمة المرور · 12 حرفًا على الأقل"
 
-#: src/components/ai/AgentLiveStatus.tsx:81
+#: src/components/ai/AgentLiveStatus.tsx:95
 #: src/components/goals/TradingGoals.tsx:345
 #: src/components/market/MarketWatch.tsx:294
 #: src/pages/Board.tsx:543
@@ -1697,7 +1697,7 @@ msgstr "إلغاء الإيقاف الطارئ"
 msgid "Resize panel"
 msgstr "تغيير عرض اللوحة"
 
-#: src/components/ai/AgentLiveStatus.tsx:81
+#: src/components/ai/AgentLiveStatus.tsx:95
 #: src/components/goals/TradingGoals.tsx:343
 #: src/components/market/MarketWatch.tsx:294
 #: src/pages/ActivityList.tsx:279
@@ -1719,6 +1719,10 @@ msgstr "استئناف"
 #: src/pages/Shell.tsx:744
 msgid "Retry"
 msgstr "إعادة المحاولة"
+
+#: src/components/ai/AgentLiveStatus.tsx:63
+msgid "Retry scheduled"
+msgstr "إعادة المحاولة مجدولة"
 
 #: src/components/goals/TradingGoals.tsx:353
 msgid "Review now"
@@ -1747,7 +1751,7 @@ msgstr "تنفيذ المهمة"
 msgid "Running"
 msgstr "جارٍ التنفيذ"
 
-#: src/components/trading/ExecutionModeSettings.tsx:99
+#: src/components/trading/ExecutionModeSettings.tsx:95
 msgid "Sampled quote fills are hypothetical. Monetary profit is unavailable."
 msgstr "التنفيذ بأسعار مأخوذة دوريًا افتراضي. الربح المالي غير متاح."
 
@@ -1912,15 +1916,15 @@ msgstr "الإعدادات"
 msgid "Setup token"
 msgstr "رمز الإعداد"
 
-#: src/components/trading/ExecutionModeSettings.tsx:96
+#: src/components/trading/ExecutionModeSettings.tsx:92
 msgid "Shadow history"
 msgstr "سجل التداول الظلي"
 
-#: src/components/trading/ExecutionModeSettings.tsx:80
+#: src/components/trading/ExecutionModeSettings.tsx:76
 msgid "Shadow observations"
 msgstr "ملاحظات التداول الظلي"
 
-#: src/components/trading/ExecutionModeSettings.tsx:69
+#: src/components/trading/ExecutionModeSettings.tsx:65
 msgid "Shadow trading — virtual orders only"
 msgstr "تداول ظلي — أوامر افتراضية فقط"
 
@@ -2090,6 +2094,10 @@ msgstr "لوحات المهام"
 msgid "Task details"
 msgstr "تفاصيل المهمة"
 
+#: src/components/ai/AgentLiveStatus.tsx:72
+msgid "Task needs review"
+msgstr "المهمة تحتاج مراجعة"
+
 #: src/components/market/MarketWatch.tsx:263
 msgid "Task when triggered"
 msgstr "المهمة عند تحقق الشرط"
@@ -2102,7 +2110,7 @@ msgstr "المهام المفوّضة المؤقتة"
 msgid "That chart timeframe is not supported by this broker."
 msgstr "هذا الفريم غير مدعوم لدى الوسيط."
 
-#: src/lib/user_error.ts:116
+#: src/lib/user_error.ts:121
 msgid "The agent reached the step limit for this run. Send another message to continue."
 msgstr "بلغ الوكيل الحد الأقصى لخطوات هذا التشغيل. أرسل رسالة أخرى للمتابعة."
 
@@ -2150,7 +2158,7 @@ msgstr "تعذّر عرض معاينة الملف"
 msgid "The full response will appear when complete."
 msgstr "ستظهر الإجابة كاملة عند الانتهاء."
 
-#: src/lib/user_error.ts:112
+#: src/lib/user_error.ts:117
 msgid "The model could not summarize this conversation. Retry or choose another global model."
 msgstr "تعذّر على النموذج تلخيص هذه المحادثة. أعد المحاولة أو اختر نموذجًا عالميًا آخر."
 
@@ -2166,7 +2174,7 @@ msgstr "تعذر عرض الصفحة"
 msgid "The provider rejected this API key."
 msgstr "رفض المزود مفتاح API هذا."
 
-#: src/lib/user_error.ts:118
+#: src/lib/user_error.ts:123
 msgid "The request could not be completed. Try again."
 msgstr "تعذر إكمال الطلب. أعد المحاولة."
 
@@ -2207,11 +2215,11 @@ msgstr "لا يسمح حساب الوسيط هذا بالتداول. تحقق م
 msgid "This broker connection is disabled."
 msgstr "اتصال الوسيط هذا معطّل."
 
-#: src/lib/user_error.ts:114
+#: src/lib/user_error.ts:119
 msgid "This conversation could not be resumed. Start a new conversation."
 msgstr "تعذّر استئناف هذه المحادثة. ابدأ محادثة جديدة."
 
-#: src/lib/user_error.ts:110
+#: src/lib/user_error.ts:115
 msgid "This conversation is too large to process. Shorten instructions, use fewer attachments, or start a new conversation."
 msgstr "هذه المحادثة أكبر من الحد المتاح. اختصر التعليمات أو قلّل المرفقات أو ابدأ محادثة جديدة."
 
@@ -2246,6 +2254,14 @@ msgstr "هذا الزوج ثابت للبوت. أنشئ بوتًا آخر لاس
 #: src/lib/user_error.ts:106
 msgid "This run was recovered by another worker."
 msgstr "استعاد عامل آخر هذا التنفيذ."
+
+#: src/lib/user_error.ts:111
+msgid "This task cannot resume in its current state. Review its plan or retry limit."
+msgstr "لا يمكن استئناف المهمة بحالتها الحالية. راجع الخطة وحد المحاولات."
+
+#: src/lib/user_error.ts:108
+msgid "This task is waiting for an uncertain external operation to be reconciled."
+msgstr "تنتظر المهمة التحقق من عملية خارجية غير محسومة."
 
 #: src/pages/Artifacts.tsx:238
 msgid "This week"
@@ -2393,7 +2409,7 @@ msgstr "بيانات مؤكدة"
 msgid "Verifying execution"
 msgstr "جارٍ التحقق من التنفيذ"
 
-#: src/components/trading/ExecutionModeSettings.tsx:104
+#: src/components/trading/ExecutionModeSettings.tsx:100
 msgid "Virtual"
 msgstr "افتراضي"
 
@@ -2447,6 +2463,10 @@ msgstr "بانتظار موافقتك"
 #: src/pages/shell/sidebar-activity.tsx:68
 msgid "Waiting for handover"
 msgstr "بانتظار التسليم"
+
+#: src/components/ai/AgentLiveStatus.tsx:68
+msgid "Waiting for reconciliation"
+msgstr "بانتظار التحقق من النتيجة"
 
 #: src/lib/user_error.ts:40
 msgid "Waiting for the broker to report the entry position. The accepted order will not be submitted again."

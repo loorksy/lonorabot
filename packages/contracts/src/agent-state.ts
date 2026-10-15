@@ -16,6 +16,10 @@ export type AgentLiveState = {
     can_pause: boolean;
     can_resume: boolean;
     can_cancel: boolean;
+    attempt?: number;
+    failure_code?: string | null;
+    recovery?: string | null;
+    retry_at?: string | null;
   }>;
   health: Array<{ account_id: string; symbol?: string; reason_code?: string }>;
 };

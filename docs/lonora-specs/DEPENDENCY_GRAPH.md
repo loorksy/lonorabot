@@ -82,3 +82,6 @@ Opportunity/thesis state now consumes the shared decision ledger and source-time
 
 
 Explicit Agent/Run execution mode now separates virtual execution before broker mutation. The same journal stores mode-tagged receipts; broker reconciliation and account-risk history select live operations only. Shared read-only preflight consumes real broker data plus virtual target state. Gateway market maintenance feeds virtual lifecycle; immutable decision/thesis references feed bounded performance summaries. These are prerequisites for Shadow goals and richer explainability/performance clients, not a second scheduler or live executor.
+
+
+Task failure recovery now consumes server Tool classification, durable checkpoints and existing financial journal state before using the shared scheduler. Existing failed Run identity remains fixed across owner/automatic attempts; claim fencing advances. Failed-step metadata and bounded next-retry state feed the same Web/Mobile live projection. Attention can consume the durable retry/review transitions without converting every retry into a chat message. Unknown external mutations remain reconciliation-blocked.

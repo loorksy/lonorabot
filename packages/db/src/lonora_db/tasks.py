@@ -71,6 +71,8 @@ def finish_task(session: AsyncSession, row: TicketRow, status: TaskStatus) -> No
         return
     if state.control_requested == "cancel":
         status = "cancelled"
+    if status == "failed" and state.status == "waiting" and state.waiting_reason == "retry_backoff":
+        return
     state.status, state.phase, state.control_requested = status, status, None
     state.waiting_reason = None
     save_task(session, row, state)
@@ -121,9 +123,11 @@ async def create_task(
             "status": "todo",
         },
         state={
-            "task": TaskState(origin_thread_id=origin_thread_id, steps=request.steps).model_dump(
-                mode="json"
-            )
+            "task": TaskState(
+                origin_thread_id=origin_thread_id,
+                steps=request.steps,
+                retry_policy=request.retry_policy,
+            ).model_dump(mode="json")
         },
     )
     if task_id:
@@ -186,6 +190,8 @@ async def snapshot(session: AsyncSession, row: TicketRow) -> dict[str, Any]:
     if (
         not terminal
         and not active
+        and state.status != "paused"
+        and state.waiting_reason != "retry_backoff"
         and runs
         and runs[0].status in {"completed", "failed", "cancelled"}
     ):
@@ -243,7 +249,23 @@ async def snapshot(session: AsyncSession, row: TicketRow) -> dict[str, Any]:
         if any(tool["active"] for tool in pending_tools.values()) and active and not terminal
         else "thinking"
         if active and active.status == "running" and not terminal
+        else state.phase
+        if state.waiting_reason == "retry_backoff"
         else status
+    )
+    from .task_recovery import unresolved_financial
+
+    recoverable_failure = (
+        state.failure is not None
+        and (
+            state.failure.recovery == "owner"
+            or (
+                state.failure.recovery == "reconcile"
+                and state.failure.reconciliation == "financial"
+                and not await unresolved_financial(session, state.failure.run_id)
+            )
+        )
+        and state.attempt < state.retry_policy.maximum_attempts
     )
     return {
         "id": row.id,
@@ -270,8 +292,8 @@ async def snapshot(session: AsyncSession, row: TicketRow) -> dict[str, Any]:
             for run in runs
         ],
         "can_pause": status in {"queued", "running", "waiting"},
-        "can_resume": status == "paused",
-        "can_cancel": status not in {"completed", "failed", "cancelled"},
+        "can_resume": status == "paused" or (status == "failed" and recoverable_failure),
+        "can_cancel": status not in {"completed", "cancelled"},
     }
 
 
@@ -284,6 +306,56 @@ async def control_task(
     if row.version != request.expected_version:
         raise LonoraError("version_conflict", 409)
     state = task_state(row)
+    retry_control = state.failure and (
+        state.status == "failed"
+        or state.waiting_reason == "retry_backoff"
+        or state.phase == "retry_paused"
+    )
+    if retry_control and request.action == "resume":
+        from .task_recovery import resume_failure
+
+        resumed = await resume_failure(
+            session, owner_id, row.id, expected_version=request.expected_version
+        )
+        if resumed is None:
+            raise LonoraError("task_cannot_resume", 409)
+        return resumed
+    if retry_control and request.action in {"pause", "cancel", "revise"}:
+        assert state.failure is not None
+        failed_run = await session.get(
+            RunRow, state.failure.run_id, with_for_update=True, populate_existing=True
+        )
+        row = await get_task(session, owner_id, row.id, lock=True)
+        if row.version != request.expected_version:
+            raise LonoraError("version_conflict", 409)
+        state = task_state(row)
+        if not failed_run or failed_run.status != "failed" or not state.failure:
+            raise LonoraError("task_cannot_resume", 409)
+        if request.action == "revise":
+            revise_task(state, request)
+            if state.failure.recovery == "modify_plan":
+                state.failure.recovery = "owner"
+        else:
+            if request.action == "pause" and state.status != "waiting":
+                raise LonoraError("task_cannot_pause", 409)
+            state.failure.next_retry_at = None
+            state.status = "paused" if request.action == "pause" else "cancelled"
+            state.phase = "retry_paused" if request.action == "pause" else "cancelled"
+            state.waiting_reason, state.control_requested = None, None
+            if request.action == "cancel":
+                await cancel_task_approvals(session, failed_run.id)
+        save_task(session, row, state)
+        return row
+    if state.status == "failed" and request.action == "cancel":
+        row = await get_task(session, owner_id, row.id, lock=True)
+        if row.version != request.expected_version:
+            raise LonoraError("version_conflict", 409)
+        state = task_state(row)
+        state.status, state.phase, state.control_requested = "cancelled", "cancelled", None
+        if state.failure:
+            state.failure.next_retry_at = None
+        save_task(session, row, state)
+        return row
     if state.status in {"completed", "failed", "cancelled"}:
         raise LonoraError("task_terminal", 409)
     runs = await task_runs(session, row)
@@ -318,27 +390,7 @@ async def control_task(
         run.status = "queued"
         state.status, state.phase, state.control_requested = "queued", "queued", None
     elif request.action == "revise":
-        if not request.instruction and request.steps is None:
-            raise LonoraError("task_revision_empty", 422)
-        if request.steps is not None:
-            ids = [step.id for step in request.steps]
-            if len(set(ids)) != len(ids):
-                raise LonoraError("task_step_duplicate", 422)
-            completed = {
-                step.id: step for step in state.steps if step.state in {"completed", "skipped"}
-            }
-            if any(
-                step.state == "completed" and step.id not in completed for step in request.steps
-            ):
-                raise LonoraError("task_step_evidence_required", 409)
-            if any(
-                next((step for step in request.steps if step.id == key), None) != value
-                for key, value in completed.items()
-            ):
-                raise LonoraError("task_completed_step_immutable", 409)
-            state.steps = request.steps
-        state.instruction = request.instruction
-        state.plan_revision += 1
+        revise_task(state, request)
     else:
         state.control_requested = request.action
         if run.status in {"queued", "waiting_input", "waiting_takeover"}:
@@ -364,6 +416,30 @@ async def control_task(
                 approval_event(session, approval)
     save_task(session, row, state)
     return row
+
+
+def revise_task(state: TaskState, request: TaskControl) -> None:
+    if not request.instruction and request.steps is None:
+        raise LonoraError("task_revision_empty", 422)
+    if request.steps is not None:
+        if len({step.id for step in request.steps}) != len(request.steps):
+            raise LonoraError("task_step_duplicate", 422)
+        completed = {
+            step.id: step for step in state.steps if step.state in {"completed", "skipped"}
+        }
+        if any(
+            step.state in {"completed", "skipped"} and step.id not in completed
+            for step in request.steps
+        ):
+            raise LonoraError("task_step_evidence_required", 409)
+        if any(
+            next((step for step in request.steps if step.id == key), None) != value
+            for key, value in completed.items()
+        ):
+            raise LonoraError("task_completed_step_immutable", 409)
+        state.steps = request.steps
+    state.instruction = request.instruction
+    state.plan_revision += 1
 
 
 async def checkpoint_task(session: AsyncSession, lease: Lease) -> bool:
@@ -469,3 +545,30 @@ async def update_task_step(
     step.state, step.evidence_call_ids = request.state, request.evidence_call_ids
     save_task(session, row, state)
     return row
+
+
+async def require_completed_task_steps(session: AsyncSession, run: RunRow) -> None:
+    identifier = run.model_metadata.get("task_id")
+    if not identifier:
+        return
+    row = await session.get(TicketRow, identifier, with_for_update=True)
+    if row is None or row.agent_id != run.agent_id or row.thread_id != run.thread_id:
+        raise LonoraError("task_run_mismatch", 409)
+    state = task_state(row)
+    if any(step.state not in {"completed", "skipped"} for step in state.steps):
+        raise LonoraError("task_steps_incomplete", 409)
+
+
+async def cancel_task_approvals(session: AsyncSession, run_id: str) -> None:
+    from .trade_approvals import approval_event
+
+    rows = await session.scalars(
+        select(TradeApprovalRow).where(
+            TradeApprovalRow.run_id == run_id,
+            TradeApprovalRow.status.in_(["pending", "approved"]),
+        )
+    )
+    for approval in rows:
+        approval.status = "cancelled"
+        approval.updated_at = utcnow()
+        approval_event(session, approval)

@@ -4,7 +4,7 @@ from typing import Any
 
 from lonora_contracts.agent_state import AgentLiveState
 from lonora_contracts.domain import utcnow
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .schema import (
@@ -40,9 +40,17 @@ async def agent_live_state(session: AsyncSession, owner_id: str, agent_id: str) 
             .where(
                 TicketRow.owner_id == owner_id,
                 TicketRow.agent_id == agent.id,
-                TicketRow.state["task"]["status"]
-                .as_string()
-                .in_(["queued", "running", "waiting", "paused"]),
+                or_(
+                    TicketRow.state["task"]["status"]
+                    .as_string()
+                    .in_(["queued", "running", "waiting", "paused"]),
+                    and_(
+                        TicketRow.state["task"]["status"].as_string() == "failed",
+                        TicketRow.state["task"]["failure"]["recovery"]
+                        .as_string()
+                        .in_(["owner", "modify_plan", "reconcile"]),
+                    ),
+                ),
             )
             .order_by(TicketRow.updated_at.desc())
             .limit(3)
@@ -52,18 +60,24 @@ async def agent_live_state(session: AsyncSession, owner_id: str, agent_id: str) 
     # Live summaries deliberately omit plan descriptions, checkpoints and historical tool bodies.
     task_summaries = [
         {
-            key: task[key]
-            for key in (
-                "id",
-                "title",
-                "status",
-                "phase",
-                "waiting_reason",
-                "version",
-                "can_pause",
-                "can_resume",
-                "can_cancel",
-            )
+            **{
+                key: task[key]
+                for key in (
+                    "id",
+                    "title",
+                    "status",
+                    "phase",
+                    "waiting_reason",
+                    "version",
+                    "can_pause",
+                    "can_resume",
+                    "can_cancel",
+                )
+            },
+            "attempt": task["attempt"],
+            "failure_code": task["failure"]["code"] if task["failure"] else None,
+            "recovery": task["failure"]["recovery"] if task["failure"] else None,
+            "retry_at": task["failure"]["next_retry_at"] if task["failure"] else None,
         }
         for task in tasks
     ]
@@ -146,10 +160,16 @@ async def agent_live_state(session: AsyncSession, owner_id: str, agent_id: str) 
         if health
         else "action_required"
         if approvals
+        or any(
+            task.get("failure")
+            and task["failure"]["recovery"] in {"owner", "modify_plan"}
+            and task["status"] == "failed"
+            for task in tasks
+        )
         else "working"
         if any(run.status in {"leased", "running", "queued"} for run in runs)
         else "waiting"
-        if runs or watches
+        if runs or watches or tasks
         else "idle"
     )
     phase = (
@@ -161,6 +181,8 @@ async def agent_live_state(session: AsyncSession, owner_id: str, agent_id: str) 
             else "queued"
         )
         if state == "working"
+        else str(tasks[0]["phase"])
+        if tasks and state == "waiting"
         else "monitoring"
         if watches and state == "waiting"
         else state
@@ -172,6 +194,10 @@ async def agent_live_state(session: AsyncSession, owner_id: str, agent_id: str) 
         if health
         else "approval_required"
         if approvals
+        else "task_recovery_required"
+        if state == "action_required"
+        else "retry_backoff"
+        if any(task["waiting_reason"] == "retry_backoff" for task in tasks)
         else "market_watch"
         if watches and state == "waiting"
         else None

@@ -62,6 +62,15 @@ export function AgentLiveStatus({ agentId }: { agentId: string }) {
           {state.tasks.map((task) => (
             <View key={task.id}>
               <Text style={{ color: colors.foreground }}>{task.title}</Text>
+              {task.retry_at ? (
+                <Text style={{ color: colors.secondary }}>
+                  {t("retryScheduled")} · {new Date(task.retry_at).toLocaleTimeString()}
+                </Text>
+              ) : task.recovery === "reconcile" ? (
+                <Text style={{ color: colors.secondary }}>{t("waitingReconciliation")}</Text>
+              ) : task.status === "failed" ? (
+                <Text style={{ color: colors.secondary }}>{t("taskNeedsReview")}</Text>
+              ) : null}
               {(["pause", "resume", "cancel"] as const).map(
                 (action) =>
                   task[`can_${action}`] && (

@@ -157,6 +157,50 @@ test("owner shadow mode persists through reload without enabling live trading", 
   expect(controls.enabled).toBe(false);
 });
 
+test("recoverable task failure shows authoritative review and resumes the same Run", async ({
+  page,
+  context,
+  workspace,
+}) => {
+  const { agent, headers } = workspace;
+  const session = await (await context.request.get("/api/auth/session")).json();
+  const thread = await (
+    await context.request.post(`/api/agents/${agent.id}/conversation`, { headers, data: {} })
+  ).json();
+  const task = await (
+    await context.request.post(`/api/tasks?agent_id=${agent.id}&thread_id=${thread.id}`, {
+      headers,
+      data: {
+        title: "Recover actual status",
+        steps: [{ id: "read", title: "Read", side_effect: "read_only" }],
+      },
+    })
+  ).json();
+  const tickets = await (await context.request.get("/api/tickets")).json();
+  const ticket = tickets.find((row) => row.id === task.id);
+  execFileSync(".venv/bin/python", ["tests/check_task_browser.py"], {
+    input: JSON.stringify({
+      owner_id: session.id,
+      task_id: task.id,
+      run_id: ticket.payload.run_id,
+    }),
+    encoding: "utf8",
+  });
+  await page.goto(`/app/${agent.id}`);
+  const live = page.getByTestId("agent-live-state");
+  await expect(live).toHaveAttribute("data-state", "action_required");
+  await live.locator("summary").click();
+  await expect(live.getByText("Task needs review", { exact: true })).toBeVisible();
+  await live.getByRole("button", { name: "Resume", exact: true }).click();
+  await expect
+    .poll(async () => (await (await context.request.get(`/api/tasks/${task.id}`)).json()).status)
+    .toBe("queued");
+  const restored = await (await context.request.get(`/api/tasks/${task.id}`)).json();
+  expect(restored.attempt).toBe(2);
+  expect(restored.runs).toHaveLength(1);
+  expect(restored.runs[0].id).toBe(ticket.payload.run_id);
+});
+
 test("send, cancel and reload retain one real transcript", async ({ page, context, workspace }) => {
   const { agent, prefix } = workspace;
   await page.goto(`/app/${agent.id}`);

@@ -206,6 +206,9 @@ async def complete_run(
     )
     if outstanding:
         return False
+    from .tasks import require_completed_task_steps
+
+    await require_completed_task_steps(session, row)
     assert_transition(row.status, "completed")
     final_message_id: str | None = None
     final_message: MessageRow | None = None
@@ -276,13 +279,19 @@ async def complete_run(
     return True
 
 
-async def fail_run(session: AsyncSession, lease: Lease, code: str) -> None:
+async def fail_run(
+    session: AsyncSession, lease: Lease, code: str, *, read_only_names: set[str] | None = None
+) -> None:
     row = await require_lease(session, lease, lock=True)
     row.status = "failed"
     settle_stream(row, "failed")
     row.error_code = code
     row.updated_at = utcnow()
     row.lease_expires_at = None
+    if row.model_metadata.get("task_id"):
+        from .task_recovery import record_failure
+
+        await record_failure(session, row, read_only_names or set())
     thread = await session.get(ThreadRow, row.thread_id)
     if thread:
         emit(

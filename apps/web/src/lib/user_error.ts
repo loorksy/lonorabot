@@ -104,6 +104,11 @@ export function userError(error: unknown) {
       return t`Too many attempts. Wait a minute and retry.`;
     case "stale_lease":
       return t`This run was recovered by another worker.`;
+    case "task_reconciliation_required":
+      return t`This task is waiting for an uncertain external operation to be reconciled.`;
+    case "task_cannot_resume":
+    case "task_retry_limit":
+      return t`This task cannot resume in its current state. Review its plan or retry limit.`;
     case "context_limit_exceeded":
     case "history_message_too_large":
     case "history_summary_too_large":

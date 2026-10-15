@@ -371,7 +371,7 @@ msgstr "Call ended"
 msgid "Call with {name}"
 msgstr "Call with {name}"
 
-#: src/components/ai/AgentLiveStatus.tsx:81
+#: src/components/ai/AgentLiveStatus.tsx:95
 #: src/pages/Board.tsx:547
 msgid "Cancel"
 msgstr "Cancel"
@@ -407,7 +407,7 @@ msgstr "Card view"
 msgid "Changes"
 msgstr "Changes"
 
-#: src/components/trading/ExecutionModeSettings.tsx:72
+#: src/components/trading/ExecutionModeSettings.tsx:68
 msgid "Changing mode pauses active trading goals. Live trading still requires existing approvals and safety controls."
 msgstr "Changing mode pauses active trading goals. Live trading still requires existing approvals and safety controls."
 
@@ -880,7 +880,7 @@ msgstr "Executing"
 msgid "Execution history"
 msgstr "Execution history"
 
-#: src/components/trading/ExecutionModeSettings.tsx:46
+#: src/components/trading/ExecutionModeSettings.tsx:42
 msgid "Execution mode"
 msgstr "Execution mode"
 
@@ -1025,7 +1025,7 @@ msgstr "Input"
 msgid "Instructions"
 msgstr "Instructions"
 
-#: src/components/trading/ExecutionModeSettings.tsx:88
+#: src/components/trading/ExecutionModeSettings.tsx:84
 msgid "Insufficient data for performance conclusions"
 msgstr "Insufficient data for performance conclusions"
 
@@ -1096,7 +1096,7 @@ msgstr "Listening"
 msgid "Live connection active"
 msgstr "Live connection active"
 
-#: src/components/trading/ExecutionModeSettings.tsx:82
+#: src/components/trading/ExecutionModeSettings.tsx:78
 msgid "Live observations"
 msgstr "Live observations"
 
@@ -1176,7 +1176,7 @@ msgid "Market buy"
 msgstr "Market buy"
 
 #: src/components/ai/AgentLiveStatus.tsx:37
-#: src/components/ai/AgentLiveStatus.tsx:89
+#: src/components/ai/AgentLiveStatus.tsx:103
 msgid "Market data unavailable"
 msgstr "Market data unavailable"
 
@@ -1479,7 +1479,7 @@ msgstr "Password"
 msgid "Password · at least 12 characters"
 msgstr "Password · at least 12 characters"
 
-#: src/components/ai/AgentLiveStatus.tsx:81
+#: src/components/ai/AgentLiveStatus.tsx:95
 #: src/components/goals/TradingGoals.tsx:345
 #: src/components/market/MarketWatch.tsx:294
 #: src/pages/Board.tsx:543
@@ -1697,7 +1697,7 @@ msgstr "Reset emergency stop"
 msgid "Resize panel"
 msgstr "Resize panel"
 
-#: src/components/ai/AgentLiveStatus.tsx:81
+#: src/components/ai/AgentLiveStatus.tsx:95
 #: src/components/goals/TradingGoals.tsx:343
 #: src/components/market/MarketWatch.tsx:294
 #: src/pages/ActivityList.tsx:279
@@ -1719,6 +1719,10 @@ msgstr "Resume"
 #: src/pages/Shell.tsx:744
 msgid "Retry"
 msgstr "Retry"
+
+#: src/components/ai/AgentLiveStatus.tsx:63
+msgid "Retry scheduled"
+msgstr "Retry scheduled"
 
 #: src/components/goals/TradingGoals.tsx:353
 msgid "Review now"
@@ -1747,7 +1751,7 @@ msgstr "Run task"
 msgid "Running"
 msgstr "Running"
 
-#: src/components/trading/ExecutionModeSettings.tsx:99
+#: src/components/trading/ExecutionModeSettings.tsx:95
 msgid "Sampled quote fills are hypothetical. Monetary profit is unavailable."
 msgstr "Sampled quote fills are hypothetical. Monetary profit is unavailable."
 
@@ -1912,15 +1916,15 @@ msgstr "Settings"
 msgid "Setup token"
 msgstr "Setup token"
 
-#: src/components/trading/ExecutionModeSettings.tsx:96
+#: src/components/trading/ExecutionModeSettings.tsx:92
 msgid "Shadow history"
 msgstr "Shadow history"
 
-#: src/components/trading/ExecutionModeSettings.tsx:80
+#: src/components/trading/ExecutionModeSettings.tsx:76
 msgid "Shadow observations"
 msgstr "Shadow observations"
 
-#: src/components/trading/ExecutionModeSettings.tsx:69
+#: src/components/trading/ExecutionModeSettings.tsx:65
 msgid "Shadow trading — virtual orders only"
 msgstr "Shadow trading — virtual orders only"
 
@@ -2090,6 +2094,10 @@ msgstr "Task boards"
 msgid "Task details"
 msgstr "Task details"
 
+#: src/components/ai/AgentLiveStatus.tsx:72
+msgid "Task needs review"
+msgstr "Task needs review"
+
 #: src/components/market/MarketWatch.tsx:263
 msgid "Task when triggered"
 msgstr "Task when triggered"
@@ -2102,7 +2110,7 @@ msgstr "Temporary delegated tasks"
 msgid "That chart timeframe is not supported by this broker."
 msgstr "That chart timeframe is not supported by this broker."
 
-#: src/lib/user_error.ts:116
+#: src/lib/user_error.ts:121
 msgid "The agent reached the step limit for this run. Send another message to continue."
 msgstr "The agent reached the step limit for this run. Send another message to continue."
 
@@ -2150,7 +2158,7 @@ msgstr "The file preview could not be displayed"
 msgid "The full response will appear when complete."
 msgstr "The full response will appear when complete."
 
-#: src/lib/user_error.ts:112
+#: src/lib/user_error.ts:117
 msgid "The model could not summarize this conversation. Retry or choose another global model."
 msgstr "The model could not summarize this conversation. Retry or choose another global model."
 
@@ -2166,7 +2174,7 @@ msgstr "The page could not be displayed"
 msgid "The provider rejected this API key."
 msgstr "The provider rejected this API key."
 
-#: src/lib/user_error.ts:118
+#: src/lib/user_error.ts:123
 msgid "The request could not be completed. Try again."
 msgstr "The request could not be completed. Try again."
 
@@ -2207,11 +2215,11 @@ msgstr "This broker account does not permit trading. Check its trading permissio
 msgid "This broker connection is disabled."
 msgstr "This broker connection is disabled."
 
-#: src/lib/user_error.ts:114
+#: src/lib/user_error.ts:119
 msgid "This conversation could not be resumed. Start a new conversation."
 msgstr "This conversation could not be resumed. Start a new conversation."
 
-#: src/lib/user_error.ts:110
+#: src/lib/user_error.ts:115
 msgid "This conversation is too large to process. Shorten instructions, use fewer attachments, or start a new conversation."
 msgstr "This conversation is too large to process. Shorten instructions, use fewer attachments, or start a new conversation."
 
@@ -2246,6 +2254,14 @@ msgstr "This pair is permanent for this agent. Create another agent to use a dif
 #: src/lib/user_error.ts:106
 msgid "This run was recovered by another worker."
 msgstr "This run was recovered by another worker."
+
+#: src/lib/user_error.ts:111
+msgid "This task cannot resume in its current state. Review its plan or retry limit."
+msgstr "This task cannot resume in its current state. Review its plan or retry limit."
+
+#: src/lib/user_error.ts:108
+msgid "This task is waiting for an uncertain external operation to be reconciled."
+msgstr "This task is waiting for an uncertain external operation to be reconciled."
 
 #: src/pages/Artifacts.tsx:238
 msgid "This week"
@@ -2393,7 +2409,7 @@ msgstr "Verified metadata"
 msgid "Verifying execution"
 msgstr "Verifying execution"
 
-#: src/components/trading/ExecutionModeSettings.tsx:104
+#: src/components/trading/ExecutionModeSettings.tsx:100
 msgid "Virtual"
 msgstr "Virtual"
 
@@ -2447,6 +2463,10 @@ msgstr "Waiting for approval"
 #: src/pages/shell/sidebar-activity.tsx:68
 msgid "Waiting for handover"
 msgstr "Waiting for handover"
+
+#: src/components/ai/AgentLiveStatus.tsx:68
+msgid "Waiting for reconciliation"
+msgstr "Waiting for reconciliation"
 
 #: src/lib/user_error.ts:40
 msgid "Waiting for the broker to report the entry position. The accepted order will not be submitted again."

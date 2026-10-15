@@ -356,3 +356,315 @@ async def test_step_completion_requires_real_checkpoint_evidence(
             await update_task_step(
                 session, lease, TaskStepUpdate(step_id="read", plan_revision=1, state="running")
             )
+
+
+@pytest.mark.asyncio
+async def test_bounded_retry_preserves_checkpoint_steps_and_fencing(
+    task_db: tuple[Database, str, str, str],
+):
+    from lonora_contracts.tasks import TaskRetryPolicy
+    from lonora_db.runs import fail_run, require_lease
+    from lonora_db.task_recovery import retry_due_tasks
+    from lonora_db.tasks import finish_task, save_task, task_state
+
+    db, owner, agent, thread = task_db
+    async with db.sessions() as session, session.begin():
+        task = await create_task(
+            session,
+            owner,
+            agent,
+            thread,
+            TaskCreate(
+                title="Read with bounded retry",
+                steps=[TaskStep(id="read", title="Read", side_effect="read_only")],
+                retry_policy=TaskRetryPolicy(
+                    mode="automatic", maximum_attempts=3, initial_delay_seconds=5
+                ),
+            ),
+        )
+    first_lease = None
+    for attempt in range(1, 4):
+        async with db.sessions() as session, session.begin():
+            run = await claim_next(session, "reader", 60, "work")
+            assert run is not None
+            lease = Lease(run_id=run.id, owner="reader", fence=run.lease_fence)
+            first_lease = first_lease or lease
+            run.execution_state = {
+                **run.execution_state,
+                "messages": [
+                    {
+                        "role": "assistant",
+                        "tool_calls": [{"id": "same-read", "name": "account_read"}],
+                    }
+                ],
+                "rounds": 4,
+            }
+            checkpoint = dict(run.execution_state)
+            await fail_run(
+                session, lease, "model_provider_unavailable", read_only_names={"account_read"}
+            )
+            row = await get_task(session, owner, task.id)
+            state = task_state(row)
+            assert state.failure and state.failure.attempt == attempt
+            assert state.failure.code == "model_provider_unavailable"
+            finish_task(session, row, "failed")
+            result = await snapshot(session, row)
+            if attempt == 3:
+                assert state.failure.recovery == "terminal" and result["status"] == "failed"
+                assert not result["can_resume"] and state.failure.next_retry_at is None
+            else:
+                assert result["status"] == "waiting" and state.failure.recovery == "automatic"
+                assert state.failure.next_retry_at is not None
+        if attempt < 3:
+            assert await retry_due_tasks(db) == 0
+            async with db.sessions() as session, session.begin():
+                row = await get_task(session, owner, task.id, lock=True)
+                state = task_state(row)
+                assert state.failure
+                state.failure.next_retry_at = (utcnow() - timedelta(seconds=1)).isoformat()
+                save_task(session, row, state)
+            assert await retry_due_tasks(db) == 1
+            assert await retry_due_tasks(db) == 0
+            async with db.sessions() as session:
+                restored = await session.get(RunRow, lease.run_id)
+                assert restored and restored.execution_state["messages"] == checkpoint["messages"]
+                assert restored.execution_state["rounds"] == 0
+                assert restored.execution_state["prior_attempt_rounds"] == attempt * 4
+                assert first_lease is not None
+                with pytest.raises(LonoraError, match="stale_lease"):
+                    await require_lease(session, first_lease)
+    assert await retry_due_tasks(db) == 0
+
+
+@pytest.mark.asyncio
+async def test_retry_wait_pause_cancel_and_restart(task_db: tuple[Database, str, str, str]):
+    from lonora_contracts.tasks import TaskRetryPolicy
+    from lonora_db.runs import fail_run
+    from lonora_db.task_recovery import retry_due_tasks
+
+    db, owner, agent, thread = task_db
+    async with db.sessions() as session, session.begin():
+        task = await create_task(
+            session,
+            owner,
+            agent,
+            thread,
+            TaskCreate(
+                title="Read later",
+                steps=[TaskStep(id="read", title="Read", side_effect="read_only")],
+                retry_policy=TaskRetryPolicy(mode="automatic"),
+            ),
+        )
+        run = await claim_next(session, "reader", 60, "work")
+        assert run
+        await fail_run(
+            session,
+            Lease(run_id=run.id, owner="reader", fence=run.lease_fence),
+            "model_rate_limited",
+        )
+        row = await get_task(session, owner, task.id)
+        paused = await control_task(
+            session,
+            owner,
+            TaskControl(task_id=row.id, action="pause", expected_version=row.version),
+        )
+        assert (await snapshot(session, paused))["status"] == "paused"
+    assert await retry_due_tasks(db) == 0
+    async with db.sessions() as session, session.begin():
+        row = await get_task(session, owner, task.id)
+        resumed = await control_task(
+            session,
+            owner,
+            TaskControl(task_id=row.id, action="resume", expected_version=row.version),
+        )
+        assert (await snapshot(session, resumed))["status"] == "queued"
+        cancelled = await control_task(
+            session,
+            owner,
+            TaskControl(task_id=row.id, action="cancel", expected_version=resumed.version),
+        )
+        assert (await snapshot(session, cancelled))["status"] == "cancelled"
+    assert await retry_due_tasks(db) == 0
+
+
+@pytest.mark.asyncio
+async def test_unknown_external_mutation_cannot_be_retried_by_declared_read_only_step(
+    task_db: tuple[Database, str, str, str],
+):
+    from lonora_contracts.tasks import TaskRetryPolicy
+    from lonora_db.runs import fail_run
+    from lonora_db.task_recovery import retry_due_tasks
+
+    db, owner, agent, thread = task_db
+    async with db.sessions() as session, session.begin():
+        task = await create_task(
+            session,
+            owner,
+            agent,
+            thread,
+            TaskCreate(
+                title="Misclassified work",
+                steps=[TaskStep(id="read", title="Read", side_effect="read_only")],
+                retry_policy=TaskRetryPolicy(mode="automatic"),
+            ),
+        )
+        run = await claim_next(session, "reader", 60, "work")
+        assert run
+        run.execution_state = {
+            "messages": [
+                {
+                    "role": "assistant",
+                    "tool_calls": [{"id": "external-write", "name": "unknown_external_write"}],
+                }
+            ]
+        }
+        await fail_run(
+            session,
+            Lease(run_id=run.id, owner="reader", fence=run.lease_fence),
+            "model_provider_unavailable",
+            read_only_names={"account_read"},
+        )
+        row = await get_task(session, owner, task.id)
+        view = await snapshot(session, row)
+        assert (
+            view["failure"]["recovery"] == "reconcile"
+            and view["failure"]["reconciliation"] == "external"
+        )
+        assert not view["can_resume"]
+        with pytest.raises(LonoraError, match="task_reconciliation_required"):
+            await control_task(
+                session,
+                owner,
+                TaskControl(task_id=row.id, action="resume", expected_version=row.version),
+            )
+    assert await retry_due_tasks(db) == 0
+
+
+@pytest.mark.asyncio
+async def test_financial_ambiguity_blocks_owner_resume_until_journal_settles(
+    task_db: tuple[Database, str, str, str],
+):
+    from lonora_db.runs import fail_run
+    from lonora_db.schema import TradingJournalRow
+
+    db, owner, agent, thread = task_db
+    operation = str(uuid4())
+    async with db.sessions() as session, session.begin():
+        task = await create_task(session, owner, agent, thread, TaskCreate(title="Financial state"))
+        run = await claim_next(session, "reader", 60, "work")
+        assert run
+        run.execution_state = {
+            "messages": [
+                {"role": "assistant", "tool_calls": [{"id": "trade", "name": "trade_execute"}]}
+            ]
+        }
+        session.add(
+            TradingJournalRow(
+                operation_id=operation,
+                owner_id=owner,
+                account_id="demo-fixture",
+                request_hash="fixture",
+                request={},
+                status="ambiguous",
+                result={"details": {"lease": {"run_id": run.id}}},
+            )
+        )
+        await session.flush()
+        await fail_run(
+            session,
+            Lease(run_id=run.id, owner="reader", fence=run.lease_fence),
+            "model_provider_unavailable",
+        )
+        row = await get_task(session, owner, task.id)
+        assert not (await snapshot(session, row))["can_resume"]
+        with pytest.raises(LonoraError, match="task_reconciliation_required"):
+            await control_task(
+                session,
+                owner,
+                TaskControl(task_id=row.id, action="resume", expected_version=row.version),
+            )
+    async with db.sessions() as session, session.begin():
+        journal = await session.get(TradingJournalRow, operation)
+        assert journal
+        journal.status = "confirmed"
+        row = await get_task(session, owner, task.id)
+        await session.flush()
+        assert (await snapshot(session, row))["can_resume"]
+        await control_task(
+            session,
+            owner,
+            TaskControl(task_id=row.id, action="resume", expected_version=row.version),
+        )
+        restored = await session.get(RunRow, run.id)
+        assert (
+            restored and restored.execution_state["messages"][0]["tool_calls"][0]["id"] == "trade"
+        )
+        assert journal.operation_id == operation and journal.status == "confirmed"
+
+
+@pytest.mark.asyncio
+async def test_plan_failure_requires_actual_revision_before_resume(
+    task_db: tuple[Database, str, str, str],
+):
+    from lonora_db.runs import fail_run
+
+    db, owner, agent, thread = task_db
+    async with db.sessions() as session, session.begin():
+        task = await create_task(session, owner, agent, thread, TaskCreate(title="Bounded plan"))
+        run = await claim_next(session, "reader", 60, "work")
+        assert run
+        await fail_run(
+            session, Lease(run_id=run.id, owner="reader", fence=run.lease_fence), "tool_round_limit"
+        )
+        row = await get_task(session, owner, task.id)
+        assert (await snapshot(session, row))["failure"]["recovery"] == "modify_plan"
+        with pytest.raises(LonoraError, match="task_cannot_resume"):
+            await control_task(
+                session,
+                owner,
+                TaskControl(task_id=row.id, action="resume", expected_version=row.version),
+            )
+        revised = await control_task(
+            session,
+            owner,
+            TaskControl(
+                task_id=row.id,
+                action="revise",
+                expected_version=row.version,
+                instruction="Continue only the remaining evidence retrieval.",
+            ),
+        )
+        assert revised.state["task"]["plan_revision"] == 2
+        resumed = await control_task(
+            session,
+            owner,
+            TaskControl(task_id=row.id, action="resume", expected_version=revised.version),
+        )
+        assert (await snapshot(session, resumed))["attempt"] == 2
+
+
+@pytest.mark.asyncio
+async def test_run_cannot_complete_declared_unverified_task_steps(
+    task_db: tuple[Database, str, str, str],
+):
+    from lonora_db.runs import complete_run
+
+    db, owner, agent, thread = task_db
+    async with db.sessions() as session, session.begin():
+        await create_task(
+            session,
+            owner,
+            agent,
+            thread,
+            TaskCreate(title="Evidence required", steps=[TaskStep(id="verify", title="Verify")]),
+        )
+        run = await claim_next(session, "reader", 60, "work")
+        assert run
+        with pytest.raises(LonoraError, match="task_steps_incomplete"):
+            await complete_run(
+                session,
+                Lease(run_id=run.id, owner="reader", fence=run.lease_fence),
+                "Claimed done without evidence",
+                {},
+            )
+        assert run.status != "completed"

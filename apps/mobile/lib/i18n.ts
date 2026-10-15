@@ -1,5 +1,17 @@
 export type Locale = "ar" | "en";
 export const labels = {
+  retryScheduled: ["إعادة المحاولة مجدولة", "Retry scheduled"],
+  waitingReconciliation: ["بانتظار التحقق من النتيجة", "Waiting for reconciliation"],
+  taskNeedsReview: ["المهمة تحتاج مراجعة", "Task needs review"],
+  task_reconciliation_required: [
+    "تنتظر المهمة التحقق من عملية خارجية غير محسومة.",
+    "This task is waiting for an uncertain external operation to be reconciled.",
+  ],
+  task_cannot_resume: [
+    "لا يمكن استئناف المهمة بحالتها الحالية. راجع الخطة وحد المحاولات.",
+    "This task cannot resume in its current state. Review its plan or retry limit.",
+  ],
+  task_retry_limit: ["وصلت المهمة إلى حد المحاولات المسموح.", "The task reached its retry limit."],
   executionMode: ["وضع التنفيذ", "Execution mode"],
   shadowTrading: ["تداول ظلي — أوامر افتراضية فقط", "Shadow trading — virtual orders only"],
   executionModeHint: [
