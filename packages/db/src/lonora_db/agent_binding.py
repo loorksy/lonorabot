@@ -31,7 +31,10 @@ def scope_data(agent: AgentRow) -> dict[str, Any]:
         if role == "personal"
         else "bound_market"
         if agent.trading_account_id
+        else "delegated_research"
+        if role == "delegated"
         else "legacy",
+        execution_authority="none" if role == "delegated" else "existing_server_controls",
     ).model_dump(mode="json")
 
 
@@ -45,7 +48,11 @@ def assert_market_binding(
     agent: AgentRow, account_id: str | None = None, symbol: str | None = None
 ) -> None:
     if agent.trading_account_id is None and agent.trading_symbol is None:
-        return  # Existing identities retain their previous behaviour.
+        if agent.role not in {None, "personal", "delegated", "legacy"}:
+            raise LonoraError("agent_trading_binding_invalid", 409)
+        # This guard governs visibility only. Financial paths additionally call
+        # require_financial_agent; an empty binding never grants authority.
+        return
     if not agent.trading_account_id or not agent.trading_symbol:
         raise LonoraError("agent_trading_binding_invalid", 409)
     if account_id is not None and not same_binding(account_id, agent.trading_account_id):
@@ -75,7 +82,43 @@ async def agent_binding(session: AsyncSession, owner_id: str, agent_id: str) -> 
     return agent
 
 
+async def require_financial_agent(
+    session: AsyncSession, owner_id: str, agent_id: str
+) -> AgentRow:
+    """Enforce persisted authority across identity ancestry, not model instructions.
+
+    Personal/root legacy identities retain existing approval-based execution.
+    A research delegation and every descendant remain nonfinancial even when
+    reached through a later independent run or a forged financial proposal.
+    """
+    agent = await agent_binding(session, owner_id, agent_id)
+    current = agent
+    seen: set[str] = set()
+    for _ in range(32):
+        if current.id in seen:
+            raise LonoraError("agent_ancestry_invalid", 409)
+        seen.add(current.id)
+        if current.role == "delegated" or (
+            current.parent_id and not current.trading_account_id and not current.trading_symbol
+        ):
+            raise LonoraError("delegated_financial_authority_forbidden", 403)
+        assert_market_binding(current)
+        if not current.parent_id:
+            return agent
+        current = await agent_binding(session, owner_id, current.parent_id)
+    raise LonoraError("agent_ancestry_invalid", 409)
+
+
 def binding_context(agent: AgentRow) -> str:
+    if agent.role == "delegated":
+        return (
+            "<delegated_research_scope>"
+            "You are a temporary delegated research agent. Use authorized read-only account and "
+            "market tools only for the bounded assigned task. You cannot propose or execute broker "
+            "mutations, enable autonomous trading, or create trading goals. Return evidence to the "
+            "requesting agent. Creating children or collaborating never transfers financial authority."
+            "</delegated_research_scope>"
+        )
     if agent.role == "personal":
         return (
             "<personal_agent_scope>"

@@ -1,7 +1,12 @@
 from typing import Any, cast
 
 from lonora_core.user_error import LonoraError
-from lonora_db.agent_binding import agent_binding, assert_payload_binding, same_binding
+from lonora_db.agent_binding import (
+    agent_binding,
+    assert_payload_binding,
+    require_financial_agent,
+    same_binding,
+)
 from lonora_db.schema import AgentRow, CloudChartRow, TradingGoalRow
 from pydantic import BaseModel
 
@@ -65,6 +70,10 @@ async def guard_market_tool(
         return args
     async with context.db.sessions() as session:
         agent = await agent_binding(session, context.owner_id, context.agent_id)
+        if name.startswith("trade_") or (
+            name.startswith("goal_") and name not in {"goal_read", "goal_list", "goal_decisions"}
+        ):
+            await require_financial_agent(session, context.owner_id, context.agent_id)
         if not agent.trading_account_id:
             return args
         aligned = align_payload(agent, args)

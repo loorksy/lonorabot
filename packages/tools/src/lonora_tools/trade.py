@@ -3,6 +3,7 @@ from typing import Any
 from lonora_contracts.domain import Contract, utcnow
 from lonora_contracts.trading import TradeRequest, TradeResult
 from lonora_core.user_error import LonoraError
+from lonora_db.agent_binding import require_financial_agent
 from lonora_db.runs import require_lease
 from lonora_db.schema import TradeApprovalRow
 from lonora_db.steering import user_interrupt_pending
@@ -54,10 +55,14 @@ async def approved_execution(
 ) -> dict[str, Any]:
     approval_id = stable_id(context.lease.run_id, "approval:" + context.call_id)
     async with context.db.sessions() as reader:
+        await require_financial_agent(reader, context.owner_id, context.agent_id)
         previous = await reader.get(TradeApprovalRow, approval_id)
     initial_snapshot = await management_snapshot(context, requests) if previous is None else {}
     async with context.db.sessions() as session, session.begin():
         current = await require_lease(session, context.lease)
+        if current.agent_id != context.agent_id:
+            raise LonoraError("agent_run_mismatch", 409)
+        await require_financial_agent(session, context.owner_id, current.agent_id)
         visible_thread_id = current.model_metadata.get("origin_thread_id") or context.thread_id
         thread = await owned_thread(session, context.owner_id, visible_thread_id, lock=True)
         if thread.agent_id != context.agent_id and not thread.group_id:

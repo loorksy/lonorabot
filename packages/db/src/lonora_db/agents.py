@@ -35,8 +35,19 @@ async def create_agent(
     parent_id: str | None = None,
     agent_id: str | None = None,
 ) -> AgentRow:
+    role = "specialist" if request.trading_account_id else "legacy"
     if parent_id:
         parent = await owned_agent(session, owner_id, parent_id)
+        if parent.role == "delegated" or not parent.trading_account_id:
+            # Owner-wide visibility is not a financial scope a child can inherit.
+            # Unbound legacy parents also cannot mint new unrestricted children.
+            if request.trading_account_id is not None or request.trading_symbol is not None:
+                from lonora_core.user_error import LonoraError
+
+                raise LonoraError("delegated_financial_authority_forbidden", 403)
+            role = "delegated"
+        else:
+            role = "specialist"
         if request.trading_account_id is not None:
             assert_payload_binding(
                 parent, {"account_id": request.trading_account_id, "symbol": request.trading_symbol}
@@ -50,7 +61,7 @@ async def create_agent(
     row = AgentRow(
         owner_id=owner_id,
         parent_id=parent_id,
-        role="specialist" if request.trading_account_id else "legacy",
+        role=role,
         **request.model_dump(),
     )
     if agent_id:

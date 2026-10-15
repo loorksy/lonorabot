@@ -47,10 +47,16 @@ class SessionRow(Base):
 class AgentRow(Base):
     __tablename__ = "ln_agents"
     __table_args__ = (
-        CheckConstraint("role IN ('personal','specialist','legacy')", name="ln_agent_role"),
+        CheckConstraint(
+            "role IN ('personal','specialist','delegated','legacy')", name="ln_agent_role"
+        ),
         CheckConstraint(
             "role != 'personal' OR (parent_id IS NULL AND trading_account_id IS NULL AND trading_symbol IS NULL)",
             name="ln_personal_scope",
+        ),
+        CheckConstraint(
+            "role != 'delegated' OR (trading_account_id IS NULL AND trading_symbol IS NULL)",
+            name="ln_delegated_scope",
         ),
         Index(
             "ln_one_personal_agent",

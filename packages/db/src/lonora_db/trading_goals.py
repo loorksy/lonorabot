@@ -8,7 +8,7 @@ from lonora_core.user_error import LonoraError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .agent_binding import assert_payload_binding
+from .agent_binding import assert_payload_binding, require_financial_agent
 from .broker_sessions import BrokerSessionRepository
 from .events import emit
 from .schema import GoalDecisionRow, TradingGoalRow
@@ -68,6 +68,7 @@ async def create_goal(
     *,
     owner_authorized: bool = False,
 ) -> TradingGoalRow:
+    await require_financial_agent(session, owner_id, request.agent_id)
     thread = await owned_thread(session, owner_id, request.thread_id, lock=True)
     assert_payload_binding(
         await owned_agent(session, owner_id, request.agent_id), request.model_dump(mode="json")
@@ -153,6 +154,8 @@ async def control_goal(
     ):
         raise LonoraError("goal_owner_control_required", 409)
     row = await owned_goal(session, owner_id, goal_id, True)
+    if body.action == "resume" or body.autonomous is True:
+        await require_financial_agent(session, owner_id, row.agent_id or "")
     if row.version != body.version:
         raise LonoraError("version_conflict", 409)
     state = copy.deepcopy(row.state)
@@ -221,6 +224,7 @@ async def update_plan(
     session: AsyncSession, owner_id: str, goal_id: str, body: GoalPlanUpdate
 ) -> TradingGoalRow:
     row = await owned_goal(session, owner_id, goal_id, True)
+    await require_financial_agent(session, owner_id, row.agent_id or "")
     if row.version != body.version:
         raise LonoraError("version_conflict", 409)
     if row.state.get("status") in {"cancelled", "completed"}:

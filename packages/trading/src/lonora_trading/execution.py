@@ -11,7 +11,7 @@ from lonora_contracts.trading import TradeRequest, TradeResult
 from lonora_contracts.trading_goal import GoalExecution
 from lonora_core.trading_control import require_trading
 from lonora_core.user_error import LonoraError
-from lonora_db.agent_binding import agent_binding, assert_market_binding
+from lonora_db.agent_binding import assert_market_binding, require_financial_agent
 from lonora_db.broker_sessions import BrokerSessionRepository
 from lonora_db.client import Database
 from lonora_db.runs import require_lease
@@ -45,12 +45,14 @@ async def require_goal_lineage(
     request: TradeRequest | None = None,
 ) -> None:
     origin_run = await require_lease(session, lease)
+    if owner_id is not None:
+        await require_financial_agent(session, owner_id, origin_run.agent_id)
     if origin_run.model_metadata.get("authority") == "observe_only":
         raise LonoraError("observe_only_execution_forbidden", 403)
     await require_task_authority(session, origin_run)
     if owner_id is not None and request is not None:
         assert_market_binding(
-            await agent_binding(session, owner_id, origin_run.agent_id),
+            await require_financial_agent(session, owner_id, origin_run.agent_id),
             request.account_id,
             request.symbol,
         )
@@ -71,7 +73,7 @@ async def require_goal_lineage(
         await require_task_authority(session, ancestor)
         if owner_id is not None and request is not None:
             assert_market_binding(
-                await agent_binding(session, owner_id, ancestor.agent_id),
+                await require_financial_agent(session, owner_id, ancestor.agent_id),
                 request.account_id,
                 request.symbol,
             )
