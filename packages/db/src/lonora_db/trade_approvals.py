@@ -16,6 +16,7 @@ def approval_data(row: TradeApprovalRow) -> dict[str, Any]:
         "run_id": row.run_id,
         "thread_id": row.thread_id,
         "agent_id": row.agent_id,
+        "timeline_seq": row.timeline_seq,
         "requests": row.requests,
         "status": row.status,
         "results": row.results,

@@ -83,5 +83,8 @@ async def delete(
     request: Request, agent_id: str, owner: OwnerIdentity = Depends(require_owner)
 ) -> dict[str, bool]:
     async with runtime(request).db.sessions() as session, session.begin():
-        await session.delete(await owned_agent(session, owner.id, agent_id, lock=True))
+        agent = await owned_agent(session, owner.id, agent_id, lock=True)
+        if agent.role == "personal":
+            raise LonoraError("personal_agent_cannot_delete", 409)
+        await session.delete(agent)
     return {"deleted": True}

@@ -7,6 +7,7 @@ from lonora_db.runs import require_lease
 from lonora_db.schema import TradeApprovalRow
 from lonora_db.steering import user_interrupt_pending
 from lonora_db.trade_approvals import approval_event
+from lonora_db.transactions import owned_thread
 from lonora_session.idempotency import request_hash, stable_id
 from lonora_trading.idempotency import trade_fingerprint
 from sqlalchemy import select
@@ -26,6 +27,7 @@ async def approved_execution(
 ) -> dict[str, Any]:
     approval_id = stable_id(context.lease.run_id, "approval:" + context.call_id)
     async with context.db.sessions() as session, session.begin():
+        thread = await owned_thread(session, context.owner_id, context.thread_id, lock=True)
         await require_lease(session, context.lease, lock=True)
         row = await session.get(TradeApprovalRow, approval_id)
         if row is None:
@@ -36,6 +38,7 @@ async def approved_execution(
                 thread_id=context.thread_id,
                 agent_id=context.agent_id,
                 call_id=context.call_id,
+                timeline_seq=thread.next_seq,
                 requests=[r.model_dump(mode="json") for r in requests],
                 status="pending",
                 results=[],

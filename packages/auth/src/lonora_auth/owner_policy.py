@@ -3,6 +3,7 @@ import secrets
 from lonora_contracts.auth import OnboardingRequest
 from lonora_core.user_error import LonoraError
 from lonora_db.owner import get_owner
+from lonora_db.personal_agent import ensure_personal_agent
 from lonora_db.schema import OwnerRow
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -21,4 +22,5 @@ async def initialize_owner(
     )
     session.add(row)
     await session.flush()
+    await ensure_personal_agent(session, row.id)
     return row

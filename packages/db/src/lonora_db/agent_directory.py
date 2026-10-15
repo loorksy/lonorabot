@@ -3,6 +3,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from .agent_binding import scope_data
 from .schema import AgentRow
 
 
@@ -22,6 +23,8 @@ async def agent_directory(
             "description": row.description,
             "paused": row.paused,
             "is_self": row.id == agent_id,
+            "role": row.role,
+            "scope": scope_data(row),
             "trading_account_id": row.trading_account_id,
             "trading_symbol": row.trading_symbol,
         }

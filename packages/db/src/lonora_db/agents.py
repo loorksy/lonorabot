@@ -1,10 +1,10 @@
 from typing import Any
 
 from lonora_contracts.domain import AgentCreate, AgentUpdate
-from sqlalchemy import select
+from sqlalchemy import case, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .agent_binding import assert_payload_binding
+from .agent_binding import assert_payload_binding, scope_data
 from .schema import AgentRow, MemoryRow
 from .transactions import owned_agent
 
@@ -19,6 +19,8 @@ def agent_data(row: AgentRow) -> dict[str, Any]:
         "color": row.color,
         "instructions": row.instructions,
         "paused": row.paused,
+        "role": row.role,
+        "scope": scope_data(row),
         "trading_account_id": row.trading_account_id,
         "trading_symbol": row.trading_symbol,
         "parent_id": row.parent_id,
@@ -45,7 +47,12 @@ async def create_agent(
                 "trading_symbol": parent.trading_symbol,
             }
         )
-    row = AgentRow(owner_id=owner_id, parent_id=parent_id, **request.model_dump())
+    row = AgentRow(
+        owner_id=owner_id,
+        parent_id=parent_id,
+        role="specialist" if request.trading_account_id else "legacy",
+        **request.model_dump(),
+    )
     if agent_id:
         row.id = agent_id
     session.add(row)
@@ -58,7 +65,13 @@ async def list_agents(session: AsyncSession, owner_id: str) -> list[AgentRow]:
     return list(
         (
             await session.scalars(
-                select(AgentRow).where(AgentRow.owner_id == owner_id).order_by(AgentRow.created_at)
+                select(AgentRow)
+                .where(AgentRow.owner_id == owner_id)
+                .order_by(
+                    case((AgentRow.role == "personal", 0), else_=1),
+                    AgentRow.created_at,
+                    AgentRow.id,
+                )
             )
         ).all()
     )

@@ -3,12 +3,21 @@ from typing import Any
 from fastapi import APIRouter, Depends, Request
 from lonora_auth.identity import OwnerIdentity
 from lonora_contracts.domain import ThreadCreate
+from lonora_db.inbox import inbox_projection
 from lonora_db.threads import create_thread, list_threads, thread_data
 from lonora_db.transactions import owned_thread
 
 from ..middleware.auth import require_owner, runtime
 
 router = APIRouter(prefix="/threads")
+
+
+@router.get("/inbox")
+async def inbox(
+    request: Request, owner: OwnerIdentity = Depends(require_owner)
+) -> list[dict[str, Any]]:
+    async with runtime(request).db.sessions() as session:
+        return await inbox_projection(session, owner.id)
 
 
 @router.get("")

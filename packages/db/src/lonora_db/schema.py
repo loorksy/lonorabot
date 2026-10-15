@@ -12,6 +12,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -45,6 +46,21 @@ class SessionRow(Base):
 
 class AgentRow(Base):
     __tablename__ = "ln_agents"
+    __table_args__ = (
+        CheckConstraint("role IN ('personal','specialist','legacy')", name="ln_agent_role"),
+        CheckConstraint(
+            "role != 'personal' OR (parent_id IS NULL AND trading_account_id IS NULL AND trading_symbol IS NULL)",
+            name="ln_personal_scope",
+        ),
+        Index(
+            "ln_one_personal_agent",
+            "owner_id",
+            unique=True,
+            postgresql_where=text("role = 'personal'"),
+            sqlite_where=text("role = 'personal'"),
+        ),
+    )
+    role: Mapped[str] = mapped_column(String(16), default="legacy", server_default="legacy")
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     owner_id: Mapped[str] = mapped_column(
         ForeignKey("ln_owners.id", ondelete="CASCADE"), index=True
@@ -79,6 +95,7 @@ class ThreadRow(Base):
 
 class MessageRow(Base):
     __tablename__ = "ln_messages"
+    mentions: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     __table_args__ = (
         UniqueConstraint("thread_id", "seq"),
         UniqueConstraint("thread_id", "client_nonce"),
@@ -130,11 +147,10 @@ class RunRow(Base):
 
 class SteeringRow(Base):
     __tablename__ = "ln_steering"
+    __table_args__ = (UniqueConstraint("run_id", "message_id", name="ln_run_message_steering"),)
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     run_id: Mapped[str] = mapped_column(ForeignKey("ln_runs.id", ondelete="CASCADE"), index=True)
-    message_id: Mapped[str] = mapped_column(
-        ForeignKey("ln_messages.id", ondelete="CASCADE"), unique=True
-    )
+    message_id: Mapped[str] = mapped_column(ForeignKey("ln_messages.id", ondelete="CASCADE"))
     consumed: Mapped[bool] = mapped_column(default=False)
 
 
@@ -258,6 +274,10 @@ class PeerMessageRow(ResourceRow):
     __tablename__ = "ln_peer_messages"
 
 
+class CollaborationSessionRow(ResourceRow):
+    __tablename__ = "ln_collaboration_sessions"
+
+
 class ArtifactRow(ResourceRow):
     __tablename__ = "ln_artifacts"
 
@@ -377,6 +397,7 @@ class GoalDecisionRow(Base):
 
 class TradeApprovalRow(Base):
     __tablename__ = "ln_trade_approvals"
+    timeline_seq: Mapped[int | None] = mapped_column(Integer)
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     owner_id: Mapped[str] = mapped_column(
         ForeignKey("ln_owners.id", ondelete="CASCADE"), index=True

@@ -3,6 +3,7 @@
 import json
 from typing import Any, cast
 
+from lonora_contracts.agent_scope import AgentRole, AgentScope
 from lonora_core.user_error import LonoraError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -18,6 +19,20 @@ BINDING_POLICY = (
     "Trade approval is only the Approve or Reject button on the card inside the call. "
     "Never ask for a spoken or typed yes. Speech and chat text are not approval."
 )
+
+
+def scope_data(agent: AgentRow) -> dict[str, Any]:
+    role = cast(AgentRole, agent.role or "legacy")
+    return AgentScope(
+        role=role,
+        account_id=agent.trading_account_id,
+        broker_symbol=agent.trading_symbol,
+        visibility="owner_accounts"
+        if role == "personal"
+        else "bound_market"
+        if agent.trading_account_id
+        else "legacy",
+    ).model_dump(mode="json")
 
 
 def same_binding(value: object, bound: str | None) -> bool:
@@ -61,6 +76,18 @@ async def agent_binding(session: AsyncSession, owner_id: str, agent_id: str) -> 
 
 
 def binding_context(agent: AgentRow) -> str:
+    if agent.role == "personal":
+        return (
+            "<personal_agent_scope>"
+            "You are the owner's default Personal Agent. Read authorized owner accounts and exact "
+            "broker symbols relevant to the current request. Retrieve bounded context; do not inject "
+            "all market/account history. Discover specialists by structured account/symbol bindings, "
+            "never their names. If none exists, analyze directly. Owner-wide visibility is NOT "
+            "autonomous execution authority. Every mutation still requires the existing server "
+            "approval, risk, scope, global trading and emergency controls. Never claim owner intent "
+            "for external trades. Account-level observations have one conversational owner: you."
+            "</personal_agent_scope>"
+        )
     if not agent.trading_account_id or not agent.trading_symbol:
         return ""
     return (
