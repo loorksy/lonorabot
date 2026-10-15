@@ -786,7 +786,7 @@ jobs:
       - name: Verify signed mobile OTA service and safe client update lifecycle
         run: |
           .venv/bin/python -m pytest tests/test_mobile_updates.py -q
-          pnpm exec tsx --test tests/mobile/ota-checker.test.ts tests/mobile/voice-transport.test.ts tests/mobile/voice-readiness.test.ts tests/mobile/conversation-timeline.test.ts
+          pnpm exec tsx --test tests/mobile/ota-checker.test.ts tests/mobile/voice-transport.test.ts tests/mobile/voice-readiness.test.ts tests/mobile/conversation-timeline.test.ts tests/mobile/mention-session.test.ts
 
       - name: Verify GPT-Live admission and delegation with explicit API fixtures
         run: .venv/bin/python -m pytest tests/voice -q

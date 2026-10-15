@@ -66,3 +66,19 @@ Physical Android voice/keyboard/OS-authentication acceptance requires a device/e
 ## Next integration point
 
 Evidence build/browser checks passed and the vertical capability is committed (`4deae52`). Continue by extending the same decision/evidence foundation with thesis identity/lifecycle and pre-trade confirmation linkage before opportunity memory, shadow/performance and attention. Preserve current controls, approval authority, exact broker symbols and no-blind-retry journal semantics throughout.
+
+## Review findings integration (continued after 1209f41)
+
+The new continuation document is preserved unchanged. Root resumed saved edits after the connection interruption; scoped agents could begin review work but their execution quota ended, so root owns integration and remaining implementation.
+
+- R1 VERIFIED: source timestamps (including candle-close boundaries) govern watch TTL and debounce. Processing time stays separate. Already stale confirmation cannot wake an Agent. Intrabar corrections may change a predicate without renewing the bar's source time.
+- R2 VERIFIED: session rounds have deterministic identities and one durable synthesis run. Concurrent participant completion/repeated return accumulates actual guest messages before scheduling. A synthesis cannot recursively schedule itself; Run ancestry preserves financial authority checks.
+- R3 VERIFIED for server/Web/Expo-Web-compatible projection: cancellation remains cancelled across TaskState, ticket payload, outcome replay, restart/API reads and live state. A materialized terminal projection migration repairs old contradictions; generic ticket APIs cannot rewrite task state. Web uses task controls rather than the generic ticket editor for durable tasks. Native hardware acceptance remains separately blocked.
+- R4 VERIFIED: new Personal/unbound-parent children are explicit delegated research identities. They can read authorized account state but cannot propose/execute arbitrary trades or create financial goals. Descendants and peer Run ancestry cannot launder this authority; deleting an intermediate parent retains the nonfinancial role. Specialist children retain exact bindings.
+- R5 VERIFIED: new objectives receive new lineage-bound sessions. Continuation is explicit, `@all` captures its session identity in Web/Mobile, and retries do not duplicate sessions/rounds.
+
+Evidence: check_review_findings (four PostgreSQL groups, three participants and nine duplicate deliveries); check_delegated_scope (three simulation/PostgreSQL groups); source-time unit tests plus actual PostgreSQL watch/restart checks; Web cancellation/reload/control test; two Node mention-session tests. Python suite passed 103 before the additional intrabar correction case; Pyright and client types passed at this review checkpoint. Retained broker/trading/collaboration tests passed through dynamic watches; chart streaming regression exposed the equal-source intrabar case, which was fixed and all eight chart streaming groups then passed. Full final gates continue with the next integration waves; this is not completion of 01–18.
+
+Migrations added: 0022 delegated scope/backfill (orphan descendants remain nonfinancial), 0023 task outcome projection repair. No production deployment or main merge.
+
+Next: continue the shared thesis/opportunity/decision capability, then shadow/performance, attention/relationships, remaining collaboration/authorization/task recovery and dependent clients. REMOTE_CI_BLOCKED_EXTERNAL remains distinct from LOCAL_TESTS_PASSING; Android acceptance stays BLOCKED pending actual Android runtime.

@@ -24,6 +24,9 @@ CHECKS = (
     "check_execution_quality.py",
     "check_account_recovery.py",
     "check_decision_replay.py",
+    "check_review_findings.py",
+    "check_delegated_scope.py",
+    "check_watch_source_time.py",
 )
 
 

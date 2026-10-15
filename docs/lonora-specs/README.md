@@ -32,3 +32,5 @@ Base audited: `895eaa8`; integration branch: `feat/coherent-agent-foundations`. 
 - [Progress](PROGRESS.md): current wave, blockers, test evidence and next integration point.
 
 A source file being stored does not make its functionality implemented. VERIFIED requires an executed behavioral test. Native/device verification is reported independently of browser validation. Financial authorization, ownership, exact symbols, journal, reconciliation and global controls remain authoritative.
+
+Additional authoritative review instruction: [Continue full implementation and fix review findings](CONTINUE_FULL_IMPLEMENTATION_01_18_AND_FIX_REVIEW_FINDINGS.md). It preserves the original 18 specifications and requires the five safety/correctness findings to be fixed before subsequent capability waves.

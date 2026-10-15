@@ -73,3 +73,7 @@ Identity, skills, task lanes, canonical chat, health and final execution foundat
 Next shared contract is historical decision/evidence plus thesis identity, before shadow/performance, explanation replay, attention and Super Bot. These consumers must not each invent their own evidence or authorization records. Full acceptance of these later capabilities remains open.
 
 Historical decision snapshots now reuse durable events and effect receipts. Typed broker evidence, health-gated actions and read/compare tools are connected to the same AgentRuntime. This is the evidence foundation of wave 3; thesis identity/expiry, financial-decision auto-capture, shadow/performance and attention still depend on it and remain open.
+
+## Review safety dependencies
+
+Source-time watch confirmation precedes any thesis/execution freshness gate. Explicit delegated identity is enforced below tools, approvals and execution, including Agent and Run ancestry. Collaboration is keyed by original request plus bounded round; one synthesis receipt/identity consumes actual delivered outcomes. Task outcome projection is derived from durable TaskState and cannot be independently edited by generic ticket APIs. These are shared preconditions for the remaining intelligence and authority work.
