@@ -2,24 +2,28 @@ from decimal import Decimal
 
 from lonora_adapter_kit.broker import BrokerAdapter
 from lonora_contracts.domain import utcnow
+from lonora_contracts.execution_quality import ExecutionSnapshot
 from lonora_contracts.trading import TradeRequest
 from lonora_core.trading_run_market import require_exact_symbol
 from lonora_core.user_error import LonoraError
 from lonora_security.financial import validate_trade
 
 
-async def preflight(broker: BrokerAdapter, request: TradeRequest) -> None:
+async def preflight(broker: BrokerAdapter, request: TradeRequest) -> ExecutionSnapshot:
     instrument = None
     if request.action != "cancel_order":
         instrument = await broker.instrument(request.symbol)
         validate_trade(request, instrument)
     account = await broker.account()
+    account.id = request.account_id
     if account.trade_allowed is False or account.investor_mode is True:
         raise LonoraError("broker_trading_not_allowed", 409)
+    positions = await broker.positions()
+    orders = await broker.orders()
+    quote = None
     target_order = None
     position = None
     if request.position_id:
-        positions = await broker.positions()
         position = next(
             (p for p in positions if p.id == request.position_id and p.symbol == request.symbol),
             None,
@@ -42,7 +46,6 @@ async def preflight(broker: BrokerAdapter, request: TradeRequest) -> None:
                 raise LonoraError("position_remaining_volume_invalid", 409)
 
     if request.order_id:
-        orders = await broker.orders()
         target_order = next(
             (o for o in orders if o.id == request.order_id and o.symbol == request.symbol), None
         )
@@ -124,3 +127,10 @@ async def preflight(broker: BrokerAdapter, request: TradeRequest) -> None:
             raise LonoraError("stop_loss_stops_level", 409)
         if take_profit is not None and abs(reference - take_profit) < minimum:
             raise LonoraError("take_profit_stops_level", 409)
+
+    if quote is None and request.action == "close_position":
+        quote = await broker.quote(request.symbol)
+        require_exact_symbol(request.symbol, quote.symbol)
+    return ExecutionSnapshot(
+        account=account, positions=positions, orders=orders, quote=quote, observed_at=utcnow()
+    )

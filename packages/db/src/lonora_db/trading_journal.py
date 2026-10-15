@@ -73,6 +73,11 @@ async def persist_result(
         validated.details = {
             key: value for key, value in validated.details.items() if key != "execution"
         }
+    # Pre-send observations are server-owned historical facts. A later broker
+    # reconciliation receipt must not erase or replace them with today's market.
+    quality = row.result.get("details", {}).get("execution_quality")
+    if isinstance(quality, dict):
+        validated.details = {**validated.details, "execution_quality": quality}
     row.status = status
     row.result = validated.model_dump(mode="json")
     row.updated_at = utcnow()

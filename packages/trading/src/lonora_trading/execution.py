@@ -4,6 +4,7 @@ from collections.abc import Awaitable, Callable
 from lonora_adapters.brokers.base import BrokerManager
 from lonora_contracts.broker import BrokerConnection
 from lonora_contracts.domain import utcnow
+from lonora_contracts.execution_quality import ExecutionQuality
 from lonora_contracts.runs import Lease
 from lonora_contracts.trading import TradeRequest, TradeResult
 from lonora_contracts.trading_goal import GoalExecution
@@ -15,9 +16,11 @@ from lonora_db.client import Database
 from lonora_db.runs import require_lease
 from lonora_db.schema import RunRow, TradingJournalRow
 from lonora_db.trading_journal import persist_result, reserve_operation
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .controls import read_controls
+from .execution_quality import actual_execution, evaluate_execution, execution_policy
 from .goals import guard_goal_execution
 from .goals_market import fresh_goal_evidence
 from .idempotency import trade_fingerprint
@@ -105,7 +108,7 @@ class ExecutionService:
             await authorization()
         require_trading(await read_controls(self.db))
         broker = await self.brokers.get(owner_id, request.account_id)
-        await preflight(broker, request)
+        planned_snapshot = await preflight(broker, request)
         async with self.db.sessions() as session, session.begin():
             connection = await BrokerSessionRepository().get(
                 session, owner_id, request.account_id, lock=True
@@ -156,13 +159,21 @@ class ExecutionService:
             ).model_dump(mode="json")
 
         send_authorized = False
+        quality: ExecutionQuality | None = None
 
         async def before_send() -> None:
-            nonlocal send_authorized
+            nonlocal send_authorized, quality
             if send_authorized:
                 raise LonoraError("operation_send_already_authorized", 409)
             if authorization:
                 await authorization()
+            snapshot = await preflight(broker, request)
+            policy = await execution_policy(self.db, owner_id, request.account_id)
+            quality = evaluate_execution(
+                request, snapshot, policy, planned_quote=planned_snapshot.quote
+            )
+            if quality.state != "executable":
+                raise LonoraError(quality.reasons[0], 409)
             goal_evidence = (
                 await fresh_goal_evidence(
                     self.db,
@@ -194,11 +205,26 @@ class ExecutionService:
                 row = await session.get(TradingJournalRow, request.operation_id)
                 if row is None or row.status != "submitted":
                     raise LonoraError("operation_not_submitted", 409)
+                row.result = {
+                    **row.result,
+                    "details": {
+                        **row.result.get("details", {}),
+                        "execution_quality": quality.model_dump(mode="json"),
+                    },
+                }
             send_authorized = True
 
         cancelled = False
         try:
-            result = await broker.execute(request, before_send)
+            # A dedicated account advisory lock serializes different operation
+            # IDs across workers, without blocking owner control/config changes.
+            # Adapter snapshots use independent sessions; don't lock their rows.
+            async with self.db.sessions() as account_lock, account_lock.begin():
+                await account_lock.execute(
+                    text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"),
+                    {"key": f"execution:{owner_id}:{request.account_id}"},
+                )
+                result = await broker.execute(request, before_send)
             if result.operation_id != request.operation_id or not send_authorized:
                 result = TradeResult(
                     operation_id=request.operation_id,
@@ -215,36 +241,9 @@ class ExecutionService:
         except LonoraError as error:
             result = TradeResult(
                 operation_id=request.operation_id,
-                status="failed"
-                if not send_authorized
-                and error.code
-                in {
-                    "trade_approval_unavailable",
-                    "trade_approval_request_changed",
-                    "tool_call_superseded",
-                    "trading_disabled",
-                    "emergency_stop",
-                    "stale_lease",
-                    "broker_disabled",
-                    "broker_connection_changed",
-                    "broker_numeric_precision_loss",
-                    "order_not_found",
-                    "goal_not_active",
-                    "goal_autonomy_required",
-                    "goal_condition_unmet",
-                    "goal_condition_stale",
-                    "goal_plan_changed",
-                    "goal_step_unavailable",
-                    "goal_watch_evidence_required",
-                    "goal_volume_limit",
-                    "goal_volume_limit_required",
-                    "goal_action_limit",
-                    "goal_delegated_trade_forbidden",
-                    "goal_run_ancestry_invalid",
-                    "goal_decision_mismatch",
-                    "goal_run_mismatch",
-                }
-                else "ambiguous",
+                # The adapter's before_send callback is the mutation boundary.
+                # A failure before it authorizes submission is known not sent.
+                status="ambiguous" if send_authorized else "failed",
                 code=error.code,
             )
         except Exception:
@@ -254,7 +253,20 @@ class ExecutionService:
                 status="ambiguous",
                 code="broker_result_ambiguous",
             )
+        result.details = {
+            **result.details,
+            "execution_quality": actual_execution(request, result, quality),
+        }
         async with self.db.sessions() as session, session.begin():
+            row = await session.get(TradingJournalRow, request.operation_id, with_for_update=True)
+            if row is not None and row.status not in {"confirmed", "failed"}:
+                row.result = {
+                    **row.result,
+                    "details": {
+                        **row.result.get("details", {}),
+                        "execution_quality": result.details["execution_quality"],
+                    },
+                }
             await persist_result(
                 session, request.operation_id, result.status, result.model_dump(mode="json")
             )
