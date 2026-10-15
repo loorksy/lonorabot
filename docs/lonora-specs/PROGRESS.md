@@ -2,7 +2,7 @@
 
 ## Current wave
 
-2026-10-15: waves 1 and 2 integrated on `feat/coherent-agent-foundations`, audited base `895eaa8`. All 18 original references remain intact. This is **not completion of the full program**. Source-section matrix distinguishes partial integration from full acceptance.
+2026-10-15: waves 1 and 2 integrated; shared historical evidence foundation in wave 3 on `feat/coherent-agent-foundations`, audited base `895eaa8`. All 18 original references remain intact. This is **not completion of the full program**. Source-section matrix distinguishes partial integration from full acceptance.
 
 ## Active workstreams
 
@@ -22,7 +22,7 @@ Root owns integration after the scoped parallel foundation work: identity/skills
 
 ## Commits already recorded
 
-`0c88299` references/graph; `b6ad9a5` health; `0e1cc27` execution quality; `864aa8c` tasks; `1146d30` skills; `8a433ef` identity/timeline schema. Further integration changes are undergoing verification before logical commits.
+`0c88299` references/graph; `b6ad9a5` health; `0e1cc27` execution quality; `864aa8c` tasks; `1146d30` skills; `8a433ef` identity/timeline schema. Integration commits: `a3a1760` dynamic watches; `5472796` collaboration/broker/task/live-state integration; `f3e804c` shared clients; `c7cf0de` isolated checks and matrix.
 
 ## Migrations
 
@@ -31,16 +31,24 @@ Root owns integration after the scoped parallel foundation work: identity/skills
 ## Checks completed
 
 - Build: `bash scripts/build.sh`, including Python checks, seven client packages and Expo Android/iOS/Web exports.
-- Python: 90 pytest cases at the earlier integration checkpoint, including real PostgreSQL voice/skills tests; additional manual-activity/dynamic-watch/task cases integrated since then.
+- Python: 95 pytest cases passed after integration, including real PostgreSQL voice/skills tests and manual-activity/dynamic-watch/task cases.
 - Skills: 29 focused cases and authenticated PostgreSQL installation checks.
-- Task state: five SQLite cases; first four also exercised against PostgreSQL. Latest step-evidence case still needs the PostgreSQL variant.
-- Node: 12 shared timeline/native readiness/transport tests. OTA checker is a separate existing suite and is not included in this count.
+- Task state: all five cases passed on SQLite and isolated PostgreSQL, including persisted tool evidence.
+- Node: 15 timeline/native readiness/transport/OTA cases passed.
 - Browser: 18 Web and six Expo Web tests. These do not certify native Android behavior.
 - PostgreSQL integration: streaming, clients, binding, collaboration, trading, approvals, pending orders, execution quality, account recovery, goals, market health/runtime/dynamic watches, chart streaming/history passed in isolated databases. Original MetaApi SDK recovery suite preserved and passed separately.
 - Latest account work-lane test passed: actual manual ticket read, observe-only authority, isolated work thread, one returned conversation result, owner SL intervention, reconnect and deduplication.
-- Ruff passes. Latest Pyright/client checks and retained regression rerun are in progress after work-lane integration; earlier pass does not stand in for them.
+- Ruff passes. Pyright reports zero errors; client type checks and lint passed; all retained integration scripts and the new isolated foundation runner passed after work-lane integration. The latest evidence changes are undergoing their own build/browser rerun.
 
 No live-money test, real broker mutation, VPS deployment or native runtime claim.
+
+## Historical evidence integration
+
+New typed market decisions capture real broker quotes, candles, account, positions/orders and the same canonical health assessments. Server freshness/missing-data gates force WAIT; records never grant execution authority. Existing durable events and effect receipts preserve an immutable logical decision without a new execution journal or migration. Read/history/compare tools and owner API replay stored evidence, not current prices; summaries are bounded in Agent context.
+
+Simulation/PostgreSQL checks passed for exact forex/metal/index/crypto symbols and multiple frames, idempotent identity/intent conflict, stale/missing data, historic price immutability, material deltas, specialist/owner isolation, retained records after connection deletion, and actual AgentRuntime → global router → tool → gated result → chat.
+
+This is a partial foundation for specifications 08/09/11/16. It does not yet supply thesis lifecycle, automatic capture of every trade/management decision, collaboration fusion, shadow execution or performance intelligence.
 
 ## Remaining implementation, not external blockers
 
@@ -52,4 +60,4 @@ Physical Android voice/keyboard/OS-authentication acceptance requires a device/e
 
 ## Next integration point
 
-Finish retained regressions and persist logical integration commits. Then implement the shared decision/evidence/thesis capability once, consumed by opportunity memory, pre-trade revalidation, replay, shadow/performance and attention. Preserve current controls, approval authority, exact broker symbols and no-blind-retry journal semantics throughout.
+Finish the evidence build/browser checks and commit this vertical capability. Then extend the same decision/evidence foundation with thesis identity/lifecycle and pre-trade confirmation linkage before opportunity memory, shadow/performance and attention. Preserve current controls, approval authority, exact broker symbols and no-blind-retry journal semantics throughout.
