@@ -2,41 +2,54 @@
 
 ## Current wave
 
-Wave 1: shared foundations and safe vertical integration. Branch `feat/coherent-agent-foundations`, audited base `895eaa8`. All 18 supplied originals copied byte-for-byte, including 03 activation extension; root read every source before foundation design. Specs are capability requirements, not a numeric task queue.
+2026-10-15: waves 1 and 2 integrated on `feat/coherent-agent-foundations`, audited base `895eaa8`. All 18 original references remain intact. This is **not completion of the full program**. Source-section matrix distinguishes partial integration from full acceptance.
 
 ## Active workstreams
 
-- Root: explicit Personal scope, idempotent bootstrap, schema, timeline anchor/inbox contract, cross-workstream registration and docs.
-- Skills: validated selective runtime, immutable policy split, provenance diagnostics and legacy compatibility.
-- Chat: shared chronological timeline, mobile scroll/loading/preview and guarded voice initialization.
-- Market: canonical health assessment, stale-input watch suspension and recovery.
-- Tasks: extend tickets/runs, separate same-agent work and conversation lanes, safe control/status/checkpoints.
-- Execution: immediate pre-submit revalidation, account serialization, typed quality/exposure.
+Root owns integration after the scoped parallel foundation work: identity/skills; task/work lanes; collaboration/mentions; market integrity/detectors; financial revalidation/manual broker observations; shared chat/live state. Shared schema and ToolLoop changes have one integration owner. No parallel agent is currently executing.
 
-## Completed foundations
+## Integrated foundations
 
-- Existing primitives audited: Agent bindings, leased Runs/checkpoints/steering, ticket work threads, peer/outcome receipts, Gateway, market snapshots/wake receipts, goals/decisions, approvals and journal.
-- All 18 specifications preserved and indexed. No source document discarded or summarized away.
+- Personal identity bootstrapped idempotently; specialist exact-symbol authority preserved.
+- Selective validated skills, immutable constitution, packaged playbooks, bounded provenance diagnostics and validated installation API.
+- Ticket-based tasks and same-Agent work threads; conversation capacity; cooperative controls; step completion references actual persisted successful tool results.
+- Canonical inbox and shared timeline with durable approval anchors; reconnect/loading/scroll improvements and native voice admission guards.
+- Canonical quote/candle/account health; suspended/recovered watches; versioned deterministic level/zone/trendline/candle/composite detectors, expiry, hysteresis and confirmation lifecycle.
+- Durable collaboration, stable mentions, actual peer records and outcome return; session-only `@all`.
+- Serialized final execution revalidation, measured exposure/quality; stale management approvals invalidated after material owner changes.
+- Broker recovery and manual-position/order observations; read-only background analysis in internal work threads, actual activity retrieval, deduplicated result return to Personal conversation.
+- One derived live-state projection consumed by Agent context, voice, API, Web and Mobile. Speech interruption does not cancel financial/background work.
 
-## Blockers
+## Commits already recorded
 
-- No specification files missing.
-- Physical Android voice crash reproduction/logcat and OS authentication need an available Android runtime. Do not certify from TypeScript/browser checks.
-- Official speech/order-flow/depth sources must report unavailable where actual feed lacks them; no fabricated evidence.
-- Production deployment is outside this branch-only implementation task.
+`0c88299` references/graph; `b6ad9a5` health; `0e1cc27` execution quality; `864aa8c` tasks; `1146d30` skills; `8a433ef` identity/timeline schema. Further integration changes are undergoing verification before logical commits.
 
-## Resolved dependencies
+## Migrations
 
-One HealthSnapshot; explicit Agent role (no wildcard); ticket-based task identity; one approval sequence-anchor contract; one shared chronological TS projector. ToolLoop integration has sequenced ownership. Root alone changes schema/migrations.
+0018 identity/timeline and steering uniqueness; 0019 collaboration/mentions; 0020 material broker snapshot on approvals; 0021 explicit internal work-thread purpose. Applied to disposable PostgreSQL only; no production migration/deployment in this task.
 
-## Remaining dependencies
+## Checks completed
 
-Task/health/identity foundations → collaboration/mention identity, evidence/thesis, manual broker diffs, attention, Super Bot authorization, shadow/performance, replay and UI live projection. None marked complete merely because a related primitive exists.
+- Build: `bash scripts/build.sh`, including Python checks, seven client packages and Expo Android/iOS/Web exports.
+- Python: 90 pytest cases at the earlier integration checkpoint, including real PostgreSQL voice/skills tests; additional manual-activity/dynamic-watch/task cases integrated since then.
+- Skills: 29 focused cases and authenticated PostgreSQL installation checks.
+- Task state: five SQLite cases; first four also exercised against PostgreSQL. Latest step-evidence case still needs the PostgreSQL variant.
+- Node: 12 shared timeline/native readiness/transport tests. OTA checker is a separate existing suite and is not included in this count.
+- Browser: 18 Web and six Expo Web tests. These do not certify native Android behavior.
+- PostgreSQL integration: streaming, clients, binding, collaboration, trading, approvals, pending orders, execution quality, account recovery, goals, market health/runtime/dynamic watches, chart streaming/history passed in isolated databases. Original MetaApi SDK recovery suite preserved and passed separately.
+- Latest account work-lane test passed: actual manual ticket read, observe-only authority, isolated work thread, one returned conversation result, owner SL intervention, reconnect and deduplication.
+- Ruff passes. Latest Pyright/client checks and retained regression rerun are in progress after work-lane integration; earlier pass does not stand in for them.
 
-## Checks
+No live-money test, real broker mutation, VPS deployment or native runtime claim.
 
-No new-code checks completed yet. Existing baseline source was pulled from main; prior test results are not counted as current verification. No live-money or production mutation tests.
+## Remaining implementation, not external blockers
+
+Versioned decision/evidence snapshots and opportunity/thesis lifecycle; shadow lifecycle/performance; attention policy/coalescing; measured intermarket relationships; advanced market engines; Super Bot proposal/trusted device authorization; collaboration evidence fusion/fresh final market validation; full task retry/recovery policy; dependent UI and end-to-end acceptance. None is silently deferred or marked complete.
+
+## Concrete blockers
+
+Physical Android voice/keyboard/OS-authentication acceptance requires a device/emulator (no attached device or KVM here). Real order-flow/depth/official speech sources require actual supported feeds; unavailable evidence stays unknown. Production deployment is outside the branch-only instruction.
 
 ## Next integration point
 
-Integrate wave-1 scoped commits; migrate disposable PostgreSQL; test scope/approval sequencing/task concurrency/watch health/pre-submit gating; run Ruff/Pyright/client checks, update requirement-level statuses with actual test evidence before wave 2.
+Finish retained regressions and persist logical integration commits. Then implement the shared decision/evidence/thesis capability once, consumed by opportunity memory, pre-trade revalidation, replay, shadow/performance and attention. Preserve current controls, approval authority, exact broker symbols and no-blind-retry journal semantics throughout.

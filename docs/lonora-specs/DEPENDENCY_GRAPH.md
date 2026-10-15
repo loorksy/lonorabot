@@ -65,3 +65,9 @@ Within each wave smaller vertical commits are integrated and tested. No competin
 - 03 autonomy versus approval/device rules: preparation cannot grant authority. No activation without trusted owner authorization; all financial controls remain below model.
 - 03 monitoring versus 13/17 degraded data: health gate precedes confirmation and execution; recovery reconciles before resuming.
 - 06 collaboration versus permissions: evidence can cross sessions, execution authority cannot.
+
+## Integration checkpoint (2026-10-15)
+
+Identity, skills, task lanes, canonical chat, health and final execution foundations are integrated. Collaboration/mentions, deterministic detector transitions and manual broker recovery now consume them. `ThreadRow.purpose` excludes internal work from the public inbox without a new conversation engine. Broker activity reads use existing durable events; returns use existing outcome receipts. Approval broker snapshots protect material owner changes, including SL/TP and volume.
+
+Next shared contract is historical decision/evidence plus thesis identity, before shadow/performance, explanation replay, attention and Super Bot. These consumers must not each invent their own evidence or authorization records. Full acceptance of these later capabilities remains open.

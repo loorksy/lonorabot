@@ -770,6 +770,8 @@ jobs:
           .venv/bin/python tests/check_goals.py
           .venv/bin/python tests/check_agent_market.py
 
+      - name: Verify coherent shared foundations in isolated PostgreSQL databases
+        run: .venv/bin/python tests/run_foundation_checks.py --isolated-databases
       - name: Verify native sessions and concurrent persistent conversations
         run: .venv/bin/python tests/check_clients.py
       - name: Verify durable reply streams and idempotent peer communication
@@ -784,7 +786,7 @@ jobs:
       - name: Verify signed mobile OTA service and safe client update lifecycle
         run: |
           .venv/bin/python -m pytest tests/test_mobile_updates.py -q
-          pnpm exec tsx --test tests/mobile/ota-checker.test.ts tests/mobile/voice-transport.test.ts
+          pnpm exec tsx --test tests/mobile/ota-checker.test.ts tests/mobile/voice-transport.test.ts tests/mobile/voice-readiness.test.ts tests/mobile/conversation-timeline.test.ts
 
       - name: Verify GPT-Live admission and delegation with explicit API fixtures
         run: .venv/bin/python -m pytest tests/voice -q
