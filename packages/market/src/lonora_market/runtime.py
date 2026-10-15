@@ -11,6 +11,7 @@ from uuid import uuid4
 from lonora_adapters.brokers.base import BrokerManager
 from lonora_contracts.domain import utcnow
 from lonora_contracts.market import Candle, Instrument, Quote
+from lonora_contracts.market_health import HealthSnapshot
 from lonora_core.chart_controller import validate_timeframe
 from lonora_core.error_logging import safe_exception_message
 from lonora_core.trading_run_market import require_exact_symbol
@@ -23,6 +24,7 @@ from sqlalchemy import select
 
 from .candle_store import merge_candle, merge_history
 from .candles import validate_candle_series
+from .health import assess_candles, assess_quote, record_market_health, timeframe_age_seconds
 
 logger = logging.getLogger(__name__)
 
@@ -169,6 +171,25 @@ class MarketRuntime:
                 broker = await self.brokers.get(self.owner_id, connection_id)
                 async for quote in broker.stream_quotes(symbol):
                     require_exact_symbol(symbol, quote.symbol)
+                    health = assess_quote(
+                        quote,
+                        account_id=connection_id,
+                        symbol=symbol,
+                        now=utcnow(),
+                        maximum_age_seconds=30,
+                        received_at=utcnow(),
+                        maximum_receive_age_seconds=30,
+                    )
+                    await record_market_health(
+                        self.db,
+                        self.owner_id,
+                        health,
+                        expected_version=version,
+                        stream_owner=self.identity,
+                    )
+                    if not health.healthy:
+                        # Keep the last good observation; do not confirm watches from old data.
+                        continue
                     accepted = await self.store(
                         connection_id,
                         symbol,
@@ -212,6 +233,22 @@ class MarketRuntime:
                     type(error).__name__,
                     safe_exception_message(error),
                 )
+                await record_market_health(
+                    self.db,
+                    self.owner_id,
+                    HealthSnapshot(
+                        state="unavailable",
+                        reason_code=error.code
+                        if isinstance(error, LonoraError)
+                        else "market_stream_unavailable",
+                        observed_at=utcnow(),
+                        account_id=connection_id,
+                        symbol=symbol,
+                        resource="quote",
+                    ),
+                    expected_version=version,
+                    stream_owner=self.identity,
+                )
                 failures += 1
             await asyncio.sleep(min(30, 2 ** min(failures, 5)))
 
@@ -235,6 +272,29 @@ class MarketRuntime:
                             self.identity,
                         )
                     if accepted:
+                        # A broker may correct an older bar. Assess the resulting series,
+                        # not the correction packet's historical timestamp.
+                        payload = await self.cached(connection_id, symbol, timeframe, 60)
+                        health = assess_candles(
+                            [
+                                Candle.model_validate(value)
+                                for value in (payload or {}).get("candles", [])
+                            ],
+                            account_id=connection_id,
+                            symbol=symbol,
+                            timeframe=timeframe,
+                            now=utcnow(),
+                            maximum_age_seconds=timeframe_age_seconds(timeframe),
+                            received_at=utcnow(),
+                            maximum_receive_age_seconds=timeframe_age_seconds(timeframe),
+                        )
+                        await record_market_health(
+                            self.db,
+                            self.owner_id,
+                            health,
+                            expected_version=version,
+                            stream_owner=self.identity,
+                        )
                         await self.notify(connection_id, symbol, timeframe)
                         from .watchers import check_watches
 
@@ -253,6 +313,23 @@ class MarketRuntime:
                     "market_stream_failed error_type=%s message=%s",
                     type(error).__name__,
                     safe_exception_message(error),
+                )
+                await record_market_health(
+                    self.db,
+                    self.owner_id,
+                    HealthSnapshot(
+                        state="unavailable",
+                        reason_code=error.code
+                        if isinstance(error, LonoraError)
+                        else "market_stream_unavailable",
+                        observed_at=utcnow(),
+                        account_id=connection_id,
+                        symbol=symbol,
+                        timeframe=timeframe,
+                        resource="candles",
+                    ),
+                    expected_version=version,
+                    stream_owner=self.identity,
                 )
                 failures += 1
             await asyncio.sleep(min(30, 2 ** min(failures, 5)))

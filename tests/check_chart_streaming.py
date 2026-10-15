@@ -2,7 +2,7 @@
 
 import asyncio
 from collections.abc import AsyncIterator
-from datetime import UTC, datetime, timedelta
+from datetime import timedelta
 from decimal import Decimal
 from typing import Any
 from unittest.mock import patch
@@ -58,9 +58,7 @@ async def main() -> None:
                 {
                     "symbol": symbol,
                     "timeframe": timeframe,
-                    "time": (
-                        datetime(2026, 10, 1, tzinfo=UTC) + timedelta(minutes=i * minutes)
-                    ).isoformat(),
+                    "time": (utcnow() - timedelta(minutes=(59 - i) * minutes)).isoformat(),
                     "open": str(100 + i),
                     "high": str(104 + i),
                     "low": str(99 + i),

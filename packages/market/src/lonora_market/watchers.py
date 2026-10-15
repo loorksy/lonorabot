@@ -7,6 +7,7 @@ from lonora_adapters.market.economic_calendar import EconomicCalendarAdapter
 from lonora_charts.indicators import indicator_series
 from lonora_contracts.domain import utcnow
 from lonora_contracts.market import Candle, Quote
+from lonora_contracts.market_health import HealthSnapshot
 from lonora_contracts.market_watch import Watch
 from lonora_contracts.runs import RunRequest
 from lonora_core.market_watch import condition_met
@@ -27,7 +28,15 @@ from lonora_session.idempotency import request_hash, stable_id
 from sqlalchemy import select
 
 from .broker import broker_market
+from .health import (
+    assess_account,
+    assess_candles,
+    assess_quote,
+    require_healthy,
+    timeframe_age_seconds,
+)
 from .watch_control import watch_can_trigger
+from .watch_health import record_watch_health
 
 
 async def observe(
@@ -67,13 +76,32 @@ async def observe(
     market = await broker_market(brokers, row.owner_id, config.account_id)
     if config.kind == "price":
         quote = await market.quote(config.symbol)
-        return quote.bid, quote.observed_at.isoformat(), {"quote": quote.model_dump(mode="json")}
+        health = assess_quote(
+            quote,
+            account_id=config.account_id,
+            symbol=config.symbol,
+            now=utcnow(),
+            maximum_age_seconds=max(30, config.interval_seconds * 2),
+        )
+        require_healthy(health)
+        return (
+            quote.bid,
+            quote.observed_at.isoformat(),
+            {"quote": quote.model_dump(mode="json"), "health": health.model_dump(mode="json")},
+        )
     if config.kind == "indicator":
         candles = await market.candles(
             config.symbol, config.timeframe, max(100, config.period + 35)
         )
-        if not candles:
-            raise LonoraError("watch_candles_unavailable", 409)
+        health = assess_candles(
+            candles,
+            account_id=config.account_id,
+            symbol=config.symbol,
+            timeframe=config.timeframe,
+            now=utcnow(),
+            maximum_age_seconds=timeframe_age_seconds(config.timeframe),
+        )
+        require_healthy(health)
         series = indicator_series(config.indicator, candles, config.period).get(config.series)
         if not series or series[-1] is None:
             raise LonoraError("watch_indicator_unavailable", 409)
@@ -81,6 +109,7 @@ async def observe(
             Decimal(str(series[-1])),
             candles[-1].time.isoformat(),
             {
+                "health": health.model_dump(mode="json"),
                 "indicator": config.indicator,
                 "series": config.series,
                 "value": series[-1],
@@ -89,8 +118,19 @@ async def observe(
         )
     if config.kind == "account":
         account = await broker.account()
+        health = assess_account(
+            account,
+            account_id=config.account_id,
+            now=utcnow(),
+            maximum_age_seconds=max(30, config.interval_seconds * 2),
+        )
+        require_healthy(health)
         payload = account.model_dump(mode="json")
-        return Decimal(str(payload[config.metric])), request_hash(payload), {"account": payload}
+        return (
+            Decimal(str(payload[config.metric])),
+            request_hash(payload),
+            {"account": payload, "health": health.model_dump(mode="json")},
+        )
     positions = await broker.positions()
     position = next((item for item in positions if item.id == config.position_id), None)
     if position and bound_symbol and position.symbol != bound_symbol:
@@ -122,12 +162,22 @@ async def observe_stream_indicator(
         ):
             raise LonoraError("watch_candles_unavailable", 409)
         candles = [Candle.model_validate(value) for value in snapshot.payload.get("candles", [])]
-    if not candles:
-        raise LonoraError("watch_candles_unavailable", 409)
+    health = assess_candles(
+        candles,
+        account_id=config.account_id,
+        symbol=config.symbol,
+        timeframe=config.timeframe,
+        now=utcnow(),
+        maximum_age_seconds=timeframe_age_seconds(config.timeframe),
+        received_at=snapshot.updated_at,
+        maximum_receive_age_seconds=timeframe_age_seconds(config.timeframe),
+    )
+    require_healthy(health)
     values = indicator_series(config.indicator, candles, config.period).get(config.series)
     if not values or values[-1] is None:
         raise LonoraError("watch_indicator_unavailable", 409)
     metadata = {
+        "health": health.model_dump(mode="json"),
         "indicator": config.indicator,
         "series": config.series,
         "value": values[-1],
@@ -135,7 +185,11 @@ async def observe_stream_indicator(
         "symbol": config.symbol,
         "timeframe": config.timeframe,
     }
-    return Decimal(str(values[-1])), request_hash(metadata), metadata
+    return (
+        Decimal(str(values[-1])),
+        request_hash({key: value for key, value in metadata.items() if key != "health"}),
+        metadata,
+    )
 
 
 async def check_watches(
@@ -202,10 +256,21 @@ async def check_watches(
             continue
         try:
             if price_update:
+                health = assess_quote(
+                    price_update,
+                    account_id=config.account_id,
+                    symbol=config.symbol,
+                    now=now,
+                    maximum_age_seconds=max(30, config.interval_seconds * 2),
+                )
+                require_healthy(health)
                 current, observation, metadata = (
                     price_update.bid,
                     price_update.observed_at.isoformat(),
-                    {"quote": price_update.model_dump(mode="json")},
+                    {
+                        "quote": price_update.model_dump(mode="json"),
+                        "health": health.model_dump(mode="json"),
+                    },
                 )
             elif candle_update:
                 current, observation, metadata = await observe_stream_indicator(
@@ -216,14 +281,24 @@ async def check_watches(
         except LonoraError as error:
             async with db.sessions() as session, session.begin():
                 row = await session.get(MarketWatchRow, original.id, with_for_update=True)
-                if row:
-                    row.state = {
-                        **row.state,
-                        "code": error.code,
-                        "next_check": (
-                            now + timedelta(seconds=config.interval_seconds)
-                        ).isoformat(),
-                    }
+                if row and row.version == original.version and row.payload.get("enabled", True):
+                    previous_health = row.state.get("health", {})
+                    health = HealthSnapshot(
+                        state="stale" if "stale" in error.code else "unavailable",
+                        reason_code=error.code,
+                        observed_at=now,
+                        account_id=config.account_id,
+                        symbol=config.symbol or None,
+                        timeframe=config.timeframe if config.kind == "indicator" else None,
+                        resource="watch",
+                        last_good_at=previous_health.get("last_good_at"),
+                    )
+                    row.state = record_watch_health(
+                        session,
+                        row,
+                        health,
+                        next_check=now + timedelta(seconds=config.interval_seconds),
+                    )
             continue
         async with db.sessions() as session, session.begin():
             row = await session.get(MarketWatchRow, original.id, with_for_update=True)
@@ -240,6 +315,17 @@ async def check_watches(
                 and datetime.fromisoformat(row.state["next_check"]) > now
             ):
                 continue
+            recovering = (
+                bool(row.state.get("health")) and row.state["health"].get("state") != "healthy"
+            )
+            health_data = metadata.get("health")
+            if isinstance(health_data, dict):
+                row.state = record_watch_health(
+                    session,
+                    row,
+                    HealthSnapshot.model_validate(health_data),
+                    next_check=now + timedelta(seconds=config.interval_seconds),
+                )
             quote_data = metadata.get("quote")
             if config.kind == "price" and isinstance(quote_data, dict):
                 previous_time = row.state.get("quote_observed_at")
@@ -249,7 +335,7 @@ async def check_watches(
                     continue
             previous = (
                 Decimal(str(row.state["last_value"]))
-                if row.state.get("last_value") is not None
+                if row.state.get("last_value") is not None and not recovering
                 else None
             )
             last_triggered = (
