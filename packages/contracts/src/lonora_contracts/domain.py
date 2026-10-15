@@ -52,6 +52,7 @@ class ThreadCreate(Contract):
 
 
 class MessageCreate(Contract):
+    collaboration_session_id: str | None = Field(default=None, max_length=36)
     mention_agent_ids: list[str] = Field(default_factory=list[str], max_length=16)
     mention_all: bool = False
     content: str = Field(min_length=1, max_length=30000)
@@ -80,7 +81,7 @@ class Ticket(Contract):
     board_id: str
     title: str = Field(min_length=1, max_length=160)
     description: str = Field(default="", max_length=16000)
-    status: Literal["todo", "working", "waiting", "done", "failed"] = "todo"
+    status: Literal["todo", "working", "waiting", "done", "completed", "failed", "cancelled"] = "todo"
     run_id: str | None = None
 
 

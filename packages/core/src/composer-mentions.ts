@@ -11,8 +11,18 @@ export function mentionCandidates(members: Agent[], query: string): Agent[] {
   );
 }
 
-export type MentionRange = { agent_id: string | null; token: string; start: number; end: number };
-export type MentionAddress = { agent_ids: string[]; all: boolean };
+export type MentionRange = {
+  agent_id: string | null;
+  session_id?: string;
+  token: string;
+  start: number;
+  end: number;
+};
+export type MentionAddress = {
+  agent_ids: string[];
+  all: boolean;
+  collaboration_session_id?: string;
+};
 
 /** Rebase committed identity ranges through one text edit; editing a token uncommits it. */
 export function rebaseMentions(
@@ -45,5 +55,6 @@ export function mentionAddress(text: string, ranges: MentionRange[]): MentionAdd
       ...new Set(valid.flatMap((range) => (range.agent_id ? [range.agent_id] : []))),
     ].slice(0, 16),
     all: valid.some((range) => range.agent_id === null),
+    collaboration_session_id: valid.find((range) => range.agent_id === null)?.session_id,
   };
 }

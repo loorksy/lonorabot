@@ -5,7 +5,7 @@ from typing import Any, cast
 
 from lonora_contracts.domain import ThreadCreate, utcnow
 from lonora_contracts.runs import Lease, RunRequest
-from lonora_contracts.tasks import TaskControl, TaskCreate, TaskState, TaskStepUpdate
+from lonora_contracts.tasks import TaskControl, TaskCreate, TaskState, TaskStatus, TaskStepUpdate
 from lonora_core.user_error import LonoraError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -35,6 +35,14 @@ def task_state(row: TicketRow) -> TaskState:
 
 def save_task(session: AsyncSession, row: TicketRow, state: TaskState) -> None:
     row.state = {**row.state, "task": state.model_dump(mode="json")}
+    row.payload = {
+        **row.payload,
+        "status": {
+            "queued": "todo",
+            "running": "working",
+            "paused": "waiting",
+        }.get(state.status, state.status),
+    }
     row.updated_at = utcnow()
     row.version += 1
     emit(
@@ -45,6 +53,27 @@ def save_task(session: AsyncSession, row: TicketRow, state: TaskState) -> None:
         thread_id=state.origin_thread_id,
         payload={"id": row.id, "version": row.version, "status": state.status},
     )
+
+
+def finish_task(session: AsyncSession, row: TicketRow, status: TaskStatus) -> None:
+    """Project a terminal attempt without reviving cancelled durable work.
+
+    Workers return outcomes asynchronously. A completed/failed attempt arriving
+    after an owner cancellation must not replace the owner's durable decision.
+    """
+    if status not in {"completed", "failed", "cancelled"}:
+        raise LonoraError("task_terminal_status_required", 409)
+    state = task_state(row)
+    if state.status in {"completed", "failed", "cancelled"}:
+        # Repair older contradictory projections without changing terminal truth.
+        if row.payload.get("status") != state.status:
+            save_task(session, row, state)
+        return
+    if state.control_requested == "cancel":
+        status = "cancelled"
+    state.status, state.phase, state.control_requested = status, status, None
+    state.waiting_reason = None
+    save_task(session, row, state)
 
 
 async def create_task(
@@ -89,7 +118,7 @@ async def create_task(
             "board_id": board.id,
             "title": request.title,
             "description": request.description,
-            "status": "working",
+            "status": "todo",
         },
         state={
             "task": TaskState(origin_thread_id=origin_thread_id, steps=request.steps).model_dump(
@@ -153,9 +182,15 @@ async def snapshot(session: AsyncSession, row: TicketRow) -> dict[str, Any]:
         None,
     )
     status = state.status
-    if not active and runs and runs[0].status in {"completed", "failed", "cancelled"}:
+    terminal = state.status in {"completed", "failed", "cancelled"}
+    if (
+        not terminal
+        and not active
+        and runs
+        and runs[0].status in {"completed", "failed", "cancelled"}
+    ):
         status = runs[0].status
-    if active and state.status not in {"paused", "cancelled"}:
+    if active and not terminal and state.status != "paused":
         status = (
             "running"
             if active.status in {"leased", "running"}
@@ -205,9 +240,9 @@ async def snapshot(session: AsyncSession, row: TicketRow) -> dict[str, Any]:
     )
     phase = (
         "executing"
-        if any(tool["active"] for tool in pending_tools.values()) and active
+        if any(tool["active"] for tool in pending_tools.values()) and active and not terminal
         else "thinking"
-        if active and active.status == "running"
+        if active and active.status == "running" and not terminal
         else status
     )
     return {
@@ -222,7 +257,9 @@ async def snapshot(session: AsyncSession, row: TicketRow) -> dict[str, Any]:
         "waiting_reason": ("approval" if approval_pending else "user_input")
         if active and active.status == "waiting_input"
         else state.waiting_reason,
-        "active_tools": [tool["name"] for tool in pending_tools.values() if tool["active"]],
+        "active_tools": [tool["name"] for tool in pending_tools.values() if tool["active"]]
+        if not terminal
+        else [],
         "runs": [
             {
                 "id": run.id,

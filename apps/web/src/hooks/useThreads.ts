@@ -115,6 +115,7 @@ export function useThreads(agentId?: string, threadId?: string) {
         client_nonce: nonce,
         mention_agent_ids: mentions?.agent_ids ?? [],
         mention_all: mentions?.all ?? false,
+        collaboration_session_id: mentions?.collaboration_session_id,
       });
       if (pendingSend.current?.nonce === nonce) pendingSend.current = null;
       refresh();

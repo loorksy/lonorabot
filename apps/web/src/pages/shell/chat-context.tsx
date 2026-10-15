@@ -301,6 +301,7 @@ export function ThreadViewport({
         reply={reply}
         recipientName={conversationName ?? agents.find((agent) => agent.id === agentId)?.name}
         mentionTargets={agents}
+        collaborationSessionId={collaboration?.id}
         mentionAll={Boolean(
           collaboration &&
             !["completed", "cancelled", "expired", "failed"].includes(
@@ -324,6 +325,7 @@ export function Composer({
   reply,
   mentionTargets = [],
   mentionAll = false,
+  collaborationSessionId,
   recipientName,
   onClearReply,
   onSend,
@@ -334,6 +336,7 @@ export function Composer({
   reply: Message | null;
   mentionTargets?: Agent[];
   mentionAll?: boolean;
+  collaborationSessionId?: string;
   recipientName?: string;
   onClearReply: () => void;
   onSend: (
@@ -443,7 +446,13 @@ export function Composer({
     const next = `${text.slice(0, start)}${token} ${text.slice(caret.current)}`;
     committedMentions.current = [
       ...rebaseMentions(text, next, committedMentions.current),
-      { agent_id: agent?.id ?? null, token, start, end: start + token.length },
+      {
+        agent_id: agent?.id ?? null,
+        session_id: agent ? undefined : collaborationSessionId,
+        token,
+        start,
+        end: start + token.length,
+      },
     ];
     caret.current = start + token.length + 1;
     setText(next);

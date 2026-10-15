@@ -10,16 +10,20 @@ import { resources } from "../lib/rpc";
 import { userError } from "../lib/user_error";
 import { useClient } from "../providers/ClientProvider";
 
-const ticketStatuses = ["todo", "working", "waiting", "done", "failed"] as const;
+const ticketStatuses = ["todo", "working", "waiting", "done", "failed", "cancelled"] as const;
 type TicketStatus = (typeof ticketStatuses)[number];
 
 function TicketStatusLabel({ status }: { status: string }) {
-  return status === "done" ? (
+  return status === "done" || status === "completed" ? (
     <Trans>Completed</Trans>
   ) : status === "working" ? (
     <Trans>Working</Trans>
   ) : status === "waiting" ? (
     <Trans>Waiting for your reply</Trans>
+  ) : status === "cancelled" ? (
+    <Trans>Cancelled</Trans>
+  ) : status === "paused" ? (
+    <Trans>Paused</Trans>
   ) : status === "failed" ? (
     <Trans>Failed</Trans>
   ) : (
@@ -178,7 +182,11 @@ export function BoardPage({ agents }: { agents: Agent[] }) {
         ) : (
           <div className="workspace-board-columns" data-testid="board-columns">
             {ticketStatuses.map((status) => {
-              const items = visibleTickets.filter((ticket) => ticket.payload.status === status);
+              const items = visibleTickets.filter(
+                (ticket) =>
+                  (ticket.payload.status === "completed" ? "done" : ticket.payload.status) ===
+                  status,
+              );
               return (
                 <section className="workspace-board-column" key={status}>
                   <h2>
@@ -221,16 +229,24 @@ export function BoardPage({ agents }: { agents: Agent[] }) {
           </div>
         )}
       </div>
-      {selected && (
-        <TicketDialog
-          key={selected === "new" ? "new" : selected.id}
+      {selected && selectedTicket?.state?.task ? (
+        <RuntimeTaskDialog
           ticket={selectedTicket}
-          boards={boards}
-          boardId={board}
-          agents={agents}
           onClose={() => setSelected(null)}
           onSaved={refresh}
         />
+      ) : (
+        selected && (
+          <TicketDialog
+            key={selected === "new" ? "new" : selected.id}
+            ticket={selectedTicket}
+            boards={boards}
+            boardId={board}
+            agents={agents}
+            onClose={() => setSelected(null)}
+            onSaved={refresh}
+          />
+        )
       )}
     </section>
   );
@@ -442,6 +458,97 @@ function TicketDialog({
             </button>
           </div>
         </form>
+      </section>
+    </div>
+  );
+}
+
+function RuntimeTaskDialog({
+  ticket,
+  onClose,
+  onSaved,
+}: {
+  ticket: Resource;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [task, setTask] = useState<{
+    status: string;
+    version: number;
+    can_pause: boolean;
+    can_resume: boolean;
+    can_cancel: boolean;
+  } | null>(null);
+  const [error, setError] = useState<unknown>();
+  const [busy, setBusy] = useState(false);
+  const title = useId();
+  useOverlayHistory(true, onClose);
+  useEffect(() => {
+    let live = true;
+    void api
+      .get<NonNullable<typeof task>>(`/tasks/${ticket.id}`)
+      .then((row) => {
+        if (live) setTask(row);
+      })
+      .catch((cause) => {
+        if (live) setError(cause);
+      });
+    return () => {
+      live = false;
+    };
+  }, [ticket.id, ticket.version]);
+  return (
+    <div className="workspace-dialog-backdrop">
+      <section className="workspace-dialog" role="dialog" aria-modal="true" aria-labelledby={title}>
+        <header className="workspace-dialog-header">
+          <h2 id={title} dir="auto">
+            {String(ticket.payload.title)}
+          </h2>
+          <button type="button" className="workspace-button" onClick={onClose}>
+            <Trans>Close</Trans>
+          </button>
+        </header>
+        {error != null && <p role="alert">{userError(error)}</p>}
+        <p role="status">
+          <TicketStatusLabel status={task?.status ?? String(ticket.payload.status)} />
+        </p>
+        {(["pause", "resume", "cancel"] as const).map(
+          (action) =>
+            task?.[`can_${action}`] && (
+              <button
+                type="button"
+                className="workspace-button"
+                key={action}
+                disabled={busy}
+                onClick={async () => {
+                  setBusy(true);
+                  setError(undefined);
+                  try {
+                    setTask(
+                      await api.post(`/tasks/control`, {
+                        task_id: ticket.id,
+                        action,
+                        expected_version: task.version,
+                      }),
+                    );
+                    onSaved();
+                  } catch (cause) {
+                    setError(cause);
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+              >
+                {action === "pause" ? (
+                  <Trans>Pause</Trans>
+                ) : action === "resume" ? (
+                  <Trans>Resume</Trans>
+                ) : (
+                  <Trans>Cancel</Trans>
+                )}
+              </button>
+            ),
+        )}
       </section>
     </div>
   );

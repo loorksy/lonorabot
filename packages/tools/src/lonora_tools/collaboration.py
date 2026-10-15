@@ -1,3 +1,5 @@
+import hashlib
+import json
 from typing import Any
 
 from lonora_contracts.collaboration import (
@@ -11,8 +13,9 @@ from lonora_core.user_error import LonoraError
 from lonora_db.collaboration import CollaborationRepository, invite
 from lonora_db.events import emit
 from lonora_db.runs import locked_run_thread, require_lease
-from lonora_db.schema import EffectReceiptRow
+from lonora_db.schema import EffectReceiptRow, RunRow
 from lonora_db.transactions import resource_data
+from sqlalchemy import select
 
 from .base import Tool
 from .context import ToolContext
@@ -22,8 +25,11 @@ async def start(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     async with context.db.sessions() as session, session.begin():
         run, thread = await locked_run_thread(session, context.lease)
         key = context.effect_key + ":collaboration"
+        intent = hashlib.sha256(json.dumps(args, sort_keys=True).encode()).hexdigest()
         previous = await session.get(EffectReceiptRow, key)
         if previous:
+            if previous.result.get("intent", intent) != intent:
+                raise LonoraError("collaboration_intent_conflict", 409)
             return resource_data(
                 await CollaborationRepository().get(
                     session, context.owner_id, previous.result["session_id"]
@@ -37,8 +43,11 @@ async def start(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             args["participant_ids"],
             args["subject"],
             message_id=context.call_id,
+            session_id=args.get("session_id"),
         )
-        session.add(EffectReceiptRow(key=key, result={"session_id": result["id"]}))
+        session.add(
+            EffectReceiptRow(key=key, result={"session_id": result["id"], "intent": intent})
+        )
         return result
 
 
@@ -47,7 +56,30 @@ async def inspect(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         row = await CollaborationRepository().get(session, context.owner_id, args["session_id"])
         if row.agent_id != context.agent_id:
             raise LonoraError("collaboration_host_required", 403)
-        return resource_data(row)
+        data = resource_data(row)
+        state = CollaborationState.model_validate(row.state)
+        run = await require_lease(session, context.lease)
+        requested = run.model_metadata.get("collaboration_round_id")
+        round = next(
+            (r for r in state.rounds if r.id == requested),
+            state.rounds[-1] if state.rounds else None,
+        )
+        if round:
+            outcomes = await session.scalars(
+                select(RunRow).where(RunRow.id.in_(round.participant_run_ids))
+            )
+            data["round_outcomes"] = [
+                {
+                    "run_id": r.id,
+                    "agent_id": r.agent_id,
+                    "status": r.status,
+                    "result": (r.result or "")[:2000],
+                    "error_code": r.error_code,
+                    "source_message_id": r.model_metadata.get("collaboration_return_message_id"),
+                }
+                for r in outcomes
+            ]
+        return data
 
 
 async def finish(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:

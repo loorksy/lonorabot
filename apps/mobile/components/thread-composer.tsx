@@ -31,6 +31,7 @@ export function ThreadComposer({
   working = false,
   members = [],
   mentionAll = false,
+  collaborationSessionId,
   reply,
   onCancelReply,
 }: {
@@ -47,6 +48,7 @@ export function ThreadComposer({
   working?: boolean;
   members?: Agent[];
   mentionAll?: boolean;
+  collaborationSessionId?: string;
   reply?: Message | null;
   onCancelReply?: () => void;
 }) {
@@ -92,7 +94,13 @@ export function ThreadComposer({
                 const next = prefix + draft.slice(cursor);
                 committed.current = [
                   ...rebaseMentions(draft, next, committed.current),
-                  { agent_id: agent?.id ?? null, token, start, end: start + token.length },
+                  {
+                    agent_id: agent?.id ?? null,
+                    session_id: agent ? undefined : collaborationSessionId,
+                    token,
+                    start,
+                    end: start + token.length,
+                  },
                 ];
                 onChange(next);
                 setCursor(prefix.length);

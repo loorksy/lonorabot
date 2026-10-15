@@ -61,6 +61,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
   const [groups, setGroups] = useState<Group[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [collaborationActive, setCollaborationActive] = useState(false);
+  const [collaborationSessionId, setCollaborationSessionId] = useState<string>();
   const [approvals, setApprovals] = useState<TradeApproval[]>([]);
   const [runs, setRuns] = useState<Run[]>([]);
   const [draft, setDraft] = useState("");
@@ -90,13 +91,14 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
             api.get<Run[]>(`/runs?thread_id=${encodeURIComponent(id)}`),
             api.get<Artifact[]>(`/artifacts?thread_id=${encodeURIComponent(id)}`),
             api.get<TradeApproval[]>(`/trading/approvals?thread_id=${encodeURIComponent(id)}`),
-            api.get<{ state: { status: string } } | null>(
+            api.get<{ id: string; state: { status: string } } | null>(
               `/threads/${encodeURIComponent(id)}/collaboration`,
             ),
           ],
         );
         if (!stillLive()) return;
         setMessages((old) => mergeMessages(old, nextMessages));
+        setCollaborationSessionId(collaboration?.id);
         setCollaborationActive(
           Boolean(
             collaboration &&
@@ -219,6 +221,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
         client_nonce: receipt.current.nonce,
         mention_agent_ids: mentions?.agent_ids ?? [],
         mention_all: mentions?.all ?? false,
+        collaboration_session_id: mentions?.collaboration_session_id,
       });
       following.current = true;
       setAtEnd(true);
@@ -543,6 +546,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
           draft={draft}
           members={agents}
           mentionAll={collaborationActive}
+          collaborationSessionId={collaborationSessionId}
           reply={reply}
           onCancelReply={() => setReply(null)}
           onChange={setDraft}

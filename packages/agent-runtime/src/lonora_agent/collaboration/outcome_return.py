@@ -47,6 +47,37 @@ async def return_outcome(db: Database, run_id: str) -> None:
         receipt = outcome_receipt(run_id, child.lease_fence)
         if await session.get(EffectReceiptRow, receipt):
             return
+        if child.model_metadata.get("collaboration_synthesis"):
+            from lonora_contracts.collaboration import CollaborationState
+            from lonora_db.schema import CollaborationSessionRow
+
+            row = await session.get(
+                CollaborationSessionRow,
+                child.model_metadata.get("collaboration_session_id", ""),
+                with_for_update=True,
+            )
+            if row and row.agent_id == child.agent_id and row.thread_id == child.thread_id:
+                state = CollaborationState.model_validate(row.state)
+                if (
+                    child.status == "completed"
+                    and state.status not in {"completed", "cancelled"}
+                    and state.rounds
+                    and state.rounds[-1].id == child.model_metadata.get("collaboration_round_id")
+                ):
+                    state.status, state.final_result = "completed", (child.result or "")[:16000]
+                    row.state = state.model_dump(mode="json")
+                    row.version += 1
+                    row.updated_at = utcnow()
+                    emit(
+                        session,
+                        row.owner_id,
+                        "collaboration.completed",
+                        thread_id=row.thread_id,
+                        agent_id=row.agent_id,
+                        payload={"id": row.id, "version": row.version},
+                    )
+            session.add(EffectReceiptRow(key=receipt, result={"returned": True, "synthesis": True}))
+            return
         legacy = await session.get(EffectReceiptRow, "outcome:" + run_id)
         if legacy and "fence" not in legacy.result:
             # Already returned by older releases. Preserve that receipt, then fence later retries.
@@ -58,26 +89,24 @@ async def return_outcome(db: Database, run_id: str) -> None:
                 TicketRow, child.model_metadata.get("ticket_id", ""), with_for_update=True
             )
             if ticket and ticket.agent_id == child.agent_id and ticket.thread_id == child.thread_id:
-                ticket.payload = {
-                    **ticket.payload,
-                    "status": "done" if child.status == "completed" else "failed",
-                }
+                if not ticket.state.get("task"):
+                    ticket.payload = {
+                        **ticket.payload,
+                        "status": "done" if child.status == "completed" else child.status,
+                    }
                 ticket.state = {**ticket.state, "result": child.result}
                 ticket.version += 1
                 if ticket.state.get("task"):
-                    from lonora_contracts.tasks import TaskState
-                    from lonora_db.tasks import save_task
+                    from typing import Literal
 
-                    task = TaskState.model_validate(ticket.state["task"])
-                    task.status = (
-                        "completed"
-                        if child.status == "completed"
-                        else "cancelled"
-                        if child.status == "cancelled"
-                        else "failed"
+                    from lonora_db.tasks import finish_task, task_state
+
+                    finish_task(
+                        session,
+                        ticket,
+                        cast(Literal["completed", "failed", "cancelled"], child.status),
                     )
-                    task.phase = task.status
-                    save_task(session, ticket, task)
+                    task = task_state(ticket)
                     origin = await session.get(
                         ThreadRow, task.origin_thread_id, with_for_update=True
                     )
@@ -163,7 +192,11 @@ async def return_outcome(db: Database, run_id: str) -> None:
                 session.add(SteeringRow(run_id=parent.id, message_id=message.id))
                 if parent.status == "waiting_input":
                     parent.status = "queued"
-            elif parent.status == "completed" and child.status != "cancelled":
+            elif (
+                parent.status == "completed"
+                and child.status != "cancelled"
+                and not child.model_metadata.get("collaboration_session_id")
+            ):
                 await create_run(
                     session,
                     thread.owner_id,
@@ -171,13 +204,23 @@ async def return_outcome(db: Database, run_id: str) -> None:
                         thread_id=thread.id,
                         agent_id=parent.agent_id,
                         trigger="follow_up",
+                        parent_run_id=parent.id,
                         prompt="Use the returned peer outcome to complete the owner's request.",
                         metadata={"depth": parent.model_metadata.get("depth", 0)},
                     ),
                 )
         from lonora_db.collaboration import record_outcome
 
+        if returned_message:
+            child.model_metadata = {
+                **child.model_metadata,
+                "collaboration_return_message_id": returned_message.id,
+            }
         await record_outcome(session, child, returned_message)
+        if parent and thread and child.model_metadata.get("collaboration_session_id"):
+            from lonora_db.collaboration import schedule_synthesis
+
+            await schedule_synthesis(session, child, parent, thread)
         peer = await session.get(PeerMessageRow, child.id, with_for_update=True)
         if peer:
             prior_ids = peer.payload.get("source_outcome_message_ids", [])

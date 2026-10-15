@@ -100,10 +100,18 @@ async def send_message(
     for mentioned_id in request.mention_agent_ids:
         await owned_agent(session, owner_id, mentioned_id)
     collaboration = None
-    if request.mention_all:
-        from .collaboration import current_session
+    if request.mention_all or request.collaboration_session_id:
+        from .collaboration import CollaborationRepository, current_session
 
-        collaboration = await current_session(session, owner_id, thread_id)
+        collaboration = (
+            await CollaborationRepository().get(session, owner_id, request.collaboration_session_id)
+            if request.collaboration_session_id
+            else await current_session(session, owner_id, thread_id)
+        )
+        if collaboration and (
+            collaboration.thread_id != thread_id or collaboration.agent_id != thread.agent_id
+        ):
+            raise LonoraError("collaboration_thread_mismatch", 409)
         if collaboration is None:
             raise LonoraError("collaboration_session_required", 409)
     reply = None
@@ -120,10 +128,13 @@ async def send_message(
         thread_id=thread_id,
         seq=thread.next_seq,
         role="user",
-        **request.model_dump(exclude={"client_nonce", "mention_agent_ids", "mention_all"}),
+        **request.model_dump(
+            exclude={"client_nonce", "mention_agent_ids", "mention_all", "collaboration_session_id"}
+        ),
         mentions={
             "agent_ids": list(dict.fromkeys(request.mention_agent_ids)),
             "all": request.mention_all,
+            "session_id": collaboration.id if collaboration else None,
         },
         client_nonce=request.client_nonce,
     )
@@ -233,6 +244,7 @@ async def send_message(
                 participant_ids,
                 request.content,
                 message_id=message.id,
+                session_id=collaboration.id if collaboration else None,
             )
     session.add(EffectReceiptRow(key="message:" + message.id, result={"run_ids": run_ids}))
     emit(session, owner_id, "message.created", thread_id=thread_id, payload=message_data(message))

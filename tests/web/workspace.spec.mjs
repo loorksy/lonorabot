@@ -504,3 +504,40 @@ test("financial approval buttons persist decisions and display broker receipts a
     fixture({ ...data, action: "cleanup" });
   }
 });
+
+test("cancelled durable task stays cancelled on the board after reload and has no generic edit/run bypass", async ({
+  page,
+  workspace,
+}) => {
+  const { agent, prefix, post, remember } = workspace;
+  const thread = await post(`/agents/${agent.id}/conversation`, {});
+  const task = await post(`/tasks?agent_id=${agent.id}&thread_id=${thread.id}`, {
+    title: `${prefix} cancelled durable work`,
+  });
+  const details = await (await page.request.get(`/api/tickets/${task.id}`)).json();
+  remember("tickets", { id: task.id });
+  remember("boards", { id: details.payload.board_id });
+  const stopped = await post("/tasks/control", {
+    task_id: task.id,
+    action: "cancel",
+    expected_version: task.version,
+  });
+  expect(stopped.status).toBe("cancelled");
+  await page.goto("/app/board");
+  await page
+    .getByRole("combobox", { name: "Board", exact: true })
+    .selectOption(details.payload.board_id);
+  const column = page
+    .locator(".workspace-board-column")
+    .filter({ has: page.getByRole("heading", { name: /Cancelled/ }) });
+  await expect(column.getByTestId(`board-card-${task.id}`)).toBeVisible();
+  await page.reload();
+  await page
+    .getByRole("combobox", { name: "Board", exact: true })
+    .selectOption(details.payload.board_id);
+  await page.getByTestId(`board-card-${task.id}`).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByRole("status")).toHaveText("Cancelled");
+  await expect(dialog.getByRole("button", { name: "Save", exact: true })).toHaveCount(0);
+  await expect(dialog.getByRole("button", { name: "Run task", exact: true })).toHaveCount(0);
+});
