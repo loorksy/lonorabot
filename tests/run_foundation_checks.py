@@ -23,6 +23,7 @@ CHECKS = (
     "check_dynamic_watches.py",
     "check_execution_quality.py",
     "check_account_recovery.py",
+    "check_decision_replay.py",
 )
 
 

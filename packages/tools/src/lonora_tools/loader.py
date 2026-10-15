@@ -16,6 +16,7 @@ MODULES = (
     "subagent",
     "market",
     "market_watch",
+    "trading_decision",
     "chart",
     "chart_state",
     "chart_indicator",

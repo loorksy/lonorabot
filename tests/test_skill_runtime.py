@@ -282,6 +282,7 @@ async def test_actual_context_builder_resolver_and_fenced_diagnostics(
         "scratchpad_context",
         "reply_context",
         "goal_context",
+        "decision_context",
         "routing_frame",
     ):
         monkeypatch.setattr(builder, name, AsyncMock(return_value=""))
