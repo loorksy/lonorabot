@@ -43,6 +43,33 @@ from .watch_health import record_watch_health
 from .watch_lifecycle import advance_watch
 
 
+def source_observation_time(config: Watch, metadata: dict[str, Any]) -> datetime:
+    """Resolve evidence time, never the time a worker happened to process it."""
+    observation = metadata.get("observation")
+    if isinstance(observation, dict):
+        return Observation.model_validate(observation).observed_at
+    for name in ("quote", "account"):
+        source = metadata.get(name)
+        if isinstance(source, dict):
+            timestamp = cast(dict[str, Any], source).get("observed_at")
+            if isinstance(timestamp, str):
+                return datetime.fromisoformat(timestamp)
+    if config.kind == "calendar":
+        # A batch is only as fresh as its oldest contributing event.
+        return min(
+            min(datetime.fromisoformat(event[key]) for key in ("scheduled_at", "observed_at"))
+            for event in metadata["events"]
+        )
+    if config.kind == "indicator":
+        opened = datetime.fromisoformat(metadata["time"])
+        # The indicator includes the current live bar. Its opening time is the
+        # only source time carried by Candle; do not fabricate a later update.
+        return opened
+    if metadata.get("observed_at"):
+        return datetime.fromisoformat(metadata["observed_at"])
+    raise LonoraError("watch_observation_timestamp_unavailable", 409)
+
+
 async def observe_dynamic(
     db: Database,
     brokers: BrokerManager,
@@ -213,7 +240,17 @@ async def observe(
         if config.condition in {"opened", "closed"}
         else Decimal(str(payload.get(config.metric, 0)))
     )
-    return current, request_hash(payload), {"position": payload, "position_id": config.position_id}
+    return (
+        current,
+        request_hash(payload),
+        {
+            "position": payload,
+            "position_id": config.position_id,
+            # Positions have no upstream timestamp in the broker-neutral contract.
+            # This is an explicit completed broker read, not a cached market tick.
+            "observed_at": utcnow().isoformat(),
+        },
+    )
 
 
 async def observe_stream_indicator(
@@ -405,6 +442,9 @@ async def check_watches(
                         next_check=now + timedelta(seconds=config.interval_seconds),
                     )
             continue
+        # Account for time spent awaiting the broker before checking TTL. This
+        # remains processing time; evidence time is resolved independently below.
+        now = utcnow()
         async with db.sessions() as session, session.begin():
             row = await session.get(MarketWatchRow, original.id, with_for_update=True)
             if (
@@ -419,6 +459,12 @@ async def check_watches(
                 and row.state.get("next_check")
                 and datetime.fromisoformat(row.state["next_check"]) > now
             ):
+                continue
+            if config.kind == "calendar" and not metadata.get("events"):
+                continue
+            evidence_at = source_observation_time(config, metadata)
+            previous_source = row.state.get("lifecycle_source_at")
+            if previous_source and evidence_at < datetime.fromisoformat(previous_source):
                 continue
             recovering = (
                 bool(row.state.get("health")) and row.state["health"].get("state") != "healthy"
@@ -463,7 +509,12 @@ async def check_watches(
             )
             previous_lifecycle = state.get("lifecycle", "pending")
             state, confirmed = advance_watch(
-                config, state, matched=matched, observation_id=observation, observed_at=now, now=now
+                config,
+                state,
+                matched=matched,
+                observation_id=observation,
+                observed_at=evidence_at,
+                now=now,
             )
             if isinstance(metadata.get("observation"), dict):
                 state["observation"] = metadata["observation"]

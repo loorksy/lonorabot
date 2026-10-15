@@ -46,6 +46,13 @@ def advance_watch(
             "candidate_count": 0,
             "candidate_since": None,
         }, False
+    previous_source = result.get("lifecycle_source_at")
+    if observed_at > now or (
+        previous_source and observed_at < datetime.fromisoformat(previous_source)
+    ):
+        # Replayed/out-of-order evidence cannot replace newer durable state.
+        # Future evidence cannot make a confirmation actionable before its time.
+        return result, False
     if not matched:
         result.update(
             lifecycle="invalidated" if previous == "confirmed" else "pending",
@@ -54,10 +61,13 @@ def advance_watch(
         )
         result.pop("confirmation_valid_until", None)
     else:
-        distinct = result.get("lifecycle_observation_id") != observation_id
+        distinct = result.get("lifecycle_observation_id") != observation_id and (
+            not previous_source or observed_at >= datetime.fromisoformat(previous_source)
+        )
         count = int(result.get("candidate_count", 0)) + int(distinct)
-        since = result.get("candidate_since") or now.isoformat()
-        elapsed = (now - datetime.fromisoformat(since)).total_seconds()
+        since = result.get("candidate_since") or observed_at.isoformat()
+        # Queueing delays and repeated polling do not satisfy debounce.
+        elapsed = (observed_at - datetime.fromisoformat(since)).total_seconds()
         confirmed = count >= config.required_observations and elapsed >= config.debounce_seconds
         result.update(
             lifecycle="confirmed" if confirmed else "forming",
@@ -76,6 +86,7 @@ def advance_watch(
         ):
             result.update(lifecycle="expired", lifecycle_reason="watch_confirmation_expired")
     result["lifecycle_observation_id"] = observation_id
+    result["lifecycle_source_at"] = observed_at.isoformat()
     if result["lifecycle"] != previous:
         result["lifecycle_updated_at"] = now.isoformat()
     return result, result["lifecycle"] == "confirmed"

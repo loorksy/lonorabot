@@ -101,7 +101,11 @@ def evaluate_detector(
             symbol,
             timeframe,
             "composite",
-            max(child.observed_at for child in children),
+            # Composite evidence cannot renew an old required component merely
+            # because another input arrived later. ANY needs only one proof.
+            max(child.observed_at for child in children if child.state == "confirmed")
+            if definition.kind == "any" and confirmed
+            else min(child.observed_at for child in children),
             state,
             {
                 "operator": definition.kind,
@@ -257,7 +261,8 @@ def _candle(
     )
     from .watch_lifecycle import candle_close_time
 
-    closed = candle_close_time(current.time, timeframe) <= observed_at
+    close_at = candle_close_time(current.time, timeframe)
+    closed = close_at <= observed_at
     if matched and not closed:
         state = "forming"
     return _observation(
@@ -265,12 +270,14 @@ def _candle(
         symbol,
         timeframe,
         "broker_ohlc",
-        current.time,
+        close_at if closed else current.time,
         state,
         {
             "pattern": definition.pattern,
             "matched": matched if closed else None,
             "is_closed": closed,
+            "open_time": current.time.isoformat(),
+            "close_time": close_at.isoformat(),
             "body": str(body),
             "range": str(extent),
             "upper_wick": str(upper),
