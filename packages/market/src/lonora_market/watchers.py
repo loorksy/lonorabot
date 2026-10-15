@@ -8,6 +8,7 @@ from lonora_charts.indicators import indicator_series
 from lonora_contracts.domain import utcnow
 from lonora_contracts.market import Candle, Quote
 from lonora_contracts.market_health import HealthSnapshot
+from lonora_contracts.market_intelligence import Observation
 from lonora_contracts.market_watch import Watch
 from lonora_contracts.runs import RunRequest
 from lonora_core.market_watch import condition_met
@@ -15,6 +16,7 @@ from lonora_core.user_error import LonoraError
 from lonora_db.agent_binding import agent_binding, assert_payload_binding
 from lonora_db.broker_sessions import BrokerSessionRepository
 from lonora_db.client import Database
+from lonora_db.events import emit
 from lonora_db.market_snapshots import snapshot_id
 from lonora_db.runs import create_run
 from lonora_db.schema import (
@@ -28,6 +30,7 @@ from lonora_session.idempotency import request_hash, stable_id
 from sqlalchemy import select
 
 from .broker import broker_market
+from .detectors import detector_inputs, evaluate_detector
 from .health import (
     assess_account,
     assess_candles,
@@ -37,6 +40,71 @@ from .health import (
 )
 from .watch_control import watch_can_trigger
 from .watch_health import record_watch_health
+from .watch_lifecycle import advance_watch
+
+
+async def observe_dynamic(
+    db: Database,
+    brokers: BrokerManager,
+    row: MarketWatchRow,
+    config: Watch,
+    price_update: Quote | None = None,
+) -> tuple[Decimal, str, dict[str, Any]]:
+    assert config.detector is not None
+    market = await broker_market(brokers, row.owner_id, config.account_id)
+    inputs = detector_inputs(config.detector)
+    now = utcnow()
+    quote: Quote | None = None
+    candles: list[Candle] = []
+    health = HealthSnapshot(
+        state="healthy",
+        reason_code="market_data_healthy",
+        observed_at=now,
+        account_id=config.account_id,
+        symbol=config.symbol,
+        timeframe=config.timeframe,
+        resource="watch",
+    )
+    if "quote" in inputs:
+        quote = price_update or await market.quote(config.symbol)
+        health = assess_quote(
+            quote,
+            account_id=config.account_id,
+            symbol=config.symbol,
+            now=now,
+            maximum_age_seconds=max(30, config.interval_seconds * 2),
+        )
+        require_healthy(health)
+    if "candles" in inputs:
+        candles = await market.candles(config.symbol, config.timeframe, 100)
+        health = assess_candles(
+            candles,
+            account_id=config.account_id,
+            symbol=config.symbol,
+            timeframe=config.timeframe,
+            now=now,
+            maximum_age_seconds=timeframe_age_seconds(config.timeframe),
+        )
+        require_healthy(health)
+    raw_previous = row.state.get("observation")
+    previous = Observation.model_validate(raw_previous) if isinstance(raw_previous, dict) else None
+    observation = evaluate_detector(
+        config.detector,
+        symbol=config.symbol,
+        timeframe=config.timeframe,
+        quote=quote,
+        candles=candles,
+        observed_at=now,
+        previous=previous,
+    )
+    return (
+        Decimal(int(observation.state == "confirmed")),
+        observation.id,
+        {
+            "observation": observation.model_dump(mode="json"),
+            "health": health.model_dump(mode="json"),
+        },
+    )
 
 
 async def observe(
@@ -74,6 +142,8 @@ async def observe(
         )
     broker = await brokers.get(row.owner_id, config.account_id)
     market = await broker_market(brokers, row.owner_id, config.account_id)
+    if config.kind == "dynamic":
+        return await observe_dynamic(db, brokers, row, config)
     if config.kind == "price":
         quote = await market.quote(config.symbol)
         health = assess_quote(
@@ -211,13 +281,13 @@ async def check_watches(
             query = query.where(MarketWatchRow.owner_id == owner_id)
         if price_update:
             query = query.where(
-                MarketWatchRow.payload["kind"].as_string() == "price",
+                MarketWatchRow.payload["kind"].as_string().in_(["price", "dynamic"]),
                 MarketWatchRow.payload["account_id"].as_string() == connection_id,
                 MarketWatchRow.payload["symbol"].as_string() == price_update.symbol,
             )
         if candle_update:
             query = query.where(
-                MarketWatchRow.payload["kind"].as_string() == "indicator",
+                MarketWatchRow.payload["kind"].as_string().in_(["indicator", "dynamic"]),
                 MarketWatchRow.payload["account_id"].as_string() == connection_id,
                 MarketWatchRow.payload["symbol"].as_string() == candle_update.symbol,
                 MarketWatchRow.payload["timeframe"].as_string() == candle_update.timeframe,
@@ -228,6 +298,31 @@ async def check_watches(
         config = Watch.model_validate(original.payload)
         now = utcnow()
         if not config.enabled or not original.agent_id or not original.thread_id:
+            continue
+        if original.state.get("lifecycle") == "expired":
+            continue
+        if config.expires_at is not None and now >= config.expires_at:
+            async with db.sessions() as session, session.begin():
+                expired = await session.get(MarketWatchRow, original.id, with_for_update=True)
+                if (
+                    expired
+                    and expired.version == original.version
+                    and expired.state.get("lifecycle") != "expired"
+                ):
+                    expired.state = {
+                        **expired.state,
+                        "lifecycle": "expired",
+                        "lifecycle_reason": "watch_expired",
+                        "lifecycle_updated_at": now.isoformat(),
+                    }
+                    emit(
+                        session,
+                        expired.owner_id,
+                        "watch.expired",
+                        agent_id=expired.agent_id,
+                        thread_id=expired.thread_id,
+                        payload={"watch_id": expired.id, "reason_code": "watch_expired"},
+                    )
             continue
         if config.goal_id:
             from lonora_db.trading_goals import owned_goal
@@ -255,7 +350,17 @@ async def check_watches(
         ):
             continue
         try:
-            if price_update:
+            if config.kind == "dynamic":
+                if price_update is not None and config.evaluation_mode in {
+                    "candle_update",
+                    "candle_close",
+                    "scheduled",
+                }:
+                    continue
+                current, observation, metadata = await observe_dynamic(
+                    db, brokers, original, config, price_update
+                )
+            elif price_update:
                 health = assess_quote(
                     price_update,
                     account_id=config.account_id,
@@ -351,7 +456,34 @@ async def check_watches(
             if config.kind == "price":
                 state["quote_observed_at"] = observation
             state.pop("code", None)
-            matched = condition_met(config.condition, config.level, current, previous)
+            matched = (
+                current == 1
+                if config.kind == "dynamic"
+                else condition_met(config.condition, config.level, current, previous)
+            )
+            previous_lifecycle = state.get("lifecycle", "pending")
+            state, confirmed = advance_watch(
+                config, state, matched=matched, observation_id=observation, observed_at=now, now=now
+            )
+            if isinstance(metadata.get("observation"), dict):
+                state["observation"] = metadata["observation"]
+                detector_state = metadata["observation"].get("state")
+                if detector_state == "forming" and state["lifecycle"] == "pending":
+                    state["lifecycle"] = "forming"
+            if previous_lifecycle != state["lifecycle"]:
+                emit(
+                    session,
+                    row.owner_id,
+                    "watch." + state["lifecycle"],
+                    agent_id=row.agent_id,
+                    thread_id=row.thread_id,
+                    payload={
+                        "watch_id": row.id,
+                        "state": state["lifecycle"],
+                        "observation": metadata.get("observation"),
+                    },
+                )
+            matched = confirmed and (config.kind != "dynamic" or previous_lifecycle != "confirmed")
             if matched and watch_can_trigger(
                 config.enabled, last_triggered, config.cooldown_seconds, now
             ):

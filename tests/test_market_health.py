@@ -2,6 +2,7 @@
 
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from typing import Any
 
 import pytest
 from lonora_contracts.account import AccountState
@@ -73,7 +74,7 @@ def test_quote_source_freshness_exact_identity_and_receive_age(symbol: str) -> N
 
 
 def test_quote_unknown_invalid_and_wrong_symbol_are_not_live() -> None:
-    args = dict(account_id="a", symbol="EURUSDm", now=NOW, maximum_age_seconds=30)
+    args: dict[str, Any] = dict(account_id="a", symbol="EURUSDm", now=NOW, maximum_age_seconds=30)
     assert assess_quote(None, **args).state == "unavailable"
     assert assess_quote(quote("EURUSD"), **args).reason_code == "broker_symbol_mismatch"
     impossible = quote().model_copy(update={"ask": Decimal("NaN")})
@@ -92,7 +93,7 @@ def test_quote_unknown_invalid_and_wrong_symbol_are_not_live() -> None:
     ],
 )
 def test_candle_integrity_uses_explicit_cadence(symbol: str, timeframe: str, step: int) -> None:
-    args = dict(
+    args: dict[str, Any] = dict(
         account_id="a",
         symbol=symbol,
         timeframe=timeframe,
