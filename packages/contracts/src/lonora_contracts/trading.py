@@ -12,6 +12,7 @@ class TradingControl(Contract):
 
 
 class TradeRequest(Contract):
+    thesis_id: str | None = Field(default=None, max_length=36)
     account_id: str = Field(min_length=1, max_length=120)
     operation_id: str = Field(default_factory=new_id, min_length=1, max_length=80)
     action: Literal[

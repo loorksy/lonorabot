@@ -49,6 +49,7 @@ ROUTES = (
     "trading",
     "trading_goals",
     "trading_decisions",
+    "opportunities",
     "execution_policy",
     "tasks",
     "collaboration",

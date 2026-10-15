@@ -27,6 +27,7 @@ CHECKS = (
     "check_review_findings.py",
     "check_delegated_scope.py",
     "check_watch_source_time.py",
+    "check_opportunity_runtime.py",
 )
 
 

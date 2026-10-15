@@ -266,6 +266,9 @@ class ExecutionService:
                                 material_state(target) if target else None
                             ):
                                 raise LonoraError("trade_approval_broker_state_changed", 409)
+                from .opportunities import require_entry_thesis
+
+                await require_entry_thesis(session, owner_id, request)
                 if goal:
                     await guard_goal_execution(
                         session, owner_id, goal, request, lease, goal_evidence
@@ -341,6 +344,17 @@ class ExecutionService:
             row = await session.get(TradingJournalRow, request.operation_id)
             assert row is not None
             result = receipt(row)
+        if request.thesis_id:
+            from .opportunities import sync_opportunity_execution
+
+            async with self.db.sessions() as session, session.begin():
+                journal = await session.get(TradingJournalRow, request.operation_id)
+                assert journal is not None
+                try:
+                    await sync_opportunity_execution(session, journal)
+                except LonoraError as error:
+                    if error.code != "opportunity_not_found":
+                        raise
         if cancelled:
             raise asyncio.CancelledError
         return result

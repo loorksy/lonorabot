@@ -7,4 +7,6 @@ def trade_fingerprint(request: TradeRequest) -> str:
     for flag in ("clear_stop_loss", "clear_take_profit"):
         if not payload[flag]:
             payload.pop(flag)
+    if not payload.get("thesis_id"):
+        payload.pop("thesis_id", None)
     return request_hash(payload)

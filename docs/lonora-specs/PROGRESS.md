@@ -82,3 +82,15 @@ Evidence: check_review_findings (four PostgreSQL groups, three participants and 
 Migrations added: 0022 delegated scope/backfill (orphan descendants remain nonfinancial), 0023 task outcome projection repair. No production deployment or main merge.
 
 Next: continue the shared thesis/opportunity/decision capability, then shadow/performance, attention/relationships, remaining collaboration/authorization/task recovery and dependent clients. REMOTE_CI_BLOCKED_EXTERNAL remains distinct from LOCAL_TESTS_PASSING; Android acceptance stays BLOCKED pending actual Android runtime.
+
+## Thesis/opportunity integration
+
+Shared typed opportunity identity and versioned thesis definition now reference the existing immutable decision ledger. One queryable row represents the same scoped setup across wakes; full transition versions/evidence remain in durable events. Confirmation rechecks authoritative source freshness and optional watch confirmation; explicit horizon/decay and watch invalidation/expiry affect actionability independently of SL. Meaningful automatic transitions create one read-only same-Agent work-lane wake and return actual results to the originating conversation.
+
+`TradeRequest.thesis_id` passes through the existing approvals/executor/journal. Final pre-send checks reject stale/contradicted/unconfirmed scope, reserve an entry identity, and verified broker receipts drive acted-on/full-close state. Partial exits do not claim full completion. Pending ambiguous entry reservations stay blocked until reconciliation. Optional absent thesis IDs preserve legacy financial fingerprints and tool operation identities. No new trade executor, market runtime or evidence database.
+
+Migration 0024 adds queryable opportunity scope/status/horizon. Tools/API provide bounded current/history projections and exact historical version retrieval. Agent context contains bounded active thesis pointers rather than rebuilding the setup from chat.
+
+Evidence: check_opportunity_runtime passed for four asset classes/exact suffixes, persistent identity, confirmation/invalidation/history, expiry without SL, source degradation, restart/API state, one deduplicated read-only wake, bounded context, actual approve→entry→partial/full exit and duplicate-entry prevention. Existing check_trade_approvals passed all eight groups. Python suite passed 106; latest Pyright verification is being finalized. No production broker mutations. Broader regime transitions, all-source evidence fusion, shadow/performance and dependent UX remain open; this is not full 01–18 completion.
+
+Next dependency: explicit shadow/live separation in the shared journal and persistent Agent authority, virtual lifecycle against real source data, then reproducible performance dimensions. Shadow outcomes must never enable financial authority.

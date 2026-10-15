@@ -426,3 +426,29 @@ class TradeApprovalRow(Base):
     results: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class TradingOpportunityRow(ResourceRow):
+    __tablename__ = "ln_trading_opportunities"
+    __table_args__ = (
+        UniqueConstraint(
+            "owner_id",
+            "agent_id",
+            "account_id",
+            "symbol",
+            "timeframe",
+            "setup_key",
+            name="ln_opportunity_identity",
+        ),
+        CheckConstraint(
+            "status IN ('forming','confirmed','degraded','invalidated','expired','acted_on','completed')",
+            name="ln_opportunity_status",
+        ),
+    )
+    account_id: Mapped[str] = mapped_column(String(120), index=True)
+    symbol: Mapped[str] = mapped_column(String(80))
+    timeframe: Mapped[str] = mapped_column(String(12))
+    setup_key: Mapped[str] = mapped_column(String(120))
+    status: Mapped[str] = mapped_column(String(24), default="forming", index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    last_validated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

@@ -80,6 +80,9 @@ class Gateway:
                 from lonora_trading.goals import recover_goals
 
                 await recover_goals(self.db)
+                from lonora_trading.opportunities import maintenance_opportunities
+
+                await maintenance_opportunities(self.db, owner.id)
             await asyncio.sleep(10)
 
     async def market_loop(self) -> None:

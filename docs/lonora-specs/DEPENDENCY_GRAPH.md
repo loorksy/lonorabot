@@ -77,3 +77,5 @@ Historical decision snapshots now reuse durable events and effect receipts. Type
 ## Review safety dependencies
 
 Source-time watch confirmation precedes any thesis/execution freshness gate. Explicit delegated identity is enforced below tools, approvals and execution, including Agent and Run ancestry. Collaboration is keyed by original request plus bounded round; one synthesis receipt/identity consumes actual delivered outcomes. Task outcome projection is derived from durable TaskState and cannot be independently edited by generic ticket APIs. These are shared preconditions for the remaining intelligence and authority work.
+
+Opportunity/thesis state now consumes the shared decision ledger and source-time watches, exposes bounded history/context, and supplies a final entry gate to the existing executor. Same-Agent transition wakes reuse work threads, Run dispatch and outcome receipts. Shadow and performance work must reuse this identity/evidence/journal lineage and retain separate execution mode; they must not introduce another broker-mutation route.

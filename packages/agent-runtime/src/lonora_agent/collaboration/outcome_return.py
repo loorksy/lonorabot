@@ -136,7 +136,10 @@ async def return_outcome(db: Database, run_id: str) -> None:
                             payload=message_data(final),
                         )
         returned_message: MessageRow | None = None
-        if child.trigger == "broker_event" and child.model_metadata.get("origin_thread_id"):
+        if (
+            child.trigger == "broker_event"
+            or (child.trigger == "watch" and child.model_metadata.get("opportunity_id"))
+        ) and child.model_metadata.get("origin_thread_id"):
             origin = await session.get(
                 ThreadRow, child.model_metadata["origin_thread_id"], with_for_update=True
             )
@@ -276,6 +279,7 @@ async def return_pending_outcomes(db: Database, limit: int = 20) -> int:
                     or_(
                         RunRow.parent_run_id.is_not(None),
                         RunRow.trigger.in_(["tickets", "broker_event"]),
+                        RunRow.model_metadata["opportunity_id"].as_string().is_not(None),
                     ),
                     ~exists(select(EffectReceiptRow.key).where(EffectReceiptRow.key == receipt)),
                 )

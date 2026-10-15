@@ -488,7 +488,7 @@ function RuntimeTaskDialog({
     void api
       .get<NonNullable<typeof task>>(`/tasks/${ticket.id}`)
       .then((row) => {
-        if (live) setTask(row);
+        if (live && row.version >= ticket.version) setTask(row);
       })
       .catch((cause) => {
         if (live) setError(cause);

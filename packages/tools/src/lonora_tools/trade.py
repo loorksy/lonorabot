@@ -106,7 +106,9 @@ async def approved_execution(
         if gate_only:
             if await user_interrupt_pending(session, context.lease.run_id):
                 raise LonoraError("tool_call_superseded", 409)
-            if row.requests != [r.model_dump(mode="json") for r in requests]:
+            if [trade_fingerprint(TradeRequest.model_validate(item)) for item in row.requests] != [
+                trade_fingerprint(r) for r in requests
+            ]:
                 raise LonoraError("trade_approval_request_changed", 409)
             return {"approved": True, "approval_id": row.id}
 
@@ -175,6 +177,8 @@ async def approved_execution(
 async def execute(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     args = dict(args)
     args.pop("operation_id", None)
+    if args.get("thesis_id") is None:
+        args.pop("thesis_id", None)
     if args.get("symbol") and args.get("account_id"):
         broker = await context.brokers.get(context.owner_id, str(args["account_id"]))
         args["symbol"] = await canonical_broker_symbol(broker, str(args["symbol"]))
