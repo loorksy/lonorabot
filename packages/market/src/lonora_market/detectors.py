@@ -8,11 +8,20 @@ from typing import Any
 
 from lonora_contracts.market import Candle, Quote
 from lonora_contracts.market_intelligence import DetectorDefinition, Observation, ObservationState
+from lonora_contracts.relationships import MarketRelationship
+
+
+def relationship_detectors(definition: DetectorDefinition) -> list[DetectorDefinition]:
+    return ([definition] if definition.kind == "relationship" else []) + [
+        node for child in definition.children for node in relationship_detectors(child)
+    ]
 
 
 def detector_inputs(definition: DetectorDefinition) -> set[str]:
     if definition.children:
         return set[str]().union(*(detector_inputs(child) for child in definition.children))
+    if definition.kind == "relationship":
+        return {"relationships"}
     return {"candles" if definition.kind == "candle" else "quote"}
 
 
@@ -24,6 +33,7 @@ def _observation(
     observed_at: datetime,
     state: ObservationState,
     values: dict[str, Any],
+    valid_until: datetime | None = None,
 ) -> Observation:
     data = dict(
         category="composite" if definition.children else definition.kind,
@@ -36,6 +46,8 @@ def _observation(
         state=state,
         values=values,
     )
+    if valid_until is not None:
+        data["valid_until"] = valid_until.isoformat()
     identity = hashlib.sha256(
         json.dumps(data, sort_keys=True, separators=(",", ":")).encode()
     ).hexdigest()
@@ -51,6 +63,7 @@ def evaluate_detector(
     candles: list[Candle],
     observed_at: datetime,
     previous: Observation | None = None,
+    relationships: dict[str, MarketRelationship] | None = None,
 ) -> Observation:
     """Health must be checked by the caller. Insufficient inputs remain pending.
 
@@ -73,6 +86,7 @@ def evaluate_detector(
                 candles=candles,
                 observed_at=observed_at,
                 previous=previous_children.get(child.id),
+                relationships=relationships,
             )
             for child in definition.children
         ]
@@ -112,6 +126,55 @@ def evaluate_detector(
                 "matched": confirmed,
                 "children": [child.model_dump(mode="json") for child in children],
             },
+            min(
+                (
+                    child.valid_until
+                    for child in children
+                    if child.valid_until is not None
+                    and (definition.kind != "any" or child.state == "confirmed")
+                ),
+                default=None,
+            ),
+        )
+    if definition.kind == "relationship":
+        value = (relationships or {}).get(definition.id)
+        if value is None or not value.available or not value.samples:
+            return _observation(
+                definition,
+                symbol,
+                timeframe,
+                "unavailable",
+                observed_at,
+                "pending",
+                {"missing": ["relationship"]},
+            )
+        matched = value.state in definition.relationship_states
+        return _observation(
+            definition,
+            symbol,
+            timeframe,
+            value.methodology,
+            value.samples[-1].end,
+            "confirmed"
+            if matched
+            else "invalidated"
+            if previous and previous.state == "confirmed"
+            else "pending",
+            {
+                "matched": matched,
+                "symbols": value.symbols,
+                "window": value.window,
+                "state": value.state,
+                "correlation": value.correlation,
+                "baseline_correlation": value.baseline_correlation,
+                "alignment_ratio": value.alignment_ratio,
+                "sample_count": value.sample_count,
+                "baseline_count": value.baseline_count,
+                "source_hashes": value.source_hashes,
+                "causal_claim": False,
+                "execution_authorized": False,
+            },
+            value.valid_until,
         )
     if definition.kind == "candle":
         return _candle(definition, symbol, timeframe, candles, observed_at, previous)

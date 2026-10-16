@@ -41,7 +41,7 @@ def tools() -> list[Tool]:
     return [
         Tool(
             "watch_create",
-            "Persist a server-side price, indicator, position, account or economic-calendar watch that wakes this same agent when its condition is met.",
+            "Persist a server-side price, indicator, position, account, calendar or composite dynamic watch. A dynamic relationship detector compares this exact symbol with related_symbol on the same account, using closed-bar relationship_window evidence and relationship_states. It wakes this same agent for reassessment, never executes a trade directly.",
             Watch,
             create,
         ),

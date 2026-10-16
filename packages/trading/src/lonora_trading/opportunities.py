@@ -122,6 +122,9 @@ async def evidence_state(
                 codes.append("thesis_watch_unconfirmed")
             if watch.state.get("evaluation_status") == "suspended_health":
                 codes.append("thesis_watch_health_unavailable")
+            observation_expiry = watch.state.get("observation", {}).get("valid_until")
+            if observation_expiry and now >= datetime.fromisoformat(observation_expiry):
+                codes.append("thesis_watch_evidence_expired")
             facts["watch"] = {"id": watch.id, "lifecycle": lifecycle, "valid_until": valid_until}
     facts["validation_codes"] = list(dict.fromkeys(codes))
     return facts["validation_codes"], facts

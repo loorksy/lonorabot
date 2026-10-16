@@ -93,6 +93,18 @@ def measure_relationship(
     result.reason_codes = list(dict.fromkeys(h.reason_code for h in result.health if not h.healthy))
     if result.reason_codes:
         return result
+    # Only bars used by the metric identify a repeatable closed-bar observation.
+    # Price changes in a forming bar cannot become new confirmation evidence.
+    result.source_hashes = [
+        hashlib.sha256(
+            "\n".join(
+                bar.model_dump_json()
+                for bar in candles
+                if bar_end(bar.time, params.timeframe) <= now
+            ).encode()
+        ).hexdigest()
+        for candles in series
+    ]
     returns = [_returns(candles, params.timeframe, now) for candles in series]
     aligned = sorted(returns[0].keys() & returns[1].keys())[-params.window * 2 :]
     result.alignment_ratio = len(aligned) / max(1, min(params.window * 2, max(map(len, returns))))

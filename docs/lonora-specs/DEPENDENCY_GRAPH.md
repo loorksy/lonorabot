@@ -91,3 +91,6 @@ Attention now consumes existing committed events, source-time setup evidence, Pe
 
 
 Measured relationships now consume the same broker history/health and canonical bar-close semantics, persist derived evidence in the historical event ledger, and supply optional bounded references to decisions/theses. One eligibility predicate is reused by decisions, final thesis gates and Shadow entries. Future relationship change watches must reuse this calculator and current watch scheduler/receipts; they must not introduce another market monitor or hardcoded correlation matrix.
+
+
+The existing dynamic detector tree and Watch engine now consume relationship calculations directly. Closed-bar evidence identity precedes confirmation count/debounce; source deadlines precede attention and thesis execution gating. Relevant change wakes use existing work Runs and receipts, and recovery never replays the original confirmation as a new signal. Future cluster-risk/advanced intelligence must consume these same measured sources and explicit unavailable states.

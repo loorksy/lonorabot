@@ -43,6 +43,17 @@ class Watch(Contract):
     def validate_source(self) -> "Watch":
         if (self.kind == "dynamic") != (self.detector is not None):
             raise ValueError("watch_dynamic_detector_required")
+        pending = [self.detector] if self.detector else []
+        while pending:
+            node = pending.pop()
+            if node.kind == "relationship" and self.evaluation_mode in {"tick", "candle_update"}:
+                self.evaluation_mode = "scheduled"
+            if (
+                node.kind == "relationship"
+                and (node.related_symbol or "").casefold() == self.symbol.casefold()
+            ):
+                raise ValueError("relationship_requires_distinct_symbols")
+            pending.extend(node.children)
         if self.expires_at is not None and self.expires_at.tzinfo is None:
             raise ValueError("watch_expiry_timezone_required")
         if bool(self.goal_id) != bool(self.step_id):

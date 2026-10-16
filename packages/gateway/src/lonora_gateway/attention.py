@@ -52,7 +52,7 @@ async def validate_watch(db: Database, brokers: BrokerManager, row: MarketWatchR
     ):
         raise LonoraError("attention_setup_not_current", 409)
     async with asyncio.timeout(5):
-        current, _, _ = await observe(db, brokers, row, config)
+        current, _, metadata = await observe(db, brokers, row, config)
     if config.kind == "dynamic":
         valid = current == 1
     elif config.condition in {"changed", "closed", "opened", "due"}:
@@ -83,6 +83,9 @@ async def validate_watch(db: Database, brokers: BrokerManager, row: MarketWatchR
         )
     )
     deadlines = [quote.observed_at + timedelta(seconds=30)]
+    observation_expiry = metadata.get("observation", {}).get("valid_until")
+    if observation_expiry:
+        deadlines.append(datetime.fromisoformat(observation_expiry))
     if expiry:
         deadlines.append(datetime.fromisoformat(expiry))
     if config.expires_at:

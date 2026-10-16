@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Any, cast
@@ -8,8 +9,9 @@ from lonora_charts.indicators import indicator_series
 from lonora_contracts.domain import utcnow
 from lonora_contracts.market import Candle, Quote
 from lonora_contracts.market_health import HealthSnapshot
-from lonora_contracts.market_intelligence import Observation
+from lonora_contracts.market_intelligence import DetectorDefinition, Observation
 from lonora_contracts.market_watch import Watch
+from lonora_contracts.relationships import MarketRelationship, RelationshipRequest
 from lonora_contracts.runs import RunRequest
 from lonora_core.market_watch import condition_met
 from lonora_core.user_error import LonoraError
@@ -30,7 +32,7 @@ from lonora_session.idempotency import request_hash, stable_id
 from sqlalchemy import select
 
 from .broker import broker_market
-from .detectors import detector_inputs, evaluate_detector
+from .detectors import detector_inputs, evaluate_detector, relationship_detectors
 from .health import (
     assess_account,
     assess_candles,
@@ -38,6 +40,7 @@ from .health import (
     require_healthy,
     timeframe_age_seconds,
 )
+from .relationships import measure_relationship, relationship_usable
 from .watch_control import watch_can_trigger
 from .watch_health import record_watch_health
 from .watch_lifecycle import advance_watch
@@ -102,8 +105,11 @@ async def observe_dynamic(
             maximum_age_seconds=max(30, config.interval_seconds * 2),
         )
         require_healthy(health)
-    if "candles" in inputs:
-        candles = await market.candles(config.symbol, config.timeframe, 100)
+    nodes = relationship_detectors(config.detector)
+    relationships: dict[str, MarketRelationship] = {}
+    if "candles" in inputs or nodes:
+        limit = max([100] + [node.relationship_window * 2 + 2 for node in nodes])
+        candles = await market.candles(config.symbol, config.timeframe, limit)
         health = assess_candles(
             candles,
             account_id=config.account_id,
@@ -113,6 +119,49 @@ async def observe_dynamic(
             maximum_age_seconds=timeframe_age_seconds(config.timeframe),
         )
         require_healthy(health)
+    if nodes:
+
+        async def measure(node: DetectorDefinition) -> tuple[str, MarketRelationship]:
+            assert node.related_symbol is not None
+            params = RelationshipRequest(
+                account_id=config.account_id,
+                symbols=[config.symbol, node.related_symbol],
+                timeframe=config.timeframe,
+                window=node.relationship_window,
+            )
+            peer = await market.candles(params.symbols[1], config.timeframe, params.window * 2 + 2)
+            value = measure_relationship(
+                params,
+                [candles[-params.window * 2 - 2 :], peer],
+                identifier=stable_id(row.id, node.id),
+                owner_id=row.owner_id,
+                agent_id=row.agent_id or "",
+                now=now,
+            )
+            if not relationship_usable(value, now):
+                raise LonoraError(
+                    value.reason_codes[0]
+                    if value.reason_codes
+                    else "relationship_evidence_unreliable",
+                    409,
+                )
+            return node.id, value
+
+        try:
+            async with asyncio.timeout(25):
+                relationships = dict(await asyncio.gather(*(measure(node) for node in nodes)))
+        except TimeoutError as error:
+            raise LonoraError("relationship_history_timeout", 504) from error
+        health = HealthSnapshot(
+            state="healthy",
+            reason_code="market_data_healthy",
+            resource="watch",
+            account_id=config.account_id,
+            symbol=config.symbol,
+            timeframe=config.timeframe,
+            observed_at=now,
+            last_good_at=min(value.samples[-1].end for value in relationships.values()),
+        )
     raw_previous = row.state.get("observation")
     previous = Observation.model_validate(raw_previous) if isinstance(raw_previous, dict) else None
     observation = evaluate_detector(
@@ -123,6 +172,7 @@ async def observe_dynamic(
         candles=candles,
         observed_at=now,
         previous=previous,
+        relationships=relationships,
     )
     return (
         Decimal(int(observation.state == "confirmed")),
@@ -388,6 +438,13 @@ async def check_watches(
             continue
         try:
             if config.kind == "dynamic":
+                if (
+                    config.detector
+                    and relationship_detectors(config.detector)
+                    and original.state.get("next_check")
+                    and datetime.fromisoformat(original.state["next_check"]) > now
+                ):
+                    continue
                 if price_update is not None and config.evaluation_mode in {
                     "candle_update",
                     "candle_close",

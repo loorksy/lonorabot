@@ -14,7 +14,7 @@ ObservationState = Literal["pending", "forming", "confirmed", "invalidated", "ex
 class Observation(Contract):
     id: str
     schema_version: Literal["1"] = "1"
-    category: Literal["quote", "candle", "level", "zone", "trendline", "composite"]
+    category: Literal["quote", "candle", "level", "zone", "trendline", "composite", "relationship"]
     symbol: str
     timeframe: str | None = None
     source: str
@@ -39,7 +39,12 @@ class TrendlineAnchor(Contract):
 
 class DetectorDefinition(Contract):
     id: str = Field(min_length=1, max_length=80)
-    kind: Literal["level", "zone", "trendline", "candle", "all", "any", "not"]
+    kind: Literal["level", "zone", "trendline", "candle", "all", "any", "not", "relationship"]
+    related_symbol: str | None = Field(default=None, min_length=1, max_length=80)
+    relationship_window: int = Field(default=30, ge=10, le=240)
+    relationship_states: list[Literal["stable", "weakening", "breaking", "inverted"]] = Field(
+        default_factory=lambda: ["weakening", "breaking", "inverted"], min_length=1, max_length=4
+    )
     level: Decimal | None = Field(default=None, gt=0)
     lower: Decimal | None = Field(default=None, gt=0)
     upper: Decimal | None = Field(default=None, gt=0)
@@ -65,6 +70,8 @@ class DetectorDefinition(Contract):
 
     @model_validator(mode="after")
     def shape(self) -> "DetectorDefinition":
+        if self.kind == "relationship" and not self.related_symbol:
+            raise ValueError("relationship_symbol_required")
         if self.kind == "level" and self.level is None:
             raise ValueError("detector_level_required")
         if self.kind == "zone" and (
@@ -90,8 +97,12 @@ class DetectorDefinition(Contract):
             raise ValueError("detector_hysteresis_invalid")
         pending: list[tuple[DetectorDefinition, int]] = [(self, 0)]
         ids: set[str] = set()
+        relationships = 0
         while pending:
             child, depth = pending.pop()
+            relationships += int(child.kind == "relationship")
+            if relationships > 4:
+                raise ValueError("relationship_watch_limit")
             if depth > 8 or len(ids) >= 64:
                 raise ValueError("detector_tree_too_large")
             if child.id in ids:

@@ -18,11 +18,14 @@ from lonora_db.relationships import read_relationship
 from lonora_db.schema import (
     AgentRow,
     MarketSnapshotRow,
+    MarketWakeReceiptRow,
+    MarketWatchRow,
     RunRow,
     TradingAccountRow,
     TradingJournalRow,
 )
 from lonora_db.trading_opportunities import owned_opportunity
+from lonora_market.watchers import check_watches
 from lonora_tools.loader import load_tools
 from lonora_trading.opportunities import evidence_state
 from sqlalchemy import delete, func, select
@@ -291,6 +294,126 @@ async def main():
             "PASS same AgentRuntime/global router/tool loop consumes measured relationship state, persists gated WAIT and returns it to the conversation"
         )
         historical_context = await f.lease(await f.run(agent, thread))
+        async with f.runtime.db.sessions() as session, session.begin():
+            snapshot = await session.get(TradingAccountRow, connection)
+            assert snapshot
+            snapshot.payload = {**snapshot.payload, "candles": candles}
+        watch_ids: list[str] = []
+        for required in (1, 2):
+            watch = await registry.execute(
+                ToolCall(
+                    id="relationship-watch-" + str(required),
+                    name="watch_create",
+                    arguments={
+                        "kind": "dynamic",
+                        "account_id": connection,
+                        "symbol": symbols[0],
+                        "timeframe": "1m",
+                        "detector": {
+                            "id": "measured-change",
+                            "kind": "relationship",
+                            "related_symbol": symbols[1],
+                            "relationship_states": ["stable"],
+                        },
+                        "required_observations": required,
+                        "prompt": "Reassess the measured relationship, never execute directly",
+                    },
+                ),
+                historical_context,
+            )
+            watch_ids.append(watch["id"])
+            assert watch["payload"]["evaluation_mode"] == "scheduled"
+        assert await check_watches(f.runtime.db, context.brokers, owner_id=f.owner) == 1
+
+        async def due():
+            async with f.runtime.db.sessions() as session, session.begin():
+                for identifier in watch_ids:
+                    row = await session.get(MarketWatchRow, identifier)
+                    assert row
+                    row.state = {**row.state, "next_check": (now - timedelta(hours=1)).isoformat()}
+
+        await due()
+        assert await check_watches(f.runtime.db, context.brokers, owner_id=f.owner) == 0
+        async with f.runtime.db.sessions() as session:
+            row = await session.get(MarketWatchRow, watch_ids[1])
+            assert row and row.state["lifecycle"] == "forming" and row.state["candidate_count"] == 1
+        future = now + timedelta(minutes=2)
+        async with f.runtime.db.sessions() as session, session.begin():
+            snapshot = await session.get(TradingAccountRow, connection)
+            assert snapshot
+            advanced = dict(snapshot.payload["candles"])
+            for symbol in symbols[:2]:
+                bars = list(advanced[symbol + ":1m"])
+                last = bars[-1]
+                for offset in (1, 2):
+                    bars.append(
+                        {
+                            **last,
+                            "time": (
+                                now.replace(second=0, microsecond=0) + timedelta(minutes=offset)
+                            ).isoformat(),
+                        }
+                    )
+                advanced[symbol + ":1m"] = bars
+            snapshot.payload = {**snapshot.payload, "candles": advanced}
+            await session.execute(
+                delete(MarketSnapshotRow).where(
+                    MarketSnapshotRow.connection_id == connection,
+                    MarketSnapshotRow.timeframe == "1m",
+                )
+            )
+        await due()
+        with patch("lonora_market.watchers.utcnow", return_value=future):
+            assert await check_watches(f.runtime.db, context.brokers, owner_id=f.owner) == 1
+        await due()
+        with patch("lonora_market.watchers.utcnow", return_value=future):
+            assert await check_watches(f.runtime.db, context.brokers, owner_id=f.owner) == 0
+        await due()
+        with patch("lonora_market.watchers.utcnow", return_value=now + timedelta(hours=1)):
+            assert await check_watches(f.runtime.db, context.brokers, owner_id=f.owner) == 0
+        async with f.runtime.db.sessions() as session:
+            for identifier in watch_ids:
+                row = await session.get(MarketWatchRow, identifier)
+                assert row and row.state["evaluation_status"] == "suspended_health"
+                assert row.state["observation"]["category"] == "relationship"
+                assert row.state["observation"]["values"]["execution_authorized"] is False
+            receipts = await session.scalar(
+                select(func.count())
+                .select_from(MarketWakeReceiptRow)
+                .where(MarketWakeReceiptRow.thread_id == thread["id"])
+            )
+            assert receipts == 2
+        async with f.runtime.db.sessions() as session, session.begin():
+            snapshot = await session.get(TradingAccountRow, connection)
+            assert snapshot
+            recovered = dict(snapshot.payload["candles"])
+            for symbol in symbols[:2]:
+                recovered[symbol + ":1m"] = [
+                    {
+                        **bar,
+                        "time": (now.fromisoformat(bar["time"]) + timedelta(hours=1)).isoformat(),
+                    }
+                    for bar in recovered[symbol + ":1m"]
+                ]
+            snapshot.payload = {**snapshot.payload, "candles": recovered}
+            await session.execute(
+                delete(MarketSnapshotRow).where(
+                    MarketSnapshotRow.connection_id == connection,
+                    MarketSnapshotRow.timeframe == "1m",
+                )
+            )
+        await due()
+        with patch(
+            "lonora_market.watchers.utcnow", return_value=now + timedelta(hours=1, minutes=2)
+        ):
+            assert await check_watches(f.runtime.db, context.brokers, owner_id=f.owner) == 0
+        async with f.runtime.db.sessions() as session:
+            for identifier in watch_ids:
+                row = await session.get(MarketWatchRow, identifier)
+                assert row and row.state["evaluation_status"] == "active"
+        print(
+            "PASS persistent relationship watches wake through the same Gateway work lane, replay cannot satisfy confirmation counts, a new closed bar confirms once, stale histories suspend and recovery does not duplicate the signal"
+        )
         await f.request("DELETE", "/trading/connections/" + connection)
         retained = await registry.execute(
             ToolCall(

@@ -19,7 +19,7 @@ class RelationshipRequest(Contract):
     def distinct_symbols(self) -> "RelationshipRequest":
         if any(not value or len(value) > 80 for value in self.symbols):
             raise ValueError("invalid_relationship_symbol")
-        if self.symbols[0] == self.symbols[1]:
+        if self.symbols[0].casefold() == self.symbols[1].casefold():
             raise ValueError("relationship_requires_distinct_symbols")
         return self
 
