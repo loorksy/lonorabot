@@ -47,6 +47,22 @@ export function AgentLiveStatus({ agentId }: { agentId: string }) {
         onPress={() => setExpanded(!expanded)}
       >
         <Text style={{ color: colors.secondary }}>{t(`live_${state.state}`)}</Text>
+        {state.activity === "gathering" ||
+        state.activity === "recovering_broker" ||
+        state.activity === "consulting" ||
+        state.activity === "waiting_market" ? (
+          <Text style={{ color: colors.secondary }}>
+            {t(
+              state.activity === "gathering"
+                ? "live_gathering"
+                : state.activity === "recovering_broker"
+                  ? "live_recovering_broker"
+                  : state.activity === "consulting"
+                    ? "live_consulting"
+                    : "live_waiting_market",
+            )}
+          </Text>
+        ) : null}
       </Pressable>
       {expanded && (
         <View style={{ gap: 8, paddingVertical: 8 }}>

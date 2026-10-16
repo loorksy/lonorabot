@@ -4,6 +4,7 @@ from typing import Any
 
 from lonora_contracts.agent_state import AgentLiveState
 from lonora_contracts.domain import utcnow
+from lonora_core.operating import select_activity
 from lonora_session.idempotency import stable_id
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -288,10 +289,28 @@ async def agent_live_state(session: AsyncSession, owner_id: str, agent_id: str) 
         if watches and state == "waiting"
         else None
     )
+    run_activity = next(
+        (
+            str(row.execution_state.get("operating_activity"))
+            for row in runs
+            if row.status in {"leased", "running"} and row.execution_state.get("operating_activity")
+        ),
+        None,
+    )
     return AgentLiveState(
         agent_id=agent.id,
         observed_at=utcnow(),
         state=state,
+        activity=select_activity(
+            paused=bool(agent.paused),
+            approvals=approvals,
+            authorizations=pending_authorizations,
+            broker_degraded=any(item.get("kind") == "broker" for item in health),
+            collaborating=bool(sessions),
+            watching=watches > 0,
+            working=state == "working",
+            run_activity=run_activity,
+        ),
         phase=phase,
         reason_code=reason,
         reason_params={"pending_approvals": approvals} if approvals else {},

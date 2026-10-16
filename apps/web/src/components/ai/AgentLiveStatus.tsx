@@ -45,6 +45,26 @@ export function AgentLiveStatus({ agentId }: { agentId: string }) {
       data-state={state.state}
     >
       <summary>{labels[state.state]}</summary>
+      {state.activity === "gathering" && (
+        <p>
+          <Trans>Gathering market data</Trans>
+        </p>
+      )}
+      {state.activity === "recovering_broker" && (
+        <p>
+          <Trans>Recovering broker connection</Trans>
+        </p>
+      )}
+      {state.activity === "consulting" && (
+        <p>
+          <Trans>Consulting another Agent</Trans>
+        </p>
+      )}
+      {state.activity === "waiting_market" && (
+        <p>
+          <Trans>Waiting for a market condition</Trans>
+        </p>
+      )}
       {error != null && <p role="alert">{userError(error)}</p>}
       {state.pending_approval_count > 0 && (
         <p>

@@ -2,6 +2,15 @@ export type AgentLiveState = {
   agent_id: string;
   observed_at: string;
   state: "idle" | "working" | "waiting" | "action_required" | "degraded" | "paused";
+  activity?:
+    | "working"
+    | "gathering"
+    | "waiting_approval"
+    | "waiting_market"
+    | "recovering_broker"
+    | "consulting"
+    | "paused"
+    | "completed";
   phase: string;
   reason_code: string | null;
   pending_approval_count: number;

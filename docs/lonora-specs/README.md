@@ -24,12 +24,14 @@ Base audited: `895eaa8`; integration branch: `feat/coherent-agent-foundations`. 
 | [16_TRADING_EXPLAINABILITY_AND_DECISION_REPLAY.md](16_TRADING_EXPLAINABILITY_AND_DECISION_REPLAY.md) | Historical decision evidence, versioning and replay |
 | [17_BROKER_RECOVERY_AND_DEGRADED_MODE.md](17_BROKER_RECOVERY_AND_DEGRADED_MODE.md) | Reconciliation-first broker recovery and degraded behavior |
 | [18_UNIFIED_TRADING_UI_UX_AND_LIVE_AGENT_STATE.md](18_UNIFIED_TRADING_UI_UX_AND_LIVE_AGENT_STATE.md) | Shared authoritative live state and progressive Web/Mobile UI |
+| [19_AGENT_OPERATING_ENVIRONMENT_AND_SELF_DIRECTED_RUNTIME.md](19_AGENT_OPERATING_ENVIRONMENT_AND_SELF_DIRECTED_RUNTIME.md) | Self-directed Agent loop: typed tool recovery, route memory, and same-runtime continuation |
 
 ## Implementation control
 
 - [Requirement matrix](IMPLEMENTATION_MATRIX.md): behavior, existing implementation, missing work, shared dependencies and verification evidence.
 - [Dependency graph](DEPENDENCY_GRAPH.md): capability ownership and safe integration waves.
 - [Progress](PROGRESS.md): current wave, blockers, test evidence and next integration point.
+- [Nanobot architecture study](NANOBOT_ARCHITECTURE_STUDY.md): source-based comparison for specification 19. No Nanobot code is vendored.
 
 A source file being stored does not make its functionality implemented. VERIFIED requires an executed behavioral test. Native/device verification is reported independently of browser validation. Financial authorization, ownership, exact symbols, journal, reconciliation and global controls remain authoritative.
 

@@ -2781,3 +2781,19 @@ msgstr "لا يمكن حذف مساعدك الشخصي."
 #: src/pages/Shell.tsx:771
 msgid "Your team starts here"
 msgstr "فريقك يبدأ من هنا"
+
+#: src/components/ai/AgentLiveStatus.tsx
+msgid "Gathering market data"
+msgstr "جمع بيانات السوق"
+
+#: src/components/ai/AgentLiveStatus.tsx
+msgid "Recovering broker connection"
+msgstr "استعادة اتصال الوسيط"
+
+#: src/components/ai/AgentLiveStatus.tsx
+msgid "Consulting another Agent"
+msgstr "استشارة مساعد آخر"
+
+#: src/components/ai/AgentLiveStatus.tsx
+msgid "Waiting for a market condition"
+msgstr "بانتظار شرط السوق"

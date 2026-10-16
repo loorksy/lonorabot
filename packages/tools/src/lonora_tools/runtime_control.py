@@ -20,14 +20,28 @@ class WaitInput(Contract):
 
 
 async def status(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+    from lonora_core.operating import public_routes, side_effect
     from lonora_db.agent_state import agent_live_state
+
+    from lonora_tools.loader import load_tools
 
     async with context.db.sessions() as session:
         live = await agent_live_state(session, context.owner_id, context.agent_id)
+        run = await require_lease(session, context.lease)
+        routes = public_routes(list(run.execution_state.get("failure_routes") or []))
     return {
         "run_id": context.lease.run_id,
         "trading": (await read_controls(context.db)).model_dump(),
         "agent_state": live.model_dump(mode="json"),
+        "failure_routes": routes,
+        "tools": [
+            {
+                "name": tool.name,
+                "read_only": tool.read_only,
+                "side_effect": side_effect(tool.name, tool.read_only),
+            }
+            for tool in load_tools().tools.values()
+        ],
     }
 
 

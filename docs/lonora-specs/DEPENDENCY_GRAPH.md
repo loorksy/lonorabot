@@ -118,3 +118,7 @@ DB virtual-position/order projection serves both Market watches and Trading evid
 ## Automatic execution-boundary evidence
 
 Existing typed preflight snapshot + exact request → existing execution-quality policy/gate → server-owned planned/before-send snapshots in the same execution journal → immutable receipt/reconciliation merge → bounded exact-scope read/history tools → natural-language historical explanations. Shadow captures virtual targets with monetary profit unavailable; local cancellation records its actual virtual target without inventing a broker snapshot. Broker reconciliation may add an outcome, never replace original server evidence. Performance attribution consumes the same frozen Agent/Run origin, with legacy Run lookup only when needed. No second decision journal or broker read is introduced for replay.
+
+## Self-directed operating environment (specification 19)
+
+Owner input, voice, watch, routine, collaboration, and task retry already enter one leased ToolLoop. A tool result is now a typed observation (`classification`, `recovery`, `owner_required`) on that same loop. Repeated failed argument hashes and ambiguous financial sends are blocked before execution. The route list is part of `RunRow.execution_state`. A non-authoritative scratchpad note records an exhausted route. `runtime_status` and `AgentLiveState.activity` expose the same facts to the model and both clients. Nanobot was studied and not vendored; see NANOBOT_ARCHITECTURE_STUDY.md. No second scheduler, memory store, or voice agent was added.

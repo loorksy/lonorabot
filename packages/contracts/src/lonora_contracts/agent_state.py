@@ -12,6 +12,16 @@ class AgentLiveState(Contract):
     agent_id: str
     observed_at: datetime
     state: Literal["idle", "working", "waiting", "action_required", "degraded", "paused"]
+    activity: Literal[
+        "working",
+        "gathering",
+        "waiting_approval",
+        "waiting_market",
+        "recovering_broker",
+        "consulting",
+        "paused",
+        "completed",
+    ] = "working"
     phase: str
     reason_code: str | None = None
     reason_params: dict[str, str | int] = Field(default_factory=dict[str, str | int])

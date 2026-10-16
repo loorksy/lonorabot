@@ -444,6 +444,10 @@ export const labels = {
     "Broker verification pending. Market data may remain available; trading is blocked until verification finishes.",
   ],
   live_paused: ["متوقف مؤقتًا", "Paused"],
+  live_gathering: ["يجمع بيانات السوق", "Gathering market data"],
+  live_recovering_broker: ["يستعيد اتصال الوسيط", "Recovering broker connection"],
+  live_consulting: ["يستشير مساعدًا آخر", "Consulting another Agent"],
+  live_waiting_market: ["ينتظر شرط السوق", "Waiting for a market condition"],
   activeWatches: ["المراقبات النشطة", "Active watches"],
 } as const;
 export type Label = keyof typeof labels;

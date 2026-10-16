@@ -2781,3 +2781,19 @@ msgstr "Your Personal Agent cannot be deleted."
 #: src/pages/Shell.tsx:771
 msgid "Your team starts here"
 msgstr "Your team starts here"
+
+#: src/components/ai/AgentLiveStatus.tsx
+msgid "Gathering market data"
+msgstr "Gathering market data"
+
+#: src/components/ai/AgentLiveStatus.tsx
+msgid "Recovering broker connection"
+msgstr "Recovering broker connection"
+
+#: src/components/ai/AgentLiveStatus.tsx
+msgid "Consulting another Agent"
+msgstr "Consulting another Agent"
+
+#: src/components/ai/AgentLiveStatus.tsx
+msgid "Waiting for a market condition"
+msgstr "Waiting for a market condition"
