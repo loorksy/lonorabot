@@ -14,7 +14,15 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         if (
-            request.url.path not in {"/api/auth/login", "/api/auth/mobile/login", "/api/onboarding"}
+            request.url.path
+            not in {
+                "/api/auth/login",
+                "/api/auth/mobile/login",
+                "/api/onboarding",
+                "/api/auth/devices/enrollment",
+                "/api/auth/devices/enrollment/verify",
+                "/api/super-bot/verify",
+            }
             or request.method != "POST"
         ):
             return await call_next(request)

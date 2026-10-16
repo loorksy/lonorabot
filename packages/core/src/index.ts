@@ -13,6 +13,7 @@ export {
   conversationTimeline,
   nearConversationBottom,
 } from "./conversation-timeline";
+export { webDeviceProof, webDeviceSupported } from "./device-proof";
 export { activeStatuses, canCancel, canResume, isWorking } from "./run-state";
 export { formatTimeSeparator, needsTimeSeparator, timeSeparatorIds } from "./time-separators";
 export { errorCode } from "./user-error";

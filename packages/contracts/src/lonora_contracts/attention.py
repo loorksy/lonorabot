@@ -22,6 +22,8 @@ AttentionCode = Literal[
     "task_review",
     "task_completed",
     "internal_update",
+    "super_bot_authorization",
+    "super_bot_changed",
 ]
 
 

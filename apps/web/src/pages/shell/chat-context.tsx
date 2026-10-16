@@ -41,6 +41,7 @@ import { SubagentTasks } from "../../components/ai/CollaborationMarker";
 import { AgentActivity, WorkingIndicator } from "../../components/ai/primitives";
 import { FilePreviewPanel } from "../../components/common/FilePreviewPanel";
 import { ToolActivityDisclosure } from "../../components/ToolActivityDisclosure";
+import { SuperBotCards } from "../../components/trading/SuperBotCards";
 import { TradeApprovalCard, useTradeApprovals } from "../../components/trading/TradeApprovals";
 import { useThreads } from "../../hooks/useThreads";
 import type { Agent, Message, Resource, Run } from "../../lib/api";
@@ -239,6 +240,7 @@ export function ThreadViewport({
         </div>
       )}
       <RecoveryNotice events={local} />
+      {agentId && <SuperBotCards key={agentId} agentId={agentId} threadId={threadId} />}
       {(thread.error ?? actionError ?? artifactError ?? peerError ?? approvalState.error) !=
         null && (
         <p className="template-thread-error" role="alert">

@@ -94,3 +94,11 @@ Measured relationships now consume the same broker history/health and canonical 
 
 
 The existing dynamic detector tree and Watch engine now consume relationship calculations directly. Closed-bar evidence identity precedes confirmation count/debounce; source deadlines precede attention and thesis execution gating. Relevant change wakes use existing work Runs and receipts, and recovery never replays the original confirmation as a new signal. Future cluster-risk/advanced intelligence must consume these same measured sources and explicit unavailable states.
+
+## Signed authority integration (2026-10-16)
+
+Existing authenticated owner/session → registered WebAuthn public credential → immutable reviewed Goal permission envelope → expiring challenge bound to session/request/hash → verified UV signature → active Goal grant. The same Goal executor checks that grant on background execution and again before send. Supervised mode branches into the existing durable trade approval; advisory mode cannot mutate. Existing global Trading/Emergency controls, financial scope, fresh evidence, account serialization, fixed operation ID, journal and reconciliation stay downstream and authoritative.
+
+Web/Expo cards consume the same request projection and `super_bot.updated` events; existing attention ownership/deduplication treats pending authorization as mandatory action. There is no new scheduler, executor, Agent class, voice Agent or model router. Native OS passkey bindings depend on the public installed-app signing certificate / Apple Team ID and a new compatible native binary; hardware acceptance remains separate from the passing WebAuthn browser tests.
+
+Next shared dependency: expose bounded authority/Goal state through the existing live-state projection, finish Shadow Goal orchestration, and connect richer risk budgets/decision lineage to the same financial gate. Do not introduce a second authority, performance or Goal runtime.

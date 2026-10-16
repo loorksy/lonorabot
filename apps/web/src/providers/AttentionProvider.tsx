@@ -19,7 +19,7 @@ export function AttentionProvider({
   const [error, setError] = useState<unknown>();
   useEffect(() => {
     const deadlines = items
-      .filter((item) => item.importance === "opportunity" && item.parameters.valid_until)
+      .filter((item) => item.parameters.valid_until)
       .map((item) => new Date(item.parameters.valid_until as string).getTime());
     if (!deadlines.length) return;
     const timer = setTimeout(
@@ -27,7 +27,7 @@ export function AttentionProvider({
         setItems((rows) =>
           rows.filter(
             (row) =>
-              row.importance !== "opportunity" ||
+              !row.parameters.valid_until ||
               (row.parameters.valid_until &&
                 new Date(row.parameters.valid_until).getTime() > Date.now()),
           ),

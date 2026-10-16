@@ -81,7 +81,9 @@ class Ticket(Contract):
     board_id: str
     title: str = Field(min_length=1, max_length=160)
     description: str = Field(default="", max_length=16000)
-    status: Literal["todo", "working", "waiting", "done", "completed", "failed", "cancelled"] = "todo"
+    status: Literal["todo", "working", "waiting", "done", "completed", "failed", "cancelled"] = (
+        "todo"
+    )
     run_id: str | None = None
 
 

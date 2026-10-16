@@ -26,6 +26,8 @@ const labels: Record<AttentionCode, Label> = {
   goal_changed: "attentionGoalChanged",
   collaboration_completed: "attentionCollaborationCompleted",
   task_review: "taskNeedsReview",
+  super_bot_authorization: "devicePending",
+  super_bot_changed: "superBot",
   task_completed: "attentionTaskCompleted",
   internal_update: "attentionUpdated",
 };
@@ -60,7 +62,7 @@ export function AttentionInbox({
   }, [errorText]);
   useEffect(() => {
     const deadlines = items
-      .filter((row) => row.importance === "opportunity" && row.parameters.valid_until)
+      .filter((row) => row.parameters.valid_until)
       .map((row) => new Date(row.parameters.valid_until as string).getTime())
       .filter((value) => value > clock);
     if (!deadlines.length) return;
@@ -72,7 +74,7 @@ export function AttentionInbox({
   }, [items, clock]);
   const visible = items.filter(
     (item) =>
-      item.importance !== "opportunity" ||
+      !item.parameters.valid_until ||
       (item.parameters.valid_until && new Date(item.parameters.valid_until).getTime() > Date.now()),
   );
   return (

@@ -12,7 +12,15 @@ from lonora_contracts.trading_goal import GoalExecution
 from lonora_core.user_error import LonoraError
 from lonora_db.client import Database
 from lonora_db.runs import create_run, locked_run_thread, require_lease, run_data
-from lonora_db.schema import GoalDecisionRow, RunRow, TradingGoalRow, TradingJournalRow
+from lonora_db.schema import (
+    GoalDecisionRow,
+    RunRow,
+    SuperBotRequestRow,
+    TradeApprovalRow,
+    TradingGoalRow,
+    TradingJournalRow,
+)
+from lonora_db.super_bot import require_goal_authority
 from lonora_db.trading_goals import (
     owned_goal,
     planned_step,
@@ -62,6 +70,48 @@ def matches_declared_trade(goal: TradingGoalRow, step_id: str, request: TradeReq
     return planned == actual
 
 
+async def goal_requires_approval(session: AsyncSession, goal: TradingGoalRow, run: RunRow) -> bool:
+    """A signed supervised plan can prepare a card, never execute unattended."""
+    grant_id = goal.state.get("super_bot_request_id")
+    if grant_id:
+        grant = await session.get(SuperBotRequestRow, grant_id)
+        if grant and grant.status == "activated" and grant.mode == "advisory":
+            raise LonoraError("super_bot_advisory_only", 403)
+    if run.trigger in {"user", "group"}:
+        return True
+    if goal.state.get("autonomous", False):
+        require_autonomous_limits(goal)
+        await require_goal_authority(session, goal)
+        return False
+    if not grant_id:
+        raise LonoraError("goal_autonomy_required", 409)
+    await require_goal_authority(session, goal, mode="supervised")
+    return True
+
+
+async def require_supervised_approval(
+    session: AsyncSession, goal: TradingGoalRow, run: RunRow, request: TradeRequest
+) -> None:
+    if run.trigger in {"user", "group"} or not await goal_requires_approval(session, goal, run):
+        return
+    approvals = await session.scalars(
+        select(TradeApprovalRow).where(
+            TradeApprovalRow.owner_id == goal.owner_id,
+            TradeApprovalRow.agent_id == goal.agent_id,
+            TradeApprovalRow.run_id == run.id,
+            TradeApprovalRow.status == "approved",
+        )
+    )
+    if not any(
+        len(row.requests) == 1
+        and TradeRequest.model_validate(row.requests[0]).operation_id == request.operation_id
+        and trade_fingerprint(TradeRequest.model_validate(row.requests[0]))
+        == trade_fingerprint(request)
+        for row in approvals
+    ):
+        raise LonoraError("trade_approval_required", 409)
+
+
 async def guard_goal_execution(
     session: AsyncSession,
     owner_id: str,
@@ -80,10 +130,11 @@ async def guard_goal_execution(
         raise LonoraError("goal_run_mismatch", 409)
     if context.plan_version != goal.state.get("plan_version", 1):
         raise LonoraError("goal_plan_changed", 409)
-    if run.trigger not in {"user", "group"} and not goal.state.get("autonomous", False):
-        raise LonoraError("goal_autonomy_required", 409)
+    await goal_requires_approval(session, goal, run)
+    await require_supervised_approval(session, goal, run, request)
     if goal.state.get("autonomous", False):
         require_autonomous_limits(goal)
+        await require_goal_authority(session, goal)
     step = planned_step(goal, context.step_id)
     if not matches_declared_trade(goal, step.id, request):
         raise LonoraError("goal_plan_changed", 409)
@@ -262,6 +313,7 @@ async def execute_goal_step(
         origin = await require_lease(session, lease)
         if origin.agent_id != goal.agent_id or origin.thread_id != goal.thread_id:
             raise LonoraError("goal_run_mismatch", 409)
+        needs_approval = await goal_requires_approval(session, goal, origin)
         step = planned_step(goal, step_id)
         existing_id = stable_id(
             goal.id, f"decision:{step.id}:attempt:{goal.state['steps'][step.id].get('attempt', 1)}"
@@ -291,7 +343,7 @@ async def execute_goal_step(
         if error.code == "goal_target_not_observed":
             return await wait_for_goal_target(db, owner_id, goal_id, step.id, lease)
         raise
-    if origin.trigger in {"user", "group"}:
+    if needs_approval:
         if approval_gate is None:
             raise LonoraError("trade_approval_required", 409)
         pending_approval = await approval_gate(request)
@@ -320,10 +372,12 @@ async def execute_goal_step(
             }
         if goal.state.get("status") != "active":
             raise LonoraError("goal_not_active", 409)
-        if run.trigger not in {"user", "group"} and not goal.state.get("autonomous", False):
-            raise LonoraError("goal_autonomy_required", 409)
+        if await goal_requires_approval(session, goal, run) != needs_approval:
+            raise LonoraError("super_bot_scope_changed", 409)
+        await require_supervised_approval(session, goal, run, request)
         if goal.state.get("autonomous", False):
             require_autonomous_limits(goal)
+            await require_goal_authority(session, goal)
         if (
             attempt != expected_attempt
             or int(goal.state.get("plan_version", 1)) != expected_plan_version
@@ -372,7 +426,7 @@ async def execute_goal_step(
         )
 
     async def require_approved_goal() -> None:
-        if origin.trigger in {"user", "group"}:
+        if needs_approval:
             if approval_gate is None or await approval_gate(request) is not None:
                 raise LonoraError("trade_approval_unavailable", 409)
 
@@ -382,7 +436,7 @@ async def execute_goal_step(
             request,
             lease,
             goal=context,
-            authorization=require_approved_goal if origin.trigger in {"user", "group"} else None,
+            authorization=require_approved_goal if needs_approval else None,
         )
     except LonoraError as error:
         async with db.sessions() as session, session.begin():

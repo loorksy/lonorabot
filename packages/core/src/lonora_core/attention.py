@@ -24,6 +24,7 @@ ATTENTION_KINDS = frozenset(
         "task.failed",
         "task.retry_scheduled",
         "task.updated",
+        "super_bot.updated",
     }
 )
 
@@ -45,7 +46,14 @@ def classify_attention(kind: str, payload: dict[str, Any]) -> AttentionClassific
     result = AttentionClassification(
         importance="silent", code="internal_update", resource_id=resource, transition=transition
     )
-    if kind == "trading.controls_updated" and payload.get("emergency_stop") is True:
+    if kind == "super_bot.updated":
+        result.importance, result.code = (
+            ("action_required", "super_bot_authorization")
+            if payload.get("status") == "pending"
+            else ("important_change", "super_bot_changed")
+        )
+        transition = str(payload.get("status")) + ":" + str(payload.get("mode"))
+    elif kind == "trading.controls_updated" and payload.get("emergency_stop") is True:
         result.importance, result.code = "critical", "emergency_stop"
     elif kind == "trading.approval.updated":
         result.importance, result.code = (

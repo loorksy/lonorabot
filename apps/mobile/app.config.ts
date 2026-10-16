@@ -12,13 +12,14 @@ if (!["preview", "production"].includes(channel))
 const config: ExpoConfig = {
   name: brand.name,
   slug: brand.slug,
-  version: "0.2.4",
+  version: "0.2.5",
   scheme: brand.scheme,
   orientation: "portrait",
   userInterfaceStyle: "dark",
   ios: {
     supportsTablet: true,
     bundleIdentifier: brand.applicationId,
+    associatedDomains: [`webcredentials:${new URL(updateUrl).hostname}`],
     infoPlist: {
       NSMicrophoneUsageDescription:
         "السماح لـ Lonora باستخدام الميكروفون للمكالمات مع وكيلك. Allow Lonora to use your microphone for agent calls.",
@@ -26,7 +27,7 @@ const config: ExpoConfig = {
   },
   android: {
     package: brand.applicationId,
-    versionCode: 5,
+    versionCode: 6,
     softwareKeyboardLayoutMode: "resize",
     permissions: ["RECORD_AUDIO", "MODIFY_AUDIO_SETTINGS"],
     blockedPermissions: ["android.permission.CAMERA"],

@@ -32,6 +32,7 @@ CHECKS = (
     "check_task_recovery.py",
     "check_attention.py",
     "check_relationships.py",
+    "check_device_authority.py",
 )
 
 

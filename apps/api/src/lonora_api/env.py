@@ -1,7 +1,7 @@
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field, SecretStr
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -13,6 +13,21 @@ class Settings(BaseSettings):
     session_seconds: int = Field(default=86400, ge=300, le=2592000)
     cookie_secure: bool = True
     allowed_origin: str = "http://localhost:8000"
+    passkey_android_fingerprints: list[str] = Field(default_factory=list[str])
+    passkey_android_package: str = "ai.lonora.mobile"
+    passkey_ios_app_ids: list[str] = Field(default_factory=list[str])
+
+    @field_validator("passkey_android_fingerprints")
+    @classmethod
+    def valid_fingerprints(cls, values: list[str]) -> list[str]:
+        import re
+
+        if any(
+            not re.fullmatch(r"(?:[0-9a-fA-F]{2}:){31}[0-9a-fA-F]{2}", value) for value in values
+        ):
+            raise ValueError("invalid_passkey_certificate_fingerprint")
+        return [value.upper() for value in values]
+
     web_root: Path = Path("apps/web/dist")
     artifact_root: Path = Path(".runtime/artifacts")
     android_apk_path: Path = Path(".runtime/releases/android/lonora.apk")

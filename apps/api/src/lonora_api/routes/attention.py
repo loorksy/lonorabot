@@ -44,6 +44,10 @@ async def inbox(request: Request, owner: OwnerIdentity = Depends(require_owner))
             AttentionRow.owner_id == owner.id,
             AttentionRow.status.in_(["pending", "ready"]),
             or_(
+                AttentionRow.parameters["valid_until"].as_string().is_(None),
+                AttentionRow.parameters["valid_until"].as_string() > utcnow().isoformat(),
+            ),
+            or_(
                 AttentionRow.importance != "opportunity",
                 AttentionRow.parameters["valid_until"].as_string() > utcnow().isoformat(),
             ),

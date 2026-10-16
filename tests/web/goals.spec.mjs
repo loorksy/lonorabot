@@ -16,6 +16,18 @@ test("owner reviews a durable goal and controls limits, autonomy, pause, same-th
   context,
 }) => {
   const data = fixture({ action: "init" });
+  const device = await context.newCDPSession(page);
+  await device.send("WebAuthn.enable");
+  await device.send("WebAuthn.addVirtualAuthenticator", {
+    options: {
+      protocol: "ctap2",
+      transport: "internal",
+      hasResidentKey: true,
+      hasUserVerification: true,
+      isUserVerified: true,
+      automaticPresenceSimulation: true,
+    },
+  });
   let agent;
   const headers = {
     "X-CSRF-Token": data.cookies.find((cookie) => cookie.name === "lonora_csrf").value,
@@ -74,6 +86,16 @@ test("owner reviews a durable goal and controls limits, autonomy, pause, same-th
     await card.getByLabel("Maximum volume", { exact: true }).fill("0.2");
     // The controlled value follows durable server admission, not an optimistic toggle.
     await autonomy.click();
+    await expect(autonomy).not.toBeChecked();
+    await card.getByRole("button", { name: "Register a passkey", exact: true }).click();
+    await card
+      .getByLabel("Confirm account password", { exact: true })
+      .fill("ci-only-owner-password");
+    await card.getByRole("button", { name: "Register this device", exact: true }).click();
+    await expect(card.getByLabel("Confirm account password", { exact: true })).toHaveCount(0);
+    await card
+      .getByRole("button", { name: "Activate with device authentication", exact: true })
+      .click();
     await expect(autonomy).toBeChecked();
     const current = await (await context.request.get(`/api/trading/goals/${goal.id}`)).json();
     expect(current.state.autonomous).toBe(true);

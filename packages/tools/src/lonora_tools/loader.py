@@ -27,6 +27,7 @@ MODULES = (
     "account",
     "trade",
     "trading_goal",
+    "super_bot",
     "runtime_control",
     "tasks",
     "collaboration",

@@ -19,7 +19,9 @@ export type AttentionCode =
   | "collaboration_completed"
   | "task_review"
   | "task_completed"
-  | "internal_update";
+  | "internal_update"
+  | "super_bot_authorization"
+  | "super_bot_changed";
 export interface AttentionNotification {
   id: string;
   agent_id: string;

@@ -25,6 +25,7 @@ from lonora_db.schema import (
     EventRow,
     MarketWatchRow,
     SettingRow,
+    SuperBotRequestRow,
     ThreadRow,
     TicketRow,
     TradeApprovalRow,
@@ -223,6 +224,21 @@ async def candidate(
                     and resource.state.get("status") != "completed"
                 ):
                     raise LonoraError("attention_superseded_state", 409)
+        elif event.kind == "super_bot.updated":
+            resource = await session.get(SuperBotRequestRow, identifier)
+            if resource and resource.owner_id == event.owner_id:
+                if (
+                    resource.status != event.payload.get("status")
+                    or resource.mode != event.payload.get("mode")
+                    or (resource.status == "pending" and resource.expires_at <= utcnow())
+                ):
+                    raise LonoraError("attention_superseded_state", 409)
+                agent_id, thread_id = resource.agent_id, resource.thread_id
+                parameters.update(
+                    super_bot_request_id=resource.id, symbol=resource.envelope["symbol"]
+                )
+                if resource.status == "pending":
+                    parameters["valid_until"] = resource.expires_at.isoformat()
         elif event.kind.startswith("task."):
             resource = await session.get(TicketRow, identifier)
             if resource and resource.owner_id == event.owner_id and resource.state.get("task"):

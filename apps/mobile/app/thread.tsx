@@ -34,6 +34,7 @@ import { GroupAvatar } from "../components/group-avatar";
 import { Markdown } from "../components/markdown";
 import { MessageBubble } from "../components/message-bubble";
 import { NativeSymbol } from "../components/native-symbol";
+import { SuperBotCards } from "../components/super-bot-cards";
 import { ThreadComposer } from "../components/thread-composer";
 import { ThreadHeader } from "../components/thread-header";
 import { TimeSeparator } from "../components/time-separator";
@@ -77,6 +78,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
   const following = useRef(true);
   const [atEnd, setAtEnd] = useState(true);
   const [loaded, setLoaded] = useState(false);
+  const [stateRevision, setStateRevision] = useState(0);
   const receipt = useRef<{ signature: string; nonce: string } | null>(null);
   const reportError = useRef(errorText);
   reportError.current = errorText;
@@ -97,6 +99,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
           ],
         );
         if (!stillLive()) return;
+        setStateRevision((value) => value + 1);
         setMessages((old) => mergeMessages(old, nextMessages));
         setCollaborationSessionId(collaboration?.id);
         setCollaborationActive(
@@ -402,6 +405,14 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
           </View>
         ))}
       {thread?.agent_id && <AgentLiveStatus agentId={thread.agent_id} />}
+      {thread?.agent_id && (
+        <SuperBotCards
+          key={thread.agent_id}
+          agentId={thread.agent_id}
+          threadId={id}
+          revision={stateRevision}
+        />
+      )}
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : undefined}

@@ -1,5 +1,73 @@
 export type Locale = "ar" | "en";
 export const labels = {
+  superBot: ["سوبر بوت", "Super Bot"],
+  devicePending: ["بانتظار تفويض الجهاز", "Waiting for device authorization"],
+  expired: ["منتهي الصلاحية", "Expired"],
+  stopped: ["متوقف", "Stopped"],
+  active: ["نشط", "Active"],
+  advisory: ["استشاري", "Advisory"],
+  supervised: ["بإشرافك", "Supervised"],
+  autonomous: ["مستقل", "Autonomous"],
+  maxTradeActions: ["الحد الأقصى للعمليات", "Maximum trade actions"],
+  manualManagementAllowed: ["إدارة الصفقات اليدوية مسموحة", "Manual position management allowed"],
+  manualManagementExcluded: [
+    "إدارة الصفقات اليدوية غير مشمولة",
+    "Manual position management excluded",
+  ],
+  reviewPlan: ["مراجعة الخطة", "Review plan"],
+  deviceActivate: ["التفعيل بمصادقة الجهاز", "Activate with device authentication"],
+  deviceRegister: ["تسجيل مفتاح مرور", "Register a passkey"],
+  superBotStop: ["إيقاف سوبر بوت", "Stop Super Bot"],
+  confirmAccountPassword: ["تأكيد كلمة مرور الحساب", "Confirm account password"],
+  registerThisDevice: ["تسجيل هذا الجهاز", "Register this device"],
+  myDevice: ["جهازي", "My device"],
+  authorizeOnWeb: ["التفويض عبر الموقع الآمن", "Authorize on the secure web app"],
+  device_not_supported: [
+    "مصادقة الجهاز الآمنة غير متاحة أو لم تُضبط لهذا التطبيق.",
+    "Secure device authentication is unavailable or unconfigured for this app.",
+  ],
+  device_registration_required: [
+    "سجّل مفتاح مرور قبل تفعيل هذا الطلب.",
+    "Register a passkey before activating this request.",
+  ],
+  device_authorization_required: [
+    "راجع طلب سوبر بوت وفوّضه من جهازك.",
+    "Review the Super Bot request and authorize it with your device.",
+  ],
+  super_bot_authority_expansion: [
+    "توسيع الصلاحيات يحتاج تفويضًا جديدًا من جهازك.",
+    "Expanded permissions require new device authorization.",
+  ],
+  device_authorization_cancelled: [
+    "أُلغيت المصادقة ولم تُمنح أي صلاحيات.",
+    "Authentication was cancelled. No authority was granted.",
+  ],
+  stopLoss: ["وقف الخسارة", "Stop loss"],
+  takeProfit: ["جني الربح", "Take profit"],
+  super_bot_advisory_only: [
+    "هذه الخطة استشارية ولا يمكنها تنفيذ صفقات.",
+    "This plan is advisory and cannot execute trades.",
+  ],
+  super_bot_scope_changed: [
+    "تغير نطاق التفويض. راجع طلبًا جديدًا.",
+    "Authority scope changed. Review a new request.",
+  ],
+  device_challenge_not_found: [
+    "طلب المصادقة غير متاح لهذه الجلسة.",
+    "This authorization challenge is unavailable for this session.",
+  ],
+  device_proof_invalid: [
+    "فشل تحقق الجهاز ولم تُمنح أي صلاحيات.",
+    "Device verification failed. No authority was granted.",
+  ],
+  device_challenge_expired_or_used: [
+    "انتهى طلب التفويض أو استُخدم؛ راجع طلبًا جديدًا.",
+    "This authorization expired or was used. Review a new request.",
+  ],
+  super_bot_plan_changed: [
+    "تغيّرت الخطة؛ راجع طلب تفويض جديدًا.",
+    "The plan changed. Review a new authorization request.",
+  ],
   notifications: ["التنبيهات", "Notifications"],
   noNotifications: ["لا توجد تنبيهات جديدة", "No new notifications"],
   markAsRead: ["تحديد كمقروء", "Mark as read"],

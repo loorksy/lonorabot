@@ -11,6 +11,7 @@ from typing import Any
 from uuid import uuid4
 
 from check_streaming import Fixture
+from device_fixture import Device
 from lonora_adapter_kit.model import ModelAdapter
 from lonora_adapter_kit.types import ModelMessage, ModelReply, ToolCall, ToolDefinition
 from lonora_adapters.brokers.simulation import SimulationBroker
@@ -272,6 +273,10 @@ async def checks() -> None:
             raise AssertionError("Background autonomy bypass")
         except LonoraError as error:
             assert error.code == "goal_autonomy_required"
+        device = await Device.enroll(fixture)
+        await device.authorize_goal_service(
+            fixture, await fixture.request("GET", "/trading/goals/" + goal_id)
+        )
         async with db.sessions() as session, session.begin():
             goal = await owned_goal(session, fixture.owner, goal_id)
             await control_goal(
@@ -367,7 +372,7 @@ async def checks() -> None:
                     "objective": "Explicit scripted goal safety",
                     "account_id": account_id,
                     "symbol": "FIXTURE",
-                    "autonomous": True,
+                    "autonomous": False,
                     "maximum_volume": "0.1",
                     "max_trade_actions": 3,
                     "steps": steps
@@ -382,6 +387,8 @@ async def checks() -> None:
                 },
             )
             goals.append(row["id"])
+            await device.authorize_goal_service(fixture, row, allow_manual_positions=True)
+            row = await fixture.request("GET", "/trading/goals/" + row["id"])
             return row
 
         async def goal_lease(row: dict[str, Any]) -> ToolContext:
@@ -402,6 +409,68 @@ async def checks() -> None:
         async def finish(context: ToolContext) -> None:
             async with db.sessions() as session, session.begin():
                 await complete_run(session, context.lease, "Explicit fixture turn ended", {})
+
+        # A signed supervised reduction prepares the SAME approval card on a background wake.
+        supervised = await make_goal()
+        async with db.sessions() as session:
+            saved = await owned_goal(session, fixture.owner, supervised["id"])
+            grant_id = saved.state["super_bot_request_id"]
+        await fixture.request(
+            "POST", "/super-bot/control", {"request_id": grant_id, "action": "supervised"}
+        )
+        context = await goal_lease(supervised)
+        call = ToolCall(
+            id=uuid4().hex,
+            name="goal_step_execute",
+            arguments={
+                "goal_id": supervised["id"],
+                "step_id": "entry",
+                "note": "Reviewed supervised entry",
+            },
+        )
+        sent = gate.sent
+        pending = await registry.execute(call, context)
+        assert pending["_runtime_wait"] and gate.sent == sent
+        async with db.sessions() as session, session.begin():
+            from lonora_db.trade_approvals import decide
+
+            await decide(session, fixture.owner, pending["approval_id"], "approve")
+        approved = await registry.execute(call, context)
+        assert approved["result"]["status"] == "confirmed" and gate.sent == sent + 1
+        await finish(context)
+        advisory = await make_goal()
+        async with db.sessions() as session:
+            saved = await owned_goal(session, fixture.owner, advisory["id"])
+            grant_id = saved.state["super_bot_request_id"]
+        await fixture.request(
+            "POST", "/super-bot/control", {"request_id": grant_id, "action": "advisory"}
+        )
+        advisory = await fixture.request("GET", "/trading/goals/" + advisory["id"])
+        await fixture.request(
+            "POST",
+            "/trading/goals/" + advisory["id"] + "/control",
+            {"version": advisory["version"], "action": "resume", "autonomous": False},
+        )
+        async with db.sessions() as session:
+            from lonora_db.schema import SuperBotRequestRow
+
+            grant = await session.get(SuperBotRequestRow, grant_id)
+            assert grant and grant.mode == "advisory"
+        context = await goal_lease(advisory)
+        sent = gate.sent
+        try:
+            await execute_goal_step(
+                db, brokers, executor, fixture.owner, advisory["id"], "entry", context.lease
+            )
+        except LonoraError as error:
+            assert error.code == "super_bot_advisory_only"
+        else:
+            raise AssertionError("advisory plan mutated the broker")
+        assert gate.sent == sent
+        await finish(context)
+        print(
+            "PASS signed supervised background wake waits for the real owner approval and executes once; advisory cannot mutate"
+        )
 
         # Pause and cancel arriving after preflight but before send block the exact operation.
         for action in ("pause", "cancel"):
@@ -438,6 +507,8 @@ async def checks() -> None:
                     {"version": actual_goal["version"], "action": "resume"},
                 )
                 assert resumed["state"]["steps"]["entry"]["attempt"] == 2
+                assert resumed["state"]["autonomous"] is False
+                await device.authorize_goal_service(fixture, resumed, allow_manual_positions=True)
                 gate.before = None
                 result = await execute_goal_step(
                     db, brokers, executor, fixture.owner, row["id"], "entry", context.lease

@@ -81,7 +81,9 @@ async def main() -> None:
                 assert row.state["lifecycle_reason"] == "watch_confirmation_expired"
                 expiry = row.state["confirmation_valid_until"]
                 assert expiry == (evidence_time + timedelta(seconds=5)).isoformat()
-                assert datetime.fromisoformat(row.state["observation"]["observed_at"]) == evidence_time
+                assert (
+                    datetime.fromisoformat(row.state["observation"]["observed_at"]) == evidence_time
+                )
             # The next invocation reloads all state from PostgreSQL. An expired
             # watch stays expired even if a newer source packet is available.
             market.quote.return_value = quote.model_copy(update={"observed_at": utcnow()})

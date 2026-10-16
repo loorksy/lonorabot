@@ -23,7 +23,8 @@ if (
 const root = fileURLToPath(new URL(".", import.meta.url));
 const mobile = process.env.LONORA_UI_TEST_APP === "mobile";
 const port = mobile ? 8831 : 8830;
-const baseURL = `http://127.0.0.1:${port}`;
+// WebAuthn requires a domain RP ID; localhost is its standard development exception.
+const baseURL = `http://localhost:${port}`;
 const output = `${root}.runtime/${mobile ? "mobile" : "web"}-ui-tests`;
 
 export default defineConfig({

@@ -4,6 +4,7 @@ from typing import Any
 from lonora_contracts.domain import new_id, utcnow
 from sqlalchemy import (
     JSON,
+    BigInteger,
     CheckConstraint,
     DateTime,
     ForeignKey,
@@ -42,6 +43,76 @@ class SessionRow(Base):
     csrf_hash: Mapped[str] = mapped_column(String(64))
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     revoked: Mapped[bool] = mapped_column(default=False)
+
+
+class DeviceCredentialRow(Base):
+    __tablename__ = "ln_device_credentials"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    owner_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_owners.id", ondelete="CASCADE"), index=True
+    )
+    name: Mapped[str] = mapped_column(String(80))
+    credential_id: Mapped[str] = mapped_column(String(2048), unique=True)
+    public_key: Mapped[str] = mapped_column(Text)
+    sign_count: Mapped[int] = mapped_column(BigInteger, default=0)
+    revoked: Mapped[bool] = mapped_column(default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class DeviceChallengeRow(Base):
+    __tablename__ = "ln_device_challenges"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    owner_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_owners.id", ondelete="CASCADE"), index=True
+    )
+    session_hash: Mapped[str] = mapped_column(String(64))
+    kind: Mapped[str] = mapped_column(String(16))
+    request_id: Mapped[str | None] = mapped_column(String(36))
+    challenge: Mapped[str] = mapped_column(Text)
+    binding_hash: Mapped[str] = mapped_column(String(64))
+    name: Mapped[str] = mapped_column(String(80), default="")
+    status: Mapped[str] = mapped_column(String(16), default="pending")
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class SuperBotRequestRow(Base):
+    __tablename__ = "ln_super_bot_requests"
+    __table_args__ = (
+        CheckConstraint("mode IN ('advisory','supervised','autonomous')", name="ln_super_bot_mode"),
+        CheckConstraint(
+            "status IN ('pending','activated','rejected','expired','cancelled','paused','disabled')",
+            name="ln_super_bot_status",
+        ),
+        Index(
+            "ln_super_bot_active_goal",
+            "goal_id",
+            unique=True,
+            postgresql_where=text("status = 'activated'"),
+            sqlite_where=text("status = 'activated'"),
+        ),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    owner_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_owners.id", ondelete="CASCADE"), index=True
+    )
+    agent_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_agents.id", ondelete="CASCADE"), index=True
+    )
+    thread_id: Mapped[str] = mapped_column(ForeignKey("ln_threads.id", ondelete="CASCADE"))
+    goal_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_trading_goals.id", ondelete="CASCADE"), index=True
+    )
+    mode: Mapped[str] = mapped_column(String(16))
+    status: Mapped[str] = mapped_column(String(16), default="pending")
+    envelope: Mapped[dict[str, Any]] = mapped_column(JSON)
+    envelope_hash: Mapped[str] = mapped_column(String(64))
+    device_id: Mapped[str | None] = mapped_column(
+        ForeignKey("ln_device_credentials.id", ondelete="SET NULL")
+    )
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
 class AgentRow(Base):

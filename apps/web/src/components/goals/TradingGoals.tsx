@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api, type Payload, type Resource } from "../../lib/api";
 import { userError } from "../../lib/user_error";
 import { useClient } from "../../providers/ClientProvider";
+import { SuperBotCards } from "../trading/SuperBotCards";
 
 type GoalResource = Resource & { state: Payload };
 
@@ -178,10 +179,16 @@ export function TradingGoals({ agentId }: { agentId: string }) {
       await api.post(`/trading/goals/${goal.id}/control`, {
         version: goal.version,
         action,
-        ...(autonomous === undefined ? {} : { autonomous }),
+        ...(autonomous === undefined ? {} : { autonomous: false }),
         ...(limits[goal.id]?.volume ? { maximum_volume: limits[goal.id].volume } : {}),
         ...(limits[goal.id]?.actions ? { max_trade_actions: Number(limits[goal.id].actions) } : {}),
       });
+      if (autonomous === true) {
+        await api.post(`/agents/${agentId}/super-bot/proposals`, {
+          goal_id: goal.id,
+          mode: "autonomous",
+        });
+      }
       await reload();
       refresh();
     } catch (failure) {
@@ -325,6 +332,7 @@ export function TradingGoals({ agentId }: { agentId: string }) {
                 />
                 <Trans>Allow autonomous trading for this goal</Trans>
               </label>
+              <SuperBotCards agentId={agentId} goalId={goal.id} />
               <p className="muted">
                 <Trans>
                   Global Trading and Emergency Stop still govern every financial operation. Pausing

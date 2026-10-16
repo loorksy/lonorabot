@@ -3,6 +3,30 @@ import { errorCode } from "@lonora/core";
 export function userError(error: unknown) {
   const code = errorCode(error);
   switch (code) {
+    case "super_bot_advisory_only":
+      return t`This plan is advisory and cannot execute trades.`;
+    case "super_bot_scope_changed":
+    case "device_challenge_not_found":
+    case "super_bot_manual_permission_required":
+      return t`Review a new Super Bot request and authorize it with your device.`;
+    case "device_secure_origin_required":
+      return t`Use the configured secure website for device authentication.`;
+    case "device_registration_required":
+      return t`Register a passkey before activating this request.`;
+    case "device_authorization_required":
+    case "super_bot_authority_expansion":
+      return t`Review a new Super Bot request and authorize it with your device.`;
+    case "device_authorization_cancelled":
+      return t`Device authentication was cancelled. No authority was granted.`;
+    case "device_not_supported":
+      return t`Secure device authentication is unavailable on this device.`;
+    case "device_proof_invalid":
+      return t`Device verification failed. No authority was granted.`;
+    case "device_challenge_expired_or_used":
+    case "super_bot_request_expired_or_used":
+    case "super_bot_request_expired_or_changed":
+    case "super_bot_plan_changed":
+      return t`This authorization request expired or changed. Review a new request.`;
     case "unauthorized":
       return t`Sign-in failed. Check your email and password.`;
     case "invalid_bootstrap_token":

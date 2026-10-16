@@ -19,6 +19,7 @@ from .runtime import ApiRuntime
 ROUTES = (
     "mobile_updates",
     "auth",
+    "device_authority",
     "onboarding",
     "agents",
     "agent_state",
@@ -78,6 +79,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         await rt.close()
 
     app = FastAPI(title="Lonora", version="0.2.0", lifespan=lifespan)
+
+    @app.get("/.well-known/assetlinks.json", include_in_schema=False)
+    async def android_app_links():
+        from .device_metadata import asset_links
+
+        return asset_links(configuration)
+
+    @app.get("/.well-known/apple-app-site-association", include_in_schema=False)
+    async def apple_app_links():
+        return {"webcredentials": {"apps": configuration.passkey_ios_app_ids}}
+
     app.state.runtime = rt
     app.add_middleware(
         CORSMiddleware,

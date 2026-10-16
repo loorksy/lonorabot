@@ -17,6 +17,7 @@ from .schema import (
     EffectReceiptRow,
     EventRow,
     SettingRow,
+    SuperBotRequestRow,
     TicketRow,
     TradeApprovalRow,
 )
@@ -47,6 +48,16 @@ async def policy(session: AsyncSession, owner_id: str) -> AttentionPolicy:
 
 
 async def mandatory_current(session: AsyncSession, row: AttentionRow) -> bool:
+    if row.code == "super_bot_authorization":
+        proposal = await session.get(
+            SuperBotRequestRow, row.parameters.get("super_bot_request_id", "")
+        )
+        return (
+            proposal is not None
+            and proposal.owner_id == row.owner_id
+            and proposal.status == "pending"
+            and proposal.expires_at > utcnow()
+        )
     if row.code == "emergency_stop":
         return (await SettingsRepository().get(session, "trading_control")).get(
             "emergency_stop"

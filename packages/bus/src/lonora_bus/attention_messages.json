@@ -1,5 +1,6 @@
 {
   "ar": {
+    "super_bot_authorization": "طلب سوبر بوت يحتاج مراجعتك وتفويض جهازك في المحادثة. لم تُمنح صلاحيات تنفيذ بعد.",
     "emergency_stop": "الإيقاف الطارئ مفعّل. مُنع إرسال أوامر مالية جديدة.",
     "approval_required": "يوجد طلب يحتاج موافقتك. افتح المحادثة لمراجعة التفاصيل؛ لم تنفذ هذه الرسالة أي إجراء.",
     "broker_degraded": "اتصال الوسيط متدهور. تحقّق من حالة الحساب والعمليات غير المحسومة.",
@@ -7,6 +8,7 @@
     "internal_update": "يوجد تحديث محفوظ في Lonora."
   },
   "en": {
+    "super_bot_authorization": "A Super Bot request needs your review and device authorization in the conversation. No execution authority has been granted yet.",
     "emergency_stop": "Emergency Stop is active. New financial operations are blocked.",
     "approval_required": "A request needs your approval. Open the conversation to review it; this message executed no action.",
     "broker_degraded": "The broker connection is degraded. Review the account and unresolved operations.",
