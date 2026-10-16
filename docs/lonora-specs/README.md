@@ -1,6 +1,6 @@
 # Lonora implementation specifications
 
-All 18 source documents are preserved verbatim under their original filenames. Numbers identify documents, not execution order. The appended in-chat activation/device authorization in 03 is authoritative. The master orchestration instructions govern the entire set.
+All 19 source documents are preserved verbatim under their original filenames. Numbers identify documents, not execution order. The appended in-chat activation/device authorization in 03 is authoritative. The master orchestration instructions govern the entire set.
 
 Base audited: `895eaa8`; integration branch: `feat/coherent-agent-foundations`. No merge into main is authorized for this program.
 
@@ -36,3 +36,7 @@ A source file being stored does not make its functionality implemented. VERIFIED
 Additional authoritative review instruction: [Continue full implementation and fix review findings](CONTINUE_FULL_IMPLEMENTATION_01_18_AND_FIX_REVIEW_FINDINGS.md). It preserves the original 18 specifications and requires the five safety/correctness findings to be fixed before subsequent capability waves.
 
 Implementation reference: [Signed device authorization and native public bindings](DEVICE_AUTHORIZATION.md).
+
+| [19_AGENT_OPERATING_ENVIRONMENT_AND_SELF_DIRECTED_RUNTIME.md](19_AGENT_OPERATING_ENVIRONMENT_AND_SELF_DIRECTED_RUNTIME.md) | Persistent Agent environment, typed tool recovery, durable continuation and same-Agent voice |
+
+S19 execution starts on `feat/agent-operating-environment` from `21293ad`; see [kickoff](S19_IMPLEMENTATION_KICKOFF.md). Earlier program branch/history entries above are historical, not authorization to merge this new specification.
