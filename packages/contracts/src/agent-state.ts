@@ -36,5 +36,10 @@ export type AgentLiveState = {
     recovery?: string | null;
     retry_at?: string | null;
   }>;
-  health: Array<{ account_id: string; symbol?: string; reason_code?: string }>;
+  health: Array<{
+    account_id: string;
+    kind?: "broker" | "market";
+    symbol?: string;
+    reason_code?: string;
+  }>;
 };

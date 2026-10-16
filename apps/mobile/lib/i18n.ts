@@ -1,5 +1,18 @@
 export type Locale = "ar" | "en";
 export const labels = {
+  personalAgent: ["المساعد الشخصي", "Personal Agent"],
+  personal_agent_cannot_delete: [
+    "لا يمكن حذف مساعدك الشخصي.",
+    "Your Personal Agent cannot be deleted.",
+  ],
+  deleteAgentCancel: ["إلغاء", "Cancel"],
+  deleteAgent: ["حذف المساعد", "Delete agent"],
+  deleteAgentConfirm: ["حذف المساعد نهائيًا؟", "Delete agent permanently?"],
+  deleteAgentWarning: [
+    "سيُحذف هذا المساعد نهائيًا. لا يمكن التراجع عن هذا الإجراء.",
+    "This agent will be permanently deleted. This cannot be undone.",
+  ],
+  deleteAgentPermanently: ["حذف نهائي", "Delete permanently"],
   execution_mode_changed: [
     "تغير وضع التنفيذ. راجع الخطة المحفوظة قبل المتابعة.",
     "Execution mode changed. Review the saved plan before continuing.",
@@ -423,7 +436,13 @@ export const labels = {
   live_working: ["يعمل", "Working"],
   live_waiting: ["ينتظر", "Waiting"],
   live_action_required: ["بانتظار موافقتك", "Action required"],
-  live_degraded: ["بيانات السوق غير متاحة", "Market data unavailable"],
+  live_degraded: ["الخدمة تحتاج إلى مراجعة", "Service needs attention"],
+  marketDataUnavailable: ["بيانات السوق غير متاحة", "Market data unavailable"],
+  brokerNeedsAttention: ["اتصال الوسيط يحتاج إلى مراجعة", "Broker connection requires attention"],
+  brokerVerificationPending: [
+    "التحقق من عمليات الوسيط معلّق. قد تبقى بيانات السوق متاحة؛ التداول محظور حتى اكتمال التحقق.",
+    "Broker verification pending. Market data may remain available; trading is blocked until verification finishes.",
+  ],
   live_paused: ["متوقف مؤقتًا", "Paused"],
   activeWatches: ["المراقبات النشطة", "Active watches"],
 } as const;

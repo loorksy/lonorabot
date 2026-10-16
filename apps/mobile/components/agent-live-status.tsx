@@ -136,7 +136,11 @@ export function AgentLiveStatus({ agentId }: { agentId: string }) {
               key={`${item.account_id}:${item.symbol ?? ""}:${item.reason_code ?? ""}`}
               style={{ color: colors.secondary }}
             >
-              {t("live_degraded")} {item.symbol}
+              {item.reason_code === "broker_reconciliation_pending"
+                ? t("brokerVerificationPending")
+                : item.kind === "broker" || !item.symbol
+                  ? t("brokerNeedsAttention")
+                  : `${t("marketDataUnavailable")} ${item.symbol}`}
             </Text>
           ))}
         </View>

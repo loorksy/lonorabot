@@ -133,6 +133,7 @@ async def agent_live_state(session: AsyncSession, owner_id: str, agent_id: str) 
             health.append(
                 {
                     "account_id": connection.id,
+                    "kind": "broker",
                     "state": recovery["status"],
                     "reason_code": recovery["reason_code"],
                     "observed_at": recovery["observed_at"],
@@ -144,16 +145,19 @@ async def agent_live_state(session: AsyncSession, owner_id: str, agent_id: str) 
             ):
                 health.append(
                     {
-                        key: value.get(key)
-                        for key in (
-                            "account_id",
-                            "symbol",
-                            "timeframe",
-                            "state",
-                            "reason_code",
-                            "observed_at",
-                            "last_good_at",
-                        )
+                        "kind": "market",
+                        **{
+                            key: value.get(key)
+                            for key in (
+                                "account_id",
+                                "symbol",
+                                "timeframe",
+                                "state",
+                                "reason_code",
+                                "observed_at",
+                                "last_good_at",
+                            )
+                        },
                     }
                 )
     pending_authorizations = int(

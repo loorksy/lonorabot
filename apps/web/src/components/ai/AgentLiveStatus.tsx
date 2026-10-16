@@ -35,7 +35,7 @@ export function AgentLiveStatus({ agentId }: { agentId: string }) {
     working: t`Working`,
     waiting: t`Waiting`,
     action_required: t`Action required`,
-    degraded: t`Market data unavailable`,
+    degraded: t`Service needs attention`,
     paused: t`Paused`,
   };
   return (
@@ -137,7 +137,18 @@ export function AgentLiveStatus({ agentId }: { agentId: string }) {
       ))}
       {state.health.map((health, index) => (
         <p key={`${health.account_id}:${health.symbol ?? index}`}>
-          <Trans>Market data unavailable</Trans> <bdi>{health.symbol}</bdi>
+          {health.reason_code === "broker_reconciliation_pending" ? (
+            <Trans>
+              Broker verification pending. Market data may remain available; trading is blocked
+              until verification finishes.
+            </Trans>
+          ) : health.kind === "broker" || !health.symbol ? (
+            <Trans>Broker connection requires attention</Trans>
+          ) : (
+            <>
+              <Trans>Market data unavailable</Trans> <bdi>{health.symbol}</bdi>
+            </>
+          )}
         </p>
       ))}
       <time dateTime={state.observed_at}>{new Date(state.observed_at).toLocaleTimeString()}</time>

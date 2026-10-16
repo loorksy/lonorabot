@@ -3,6 +3,8 @@ import { errorCode } from "@lonora/core";
 export function userError(error: unknown) {
   const code = errorCode(error);
   switch (code) {
+    case "personal_agent_cannot_delete":
+      return t`Your Personal Agent cannot be deleted.`;
     case "execution_mode_changed":
     case "goal_execution_mode_invalid":
     case "shadow_execution_forbidden":
@@ -96,6 +98,9 @@ export function userError(error: unknown) {
       return t`Broker candles are unavailable for this symbol and timeframe.`;
     case "symbol_not_found":
       return t`This exact symbol is not available from your broker.`;
+    case "broker_reconciliation_pending":
+    case "broker_reconciliation_required":
+      return t`Broker verification pending. Market data may remain available; trading is blocked until verification finishes.`;
     case "broker_account_not_found":
       return t`Broker account not found.`;
     case "broker_credentials_rejected":

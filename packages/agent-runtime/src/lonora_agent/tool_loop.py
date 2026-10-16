@@ -10,6 +10,7 @@ from lonora_core.user_error import LonoraError
 from lonora_db.runs import checkpoint, require_lease
 from lonora_tools.context import ToolContext
 from lonora_tools.registry import ToolRegistry
+from lonora_tools.schema import ToolArgumentsError
 
 from .cancellation import cancellation_checkpoint
 from .context.builder import build_context
@@ -109,7 +110,11 @@ async def execute_tool_loop(
             except LonoraError as error:
                 if error.code == "stale_lease":
                     raise
-                result = {"ok": False, "code": error.code}
+                error_result: dict[str, Any] = {"ok": False, "code": error.code}
+                if isinstance(error, ToolArgumentsError):
+                    error_result["issues"] = error.issues
+                    error_result["retryable"] = True
+                result = error_result
             if result.get("_runtime_retry"):
                 state["waiting_call_id"] = call.id
                 await persist(context, state, messages, pending)

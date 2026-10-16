@@ -2,7 +2,7 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import type { DeviceChallenge, SuperBotRequest } from "@lonora/contracts";
 import { webDeviceProof, webDeviceSupported } from "@lonora/core";
 import { useCallback, useEffect, useState } from "react";
-import { api } from "../../lib/api";
+import { ApiError, api } from "../../lib/api";
 import { userError } from "../../lib/user_error";
 import { useClient } from "../../providers/ClientProvider";
 
@@ -57,6 +57,8 @@ export function SuperBotCards({
       refresh();
     } catch (cause) {
       setError(cause);
+      if (cause instanceof ApiError && cause.code === "device_registration_required")
+        setEnroll(true);
       await reload().catch(() => undefined);
     } finally {
       setBusy("");

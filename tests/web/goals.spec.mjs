@@ -87,7 +87,12 @@ test("owner reviews a durable goal and controls limits, autonomy, pause, same-th
     // The controlled value follows durable server admission, not an optimistic toggle.
     await autonomy.click();
     await expect(autonomy).not.toBeChecked();
-    await card.getByRole("button", { name: "Register a passkey", exact: true }).click();
+    // A first activation attempt explains missing enrollment and opens its
+    // real registration flow instead of leaving the user at a dead-end error.
+    await card
+      .getByRole("button", { name: "Activate with device authentication", exact: true })
+      .click();
+    await expect(card.getByLabel("Confirm account password", { exact: true })).toBeVisible();
     await card
       .getByLabel("Confirm account password", { exact: true })
       .fill("ci-only-owner-password");

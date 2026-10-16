@@ -35,6 +35,7 @@ CHECKS = (
     "check_relationships.py",
     "check_device_authority.py",
     "check_activation_review.py",
+    "check_conversational_setup.py",
 )
 
 

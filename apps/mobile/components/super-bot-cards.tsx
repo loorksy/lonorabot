@@ -1,7 +1,7 @@
 import type { DeviceChallenge, SuperBotRequest } from "@lonora/contracts";
 import { useEffect, useState } from "react";
 import { Linking, Platform, Text, TextInput, View } from "react-native";
-import { api } from "../lib/api";
+import { ApiError, api } from "../lib/api";
 import { deviceProof, deviceSupported } from "../lib/device-proof";
 import { useSession } from "../lib/session";
 import { Button, colors, ErrorNotice } from "./ui";
@@ -81,6 +81,8 @@ export function SuperBotCards({
       setRows(await api.get<SuperBotRequest[]>(`/agents/${agentId}/super-bot`));
     } catch (cause) {
       setError(errorText(cause));
+      if (cause instanceof ApiError && cause.code === "device_registration_required")
+        setEnroll(true);
     } finally {
       setBusy(false);
     }
