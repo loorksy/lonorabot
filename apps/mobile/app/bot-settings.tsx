@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 import { AvatarPicker } from "../components/avatar-picker";
 import { ExecutionModeSettings } from "../components/execution-mode-settings";
+import { PersonalAgentBadge } from "../components/personal-agent-badge";
 import { SettingsGroup, SettingsRow, SettingsSwitch } from "../components/settings-group";
 import { SheetHeader } from "../components/sheet-header";
 import { colors, ErrorNotice, Field, Loading, Screen } from "../components/ui";
@@ -23,6 +24,7 @@ export default function BotSettings() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   useEffect(() => {
     if (!owner || !botId) return;
     let live = true;
@@ -51,7 +53,7 @@ export default function BotSettings() {
     };
   }, [botId, owner, errorText, t]);
   const save = async () => {
-    if (!agent) return;
+    if (!agent || busy || confirmDelete) return;
     setBusy(true);
     setError(null);
     setSaved(false);
@@ -87,10 +89,12 @@ export default function BotSettings() {
     <Screen>
       <SheetHeader
         title={t("agentSettings")}
-        onClose={() => router.back()}
+        onClose={() => {
+          if (!busy) router.back();
+        }}
         action={t("save")}
         onAction={() => void save()}
-        disabled={busy || !agent?.name.trim()}
+        disabled={busy || confirmDelete || !agent?.name.trim()}
       />
       <ErrorNotice text={error} />
       {agent ? (
@@ -107,6 +111,12 @@ export default function BotSettings() {
               setSaved(false);
             }}
           />
+          <View
+            style={{ flexDirection: rtl ? "row-reverse" : "row", alignItems: "center", gap: 6 }}
+          >
+            <Text style={{ color: colors.foreground, fontSize: 17 }}>{agent.name}</Text>
+            <PersonalAgentBadge agent={agent} />
+          </View>
           {agent.trading_symbol && (
             <SettingsGroup footer={t("immutableTradingPair")}>
               <SettingsRow title={t("symbol")} value={agent.trading_symbol} />
@@ -186,6 +196,64 @@ export default function BotSettings() {
               </Text>
             </View>
           ) : null}
+          {agent.role === "personal" ? (
+            <Text style={{ color: colors.secondary, textAlign: rtl ? "right" : "left" }}>
+              {t("personal_agent_cannot_delete")}
+            </Text>
+          ) : (
+            <View style={{ gap: 12 }}>
+              {confirmDelete ? (
+                <>
+                  <Text
+                    accessibilityRole="header"
+                    style={{
+                      color: colors.foreground,
+                      fontSize: 17,
+                      textAlign: rtl ? "right" : "left",
+                    }}
+                  >
+                    {t("deleteAgentConfirm")}
+                  </Text>
+                  <Text style={{ color: colors.secondary, textAlign: rtl ? "right" : "left" }}>
+                    {agent.name}
+                    {"\n"}
+                    {t("deleteAgentWarning")}
+                  </Text>
+                </>
+              ) : null}
+              <SettingsGroup>
+                {confirmDelete ? (
+                  <SettingsRow
+                    title={t("deleteAgentCancel")}
+                    disabled={busy}
+                    onPress={() => setConfirmDelete(false)}
+                  />
+                ) : null}
+                <SettingsRow
+                  title={t(confirmDelete ? "deleteAgentPermanently" : "deleteAgent")}
+                  destructive
+                  disabled={busy}
+                  onPress={async () => {
+                    if (busy || agent.role === "personal") return;
+                    if (!confirmDelete) {
+                      setConfirmDelete(true);
+                      return;
+                    }
+                    setBusy(true);
+                    setError(null);
+                    try {
+                      await agents.remove(agent.id);
+                      router.dismissAll();
+                      router.replace("/");
+                    } catch (reason) {
+                      setError(errorText(reason));
+                      setBusy(false);
+                    }
+                  }}
+                />
+              </SettingsGroup>
+            </View>
+          )}
           {saved ? (
             <Text style={{ color: colors.success, textAlign: "center" }}>{t("saved")}</Text>
           ) : null}

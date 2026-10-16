@@ -631,3 +631,73 @@ test("cancelled durable task stays cancelled on the board after reload and has n
   await expect(dialog.getByRole("button", { name: "Save", exact: true })).toHaveCount(0);
   await expect(dialog.getByRole("button", { name: "Run task", exact: true })).toHaveCount(0);
 });
+
+test("agent deletion requires confirmation and Personal Agent keeps its gold role badge", async ({
+  page,
+  context,
+  workspace,
+}) => {
+  const { agent } = workspace;
+  const agents = await (await context.request.get("/api/agents")).json();
+  const personal = agents.find((row) => row.role === "personal");
+  expect(personal).toBeTruthy();
+  await page.goto(`/app/${personal.id}`);
+  await expect(
+    page
+      .locator(`[data-roster-agent-id="${personal.id}"]`)
+      .getByRole("img", { name: "Personal Agent", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: `Agent settings: ${personal.name}`, exact: true }).click();
+  await expect(
+    page.getByText("Your Personal Agent cannot be deleted.", { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Delete agent", exact: true })).toHaveCount(0);
+
+  await page.goto(`/app/${agent.id}`);
+  await expect(
+    page
+      .locator(`[data-roster-agent-id="${agent.id}"]`)
+      .getByRole("img", { name: "Personal Agent", exact: true }),
+  ).toHaveCount(0);
+  await page.getByRole("button", { name: `Agent settings: ${agent.name}`, exact: true }).click();
+  await page.getByRole("button", { name: "Delete agent", exact: true }).click();
+  const confirmation = page.getByRole("alertdialog", {
+    name: "Delete agent permanently?",
+    exact: true,
+  });
+  await expect(confirmation).toContainText(agent.name);
+  await confirmation.getByRole("button", { name: "Cancel", exact: true }).click();
+  expect(
+    (await (await context.request.get("/api/agents")).json()).some((row) => row.id === agent.id),
+  ).toBe(true);
+  await page.getByRole("button", { name: "Delete agent", exact: true }).click();
+  // A failed API request must keep the agent and confirmation available for retry.
+  await page.route(`**/api/agents/${agent.id}`, async (route) => {
+    if (route.request().method() === "DELETE")
+      await route.fulfill({ status: 409, json: { detail: "agent_busy" } });
+    else await route.continue();
+  });
+  await confirmation.getByRole("button", { name: "Delete permanently", exact: true }).click();
+  await expect(
+    confirmation.getByRole("button", { name: "Delete permanently", exact: true }),
+  ).toBeEnabled();
+  await expect(page).toHaveURL(new RegExp(`/app/${agent.id}$`));
+  expect(
+    (await (await context.request.get("/api/agents")).json()).some((row) => row.id === agent.id),
+  ).toBe(true);
+  await page.unroute(`**/api/agents/${agent.id}`);
+  const deleted = page.waitForResponse(
+    (response) =>
+      response.url().endsWith(`/api/agents/${agent.id}`) &&
+      response.request().method() === "DELETE",
+  );
+  await confirmation.getByRole("button", { name: "Delete permanently", exact: true }).click();
+  expect((await deleted).ok()).toBe(true);
+  await expect(page).toHaveURL(new RegExp(`/app/${personal.id}$`));
+  await expect(page.locator(`[data-roster-agent-id="${agent.id}"]`)).toHaveCount(0);
+  await page.reload();
+  expect(
+    (await (await context.request.get("/api/agents")).json()).some((row) => row.id === agent.id),
+  ).toBe(false);
+  await expect(page.locator(`[data-roster-agent-id="${agent.id}"]`)).toHaveCount(0);
+});

@@ -1,4 +1,5 @@
 // Adapted for Lonora from Tampletgrok pages/shell/bot-picker.tsx; Apache-2.0.
+
 import { t } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import {
@@ -13,6 +14,7 @@ import {
 } from "@lonora/ui-web";
 import { Plus, Users } from "lucide-react";
 import { useMemo, useState } from "react";
+import { PersonalAgentBadge } from "../../components/ai/PersonalAgentBadge";
 import type { Agent } from "../../lib/api";
 
 export function NewConversationPicker({
@@ -72,6 +74,7 @@ export function NewConversationPicker({
               />
               <span className="tpl-truncate" dir="auto">
                 {agent.name}
+                <PersonalAgentBadge agent={agent} />
               </span>
             </CommandItem>
           ))}

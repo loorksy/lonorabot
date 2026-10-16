@@ -11,6 +11,7 @@ import { ConversationRow } from "../components/conversation-row";
 import { GroupAvatar } from "../components/group-avatar";
 import { HeaderButton } from "../components/header-button";
 import { NativeSymbol } from "../components/native-symbol";
+import { PersonalAgentBadge } from "../components/personal-agent-badge";
 import { Button, colors, ErrorNotice, Field, Loading, Screen } from "../components/ui";
 import { api } from "../lib/api";
 import { useSession } from "../lib/session";
@@ -271,6 +272,8 @@ export default function Inbox() {
                   <ConversationRow
                     key={run.id}
                     title={agent.name}
+                    badge={<PersonalAgentBadge agent={agent} />}
+                    badgeLabel={agent.role === "personal" ? t("personalAgent") : undefined}
                     preview={t(run.status)}
                     time={new Date(run.updated_at).toLocaleTimeString(locale, {
                       hour: "2-digit",
@@ -326,6 +329,10 @@ export default function Inbox() {
           return (
             <ConversationRow
               title={name}
+              badge={item.kind === "agent" ? <PersonalAgentBadge agent={agent} /> : undefined}
+              badgeLabel={
+                item.kind === "agent" && agent?.role === "personal" ? t("personalAgent") : undefined
+              }
               disabled={opening !== null}
               busy={opening === item.value.id}
               onPress={() => void open(item)}

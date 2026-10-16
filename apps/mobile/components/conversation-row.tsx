@@ -7,6 +7,8 @@ import { colors } from "./ui";
 export function ConversationRow({
   title,
   preview,
+  badge,
+  badgeLabel,
   avatar,
   onPress,
   onLongPress,
@@ -16,6 +18,8 @@ export function ConversationRow({
 }: {
   title: string;
   preview: string;
+  badge?: ReactNode;
+  badgeLabel?: string;
   avatar: ReactNode;
   onPress: () => void;
   onLongPress?: () => void;
@@ -27,7 +31,7 @@ export function ConversationRow({
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={title}
+      accessibilityLabel={badgeLabel ? `${title}, ${badgeLabel}` : title}
       disabled={disabled}
       onPress={onPress}
       onLongPress={onLongPress}
@@ -47,7 +51,7 @@ export function ConversationRow({
             numberOfLines={1}
             style={{
               color: colors.foreground,
-              flex: 1,
+              flexShrink: 1,
               fontSize: 17,
               fontWeight: "600",
               textAlign: rtl ? "right" : "left",
@@ -55,8 +59,16 @@ export function ConversationRow({
           >
             {title}
           </Text>
+          {badge}
           {time ? (
-            <Text style={{ color: colors.secondary, fontSize: 12, writingDirection: "auto" }}>
+            <Text
+              style={{
+                color: colors.secondary,
+                fontSize: 12,
+                writingDirection: "auto",
+                marginStart: "auto",
+              }}
+            >
               {time}
             </Text>
           ) : null}

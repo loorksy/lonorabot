@@ -3,6 +3,7 @@ import { api } from "./api";
 
 export const agents = {
   list: () => api.get<Agent[]>("/agents"),
+  remove: (id: string) => api.delete(`/agents/${encodeURIComponent(id)}`),
   conversation: (id: string) =>
     api.post<Thread>(`/agents/${encodeURIComponent(id)}/conversation`, {}),
   update: (

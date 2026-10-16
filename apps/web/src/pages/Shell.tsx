@@ -1,4 +1,5 @@
 // Modified for Lonora; template source and license attribution in THIRD_PARTY_NOTICES.md.
+
 import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
 import {
@@ -42,6 +43,7 @@ import {
 } from "react-router-dom";
 import { AgentAvatar } from "../components/ai/AgentAvatar";
 import { AttentionCount } from "../components/ai/AttentionInbox";
+import { PersonalAgentBadge } from "../components/ai/PersonalAgentBadge";
 import { CallPill } from "../components/call/CallPill";
 import { VoiceChatCard } from "../components/call/VoiceChatCard";
 import { ConversationCharts } from "../components/charts/ConversationCharts";
@@ -183,7 +185,7 @@ function WorkspaceShell({ onLogout }: { onLogout: () => void }) {
   const voice = useVoice();
   useTheme();
   const { owner, connected, revision, refresh } = useClient();
-  const { agents, create, loading, error: agentError } = useAgents();
+  const { agents, create, remove, loading, error: agentError } = useAgents();
   const location = useLocation();
   const navigate = useNavigate();
   const mobile = useMedia("(max-width: 767px)");
@@ -686,7 +688,10 @@ function WorkspaceShell({ onLogout }: { onLogout: () => void }) {
                 <GroupAvatar members={memberAgents} />
               ) : null}
               <span className="tpl-chat-title" dir="auto">
-                <span>{title}</span>
+                <span>
+                  {title}
+                  <PersonalAgentBadge agent={agent} />
+                </span>
                 {agent?.title && <small>{agent.title}</small>}
               </span>
               {agent?.paused && (
@@ -958,7 +963,19 @@ function WorkspaceShell({ onLogout }: { onLogout: () => void }) {
             />
           )}
           {panel === "settings" && agent && (
-            <AgentSettings key={agent.id} agent={agent} onClose={closePanel} />
+            <AgentSettings
+              key={agent.id}
+              agent={agent}
+              onClose={closePanel}
+              onDelete={async () => {
+                await remove(agent.id);
+                closePanel();
+                const nextAgent =
+                  agents.find((row) => row.id !== agent.id && row.role === "personal") ??
+                  agents.find((row) => row.id !== agent.id);
+                navigate(nextAgent ? `/app/${nextAgent.id}` : "/app", { replace: true });
+              }}
+            />
           )}
           {panel === "group-settings" && group && (
             <GroupSettings

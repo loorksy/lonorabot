@@ -1,8 +1,10 @@
 // Adapted for Lonora from Tampletgrok Shell.tsx roster rows; Apache-2.0.
+
 import { useLingui } from "@lingui/react/macro";
 import { AgentAvatar } from "@lonora/ui-web";
 import { Users } from "lucide-react";
 import type { CSSProperties, MouseEventHandler, ReactNode } from "react";
+import { PersonalAgentBadge } from "../../components/ai/PersonalAgentBadge";
 import type { Agent, Resource } from "../../lib/api";
 
 export function SidebarRow({
@@ -62,6 +64,7 @@ export function SidebarRow({
       <span className="tpl-roster-copy">
         <span className="tpl-roster-name" dir="auto">
           {name}
+          <PersonalAgentBadge agent={agent} />
         </span>
         {preview ? (
           <span className="tpl-roster-preview" dir="auto">

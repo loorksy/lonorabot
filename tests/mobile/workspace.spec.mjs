@@ -314,6 +314,36 @@ test("Expo profile, routines, groups and authenticated artifacts use the persist
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1),
     ).toBeTruthy();
+    const personal = (await (await context.request.get("/api/agents")).json()).find(
+      (row) => row.role === "personal",
+    );
+    expect(personal).toBeTruthy();
+    await page.goto(`/bot-settings?botId=${personal.id}`);
+    await expect(page.getByRole("img", { name: "Personal Agent", exact: true })).toBeVisible();
+    await expect(
+      page.getByText("Your Personal Agent cannot be deleted.", { exact: true }),
+    ).toBeVisible();
+    await expect(page.getByRole("button", { name: "Delete agent", exact: true })).toHaveCount(0);
+    await page.goto(`/bot-settings?botId=${agent.id}`);
+    await page.getByRole("button", { name: "Delete agent", exact: true }).click();
+    await expect(page.getByText("Delete agent permanently?", { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Cancel", exact: true }).click();
+    expect(
+      (await (await context.request.get("/api/agents")).json()).some((row) => row.id === agent.id),
+    ).toBe(true);
+    await page.getByRole("button", { name: "Delete agent", exact: true }).click();
+    const deleted = page.waitForResponse(
+      (response) =>
+        response.url().endsWith(`/api/agents/${agent.id}`) &&
+        response.request().method() === "DELETE",
+    );
+    await page.getByRole("button", { name: "Delete permanently", exact: true }).click();
+    expect((await deleted).ok()).toBe(true);
+    await expect(page).toHaveURL(/\/$/);
+    await page.reload();
+    expect(
+      (await (await context.request.get("/api/agents")).json()).some((row) => row.id === agent.id),
+    ).toBe(false);
     await page.goto("/account");
     await page.getByRole("button", { name: "Sign out", exact: true }).click();
     await expect(page.getByRole("textbox", { name: "Email", exact: true })).toBeVisible();

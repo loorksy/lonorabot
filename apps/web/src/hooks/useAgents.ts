@@ -54,7 +54,8 @@ export function useAgents() {
       refresh();
     },
     remove: async (id: string) => {
-      await api.delete(`/agents/${id}`);
+      await api.delete(`/agents/${encodeURIComponent(id)}`);
+      setAgents((rows) => rows.filter((row) => row.id !== id));
       refresh();
     },
   };
