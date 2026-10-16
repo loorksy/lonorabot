@@ -229,3 +229,86 @@ test("connection failure releases media once and retains stable error code", asy
   assert.equal(f.peer.closeCount, 1);
   assert.equal(f.requests.filter((row) => row.method === "DELETE").length, 1);
 });
+
+test("ending during offer creation never configures a closed native peer", async () => {
+  const f = fixture();
+  let release!: (value: { type: string; sdp: string }) => void;
+  let offered!: () => void;
+  const offerStarted = new Promise<void>((resolve) => {
+    offered = resolve;
+  });
+  f.peer.createOffer = () => {
+    offered();
+    return new Promise((resolve) => {
+      release = resolve;
+    });
+  };
+  const negotiating = f.join.connect("current-bot", "current-thread");
+  await offerStarted;
+  await f.join.close();
+  release({ type: "offer", sdp: "late-offer" });
+  await negotiating;
+  assert.equal(f.peer.localDescription, null);
+  assert.equal(
+    f.requests.some((row) => row.path === "/voice/sessions"),
+    false,
+  );
+  assert.equal(f.peer.closeCount, 1);
+});
+
+test("ending while gathering ICE promptly releases startup listener and prevents session creation", async () => {
+  const f = fixture();
+  f.peer.iceGatheringState = "gathering";
+  let gathering!: () => void;
+  const gatheringStarted = new Promise<void>((resolve) => {
+    gathering = resolve;
+  });
+  const add = f.peer.addEventListener.bind(f.peer);
+  f.peer.addEventListener = (type, listener) => {
+    add(type, listener);
+    if (type === "icegatheringstatechange") gathering();
+  };
+  const negotiating = f.join.connect("current-bot", "current-thread");
+  await gatheringStarted;
+  await f.join.close();
+  await negotiating;
+  assert.equal(f.peer.listeners.has("icegatheringstatechange"), false);
+  assert.equal(
+    f.requests.some((row) => row.path === "/voice/sessions"),
+    false,
+  );
+});
+
+test("native teardown failure still finalizes server session, closes peer and releases provider once", async () => {
+  const f = fixture();
+  await f.join.connect("current-bot", "current-thread");
+  const failure = new Error("native audio session already interrupted");
+  f.track.stop = () => {
+    throw failure;
+  };
+  f.device.stopAudio = () => {
+    throw failure;
+  };
+  f.peer.channel.close = () => {
+    throw failure;
+  };
+  const closing = f.join.close();
+  assert.equal(f.join.close(), closing);
+  await assert.rejects(closing, failure);
+  assert.equal(f.peer.closeCount, 1);
+  assert.equal(f.counters().closed, 1);
+  assert.equal(f.requests.filter((row) => row.method === "DELETE").length, 1);
+});
+
+test("closed data channel send failure still deletes original server session and closes peer", async () => {
+  const f = fixture();
+  await f.join.connect("current-bot", "current-thread");
+  const failure = new Error("data channel closed before send");
+  f.peer.channel.send = () => {
+    throw failure;
+  };
+  await assert.rejects(f.join.close(), failure);
+  assert.equal(f.peer.closeCount, 1);
+  assert.equal(f.counters().closed, 1);
+  assert.equal(f.requests.filter((row) => row.method === "DELETE").length, 1);
+});

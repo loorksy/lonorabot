@@ -18,7 +18,7 @@ READY = APK.is_file() and (SDK / "build-tools/36.0.0/apksigner").is_file()
 
 class AndroidArtifactChecks(unittest.TestCase):
     def verify(
-        self, path: Path, expected_signer: str | None = None
+        self, path: Path, expected_signer: str | None = None, *, minimal_permissions: bool = False
     ) -> subprocess.CompletedProcess[str]:
         env = os.environ.copy()
         env["ANDROID_HOME"] = str(SDK)
@@ -26,8 +26,11 @@ class AndroidArtifactChecks(unittest.TestCase):
             env["LONORA_EXPECTED_SIGNER_SHA256"] = expected_signer
         else:
             env.pop("LONORA_EXPECTED_SIGNER_SHA256", None)
+        command = [sys.executable, str(VERIFY), str(path)]
+        if minimal_permissions:
+            command.append("--require-minimal-permissions")
         return subprocess.run(
-            [sys.executable, str(VERIFY), str(path)],
+            command,
             env=env,
             text=True,
             capture_output=True,
@@ -58,6 +61,57 @@ class AndroidArtifactChecks(unittest.TestCase):
         response = self.verify(APK, "0" * 64)
         self.assertNotEqual(response.returncode, 0)
         self.assertIn("does not match the required production identity", response.stderr)
+
+    @unittest.skipUnless(READY, "Requires the real locally built APK and Android signing tools")
+    def test_release_permission_guard_checks_packaged_manifest(self) -> None:
+        # Historical APKs can be audited but must fail the new-release gate if overbroad.
+        permissions = subprocess.check_output(
+            [str(SDK / "build-tools/36.0.0/aapt"), "dump", "permissions", str(APK)],
+            text=True,
+        )
+        forbidden = [
+            permission
+            for permission in (
+                "CAMERA",
+                "SYSTEM_ALERT_WINDOW",
+                "READ_EXTERNAL_STORAGE",
+                "WRITE_EXTERNAL_STORAGE",
+            )
+            if f"name='android.permission.{permission}'" in permissions
+        ]
+        response = self.verify(APK, minimal_permissions=True)
+        if forbidden:
+            self.assertNotEqual(response.returncode, 0)
+            self.assertIn("Unnecessary release permissions declared", response.stderr)
+            for permission in forbidden:
+                self.assertIn(f"android.permission.{permission}", response.stderr)
+        else:
+            self.assertEqual(response.returncode, 0, response.stderr)
+
+    @unittest.skipUnless(READY, "Requires the real locally built APK and Android signing tools")
+    def test_native_call_permissions_are_checked_in_packaged_manifest(self) -> None:
+        permissions = subprocess.check_output(
+            [str(SDK / "build-tools" / "36.0.0" / "aapt"), "dump", "permissions", str(APK)],
+            text=True,
+        )
+        missing = [
+            name
+            for name in ("RECORD_AUDIO", "MODIFY_AUDIO_SETTINGS", "WAKE_LOCK")
+            if f"name='android.permission.{name}'" not in permissions
+        ]
+        response = subprocess.run(
+            [sys.executable, str(VERIFY), str(APK), "--require-call-permissions"],
+            env={**os.environ, "ANDROID_HOME": str(SDK)},
+            capture_output=True,
+            text=True,
+        )
+        if missing:
+            self.assertNotEqual(response.returncode, 0)
+            self.assertIn("Required native call permissions missing", response.stderr)
+            for name in missing:
+                self.assertIn("android.permission." + name, response.stderr)
+        else:
+            self.assertEqual(response.returncode, 0, response.stderr)
 
     @unittest.skipUnless(READY, "Requires the real locally built APK and Android signing tools")
     def test_public_release_is_readable_by_server_uid(self) -> None:

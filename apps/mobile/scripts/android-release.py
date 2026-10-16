@@ -82,7 +82,13 @@ destination.parent.mkdir(parents=True, exist_ok=True)
 candidate = destination.with_name("lonora.candidate.apk")
 shutil.copy2(source, candidate)
 subprocess.run(
-    [sys.executable, str(mobile / "scripts" / "android-verify.py"), str(candidate)],
+    [
+        sys.executable,
+        str(mobile / "scripts" / "android-verify.py"),
+        str(candidate),
+        "--require-minimal-permissions",
+        "--require-call-permissions",
+    ],
     cwd=mobile,
     env=env,
     check=True,

@@ -12,7 +12,7 @@ if (!["preview", "production"].includes(channel))
 const config: ExpoConfig = {
   name: brand.name,
   slug: brand.slug,
-  version: "0.2.5",
+  version: "0.2.6",
   scheme: brand.scheme,
   orientation: "portrait",
   userInterfaceStyle: "dark",
@@ -27,10 +27,16 @@ const config: ExpoConfig = {
   },
   android: {
     package: brand.applicationId,
-    versionCode: 6,
+    versionCode: 26101613,
     softwareKeyboardLayoutMode: "resize",
-    permissions: ["RECORD_AUDIO", "MODIFY_AUDIO_SETTINGS"],
-    blockedPermissions: ["android.permission.CAMERA"],
+    permissions: ["RECORD_AUDIO", "MODIFY_AUDIO_SETTINGS", "WAKE_LOCK"],
+    // Attachments use the system document picker and app cache; no overlays or shared storage.
+    blockedPermissions: [
+      "android.permission.CAMERA",
+      "android.permission.SYSTEM_ALERT_WINDOW",
+      "android.permission.READ_EXTERNAL_STORAGE",
+      "android.permission.WRITE_EXTERNAL_STORAGE",
+    ],
   },
   runtimeVersion: { policy: "fingerprint" },
   updates: {

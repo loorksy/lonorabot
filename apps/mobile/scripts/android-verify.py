@@ -15,6 +15,16 @@ from pathlib import Path
 parser = argparse.ArgumentParser()
 parser.add_argument("apk", type=Path)
 parser.add_argument(
+    "--require-minimal-permissions",
+    action="store_true",
+    help="Reject camera, overlay and broad storage declarations in new releases.",
+)
+parser.add_argument(
+    "--require-call-permissions",
+    action="store_true",
+    help="Reject missing native microphone/audio/wake-lock declarations in new releases.",
+)
+parser.add_argument(
     "--device", help="Optional adb serial; inspect an existing install without uninstalling it."
 )
 args = parser.parse_args()
@@ -48,6 +58,28 @@ if package_id != "ai.lonora.mobile":
     raise SystemExit("Unexpected Android application ID.")
 if "application-debuggable" in badging:
     raise SystemExit("The APK is debuggable; release build rejected.")
+if args.require_minimal_permissions or args.require_call_permissions:
+    permissions = run([str(tools / "aapt"), "dump", "permissions", str(apk)])
+    declared = set(re.findall(r"uses-permission: name='([^']+)'", permissions))
+    missing = {
+        f"android.permission.{name}"
+        for name in ("RECORD_AUDIO", "MODIFY_AUDIO_SETTINGS", "WAKE_LOCK")
+    } - declared
+    if args.require_call_permissions and missing:
+        raise SystemExit("Required native call permissions missing: " + ", ".join(sorted(missing)))
+    forbidden = declared.intersection(
+        f"android.permission.{name}"
+        for name in (
+            "CAMERA",
+            "SYSTEM_ALERT_WINDOW",
+            "READ_EXTERNAL_STORAGE",
+            "WRITE_EXTERNAL_STORAGE",
+        )
+    )
+    if args.require_minimal_permissions and forbidden:
+        raise SystemExit(
+            "Unnecessary release permissions declared: " + ", ".join(sorted(forbidden))
+        )
 with zipfile.ZipFile(apk) as archive:
     entries = archive.namelist()
     if "AndroidManifest.xml" not in entries or "classes.dex" not in entries:

@@ -5,7 +5,12 @@ import { runInNewContext } from "node:vm";
 import ts from "typescript";
 import { ApiError } from "../../apps/mobile/lib/api-error";
 
-function fixture({ available = true, granted = true } = {}) {
+function fixture({
+  available = true,
+  granted = true,
+  receiversFail = false,
+  unmuteFails = false,
+} = {}) {
   const calls: string[] = [];
   const source = readFileSync(
     new URL("../../apps/mobile/lib/voice-device.native.ts", import.meta.url),
@@ -23,6 +28,7 @@ function fixture({ available = true, granted = true } = {}) {
       calls.push("peer");
     }
     getReceivers() {
+      if (receiversFail) throw new Error("receiver already disposed");
       return [];
     }
   }
@@ -69,7 +75,9 @@ function fixture({ available = true, granted = true } = {}) {
           calls.push("audio-stop");
         },
         setForceSpeakerphoneOn() {},
-        setMicrophoneMute() {},
+        setMicrophoneMute() {
+          if (unmuteFails) throw new Error("audio route interrupted");
+        },
       };
     throw new Error(`Unexpected import ${name}`);
   };
@@ -85,6 +93,16 @@ test("unsupported installed binary rejects before loading or initializing native
   );
   assert.deepEqual(f.calls, []);
 });
+
+for (const failure of [{ receiversFail: true }, { unmuteFails: true }]) {
+  test(`native audio route stops even when teardown fails: ${JSON.stringify(failure)}`, async () => {
+    const f = fixture(failure);
+    const device = await f.create();
+    device?.startAudio();
+    assert.throws(() => device?.stopAudio());
+    assert.equal(f.calls.filter((call) => call === "audio-stop").length, 1);
+  });
+}
 test("denied microphone permission cannot create native peer, audio route or microphone", async () => {
   const f = fixture({ granted: false });
   await assert.rejects(

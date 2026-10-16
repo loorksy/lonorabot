@@ -37,13 +37,19 @@ export async function createVoiceDevice(): Promise<VoiceDevice> {
     },
     stopAudio() {
       // Silence received audio immediately while the server finalizes the session.
-      for (const receiver of peer.getReceivers()) {
-        if (receiver.track) receiver.track.enabled = false;
-      }
-      if (audioStarted) {
-        audioStarted = false;
-        InCallManager.setMicrophoneMute(false);
-        InCallManager.stop();
+      try {
+        for (const receiver of peer.getReceivers()) {
+          if (receiver.track) receiver.track.enabled = false;
+        }
+      } finally {
+        if (audioStarted) {
+          audioStarted = false;
+          try {
+            InCallManager.setMicrophoneMute(false);
+          } finally {
+            InCallManager.stop();
+          }
+        }
       }
     },
   };

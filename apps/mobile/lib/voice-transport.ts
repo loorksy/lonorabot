@@ -19,6 +19,7 @@ export class MobileVoiceJoin {
   private outputAt = 0;
   private muted = false;
   private finalized = false;
+  private cancelIce: (() => void) | null = null;
   private resolveEnded: (() => void) | null = null;
   private ended = new Promise<void>((resolve) => {
     this.resolveEnded = resolve;
@@ -81,7 +82,10 @@ export class MobileVoiceJoin {
       this.channel.addEventListener("close", () => {
         if (!this.disposed) void this.close().catch(this.error);
       });
-      await this.device.peer.setLocalDescription(await this.device.peer.createOffer());
+      const offer = await this.device.peer.createOffer();
+      if (this.disposed) return;
+      await this.device.peer.setLocalDescription(offer);
+      if (this.disposed) return;
       if (this.device.peer.iceGatheringState !== "complete") await this.waitIce();
       if (this.disposed) return;
       const sdp = this.device.peer.localDescription?.sdp;
@@ -99,6 +103,7 @@ export class MobileVoiceJoin {
         return;
       }
       await this.device.peer.setRemoteDescription({ type: "answer", sdp: result.sdp });
+      if (this.disposed) return;
       let sampling = false;
       this.timer = setInterval(() => {
         if (sampling || this.disposed) return;
@@ -121,17 +126,23 @@ export class MobileVoiceJoin {
 
   private waitIce(): Promise<void> {
     return new Promise((resolve, reject) => {
+      const finish = () => {
+        clearTimeout(timer);
+        this.device.peer.removeEventListener("icegatheringstatechange", check);
+        this.cancelIce = null;
+        resolve();
+      };
       const check = () => {
         if (this.disposed || this.device.peer.iceGatheringState === "complete") {
-          clearTimeout(timer);
-          this.device.peer.removeEventListener("icegatheringstatechange", check);
-          resolve();
+          finish();
         }
       };
       const timer = setTimeout(() => {
+        this.cancelIce = null;
         this.device.peer.removeEventListener("icegatheringstatechange", check);
         reject(new ApiError("voice_connection_failed", 504));
       }, 10_000);
+      this.cancelIce = finish;
       this.device.peer.addEventListener("icegatheringstatechange", check);
       check();
     });
@@ -174,32 +185,51 @@ export class MobileVoiceJoin {
     if (this.closing) return this.closing;
     this.disposed = true;
     clearInterval(this.timer);
-    this.microphone?.getTracks().forEach((track) => {
-      track.stop();
-    });
-    this.device.stopAudio();
-    this.status(false);
     this.closing = Promise.resolve().then(async () => {
+      let failure: unknown;
+      const cleanup = (action: () => void) => {
+        try {
+          action();
+        } catch (reason) {
+          failure ??= reason;
+        }
+      };
+      // Native cleanup can fail after audio/session interruption. Always release
+      // the remaining resources and finalize the original server session.
+      cleanup(() => this.cancelIce?.());
+      cleanup(() => {
+        this.microphone?.getTracks().forEach((track) => {
+          cleanup(() => track.stop());
+        });
+      });
+      cleanup(() => this.device.stopAudio());
+      cleanup(() => this.status(false));
       try {
         if (!this.finalized && this.channel?.readyState === "open") {
-          this.channel.send(JSON.stringify({ type: "session.close" }));
+          let closeSent = false;
+          cleanup(() => {
+            this.channel?.send(JSON.stringify({ type: "session.close" }));
+            closeSent = true;
+          });
           let timer: ReturnType<typeof setTimeout> | undefined;
-          await Promise.race([
-            this.ended,
-            new Promise<void>((resolve) => {
-              timer = setTimeout(resolve, 2500);
-            }),
-          ]);
+          if (closeSent)
+            await Promise.race([
+              this.ended,
+              new Promise<void>((resolve) => {
+                timer = setTimeout(resolve, 2500);
+              }),
+            ]);
           clearTimeout(timer);
         }
         if (this.sessionId)
           await this.api.delete(`/voice/sessions/${encodeURIComponent(this.sessionId)}`);
         else await this.api.post("/voice/cancel-initialization", { client_nonce: this.nonce });
       } finally {
-        this.channel?.close();
-        this.device.peer.close();
-        this.onClosed();
+        cleanup(() => this.channel?.close());
+        cleanup(() => this.device.peer.close());
+        cleanup(() => this.onClosed());
       }
+      if (failure) throw failure;
     });
     return this.closing;
   }
