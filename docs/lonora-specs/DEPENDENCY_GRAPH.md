@@ -88,3 +88,6 @@ Task failure recovery now consumes server Tool classification, durable checkpoin
 
 
 Attention now consumes existing committed events, source-time setup evidence, Personal/specialist/host identity and Task recovery transitions. One durable owner projection supplies both clients; mandatory channels reuse existing delivery receipts. Super Bot activation and future execution-quality notifications must emit structured transitions into this same classifier, not create another notification service. The next independent intelligence work can consume existing broker candles and the historical evidence ledger for measured cross-market relationships.
+
+
+Measured relationships now consume the same broker history/health and canonical bar-close semantics, persist derived evidence in the historical event ledger, and supply optional bounded references to decisions/theses. One eligibility predicate is reused by decisions, final thesis gates and Shadow entries. Future relationship change watches must reuse this calculator and current watch scheduler/receipts; they must not introduce another market monitor or hardcoded correlation matrix.

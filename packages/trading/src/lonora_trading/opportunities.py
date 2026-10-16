@@ -26,6 +26,7 @@ from lonora_db.trading_opportunities import (
     validate_references,
 )
 from lonora_market.health import assess_candles, assess_quote, timeframe_age_seconds
+from lonora_market.relationships import relationship_usable
 from lonora_session.idempotency import stable_id
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -91,6 +92,18 @@ async def evidence_state(
             facts["health_assessments"].extend(h.model_dump(mode="json") for h in (quote, candles))
             codes.extend(h.reason_code for h in (quote, candles) if not h.healthy)
             codes.extend(decision.gate_codes)
+            for relationship in decision.evidence.relationships:
+                facts.setdefault("relationships", []).append(
+                    {
+                        "id": relationship.id,
+                        "state": relationship.state,
+                        "valid_until": relationship.valid_until.isoformat()
+                        if relationship.valid_until
+                        else None,
+                    }
+                )
+                if not relationship_usable(relationship, now):
+                    codes.append("relationship_evidence_unreliable")
     watch_id = row.payload.get("watch_id")
     if watch_id:
         watch = await session.get(MarketWatchRow, watch_id)

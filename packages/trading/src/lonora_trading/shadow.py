@@ -18,6 +18,7 @@ from lonora_db.trading_decisions import decision_history, read_decision
 from lonora_db.trading_journal import persist_result, reserve_operation
 from lonora_db.transactions import resource_data
 from lonora_market.health import assess_quote, require_healthy
+from lonora_market.relationships import relationship_usable
 from lonora_session.idempotency import request_hash, stable_id
 from sqlalchemy import select, text
 
@@ -191,6 +192,10 @@ async def execute_shadow(
             raise LonoraError("shadow_decision_required", 409)
         if (evidence.account_id, evidence.symbol) != (request.account_id, request.symbol):
             raise LonoraError("shadow_evidence_scope_mismatch", 409)
+        if any(
+            not relationship_usable(value, utcnow()) for value in evidence.evidence.relationships
+        ):
+            raise LonoraError("relationship_evidence_unreliable", 409)
         require_healthy(
             assess_quote(
                 evidence.evidence.quote,

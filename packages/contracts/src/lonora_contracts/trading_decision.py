@@ -9,6 +9,7 @@ from .account import AccountState, Order, Position
 from .domain import Contract
 from .market import Candle, Quote
 from .market_health import HealthSnapshot
+from .relationships import MarketRelationship
 
 
 class DecisionRequest(Contract):
@@ -21,6 +22,7 @@ class DecisionRequest(Contract):
         max_length=1200,
         description="Concise user-visible rationale, never hidden reasoning.",
     )
+    relationship_ids: list[str] = Field(default_factory=list, max_length=6)
 
 
 class DecisionEvidence(Contract):
@@ -35,6 +37,9 @@ class DecisionEvidence(Contract):
     health: list[HealthSnapshot] = Field(default_factory=list[HealthSnapshot], max_length=3)
     missing_codes: list[str] = Field(default_factory=list[str], max_length=8)
     source: Literal["broker_adapter"] = "broker_adapter"
+    relationships: list[MarketRelationship] = Field(
+        default_factory=list[MarketRelationship], max_length=6
+    )
 
 
 class TradingDecision(Contract):

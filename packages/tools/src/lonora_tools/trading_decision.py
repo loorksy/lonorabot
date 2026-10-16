@@ -18,6 +18,7 @@ from lonora_core.chart_controller import validate_timeframe
 from lonora_core.user_error import LonoraError
 from lonora_db.agent_binding import agent_binding, assert_market_binding
 from lonora_db.broker_sessions import BrokerSessionRepository
+from lonora_db.relationships import read_relationship
 from lonora_db.runs import require_lease
 from lonora_db.schema import EffectReceiptRow
 from lonora_db.trading_decisions import (
@@ -29,13 +30,19 @@ from lonora_db.trading_decisions import (
     store_decision,
 )
 from lonora_market.health import assess_account, assess_candles, assess_quote, timeframe_age_seconds
+from lonora_market.relationships import relationship_usable
 
 from .base import Tool
 from .context import ToolContext
 
 
 def fingerprint(params: DecisionRequest) -> str:
-    return hashlib.sha256(params.model_dump_json().encode()).hexdigest()
+    # Preserve old durable operation identities when the optional evidence is absent.
+    return hashlib.sha256(
+        params.model_dump_json(
+            exclude={"relationship_ids"} if not params.relationship_ids else set()
+        ).encode()
+    ).hexdigest()
 
 
 async def record(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
@@ -110,6 +117,18 @@ async def record(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     ]
     evidence.health = health
     evidence.captured_at = now
+    async with context.db.sessions() as session:
+        for identifier in dict.fromkeys(params.relationship_ids):
+            relationship = await read_relationship(session, context.owner_id, identifier)
+            if (
+                relationship.account_id != params.account_id
+                or params.symbol not in relationship.symbols
+            ):
+                raise LonoraError("relationship_scope_mismatch", 409)
+            evidence.relationships.append(relationship)
+            if not relationship_usable(relationship, now):
+                evidence.missing_codes.append("relationship_evidence_unreliable")
+    evidence.missing_codes = list(dict.fromkeys(evidence.missing_codes))[:8]
     gates = list(
         dict.fromkeys([h.reason_code for h in health if not h.healthy] + evidence.missing_codes)
     )

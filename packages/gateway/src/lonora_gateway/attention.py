@@ -204,6 +204,11 @@ async def candidate(
                         for value in facts["health_assessments"]
                         if value.get("resource") == "quote" and value.get("last_good_at")
                     ]
+                    deadlines.extend(
+                        datetime.fromisoformat(value["valid_until"])
+                        for value in facts.get("relationships", [])
+                        if value.get("valid_until")
+                    )
                     if deadlines:
                         parameters["valid_until"] = min(deadlines).isoformat()
         elif event.kind.startswith("collaboration."):

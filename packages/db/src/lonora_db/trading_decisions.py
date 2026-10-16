@@ -136,6 +136,7 @@ def decision_summary(decision: TradingDecision) -> dict[str, Any]:
         "recorded_at": decision.recorded_at.isoformat(),
         "evidence_id": decision.evidence.id,
         "execution_authorized": False,
+        "relationship_ids": [value.id for value in decision.evidence.relationships],
     }
 
 
@@ -148,4 +149,6 @@ def decision_excerpt(decision: TradingDecision) -> dict[str, Any]:
     }
     evidence["positions"] = evidence["positions"][:20]
     evidence["orders"] = evidence["orders"][:20]
+    for relationship in evidence["relationships"]:
+        relationship.pop("samples", None)
     return result

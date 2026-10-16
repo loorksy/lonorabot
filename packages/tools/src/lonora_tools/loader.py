@@ -17,6 +17,7 @@ MODULES = (
     "market",
     "market_watch",
     "trading_decision",
+    "relationships",
     "opportunity",
     "shadow",
     "chart",
