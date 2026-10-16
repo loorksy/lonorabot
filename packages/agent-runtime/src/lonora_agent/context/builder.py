@@ -3,6 +3,7 @@ from lonora_core.user_error import LonoraError
 from lonora_db.agent_binding import binding_context
 from lonora_db.runs import require_lease
 from lonora_db.schema import AgentRow, ThreadRow
+from lonora_db.trading_goals import goal_read_thread
 from lonora_memory.semantic import retrieve_memory
 from lonora_tools.context import ToolContext
 from lonora_tools.loader import load_tools
@@ -46,8 +47,10 @@ async def build_context(
                     session,
                     context.owner_id,
                     context.agent_id,
-                    context.thread_id,
-                    run.model_metadata.get("goal_id"),
+                    await goal_read_thread(session, run)
+                    if run.model_metadata.get("authority") == "observe_only"
+                    else context.thread_id,
+                    run.model_metadata.get("goal_id") or run.model_metadata.get("review_goal_id"),
                 ),
             ]
         )

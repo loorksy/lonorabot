@@ -102,3 +102,7 @@ Existing authenticated owner/session → registered WebAuthn public credential �
 Web/Expo cards consume the same request projection and `super_bot.updated` events; existing attention ownership/deduplication treats pending authorization as mandatory action. There is no new scheduler, executor, Agent class, voice Agent or model router. Native OS passkey bindings depend on the public installed-app signing certificate / Apple Team ID and a new compatible native binary; hardware acceptance remains separate from the passing WebAuthn browser tests.
 
 Next shared dependency: expose bounded authority/Goal state through the existing live-state projection, finish Shadow Goal orchestration, and connect richer risk budgets/decision lineage to the same financial gate. Do not introduce a second authority, performance or Goal runtime.
+
+## Activation review / live projection integration
+
+Verified grant → existing scheduler + atomic effect receipt → one observe-only work Run → existing global Background route + normal ToolLoop → validated origin Goal read/account/market tools → durable Run result → existing outcome receipt → original conversation/group. Financial executor rejects observe-only authority, including descendants; the review does not resume blocked Goals. Grant/Goal/Run records derive the same bounded status for Web/Mobile/voice. Failed review state is inspectable and never becomes a repeated model timer.

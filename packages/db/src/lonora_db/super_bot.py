@@ -159,7 +159,8 @@ async def require_goal_authority(
         raise LonoraError("device_authorization_required", 403)
     device = await session.get(DeviceCredentialRow, row.device_id or "")
     envelope = SuperBotEnvelope.model_validate(row.envelope)
-    if envelope.mode != mode and not (mode == "supervised" and envelope.mode == "autonomous"):
+    ranks = {"advisory": 0, "supervised": 1, "autonomous": 2}
+    if ranks.get(mode, 3) > ranks[envelope.mode]:
         raise LonoraError("device_authorization_required", 403)
     if device is None or device.owner_id != goal.owner_id or device.revoked:
         raise LonoraError("device_authorization_required", 403)

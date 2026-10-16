@@ -3,6 +3,7 @@ import { Trans } from "@lingui/react/macro";
 import type { AgentLiveState } from "@lonora/contracts";
 import { useEffect, useState } from "react";
 import { api } from "../../lib/api";
+import { goalStatusLabel } from "../../lib/goal-status";
 import { userError } from "../../lib/user_error";
 import { useClient } from "../../providers/ClientProvider";
 
@@ -55,6 +56,37 @@ export function AgentLiveStatus({ agentId }: { agentId: string }) {
           <Trans>Active watches</Trans>: {state.watch_count}
         </p>
       )}
+      {(state.pending_authorization_count ?? 0) > 0 && (
+        <p>
+          <Trans>Waiting for device authorization</Trans>
+        </p>
+      )}
+      {(state.super_bot ?? []).map((grant) => (
+        <div key={grant.request_id}>
+          <p>
+            <Trans>Super Bot</Trans> ·{" "}
+            {grant.mode === "autonomous"
+              ? t`Autonomous`
+              : grant.mode === "supervised"
+                ? t`Supervised`
+                : t`Advisory`}
+          </p>
+          <p dir="auto">{grant.title}</p>
+          {grant.review_status === "failed" && (
+            <p>
+              <Trans>Action required</Trans>
+            </p>
+          )}
+          <p>
+            {grant.authorization_status === "pending"
+              ? t`Waiting for device authorization`
+              : grant.authorization_status === "paused"
+                ? t`Paused`
+                : t`Active`}{" "}
+            · {goalStatusLabel(grant.goal_status)}
+          </p>
+        </div>
+      ))}
       {state.tasks.map((task) => (
         <div key={task.id}>
           <p dir="auto">{task.title}</p>

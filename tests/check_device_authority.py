@@ -63,7 +63,16 @@ async def main():
             arguments={"goal_id": goal["id"], "mode": "autonomous"},
         )
         proposal = await registry.execute(proposal_call, context)
+        from lonora_db.activation_review import dispatch_activation_reviews
+
+        assert await dispatch_activation_reviews(f.runtime.db) == 0
         assert proposal["status"] == "pending"
+        live = await f.request("GET", f"/agents/{agent['id']}/state")
+        assert live["state"] == "action_required" and live["pending_authorization_count"] == 1
+        assert (
+            live["super_bot"][0]["authorization_status"] == "pending"
+            and live["super_bot"][0]["autonomous"] is False
+        )
         assert (await f.request("GET", "/trading/goals/" + goal["id"]))["state"][
             "autonomous"
         ] is False
@@ -89,6 +98,10 @@ async def main():
         proof = device.assertion(challenge, f.settings.allowed_origin)
         result = await f.request("POST", "/super-bot/verify", proof)
         assert result["status"] == "activated"
+        live = await f.request("GET", f"/agents/{agent['id']}/state")
+        assert (
+            live["pending_authorization_count"] == 0 and live["super_bot"][0]["autonomous"] is True
+        )
         replayed_tool = await registry.execute(proposal_call, context)
         assert replayed_tool["id"] == proposal["id"] and replayed_tool["status"] == "activated"
 

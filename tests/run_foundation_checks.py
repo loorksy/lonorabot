@@ -33,6 +33,7 @@ CHECKS = (
     "check_attention.py",
     "check_relationships.py",
     "check_device_authority.py",
+    "check_activation_review.py",
 )
 
 

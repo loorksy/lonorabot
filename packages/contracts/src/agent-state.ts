@@ -6,6 +6,20 @@ export type AgentLiveState = {
   reason_code: string | null;
   pending_approval_count: number;
   watch_count: number;
+  pending_authorization_count?: number;
+  super_bot?: Array<{
+    request_id: string;
+    goal_id: string;
+    title: string;
+    mode: "advisory" | "supervised" | "autonomous";
+    authorization_status: "pending" | "activated" | "paused";
+    goal_status: string;
+    current_step: string | null;
+    reason_code: string | null;
+    autonomous: boolean;
+    review_status?: string | null;
+    review_error_code?: string | null;
+  }>;
   tasks: Array<{
     id: string;
     title: string;

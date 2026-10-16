@@ -2,7 +2,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from lonora_contracts.domain import utcnow
-from lonora_contracts.runs import Lease, RunRequest
+from lonora_contracts.runs import WORK_TRIGGERS, Lease, RunRequest
 from lonora_core.run_state import assert_transition
 from lonora_core.user_error import LonoraError
 from sqlalchemy import and_, exists, or_, select
@@ -91,16 +91,12 @@ async def claim_next(
     if lane == "conversation":
         eligible = and_(
             eligible,
-            RunRow.trigger.not_in(
-                ["tickets", "routine", "watch", "webhook", "subagent", "broker_event"]
-            ),
+            RunRow.trigger.not_in(WORK_TRIGGERS),
         )
     elif lane == "work":
         eligible = and_(
             eligible,
-            RunRow.trigger.in_(
-                ["tickets", "routine", "watch", "webhook", "subagent", "broker_event"]
-            ),
+            RunRow.trigger.in_(WORK_TRIGGERS),
         )
     active = exists(
         select(RunRow.id).where(

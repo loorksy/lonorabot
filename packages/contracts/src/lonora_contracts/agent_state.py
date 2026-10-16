@@ -19,5 +19,7 @@ class AgentLiveState(Contract):
     runs: list[dict[str, Any]] = Field(default_factory=list[dict[str, Any]], max_length=6)
     pending_approval_count: int = 0
     watch_count: int = 0
+    pending_authorization_count: int = 0
+    super_bot: list[dict[str, Any]] = Field(default_factory=list[dict[str, Any]], max_length=3)
     collaborations: list[dict[str, Any]] = Field(default_factory=list[dict[str, Any]], max_length=3)
     health: list[dict[str, Any]] = Field(default_factory=list[dict[str, Any]], max_length=6)

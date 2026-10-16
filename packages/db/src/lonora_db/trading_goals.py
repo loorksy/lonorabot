@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .agent_binding import assert_payload_binding, require_financial_agent
 from .broker_sessions import BrokerSessionRepository
 from .events import emit
-from .schema import GoalDecisionRow, SuperBotRequestRow, TradingGoalRow
+from .schema import GoalDecisionRow, GroupRow, RunRow, SuperBotRequestRow, ThreadRow, TradingGoalRow
 from .super_bot import changed as authority_changed
 from .super_bot import require_goal_authority
 from .transactions import owned_agent, owned_thread, resource_data
@@ -343,3 +343,30 @@ def decision_data(row: GoalDecisionRow) -> dict[str, Any]:
         "created_at": row.created_at.isoformat(),
         "updated_at": row.updated_at.isoformat(),
     }
+
+
+async def goal_read_thread(session: AsyncSession, run: RunRow) -> str:
+    """Observe-only work may inspect its same-Agent origin, never mutate that Goal."""
+    if run.model_metadata.get("authority") != "observe_only":
+        return run.thread_id
+    source = await session.get(ThreadRow, run.thread_id)
+    origin = await session.get(ThreadRow, run.model_metadata.get("origin_thread_id", ""))
+    if (
+        source is not None
+        and source.purpose == "work"
+        and origin is not None
+        and origin.purpose == "conversation"
+        and origin.owner_id == source.owner_id
+        and source.agent_id == run.agent_id
+    ):
+        if origin.agent_id == run.agent_id:
+            return origin.id
+        if origin.group_id:
+            group = await session.get(GroupRow, origin.group_id)
+            if (
+                group
+                and group.owner_id == origin.owner_id
+                and run.agent_id in group.payload.get("member_ids", [])
+            ):
+                return origin.id
+    return run.thread_id

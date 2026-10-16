@@ -45,7 +45,8 @@ msgstr "رقم الحساب"
 msgid "Action"
 msgstr "الإجراء"
 
-#: src/components/ai/AgentLiveStatus.tsx:36
+#: src/components/ai/AgentLiveStatus.tsx:37
+#: src/components/ai/AgentLiveStatus.tsx:77
 msgid "Action required"
 msgstr "يلزم تدخلك"
 
@@ -53,12 +54,13 @@ msgstr "يلزم تدخلك"
 msgid "Activate with device authentication"
 msgstr "التفعيل بمصادقة الجهاز"
 
-#: src/components/goals/TradingGoals.tsx:14
+#: src/components/ai/AgentLiveStatus.tsx:85
 #: src/components/trading/SuperBotCards.tsx:68
+#: src/lib/goal-status.ts:6
 msgid "Active"
 msgstr "نشط"
 
-#: src/components/ai/AgentLiveStatus.tsx:55
+#: src/components/ai/AgentLiveStatus.tsx:56
 msgid "Active watches"
 msgstr "المراقبات النشطة"
 
@@ -114,6 +116,7 @@ msgstr "إضافة خط"
 msgid "Advanced"
 msgstr "إعدادات متقدمة"
 
+#: src/components/ai/AgentLiveStatus.tsx:72
 #: src/components/trading/SuperBotCards.tsx:65
 msgid "Advisory"
 msgstr "استشاري"
@@ -174,7 +177,7 @@ msgstr "كل الحالات"
 msgid "All time"
 msgstr "كل الأوقات"
 
-#: src/components/goals/TradingGoals.tsx:333
+#: src/components/goals/TradingGoals.tsx:289
 msgid "Allow autonomous trading for this goal"
 msgstr "السماح بالتداول التلقائي لهذا الهدف"
 
@@ -219,7 +222,7 @@ msgstr "الملفات والمخرجات"
 msgid "Ask"
 msgstr "سعر العرض"
 
-#: src/components/goals/TradingGoals.tsx:217
+#: src/components/goals/TradingGoals.tsx:173
 msgid "Ask this agent to create a trading goal. Its plan, watches and execution history remain on the server."
 msgstr "اطلب من هذا الوكيل إنشاء هدف تداول. تبقى خطته ومراقباته وسجل تنفيذاته محفوظة على الخادم."
 
@@ -240,6 +243,7 @@ msgstr "ملفات مرفقة"
 msgid "Attachment"
 msgstr "مرفق"
 
+#: src/components/ai/AgentLiveStatus.tsx:69
 #: src/components/trading/SuperBotCards.tsx:65
 msgid "Autonomous"
 msgstr "مستقل"
@@ -348,7 +352,7 @@ msgstr "تمت استعادة اتصال الوسيط"
 msgid "Broker deal history is unavailable for this time range."
 msgstr "سجل صفقات الوسيط غير متاح لهذه الفترة."
 
-#: src/components/goals/TradingGoals.tsx:114
+#: src/components/goals/TradingGoals.tsx:70
 #: src/components/trading/TradeApprovals.tsx:195
 msgid "Broker result"
 msgstr "نتيجة الوسيط"
@@ -400,13 +404,13 @@ msgstr "انتهت المكالمة"
 msgid "Call with {name}"
 msgstr "مكالمة مع {name}"
 
-#: src/components/ai/AgentLiveStatus.tsx:95
+#: src/components/ai/AgentLiveStatus.tsx:127
 #: src/components/trading/SuperBotCards.tsx:211
 #: src/pages/Board.tsx:547
 msgid "Cancel"
 msgstr "إلغاء"
 
-#: src/components/goals/TradingGoals.tsx:369
+#: src/components/goals/TradingGoals.tsx:325
 msgid "Cancel goal"
 msgstr "إلغاء الهدف"
 
@@ -415,10 +419,10 @@ msgid "Cancel order"
 msgstr "إلغاء الأمر"
 
 #: src/components/ai/primitives.tsx:58
-#: src/components/goals/TradingGoals.tsx:50
 #: src/components/ToolActivityDisclosure.tsx:23
 #: src/components/trading/SuperBotCards.tsx:71
 #: src/components/trading/TradeApprovals.tsx:189
+#: src/lib/goal-status.ts:42
 #: src/pages/ActivityList.tsx:122
 #: src/pages/Board.tsx:24
 #: src/pages/shell/message-cards.tsx:195
@@ -554,8 +558,8 @@ msgid "Color"
 msgstr "اللون"
 
 #: src/components/ai/primitives.tsx:60
-#: src/components/goals/TradingGoals.tsx:44
 #: src/components/ToolActivityDisclosure.tsx:27
+#: src/lib/goal-status.ts:36
 #: src/pages/ActivityList.tsx:119
 #: src/pages/Board.tsx:18
 #: src/pages/shell/message-cards.tsx:199
@@ -567,7 +571,7 @@ msgstr "مكتمل"
 msgid "Condition"
 msgstr "الشرط"
 
-#: src/components/goals/TradingGoals.tsx:24
+#: src/lib/goal-status.ts:16
 msgid "Condition triggered"
 msgstr "تحقق الشرط"
 
@@ -756,7 +760,7 @@ msgstr "لون مخصص"
 msgid "Dark"
 msgstr "داكن"
 
-#: src/components/goals/TradingGoals.tsx:108
+#: src/components/goals/TradingGoals.tsx:64
 msgid "Decision evidence"
 msgstr "أدلة القرار"
 
@@ -922,11 +926,11 @@ msgstr "رمز الوسيط كما هو"
 msgid "Execute"
 msgstr "تنفيذ"
 
-#: src/components/goals/TradingGoals.tsx:30
+#: src/lib/goal-status.ts:22
 msgid "Executing"
 msgstr "جارٍ التنفيذ"
 
-#: src/components/goals/TradingGoals.tsx:85
+#: src/components/goals/TradingGoals.tsx:41
 #: src/pages/RoutineRunHistory.tsx:37
 msgid "Execution history"
 msgstr "سجل التنفيذ"
@@ -935,7 +939,7 @@ msgstr "سجل التنفيذ"
 msgid "Execution mode"
 msgstr "وضع التنفيذ"
 
-#: src/components/goals/TradingGoals.tsx:34
+#: src/lib/goal-status.ts:26
 msgid "Execution requires reconciliation"
 msgstr "يتطلب التنفيذ التحقق لدى الوسيط"
 
@@ -944,10 +948,10 @@ msgid "Expired"
 msgstr "منتهي الصلاحية"
 
 #: src/components/ai/primitives.tsx:56
-#: src/components/goals/TradingGoals.tsx:46
 #: src/components/ToolActivityDisclosure.tsx:25
 #: src/components/trading/TradeApprovals.tsx:207
 #: src/components/trading/TradingJournal.tsx:22
+#: src/lib/goal-status.ts:38
 #: src/pages/ActivityList.tsx:121
 #: src/pages/Board.tsx:28
 #: src/pages/shell/message-cards.tsx:197
@@ -1008,7 +1012,7 @@ msgstr "النماذج العالمية"
 msgid "Global routing"
 msgstr "التوجيه العالمي"
 
-#: src/components/goals/TradingGoals.tsx:337
+#: src/components/goals/TradingGoals.tsx:293
 msgid "Global Trading and Emergency Stop still govern every financial operation. Pausing a goal does not close existing broker positions."
 msgstr "يبقى التحكم العام بالتداول والإيقاف الطارئ مطبقًا على كل عملية مالية. إيقاف الهدف مؤقتًا لا يغلق الصفقات المفتوحة لدى الوسيط."
 
@@ -1046,7 +1050,7 @@ msgstr "المجموعات"
 msgid "Historical broker candles timed out. Retry the chart refresh."
 msgstr "انتهت مهلة تحميل شموع الوسيط التاريخية. أعد تحديث الشارت."
 
-#: src/components/ai/AgentLiveStatus.tsx:33
+#: src/components/ai/AgentLiveStatus.tsx:34
 msgid "Idle"
 msgstr "جاهز"
 
@@ -1193,8 +1197,8 @@ msgstr "جارٍ تحميل الإعدادات…"
 msgid "Loading workspace…"
 msgstr "جارٍ تحميل مساحة العمل…"
 
-#: src/components/goals/TradingGoals.tsx:89
-#: src/components/goals/TradingGoals.tsx:225
+#: src/components/goals/TradingGoals.tsx:45
+#: src/components/goals/TradingGoals.tsx:181
 #: src/components/trading/BrokerPairPicker.tsx:105
 #: src/pages/Artifacts.tsx:271
 #: src/pages/Board.tsx:173
@@ -1242,8 +1246,8 @@ msgstr "السوق والمخططات"
 msgid "Market buy"
 msgstr "شراء بسعر السوق"
 
-#: src/components/ai/AgentLiveStatus.tsx:37
-#: src/components/ai/AgentLiveStatus.tsx:103
+#: src/components/ai/AgentLiveStatus.tsx:38
+#: src/components/ai/AgentLiveStatus.tsx:135
 msgid "Market data unavailable"
 msgstr "بيانات السوق غير متاحة"
 
@@ -1255,12 +1259,12 @@ msgstr "بيع بسعر السوق"
 msgid "Market watches"
 msgstr "مراقبة السوق"
 
-#: src/components/goals/TradingGoals.tsx:301
+#: src/components/goals/TradingGoals.tsx:257
 #: src/components/trading/SuperBotCards.tsx:123
 msgid "Maximum trade actions"
 msgstr "الحد الأقصى لعمليات التداول"
 
-#: src/components/goals/TradingGoals.tsx:285
+#: src/components/goals/TradingGoals.tsx:241
 #: src/components/market/MarketOverview.tsx:29
 #: src/components/trading/SuperBotCards.tsx:122
 msgid "Maximum volume"
@@ -1347,7 +1351,7 @@ msgstr "الوضع"
 #~ msgid "Models, voice and trading connections are shared workspace settings."
 #~ msgstr "النماذج والصوت واتصالات التداول إعدادات مشتركة لمساحة العمل."
 
-#: src/components/goals/TradingGoals.tsx:40
+#: src/lib/goal-status.ts:32
 msgid "Monitoring"
 msgstr "جارٍ المراقبة"
 
@@ -1367,7 +1371,7 @@ msgstr "جهازي"
 msgid "Name"
 msgstr "الاسم"
 
-#: src/components/goals/TradingGoals.tsx:18
+#: src/lib/goal-status.ts:10
 msgid "Needs attention"
 msgstr "يحتاج إلى مراجعة"
 
@@ -1403,7 +1407,7 @@ msgstr "لا تتوفر شموع لهذه الأداة والفترة الزمن
 msgid "No executions yet"
 msgstr "لا توجد عمليات تنفيذ بعد"
 
-#: src/components/goals/TradingGoals.tsx:95
+#: src/components/goals/TradingGoals.tsx:51
 msgid "No financial executions yet."
 msgstr "لا توجد تنفيذات مالية بعد."
 
@@ -1456,7 +1460,7 @@ msgstr "لا يوجد رسم بياني محفوظ في هذه المحادثة"
 msgid "No tickets yet"
 msgstr "لا توجد مهام بعد"
 
-#: src/components/goals/TradingGoals.tsx:230
+#: src/components/goals/TradingGoals.tsx:186
 msgid "No trading goals yet."
 msgstr "لا توجد أهداف تداول بعد."
 
@@ -1529,7 +1533,7 @@ msgstr "جارٍ فتح مساحة العمل…"
 msgid "Opens"
 msgstr "يُفتح"
 
-#: src/components/goals/TradingGoals.tsx:104
+#: src/components/goals/TradingGoals.tsx:60
 msgid "Operation"
 msgstr "العملية"
 
@@ -1566,8 +1570,8 @@ msgstr "كلمة المرور"
 msgid "Password · at least 12 characters"
 msgstr "كلمة المرور · 12 حرفًا على الأقل"
 
-#: src/components/ai/AgentLiveStatus.tsx:95
-#: src/components/goals/TradingGoals.tsx:353
+#: src/components/ai/AgentLiveStatus.tsx:127
+#: src/components/goals/TradingGoals.tsx:309
 #: src/components/market/MarketWatch.tsx:294
 #: src/pages/Board.tsx:543
 #: src/pages/Routines.tsx:100
@@ -1578,9 +1582,10 @@ msgstr "إيقاف مؤقت"
 msgid "Pause agent and scheduled work"
 msgstr "إيقاف الوكيل ومهامه المجدولة مؤقتًا"
 
-#: src/components/ai/AgentLiveStatus.tsx:38
-#: src/components/goals/TradingGoals.tsx:48
+#: src/components/ai/AgentLiveStatus.tsx:39
+#: src/components/ai/AgentLiveStatus.tsx:84
 #: src/components/trading/SuperBotCards.tsx:72
+#: src/lib/goal-status.ts:40
 #: src/pages/Board.tsx:26
 #: src/pages/Routines.tsx:83
 #: src/pages/Shell.tsx:694
@@ -1592,7 +1597,7 @@ msgstr "متوقف مؤقتًا"
 msgid "PDF preview"
 msgstr "معاينة PDF"
 
-#: src/components/goals/TradingGoals.tsx:52
+#: src/lib/goal-status.ts:44
 msgid "Pending"
 msgstr "قيد الانتظار"
 
@@ -1609,7 +1614,7 @@ msgstr "الفترة"
 msgid "Persistent child agent"
 msgstr "وكيل ابن دائم"
 
-#: src/components/goals/TradingGoals.tsx:20
+#: src/lib/goal-status.ts:12
 msgid "Planning"
 msgstr "جارٍ التخطيط"
 
@@ -1626,7 +1631,7 @@ msgstr "الصفقة"
 msgid "Position ID"
 msgstr "معرّف الصفقة"
 
-#: src/components/goals/TradingGoals.tsx:38
+#: src/lib/goal-status.ts:30
 msgid "Position open"
 msgstr "الصفقة مفتوحة"
 
@@ -1685,7 +1690,7 @@ msgstr "المزودون والكتالوج الرسمي"
 msgid "Queued"
 msgstr "في الانتظار"
 
-#: src/components/goals/TradingGoals.tsx:28
+#: src/lib/goal-status.ts:20
 msgid "Ready to execute"
 msgstr "جاهز للتنفيذ"
 
@@ -1706,11 +1711,11 @@ msgstr "الاستدلال"
 msgid "Recent"
 msgstr "حديثًا"
 
-#: src/components/goals/TradingGoals.tsx:26
+#: src/lib/goal-status.ts:18
 msgid "Rechecking market conditions"
 msgstr "جارٍ إعادة التحقق من ظروف السوق"
 
-#: src/components/goals/TradingGoals.tsx:36
+#: src/lib/goal-status.ts:28
 msgid "Reconciling with broker"
 msgstr "جارٍ التحقق من التنفيذ لدى الوسيط"
 
@@ -1803,8 +1808,8 @@ msgstr "إلغاء الإيقاف الطارئ"
 msgid "Resize panel"
 msgstr "تغيير عرض اللوحة"
 
-#: src/components/ai/AgentLiveStatus.tsx:95
-#: src/components/goals/TradingGoals.tsx:351
+#: src/components/ai/AgentLiveStatus.tsx:127
+#: src/components/goals/TradingGoals.tsx:307
 #: src/components/market/MarketWatch.tsx:294
 #: src/pages/ActivityList.tsx:281
 #: src/pages/Board.tsx:545
@@ -1826,7 +1831,7 @@ msgstr "استئناف"
 msgid "Retry"
 msgstr "إعادة المحاولة"
 
-#: src/components/ai/AgentLiveStatus.tsx:63
+#: src/components/ai/AgentLiveStatus.tsx:95
 msgid "Retry scheduled"
 msgstr "إعادة المحاولة مجدولة"
 
@@ -1835,7 +1840,7 @@ msgstr "إعادة المحاولة مجدولة"
 msgid "Review a new Super Bot request and authorize it with your device."
 msgstr "راجع طلب سوبر بوت جديدًا وفوّضه بمصادقة جهازك."
 
-#: src/components/goals/TradingGoals.tsx:361
+#: src/components/goals/TradingGoals.tsx:317
 msgid "Review now"
 msgstr "مراجعة الآن"
 
@@ -2167,7 +2172,7 @@ msgstr "الحالة"
 msgid "Stop"
 msgstr "إيقاف"
 
-#: src/components/goals/TradingGoals.tsx:274
+#: src/components/goals/TradingGoals.tsx:230
 #: src/components/trading/SuperBotCards.tsx:114
 #: src/components/trading/TradeApprovals.tsx:138
 msgid "Stop loss"
@@ -2189,6 +2194,7 @@ msgstr "متوقف"
 msgid "Submitted"
 msgstr "أُرسل"
 
+#: src/components/ai/AgentLiveStatus.tsx:67
 #: src/components/trading/SuperBotCards.tsx:82
 #: src/components/trading/SuperBotCards.tsx:87
 msgid "Super Bot"
@@ -2202,6 +2208,7 @@ msgstr "تم تحديث تفويض سوبر بوت"
 msgid "Super Bot needs device authorization"
 msgstr "سوبر بوت يحتاج إلى تفويض الجهاز"
 
+#: src/components/ai/AgentLiveStatus.tsx:71
 #: src/components/trading/SuperBotCards.tsx:65
 msgid "Supervised"
 msgstr "بإشرافك"
@@ -2220,7 +2227,7 @@ msgstr "تبديل الوكيل"
 msgid "Symbol"
 msgstr "الرمز"
 
-#: src/components/goals/TradingGoals.tsx:275
+#: src/components/goals/TradingGoals.tsx:231
 #: src/components/trading/SuperBotCards.tsx:115
 #: src/components/trading/TradeApprovals.tsx:158
 msgid "Take profit"
@@ -2252,7 +2259,7 @@ msgstr "اكتملت المهمة"
 msgid "Task details"
 msgstr "تفاصيل المهمة"
 
-#: src/components/ai/AgentLiveStatus.tsx:72
+#: src/components/ai/AgentLiveStatus.tsx:104
 #: src/components/ai/AttentionInbox.tsx:57
 msgid "Task needs review"
 msgstr "المهمة تحتاج مراجعة"
@@ -2510,7 +2517,7 @@ msgstr "التحكم بالتداول"
 msgid "Trading goal updated"
 msgstr "تم تحديث هدف التداول"
 
-#: src/components/goals/TradingGoals.tsx:215
+#: src/components/goals/TradingGoals.tsx:171
 msgid "Trading goals"
 msgstr "أهداف التداول"
 
@@ -2580,7 +2587,7 @@ msgstr "استخدم الموقع الآمن المعتمد لمصادقة ال�
 msgid "Verified metadata"
 msgstr "بيانات مؤكدة"
 
-#: src/components/goals/TradingGoals.tsx:32
+#: src/lib/goal-status.ts:24
 msgid "Verifying execution"
 msgstr "جارٍ التحقق من التنفيذ"
 
@@ -2620,20 +2627,22 @@ msgstr "الحجم"
 msgid "Volume step"
 msgstr "خطوة الحجم"
 
-#: src/components/ai/AgentLiveStatus.tsx:35
+#: src/components/ai/AgentLiveStatus.tsx:36
 msgid "Waiting"
 msgstr "ينتظر"
 
-#: src/components/goals/TradingGoals.tsx:16
-#: src/components/goals/TradingGoals.tsx:22
+#: src/lib/goal-status.ts:8
+#: src/lib/goal-status.ts:14
 msgid "Waiting for a condition"
 msgstr "بانتظار تحقق شرط"
 
-#: src/components/ai/AgentLiveStatus.tsx:50
+#: src/components/ai/AgentLiveStatus.tsx:51
 #: src/components/ai/AttentionInbox.tsx:48
 msgid "Waiting for approval"
 msgstr "بانتظار موافقتك"
 
+#: src/components/ai/AgentLiveStatus.tsx:61
+#: src/components/ai/AgentLiveStatus.tsx:82
 #: src/components/trading/SuperBotCards.tsx:67
 msgid "Waiting for device authorization"
 msgstr "بانتظار تفويض الجهاز"
@@ -2644,7 +2653,7 @@ msgstr "بانتظار تفويض الجهاز"
 msgid "Waiting for handover"
 msgstr "بانتظار التسليم"
 
-#: src/components/ai/AgentLiveStatus.tsx:68
+#: src/components/ai/AgentLiveStatus.tsx:100
 msgid "Waiting for reconciliation"
 msgstr "بانتظار التحقق من النتيجة"
 
@@ -2679,7 +2688,7 @@ msgstr "ما الذي يجب أن يعرفه هذا الوكيل عن عمله؟
 msgid "What this agent is for"
 msgstr "ما مهمة هذا الوكيل؟"
 
-#: src/components/ai/AgentLiveStatus.tsx:34
+#: src/components/ai/AgentLiveStatus.tsx:35
 #: src/components/ai/primitives.tsx:44
 #: src/pages/ActivityList.tsx:113
 #: src/pages/Board.tsx:20

@@ -15,6 +15,7 @@ from lonora_db.schema import (
     ThreadRow,
     TicketRow,
 )
+from lonora_db.trading_goals import goal_read_thread
 from sqlalchemy import String, exists, literal, or_, select
 from sqlalchemy import cast as sql_cast
 
@@ -137,13 +138,23 @@ async def return_outcome(db: Database, run_id: str) -> None:
                         )
         returned_message: MessageRow | None = None
         if (
-            child.trigger == "broker_event"
+            child.trigger in {"broker_event", "activation"}
             or (child.trigger == "watch" and child.model_metadata.get("opportunity_id"))
         ) and child.model_metadata.get("origin_thread_id"):
             origin = await session.get(
                 ThreadRow, child.model_metadata["origin_thread_id"], with_for_update=True
             )
-            if origin and origin.agent_id == child.agent_id and child.result:
+            if (
+                origin
+                and child.result
+                and (
+                    origin.agent_id == child.agent_id
+                    or (
+                        child.trigger == "activation"
+                        and await goal_read_thread(session, child) == origin.id
+                    )
+                )
+            ):
                 source = await session.get(ThreadRow, child.thread_id)
                 if source is None or source.owner_id != origin.owner_id:
                     raise ValueError("broker_event_owner_mismatch")
@@ -278,7 +289,7 @@ async def return_pending_outcomes(db: Database, limit: int = 20) -> int:
                     RunRow.status.in_(["completed", "failed", "cancelled"]),
                     or_(
                         RunRow.parent_run_id.is_not(None),
-                        RunRow.trigger.in_(["tickets", "broker_event"]),
+                        RunRow.trigger.in_(["tickets", "broker_event", "activation"]),
                         RunRow.model_metadata["opportunity_id"].as_string().is_not(None),
                     ),
                     ~exists(select(EffectReceiptRow.key).where(EffectReceiptRow.key == receipt)),

@@ -2,7 +2,7 @@
 
 ## Current wave
 
-2026-10-16: signed device authority integration in wave 4; waves 1 and 2 integrated; shared historical evidence, thesis, explicit Shadow mode and Task failure/recovery integration in wave 3 on `feat/coherent-agent-foundations`, audited base `895eaa8`. All 18 original references remain intact. This is **not completion of the full program**. Source-section matrix distinguishes partial integration from full acceptance.
+2026-10-16: signed device authority, first activation review and shared status integration in wave 4; waves 1 and 2 integrated; shared historical evidence, thesis, explicit Shadow mode and Task failure/recovery integration in wave 3 on `feat/coherent-agent-foundations`, audited base `895eaa8`. All 18 original references remain intact. This is **not completion of the full program**. Source-section matrix distinguishes partial integration from full acceptance.
 
 ## Active workstreams
 
@@ -163,3 +163,15 @@ Verified locally: 165 pytest cases; all isolated PostgreSQL foundation checks in
 External acceptance still pending: physical Android/iOS passkey prompts and public installed-app/domain associations, plus native keyboard/voice acceptance. Native export/browser tests do not satisfy those checks. Remote GitHub CI has a previously verified account billing lock; local passes do not imply remote CI ran. No deployment, main merge, real-money/demo broker mutation or channel delivery occurred.
 
 Next integration point: durable activation review/wake through existing Gateway lanes (without an automatic first financial action), bounded authorization/Goal state in the existing unified live-state projection, Shadow Goal orchestration, richer risk-budget envelopes and financial decision lineage/performance, then advanced cross-market risk and market-source acceptance. The source matrix keeps these partial/not-started scopes explicit; full specifications 01–18 remain incomplete.
+
+## Activation review and authoritative shared status (2026-10-16)
+
+After signed activation, the existing Gateway scheduler now discovers unconsumed active grants and atomically creates one observe-only internal work Run plus an existing effect receipt. Concurrent scheduler ticks and restarts cannot create duplicate review work; the normal Run lease/checkpoint mechanism handles execution recovery. Paused Agents do not starve eligible work. Terminal/paused Goals are not resumed. Blocked Goals may be inspected read-only and retain their actual blocked state. Invalid/revoked/stale grants are reduced safely, not used to initialize work.
+
+One shared background-trigger set classifies the new activation wake in the existing work lane and global Background model capability. There is no new scheduler/Agent/executor. The first review advertises only read tools; the central financial boundary also rejects direct execution and inherited observe-only authority. Read-only work can inspect its same-Agent conversation or current group membership origin through one validated Goal-read helper; mutation scope stays unchanged. Existing durable outcome receipts return one actual result to the origin. Failure due to an unconfigured model is recorded and visible, with no automatic paid retry loop.
+
+The existing AgentLiveState now contains bounded authorization/Goal/review summaries and a separate pending-authorization count. Pending requests are not reported as autonomous. Failed reviews and blocked Goals require attention. Web, Expo and voice consume this same projection; no fabricated monitoring progress or profit is added. Web Goal status translation is shared by its existing Goal view and compact live status.
+
+Local acceptance includes the existing isolated foundation runner plus the new activation fixture: concurrent admission, work/conversation lane separation, actual normal AgentRuntime/global Background router → Goal/account tools → one returned conversation result, direct financial rejection, unconfigured-model visibility without recurring attempts, and blocked Goal inspection/result return in a real group. The complete 165-case pytest run, 18 isolated foundation fixtures plus 11 PostgreSQL Task cases, retained closed-loop Goal suite, Web22 and ExpoWeb8 passed; Ruff/Pyright/client lint and type checks are also recorded in the local acceptance logs. The full source program remains partial. No new migration beyond 0027, deployment or main merge occurred.
+
+Next: Shadow Goal orchestration and richer signed risk-budget fields; automatic financial decision lineage/performance, broader cross-market exposure and advanced market sources remain. Physical native passkey/domain acceptance and remote CI billing remain separate external verification limits.

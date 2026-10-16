@@ -2,56 +2,12 @@ import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, type Payload, type Resource } from "../../lib/api";
+import { goalStatusLabel as statusLabel } from "../../lib/goal-status";
 import { userError } from "../../lib/user_error";
 import { useClient } from "../../providers/ClientProvider";
 import { SuperBotCards } from "../trading/SuperBotCards";
 
 type GoalResource = Resource & { state: Payload };
-
-function statusLabel(value: unknown): string {
-  switch (String(value).toLowerCase()) {
-    case "active":
-      return t`Active`;
-    case "waiting":
-      return t`Waiting for a condition`;
-    case "blocked":
-      return t`Needs attention`;
-    case "planning":
-      return t`Planning`;
-    case "waiting_for_condition":
-      return t`Waiting for a condition`;
-    case "condition_triggered":
-      return t`Condition triggered`;
-    case "revalidating":
-      return t`Rechecking market conditions`;
-    case "ready_to_execute":
-      return t`Ready to execute`;
-    case "executing":
-      return t`Executing`;
-    case "verifying":
-      return t`Verifying execution`;
-    case "ambiguous":
-      return t`Execution requires reconciliation`;
-    case "reconciling":
-      return t`Reconciling with broker`;
-    case "position_open":
-      return t`Position open`;
-    case "monitoring":
-      return t`Monitoring`;
-    case "completed":
-    case "confirmed":
-    case "executed":
-      return t`Completed`;
-    case "failed":
-      return t`Failed`;
-    case "paused":
-      return t`Paused`;
-    case "cancelled":
-      return t`Cancelled`;
-    default:
-      return t`Pending`;
-  }
-}
 
 function GoalHistory({ id, revision }: { id: string; revision: number }) {
   const [open, setOpen] = useState(false);

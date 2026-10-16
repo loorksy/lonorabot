@@ -4,6 +4,7 @@ from typing import Any
 
 from lonora_contracts.agent_state import AgentLiveState
 from lonora_contracts.domain import utcnow
+from lonora_session.idempotency import stable_id
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,8 +13,10 @@ from .schema import (
     CollaborationSessionRow,
     MarketWatchRow,
     RunRow,
+    SuperBotRequestRow,
     TicketRow,
     TradeApprovalRow,
+    TradingGoalRow,
 )
 from .tasks import snapshot
 from .transactions import owned_agent
@@ -153,6 +156,73 @@ async def agent_live_state(session: AsyncSession, owner_id: str, agent_id: str) 
                         )
                     }
                 )
+    pending_authorizations = int(
+        await session.scalar(
+            select(func.count())
+            .select_from(SuperBotRequestRow)
+            .where(
+                SuperBotRequestRow.owner_id == owner_id,
+                SuperBotRequestRow.agent_id == agent.id,
+                SuperBotRequestRow.status == "pending",
+                SuperBotRequestRow.expires_at > utcnow(),
+            )
+        )
+        or 0
+    )
+    grants = (
+        await session.execute(
+            select(SuperBotRequestRow, TradingGoalRow)
+            .join(TradingGoalRow, TradingGoalRow.id == SuperBotRequestRow.goal_id)
+            .where(
+                SuperBotRequestRow.owner_id == owner_id,
+                SuperBotRequestRow.agent_id == agent.id,
+                TradingGoalRow.owner_id == owner_id,
+                TradingGoalRow.agent_id == agent.id,
+                or_(
+                    and_(
+                        SuperBotRequestRow.status == "pending",
+                        SuperBotRequestRow.expires_at > utcnow(),
+                    ),
+                    and_(
+                        SuperBotRequestRow.status.in_(["activated", "paused"]),
+                        SuperBotRequestRow.id
+                        == TradingGoalRow.state["super_bot_request_id"].as_string(),
+                    ),
+                ),
+            )
+            .order_by(
+                (SuperBotRequestRow.status == "activated").desc(),
+                SuperBotRequestRow.created_at.desc(),
+            )
+            .limit(3)
+        )
+    ).all()
+    authority_summaries: list[dict[str, Any]] = []
+    for grant, goal in grants:
+        if grant.status == "pending" and grant.expires_at <= utcnow():
+            continue
+        if grant.status != "pending" and goal.state.get("super_bot_request_id") != grant.id:
+            continue
+        review = await session.get(RunRow, stable_id(grant.id, "activation-review"))
+        authority_summaries.append(
+            {
+                "request_id": grant.id,
+                "goal_id": goal.id,
+                "title": str(goal.payload["title"])[:80],
+                "mode": grant.mode,
+                "authorization_status": grant.status,
+                "goal_status": goal.state.get("status"),
+                "current_step": goal.state.get("current_step"),
+                "reason_code": goal.state.get("code"),
+                "review_status": review.status if review else None,
+                "review_error_code": review.error_code if review else None,
+                "autonomous": grant.status == "activated"
+                and goal.state.get("super_bot_request_id") == grant.id
+                and bool(goal.state.get("autonomous")),
+            }
+        )
+        if len(authority_summaries) == 3:
+            break
     state: Any = (
         "paused"
         if agent.paused
@@ -160,6 +230,11 @@ async def agent_live_state(session: AsyncSession, owner_id: str, agent_id: str) 
         if health
         else "action_required"
         if approvals
+        or pending_authorizations
+        or any(
+            item["review_status"] == "failed" or item["goal_status"] == "blocked"
+            for item in authority_summaries
+        )
         or any(
             task.get("failure")
             and task["failure"]["recovery"] in {"owner", "modify_plan"}
@@ -194,6 +269,12 @@ async def agent_live_state(session: AsyncSession, owner_id: str, agent_id: str) 
         if health
         else "approval_required"
         if approvals
+        else "device_authorization_required"
+        if pending_authorizations
+        else "activation_review_failed"
+        if any(item["review_status"] == "failed" for item in authority_summaries)
+        else "goal_requires_review"
+        if any(item["goal_status"] == "blocked" for item in authority_summaries)
         else "task_recovery_required"
         if state == "action_required"
         else "retry_backoff"
@@ -221,6 +302,8 @@ async def agent_live_state(session: AsyncSession, owner_id: str, agent_id: str) 
         ],
         pending_approval_count=approvals,
         watch_count=watches,
+        pending_authorization_count=pending_authorizations,
+        super_bot=authority_summaries,
         collaborations=[
             {
                 "id": row.id,

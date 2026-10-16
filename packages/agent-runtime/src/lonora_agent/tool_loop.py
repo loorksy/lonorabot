@@ -4,6 +4,7 @@ from typing import Any
 
 from lonora_adapter_kit.types import ModelMessage, ToolCall
 from lonora_contracts.model_routing import Capability
+from lonora_contracts.runs import WORK_TRIGGERS
 from lonora_core.run_state import is_conversational
 from lonora_core.user_error import LonoraError
 from lonora_db.runs import checkpoint, require_lease
@@ -50,9 +51,7 @@ async def execute_tool_loop(
             run.trigger == "subagent" or run.model_metadata.get("authority") == "observe_only"
         )
         capability = (
-            Capability.BACKGROUND
-            if run.trigger in {"routine", "watch", "webhook", "tickets", "subagent"}
-            else Capability.CONVERSATION
+            Capability.BACKGROUND if run.trigger in WORK_TRIGGERS else Capability.CONVERSATION
         )
     messages, pending = restore_execution(state)
     if not messages:
