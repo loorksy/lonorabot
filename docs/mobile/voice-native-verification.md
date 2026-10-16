@@ -37,3 +37,28 @@ is insufficient to claim the process-exit bug is fixed.
 ## Missing wake-lock declaration found in the published APK
 
 The audited0.2.5/code26101612 packaged manifest has no android.permission.WAKE_LOCK. InCallManager4.3.0 declares none in its library manifest; its Handler-thread start calls updatePartialWakeLock and PowerManager.WakeLock.acquire without catching SecurityException. A JavaScript try/catch cannot contain that native Handler failure. Version0.2.6 explicitly requests the normal WAKE_LOCK permission alongside microphone/audio settings. Every new release verifier checks these actual packaged declarations; permission changes require a compatible new binary. Native reproduction evidence is recorded separately; static tracing alone does not certify all Samsung call behavior.
+
+## Evidence from the 2026-10-16 native probe
+
+The audited production APK (version 0.2.5, code 26101612) installed and launched on
+the existing Android API 24 / x86_64 AOSP emulator using software CPU emulation.
+The installed manifest lacks `android.permission.WAKE_LOCK`. A disposable Java
+`app_process` harness loaded the exact installed APK's `InCallManagerModule` class
+and called `start("audio", true, "")` as the installed app UID (10062). Android
+rejected `PowerManager.WakeLock.acquire` with:
+
+```text
+java.lang.SecurityException: Neither user 10062 nor current process has android.permission.WAKE_LOCK.
+  InCallWakeLockUtils.acquirePartialWakeLock
+  InCallManagerModule.updatePartialWakeLock
+  InCallManagerModule.startOnLifecycleThread
+```
+
+This confirms the native audio startup permission defect in the shipped APK. It
+is an installed-class harness reproduction, not a full UI call reproduction.
+The normal Call button reached a disposable local `/voice/status` response but
+returned a caught error before microphone/audio startup; that separate failure
+was not diagnosed by this probe. No external account, voice provider, or broker
+was used. The emulator blocked outbound access except to the local fixture host.
+The corrected signed APK must be retested. API 24 emulation cannot establish
+acceptance on the reported Samsung S24 Ultra or other modern physical devices.
