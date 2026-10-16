@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .agent_binding import assert_payload_binding, require_financial_agent
 from .broker_sessions import BrokerSessionRepository
 from .events import emit
+from .goal_scope import goal_mode, require_goal_agent
 from .schema import GoalDecisionRow, GroupRow, RunRow, SuperBotRequestRow, ThreadRow, TradingGoalRow
 from .super_bot import changed as authority_changed
 from .super_bot import require_goal_authority
@@ -33,7 +34,7 @@ async def owned_goal(
 
 
 def goal_data(row: TradingGoalRow) -> dict[str, Any]:
-    data = resource_data(row)
+    data = {**resource_data(row), "execution_mode": goal_mode(row)}
     data["step_states"] = [
         {**step, **row.state.get("steps", {}).get(step["id"], {})}
         for step in row.payload.get("steps", [])
@@ -71,7 +72,13 @@ async def create_goal(
     *,
     owner_authorized: bool = False,
 ) -> TradingGoalRow:
-    await require_financial_agent(session, owner_id, request.agent_id)
+    agent = await owned_agent(session, owner_id, request.agent_id)
+    await require_financial_agent(
+        session,
+        owner_id,
+        request.agent_id,
+        execution_mode="shadow" if agent.execution_mode == "shadow" else "live",
+    )
     if request.autonomous and owner_authorized:
         raise LonoraError("device_authorization_required", 403)
     thread = await owned_thread(session, owner_id, request.thread_id, lock=True)
@@ -96,6 +103,7 @@ async def create_goal(
         payload=payload,
         state={
             "status": "active",
+            "execution_mode": agent.execution_mode,
             "autonomous": request.autonomous if owner_authorized else False,
             "plan_version": 1,
             "current_step": request.steps[0].id,
@@ -160,7 +168,7 @@ async def control_goal(
         raise LonoraError("goal_owner_control_required", 409)
     row = await owned_goal(session, owner_id, goal_id, True)
     if body.action == "resume" or body.autonomous is True:
-        await require_financial_agent(session, owner_id, row.agent_id or "")
+        await require_goal_agent(session, row)
     if row.version != body.version:
         raise LonoraError("version_conflict", 409)
     state = copy.deepcopy(row.state)
@@ -256,7 +264,7 @@ async def update_plan(
     session: AsyncSession, owner_id: str, goal_id: str, body: GoalPlanUpdate
 ) -> TradingGoalRow:
     row = await owned_goal(session, owner_id, goal_id, True)
-    await require_financial_agent(session, owner_id, row.agent_id or "")
+    await require_goal_agent(session, row)
     if row.version != body.version:
         raise LonoraError("version_conflict", 409)
     if row.state.get("status") in {"cancelled", "completed"}:
@@ -305,6 +313,7 @@ async def bind_goal_run(session: AsyncSession, owner_id: str, request: RunReques
     if not goal_id:
         return
     goal = await owned_goal(session, owner_id, str(goal_id), True)
+    await require_goal_agent(session, goal)
     if goal.agent_id != request.agent_id or goal.thread_id != request.thread_id:
         raise LonoraError("goal_run_mismatch", 409)
     if goal.state.get("status") not in {"active", "waiting"}:

@@ -1,5 +1,6 @@
 """Virtual positions on real broker evidence; no live mutation method is reachable."""
 
+from collections.abc import Awaitable, Callable
 from decimal import Decimal
 from typing import Any
 
@@ -8,12 +9,15 @@ from lonora_contracts.account import Order, Position
 from lonora_contracts.domain import utcnow
 from lonora_contracts.runs import Lease
 from lonora_contracts.trading import TradeRequest, TradeResult
+from lonora_contracts.trading_goal import GoalExecution
 from lonora_core.user_error import LonoraError
 from lonora_db.agent_binding import agent_binding, assert_market_binding
 from lonora_db.client import Database
 from lonora_db.events import emit
 from lonora_db.runs import require_lease
 from lonora_db.schema import ShadowTradeRow, TradingJournalRow, TradingOpportunityRow
+from lonora_db.shadow_positions import shadow_order, shadow_position, shadow_rows
+from lonora_db.trade_approvals import require_approved_target_current
 from lonora_db.trading_decisions import decision_history, read_decision
 from lonora_db.trading_journal import persist_result, reserve_operation
 from lonora_db.transactions import resource_data
@@ -23,26 +27,10 @@ from lonora_session.idempotency import request_hash, stable_id
 from sqlalchemy import select, text
 
 from .idempotency import trade_fingerprint
+from .manual_activity import material_state
 from .preflight import preflight
 
 ENTRY = {"buy", "sell", "buy_limit", "sell_limit", "buy_stop", "sell_stop"}
-
-
-async def shadow_rows(
-    db: Database, owner_id: str, agent_id: str, account_id: str | None, symbol: str | None = None
-) -> list[ShadowTradeRow]:
-    async with db.sessions() as session:
-        query = select(ShadowTradeRow).where(
-            ShadowTradeRow.owner_id == owner_id,
-            ShadowTradeRow.agent_id == agent_id,
-        )
-        if account_id:
-            query = query.where(ShadowTradeRow.account_id == account_id)
-        if symbol:
-            query = query.where(ShadowTradeRow.symbol == symbol)
-        return list(
-            await session.scalars(query.order_by(ShadowTradeRow.created_at.desc()).limit(1000))
-        )
 
 
 class ShadowReadView:
@@ -65,42 +53,29 @@ class ShadowReadView:
     async def quote(self, symbol: str):
         return await (await self.brokers.get(self.owner_id, self.account_id)).quote(symbol)
 
+    async def candles(self, symbol: str, timeframe: str, limit: int):
+        return await (await self.brokers.get(self.owner_id, self.account_id)).candles(
+            symbol, timeframe, limit
+        )
+
     async def instrument(self, symbol: str):
         return await (await self.brokers.get(self.owner_id, self.account_id)).instrument(symbol)
 
     async def positions(self) -> list[Position]:
         return [
-            Position(
-                id=row.id,
-                symbol=row.symbol,
-                side=row.payload["side"],
-                volume=Decimal(row.state["remaining_volume"]),
-                open_price=Decimal(row.state["entry_price"]),
-                stop_loss=Decimal(row.state["stop_loss"]) if row.state.get("stop_loss") else None,
-                take_profit=Decimal(row.state["take_profit"])
-                if row.state.get("take_profit")
-                else None,
-                operation_id=row.payload["operation_id"],
+            shadow_position(row)
+            for row in await shadow_rows(
+                self.db, self.owner_id, self.agent_id, self.account_id, statuses=("open",)
             )
-            for row in await shadow_rows(self.db, self.owner_id, self.agent_id, self.account_id)
             if row.status == "open"
         ]
 
     async def orders(self) -> list[Order]:
         return [
-            Order(
-                id=row.id,
-                symbol=row.symbol,
-                side=row.payload["action"],
-                volume=Decimal(row.state["remaining_volume"]),
-                price=Decimal(row.payload["price"]),
-                stop_loss=Decimal(row.state["stop_loss"]) if row.state.get("stop_loss") else None,
-                take_profit=Decimal(row.state["take_profit"])
-                if row.state.get("take_profit")
-                else None,
-                operation_id=row.payload["operation_id"],
+            shadow_order(row)
+            for row in await shadow_rows(
+                self.db, self.owner_id, self.agent_id, self.account_id, statuses=("pending",)
             )
-            for row in await shadow_rows(self.db, self.owner_id, self.agent_id, self.account_id)
             if row.status == "pending"
         ]
 
@@ -131,9 +106,16 @@ async def execute_shadow(
     lease: Lease,
     request: TradeRequest,
     decision_id: str | None = None,
+    *,
+    goal: GoalExecution | None = None,
+    authorization: Callable[[], Awaitable[None]] | None = None,
 ) -> TradeResult:
+    from .execution import require_goal_lineage
+    from .goals import guard_goal_execution
+
     async with db.sessions() as session:
         run = await require_lease(session, lease)
+        await require_goal_lineage(session, lease, goal, owner_id, request, execution_mode="shadow")
         if run.agent_id != agent_id or run.thread_id != thread_id:
             raise LonoraError("agent_run_mismatch", 409)
         agent = await agent_binding(session, owner_id, agent_id)
@@ -149,6 +131,8 @@ async def execute_shadow(
             ):
                 raise LonoraError("operation_id_conflict", 409)
             return TradeResult.model_validate(prior.result)
+    if authorization:
+        await authorization()
     view = ShadowReadView(db, brokers, owner_id, agent_id, request.account_id)
     # Cancelling a virtual pending order only changes our own durable state.
     # It must remain possible while the broker is unavailable.
@@ -205,12 +189,49 @@ async def execute_shadow(
                 maximum_age_seconds=30,
             )
         )
+    if authorization:
+        await authorization()
+    goal_evidence = None
+    if goal:
+        from .goals_market import fresh_goal_evidence
+
+        goal_evidence = await fresh_goal_evidence(
+            db, brokers, owner_id, goal.goal_id, goal.step_id, lease.run_id
+        )
     async with db.sessions() as session, session.begin():
         await session.execute(
             text("SELECT pg_advisory_xact_lock(hashtextextended(:key,0))"),
             {"key": "shadow:" + owner_id + ":" + agent_id + ":" + request.account_id},
         )
+        if quote is not None:
+            require_healthy(
+                assess_quote(
+                    quote,
+                    account_id=request.account_id,
+                    symbol=request.symbol,
+                    now=utcnow(),
+                    maximum_age_seconds=30,
+                )
+            )
+        if evidence is not None:
+            require_healthy(
+                assess_quote(
+                    evidence.evidence.quote,
+                    account_id=request.account_id,
+                    symbol=request.symbol,
+                    now=utcnow(),
+                    maximum_age_seconds=30,
+                )
+            )
+            if any(
+                not relationship_usable(value, utcnow())
+                for value in evidence.evidence.relationships
+            ):
+                raise LonoraError("relationship_evidence_unreliable", 409)
         run = await require_lease(session, lease, lock=True)
+        await require_goal_lineage(session, lease, goal, owner_id, request, execution_mode="shadow")
+        if goal:
+            await guard_goal_execution(session, owner_id, goal, request, lease, goal_evidence)
         run.model_metadata = {**run.model_metadata, "execution_mode": "shadow"}
         agent = await agent_binding(session, owner_id, agent_id)
         if agent.execution_mode != "shadow":
@@ -259,6 +280,7 @@ async def execute_shadow(
                     **request.model_dump(mode="json"),
                     "side": "buy" if request.action.startswith("buy") else "sell",
                     "mode": "shadow",
+                    "goal": goal.model_dump(mode="json") if goal else None,
                     "source_observed_at": quote.observed_at.isoformat(),
                     "entry_quote": quote.model_dump(mode="json"),
                     "evidence_schema_version": evidence.schema_version,
@@ -314,6 +336,10 @@ async def execute_shadow(
                 raise LonoraError("shadow_order_not_pending", 409)
             if request.action in {"close_position", "modify_position"} and row.status != "open":
                 raise LonoraError("shadow_position_not_open", 409)
+            target = shadow_position(row) if row.status == "open" else shadow_order(row)
+            await require_approved_target_current(
+                session, owner_id, lease.run_id, request, material_state(target)
+            )
             state = dict(row.state)
             if request.action == "cancel_order":
                 if row.status != "pending":
@@ -375,6 +401,8 @@ async def execute_shadow(
             code="shadow_virtual_result",
             details={
                 "mode": "shadow",
+                "goal_id": goal.goal_id if goal else None,
+                "step_id": goal.step_id if goal else None,
                 "virtual_id": row.id,
                 "price": row.state.get("exit_price") or row.state.get("entry_price"),
                 "symbol": row.symbol,

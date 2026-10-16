@@ -250,7 +250,7 @@ async def finish_activation(
     origin: str,
     native_origins: list[str] | None = None,
 ) -> SuperBotRequestRow:
-    from lonora_db.agent_binding import require_financial_agent
+    from lonora_db.goal_scope import require_goal_agent
     from lonora_db.trading_goals import owned_goal, require_autonomous_limits, update_goal_state
 
     credential_size(body)
@@ -273,7 +273,7 @@ async def finish_activation(
     ):
         raise LonoraError("super_bot_request_expired_or_changed", 409)
     envelope = SuperBotEnvelope.model_validate(row.envelope)
-    agent = await require_financial_agent(session, owner.id, row.agent_id)
+    agent = await require_goal_agent(session, goal)
     if (
         row.mode != envelope.mode
         or goal.state.get("status") in {"cancelled", "completed"}

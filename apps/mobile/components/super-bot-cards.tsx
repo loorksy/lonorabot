@@ -100,6 +100,9 @@ export function SuperBotCards({
           <Text style={{ color: colors.foreground, writingDirection: "ltr" }}>
             {row.envelope.symbol} · {row.envelope.maximum_volume ?? "—"}
           </Text>
+          {row.envelope.execution_mode === "shadow" && (
+            <Text style={{ color: colors.secondary }}>{t("shadowMode")}</Text>
+          )}
           <Text style={{ color: colors.foreground }}>{row.envelope.goal_title}</Text>
           <Text style={{ color: colors.secondary }}>{row.envelope.objective}</Text>
           <Text style={{ color: colors.secondary }}>

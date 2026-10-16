@@ -12,8 +12,9 @@ from lonora_session.idempotency import request_hash
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .agent_binding import assert_payload_binding, require_financial_agent
+from .agent_binding import assert_payload_binding
 from .events import emit
+from .goal_scope import require_goal_agent
 from .schema import DeviceCredentialRow, SuperBotRequestRow, TradingGoalRow
 
 
@@ -80,8 +81,8 @@ async def propose(
     from .trading_goals import owned_goal, require_autonomous_limits
 
     await authority_lock(session, agent_id)
-    agent = await require_financial_agent(session, owner_id, agent_id)
     goal = await owned_goal(session, owner_id, body.goal_id, True)
+    agent = await require_goal_agent(session, goal)
     if goal.agent_id != agent_id or goal.state.get("status") in {"completed", "cancelled"}:
         raise LonoraError("goal_run_mismatch", 409)
     assert_payload_binding(agent, goal.payload)
@@ -170,7 +171,7 @@ async def require_goal_authority(
         or goal.state.get("plan_version", 1) != envelope.plan_version
     ):
         raise LonoraError("super_bot_plan_changed", 409)
-    agent = await require_financial_agent(session, goal.owner_id, goal.agent_id or "")
+    agent = await require_goal_agent(session, goal)
     if (
         agent.execution_mode != envelope.execution_mode
         or envelope.account_id != goal.payload["account_id"]

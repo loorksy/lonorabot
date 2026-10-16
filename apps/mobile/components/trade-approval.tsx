@@ -37,6 +37,9 @@ export function TradeApprovalCard({
       <Text style={{ color: colors.foreground, textAlign: rtl ? "right" : "left" }}>
         {t("tradeApproval")}
       </Text>
+      {row.execution_mode === "shadow" && (
+        <Text style={{ color: colors.secondary }}>{t("shadowMode")}</Text>
+      )}
       {row.requests.map((request, index) => (
         <View key={String(request.operation_id ?? index)}>
           <Text style={{ color: colors.foreground, writingDirection: "ltr" }}>

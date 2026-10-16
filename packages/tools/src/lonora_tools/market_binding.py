@@ -7,6 +7,7 @@ from lonora_db.agent_binding import (
     require_financial_agent,
     same_binding,
 )
+from lonora_db.runs import require_lease
 from lonora_db.schema import AgentRow, CloudChartRow, TradingGoalRow
 from pydantic import BaseModel
 
@@ -73,7 +74,15 @@ async def guard_market_tool(
         if (name.startswith("trade_") and agent.execution_mode != "shadow") or (
             name.startswith("goal_") and name not in {"goal_read", "goal_list", "goal_decisions"}
         ):
-            await require_financial_agent(session, context.owner_id, context.agent_id)
+            run = await require_lease(session, context.lease)
+            mode = (
+                "shadow"
+                if name.startswith("goal_") and run.model_metadata.get("execution_mode") == "shadow"
+                else "live"
+            )
+            await require_financial_agent(
+                session, context.owner_id, context.agent_id, execution_mode=mode
+            )
         if not agent.trading_account_id:
             return args
         aligned = align_payload(agent, args)

@@ -198,6 +198,9 @@ export function TradingGoals({ agentId }: { agentId: string }) {
           return (
             <article className="card stack" key={goal.id} data-goal-id={goal.id}>
               <h3>{String(goal.payload.title ?? "")}</h3>
+              {goal.state.execution_mode === "shadow" && (
+                <p>{t`Shadow trading — virtual orders only`}</p>
+              )}
               <p>{String(goal.payload.objective ?? "")}</p>
               <p>
                 <bdi>{String(goal.payload.symbol ?? "")}</bdi> · {statusLabel(phase)}

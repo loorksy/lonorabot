@@ -122,6 +122,11 @@ export function SuperBotCards({
             <Trans>Maximum volume</Trans>: <bdi>{row.envelope.maximum_volume ?? "—"}</bdi> ·{" "}
             <Trans>Maximum trade actions</Trans>: {row.envelope.max_trade_actions}
           </p>
+          {row.envelope.execution_mode === "shadow" && (
+            <p>
+              <Trans>Shadow trading — virtual orders only</Trans>
+            </p>
+          )}
           <p>
             {row.envelope.allow_manual_positions ? (
               <Trans>Manual position management allowed</Trans>

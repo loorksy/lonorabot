@@ -68,6 +68,9 @@ export function AgentLiveStatus({ agentId }: { agentId: string }) {
                 {t("superBot")} · {t(grant.mode)}
               </Text>
               <Text style={{ color: colors.foreground }}>{grant.title}</Text>
+              {grant.execution_mode === "shadow" && (
+                <Text style={{ color: colors.secondary }}>{t("shadowMode")}</Text>
+              )}
               {grant.review_status === "failed" && (
                 <Text style={{ color: colors.foreground }}>{t("live_action_required")}</Text>
               )}

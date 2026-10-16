@@ -3,6 +3,14 @@ import { errorCode } from "@lonora/core";
 export function userError(error: unknown) {
   const code = errorCode(error);
   switch (code) {
+    case "execution_mode_changed":
+    case "goal_execution_mode_invalid":
+    case "shadow_execution_forbidden":
+      return t`Execution mode changed. Review the saved plan before continuing.`;
+    case "shadow_monetary_pnl_unavailable":
+      return t`Virtual monetary profit is unavailable without verified contract and currency valuation.`;
+    case "shadow_decision_required":
+      return t`Record a fresh market decision before virtual entry.`;
     case "super_bot_advisory_only":
       return t`This plan is advisory and cannot execute trades.`;
     case "super_bot_scope_changed":

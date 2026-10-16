@@ -2,7 +2,7 @@ import copy
 from typing import Any
 
 from lonora_contracts.routines import RoutineCreate
-from lonora_contracts.trading import TradeRequest
+from lonora_contracts.trading import TradeRequest, TradeResult
 from lonora_contracts.trading_goal import (
     GoalControl,
     GoalCreate,
@@ -11,6 +11,7 @@ from lonora_contracts.trading_goal import (
     GoalStepNote,
 )
 from lonora_core.user_error import LonoraError
+from lonora_db.goal_scope import require_goal_agent
 from lonora_db.market_watches import MarketWatchRepository
 from lonora_db.routines import create_routine, routine_data
 from lonora_db.runs import locked_run_thread, require_lease
@@ -63,6 +64,7 @@ async def create(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     async with context.db.sessions() as session, session.begin():
         run, _ = await locked_run_thread(session, context.lease)
         goal = await create_goal(session, context.owner_id, body, context.resource_id)
+        await require_goal_agent(session, goal, run)
         run.model_metadata = {
             **run.model_metadata,
             "goal_id": goal.id,
@@ -100,6 +102,7 @@ async def read(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
                     "thread_id": row.thread_id,
                     "status": row.state.get("status"),
                     "autonomous": row.state.get("autonomous", False),
+                    "execution_mode": row.state.get("execution_mode", "live"),
                     "current_step": row.state.get("current_step"),
                     "plan_version": row.state.get("plan_version", 1),
                     "account_id": row.payload["account_id"],
@@ -129,6 +132,7 @@ async def read_goal(context: ToolContext, args: dict[str, Any]) -> dict[str, Any
             "objective": goal.payload["objective"],
             "status": goal.state["status"],
             "autonomous": goal.state.get("autonomous", False),
+            "execution_mode": goal.state.get("execution_mode", "live"),
             "plan_version": goal.state.get("plan_version", 1),
             "limits": {
                 key: goal.payload.get(key)
@@ -336,37 +340,59 @@ async def execute(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     from .trade import approved_execution
 
     approval_id = None
+    approved_request: TradeRequest | None = None
 
     async def gate(request: TradeRequest) -> dict[str, Any] | None:
-        nonlocal approval_id
+        nonlocal approval_id, approved_request
         proposal = await approved_execution(context, [request], gate_only=True)
         if not proposal.get("approved"):
             return proposal
-        approval_id = proposal["approval_id"]
+        approval_id, approved_request = proposal["approval_id"], request
         return None
 
-    result = await execute_goal_step(
-        context.db,
-        context.brokers,
-        context.trading,
-        context.owner_id,
-        args["goal_id"],
-        args.get("step_id"),
-        context.lease,
-        args.get("note", ""),
-        args.get("evidence_refs", []),
-        approval_gate=gate,
-    )
-    if approval_id and result.get("result"):
+    async def finish_approval(value: dict[str, Any]) -> None:
+        if not approval_id:
+            return
         from lonora_db.schema import TradeApprovalRow
         from lonora_db.trade_approvals import approval_event
 
         async with context.db.sessions() as session, session.begin():
             await require_lease(session, context.lease, lock=True)
             row = await session.get(TradeApprovalRow, approval_id, with_for_update=True)
-            assert row is not None
-            row.status, row.results = "completed", [result["result"]]
-            approval_event(session, row)
+            if (
+                row is None
+                or row.owner_id != context.owner_id
+                or row.run_id != context.lease.run_id
+            ):
+                raise LonoraError("trade_approval_mismatch", 409)
+            if row.status == "approved":
+                row.status, row.results = "completed", [value]
+                approval_event(session, row)
+
+    try:
+        result = await execute_goal_step(
+            context.db,
+            context.brokers,
+            context.trading,
+            context.owner_id,
+            args["goal_id"],
+            args.get("step_id"),
+            context.lease,
+            args.get("note", ""),
+            args.get("evidence_refs", []),
+            approval_gate=gate,
+        )
+    except LonoraError as error:
+        if approved_request is not None and error.code != "stale_lease":
+            await finish_approval(
+                TradeResult(
+                    operation_id=approved_request.operation_id, status="failed", code=error.code
+                ).model_dump(mode="json")
+            )
+        raise
+    if approval_id and result.get("result"):
+        await finish_approval(result["result"])
+
     return result
 
 
@@ -438,7 +464,7 @@ def tools() -> list[Tool]:
         ),
         Tool(
             "goal_step_execute",
-            "Execute only the exact planned current financial step with fresh broker evidence, owner autonomy for background runs and global Trading ON. Fixed goal/step/attempt identity across runs; ambiguity blocks retries.",
+            "Execute the exact current step in its frozen live/shadow Goal mode, with current evidence and signed background authority. Live steps additionally require global Trading ON; Shadow steps only mutate virtual state. Fixed goal/step/attempt identity across runs; ambiguity blocks retries.",
             GoalStepNote,
             execute,
         ),

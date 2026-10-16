@@ -210,6 +210,7 @@ async def agent_live_state(session: AsyncSession, owner_id: str, agent_id: str) 
                 "goal_id": goal.id,
                 "title": str(goal.payload["title"])[:80],
                 "mode": grant.mode,
+                "execution_mode": goal.state.get("execution_mode", "live"),
                 "authorization_status": grant.status,
                 "goal_status": goal.state.get("status"),
                 "current_step": goal.state.get("current_step"),

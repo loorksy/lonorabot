@@ -6,6 +6,7 @@ from lonora_contracts.broker import BrokerConnection
 from lonora_contracts.domain import utcnow
 from lonora_contracts.execution_quality import ExecutionQuality
 from lonora_contracts.runs import Lease
+from lonora_contracts.shadow import ExecutionMode
 from lonora_contracts.tasks import TaskState
 from lonora_contracts.trading import TradeRequest, TradeResult
 from lonora_contracts.trading_goal import GoalExecution
@@ -15,9 +16,10 @@ from lonora_db.agent_binding import assert_market_binding, require_financial_age
 from lonora_db.broker_sessions import BrokerSessionRepository
 from lonora_db.client import Database
 from lonora_db.runs import require_lease
-from lonora_db.schema import RunRow, TicketRow, TradeApprovalRow, TradingJournalRow
+from lonora_db.schema import RunRow, TicketRow, TradingJournalRow
+from lonora_db.trade_approvals import require_approved_target_current
 from lonora_db.trading_journal import persist_result, reserve_operation
-from sqlalchemy import select, text
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .controls import read_controls
@@ -43,16 +45,22 @@ async def require_goal_lineage(
     goal: GoalExecution | None,
     owner_id: str | None = None,
     request: TradeRequest | None = None,
+    *,
+    execution_mode: ExecutionMode = "live",
 ) -> None:
     origin_run = await require_lease(session, lease)
     if owner_id is not None:
-        await require_financial_agent(session, owner_id, origin_run.agent_id)
+        await require_financial_agent(
+            session, owner_id, origin_run.agent_id, execution_mode=execution_mode
+        )
     if origin_run.model_metadata.get("authority") == "observe_only":
         raise LonoraError("observe_only_execution_forbidden", 403)
-    await require_task_authority(session, origin_run)
+    await require_task_authority(session, origin_run, execution_mode=execution_mode)
     if owner_id is not None and request is not None:
         assert_market_binding(
-            await require_financial_agent(session, owner_id, origin_run.agent_id),
+            await require_financial_agent(
+                session, owner_id, origin_run.agent_id, execution_mode=execution_mode
+            ),
             request.account_id,
             request.symbol,
         )
@@ -70,10 +78,12 @@ async def require_goal_lineage(
             raise LonoraError("goal_run_ancestry_invalid", 409)
         if ancestor.model_metadata.get("authority") == "observe_only":
             raise LonoraError("observe_only_execution_forbidden", 403)
-        await require_task_authority(session, ancestor)
+        await require_task_authority(session, ancestor, execution_mode=execution_mode)
         if owner_id is not None and request is not None:
             assert_market_binding(
-                await require_financial_agent(session, owner_id, ancestor.agent_id),
+                await require_financial_agent(
+                    session, owner_id, ancestor.agent_id, execution_mode=execution_mode
+                ),
                 request.account_id,
                 request.symbol,
             )
@@ -89,8 +99,10 @@ async def require_goal_lineage(
         raise LonoraError("goal_step_required", 409)
 
 
-async def require_task_authority(session: AsyncSession, run: RunRow) -> None:
-    if run.model_metadata.get("execution_mode") == "shadow":
+async def require_task_authority(
+    session: AsyncSession, run: RunRow, *, execution_mode: ExecutionMode = "live"
+) -> None:
+    if run.model_metadata.get("execution_mode", "live") != execution_mode:
         raise LonoraError("shadow_execution_forbidden", 403)
     task_id = run.model_metadata.get("task_id")
     if not task_id:
@@ -227,13 +239,6 @@ class ExecutionService:
                 if lease:
                     await require_lease(session, lease, lock=True)
                     await require_goal_lineage(session, lease, goal, owner_id, request)
-                    approvals = await session.scalars(
-                        select(TradeApprovalRow).where(
-                            TradeApprovalRow.owner_id == owner_id,
-                            TradeApprovalRow.run_id == lease.run_id,
-                            TradeApprovalRow.status == "approved",
-                        )
-                    )
                     target = (
                         next(
                             (
@@ -249,25 +254,13 @@ class ExecutionService:
                             None,
                         )
                     )
-                    key = request.account_id + (
-                        ":position:" + request.position_id
-                        if request.position_id
-                        else ":order:" + request.order_id
-                        if request.order_id
-                        else ""
+                    await require_approved_target_current(
+                        session,
+                        owner_id,
+                        lease.run_id,
+                        request,
+                        material_state(target) if target else None,
                     )
-                    for approval in approvals:
-                        if (
-                            any(
-                                item.get("operation_id") == request.operation_id
-                                for item in approval.requests
-                            )
-                            and key in approval.broker_snapshot
-                        ):
-                            if approval.broker_snapshot[key] != (
-                                material_state(target) if target else None
-                            ):
-                                raise LonoraError("trade_approval_broker_state_changed", 409)
                 from .opportunities import require_entry_thesis
 
                 await require_entry_thesis(session, owner_id, request)

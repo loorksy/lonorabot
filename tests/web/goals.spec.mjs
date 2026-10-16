@@ -135,3 +135,122 @@ test("owner reviews a durable goal and controls limits, autonomy, pause, same-th
     fixture({ ...data, action: "cleanup" });
   }
 });
+
+test("signed Shadow goal is visibly virtual and cannot inherit live authority after mode changes", async ({
+  page,
+  context,
+}) => {
+  const data = fixture({ action: "init" });
+  const headers = {
+    "X-CSRF-Token": data.cookies.find((cookie) => cookie.name === "lonora_csrf").value,
+  };
+  await context.addCookies(
+    data.cookies.map((cookie) => ({
+      ...cookie,
+      url: test.info().project.use.baseURL,
+      httpOnly: cookie.name === "lonora_session",
+      sameSite: "Strict",
+    })),
+  );
+  await context.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
+  const device = await context.newCDPSession(page);
+  await device.send("WebAuthn.enable");
+  await device.send("WebAuthn.addVirtualAuthenticator", {
+    options: {
+      protocol: "ctap2",
+      transport: "internal",
+      hasResidentKey: true,
+      hasUserVerification: true,
+      isUserVerified: true,
+      automaticPresenceSimulation: true,
+    },
+  });
+  let agent;
+  try {
+    agent = await (
+      await context.request.post("/api/agents", {
+        headers,
+        data: {
+          name: `Shadow goal ${randomUUID()}`,
+          trading_account_id: data.account,
+          trading_symbol: data.symbol,
+        },
+      })
+    ).json();
+    expect(
+      (
+        await context.request.put(`/api/agents/${agent.id}/execution-mode`, {
+          headers,
+          data: { execution_mode: "shadow" },
+        })
+      ).ok(),
+    ).toBeTruthy();
+    const thread = await (
+      await context.request.post(`/api/agents/${agent.id}/conversation`, { headers, data: {} })
+    ).json();
+    const goalResponse = await context.request.post("/api/trading/goals", {
+      headers,
+      data: {
+        agent_id: agent.id,
+        thread_id: thread.id,
+        account_id: data.account,
+        symbol: data.symbol,
+        title: "Shadow plan review",
+        objective: "Review source evidence without a real broker order",
+        maximum_volume: "0.1",
+        max_trade_actions: 1,
+        steps: [{ id: "review", title: "Inspect actual market evidence", kind: "analysis" }],
+      },
+    });
+    expect(goalResponse.status()).toBe(201);
+    const goal = await goalResponse.json();
+    expect(goal.execution_mode).toBe("shadow");
+    const proposed = await context.request.post(`/api/agents/${agent.id}/super-bot/proposals`, {
+      headers,
+      data: { goal_id: goal.id, mode: "autonomous" },
+    });
+    expect(proposed.status()).toBe(201);
+    const request = await proposed.json();
+    await page.goto(`/app/${agent.id}`);
+    const card = page.locator(`[data-super-bot-id='${request.id}']`);
+    await expect(
+      card.getByText("Shadow trading — virtual orders only", { exact: true }),
+    ).toBeVisible();
+    await card.getByRole("button", { name: "Register a passkey", exact: true }).click();
+    // Password inputs deliberately have no textbox role in every engine.
+    await page
+      .getByLabel("Confirm account password", { exact: true })
+      .fill("ci-only-owner-password");
+    await page.getByRole("button", { name: "Register this device", exact: true }).click();
+    await expect(page.getByLabel("Confirm account password", { exact: true })).toHaveCount(0);
+    await card
+      .getByRole("button", { name: "Activate with device authentication", exact: true })
+      .click();
+    await expect(card.getByText("Super Bot · Active", { exact: true })).toBeVisible();
+    const active = await (await context.request.get(`/api/trading/goals/${goal.id}`)).json();
+    expect(active.state).toMatchObject({ execution_mode: "shadow", autonomous: true });
+    expect((await (await context.request.get("/api/trading/controls")).json()).enabled).toBe(false);
+    expect(
+      (
+        await context.request.put(`/api/agents/${agent.id}/execution-mode`, {
+          headers,
+          data: { execution_mode: "live" },
+        })
+      ).ok(),
+    ).toBeTruthy();
+    await page.reload();
+    await expect(card.getByText("Super Bot · Stopped", { exact: true })).toBeVisible();
+    await expect(
+      card.getByText("Shadow trading — virtual orders only", { exact: true }),
+    ).toBeVisible();
+    const paused = await (await context.request.get(`/api/trading/goals/${goal.id}`)).json();
+    expect(paused.state).toMatchObject({
+      execution_mode: "shadow",
+      autonomous: false,
+      status: "paused",
+    });
+  } finally {
+    if (agent) await context.request.delete(`/api/agents/${agent.id}`, { headers });
+    fixture({ ...data, action: "cleanup" });
+  }
+});

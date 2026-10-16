@@ -1,6 +1,7 @@
 from typing import Any
 
 from lonora_contracts.domain import utcnow
+from lonora_contracts.trading import TradeRequest
 from lonora_core.user_error import LonoraError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,6 +19,7 @@ def approval_data(row: TradeApprovalRow) -> dict[str, Any]:
         "agent_id": row.agent_id,
         "timeline_seq": row.timeline_seq,
         "requests": row.requests,
+        "execution_mode": row.broker_snapshot.get("execution_mode", {}).get("value", "live"),
         "status": row.status,
         "results": row.results,
         "created_at": row.created_at.isoformat(),
@@ -74,3 +76,30 @@ async def decide(
         )
     approval_event(session, row)
     return approval_data(row)
+
+
+async def require_approved_target_current(
+    session: AsyncSession,
+    owner_id: str,
+    run_id: str,
+    request: TradeRequest,
+    observed: dict[str, Any] | None,
+) -> None:
+    target_id = request.position_id or request.order_id
+    if not target_id:
+        return
+    key = request.account_id + (":position:" if request.position_id else ":order:") + target_id
+    approvals = await session.scalars(
+        select(TradeApprovalRow).where(
+            TradeApprovalRow.owner_id == owner_id,
+            TradeApprovalRow.run_id == run_id,
+            TradeApprovalRow.status == "approved",
+        )
+    )
+    for approval in approvals:
+        if (
+            any(item.get("operation_id") == request.operation_id for item in approval.requests)
+            and key in approval.broker_snapshot
+        ):
+            if approval.broker_snapshot[key] != observed:
+                raise LonoraError("trade_approval_broker_state_changed", 409)

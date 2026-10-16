@@ -55,14 +55,49 @@ async def approved_execution(
 ) -> dict[str, Any]:
     approval_id = stable_id(context.lease.run_id, "approval:" + context.call_id)
     async with context.db.sessions() as reader:
-        await require_financial_agent(reader, context.owner_id, context.agent_id)
+        origin = await require_lease(reader, context.lease)
+        mode = (
+            "shadow"
+            if gate_only and origin.model_metadata.get("execution_mode") == "shadow"
+            else "live"
+        )
+        await require_financial_agent(
+            reader, context.owner_id, context.agent_id, execution_mode=mode
+        )
         previous = await reader.get(TradeApprovalRow, approval_id)
-    initial_snapshot = await management_snapshot(context, requests) if previous is None else {}
+    if mode == "shadow" and previous is None:
+        from lonora_trading.shadow import ShadowReadView
+
+        initial_snapshot: dict[str, Any] = {}
+        for request in requests:
+            view = ShadowReadView(
+                context.db, context.brokers, context.owner_id, context.agent_id, request.account_id
+            )
+            targets = (
+                await view.positions()
+                if request.position_id
+                else await view.orders()
+                if request.order_id
+                else []
+            )
+            target_id = request.position_id or request.order_id
+            if target_id:
+                target = next((item for item in targets if item.id == target_id), None)
+                key = (
+                    request.account_id
+                    + (":position:" if request.position_id else ":order:")
+                    + target_id
+                )
+                initial_snapshot[key] = material_state(target) if target else None
+    else:
+        initial_snapshot = await management_snapshot(context, requests) if previous is None else {}
     async with context.db.sessions() as session, session.begin():
         current = await require_lease(session, context.lease)
         if current.agent_id != context.agent_id:
             raise LonoraError("agent_run_mismatch", 409)
-        await require_financial_agent(session, context.owner_id, current.agent_id)
+        await require_financial_agent(
+            session, context.owner_id, current.agent_id, execution_mode=mode
+        )
         visible_thread_id = current.model_metadata.get("origin_thread_id") or context.thread_id
         thread = await owned_thread(session, context.owner_id, visible_thread_id, lock=True)
         if thread.agent_id != context.agent_id and not thread.group_id:
@@ -78,7 +113,7 @@ async def approved_execution(
                 agent_id=context.agent_id,
                 call_id=context.call_id,
                 timeline_seq=thread.next_seq,
-                broker_snapshot=initial_snapshot,
+                broker_snapshot={**initial_snapshot, "execution_mode": {"value": mode}},
                 requests=[r.model_dump(mode="json") for r in requests],
                 status="pending",
                 results=[],

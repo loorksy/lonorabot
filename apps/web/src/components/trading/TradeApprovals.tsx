@@ -98,6 +98,11 @@ export function TradeApprovalCard({
       <strong>
         <Trans>Trading request</Trans>
       </strong>
+      {row.execution_mode === "shadow" && (
+        <p>
+          <Trans>Shadow trading — virtual orders only</Trans>
+        </p>
+      )}
       {row.requests.map((request, index) => (
         <dl key={String(request.operation_id ?? index)}>
           <dt>

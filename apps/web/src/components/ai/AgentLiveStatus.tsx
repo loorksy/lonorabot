@@ -72,6 +72,11 @@ export function AgentLiveStatus({ agentId }: { agentId: string }) {
                 : t`Advisory`}
           </p>
           <p dir="auto">{grant.title}</p>
+          {grant.execution_mode === "shadow" && (
+            <p>
+              <Trans>Shadow trading — virtual orders only</Trans>
+            </p>
+          )}
           {grant.review_status === "failed" && (
             <p>
               <Trans>Action required</Trans>

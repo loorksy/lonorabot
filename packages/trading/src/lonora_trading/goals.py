@@ -11,6 +11,7 @@ from lonora_contracts.trading import TradeRequest, TradeResult
 from lonora_contracts.trading_goal import GoalExecution
 from lonora_core.user_error import LonoraError
 from lonora_db.client import Database
+from lonora_db.goal_scope import goal_mode, require_goal_agent
 from lonora_db.runs import create_run, locked_run_thread, require_lease, run_data
 from lonora_db.schema import (
     GoalDecisionRow,
@@ -72,6 +73,7 @@ def matches_declared_trade(goal: TradingGoalRow, step_id: str, request: TradeReq
 
 async def goal_requires_approval(session: AsyncSession, goal: TradingGoalRow, run: RunRow) -> bool:
     """A signed supervised plan can prepare a card, never execute unattended."""
+    await require_goal_agent(session, goal, run)
     grant_id = goal.state.get("super_bot_request_id")
     if grant_id:
         grant = await session.get(SuperBotRequestRow, grant_id)
@@ -403,6 +405,8 @@ async def execute_goal_step(
                 "rationale": note,
                 "evidence_refs": evidence_refs or [],
                 "observation": evidence,
+                "execution_mode": goal_mode(goal),
+                "plan_version": expected_plan_version,
             },
             status="executing",
         )
@@ -431,15 +435,31 @@ async def execute_goal_step(
                 raise LonoraError("trade_approval_unavailable", 409)
 
     try:
-        result = await executor.execute(
-            owner_id,
-            request,
-            lease,
-            goal=context,
-            authorization=require_approved_goal if needs_approval else None,
-        )
+        if goal_mode(goal) == "shadow":
+            from .shadow import execute_shadow
+
+            result = await execute_shadow(
+                db,
+                brokers,
+                owner_id,
+                goal.agent_id or "",
+                goal.thread_id or "",
+                lease,
+                request,
+                goal=context,
+                authorization=require_approved_goal if needs_approval else None,
+            )
+        else:
+            result = await executor.execute(
+                owner_id,
+                request,
+                lease,
+                goal=context,
+                authorization=require_approved_goal if needs_approval else None,
+            )
     except LonoraError as error:
         async with db.sessions() as session, session.begin():
+            await require_lease(session, lease, lock=True)
             goal = await owned_goal(session, owner_id, goal_id, True)
             decision = await session.get(GoalDecisionRow, decision_id, with_for_update=True)
             journal = await session.get(TradingJournalRow, operation_id)

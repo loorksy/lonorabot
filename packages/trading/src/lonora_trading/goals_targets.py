@@ -11,6 +11,8 @@ from lonora_db.trading_goals import owned_goal
 from lonora_session.idempotency import broker_operation_tag
 from sqlalchemy import select
 
+from .goal_broker import goal_broker
+
 
 async def resolve_target(
     db: Database,
@@ -45,13 +47,14 @@ async def resolve_target(
         )
         safe_broker_id = (
             source.result.get("broker_id")
-            if details.get("simulation") is True and same_entity
+            if (details.get("simulation") is True or details.get("mode") == "shadow")
+            and same_entity
             else None
         )
         if source_action in {"modify_position", "close_position", "modify_order", "cancel_order"}:
             known = known or source.request.get(kind + "_id")
-        account_id, symbol = str(goal.payload["account_id"]), str(goal.payload["symbol"])
-    broker = await brokers.get(owner_id, account_id)
+        symbol = str(goal.payload["symbol"])
+    broker = await goal_broker(db, brokers, goal)
     items = await broker.positions() if kind == "position" else await broker.orders()
     matches = [
         item

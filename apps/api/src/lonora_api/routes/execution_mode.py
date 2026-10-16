@@ -8,7 +8,9 @@ from lonora_contracts.shadow import AgentExecutionMode, PerformanceRead
 from lonora_db.agent_binding import assert_market_binding
 from lonora_db.agents import agent_data
 from lonora_db.events import emit
-from lonora_db.schema import TradingGoalRow
+from lonora_db.schema import SuperBotRequestRow, TradingGoalRow
+from lonora_db.super_bot import changed, stop_request
+from lonora_db.trading_goals import update_goal_state
 from lonora_db.transactions import owned_agent
 from sqlalchemy import select
 
@@ -76,18 +78,40 @@ async def update_mode(
                 .where(
                     TradingGoalRow.owner_id == owner.id,
                     TradingGoalRow.agent_id == agent.id,
-                    TradingGoalRow.state["status"].as_string() == "active",
+                    TradingGoalRow.state["status"]
+                    .as_string()
+                    .in_(["active", "waiting", "blocked"]),
                 )
                 .with_for_update()
             )
             for goal in goals:
-                goal.state = {
-                    **goal.state,
-                    "autonomous": False,
-                    "status": "paused",
-                    "code": "execution_mode_changed",
-                }
-                goal.version += 1
+                update_goal_state(
+                    session,
+                    goal,
+                    {
+                        **goal.state,
+                        "autonomous": False,
+                        "status": "paused",
+                        "code": "execution_mode_changed",
+                    },
+                )
+            grants = list(
+                await session.scalars(
+                    select(SuperBotRequestRow)
+                    .where(
+                        SuperBotRequestRow.owner_id == owner.id,
+                        SuperBotRequestRow.agent_id == agent.id,
+                        SuperBotRequestRow.status.in_(["activated", "pending"]),
+                    )
+                    .order_by(SuperBotRequestRow.goal_id)
+                )
+            )
+            for grant in grants:
+                if grant.status == "activated":
+                    await stop_request(session, grant, "disabled")
+                else:
+                    grant.status = "expired"
+                    changed(session, grant)
             emit(
                 session,
                 owner.id,

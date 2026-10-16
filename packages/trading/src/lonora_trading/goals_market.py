@@ -8,9 +8,11 @@ from lonora_contracts.domain import utcnow
 from lonora_core.market_watch import condition_met
 from lonora_core.user_error import LonoraError
 from lonora_db.client import Database
+from lonora_db.goal_scope import goal_mode
 from lonora_db.schema import MarketWakeReceiptRow, MarketWatchRow, RunRow
 from lonora_db.trading_goals import owned_goal, planned_step
 
+from .goal_broker import goal_broker
 from .goals_targets import resolve_condition
 
 
@@ -25,7 +27,6 @@ async def fresh_goal_evidence(
     async with db.sessions() as session:
         goal = await owned_goal(session, owner_id, goal_id)
         step = planned_step(goal, step_id)
-        account_id = str(goal.payload["account_id"])
         symbol = str(goal.payload["symbol"])
     config = (
         await resolve_condition(db, brokers, owner_id, goal_id, step.condition)
@@ -82,14 +83,28 @@ async def fresh_goal_evidence(
                 if any(watch.payload.get(field) != expected.get(field) for field in fields):
                     raise LonoraError("goal_watch_evidence_required", 409)
             trigger = run.model_metadata
-    broker = await brokers.get(owner_id, account_id)
-    account = await broker.account()
+    broker = await goal_broker(db, brokers, goal)
+    local_cancel = (
+        goal_mode(goal) == "shadow"
+        and step.trade is not None
+        and step.trade.action == "cancel_order"
+        and config is None
+    )
+    account = None if local_cancel else await broker.account()
     positions = await broker.positions()
     orders = await broker.orders()
     evidence: dict[str, Any] = {
         "fetched_at": utcnow().isoformat(),
-        "account": account.model_dump(mode="json"),
-        "positions": [position.model_dump(mode="json") for position in positions[:200]],
+        "execution_mode": goal.state.get("execution_mode", "live"),
+        "account": account.model_dump(mode="json") if account else None,
+        "account_source": "broker" if account else "not_required_for_local_virtual_cancel",
+        "positions": [
+            {
+                **position.model_dump(mode="json"),
+                **({"profit": None, "mode": "shadow"} if goal_mode(goal) == "shadow" else {}),
+            }
+            for position in positions[:200]
+        ],
         "orders": [order.model_dump(mode="json") for order in orders[:200]],
     }
     if config is None:
@@ -105,8 +120,15 @@ async def fresh_goal_evidence(
         current = quote.bid
         evidence["quote"] = quote.model_dump(mode="json")
     elif config.kind == "account":
+        assert account is not None
         current = Decimal(str(account.model_dump(mode="json")[config.metric]))
     elif config.kind == "position":
+        if (
+            goal_mode(goal) == "shadow"
+            and config.condition not in {"opened", "closed"}
+            and config.metric == "profit"
+        ):
+            raise LonoraError("shadow_monetary_pnl_unavailable", 409)
         position = next(
             (item for item in positions if item.id == config.position_id and item.symbol == symbol),
             None,

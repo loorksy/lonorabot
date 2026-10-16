@@ -1,5 +1,22 @@
 export type Locale = "ar" | "en";
 export const labels = {
+  execution_mode_changed: [
+    "تغير وضع التنفيذ. راجع الخطة المحفوظة قبل المتابعة.",
+    "Execution mode changed. Review the saved plan before continuing.",
+  ],
+  shadow_execution_forbidden: [
+    "وضع التنفيذ لا يطابق صلاحيات هذه العملية.",
+    "The execution mode does not match this operation's authority.",
+  ],
+  shadow_monetary_pnl_unavailable: [
+    "الربح النقدي الافتراضي غير متاح دون تقييم موثق للعقد والعملة.",
+    "Virtual monetary profit requires verified contract and currency valuation.",
+  ],
+  shadow_decision_required: [
+    "سجّل قرار سوق حديثًا قبل الدخول الافتراضي.",
+    "Record a fresh market decision before virtual entry.",
+  ],
+  shadowMode: ["تداول ظلي — أوامر افتراضية فقط", "Shadow trading — virtual orders only"],
   superBot: ["سوبر بوت", "Super Bot"],
   devicePending: ["بانتظار تفويض الجهاز", "Waiting for device authorization"],
   expired: ["منتهي الصلاحية", "Expired"],

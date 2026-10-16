@@ -106,3 +106,10 @@ Next shared dependency: expose bounded authority/Goal state through the existing
 ## Activation review / live projection integration
 
 Verified grant → existing scheduler + atomic effect receipt → one observe-only work Run → existing global Background route + normal ToolLoop → validated origin Goal read/account/market tools → durable Run result → existing outcome receipt → original conversation/group. Financial executor rejects observe-only authority, including descendants; the review does not resume blocked Goals. Grant/Goal/Run records derive the same bounded status for Web/Mobile/voice. Failed review state is inspectable and never becomes a repeated model timer.
+
+
+## Frozen-mode Goal orchestration
+
+Existing Agent + Run execution mode → shared frozen Goal scope validation → same Goal decisions/steps → existing approval or signed mode-bound authority → same Goal preflight/evidence/operation identity → existing journal. Only the explicit Shadow branch writes virtual state; the default financial executor remains live-only. Goal mode cannot change when Agent mode changes: current work pauses and grants stop. Legacy Goals without a mode remain live.
+
+DB virtual-position/order projection serves both Market watches and Trading evidence without a Market→Trading package dependency. Broker prices/candles remain read-only evidence. Virtual targets, sampled fills and condition checks reuse the existing Gateway/watch/scheduler lanes; monetary profit remains explicitly unavailable. Atomic virtual state + journal precede Goal recovery; lease fencing precedes failure writes. Approval state reflects the actual result, including post-approval validation failure. No migration or second executor/scheduler/runtime is introduced.

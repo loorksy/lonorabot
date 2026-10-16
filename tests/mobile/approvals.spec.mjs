@@ -79,6 +79,7 @@ test("Expo approval buttons show durable real broker receipts", async ({ page, c
     expect(decisions).toBe(1);
     const rejected = {
       ...approval,
+      execution_mode: "shadow",
       id: randomUUID(),
       status: "pending",
       results: [],
@@ -101,6 +102,7 @@ test("Expo approval buttons show durable real broker receipts", async ({ page, c
       await route.fulfill({ json: rejected });
     });
     await page.reload();
+    await expect(page.getByText("تداول ظلي — أوامر افتراضية فقط", { exact: true })).toBeVisible();
     await page.getByRole("button", { name: "رفض", exact: true }).click();
     await expect(page.getByText("مرفوض", { exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "موافقة", exact: true })).toHaveCount(0);

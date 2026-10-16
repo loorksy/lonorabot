@@ -12,6 +12,7 @@ export type AgentLiveState = {
     goal_id: string;
     title: string;
     mode: "advisory" | "supervised" | "autonomous";
+    execution_mode?: "live" | "shadow";
     authorization_status: "pending" | "activated" | "paused";
     goal_status: string;
     current_step: string | null;

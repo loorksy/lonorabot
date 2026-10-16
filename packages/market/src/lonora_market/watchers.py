@@ -278,13 +278,42 @@ async def observe(
             request_hash(payload),
             {"account": payload, "health": health.model_dump(mode="json")},
         )
-    positions = await broker.positions()
+    virtual_positions = False
+    goal_agent_id = ""
+    if config.goal_id:
+        from lonora_db.goal_scope import goal_mode, require_goal_agent
+        from lonora_db.trading_goals import owned_goal
+
+        async with db.sessions() as session:
+            goal = await owned_goal(session, row.owner_id, config.goal_id)
+            await require_goal_agent(session, goal)
+        goal_agent_id = goal.agent_id or ""
+        virtual_positions = goal_mode(goal) == "shadow"
+        if (
+            goal.state.get("execution_mode") == "shadow"
+            and config.condition not in {"opened", "closed"}
+            and config.metric == "profit"
+        ):
+            raise LonoraError("shadow_monetary_pnl_unavailable", 409)
+    if virtual_positions:
+        from lonora_db.shadow_positions import shadow_position, shadow_rows
+
+        positions = [
+            shadow_position(item)
+            for item in await shadow_rows(
+                db, row.owner_id, goal_agent_id, config.account_id, statuses=("open",)
+            )
+        ]
+    else:
+        positions = await broker.positions()
     position = next((item for item in positions if item.id == config.position_id), None)
     if position and bound_symbol and position.symbol != bound_symbol:
         raise LonoraError("agent_trading_symbol_mismatch", 409)
     if position and config.symbol and position.symbol != config.symbol:
         raise LonoraError("watch_position_symbol_mismatch", 409)
     payload = position.model_dump(mode="json") if position else {}
+    if virtual_positions and position:
+        payload = {**payload, "profit": None, "mode": "shadow"}
     current = (
         Decimal(int(position is not None))
         if config.condition in {"opened", "closed"}
