@@ -27,6 +27,7 @@ from lonora_session.idempotency import request_hash, stable_id
 from sqlalchemy import select, text
 
 from .idempotency import trade_fingerprint
+from .journal import execution_evidence
 from .manual_activity import material_state
 from .preflight import preflight
 
@@ -138,8 +139,9 @@ async def execute_shadow(
     # It must remain possible while the broker is unavailable.
     cancel = request.action == "cancel_order"
     quote = None
+    snapshot = None
     if not cancel:
-        await preflight(view, request, financial_authority=False)
+        snapshot = await preflight(view, request, financial_authority=False)
         quote = await view.quote(request.symbol)
         require_healthy(
             assess_quote(
@@ -261,6 +263,27 @@ async def execute_shadow(
         )
         if not created:
             return TradeResult.model_validate(journal.result)
+        captured = (
+            execution_evidence(
+                snapshot, request, mode="shadow", phase="virtual_preflight", goal=goal
+            )
+            if snapshot
+            else {
+                "schema_version": 1,
+                "logic_version": "execution-boundary-v1",
+                "phase": "local_virtual_cancel",
+                "execution_mode": "shadow",
+                "snapshot": None,
+                "missing_code": "broker_read_not_required_for_virtual_cancel",
+                "goal": goal.model_dump(mode="json") if goal else None,
+            }
+        )
+        journal.result = {
+            "details": {
+                "execution_evidence": {"before_send": captured},
+                "execution": {"run_id": run.id, "agent_id": agent_id, "execution_mode": "shadow"},
+            }
+        }
         row: ShadowTradeRow | None = None
         if request.action in ENTRY:
             assert request.volume is not None and evidence is not None and quote is not None
@@ -337,6 +360,19 @@ async def execute_shadow(
             if request.action in {"close_position", "modify_position"} and row.status != "open":
                 raise LonoraError("shadow_position_not_open", 409)
             target = shadow_position(row) if row.status == "open" else shadow_order(row)
+            if cancel:
+                journal.result = {
+                    "details": {
+                        **journal.result["details"],
+                        "execution_evidence": {
+                            "before_send": {
+                                **captured,
+                                "observed_at": utcnow().isoformat(),
+                                "target": target.model_dump(mode="json"),
+                            }
+                        },
+                    }
+                }
             await require_approved_target_current(
                 session, owner_id, lease.run_id, request, material_state(target)
             )
@@ -414,6 +450,9 @@ async def execute_shadow(
         await persist_result(
             session, request.operation_id, "confirmed", result.model_dump(mode="json")
         )
+        # The first caller and an idempotent replay must receive the same durable
+        # server-owned attribution/evidence, not the pre-persistence adapter view.
+        result = TradeResult.model_validate(journal.result)
         emit(
             session,
             owner_id,

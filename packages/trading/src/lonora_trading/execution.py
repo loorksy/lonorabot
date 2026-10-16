@@ -27,6 +27,7 @@ from .execution_quality import actual_execution, evaluate_execution, execution_p
 from .goals import guard_goal_execution
 from .goals_market import fresh_goal_evidence
 from .idempotency import trade_fingerprint
+from .journal import execution_evidence
 from .manual_activity import material_state
 from .preflight import preflight
 
@@ -177,6 +178,11 @@ class ExecutionService:
                 code="operation_in_progress",
                 details={
                     "lease": lease.model_dump() if lease else None,
+                    "execution_evidence": {
+                        "planned": execution_evidence(
+                            planned_snapshot, request, mode="live", phase="planned", goal=goal
+                        )
+                    },
                     "execution": {
                         "run_id": leased_run.id if leased_run else None,
                         "agent_id": leased_run.agent_id if leased_run else None,
@@ -210,7 +216,31 @@ class ExecutionService:
             quality = evaluate_execution(
                 request, snapshot, policy, planned_quote=planned_snapshot.quote
             )
+            observed = execution_evidence(
+                snapshot, request, mode="live", phase="before_send", goal=goal, policy=policy
+            )
             if quality.state != "executable":
+                # A blocked decision is also a historical fact. Persist the actual
+                # failed gate before returning; no broker mutation is authorized.
+                async with self.db.sessions() as session, session.begin():
+                    if lease:
+                        await require_lease(session, lease, lock=True)
+                    row = await session.get(
+                        TradingJournalRow, request.operation_id, with_for_update=True
+                    )
+                    if row is not None and row.status == "submitted":
+                        details = row.result.get("details", {})
+                        row.result = {
+                            **row.result,
+                            "details": {
+                                **details,
+                                "execution_quality": quality.model_dump(mode="json"),
+                                "execution_evidence": {
+                                    **details.get("execution_evidence", {}),
+                                    "before_send": observed,
+                                },
+                            },
+                        }
                 raise LonoraError(quality.reasons[0], 409)
             goal_evidence = (
                 await fresh_goal_evidence(
@@ -276,6 +306,10 @@ class ExecutionService:
                     "details": {
                         **row.result.get("details", {}),
                         "execution_quality": quality.model_dump(mode="json"),
+                        "execution_evidence": {
+                            **row.result.get("details", {}).get("execution_evidence", {}),
+                            "before_send": observed,
+                        },
                     },
                 }
             send_authorized = True

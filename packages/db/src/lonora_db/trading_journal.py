@@ -89,6 +89,12 @@ async def persist_result(
     quality = row.result.get("details", {}).get("execution_quality")
     if isinstance(quality, dict):
         validated.details = {**validated.details, "execution_quality": quality}
+    evidence = row.result.get("details", {}).get("execution_evidence")
+    if isinstance(evidence, dict):
+        validated.details = {**validated.details, "execution_evidence": evidence}
+    else:
+        # An adapter response cannot invent server-captured historical evidence.
+        validated.details.pop("execution_evidence", None)
     row.status = status
     row.result = validated.model_dump(mode="json")
     row.updated_at = utcnow()

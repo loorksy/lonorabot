@@ -20,6 +20,8 @@ Pending orders require buy_limit, sell_limit, buy_stop or sell_stop and an expli
 
 Read global controls and current broker state. Validate exact instrument, quantity min/max/step and price tick/stops. trade_execute creates an immutable approval proposal. Inspect actual confirmed broker receipt; reconcile ambiguous operations through the journal without resending.
 
+For questions about a past trade, use trade_record_history then trade_record_read. Explain the recorded gate, quote/account snapshot, exact request and actual result. Distinguish planned evidence from the later before-send check. Missing legacy evidence stays unavailable; current prices are not historical facts. Reading a receipt never authorizes execution or retry.
+
 ## Decision rules and failure handling
 Inspect machine status and stable error code. Do not hide unavailable evidence or retry ambiguous financial mutations. WAIT is a valid result.
 

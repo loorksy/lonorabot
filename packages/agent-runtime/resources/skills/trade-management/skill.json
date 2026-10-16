@@ -1,6 +1,6 @@
 {
   "id": "trade-management",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "title": "Trade Management",
   "description": "Lonora trade-management workflow.",
   "source": "builtin",
@@ -20,7 +20,9 @@
   "required_tools": [
     "list_accounts",
     "account_read",
-    "trade_execute"
+    "trade_execute",
+    "trade_record_history",
+    "trade_record_read"
   ],
   "dependencies": [
     "market-analysis"

@@ -375,6 +375,11 @@ async def main():
                 for decision in decisions:
                     journal = await session.get(TradingJournalRow, decision.operation_id)
                     assert journal and journal.execution_mode == "shadow"
+                    observed = journal.result["details"]["execution_evidence"]["before_send"]
+                    assert observed["execution_mode"] == "shadow"
+                    assert observed["goal"]["goal_id"] == goal["id"]
+                    assert observed["target_source"] == "virtual_book"
+                    assert all(p["profit"] is None for p in observed["snapshot"]["positions"])
                     assert all(
                         p["id"] != "real-manual-ticket" and p["profit"] is None
                         for p in decision.evidence["observation"]["positions"]

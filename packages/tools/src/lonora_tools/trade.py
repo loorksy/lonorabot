@@ -1,17 +1,20 @@
 from typing import Any
 
 from lonora_contracts.domain import Contract, utcnow
+from lonora_contracts.shadow import ExecutionMode
 from lonora_contracts.trading import TradeRequest, TradeResult
 from lonora_core.user_error import LonoraError
-from lonora_db.agent_binding import require_financial_agent
+from lonora_db.agent_binding import agent_binding, assert_market_binding, require_financial_agent
 from lonora_db.runs import require_lease
-from lonora_db.schema import EffectReceiptRow, TradeApprovalRow
+from lonora_db.schema import EffectReceiptRow, TradeApprovalRow, TradingJournalRow
 from lonora_db.steering import user_interrupt_pending
 from lonora_db.trade_approvals import approval_event
 from lonora_db.transactions import owned_thread
 from lonora_session.idempotency import request_hash, stable_id
 from lonora_trading.idempotency import trade_fingerprint
+from lonora_trading.journal import record_excerpt
 from lonora_trading.manual_activity import material_state
+from pydantic import Field
 from sqlalchemy import select
 
 from .base import Tool
@@ -341,8 +344,87 @@ async def close_positions(context: ToolContext, args: dict[str, Any]) -> dict[st
     return await approved_execution(context, requests)
 
 
+class TradeRecordReference(Contract):
+    operation_id: str = Field(min_length=1, max_length=80)
+
+
+class TradeRecordHistory(Contract):
+    account_id: str | None = None
+    symbol: str | None = None
+    execution_mode: ExecutionMode | None = None
+    limit: int = Field(default=5, ge=1, le=10)
+
+
+async def read_record(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+    async with context.db.sessions() as session:
+        agent = await agent_binding(session, context.owner_id, context.agent_id)
+        row = await session.get(TradingJournalRow, args["operation_id"])
+        if row is None or row.owner_id != context.owner_id:
+            raise LonoraError("operation_not_found", 404)
+        assert_market_binding(agent, row.account_id, row.request.get("symbol"))
+        return record_excerpt(row, symbol=agent.trading_symbol)
+
+
+async def record_history(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+    params = TradeRecordHistory.model_validate(args)
+    async with context.db.sessions() as session:
+        agent = await agent_binding(session, context.owner_id, context.agent_id)
+        assert_market_binding(agent, params.account_id, params.symbol)
+        account_id = agent.trading_account_id or params.account_id
+        symbol = agent.trading_symbol or params.symbol
+        query = select(TradingJournalRow).where(TradingJournalRow.owner_id == context.owner_id)
+        if account_id:
+            query = query.where(TradingJournalRow.account_id == account_id)
+        if symbol:
+            query = query.where(TradingJournalRow.request["symbol"].as_string() == symbol)
+        if params.execution_mode:
+            query = query.where(TradingJournalRow.execution_mode == params.execution_mode)
+        rows = list(
+            await session.scalars(
+                query.order_by(
+                    TradingJournalRow.updated_at.desc(), TradingJournalRow.operation_id
+                ).limit(params.limit + 1)
+            )
+        )
+        return {
+            "records": [
+                {
+                    "operation_id": row.operation_id,
+                    "symbol": row.request.get("symbol"),
+                    "account_id": row.account_id,
+                    "execution_mode": row.execution_mode,
+                    "action": row.request.get("action"),
+                    "status": row.status,
+                    "code": row.result.get("code"),
+                    "recorded_at": row.updated_at.isoformat(),
+                    "historical_evidence_available": bool(
+                        row.result.get("details", {}).get("execution_evidence")
+                    ),
+                }
+                for row in rows[: params.limit]
+            ],
+            "more_available": len(rows) > params.limit,
+            "details_tool": "trade_record_read",
+            "execution_authorized": False,
+        }
+
+
 def tools() -> list[Tool]:
     return [
+        Tool(
+            "trade_record_history",
+            "Find actual durable live/Shadow execution receipts and failures by bound account/symbol. Use trade_record_read for the recorded evidence; never reconstruct past decisions from current prices. This does not authorize execution.",
+            TradeRecordHistory,
+            record_history,
+            True,
+        ),
+        Tool(
+            "trade_record_read",
+            "Read one owned historical trade request, exact outcome, Goal lineage and original planned/final preflight evidence. Missing legacy evidence stays unavailable. Never resubmit a trade from this record.",
+            TradeRecordReference,
+            read_record,
+            True,
+        ),
         Tool(
             "trade_execute",
             "Propose a broker operation for the Approve and Reject buttons on the card inside the call. "

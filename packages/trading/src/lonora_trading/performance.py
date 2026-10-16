@@ -125,12 +125,16 @@ async def performance_snapshot(
                 # satisfy a strategy filter by borrowing today's Agent/thesis.
                 if params.strategy_version:
                     continue
-                lease = entry.result.get("details", {}).get("lease")
-                run = await session.get(RunRow, lease["run_id"]) if lease else None
-                if (
-                    run is None
-                    or run.agent_id != agent_id
-                    or (params.symbol and entry.request.get("symbol") != params.symbol)
+                details = entry.result.get("details", {})
+                origin = details.get("execution", {})
+                attributed_agent = origin.get("agent_id")
+                if not attributed_agent:
+                    # Legacy receipts may only have a fenced Run reference.
+                    lease = details.get("lease")
+                    run = await session.get(RunRow, lease["run_id"]) if lease else None
+                    attributed_agent = run.agent_id if run else None
+                if attributed_agent != agent_id or (
+                    params.symbol and entry.request.get("symbol") != params.symbol
                 ):
                     continue
                 quality = entry.result.get("details", {}).get("execution_quality", {})

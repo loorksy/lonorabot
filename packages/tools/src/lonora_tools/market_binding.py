@@ -71,7 +71,11 @@ async def guard_market_tool(
         return args
     async with context.db.sessions() as session:
         agent = await agent_binding(session, context.owner_id, context.agent_id)
-        if (name.startswith("trade_") and agent.execution_mode != "shadow") or (
+        if (
+            name.startswith("trade_")
+            and name not in {"trade_record_read", "trade_record_history"}
+            and agent.execution_mode != "shadow"
+        ) or (
             name.startswith("goal_") and name not in {"goal_read", "goal_list", "goal_decisions"}
         ):
             run = await require_lease(session, context.lease)
