@@ -56,7 +56,7 @@ def update_goal_state(session: AsyncSession, row: TradingGoalRow, state: dict[st
         "goals.updated",
         agent_id=row.agent_id,
         thread_id=row.thread_id,
-        payload={"id": row.id, "status": state.get("status")},
+        payload={"id": row.id, "status": state.get("status"), "version": row.version},
     )
 
 

@@ -218,6 +218,35 @@ class SettingRow(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class AttentionRow(Base):
+    __tablename__ = "ln_attention"
+    __table_args__ = (
+        UniqueConstraint("owner_id", "logical_key", name="ln_attention_logical_key"),
+        CheckConstraint(
+            "status IN ('pending','ready','seen','suppressed')", name="ln_attention_status"
+        ),
+        Index("ln_attention_due", "status", "due_at"),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    owner_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_owners.id", ondelete="CASCADE"), index=True
+    )
+    agent_id: Mapped[str] = mapped_column(ForeignKey("ln_agents.id", ondelete="CASCADE"))
+    thread_id: Mapped[str] = mapped_column(ForeignKey("ln_threads.id", ondelete="CASCADE"))
+    logical_key: Mapped[str] = mapped_column(String(64))
+    coalesce_key: Mapped[str] = mapped_column(String(64), index=True)
+    importance: Mapped[str] = mapped_column(String(24))
+    code: Mapped[str] = mapped_column(String(40))
+    status: Mapped[str] = mapped_column(String(16), default="pending")
+    parameters: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    source_events: Mapped[list[int]] = mapped_column(JSON, default=list)
+    source_count: Mapped[int] = mapped_column(Integer, default=1)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    due_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class SecretRow(Base):
     __tablename__ = "ln_secrets"
     __table_args__ = (UniqueConstraint("scope", "name"),)

@@ -76,6 +76,9 @@ packages = ["lonora_api", "lonora_api.middleware", "lonora_api.routes", "lonora_
 "lonora_logging" = "packages/logging/src/lonora_logging"
 "lonora_llm_usage" = "packages/llm-usage/src/lonora_llm_usage"
 
+[tool.setuptools.package-data]
+"lonora_bus" = ["attention_messages.json"]
+
 [tool.setuptools.data-files]
 "share/lonora/constitution" = ["packages/agent-runtime/resources/constitution/collaboration-policy.md", "packages/agent-runtime/resources/constitution/identity.md", "packages/agent-runtime/resources/constitution/memory-policy.md", "packages/agent-runtime/resources/constitution/security-policy.md", "packages/agent-runtime/resources/constitution/tool-policy.md", "packages/agent-runtime/resources/constitution/trading-policy.md"]
 "share/lonora/playbooks/ambiguous-execution-recovery" = ["packages/agent-runtime/resources/playbooks/ambiguous-execution-recovery/PLAYBOOK.md", "packages/agent-runtime/resources/playbooks/ambiguous-execution-recovery/playbook.json"]

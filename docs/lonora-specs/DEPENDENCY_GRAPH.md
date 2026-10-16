@@ -85,3 +85,6 @@ Explicit Agent/Run execution mode now separates virtual execution before broker 
 
 
 Task failure recovery now consumes server Tool classification, durable checkpoints and existing financial journal state before using the shared scheduler. Existing failed Run identity remains fixed across owner/automatic attempts; claim fencing advances. Failed-step metadata and bounded next-retry state feed the same Web/Mobile live projection. Attention can consume the durable retry/review transitions without converting every retry into a chat message. Unknown external mutations remain reconciliation-blocked.
+
+
+Attention now consumes existing committed events, source-time setup evidence, Personal/specialist/host identity and Task recovery transitions. One durable owner projection supplies both clients; mandatory channels reuse existing delivery receipts. Super Bot activation and future execution-quality notifications must emit structured transitions into this same classifier, not create another notification service. The next independent intelligence work can consume existing broker candles and the historical evidence ledger for measured cross-market relationships.

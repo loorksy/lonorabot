@@ -1,5 +1,28 @@
 export type Locale = "ar" | "en";
 export const labels = {
+  notifications: ["التنبيهات", "Notifications"],
+  noNotifications: ["لا توجد تنبيهات جديدة", "No new notifications"],
+  markAsRead: ["تحديد كمقروء", "Mark as read"],
+  attentionOpportunityPreference: [
+    "نبّهني بالفرص المؤكدة",
+    "Notify me about confirmed opportunities",
+  ],
+  attentionEmergency: ["الإيقاف الطارئ مفعّل", "Emergency Stop is active"],
+  attentionApproval: ["بانتظار الموافقة", "Waiting for approval"],
+  attentionRequestUpdated: ["تم تحديث الطلب", "Request updated"],
+  attentionBrokerDegraded: ["اتصال الوسيط يحتاج مراجعة", "Broker connection needs review"],
+  attentionBrokerRecovered: ["استُعيد اتصال الوسيط", "Broker connection recovered"],
+  attentionAccountChanged: ["تغيّر حساب الوسيط", "Broker account changed"],
+  attentionSetupConfirmed: [
+    "تأكد شرط المراقبة — راجع الأدلة الحالية",
+    "Watch confirmed — review current evidence",
+  ],
+  attentionThesisChanged: ["تغيّرت صلاحية الفكرة", "Setup validity changed"],
+  attentionWatchChanged: ["تغيّر شرط المراقبة", "Watch condition changed"],
+  attentionGoalChanged: ["تم تحديث هدف التداول", "Trading goal updated"],
+  attentionCollaborationCompleted: ["نتيجة التعاون جاهزة", "Collaboration result is ready"],
+  attentionTaskCompleted: ["اكتملت المهمة", "Task completed"],
+  attentionUpdated: ["تم تحديث النشاط", "Activity updated"],
   retryScheduled: ["إعادة المحاولة مجدولة", "Retry scheduled"],
   waitingReconciliation: ["بانتظار التحقق من النتيجة", "Waiting for reconciliation"],
   taskNeedsReview: ["المهمة تحتاج مراجعة", "Task needs review"],

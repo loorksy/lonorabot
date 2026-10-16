@@ -124,12 +124,21 @@ class Gateway:
                 await dispatch_channels(self.db, service)
             await asyncio.sleep(2)
 
+    async def attention_loop(self) -> None:
+        from .attention import attention_tick
+
+        while not self.stop.is_set():
+            for service in list(self.services.values()):
+                await attention_tick(self.db, service.brokers, service.owner_id)
+            await asyncio.sleep(2)
+
     async def serve(self) -> None:
         self.state = GatewayState.RUNNING
         loops = [
             asyncio.create_task(supervise("worker-" + str(index), self.worker_loop, self.stop))
             for index in range(self.maximum_subagents + 1)
         ]
+        loops.append(asyncio.create_task(supervise("attention", self.attention_loop, self.stop)))
 
         async def foreground() -> None:
             await self.worker_loop("conversation")

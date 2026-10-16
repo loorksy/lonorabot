@@ -11,3 +11,6 @@ dependencies = ["lonora-adapter-kit==0.2.0", "lonora-contracts==0.2.0", "lonora-
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+lonora_bus = ["attention_messages.json"]

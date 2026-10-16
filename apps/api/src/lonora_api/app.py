@@ -23,6 +23,7 @@ ROUTES = (
     "agents",
     "agent_state",
     "execution_mode",
+    "attention",
     "agent_secrets",
     "agent_skills",
     "threads",

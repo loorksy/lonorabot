@@ -2,15 +2,22 @@ from typing import Any
 
 from lonora_adapters.channels.telegram import TelegramAdapter
 from lonora_adapters.channels.webhook import WebhookAdapter
+from lonora_bus.attention import attention_text
 from lonora_bus.runtime_events import RuntimeEvents
 from lonora_channels.telegram.runtime import decode_update
 from lonora_contracts.domain import MessageCreate
 from lonora_contracts.events import EventEnvelope
 from lonora_core.user_error import LonoraError
+from lonora_db.attention import mandatory_current, policy
 from lonora_db.client import Database
 from lonora_db.events import PUBLIC_CURSOR, publish_committed
 from lonora_db.messages import send_message
-from lonora_db.schema import EffectReceiptRow, EventRow, IntegrationRow
+from lonora_db.schema import (
+    AttentionRow,
+    EffectReceiptRow,
+    EventRow,
+    IntegrationRow,
+)
 from sqlalchemy import select
 
 from .runtime import OwnerServices
@@ -74,7 +81,7 @@ async def dispatch_channels(db: Database, services: OwnerServices) -> None:
                     EventRow.owner_id == services.owner_id,
                     EventRow.payload[PUBLIC_CURSOR].as_integer()
                     > int(locked.state.get("event_cursor", 0)),
-                    EventRow.kind == "message.created",
+                    EventRow.kind.in_(["message.created", "attention.ready"]),
                 )
                 if config.get("thread_id"):
                     query = query.where(EventRow.thread_id == config["thread_id"])
@@ -89,7 +96,37 @@ async def dispatch_channels(db: Database, services: OwnerServices) -> None:
                         **locked.state,
                         "event_cursor": int(event.payload[PUBLIC_CURSOR]),
                     }
-                    if event.payload.get("role") != "assistant":
+                    identity = str(event.cursor)
+                    outbound = event.payload
+                    if event.kind == "attention.ready":
+                        notification = await session.get(AttentionRow, event.payload.get("id", ""))
+                        if (
+                            notification is None
+                            or notification.owner_id != services.owner_id
+                            or notification.status != "ready"
+                            or notification.importance not in {"critical", "action_required"}
+                        ):
+                            continue
+                        if not await mandatory_current(session, notification):
+                            skip_key = "attention-channel-skip:" + row.id + ":" + notification.id
+                            if not await session.get(EffectReceiptRow, skip_key):
+                                session.add(
+                                    EffectReceiptRow(
+                                        key=skip_key,
+                                        result={
+                                            "owner_id": services.owner_id,
+                                            "status": "suppressed",
+                                            "code": "attention_superseded_state",
+                                            "notification_id": notification.id,
+                                            "integration_id": row.id,
+                                        },
+                                    )
+                                )
+                            continue
+                        settings = await policy(session, services.owner_id)
+                        outbound = {"content": attention_text(notification.code, settings.locale)}
+                        identity = "attention:" + notification.id
+                    elif event.payload.get("role") != "assistant":
                         continue
                     destinations = (
                         config.get("allowed_destinations", [])
@@ -99,13 +136,11 @@ async def dispatch_channels(db: Database, services: OwnerServices) -> None:
                     for destination in destinations:
                         if not destination:
                             continue
-                        receipt = (
-                            "channel:" + row.id + ":" + str(event.cursor) + ":" + str(destination)
-                        )
+                        receipt = "channel:" + row.id + ":" + identity + ":" + str(destination)
                         if await session.get(EffectReceiptRow, receipt):
                             continue
                         session.add(EffectReceiptRow(key=receipt, result={"status": "submitted"}))
-                        deliveries.append((receipt, str(destination), event.payload))
+                        deliveries.append((receipt, str(destination), outbound))
             for receipt, destination, payload in deliveries:
                 result: dict[str, Any]
                 try:

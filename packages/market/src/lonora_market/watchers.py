@@ -531,6 +531,12 @@ async def check_watches(
                     payload={
                         "watch_id": row.id,
                         "state": state["lifecycle"],
+                        "transition_id": stable_id(
+                            row.id,
+                            previous_lifecycle + ":" + state["lifecycle"] + ":" + observation,
+                        ),
+                        "account_id": config.account_id,
+                        "symbol": config.symbol,
                         "observation": metadata.get("observation"),
                     },
                 )

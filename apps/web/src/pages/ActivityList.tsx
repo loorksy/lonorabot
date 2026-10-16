@@ -6,6 +6,7 @@ import { ClipboardList } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { AgentAvatar } from "../components/ai/AgentAvatar";
+import { AttentionInbox } from "../components/ai/AttentionInbox";
 import { CollaborationMarker } from "../components/ai/CollaborationMarker";
 import { WorkingIndicator } from "../components/ai/primitives";
 import { type Agent, api, type Run } from "../lib/api";
@@ -74,6 +75,7 @@ export function ActivityList({ agents }: { agents: Agent[] }) {
   );
   return (
     <section className="workspace-surface" data-testid="workspace-activity">
+      <AttentionInbox agents={agents} />
       <header className="workspace-surface-header">
         <div className="workspace-surface-heading">
           <h1>

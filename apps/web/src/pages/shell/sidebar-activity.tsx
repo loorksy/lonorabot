@@ -1,5 +1,6 @@
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useState } from "react";
+import { AttentionInbox } from "../../components/ai/AttentionInbox";
 import { WorkingIndicator } from "../../components/ai/primitives";
 import type { Agent, Run } from "../../lib/api";
 
@@ -37,6 +38,7 @@ export function SidebarActivity({
     .sort((a, b) => b.created_at.localeCompare(a.created_at));
   return (
     <section className="tpl-sidebar-activity" aria-label={t`Activity`}>
+      <AttentionInbox agents={agents} compact />
       <input
         type="search"
         aria-label={t`Search runs`}

@@ -30,6 +30,7 @@ CHECKS = (
     "check_opportunity_runtime.py",
     "check_shadow_runtime.py",
     "check_task_recovery.py",
+    "check_attention.py",
 )
 
 

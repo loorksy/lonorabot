@@ -41,6 +41,7 @@ import {
   useSearchParams,
 } from "react-router-dom";
 import { AgentAvatar } from "../components/ai/AgentAvatar";
+import { AttentionCount } from "../components/ai/AttentionInbox";
 import { CallPill } from "../components/call/CallPill";
 import { VoiceChatCard } from "../components/call/VoiceChatCard";
 import { ConversationCharts } from "../components/charts/ConversationCharts";
@@ -421,6 +422,7 @@ function WorkspaceShell({ onLogout }: { onLogout: () => void }) {
               onClick={() => setActivityMode((value) => !value)}
             >
               <Bell />
+              <AttentionCount />
             </button>
             <button
               type="button"

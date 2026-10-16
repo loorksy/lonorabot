@@ -1,10 +1,11 @@
-import type { Agent, Group, Run, Thread } from "@lonora/contracts";
+import type { Agent, AttentionNotification, Group, Run, Thread } from "@lonora/contracts";
 import { activeStatuses } from "@lonora/core";
 // Inbox structure adapted from Tampletgrok apps/mobile/app/index.tsx; see NOTICE.
 import { Redirect, useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AppState, FlatList, RefreshControl, Text, View } from "react-native";
 import { ActionMenu } from "../components/action-menu";
+import { AttentionInbox } from "../components/attention-inbox";
 import { BotAvatar } from "../components/bot-avatar";
 import { ConversationRow } from "../components/conversation-row";
 import { GroupAvatar } from "../components/group-avatar";
@@ -42,11 +43,13 @@ export default function Inbox() {
     setAgents([]);
     setGroups([]);
     setRuns([]);
+    setAttention([]);
     setLoadedOwner(undefined);
   }, [owner?.id]);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
   const [runs, setRuns] = useState<Run[]>([]);
+  const [attention, setAttention] = useState<AttentionNotification[]>([]);
   const [query, setQuery] = useState("");
   const [searching, setSearching] = useState(false);
   const [activity, setActivity] = useState(false);
@@ -59,11 +62,12 @@ export default function Inbox() {
     async (stillLive: () => boolean = () => true) => {
       const requestOwner = currentOwner.current;
       try {
-        const [nextAgents, nextGroups, nextRuns, nextInbox] = await Promise.all([
+        const [nextAgents, nextGroups, nextRuns, nextInbox, nextAttention] = await Promise.all([
           api.get<Agent[]>("/agents"),
           api.get<Group[]>("/groups"),
           api.get<Run[]>("/runs"),
           api.get<InboxEntry[]>("/threads/inbox"),
+          api.get<AttentionNotification[]>("/attention"),
         ]);
         if (!stillLive() || requestOwner !== currentOwner.current) return;
         setLoadedOwner(requestOwner);
@@ -71,6 +75,7 @@ export default function Inbox() {
         setAgents(nextAgents);
         setGroups(nextGroups);
         setRuns(nextRuns);
+        setAttention(nextAttention);
         setError(null);
       } catch (reason) {
         if (stillLive() && requestOwner === currentOwner.current) setError(errorText(reason));
@@ -251,6 +256,14 @@ export default function Inbox() {
         ListHeaderComponent={
           activity ? (
             <View>
+              <AttentionInbox
+                items={attention}
+                agents={agents}
+                onSeen={async (id) => {
+                  await api.post("/attention/seen", { notification_id: id });
+                  setAttention((rows) => rows.filter((row) => row.id !== id));
+                }}
+              />
               {runs.map((run) => {
                 const agent = agents.find((value) => value.id === run.agent_id);
                 if (!agent || (needle && !agent.name.toLowerCase().includes(needle))) return null;

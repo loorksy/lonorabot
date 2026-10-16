@@ -1,0 +1,16 @@
+{
+  "ar": {
+    "emergency_stop": "الإيقاف الطارئ مفعّل. مُنع إرسال أوامر مالية جديدة.",
+    "approval_required": "يوجد طلب يحتاج موافقتك. افتح المحادثة لمراجعة التفاصيل؛ لم تنفذ هذه الرسالة أي إجراء.",
+    "broker_degraded": "اتصال الوسيط متدهور. تحقّق من حالة الحساب والعمليات غير المحسومة.",
+    "task_review": "تحتاج المهمة إلى مراجعتك. افتح المحادثة لفحص سبب التوقف وخيارات الاستكمال.",
+    "internal_update": "يوجد تحديث محفوظ في Lonora."
+  },
+  "en": {
+    "emergency_stop": "Emergency Stop is active. New financial operations are blocked.",
+    "approval_required": "A request needs your approval. Open the conversation to review it; this message executed no action.",
+    "broker_degraded": "The broker connection is degraded. Review the account and unresolved operations.",
+    "task_review": "A task needs your review. Open the conversation to inspect the failure and recovery options.",
+    "internal_update": "A saved Lonora update is available."
+  }
+}

@@ -176,6 +176,8 @@ async def reconcile_broker_account(
                         "account_id": account_id,
                         "status": snapshot.status,
                         "reason_code": snapshot.reason_code,
+                        "previous_status": prior.status if prior else None,
+                        "transition_id": snapshot.status + ":" + snapshot.since.isoformat(),
                     },
                 )
             if external:

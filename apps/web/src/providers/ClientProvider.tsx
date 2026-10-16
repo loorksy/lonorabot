@@ -1,6 +1,7 @@
 import { createContext, type ReactNode, useContext, useEffect, useMemo, useState } from "react";
 import { useEvents } from "../hooks/useEvents";
 import type { Owner } from "../lib/auth";
+import { AttentionProvider } from "./AttentionProvider";
 
 type Client = {
   owner: Owner;
@@ -46,7 +47,13 @@ export function ClientProvider({ owner, children }: { owner: Owner; children: Re
     }),
     [owner, events, streams, seedStreams, connected, manual, tick, revision],
   );
-  return <Context.Provider value={value}>{children}</Context.Provider>;
+  return (
+    <Context.Provider value={value}>
+      <AttentionProvider key={owner.id} revision={value.revision}>
+        {children}
+      </AttentionProvider>
+    </Context.Provider>
+  );
 }
 export function useClient() {
   const value = useContext(Context);
