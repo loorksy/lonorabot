@@ -24,7 +24,7 @@ Baseline: `80b0ff9`. Integration branch: `feat/trading-agent-environment`. The a
 4. Collaboration and on-demand chart observation using existing Task/Gateway lifecycle.
 5. Web/Mobile/voice journeys and separate physical-device acceptance.
 
-These are NOT_STARTED as new acceptance requirements. Create detailed cards after their actual callers/contracts are audited; do not claim completion from this list.
+These are integration boundaries, not blanket completion claims. Scoped cards below track each implemented increment and its remaining acceptance work.
 
 ## ENV-CTX-01 — Verified first integration and remaining limits
 
@@ -41,3 +41,12 @@ These are NOT_STARTED as new acceptance requirements. Create detailed cards afte
 Status: audit started, no implementation claim. Existing ToolLoop replaces results above 120000 characters with a bounded observation; current artifact_create/read, confined storage, producer identity, and lease checks can be reused. The artifact auto-attachment query currently includes all generated producer artifacts, so internal results need an explicit delivery distinction before integration.
 
 Required next work: define internal result identity/retention and bounded readback; preserve original effect outcome and references through compaction/restart; ensure persistence failure cannot trigger mutation replay; enforce owner/Agent/Task scope; test duplicate delivery, missing/corrupt storage, and no unintended attachment or secret retention. Complete this card's contracts and acceptance tests before implementation.
+
+## ENV-KNOWLEDGE-01 — Scoped bounded memory evidence
+
+- **Sources/dependencies:** Wave 3/R05, existing memory provenance and context assembly. Reuse MemoryRow, SemanticMemoryRow, global embedding configuration and current Agent authorization; no secondary store or schema.
+- **Behavior:** existing `retrieve_memory` callers receive bounded, attributed evidence with lexical fallback when semantic retrieval is disabled, unconfigured or unavailable. Arabic/English recall, exact technical identifiers, deduplication and current memory versions are retained. Source recording time is not represented as market freshness.
+- **Authority:** SQL owner/Agent filtering precedes candidates and ranking; retrieved content remains explicitly untrusted. Similar vectors cannot substitute another recognized broker symbol or ID. Installed source content never grants financial authority.
+- **Bounds:** per-arm 128 notes, 8 delivered items, 6000 delivered text characters, 1600/item; candidate/embedding/query truncation is explicit. An old semantic match outside the bounded candidate window can be omitted. Lowercase alphabetic symbols require explicit metadata to distinguish them from ordinary prose.
+- **Verification:** 32 unit cases plus independently repeated PostgreSQL retrieval fixture; scoped denial, peer isolation, fallback, source versions, edits/deletes and malformed/oversized vectors. No live provider quality benchmark.
+- **Open:** authorized conversation-neighbor retrieval, broader evaluation corpus, measured retrieval quality and evaluated memory adoption. This increment does not close full knowledge/learning requirements.
