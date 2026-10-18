@@ -158,6 +158,10 @@ async def main() -> None:
         assert legacy["payload"]["media_type"] == "image/png"
         with Image.open(BytesIO(snapshot_paths[-1].read_bytes())) as png:
             assert png.format == "PNG" and png.width == 960
+            assert (79, 199, 155) in {
+                color for _, color in png.getcolors(png.width * png.height) or []
+            }, "missing candle bodies"
+            assert "XAUUSD · 1h" in png.info["Description"]
         print(
             "PASS persisted scene snapshot includes configured indicators/annotations and legacy candle snapshot remains available"
         )
