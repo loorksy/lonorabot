@@ -51,6 +51,12 @@ export function AgentLiveStatus({ agentId }: { agentId: string }) {
       {expanded && (
         <View style={{ gap: 8, paddingVertical: 8 }}>
           <ErrorNotice text={error} />
+          {(state.runtime_waits ?? []).map((wait) => (
+            <Text key={wait.run_id} style={{ color: colors.secondary }}>
+              {wait.kind === "read_retry" ? t("retryScheduled") : t("live_waiting")}
+              {wait.retry_at ? ` · ${new Date(wait.retry_at).toLocaleTimeString()}` : ""}
+            </Text>
+          ))}
           {state.pending_approval_count > 0 && (
             <Text style={{ color: colors.foreground }}>{t("live_action_required")}</Text>
           )}

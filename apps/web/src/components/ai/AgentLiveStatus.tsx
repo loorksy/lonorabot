@@ -46,6 +46,17 @@ export function AgentLiveStatus({ agentId }: { agentId: string }) {
     >
       <summary>{labels[state.state]}</summary>
       {error != null && <p role="alert">{userError(error)}</p>}
+      {(state.runtime_waits ?? []).map((wait) => (
+        <p key={wait.run_id}>
+          {wait.kind === "read_retry" ? t`Retry scheduled` : t`Waiting`}
+          {wait.retry_at && (
+            <>
+              {" "}
+              · <time dateTime={wait.retry_at}>{new Date(wait.retry_at).toLocaleTimeString()}</time>
+            </>
+          )}
+        </p>
+      ))}
       {state.pending_approval_count > 0 && (
         <p>
           <Trans>Waiting for approval</Trans>
