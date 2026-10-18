@@ -40,7 +40,7 @@ class ValidatedSkillRepository(SkillRepository):
             values.append(validated.model_dump(mode="json"))
         try:
             _, rejected = installed_registry(
-                values, {tool.name for tool in load_tools().definitions()}
+                values, {tool.name for tool in load_tools().definitions()}, strict_graph=True
             )
         except LonoraError as error:
             raise LonoraError(error.code, 409) from None

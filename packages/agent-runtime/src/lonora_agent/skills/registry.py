@@ -93,7 +93,7 @@ def legacy_skill_id(name: str) -> str:
 
 
 def installed_registry(
-    installed: list[dict[str, Any]], known_tools: set[str]
+    installed: list[dict[str, Any]], known_tools: set[str], *, strict_graph: bool = False
 ) -> tuple[SkillRegistry, dict[str, str]]:
     definitions = built_in_skills()
     builtin_ids = set(definitions)
@@ -140,6 +140,9 @@ def installed_registry(
             rejected[manifest.id] = "skill_capability_unknown"
             continue
         definitions[manifest.id] = SkillDefinition(manifest, skill.content)
+
+    if strict_graph:
+        return SkillRegistry(list(definitions.values()), known_tools), rejected
 
     # Quarantine owner data without letting one malformed graph disable shipped Skills.
     # Validate each installed root against the whole candidate graph before removing any,

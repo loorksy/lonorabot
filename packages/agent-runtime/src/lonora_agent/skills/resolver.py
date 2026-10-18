@@ -40,6 +40,14 @@ class SkillSelection:
             "selected_skill_ids": [item.manifest.id for item in self.selected],
             "skill_versions": {item.manifest.id: item.manifest.version for item in self.selected},
             "skill_sources": {item.manifest.id: item.manifest.source for item in self.selected},
+            # Installed source labels describe claimed origin, not publisher verification
+            # or authority. Only shipped definitions can claim bundled provenance.
+            "skill_provenance": {
+                item.manifest.id: "bundled"
+                if item.manifest.source == "builtin"
+                else "owner_supplied"
+                for item in self.selected
+            },
             "skill_content_sha256": {
                 item.manifest.id: hashlib.sha256(item.content.encode()).hexdigest()
                 for item in self.selected
