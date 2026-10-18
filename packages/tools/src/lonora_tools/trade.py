@@ -435,11 +435,17 @@ def tools() -> list[Tool]:
             "including manually opened tickets. Saved goals use goal_step_execute instead.",
             TradeRequest,
             execute,
+            financial=True,
+            replay_safe=True,
+            legacy_replay_safe=True,
         ),
         Tool(
             "trade_close_positions",
             "Propose closing all currently open broker positions, or only an exact symbol. Approval freezes the ticket set; each ticket has an independent durable receipt. Never include later positions without new approval.",
             ClosePositions,
             close_positions,
+            financial=True,
+            replay_safe=True,
+            legacy_replay_safe=True,
         ),
     ]

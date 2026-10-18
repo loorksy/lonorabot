@@ -283,6 +283,7 @@ async def test_actual_context_builder_resolver_and_fenced_diagnostics(
         "reply_context",
         "goal_context",
         "decision_context",
+        "operational_context",
         "routing_frame",
     ):
         monkeypatch.setattr(builder, name, AsyncMock(return_value=""))

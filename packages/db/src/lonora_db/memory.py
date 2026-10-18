@@ -2,10 +2,11 @@ from typing import Any
 
 from lonora_contracts.domain import utcnow
 from lonora_core.user_error import LonoraError
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .events import emit
-from .schema import EffectReceiptRow, MemoryRow
+from .schema import EffectReceiptRow, EventRow, MemoryRow
 from .transactions import owned_agent
 
 
@@ -26,6 +27,26 @@ def memory_data(row: MemoryRow) -> dict[str, Any]:
     }
 
 
+async def memory_provenance(session: AsyncSession, agent_id: str, version: int) -> dict[str, Any]:
+    event = await session.scalar(
+        select(EventRow)
+        .where(
+            EventRow.agent_id == agent_id,
+            EventRow.kind == "memory.updated",
+            EventRow.payload["version"].as_integer() == version,
+        )
+        .order_by(EventRow.cursor.desc())
+        .limit(1)
+    )
+    return {
+        "source": event.payload.get("source", "legacy_unknown") if event else "legacy_unknown",
+        "source_run_id": event.run_id if event else None,
+        "event_cursor": event.cursor if event else None,
+        "recorded_at": event.created_at.isoformat() if event else None,
+        "authority": "untrusted_memory_content",
+    }
+
+
 async def commit_memory(
     session: AsyncSession,
     owner_id: str,
@@ -33,6 +54,7 @@ async def commit_memory(
     content: str,
     expected_version: int,
     effect_key: str | None = None,
+    source_run_id: str | None = None,
 ) -> dict[str, Any]:
     await owned_agent(session, owner_id, agent_id, lock=True)
     if effect_key:
@@ -52,5 +74,15 @@ async def commit_memory(
     result = memory_data(row)
     if effect_key:
         session.add(EffectReceiptRow(key=effect_key, result=result))
-    emit(session, owner_id, "memory.updated", agent_id=agent_id, payload={"version": row.version})
+    emit(
+        session,
+        owner_id,
+        "memory.updated",
+        agent_id=agent_id,
+        run_id=source_run_id,
+        payload={
+            "version": row.version,
+            "source": "agent_authored" if source_run_id else "owner_provided",
+        },
+    )
     return result

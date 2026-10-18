@@ -391,6 +391,14 @@ async def control_task(
         state.status, state.phase, state.control_requested = "queued", "queued", None
     elif request.action == "revise":
         revise_task(state, request)
+        environment = dict(run.execution_state.get("environment", {}))
+        if environment.get("wait"):
+            environment.pop("wait", None)
+            environment["phase"] = "revalidating"
+            run.execution_state = {**run.execution_state, "environment": environment}
+            if state.status == "waiting":
+                run.status = "queued"
+                state.status, state.waiting_reason = "queued", None
     else:
         state.control_requested = request.action
         if run.status in {"queued", "waiting_input", "waiting_takeover"}:

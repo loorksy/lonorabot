@@ -12,7 +12,7 @@ from .memory import Empty
 
 async def create(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     async with context.db.sessions() as session, session.begin():
-        await require_lease(session, context.lease, lock=True)
+        run = await require_lease(session, context.lease, lock=True)
         row = await session.get(MarketWatchRepository.row_type, context.resource_id)
         row = row or await MarketWatchRepository().create(
             session,
@@ -22,6 +22,12 @@ async def create(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             thread_id=context.thread_id,
             resource_id=context.resource_id,
         )
+        if run.model_metadata.get("task_id"):
+            row.state = {
+                **row.state,
+                "task_id": run.model_metadata["task_id"],
+                "task_run_id": run.id,
+            }
         return resource_data(row)
 
 
@@ -44,6 +50,7 @@ def tools() -> list[Tool]:
             "Persist a server-side price, indicator, position, account, calendar or composite dynamic watch. A dynamic relationship detector compares this exact symbol with related_symbol on the same account, using closed-bar relationship_window evidence and relationship_states. It wakes this same agent for reassessment, never executes a trade directly.",
             Watch,
             create,
+            replay_safe=True,
         ),
         Tool("watch_list", "Read this agent's durable market watches.", Empty, read, True),
     ]

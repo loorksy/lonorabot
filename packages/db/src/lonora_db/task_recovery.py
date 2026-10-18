@@ -5,6 +5,7 @@ from typing import Any
 
 from lonora_contracts.domain import utcnow
 from lonora_contracts.tasks import TaskFailure, TaskRecovery
+from lonora_core.runtime_failure import TRANSIENT_READ_CODES
 from lonora_core.user_error import LonoraError
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,14 +15,11 @@ from .events import emit
 from .schema import RunRow, ThreadRow, TicketRow, TradingJournalRow
 from .tasks import get_task, save_task, task_state
 
-TRANSIENT_CODES = frozenset(
+TRANSIENT_CODES = TRANSIENT_READ_CODES | frozenset(
     {
         "model_provider_unavailable",
         "model_endpoint_unavailable",
         "model_rate_limited",
-        "broker_connection_timeout",
-        "broker_connection_unavailable",
-        "market_quote_unavailable",
     }
 )
 PLAN_CODES = frozenset(

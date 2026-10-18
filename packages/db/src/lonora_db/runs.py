@@ -88,6 +88,10 @@ async def claim_next(
         RunRow.status == "queued",
         and_(RunRow.status.in_(["leased", "running"]), RunRow.lease_expires_at <= now),
     )
+    # Server-owned checkpoint deadline reuses this claimant, not another timer
+    # service. ISO UTC values are written only by the runtime under its fence.
+    retry_at = RunRow.execution_state["environment"]["retry"]["not_before"].as_string()
+    eligible = and_(eligible, or_(retry_at.is_(None), retry_at <= now.isoformat()))
     if lane == "conversation":
         eligible = and_(
             eligible,

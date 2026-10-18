@@ -8,7 +8,15 @@ TERMINAL = {"completed", "failed", "cancelled"}
 ALLOWED: dict[str, set[str]] = {
     "queued": {"leased", "cancelled"},
     "leased": {"running", "queued", "cancelled"},
-    "running": {"waiting_input", "waiting_takeover", "completed", "failed", "cancelled", "leased"},
+    "running": {
+        "queued",
+        "waiting_input",
+        "waiting_takeover",
+        "completed",
+        "failed",
+        "cancelled",
+        "leased",
+    },
     "waiting_input": {"queued", "leased", "cancelled"},
     "waiting_takeover": {"queued", "leased", "cancelled"},
     "completed": set(),

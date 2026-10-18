@@ -1,7 +1,7 @@
 from typing import Any
 
 from lonora_contracts.domain import Contract
-from lonora_db.memory import memory_data, read_memory
+from lonora_db.memory import memory_data, memory_provenance, read_memory
 from lonora_memory.commit import atomic_commit
 from pydantic import Field
 
@@ -20,7 +20,11 @@ class MemoryWrite(Contract):
 
 async def read(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     async with context.db.sessions() as session:
-        return memory_data(await read_memory(session, context.owner_id, context.agent_id))
+        row = await read_memory(session, context.owner_id, context.agent_id)
+        return {
+            **memory_data(row),
+            "provenance": await memory_provenance(session, row.agent_id, row.version),
+        }
 
 
 async def write(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
@@ -43,5 +47,6 @@ def tools() -> list[Tool]:
             "Atomically update MEMORY.md using its current revision; conflicts require re-reading.",
             MemoryWrite,
             write,
+            replay_safe=True,
         ),
     ]

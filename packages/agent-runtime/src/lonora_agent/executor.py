@@ -14,6 +14,7 @@ from sqlalchemy import select
 
 from .collaboration.outcome_return import return_outcome
 from .context.compaction import compact_history
+from .environment import ToolRetryScheduled
 from .tasks import TaskSuspended
 from .tool_loop import execute_tool_loop
 
@@ -60,6 +61,23 @@ async def execute_run(
         while True:
             outcome = await execute_tool_loop(context, registry, maximum_rounds)
             async with context.db.sessions() as session, session.begin():
+                if outcome.external_wait:
+                    row, _ = await locked_run_thread(session, context.lease)
+                    row.status, row.lease_expires_at, row.updated_at = (
+                        "waiting_takeover",
+                        None,
+                        utcnow(),
+                    )
+                    emit(
+                        session,
+                        context.owner_id,
+                        "task.waiting",
+                        thread_id=context.thread_id,
+                        agent_id=context.agent_id,
+                        run_id=row.id,
+                        payload={"source_kind": row.execution_state["environment"]["wait"]["kind"]},
+                    )
+                    return
                 if outcome.waiting:
                     row, thread = await locked_run_thread(session, context.lease)
                     outstanding = await session.scalar(
@@ -128,6 +146,24 @@ async def execute_run(
             if complete:
                 await return_outcome(context.db, context.lease.run_id)
                 return
+    except ToolRetryScheduled:
+        async with context.db.sessions() as session, session.begin():
+            row, _ = await locked_run_thread(session, context.lease)
+            row.status = "queued"
+            row.lease_expires_at = None
+            row.updated_at = utcnow()
+            emit(
+                session,
+                context.owner_id,
+                "run.retry_scheduled",
+                thread_id=context.thread_id,
+                agent_id=context.agent_id,
+                run_id=row.id,
+                payload={
+                    "reason_code": "tool_read_recovery",
+                    "retry_at": row.execution_state["environment"]["retry"]["not_before"],
+                },
+            )
     except TaskSuspended:
         return
     except asyncio.CancelledError:

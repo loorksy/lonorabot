@@ -17,6 +17,7 @@ class AgentLiveState(Contract):
     reason_params: dict[str, str | int] = Field(default_factory=dict[str, str | int])
     tasks: list[dict[str, Any]] = Field(default_factory=list[dict[str, Any]], max_length=3)
     runs: list[dict[str, Any]] = Field(default_factory=list[dict[str, Any]], max_length=6)
+    runtime_waits: list[dict[str, Any]] = Field(default_factory=list[dict[str, Any]], max_length=6)
     pending_approval_count: int = 0
     watch_count: int = 0
     pending_authorization_count: int = 0

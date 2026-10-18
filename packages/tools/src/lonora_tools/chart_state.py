@@ -16,6 +16,19 @@ class ChartRefInput(Contract):
     chart_id: str = Field(min_length=1, max_length=36)
 
 
+class ChartInspectInput(ChartRefInput):
+    include_scene: bool = Field(
+        default=True,
+        description="Include a bounded scene; false returns chart configuration and scene status only.",
+    )
+    tail: int = Field(
+        default=60,
+        ge=1,
+        le=200,
+        description="Latest candles to return, with indicator series aligned to those same candle timestamps.",
+    )
+
+
 class ChartListInput(Contract):
     thread_id: str | None = Field(default=None, min_length=1, max_length=36)
 
@@ -49,8 +62,67 @@ class AnnotateInput(ChartEditInput):
     )
 
 
+def bounded_inspection(
+    current: dict[str, Any], *, include_scene: bool = True, tail: int = 60
+) -> dict[str, Any]:
+    """Project a tool result without changing the durable scene or the API contract."""
+    chart = current["chart"]
+    state = chart["state"]
+    scene: dict[str, Any] | None = current.get("scene")
+    # resource_data also includes the original scene in state. Returning it here
+    # would defeat a bounded top-level scene and duplicate the entire history.
+    result: dict[str, Any] = {
+        **current,
+        "chart": {**chart, "state": {key: value for key, value in state.items() if key != "scene"}},
+    }
+    candles: list[dict[str, Any]] = scene.get("candles", []) if scene else []
+    indicators: list[dict[str, Any]] = scene.get("indicators", []) if scene else []
+    start = max(0, len(candles) - tail) if include_scene else len(candles)
+    selected = candles[start:] if include_scene else []
+    indicator_values = sum(
+        len(values) for item in indicators for values in item.get("series", {}).values()
+    )
+    selected_indicators: list[dict[str, Any]] = []
+    returned_values = 0
+    if scene and include_scene:
+        for item in indicators:
+            series: dict[str, Any] = {}
+            for key, values in item.get("series", {}).items():
+                # Use candle indices, never an independent series[-tail:]. This
+                # preserves timestamps even for an incomplete historical series.
+                series[key] = [
+                    values[index] if index < len(values) else None
+                    for index in range(start, len(candles))
+                ]
+                returned_values += len(values[start : len(candles)])
+            selected_indicators.append({**item, "series": series})
+        result["scene"] = {
+            **scene,
+            "candles": selected,
+            "indicators": selected_indicators,
+        }
+    else:
+        result["scene"] = None
+    result["scene_summary"] = {
+        "available": scene is not None,
+        "included": scene is not None and include_scene,
+        "total_candles": len(candles),
+        "returned_candles": len(selected),
+        "candles_truncated": len(selected) < len(candles),
+        "total_indicator_values": indicator_values,
+        "returned_indicator_values": returned_values,
+        "indicator_values_truncated": returned_values < indicator_values,
+        "first_candle_at": candles[0]["time"] if candles else None,
+        "last_candle_at": candles[-1]["time"] if candles else None,
+    }
+    return result
+
+
 async def inspect(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
-    return await inspect_chart(context.db, context.owner_id, args["chart_id"])
+    current = await inspect_chart(context.db, context.owner_id, args["chart_id"])
+    return bounded_inspection(
+        current, include_scene=args.get("include_scene", True), tail=args.get("tail", 60)
+    )
 
 
 async def list_charts(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
@@ -76,14 +148,14 @@ async def list_charts(context: ToolContext, args: dict[str, Any]) -> dict[str, A
 
 
 async def editable(context: ToolContext, args: dict[str, Any]) -> ChartState:
-    current = await inspect(context, args)
+    current = await inspect_chart(context.db, context.owner_id, args["chart_id"])
     if current["chart"]["version"] != args["version"]:
         raise LonoraError("version_conflict", 409)
     return ChartState.model_validate(current["chart"]["payload"])
 
 
 async def save(context: ToolContext, args: dict[str, Any], state: ChartState) -> dict[str, Any]:
-    return await update_chart(
+    current = await update_chart(
         context.db,
         context.brokers,
         context.owner_id,
@@ -92,6 +164,7 @@ async def save(context: ToolContext, args: dict[str, Any], state: ChartState) ->
         state,
         lease=context.lease,
     )
+    return bounded_inspection(current)
 
 
 async def set_symbol(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
@@ -131,7 +204,7 @@ async def remove_indicator(context: ToolContext, args: dict[str, Any]) -> dict[s
 
 
 async def read_indicator(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
-    current = await inspect(context, args)
+    current = await inspect_chart(context.db, context.owner_id, args["chart_id"])
     chart, scene = current["chart"], current.get("scene")
     if not scene or chart["state"].get("scene_revision") != chart["version"]:
         raise LonoraError("chart_scene_unavailable", 409)
@@ -183,8 +256,8 @@ def tools() -> list[Tool]:
         ),
         Tool(
             "chart_inspect",
-            "Inspect the owner's persisted chart state, version and server-rendered scene. Read before editing; never guess a version.",
-            ChartRefInput,
+            "Inspect the owner's persisted chart configuration, current version and latest server-rendered candles/indicators (default tail=60, maximum 200). Set include_scene=false for configuration/status only or reduce tail for a smaller result. Candle and indicator values share timestamps; scene_summary reports omitted history. Read before editing; never guess a version.",
+            ChartInspectInput,
             inspect,
             True,
         ),

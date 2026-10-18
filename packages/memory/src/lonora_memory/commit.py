@@ -22,5 +22,11 @@ async def atomic_commit(
         if lease:
             await require_lease(session, lease, lock=True)
         return await commit_memory(
-            session, owner_id, agent_id, normalize_memory(content), version, effect_key
+            session,
+            owner_id,
+            agent_id,
+            normalize_memory(content),
+            version,
+            effect_key,
+            source_run_id=lease.run_id if lease else None,
         )

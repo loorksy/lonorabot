@@ -27,6 +27,7 @@ from lonora_db.schema import (
     MarketSnapshotRow,
     MarketWakeReceiptRow,
     MarketWatchRow,
+    RunRow,
 )
 from lonora_session.idempotency import request_hash, stable_id
 from sqlalchemy import select
@@ -648,29 +649,47 @@ async def check_watches(
                         ):
                             row.state = state
                             continue
-                    run = await create_run(
-                        session,
-                        row.owner_id,
-                        RunRequest(
-                            thread_id=row.thread_id or "",
-                            agent_id=row.agent_id or "",
-                            trigger="watch",
-                            prompt=config.prompt,
-                            metadata={
-                                "watch_id": row.id,
-                                "wake_receipt_id": receipt_id,
-                                "previous_value": str(previous) if previous is not None else None,
-                                "current_value": str(current),
-                                **(
-                                    {"goal_id": config.goal_id, "step_id": config.step_id}
-                                    if config.goal_id
-                                    else {}
-                                ),
-                                "symbol": config.symbol,
-                                "observation": observation,
-                                **metadata,
-                            },
-                        ),
+                    # A Task-owned watch resumes that logical work through the
+                    # resident scheduler. Do not create a competing watch Run.
+                    task_run_id = row.state.get("task_run_id")
+                    task_run = await session.get(RunRow, task_run_id) if task_run_id else None
+                    if task_run_id and (
+                        task_run is None or task_run.status in {"completed", "failed", "cancelled"}
+                    ):
+                        row.payload = {**row.payload, "enabled": False}
+                        row.version += 1
+                        state["code"] = "task_terminal"
+                        row.state = state
+                        continue
+                    run = (
+                        None
+                        if task_run_id
+                        else await create_run(
+                            session,
+                            row.owner_id,
+                            RunRequest(
+                                thread_id=row.thread_id or "",
+                                agent_id=row.agent_id or "",
+                                trigger="watch",
+                                prompt=config.prompt,
+                                metadata={
+                                    "watch_id": row.id,
+                                    "wake_receipt_id": receipt_id,
+                                    "previous_value": str(previous)
+                                    if previous is not None
+                                    else None,
+                                    "current_value": str(current),
+                                    **(
+                                        {"goal_id": config.goal_id, "step_id": config.step_id}
+                                        if config.goal_id
+                                        else {}
+                                    ),
+                                    "symbol": config.symbol,
+                                    "observation": observation,
+                                    **metadata,
+                                },
+                            ),
+                        )
                     )
                     session.add(
                         MarketWakeReceiptRow(
@@ -678,7 +697,10 @@ async def check_watches(
                             owner_id=row.owner_id,
                             agent_id=row.agent_id,
                             thread_id=row.thread_id,
-                            payload={"watch_id": row.id, "run_id": run.id},
+                            payload={
+                                "watch_id": row.id,
+                                "run_id": task_run_id or (run.id if run else None),
+                            },
                         )
                     )
                     state["last_triggered"] = now.isoformat()

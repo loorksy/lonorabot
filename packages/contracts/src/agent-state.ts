@@ -4,6 +4,11 @@ export type AgentLiveState = {
   state: "idle" | "working" | "waiting" | "action_required" | "degraded" | "paused";
   phase: string;
   reason_code: string | null;
+  runtime_waits?: Array<{
+    run_id: string;
+    kind: "read_retry" | "watch" | "broker_recovery" | "timer";
+    retry_at: string | null;
+  }>;
   pending_approval_count: number;
   watch_count: number;
   pending_authorization_count?: number;

@@ -1,4 +1,5 @@
 import json
+import logging
 from dataclasses import dataclass
 from typing import Any
 
@@ -8,6 +9,7 @@ from lonora_contracts.runs import WORK_TRIGGERS
 from lonora_core.run_state import is_conversational
 from lonora_core.user_error import LonoraError
 from lonora_db.runs import checkpoint, require_lease
+from lonora_session.idempotency import request_hash
 from lonora_tools.context import ToolContext
 from lonora_tools.registry import ToolRegistry
 from lonora_tools.schema import ToolArgumentsError
@@ -15,6 +17,16 @@ from lonora_tools.schema import ToolArgumentsError
 from .cancellation import cancellation_checkpoint
 from .context.builder import build_context
 from .context.skills import refresh_skill_context
+from .environment import (
+    ToolRetryScheduled,
+    blocked_route,
+    bounded_result,
+    environment_state,
+    observe,
+    retry_pending,
+    route_key,
+    schedule_retry,
+)
 from .model_runtime import model_turn
 from .progress import progress
 from .recovery import restore_execution
@@ -22,12 +34,15 @@ from .steering import merge_steering, owner_steering_pending
 from .tasks import task_checkpoint
 from .tool_guard import advance_guard
 
+log = logging.getLogger("lonora.tool_loop")
+
 
 @dataclass
 class LoopOutcome:
     text: str
     metadata: dict[str, Any]
     waiting: bool = False
+    external_wait: bool = False
 
 
 async def persist(
@@ -55,8 +70,26 @@ async def execute_tool_loop(
             Capability.BACKGROUND if run.trigger in WORK_TRIGGERS else Capability.CONVERSATION
         )
     messages, pending = restore_execution(state)
+    if "environment" not in state and pending:
+        # Older checkpoints did not distinguish proposed from in-flight calls.
+        # Unknown legacy mutations must not acquire a new replay permission.
+        environment_state(state)["legacy_pending"] = [call.id for call in pending]
     if not messages:
         messages = await build_context(context, registry)
+    environment = environment_state(state)
+    if environment.get("wait"):
+        return LoopOutcome("", state.get("selection", {}), external_wait=True)
+    wake = environment.get("last_wake")
+    if wake and environment.get("consumed_wake") != wake:
+        messages.append(
+            ModelMessage(
+                role="user",
+                content="<runtime_wake>"
+                + json.dumps(wake, ensure_ascii=False).replace("<", "\\u003c")
+                + "</runtime_wake>",
+            )
+        )
+        environment["consumed_wake"] = wake
     await persist(context, state, messages, pending)
     while int(state.get("rounds", 0)) < maximum_rounds:
         await cancellation_checkpoint(context)
@@ -101,11 +134,66 @@ async def execute_tool_loop(
                     )
                 break
             call = pending[0]
-            if state.get("waiting_call_id") != call.id:
-                state["guard"] = advance_guard(state.get("guard", {}), call.name, call.arguments)
+            if retry_pending(state, call):
+                raise ToolRetryScheduled()
+            tool = registry.tools.get(call.name)
+            blocked = blocked_route(state, call)
+            environment = environment_state(state)
+            interrupted = environment.get("inflight", {}).get(
+                "call_id"
+            ) == call.id or call.id in environment.get("legacy_pending", [])
+            result: dict[str, Any]
             await progress(context, "tool.started", {"name": call.name, "call_id": call.id})
             try:
-                result = await registry.execute(call, context, read_only)
+                if (
+                    blocked
+                    and blocked.get("ambiguous")
+                    and blocked.get("receipt_replay")
+                    and tool
+                    and tool.financial
+                    and tool.replay_safe
+                ):
+                    # Inspect/reconcile the SAME durable financial operation,
+                    # even if the model invents a new call ID. Never mint a new
+                    # approval/operation merely to learn the previous outcome.
+                    original = call.model_copy(update={"id": blocked["origin_call_id"]})
+                    result = await registry.execute(original, context, read_only)
+                elif blocked:
+                    result = {
+                        "ok": False,
+                        "code": "broker_result_ambiguous"
+                        if blocked.get("ambiguous")
+                        else "tool_route_exhausted",
+                        "recovery": {
+                            "next_action": "reconcile_before_any_resend"
+                            if blocked.get("ambiguous")
+                            else "alternate_route_or_wait"
+                        },
+                    }
+                elif interrupted and not (
+                    tool
+                    and (
+                        tool.read_only
+                        or (
+                            tool.replay_safe
+                            and (
+                                call.id not in environment.get("legacy_pending", [])
+                                or tool.legacy_replay_safe
+                            )
+                        )
+                    )
+                ):
+                    result = {"ok": False, "code": "tool_execution_uncertain"}
+                else:
+                    # Persist intent before any handler can cross an effect
+                    # boundary. Unreceipted mutations cannot replay after death.
+                    environment["inflight"] = {
+                        "call_id": call.id,
+                        "route_key": route_key(call),
+                        "tool": call.name,
+                    }
+                    await persist(context, state, messages, pending)
+                    result = await registry.execute(call, context, read_only)
                 result = {"ok": True, **result}
             except LonoraError as error:
                 if error.code == "stale_lease":
@@ -115,6 +203,58 @@ async def execute_tool_loop(
                     error_result["issues"] = error.issues
                     error_result["retryable"] = True
                 result = error_result
+            except (TimeoutError, ConnectionError) as error:
+                result = {
+                    "ok": False,
+                    "code": (
+                        "tool_read_timeout"
+                        if isinstance(error, TimeoutError)
+                        else "tool_connection_failure"
+                    )
+                    if tool and tool.read_only
+                    else "tool_execution_uncertain",
+                }
+            except Exception as error:
+                # Unknown tool failures remain observations. Exception content
+                # may contain credentials; only the type belongs in diagnostics.
+                log.warning(
+                    "tool_execution_failed name=%s type=%s", call.name, type(error).__name__
+                )
+                result = {
+                    "ok": False,
+                    "code": "tool_internal_failure"
+                    if tool and tool.read_only
+                    else "tool_execution_uncertain",
+                }
+            record = observe(state, call, tool, result)
+            environment_state(state).pop("inflight", None)
+            environment_state(state)["legacy_pending"] = [
+                identifier
+                for identifier in environment_state(state).get("legacy_pending", [])
+                if identifier != call.id
+            ]
+            environment_state(state).pop("retry", None)
+            if result.get("recovery", {}).get("safe_to_retry"):
+                await progress(
+                    context,
+                    "tool.completed",
+                    {
+                        "name": call.name,
+                        "call_id": call.id,
+                        "ok": False,
+                        "code": result.get("code"),
+                        "attempt": record["failures"],
+                        "recovery_pending": True,
+                        "contract_hash": request_hash(tool.definition().model_dump(mode="json"))
+                        if tool
+                        else None,
+                    },
+                )
+                schedule_retry(state, call, record["failures"])
+                await persist(context, state, messages, pending)
+                raise ToolRetryScheduled()
+            if result.get("ok") is not False and state.get("waiting_call_id") != call.id:
+                state["guard"] = advance_guard(state.get("guard", {}), call.name, call.arguments)
             if result.get("_runtime_retry"):
                 state["waiting_call_id"] = call.id
                 await persist(context, state, messages, pending)
@@ -126,9 +266,12 @@ async def execute_tool_loop(
             state.pop("waiting_call_id", None)
             content = json.dumps(result, ensure_ascii=False)
             if len(content) > 120000:
-                content = json.dumps({"ok": False, "code": "tool_result_too_large"})
+                content = json.dumps(bounded_result(result), ensure_ascii=False)
             messages.append(ModelMessage(role="tool", content=content, tool_call_id=call.id))
             pending = pending[1:]
+            if result.get("_runtime_external_wait"):
+                environment_state(state)["wait"] = result["_runtime_external_wait"]
+                environment_state(state)["phase"] = "waiting"
             await persist(context, state, messages, pending)
             await progress(
                 context,
@@ -138,8 +281,13 @@ async def execute_tool_loop(
                     "call_id": call.id,
                     "ok": result.get("ok"),
                     "code": result.get("code"),
+                    "contract_hash": request_hash(tool.definition().model_dump(mode="json"))
+                    if tool
+                    else None,
                 },
             )
+            if result.get("_runtime_external_wait"):
+                return LoopOutcome("", state.get("selection", {}), external_wait=True)
             if result.get("_runtime_wait"):
                 return LoopOutcome(str(result["question"]), state.get("selection", {}), True)
             if result.get("_runtime_silence") and not pending:

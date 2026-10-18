@@ -24,10 +24,20 @@ async def status(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
 
     async with context.db.sessions() as session:
         live = await agent_live_state(session, context.owner_id, context.agent_id)
+        run = await require_lease(session, context.lease)
+        environment = run.execution_state.get("environment", {})
+        operational = {
+            "phase": environment.get("phase", "working"),
+            "recent_observations": environment.get("recent", [])[-12:],
+            "retry": environment.get("retry"),
+            "task_id": run.model_metadata.get("task_id"),
+            "trigger": run.trigger,
+        }
     return {
         "run_id": context.lease.run_id,
         "trading": (await read_controls(context.db)).model_dump(),
         "agent_state": live.model_dump(mode="json"),
+        "environment": operational,
     }
 
 

@@ -228,6 +228,25 @@ async def agent_live_state(session: AsyncSession, owner_id: str, agent_id: str) 
         )
         if len(authority_summaries) == 3:
             break
+    runtime_waits: list[dict[str, Any]] = []
+    for run in runs:
+        environment = run.execution_state.get("environment", {})
+        retry, wait = environment.get("retry"), environment.get("wait")
+        if run.status == "queued" and retry:
+            runtime_waits.append(
+                {"run_id": run.id, "kind": "read_retry", "retry_at": retry["not_before"]}
+            )
+        elif (
+            run.status == "waiting_takeover"
+            and wait
+            and not any(
+                task["id"] == wait["task_id"] and task["status"] == "paused" for task in tasks
+            )
+        ):
+            runtime_waits.append(
+                {"run_id": run.id, "kind": wait["kind"], "retry_at": wait.get("due_at")}
+            )
+    waiting_runs = {item["run_id"] for item in runtime_waits}
     state: Any = (
         "paused"
         if agent.paused
@@ -247,7 +266,10 @@ async def agent_live_state(session: AsyncSession, owner_id: str, agent_id: str) 
             for task in tasks
         )
         else "working"
-        if any(run.status in {"leased", "running", "queued"} for run in runs)
+        if any(
+            run.status in {"leased", "running", "queued"} and run.id not in waiting_runs
+            for run in runs
+        )
         else "waiting"
         if runs or watches or tasks
         else "idle"
@@ -261,6 +283,8 @@ async def agent_live_state(session: AsyncSession, owner_id: str, agent_id: str) 
             else "queued"
         )
         if state == "working"
+        else "recovering"
+        if runtime_waits and runtime_waits[0]["kind"] == "read_retry"
         else str(tasks[0]["phase"])
         if tasks and state == "waiting"
         else "monitoring"
@@ -284,6 +308,7 @@ async def agent_live_state(session: AsyncSession, owner_id: str, agent_id: str) 
         if state == "action_required"
         else "retry_backoff"
         if any(task["waiting_reason"] == "retry_backoff" for task in tasks)
+        or any(item["kind"] == "read_retry" for item in runtime_waits)
         else "market_watch"
         if watches and state == "waiting"
         else None
@@ -296,6 +321,7 @@ async def agent_live_state(session: AsyncSession, owner_id: str, agent_id: str) 
         reason_code=reason,
         reason_params={"pending_approvals": approvals} if approvals else {},
         tasks=task_summaries,
+        runtime_waits=runtime_waits,
         runs=[
             {
                 "id": row.id,

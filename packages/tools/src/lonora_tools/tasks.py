@@ -1,6 +1,6 @@
 from typing import Any
 
-from lonora_contracts.tasks import TaskControl, TaskCreate, TaskInspect, TaskStepUpdate
+from lonora_contracts.tasks import TaskControl, TaskCreate, TaskInspect, TaskStepUpdate, TaskWait
 from lonora_core.user_error import LonoraError
 from lonora_db.runs import require_lease
 from lonora_db.schema import TicketRow
@@ -65,19 +65,38 @@ async def control(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         return await snapshot(session, row)
 
 
+async def wait(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+    from lonora_db.task_wait import prepare_wait
+
+    async with context.db.sessions() as session, session.begin():
+        source = await prepare_wait(
+            session, context.lease, TaskWait.model_validate(args), context.call_id
+        )
+    return {"_runtime_external_wait": source, "task_id": source["task_id"], "status": "waiting"}
+
+
 def tools() -> list[Tool]:
     return [
+        Tool(
+            "task_wait",
+            "Suspend this same durable Task until its owned market watch triggers, its broker recovery is verified, or a timer is due. No owner input or financial permission is implied. The same Run/checkpoint resumes and must revalidate external state.",
+            TaskWait,
+            wait,
+            replay_safe=True,
+        ),
         Tool(
             "task_step_update",
             "Update this background task's declared step using actual successful persisted tool-call IDs. Completed steps cannot be rewritten; do not invent percentages or evidence.",
             TaskStepUpdate,
             step_update,
+            replay_safe=True,
         ),
         Tool(
             "task_start",
             "Start durable background work as this same agent while the current conversation remains responsive. Use for substantial multi-step work; never report invented progress.",
             TaskCreate,
             start,
+            replay_safe=True,
         ),
         Tool(
             "task_inspect",

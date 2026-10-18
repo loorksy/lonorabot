@@ -12,6 +12,7 @@ from lonora_tools.registry import ToolRegistry
 from ..skills.loader import load_constitution, load_prompt
 from .attachments import attachment_context
 from .decisions import decision_context
+from .environment import operational_context
 from .goals import goal_context
 from .governance import govern_context
 from .history import history_context
@@ -39,6 +40,9 @@ async def build_context(
                 binding_context(agent),
                 await read_memory_context(session, agent.id),
                 await scratchpad_context(session, agent.id),
+                await operational_context(
+                    session, context.owner_id, agent.id, registry or load_tools()
+                ),
                 await read_skill_context(session, context, agent, registry or load_tools()),
                 await reply_context(session, thread.id, run.input_seq),
                 wake_context(run),

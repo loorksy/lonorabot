@@ -1,6 +1,7 @@
 import copy
 from typing import Any
 
+from lonora_contracts.domain import utcnow
 from lonora_contracts.routines import RoutineCreate
 from lonora_contracts.trading import TradeRequest, TradeResult
 from lonora_contracts.trading_goal import (
@@ -15,7 +16,7 @@ from lonora_db.goal_scope import require_goal_agent
 from lonora_db.market_watches import MarketWatchRepository
 from lonora_db.routines import create_routine, routine_data
 from lonora_db.runs import locked_run_thread, require_lease
-from lonora_db.schema import GoalDecisionRow, TradingGoalRow
+from lonora_db.schema import EffectReceiptRow, GoalDecisionRow, TradingGoalRow
 from lonora_db.trading_goals import (
     control_goal,
     create_goal,
@@ -27,7 +28,7 @@ from lonora_db.trading_goals import (
     update_plan,
 )
 from lonora_db.transactions import resource_data
-from lonora_session.idempotency import stable_id
+from lonora_session.idempotency import request_hash, stable_id
 from lonora_trading.goals import (
     advance_state,
     execute_goal_step,
@@ -339,6 +340,62 @@ async def wait(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
 async def execute(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     from .trade import approved_execution
 
+    # Optional "current step" must resolve once per tool effect. Replaying a
+    # completed call must not silently select the next financial step/attempt.
+    async with context.db.sessions() as session, session.begin():
+        origin, _ = await locked_run_thread(session, context.lease)
+        goal = await owned_goal(session, context.owner_id, args["goal_id"], True)
+        await require_goal_agent(session, goal, origin)
+        key = "goal-step-call:" + context.resource_id
+        receipt = await session.get(EffectReceiptRow, key)
+        intent = request_hash(args)
+        if receipt:
+            frozen = receipt.result
+            if frozen["intent"] != intent:
+                raise LonoraError("operation_id_conflict", 409)
+        else:
+            step = planned_step(goal, args.get("step_id"))
+            frozen = {
+                "intent": intent,
+                "step_id": step.id,
+                "attempt": int(goal.state["steps"][step.id].get("attempt", 1)),
+                "plan_version": int(goal.state.get("plan_version", 1)),
+            }
+            session.add(EffectReceiptRow(key=key, result=frozen))
+        decision_id = stable_id(
+            goal.id, f"decision:{frozen['step_id']}:attempt:{frozen['attempt']}"
+        )
+        prior = await session.get(GoalDecisionRow, decision_id)
+        if prior and prior.result:
+            from lonora_db.schema import TradeApprovalRow
+            from lonora_db.trade_approvals import approval_event
+
+            approval = await session.get(
+                TradeApprovalRow,
+                stable_id(context.lease.run_id, "approval:" + context.call_id),
+                with_for_update=True,
+            )
+            if approval and approval.status == "approved":
+                approval.status, approval.results, approval.updated_at = (
+                    "completed",
+                    [prior.result],
+                    utcnow(),
+                )
+                approval_event(session, approval)
+            return {
+                "decision_id": prior.id,
+                "operation_id": prior.operation_id,
+                "result": prior.result,
+                "deduplicated": True,
+            }
+        if (
+            int(goal.state.get("plan_version", 1)) != frozen["plan_version"]
+            or int(goal.state["steps"].get(frozen["step_id"], {}).get("attempt", 1))
+            != frozen["attempt"]
+        ):
+            raise LonoraError("goal_plan_changed", 409)
+        args = {**args, "step_id": frozen["step_id"]}
+
     approval_id = None
     approved_request: TradeRequest | None = None
 
@@ -422,6 +479,7 @@ def tools() -> list[Tool]:
             "Persist a trading goal and ordered plan in this same agent/chat. Financial autonomy is always OFF until the owner explicitly enables it; do not promise profits.",
             GoalProposal,
             create,
+            replay_safe=True,
         ),
         Tool(
             "goal_list",
@@ -467,6 +525,8 @@ def tools() -> list[Tool]:
             "Execute the exact current step in its frozen live/shadow Goal mode, with current evidence and signed background authority. Live steps additionally require global Trading ON; Shadow steps only mutate virtual state. Fixed goal/step/attempt identity across runs; ambiguity blocks retries.",
             GoalStepNote,
             execute,
+            financial=True,
+            replay_safe=True,
         ),
         Tool(
             "goal_control",

@@ -83,3 +83,15 @@ class TaskStepUpdate(Contract):
     plan_revision: int = Field(ge=1)
     state: Literal["running", "completed"]
     evidence_call_ids: list[str] = Field(default_factory=list[str], max_length=16)
+
+
+class TaskWait(Contract):
+    kind: Literal["watch", "broker_recovery", "timer"]
+    source_id: str | None = Field(default=None, min_length=1, max_length=80)
+    seconds: int = Field(default=60, ge=5, le=604800)
+
+    @model_validator(mode="after")
+    def source_required(self) -> "TaskWait":
+        if self.kind != "timer" and not self.source_id:
+            raise ValueError("task_wait_source_required")
+        return self

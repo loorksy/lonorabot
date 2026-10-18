@@ -36,6 +36,12 @@ CHECKS = (
     "check_device_authority.py",
     "check_activation_review.py",
     "check_conversational_setup.py",
+    "check_agent_environment.py",
+    "check_task_environment_wait.py",
+    "check_voice_task_continuity.py",
+    "check_runtime_collaboration.py",
+    "check_memory_provenance.py",
+    "check_goal_call_identity.py",
 )
 
 

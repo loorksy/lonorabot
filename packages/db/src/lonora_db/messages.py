@@ -197,6 +197,9 @@ async def send_message(
                 if active.execution_state:
                     # A queued continuation restores its checkpoint instead of rebuilding history.
                     session.add(SteeringRow(run_id=active.id, message_id=message.id))
+                    environment = dict(active.execution_state.get("environment", {}))
+                    environment.pop("retry", None)
+                    active.execution_state = {**active.execution_state, "environment": environment}
             else:
                 session.add(SteeringRow(run_id=active.id, message_id=message.id))
                 if active.status == "waiting_input":
