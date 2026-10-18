@@ -13,6 +13,7 @@ from lonora_session.idempotency import request_hash
 from lonora_tools.context import ToolContext
 from lonora_tools.registry import ToolRegistry
 from lonora_tools.schema import ToolArgumentsError
+from lonora_tools.tool_results import store_result, stored_result
 
 from .cancellation import cancellation_checkpoint
 from .context.builder import build_context
@@ -145,7 +146,20 @@ async def execute_tool_loop(
             result: dict[str, Any]
             await progress(context, "tool.started", {"name": call.name, "call_id": call.id})
             try:
+                receipt = await stored_result(context, call)
                 if (
+                    receipt is not None
+                    and receipt.get("status") == "ambiguous"
+                    and tool
+                    and tool.financial
+                    and tool.replay_safe
+                ):
+                    # The financial handler owns its durable journal and reconciles
+                    # the SAME operation. An observation receipt must not freeze it.
+                    receipt = None
+                if receipt is not None:
+                    result = receipt
+                elif (
                     blocked
                     and blocked.get("ambiguous")
                     and blocked.get("receipt_replay")
@@ -266,7 +280,24 @@ async def execute_tool_loop(
             state.pop("waiting_call_id", None)
             content = json.dumps(result, ensure_ascii=False)
             if len(content) > 120000:
-                content = json.dumps(bounded_result(result), ensure_ascii=False)
+                summary = bounded_result(result)
+                try:
+                    summary = await store_result(context, call, result, summary)
+                except LonoraError as error:
+                    if error.code == "stale_lease":
+                        raise
+                    summary["result_persisted"] = False
+                    summary["result_storage_error"] = error.code
+                except Exception as error:
+                    # Presentation persistence failure must not retry a completed mutation.
+                    log.warning(
+                        "tool_result_storage_failed name=%s type=%s",
+                        call.name,
+                        type(error).__name__,
+                    )
+                    summary["result_persisted"] = False
+                    summary["result_storage_error"] = "tool_result_storage_unavailable"
+                content = json.dumps(summary, ensure_ascii=False)
             messages.append(ModelMessage(role="tool", content=content, tool_call_id=call.id))
             pending = pending[1:]
             if result.get("_runtime_external_wait"):

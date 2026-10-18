@@ -205,6 +205,25 @@ def bounded_result(result: dict[str, Any]) -> dict[str, Any]:
         value = result.get(field)
         if isinstance(value, str) and len(value) <= 128:
             bounded[field] = value
+    recovery = result.get("recovery")
+    if (
+        isinstance(recovery, dict)
+        and cast(dict[str, Any], recovery).get("category") == "ambiguous_mutation"
+    ):
+        # Batch uncertainty can lie beyond the bounded first twenty entries.
+        bounded["status"] = "ambiguous"
+        bounded["recovery"] = {
+            "category": "ambiguous_mutation",
+            "next_action": "reconcile_before_any_resend",
+            "safe_to_retry": False,
+        }
+    nested = result.get("result")
+    if isinstance(nested, dict):
+        bounded["result"] = {
+            key: value
+            for key in ("operation_id", "status", "code", "broker_reference")
+            if isinstance(value := cast(dict[str, Any], nested).get(key), str) and len(value) <= 128
+        }
     outcomes = result.get("results")
     if isinstance(outcomes, list):
         entries = cast(list[Any], outcomes)

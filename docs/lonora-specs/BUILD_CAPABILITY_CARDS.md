@@ -36,11 +36,15 @@ These are integration boundaries, not blanket completion claims. Scoped cards be
 - Limits: image allowance and non-native tokenizer counts are estimates; absent catalog windows remain unknown. Deployment workload/latency and real-provider calibration are not verified. Mandatory context too large for a known model fails explicitly; selective tool/schema loading remains dependent work.
 - Wheel packaging and setup cache preparation were executed. Docker image build, client/native acceptance, APK publication, and deployment were not performed.
 
-## ENV-RESULT-01 — Next dependency: recoverable large results
+## ENV-RESULT-01 — Recoverable large results
 
-Status: audit started, no implementation claim. Existing ToolLoop replaces results above 120000 characters with a bounded observation; current artifact_create/read, confined storage, producer identity, and lease checks can be reused. The artifact auto-attachment query currently includes all generated producer artifacts, so internal results need an explicit delivery distinction before integration.
+Status: VERIFIED for local/scripted Run/call recovery and bounded readback. ToolLoop persists results above 120000 characters as internal artifacts with stable Run/call identity and an argument hash, then checkpoints a bounded observation/reference. Existing artifact storage, lease/fence checks and owner/Agent/thread scope are reused. `artifact_read` accepts that reference as artifact_id with offset/limit/next_offset paging. Internal results are filtered before the artifact-list limit and never automatically become user attachments.
 
-Required next work: define internal result identity/retention and bounded readback; preserve original effect outcome and references through compaction/restart; ensure persistence failure cannot trigger mutation replay; enforce owner/Agent/Task scope; test duplicate delivery, missing/corrupt storage, and no unintended attachment or secret retention. Complete this card's contracts and acceptance tests before implementation.
+Storage is a redacted JSON projection using Lonora's existing redactor, bounded by the existing 20MB artifact limit; retention is owner-managed, not an automatic-expiry promise. Missing/corrupt files retain the confirmed execution summary and cannot grant mutation replay. A write failure preserves the actual effect result with an explicit storage failure. Ambiguous financial observations continue through the existing same-operation journal/reconciliation handler; this is not a second journal. Existing read-only/replay policies still govern effects without a completed receipt.
+
+Acceptance: independently repeated PostgreSQL ToolLoop crash after receipt/before checkpoint, one actual scripted mutation, complete redacted paging, wrong owner/Agent/thread, changed arguments, stale fence, corrupt/missing files, write failure, 20MB rejection, more than 200 hidden internal rows and ambiguity beyond the first twenty summaries. Existing runtime acceptance now reads a stored result without repeating its original source read. Forty focused unit cases and generated-artifact regressions passed. No live-money operation or migration.
+
+Remaining limits: result files require the existing persistent artifact volume; files exceeding 20MB remain bounded/explicitly unavailable; redaction recognizes existing key/Bearer patterns and is not a universal classifier of arbitrary sensitive prose; no new retention daemon, whole-corpus cache or successor-Run result transfer was introduced.
 
 ## ENV-KNOWLEDGE-01 — Scoped bounded memory evidence
 

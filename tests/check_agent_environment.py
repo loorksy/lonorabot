@@ -384,17 +384,33 @@ async def main() -> None:
             result = json.loads(messages[-1].content)
             if phase == 2:
                 assert (
-                    result["result_omitted"] and result["recovery"]["next_action"] == "narrow_query"
+                    result["result_omitted"]
+                    and result["recovery"]["next_action"] == "read_stored_result"
                 )
-                return reply(ToolCall(id="small-read", name="bounded_read", arguments={"limit": 1}))
-            assert result["ok"] and len(result["rows"]) == 1 and not result.get("result_omitted")
+                return reply(
+                    ToolCall(
+                        id="page-result",
+                        name="artifact_read",
+                        arguments={
+                            "artifact_id": result["result_ref"],
+                            "offset": 0,
+                            "limit": 24000,
+                        },
+                    )
+                )
+            assert (
+                result["ok"]
+                and len(result["content"]) == 24000
+                and result["next_offset"] == 24000
+                and result["total_chars"] > 120000
+            )
             return reply()
 
         with patch.object(ctx.router, "complete", narrower):
             await execute_run(ctx, registry, 120, 5)
-        assert reads == 2 and phase == 3
+        assert reads == 1 and phase == 3
         print(
-            "PASS oversized read is narrowed inside the same runtime without a second owner message"
+            "PASS oversized read is paged from durable storage in the same runtime without repeating the source read"
         )
 
         ctx = await context(f)

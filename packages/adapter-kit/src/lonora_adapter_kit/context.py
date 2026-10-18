@@ -59,8 +59,24 @@ def omitted_result(content: str, budget: int, size: Callable[[str], int] = len) 
     if isinstance(decoded, dict):
         result = cast(dict[str, Any], decoded)
         notice["ok"] = result.get("ok") is True
+        if isinstance(result.get("result_persisted"), bool):
+            candidate = {**notice, "result_persisted": result["result_persisted"]}
+            if size(json.dumps(candidate, ensure_ascii=False)) <= budget:
+                notice = candidate
         # Omission is a presentation limit, not failure of an already executed effect.
-        for key in ("status", "operation_id", "broker_reference", "code", "artifact_id", "symbol"):
+        for key in (
+            "status",
+            "operation_id",
+            "broker_reference",
+            "code",
+            "artifact_id",
+            "symbol",
+            "result_ref",
+            "result_read_tool",
+            "result_format",
+            "result_retention",
+            "result_storage_error",
+        ):
             value = result.get(key)
             if isinstance(value, str) and len(value) <= 128:
                 candidate = {**notice, key: value}

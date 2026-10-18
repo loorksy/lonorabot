@@ -2,7 +2,7 @@ import re
 from urllib.parse import unquote
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .schema import ArtifactRow, MessageRow, RunRow
@@ -16,6 +16,10 @@ async def pending_generated_artifacts(
         await session.scalars(
             select(ArtifactRow)
             .where(
+                or_(
+                    ArtifactRow.state["internal_tool_result"].as_boolean().is_(None),
+                    ArtifactRow.state["internal_tool_result"].as_boolean().is_(False),
+                ),
                 ArtifactRow.owner_id == owner_id,
                 ArtifactRow.thread_id == run.thread_id,
                 ArtifactRow.agent_id == run.agent_id,

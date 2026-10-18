@@ -6,12 +6,13 @@ from typing import Any
 
 from lonora_contracts.attachments import ArtifactCreate
 from lonora_contracts.domain import Contract
-from lonora_core.attachments import check_size, safe_filename
+from lonora_core.attachments import MAX_ATTACHMENT_BYTES, check_size, safe_filename
 from lonora_core.user_error import LonoraError
 from lonora_db.artifacts import ArtifactRepository
 from lonora_db.runs import require_lease
 from lonora_db.transactions import resource_data
 from lonora_security.runtime_storage import confined_path
+from pydantic import Field
 
 from .base import Tool
 from .context import ToolContext
@@ -19,6 +20,8 @@ from .context import ToolContext
 
 class ArtifactRead(Contract):
     artifact_id: str
+    offset: int = Field(default=0, ge=0)
+    limit: int = Field(default=24000, ge=1, le=24000)
 
 
 def write_artifact_file(path: Path, content: bytes, digest: str) -> None:
@@ -35,7 +38,12 @@ def write_artifact_file(path: Path, content: bytes, digest: str) -> None:
 
 
 async def store_artifact(
-    context: ToolContext, name: str, content: bytes, media_type: str
+    context: ToolContext,
+    name: str,
+    content: bytes,
+    media_type: str,
+    *,
+    receipt_state: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     check_size(len(content))
     name = safe_filename(name)
@@ -58,6 +66,10 @@ async def store_artifact(
                 or row.agent_id != context.agent_id
             ):
                 raise LonoraError("artifacts_not_found", 404)
+            if receipt_state and any(
+                row.state.get(key) != value for key, value in receipt_state.items()
+            ):
+                raise LonoraError("tool_result_identity_conflict", 409)
             if row.payload != payload:
                 raise LonoraError("artifact_nonce_conflict", 409)
         else:
@@ -73,6 +85,7 @@ async def store_artifact(
             **row.state,
             "producer_run_id": context.lease.run_id,
             "producer_call_id": context.call_id,
+            **(receipt_state or {}),
         }
         # A stale worker must never replace a file before proving its lease. Replay
         # returns the original bytes; missing files can be repaired from the same hash.
@@ -87,13 +100,33 @@ async def create(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
 async def read(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     async with context.db.sessions() as session:
         row = await ArtifactRepository().get(session, context.owner_id, args["artifact_id"])
+    internal = row.state.get("internal_tool_result") is True
+    if internal and (row.agent_id != context.agent_id or row.thread_id != context.thread_id):
+        raise LonoraError("artifacts_not_found", 404)
     payload = row.payload
     path = confined_path(context.artifact_root, payload["key"])
     if not path.is_file():
         raise LonoraError("artifact_file_missing", 404)
     result = resource_data(row)
+    if internal:
+        result["state"] = {
+            key: value for key, value in row.state.items() if key != "result_summary"
+        }
     if payload["media_type"].startswith("text/") or payload["media_type"] == "application/json":
-        result["content"] = path.read_text(errors="replace")[:24000]
+        check_size(path.stat().st_size)
+        with path.open("rb") as source:
+            content = source.read(MAX_ATTACHMENT_BYTES + 1)
+        check_size(len(content))
+        if internal and (
+            len(content) != payload["size"]
+            or hashlib.sha256(content).hexdigest() != payload["sha256"]
+        ):
+            raise LonoraError("artifact_integrity_failed", 409)
+        text = content.decode("utf-8", errors="replace")
+        offset, limit = args.get("offset", 0), args.get("limit", 24000)
+        result["content"] = text[offset : offset + limit]
+        result["total_chars"] = len(text)
+        result["next_offset"] = offset + limit if offset + limit < len(text) else None
     return result
 
 
@@ -107,7 +140,7 @@ def tools() -> list[Tool]:
         ),
         Tool(
             "artifact_read",
-            "Read an owned artifact's metadata and bounded text.",
+            "Read owned artifact metadata and a bounded text page. For a stored tool result use result_ref as artifact_id; offset and limit select characters, next_offset continues paging. Stored results are redacted projections.",
             ArtifactRead,
             read,
             True,
