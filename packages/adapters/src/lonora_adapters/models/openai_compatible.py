@@ -41,6 +41,7 @@ class OpenAICompatibleAdapter(BaseModelAdapter):
         messages: list[ModelMessage],
         tools: list[ToolDefinition],
         *,
+        max_output_tokens: int | None = None,
         on_delta: Callable[[str], Awaitable[None]] | None = None,
     ) -> ModelReply:
         payload: dict[str, Any] = {
@@ -48,6 +49,9 @@ class OpenAICompatibleAdapter(BaseModelAdapter):
             "messages": [wire_message(message) for message in messages],
             "stream": False,
         }
+        if max_output_tokens is not None:
+            output_field = "max_completion_tokens" if self.provider == "openai" else "max_tokens"
+            payload[output_field] = max_output_tokens
         if tools:
             payload["tools"] = [
                 {"type": "function", "function": tool.model_dump()} for tool in tools
@@ -111,6 +115,8 @@ class OpenAICompatibleAdapter(BaseModelAdapter):
                 if "reasoning" in parameters:
                     capabilities.append("reasoning")
                 verified = bool(inputs or outputs or parameters)
+            raw_top: Any = item.get("top_provider")
+            top: dict[str, Any] = cast(dict[str, Any], raw_top) if isinstance(raw_top, dict) else {}
             descriptors.append(
                 ModelDescriptor(
                     id=item["id"],
@@ -119,6 +125,9 @@ class OpenAICompatibleAdapter(BaseModelAdapter):
                     capabilities=capabilities,
                     verified=verified,
                     context_window=item.get("context_length"),
+                    maximum_output_tokens=top.get("max_completion_tokens")
+                    if self.provider == "openrouter"
+                    else None,
                     source=self.base_url + "/models",
                 )
             )

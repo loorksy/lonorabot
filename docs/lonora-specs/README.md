@@ -41,6 +41,8 @@ Additional authoritative review instruction: [Continue full implementation and f
 Implementation reference: [Signed device authorization and native public bindings](DEVICE_AUTHORIZATION.md).
 
 
-S19 execution starts on `feat/agent-operating-environment` from `21293ad`; see [kickoff](S19_IMPLEMENTATION_KICKOFF.md). Earlier program branch/history entries above are historical, not authorization to merge this new specification.
+Historical S19 kickoff: `feat/agent-operating-environment` from `21293ad`; see [kickoff](S19_IMPLEMENTATION_KICKOFF.md). That work was subsequently merged and deployed. Current branch and verification are recorded in PROGRESS.md.
 
 Current environment capability cards: [Build capability cards](BUILD_CAPABILITY_CARDS.md). New implementation remains on its integration branch until an explicit merge/deployment instruction.
+
+First context integration: [Global model context budgeting](CONTEXT_BUDGETING.md), including preparation, authenticated policy API, diagnostic interpretation, and remaining limits.

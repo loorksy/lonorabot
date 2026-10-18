@@ -57,3 +57,8 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+
+## tiktoken
+
+The request-budget estimator uses `tiktoken` 0.12.0 (MIT License, Copyright (c) 2022 OpenAI), distributed as a dependency with its license. Encoding data is fetched from OpenAI's published encoding URLs during setup/build and hash-verified by tiktoken; model requests use verified local cache data or an explicit conservative fallback. No reference Agent implementation code is included by this integration.

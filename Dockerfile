@@ -13,7 +13,7 @@ RUN --mount=type=secret,id=proxy_ca,required=false \
     npm install --global pnpm@11.25.0 && pnpm install --frozen-lockfile --filter @lonora/web...
 RUN pnpm --filter @lonora/web... build
 FROM python:3.12-slim-bookworm AS server
-ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 LONORA_WEB_ROOT=/app/apps/web/dist
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 LONORA_WEB_ROOT=/app/apps/web/dist TIKTOKEN_CACHE_DIR=/opt/lonora-tokenizers
 WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends fonts-dejavu-core && rm -rf /var/lib/apt/lists/*
 COPY pyproject.toml LICENSE THIRD_PARTY_NOTICES.md ./
@@ -21,8 +21,10 @@ COPY packages ./packages
 COPY apps/api ./apps/api
 COPY apps/worker ./apps/worker
 RUN --mount=type=secret,id=system_ca,required=false \
-    if [ -f /run/secrets/system_ca ]; then export PIP_CERT=/run/secrets/system_ca; fi; \
-    python -m pip install --no-cache-dir .
+    if [ -f /run/secrets/system_ca ]; then export PIP_CERT=/run/secrets/system_ca REQUESTS_CA_BUNDLE=/run/secrets/system_ca; fi; \
+    python -m pip install --no-cache-dir . && \
+    python -c 'import tiktoken; [tiktoken.get_encoding(n) for n in ("cl100k_base", "o200k_base")]' && \
+    chmod -R a+rX /opt/lonora-tokenizers
 COPY --from=web /build/apps/web/dist ./apps/web/dist
 COPY scripts ./scripts
 COPY entrypoint.sh ./entrypoint.sh

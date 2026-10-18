@@ -16,6 +16,7 @@ async def save_usage(
                 "provider": record.provider,
                 "model": record.model,
                 **record.tokens.model_dump(),
+                **({"context_budget": record.context_budget} if record.context_budget else {}),
             },
             agent_id=agent_id,
             thread_id=thread_id,

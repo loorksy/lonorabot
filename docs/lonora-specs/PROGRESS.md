@@ -244,3 +244,22 @@ Final financial review also freezes optional Goal step/attempt/plan identity bef
 - First capability card: ENV-CTX-01 in BUILD_CAPABILITY_CARDS.md. Implementation and acceptance tests are in progress; none of the new program is yet declared verified.
 - No competing runtime, provider policy, scheduler, journal, or permission model will be introduced.
 - Next integration: shared request budgeting, router fallback coverage, and existing runtime recovery tests. Full Wave 0 comparison, Chart Use, knowledge/learning, and dependent UX remain open.
+
+
+## ENV-CTX-01 — First Verified Local Integration (2026-10-18)
+
+Implemented on `feat/trading-agent-environment`: shared adapter-kit governance, model-aware per-attempt admission through GlobalModelRouter, known catalog window/output limits, explicit unknown capacity, offline hash-verified tokenizer cache with conservative fallback, schema/image allowances, bounded provider output, authenticated global context settings, and estimate/actual diagnostics persisted in existing usage records. Existing original inputs/checkpoints/effect identities remain unchanged.
+
+Executed evidence:
+- 22 focused context/routing/provider tests passed, including actual HTTP payloads for all five providers in stream/non-stream modes and smaller-model fallback.
+- Full pytest in a freshly migrated disposable PostgreSQL database: 228 passed (`.runtime/environment-wave1-release-pytest.log`). Initial unconfigured invocation had 14 voice fixture setup errors; the correct isolated database run passed them.
+- Existing isolated foundation runner: all 26 integration groups plus 11 PostgreSQL Task tests passed (`.runtime/environment-wave1-foundation.log`). The separately executed new global-settings fixture passed and is now registered in that runner.
+- Actual message → Gateway → AgentRuntime → tools → result integration in check_goals passed, including persisted budget diagnostics, closed-loop simulation, crash/restart and no-blind-retry controls (`.runtime/context-budget-goals-final.log`).
+- Authenticated global-context API fixture passed: owner scope, persisted settings, invalid fields rejected (`.runtime/context-budget-settings.log`).
+- Ruff whole-repository check and format check passed; Python wheel built with the new shared modules included; verified tokenizer cache preparation ran successfully. Final Pyright: zero errors, warnings, or information messages (`.runtime/environment-wave1-final-pyright.log`); generated packaging output was removed before checking.
+
+Findings fixed during integration: the first byte-only estimate over-rejected the actual 88-tool surface; cached tokenization and a documented 64000-token unknown-capacity admission policy fixed it without inventing model windows. A schema character-framing overcount omitted a useful latest result; the existing character cap is preserved while token framing is budgeted independently. Missing provider usage remains unknown rather than fabricated zero in the new diagnostics.
+
+Limits: unknown model capacity stays unknown; images and cross-provider tokenization remain labeled estimates. Real-provider calibration, full Wave 0 comparative benchmark, Docker image deployment, TradingView assets/Chart Use, client/native acceptance, and subsequent waves remain open. No APK, production deployment, real broker mutation, or migration was performed.
+
+Next integration: ENV-RESULT-01. Audit found that current generated-artifact auto-delivery would attach internal tool-result files unless explicitly distinguished; define that contract with retention, scope, and effect-safe recovery before implementing readback.

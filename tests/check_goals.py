@@ -1006,6 +1006,7 @@ async def checks() -> None:
                 messages: list[ModelMessage],
                 tools: list[ToolDefinition],
                 *,
+                max_output_tokens: int | None = None,
                 on_delta: Callable[[str], Awaitable[None]] | None = None,
             ) -> ModelReply:
                 nonlocal adapter_rounds, gateway_goal
@@ -1077,7 +1078,24 @@ async def checks() -> None:
         )
         async with db.sessions() as session:
             run = await session.get(RunRow, admitted["run_ids"][0])
-            assert run is not None and run.status == "completed" and gateway_goal
+            assert run is not None and run.status == "completed" and gateway_goal, (
+                run.status if run else None,
+                run.error_code if run else None,
+                adapter_rounds,
+            )
+            from lonora_db.schema import UsageRow
+
+            usage = await session.scalar(
+                select(UsageRow)
+                .where(UsageRow.payload["run_id"].as_string() == run.id)
+                .order_by(UsageRow.created_at.desc())
+                .limit(1)
+            )
+            assert usage is not None
+            budget = usage.payload["context_budget"]
+            assert budget["estimated"] and budget["schema_estimate"] > 0
+            assert budget["actual_input_tokens"] is None  # scripted adapter returns no usage
+            assert budget["estimated_input_tokens"] <= budget["input_limit"]
             assert run.model_metadata["goal_id"] == gateway_goal
             goal = await session.get(TradingGoalRow, gateway_goal)
             assert (

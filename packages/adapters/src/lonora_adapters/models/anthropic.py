@@ -70,12 +70,13 @@ class AnthropicAdapter(BaseModelAdapter):
         messages: list[ModelMessage],
         tools: list[ToolDefinition],
         *,
+        max_output_tokens: int | None = None,
         on_delta: Callable[[str], Awaitable[None]] | None = None,
     ) -> ModelReply:
         system, wire = anthropic_messages(messages)
         payload: dict[str, Any] = {
             "model": model,
-            "max_tokens": 8192,
+            "max_tokens": max_output_tokens or 8192,
             "messages": wire,
             "system": system,
         }

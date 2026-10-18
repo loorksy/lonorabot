@@ -6,6 +6,7 @@ command -v "$python_bin" >/dev/null || { echo 'Python 3.12 is required.' >&2; ex
 "$python_bin" -c 'import sys; assert sys.version_info >= (3,12)'
 if [[ ! -x .venv/bin/python ]]; then "$python_bin" -m venv .venv; fi
 .venv/bin/python -m pip install -e '.[dev]'
+.venv/bin/python scripts/cache_model_tokenizers.py
 .venv/bin/python - <<'PY'
 import os,secrets
 from pathlib import Path

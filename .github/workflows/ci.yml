@@ -30,6 +30,8 @@ jobs:
         with: {node-version: '22', cache: pnpm}
       - run: python -m venv .venv
       - run: .venv/bin/pip install -e '.[dev]'
+      - name: Prepare verified offline model tokenizers
+        run: .venv/bin/python scripts/cache_model_tokenizers.py
       - run: pnpm install --frozen-lockfile
       - run: bash scripts/build.sh
       - run: bash scripts/migrate.sh

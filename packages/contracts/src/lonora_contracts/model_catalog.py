@@ -10,7 +10,8 @@ class ModelDescriptor(Contract):
     name: str
     capabilities: list[str] = Field(default_factory=list[str])
     verified: bool = False
-    context_window: int | None = None
+    context_window: int | None = Field(default=None, gt=0)
+    maximum_output_tokens: int | None = Field(default=None, gt=0)
     source: str
 
 

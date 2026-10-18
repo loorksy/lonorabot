@@ -19,6 +19,7 @@ class ScriptedModelAdapter:
         messages: list[ModelMessage],
         tools: list[ToolDefinition],
         *,
+        max_output_tokens: int | None = None,
         on_delta: Callable[[str], Awaitable[None]] | None = None,
     ) -> ModelReply:
         self.requests.append(list(messages))

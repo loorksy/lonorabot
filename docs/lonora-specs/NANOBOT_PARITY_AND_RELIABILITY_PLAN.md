@@ -1,6 +1,6 @@
 # Lonora Professional Trading Agent Environment Build Plan
 
-Status: proposed build plan, not a claim that the capabilities below have been implemented. Build and acceptance requirements updated: 2026-10-18. Editing this document does not start implementation or deployment of its waves.
+Status: implementation in progress on `feat/trading-agent-environment` from `80b0ff9`. The first context-admission capability has local verification; this does not establish completion of Wave 0/1 or the program. Build and acceptance requirements updated: 2026-10-18. See BUILD_CAPABILITY_CARDS.md, IMPLEMENTATION_MATRIX.md, and PROGRESS.md for evidence and remaining work.
 
 Recorded Lonora baseline: `80b0ff9`, deployed to production at the time of this plan. Recheck repository and deployment revisions before implementation. The filename is retained for existing links; the plan now draws selectively from Hermes Agent, gbrain, Rakazo, and Nanobot.
 
@@ -589,7 +589,7 @@ Acceptance: exercise deployment and rollback with one active Task and one waitin
 | B07 Evaluation suite | Wave 0 and every integration point | Reproducible results and passing safety boundaries |
 | B08 Rollout and rollback | Design with each card; exercise in 6 | Task compatibility, recovery rehearsal, and deployed verification |
 
-Status of B01–B08 in this update: **NOT_STARTED as newly specified build requirements**. Existing foundations do not establish that their acceptance criteria have passed. Update their status with evidence during implementation.
+B01/B02/B07 are IN_PROGRESS across the program, with the first context capability card locally verified. B03–B06/B08 retain open acceptance requirements; current foundations and one integrated capability do not establish their completion. Consult the implementation matrix and capability cards for scoped evidence.
 
 ### Mapping Reference-Inspired Requirements to Waves
 
@@ -603,7 +603,7 @@ Status of B01–B08 in this update: **NOT_STARTED as newly specified build requi
 | R06 Smooth user experience | Journey baseline in 0; relevant client work alongside each capability; final acceptance in 6 | Authoritative state and interaction parity, localization, approvals, reconnect, and separate device/voice results |
 | R07 Maintainable code | Every card and integration gate | Clear ownership, relevant passing checks, duplication review, and documented trade-offs |
 
-R01–R07 are **NOT_STARTED as newly specified acceptance requirements**. Source inspection and this plan update are completed documentation work, not implementation of those capabilities. Record justified reuse as FOUNDATION_EXISTS only after the corresponding code audit; mark VERIFIED only with executed evidence.
+R01/R07 have initial context-path audit and integration evidence, but program-wide acceptance remains IN_PROGRESS. Other reference-inspired capabilities retain their open requirements. Record justified reuse as FOUNDATION_EXISTS after the corresponding code audit; mark VERIFIED only with scoped executed evidence.
 
 ## Metrics for Judging Comparative Performance
 

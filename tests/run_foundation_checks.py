@@ -16,6 +16,7 @@ from sqlalchemy.engine import URL, make_url
 from sqlalchemy.ext.asyncio import create_async_engine
 
 CHECKS = (
+    "check_model_context.py",
     "check_personal_agent.py",
     "check_skill_installation.py",
     "check_collaboration_sessions.py",

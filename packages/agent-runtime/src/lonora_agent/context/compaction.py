@@ -107,7 +107,13 @@ async def compact_history(context: ToolContext) -> None:
             context.owner_id,
             context.agent_id,
             context.thread_id,
-            UsageRecord(context.lease.run_id, selection.provider, selection.model, reply.usage),
+            UsageRecord(
+                context.lease.run_id,
+                selection.provider,
+                selection.model,
+                reply.usage,
+                context_budget=reply.provider_metadata.get("context_budget", {}),
+            ),
         )
         if not reply.text.strip():
             raise LonoraError("history_summary_empty", 502)
