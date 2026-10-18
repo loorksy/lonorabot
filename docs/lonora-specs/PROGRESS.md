@@ -1,6 +1,6 @@
 # Progress
 
-Current wave (2026-10-18): S19 operating environment integration on `feat/agent-operating-environment`; see the final S19 section and S19_ACCEPTANCE.md. Earlier wave entries below are historical. Native building/APK publication is prohibited by the owner.
+Current wave (2026-10-18): professional trading Agent environment, Wave 0 audit and Wave 1 context-budget implementation on `feat/trading-agent-environment`, from `80b0ff9`. The prior S19 branch was merged and deployed before this wave; older entries below are historical. No new deployment or APK build is part of this integration.
 
 ## Current wave
 
@@ -232,3 +232,15 @@ Acceptance is tracked in `S19_ACCEPTANCE.md`. Physical Android is `BLOCKED_EXTER
 Full specifications01–18 remain incomplete in their original matrix. Their advanced domain features are not invented or silently marked done by S19. The current remaining S19 boundary is physical/native and real-service acceptance, not another runtime or temporary in-memory implementation.
 
 Final financial review also freezes optional Goal step/attempt/plan identity before execution, repairs a committed receipt's still-approved card from its actual saved result, and keeps reconciliation on the original financial call identity. Legacy checkpoint replay is conservative unless a handler's old durable identity is explicitly proven. `check_goal_call_identity` and scripted old-checkpoint/renamed-call fault cases cover these boundaries. Final validation:199 pytest,26 isolated foundations plus11 PostgreSQL Task cases, Pyright0, lint/types, Web24, ExpoWeb8 and Node23. No new native build.
+
+
+## Trading Agent Environment — Integration Start (2026-10-18)
+
+- Owner-authorized English plan and original visual reference preserved in the repository.
+- Current main and origin/main both inspected at `80b0ff9`; dedicated branch `feat/trading-agent-environment`.
+- First audited path: ContextBuilder → model_turn → GlobalModelRouter → provider adapter, including background compaction callers.
+- Reused: existing tool-exchange validation, newest-user retention, catalog storage, global fallback policy, TokenUsage, lease/fence/effect boundaries.
+- Demonstrated gap: model_turn applies only a character cap before routing; fallback attempts reuse identical context without model-window or output-reserve checks; image budgets are absent.
+- First capability card: ENV-CTX-01 in BUILD_CAPABILITY_CARDS.md. Implementation and acceptance tests are in progress; none of the new program is yet declared verified.
+- No competing runtime, provider policy, scheduler, journal, or permission model will be introduced.
+- Next integration: shared request budgeting, router fallback coverage, and existing runtime recovery tests. Full Wave 0 comparison, Chart Use, knowledge/learning, and dependent UX remain open.

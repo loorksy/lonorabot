@@ -2,7 +2,7 @@
 
 All 19 source documents are preserved verbatim under their original filenames. Numbers identify documents, not execution order. The appended in-chat activation/device authorization in 03 is authoritative. The master orchestration instructions govern the entire set.
 
-Initial01–18 audit: `895eaa8` on `feat/coherent-agent-foundations` (historical). Current S19 extension: `feat/agent-operating-environment` from `21293ad`; no main merge is authorized for this new specification.
+Initial01–18 audit: `895eaa8` on `feat/coherent-agent-foundations` (historical). The S19 extension was subsequently merged and deployed. Current environment work begins on `feat/trading-agent-environment` from `80b0ff9`; see PROGRESS.md for current evidence.
 
 | Reference | Domain |
 | --- | --- |
@@ -32,6 +32,7 @@ Initial01–18 audit: `895eaa8` on `feat/coherent-agent-foundations` (historical
 - [Requirement matrix](IMPLEMENTATION_MATRIX.md): behavior, existing implementation, missing work, shared dependencies and verification evidence.
 - [Dependency graph](DEPENDENCY_GRAPH.md): capability ownership and safe integration waves.
 - [Progress](PROGRESS.md): current wave, blockers, test evidence and next integration point.
+- [Professional trading Agent environment build plan](NANOBOT_PARITY_AND_RELIABILITY_PLAN.md): selective Hermes Agent, gbrain, Rakazo, and Nanobot patterns integrated into Lonora's existing owners; seven waves, B01–B08 delivery requirements, R01–R07 architecture/product requirements, and C01–C11 TradingView/Chart Use requirements covering per-Bot scope, live drawings, on-demand visual sessions, observation/correction, Follow Agent/Free Browse, and English/Arabic bottom-sheet UX. AiChart is a visual reference only. The filename is retained for existing links; this is a proposal, not an implementation completion claim.
 
 A source file being stored does not make its functionality implemented. VERIFIED requires an executed behavioral test. Native/device verification is reported independently of browser validation. Financial authorization, ownership, exact symbols, journal, reconciliation and global controls remain authoritative.
 
@@ -41,3 +42,5 @@ Implementation reference: [Signed device authorization and native public binding
 
 
 S19 execution starts on `feat/agent-operating-environment` from `21293ad`; see [kickoff](S19_IMPLEMENTATION_KICKOFF.md). Earlier program branch/history entries above are historical, not authorization to merge this new specification.
+
+Current environment capability cards: [Build capability cards](BUILD_CAPABILITY_CARDS.md). New implementation remains on its integration branch until an explicit merge/deployment instruction.

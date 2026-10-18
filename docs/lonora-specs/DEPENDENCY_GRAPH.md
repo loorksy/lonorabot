@@ -148,3 +148,12 @@ flowchart TD
 One owner defined Tool/Registry/ToolLoop/Run contracts. Independent chart projections and continuity/reference audits consumed them. No second scheduler, wait engine, event store, memory database, voice Agent or provider router was introduced. Tool-scoped replay safety is declared only for inspected receipt/idempotency paths; an interrupted unreceipted mutation becomes uncertainty, never an automatic resend. A model changing its call ID cannot erase a route's failed/ambiguous observation.
 
 The current source matrix tracks all88 S19 sections. Backend/local acceptance and physical Android acceptance are separate; native building remains prohibited by the owner. Existing partial01–18 domain features retain their previous dependencies/status rather than being relabeled complete by this runtime extension.
+
+
+## Professional Trading Agent Environment — Current Extension
+
+Baseline `80b0ff9`, branch `feat/trading-agent-environment`. The original graph above remains a capability history, not a second implementation program. The approved [environment plan](NANOBOT_PARITY_AND_RELIABILITY_PLAN.md) extends the same owners.
+
+First dependency: existing model messages/tool contracts → shared bounded context selection → global catalog/policy per routed attempt → provider output limit → request/usage diagnostics → actual fallback and runtime recovery acceptance. Shared context selection belongs below both AgentRuntime and providers; providers must not import AgentRuntime.
+
+Next dependents: persisted result references → scoped evidence retrieval and Chart Use contracts; Skills versioning → evaluated learning; existing child outcome receipts → scoped visual workspaces and host synthesis; backend chart authority → TradingView renderer → on-demand visual sessions → truthful interaction. These remain planned until separately integrated and verified.
