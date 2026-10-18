@@ -1,5 +1,7 @@
 # Progress
 
+Current wave (2026-10-18): S19 operating environment integration on `feat/agent-operating-environment`; see the final S19 section and S19_ACCEPTANCE.md. Earlier wave entries below are historical. Native building/APK publication is prohibited by the owner.
+
 ## Current wave
 
 2026-10-16: signed device authority, first activation review and shared status integration in wave 4; waves 1 and 2 integrated; shared historical evidence, thesis, explicit Shadow mode and Task failure/recovery integration in wave 3 on `feat/coherent-agent-foundations`, audited base `895eaa8`. All 18 original references remain intact. This is **not completion of the full program**. Source-section matrix distinguishes partial integration from full acceptance.
@@ -207,3 +209,26 @@ The current chart is ready while old ambiguous financial operations keep broker 
 Web/Expo specialist profiles now have confirmed permanent deletion with actual API/error outcomes and safe navigation. The default Personal Agent retains backend deletion protection and an accessible role-based gold star. Mobile voice setup/cancellation/cleanup races are repaired. The published APK manifest lacks WAKE_LOCK while InCallManager acquires it on a native Handler; new native config declares it and release verification requires actual microphone/audio/wake-lock permissions. Unused overlay/legacy storage permissions are blocked. Native version0.2.6/code26101613+ is above the published0.2.5/code26101612; updating must retain the production signer, which differs from the old local build key.
 
 Local checks passed:171 pytest,20 isolated foundation integrations plus11 PostgreSQL Task tests,24 Web,8 ExpoWeb,23 Node checks,6 Android artifact checks (included in pytest), Ruff/format/Pyright0, client types/lint and full Web/Android/iOS JS exports. Arabic catalog615, zero missing. Production native APK was inspected with actual Android tools; native call reproduction and Samsung acceptance remain tracked separately. No new migrations; no test submitted a real/demo trade. Remaining full01–18 program scope is unchanged.
+
+## S19 operating environment integration (2026-10-18)
+
+Branch: `feat/agent-operating-environment`, audited base `21293ad`. Source and kickoff committed in `429205e`. This extension is not merged into main and is not deployed. The original19 source bytes, Nanobot source study (pinned `faf1efaf09d2d69d1887b6ac6b0c6441e3ccccb2`), requirement rows S19-01…S19-88 and dependency graph are retained together.
+
+Completed shared repository work:
+
+- Actual safe ToolRegistry introspection: schema, side-effect/replay policy, scope, bounded result information and stable codes. No tool discovery grants authority.
+- Typed recovery observations and bounded route/attempt history in the existing fenced Run checkpoint. Ordinary safe read failures release the worker with a persisted deadline and stable pending call identity; the existing claimant admits the next attempt. Equivalent failure cannot reset its budget merely by changing a call ID.
+- Persisted in-flight intent before a handler starts. Only server-declared safe reads or inspected receipt-backed handlers may replay after worker death. Unknown unreceipted mutations and ambiguous financial outcomes are blocked; existing financial journal/reconciliation remains authoritative.
+- Actual bounded chart tool views, aligned candle/indicator tails and omission counts. Successful oversized effects preserve actual outcome/operation identity rather than becoming fake failures. Scripted runtime acceptance narrows oversized reads in the same request.
+- Task-owned market watches, verified broker recovery and timers wake the same logical Task/Run/checkpoint through the existing scheduler. Source observations and wake receipts deduplicate concurrent/replayed wakes; cancellation wins. Ready-source filtering prevents unrelated long waits from occupying the batch. Owner revisions return to the same work for revalidation.
+- Agent-scoped operational facts reuse existing tool events with contract hashes, source Run/time/cursor and bounded retrieval. Memory revision events distinguish server-observed owner writes, Agent-authored writes and legacy unknown authorship. These are mutable untrusted data and cannot modify financial policy.
+- Truthful waiting/recovery summaries reuse the existing live-state projection and Web/Expo status components/translations. Voice finalization, silence, disconnect/reconnect and steering use the same Agent, Thread and Task; no second voice runtime.
+- Actual concurrently running peer runtimes return success/failure to one active host, which inspects and closes exactly one synthesis. Existing collaboration and financial scope/regression suites are retained.
+
+Parallel work used safe boundaries: read-only Nanobot source study; continuity audit/new voice scenario; chart projections/new chart tests. Shared contracts and runtime integration had one owner. The code is native Lonora; no Nanobot implementation was copied.
+
+Acceptance is tracked in `S19_ACCEPTANCE.md`. Physical Android is `BLOCKED_EXTERNAL_NATIVE_ANDROID`: no native build/APK, microphone/device reconnect or Samsung hardware certification in this work. Browser/Expo Web and server-side voice tests do not replace that acceptance. No production migration, deployment, real/demo broker mutation or external notification was performed. No remote GitHub Actions success is claimed.
+
+Full specifications01–18 remain incomplete in their original matrix. Their advanced domain features are not invented or silently marked done by S19. The current remaining S19 boundary is physical/native and real-service acceptance, not another runtime or temporary in-memory implementation.
+
+Final financial review also freezes optional Goal step/attempt/plan identity before execution, repairs a committed receipt's still-approved card from its actual saved result, and keeps reconciliation on the original financial call identity. Legacy checkpoint replay is conservative unless a handler's old durable identity is explicitly proven. `check_goal_call_identity` and scripted old-checkpoint/renamed-call fault cases cover these boundaries. Final validation:199 pytest,26 isolated foundations plus11 PostgreSQL Task cases, Pyright0, lint/types, Web24, ExpoWeb8 and Node23. No new native build.

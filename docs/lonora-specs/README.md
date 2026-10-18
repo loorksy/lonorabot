@@ -2,7 +2,7 @@
 
 All 19 source documents are preserved verbatim under their original filenames. Numbers identify documents, not execution order. The appended in-chat activation/device authorization in 03 is authoritative. The master orchestration instructions govern the entire set.
 
-Base audited: `895eaa8`; integration branch: `feat/coherent-agent-foundations`. No merge into main is authorized for this program.
+Initial01–18 audit: `895eaa8` on `feat/coherent-agent-foundations` (historical). Current S19 extension: `feat/agent-operating-environment` from `21293ad`; no main merge is authorized for this new specification.
 
 | Reference | Domain |
 | --- | --- |
@@ -25,6 +25,8 @@ Base audited: `895eaa8`; integration branch: `feat/coherent-agent-foundations`. 
 | [17_BROKER_RECOVERY_AND_DEGRADED_MODE.md](17_BROKER_RECOVERY_AND_DEGRADED_MODE.md) | Reconciliation-first broker recovery and degraded behavior |
 | [18_UNIFIED_TRADING_UI_UX_AND_LIVE_AGENT_STATE.md](18_UNIFIED_TRADING_UI_UX_AND_LIVE_AGENT_STATE.md) | Shared authoritative live state and progressive Web/Mobile UI |
 
+| [19_AGENT_OPERATING_ENVIRONMENT_AND_SELF_DIRECTED_RUNTIME.md](19_AGENT_OPERATING_ENVIRONMENT_AND_SELF_DIRECTED_RUNTIME.md) | Persistent Agent environment, typed tool recovery, durable continuation and same-Agent voice |
+
 ## Implementation control
 
 - [Requirement matrix](IMPLEMENTATION_MATRIX.md): behavior, existing implementation, missing work, shared dependencies and verification evidence.
@@ -37,6 +39,5 @@ Additional authoritative review instruction: [Continue full implementation and f
 
 Implementation reference: [Signed device authorization and native public bindings](DEVICE_AUTHORIZATION.md).
 
-| [19_AGENT_OPERATING_ENVIRONMENT_AND_SELF_DIRECTED_RUNTIME.md](19_AGENT_OPERATING_ENVIRONMENT_AND_SELF_DIRECTED_RUNTIME.md) | Persistent Agent environment, typed tool recovery, durable continuation and same-Agent voice |
 
 S19 execution starts on `feat/agent-operating-environment` from `21293ad`; see [kickoff](S19_IMPLEMENTATION_KICKOFF.md). Earlier program branch/history entries above are historical, not authorization to merge this new specification.

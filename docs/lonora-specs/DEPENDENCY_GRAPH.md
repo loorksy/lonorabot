@@ -118,3 +118,33 @@ DB virtual-position/order projection serves both Market watches and Trading evid
 ## Automatic execution-boundary evidence
 
 Existing typed preflight snapshot + exact request → existing execution-quality policy/gate → server-owned planned/before-send snapshots in the same execution journal → immutable receipt/reconciliation merge → bounded exact-scope read/history tools → natural-language historical explanations. Shadow captures virtual targets with monetary profit unavailable; local cancellation records its actual virtual target without inventing a broker snapshot. Broker reconciliation may add an outcome, never replace original server evidence. Performance attribution consumes the same frozen Agent/Run origin, with legacy Run lookup only when needed. No second decision journal or broker read is introduced for replay.
+
+## S19 integrated operating environment (2026-10-18)
+
+```mermaid
+flowchart TD
+    Registry[Existing scoped ToolRegistry + actual schemas/effect contracts] --> Loop[Existing ToolLoop + typed observations]
+    Loop --> Checkpoint[Existing fenced Run checkpoint: attempts/inflight/backoff]
+    Checkpoint --> Claim[Existing Run claimant / resident Gateway]
+    Claim --> Loop
+    Loop --> Task[Existing logical Task + real step evidence]
+    Task --> Wait[Owned watch / verified broker recovery / timer wait]
+    Watch[Existing Market Watch engine + source dedup] --> Wait
+    Broker[Existing broker recovery + reconciliation] --> Wait
+    Wait --> Scheduler[Existing scheduler: same Run wake, no new engine]
+    Scheduler --> Claim
+    Loop --> Journal[Existing approvals, operation identity, execution journal]
+    Journal --> Broker
+    Loop --> Events[Existing durable events + truthful live state]
+    Events --> Memory[Bounded Agent-scoped operational history and authorship provenance]
+    Memory --> Context[Existing bounded context + selective skills + global router]
+    Context --> Loop
+    Voice[Final voice input / text / steering] --> Admission[Existing same Thread/Agent admission]
+    Admission --> Claim
+    Child[Existing child/peer outcomes + round receipts] --> Admission
+    Events --> Clients[Web / Expo / voice status]
+```
+
+One owner defined Tool/Registry/ToolLoop/Run contracts. Independent chart projections and continuity/reference audits consumed them. No second scheduler, wait engine, event store, memory database, voice Agent or provider router was introduced. Tool-scoped replay safety is declared only for inspected receipt/idempotency paths; an interrupted unreceipted mutation becomes uncertainty, never an automatic resend. A model changing its call ID cannot erase a route's failed/ambiguous observation.
+
+The current source matrix tracks all88 S19 sections. Backend/local acceptance and physical Android acceptance are separate; native building remains prohibited by the owner. Existing partial01–18 domain features retain their previous dependencies/status rather than being relabeled complete by this runtime extension.
