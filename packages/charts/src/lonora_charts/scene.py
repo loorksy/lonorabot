@@ -29,5 +29,11 @@ def chart_scene(state: ChartState, candles: list[Candle]) -> dict[str, Any]:
             }
             for i in state.indicators
         ],
-        "annotations": state.annotations,
+        "annotations": [
+            item
+            for item in state.annotations
+            if item.get("scope", {}).get("account_id", state.account_id) == state.account_id
+            and item.get("scope", {}).get("symbol", state.symbol) == state.symbol
+            and state.timeframe in item.get("timeframes", [state.timeframe])
+        ],
     }

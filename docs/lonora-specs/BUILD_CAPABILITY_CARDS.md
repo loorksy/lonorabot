@@ -50,3 +50,12 @@ Required next work: define internal result identity/retention and bounded readba
 - **Bounds:** per-arm 128 notes, 8 delivered items, 6000 delivered text characters, 1600/item; candidate/embedding/query truncation is explicit. An old semantic match outside the bounded candidate window can be omitted. Lowercase alphabetic symbols require explicit metadata to distinguish them from ordinary prose.
 - **Verification:** 32 unit cases plus independently repeated PostgreSQL retrieval fixture; scoped denial, peer isolation, fallback, source versions, edits/deletes and malformed/oversized vectors. No live provider quality benchmark.
 - **Open:** authorized conversation-neighbor retrieval, broader evaluation corpus, measured retrieval quality and evaluated memory adoption. This increment does not close full knowledge/learning requirements.
+
+## ENV-CHART-DRAW-01 — Durable typed drawing geometry
+
+- **Sources/dependencies:** C01–C11, existing ChartState/CloudChartRepository, scoped chart tools and optimistic chart versions. Reuse the same chart/runtime/event path; no new runtime, broker mutation or schema.
+- **Behavior:** legacy price/line/note formats remain valid. Time/price geometry adds price zones, rays, channels, Fibonacci levels, arrows and scenarios. `chart_annotate` supports an atomic add/update/delete batch with stable identities and bounded inert style metadata.
+- **Authority:** Agents stamp their own attributed layer and cannot overwrite owner/manual legacy drawings or another Agent's layer. Scope filtering preserves actual account, exact symbol and allowed timeframes. Owner REST remains owner authority. Scenarios are visual annotations, never orders/approvals.
+- **Persistence:** existing fenced transactions and chart row/version checks serialize updates. Invalid batches roll back. Duplicate stale commands fail with a version conflict without adding duplicate geometry; successful replay receipts are not yet implemented.
+- **Verification:** 39 focused Python cases; eight SQLite symbol/timeframe combinations; independently repeated PostgreSQL atomicity, concurrent-writer, identity and zero-order checks. The saved server SVG shares the same ten shape kinds.
+- **Open:** client rendering acceptance, durable command receipts, on-demand visual sessions and observed-image verification. Saved semantic geometry is not proof that a client displayed it.

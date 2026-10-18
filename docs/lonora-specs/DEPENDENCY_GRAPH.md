@@ -157,3 +157,13 @@ Baseline `80b0ff9`, branch `feat/trading-agent-environment`. The original graph 
 First dependency: existing model messages/tool contracts → shared bounded context selection → global catalog/policy per routed attempt → provider output limit → request/usage diagnostics → actual fallback and runtime recovery acceptance. Shared context selection belongs below both AgentRuntime and providers; providers must not import AgentRuntime.
 
 Next dependents: persisted result references → scoped evidence retrieval and Chart Use contracts; Skills versioning → evaluated learning; existing child outcome receipts → scoped visual workspaces and host synthesis; backend chart authority → TradingView renderer → on-demand visual sessions → truthful interaction. These remain planned until separately integrated and verified.
+# Current typed chart integration boundary
+
+Existing ChartState / scoped ToolContext / chart row version
+→ typed bounded geometry and protected Agent/manual layers
+→ persisted scene + saved SVG
+→ shared Web/Mobile renderer and exact scene acknowledgment
+→ on-demand server visual session / image observation (remaining)
+→ evidence-backed Agent drawing verification (remaining).
+
+These extend the existing chart runtime; no second chart database, gateway or trade executor is introduced. Client acknowledgments are presentation evidence and cannot authorize trading.

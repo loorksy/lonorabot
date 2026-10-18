@@ -208,9 +208,18 @@ async def test_edit_reads_full_current_state_and_bounds_only_tool_result(
     stub_inspection(monkeypatch, original, actor)
 
     async def update(
-        db: Any, brokers: Any, owner: str, chart_id: str, version: int, state: Any, *, lease: Any
+        db: Any,
+        brokers: Any,
+        owner: str,
+        chart_id: str,
+        version: int,
+        state: Any,
+        *,
+        lease: Any,
+        actor_agent_id: str,
     ):
         assert db is actor.db and brokers is actor.brokers and lease is actor.lease
+        assert actor_agent_id == actor.agent_id
         assert owner == "owner" and chart_id == "chart" and version == 4
         assert state.symbol == "XAUUSDm" and state.timeframe == "4h"
         assert state.annotations == original["chart"]["payload"]["annotations"]

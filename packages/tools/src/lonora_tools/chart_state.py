@@ -1,12 +1,14 @@
-from typing import Any
+from typing import Any, cast
 
 from lonora_charts.state import inspect_chart, update_chart
 from lonora_contracts.chart import ChartState, IndicatorSpec
 from lonora_contracts.domain import Contract
+from lonora_core.chart_annotations import protect_agent_annotations, validate_annotations
 from lonora_core.chart_indicator import validate_indicator
 from lonora_core.user_error import LonoraError
 from lonora_db.cloud_charts import CloudChartRepository
-from pydantic import Field
+from lonora_session.idempotency import stable_id
+from pydantic import Field, model_validator
 
 from .base import Tool
 from .context import ToolContext
@@ -56,10 +58,28 @@ class ReadIndicatorInput(ChartRefInput):
     tail: int = Field(default=20, ge=1, le=200)
 
 
+class DrawingOperation(Contract):
+    op: str = Field(pattern="^(add|update|delete)$")
+    id: str | None = Field(default=None, min_length=1, max_length=100)
+    annotation: dict[str, Any] | None = None
+
+
 class AnnotateInput(ChartEditInput):
-    annotation: dict[str, Any] = Field(
-        description="Semantic annotation, for example {type: 'price', price: 4000, label: 'Support'}. Supported formats are validated by the server."
+    annotation: dict[str, Any] | None = Field(
+        default=None, description="Legacy single drawing append. Use annotation OR operations."
     )
+    operations: list[DrawingOperation] | None = Field(
+        default=None,
+        min_length=1,
+        max_length=100,
+        description="Atomic drawing batch: add/update/delete by stable id. Update supplies full replacement geometry. Agent can edit only its own layer.",
+    )
+
+    @model_validator(mode="after")
+    def check_command(self) -> "AnnotateInput":
+        if (self.annotation is None) == (self.operations is None):
+            raise ValueError("provide_annotation_or_operations")
+        return self
 
 
 def bounded_inspection(
@@ -163,6 +183,7 @@ async def save(context: ToolContext, args: dict[str, Any], state: ChartState) ->
         args["version"],
         state,
         lease=context.lease,
+        actor_agent_id=context.agent_id,
     )
     return bounded_inspection(current)
 
@@ -239,9 +260,69 @@ async def read_indicator(context: ToolContext, args: dict[str, Any]) -> dict[str
     }
 
 
+def apply_drawing_operations(
+    state: ChartState, args: dict[str, Any], *, agent_id: str, chart_id: str, mutation_id: str
+) -> list[dict[str, Any]]:
+    previous = state.annotations
+    following: list[dict[str, Any]] = list(previous)
+    operations = args.get("operations")
+    if operations is None:
+        operations = [{"op": "add", "annotation": args["annotation"]}]
+    if not 1 <= len(operations) <= 100:
+        raise LonoraError("invalid_chart_annotation")
+    for index, operation in enumerate(operations):
+        op, identity = operation["op"], operation.get("id")
+        annotation = operation.get("annotation")
+        if op not in {"add", "update", "delete"} or (op != "add" and not identity):
+            raise LonoraError("invalid_chart_annotation")
+        existing = (
+            next((item for item in following if item.get("id") == identity), None)
+            if identity
+            else None
+        )
+        if op in {"update", "delete"} and existing is None:
+            raise LonoraError("chart_annotation_not_found", 404)
+        scope = {"account_id": state.account_id, "symbol": state.symbol, "chart_id": chart_id}
+        if existing is not None and existing.get("scope", scope) != scope:
+            raise LonoraError("chart_annotation_scope_mismatch", 409)
+        if op == "delete":
+            if annotation is not None:
+                raise LonoraError("invalid_chart_annotation")
+            following = [item for item in following if item is not existing]
+            continue
+        if not isinstance(annotation, dict):
+            raise LonoraError("invalid_chart_annotation")
+        annotation = cast(dict[str, Any], annotation)
+        identity = identity or annotation.get("id") or stable_id(mutation_id, str(index))
+        if annotation.get("id", identity) != identity:
+            raise LonoraError("invalid_chart_annotation")
+        if op == "add" and any(item.get("id") == identity for item in following):
+            raise LonoraError("chart_annotation_already_exists", 409)
+        normalized: dict[str, Any] = {
+            **annotation,
+            "id": identity,
+            "source": "agent",
+            "author_id": agent_id,
+            "scope": scope,
+        }
+        if op == "update":
+            following = [normalized if item is existing else item for item in following]
+        else:
+            following.append(normalized)
+    validate_annotations(following)
+    protect_agent_annotations(previous, following, agent_id)
+    return following
+
+
 async def annotate(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     state = await editable(context, args)
-    state.annotations = [*state.annotations, args["annotation"]]
+    state.annotations = apply_drawing_operations(
+        state,
+        args,
+        agent_id=context.agent_id,
+        chart_id=args["chart_id"],
+        mutation_id=context.resource_id,
+    )
     return await save(context, args, state)
 
 
@@ -294,7 +375,7 @@ def tools() -> list[Tool]:
         ),
         Tool(
             "chart_annotate",
-            "Append a validated semantic price/time annotation to an existing chart using its current version. An annotation is visual evidence, not an order or trading approval.",
+            "Append one drawing or atomically add/update/delete a batch of typed drawings using the inspected chart version. Types: price, horizontal_line, trend_line, note, price_zone, ray, channel, fibonacci, arrow, scenario. Geometry uses time/price anchors. Only this Agent’s attributed layer can be changed. An annotation is visual evidence, not an order or trading approval.",
             AnnotateInput,
             annotate,
         ),
