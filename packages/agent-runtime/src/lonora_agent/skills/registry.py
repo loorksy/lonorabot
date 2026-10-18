@@ -96,22 +96,24 @@ def installed_registry(
     installed: list[dict[str, Any]], known_tools: set[str]
 ) -> tuple[SkillRegistry, dict[str, str]]:
     definitions = built_in_skills()
+    builtin_ids = set(definitions)
     rejected: dict[str, str] = {}
     seen: set[str] = set()
     for payload in installed:
         try:
             skill = AgentSkill.model_validate(payload)
         except ValidationError:
-            rejected[str(payload.get("name", "invalid"))] = "skill_manifest_invalid"
+            identity = str(payload.get("name", "invalid"))
+            key = identity + "@installed" if identity in builtin_ids else identity
+            rejected[key] = "skill_manifest_invalid"
             continue
         if skill.name in seen:
             raise LonoraError("skill_duplicate_id", 409)
         seen.add(skill.name)
-        if not skill.enabled:
-            definitions.pop(skill.name, None)
+        if not skill.enabled and skill.name in builtin_ids:
             rejected[skill.name] = "skill_disabled"
             continue
-        if skill.name in definitions:
+        if skill.name in builtin_ids:
             rejected[skill.name + "@installed"] = "skill_builtin_override_denied"
             continue
         manifest = skill.manifest or SkillManifest(
@@ -124,6 +126,13 @@ def installed_registry(
             context_budget=4000,
             activation=SkillActivation(mode="explicit"),
         )
+        if manifest.id in definitions:
+            raise LonoraError("skill_duplicate_id", 409)
+        if not skill.enabled:
+            rejected[manifest.id] = "skill_disabled"
+        if not skill.content.strip():
+            rejected[manifest.id] = "skill_content_empty"
+            continue
         if set(manifest.required_tools) - known_tools:
             rejected[manifest.id] = "skill_tool_unknown"
             continue
@@ -131,10 +140,34 @@ def installed_registry(
             rejected[manifest.id] = "skill_capability_unknown"
             continue
         definitions[manifest.id] = SkillDefinition(manifest, skill.content)
-    # Disabled builtin dependencies stay represented for graph validation, then fail eligibility.
-    for identity, definition in built_in_skills().items():
-        if identity not in definitions and rejected.get(identity) == "skill_disabled":
-            definitions[identity] = definition
+
+    # Quarantine owner data without letting one malformed graph disable shipped Skills.
+    # Validate each installed root against the whole candidate graph before removing any,
+    # so cycles and transitive failures have order-independent diagnostics.
+    def graph_failure(identity: str, path: frozenset[str] = frozenset()) -> str | None:
+        if identity in path:
+            return "skill_dependency_cycle"
+        manifest = definitions[identity].manifest
+        if set(manifest.dependencies + manifest.conflicts) - definitions.keys():
+            return "skill_reference_missing"
+        if identity in manifest.conflicts:
+            return "skill_self_conflict"
+        for dependency in sorted(set(manifest.dependencies)):
+            if failure := graph_failure(dependency, path | {identity}):
+                return failure
+        return None
+
+    while True:
+        invalid = {
+            identity: failure
+            for identity in sorted(definitions.keys() - builtin_ids)
+            if (failure := graph_failure(identity))
+        }
+        if not invalid:
+            break
+        for identity, failure in invalid.items():
+            rejected[identity] = failure
+            definitions.pop(identity)
     return SkillRegistry(list(definitions.values()), known_tools), rejected
 
 

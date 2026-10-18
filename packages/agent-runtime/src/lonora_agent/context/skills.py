@@ -8,9 +8,10 @@ from lonora_tools.registry import ToolRegistry
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..skills.registry import built_in_skills, legacy_skill_id
-from ..skills.resolver import SkillSignals
-from ..skills.runtime import infer_intents, select_skill_context
+from ..skills.registry import built_in_skills, installed_registry, legacy_skill_id
+from ..skills.resolver import SkillSignals, resolve_skills
+from ..skills.runtime import infer_intents
+from ..skills.snapshot import apply_snapshot, read_snapshot, write_snapshot
 
 
 async def read_skill_context(
@@ -51,25 +52,31 @@ async def read_skill_context(
             select(CloudChartRow.id).where(CloudChartRow.agent_id == agent.id).limit(1)
         )
     )
-    available = {item.name for item in registry.definitions(read_only=run.trigger == "subagent")}
+    read_only = run.trigger == "subagent" or run.model_metadata.get("authority") == "observe_only"
+    available = {item.name for item in registry.definitions(read_only=read_only)}
     signals = SkillSignals(
         intents=infer_intents(text, has_goal=has_goal, trigger=run.trigger),
         trigger=run.trigger,
+        read_only=read_only,
         requested=frozenset(requested),
         available_tools=frozenset(available),
         has_market=bool(agent.trading_account_id),
         has_goal=has_goal,
         has_chart=has_chart,
     )
-    selection = select_skill_context(
-        [row.payload for row in rows], signals, {item.name for item in registry.definitions()}
-    )
+    known_tools = {item.name for item in registry.definitions()}
+    skills, rejected = installed_registry([row.payload for row in rows], known_tools)
+    snapshot = read_snapshot(run.model_metadata.get("skill_snapshot"))
+    skills = apply_snapshot(skills, rejected, snapshot, known_tools)
+    selection = resolve_skills(skills, signals, rejected=rejected)
+    snapshot_payload = write_snapshot(snapshot, selection)
     # Hold the run fence only for the metadata write, never while retrieving memory/context.
     async with context.db.sessions() as writer, writer.begin():
         locked = await require_lease(writer, context.lease, lock=True)
         locked.model_metadata = {
             **locked.model_metadata,
             "skill_selection": selection.diagnostics(),
+            "skill_snapshot": snapshot_payload,
         }
 
     return "<skill_runtime>\n" + selection.context() + "\n</skill_runtime>"

@@ -12,6 +12,7 @@ class SkillSignals:
     trigger: str = "user"
     requested: frozenset[str] = frozenset()
     available_tools: frozenset[str] = frozenset()
+    read_only: bool = False
     has_market: bool = False
     has_goal: bool = False
     has_chart: bool = False
@@ -35,7 +36,7 @@ class SkillSelection:
 
     def diagnostics(self) -> dict[str, Any]:
         return {
-            "resolver_version": "1.0.0",
+            "resolver_version": "1.1.0",
             "selected_skill_ids": [item.manifest.id for item in self.selected],
             "skill_versions": {item.manifest.id: item.manifest.version for item in self.selected},
             "skill_sources": {item.manifest.id: item.manifest.source for item in self.selected},
@@ -72,11 +73,11 @@ def resolve_skills(
         elif activation.triggers and signals.trigger in activation.triggers:
             candidates[identity] = "run_trigger:" + signals.trigger
     for unknown in signals.requested - registry.definitions.keys():
-        selection.rejected[unknown] = "skill_not_found"
+        selection.rejected.setdefault(unknown, "skill_not_found")
 
     def closure(identity: str) -> list[str]:
         result: list[str] = []
-        for dependency in registry.definitions[identity].manifest.dependencies:
+        for dependency in sorted(set(registry.definitions[identity].manifest.dependencies)):
             result.extend(item for item in closure(dependency) if item not in result)
         if identity not in result:
             result.append(identity)
@@ -86,6 +87,8 @@ def resolve_skills(
         if identity in selection.rejected:
             return selection.rejected[identity]
         manifest = registry.definitions[identity].manifest
+        if signals.read_only and manifest.risk_class != "read_only":
+            return "skill_scope_unavailable"
         if set(manifest.required_tools) - signals.available_tools:
             return "skill_required_tools_unavailable"
         for capability in manifest.required_capabilities:

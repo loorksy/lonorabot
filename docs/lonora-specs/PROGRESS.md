@@ -263,3 +263,10 @@ Findings fixed during integration: the first byte-only estimate over-rejected th
 Limits: unknown model capacity stays unknown; images and cross-provider tokenization remain labeled estimates. Real-provider calibration, full Wave 0 comparative benchmark, Docker image deployment, TradingView assets/Chart Use, client/native acceptance, and subsequent waves remain open. No APK, production deployment, real broker mutation, or migration was performed.
 
 Next integration: ENV-RESULT-01. Audit found that current generated-artifact auto-delivery would attach internal tool-result files unless explicitly distinguished; define that contract with retention, scope, and effect-safe recovery before implementing readback.
+
+
+## Parallel Wave — Skills Run Pinning (2026-10-18)
+
+User authorized parallel implementation and incremental GitHub pushes; root owns shared contracts, commits and integration. Skills owner delivered bounded current-Run manifest/content snapshots in existing metadata, deterministic dependency handling, quarantined invalid installed content/graphs, and observe-only selection enforcement. Review preserves existing tool and financial authority; refresh/restart retains selected content while current disable/removal/source changes remain authoritative.
+
+Owner evidence: 37 Skills cases passed against disposable PostgreSQL, focused Ruff and strict Pyright passed. Root repeated the focused Skills tests; exact counts in `.runtime/parallel-skills-root-review.log`. This is current-Run pinning only; cross-Run Task transfer, explicit per-version revocation, full initial source-eligibility audit, and evaluated adoption/rollback remain open. No migration, production deployment, APK build, or real broker mutation.
