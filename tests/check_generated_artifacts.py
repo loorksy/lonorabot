@@ -210,6 +210,48 @@ async def main() -> None:
         print(
             "PASS authenticated download is a decoded plotted PNG with saved indicators/annotations; anonymous download is denied"
         )
+        # The model may refer to an already delivered image without another tool call.
+        resent_run = await fixture.run(agent, thread)
+        resent_context = await fixture.lease(resent_run)
+        reference = "![chart](sandbox:/mnt/data/" + stored["payload"]["key"] + ")"
+        scripted.append(ModelReply(text="The saved chart.\n" + reference))
+        with patch("lonora_agent.tool_loop.model_turn", model):
+            await execute_run(resent_context, registry, 90, 8)
+        async with fixture.runtime.db.sessions() as session:
+            row = await session.get(RunRow, resent_run["id"])
+            assert row is not None
+            message = await session.get(MessageRow, row.model_metadata["result_message_id"])
+            assert message is not None
+            assert message.attachment_ids == [stored["id"]]
+            assert message.content == row.result == "The saved chart."
+            artifact = await session.get(ArtifactRow, stored["id"])
+            assert artifact is not None
+            assert artifact.state["delivered_message_id"] == assistant["id"]
+        # Wrong storage keys, code examples and other threads cannot grant attachment access.
+        for content, other_thread in [
+            (reference.replace(".png", "-wrong.png"), False),
+            ("`" + reference + "`", False),
+            (reference, True),
+        ]:
+            target = (
+                await fixture.request(
+                    "POST", "/threads", {"agent_id": agent["id"], "title": "Separate scope"}
+                )
+                if other_thread
+                else thread
+            )
+            denied_context = await fixture.lease(await fixture.run(agent, target))
+            async with fixture.runtime.db.sessions() as session, session.begin():
+                assert await complete_run(session, denied_context.lease, content, {})
+                row = await session.get(RunRow, denied_context.lease.run_id)
+                assert row is not None
+                message = await session.get(MessageRow, row.model_metadata["result_message_id"])
+                assert message is not None and message.attachment_ids == []
+                assert message.content == content
+        print(
+            "PASS re-sent local image becomes a real attachment; original receipt and scope/code boundaries survive"
+        )
+
         # Reproduce a pre-fix completed message. Recorded effects remain intact,
         # but generated attribution and assistant attachment IDs never existed.
         async with fixture.runtime.db.sessions() as session, session.begin():

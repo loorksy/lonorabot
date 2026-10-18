@@ -4,7 +4,7 @@ import logging
 from lonora_contracts.domain import utcnow
 from lonora_core.user_error import LonoraError
 from lonora_db.events import emit
-from lonora_db.generated_artifacts import link_generated_artifacts, pending_generated_artifacts
+from lonora_db.generated_artifacts import link_generated_artifacts, resolve_reply_artifacts
 from lonora_db.runs import complete_run, fail_run, locked_run_thread, renew_lease, require_lease
 from lonora_db.schema import MessageRow, SteeringRow, TradeApprovalRow
 from lonora_db.streaming import settle_stream, stream_identity
@@ -93,22 +93,22 @@ async def execute_run(
                     if outstanding:
                         continue
                     if thread and outcome.text:
+                        answer, artifacts = await resolve_reply_artifacts(
+                            session, context.owner_id, row, outcome.text
+                        )
                         message = MessageRow(
                             thread_id=thread.id,
                             agent_id=context.agent_id,
                             seq=thread.next_seq,
                             role="assistant",
-                            content=outcome.text,
+                            content=answer,
                         )
                         thread.next_seq += 1
                         session.add(message)
                         await session.flush()
-                        artifacts = await pending_generated_artifacts(
-                            session, context.owner_id, row
-                        )
                         link_generated_artifacts(message, artifacts)
                         snapshot = settle_stream(
-                            row, "committed", message_id=message.id, text=outcome.text
+                            row, "committed", message_id=message.id, text=answer
                         )
                         if snapshot:
                             emit(

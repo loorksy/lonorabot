@@ -9,7 +9,7 @@ from sqlalchemy import and_, exists, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .events import emit
-from .generated_artifacts import link_generated_artifacts, pending_generated_artifacts
+from .generated_artifacts import link_generated_artifacts, resolve_reply_artifacts
 from .schema import AgentRow, GroupRow, MessageRow, RunRow, SteeringRow, ThreadRow
 from .streaming import STREAM_KEY, settle_stream, stream_data, stream_identity
 from .transactions import owned_agent, owned_thread
@@ -212,7 +212,7 @@ async def complete_run(
     assert_transition(row.status, "completed")
     final_message_id: str | None = None
     final_message: MessageRow | None = None
-    artifacts = await pending_generated_artifacts(session, thread.owner_id, row)
+    answer, artifacts = await resolve_reply_artifacts(session, thread.owner_id, row, answer)
     if (answer or artifacts) and row.trigger != "tickets":
         message = MessageRow(
             thread_id=thread.id,

@@ -245,7 +245,7 @@ test("Expo profile, routines, groups and authenticated artifacts use the persist
     await expect(
       page.getByText("Here is the saved XAUUSD chart image.", { exact: true }),
     ).toBeVisible();
-    const image = page.getByRole("img", { name: "XAUUSD.png", exact: true });
+    const image = page.getByRole("img", { name: "XAUUSD.png", exact: true }).last();
     await expect(image).toBeVisible();
     await expect
       .poll(() =>

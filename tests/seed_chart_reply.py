@@ -108,7 +108,7 @@ async def fixture_data(data: dict[str, Any]) -> dict[str, Any]:
                     )
                 ]
             ),
-            ModelReply(text="Here is the saved XAUUSD chart image."),
+            ModelReply(text="Original generated chart image."),
         ]
 
         async def model(*args: Any):
@@ -120,10 +120,29 @@ async def fixture_data(data: dict[str, Any]) -> dict[str, Any]:
         with patch("lonora_agent.tool_loop.model_turn", model):
             await execute_run(context, registry, 90, 8)
         async with fixture.runtime.db.sessions() as session:
-            message = await session.scalar(
+            first = await session.scalar(
                 select(MessageRow).where(
                     MessageRow.thread_id == thread["id"], MessageRow.role == "assistant"
                 )
+            )
+            assert first is not None
+            original_file = await fixture.request("GET", "/artifacts/" + first.attachment_ids[0])
+        context = await fixture.lease(await fixture.run(agent, thread))
+        scripted.append(
+            ModelReply(
+                text="Here is the saved XAUUSD chart image.\n![chart](sandbox:/mnt/data/"
+                + original_file["payload"]["key"]
+                + ")"
+            )
+        )
+        with patch("lonora_agent.tool_loop.model_turn", model):
+            await execute_run(context, registry, 90, 8)
+        async with fixture.runtime.db.sessions() as session:
+            message = await session.scalar(
+                select(MessageRow)
+                .where(MessageRow.thread_id == thread["id"], MessageRow.role == "assistant")
+                .order_by(MessageRow.seq.desc())
+                .limit(1)
             )
             assert message is not None and len(message.attachment_ids) == 1
             artifact = await fixture.request("GET", "/artifacts/" + message.attachment_ids[0])
