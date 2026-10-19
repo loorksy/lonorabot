@@ -1,3 +1,4 @@
+import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
 import { useState } from "react";
 import type { ChartState } from "../../lib/charts";
@@ -59,7 +60,25 @@ export function ChartAnnotations({
           key={String(a.id ?? JSON.stringify(a))}
           onClick={() => onChange(annotations.filter((_, n) => n !== i))}
         >
-          {String(a.label)} · {String(a.price)} ×
+          {String(
+            a.label ??
+              a.text ??
+              {
+                price: t`Price level`,
+                horizontal_line: t`Price level`,
+                trend_line: t`Trend line`,
+                note: t`Note`,
+                price_zone: t`Price zone`,
+                ray: t`Ray`,
+                channel: t`Channel`,
+                fibonacci: t`Fibonacci`,
+                arrow: t`Arrow`,
+                scenario: t`Scenario`,
+              }[String(a.type)] ??
+              a.type,
+          )}
+          {a.price != null && <span dir="ltr"> · {String(a.price)}</span>} ·{" "}
+          {a.source === "agent" ? <Trans>Agent</Trans> : <Trans>You</Trans>} ×
         </button>
       ))}
     </details>

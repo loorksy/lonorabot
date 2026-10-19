@@ -47,7 +47,9 @@ test("market reads a persistent cloud scene and edits the same chart without cre
     await expect(chart.getByRole("combobox", { name: "Timeframe", exact: true })).toHaveValue(
       "15m",
     );
-    await expect(chart.locator("canvas").first()).toBeVisible();
+    await expect(
+      chart.frameLocator(".chart-renderer iframe").locator("canvas").first(),
+    ).toBeVisible();
     const initialVersion = Number(await chart.getAttribute("data-chart-scene-version"));
     expect(initialVersion).toBeGreaterThan(0);
     const change = page.waitForResponse(
@@ -64,7 +66,9 @@ test("market reads a persistent cloud scene and edits the same chart without cre
       .toBeGreaterThan(initialVersion);
     await selectMarket();
     await expect(chart.getByRole("combobox", { name: "Timeframe", exact: true })).toHaveValue("1h");
-    await expect(chart.locator("canvas").first()).toBeVisible();
+    await expect(
+      chart.frameLocator(".chart-renderer iframe").locator("canvas").first(),
+    ).toBeVisible();
     expect(writes).toHaveLength(0);
     expect(candleReads).toHaveLength(0);
     expect(errors).toEqual([]);
@@ -111,13 +115,17 @@ test("opening an empty instrument creates exactly one chart through an explicit 
     data.chart = (await response.json()).id;
     fixture({ ...data, action: "refresh" });
     const chart = page.locator(`[data-chart-id='${data.chart}']`);
-    await expect(chart.locator("canvas").first()).toBeVisible();
+    await expect(
+      chart.frameLocator(".chart-renderer iframe").locator("canvas").first(),
+    ).toBeVisible();
     await page.reload();
     await page
       .getByRole("combobox", { name: "Broker account", exact: true })
       .selectOption(data.account);
     await page.getByLabel("Exact broker symbol", { exact: true }).selectOption(data.symbol);
-    await expect(chart.locator("canvas").first()).toBeVisible();
+    await expect(
+      chart.frameLocator(".chart-renderer iframe").locator("canvas").first(),
+    ).toBeVisible();
     expect(creates).toBe(1);
   } finally {
     fixture({ ...data, action: "cleanup" });
@@ -154,7 +162,9 @@ test("resident live OHLC updates the selected chart through SSE without catalog 
       .selectOption(data.account);
     await page.getByLabel("Exact broker symbol", { exact: true }).selectOption(data.symbol);
     const chart = page.locator(`[data-chart-id='${data.chart}']`);
-    await expect(chart.locator("canvas").first()).toBeVisible();
+    await expect(
+      chart.frameLocator(".chart-renderer iframe").locator("canvas").first(),
+    ).toBeVisible();
     const initial = Number(await chart.getAttribute("data-chart-scene-version"));
     expect(initial).toBeGreaterThan(0);
     const before = await chart.locator(".chart-renderer").screenshot();
@@ -177,7 +187,9 @@ test("resident live OHLC updates the selected chart through SSE without catalog 
       .getByRole("combobox", { name: "Broker account", exact: true })
       .selectOption(data.account);
     await page.getByLabel("Exact broker symbol", { exact: true }).selectOption(data.symbol);
-    await expect(chart.locator("canvas").first()).toBeVisible();
+    await expect(
+      chart.frameLocator(".chart-renderer iframe").locator("canvas").first(),
+    ).toBeVisible();
     await expect
       .poll(async () => Number(await chart.getAttribute("data-chart-scene-version")))
       .toBeGreaterThanOrEqual(published.scene_version);

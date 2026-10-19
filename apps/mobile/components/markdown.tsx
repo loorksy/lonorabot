@@ -4,20 +4,22 @@ import { Linking, Platform, Text, View } from "react-native";
 import { useSession } from "../lib/session";
 import { colors } from "./ui";
 
-function Inline({ value }: { value: string }) {
+function Inline({ value, onChartLink }: { value: string; onChartLink?: (url: string) => boolean }) {
   return (
     <>
       {value
-        .split(/(\*\*[^*]+\*\*|`[^`]+`|\[[^\]]+\]\(https?:\/\/[^\s)]+\))/g)
+        .split(/(\*\*[^*]+\*\*|`[^`]+`|\[[^\]]+\]\((?:https?:\/\/|\/charts\?)[^\s)]+\))/g)
         .map((part, index) => {
-          const link = /^\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)$/.exec(part);
+          const link = /^\[([^\]]+)\]\(((?:https?:\/\/|\/charts\?)[^\s)]+)\)$/.exec(part);
           if (link)
             return (
               <Text
                 key={index}
                 accessibilityRole="link"
                 style={{ color: colors.link }}
-                onPress={() => void Linking.openURL(link[2]).catch(() => undefined)}
+                onPress={() => {
+                  if (!onChartLink?.(link[2])) void Linking.openURL(link[2]).catch(() => undefined);
+                }}
               >
                 {link[1]}
               </Text>
@@ -46,7 +48,13 @@ function Inline({ value }: { value: string }) {
     </>
   );
 }
-export function Markdown({ content }: { content: string }) {
+export function Markdown({
+  content,
+  onChartLink,
+}: {
+  content: string;
+  onChartLink?: (url: string) => boolean;
+}) {
   const { rtl } = useSession();
   const blocks = content.split(/(```[^\n]*\n[\s\S]*?```)/g).filter(Boolean);
   return (
@@ -98,7 +106,7 @@ export function Markdown({ content }: { content: string }) {
                       textAlign: rtl ? "right" : "left",
                     }}
                   >
-                    <Inline value={value} />
+                    <Inline value={value} onChartLink={onChartLink} />
                   </Text>
                 );
               })}

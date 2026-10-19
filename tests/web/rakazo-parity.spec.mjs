@@ -76,7 +76,13 @@ test("conversation shows safe generated SVG, cloud chart side panel and persiste
     );
     await page.getByRole("button", { name: "Charts", exact: true }).click();
     const panel = page.getByTestId("side-panel");
-    await expect(panel.locator(`[data-chart-id='${data.chart}'] canvas`).first()).toBeVisible();
+    await expect(
+      panel
+        .locator(`[data-chart-id='${data.chart}']`)
+        .frameLocator(".chart-renderer iframe")
+        .locator("canvas")
+        .first(),
+    ).toBeVisible();
     await image.evaluate((element) => element.decode());
     await image.screenshot({ path: ".runtime/rakazo-parity/svg-isolated.png" });
     await page.evaluate(

@@ -271,14 +271,28 @@ test("Expo profile, routines, groups and authenticated artifacts use the persist
     await page.screenshot({ path: ".runtime/rakazo-parity/mobile-chat-image.png" });
     await page.getByRole("button", { name: "إجراءات الوكيل", exact: true }).click();
     await page.getByRole("button", { name: "الرسوم البيانية", exact: true }).click();
-    await expect(page.getByRole("img", { name: "XAUUSD · 1h", exact: true })).toBeVisible();
+    const chartFrame = page.frameLocator('iframe[title="XAUUSD · 1h"]');
+    const renderer = chartFrame.locator('[data-renderer="tradingview"]');
+    await expect(renderer).toBeVisible();
     await expect(page.getByRole("menu")).not.toBeVisible();
-    await expect(page.getByText("RSI 14", { exact: true })).toBeVisible();
-    await expect(page.getByText("Fixture support", { exact: true })).toBeVisible();
+    await expect(
+      chartFrame.frameLocator("iframe").getByText("Lonora rsi 14 (1)", { exact: true }),
+    ).toBeVisible();
     const scene = await (
       await context.request.get(`/api/charts/${chartFixture.chart_id}/scene`)
     ).json();
     expect(scene.candles).toHaveLength(20);
+    expect(scene.annotations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: "price", price: 110, label: "Fixture support" }),
+      ]),
+    );
+    // The renderer acknowledges this exact scene only after study creation and
+    // all saved drawing promises complete; labels themselves live on a canvas.
+    await expect(renderer).toHaveAttribute(
+      "data-applied-scene-version",
+      String(scene.scene_version),
+    );
     await page.screenshot({ path: ".runtime/rakazo-parity/mobile-chart.png" });
     const refreshed = page.waitForResponse(
       (response) =>

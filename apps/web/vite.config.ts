@@ -15,5 +15,9 @@ export default defineConfig({
       "/ready": "http://127.0.0.1:8000",
     },
   },
-  build: { outDir: "dist" },
+  build: {
+    outDir: "dist",
+    assetsDir: "chart-runtime/assets",
+    rollupOptions: { input: { app: "index.html", renderer: "chart-runtime/index.html" } },
+  },
 });

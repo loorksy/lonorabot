@@ -8,6 +8,7 @@ from fastapi.responses import FileResponse
 from lonora_core.user_error import LonoraError
 from lonora_security.runtime_storage import confined_path
 
+from .chart_renderer import install_chart_renderer
 from .env import Settings, get_settings
 from .errors import install_errors
 from .health import router as health_router
@@ -128,6 +129,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             headers={"Cache-Control": "no-cache", "X-Content-Type-Options": "nosniff"},
         )
 
+    install_chart_renderer(app, configuration.chart_renderer_root or configuration.web_root)
     build = configuration.web_root.resolve()
     if build.is_dir():
 

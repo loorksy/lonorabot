@@ -4,8 +4,10 @@ PostgreSQL mode uses imported simulation candles only; neither mode submits orde
 """
 
 import asyncio
+from typing import Any, cast
 from unittest.mock import patch
 
+from lonora_adapters.brokers.base import BrokerManager
 from lonora_charts.state import update_chart
 from lonora_contracts.chart import ChartState
 from lonora_core.user_error import LonoraError
@@ -16,7 +18,7 @@ from lonora_tools.chart_state import apply_drawing_operations
 from sqlalchemy import func, select
 
 
-async def main():
+async def main() -> None:
     db = Database.connect("sqlite+aiosqlite:///:memory:")
     repository = CloudChartRepository()
     try:
@@ -27,7 +29,7 @@ async def main():
                 OwnerRow(id="owner", email="isolated@example.invalid", password_hash="unused")
             )
             session.add(BrokerSessionRow(id="account", owner_id="owner", payload={}))
-        charts = []
+        charts: list[tuple[str, ChartState]] = []
         for symbol in ("EURUSDm", "XAUUSDm", "BTCUSD#", "US500.cash"):
             for timeframe in ("15m", "1h"):
                 state = ChartState(
@@ -41,9 +43,11 @@ async def main():
                     charts.append((row.id, state))
 
         # Keep real transaction/update/inspection, replacing only the broker refresh.
-        async def refresh(*args, **kwargs):
+        async def refresh(*args: Any, **kwargs: Any) -> None:
             return None
 
+        # The broker parameter is never accessed: refresh is the isolated seam.
+        unused_brokers = cast(BrokerManager, object())
         with patch("lonora_charts.state.refresh_chart", refresh):
             for chart_id, state in charts:
                 state.annotations = apply_drawing_operations(
@@ -67,13 +71,13 @@ async def main():
                     mutation_id=chart_id,
                 )
                 saved = await update_chart(
-                    db, None, "owner", chart_id, 1, state, actor_agent_id="agent"
+                    db, unused_brokers, "owner", chart_id, 1, state, actor_agent_id="agent"
                 )
                 assert saved["chart"]["version"] == 2
                 assert saved["chart"]["payload"]["annotations"] == state.annotations
                 try:
                     await update_chart(
-                        db, None, "owner", chart_id, 1, state, actor_agent_id="agent"
+                        db, unused_brokers, "owner", chart_id, 1, state, actor_agent_id="agent"
                     )
                     raise AssertionError("stale mutation accepted")
                 except LonoraError as error:
@@ -82,14 +86,20 @@ async def main():
                 tampered.annotations = tampered.annotations[1:]
                 try:
                     await update_chart(
-                        db, None, "owner", chart_id, 2, tampered, actor_agent_id="agent"
+                        db, unused_brokers, "owner", chart_id, 2, tampered, actor_agent_id="agent"
                     )
                     raise AssertionError("manual annotation removed")
                 except LonoraError as error:
                     assert error.code == "chart_annotation_forbidden"
                 try:
                     await update_chart(
-                        db, None, "other-owner", chart_id, 2, state, actor_agent_id="agent"
+                        db,
+                        unused_brokers,
+                        "other-owner",
+                        chart_id,
+                        2,
+                        state,
+                        actor_agent_id="agent",
                     )
                     raise AssertionError("cross-owner mutation accepted")
                 except LonoraError as error:
@@ -118,7 +128,7 @@ async def main():
         await db.close()
 
 
-async def postgres_commands():
+async def postgres_commands() -> None:
     """Exercise native commands/effects and competing PG writers in a disposable DB."""
     from datetime import UTC, datetime, timedelta
     from uuid import uuid4
@@ -165,7 +175,7 @@ async def postgres_commands():
         )
         registry = load_tools()
 
-        async def command(args, identity=None):
+        async def command(args: dict[str, Any], identity: str | None = None) -> dict[str, Any]:
             return await registry.execute(
                 ToolCall(id=identity or uuid4().hex, name="chart_annotate", arguments=args), actor
             )

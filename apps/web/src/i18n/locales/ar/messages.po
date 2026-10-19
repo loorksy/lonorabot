@@ -2781,3 +2781,60 @@ msgstr "لا يمكن حذف مساعدك الشخصي."
 #: src/pages/Shell.tsx:771
 msgid "Your team starts here"
 msgstr "فريقك يبدأ من هنا"
+
+msgid "Follow live"
+msgstr "متابعة السعر المباشر"
+
+msgid "Chart could not be displayed."
+msgstr "تعذّر عرض الشارت."
+
+msgid "Indicators and drawings"
+msgstr "المؤشرات والرسومات"
+
+msgid "Resize chart"
+msgstr "تغيير حجم الشارت"
+
+msgid "Collapse chart"
+msgstr "تصغير الشارت"
+
+msgid "Expand chart"
+msgstr "توسيع الشارت"
+
+msgid "Close chart"
+msgstr "إغلاق الشارت"
+
+msgid "Show Agent analysis"
+msgstr "عرض تحليل الوكيل"
+
+msgid "Free Browse"
+msgstr "تصفح حر"
+
+msgid "Follow Agent"
+msgstr "متابعة الوكيل"
+
+msgid "Trend line"
+msgstr "خط اتجاه"
+
+msgid "Note"
+msgstr "ملاحظة"
+
+msgid "Price zone"
+msgstr "منطقة سعرية"
+
+msgid "Ray"
+msgstr "شعاع"
+
+msgid "Channel"
+msgstr "قناة"
+
+msgid "Fibonacci"
+msgstr "فيبوناتشي"
+
+msgid "Arrow"
+msgstr "سهم"
+
+msgid "Scenario"
+msgstr "سيناريو"
+
+msgid "Chart appearance could not be updated."
+msgstr "تعذّر تحديث مظهر الشارت."

@@ -580,3 +580,88 @@ body {
   font-weight: 700;
   color: var(--text);
 }
+
+/* One renderer is shared by the product, native hosts, and scoped observation hosts. */
+.trading-chart-surface {
+  position: relative;
+  min-height: 300px;
+  height: 420px;
+}
+.trading-chart-surface .chart-renderer {
+  height: 100%;
+  width: 100%;
+  min-height: 300px;
+}
+.chart-view-controls {
+  position: absolute;
+  inset-inline-end: 12px;
+  bottom: 34px;
+  display: flex;
+  gap: 4px;
+}
+.chart-view-controls button {
+  font-size: 0.7rem;
+  padding: 4px 6px;
+}
+.chart-render-bridge {
+  position: fixed;
+  inset: 0;
+  background: var(--card);
+}
+.chart-render-bridge .trading-chart-surface {
+  height: 100%;
+}
+.chart-workspace details > summary {
+  cursor: pointer;
+  padding-block: 8px;
+}
+
+.chart-sheet-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px 8px;
+  flex-wrap: wrap;
+}
+.chart-sheet-controls button {
+  font-size: 0.8rem;
+}
+.chart-sheet-handle {
+  flex-basis: 100%;
+  display: flex;
+  justify-content: center;
+  padding: 12px;
+  touch-action: none;
+  background: transparent;
+  border: 0;
+}
+.chart-sheet-handle span {
+  width: 40px;
+  height: 4px;
+  background: var(--muted-foreground);
+  border-radius: 4px;
+}
+.tpl-context-panel[data-panel="charts"][data-overlay="true"] {
+  inset-block-start: auto;
+  inset-block-end: 0;
+  inset-inline: 0;
+  width: 100%;
+  height: min(72dvh, var(--chart-viewport-height, 72dvh));
+  max-height: var(--chart-viewport-height, 100dvh);
+  border-radius: 18px 18px 0 0;
+  padding-bottom: env(safe-area-inset-bottom);
+  transition: height 0.18s ease;
+}
+.tpl-context-panel[data-panel="charts"][data-overlay="true"][data-chart-expanded="true"] {
+  height: var(--chart-viewport-height, 100dvh);
+  border-radius: 0;
+}
+.tpl-context-panel[data-panel="charts"] .conversation-charts {
+  overflow-y: auto;
+  min-height: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tpl-context-panel[data-panel="charts"] {
+    transition: none;
+  }
+}

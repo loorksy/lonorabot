@@ -4,7 +4,7 @@ import { Redirect, useFocusEffect, useLocalSearchParams, useRouter } from "expo-
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AppState, ScrollView, Text, View } from "react-native";
 import { ActionMenu } from "../components/action-menu";
-import { CandlestickChart } from "../components/candlestick-chart";
+import { ChartRenderer } from "../components/chart-renderer";
 import { HeaderButton } from "../components/header-button";
 import { NativeSymbol } from "../components/native-symbol";
 import { SettingsGroup, SettingsRow } from "../components/settings-group";
@@ -24,10 +24,33 @@ import {
 import { useSession } from "../lib/session";
 
 type Connection = Resource<{ account_id: string; provider: string; enabled: boolean }>;
+export type ChartWorkspaceProps = {
+  threadId?: string;
+  botId?: string;
+  chartId?: string;
+  embedded?: boolean;
+  onEscape?: () => void;
+};
 export default function Charts() {
-  const { threadId, botId } = useLocalSearchParams<{ threadId?: string; botId?: string }>();
+  const params = useLocalSearchParams<{ threadId?: string; botId?: string; chartId?: string }>();
+  return (
+    <ChartWorkspace
+      key={`${params.threadId ?? ""}:${params.botId ?? ""}:${params.chartId ?? ""}`}
+      {...params}
+    />
+  );
+}
+export function ChartWorkspace({
+  threadId,
+  botId,
+  chartId,
+  embedded = false,
+  onEscape,
+}: ChartWorkspaceProps) {
   const { ready, owner, server, rtl, locale, t, errorText } = useSession();
   const router = useRouter();
+  const labelsRef = useRef({ t, errorText });
+  labelsRef.current = { t, errorText };
   const [agent, setAgent] = useState<Agent | null>(null);
   useEffect(() => {
     setAgent(null);
@@ -39,12 +62,12 @@ export default function Charts() {
         if (live) setAgent(row);
       })
       .catch((reason) => {
-        if (live) setError(errorText(reason));
+        if (live) setError(labelsRef.current.errorText(reason));
       });
     return () => {
       live = false;
     };
-  }, [botId, owner, errorText]);
+  }, [botId, owner]);
   const [charts, setCharts] = useState<Chart[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [scene, setScene] = useState<ChartScene | null>(null);
@@ -75,9 +98,13 @@ export default function Charts() {
                 (!row.agent_id || row.agent_id === agent.id)),
           );
     setCharts(rows);
-    setSelected((old) => (old && rows.some((row) => row.id === old) ? old : (rows[0]?.id ?? null)));
+    setSelected((old) =>
+      old && rows.some((row) => row.id === old)
+        ? old
+        : (rows.find((row) => row.id === chartId)?.id ?? rows[0]?.id ?? null),
+    );
     setLoading(false);
-  }, [threadId, botId, agent]);
+  }, [threadId, botId, agent, chartId]);
   useFocusEffect(
     useCallback(() => {
       if (!owner) return;
@@ -88,7 +115,7 @@ export default function Charts() {
           if (AppState.currentState === "active") await load();
         } catch (reason) {
           if (live) {
-            setError(errorText(reason));
+            setError(labelsRef.current.errorText(reason));
             setLoading(false);
           }
         }
@@ -99,7 +126,7 @@ export default function Charts() {
         live = false;
         clearTimeout(timer);
       };
-    }, [owner, load, errorText]),
+    }, [owner, load]),
   );
   useEffect(() => {
     setScene(null);
@@ -128,8 +155,8 @@ export default function Charts() {
         if (live)
           setError(
             reason instanceof ApiError && reason.code === "chart_initializing"
-              ? t("chartInitializing")
-              : errorText(reason),
+              ? labelsRef.current.t("chartInitializing")
+              : labelsRef.current.errorText(reason),
           );
       } finally {
         pending = false;
@@ -154,7 +181,7 @@ export default function Charts() {
       state.remove();
       if (sceneRefresh.current === request) sceneRefresh.current = null;
     };
-  }, [selected, owner, errorText, t]);
+  }, [selected, owner]);
   useEffect(() => {
     if (!owner || !server) return;
     return subscribeChartEvents(
@@ -163,7 +190,7 @@ export default function Charts() {
         if (event.kind === "cloud_charts.scene_updated") {
           if (event.payload.id === selectedRef.current) sceneRefresh.current?.();
         } else if (event.kind.startsWith("cloud_charts.")) {
-          void load().catch((reason) => setError(errorText(reason)));
+          void load().catch((reason) => setError(labelsRef.current.errorText(reason)));
         } else if (event.kind === "broker_identity.updated") {
           connectionRefresh.current?.();
         }
@@ -171,10 +198,10 @@ export default function Charts() {
       () => {
         sceneRefresh.current?.();
         connectionRefresh.current?.();
-        void load().catch((reason) => setError(errorText(reason)));
+        void load().catch((reason) => setError(labelsRef.current.errorText(reason)));
       },
     );
-  }, [owner, server, load, errorText]);
+  }, [owner, server, load]);
   useEffect(() => {
     if (!creating || !owner) return;
     let live = true;
@@ -195,7 +222,7 @@ export default function Charts() {
           }
         })
         .catch((reason) => {
-          if (live) setError(errorText(reason));
+          if (live) setError(labelsRef.current.errorText(reason));
         });
     };
     connectionRefresh.current = refresh;
@@ -204,7 +231,7 @@ export default function Charts() {
       live = false;
       if (connectionRefresh.current === refresh) connectionRefresh.current = null;
     };
-  }, [creating, owner, errorText, agent?.trading_account_id]);
+  }, [creating, owner, agent?.trading_account_id]);
   useEffect(() => {
     setSymbols([]);
     setSymbol("");
@@ -222,12 +249,12 @@ export default function Charts() {
         }
       })
       .catch((reason) => {
-        if (live) setError(errorText(reason));
+        if (live) setError(labelsRef.current.errorText(reason));
       });
     return () => {
       live = false;
     };
-  }, [account, creating, errorText, agent?.trading_symbol]);
+  }, [account, creating, agent?.trading_symbol]);
   const create = async () => {
     if (!account || !symbol || busy) return;
     setBusy(true);
@@ -242,25 +269,28 @@ export default function Charts() {
       setSelected(chart.id);
       setCreating(false);
     } catch (reason) {
-      setError(errorText(reason));
+      setError(labelsRef.current.errorText(reason));
     } finally {
       setBusy(false);
     }
   };
   if (!ready) return <Loading />;
   if (!owner) return <Redirect href="/sign-in" />;
+  const Container = embedded ? EmbeddedWorkspace : Screen;
   const current = charts.find((row) => row.id === selected);
   const connectionIndex = connections.findIndex((row) => row.id === account);
   const connection = connections[connectionIndex];
   return (
-    <Screen>
-      <SheetHeader
-        title={t("charts")}
-        action={creating ? t("save") : undefined}
-        onAction={creating ? () => void create() : undefined}
-        disabled={busy || !account || !symbol || Boolean(botId && !agent)}
-        onClose={creating ? () => setCreating(false) : undefined}
-      />
+    <Container>
+      {(!embedded || creating) && (
+        <SheetHeader
+          title={t("charts")}
+          action={creating ? t("save") : undefined}
+          onAction={creating ? () => void create() : undefined}
+          disabled={busy || !account || !symbol || Boolean(botId && !agent)}
+          onClose={creating ? () => setCreating(false) : undefined}
+        />
+      )}
       <ErrorNotice text={error} />
       {creating ? (
         <ScrollView contentContainerStyle={{ padding: 20, gap: 20 }}>
@@ -349,7 +379,7 @@ export default function Charts() {
                   onPress={() => {
                     setBusy(true);
                     void requestRefresh(current.id)
-                      .catch((reason) => setError(errorText(reason)))
+                      .catch((reason) => setError(labelsRef.current.errorText(reason)))
                       .finally(() => setBusy(false));
                   }}
                 >
@@ -358,7 +388,13 @@ export default function Charts() {
               </View>
               {scene ? (
                 <>
-                  <CandlestickChart scene={scene} />
+                  <ChartRenderer
+                    scene={scene}
+                    accountId={current.payload.account_id}
+                    onEscape={
+                      onEscape ?? (() => (router.canGoBack() ? router.back() : router.replace("/")))
+                    }
+                  />
                   {scene.quote ? (
                     <SettingsGroup title={t("quote")}>
                       <SettingsRow title={t("bid")} value={scene.quote.bid} />
@@ -421,6 +457,10 @@ export default function Charts() {
                 }))
         }
       />
-    </Screen>
+    </Container>
   );
+}
+
+function EmbeddedWorkspace({ children }: { children: import("react").ReactNode }) {
+  return <View style={{ flex: 1 }}>{children}</View>;
 }

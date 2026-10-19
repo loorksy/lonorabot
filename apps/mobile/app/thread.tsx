@@ -30,6 +30,7 @@ import {
 import { ActionMenu } from "../components/action-menu";
 import { AgentLiveStatus } from "../components/agent-live-status";
 import { BotAvatar } from "../components/bot-avatar";
+import { useChartSheet } from "../components/chart-sheet";
 import { GroupAvatar } from "../components/group-avatar";
 import { Markdown } from "../components/markdown";
 import { MessageBubble } from "../components/message-bubble";
@@ -54,9 +55,10 @@ function mergeMessages(previous: Message[], incoming: Message[]): Message[] {
 export default function Conversation({ threadId }: { threadId?: string } = {}) {
   const params = useLocalSearchParams<{ id: string }>();
   const id = threadId ?? params.id;
-  const { ready, owner, rtl, t, errorText } = useSession();
+  const { ready, owner, server, rtl, t, errorText } = useSession();
   const router = useRouter();
   const voice = useVoiceSession();
+  const chartSheet = useChartSheet();
   const [thread, setThread] = useState<Thread | null>(null);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
@@ -323,11 +325,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
           {
             label: t("charts"),
             icon: "chart",
-            onPress: () =>
-              router.push({
-                pathname: "/charts",
-                params: { threadId: id, ...(agent ? { botId: agent.id } : {}) },
-              }),
+            onPress: () => chartSheet.open({ threadId: id, ...(agent ? { botId: agent.id } : {}) }),
           },
           ...(agent
             ? [
@@ -483,6 +481,21 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
                       <TimeSeparator createdAt={message.created_at} />
                     ) : null}
                     <MessageBubble
+                      onChartLink={(value) => {
+                        try {
+                          const url = new URL(value, server);
+                          if (url.origin !== new URL(server).origin || url.pathname !== "/charts")
+                            return false;
+                          chartSheet.open({
+                            threadId: id,
+                            ...(agent ? { botId: agent.id } : {}),
+                            chartId: url.searchParams.get("chartId") ?? undefined,
+                          });
+                          return true;
+                        } catch {
+                          return false;
+                        }
+                      }}
                       message={message}
                       reply={messages.find((row) => row.id === message.reply_to)}
                       onReply={setReply}

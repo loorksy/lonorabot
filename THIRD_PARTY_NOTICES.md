@@ -24,8 +24,14 @@ remain solely to preserve required source and copyright attribution.
 
 UI primitives include shadcn/Base UI components (MIT); React (MIT), Lingui (MIT),
 Tailwind CSS (MIT), lucide-react (ISC), react-markdown and remark-gfm (MIT).
-Charts use TradingView Lightweight Charts (Apache-2.0); the chart renderer includes
-the required TradingView attribution link. Voice uses browser WebRTC and the OpenAI GPT-Live API.
+Interactive charts use TradingView Advanced Charts v31.2.0 under the owner's
+TradingView license. These proprietary vendor assets are not covered by Lonora's
+Apache-2.0 license. The single distribution in apps/web/public/charting_library
+retains shared assets and English/Arabic locale bundles. Its asset-manifest.json
+records the exact build, source revision and SHA-256 inventory; verify with
+`node apps/web/scripts/verify-chart-assets.mjs`. The former Lightweight Charts
+Web dependency is no longer used.
+Voice uses browser WebRTC and the OpenAI GPT-Live API.
 Python dependencies retain their distributions' license notices.
 
 MetaApiCloud SDK 29.1.1: Copyright 2020-2023 MetaApi DMCC. All rights reserved.

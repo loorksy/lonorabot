@@ -1,4 +1,5 @@
 from copy import deepcopy
+from typing import Any
 
 import pytest
 from lonora_charts.scene_snapshot import scene_svg
@@ -12,8 +13,8 @@ START = {"time": "2026-10-01T00:00:00Z", "price": 100}
 END = {"time": "2026-10-01T01:00:00Z", "price": 110}
 
 
-def drawing(kind):
-    item = {"type": kind, "start": START, "end": END, "label": "analysis"}
+def drawing(kind: str) -> dict[str, Any]:
+    item: dict[str, Any] = {"type": kind, "start": START, "end": END, "label": "analysis"}
     if kind == "channel":
         item["parallel"] = {**START, "price": 105}
     if kind == "scenario":
@@ -24,10 +25,10 @@ def drawing(kind):
 @pytest.mark.parametrize(
     "kind", ["trend_line", "price_zone", "ray", "channel", "fibonacci", "arrow", "scenario"]
 )
-def test_geometry_has_real_snapshot_mapping(kind):
+def test_geometry_has_real_snapshot_mapping(kind: str) -> None:
     annotation = drawing(kind)
     assert validate_annotations([annotation]) == [annotation]
-    scene = {
+    scene: dict[str, Any] = {
         "symbol": "XAUUSDm",
         "timeframe": "1h",
         "annotations": [annotation],
@@ -56,12 +57,12 @@ def test_geometry_has_real_snapshot_mapping(kind):
         {**drawing("arrow"), "style": {"color": "url(https://example.com)"}},
     ],
 )
-def test_invalid_geometry_is_rejected(annotation):
+def test_invalid_geometry_is_rejected(annotation: dict[str, Any]) -> None:
     with pytest.raises(LonoraError):
         validate_annotations([annotation])
 
 
-def apply(state, args, agent="agent-a"):
+def apply(state: ChartState, args: dict[str, Any], agent: str = "agent-a") -> list[dict[str, Any]]:
     return apply_drawing_operations(
         state, args, agent_id=agent, chart_id="chart-a", mutation_id="run:call"
     )
@@ -124,8 +125,13 @@ def test_legacy_input_still_valid_and_batch_exclusive():
         chart_id="chart", version=1, annotation={"type": "note", "text": "hello"}
     ).annotation
     with pytest.raises(ValueError):
-        AnnotateInput(
-            chart_id="chart", version=1, annotation={}, operations=[{"op": "delete", "id": "a"}]
+        AnnotateInput.model_validate(
+            {
+                "chart_id": "chart",
+                "version": 1,
+                "annotation": {},
+                "operations": [{"op": "delete", "id": "a"}],
+            }
         )
 
 

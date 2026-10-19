@@ -26,9 +26,11 @@ const port = mobile ? 8831 : 8830;
 // WebAuthn requires a domain RP ID; localhost is its standard development exception.
 const baseURL = `http://localhost:${port}`;
 const output = `${root}.runtime/${mobile ? "mobile" : "web"}-ui-tests`;
+const rendererOutput = mobile ? `${root}.runtime/chart-renderer-ui-tests` : output;
 
 export default defineConfig({
   testDir: mobile ? "./tests/mobile" : "./tests/web",
+  outputDir: `${root}.runtime/${mobile ? "mobile" : "web"}-playwright-results`,
   testMatch: "**/*.spec.mjs",
   fullyParallel: false,
   workers: 1,
@@ -49,7 +51,7 @@ export default defineConfig({
     // The development React bundle exercises StrictMode effect replay. Build it
     // separately so regression checks do not replace the production Web build.
     command: mobile
-      ? "pnpm --filter @lonora/mobile exec expo export --platform web --output-dir ../../.runtime/mobile-ui-tests && .venv/bin/lonora-api --host 127.0.0.1 --port 8831"
+      ? "pnpm --filter @lonora/web exec vite build --outDir ../../.runtime/chart-renderer-ui-tests --emptyOutDir && pnpm --filter @lonora/mobile exec expo export --platform web --output-dir ../../.runtime/mobile-ui-tests && .venv/bin/lonora-api --host 127.0.0.1 --port 8831"
       : "pnpm --filter @lonora/web exec vite build --outDir ../../.runtime/web-ui-tests --emptyOutDir && .venv/bin/lonora-api --host 127.0.0.1 --port 8830",
     cwd: root,
     url: `${baseURL}/health`,
@@ -62,6 +64,7 @@ export default defineConfig({
       LONORA_COOKIE_SECURE: "false",
       LONORA_ALLOWED_ORIGIN: baseURL,
       LONORA_WEB_ROOT: output,
+      LONORA_CHART_RENDERER_ROOT: rendererOutput,
       LONORA_ARTIFACT_ROOT: `${root}.runtime/ui-regression-artifacts`,
       LONORA_BOOTSTRAP_TOKEN:
         process.env.LONORA_BOOTSTRAP_TOKEN ?? "lonora-ui-bootstrap-ci-only-2026",

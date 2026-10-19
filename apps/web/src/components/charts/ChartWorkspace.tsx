@@ -25,9 +25,7 @@ export function ChartWorkspace({
       data-chart-id={row?.id}
       data-chart-scene-version={scene?.scene_version}
     >
-      <h2>
-        <Trans>Shared chart workspace</Trans>
-      </h2>
+      <h2 dir="ltr">{scene?.symbol ?? symbol}</h2>
       {workspace.rows.length > 0 && (
         <label>
           <Trans>Saved chart</Trans>
@@ -68,7 +66,7 @@ export function ChartWorkspace({
         </p>
       )}
       {scene && scene.candles.length > 0 ? (
-        <TradingChart scene={scene} />
+        <TradingChart scene={scene} accountId={accountId} />
       ) : (
         row &&
         !loading &&
@@ -80,7 +78,10 @@ export function ChartWorkspace({
         )
       )}
       {row && (
-        <>
+        <details>
+          <summary>
+            <Trans>Indicators and drawings</Trans>
+          </summary>
           <ChartIndicators
             disabled={busy}
             indicators={row.payload.indicators}
@@ -91,7 +92,7 @@ export function ChartWorkspace({
             annotations={row.payload.annotations}
             onChange={(annotations) => void workspace.update({ ...row.payload, annotations })}
           />
-        </>
+        </details>
       )}
       {scene && (
         <ChartLiveFeed

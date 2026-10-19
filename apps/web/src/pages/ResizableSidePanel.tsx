@@ -3,6 +3,8 @@ import { t } from "@lingui/core/macro";
 import type { CSSProperties, PointerEvent, ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 
+import { ChartSheetHandle } from "../components/charts/ChartSheetHandle";
+
 const STORAGE_KEY = "lonora:context-panel-width";
 const MIN_WIDTH = 320;
 const DEFAULT_WIDTH = 384;
@@ -56,6 +58,7 @@ export function ResizableSidePanel({
   const [maxWidth, setMaxWidth] = useState(() => maximumWidth(reservedLeadingPx));
   const [overlay, setOverlay] = useState(() => !window.matchMedia(DESKTOP_QUERY).matches);
   const [dragging, setDragging] = useState(false);
+  const [chartExpanded, setChartExpanded] = useState(false);
   const aside = useRef<HTMLElement>(null);
   const drag = useRef<{ x: number; width: number; direction: number } | null>(null);
   const width = Math.max(MIN_WIDTH, Math.min(maxWidth, preferredWidth));
@@ -90,6 +93,29 @@ export function ResizableSidePanel({
     };
   }, [open, overlay, panel]);
 
+  useEffect(() => {
+    if (!open || panel !== "charts" || !overlay) return;
+    const sync = () =>
+      aside.current?.style.setProperty(
+        "--chart-viewport-height",
+        `${window.visualViewport?.height ?? window.innerHeight}px`,
+      );
+    sync();
+    window.visualViewport?.addEventListener("resize", sync);
+    window.visualViewport?.addEventListener("scroll", sync);
+    return () => {
+      window.visualViewport?.removeEventListener("resize", sync);
+      window.visualViewport?.removeEventListener("scroll", sync);
+    };
+  }, [open, panel, overlay]);
+
+  useEffect(() => {
+    if (!open || panel !== "charts") return;
+    const close = () => onClose?.();
+    window.addEventListener("lonora:chart-escape", close);
+    return () => window.removeEventListener("lonora:chart-escape", close);
+  }, [open, panel, onClose]);
+
   function stopDrag(event: PointerEvent<HTMLHRElement>) {
     drag.current = null;
     setDragging(false);
@@ -119,6 +145,7 @@ export function ResizableSidePanel({
         data-testid="side-panel"
         data-panel={panel}
         data-overlay={overlay ? "true" : "false"}
+        data-chart-expanded={chartExpanded ? "true" : "false"}
         data-dragging={dragging ? "true" : "false"}
         aria-label={label ?? t`Context panel`}
         {...(overlay ? { role: "dialog", "aria-modal": true as const } : { role: "complementary" })}
@@ -195,6 +222,13 @@ export function ResizableSidePanel({
             }
           }}
         />
+        {panel === "charts" && overlay && (
+          <ChartSheetHandle
+            expanded={chartExpanded}
+            onExpand={setChartExpanded}
+            onClose={onClose}
+          />
+        )}
         {children}
       </aside>
     </>

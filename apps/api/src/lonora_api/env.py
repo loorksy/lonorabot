@@ -29,6 +29,7 @@ class Settings(BaseSettings):
         return [value.upper() for value in values]
 
     web_root: Path = Path("apps/web/dist")
+    chart_renderer_root: Path | None = None
     artifact_root: Path = Path(".runtime/artifacts")
     android_apk_path: Path = Path(".runtime/releases/android/lonora.apk")
     ota_root: Path = Path(".runtime/releases/ota")

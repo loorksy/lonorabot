@@ -2781,3 +2781,60 @@ msgstr "Your Personal Agent cannot be deleted."
 #: src/pages/Shell.tsx:771
 msgid "Your team starts here"
 msgstr "Your team starts here"
+
+msgid "Follow live"
+msgstr "Follow live"
+
+msgid "Chart could not be displayed."
+msgstr "Chart could not be displayed."
+
+msgid "Indicators and drawings"
+msgstr "Indicators and drawings"
+
+msgid "Resize chart"
+msgstr "Resize chart"
+
+msgid "Collapse chart"
+msgstr "Collapse chart"
+
+msgid "Expand chart"
+msgstr "Expand chart"
+
+msgid "Close chart"
+msgstr "Close chart"
+
+msgid "Show Agent analysis"
+msgstr "Show Agent analysis"
+
+msgid "Free Browse"
+msgstr "Free Browse"
+
+msgid "Follow Agent"
+msgstr "Follow Agent"
+
+msgid "Trend line"
+msgstr "Trend line"
+
+msgid "Note"
+msgstr "Note"
+
+msgid "Price zone"
+msgstr "Price zone"
+
+msgid "Ray"
+msgstr "Ray"
+
+msgid "Channel"
+msgstr "Channel"
+
+msgid "Fibonacci"
+msgstr "Fibonacci"
+
+msgid "Arrow"
+msgstr "Arrow"
+
+msgid "Scenario"
+msgstr "Scenario"
+
+msgid "Chart appearance could not be updated."
+msgstr "Chart appearance could not be updated."

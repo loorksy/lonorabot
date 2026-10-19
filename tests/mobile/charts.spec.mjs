@@ -35,17 +35,25 @@ test("Expo renders durable live candles from the authenticated server event stre
     );
     await page.goto("/charts");
     await page.getByRole("button", { name: `${data.symbol} · 15m`, exact: true }).click();
-    const image = page.getByRole("img", { name: `${data.symbol} · 15m`, exact: true });
-    await expect(image).toBeVisible();
+    const frame = page.frameLocator(`iframe[title="${data.symbol} · 15m"]`);
+    const renderer = frame.locator('[data-renderer="tradingview"]');
+    await expect(renderer).toBeVisible();
+    await expect(renderer).toHaveAttribute("data-applied-scene-version", /[1-9]/);
     await expect.poll(() => sockets).toBeGreaterThan(0);
-    const before = await image.screenshot();
+    const before = await renderer.screenshot();
     const publication = fixture({ ...data, action: "live", close: "250" });
     expect(publication.candles.at(-1).close).toBe("250");
-    await expect(page.getByText(/C (250|٢٥٠)/)).toBeVisible();
-    expect((await image.screenshot()).equals(before)).toBe(false);
+    await expect
+      .poll(async () => Number(await renderer.getAttribute("data-applied-scene-version")))
+      .toBeGreaterThanOrEqual(publication.scene_version);
+    expect((await renderer.screenshot()).equals(before)).toBe(false);
     await page.reload();
     await page.getByRole("button", { name: `${data.symbol} · 15m`, exact: true }).click();
-    await expect(page.getByText(/C (250|٢٥٠)/)).toBeVisible();
+    await expect
+      .poll(async () => Number(await renderer.getAttribute("data-applied-scene-version")))
+      .toBeGreaterThanOrEqual(publication.scene_version);
+    const persisted = await page.request.get(`/api/charts/${data.chart}/scene`);
+    expect((await persisted.json()).candles.at(-1).close).toBe("250");
     expect(errors).toEqual([]);
   } finally {
     fixture({ ...data, action: "cleanup" });

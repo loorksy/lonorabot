@@ -1,0 +1,2 @@
+# Licensed vendor files remain byte-identical to the recorded SHA-256 inventory.
+apps/web/public/charting_library/** -text -whitespace

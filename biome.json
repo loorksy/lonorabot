@@ -10,7 +10,8 @@
       "!!backups",
       "!!apps/mobile/android",
       "!!apps/mobile/ios",
-      "!!apps/mobile/.expo"
+      "!!apps/mobile/.expo",
+      "!!apps/web/public/charting_library"
     ]
   },
   "formatter": {

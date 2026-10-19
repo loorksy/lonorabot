@@ -13,6 +13,7 @@ export function MessageBubble({
   agent,
   files,
   onArtifact,
+  onChartLink,
   grouped = false,
   reply,
   onReply,
@@ -21,6 +22,7 @@ export function MessageBubble({
   agent?: Agent;
   files: Artifact[];
   onArtifact: (id: string) => void;
+  onChartLink?: (url: string) => boolean;
   grouped?: boolean;
   reply?: Message;
   onReply?: (message: Message) => void;
@@ -110,7 +112,7 @@ export function MessageBubble({
           ) : null}
         </View>
       ) : message.content ? (
-        <Markdown content={message.content} />
+        <Markdown content={message.content} onChartLink={onChartLink} />
       ) : null}
       {message.attachment_ids.map((id) => (
         <ArtifactFileCard
