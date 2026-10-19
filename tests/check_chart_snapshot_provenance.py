@@ -100,6 +100,9 @@ async def main() -> None:
             },
         )
         chart_id = opened["chart"]["id"]
+        assert opened["scene"] is None and opened["requires_scene_inspection"]
+        opened = await call("chart_inspect", {"chart_id": chart_id})
+        assert opened["scene"] is not None
         originals: dict[str, dict[str, Any]] = {}
         original_bytes: dict[str, bytes] = {}
         for fmt in ("svg", "png"):
