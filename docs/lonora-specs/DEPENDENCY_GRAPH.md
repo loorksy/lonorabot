@@ -172,3 +172,7 @@ These extend the existing chart runtime; no second chart database, gateway or tr
 ### On-demand visual capture dependency resolved (2026-10-19)
 
 Shared licensed renderer → exact applied-scene acknowledgment → bounded server capture → immutable snapshot artifact → scoped image observation → global VISION/context admission is implemented and locally verified. Existing Gateway and owner lifecycle host the lazy browser; semantic and browser sources stay distinct. Persistent visual workspace/navigation and real external-model interpretation quality remain open. Durable chart command receipts are a separate next integration and must not be inferred from image replay safety.
+
+### Compacted conversation evidence dependency resolved (2026-10-19)
+
+Canonical owned direct conversation + summary/input/next-sequence boundaries → bounded lexical historical evidence → optional one authorized adjacent turn → existing memory fusion/context budget. Notes and messages share one output budget; peer/group/work content does not acquire direct-conversation authority. Cross-thread and semantic-message retrieval remain separate unimplemented scope.

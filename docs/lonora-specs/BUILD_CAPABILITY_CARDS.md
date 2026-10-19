@@ -53,7 +53,7 @@ Remaining limits: result files require the existing persistent artifact volume; 
 - **Authority:** SQL owner/Agent filtering precedes candidates and ranking; retrieved content remains explicitly untrusted. Similar vectors cannot substitute another recognized broker symbol or ID. Installed source content never grants financial authority.
 - **Bounds:** per-arm 128 notes, 8 delivered items, 6000 delivered text characters, 1600/item; candidate/embedding/query truncation is explicit. An old semantic match outside the bounded candidate window can be omitted. Lowercase alphabetic symbols require explicit metadata to distinguish them from ordinary prose.
 - **Verification:** 32 unit cases plus independently repeated PostgreSQL retrieval fixture; scoped denial, peer isolation, fallback, source versions, edits/deletes and malformed/oversized vectors. No live provider quality benchmark.
-- **Open:** authorized conversation-neighbor retrieval, broader evaluation corpus, measured retrieval quality and evaluated memory adoption. This increment does not close full knowledge/learning requirements.
+- **Open:** broader evaluation corpus, measured retrieval quality and evaluated memory adoption. Authorized compacted direct-thread recall and one adjacent turn are tracked separately below; this does not close full knowledge/learning requirements.
 
 ## ENV-CHART-DRAW-01 — Durable typed drawing geometry
 
@@ -92,3 +92,12 @@ Evidence: actual PostgreSQL chart_snapshot → artifact_read → same Run model 
 - **Evidence/recovery:** immutable artifact provenance distinguishes candle observation, quote observation and capture time. Replaying the same Run/call returns original bytes/revisions even after chart changes. Legacy provenance remains explicitly unknown. A worker death after artifact persistence and before checkpoint does not recapture on the next fence. `artifact_read(view_image=true)` admits the actual pixels into the same Run.
 - **Verified:** 22 service-level cases with real Chromium and fault injection; PostgreSQL semantic provenance; four exact forex/metal/index/crypto symbols and multiple frames in EN/AR; real ToolLoop crash/replay and stale-fence denial. Combined repository pytest: 334 passed; strict Pyright zero errors. Python wheel contains the service and pins Playwright1.58.0. No APK/container image or production deployment was performed.
 - **Open:** persistent interactive visual workspaces, viewport-navigation commands, real external-model interpretation quality and physical native acceptance. Captured, inspected, attached and client-rendered remain distinct claims.
+
+
+## ENV-RECALL-01 — Authorized compacted conversation evidence
+
+- **Reuse:** canonical MessageRow/ThreadRow and the existing bounded memory evidence fusion; no separate message index or embedding store. ContextBuilder enables recall only for the current owned Agent direct conversation.
+- **Behavior:** Arabic/English lexical retrieval and exact technical identifiers return relevant compacted messages, with actual message/thread/sequence/role/author/source time. One adjacent opposite-role canonical turn can expand an exchange within the same shared item/text budget. Historical content is untrusted and never current market evidence.
+- **Authority/bounds:** SQL owner/Agent/thread checks precede ranking; group, internal-work, peer transport and guest messages are excluded. Server summary/input/next-sequence cutoffs prevent current/future message duplication. At most128 candidates, bounded text projection, eight delivered items and6000 text characters shared with other evidence. Messages lack a revision column, so version0 is explicitly a non-versioned source rather than an invented revision.
+- **Verification:** actual ContextBuilder PostgreSQL integration, precise role/sequence neighboring, wrong scope/author, uncommitted messages, Arabic/symbol identities, edits/deletes and candidate/query/output limits. Independent root PostgreSQL fixture passed; combined pytest334 and strict Pyright passed. Existing skills test mock was updated with real required Thread fields; production checks were preserved.
+- **Open:** broader history/cross-thread authorization, semantic message search and measured retrieval-quality acceptance. Bounded lexical candidate coverage is explicit; no global shared Agent memory was added.

@@ -4,6 +4,7 @@ from lonora_db.agent_binding import binding_context
 from lonora_db.runs import require_lease
 from lonora_db.schema import AgentRow, ThreadRow
 from lonora_db.trading_goals import goal_read_thread
+from lonora_memory.conversation import ConversationRecallScope
 from lonora_memory.semantic import retrieve_memory
 from lonora_tools.context import ToolContext
 from lonora_tools.loader import load_tools
@@ -94,7 +95,18 @@ async def build_context(
         )
         if query:
             semantic = await retrieve_memory(
-                context.db, context.router.credentials, context.owner_id, agent.id, query
+                context.db,
+                context.router.credentials,
+                context.owner_id,
+                agent.id,
+                query,
+                conversation_scope=ConversationRecallScope(
+                    thread.id, run.input_seq, thread.summary_seq, include_neighbor=True
+                )
+                if thread.agent_id == agent.id
+                and not thread.group_id
+                and thread.purpose == "conversation"
+                else None,
             )
             if semantic:
                 messages[0].content += "\n\n" + semantic

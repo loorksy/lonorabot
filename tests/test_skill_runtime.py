@@ -256,7 +256,14 @@ async def test_actual_context_builder_resolver_and_fenced_diagnostics(
     from lonora_agent.context import skills
 
     agent = SimpleNamespace(id="agent", instructions="Owner style", trading_account_id=None)
-    thread = SimpleNamespace(id="thread", group_id=None, context_summary="", summary_seq=0)
+    thread = SimpleNamespace(
+        id="thread",
+        agent_id=agent.id,
+        group_id=None,
+        purpose="conversation",
+        context_summary="",
+        summary_seq=0,
+    )
     run = SimpleNamespace(
         trigger="user", input_seq=1, prompt="", model_metadata={"provider": "keep"}
     )

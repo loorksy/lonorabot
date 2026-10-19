@@ -5,7 +5,7 @@ Recorded times are storage times, never claims of market-data freshness.
 """
 
 import json
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from typing import Any, cast
 
 from lonora_db.client import Database
@@ -16,6 +16,7 @@ from lonora_providers.credentials import ProviderCredentials
 from sqlalchemy import func, or_, select
 from sqlalchemy.exc import SQLAlchemyError
 
+from .conversation import ConversationRecallScope, conversation_candidates
 from .retrieval import (
     MAX_QUERY_CHARS,
     document_chunks,
@@ -58,6 +59,7 @@ class RetrievalResult:
     reasons: list[str] = field(default_factory=lambda: list[str]())
     truncated: bool = False
     lexical_status: str = "not_requested"
+    conversation_status: str = "not_requested"
     limits: dict[str, int] = field(
         default_factory=lambda: {
             "candidates_per_arm": CANDIDATE_LIMIT,
@@ -132,12 +134,9 @@ def fuse_evidence(
         count = min(len(item.text), MAX_ITEM_CHARS, remaining)
         shortened = count < len(item.text)
         results.append(
-            Evidence(
-                id=item.id,
-                source=item.source,
+            replace(
+                item,
                 text=item.text[:count],
-                version=item.version,
-                recorded_at=item.recorded_at,
                 provenance=dict(item.provenance),
                 score=scores[item.id],
                 truncated=item.truncated or shortened,
@@ -157,6 +156,7 @@ async def _retrieve_evidence(
     *,
     limit: int = 5,
     maximum_chars: int = MAX_EVIDENCE_CHARS,
+    conversation_scope: ConversationRecallScope | None = None,
 ) -> RetrievalResult:
     from .semantic import cosine_similarity, embed_text
 
@@ -164,13 +164,27 @@ async def _retrieve_evidence(
     vectors: dict[str, str] = {}
     reasons: list[str] = []
     query_cut = query[:MAX_QUERY_CHARS]
+    conversation_status = "not_requested"
     async with db.sessions() as session:
         # Authorization must precede reading settings, recall, ranking or expansion.
         await owned_agent(session, owner_id, agent_id)
         if not query_terms(query_cut):
             return RetrievalResult(
-                "no_match", "lexical", "not_requested", lexical_status="no_match"
+                "no_match",
+                "lexical",
+                "not_requested",
+                lexical_status="no_match",
+                conversation_status="no_match" if conversation_scope else "not_requested",
             )
+        if conversation_scope is not None:
+            recalled, conversation_status, capped = await conversation_candidates(
+                session, owner_id, agent_id, conversation_scope, query_cut
+            )
+            candidates.extend(recalled)
+            if capped:
+                reasons.append("conversation_candidate_limit")
+            if conversation_status == "scope_unavailable":
+                reasons.append("conversation_scope_unavailable")
         config = await SettingsRepository().get(session, "semantic_memory")
         memory = await session.get(MemoryRow, agent_id)
         if memory:
@@ -289,6 +303,31 @@ async def _retrieve_evidence(
     items, truncated = fuse_evidence(
         candidates, query_cut, semantic_scores, limit=limit, maximum_chars=maximum_chars
     )
+    if conversation_scope is not None and conversation_scope.include_neighbor:
+        anchor = next((item for item in items if item.source == "conversation_message"), None)
+        remaining = min(maximum_chars, MAX_EVIDENCE_CHARS) - sum(len(item.text) for item in items)
+        if anchor and len(items) < min(limit, MAX_ITEMS) and remaining > 0:
+            async with db.sessions() as session:
+                neighbors, _, _ = await conversation_candidates(
+                    session,
+                    owner_id,
+                    agent_id,
+                    conversation_scope,
+                    query_cut,
+                    neighbor_seq=int(anchor.provenance["seq"]),
+                    neighbor_role=str(anchor.provenance["role"]),
+                )
+            if neighbors and neighbors[0].id not in {item.id for item in items}:
+                neighbor = neighbors[0]
+                count = min(remaining, MAX_ITEM_CHARS, len(neighbor.text))
+                items.append(
+                    replace(
+                        neighbor,
+                        text=neighbor.text[:count],
+                        truncated=neighbor.truncated or count < len(neighbor.text),
+                    )
+                )
+                truncated |= items[-1].truncated
     if truncated:
         reasons.append("evidence_limit")
     # A lexical no-match cannot imply semantic coverage when that source failed.
@@ -301,7 +340,8 @@ async def _retrieve_evidence(
         semantic_status,
         items,
         reasons,
-        truncated or "candidate_limit" in reasons,
+        truncated or any(reason.endswith("candidate_limit") for reason in reasons),
+        conversation_status=conversation_status,
         lexical_status="matched"
         if any(lexical_score(item.text, query_cut) > 0 for item in candidates)
         else "no_match",
@@ -317,6 +357,7 @@ async def retrieve_evidence(
     *,
     limit: int = 5,
     maximum_chars: int = MAX_EVIDENCE_CHARS,
+    conversation_scope: ConversationRecallScope | None = None,
 ) -> RetrievalResult:
     try:
         return await _retrieve_evidence(
@@ -327,6 +368,7 @@ async def retrieve_evidence(
             query,
             limit=limit,
             maximum_chars=maximum_chars,
+            conversation_scope=conversation_scope,
         )
     except SQLAlchemyError:
         # Authorization denials are LonoraError and deliberately propagate.
@@ -337,6 +379,7 @@ async def retrieve_evidence(
             "unavailable",
             reasons=["memory_source_unavailable"],
             lexical_status="unavailable",
+            conversation_status="unavailable" if conversation_scope else "not_requested",
         )
 
 

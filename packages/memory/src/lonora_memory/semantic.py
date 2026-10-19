@@ -9,6 +9,8 @@ from lonora_db.transactions import SettingsRepository, owned_agent
 from lonora_providers.credentials import ProviderCredentials
 from lonora_session.idempotency import stable_id
 
+from .conversation import ConversationRecallScope
+
 
 def cosine_similarity(first: list[float], second: list[float]) -> float:
     if not first or len(first) != len(second) or any(not math.isfinite(v) for v in first + second):
@@ -49,11 +51,21 @@ async def embed_text(credentials: ProviderCredentials, model: str, text: str) ->
 
 
 async def retrieve_memory(
-    db: Database, credentials: ProviderCredentials, owner_id: str, agent_id: str, query: str
+    db: Database,
+    credentials: ProviderCredentials,
+    owner_id: str,
+    agent_id: str,
+    query: str,
+    *,
+    conversation_scope: ConversationRecallScope | None = None,
 ) -> str:
     from .evidence import render_evidence, retrieve_evidence
 
-    return render_evidence(await retrieve_evidence(db, credentials, owner_id, agent_id, query))
+    return render_evidence(
+        await retrieve_evidence(
+            db, credentials, owner_id, agent_id, query, conversation_scope=conversation_scope
+        )
+    )
 
 
 async def index_note(
