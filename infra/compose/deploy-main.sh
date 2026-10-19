@@ -1,8 +1,18 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")/../.."
-mode="${1:---pull}"
-[[ "$#" -le 1 && "$mode" =~ ^--(pull|build)$ ]] || { echo 'Usage: deploy-main.sh [--pull|--build]' >&2; exit 2; }
+mode=--pull
+backup=true
+mode_selected=false
+for argument in "$@"; do
+    case "$argument" in
+        --pull|--build)
+            if "$mode_selected"; then echo 'Choose one deployment mode.' >&2; exit 2; fi
+            mode="$argument"; mode_selected=true ;;
+        --no-backup) backup=false ;;
+        *) echo 'Usage: deploy-main.sh [--pull|--build] [--no-backup]' >&2; exit 2 ;;
+    esac
+done
 [[ -z "$(git status --porcelain)" ]] || { echo 'Deployment checkout has local changes.' >&2; exit 1; }
 git fetch origin main
 git merge --ff-only origin/main
@@ -24,6 +34,8 @@ else
     docker compose --env-file .env -f "$compose" pull
 fi
 # Back up an existing installation before migrations change the schema.
-if [[ -n "$(docker compose --env-file .env -f "$compose" ps -q db)" ]]; then LONORA_COMPOSE_FILE="$compose" bash scripts/backup.sh; fi
+if "$backup" && [[ -n "$(docker compose --env-file .env -f "$compose" ps -q db)" ]]; then
+    LONORA_COMPOSE_FILE="$compose" bash scripts/backup.sh
+fi
 docker compose --env-file .env -f "$compose" up -d --wait --remove-orphans
 echo 'Main deployed. Check the authenticated workspace and /ready through your domain.'
