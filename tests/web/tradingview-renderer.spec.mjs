@@ -116,6 +116,15 @@ for (const locale of ["en", "ar"])
     };
     await page.evaluate((range) => window.testChart.activeChart().setVisibleRange(range), range);
     const before = await page.evaluate(() => window.testChart.activeChart().getVisibleRange());
+    await page.evaluate(() => {
+      const chart = window.testChart.activeChart();
+      const reset = chart.resetData.bind(chart);
+      window.liveHistoryResets = 0;
+      chart.resetData = (...args) => {
+        window.liveHistoryResets++;
+        return reset(...args);
+      };
+    });
     scene.scene_version++;
     scene.candles.at(-1).close += 0.0002;
     await send(page, scene);
@@ -124,8 +133,11 @@ for (const locale of ["en", "ar"])
       ...scene.candles.at(-1),
       time: new Date(Date.parse(scene.candles.at(-1).time) + 3600000).toISOString(),
     });
+    scene.candles.shift();
     scene.indicators[0].series.rsi.push(51);
+    scene.indicators[0].series.rsi.shift();
     await send(page, scene);
+    expect(await page.evaluate(() => window.liveHistoryResets)).toBe(0);
     expect(await page.locator(".chart-renderer iframe").getAttribute("id")).toBe(iframe);
     expect(await page.evaluate(() => window.testChart.activeChart().getVisibleRange())).toEqual(
       before,
@@ -133,6 +145,7 @@ for (const locale of ["en", "ar"])
     scene.scene_version++;
     scene.candles[10].high += 0.0003;
     await send(page, scene);
+    expect(await page.evaluate(() => window.liveHistoryResets)).toBe(1);
     expect(await page.evaluate(() => window.testChart.activeChart().getVisibleRange())).toEqual(
       before,
     );

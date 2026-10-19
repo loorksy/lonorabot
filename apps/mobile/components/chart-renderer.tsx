@@ -37,7 +37,19 @@ export function ChartRenderer({
   const initialLocale = useRef(locale === "ar" ? "ar" : "en");
   const source = `${server}/charts/render?locale=${initialLocale.current}`;
   const sceneIdentity = `${scene.chart_id}:${scene.scene_version}:${scene.data_revision ?? ""}`;
+  const renderIdentity = `${scene.chart_id}:${scene.revision}`;
   const expected = new URL(source);
+  const pendingTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const appliedIdentity = useRef<string | null>(null);
+  const clearPending = useCallback(() => {
+    if (pendingTimeout.current !== null) clearTimeout(pendingTimeout.current);
+    pendingTimeout.current = null;
+  }, []);
+  const waitForApplied = useCallback(() => {
+    // A stream of unacknowledged ticks must not postpone the failure deadline.
+    if (pendingTimeout.current !== null) return;
+    pendingTimeout.current = setTimeout(() => setStatus("unavailable"), 15000);
+  }, []);
   const send = useCallback(() => {
     // This string is JavaScript source; escaping '<' also makes it safe in HTML contexts.
     const message = JSON.stringify({
@@ -51,17 +63,27 @@ export function ChartRenderer({
     );
   }, []);
   useEffect(() => {
-    if (!source || !sceneIdentity) return;
+    if (!source || !renderIdentity) return;
+    appliedIdentity.current = null;
     setStatus("loading");
-    const timer = setTimeout(
-      () => setStatus((old) => (old === "ready" ? old : "unavailable")),
-      15000,
-    );
-    return () => clearTimeout(timer);
-  }, [source, sceneIdentity]);
+    return clearPending;
+  }, [source, renderIdentity, clearPending]);
   useEffect(() => {
-    if (WebView && scene && accountId && locale) send();
-  }, [scene, accountId, locale, WebView, send]);
+    if (WebView && source && renderIdentity && scene && accountId && locale) {
+      if (appliedIdentity.current !== sceneIdentity) waitForApplied();
+      send();
+    }
+  }, [
+    scene,
+    sceneIdentity,
+    source,
+    renderIdentity,
+    accountId,
+    locale,
+    WebView,
+    send,
+    waitForApplied,
+  ]);
   if (!WebView)
     return (
       <View accessibilityRole="summary" style={{ padding: 24, gap: 12 }}>
@@ -118,8 +140,11 @@ export function ChartRenderer({
               data.chart_id === latest.current.scene.chart_id &&
               data.scene_version === latest.current.scene.scene_version &&
               data.data_revision === latest.current.scene.data_revision
-            )
+            ) {
+              appliedIdentity.current = `${latest.current.scene.chart_id}:${latest.current.scene.scene_version}:${latest.current.scene.data_revision ?? ""}`;
+              clearPending();
               setStatus("ready");
+            }
           } catch {
             /* Ignore malformed or unrelated frame messages. */
           }

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Text, View } from "react-native";
 import type { ChartScene } from "../lib/charts";
 import { useSession } from "../lib/session";
@@ -22,14 +22,23 @@ export function ChartRenderer({
   const initialLocale = useRef(locale === "ar" ? "ar" : "en");
   const source = `${server}/charts/render?locale=${initialLocale.current}`;
   const sceneIdentity = `${scene.chart_id}:${scene.scene_version}:${scene.data_revision ?? ""}`;
+  const renderIdentity = `${scene.chart_id}:${scene.revision}`;
   const origin = new URL(source, window.location.origin).origin;
+  const pendingTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const appliedIdentity = useRef<string | null>(null);
+  const clearPending = useCallback(() => {
+    if (pendingTimeout.current !== null) clearTimeout(pendingTimeout.current);
+    pendingTimeout.current = null;
+  }, []);
+  const waitForApplied = useCallback(() => {
+    // A stream of unacknowledged ticks must not postpone the failure deadline.
+    if (pendingTimeout.current !== null) return;
+    pendingTimeout.current = setTimeout(() => setStatus("unavailable"), 15000);
+  }, []);
   useEffect(() => {
-    if (!source || !sceneIdentity) return;
+    if (!source || !renderIdentity) return;
+    appliedIdentity.current = null;
     setStatus("loading");
-    const timeout = setTimeout(
-      () => setStatus((old) => (old === "ready" ? old : "unavailable")),
-      15000,
-    );
     const receive = (event: MessageEvent) => {
       if (event.origin !== origin || event.source !== frame.current?.contentWindow) return;
       if (event.data?.type === "lonora.chart.escape") {
@@ -50,21 +59,24 @@ export function ChartRenderer({
         event.data.scene_version === latest.current.scene.scene_version &&
         event.data.data_revision === latest.current.scene.data_revision
       ) {
+        appliedIdentity.current = `${latest.current.scene.chart_id}:${latest.current.scene.scene_version}:${latest.current.scene.data_revision ?? ""}`;
+        clearPending();
         setStatus("ready");
       }
     };
     window.addEventListener("message", receive);
     return () => {
-      clearTimeout(timeout);
+      clearPending();
       window.removeEventListener("message", receive);
     };
-  }, [origin, source, sceneIdentity]);
+  }, [origin, source, renderIdentity, clearPending]);
   useEffect(() => {
+    if (source && renderIdentity && appliedIdentity.current !== sceneIdentity) waitForApplied();
     frame.current?.contentWindow?.postMessage(
       { type: "lonora.chart.scene", scene, account_id: accountId, locale },
       origin,
     );
-  }, [scene, origin, accountId, locale]);
+  }, [scene, sceneIdentity, source, renderIdentity, origin, accountId, locale, waitForApplied]);
   return (
     <View style={{ gap: 8 }}>
       <Text accessibilityLiveRegion="polite" style={{ color: colors.secondary }}>

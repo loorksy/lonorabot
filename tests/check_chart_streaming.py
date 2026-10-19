@@ -49,6 +49,8 @@ async def main() -> None:
         connection_id = str(connection["id"])
         pairs = [
             ("EURUSDm", "1m", 1),
+            ("EURUSDm", "1h", 60),
+            ("EURUSDm", "1d", 1440),
             ("XAUUSD", "15m", 15),
             ("US100.cash", "4h", 240),
             ("BTCUSD", "1h", 60),
@@ -78,6 +80,9 @@ async def main() -> None:
         services = fixture.runtime.services(fixture.owner)
         market = services.market
         assert market.on_update is not None, "OwnerServices must bind the resident chart publisher"
+        await market.maintain()
+        assert not market.tasks and not market.candle_tasks
+        print("PASS no saved chart or watch creates implicit default-symbol subscriptions")
         broker = await services.brokers.get(fixture.owner, connection_id)
         queues: dict[tuple[str, str], asyncio.Queue[Candle | Exception]] = {
             (symbol, timeframe): asyncio.Queue() for symbol, timeframe, _ in pairs
@@ -187,8 +192,36 @@ async def main() -> None:
                 assert scene["observation_source"] == "broker_candle_stream"
             assert history_calls == baseline_calls
             print(
-                "PASS official live current bars and server indicators publish for Forex/metals/index/crypto without history per packet"
+                "PASS official live current bars and server indicators publish for Forex/metals/index/crypto and concurrent exact-symbol timeframes without history per packet"
             )
+
+            # Price ticks are visible without inventing candle bodies. Only an
+            # official candle packet may replace authoritative broker OHLC.
+            quote = Quote(
+                symbol=pairs[0][0],
+                bid=Decimal("900"),
+                ask=Decimal("901"),
+                observed_at=utcnow(),
+                source="scripted-broker",
+            )
+            assert await market.store(
+                connection_id,
+                quote.symbol,
+                "",
+                quote.model_dump(mode="json"),
+                connection["version"],
+                market.identity,
+            )
+            await market.notify(connection_id, quote.symbol, None)
+            for chart_id, (symbol, timeframe, _) in zip(chart_ids, pairs, strict=True):
+                if symbol != quote.symbol:
+                    continue
+                scene = (await inspect_chart(fixture.runtime.db, fixture.owner, chart_id))["scene"]
+                assert scene["quote"]["bid"] == "900"
+                assert scene["candles"][-1]["close"] == "250"
+                assert scene["timeframe"] == timeframe
+            assert history_calls == baseline_calls
+            print("PASS quote-only updates reach every selected timeframe without fabricating OHLC")
 
             symbol, timeframe, _ = pairs[0]
             corrected = Candle.model_validate(

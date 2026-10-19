@@ -113,17 +113,29 @@ export class SceneDatafeed {
       return;
     }
     const byTime = new Map(incoming.map((bar) => [bar.time, bar]));
+    const previousByTime = new Map(previous.map((bar) => [bar.time, bar]));
+    const firstIncoming = incoming[0]?.time ?? Number.POSITIVE_INFINITY;
     const corrected =
       previous.some(
         (bar) =>
-          bar.time < last.time && JSON.stringify(bar) !== JSON.stringify(byTime.get(bar.time)),
-      ) || !byTime.has(last.time);
+          bar.time >= firstIncoming &&
+          bar.time < last.time &&
+          JSON.stringify(bar) !== JSON.stringify(byTime.get(bar.time)),
+      ) ||
+      incoming.some((bar) => bar.time < last.time && !previousByTime.has(bar.time)) ||
+      !byTime.has(last.time);
     if (corrected) {
       for (const subscriber of this.subscribers.values()) subscriber.reset();
       this.settled = this.onCorrection?.() ?? Promise.resolve();
       return;
     }
-    for (const bar of incoming.filter((bar) => bar.time >= last.time))
+    // A rolling history window may discard its oldest bar. Keep the widget and
+    // viewport alive; only changed/new official candles go to its live callback.
+    for (const bar of incoming.filter(
+      (bar) =>
+        bar.time > last.time ||
+        (bar.time === last.time && JSON.stringify(bar) !== JSON.stringify(last)),
+    ))
       for (const subscriber of this.subscribers.values()) subscriber.receive(bar);
   }
 }

@@ -216,9 +216,10 @@ export function ChartWorkspace({
                 (!agent?.trading_account_id || row.id === agent.trading_account_id),
             );
             setConnections(enabled);
-            setAccount((old) =>
-              enabled.some((row) => row.id === old) ? old : (enabled[0]?.id ?? ""),
-            );
+            setAccount((old) => {
+              const requested = agent?.trading_account_id ?? old;
+              return enabled.some((row) => row.id === requested) ? requested : "";
+            });
           }
         })
         .catch((reason) => {
@@ -245,7 +246,13 @@ export function ChartWorkspace({
             ? rows.filter((symbol) => symbol === agent.trading_symbol)
             : rows;
           setSymbols(matching);
-          setSymbol(matching[0] ?? "");
+          // The broker catalog is not an instruction to pick its first market.
+          // Only an existing exact specialist binding may populate this field.
+          setSymbol(
+            account === agent?.trading_account_id && matching.includes(agent.trading_symbol ?? "")
+              ? (agent.trading_symbol ?? "")
+              : "",
+          );
         }
       })
       .catch((reason) => {
@@ -254,7 +261,7 @@ export function ChartWorkspace({
     return () => {
       live = false;
     };
-  }, [account, creating, agent?.trading_symbol]);
+  }, [account, creating, agent?.trading_account_id, agent?.trading_symbol]);
   const create = async () => {
     if (!account || !symbol || busy) return;
     setBusy(true);
@@ -442,7 +449,11 @@ export function ChartWorkspace({
             ? connections.map((row, index) => ({
                 label: brokerIdentityLabel(row, index, t),
                 icon: "chart",
-                onPress: () => setAccount(row.id),
+                onPress: () => {
+                  setSymbol("");
+                  setSymbols([]);
+                  setAccount(row.id);
+                },
               }))
             : picker === "symbol"
               ? symbols.map((value) => ({
