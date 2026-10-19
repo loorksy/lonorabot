@@ -70,6 +70,8 @@ def eligibility_reason(
         return "skill_scope_unavailable"
     if set(manifest.required_tools) - signals.available_tools:
         return "skill_required_tools_unavailable"
+    if set(manifest.required_capabilities) - CAPABILITY_TOOLS.keys():
+        return "skill_capability_unknown"
     for capability in manifest.required_capabilities:
         if CAPABILITY_TOOLS[capability] - signals.available_tools:
             return "skill_required_capability_unavailable"

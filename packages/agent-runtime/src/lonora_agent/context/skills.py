@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..skills.registry import built_in_skills, installed_registry, legacy_skill_id
 from ..skills.resolver import SkillSignals, eligibility_reason, resolve_skills
 from ..skills.runtime import infer_intents
-from ..skills.snapshot import apply_snapshot, read_snapshot, write_snapshot
+from ..skills.snapshot import MAX_SNAPSHOT_SKILLS, apply_snapshot, read_snapshot, write_snapshot
 
 
 async def read_skill_context(
@@ -123,7 +123,7 @@ async def assert_skill_authority(context: ToolContext, registry: ToolRegistry) -
         active_raw: Any = cast(dict[str, Any], selection).get("selected_skill_ids", [])
         if not isinstance(active_raw, list):
             raise LonoraError("skill_snapshot_invalid", 409)
-        if len(cast(list[Any], active_raw)) > 32 or any(
+        if len(cast(list[Any], active_raw)) > MAX_SNAPSHOT_SKILLS or any(
             not isinstance(item, str) for item in cast(list[Any], active_raw)
         ):
             raise LonoraError("skill_snapshot_invalid", 409)
