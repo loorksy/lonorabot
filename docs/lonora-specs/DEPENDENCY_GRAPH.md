@@ -188,3 +188,7 @@ Pinned instructions + current selected-Skill eligibility → new-effect/model ad
 ### Chart creation/read dependency resolved (2026-10-19)
 
 Native original creation intent → atomic configuration/receipt → explicit current read → existing initializing-scene runtime lease → current candles/indicators/snapshot. Creation and update replay never substitute today's scene for the original acknowledgment. Immediate open→snapshot works without a browser or a test-side refresh. Ready scenes, real source failures and immutable artifact replay retain their separate semantics. Persistent visual workspace/navigation remains open.
+
+### Exact Skill-version denial dependency resolved (2026-10-19)
+
+Authenticated owner/Agent → typed bounded settings + optimistic revision/durable event → effective pinned-version resolver rejection → actual loaded-instruction checkpoint binding → existing runtime boundary denial. Installed resource deletion or source relabel cannot erase a version control. New unrevoked versions remain available to new Runs; prior Runs never upgrade silently. Candidate evaluation/adoption/rollback must consume this same control and must not create another registry.

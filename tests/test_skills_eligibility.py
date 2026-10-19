@@ -117,11 +117,11 @@ class ContextSession:
     async def scalars(self, _: Any) -> Any:
         return SimpleNamespace(all=lambda: self.rows)
 
-    async def scalar(self, _: Any) -> None:
-        return None
+    async def scalar(self, query: Any) -> Any:
+        return self.agent if "ln_agents" in str(query) else None
 
-    async def get(self, *_: Any) -> Any:
-        return self.agent
+    async def get(self, model: Any, *_: Any) -> Any:
+        return self.agent if model.__name__ == "AgentRow" else None
 
 
 @pytest.mark.asyncio
@@ -143,6 +143,7 @@ async def test_context_refresh_pins_content_after_catalog_update_and_honors_disa
     context: Any = SimpleNamespace(
         thread_id="thread",
         agent_id="agent",
+        owner_id="owner",
         lease="lease",
         db=SimpleNamespace(sessions=lambda: session),
     )

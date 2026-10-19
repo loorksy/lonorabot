@@ -4,6 +4,7 @@ from lonora_adapter_kit.types import ModelMessage
 from lonora_core.user_error import LonoraError
 from lonora_db.runs import require_lease
 from lonora_db.schema import AgentRow, CloudChartRow, MessageRow, SkillRow
+from lonora_db.skill_controls import read_skill_controls
 from lonora_tools.context import ToolContext
 from lonora_tools.registry import ToolRegistry
 from sqlalchemy import select
@@ -69,6 +70,11 @@ async def read_skill_context(
     skills, rejected = installed_registry([row.payload for row in rows], known_tools)
     snapshot = read_snapshot(run.model_metadata.get("skill_snapshot"))
     skills = apply_snapshot(skills, rejected, snapshot, known_tools)
+    controls = await read_skill_controls(session, context.owner_id, agent.id)
+    revoked = {(item.skill_id, item.version) for item in controls.revoked}
+    for identity, definition in skills.definitions.items():
+        if (identity, definition.manifest.version) in revoked:
+            rejected[identity] = "skill_version_revoked"
     selection = resolve_skills(skills, signals, rejected=rejected)
     snapshot_payload = write_snapshot(snapshot, selection)
     # Hold the run fence only for the metadata write, never while retrieving memory/context.
@@ -85,14 +91,14 @@ async def read_skill_context(
 
 async def refresh_skill_context(
     context: ToolContext, registry: ToolRegistry, messages: list["ModelMessage"]
-) -> None:
+) -> list[str] | None:
     """Steering may change relevance; retain policies, history and indivisible tool exchanges."""
     import re
 
     async with context.db.sessions() as session:
         agent = await session.get(AgentRow, context.agent_id)
         if agent is None:
-            return
+            raise LonoraError("context_identity_missing", 404)
         task_text = next((item.content for item in reversed(messages) if item.role == "user"), None)
         block = await read_skill_context(session, context, agent, registry, task_text)
     for message in messages:
@@ -104,10 +110,24 @@ async def refresh_skill_context(
                 count=1,
                 flags=re.S,
             )
-            return
+            return await selected_skill_ids(context)
+    return None
 
 
-async def assert_skill_authority(context: ToolContext, registry: ToolRegistry) -> None:
+async def selected_skill_ids(context: ToolContext) -> list[str]:
+    async with context.db.sessions() as session:
+        run = await require_lease(session, context.lease)
+        active: Any = run.model_metadata.get("skill_selection", {}).get("selected_skill_ids", [])
+        if not isinstance(active, list) or len(cast(list[Any], active)) > MAX_SNAPSHOT_SKILLS:
+            raise LonoraError("skill_snapshot_invalid", 409)
+        if any(not isinstance(item, str) for item in cast(list[Any], active)):
+            raise LonoraError("skill_snapshot_invalid", 409)
+        return list(cast(list[str], active))
+
+
+async def assert_skill_authority(
+    context: ToolContext, registry: ToolRegistry, *, active_ids: list[str] | None = None
+) -> None:
     """Recheck selected pinned instructions without changing selection or pending effects.
 
     A Skill is not a tool grant. This boundary additionally prevents a resumed or
@@ -120,7 +140,11 @@ async def assert_skill_authority(context: ToolContext, registry: ToolRegistry) -
         selection: Any = run.model_metadata.get("skill_selection", {})
         if not isinstance(selection, dict):
             raise LonoraError("skill_snapshot_invalid", 409)
-        active_raw: Any = cast(dict[str, Any], selection).get("selected_skill_ids", [])
+        active_raw: Any = (
+            active_ids
+            if active_ids is not None
+            else cast(dict[str, Any], selection).get("selected_skill_ids", [])
+        )
         if not isinstance(active_raw, list):
             raise LonoraError("skill_snapshot_invalid", 409)
         if len(cast(list[Any], active_raw)) > MAX_SNAPSHOT_SKILLS or any(
@@ -142,12 +166,16 @@ async def assert_skill_authority(context: ToolContext, registry: ToolRegistry) -
             read_only=read_only,
             available_tools=frozenset(item.name for item in registry.definitions(read_only)),
         )
+        controls = await read_skill_controls(session, context.owner_id, context.agent_id)
+        revoked = {(item.skill_id, item.version) for item in controls.revoked}
         failures: dict[str, str] = {}
         for identity in active:
             pinned = snapshot.get(identity)
             definition = current.definitions.get(identity)
             if pinned is None:
                 failures[identity] = "skill_snapshot_unavailable"
+            elif (identity, pinned.manifest.version) in revoked:
+                failures[identity] = "skill_version_revoked"
             elif identity in rejected:
                 failures[identity] = rejected[identity]
             elif definition is None:

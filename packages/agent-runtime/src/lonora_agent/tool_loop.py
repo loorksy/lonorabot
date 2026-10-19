@@ -17,7 +17,7 @@ from lonora_tools.tool_results import store_result, stored_result
 
 from .cancellation import cancellation_checkpoint
 from .context.builder import build_context
-from .context.skills import assert_skill_authority, refresh_skill_context
+from .context.skills import assert_skill_authority, refresh_skill_context, selected_skill_ids
 from .environment import (
     ToolRetryScheduled,
     blocked_route,
@@ -31,6 +31,7 @@ from .environment import (
 from .model_runtime import model_turn
 from .progress import progress
 from .recovery import restore_execution
+from .skills.snapshot import read_snapshot
 from .steering import merge_steering, owner_steering_pending
 from .tasks import task_checkpoint
 from .tool_guard import advance_guard
@@ -71,12 +72,19 @@ async def execute_tool_loop(
             Capability.BACKGROUND if run.trigger in WORK_TRIGGERS else Capability.CONVERSATION
         )
     messages, pending = restore_execution(state)
+    if messages and "instruction_skill_ids" not in state:
+        # Legacy checkpoints have no binding between saved instructions and the
+        # latest metadata selection. Conservatively check all retained versions.
+        state["instruction_skill_ids"] = list(
+            read_snapshot(run.model_metadata.get("skill_snapshot"))
+        ) or await selected_skill_ids(context)
     if "environment" not in state and pending:
         # Older checkpoints did not distinguish proposed from in-flight calls.
         # Unknown legacy mutations must not acquire a new replay permission.
         environment_state(state)["legacy_pending"] = [call.id for call in pending]
     if not messages:
         messages = await build_context(context, registry)
+        state["instruction_skill_ids"] = await selected_skill_ids(context)
     environment = environment_state(state)
     if environment.get("wait"):
         return LoopOutcome("", state.get("selection", {}), external_wait=True)
@@ -201,7 +209,9 @@ async def execute_tool_loop(
                 else:
                     # Receipts and known financial reconciliation above retain priority.
                     # New effects cannot use instructions withdrawn since selection.
-                    await assert_skill_authority(context, registry)
+                    await assert_skill_authority(
+                        context, registry, active_ids=state["instruction_skill_ids"]
+                    )
                     # Persist intent before any handler can cross an effect
                     # boundary. Unreceipted mutations cannot replay after death.
                     environment["inflight"] = {
@@ -341,9 +351,11 @@ async def execute_tool_loop(
                     },
                 )
         if await merge_steering(context, state, messages):
-            await refresh_skill_context(context, registry, messages)
+            updated_skills = await refresh_skill_context(context, registry, messages)
+            if updated_skills is not None:
+                state["instruction_skill_ids"] = updated_skills
         await task_checkpoint(context, state, messages)
-        await assert_skill_authority(context, registry)
+        await assert_skill_authority(context, registry, active_ids=state["instruction_skill_ids"])
         turn_capability = (
             Capability.VISION if any(message.images for message in messages) else capability
         )
@@ -364,7 +376,9 @@ async def execute_tool_loop(
         if pending:
             continue
         if await merge_steering(context, state, messages):
-            await refresh_skill_context(context, registry, messages)
+            updated_skills = await refresh_skill_context(context, registry, messages)
+            if updated_skills is not None:
+                state["instruction_skill_ids"] = updated_skills
             continue
         if not reply.text.strip() and is_conversational(run.trigger):
             messages.append(

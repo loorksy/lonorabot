@@ -236,7 +236,13 @@ class FakeSession:
         return self
 
     async def get(self, model: Any, _: Any) -> Any:
-        return self.agent if model.__name__ == "AgentRow" else self.thread
+        return (
+            self.agent
+            if model.__name__ == "AgentRow"
+            else self.thread
+            if model.__name__ == "ThreadRow"
+            else None
+        )
 
     async def flush(self) -> None:
         pass
@@ -245,6 +251,8 @@ class FakeSession:
         return SimpleNamespace(all=lambda: list[Any]())
 
     async def scalar(self, query: Any) -> Any:
+        if "ln_agents" in str(query):
+            return self.agent
         return "What do you remember about my project?" if "ln_messages" in str(query) else None
 
 

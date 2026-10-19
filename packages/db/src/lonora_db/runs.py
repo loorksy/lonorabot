@@ -69,7 +69,14 @@ async def create_run(
             for key, value in request.metadata.items()
             # Skill snapshots and diagnostics are created under the Run fence.
             # Owner-supplied metadata must never impersonate bundled instructions.
-            if key not in {STREAM_KEY, "result_message_id", "skill_snapshot", "skill_selection"}
+            if key
+            not in {
+                STREAM_KEY,
+                "result_message_id",
+                "skill_snapshot",
+                "skill_selection",
+                "skill_authority",
+            }
         },
     )
     if agent.execution_mode == "shadow":

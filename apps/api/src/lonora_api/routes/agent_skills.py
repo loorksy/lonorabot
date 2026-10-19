@@ -2,16 +2,20 @@
 
 from typing import Any
 
+from fastapi import APIRouter, Depends, Request
 from lonora_agent.skills.registry import installed_registry
-from lonora_contracts.skills import AgentSkill
+from lonora_auth.identity import OwnerIdentity
+from lonora_contracts.skills import AgentSkill, SkillRevokeRequest, SkillVersionControls
 from lonora_core.user_error import LonoraError
 from lonora_db.schema import ResourceRow, SkillRow
+from lonora_db.skill_controls import read_skill_controls, revoke_skill_version
 from lonora_db.skills import SkillRepository
 from lonora_db.transactions import owned_agent
 from lonora_tools.loader import load_tools
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..middleware.auth import require_owner, runtime
 from . import resource_router
 
 
@@ -88,4 +92,24 @@ class ValidatedSkillRepository(SkillRepository):
         await super().delete(session, owner_id, resource_id)
 
 
-router = resource_router("/skills", ValidatedSkillRepository())
+router = APIRouter()
+router.include_router(resource_router("/skills", ValidatedSkillRepository()))
+
+
+@router.get("/agents/{agent_id}/skills/revocations")
+async def revocations(
+    request: Request, agent_id: str, owner: OwnerIdentity = Depends(require_owner)
+) -> SkillVersionControls:
+    async with runtime(request).db.sessions() as session:
+        return await read_skill_controls(session, owner.id, agent_id)
+
+
+@router.post("/agents/{agent_id}/skills/revocations")
+async def revoke(
+    request: Request,
+    agent_id: str,
+    body: SkillRevokeRequest,
+    owner: OwnerIdentity = Depends(require_owner),
+) -> SkillVersionControls:
+    async with runtime(request).db.sessions() as session, session.begin():
+        return await revoke_skill_version(session, owner.id, agent_id, body)

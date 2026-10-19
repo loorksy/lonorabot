@@ -44,12 +44,14 @@ async def main() -> None:
                 "metadata": {
                     "skill_snapshot": forged_snapshot,
                     "skill_selection": {"forged": True},
+                    "skill_authority": {"status": "allowed", "forged": True},
                     "requested_skills": ["memory"],
                 },
             },
         )
         assert "skill_snapshot" not in forged_run["model_metadata"]
         assert "skill_selection" not in forged_run["model_metadata"]
+        assert "skill_authority" not in forged_run["model_metadata"]
         forged_context = await f.lease(forged_run)
         async with f.runtime.db.sessions() as session:
             stored_agent = await session.get(AgentRow, agent["id"])
