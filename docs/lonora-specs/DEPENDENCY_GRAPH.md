@@ -197,3 +197,8 @@ Authenticated owner/Agent → typed bounded settings + optimistic revision/durab
 ### Progressive Skill access dependency integrated (2026-10-19)
 
 Canonical ToolRegistry → injected Agent-owned catalog access → effective pinned resolver/controls → bounded dependency bundle + fenced receipt → verified tool-result/authority checkpoint → subsequent effect/model admission. Steering consumes retained views through the same resolver and budgets. This is one instruction lifecycle, not another registry, permission layer or memory system. Evaluated candidate/adoption/rollback remains downstream and unimplemented.
+
+
+### Broker discovery cancellation boundary (2026-10-19)
+
+Existing MetaApi transport hook → shared shielded discovery task + bounded failure/cooldown → official SDK host cache → account-derived region → independent stream/history consumers → durable market snapshots → chart/watch evidence. Shutdown owns the shared task. Financial execution/reconciliation remains a separate existing path with no blind retry.

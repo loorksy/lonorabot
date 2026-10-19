@@ -1,6 +1,6 @@
 # Progress
 
-Current wave (2026-10-19): progressive Skill discovery/view on `feat/progressive-skill-discovery`, from `0109438`. The previous verified environment increments are now on `main` and deployed; see [deployment evidence](DEPLOYMENT_2026_10_19.md). No APK was built. The full professional Agent program remains incomplete.
+Current wave (2026-10-19): cancellation-safe MetaApi discovery recovery on `fix/metaapi-discovery-cancellation`, from `f6a5933`. All preceding progressive Skills/environment increments are on `main` and deployed. The full professional Agent program remains incomplete; no APK was built.
 
 ## Current wave
 
@@ -385,3 +385,12 @@ The canonical ToolRegistry now exposes bounded metadata-only `skills_list` and o
 A successful view writes the original bounded bundle and a scoped receipt in the existing fenced Run transaction. ToolLoop admits only the receipt-verified content and checkpoints its instruction IDs with the complete tool result. Worker death before checkpoint replays the pinned version; catalog edits cannot silently replace it. Viewed instructions remain conservatively active for the whole Run, even if old tool history is later compacted. Steering resolves refreshed instructions and retained views together; overflow/conflicts/withdrawal block admission rather than dropping prior bindings. Catalog and view share the 32-snapshot/128,000-retained-character limits and 16,000-character active-instruction budget.
 
 Independent root PostgreSQL acceptance passed for natural discovery→view, crash/new-fence replay, edited catalog, forged result/receipt, changed intent, scope/fence checks, steering and exact-version withdrawal before the next effect. Final integration passed: 365 pytest cases, 38 isolated PostgreSQL foundation groups and 11 additional Task cases; Ruff clean and strict Pyright zero errors. This is not evaluated learning or proof of external model quality. Candidate generation, independent evaluation, owner adoption/rollback, owner version-control UI and persistent visual viewport/navigation remain open.
+
+
+## MetaApi discovery cancellation recovery — 2026-10-19
+
+Production checks after service replacement found a fresh Gateway heartbeat and renewed market leases while quote/history snapshots stopped advancing. The actual installed SDK reproduces a concrete failure: cancelling the original domain-discovery caller leaves a pending shared Future; cancelling a waiter can poison it, and subsequent independent calls receive `CancelledError` without another HTTP request. This mechanism can strand readers or terminate a chart loop without recording a normal provider error. Production process memory was not inspected, so the reproduction is distinguished from direct observation of its internal Future.
+
+The existing SDK transport hook now installs bounded, cancellation-safe discovery using the existing ConnectionSlot. Consumers share one shielded owner; individual cancellation cannot cancel it. Discovery retains the SDK's600-second cache, uses a30-second owner deadline and existing failure cooldown, and ignores abandoned legacy promises. Broker shutdown drains this task. Read-only account metadata and historical calls now have25/35-second outer deadlines, including SDK202 polling. No financial mutation is retried by this change; exact symbols, account-derived region and independent history/stream ownership remain unchanged.
+
+Independent actual-SDK cancellation/concurrency/TTL/cooldown/shutdown/read-deadline/redaction checks passed, as did existing SDK adapter, transport and connection-registry recovery checks. All365 pytest cases and focused PostgreSQL account-recovery, market-runtime and ordinary Agent→market/chart/trade flows passed. Strict Pyright reports zero errors and Ruff passes. The new SDK fixture is registered in the isolated foundation runner (39 groups); the preceding full38-group pass remains distinct from the focused checks executed for this transport fix. Production acceptance is a separate deployment check.

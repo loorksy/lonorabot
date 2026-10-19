@@ -20,6 +20,7 @@ from lonora_session.idempotency import broker_operation_tag
 from pydantic import ValidationError
 
 from . import normalize
+from .metaapi_discovery import update_domain
 from .metaapi_lifecycle import (
     ConnectionSlot,
     closed_error,
@@ -119,6 +120,7 @@ def configure_sdk_transport() -> None:
     websocket_module: Any = importlib.import_module(
         "metaapi_cloud_sdk.clients.metaapi.metaapi_websocket_client"
     )
+    domain_module: Any = importlib.import_module("metaapi_cloud_sdk.clients.domain_client")
     if getattr(http_module, "_lonora_transport_configured", False):
         return
 
@@ -171,6 +173,7 @@ def configure_sdk_transport() -> None:
                     return
 
     http_module.HttpClient._make_request = request
+    domain_module.DomainClient._update_domain = update_domain
     websocket_module.socketio = SimpleNamespace(AsyncClient=ProxySocketClient)
     websocket_module.MetaApiWebsocketClient._reconnect = reconnect
     http_module._lonora_transport_configured = True
@@ -231,9 +234,10 @@ class MetaApiBroker:
         async with self.account_lock:
             if self.account_instance is None:
                 try:
-                    self.account_instance = await self.api.metatrader_account_api.get_account(
-                        self.account_id
-                    )
+                    async with asyncio.timeout(25):
+                        self.account_instance = await self.api.metatrader_account_api.get_account(
+                            self.account_id
+                        )
                 except Exception as error:
                     raise self.diagnose(error, "account") from error
             return self.account_instance
@@ -613,9 +617,10 @@ class MetaApiBroker:
             raise LonoraError("candle_limit_invalid")
         account = await self.resolve_account()
         try:
-            values = await account.get_historical_candles(
-                symbol=symbol, timeframe=timeframe, start_time=None, limit=min(limit, 1000)
-            )
+            async with asyncio.timeout(35):
+                values = await account.get_historical_candles(
+                    symbol=symbol, timeframe=timeframe, start_time=None, limit=min(limit, 1000)
+                )
             if any(
                 value.get("symbol", symbol) != symbol
                 or value.get("timeframe", timeframe) != timeframe
@@ -899,4 +904,10 @@ class MetaApiBroker:
             connection = getattr(self, "streaming" if kind == "streaming" else "rpc", None)
             if connection is not None:
                 await self.invalidate(kind, connection)
+        websocket = getattr(self.api, "_metaapi_websocket_client", None)
+        domain = getattr(websocket, "_domain_client", None)
+        discovery = getattr(domain, "_lonora_domain_slot", None)
+        if discovery is not None and discovery.task is not None and not discovery.task.done():
+            discovery.task.cancel()
+            await asyncio.gather(discovery.task, return_exceptions=True)
         self.api.close()

@@ -150,3 +150,14 @@ Status: VERIFIED for the scoped discovery/view behavior.
 - **Retention:** viewed instructions conservatively remain active for the Run, even after history compaction. Steering resolves refreshed instructions and retained views under the same conflict/budget boundary; it cannot silently drop old authority checks. Catalog/view dry-run the same snapshot limits.
 - **Evidence:** 365 pytest cases and 38 isolated PostgreSQL foundation groups plus 11 Task cases passed; strict Pyright and Ruff passed. Independent ToolLoop recovery/scope/revocation acceptance also passed. No external model-quality, native-device or financial mutation claim.
 - **Open:** owner version-control UI, candidate generation, independent evaluation/adoption/rollback and measured quality. No new schema, registry, permission system or Agent runtime.
+
+
+## ENV-BROKER-DISCOVERY-01 — Shared SDK discovery survives consumer cancellation
+
+Status: VERIFIED for actual-SDK cancellation and local runtime regressions; production acceptance is separate.
+
+- **Observed:** public service health can be ready while market snapshots stop advancing. Service readiness alone is insufficient market acceptance.
+- **Reproduced:** the actual SDK's bare shared domain Future becomes abandoned or cancelled across independent consumers. A later call can hang or propagate unrelated `CancelledError`. No live broker mutation is needed to reproduce this.
+- **Reuse:** existing transport hook and ConnectionSlot; no second broker runtime or scheduler. Discovery has one shielded bounded task, the SDK cache TTL, cooldown and explicit shutdown cleanup. Read-only account/history calls have outer deadlines.
+- **Safety:** only host discovery is repeated after failure; financial dispatch is untouched. Account region and exact symbols remain authoritative. Errors retain stable codes and bounded credential-free diagnostics.
+- **Evidence:** actual-SDK40-consumer cancellation/legacy promise/timeout/TTL/recovery/redaction/shutdown checks; existing SDK transport/adapter/registry recovery;365 pytest and focused PostgreSQL account/market/Agent integration passed. Production acceptance follows deployment.
