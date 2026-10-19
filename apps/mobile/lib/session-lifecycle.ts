@@ -6,5 +6,9 @@ export function registerSessionTeardown(callback: () => Promise<void>) {
   };
 }
 export async function closeSessionResources() {
-  await Promise.all([...teardowns].map((close) => close()));
+  const results = await Promise.allSettled(
+    [...teardowns].map((close) => Promise.resolve().then(close)),
+  );
+  const failure = results.find((result) => result.status === "rejected");
+  if (failure?.status === "rejected") throw failure.reason;
 }

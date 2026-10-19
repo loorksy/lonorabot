@@ -332,6 +332,9 @@ test("tablet and Arabic phone layouts preserve navigation and unknown-route reco
   await page.goto("/app/unavailable/regression-route");
   await expect(page.locator("main h1")).toBeVisible();
   await page.locator("main a[href='/app']").click();
+  await expect(page.getByTestId("conversation-inbox")).toBeVisible();
+  await expect(page.getByTestId("transcript")).toHaveCount(0);
+  await page.locator(`[data-inbox-agent-id="${agent.id}"]`).click();
   await expect(page.getByTestId("transcript")).toBeVisible();
 });
 

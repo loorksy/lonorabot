@@ -1,6 +1,6 @@
 import { Trans } from "@lingui/react/macro";
 import { useEffect, useState } from "react";
-import { ApiError } from "./lib/api";
+import { ApiError, isRequestCancelled, resetSessionRequests } from "./lib/api";
 import { auth, type Owner } from "./lib/auth";
 import { onboardingStatus } from "./lib/bootstrap";
 import { userError } from "./lib/user_error";
@@ -13,7 +13,10 @@ export default function App() {
   const [initialized, setInitialized] = useState<boolean>();
   const [error, setError] = useState<unknown>();
   useEffect(() => {
-    const expired = () => setOwner(null);
+    const expired = () => {
+      resetSessionRequests();
+      setOwner(null);
+    };
     window.addEventListener("lonora:session-expired", expired);
     return () => window.removeEventListener("lonora:session-expired", expired);
   }, []);
@@ -34,7 +37,7 @@ export default function App() {
         }
       })
       .catch((failure) => {
-        if (live) setError(failure);
+        if (live && !isRequestCancelled(failure)) setError(failure);
       });
     return () => {
       live = false;
@@ -70,7 +73,7 @@ export default function App() {
       />
     );
   return (
-    <ClientProvider owner={owner}>
+    <ClientProvider key={owner.id} owner={owner}>
       <Shell onLogout={() => setOwner(null)} />
     </ClientProvider>
   );

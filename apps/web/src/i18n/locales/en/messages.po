@@ -2842,3 +2842,31 @@ msgstr "Chart appearance could not be updated."
 #: src/lib/user_error.ts
 msgid "An active skill is no longer available. Review its settings before resuming this task."
 msgstr "An active skill is no longer available. Review its settings before resuming this task."
+
+#: src/pages/shell/conversation-inbox.tsx
+msgid "Conversations"
+msgstr "Conversations"
+
+#: src/pages/shell/conversation-inbox.tsx
+msgid "Search conversations"
+msgstr "Search conversations"
+
+#: src/pages/shell/conversation-inbox.tsx
+msgid "Create conversation"
+msgstr "Create conversation"
+
+#: src/pages/shell/conversation-inbox.tsx
+msgid "Loading conversations…"
+msgstr "Loading conversations…"
+
+#: src/pages/shell/conversation-inbox.tsx
+msgid "Start a conversation"
+msgstr "Start a conversation"
+
+#: src/pages/shell/conversation-inbox.tsx
+msgid "No conversations match"
+msgstr "No conversations match"
+
+#: src/pages/shell/conversation-inbox.tsx
+msgid "Back to conversations"
+msgstr "Back to conversations"

@@ -1,18 +1,24 @@
 import type { MentionAddress } from "@lonora/core";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { api, type Message, type Run, type Thread } from "../lib/api";
+import { api, isRequestCancelled, type Message, type Run, type Thread } from "../lib/api";
+import { conversationKey, readConversation, retainConversation } from "../lib/conversation-cache";
 import { useClient } from "../providers/ClientProvider";
 export function useThreads(agentId?: string, threadId?: string) {
-  const { revision, refresh, events } = useClient();
+  const { owner, revision, refresh, events } = useClient();
   const [threads, setThreads] = useState<Thread[]>([]);
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [runs, setRuns] = useState<Run[]>([]);
+  const messageKey = conversationKey(owner.id, `/threads/${threadId}/messages`);
+  const runKey = conversationKey(owner.id, `/runs?thread_id=${threadId}`);
+  const [messages, setMessages] = useState<Message[]>(
+    () => readConversation<Message[]>(messageKey) ?? [],
+  );
+  const [runs, setRuns] = useState<Run[]>(() => readConversation<Run[]>(runKey) ?? []);
   const [error, setError] = useState<unknown>();
   const [listingError, setListingError] = useState<unknown>();
   const pendingSend = useRef<{ fingerprint: string; nonce: string } | null>(null);
   useEffect(() => {
     // The durable revision (or explicit refresh tick) invalidates this fetched state.
     void revision;
+    if (!agentId && threadId) return;
     let live = true;
     api
       .get<Thread[]>(`/threads${agentId ? `?agent_id=${agentId}` : ""}`)
@@ -23,20 +29,20 @@ export function useThreads(agentId?: string, threadId?: string) {
         }
       })
       .catch((e) => {
-        if (live) setListingError(e);
+        if (live && !isRequestCancelled(e)) setListingError(e);
       });
     return () => {
       live = false;
     };
-  }, [agentId, revision]);
+  }, [agentId, threadId, revision]);
   useEffect(() => {
     // The durable revision (or explicit refresh tick) invalidates this fetched state.
     void threadId;
     pendingSend.current = null;
-    setMessages([]);
-    setRuns([]);
+    setMessages(readConversation<Message[]>(messageKey) ?? []);
+    setRuns(readConversation<Run[]>(runKey) ?? []);
     setError(undefined);
-  }, [threadId]);
+  }, [threadId, messageKey, runKey]);
   useEffect(() => {
     // The durable revision (or explicit refresh tick) invalidates this fetched state.
     void revision;
@@ -51,19 +57,21 @@ export function useThreads(agentId?: string, threadId?: string) {
           setMessages((old) => {
             const merged = new Map(old.map((message) => [message.id, message]));
             for (const message of m) merged.set(message.id, message);
-            return [...merged.values()].sort((a, b) => a.seq - b.seq);
+            const result = [...merged.values()].sort((a, b) => a.seq - b.seq);
+            retainConversation(messageKey, result.slice(-500));
+            return result;
           });
-          setRuns(r);
+          setRuns(retainConversation(runKey, r));
           setError(undefined);
         }
       })
       .catch((e) => {
-        if (live) setError(e);
+        if (live && !isRequestCancelled(e)) setError(e);
       });
     return () => {
       live = false;
     };
-  }, [threadId, revision]);
+  }, [threadId, revision, messageKey, runKey]);
   const visibleMessages = useMemo(() => {
     const visible = new Map(messages.map((message) => [message.id, message]));
     for (const event of events) {

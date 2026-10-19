@@ -411,3 +411,87 @@
   font-size: 12px;
   text-align: start;
 }
+
+.tpl-inbox {
+  flex: 1;
+  overflow-y: auto;
+  width: min(100%, 860px);
+  margin-inline: auto;
+  padding: 20px clamp(16px, 4vw, 36px) 32px;
+}
+.tpl-inbox-heading,
+.tpl-inbox-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.tpl-inbox-heading {
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+.tpl-inbox-heading h1 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 600;
+}
+.tpl-inbox-search {
+  width: 100%;
+  margin-bottom: 14px;
+}
+.tpl-inbox-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  padding: 16px 8px;
+  border: 0;
+  border-radius: 18px;
+  background: transparent;
+  text-align: start;
+  cursor: pointer;
+}
+.tpl-inbox-row:hover,
+.tpl-inbox-row:focus-visible {
+  background: var(--muted);
+}
+.tpl-inbox-avatar {
+  display: flex;
+  flex: 0 0 58px;
+  width: 58px;
+  height: 58px;
+  align-items: center;
+  justify-content: center;
+}
+.tpl-inbox-avatar > * {
+  width: 58px;
+  height: 58px;
+}
+.tpl-inbox-copy {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 8px;
+}
+.tpl-inbox-title strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 19px;
+}
+.tpl-inbox-title time {
+  margin-inline-start: auto;
+  white-space: nowrap;
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+.tpl-inbox-preview {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted-foreground);
+  font-size: 15px;
+}
+html[dir="rtl"] .tpl-inbox-back {
+  transform: rotate(180deg);
+}

@@ -9,6 +9,35 @@ export class ApiError extends Error {
     super(code);
   }
 }
+export class RequestCancelled extends Error {
+  readonly code = "request_cancelled";
+  constructor() {
+    super("request_cancelled");
+    this.name = "AbortError";
+  }
+}
+export function isRequestCancelled(error: unknown) {
+  return (
+    error instanceof RequestCancelled || (error instanceof Error && error.name === "AbortError")
+  );
+}
+let sessionGeneration = 0;
+const active = new Map<AbortController, boolean>();
+const pendingReads = new Map<string, Promise<unknown>>();
+export function resetSessionRequests() {
+  sessionGeneration += 1;
+  for (const controller of active.keys()) controller.abort();
+  active.clear();
+  pendingReads.clear();
+  window.dispatchEvent(new Event("lonora:session-reset"));
+}
+// Leaving/backgrounding a page is not a failed user operation. Writes retain
+// their actual outcome; only read projections are cancelled and reconciled on return.
+if (typeof document !== "undefined")
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden")
+      for (const [controller, read] of active) if (read) controller.abort();
+  });
 export function csrfToken() {
   return (
     document.cookie
@@ -19,21 +48,61 @@ export function csrfToken() {
       .join("=") ?? ""
   );
 }
-export async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const headers = new Headers(init.headers);
-  headers.set("Accept", "application/json");
-  if (init.body && !(init.body instanceof FormData))
-    headers.set("Content-Type", "application/json");
-  if (init.method && !["GET", "HEAD"].includes(init.method))
-    headers.set("X-CSRF-Token", decodeURIComponent(csrfToken()));
-  const response = await fetch(`/api${path}`, { ...init, headers, credentials: "include" });
-  if (!response.ok) {
-    if (response.status === 401 && !path.startsWith("/auth/"))
-      window.dispatchEvent(new CustomEvent("lonora:session-expired"));
-    const data = await response.json().catch(() => ({ code: "request_failed" }));
-    throw new ApiError(data.code ?? "request_failed", response.status);
+async function perform<T>(path: string, init: RequestInit): Promise<T> {
+  const generation = sessionGeneration;
+  const controller = new AbortController();
+  const read = !init.method || ["GET", "HEAD"].includes(init.method);
+  // Initial authentication must still finish when a tab first opens in the background.
+  active.set(controller, read && !path.startsWith("/auth/") && !path.startsWith("/onboarding"));
+  const abort = () => controller.abort();
+  init.signal?.addEventListener("abort", abort, { once: true });
+  if (init.signal?.aborted) controller.abort();
+  const current = () => {
+    if (generation !== sessionGeneration || controller.signal.aborted) throw new RequestCancelled();
+  };
+  try {
+    current();
+    const headers = new Headers(init.headers);
+    headers.set("Accept", "application/json");
+    if (init.body && !(init.body instanceof FormData))
+      headers.set("Content-Type", "application/json");
+    if (init.method && !["GET", "HEAD"].includes(init.method))
+      headers.set("X-CSRF-Token", decodeURIComponent(csrfToken()));
+    const response = await fetch(`/api${path}`, {
+      ...init,
+      signal: controller.signal,
+      headers,
+      credentials: "include",
+    });
+    current();
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({ code: "request_failed" }));
+      current();
+      if (response.status === 401 && !path.startsWith("/auth/"))
+        window.dispatchEvent(new CustomEvent("lonora:session-expired"));
+      throw new ApiError(data.code ?? "request_failed", response.status);
+    }
+    const data = await response.json();
+    current();
+    return data as T;
+  } catch (error) {
+    current();
+    throw error;
+  } finally {
+    active.delete(controller);
+    init.signal?.removeEventListener("abort", abort);
   }
-  return response.json() as Promise<T>;
+}
+export function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  if (init.signal || (init.method && init.method !== "GET")) return perform<T>(path, init);
+  const key = `${sessionGeneration}:${path}`;
+  const pending = pendingReads.get(key);
+  if (pending) return pending as Promise<T>;
+  const promise = perform<T>(path, init).finally(() => {
+    if (pendingReads.get(key) === promise) pendingReads.delete(key);
+  });
+  pendingReads.set(key, promise);
+  return promise;
 }
 export const api = {
   get: <T>(path: string) => request<T>(path),

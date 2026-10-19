@@ -2842,3 +2842,31 @@ msgstr "تعذّر تحديث مظهر الشارت."
 #: src/lib/user_error.ts
 msgid "An active skill is no longer available. Review its settings before resuming this task."
 msgstr "إحدى المهارات النشطة لم تعد متاحة. راجع إعداداتها قبل استئناف المهمة."
+
+#: src/pages/shell/conversation-inbox.tsx
+msgid "Conversations"
+msgstr "المحادثات"
+
+#: src/pages/shell/conversation-inbox.tsx
+msgid "Search conversations"
+msgstr "البحث في المحادثات"
+
+#: src/pages/shell/conversation-inbox.tsx
+msgid "Create conversation"
+msgstr "إنشاء محادثة"
+
+#: src/pages/shell/conversation-inbox.tsx
+msgid "Loading conversations…"
+msgstr "جارٍ تحميل المحادثات…"
+
+#: src/pages/shell/conversation-inbox.tsx
+msgid "Start a conversation"
+msgstr "ابدأ محادثة"
+
+#: src/pages/shell/conversation-inbox.tsx
+msgid "No conversations match"
+msgstr "لا توجد محادثات مطابقة"
+
+#: src/pages/shell/conversation-inbox.tsx
+msgid "Back to conversations"
+msgstr "العودة إلى المحادثات"

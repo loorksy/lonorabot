@@ -18,7 +18,9 @@ export function ClientProvider({ owner, children }: { owner: Owner; children: Re
   const [manual, setManual] = useState(0);
   const [tick, setTick] = useState(0);
   useEffect(() => {
-    const timer = setInterval(() => setTick((v) => v + 1), 15000);
+    const timer = setInterval(() => {
+      if (document.visibilityState === "visible") setTick((v) => v + 1);
+    }, 15000);
     return () => clearInterval(timer);
   }, []);
   useEffect(() => {

@@ -1,7 +1,16 @@
 import type { Owner } from "@lonora/contracts";
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useState } from "react";
-import { Platform } from "react-native";
-import { ApiError, api, configureApi, normalizeServer, setCredentials } from "./api";
+import { AppState, Platform } from "react-native";
+import {
+  ApiError,
+  api,
+  cancelBackgroundReads,
+  cancelSessionRequests,
+  configureApi,
+  normalizeServer,
+  SessionRequestCancelled,
+  setCredentials,
+} from "./api";
 import { type Label, type Locale, labels, translate } from "./i18n";
 import { closeSessionResources } from "./session-lifecycle";
 import { loadNativeToken, loadSetting, saveNativeToken, saveSetting } from "./storage";
@@ -31,6 +40,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const expire = useCallback(() => {
     setOwner(null);
     setCredentials(null);
+    void closeSessionResources().catch(() => undefined);
     void saveNativeToken(null).catch(() => undefined);
   }, []);
 
@@ -66,6 +76,13 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     };
   }, [expire]);
 
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state !== "active") cancelBackgroundReads();
+    });
+    return () => subscription.remove();
+  }, []);
+
   const login = async (value: string, email: string, password: string) => {
     let normalized: string;
     try {
@@ -87,15 +104,27 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = async () => {
-    await closeSessionResources();
+    cancelSessionRequests();
     try {
-      await api.post("/auth/logout", {});
+      // One broken resource must not prevent server-side session revocation.
+      const results = await Promise.allSettled([
+        closeSessionResources(),
+        api.post("/auth/logout", {}),
+      ]);
+      const failure = results.find((result) => result.status === "rejected");
+      if (failure?.status === "rejected") throw failure.reason;
     } catch (error) {
-      if (!(error instanceof ApiError) || error.status !== 401) throw error;
+      if (
+        !(error instanceof SessionRequestCancelled) &&
+        (!(error instanceof ApiError) || error.status !== 401)
+      )
+        throw error;
+    } finally {
+      // A failed server logout must not keep local credentials or old requests alive.
+      setCredentials(null);
+      setOwner(null);
+      await saveNativeToken(null);
     }
-    await saveNativeToken(null);
-    setCredentials(null);
-    setOwner(null);
   };
   const changeServer = async (value: string) => {
     let normalized: string;
@@ -106,6 +135,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     }
     if (owner) await logout();
     else {
+      cancelSessionRequests();
+      await closeSessionResources();
       await saveNativeToken(null);
       setCredentials(null);
     }
@@ -120,6 +151,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   };
   const t = (key: Label) => translate(locale, key);
   const errorText = (error: unknown) => {
+    if (error instanceof SessionRequestCancelled) return "";
     if (error instanceof ApiError) {
       return Object.hasOwn(labels, error.code)
         ? translate(locale, error.code as Label)

@@ -11,6 +11,83 @@ let bearer: string | null = null;
 let csrf = "";
 let expired: (() => void) | null = null;
 let generation = 0;
+const pending = new Set<{ controller: AbortController; readOnly: boolean; cancelled: boolean }>();
+
+// Cancellation is lifecycle state, not an unsuccessful server response.
+export class SessionRequestCancelled extends Error {
+  constructor() {
+    super("session_request_cancelled");
+    this.name = "SessionRequestCancelled";
+  }
+}
+export function cancelSessionRequests() {
+  generation += 1;
+  for (const request of pending) {
+    request.cancelled = true;
+    request.controller.abort();
+  }
+}
+export function cancelBackgroundReads() {
+  for (const request of pending) {
+    if (!request.readOnly) continue;
+    request.cancelled = true;
+    request.controller.abort();
+  }
+}
+
+async function sessionFetch<T>(
+  path: string,
+  init: RequestInit,
+  consume: (response: Response) => Promise<T>,
+): Promise<T> {
+  const requestGeneration = generation;
+  const controller = new AbortController();
+  const entry = {
+    controller,
+    readOnly:
+      (!init.method || ["GET", "HEAD"].includes(init.method)) &&
+      !path.startsWith("/auth/") &&
+      !path.startsWith("/onboarding"),
+    cancelled: false,
+  };
+  const cancel = () => {
+    entry.cancelled = true;
+    controller.abort();
+  };
+  const assertCurrent = () => {
+    if (entry.cancelled || requestGeneration !== generation) throw new SessionRequestCancelled();
+  };
+  pending.add(entry);
+  init.signal?.addEventListener("abort", cancel, { once: true });
+  if (init.signal?.aborted) cancel();
+  const timeout = setTimeout(() => controller.abort(), 30_000);
+  try {
+    assertCurrent();
+    const response = await fetch(`${base}/api${path}`, {
+      ...init,
+      credentials: "include",
+      signal: controller.signal,
+    });
+    assertCurrent();
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({ code: "request_failed" }));
+      assertCurrent();
+      if (response.status === 401 && !path.startsWith("/auth/")) expired?.();
+      assertCurrent();
+      throw new ApiError(data.code ?? "request_failed", response.status);
+    }
+    const value = await consume(response);
+    assertCurrent();
+    return value;
+  } catch (error) {
+    assertCurrent();
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+    pending.delete(entry);
+    init.signal?.removeEventListener("abort", cancel);
+  }
+}
 
 export function normalizeServer(value: string): string {
   const url = new URL(value.trim());
@@ -24,7 +101,7 @@ export function normalizeServer(value: string): string {
 }
 
 export function configureApi(server: string, token: string | null, onExpired: () => void) {
-  generation += 1;
+  cancelSessionRequests();
   base = normalizeServer(server);
   bearer = Platform.OS === "web" ? null : token;
   csrf = "";
@@ -32,7 +109,7 @@ export function configureApi(server: string, token: string | null, onExpired: ()
 }
 
 export function setCredentials(token: string | null, csrfValue = "") {
-  generation += 1;
+  cancelSessionRequests();
   bearer = Platform.OS === "web" ? null : token;
   csrf = csrfValue;
 }
@@ -44,7 +121,6 @@ function browserCsrf(): string {
 }
 
 export async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const requestGeneration = generation;
   const headers = new Headers(init.headers);
   headers.set("Accept", "application/json");
   if (bearer) headers.set("Authorization", `Bearer ${bearer}`);
@@ -52,25 +128,7 @@ export async function request<T>(path: string, init: RequestInit = {}): Promise<
     headers.set("Content-Type", "application/json");
   if (!bearer && init.method && !["GET", "HEAD"].includes(init.method))
     headers.set("X-CSRF-Token", browserCsrf());
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 30_000);
-  try {
-    const response = await fetch(`${base}/api${path}`, {
-      ...init,
-      headers,
-      credentials: "include",
-      signal: controller.signal,
-    });
-    if (!response.ok) {
-      const data = await response.json().catch(() => ({ code: "request_failed" }));
-      if (response.status === 401 && !path.startsWith("/auth/") && requestGeneration === generation)
-        expired?.();
-      throw new ApiError(data.code ?? "request_failed", response.status);
-    }
-    return response.json() as Promise<T>;
-  } finally {
-    clearTimeout(timeout);
-  }
+  return sessionFetch(path, { ...init, headers }, (response) => response.json() as Promise<T>);
 }
 
 export const api = {
@@ -87,29 +145,16 @@ export const api = {
 export async function getArtifactFile(
   id: string,
 ): Promise<{ bytes: Uint8Array; mediaType: string }> {
-  const requestGeneration = generation;
   const headers = new Headers();
   if (bearer) headers.set("Authorization", `Bearer ${bearer}`);
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 30_000);
-  try {
-    const response = await fetch(`${base}/api/artifacts/${encodeURIComponent(id)}/file`, {
-      headers,
-      credentials: "include",
-      signal: controller.signal,
-    });
-    if (!response.ok) {
-      if (response.status === 401 && requestGeneration === generation) expired?.();
-      const data = await response.json().catch(() => ({ code: "request_failed" }));
-      throw new ApiError(data.code ?? "request_failed", response.status);
-    }
-    return {
+  return sessionFetch(
+    `/artifacts/${encodeURIComponent(id)}/file`,
+    { headers },
+    async (response) => ({
       bytes: new Uint8Array(await response.arrayBuffer()),
       mediaType: response.headers.get("content-type")?.split(";")[0] ?? "application/octet-stream",
-    };
-  } finally {
-    clearTimeout(timeout);
-  }
+    }),
+  );
 }
 
 export async function upload(asset: DocumentPickerAsset, threadId: string): Promise<Artifact> {

@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
-import { type Agent, api } from "../lib/api";
+import { type Agent, api, isRequestCancelled } from "../lib/api";
+import { conversationKey, readConversation, retainConversation } from "../lib/conversation-cache";
 import { useClient } from "../providers/ClientProvider";
 export function useAgents() {
-  const { revision, refresh } = useClient();
-  const [agents, setAgents] = useState<Agent[]>([]);
+  const { owner, revision, refresh } = useClient();
+  const key = conversationKey(owner.id, "/agents");
+  const [agents, setAgents] = useState<Agent[]>(() => readConversation<Agent[]>(key) ?? []);
   const [error, setError] = useState<unknown>();
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => readConversation(key) === undefined);
   useEffect(() => {
     // The durable revision (or explicit refresh tick) invalidates this fetched state.
     void revision;
@@ -14,13 +16,13 @@ export function useAgents() {
       .get<Agent[]>("/agents")
       .then((v) => {
         if (live) {
-          setAgents(v);
+          setAgents(retainConversation(key, v));
           setError(undefined);
           setLoading(false);
         }
       })
       .catch((e) => {
-        if (live) {
+        if (live && !isRequestCancelled(e)) {
           setError(e);
           setLoading(false);
         }
@@ -28,7 +30,7 @@ export function useAgents() {
     return () => {
       live = false;
     };
-  }, [revision]);
+  }, [revision, key]);
   return {
     agents,
     error,
@@ -45,7 +47,9 @@ export function useAgents() {
       },
     ) => {
       const agent = await api.post<Agent>("/agents", { name, avatar, color, ...profile });
-      setAgents((rows) => (rows.some((row) => row.id === agent.id) ? rows : [...rows, agent]));
+      setAgents((rows) =>
+        retainConversation(key, rows.some((row) => row.id === agent.id) ? rows : [...rows, agent]),
+      );
       refresh();
       return agent;
     },
@@ -55,7 +59,12 @@ export function useAgents() {
     },
     remove: async (id: string) => {
       await api.delete(`/agents/${encodeURIComponent(id)}`);
-      setAgents((rows) => rows.filter((row) => row.id !== id));
+      setAgents((rows) =>
+        retainConversation(
+          key,
+          rows.filter((row) => row.id !== id),
+        ),
+      );
       refresh();
     },
   };

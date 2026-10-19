@@ -153,3 +153,63 @@ test("native timeline opens latest, preserves history reading and keeps approval
     await data.remove();
   }
 });
+
+test("return navigation retains confirmed messages while revalidation is delayed", async ({
+  page,
+  context,
+}) => {
+  const data = await conversation(context);
+  let blocked = false;
+  let release;
+  const waiting = new Promise((resolve) => {
+    release = resolve;
+  });
+  let releaseArtifacts;
+  const artifactsReady = new Promise((resolve) => {
+    releaseArtifacts = resolve;
+  });
+  await page.route(`**/api/artifacts?thread_id=${data.thread.id}`, async (route) => {
+    await artifactsReady;
+    await route.fulfill({ json: [] });
+  });
+  const messages = [
+    {
+      id: "retained-message",
+      seq: 1,
+      thread_id: data.thread.id,
+      agent_id: data.agent.id,
+      role: "assistant",
+      content: "رسالة محفوظة أثناء التنقل",
+      attachment_ids: [],
+      reply_to: null,
+      created_at: "2026-10-19T12:00:00Z",
+    },
+  ];
+  await page.route(`**/api/threads/${data.thread.id}/messages*`, async (route) => {
+    if (blocked) await waiting;
+    await route.fulfill({ json: messages });
+  });
+  try {
+    await page.goto("/");
+    await page.getByText(data.agent.name, { exact: true }).click();
+    await expect(page.getByText(messages[0].content, { exact: true })).toBeVisible();
+    releaseArtifacts();
+    await page.getByRole("button", { name: "إعدادات الوكيل", exact: true }).click();
+    await expect(page).toHaveURL(/bot-settings/);
+    blocked = true;
+    await page.getByRole("button", { name: "رجوع", exact: true }).click();
+    await expect(page.getByText(messages[0].content, { exact: true })).toBeVisible();
+    messages.push({
+      ...messages[0],
+      id: "after-return",
+      seq: 2,
+      content: "تحديث حقيقي بعد العودة",
+    });
+    release();
+    await expect(page.getByText(messages[1].content, { exact: true })).toBeVisible();
+  } finally {
+    releaseArtifacts();
+    release();
+    await data.remove();
+  }
+});

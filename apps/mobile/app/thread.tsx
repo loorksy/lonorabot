@@ -17,7 +17,7 @@ import {
 // Persistent-thread navigation follows Tampletgrok's native thread screen; see NOTICE.
 import * as DocumentPicker from "expo-document-picker";
 import { Redirect, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AppState,
   FlatList,
@@ -43,6 +43,11 @@ import { TradeApprovalCard } from "../components/trade-approval";
 import { Button, colors, ErrorNotice, Loading, Screen } from "../components/ui";
 import { WorkingIndicator } from "../components/WorkingIndicator";
 import { ApiError, api, upload } from "../lib/api";
+import {
+  type ConversationSnapshot,
+  conversationCache,
+  type InboxSnapshot,
+} from "../lib/conversation-cache";
 import { useSession } from "../lib/session";
 import { useVoiceSession } from "../lib/voice-session";
 
@@ -56,6 +61,12 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
   const params = useLocalSearchParams<{ id: string }>();
   const id = threadId ?? params.id;
   const { ready, owner, server, rtl, t, errorText } = useSession();
+  const scope = useMemo(
+    () => (owner ? conversationCache.activate(server, owner.id) : null),
+    [server, owner],
+  );
+  const cacheKey = `thread:${id}`;
+  const [hydrated, setHydrated] = useState<{ scope: typeof scope; id: string }>();
   const router = useRouter();
   const voice = useVoiceSession();
   const chartSheet = useChartSheet();
@@ -87,96 +98,152 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
 
   const snapshot = useCallback(
     async (stillLive: () => boolean = () => true) => {
-      if (!id) return;
+      if (!id || !conversationCache.current(scope)) return;
       try {
-        const [nextMessages, nextRuns, nextFiles, nextApprovals, collaboration] = await Promise.all(
-          [
-            api.get<Message[]>(`/threads/${encodeURIComponent(id)}/messages`),
-            api.get<Run[]>(`/runs?thread_id=${encodeURIComponent(id)}`),
-            api.get<Artifact[]>(`/artifacts?thread_id=${encodeURIComponent(id)}`),
-            api.get<TradeApproval[]>(`/trading/approvals?thread_id=${encodeURIComponent(id)}`),
-            api.get<{ id: string; state: { status: string } } | null>(
-              `/threads/${encodeURIComponent(id)}/collaboration`,
-            ),
-          ],
-        );
-        if (!stillLive()) return;
-        setStateRevision((value) => value + 1);
-        setMessages((old) => mergeMessages(old, nextMessages));
-        setCollaborationSessionId(collaboration?.id);
-        setCollaborationActive(
-          Boolean(
-            collaboration &&
-              !["completed", "cancelled", "expired", "failed"].includes(collaboration.state.status),
+        const primary = Promise.all([
+          api.get<Message[]>(`/threads/${encodeURIComponent(id)}/messages`),
+          api.get<Run[]>(`/runs?thread_id=${encodeURIComponent(id)}`),
+        ]).then(([nextMessages, nextRuns]) => {
+          if (!stillLive() || !conversationCache.current(scope)) return;
+          setMessages((old) => mergeMessages(old, nextMessages));
+          setRuns(nextRuns);
+          setLoaded(true);
+          setError(null);
+        });
+        const auxiliary = Promise.all([
+          api.get<Artifact[]>(`/artifacts?thread_id=${encodeURIComponent(id)}`),
+          api.get<TradeApproval[]>(`/trading/approvals?thread_id=${encodeURIComponent(id)}`),
+          api.get<{ id: string; state: { status: string } } | null>(
+            `/threads/${encodeURIComponent(id)}/collaboration`,
           ),
-        );
-        setRuns(nextRuns);
-        setFiles(nextFiles);
-        setApprovals((old) =>
-          nextApprovals.map((row) => {
-            const previous = old.find((item) => item.id === row.id);
-            const rank = { pending: 0, approved: 1, rejected: 1, completed: 2, cancelled: 2 };
-            return previous &&
-              (rank[previous.status] > rank[row.status] ||
-                (previous.status === row.status && previous.results.length > row.results.length))
-              ? previous
-              : row;
-          }),
-        );
-        setError(null);
-        setLoaded(true);
+        ]).then(([nextFiles, nextApprovals, collaboration]) => {
+          if (!stillLive() || !conversationCache.current(scope)) return;
+          setStateRevision((value) => value + 1);
+          setCollaborationSessionId(collaboration?.id);
+          setCollaborationActive(
+            Boolean(
+              collaboration &&
+                !["completed", "cancelled", "expired", "failed"].includes(
+                  collaboration.state.status,
+                ),
+            ),
+          );
+          setFiles(nextFiles);
+          setApprovals((old) =>
+            nextApprovals.map((row) => {
+              const previous = old.find((item) => item.id === row.id);
+              const rank = { pending: 0, approved: 1, rejected: 1, completed: 2, cancelled: 2 };
+              return previous &&
+                (rank[previous.status] > rank[row.status] ||
+                  (previous.status === row.status && previous.results.length > row.results.length))
+                ? previous
+                : row;
+            }),
+          );
+          setError(null);
+        });
+        await Promise.all([primary, auxiliary]);
       } catch (reason) {
-        if (stillLive()) setError(errorText(reason));
+        if (stillLive() && conversationCache.current(scope)) setError(reportError.current(reason));
       }
     },
-    [id, errorText],
+    [id, scope],
   );
 
   useEffect(() => {
-    setThread(null);
-    setMessages([]);
-    setRuns([]);
-    setApprovals([]);
-    setCollaborationActive(false);
+    const cached = conversationCache.get<ConversationSnapshot>(scope, cacheKey);
+    const inbox = conversationCache.get<InboxSnapshot>(scope, "inbox");
+    setHydrated({ scope, id });
+    setThread(cached?.thread ?? null);
+    setAgents(cached?.agents ?? inbox?.agents ?? []);
+    setGroups(cached?.groups ?? inbox?.groups ?? []);
+    setMessages(cached?.messages ?? []);
+    setRuns(cached?.runs ?? []);
+    setApprovals(cached?.approvals ?? []);
+    setCollaborationActive(cached?.collaborationActive ?? false);
+    setCollaborationSessionId(cached?.collaborationSessionId);
     setAttachments([]);
-    setFiles([]);
+    setFiles(cached?.files ?? []);
     setDraft("");
     setReply(null);
-    setHasOlder(true);
+    setHasOlder(cached?.hasOlder ?? true);
     following.current = true;
     setAtEnd(true);
-    setLoaded(false);
+    setLoaded(cached?.loaded ?? false);
     receipt.current = null;
     if (!id || !owner) return;
     let live = true;
-    void Promise.all([
-      api.get<Thread>(`/threads/${encodeURIComponent(id)}`),
-      api.get<Agent[]>("/agents"),
-      api.get<Group[]>("/groups"),
-    ])
-      .then(([nextThread, nextAgents, nextGroups]) => {
-        if (live) {
+    void api
+      .get<Thread>(`/threads/${encodeURIComponent(id)}`)
+      .then((nextThread) => {
+        if (live && conversationCache.current(scope)) {
           setThread(nextThread);
-          setAgents(nextAgents);
-          setGroups(nextGroups);
         }
       })
       .catch((reason) => {
-        if (live) setError(reportError.current(reason));
+        if (live && conversationCache.current(scope)) {
+          if (reason instanceof ApiError && reason.status === 404) {
+            conversationCache.remove(scope, cacheKey);
+            setThread(null);
+            setMessages([]);
+            setLoaded(false);
+          }
+          setError(reportError.current(reason));
+        }
       });
     return () => {
       live = false;
     };
-  }, [id, owner]);
+  }, [id, scope, cacheKey, owner]);
+
+  useEffect(() => {
+    if (hydrated?.scope !== scope || hydrated.id !== id || !thread || !loaded) return;
+    conversationCache.set<ConversationSnapshot>(scope, cacheKey, {
+      thread,
+      agents,
+      groups,
+      messages: messages.slice(-1000),
+      runs,
+      files,
+      approvals,
+      collaborationActive,
+      collaborationSessionId,
+      loaded,
+      hasOlder: hasOlder || messages.length > 1000,
+    });
+  }, [
+    scope,
+    cacheKey,
+    id,
+    hydrated,
+    thread,
+    loaded,
+    agents,
+    groups,
+    messages,
+    runs,
+    files,
+    approvals,
+    collaborationActive,
+    collaborationSessionId,
+    hasOlder,
+  ]);
 
   useFocusEffect(
     useCallback(() => {
       if (!ready || !owner || !id) return;
       let disposed = false;
       let timer: ReturnType<typeof setTimeout>;
+      let refreshing = false;
       const tick = async () => {
-        if (AppState.currentState === "active") await snapshot(() => !disposed);
-        if (!disposed) timer = setTimeout(() => void tick(), 2500);
+        if (refreshing || disposed) return;
+        refreshing = true;
+        try {
+          if (AppState.currentState === "active") await snapshot(() => !disposed);
+        } finally {
+          refreshing = false;
+          if (!disposed) timer = setTimeout(() => void tick(), 2500);
+        }
       };
       void Promise.all([api.get<Agent[]>("/agents"), api.get<Group[]>("/groups")])
         .then(([nextAgents, nextGroups]) => {
@@ -188,8 +255,15 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
         .catch((reason) => {
           if (!disposed) setError(reportError.current(reason));
         });
+      const subscription = AppState.addEventListener("change", (state) => {
+        if (state === "active" && !disposed) {
+          clearTimeout(timer);
+          void tick();
+        }
+      });
       void tick();
       return () => {
+        subscription.remove();
         disposed = true;
         clearTimeout(timer);
       };

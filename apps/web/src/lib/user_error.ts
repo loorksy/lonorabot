@@ -1,6 +1,8 @@
 import { t } from "@lingui/core/macro";
 import { errorCode } from "@lonora/core";
+import { isRequestCancelled } from "./api";
 export function userError(error: unknown) {
+  if (isRequestCancelled(error)) return "";
   const code = errorCode(error);
   switch (code) {
     case "skill_continuation_unavailable":

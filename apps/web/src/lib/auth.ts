@@ -1,10 +1,17 @@
 import type { Owner } from "@lonora/contracts";
-import { api } from "./api";
+import { api, resetSessionRequests } from "./api";
 
 export type { Owner } from "@lonora/contracts";
 export const auth = {
   session: () => api.get<Owner>("/auth/session"),
-  login: (email: string, password: string) =>
-    api.post<{ owner: Owner; csrf: string }>("/auth/login", { email, password }),
-  logout: () => api.post<{ logged_out: boolean }>("/auth/logout", {}),
+  login: async (email: string, password: string) => {
+    resetSessionRequests();
+    return api.post<{ owner: Owner; csrf: string }>("/auth/login", { email, password });
+  },
+  logout: async () => {
+    resetSessionRequests();
+    const result = await api.post<{ logged_out: boolean }>("/auth/logout", {});
+    resetSessionRequests();
+    return result;
+  },
 };

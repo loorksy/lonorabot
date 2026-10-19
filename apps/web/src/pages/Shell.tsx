@@ -12,6 +12,7 @@ import {
 } from "@lonora/ui-web";
 import {
   Activity as ActivityIcon,
+  ArrowLeft,
   ArrowLeftRight,
   Bell,
   BookOpen,
@@ -53,7 +54,7 @@ import { dismissOverlays, useOverlayHistory } from "../hooks/useOverlayHistory";
 import { usePersistentThread } from "../hooks/usePersistentThread";
 import { useTheme } from "../hooks/useTheme";
 import { useVoice } from "../hooks/useVoice";
-import { type Agent, api, type Resource, type Run } from "../lib/api";
+import { type Agent, api, isRequestCancelled, type Resource, type Run } from "../lib/api";
 import { auth } from "../lib/auth";
 import {
   type Panel,
@@ -79,6 +80,7 @@ import { SidebarRow } from "./shell/bot-roster-row";
 import { AgentSettings } from "./shell/bot-settings";
 import { ThreadViewport } from "./shell/chat-context";
 import { SwitchAgentDialog } from "./shell/command-palette";
+import { ConversationInbox, type InboxEntry } from "./shell/conversation-inbox";
 import { SidebarActivity } from "./shell/sidebar-activity";
 
 const Market = lazy(() => import("./Market").then((module) => ({ default: module.Market })));
@@ -130,7 +132,7 @@ function AgentConversation({ agent, agents }: { agent: Agent; agents: Agent[] })
     return (
       <div className="tpl-empty">
         <p role="alert">{userError(error)}</p>
-        <button type="button" onClick={() => window.location.reload()}>
+        <button type="button" onClick={refresh}>
           <Trans>Retry</Trans>
         </button>
       </div>
@@ -192,6 +194,9 @@ function WorkspaceShell({ onLogout }: { onLogout: () => void }) {
   const panelOverlay = useMedia("(max-width: 1149px)");
   const [groups, setGroups] = useState<Resource[]>([]);
   const [runs, setRuns] = useState<Run[]>([]);
+  const [inbox, setInbox] = useState<InboxEntry[]>([]);
+  const [inboxLoading, setInboxLoading] = useState(true);
+  const [inboxError, setInboxError] = useState<unknown>();
   const [activityMode, setActivityMode] = useState(false);
   const [groupsLoading, setGroupsLoading] = useState(true);
   const [drawer, setDrawer] = useState(false);
@@ -270,19 +275,38 @@ function WorkspaceShell({ onLogout }: { onLogout: () => void }) {
   useEffect(() => {
     void revision;
     let live = true;
-    void Promise.all([api.get<Resource[]>("/groups"), api.get<Run[]>("/runs")])
-      .then(([nextGroups, nextRuns]) => {
+    void Promise.allSettled([api.get<Resource[]>("/groups"), api.get<Run[]>("/runs")]).then(
+      ([groupResult, runResult]) => {
+        if (!live) return;
+        if (groupResult.status === "fulfilled") setGroups(groupResult.value);
+        if (runResult.status === "fulfilled") setRuns(runResult.value);
+        setGroupsLoading(false);
+        const failure = [groupResult, runResult].find(
+          (result) => result.status === "rejected" && !isRequestCancelled(result.reason),
+        );
+        setError(failure?.status === "rejected" ? failure.reason : undefined);
+      },
+    );
+    return () => {
+      live = false;
+    };
+  }, [revision]);
+  useEffect(() => {
+    void revision;
+    let live = true;
+    void api
+      .get<InboxEntry[]>("/threads/inbox")
+      .then((rows) => {
         if (live) {
-          setGroups(nextGroups);
-          setRuns(nextRuns);
-          setGroupsLoading(false);
-          setError(undefined);
+          setInbox(rows);
+          setInboxError(undefined);
+          setInboxLoading(false);
         }
       })
       .catch((failure) => {
-        if (live) {
-          setError(failure);
-          setGroupsLoading(false);
+        if (live && !isRequestCancelled(failure)) {
+          setInboxError(failure);
+          setInboxLoading(false);
         }
       });
     return () => {
@@ -301,21 +325,6 @@ function WorkspaceShell({ onLogout }: { onLogout: () => void }) {
       /* Preference only. */
     }
   }, [agent, group, location.pathname, owner.id]);
-  useEffect(() => {
-    if (loading || groupsLoading || !["/", "/app", "/app/", "/sign-in"].includes(location.pathname))
-      return;
-    let previous = "";
-    try {
-      previous = localStorage.getItem(`lonora:last-context:${owner.id}`) ?? "";
-    } catch {
-      /* Preference only. */
-    }
-    const valid =
-      agents.some((row) => previous === `/app/${row.id}`) ||
-      groups.some((row) => previous === `/app/g/${row.id}`);
-    if (valid || agents.length)
-      navigate(valid ? previous : `/app/${agents[0].id}`, { replace: true });
-  }, [agents, groups, loading, groupsLoading, location.pathname, navigate, owner.id]);
   useEffect(() => {
     const key = (event: KeyboardEvent) => {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
@@ -624,8 +633,13 @@ function WorkspaceShell({ onLogout }: { onLogout: () => void }) {
                   .stop()
                   .catch(() => undefined)
                   .then(() => auth.logout())
-                  .then(onLogout)
-                  .catch(setError);
+                  .then(() => {
+                    navigate("/app", { replace: true });
+                    onLogout();
+                  })
+                  .catch((failure) => {
+                    if (!isRequestCancelled(failure)) setError(failure);
+                  });
               }}
             >
               <LogOut />
@@ -656,6 +670,16 @@ function WorkspaceShell({ onLogout }: { onLogout: () => void }) {
       <main className="tpl-main" inert={backgroundInert} aria-hidden={backgroundInert || undefined}>
         <header className="tpl-chat-header">
           <div className="tpl-header-leading">
+            {(agent || group) && (
+              <button
+                type="button"
+                className="tpl-icon-button"
+                aria-label={t`Back to conversations`}
+                onClick={() => open("/app")}
+              >
+                <ArrowLeft className="tpl-inbox-back" />
+              </button>
+            )}
             <button
               type="button"
               className="tpl-icon-button tpl-mobile-only"
@@ -747,7 +771,7 @@ function WorkspaceShell({ onLogout }: { onLogout: () => void }) {
         {(error ?? agentError) != null && (
           <div className="tpl-error-banner" role="alert">
             {userError(error ?? agentError)}
-            <button type="button" onClick={() => window.location.reload()}>
+            <button type="button" onClick={refresh}>
               <Trans>Retry</Trans>
             </button>
           </div>
@@ -765,19 +789,17 @@ function WorkspaceShell({ onLogout }: { onLogout: () => void }) {
             <Route
               path="/app"
               element={
-                <div className="tpl-empty">
-                  <span className="tpl-logo large">L</span>
-                  <h1>
-                    <Trans>Your team starts here</Trans>
-                  </h1>
-                  <p>
-                    <Trans>Create a persistent agent and start a conversation.</Trans>
-                  </p>
-                  <button type="button" className="primary" onClick={() => openPanel("create")}>
-                    <Plus />
-                    <Trans>Create agent</Trans>
-                  </button>
-                </div>
+                <ConversationInbox
+                  agents={agents}
+                  groups={groups}
+                  entries={inbox}
+                  loading={loading || groupsLoading || inboxLoading}
+                  error={inboxError}
+                  busyIds={busyIds}
+                  onOpen={open}
+                  onCreate={() => setPicker(true)}
+                  onRetry={refresh}
+                />
               }
             />
             <Route

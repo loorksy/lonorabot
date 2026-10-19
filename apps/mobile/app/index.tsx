@@ -2,7 +2,7 @@ import type { Agent, AttentionNotification, Group, Run, Thread } from "@lonora/c
 import { activeStatuses } from "@lonora/core";
 // Inbox structure adapted from Tampletgrok apps/mobile/app/index.tsx; see NOTICE.
 import { Redirect, useFocusEffect, useRouter } from "expo-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppState, FlatList, RefreshControl, Text, View } from "react-native";
 import { ActionMenu } from "../components/action-menu";
 import { AttentionInbox } from "../components/attention-inbox";
@@ -14,39 +14,33 @@ import { NativeSymbol } from "../components/native-symbol";
 import { PersonalAgentBadge } from "../components/personal-agent-badge";
 import { Button, colors, ErrorNotice, Field, Loading, Screen } from "../components/ui";
 import { api } from "../lib/api";
+import { conversationCache, type InboxEntry, type InboxSnapshot } from "../lib/conversation-cache";
 import { useSession } from "../lib/session";
 
-type InboxEntry = {
-  thread_id: string;
-  agent_id: string | null;
-  group_id: string | null;
-  last_message: {
-    id: string;
-    role: string;
-    content: string;
-    created_at: string;
-    seq: number;
-  } | null;
-  last_activity_at: string;
-};
 type Row = { kind: "agent"; value: Agent } | { kind: "group"; value: Group };
 
 export default function Inbox() {
-  const { ready, owner, rtl, locale, t, errorText } = useSession();
+  const { ready, owner, server, rtl, locale, t, errorText } = useSession();
   const router = useRouter();
+  const scope = useMemo(
+    () => (owner ? conversationCache.activate(server, owner.id) : null),
+    [server, owner],
+  );
+  const reportError = useRef(errorText);
+  reportError.current = errorText;
   const currentOwner = useRef(owner?.id);
   currentOwner.current = owner?.id;
   const [loadedOwner, setLoadedOwner] = useState<string>();
   const [inbox, setInbox] = useState<InboxEntry[]>([]);
   useEffect(() => {
-    void owner?.id;
-    setInbox([]);
-    setAgents([]);
-    setGroups([]);
-    setRuns([]);
-    setAttention([]);
-    setLoadedOwner(undefined);
-  }, [owner?.id]);
+    const cached = conversationCache.get<InboxSnapshot>(scope, "inbox");
+    setInbox(cached?.inbox ?? []);
+    setAgents(cached?.agents ?? []);
+    setGroups(cached?.groups ?? []);
+    setRuns(cached?.runs ?? []);
+    setAttention(cached?.attention ?? []);
+    setLoadedOwner(cached ? currentOwner.current : undefined);
+  }, [scope]);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
   const [runs, setRuns] = useState<Run[]>([]);
@@ -63,26 +57,46 @@ export default function Inbox() {
     async (stillLive: () => boolean = () => true) => {
       const requestOwner = currentOwner.current;
       try {
-        const [nextAgents, nextGroups, nextRuns, nextInbox, nextAttention] = await Promise.all([
+        const current = () =>
+          stillLive() && requestOwner === currentOwner.current && conversationCache.current(scope);
+        const previous = conversationCache.get<InboxSnapshot>(scope, "inbox");
+        let extras = { runs: previous?.runs ?? [], attention: previous?.attention ?? [] };
+        const primary = Promise.all([
           api.get<Agent[]>("/agents"),
           api.get<Group[]>("/groups"),
-          api.get<Run[]>("/runs"),
           api.get<InboxEntry[]>("/threads/inbox"),
+        ]).then(([nextAgents, nextGroups, nextInbox]) => {
+          if (!current()) return;
+          conversationCache.set(scope, "inbox", {
+            agents: nextAgents,
+            groups: nextGroups,
+            inbox: nextInbox,
+            ...extras,
+          });
+          setLoadedOwner(requestOwner);
+          setInbox(nextInbox);
+          setAgents(nextAgents);
+          setGroups(nextGroups);
+          setError(null);
+        });
+        const auxiliary = Promise.all([
+          api.get<Run[]>("/runs"),
           api.get<AttentionNotification[]>("/attention"),
-        ]);
-        if (!stillLive() || requestOwner !== currentOwner.current) return;
-        setLoadedOwner(requestOwner);
-        setInbox(nextInbox);
-        setAgents(nextAgents);
-        setGroups(nextGroups);
-        setRuns(nextRuns);
-        setAttention(nextAttention);
-        setError(null);
+        ]).then(([nextRuns, nextAttention]) => {
+          if (!current()) return;
+          extras = { runs: nextRuns, attention: nextAttention };
+          const cached = conversationCache.get<InboxSnapshot>(scope, "inbox");
+          if (cached) conversationCache.set(scope, "inbox", { ...cached, ...extras });
+          setRuns(nextRuns);
+          setAttention(nextAttention);
+        });
+        await Promise.all([primary, auxiliary]);
       } catch (reason) {
-        if (stillLive() && requestOwner === currentOwner.current) setError(errorText(reason));
+        if (stillLive() && requestOwner === currentOwner.current)
+          setError(reportError.current(reason));
       }
     },
-    [errorText],
+    [scope],
   );
 
   useFocusEffect(
@@ -90,12 +104,26 @@ export default function Inbox() {
       if (!ready || !owner) return;
       let disposed = false;
       let timer: ReturnType<typeof setTimeout>;
+      let refreshing = false;
       const tick = async () => {
-        if (AppState.currentState === "active") await refresh(() => !disposed);
-        if (!disposed) timer = setTimeout(() => void tick(), 5000);
+        if (refreshing || disposed) return;
+        refreshing = true;
+        try {
+          if (AppState.currentState === "active") await refresh(() => !disposed);
+        } finally {
+          refreshing = false;
+          if (!disposed) timer = setTimeout(() => void tick(), 5000);
+        }
       };
+      const subscription = AppState.addEventListener("change", (state) => {
+        if (state === "active" && !disposed) {
+          clearTimeout(timer);
+          void tick();
+        }
+      });
       void tick();
       return () => {
+        subscription.remove();
         disposed = true;
         clearTimeout(timer);
       };
@@ -132,6 +160,13 @@ export default function Inbox() {
     setOpening(row.value.id);
     setError(null);
     try {
+      const existing = inbox.find((entry) =>
+        row.kind === "agent" ? entry.agent_id === row.value.id : entry.group_id === row.value.id,
+      );
+      if (existing) {
+        router.push({ pathname: "/thread", params: { id: existing.thread_id } });
+        return;
+      }
       let thread: Thread;
       if (row.kind === "agent") {
         thread = await api.post<Thread>(
