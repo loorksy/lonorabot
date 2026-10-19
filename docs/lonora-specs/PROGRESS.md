@@ -322,3 +322,12 @@ Root review found an admission hazard: synthetic user-role images could displace
 Root independently repeated the actual PostgreSQL snapshot→read-image→same-Run model flow with interruption/restart, scope/hash/MIME/dimension/size checks and no checkpoint image bytes. Owner's five-provider HTTP tests and 36 focused image/context/result cases passed, Ruff/targeted Pyright clean. A full pre-final-context run had 300 pytest cases pass; final combined validation follows after browser integration. No external model inference, broker mutation, migration or native build was performed. Successful image transport is not proof of user delivery or of a real model's interpretation quality.
 
 Next dependency is ENV-CHART-VISUAL-01: one on-demand browser service uses the same licensed renderer and original scene, an allowlisted internal URL, credential-free short-lived contexts, exact revision acknowledgment and existing Gateway shutdown. Service-level real Chromium checks are passing; tool/runtime/deployment wiring is in progress and not yet marked complete.
+
+
+### On-demand visual chart integration (2026-10-19)
+
+Server Chart Use now captures actual TradingView pixels through the shared renderer, with bounded concurrency, fresh restricted contexts, exact applied-scene acknowledgment and immutable artifact provenance. The same Worker/Gateway/API lifecycle and scoped ToolContext host it. Operator configuration and container dependencies are present; no container image, APK or production deployment was performed.
+
+Independent acceptance covered four broker-symbol classes and multiple frames, EN/AR, original-artifact replay after source changes, and real ToolLoop death after persistence/before checkpoint followed by a new fence. The replay returns one original image, rejects the stale worker, and places actual PNG bytes in the same Run's vision context. Service checks also cover denied network access, cancellation, browser disconnect and hung cleanup. Combined pytest334 and strict Pyright passed; packaged Python wheel built successfully. Existing full foundation run passed31 groups plus11 Task cases before registering the new snapshot fixture; that historical count does not claim all newly registered groups were rerun together.
+
+Remaining chart work includes durable update-command acknowledgment integration, replay-safe chart creation, persistent visual workspace/navigation and broader external-model/client/native acceptance. General program acceptance remains open.

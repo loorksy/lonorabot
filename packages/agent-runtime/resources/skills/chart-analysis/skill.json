@@ -1,6 +1,6 @@
 {
   "id": "chart-analysis",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "title": "Chart Analysis",
   "description": "Lonora chart-analysis workflow.",
   "source": "builtin",

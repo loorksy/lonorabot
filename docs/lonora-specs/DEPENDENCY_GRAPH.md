@@ -167,3 +167,8 @@ Existing ChartState / scoped ToolContext / chart row version
 → evidence-backed Agent drawing verification (remaining).
 
 These extend the existing chart runtime; no second chart database, gateway or trade executor is introduced. Client acknowledgments are presentation evidence and cannot authorize trading.
+
+
+### On-demand visual capture dependency resolved (2026-10-19)
+
+Shared licensed renderer → exact applied-scene acknowledgment → bounded server capture → immutable snapshot artifact → scoped image observation → global VISION/context admission is implemented and locally verified. Existing Gateway and owner lifecycle host the lazy browser; semantic and browser sources stay distinct. Persistent visual workspace/navigation and real external-model interpretation quality remain open. Durable chart command receipts are a separate next integration and must not be inferred from image replay safety.

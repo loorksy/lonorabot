@@ -4,6 +4,7 @@ from pathlib import Path
 from lonora_adapter_kit.secrets import SecretStore
 from lonora_adapters.brokers.base import BrokerManager
 from lonora_adapters.storage.secret_store import EncryptedSecretStore
+from lonora_charts.visual import ChartVisualRuntime
 from lonora_contracts.runs import Lease
 from lonora_db.client import Database
 from lonora_market.runtime import MarketRuntime
@@ -22,9 +23,17 @@ class OwnerServices:
     router: GlobalModelRouter
     trading: ExecutionService
     market: MarketRuntime
+    chart_visual: ChartVisualRuntime | None = None
 
     @classmethod
-    def create(cls, db: Database, owner_id: str, key: str) -> "OwnerServices":
+    def create(
+        cls,
+        db: Database,
+        owner_id: str,
+        key: str,
+        *,
+        chart_visual: ChartVisualRuntime | None = None,
+    ) -> "OwnerServices":
         secrets = EncryptedSecretStore(db, key, owner_id)
         brokers = BrokerManager(db, secrets)
         router = GlobalModelRouter(db, ProviderCredentials(db, secrets))
@@ -41,7 +50,16 @@ class OwnerServices:
 
         market.on_update = publish_market_update
         brokers.market = market
-        return cls(owner_id, db, secrets, brokers, router, ExecutionService(db, brokers), market)
+        return cls(
+            owner_id,
+            db,
+            secrets,
+            brokers,
+            router,
+            ExecutionService(db, brokers),
+            market,
+            chart_visual,
+        )
 
     def tool_context(
         self,
@@ -65,8 +83,15 @@ class OwnerServices:
             root,
             depth,
             maximum_subagents,
+            chart_visual=self.chart_visual,
         )
 
     async def close(self) -> None:
-        await self.market.close()
-        await self.brokers.close()
+        try:
+            if self.chart_visual:
+                await self.chart_visual.close()
+        finally:
+            try:
+                await self.market.close()
+            finally:
+                await self.brokers.close()

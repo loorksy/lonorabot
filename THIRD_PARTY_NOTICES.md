@@ -68,3 +68,11 @@ SOFTWARE.
 ## tiktoken
 
 The request-budget estimator uses `tiktoken` 0.12.0 (MIT License, Copyright (c) 2022 OpenAI), distributed as a dependency with its license. Encoding data is fetched from OpenAI's published encoding URLs during setup/build and hash-verified by tiktoken; model requests use verified local cache data or an explicit conservative fallback. No reference Agent implementation code is included by this integration.
+
+## Server chart captures
+
+Python Playwright1.58.0 (Apache-2.0, Microsoft) supplies its licensed automation
+driver as a distribution dependency. System Chromium is installed by the server
+Docker build; its BSD-style and third-party notices remain in the Debian package
+documentation. The service automates only the configured internal Lonora chart
+renderer; no reference Agent implementation or arbitrary browser tool is bundled.

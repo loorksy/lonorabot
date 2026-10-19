@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from lonora_agent.runtime import AgentRuntime
+from lonora_charts.visual import ChartVisualRuntime
 from lonora_contracts.runs import Lease
 from lonora_db.client import Database
 from lonora_db.runs import claim_next
@@ -19,6 +20,7 @@ async def dispatch_one(
     lease_seconds: int,
     maximum_subagents: int,
     lane: str | None = None,
+    chart_visual: ChartVisualRuntime | None = None,
 ) -> bool:
     async with db.sessions() as session, session.begin():
         run = await claim_next(session, identity, lease_seconds, lane)
@@ -36,7 +38,7 @@ async def dispatch_one(
         )
     owner_services = services.get(owner_id)
     if owner_services is None:
-        owner_services = OwnerServices.create(db, owner_id, key)
+        owner_services = OwnerServices.create(db, owner_id, key, chart_visual=chart_visual)
         services[owner_id] = owner_services
     context = owner_services.tool_context(
         agent_id, thread_id, lease, root, depth, maximum_subagents

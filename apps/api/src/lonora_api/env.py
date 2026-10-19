@@ -30,6 +30,9 @@ class Settings(BaseSettings):
 
     web_root: Path = Path("apps/web/dist")
     chart_renderer_root: Path | None = None
+    chart_renderer_url: str | None = None
+    chart_browser_executable: Path | None = None
+    chart_browser_sandbox: bool = True
     artifact_root: Path = Path(".runtime/artifacts")
     android_apk_path: Path = Path(".runtime/releases/android/lonora.apk")
     ota_root: Path = Path(".runtime/releases/ota")

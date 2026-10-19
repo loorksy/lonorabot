@@ -3,6 +3,7 @@ from pathlib import Path
 
 from lonora_adapter_kit.secrets import SecretStore
 from lonora_adapters.brokers.base import BrokerManager
+from lonora_charts.visual import ChartVisualRuntime
 from lonora_contracts.runs import Lease
 from lonora_db.client import Database
 from lonora_providers.router import GlobalModelRouter
@@ -25,6 +26,7 @@ class ToolContext:
     depth: int = 0
     maximum_subagents: int = 4
     call_id: str = ""
+    chart_visual: ChartVisualRuntime | None = None
 
     @property
     def effect_key(self) -> str:

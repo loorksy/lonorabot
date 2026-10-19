@@ -15,6 +15,7 @@ RUN pnpm --filter @lonora/web... build
 FROM python:3.12-slim-bookworm AS server
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 LONORA_WEB_ROOT=/app/apps/web/dist TIKTOKEN_CACHE_DIR=/opt/lonora-tokenizers
 WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends fonts-dejavu-core chromium && rm -rf /var/lib/apt/lists/*
 COPY pyproject.toml LICENSE THIRD_PARTY_NOTICES.md ./
 COPY packages ./packages
 COPY apps/api ./apps/api

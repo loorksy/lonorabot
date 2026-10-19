@@ -4,6 +4,7 @@ from pathlib import Path
 from lonora_agent.collaboration.outcome_return import return_pending_outcomes
 from lonora_agent.runtime import AgentRuntime
 from lonora_charts.runtime import chart_runtime_tick
+from lonora_charts.visual import ChartVisualRuntime
 from lonora_db.client import Database
 from lonora_db.owner import get_owner
 from lonora_tools.loader import load_tools
@@ -32,8 +33,10 @@ class Gateway:
         maximum_rounds: int = 24,
         maximum_subagents: int = 4,
         poll_seconds: float = 0.5,
+        chart_visual: ChartVisualRuntime | None = None,
     ):
         self.db, self.key, self.root = db, key, artifact_root
+        self.chart_visual = chart_visual
         self.lease_seconds, self.maximum_subagents, self.poll_seconds = (
             lease_seconds,
             maximum_subagents,
@@ -58,6 +61,7 @@ class Gateway:
                 self.lease_seconds,
                 self.maximum_subagents,
                 lane,
+                self.chart_visual,
             )
             if not claimed:
                 await asyncio.sleep(self.poll_seconds)
@@ -71,7 +75,9 @@ class Gateway:
                 owner = await get_owner(session)
             if owner:
                 if owner.id not in self.services:
-                    self.services[owner.id] = OwnerServices.create(self.db, owner.id, self.key)
+                    self.services[owner.id] = OwnerServices.create(
+                        self.db, owner.id, self.key, chart_visual=self.chart_visual
+                    )
                 service = self.services[owner.id]
                 await reconcile_ambiguous(self.db, service.brokers)
                 from lonora_trading.broker_recovery import maintenance_account_recovery
@@ -157,6 +163,8 @@ class Gateway:
         await write_heartbeat(self.db, self.identity, self.state.value)
         await drain(loops)
         await close_connections(self.services, self.voice_tasks)
+        if self.chart_visual:
+            await self.chart_visual.close()
         self.state = GatewayState.STOPPED
         await write_heartbeat(self.db, self.identity, self.state.value)
 
