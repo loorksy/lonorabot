@@ -13,6 +13,8 @@ class ToolCall(Contract):
 
 class ModelMessage(Contract):
     role: Literal["system", "user", "assistant", "tool"]
+    # Runtime-only provenance; provider adapters serialize their explicit wire fields.
+    context_origin: Literal["conversation", "tool_observation"] = "conversation"
     content: str
     tool_calls: list[ToolCall] = Field(default_factory=list[ToolCall])
     tool_call_id: str | None = None

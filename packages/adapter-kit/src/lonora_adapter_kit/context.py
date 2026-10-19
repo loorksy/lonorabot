@@ -25,6 +25,9 @@ def context_blocks(history: list[ModelMessage]) -> list[list[ModelMessage]]:
     index = 0
     while index < len(history):
         message = history[index]
+        if message.context_origin == "tool_observation":
+            # Runtime observations must follow their complete producing exchange.
+            raise LonoraError("invalid_tool_exchange", 500)
         if message.role == "tool":
             raise LonoraError("invalid_tool_exchange", 500)
         block = [message]
@@ -41,6 +44,12 @@ def context_blocks(history: list[ModelMessage]) -> list[list[ModelMessage]]:
                     raise LonoraError("invalid_tool_exchange", 500)
                 pending.remove(result.tool_call_id)
                 block.append(result)
+                index += 1
+            while index < len(history) and history[index].context_origin == "tool_observation":
+                observation = history[index]
+                if observation.role != "user" or observation.tool_calls or observation.tool_call_id:
+                    raise LonoraError("invalid_tool_exchange", 500)
+                block.append(observation)
                 index += 1
         blocks.append(block)
     return blocks
@@ -113,13 +122,23 @@ def bound_exchange(
     """Omit result bodies only in the working copy, preserving effect identities."""
     if len(block) < 2 or not block[0].tool_calls:
         return block
-    empty = [row.model_copy(update={"content": ""}) for row in block[1:]]
-    fixed = message_size(block[0]) + sum(message_size(row) for row in empty)
+    results = [row for row in block[1:] if row.role == "tool"]
+    if not results:
+        return block
+    observations = [row for row in block[1:] if row.role != "tool"]
+    empty = [row.model_copy(update={"content": ""}) for row in results]
+    fixed = (
+        message_size(block[0])
+        + sum(message_size(row) for row in empty)
+        + sum(message_size(row) for row in observations)
+    )
     per_result = (budget - fixed) // len(empty)
     token_limit = None
     if token_budget is not None:
-        fixed_tokens = token_estimate(block[0], image_tokens, count) + sum(
-            token_estimate(row, image_tokens, count) for row in empty
+        fixed_tokens = (
+            token_estimate(block[0], image_tokens, count)
+            + sum(token_estimate(row, image_tokens, count) for row in empty)
+            + sum(token_estimate(row, image_tokens, count) for row in observations)
         )
         token_limit = (token_budget - fixed_tokens) // len(empty)
     limit = min(per_result, token_limit) if token_limit is not None else per_result
@@ -131,8 +150,11 @@ def bound_exchange(
         return block
     return [block[0]] + [
         row
-        if len(row.content) <= per_result
-        and (token_limit is None or count(row.content) <= token_limit)
+        if row.role != "tool"
+        or (
+            len(row.content) <= per_result
+            and (token_limit is None or count(row.content) <= token_limit)
+        )
         else row.model_copy(update={"content": omitted_result(row.content, limit, size)})
         for row in block[1:]
     ]
@@ -165,7 +187,11 @@ def govern_context(
         raise LonoraError("context_limit_exceeded", 413)
     # Retain the newest user instruction even when many tool rounds follow it.
     anchor = next(
-        (index for index in range(len(blocks) - 1, -1, -1) if blocks[index][0].role == "user"),
+        (
+            index
+            for index in range(len(blocks) - 1, -1, -1)
+            if blocks[index][0].role == "user" and blocks[index][0].context_origin == "conversation"
+        ),
         None,
     )
     retained: dict[int, list[ModelMessage]] = {}

@@ -1,8 +1,9 @@
 import hashlib
 import os
 import tempfile
+from io import BytesIO
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from lonora_contracts.attachments import ArtifactCreate
 from lonora_contracts.domain import Contract
@@ -12,6 +13,7 @@ from lonora_db.artifacts import ArtifactRepository
 from lonora_db.runs import require_lease
 from lonora_db.transactions import resource_data
 from lonora_security.runtime_storage import confined_path
+from PIL import Image, UnidentifiedImageError
 from pydantic import Field
 
 from .base import Tool
@@ -20,6 +22,7 @@ from .context import ToolContext
 
 class ArtifactRead(Contract):
     artifact_id: str
+    view_image: bool = False
     offset: int = Field(default=0, ge=0)
     limit: int = Field(default=24000, ge=1, le=24000)
 
@@ -97,6 +100,100 @@ async def create(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     return await store_artifact(context, args["name"], args["content"].encode(), args["media_type"])
 
 
+MAX_OBSERVATION_BYTES = 5 * 1024 * 1024
+RASTER_FORMATS = {
+    "PNG": "image/png",
+    "JPEG": "image/jpeg",
+    "WEBP": "image/webp",
+    "GIF": "image/gif",
+}
+
+
+async def load_image_observation(
+    context: ToolContext,
+    artifact_id: str,
+    expected_sha256: str | None = None,
+) -> tuple[dict[str, Any], bytes]:
+    """Resolve only an owned, Agent/thread-scoped immutable raster, never a URL."""
+    async with context.db.sessions() as session:
+        await require_lease(session, context.lease)
+        row = await ArtifactRepository().get(session, context.owner_id, artifact_id)
+    if row.agent_id != context.agent_id or row.thread_id != context.thread_id:
+        raise LonoraError("artifacts_not_found", 404)
+    payload = row.payload
+    media = payload.get("media_type")
+    if media not in RASTER_FORMATS.values():
+        raise LonoraError("artifact_image_format_unsupported", 422)
+    try:
+        path = confined_path(context.artifact_root, payload["key"])
+        if path.stat().st_size > MAX_OBSERVATION_BYTES:
+            raise LonoraError("artifact_image_too_large", 413)
+        with path.open("rb") as source:
+            content = source.read(MAX_OBSERVATION_BYTES + 1)
+    except OSError:
+        raise LonoraError("artifact_file_missing", 404) from None
+    if len(content) > MAX_OBSERVATION_BYTES:
+        raise LonoraError("artifact_image_too_large", 413)
+    digest = hashlib.sha256(content).hexdigest()
+    if (
+        digest != payload.get("sha256")
+        or len(content) != payload.get("size")
+        or (expected_sha256 is not None and digest != expected_sha256)
+    ):
+        raise LonoraError("artifact_integrity_failed", 409)
+    try:
+        with Image.open(BytesIO(content)) as image:
+            width, height = image.size
+            if not (0 < width <= 4096 and 0 < height <= 4096):
+                raise LonoraError("artifact_image_dimensions_exceeded", 413)
+            if (
+                RASTER_FORMATS.get(image.format or "") != media
+                or getattr(image, "n_frames", 1) != 1
+            ):
+                raise LonoraError("artifact_image_format_unsupported", 422)
+            image.load()
+    except (UnidentifiedImageError, OSError, SyntaxError, ValueError, Image.DecompressionBombError):
+        raise LonoraError("artifact_image_invalid", 422) from None
+    descriptor: dict[str, Any] = {
+        "artifact_id": row.id,
+        "sha256": digest,
+        "media_type": media,
+        "width": width,
+        "height": height,
+        "source": "artifact_store",
+    }
+    for key in ("producer_run_id", "producer_call_id"):
+        value = row.state.get(key)
+        if isinstance(value, str) and len(value) <= 200:
+            descriptor[key] = value
+    snapshot = row.state.get("chart_snapshot")
+    if isinstance(snapshot, dict):
+        snapshot = cast(dict[str, Any], snapshot)
+        descriptor["chart_snapshot"] = {
+            key: value
+            for key in (
+                "source",
+                "chart_id",
+                "account_id",
+                "symbol",
+                "timeframe",
+                "scene_revision",
+                "scene_version",
+                "data_revision",
+                "source_observed_at",
+                "quote_observed_at",
+                "scene_updated_at",
+                "last_candle_at",
+                "captured_at",
+                "format",
+            )
+            if isinstance(value := snapshot.get(key), (str, int))
+            and not isinstance(value, bool)
+            and len(str(value)) <= 200
+        }
+    return descriptor, content
+
+
 async def read(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     async with context.db.sessions() as session:
         row = await ArtifactRepository().get(session, context.owner_id, args["artifact_id"])
@@ -108,6 +205,9 @@ async def read(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     if not path.is_file():
         raise LonoraError("artifact_file_missing", 404)
     result = resource_data(row)
+    if args.get("view_image") is True:
+        descriptor, _ = await load_image_observation(context, args["artifact_id"])
+        result["image_observation"] = descriptor
     if internal:
         result["state"] = {
             key: value for key, value in row.state.items() if key != "result_summary"
@@ -140,7 +240,7 @@ def tools() -> list[Tool]:
         ),
         Tool(
             "artifact_read",
-            "Read owned artifact metadata and a bounded text page. For a stored tool result use result_ref as artifact_id; offset and limit select characters, next_offset continues paging. Stored results are redacted projections.",
+            "Read owned artifact metadata and a bounded text page. For a stored tool result use result_ref as artifact_id; offset and limit select characters, next_offset continues paging. Stored results are redacted projections. Set view_image=true to inspect an owned raster image in the next model turn; this returns a validated image reference, never proof of user delivery.",
             ArtifactRead,
             read,
             True,

@@ -350,7 +350,7 @@ async def execute_tool_loop(
         state["selection"] = {
             "provider": selection.provider,
             "model": selection.model,
-            "capability": turn_capability.value,
+            "capability": reply.provider_metadata.get("runtime_capability", turn_capability.value),
         }
         messages.append(
             ModelMessage(role="assistant", content=reply.text, tool_calls=reply.tool_calls)

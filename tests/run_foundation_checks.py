@@ -22,6 +22,7 @@ CHECKS = (
     "check_skills_versioning.py",
     "check_knowledge_retrieval.py",
     "check_tool_result_storage.py",
+    "check_image_observations.py",
     "check_collaboration_sessions.py",
     "check_market_health.py",
     "check_dynamic_watches.py",
