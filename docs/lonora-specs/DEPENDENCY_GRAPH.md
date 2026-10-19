@@ -184,3 +184,7 @@ Validated scoped native command + current fence → one chart mutation/EffectRec
 ### Retained Skills authority dependency repaired (2026-10-19)
 
 Pinned instructions + current selected-Skill eligibility → new-effect/model admission. Checkpoint restore no longer bypasses current disable/source/removal controls merely because no steering occurred. Shared resolver eligibility and current Run fences remain authoritative; completed receipts and known same-operation reconciliation retain existing priority. Per-version revocation and evaluated adoption are still separate missing capabilities.
+
+### Chart creation/read dependency resolved (2026-10-19)
+
+Native original creation intent → atomic configuration/receipt → explicit current read → existing initializing-scene runtime lease → current candles/indicators/snapshot. Creation and update replay never substitute today's scene for the original acknowledgment. Immediate open→snapshot works without a browser or a test-side refresh. Ready scenes, real source failures and immutable artifact replay retain their separate semantics. Persistent visual workspace/navigation remains open.

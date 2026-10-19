@@ -255,22 +255,34 @@ async def test_edit_reads_full_current_state_and_bounds_only_tool_result(
 
 
 @pytest.mark.asyncio
-async def test_open_returns_real_chart_identity_with_bounded_scene(
+async def test_open_returns_original_configuration_acknowledgment(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     actor, original = context(), inspection()
+    acknowledgment: dict[str, Any] = {
+        "chart": {**original["chart"], "state": {}},
+        "scene": None,
+        "requires_scene_inspection": True,
+        "command": {"status": "applied", "tool": "chart_open", "revision": 4},
+    }
+
+    async def prior(*args: Any) -> None:
+        return None
 
     async def create(db: Any, brokers: Any, owner: str, state: Any, **kwargs: Any):
         assert db is actor.db and brokers is actor.brokers and owner == "owner"
         assert state.symbol == "XAUUSDm"
         assert kwargs["resource_id"] == actor.resource_id and kwargs["lease"] is actor.lease
-        return original
+        assert kwargs["command"].tool == "chart_open"
+        assert kwargs["command"].arguments == original["chart"]["payload"]
+        return acknowledgment
 
+    monkeypatch.setattr(chart_tools, "replay_chart_command", prior)
     monkeypatch.setattr(chart_tools, "create_chart", create)
     result = await chart_tools.create(actor, original["chart"]["payload"])
     assert result["chart"]["id"] == "chart" and result["chart"]["version"] == 4
-    assert len(result["scene"]["candles"]) == 60
-    assert result["scene_summary"]["candles_truncated"] is True
+    assert result["scene"] is None and result["requires_scene_inspection"]
+    assert result["scene_summary"]["available"] is False
 
 
 @pytest.mark.parametrize("tail", [0, 201])

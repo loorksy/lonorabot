@@ -1,6 +1,12 @@
 from typing import Any, cast
 
-from lonora_charts.state import ChartCommand, inspect_chart, replay_chart_command, update_chart
+from lonora_charts.state import (
+    ChartCommand,
+    inspect_chart,
+    prepare_chart_scene,
+    replay_chart_command,
+    update_chart,
+)
 from lonora_contracts.chart import ChartState, IndicatorSpec
 from lonora_contracts.domain import Contract
 from lonora_core.chart_annotations import protect_agent_annotations, validate_annotations
@@ -140,6 +146,10 @@ def bounded_inspection(
 
 async def inspect(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     current = await inspect_chart(context.db, context.owner_id, args["chart_id"])
+    if args.get("include_scene", True) and current.get("code") == "chart_initializing":
+        current = await prepare_chart_scene(
+            context.db, context.brokers, context.owner_id, args["chart_id"], context.lease
+        )
     return bounded_inspection(
         current, include_scene=args.get("include_scene", True), tail=args.get("tail", 60)
     )
@@ -261,6 +271,10 @@ async def remove_indicator(context: ToolContext, args: dict[str, Any]) -> dict[s
 
 async def read_indicator(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     current = await inspect_chart(context.db, context.owner_id, args["chart_id"])
+    if current.get("code") == "chart_initializing":
+        current = await prepare_chart_scene(
+            context.db, context.brokers, context.owner_id, args["chart_id"], context.lease
+        )
     chart, scene = current["chart"], current.get("scene")
     if not scene or chart["state"].get("scene_revision") != chart["version"]:
         raise LonoraError("chart_scene_unavailable", 409)
@@ -377,7 +391,7 @@ def tools() -> list[Tool]:
         ),
         Tool(
             "chart_inspect",
-            "Inspect the owner's persisted chart configuration, current version and latest server-rendered candles/indicators (default tail=60, maximum 200). Set include_scene=false for configuration/status only or reduce tail for a smaller result. Candle and indicator values share timestamps; scene_summary reports omitted history. Read before editing; never guess a version.",
+            "Inspect the owner's persisted chart configuration, current version and latest server-rendered candles/indicators (default tail=60, maximum 200). Set include_scene=false for configuration/status only or reduce tail for a smaller result. Candle and indicator values share timestamps; scene_summary reports omitted history. An initializing configuration is prepared once through the existing runtime lease; a busy refresh remains explicitly initializing and real source errors remain visible. Read before editing; never guess a version.",
             ChartInspectInput,
             inspect,
             True,

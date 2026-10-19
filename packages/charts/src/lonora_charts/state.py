@@ -11,8 +11,9 @@ from lonora_core.user_error import LonoraError
 from lonora_db.client import Database
 from lonora_db.cloud_charts import CloudChartRepository
 from lonora_db.runs import require_lease
-from lonora_db.schema import EffectReceiptRow, ThreadRow
+from lonora_db.schema import EffectReceiptRow, ResourceRow, ThreadRow
 from lonora_db.transactions import resource_data
+from lonora_session.idempotency import stable_id
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .runtime import refresh_chart, refresh_identity
@@ -89,6 +90,49 @@ async def replay_chart_command(
         return await _command_result(session, command, lease)
 
 
+def save_command_acknowledgment(
+    session: AsyncSession, row: ResourceRow, command: ChartCommand
+) -> dict[str, Any]:
+    """Configuration effect evidence, deliberately without transient market data."""
+    acknowledgment = {
+        "chart": {"id": row.id, "version": row.version, "payload": row.payload, "state": {}},
+        "scene": None,
+        "command": {"status": "applied", "tool": command.tool, "revision": row.version},
+        "requires_scene_inspection": True,
+    }
+    session.add(
+        EffectReceiptRow(
+            key=command.key,
+            result={
+                "kind": "chart-command-v1",
+                "digest": command.digest,
+                "acknowledgment": acknowledgment,
+            },
+        )
+    )
+    return acknowledgment
+
+
+async def prepare_chart_scene(
+    db: Database,
+    brokers: BrokerManager,
+    owner_id: str,
+    chart_id: str,
+    lease: Lease,
+) -> dict[str, Any]:
+    """Read current evidence, materializing an initializing configuration once.
+
+    Reuse the same runtime lease: competing gateway refreshes are not duplicated.
+    Ready scenes and actual failed-source codes are returned without hidden I/O.
+    This is read preparation, never a mutation acknowledgment or receipt replay.
+    """
+    current = await inspect_chart(db, owner_id, chart_id)
+    if current.get("code") == "chart_initializing":
+        await refresh_chart(db, brokers, owner_id, chart_id, refresh_identity(), lease, force=True)
+        current = await inspect_chart(db, owner_id, chart_id)
+    return current
+
+
 def stored_scene(data: dict[str, Any], version: int) -> dict[str, Any]:
     if data.get("scene_revision") != version:
         raise LonoraError("chart_initializing", 409)
@@ -127,14 +171,32 @@ async def create_chart(
     thread_id: str | None = None,
     resource_id: str | None = None,
     lease: Lease | None = None,
+    command: ChartCommand | None = None,
 ) -> dict[str, Any]:
     async with db.sessions() as session, session.begin():
-        if lease:
+        if command:
+            if (
+                lease is None
+                or command.owner_id != owner_id
+                or command.agent_id != agent_id
+                or command.thread_id != thread_id
+                or command.tool != "chart_open"
+                or resource_id != stable_id(command.run_id, command.call_id)
+            ):
+                raise LonoraError("chart_command_scope_mismatch", 409)
+            prior = await _command_result(session, command, lease)
+            if prior is not None:
+                return prior
+        elif lease:
             await require_lease(session, lease, lock=True)
         row = await session.get(CloudChartRepository.row_type, resource_id) if resource_id else None
         if row is not None:
             if row.owner_id != owner_id:
                 raise LonoraError("cloud_charts_not_found", 404)
+            if command:
+                # A pre-receipt chart may have been edited by its owner. Its current
+                # payload cannot prove the original creation intent or outcome.
+                raise LonoraError("chart_creation_receipt_missing", 409)
         else:
             row = await CloudChartRepository().create(
                 session,
@@ -144,6 +206,8 @@ async def create_chart(
                 thread_id=thread_id,
                 resource_id=resource_id,
             )
+        if command:
+            return save_command_acknowledgment(session, row, command)
         chart_id = row.id
     await refresh_chart(db, brokers, owner_id, chart_id, refresh_identity(), lease, force=True)
     return await inspect_chart(db, owner_id, chart_id)
@@ -187,28 +251,7 @@ async def update_chart(
             session, owner_id, chart_id, state.model_dump(mode="json"), version
         )
         if command:
-            # Configuration acknowledgment only. Never freeze quotes/candles as current evidence.
-            acknowledgment = {
-                "chart": {
-                    "id": row.id,
-                    "version": row.version,
-                    "payload": row.payload,
-                    "state": {},
-                },
-                "scene": None,
-                "command": {"status": "applied", "tool": command.tool, "revision": row.version},
-                "requires_scene_inspection": True,
-            }
-            session.add(
-                EffectReceiptRow(
-                    key=command.key,
-                    result={
-                        "kind": "chart-command-v1",
-                        "digest": command.digest,
-                        "acknowledgment": acknowledgment,
-                    },
-                )
-            )
+            acknowledgment = save_command_acknowledgment(session, row, command)
     if acknowledgment is not None:
         # Repository updates already notify the gateway; refresh failure cannot undo the command.
         return acknowledgment

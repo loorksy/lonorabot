@@ -1,6 +1,6 @@
 # Progress
 
-Current wave (2026-10-18): professional trading Agent environment, Wave 0 audit and Wave 1 context-budget implementation on `feat/trading-agent-environment`, from `80b0ff9`. The prior S19 branch was merged and deployed before this wave; older entries below are historical. No new deployment or APK build is part of this integration.
+Current wave (2026-10-19): professional trading Agent environment, integrated context/results/Skills authority/memory and chart observation/recovery increments on `feat/trading-agent-environment`, from `80b0ff9`. The prior S19 branch was merged and deployed before this wave; older entries below are historical. No new deployment or APK build is part of this integration.
 
 ## Current wave
 
@@ -349,3 +349,12 @@ Independent root PostgreSQL acceptance passed for all five tools, actual ToolLoo
 Audit found that ordinary ToolLoop turns and restored checkpoints did not rebuild Skill context, so current disable/source/removal controls were not always rechecked. New runtime checks validate only currently selected pinned definitions before new effects and before model turns. Stable blocked diagnostics preserve original pending calls, instructions and operation identities; no silent version upgrade. Existing known financial reconciliation and completed-receipt branches remain unchanged. Task failure classification recognizes owner recovery; unresolved mutation/financial recovery still takes precedence.
 
 PostgreSQL acceptance passed: mid-batch withdrawal, second-effect prevention, new worker/stale worker, source change/removal, same-source re-enable with newer catalog but retained old instructions, no repeated first effect, model-only boundary, and scripted original-operation reconciliation. Combined pytest334, strict Pyright, lint, Web build and Mobile types passed. The new fixture is registered and a full35-group foundation regression is running. Per-version revocation and learning/evaluation remain open. No APK or deployment.
+
+
+### Chart creation/read recovery integration (2026-10-19)
+
+Native chart_open now commits original request identity and configuration acknowledgment atomically, sharing the existing five-update receipt primitive. It performs no historical fetch on creation/replay, preserves owner changes, rejects changed intent and does not invent original evidence for legacy unreceipted rows. REST creation is unchanged.
+
+Production read tools prepare an initializing chart through the existing runtime refresh lease, so open→snapshot works immediately without browser/Gateway timing assumptions or test-only refresh helpers. Ready scenes are reused, busy refresh remains explicit, and actual failed-source codes are preserved. Artifact replay still returns original pixels/provenance independently of current scene.
+
+Actual PostgreSQL acceptance passed for real ToolLoop death/new fence, stale worker, initial drawings, owner edits, legacy uncertainty, concurrent same-call opens, four exact asset classes/frames and zero trades. Existing chart tools, generated artifacts, Agent market/trading flow and actual TradingView capture/vision checks passed. Combined339 pytest, strict Pyright and Ruff passed. The preceding35-group foundation run plus11 Task cases passed; the new creation fixture is registered for the final36-group integration run. Skills follow-up reuses the shared snapshot bound and handles unknown retained capabilities with a stable denial. No migration, APK or deployment.

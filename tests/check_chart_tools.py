@@ -77,6 +77,7 @@ async def main() -> None:
                 read_only=read_only,
             )
             if name in {
+                "chart_open",
                 "chart_set_symbol",
                 "chart_set_timeframe",
                 "chart_add_indicator",
@@ -86,17 +87,6 @@ async def main() -> None:
                 # The mutation receipt is configuration evidence, never frozen market data.
                 assert result["scene"] is None and result["requires_scene_inspection"] is True
                 assert result["command"]["status"] == "applied"
-                from lonora_charts.runtime import refresh_chart, refresh_identity
-
-                await refresh_chart(
-                    actor.db,
-                    actor.brokers,
-                    actor.owner_id,
-                    result["chart"]["id"],
-                    refresh_identity(),
-                    actor.lease,
-                    force=True,
-                )
                 inspected = await registry.execute(
                     ToolCall(
                         id=uuid4().hex,

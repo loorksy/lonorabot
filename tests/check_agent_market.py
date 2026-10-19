@@ -125,7 +125,8 @@ async def main() -> None:
             elif phase == 4:
                 previous = json.loads(messages[-1].content)
                 chart_id = previous["chart"]["id"]
-                assert previous["scene"]["symbol"] == symbol
+                assert previous["chart"]["payload"]["symbol"] == symbol
+                assert previous["scene"] is None and previous["requires_scene_inspection"]
                 result = ModelReply(
                     tool_calls=[
                         ToolCall(

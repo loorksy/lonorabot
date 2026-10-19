@@ -4,7 +4,7 @@ from typing import Any, Literal
 from lonora_charts.scene_snapshot import scene_svg
 from lonora_charts.snapshot import svg_snapshot
 from lonora_charts.snapshot_render import png_snapshot
-from lonora_charts.state import inspect_chart
+from lonora_charts.state import inspect_chart, prepare_chart_scene
 from lonora_contracts.domain import Contract, utcnow
 from lonora_core.user_error import LonoraError
 from lonora_db.artifacts import ArtifactRepository
@@ -119,6 +119,10 @@ async def snapshot(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]
     media_type = "image/png" if image_format == "png" else "image/svg+xml"
     if args.get("chart_id"):
         result = await inspect_chart(context.db, context.owner_id, args["chart_id"])
+        if result.get("code") == "chart_initializing":
+            result = await prepare_chart_scene(
+                context.db, context.brokers, context.owner_id, args["chart_id"], context.lease
+            )
         scene = result.get("scene")
         if scene is None:
             raise LonoraError(str(result.get("code", "chart_data_unavailable")), 409)
