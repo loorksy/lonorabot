@@ -10,6 +10,8 @@ from lonora_providers.router import GlobalModelRouter
 from lonora_session.idempotency import stable_id
 from lonora_trading.execution import ExecutionService
 
+from .skill_access import SkillAccess
+
 
 @dataclass(frozen=True)
 class ToolContext:
@@ -27,6 +29,7 @@ class ToolContext:
     maximum_subagents: int = 4
     call_id: str = ""
     chart_visual: ChartVisualRuntime | None = None
+    skill_access: SkillAccess | None = None
 
     @property
     def effect_key(self) -> str:

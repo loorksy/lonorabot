@@ -1,6 +1,6 @@
 import json
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 from lonora_adapter_kit.types import ModelMessage, ToolCall
@@ -31,6 +31,7 @@ from .environment import (
 from .model_runtime import model_turn
 from .progress import progress
 from .recovery import restore_execution
+from .skills.access import RunSkillAccess, admitted_view_ids
 from .skills.snapshot import read_snapshot
 from .steering import merge_steering, owner_steering_pending
 from .tasks import task_checkpoint
@@ -220,7 +221,16 @@ async def execute_tool_loop(
                         "tool": call.name,
                     }
                     await persist(context, state, messages, pending)
-                    result = await registry.execute(call, context, read_only)
+                    result = await registry.execute(
+                        call,
+                        replace(
+                            context,
+                            skill_access=RunSkillAccess(
+                                registry, tuple(state["instruction_skill_ids"])
+                            ),
+                        ),
+                        read_only,
+                    )
                 result = {"ok": True, **result}
             except LonoraError as error:
                 if error.code in {"stale_lease", "skill_continuation_unavailable"}:
@@ -291,6 +301,16 @@ async def execute_tool_loop(
                     True,
                 )
             state.pop("waiting_call_id", None)
+            viewed_ids = await admitted_view_ids(
+                context, registry, call, result, state["instruction_skill_ids"]
+            )
+            if viewed_ids:
+                state["viewed_skill_ids"] = sorted(
+                    set(state.get("viewed_skill_ids", [])) | set(viewed_ids)
+                )
+                state["instruction_skill_ids"] = sorted(
+                    set(state["instruction_skill_ids"]) | set(viewed_ids)
+                )
             content = json.dumps(result, ensure_ascii=False)
             if len(content) > 120000:
                 summary = bounded_result(result)
@@ -351,9 +371,13 @@ async def execute_tool_loop(
                     },
                 )
         if await merge_steering(context, state, messages):
-            updated_skills = await refresh_skill_context(context, registry, messages)
+            updated_skills = await refresh_skill_context(
+                context, registry, messages, retained_ids=state.get("viewed_skill_ids", [])
+            )
             if updated_skills is not None:
-                state["instruction_skill_ids"] = updated_skills
+                state["instruction_skill_ids"] = sorted(
+                    set(updated_skills) | set(state.get("viewed_skill_ids", []))
+                )
         await task_checkpoint(context, state, messages)
         await assert_skill_authority(context, registry, active_ids=state["instruction_skill_ids"])
         turn_capability = (
@@ -376,9 +400,13 @@ async def execute_tool_loop(
         if pending:
             continue
         if await merge_steering(context, state, messages):
-            updated_skills = await refresh_skill_context(context, registry, messages)
+            updated_skills = await refresh_skill_context(
+                context, registry, messages, retained_ids=state.get("viewed_skill_ids", [])
+            )
             if updated_skills is not None:
-                state["instruction_skill_ids"] = updated_skills
+                state["instruction_skill_ids"] = sorted(
+                    set(updated_skills) | set(state.get("viewed_skill_ids", []))
+                )
             continue
         if not reply.text.strip() and is_conversational(run.trigger):
             messages.append(

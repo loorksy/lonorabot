@@ -9,6 +9,7 @@ MODULES = (
     "message",
     "memory",
     "scratchpad",
+    "skills",
     "routine",
     "search",
     "artifacts",

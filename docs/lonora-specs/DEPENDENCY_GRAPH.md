@@ -192,3 +192,8 @@ Native original creation intent → atomic configuration/receipt → explicit cu
 ### Exact Skill-version denial dependency resolved (2026-10-19)
 
 Authenticated owner/Agent → typed bounded settings + optimistic revision/durable event → effective pinned-version resolver rejection → actual loaded-instruction checkpoint binding → existing runtime boundary denial. Installed resource deletion or source relabel cannot erase a version control. New unrevoked versions remain available to new Runs; prior Runs never upgrade silently. Candidate evaluation/adoption/rollback must consume this same control and must not create another registry.
+
+
+### Progressive Skill access dependency integrated (2026-10-19)
+
+Canonical ToolRegistry → injected Agent-owned catalog access → effective pinned resolver/controls → bounded dependency bundle + fenced receipt → verified tool-result/authority checkpoint → subsequent effect/model admission. Steering consumes retained views through the same resolver and budgets. This is one instruction lifecycle, not another registry, permission layer or memory system. Evaluated candidate/adoption/rollback remains downstream and unimplemented.

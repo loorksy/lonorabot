@@ -1,6 +1,6 @@
 # Progress
 
-Current wave (2026-10-19): professional trading Agent environment, integrated context/results/Skills authority/memory and chart observation/recovery increments on `feat/trading-agent-environment`, from `80b0ff9`. The prior S19 branch was merged and deployed before this wave; older entries below are historical. No new deployment or APK build is part of this integration.
+Current wave (2026-10-19): progressive Skill discovery/view on `feat/progressive-skill-discovery`, from `0109438`. The previous verified environment increments are now on `main` and deployed; see [deployment evidence](DEPLOYMENT_2026_10_19.md). No APK was built. The full professional Agent program remains incomplete.
 
 ## Current wave
 
@@ -376,3 +376,12 @@ Actual PostgreSQL acceptance passed for pinned-v1 revocation/current-v2 availabi
 Final revocation integration gate: all37 isolated foundation groups and11 Task cases passed. The expanded revocation fixture (including unused historical snapshots and bounded controls/Agent cleanup) passed independently, and all347 pytest cases, strict Pyright and Ruff passed. No remote CI or production acceptance is inferred from these local results.
 
 Next continuation point after a1efd1a: progressive Skill discovery/view through the canonical ToolRegistry. Actual source/caller audit confirms there is no such tool today; deterministic activation and owner explicit hints alone do not close that requirement. Reuse one injected access boundary to avoid an Agent↔tools import cycle and keep admitted instructions/checkpoints/revocations aligned. This is not implemented yet. All current changes are verified and pushed on feat/trading-agent-environment; no APK, main merge or VPS deployment. The full program remains incomplete.
+
+
+## Progressive Skill discovery/view integration — 2026-10-19
+
+The canonical ToolRegistry now exposes bounded metadata-only `skills_list` and on-demand `skill_view`. A narrow injected protocol keeps instruction ownership in Agent context and avoids a tools→Agent import cycle. Installed resources, pinned versions, dependencies, conflicts, exact-version revocations, observe-only restrictions and available tools use the existing resolver. Reading a Skill never installs code, adds tools or grants financial authority.
+
+A successful view writes the original bounded bundle and a scoped receipt in the existing fenced Run transaction. ToolLoop admits only the receipt-verified content and checkpoints its instruction IDs with the complete tool result. Worker death before checkpoint replays the pinned version; catalog edits cannot silently replace it. Viewed instructions remain conservatively active for the whole Run, even if old tool history is later compacted. Steering resolves refreshed instructions and retained views together; overflow/conflicts/withdrawal block admission rather than dropping prior bindings. Catalog and view share the 32-snapshot/128,000-retained-character limits and 16,000-character active-instruction budget.
+
+Independent root PostgreSQL acceptance passed for natural discovery→view, crash/new-fence replay, edited catalog, forged result/receipt, changed intent, scope/fence checks, steering and exact-version withdrawal before the next effect. Final integration passed: 365 pytest cases, 38 isolated PostgreSQL foundation groups and 11 additional Task cases; Ruff clean and strict Pyright zero errors. This is not evaluated learning or proof of external model quality. Candidate generation, independent evaluation, owner adoption/rollback, owner version-control UI and persistent visual viewport/navigation remain open.
