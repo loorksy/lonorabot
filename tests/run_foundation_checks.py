@@ -25,6 +25,7 @@ CHECKS = (
     "check_tool_result_storage.py",
     "check_image_observations.py",
     "check_chart_snapshot_provenance.py",
+    "check_chart_command_receipts.py",
     "check_collaboration_sessions.py",
     "check_market_health.py",
     "check_dynamic_watches.py",

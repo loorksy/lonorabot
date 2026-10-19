@@ -1,6 +1,6 @@
 from typing import Any, cast
 
-from lonora_charts.state import inspect_chart, update_chart
+from lonora_charts.state import ChartCommand, inspect_chart, replay_chart_command, update_chart
 from lonora_contracts.chart import ChartState, IndicatorSpec
 from lonora_contracts.domain import Contract
 from lonora_core.chart_annotations import protect_agent_annotations, validate_annotations
@@ -174,7 +174,21 @@ async def editable(context: ToolContext, args: dict[str, Any]) -> ChartState:
     return ChartState.model_validate(current["chart"]["payload"])
 
 
-async def save(context: ToolContext, args: dict[str, Any], state: ChartState) -> dict[str, Any]:
+def chart_command(context: ToolContext, args: dict[str, Any], name: str) -> ChartCommand:
+    return ChartCommand(
+        owner_id=context.owner_id,
+        agent_id=context.agent_id,
+        thread_id=context.thread_id,
+        run_id=context.lease.run_id,
+        call_id=context.call_id,
+        tool=name,
+        arguments=args,
+    )
+
+
+async def save(
+    context: ToolContext, args: dict[str, Any], state: ChartState, name: str
+) -> dict[str, Any]:
     current = await update_chart(
         context.db,
         context.brokers,
@@ -184,33 +198,54 @@ async def save(context: ToolContext, args: dict[str, Any], state: ChartState) ->
         state,
         lease=context.lease,
         actor_agent_id=context.agent_id,
+        command=chart_command(context, args, name),
     )
     return bounded_inspection(current)
 
 
 async def set_symbol(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+    prior = await replay_chart_command(
+        context.db, chart_command(context, args, "chart_set_symbol"), context.lease
+    )
+    if prior is not None:
+        return bounded_inspection(prior)
     state = await editable(context, args)
     state.symbol = args["symbol"]
-    return await save(context, args, state)
+    return await save(context, args, state, "chart_set_symbol")
 
 
 async def set_timeframe(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+    prior = await replay_chart_command(
+        context.db, chart_command(context, args, "chart_set_timeframe"), context.lease
+    )
+    if prior is not None:
+        return bounded_inspection(prior)
     state = await editable(context, args)
     state.timeframe = args["timeframe"]
-    return await save(context, args, state)
+    return await save(context, args, state, "chart_set_timeframe")
 
 
 async def add_indicator(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+    prior = await replay_chart_command(
+        context.db, chart_command(context, args, "chart_add_indicator"), context.lease
+    )
+    if prior is not None:
+        return bounded_inspection(prior)
     state = await editable(context, args)
     name, period = args["name"].casefold(), args["period"]
     validate_indicator(name, period)
     if any(item.name.casefold() == name and item.period == period for item in state.indicators):
         raise LonoraError("chart_indicator_already_exists", 409)
     state.indicators.append(IndicatorSpec(name=name, period=period))
-    return await save(context, args, state)
+    return await save(context, args, state, "chart_add_indicator")
 
 
 async def remove_indicator(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+    prior = await replay_chart_command(
+        context.db, chart_command(context, args, "chart_remove_indicator"), context.lease
+    )
+    if prior is not None:
+        return bounded_inspection(prior)
     state = await editable(context, args)
     name, period = args["name"].casefold(), args["period"]
     remaining = [
@@ -221,7 +256,7 @@ async def remove_indicator(context: ToolContext, args: dict[str, Any]) -> dict[s
     if len(remaining) == len(state.indicators):
         raise LonoraError("chart_indicator_not_found", 404)
     state.indicators = remaining
-    return await save(context, args, state)
+    return await save(context, args, state, "chart_remove_indicator")
 
 
 async def read_indicator(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
@@ -315,6 +350,11 @@ def apply_drawing_operations(
 
 
 async def annotate(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+    prior = await replay_chart_command(
+        context.db, chart_command(context, args, "chart_annotate"), context.lease
+    )
+    if prior is not None:
+        return bounded_inspection(prior)
     state = await editable(context, args)
     state.annotations = apply_drawing_operations(
         state,
@@ -323,7 +363,7 @@ async def annotate(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]
         chart_id=args["chart_id"],
         mutation_id=context.resource_id,
     )
-    return await save(context, args, state)
+    return await save(context, args, state, "chart_annotate")
 
 
 def tools() -> list[Tool]:
@@ -344,27 +384,31 @@ def tools() -> list[Tool]:
         ),
         Tool(
             "chart_set_symbol",
-            "Change an existing chart's broker symbol. Requires its inspected version; preserves annotations and indicators.",
+            "Change an existing chart's broker symbol. Requires its inspected version; preserves annotations and indicators. The response confirms applied configuration only; use chart_inspect for current scene/evidence, which may still be initializing.",
             SetSymbolInput,
             set_symbol,
+            replay_safe=True,
         ),
         Tool(
             "chart_set_timeframe",
-            "Change an existing chart's supported timeframe using its inspected version.",
+            "Change an existing chart's supported timeframe using its inspected version. The response confirms applied configuration only; use chart_inspect for current scene/evidence, which may still be initializing.",
             SetTimeframeInput,
             set_timeframe,
+            replay_safe=True,
         ),
         Tool(
             "chart_add_indicator",
-            "Add a supported indicator to an existing persistent chart. Use name+period and current version.",
+            "Add a supported indicator to an existing persistent chart. Use name+period and current version. The response confirms applied configuration only; use chart_inspect for current scene/evidence, which may still be initializing.",
             IndicatorEditInput,
             add_indicator,
+            replay_safe=True,
         ),
         Tool(
             "chart_remove_indicator",
-            "Remove one named indicator/period from an existing chart using its current version.",
+            "Remove one named indicator/period from an existing chart using its current version. The response confirms applied configuration only; use chart_inspect for current scene/evidence, which may still be initializing.",
             IndicatorEditInput,
             remove_indicator,
+            replay_safe=True,
         ),
         Tool(
             "chart_read_indicator",
@@ -375,8 +419,9 @@ def tools() -> list[Tool]:
         ),
         Tool(
             "chart_annotate",
-            "Append one drawing or atomically add/update/delete a batch of typed drawings using the inspected chart version. Types: price, horizontal_line, trend_line, note, price_zone, ray, channel, fibonacci, arrow, scenario. Geometry uses time/price anchors. Only this Agent’s attributed layer can be changed. An annotation is visual evidence, not an order or trading approval.",
+            "Append one drawing or atomically add/update/delete a batch of typed drawings using the inspected chart version. Types: price, horizontal_line, trend_line, note, price_zone, ray, channel, fibonacci, arrow, scenario. Geometry uses time/price anchors. Only this Agent’s attributed layer can be changed. An annotation is visual evidence, not an order or trading approval. The response confirms applied configuration only; use chart_inspect for current scene/evidence, which may still be initializing.",
             AnnotateInput,
             annotate,
+            replay_safe=True,
         ),
     ]

@@ -1,3 +1,6 @@
+import json
+from dataclasses import dataclass
+from hashlib import sha256
 from typing import Any, cast
 
 from lonora_adapters.brokers.base import BrokerManager
@@ -8,9 +11,82 @@ from lonora_core.user_error import LonoraError
 from lonora_db.client import Database
 from lonora_db.cloud_charts import CloudChartRepository
 from lonora_db.runs import require_lease
+from lonora_db.schema import EffectReceiptRow, ThreadRow
 from lonora_db.transactions import resource_data
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from .runtime import refresh_chart, refresh_identity
+
+
+@dataclass(frozen=True)
+class ChartCommand:
+    """One native chart command; a lease fence is deliberately not its identity."""
+
+    owner_id: str
+    agent_id: str
+    thread_id: str
+    run_id: str
+    call_id: str
+    tool: str
+    arguments: dict[str, Any]
+
+    @property
+    def key(self) -> str:
+        return (
+            "chart-command:" + sha256(json.dumps([self.run_id, self.call_id]).encode()).hexdigest()
+        )
+
+    @property
+    def digest(self) -> str:
+        return sha256(
+            json.dumps(
+                {
+                    "kind": "chart-command-v1",
+                    "owner_id": self.owner_id,
+                    "agent_id": self.agent_id,
+                    "thread_id": self.thread_id,
+                    "run_id": self.run_id,
+                    "call_id": self.call_id,
+                    "tool": self.tool,
+                    "arguments": self.arguments,
+                },
+                sort_keys=True,
+                separators=(",", ":"),
+                ensure_ascii=False,
+            ).encode()
+        ).hexdigest()
+
+
+async def _command_result(
+    session: AsyncSession, command: ChartCommand, lease: Lease
+) -> dict[str, Any] | None:
+    run = await require_lease(session, lease, lock=True)
+    thread = await session.get(ThreadRow, run.thread_id)
+    if (
+        not command.call_id
+        or command.run_id != lease.run_id
+        or run.agent_id != command.agent_id
+        or run.thread_id != command.thread_id
+        or thread is None
+        or thread.owner_id != command.owner_id
+    ):
+        raise LonoraError("chart_command_scope_mismatch", 409)
+    receipt = await session.get(EffectReceiptRow, command.key)
+    if receipt is None:
+        return None
+    if (
+        receipt.result.get("kind") != "chart-command-v1"
+        or receipt.result.get("digest") != command.digest
+    ):
+        raise LonoraError("chart_command_identity_conflict", 409)
+    return cast(dict[str, Any], receipt.result["acknowledgment"])
+
+
+async def replay_chart_command(
+    db: Database, command: ChartCommand, lease: Lease
+) -> dict[str, Any] | None:
+    async with db.sessions() as session, session.begin():
+        return await _command_result(session, command, lease)
 
 
 def stored_scene(data: dict[str, Any], version: int) -> dict[str, Any]:
@@ -82,9 +158,23 @@ async def update_chart(
     state: ChartState,
     lease: Lease | None = None,
     actor_agent_id: str | None = None,
+    command: ChartCommand | None = None,
 ) -> dict[str, Any]:
+    acknowledgment: dict[str, Any] | None = None
     async with db.sessions() as session, session.begin():
-        if lease:
+        if command:
+            if (
+                lease is None
+                or command.owner_id != owner_id
+                or command.agent_id != actor_agent_id
+                or command.arguments.get("chart_id") != chart_id
+                or command.arguments.get("version") != version
+            ):
+                raise LonoraError("chart_command_scope_mismatch", 409)
+            prior = await _command_result(session, command, lease)
+            if prior is not None:
+                return prior
+        elif lease:
             await require_lease(session, lease, lock=True)
         if actor_agent_id:
             previous = await CloudChartRepository().get(session, owner_id, chart_id, lock=True)
@@ -93,8 +183,34 @@ async def update_chart(
             protect_agent_annotations(
                 previous.payload.get("annotations", []), state.annotations, actor_agent_id
             )
-        await CloudChartRepository().update(
+        row = await CloudChartRepository().update(
             session, owner_id, chart_id, state.model_dump(mode="json"), version
         )
+        if command:
+            # Configuration acknowledgment only. Never freeze quotes/candles as current evidence.
+            acknowledgment = {
+                "chart": {
+                    "id": row.id,
+                    "version": row.version,
+                    "payload": row.payload,
+                    "state": {},
+                },
+                "scene": None,
+                "command": {"status": "applied", "tool": command.tool, "revision": row.version},
+                "requires_scene_inspection": True,
+            }
+            session.add(
+                EffectReceiptRow(
+                    key=command.key,
+                    result={
+                        "kind": "chart-command-v1",
+                        "digest": command.digest,
+                        "acknowledgment": acknowledgment,
+                    },
+                )
+            )
+    if acknowledgment is not None:
+        # Repository updates already notify the gateway; refresh failure cannot undo the command.
+        return acknowledgment
     await refresh_chart(db, brokers, owner_id, chart_id, refresh_identity(), lease, force=True)
     return await inspect_chart(db, owner_id, chart_id)

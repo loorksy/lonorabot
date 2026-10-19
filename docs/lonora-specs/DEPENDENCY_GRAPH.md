@@ -176,3 +176,7 @@ Shared licensed renderer → exact applied-scene acknowledgment → bounded serv
 ### Compacted conversation evidence dependency resolved (2026-10-19)
 
 Canonical owned direct conversation + summary/input/next-sequence boundaries → bounded lexical historical evidence → optional one authorized adjacent turn → existing memory fusion/context budget. Notes and messages share one output budget; peer/group/work content does not acquire direct-conversation authority. Cross-thread and semantic-message retrieval remain separate unimplemented scope.
+
+### Native chart update recovery dependency resolved (2026-10-19)
+
+Validated scoped native command + current fence → one chart mutation/EffectReceipt transaction → immutable configuration acknowledgment → inspect current scene separately. Same-call retries cannot reapply stale drawings over owner edits. Existing optimistic versions protect different commands. Creation-request identity (chart_open) remains a distinct next boundary.

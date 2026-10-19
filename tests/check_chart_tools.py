@@ -71,11 +71,44 @@ async def main() -> None:
             actor: ToolContext = context,
             read_only: bool = False,
         ) -> dict[str, Any]:
-            return await registry.execute(
+            result = await registry.execute(
                 ToolCall(id=identity or uuid4().hex, name=name, arguments=arguments),
                 actor,
                 read_only=read_only,
             )
+            if name in {
+                "chart_set_symbol",
+                "chart_set_timeframe",
+                "chart_add_indicator",
+                "chart_remove_indicator",
+                "chart_annotate",
+            }:
+                # The mutation receipt is configuration evidence, never frozen market data.
+                assert result["scene"] is None and result["requires_scene_inspection"] is True
+                assert result["command"]["status"] == "applied"
+                from lonora_charts.runtime import refresh_chart, refresh_identity
+
+                await refresh_chart(
+                    actor.db,
+                    actor.brokers,
+                    actor.owner_id,
+                    result["chart"]["id"],
+                    refresh_identity(),
+                    actor.lease,
+                    force=True,
+                )
+                inspected = await registry.execute(
+                    ToolCall(
+                        id=uuid4().hex,
+                        name="chart_inspect",
+                        arguments={"chart_id": result["chart"]["id"]},
+                    ),
+                    actor,
+                    read_only=True,
+                )
+                assert inspected["chart"]["version"] == result["command"]["revision"]
+                return inspected
+            return result
 
         state = {"account_id": connection_id, "symbol": "XAUUSD", "timeframe": "1h"}
         opened = await call("chart_open", state, identity="stable-chart-open")

@@ -204,11 +204,9 @@ async def postgres_commands() -> None:
             ],
         }
         accepted = await command(add, "stable-drawing-command")
-        try:
-            await command(add, "stable-drawing-command")
-            raise AssertionError("duplicate mutation accepted")
-        except LonoraError as error:
-            assert error.code == "version_conflict"
+        replayed = await command(add, "stable-drawing-command")
+        assert replayed == accepted and replayed["command"]["revision"] == 2
+        assert replayed["scene"] is None and replayed["requires_scene_inspection"] is True
         drawing_id = accepted["chart"]["payload"]["annotations"][0]["id"]
         async with fixture.runtime.db.sessions() as session:
             row = await CloudChartRepository().get(session, fixture.owner, chart_id)

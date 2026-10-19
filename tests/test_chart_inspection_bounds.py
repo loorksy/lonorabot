@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from typing import Any, cast
 
 import pytest
+from lonora_contracts.runs import Lease
 from lonora_core.user_error import LonoraError
 from lonora_tools import chart as chart_tools
 from lonora_tools import chart_state
@@ -21,7 +22,8 @@ def context() -> ToolContext:
             db=object(),
             owner_id="owner",
             brokers=object(),
-            lease=object(),
+            lease=Lease(run_id="run", owner="worker", fence=1),
+            call_id="command",
             agent_id="agent",
             thread_id="thread",
             resource_id="chart",
@@ -217,8 +219,12 @@ async def test_edit_reads_full_current_state_and_bounds_only_tool_result(
         *,
         lease: Any,
         actor_agent_id: str,
+        command: Any,
     ):
         assert db is actor.db and brokers is actor.brokers and lease is actor.lease
+        assert command.owner_id == actor.owner_id and command.agent_id == actor.agent_id
+        assert command.run_id == actor.lease.run_id and command.thread_id == actor.thread_id
+        assert command.call_id == actor.call_id and command.tool == "chart_set_timeframe"
         assert actor_agent_id == actor.agent_id
         assert owner == "owner" and chart_id == "chart" and version == 4
         assert state.symbol == "XAUUSDm" and state.timeframe == "4h"
@@ -231,6 +237,11 @@ async def test_edit_reads_full_current_state_and_bounds_only_tool_result(
         saved["scene"]["timeframe"] = "4h"
         return saved
 
+    async def no_receipt(db: Any, command: Any, lease: Any) -> None:
+        assert lease is actor.lease and command.run_id == lease.run_id
+        return None
+
+    monkeypatch.setattr(chart_state, "replay_chart_command", no_receipt)
     monkeypatch.setattr(chart_state, "update_chart", update)
     result = await chart_state.set_timeframe(
         actor, {"chart_id": "chart", "version": 4, "timeframe": "4h"}
