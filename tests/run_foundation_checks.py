@@ -20,6 +20,7 @@ CHECKS = (
     "check_personal_agent.py",
     "check_skill_installation.py",
     "check_skills_versioning.py",
+    "check_skill_authority_continuity.py",
     "check_knowledge_retrieval.py",
     "check_conversation_recall.py",
     "check_tool_result_storage.py",

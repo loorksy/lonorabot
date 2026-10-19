@@ -180,3 +180,7 @@ Canonical owned direct conversation + summary/input/next-sequence boundaries →
 ### Native chart update recovery dependency resolved (2026-10-19)
 
 Validated scoped native command + current fence → one chart mutation/EffectReceipt transaction → immutable configuration acknowledgment → inspect current scene separately. Same-call retries cannot reapply stale drawings over owner edits. Existing optimistic versions protect different commands. Creation-request identity (chart_open) remains a distinct next boundary.
+
+### Retained Skills authority dependency repaired (2026-10-19)
+
+Pinned instructions + current selected-Skill eligibility → new-effect/model admission. Checkpoint restore no longer bypasses current disable/source/removal controls merely because no steering occurred. Shared resolver eligibility and current Run fences remain authoritative; completed receipts and known same-operation reconciliation retain existing priority. Per-version revocation and evaluated adoption are still separate missing capabilities.

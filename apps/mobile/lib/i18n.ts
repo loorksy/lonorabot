@@ -1,5 +1,9 @@
 export type Locale = "ar" | "en";
 export const labels = {
+  skill_continuation_unavailable: [
+    "إحدى المهارات النشطة لم تعد متاحة. راجع إعداداتها قبل استئناف المهمة.",
+    "An active skill is no longer available. Review its settings before resuming this task.",
+  ],
   personalAgent: ["المساعد الشخصي", "Personal Agent"],
   personal_agent_cannot_delete: [
     "لا يمكن حذف مساعدك الشخصي.",

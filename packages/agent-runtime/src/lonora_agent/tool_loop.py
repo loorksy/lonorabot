@@ -17,7 +17,7 @@ from lonora_tools.tool_results import store_result, stored_result
 
 from .cancellation import cancellation_checkpoint
 from .context.builder import build_context
-from .context.skills import refresh_skill_context
+from .context.skills import assert_skill_authority, refresh_skill_context
 from .environment import (
     ToolRetryScheduled,
     blocked_route,
@@ -199,6 +199,9 @@ async def execute_tool_loop(
                 ):
                     result = {"ok": False, "code": "tool_execution_uncertain"}
                 else:
+                    # Receipts and known financial reconciliation above retain priority.
+                    # New effects cannot use instructions withdrawn since selection.
+                    await assert_skill_authority(context, registry)
                     # Persist intent before any handler can cross an effect
                     # boundary. Unreceipted mutations cannot replay after death.
                     environment["inflight"] = {
@@ -210,7 +213,7 @@ async def execute_tool_loop(
                     result = await registry.execute(call, context, read_only)
                 result = {"ok": True, **result}
             except LonoraError as error:
-                if error.code == "stale_lease":
+                if error.code in {"stale_lease", "skill_continuation_unavailable"}:
                     raise
                 error_result: dict[str, Any] = {"ok": False, "code": error.code}
                 if isinstance(error, ToolArgumentsError):
@@ -284,7 +287,7 @@ async def execute_tool_loop(
                 try:
                     summary = await store_result(context, call, result, summary)
                 except LonoraError as error:
-                    if error.code == "stale_lease":
+                    if error.code in {"stale_lease", "skill_continuation_unavailable"}:
                         raise
                     summary["result_persisted"] = False
                     summary["result_storage_error"] = error.code
@@ -340,6 +343,7 @@ async def execute_tool_loop(
         if await merge_steering(context, state, messages):
             await refresh_skill_context(context, registry, messages)
         await task_checkpoint(context, state, messages)
+        await assert_skill_authority(context, registry)
         turn_capability = (
             Capability.VISION if any(message.images for message in messages) else capability
         )

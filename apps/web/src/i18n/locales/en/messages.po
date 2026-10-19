@@ -2838,3 +2838,7 @@ msgstr "Scenario"
 
 msgid "Chart appearance could not be updated."
 msgstr "Chart appearance could not be updated."
+
+#: src/lib/user_error.ts
+msgid "An active skill is no longer available. Review its settings before resuming this task."
+msgstr "An active skill is no longer available. Review its settings before resuming this task."

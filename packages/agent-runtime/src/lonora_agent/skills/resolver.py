@@ -59,6 +59,25 @@ class SkillSelection:
         }
 
 
+def eligibility_reason(
+    definition: SkillDefinition, signals: SkillSignals, rejected: dict[str, str]
+) -> str | None:
+    """One eligibility boundary for initial selection and retained instruction use."""
+    manifest = definition.manifest
+    if manifest.id in rejected:
+        return rejected[manifest.id]
+    if signals.read_only and manifest.risk_class != "read_only":
+        return "skill_scope_unavailable"
+    if set(manifest.required_tools) - signals.available_tools:
+        return "skill_required_tools_unavailable"
+    for capability in manifest.required_capabilities:
+        if CAPABILITY_TOOLS[capability] - signals.available_tools:
+            return "skill_required_capability_unavailable"
+    if len(definition.content) > manifest.context_budget:
+        return "skill_context_budget_exceeded"
+    return None
+
+
 def resolve_skills(
     registry: SkillRegistry,
     signals: SkillSignals,
@@ -92,19 +111,7 @@ def resolve_skills(
         return result
 
     def eligible(identity: str) -> str | None:
-        if identity in selection.rejected:
-            return selection.rejected[identity]
-        manifest = registry.definitions[identity].manifest
-        if signals.read_only and manifest.risk_class != "read_only":
-            return "skill_scope_unavailable"
-        if set(manifest.required_tools) - signals.available_tools:
-            return "skill_required_tools_unavailable"
-        for capability in manifest.required_capabilities:
-            if CAPABILITY_TOOLS[capability] - signals.available_tools:
-                return "skill_required_capability_unavailable"
-        if len(registry.definitions[identity].content) > manifest.context_budget:
-            return "skill_context_budget_exceeded"
-        return None
+        return eligibility_reason(registry.definitions[identity], signals, selection.rejected)
 
     ordering = sorted(
         candidates,

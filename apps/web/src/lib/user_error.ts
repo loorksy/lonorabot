@@ -3,6 +3,8 @@ import { errorCode } from "@lonora/core";
 export function userError(error: unknown) {
   const code = errorCode(error);
   switch (code) {
+    case "skill_continuation_unavailable":
+      return t`An active skill is no longer available. Review its settings before resuming this task.`;
     case "personal_agent_cannot_delete":
       return t`Your Personal Agent cannot be deleted.`;
     case "execution_mode_changed":

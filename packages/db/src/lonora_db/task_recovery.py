@@ -33,6 +33,7 @@ PLAN_CODES = frozenset(
 OWNER_CODES = frozenset(
     {
         "runtime_error",
+        "skill_continuation_unavailable",
         "model_not_configured",
         "model_credentials_rejected",
         "model_response_invalid",

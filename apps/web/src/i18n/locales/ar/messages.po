@@ -2838,3 +2838,7 @@ msgstr "سيناريو"
 
 msgid "Chart appearance could not be updated."
 msgstr "تعذّر تحديث مظهر الشارت."
+
+#: src/lib/user_error.ts
+msgid "An active skill is no longer available. Review its settings before resuming this task."
+msgstr "إحدى المهارات النشطة لم تعد متاحة. راجع إعداداتها قبل استئناف المهمة."
