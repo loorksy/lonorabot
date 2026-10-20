@@ -202,3 +202,9 @@ Canonical ToolRegistry → injected Agent-owned catalog access → effective pin
 ### Broker discovery cancellation boundary (2026-10-19)
 
 Existing MetaApi transport hook → shared shielded discovery task + bounded failure/cooldown → official SDK host cache → account-derived region → independent stream/history consumers → durable market snapshots → chart/watch evidence. Shutdown owns the shared task. Financial execution/reconciliation remains a separate existing path with no blind retry.
+
+## Owner Skills management hand-off — 2026-10-20
+
+Existing manifest/installed registry → shared resolver and current exact-version controls → owner-scoped current metadata catalog → lazy procedural detail → Web Knowledge/Skills and Mobile Agent settings. Current catalog observations do not replace pinned Run snapshots. Confirmed owner version denials feed the same runtime boundary checks; CRUD uses the same resource revision/graph validation. Evaluated candidates/adoption/rollback remain downstream, not a second permission or learning system.
+
+Next Chart Use dependency was audited read-only against actual tools/visual runtime/renderer: structured Agent viewport intent and actual renderer range acknowledgment are missing. User viewport remains local; future Run/Task-scoped Agent view state can reuse server-owned metadata, fences and effect receipts before view-specific captures. One-shot visual capture, Follow/Free Browse and current scene history are existing foundations. Historical paging, persistent sessions and coordinate interactions remain separate unimplemented acceptance requirements.

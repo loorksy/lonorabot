@@ -3,6 +3,7 @@ import type { Agent } from "@lonora/contracts";
 import { useState } from "react";
 import { KnowledgeSection } from "./KnowledgeSection";
 import { ScratchpadSection } from "./ScratchpadSection";
+import { SkillsSection } from "./SkillsSection";
 import { AgentPicker } from "./shell/bot-picker";
 
 export function Knowledge({ agents, initialAgent }: { agents: Agent[]; initialAgent: string }) {
@@ -42,6 +43,8 @@ export function Knowledge({ agents, initialAgent }: { agents: Agent[]; initialAg
       {agent ? (
         tab === "memory" ? (
           <KnowledgeSection key={agent} agentId={agent} />
+        ) : tab === "skills" ? (
+          <SkillsSection key={agent} agentId={agent} />
         ) : (
           <ScratchpadSection key={`${agent}:${tab}`} agentId={agent} kind={tab} />
         )

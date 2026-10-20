@@ -427,15 +427,33 @@ test("knowledge and recurring trading work use durable API edits", async ({
     .click();
   const panel = page.getByTestId("side-panel");
   await panel.getByRole("button", { name: "Skills", exact: true }).click();
-  await panel.getByLabel("Title", { exact: true }).fill(`${prefix} market checklist`);
-  await panel
+  const skillForm = panel.locator(".skill-create");
+  await skillForm.locator("summary", { hasText: "Add owner instructions" }).click();
+  await skillForm
+    .getByLabel("Skill ID", { exact: true })
+    .fill(`owner-${randomUUID().replaceAll("-", "")}`);
+  await skillForm.getByLabel("Title", { exact: true }).fill(`${prefix} market checklist`);
+  await skillForm
+    .getByLabel("Purpose", { exact: true })
+    .fill("Review current broker evidence before discussing a trade.");
+  await skillForm
     .getByLabel("Content", { exact: true })
     .fill("Read current positions and spreads before preparing an order.");
   const createdSkill = page.waitForResponse(
     (response) => response.url().endsWith("/api/skills") && response.request().method() === "POST",
   );
-  await panel.getByRole("button", { name: "Add", exact: true }).click();
+  await skillForm.getByRole("button", { name: "Add", exact: true }).click();
   const skill = remember("skills", await (await createdSkill).json());
+  expect(skill.payload.manifest).toMatchObject({
+    id: skill.payload.name,
+    version: "1.0.0",
+    source: "owner",
+    risk_class: "read_only",
+    activation: { mode: "explicit" },
+    required_tools: [],
+    required_capabilities: [],
+  });
+  expect(skill.payload.enabled).toBe(true);
   const item = panel
     .locator("details")
     .filter({ has: page.locator("summary", { hasText: `${prefix} market checklist` }) });

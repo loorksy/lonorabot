@@ -2910,3 +2910,195 @@ msgstr "This question is no longer waiting for an answer."
 #: src/lib/user_error.ts
 msgid "A different answer was already recorded."
 msgstr "A different answer was already recorded."
+
+#: src/pages/SkillsSection.tsx
+msgid "Add owner instructions"
+msgstr "Add owner instructions"
+
+#: src/pages/SkillsSection.tsx
+msgid "Available"
+msgstr "Available"
+
+#: src/pages/SkillsSection.tsx
+msgid "Block an earlier version"
+msgstr "Block an earlier version"
+
+#: src/pages/SkillsSection.tsx
+msgid "Block this exact version permanently? Retained tasks using it will stop at their next runtime boundary."
+msgstr "Block this exact version permanently? Retained tasks using it will stop at their next runtime boundary."
+
+#: src/pages/SkillsSection.tsx
+msgid "Block this version"
+msgstr "Block this version"
+
+#: src/pages/SkillsSection.tsx
+msgid "Block version permanently"
+msgstr "Block version permanently"
+
+#: src/pages/SkillsSection.tsx
+msgid "Blocked versions"
+msgstr "Blocked versions"
+
+#: src/pages/SkillsSection.tsx
+msgid "Blocking an exact version is permanent for this agent, including retained tasks and deleted or reinstalled skills. It takes effect at the next runtime boundary."
+msgstr "Blocking an exact version is permanent for this agent, including retained tasks and deleted or reinstalled skills. It takes effect at the next runtime boundary."
+
+#: src/pages/SkillsSection.tsx
+msgid "Built in"
+msgstr "Built in"
+
+#: src/pages/SkillsSection.tsx
+msgid "Built-in override rejected"
+msgstr "Built-in override rejected"
+
+#: src/pages/SkillsSection.tsx
+msgid "Delete owner instructions"
+msgstr "Delete owner instructions"
+
+#: src/pages/SkillsSection.tsx
+msgid "Delete these owner instructions? Existing version blocks will remain."
+msgstr "Delete these owner instructions? Existing version blocks will remain."
+
+#: src/pages/SkillsSection.tsx
+msgid "Dependencies"
+msgstr "Dependencies"
+
+#: src/pages/SkillsSection.tsx
+msgid "Dependency unavailable"
+msgstr "Dependency unavailable"
+
+#: src/pages/SkillsSection.tsx
+msgid "Disabled"
+msgstr "Disabled"
+
+#: src/pages/SkillsSection.tsx
+msgid "Existing tasks keep pinned instructions. Disabling a skill prevents its use at the next runtime boundary."
+msgstr "Existing tasks keep pinned instructions. Disabling a skill prevents its use at the next runtime boundary."
+
+#: src/pages/SkillsSection.tsx
+msgid "Instruction budget exceeded"
+msgstr "Instruction budget exceeded"
+
+#: src/pages/SkillsSection.tsx
+msgid "Instruction version"
+msgstr "Instruction version"
+
+#: src/pages/SkillsSection.tsx
+msgid "Legacy instructions"
+msgstr "Legacy instructions"
+
+#: src/pages/SkillsSection.tsx
+msgid "Next"
+msgstr "Next"
+
+#: src/pages/SkillsSection.tsx
+msgid "No skills available."
+msgstr "No skills available."
+
+#: src/pages/SkillsSection.tsx
+msgid "Owner decision"
+msgstr "Owner decision"
+
+#: src/pages/SkillsSection.tsx
+msgid "Owner instructions"
+msgstr "Owner instructions"
+
+#: src/pages/SkillsSection.tsx
+msgid "Owner-supplied source"
+msgstr "Owner-supplied source"
+
+#: src/pages/SkillsSection.tsx
+msgid "Previous"
+msgstr "Previous"
+
+#: src/pages/SkillsSection.tsx
+msgid "Reason"
+msgstr "Reason"
+
+#: src/pages/SkillsSection.tsx
+msgid "Regression"
+msgstr "Regression"
+
+#: src/pages/SkillsSection.tsx
+msgid "Required capabilities"
+msgstr "Required capabilities"
+
+#: src/pages/SkillsSection.tsx
+msgid "Required tools"
+msgstr "Required tools"
+
+#: src/pages/SkillsSection.tsx
+msgid "Review skill dependencies and unique identities before saving."
+msgstr "Review skill dependencies and unique identities before saving."
+
+#: src/pages/SkillsSection.tsx
+msgid "Review the skill identity, version and manifest before saving."
+msgstr "Review the skill identity, version and manifest before saving."
+
+#: src/pages/SkillsSection.tsx
+msgid "Review version block"
+msgstr "Review version block"
+
+#: src/pages/SkillsSection.tsx
+msgid "Skill catalog"
+msgstr "Skill catalog"
+
+#: src/pages/SkillsSection.tsx
+msgid "Skill ID"
+msgstr "Skill ID"
+
+#: src/pages/SkillsSection.tsx
+msgid "Skill version controls could not be verified. Reload before making changes."
+msgstr "Skill version controls could not be verified. Reload before making changes."
+
+#: src/pages/SkillsSection.tsx
+msgid "Skills guide how this agent works. They do not grant trading permissions. This catalog shows current instructions; active tasks keep their pinned versions."
+msgstr "Skills guide how this agent works. They do not grant trading permissions. This catalog shows current instructions; active tasks keep their pinned versions."
+
+#: src/pages/SkillsSection.tsx
+msgid "Superseded version"
+msgstr "Superseded version"
+
+#: src/pages/SkillsSection.tsx
+msgid "This agent has reached its blocked-version limit. Existing blocks have been preserved."
+msgstr "This agent has reached its blocked-version limit. Existing blocks have been preserved."
+
+#: src/pages/SkillsSection.tsx
+msgid "This permanent block cannot be undone. Confirm the exact skill and version."
+msgstr "This permanent block cannot be undone. Confirm the exact skill and version."
+
+#: src/pages/SkillsSection.tsx
+msgid "This skill is no longer in the current catalog. Reload the list."
+msgstr "This skill is no longer in the current catalog. Reload the list."
+
+#: src/pages/SkillsSection.tsx
+msgid "Unavailable"
+msgstr "Unavailable"
+
+#: src/pages/SkillsSection.tsx
+msgid "Unsafe instructions"
+msgstr "Unsafe instructions"
+
+#: src/pages/SkillsSection.tsx
+msgid "Unverified metadata"
+msgstr "Unverified metadata"
+
+#: src/pages/SkillsSection.tsx
+msgid "Version blocked"
+msgstr "Version blocked"
+
+#: src/pages/SkillsSection.tsx
+msgid "You"
+msgstr "You"
+
+#: src/pages/SkillsSection.tsx
+msgid "New owner skills use explicit activation and read-only metadata. They do not install code or grant permissions."
+msgstr "New owner skills use explicit activation and read-only metadata. They do not install code or grant permissions."
+
+#: src/pages/SkillsSection.tsx
+msgid "Purpose"
+msgstr "Purpose"
+
+#: src/pages/SkillsSection.tsx
+msgid "Version controls revision"
+msgstr "Version controls revision"

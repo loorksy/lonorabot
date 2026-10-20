@@ -11,6 +11,20 @@ export function userError(error: unknown) {
       return t`This question is no longer waiting for an answer.`;
     case "input_answer_conflict":
       return t`A different answer was already recorded.`;
+    case "skill_revocation_limit":
+      return t`This agent has reached its blocked-version limit. Existing blocks have been preserved.`;
+    case "skill_not_found":
+      return t`This skill is no longer in the current catalog. Reload the list.`;
+    case "skill_controls_invalid":
+    case "skill_control_scope_mismatch":
+      return t`Skill version controls could not be verified. Reload before making changes.`;
+    case "skill_manifest_invalid":
+    case "skill_manifest_identity_invalid":
+      return t`Review the skill identity, version and manifest before saving.`;
+    case "skill_reference_missing":
+    case "skill_dependency_cycle":
+    case "skill_duplicate_id":
+      return t`Review skill dependencies and unique identities before saving.`;
     case "skill_continuation_unavailable":
       return t`An active skill is no longer available. Review its settings before resuming this task.`;
     case "personal_agent_cannot_delete":

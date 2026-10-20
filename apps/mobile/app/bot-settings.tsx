@@ -170,6 +170,12 @@ export default function BotSettings() {
               }}
             />
             <SettingsRow
+              title={t("skills")}
+              detail={t("skillsHint")}
+              icon="layers"
+              onPress={() => router.push({ pathname: "/skills", params: { botId } })}
+            />
+            <SettingsRow
               title={t("routines")}
               icon="clock"
               onPress={() => router.push({ pathname: "/routine", params: { botId } })}
