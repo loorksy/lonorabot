@@ -1,0 +1,49 @@
+{
+  "package": "ai.lonora.mobile",
+  "version_code": 26101901,
+  "version_name": "0.2.7",
+  "min_sdk": 24,
+  "target_sdk": 36,
+  "abis": [
+    "arm64-v8a",
+    "armeabi-v7a",
+    "x86",
+    "x86_64"
+  ],
+  "sha256": "73be3cc796971683c42821d08c25342523f4b6bda7db556b356bf45204323026",
+  "bytes": 153909622,
+  "signer_sha256": "f1739a3196d6a9d1ce446d883d1d87527dab50226f979aa35dc8aef22ddcceee",
+  "debuggable": false,
+  "signature_v2_verified": true,
+  "zipalign_16kb_verified": true,
+  "elf_16kb_verified": true,
+  "runtime_version": "a954b90f9547b7c5a25444f4087d93eb42deeb90",
+  "build_commit": "8eef430",
+  "requires_uninstall_previous_signer": true,
+  "download_url": "https://lonora.lork.cloud/download/lonora.apk",
+  "web_service_commit": "56f6ceb",
+  "native_smoke": {
+    "android_api": 24,
+    "actual_install_and_launch": true,
+    "arabic_english": true,
+    "cold_restart_preference": true,
+    "same_new_key_reinstall_preserves_data": true,
+    "fatal_startup_crash": false,
+    "physical_device_tested": false,
+    "native_voice_tested": false
+  },
+  "ota": {
+    "runtime_verified_against_embedded": true,
+    "signed_public_protocol_verified": true,
+    "device_download_activation_verified": false
+  },
+  "validation": {
+    "unit_tests": 17,
+    "web_browser_tests": 16,
+    "expo_web_tests": 3,
+    "ota_python_tests": 6,
+    "workspace_types_and_lint": "passed",
+    "web_build": "passed",
+    "postgres_specialist_binding_and_personal_scope": "passed"
+  }
+}
