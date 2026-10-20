@@ -2,10 +2,18 @@
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Query, Request
+from lonora_agent.skills.catalog import owner_skill_catalog
 from lonora_agent.skills.registry import installed_registry
 from lonora_auth.identity import OwnerIdentity
-from lonora_contracts.skills import AgentSkill, SkillRevokeRequest, SkillVersionControls
+from lonora_contracts.skills import (
+    AgentSkill,
+    SkillCatalog,
+    SkillCatalogDetail,
+    SkillCatalogEntry,
+    SkillRevokeRequest,
+    SkillVersionControls,
+)
 from lonora_core.user_error import LonoraError
 from lonora_db.schema import ResourceRow, SkillRow
 from lonora_db.skill_controls import read_skill_controls, revoke_skill_version
@@ -94,6 +102,56 @@ class ValidatedSkillRepository(SkillRepository):
 
 router = APIRouter()
 router.include_router(resource_router("/skills", ValidatedSkillRepository()))
+
+
+async def current_catalog(
+    request: Request, agent_id: str, owner_id: str
+) -> dict[str, SkillCatalogDetail]:
+    async with runtime(request).db.sessions() as session:
+        controls = await read_skill_controls(session, owner_id, agent_id)
+        rows = (
+            await session.scalars(
+                select(SkillRow)
+                .where(SkillRow.owner_id == owner_id, SkillRow.agent_id == agent_id)
+                .order_by(SkillRow.id)
+            )
+        ).all()
+        return owner_skill_catalog(
+            rows, controls, {tool.name for tool in load_tools().definitions()}
+        )
+
+
+@router.get("/agents/{agent_id}/skills/catalog")
+async def catalog(
+    request: Request,
+    agent_id: str,
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=50, ge=1, le=100),
+    owner: OwnerIdentity = Depends(require_owner),
+) -> SkillCatalog:
+    entries = list((await current_catalog(request, agent_id, owner.id)).values())
+    return SkillCatalog(
+        agent_id=agent_id,
+        items=[
+            SkillCatalogEntry.model_validate(item.model_dump(exclude={"content"}))
+            for item in entries[offset : offset + limit]
+        ],
+        total=len(entries),
+        next_offset=offset + limit if offset + limit < len(entries) else None,
+    )
+
+
+@router.get("/agents/{agent_id}/skills/catalog/{skill_id}")
+async def catalog_detail(
+    request: Request,
+    agent_id: str,
+    skill_id: str,
+    owner: OwnerIdentity = Depends(require_owner),
+) -> SkillCatalogDetail:
+    entries = await current_catalog(request, agent_id, owner.id)
+    if skill_id not in entries:
+        raise LonoraError("skill_not_found", 404)
+    return entries[skill_id]
 
 
 @router.get("/agents/{agent_id}/skills/revocations")

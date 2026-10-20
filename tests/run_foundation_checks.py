@@ -23,6 +23,7 @@ CHECKS = (
     "check_skills_versioning.py",
     "check_skill_authority_continuity.py",
     "check_skill_version_revocation.py",
+    "check_owner_skill_catalog.py",
     "check_progressive_skills.py",
     "check_knowledge_retrieval.py",
     "check_conversation_recall.py",

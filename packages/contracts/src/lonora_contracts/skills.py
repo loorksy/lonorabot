@@ -81,6 +81,32 @@ class AgentSkill(Contract):
         return self
 
 
+class SkillCatalogEntry(Contract):
+    """Current owner catalog metadata, never a projection of an active Run."""
+
+    id: str = Field(min_length=1, max_length=100)
+    version: SkillVersion | None = None
+    title: str = Field(min_length=1, max_length=160)
+    description: str = Field(max_length=1000)
+    source: Literal["builtin", "owner", "installed", "external", "legacy"] | None = None
+    available: bool
+    code: str | None = None
+    manifest: SkillManifest | None = None
+    resource_id: str | None = None
+    resource_version: int | None = Field(default=None, ge=1)
+
+
+class SkillCatalog(Contract):
+    agent_id: str
+    items: list[SkillCatalogEntry]
+    total: int = Field(ge=0)
+    next_offset: int | None = Field(default=None, ge=0)
+
+
+class SkillCatalogDetail(SkillCatalogEntry):
+    content: str = Field(max_length=16000)
+
+
 class PlaybookManifest(Contract):
     """Describes an existing domain workflow; never creates a second workflow executor."""
 
