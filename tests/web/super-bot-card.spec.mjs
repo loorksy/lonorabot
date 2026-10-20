@@ -41,8 +41,10 @@ async function setup(context) {
       thread_id: thread.id,
       account_id: data.account,
       symbol: data.symbol,
-      title: "Review market conditions",
-      objective: "Wait for current evidence before proposing any trade.",
+      // Preserve the production legacy payload: internal plan scaffolding must
+      // remain reviewable in details, never become squeezed transcript columns.
+      title: `Super Bot activation request for ${data.symbol}`,
+      objective: `Prepare a supervised Super Bot activation card for the bound ${data.symbol} market. Do not execute trades; only create the reviewable proposal and preserve the bound account/symbol context.`,
       maximum_volume: "0.10",
       max_trade_actions: 1,
       steps: [{ id: "review", title: "Inspect current market evidence", kind: "analysis" }],
@@ -77,7 +79,8 @@ for (const locale of ["en", "ar"]) {
     await context.addInitScript((value) => localStorage.setItem("lonora.locale", value), locale);
     if (locale === "ar") await page.setViewportSize({ width: 390, height: 844 });
     try {
-      await page.goto(`/app/${state.agent.id}?thread=${state.request.thread_id}`);
+      const document = await page.goto(`/app/${state.agent.id}?thread=${state.request.thread_id}`);
+      expect(document.headers()["cache-control"]).toBe("no-store");
       const card = page.locator(`[data-super-bot-id="${state.request.id}"]`);
       await expect(card).toBeVisible();
       // Match the accessible action from the catalog, without assuming translated technical details.
@@ -86,6 +89,9 @@ for (const locale of ["en", "ar"]) {
       await expect(card.locator(":scope > .super-bot-card-actions > button").last()).toBeVisible();
       expect((await card.boundingBox()).width).toBeGreaterThan(250);
       expect((await card.boundingBox()).height).toBeLessThan(300);
+      expect(await card.evaluate((element) => getComputedStyle(element).flexDirection)).toBe(
+        "column",
+      );
       await expect(card.getByText(state.request.envelope.objective, { exact: true })).toBeHidden();
       await card.locator(".super-bot-card-heading").click();
       const details = card.getByRole("dialog");

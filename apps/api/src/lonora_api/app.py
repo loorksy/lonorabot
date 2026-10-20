@@ -138,6 +138,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             if path.startswith("api/"):
                 raise LonoraError("endpoint_not_found", 404)
             candidate = confined_path(build, path) if path else build / "index.html"
-            return FileResponse(candidate if candidate.is_file() else build / "index.html")
+            target = candidate if candidate.is_file() else build / "index.html"
+            # The shell selects hashed application assets. Heuristic caching of
+            # HTML can keep the old UI after deployment even though those assets
+            # and the server are current. Hashed chart/application bundles retain
+            # their separate asset-cache policy in install_chart_renderer.
+            return FileResponse(
+                target,
+                headers={
+                    "Cache-Control": "no-store" if target.suffix == ".html" else "no-cache",
+                    "X-Content-Type-Options": "nosniff",
+                },
+            )
 
     return app
