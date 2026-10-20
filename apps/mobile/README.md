@@ -76,3 +76,10 @@ The `0.2.3` universal APK includes authenticated live chart scene events and nat
 ### 0.2.6 repair release
 
 Native configuration now requires versionCode26101613 or higher, above the deployed0.2.5/code26101612. Preserve the published signing identity when building an update; this workspace may contain an older, different local key. Overlay and legacy shared-storage permissions are blocked and new release verification checks the packaged manifest. The native permission change updates the runtime fingerprint and requires a new compatible APK before later matching OTA updates. Voice lifecycle and setup/teardown fixes are covered by transport tests; see `docs/mobile/voice-native-verification.md` and `docs/verification/android-security-audit-2026-10-16.md` for actual native acceptance limits.
+
+
+## Authorized Android signing rotation (2026-10-19)
+
+The owner authorized a new release identity for0.2.7/versionCode26101901 because the private key for the currently distributed certificate was unavailable. Public release-certificate SHA256: `f1739a3196d6a9d1ce446d883d1d87527dab50226f979aa35dc8aef22ddcceee`. This first install cannot update the previous differently signed APK in place: uninstall that app and sign in after installation. Server-side conversations remain in Lonora; Android-local drafts/settings are not preserved by uninstall.
+
+The private identity is held outside the repository. Set `LONORA_SIGNING_DIR` to the authorized new private signing directory (`~/.config/lonora/android-production-20261019` on this build host) and `LONORA_EXPECTED_SIGNER_SHA256` to the public certificate above for future releases. Do not use the older default local key or generate another identity. Never commit or distribute the private key/credential manifest. Native runtime fingerprinting and the separately pinned OTA signing certificate remain enabled; do not force a runtime from an unrelated APK. The release's embedded fingerprint must match its recorded resolver provenance before publishing compatible OTA.

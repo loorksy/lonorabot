@@ -12,7 +12,7 @@ if (!["preview", "production"].includes(channel))
 const config: ExpoConfig = {
   name: brand.name,
   slug: brand.slug,
-  version: "0.2.6",
+  version: "0.2.7",
   scheme: brand.scheme,
   orientation: "portrait",
   userInterfaceStyle: "dark",
@@ -27,7 +27,7 @@ const config: ExpoConfig = {
   },
   android: {
     package: brand.applicationId,
-    versionCode: 26101613,
+    versionCode: 26101901,
     softwareKeyboardLayoutMode: "resize",
     permissions: ["RECORD_AUDIO", "MODIFY_AUDIO_SETTINGS", "WAKE_LOCK"],
     // Attachments use the system document picker and app cache; no overlays or shared storage.

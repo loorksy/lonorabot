@@ -2,7 +2,7 @@
 
 Lonora serves Expo Updates protocol v1 at `/api/mobile/updates`. The native app pins the public certificate in `apps/mobile/certificates/ota.pem`; unsigned or modified manifests are rejected by Expo's native verifier. Assets are immutable and verified by SHA256. Runtime fingerprints keep incompatible native builds separate. The service is public and read-only; there is no upload endpoint.
 
-**Install the new 0.2.4 / Android versionCode 5 bootstrap APK once.** Older APKs do not contain `expo-updates` or the new native voice dependencies and cannot gain those native modules through OTA. After that, compatible JavaScript/assets updates download automatically on launch or return to foreground and activate on the next cold launch. An active call or conversation is never forcibly reloaded. Native dependencies, permissions or signing changes still require a new APK.
+**Current bootstrap: 0.2.7 / Android versionCode 26101901.** This owner-authorized release uses a new Android signing certificate; the first installation requires removing the earlier differently signed app and signing in again. Older APKs do not contain `expo-updates` or the new native voice dependencies and cannot gain those native modules through OTA. After that, compatible JavaScript/assets updates download automatically on launch or return to foreground and activate on the next cold launch. An active call or conversation is never forcibly reloaded. Native dependencies, permissions or signing changes still require a new APK.
 
 ## Publish
 
@@ -35,3 +35,8 @@ Deploy its signed directive directory and active pointer last as above. The mult
 ```
 
 After deployment, request the endpoint with `expo-protocol-version: 1`, `expo-platform: android`, `expo-channel-name: production`, and `expo-runtime-version: <installed fingerprint>`. A matching release returns a signed manifest, an unknown runtime returns 204. On a device install the bootstrap APK, publish a compatible small text/style change, reopen the app, let it download, close fully and reopen; confirm the new UI and unchanged login/conversation. Check an in-progress call is not interrupted. Native WebRTC calls require a real device check separately.
+
+
+### Recorded0.2.7 runtime
+
+The native release and the resolver from its actual build environment both produced `a954b90f9547b7c5a25444f4087d93eb42deeb90`. Compatible production OTA publication uses this exact runtime and the unchanged pinned OTA certificate. Public Android release-certificate SHA256 is `f1739a3196d6a9d1ce446d883d1d87527dab50226f979aa35dc8aef22ddcceee`. Android APK signing and OTA manifest signing remain separate identities. The full resolver inputs are retained locally with build artifacts; never replace this fingerprint with a previous host's runtime.
