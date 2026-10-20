@@ -2,6 +2,7 @@ import type {
   Agent,
   Artifact,
   Group,
+  InputAnswer,
   Message,
   Run,
   Thread,
@@ -31,11 +32,12 @@ import { ActionMenu } from "../components/action-menu";
 import { AgentLiveStatus } from "../components/agent-live-status";
 import { BotAvatar } from "../components/bot-avatar";
 import { useChartSheet } from "../components/chart-sheet";
+import { ConversationQuestion } from "../components/conversation-question";
 import { GroupAvatar } from "../components/group-avatar";
 import { Markdown } from "../components/markdown";
 import { MessageBubble } from "../components/message-bubble";
 import { NativeSymbol } from "../components/native-symbol";
-import { SuperBotCards } from "../components/super-bot-cards";
+import { SuperBotCard, useSuperBotRequests } from "../components/super-bot-cards";
 import { ThreadComposer } from "../components/thread-composer";
 import { ThreadHeader } from "../components/thread-header";
 import { TimeSeparator } from "../components/time-separator";
@@ -92,6 +94,8 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
   const [atEnd, setAtEnd] = useState(true);
   const [loaded, setLoaded] = useState(false);
   const [stateRevision, setStateRevision] = useState(0);
+  const superBot = useSuperBotRequests(thread?.agent_id ?? undefined, id, stateRevision);
+  const answerReceipts = useRef(new Map<string, string>());
   const receipt = useRef<{ signature: string; nonce: string } | null>(null);
   const reportError = useRef(errorText);
   reportError.current = errorText;
@@ -171,6 +175,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     setAtEnd(true);
     setLoaded(cached?.loaded ?? false);
     receipt.current = null;
+    answerReceipts.current.clear();
     if (!id || !owner) return;
     let live = true;
     void api
@@ -315,6 +320,27 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
       setBusy(false);
     }
   };
+  const answerQuestion = async (answer: InputAnswer, label: string, messageId: string) => {
+    const key = JSON.stringify(answer);
+    let nonce = answerReceipts.current.get(key);
+    if (!nonce) {
+      nonce = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+      answerReceipts.current.set(key, nonce);
+    }
+    try {
+      await api.post(`/threads/${encodeURIComponent(id)}/messages`, {
+        content: label,
+        reply_to: messageId,
+        input_answer: answer,
+        client_nonce: nonce,
+      });
+    } finally {
+      await snapshot();
+    }
+  };
+  const questions = new Map(
+    runs.flatMap((run) => run.input_requests ?? []).map((request) => [request.message_id, request]),
+  );
   const attach = async () => {
     if (!thread || uploading || attachments.length >= 10) return;
     setUploading(true);
@@ -426,7 +452,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
           },
         ]}
       />
-      <ErrorNotice text={error} />
+      <ErrorNotice text={error || superBot.error} />
       {runs
         .filter(
           (run) =>
@@ -477,14 +503,6 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
           </View>
         ))}
       {thread?.agent_id && <AgentLiveStatus agentId={thread.agent_id} />}
-      {thread?.agent_id && (
-        <SuperBotCards
-          key={thread.agent_id}
-          agentId={thread.agent_id}
-          threadId={id}
-          revision={stateRevision}
-        />
-      )}
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -500,6 +518,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
               data={conversationTimeline(
                 messages,
                 approvals.filter((row) => row.thread_id === id),
+                superBot.rows,
               ).reverse()}
               keyExtractor={(item) => item.id}
               maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
@@ -536,6 +555,8 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
                 </Text>
               }
               renderItem={({ item }) => {
+                if (item.kind === "super_bot")
+                  return <SuperBotCard row={item.request} onChange={superBot.update} />;
                 if (item.kind === "approval")
                   return (
                     <TradeApprovalCard
@@ -548,6 +569,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
                     />
                   );
                 const message = item.message;
+                const question = questions.get(message.id);
                 const previous = messages[messages.findIndex((row) => row.id === message.id) - 1];
                 return (
                   <View>
@@ -571,6 +593,11 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
                         }
                       }}
                       message={message}
+                      body={
+                        question?.choices.length ? (
+                          <ConversationQuestion request={question} onAnswer={answerQuestion} />
+                        ) : undefined
+                      }
                       reply={messages.find((row) => row.id === message.reply_to)}
                       onReply={setReply}
                       grouped={Boolean(

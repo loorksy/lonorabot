@@ -15,7 +15,7 @@ from lonora_contracts.super_bot import (
     SuperBotProposal,
 )
 from lonora_core.user_error import LonoraError
-from lonora_db.schema import SuperBotRequestRow
+from lonora_db.schema import MessageRow, SuperBotRequestRow
 from lonora_db.super_bot import (
     authority_lock,
     changed,
@@ -25,7 +25,7 @@ from lonora_db.super_bot import (
     stop_request,
 )
 from lonora_db.transactions import owned_agent
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from ..device_metadata import native_origins
 from ..middleware.auth import require_owner, runtime
@@ -103,13 +103,25 @@ async def revoke(request: Request, device_id: str, owner: OwnerIdentity = Depend
 async def state(request: Request, agent_id: str, owner: OwnerIdentity = Depends(require_owner)):
     async with runtime(request).db.sessions() as session:
         await owned_agent(session, owner.id, agent_id)
-        rows = await session.scalars(
-            select(SuperBotRequestRow)
+        # The original persisted request time anchors its card among messages.
+        # One correlated query avoids N+1 reads and never uses mutable status time.
+        anchor = (
+            select(func.coalesce(func.max(MessageRow.seq), 0) + 1)
+            .where(
+                MessageRow.thread_id == SuperBotRequestRow.thread_id,
+                MessageRow.created_at <= SuperBotRequestRow.created_at,
+            )
+            .correlate(SuperBotRequestRow)
+            .scalar_subquery()
+        )
+        rows = await session.execute(
+            select(SuperBotRequestRow, anchor)
             .where(SuperBotRequestRow.owner_id == owner.id, SuperBotRequestRow.agent_id == agent_id)
             .order_by(SuperBotRequestRow.created_at.desc())
             .limit(20)
         )
-        return [request_data(row) for row in rows]
+        return [request_data(row, timeline_seq=int(seq)) for row, seq in rows]
+
 
 
 @router.post("/agents/{agent_id}/super-bot/proposals", status_code=201)

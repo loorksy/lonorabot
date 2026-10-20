@@ -221,6 +221,7 @@ test("signed Shadow goal is visibly virtual and cannot inherit live authority af
     await expect(
       card.getByText("Shadow trading — virtual orders only", { exact: true }),
     ).toBeVisible();
+    await card.getByRole("button", { name: "Review plan", exact: true }).click();
     await card.getByRole("button", { name: "Register a passkey", exact: true }).click();
     // Password inputs deliberately have no textbox role in every engine.
     await page

@@ -9,7 +9,19 @@ export type ReplyStreamSnapshot = {
   phase: "streaming" | "committed" | "discarded" | "failed" | "cancelled";
   message_id: string | null;
 };
+export type InputRequest = {
+  id: string;
+  run_id: string;
+  message_id: string;
+  question: string;
+  choices: { id: string; label: string }[];
+  status: "pending" | "answered" | "cancelled";
+  selected_choice_id: string | null;
+  answer_message_id: string | null;
+};
 export type Run = {
+  input_requests?: InputRequest[];
+  input_request?: InputRequest | null;
   id: string;
   thread_id: string;
   agent_id: string;

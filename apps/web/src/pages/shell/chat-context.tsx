@@ -2,7 +2,7 @@
 
 import { t } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
-import type { TradeApproval } from "@lonora/contracts";
+import type { InputAnswer, SuperBotRequest, TradeApproval } from "@lonora/contracts";
 import {
   canCancel,
   conversationTimeline,
@@ -40,8 +40,9 @@ import { AgentLiveStatus } from "../../components/ai/AgentLiveStatus";
 import { SubagentTasks } from "../../components/ai/CollaborationMarker";
 import { AgentActivity, WorkingIndicator } from "../../components/ai/primitives";
 import { FilePreviewPanel } from "../../components/common/FilePreviewPanel";
+import { ConversationQuestion } from "../../components/conversation-question";
 import { ToolActivityDisclosure } from "../../components/ToolActivityDisclosure";
-import { SuperBotCards } from "../../components/trading/SuperBotCards";
+import { SuperBotCard, useSuperBotRequests } from "../../components/trading/SuperBotCards";
 import { TradeApprovalCard, useTradeApprovals } from "../../components/trading/TradeApprovals";
 import { useThreads } from "../../hooks/useThreads";
 import type { Agent, Message, Resource, Run } from "../../lib/api";
@@ -65,6 +66,7 @@ export function ThreadViewport({
 }) {
   const thread = useThreads(undefined, threadId);
   const approvalState = useTradeApprovals(threadId);
+  const superBot = useSuperBotRequests(agentId, { threadId });
   const { events, revision, streams, seedStreams, connected } = useClient();
   const repairingStreams = useRef(new Set<string>());
   const lastRepair = useRef(new Map<string, number>());
@@ -240,19 +242,32 @@ export function ThreadViewport({
         </div>
       )}
       <RecoveryNotice events={local} />
-      {agentId && <SuperBotCards key={agentId} agentId={agentId} threadId={threadId} />}
-      {(thread.error ?? actionError ?? artifactError ?? peerError ?? approvalState.error) !=
-        null && (
+      {(thread.error ??
+        actionError ??
+        artifactError ??
+        peerError ??
+        approvalState.error ??
+        superBot.error) != null && (
         <p className="template-thread-error" role="alert">
           {userError(
-            thread.error ?? actionError ?? artifactError ?? peerError ?? approvalState.error,
+            thread.error ??
+              actionError ??
+              artifactError ??
+              peerError ??
+              approvalState.error ??
+              superBot.error,
           )}
         </p>
       )}
       <ThreadMessages
         key={`messages:${threadId}`}
         messages={thread.messages}
+        onAnswer={(answer, label, messageId) =>
+          thread.send(label, [], messageId, undefined, answer)
+        }
         approvals={approvalState.rows}
+        superBotRequests={superBot.rows}
+        renderSuperBot={(row) => <SuperBotCard row={row} onChanged={superBot.update} />}
         renderApproval={(row) => (
           <TradeApprovalCard
             row={row}
@@ -793,10 +808,16 @@ export function ThreadMessages({
   showSpeakers = true,
   approvals = [],
   renderApproval,
+  superBotRequests = [],
+  renderSuperBot,
+  onAnswer,
 }: {
+  onAnswer?: (answer: InputAnswer, label: string, messageId: string) => Promise<void>;
   showSpeakers?: boolean;
   messages: Message[];
   approvals?: TradeApproval[];
+  superBotRequests?: SuperBotRequest[];
+  renderSuperBot?: (row: SuperBotRequest) => ReactNode;
   renderApproval?: (row: TradeApproval) => ReactNode;
   agents: Agent[];
   artifacts: Resource[];
@@ -816,6 +837,9 @@ export function ThreadMessages({
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [olderError, setOlderError] = useState<unknown>();
   const byId = new Map(messages.map((message) => [message.id, message]));
+  const questions = new Map(
+    runs.flatMap((run) => run.input_requests ?? []).map((request) => [request.message_id, request]),
+  );
   const runsById = new Map(runs.map((run) => [run.id, run]));
   const peersByMessageId = new Map<string, Resource>();
   for (const peer of peers) {
@@ -921,10 +945,13 @@ export function ThreadMessages({
             </button>
           )}
           {olderError != null && <p role="alert">{userError(olderError)}</p>}
-          {conversationTimeline(messages, approvals).map((item) => {
+          {conversationTimeline(messages, approvals, superBotRequests).map((item) => {
+            if (item.kind === "super_bot")
+              return <Fragment key={item.id}>{renderSuperBot?.(item.request)}</Fragment>;
             if (item.kind === "approval")
               return <Fragment key={item.id}>{renderApproval?.(item.approval)}</Fragment>;
             const message = item.message;
+            const question = questions.get(message.id);
             const previousMessage =
               messages[messages.findIndex((row) => row.id === message.id) - 1];
             const separator = needsTimeSeparator(message.created_at, previousMessage?.created_at);
@@ -942,6 +969,11 @@ export function ThreadMessages({
                 )}
                 <MessageBubble
                   message={message}
+                  body={
+                    onAnswer && question?.choices.length ? (
+                      <ConversationQuestion request={question} onAnswer={onAnswer} />
+                    ) : undefined
+                  }
                   showSpeaker={showSpeakers}
                   agent={agents.find((agent) => agent.id === message.agent_id)}
                   artifacts={artifacts}

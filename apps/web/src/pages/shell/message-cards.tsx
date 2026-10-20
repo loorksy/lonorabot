@@ -4,6 +4,7 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { plainTextLinkParts } from "@lonora/chat-ui/markdown";
 import { ChatMarkdown } from "@lonora/chat-ui/web";
 import { ArrowRight, CornerUpLeft, MessagesSquare } from "lucide-react";
+import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { ArtifactFileCard } from "../../components/ArtifactFileCard";
 import { AgentAvatar } from "../../components/ai/AgentAvatar";
@@ -20,8 +21,10 @@ export function MessageBubble({
   peer,
   peerRun,
   showSpeaker = true,
+  body,
 }: {
   message: Message;
+  body?: ReactNode;
   agent?: Agent;
   artifacts: Resource[];
   replyParent?: Message;
@@ -44,7 +47,7 @@ export function MessageBubble({
     : [];
   return (
     <article className={`message template-message ${message.role}`} data-message-id={message.id}>
-      <div className="template-message-frame">
+      <div className={`template-message-frame${body ? " has-interactive-body" : ""}`}>
         {!user && showSpeaker && (
           <div className="template-speaker">
             {agent && <AgentAvatar agent={agent} />}
@@ -61,30 +64,31 @@ export function MessageBubble({
               )}
             </blockquote>
           )}
-          {message.content && (
-            <div className="template-message-text">
-              {user ? (
-                <div className="template-user-text">
-                  {literalParts.map((part) =>
-                    part.type === "link" ? (
-                      <a
-                        key={part.offset}
-                        href={part.href}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        {part.value}
-                      </a>
-                    ) : (
-                      <span key={part.offset}>{part.value}</span>
-                    ),
-                  )}
-                </div>
-              ) : (
-                <ChatMarkdown>{message.content}</ChatMarkdown>
-              )}
-            </div>
-          )}
+          {body ??
+            (message.content && (
+              <div className="template-message-text">
+                {user ? (
+                  <div className="template-user-text">
+                    {literalParts.map((part) =>
+                      part.type === "link" ? (
+                        <a
+                          key={part.offset}
+                          href={part.href}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          {part.value}
+                        </a>
+                      ) : (
+                        <span key={part.offset}>{part.value}</span>
+                      ),
+                    )}
+                  </div>
+                ) : (
+                  <ChatMarkdown>{message.content}</ChatMarkdown>
+                )}
+              </div>
+            ))}
           {message.attachment_ids.map((id) => {
             const file = artifacts.find((artifact) => artifact.id === id);
             return file ? (

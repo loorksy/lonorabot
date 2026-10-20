@@ -51,7 +51,14 @@ class ThreadCreate(Contract):
     title: str = Field(default="", max_length=160)
 
 
+class InputAnswer(Contract):
+    run_id: str = Field(min_length=1, max_length=80)
+    question_id: str = Field(min_length=1, max_length=120)
+    choice_id: str = Field(min_length=1, max_length=64)
+
+
 class MessageCreate(Contract):
+    input_answer: InputAnswer | None = None
     collaboration_session_id: str | None = Field(default=None, max_length=36)
     mention_agent_ids: list[str] = Field(default_factory=list[str], max_length=16)
     mention_all: bool = False

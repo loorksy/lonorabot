@@ -15,5 +15,6 @@ export {
 } from "./conversation-timeline";
 export { webDeviceProof, webDeviceSupported } from "./device-proof";
 export { activeStatuses, canCancel, canResume, isWorking } from "./run-state";
+export { mergeSuperBotRequest } from "./super-bot";
 export { formatTimeSeparator, needsTimeSeparator, timeSeparatorIds } from "./time-separators";
 export { errorCode } from "./user-error";

@@ -1,3 +1,4 @@
+import type { InputAnswer } from "@lonora/contracts";
 import type { MentionAddress } from "@lonora/core";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api, isRequestCancelled, type Message, type Run, type Thread } from "../lib/api";
@@ -109,10 +110,18 @@ export function useThreads(agentId?: string, threadId?: string) {
       attachment_ids: string[] = [],
       reply_to: string | null = null,
       mentions?: MentionAddress,
+      inputAnswer?: InputAnswer,
     ) => {
       // A response can be lost after the server has committed this intent and its run.
       // Retry unchanged content with the same receipt key; a confirmed repeat gets a new key.
-      const fingerprint = JSON.stringify([threadId, content, attachment_ids, reply_to, mentions]);
+      const fingerprint = JSON.stringify([
+        threadId,
+        content,
+        attachment_ids,
+        reply_to,
+        mentions,
+        inputAnswer,
+      ]);
       if (pendingSend.current?.fingerprint !== fingerprint)
         pendingSend.current = { fingerprint, nonce: crypto.randomUUID() };
       const nonce = pendingSend.current.nonce;
@@ -121,6 +130,7 @@ export function useThreads(agentId?: string, threadId?: string) {
         attachment_ids,
         reply_to,
         client_nonce: nonce,
+        ...(inputAnswer ? { input_answer: inputAnswer } : {}),
         mention_agent_ids: mentions?.agent_ids ?? [],
         mention_all: mentions?.all ?? false,
         collaboration_session_id: mentions?.collaboration_session_id,

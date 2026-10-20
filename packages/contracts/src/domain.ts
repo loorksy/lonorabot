@@ -23,6 +23,7 @@ export type Thread = {
   title: string;
   created_at: string;
 };
+export type InputAnswer = { run_id: string; question_id: string; choice_id: string };
 export type Message = {
   mentions?: { agent_ids: string[]; all: boolean; session_id?: string | null };
   id: string;

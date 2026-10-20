@@ -1,5 +1,8 @@
 export type SuperBotRequest = {
   id: string;
+  created_at?: string;
+  updated_at?: string;
+  timeline_seq?: number | null;
   agent_id: string;
   thread_id: string;
   goal_id: string;

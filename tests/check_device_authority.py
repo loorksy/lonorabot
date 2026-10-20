@@ -67,6 +67,12 @@ async def main():
 
         assert await dispatch_activation_reviews(f.runtime.db) == 0
         assert proposal["status"] == "pending"
+        projected = cast(
+            list[dict[str, Any]], await f.request("GET", f"/agents/{agent['id']}/super-bot")
+        )
+        anchored = next(item for item in projected if item["id"] == proposal["id"])
+        assert anchored["created_at"] == proposal["created_at"]
+        assert isinstance(anchored["timeline_seq"], int) and anchored["timeline_seq"] >= 1
         live = await f.request("GET", f"/agents/{agent['id']}/state")
         assert live["state"] == "action_required" and live["pending_authorization_count"] == 1
         assert (
@@ -98,6 +104,12 @@ async def main():
         proof = device.assertion(challenge, f.settings.allowed_origin)
         result = await f.request("POST", "/super-bot/verify", proof)
         assert result["status"] == "activated"
+        projected = cast(
+            list[dict[str, Any]], await f.request("GET", f"/agents/{agent['id']}/super-bot")
+        )
+        resolved_anchor = next(item for item in projected if item["id"] == proposal["id"])
+        assert resolved_anchor["timeline_seq"] == anchored["timeline_seq"]
+        assert resolved_anchor["created_at"] == anchored["created_at"]
         live = await f.request("GET", f"/agents/{agent['id']}/state")
         assert (
             live["pending_authorization_count"] == 0 and live["super_bot"][0]["autonomous"] is True

@@ -1,5 +1,5 @@
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, cast
 
 from lonora_contracts.domain import utcnow
 from lonora_contracts.runs import WORK_TRIGGERS, Lease, RunRequest
@@ -20,7 +20,31 @@ def aware(value: datetime) -> datetime:
 
 
 def run_data(row: RunRow) -> dict[str, Any]:
+    questions: list[dict[str, Any]] = []
+    for raw in cast(list[Any], row.execution_state.get("input_requests", []))[-20:]:
+        if not isinstance(raw, dict):
+            continue
+        item = cast(dict[str, Any], raw)
+        if not all(key in item for key in ("id", "message_id", "question")):
+            continue
+        questions.append(
+            {
+                "id": item["id"],
+                "run_id": row.id,
+                "message_id": item["message_id"],
+                "question": item["question"],
+                "choices": item.get("choices", []),
+                "status": "cancelled"
+                if item.get("status") == "pending"
+                and row.status in {"cancelled", "failed", "completed"}
+                else item.get("status", "pending"),
+                "selected_choice_id": item.get("selected_choice_id"),
+                "answer_message_id": item.get("answer_message_id"),
+            }
+        )
     return {
+        "input_requests": questions,
+        "input_request": questions[-1] if questions else None,
         "id": row.id,
         "thread_id": row.thread_id,
         "agent_id": row.agent_id,

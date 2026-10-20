@@ -1,5 +1,5 @@
 import type { Agent, Artifact, Message } from "@lonora/contracts";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { useSession } from "../lib/session";
 import { ArtifactFileCard } from "./artifact-file-card";
@@ -10,6 +10,7 @@ import { NativeSymbol } from "./native-symbol";
 import { colors } from "./ui";
 export function MessageBubble({
   message,
+  body,
   agent,
   files,
   onArtifact,
@@ -19,6 +20,7 @@ export function MessageBubble({
   onReply,
 }: {
   message: Message;
+  body?: ReactNode;
   agent?: Agent;
   files: Artifact[];
   onArtifact: (id: string) => void;
@@ -111,9 +113,10 @@ export function MessageBubble({
             </Text>
           ) : null}
         </View>
-      ) : message.content ? (
-        <Markdown content={message.content} onChartLink={onChartLink} />
-      ) : null}
+      ) : (
+        (body ??
+        (message.content ? <Markdown content={message.content} onChartLink={onChartLink} /> : null))
+      )}
       {message.attachment_ids.map((id) => (
         <ArtifactFileCard
           key={id}

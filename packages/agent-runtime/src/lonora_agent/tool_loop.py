@@ -1,7 +1,7 @@
 import json
 import logging
 from dataclasses import dataclass, replace
-from typing import Any
+from typing import Any, cast
 
 from lonora_adapter_kit.types import ModelMessage, ToolCall
 from lonora_contracts.model_routing import Capability
@@ -46,6 +46,7 @@ class LoopOutcome:
     metadata: dict[str, Any]
     waiting: bool = False
     external_wait: bool = False
+    input_request: dict[str, Any] | None = None
 
 
 async def persist(
@@ -86,6 +87,19 @@ async def execute_tool_loop(
     if not messages:
         messages = await build_context(context, registry)
         state["instruction_skill_ids"] = await selected_skill_ids(context)
+    question = state.get("pending_input_request")
+    if isinstance(question, dict):
+        question = cast(dict[str, Any], question)
+        if not await owner_steering_pending(context):
+            return LoopOutcome(
+                str(question["question"]),
+                state.get("selection", {}),
+                True,
+                input_request=question,
+            )
+        # A new owner message supersedes an unpublished question before it reaches chat.
+        state.pop("pending_input_request", None)
+        await persist(context, state, messages, pending)
     environment = environment_state(state)
     if environment.get("wait"):
         return LoopOutcome("", state.get("selection", {}), external_wait=True)
@@ -336,6 +350,12 @@ async def execute_tool_loop(
             if result.get("_runtime_external_wait"):
                 environment_state(state)["wait"] = result["_runtime_external_wait"]
                 environment_state(state)["phase"] = "waiting"
+            if result.get("_runtime_wait"):
+                state["pending_input_request"] = {
+                    "id": call.id,
+                    "question": str(result["question"]),
+                    "choices": result.get("choices", []),
+                }
             await persist(context, state, messages, pending)
             await progress(
                 context,
@@ -353,7 +373,12 @@ async def execute_tool_loop(
             if result.get("_runtime_external_wait"):
                 return LoopOutcome("", state.get("selection", {}), external_wait=True)
             if result.get("_runtime_wait"):
-                return LoopOutcome(str(result["question"]), state.get("selection", {}), True)
+                return LoopOutcome(
+                    str(result["question"]),
+                    state.get("selection", {}),
+                    True,
+                    input_request=state["pending_input_request"],
+                )
             if result.get("_runtime_silence") and not pending:
                 prose = next(
                     (

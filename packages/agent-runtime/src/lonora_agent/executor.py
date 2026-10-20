@@ -92,7 +92,26 @@ async def execute_run(
                             continue
                     if outstanding:
                         continue
-                    if thread and outcome.text:
+                    question = outcome.input_request
+                    prior_question = next(
+                        (
+                            item
+                            for item in row.execution_state.get("input_requests", [])
+                            if question and item.get("id") == question["id"]
+                        ),
+                        None,
+                    )
+                    if (
+                        prior_question
+                        and question
+                        and (
+                            prior_question.get("question") != question["question"]
+                            or prior_question.get("choices") != question.get("choices", [])
+                            or prior_question.get("status") != "pending"
+                        )
+                    ):
+                        raise LonoraError("input_question_identity_conflict", 409)
+                    if thread and outcome.text and prior_question is None:
                         answer, artifacts = await resolve_reply_artifacts(
                             session, context.owner_id, row, outcome.text
                         )
@@ -107,6 +126,27 @@ async def execute_run(
                         session.add(message)
                         await session.flush()
                         link_generated_artifacts(message, artifacts)
+                        if question:
+                            history = [
+                                {**item, "status": "cancelled"}
+                                if item.get("status") == "pending"
+                                else item
+                                for item in row.execution_state.get("input_requests", [])
+                            ]
+                            history.append(
+                                {
+                                    **question,
+                                    "run_id": row.id,
+                                    "message_id": message.id,
+                                    "status": "pending",
+                                    "selected_choice_id": None,
+                                    "answer_message_id": None,
+                                }
+                            )
+                            row.execution_state = {
+                                **row.execution_state,
+                                "input_requests": history[-20:],
+                            }
                         snapshot = settle_stream(
                             row, "committed", message_id=message.id, text=answer
                         )

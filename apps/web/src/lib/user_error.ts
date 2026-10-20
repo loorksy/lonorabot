@@ -5,6 +5,12 @@ export function userError(error: unknown) {
   if (isRequestCancelled(error)) return "";
   const code = errorCode(error);
   switch (code) {
+    case "input_answer_invalid":
+      return t`Choose an available answer.`;
+    case "input_answer_expired":
+      return t`This question is no longer waiting for an answer.`;
+    case "input_answer_conflict":
+      return t`A different answer was already recorded.`;
     case "skill_continuation_unavailable":
       return t`An active skill is no longer available. Review its settings before resuming this task.`;
     case "personal_agent_cannot_delete":

@@ -36,8 +36,10 @@ def plan_hash(goal: TradingGoalRow) -> str:
     )
 
 
-def request_data(row: SuperBotRequestRow) -> dict[str, Any]:
+def request_data(row: SuperBotRequestRow, *, timeline_seq: int | None = None) -> dict[str, Any]:
     return {
+        **({"timeline_seq": timeline_seq} if timeline_seq is not None else {}),
+        "created_at": row.created_at.isoformat(),
         "id": row.id,
         "agent_id": row.agent_id,
         "thread_id": row.thread_id,

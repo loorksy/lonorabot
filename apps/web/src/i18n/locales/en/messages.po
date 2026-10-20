@@ -2870,3 +2870,43 @@ msgstr "No conversations match"
 #: src/pages/shell/conversation-inbox.tsx
 msgid "Back to conversations"
 msgstr "Back to conversations"
+
+#: src/components/trading/SuperBotCards.tsx
+msgid "Activate Super Bot?"
+msgstr "Activate Super Bot?"
+
+#: src/components/trading/SuperBotCards.tsx
+msgid "Your approval is needed."
+msgstr "Your approval is needed."
+
+#: src/components/trading/SuperBotCards.tsx
+msgid "Super Bot details"
+msgstr "Super Bot details"
+
+#: src/components/trading/SuperBotCards.tsx
+msgid "Allow"
+msgstr "Allow"
+
+#: src/components/chat/QuestionCard.tsx
+msgid "Choose an option"
+msgstr "Choose an option"
+
+#: src/components/chat/QuestionCard.tsx
+msgid "Answered"
+msgstr "Answered"
+
+#: src/components/chat/QuestionCard.tsx
+msgid "Question closed"
+msgstr "Question closed"
+
+#: src/lib/user_error.ts
+msgid "Choose an available answer."
+msgstr "Choose an available answer."
+
+#: src/lib/user_error.ts
+msgid "This question is no longer waiting for an answer."
+msgstr "This question is no longer waiting for an answer."
+
+#: src/lib/user_error.ts
+msgid "A different answer was already recorded."
+msgstr "A different answer was already recorded."

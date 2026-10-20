@@ -1,0 +1,63 @@
+.template-message-frame.has-interactive-body {
+  width: min(100%, 470px);
+  max-width: 100%;
+}
+.conversation-question {
+  display: block;
+  min-width: 0;
+  width: 100%;
+  border-radius: 20px;
+  padding: 16px;
+  background: var(--muted);
+  overflow-wrap: anywhere;
+}
+.conversation-question-title {
+  margin: 0 0 12px;
+  font-weight: 500;
+}
+.conversation-question-options {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+}
+.conversation-question-options button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-align: start;
+  border-radius: 0;
+  min-height: 48px;
+  border: 0;
+  background: rgba(0, 0, 0, 0.16);
+  padding: 12px;
+  color: inherit;
+}
+.conversation-question-options button + button {
+  border-top: 1px solid var(--border);
+}
+.conversation-question-options button > span:nth-child(2) {
+  flex: 1;
+  min-width: 0;
+}
+.conversation-question-options button[aria-pressed="true"] {
+  opacity: 1;
+}
+.conversation-question-options button[aria-pressed="true"] svg {
+  color: #61b98c;
+}
+.conversation-question-letter {
+  color: var(--muted-foreground);
+  font-size: 12px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 1px 5px;
+}
+.conversation-question-status {
+  display: block;
+  margin-top: 8px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+}

@@ -64,6 +64,20 @@ async def send_message(
     )
     if existing:
         receipt = await session.get(EffectReceiptRow, "message:" + existing.id)
+        supplied_answer = request.input_answer.model_dump() if request.input_answer else None
+        original_answer = receipt.result.get("input_answer") if receipt else None
+        if (supplied_answer is not None or original_answer is not None) and (
+            supplied_answer != original_answer
+            or request.content != existing.content
+            or (request.reply_to and request.reply_to != existing.reply_to)
+            or bool(
+                request.attachment_ids
+                or request.mention_agent_ids
+                or request.mention_all
+                or request.collaboration_session_id
+            )
+        ):
+            raise LonoraError("input_answer_conflict", 409)
         if receipt is None:
             # Backfill older messages using their steering link or creation interval.
             # A later turn must never be returned as this message's original run.
@@ -97,6 +111,53 @@ async def send_message(
             "run_ids": receipt.result.get("run_ids", []),
             "deduplicated": True,
         }
+    answer_run: RunRow | None = None
+    answer_question: dict[str, Any] | None = None
+    if request.input_answer:
+        supplied = request.input_answer
+        answer_run = await session.get(RunRow, supplied.run_id, with_for_update=True)
+        if (
+            answer_run is None
+            or answer_run.thread_id != thread_id
+            or answer_run.status != "waiting_input"
+            or (thread.agent_id and answer_run.agent_id != thread.agent_id)
+        ):
+            raise LonoraError("input_answer_expired", 409)
+        agent = await owned_agent(session, owner_id, answer_run.agent_id)
+        if agent.paused:
+            raise LonoraError("agent_paused", 409)
+        answer_question = next(
+            (
+                item
+                for item in reversed(answer_run.execution_state.get("input_requests", []))
+                if item.get("id") == supplied.question_id and item.get("status") == "pending"
+            ),
+            None,
+        )
+        if (
+            answer_question is None
+            or answer_run.execution_state.get("pending_input_request", {}).get("id")
+            != supplied.question_id
+        ):
+            raise LonoraError("input_answer_expired", 409)
+        choice = next(
+            (
+                item
+                for item in answer_question.get("choices", [])
+                if item["id"] == supplied.choice_id
+            ),
+            None,
+        )
+        if (
+            choice is None
+            or request.content != choice["label"]
+            or request.mention_agent_ids
+            or request.mention_all
+            or request.collaboration_session_id
+            or request.attachment_ids
+            or (request.reply_to and request.reply_to != answer_question["message_id"])
+        ):
+            raise LonoraError("input_answer_invalid", 422)
     for mentioned_id in request.mention_agent_ids:
         await owned_agent(session, owner_id, mentioned_id)
     collaboration = None
@@ -129,7 +190,13 @@ async def send_message(
         seq=thread.next_seq,
         role="user",
         **request.model_dump(
-            exclude={"client_nonce", "mention_agent_ids", "mention_all", "collaboration_session_id"}
+            exclude={
+                "client_nonce",
+                "mention_agent_ids",
+                "mention_all",
+                "collaboration_session_id",
+                "input_answer",
+            }
         ),
         mentions={
             "agent_ids": list(dict.fromkeys(request.mention_agent_ids)),
@@ -138,6 +205,8 @@ async def send_message(
         },
         client_nonce=request.client_nonce,
     )
+    if answer_question:
+        message.reply_to = answer_question["message_id"]
     # reply_to/attachment_ids are part of the message; no model or provider is selected here.
     thread.next_seq += 1
     if not thread.title:
@@ -176,6 +245,8 @@ async def send_message(
                     if member_id in available:
                         targets = [member_id]
                         break
+    if answer_run:
+        targets = [answer_run.agent_id]
     run_ids: list[str] = []
     for agent_id in targets:
         agent = await owned_agent(session, owner_id, agent_id)
@@ -191,7 +262,34 @@ async def send_message(
             .order_by(RunRow.created_at)
             .limit(1)
         )
-        if active and is_conversational(active.trigger):
+        if answer_run and (active is None or active.id != answer_run.id):
+            raise LonoraError("input_answer_expired", 409)
+        question_history = list(active.execution_state.get("input_requests", [])) if active else []
+        pending_question = next(
+            (item for item in reversed(question_history) if item.get("status") == "pending"),
+            None,
+        )
+        if active and (
+            is_conversational(active.trigger)
+            or (active.status == "waiting_input" and pending_question)
+        ):
+            if pending_question and active.status == "waiting_input":
+                updated = [
+                    {
+                        **item,
+                        "status": "answered",
+                        "selected_choice_id": request.input_answer.choice_id
+                        if request.input_answer
+                        else None,
+                        "answer_message_id": message.id,
+                    }
+                    if item.get("id") == pending_question["id"]
+                    else item
+                    for item in question_history
+                ]
+                state: dict[str, Any] = {**active.execution_state, "input_requests": updated}
+                state.pop("pending_input_request", None)
+                active.execution_state = state
             if active.status == "queued":
                 active.input_seq = message.seq
                 if active.execution_state:
@@ -249,6 +347,9 @@ async def send_message(
                 message_id=message.id,
                 session_id=collaboration.id if collaboration else None,
             )
-    session.add(EffectReceiptRow(key="message:" + message.id, result={"run_ids": run_ids}))
+    receipt_result: dict[str, Any] = {"run_ids": run_ids}
+    if request.input_answer:
+        receipt_result["input_answer"] = request.input_answer.model_dump()
+    session.add(EffectReceiptRow(key="message:" + message.id, result=receipt_result))
     emit(session, owner_id, "message.created", thread_id=thread_id, payload=message_data(message))
     return {"message": message_data(message), "run_ids": run_ids, "deduplicated": False}
