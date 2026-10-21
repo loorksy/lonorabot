@@ -77,7 +77,10 @@ hash to exact tool-to-domain mappings. It never calls a broker or database.
 
 `--check` is part of `scripts/build.sh`. Startup/resource validation rejects a
 missing/corrupt policy, stale tool coverage or oversized instruction sections.
-Installed distributions ship both manual and manifest under `share/lonora/system`.
+Both the monorepo production wheel and the standalone Agent distribution ship
+manual and manifest under `share/lonora/system`.
+`check_policy_distribution.py` builds the production wheel offline and exercises
+the real installed-layout fallback; this is also part of `scripts/build.sh`.
 No new runtime, permission engine, memory system or procedure registry exists.
 
 ## Verification limits
