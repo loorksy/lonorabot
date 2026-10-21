@@ -136,6 +136,17 @@ def apply_operating_policy(
     # Already checkpointed executions from an older release still get current rules.
     if not result or result[0].role != "system" or CORE_MARKER not in result[0].content:
         result.insert(0, ModelMessage(role="system", content=mandatory_policy()))
+    else:
+        # Resumed checkpoints carry an older first-party core. Refresh that block
+        # only, preserving owner instructions/history and the durable checkpoint.
+        content = re.sub(
+            r"<lonora_operating_policy>.*?</lonora_operating_policy>",
+            lambda _: mandatory_policy(),
+            result[0].content,
+            count=1,
+            flags=re.S,
+        )
+        result[0] = result[0].model_copy(update={"content": content})
     if chapters:
         index = next(
             (i for i, message in enumerate(result) if message.role != "system"), len(result)

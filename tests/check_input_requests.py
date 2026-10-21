@@ -7,6 +7,7 @@ from uuid import uuid4
 
 from check_streaming import Fixture
 from lonora_adapter_kit.types import ModelMessage, ModelReply, ToolCall, ToolDefinition
+from lonora_agent.context.history import history_context
 from lonora_agent.executor import execute_run
 from lonora_agent.tool_loop import execute_tool_loop
 from lonora_contracts.model_routing import ModelSelection
@@ -164,7 +165,16 @@ async def main() -> None:
         assert resumed["input_request"]["answer_message_id"] == answered["message"]["id"]
         resumed_context = await fixture.lease(run)
 
-        async def finish(*args: Any, **kwargs: Any) -> tuple[ModelReply, ModelSelection]:
+        async def finish(
+            capability: Any, messages: list[ModelMessage], *args: Any, **kwargs: Any
+        ) -> tuple[ModelReply, ModelSelection]:
+            text = "\n".join(message.content for message in messages)
+            assert question["question"] in text and choices[0]["label"] in text
+            assert "call wait_for_input to publish one interactive question" in text
+            assert any(
+                message.role == "user" and choices[0]["label"] in message.content
+                for message in messages
+            )
             return ModelReply(text="تم تسجيل الاختيار ومتابعة نفس المهمة."), selection
 
         with patch.object(resumed_context.router, "complete", finish):
@@ -173,6 +183,36 @@ async def main() -> None:
         assert done["status"] == "completed" and done["input_request"]["status"] == "answered"
         print(
             "PASS exact choice validation, nonce replay/conflict, stale clicks and same-Run continuation"
+        )
+        async with fixture.runtime.db.sessions() as session:
+            question_message = await session.get(MessageRow, question["message_id"])
+            answer_message = await session.get(MessageRow, answered["message"]["id"])
+            assert question_message and answer_message
+            restored = await history_context(
+                session, thread["id"], answer_message.seq, agent_id=agent["id"]
+            )
+            question_text = next(
+                message.content
+                for message in restored
+                if message.content.startswith(question["question"])
+            )
+            assert "<question_choices>" in question_text
+            assert all(choice["label"] in question_text for choice in choices)
+            assert restored[-2].role == "assistant" and restored[-1].role == "user"
+            assert restored[-1].content == choices[0]["label"]
+            before_question = await history_context(
+                session, thread["id"], question_message.seq - 1, agent_id=agent["id"]
+            )
+            assert not any("<question_choices>" in message.content for message in before_question)
+        other_history = await fixture.conversation(
+            await fixture.agent("Question history isolation")
+        )
+        async with fixture.runtime.db.sessions() as session:
+            assert not await history_context(
+                session, other_history["id"], 1000, agent_id=other_history["agent_id"]
+            )
+        print(
+            "PASS new-turn history retains exact question choices, canonical answers and thread/sequence isolation"
         )
 
         choices = [

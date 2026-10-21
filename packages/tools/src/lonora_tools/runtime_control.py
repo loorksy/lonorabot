@@ -180,7 +180,7 @@ def tools() -> list[Tool]:
         ),
         Tool(
             "wait_for_input",
-            "Ask only for information needed to proceed. Generate optional question-specific choices in the user's language; free text is always allowed. If a trade already has its required parameters, call trade_execute directly instead of asking whether the owner wants execution. Never use Approve/Reject questions as financial consent. These answers cannot activate Super Bot, approve trades or transfer authority. Do not ask again while real trade confirmation is pending. In user-facing prose, ask naturally without mentioning tools, cards or internal processing.",
+            "Use this whenever a genuinely missing owner decision blocks progress; do not write numbered menus or ask for numeric/letter replies in plain chat. First recover previous answers and continue work already requested. Generate optional question-specific choices in the user's language; free text is always allowed. If a trade already has its required parameters, call trade_execute directly instead of asking whether the owner wants execution. Never use Approve/Reject questions as financial consent. These answers cannot activate Super Bot, approve trades or transfer authority. Do not ask again while real trade confirmation is pending. In user-facing prose, ask naturally without mentioning tools, cards or internal processing.",
             WaitInput,
             wait,
         ),

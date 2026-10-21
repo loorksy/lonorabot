@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "manual_sha256": "2ce336afd089c5f311e24fac1d21a2a6f19e58065733c76e24aaa615fbd55693",
+  "manual_sha256": "90688d6adde10236c5ab2c8367a26591ea0889f51212414493df6aa28e57a6fe",
   "tool_policies": {
     "list_agents": "collaboration",
     "peer_send": "collaboration",

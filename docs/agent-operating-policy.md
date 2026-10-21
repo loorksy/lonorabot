@@ -95,13 +95,25 @@ These are deterministic regression checks. They do not mathematically prove
 that an arbitrary external language model can never produce an unwanted word.
 Financial authorization remains server-enforced regardless of prompt adherence.
 
-## Current broker recovery boundary
+## Clarification and continuation
 
-The reported production account has 14 old ambiguous operations. Historical
-reads now include each operation's original submission date, synchronized
-paginated deals and historical orders, plus exact exit-comment correlation.
-No exact final evidence was found for those legacy operations during the
-read-only production audit. They remain ambiguous; absence from current open
-positions is not proof of non-execution. The newer screenshot request was
-blocked before sending. No order was resent and the reconciliation gate was
-not bypassed. Resolving the legacy ambiguity requires conclusive broker evidence.
+Necessary owner decisions use the existing `wait_for_input` flow, with generated
+question-specific options and free text. The Agent must recover prior answers,
+continue already requested reversible analysis/planning, and avoid plain numbered
+menus. Financial confirmation still uses the separate server-validated approval.
+The history projection restores up to eight exact question option sets from the
+existing durable Run records, within the same thread and visible message range.
+This is lower-priority conversation content and grants no authority.
+Resumed checkpoints receive the current first-party core in the model request,
+without rewriting canonical history or replacing owner-specific instructions.
+
+## Legacy experimental data cleanup
+
+The 14 old ambiguous operations were permanently deleted from production on
+2026-10-21 at the owner's explicit request as construction-time experiments.
+Their stale account recovery projection was removed; the regular broker observer
+then independently reported `connected` / `broker_reconciled` with no unresolved
+operations. No financial mutation or replay was used for that verification.
+This was a one-time data cleanup, not a new automatic expiry policy: future
+ambiguous financial operations must still reconcile and must never blind-retry.
+Historical conversation messages were not deleted by that cleanup.

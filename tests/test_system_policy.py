@@ -236,3 +236,23 @@ async def test_native_provider_sends_cache_boundary_and_preserves_public_reply()
     assert len(captured) == 1 and reply.usage.cached_tokens == 80
     assert reply.text == "لم يُرسل الطلب إلى الوسيط."
     assert not INTERNAL_PUBLIC_TERMS.search(reply.text)
+
+
+def test_resumed_policy_refreshes_clarification_rules_without_changing_checkpoint():
+    old = ModelMessage(
+        role="system",
+        content=CORE_MARKER
+        + "\nObsolete first-party policy\n</lonora_operating_policy>"
+        + "\nOwner-specific instructions remain unchanged",
+    )
+    owner = ModelMessage(role="user", content="بيع؛ مخاطرة 50 إلى 200 دولار")
+    result = apply_operating_policy([old, owner], load_tools().definitions())
+    assert "Obsolete first-party" not in result[0].content
+    assert "call wait_for_input to publish one interactive question" in result[0].content
+    assert "rather than writing a numbered menu" in result[0].content
+    assert "previously chosen side" in result[0].content
+    assert result[0].content.endswith("Owner-specific instructions remain unchanged")
+    assert result[1] == owner
+    assert "Obsolete first-party" in old.content
+    assert result[0] is not old
+    assert apply_operating_policy(result, load_tools().definitions()) == result
