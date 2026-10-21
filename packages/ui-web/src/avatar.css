@@ -1,9 +1,7 @@
-/* Adapted for Lonora from Tampletgrok BotAvatar geometry; Apache-2.0. */
 :where(.lonora-agent-avatar) {
   width: 30px;
   height: 30px;
 }
-
 .lonora-agent-avatar {
   position: relative;
   display: inline-flex;
@@ -11,121 +9,13 @@
   align-items: center;
   justify-content: center;
   border: 0;
-  border-radius: 0;
+  border-radius: 50%;
   background: transparent;
-  color: var(--agent-color);
-  transform: none;
-  animation: none;
   user-select: none;
 }
-
-.lonora-agent-avatar[data-shape] > span {
-  transform: none;
-}
-
-.lonora-agent-avatar > svg {
-  display: block;
-  width: 100%;
-  height: 100%;
-  overflow: visible;
-}
-
-.lonora-agent-avatar .lonora-bot-avatar {
-  position: relative;
-  display: inline-flex;
-  width: 100%;
-  height: 100%;
-  align-items: center;
-  justify-content: center;
-}
-
-.lonora-robot-avatar {
-  border-radius: 50%;
-  box-shadow: 0 2px 5px rgb(0 0 0 / 35%);
-}
-
-.lonora-robot-avatar[data-working="true"] {
-  box-shadow:
-    0 0 0 2px rgb(255 255 255 / 25%),
-    0 0 12px var(--agent-color);
-}
-
-.lonora-agent-avatar .lonora-bot-avatar-ring {
-  position: absolute;
-  z-index: 10;
-  inset: -4px;
-  width: calc(100% + 8px);
-  height: calc(100% + 8px);
-  overflow: visible;
-  filter: drop-shadow(0 0 3px var(--lonora-avatar-light));
-  pointer-events: none;
-}
-
-.lonora-bot-avatar-visor {
-  position: relative;
-  display: flex;
-  width: 68%;
-  height: 44%;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  border: 1px solid rgb(255 255 255 / 14%);
-  border-radius: 999px;
-  background: linear-gradient(180deg, #101014 0%, #030305 100%);
-  box-shadow:
-    inset 0 1.5px 3px rgb(0 0 0 / 95%),
-    0 1px 1px rgb(255 255 255 / 18%);
-}
-
-.lonora-bot-avatar-visor .lonora-bot-avatar-eyes {
-  position: absolute;
-  z-index: 10;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 16%;
-}
-
-.lonora-bot-avatar-eye {
-  display: block;
-  width: 22%;
-  height: 60%;
-  border-radius: 999px;
-  background: #fff;
-  box-shadow:
-    0 0 4px #fff,
-    0 0 8px #fff,
-    0 0 14px var(--lonora-avatar-light);
-}
-
-.lonora-shape-avatar-svg {
-  width: 100%;
-  height: 100%;
-  overflow: visible;
-  filter: drop-shadow(0 2px 3px rgb(0 0 0 / 30%));
-}
-
-.lonora-shape-avatar[data-working="true"] .lonora-shape-avatar-svg {
-  filter: drop-shadow(0 0 6px var(--lonora-avatar-light));
-}
-
-.lonora-agent-avatar .lonora-organic-avatar-eyes {
-  fill: var(--lonora-surface, #111113);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .lonora-agent-avatar,
-  .lonora-agent-avatar * {
-    animation: none;
-    transition: none;
-  }
-}
-
 .lonora-agent-avatar[data-super-bot="true"] {
   outline: 2px solid #f0c866;
   outline-offset: 2px;
-  border-radius: 50%;
 }
 .lonora-agent-avatar > .lonora-super-bot-mark {
   position: absolute;

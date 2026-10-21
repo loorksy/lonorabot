@@ -707,7 +707,7 @@ function WorkspaceShell({ onLogout }: { onLogout: () => void }) {
               disabled={!agent && !group}
             >
               {agent ? (
-                <AgentAvatar agent={agent} />
+                <AgentAvatar agent={agent} working={busyIds.has(agent.id)} />
               ) : group ? (
                 <GroupAvatar members={memberAgents} />
               ) : null}

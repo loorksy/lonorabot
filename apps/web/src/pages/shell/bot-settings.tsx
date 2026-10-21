@@ -22,7 +22,8 @@ export function AgentSettings({
   const [name, setName] = useState(agent.name);
   const [title, setTitle] = useState(agent.title ?? "");
   const [description, setDescription] = useState(agent.description ?? "");
-  const [avatar, setAvatar] = useState(agent.avatar);
+  // Existing shape values remain round-trippable; every bot now uses the candle avatar.
+  const avatar = agent.avatar;
   const [color, setColor] = useState(agent.color);
   const [instructions, setInstructions] = useState(agent.instructions);
   const [paused, setPaused] = useState(agent.paused);
@@ -104,27 +105,6 @@ export function AgentSettings({
             <Trans>Appearance</Trans>
           </summary>
           <div className="tpl-profile-identity">
-            <label>
-              <Trans>Avatar</Trans>
-              <select
-                aria-label={t`Avatar`}
-                value={avatar}
-                onChange={(event) => setAvatar(event.target.value)}
-              >
-                <option value="orb">
-                  <Trans>Orb</Trans>
-                </option>
-                <option value="square">
-                  <Trans>Square</Trans>
-                </option>
-                <option value="diamond">
-                  <Trans>Diamond</Trans>
-                </option>
-                <option value="organic">
-                  <Trans>Organic</Trans>
-                </option>
-              </select>
-            </label>
             <label>
               <Trans>Color</Trans>
               <input

@@ -1,4 +1,5 @@
 import { t } from "@lingui/core/macro";
+import { avatarState } from "@lonora/core";
 import { AgentAvatar } from "@lonora/ui-web";
 import { ChevronDown, MicOff } from "lucide-react";
 import { useVoice } from "../../hooks/useVoice";
@@ -23,6 +24,7 @@ export function CallPill() {
           superBotLabel={t`Super Bot enabled`}
           color={color}
           working={voice.phase === "speaking" && voice.connected}
+          state={avatarState({ voice, error: voice.error != null })}
         />
       </span>
       <CallWaveform meter={voice.meter} compact />

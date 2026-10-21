@@ -1,5 +1,7 @@
 export { attachmentTooLarge, maxAttachmentBytes } from "./attachments";
 export * from "./avatar-geometry";
+export * from "./avatar-motion";
+export * from "./avatar-state";
 export {
   type MentionAddress,
   type MentionRange,
@@ -17,4 +19,5 @@ export { webDeviceProof, webDeviceSupported } from "./device-proof";
 export { activeStatuses, canCancel, canResume, isWorking } from "./run-state";
 export { mergeSuperBotRequest } from "./super-bot";
 export { formatTimeSeparator, needsTimeSeparator, timeSeparatorIds } from "./time-separators";
+export * from "./trading-avatar-motion";
 export { errorCode } from "./user-error";

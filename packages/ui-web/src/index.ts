@@ -25,3 +25,9 @@ export * from "./components/ui/toggle";
 export * from "./components/ui/tooltip";
 export { GroupAvatar } from "./group-avatar";
 export { cn } from "./lib/utils";
+export {
+  TRADING_AVATAR_STATES,
+  TradingAvatar,
+  type TradingAvatarProps,
+  type TradingAvatarState,
+} from "./trading-avatar";

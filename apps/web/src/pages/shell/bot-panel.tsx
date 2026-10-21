@@ -25,7 +25,7 @@ export function AgentCreatePanel({
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [color, setColor] = useState(colors[0]);
-  const [avatar, setAvatar] = useState("orb");
+  const avatar = "orb";
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>();
   return (
@@ -87,24 +87,6 @@ export function AgentCreatePanel({
         <div className="tpl-profile-preview">
           <AgentAvatar name={name || "L"} color={color} shape={avatar} />
         </div>
-        <label>
-          <Trans>Avatar</Trans>
-          <select
-            aria-label={t`Avatar`}
-            value={avatar}
-            onChange={(event) => setAvatar(event.target.value)}
-          >
-            <option value="orb">
-              <Trans>Orb</Trans>
-            </option>
-            <option value="square">
-              <Trans>Square</Trans>
-            </option>
-            <option value="diamond">
-              <Trans>Diamond</Trans>
-            </option>
-          </select>
-        </label>
         <fieldset className="tpl-colors">
           <legend>
             <Trans>Color</Trans>

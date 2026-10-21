@@ -44,37 +44,6 @@ export function AvatarPicker({
             <Text
               style={{ color: colors.secondary, textAlign: rtl ? "right" : "left", fontSize: 13 }}
             >
-              {t("avatar")}
-            </Text>
-            <View style={{ flexDirection: rtl ? "row-reverse" : "row", gap: 10, flexWrap: "wrap" }}>
-              {(
-                [
-                  ["orb", "avatarOrb"],
-                  ["circle", "avatarRound"],
-                  ["square", "avatarSquare"],
-                  ["diamond", "avatarDiamond"],
-                  ["organic", "avatarOrganic"],
-                ] as const
-              ).map(([shape, label]) => (
-                <Pressable
-                  key={shape}
-                  accessibilityRole="radio"
-                  accessibilityLabel={t(label)}
-                  accessibilityState={{ checked: shape === avatar }}
-                  onPress={() => onChange(shape, color)}
-                  style={{
-                    padding: 8,
-                    borderRadius: 14,
-                    backgroundColor: shape === avatar ? colors.accent : "transparent",
-                  }}
-                >
-                  <BotAvatar identity={name} color={color} variant={shape} size={42} />
-                </Pressable>
-              ))}
-            </View>
-            <Text
-              style={{ color: colors.secondary, textAlign: rtl ? "right" : "left", fontSize: 13 }}
-            >
               {t("color")}
             </Text>
             <View style={{ flexDirection: rtl ? "row-reverse" : "row", gap: 14, flexWrap: "wrap" }}>

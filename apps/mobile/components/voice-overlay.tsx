@@ -1,3 +1,4 @@
+import { avatarState } from "@lonora/core";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useSession } from "../lib/session";
@@ -60,7 +61,10 @@ export function VoiceOverlay() {
           variant={agent.avatar}
           color={agent.color}
           size={28}
-          working={call.connected}
+          state={avatarState({
+            voice: { ...call, phase: call.activity.phase },
+            error: !!call.error,
+          })}
         />
         <Text style={{ color: colors.foreground, fontWeight: "600" }}>{agent.name}</Text>
         <NativeSymbol name="call" size={19} />
@@ -99,7 +103,10 @@ export function VoiceOverlay() {
             variant={agent.avatar}
             color={agent.color}
             size={52}
-            working={call.activity.phase === "speaking" || call.activity.level > 0.04}
+            state={avatarState({
+              voice: { ...call, phase: call.activity.phase },
+              error: !!call.error,
+            })}
           />
         </View>
         <View

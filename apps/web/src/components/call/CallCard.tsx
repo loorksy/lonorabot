@@ -1,5 +1,6 @@
 // Floating call controls adapted from the template, with Lonora's click-owned WebRTC transport.
 import { t } from "@lingui/core/macro";
+import { avatarState } from "@lonora/core";
 import { AgentAvatar } from "@lonora/ui-web";
 import {
   ChevronDown,
@@ -59,6 +60,8 @@ export function CallCard({
             superBotLabel={t`Super Bot enabled`}
             color={color}
             working={voice.phase === "speaking" && voice.connected}
+            state={avatarState({ voice, error: voice.error != null })}
+            quality="full"
           />
         </button>
         <div className="call-center">
