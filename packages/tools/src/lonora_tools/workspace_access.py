@@ -7,6 +7,9 @@ if TYPE_CHECKING:
 
 
 class WorkspaceAccess(Protocol):
+    async def export(
+        self, context: "ToolContext", path: str, revision: int, name: str | None
+    ) -> dict[str, Any]: ...
     async def inspect(self, context: "ToolContext") -> dict[str, Any]: ...
     async def read(
         self, context: "ToolContext", path: str, revision: int, offset: int, limit: int

@@ -554,6 +554,8 @@ An isolated command has no network, broker credentials or financial authority.
 Use only the typed trading services for broker mutations; never ask analysis code to trade.
 A stale file revision requires a fresh inspection. An interrupted operation is not proof that files were committed; inspect the authoritative revision instead of blindly rerunning it.
 Report the actual exit status and inspect saved output before claiming analytical success.
+Use workspace_export to deliver a supported saved report or raster as a real attachment at its exact revision.
+Export is not visual inspection: request artifact_read with view_image=true and actually receive pixels before making visual claims.
 
 Use artifact_create for a supported text-content file belonging to this Agent/thread.
 Use the returned durable attachment rather than inventing a path.

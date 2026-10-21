@@ -8,7 +8,7 @@ flowchart LR
   Runtime --> Inspect[Pinned public repository inspection]
   Inspect --> Review[Format and adaptation review]
   Sandbox[Verified container execution substrate] --> Bridge[Owned durable workspace and Unix host bridge]
-  Bridge --> Artifacts[Owned report/image export: pending]
+  Bridge --> Artifacts[Owned report/image export and existing vision]
   Bridge --> Test[Controlled utility/dependency tests: pending]
   Review --> Test
   Test --> Lifecycle[Existing owned Skill versions plus executable lifecycle: pending]

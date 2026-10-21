@@ -25,7 +25,13 @@ from lonora_agent.workspace_access import RunWorkspaceAccess
 from lonora_agent.workspace_client import WorkspaceClient
 from lonora_contracts.model_routing import ModelSelection
 from lonora_core.user_error import LonoraError
-from lonora_db.schema import AnalyticalWorkspaceRow, RunRow, TradeApprovalRow, TradingJournalRow
+from lonora_db.schema import (
+    AnalyticalWorkspaceRow,
+    MessageRow,
+    RunRow,
+    TradeApprovalRow,
+    TradingJournalRow,
+)
 from lonora_tools.loader import load_tools
 from sqlalchemy import func, select
 
@@ -45,10 +51,12 @@ async def docker(*args: str) -> bytes:
 
 async def main(image: str) -> None:
     fixture = await Fixture().open()
+    original_root = fixture.settings.artifact_root
     host: asyncio.subprocess.Process | None = None
     checks = 0
     foreign: str | None = None
     with TemporaryDirectory(prefix="lonora-workspace-bridge-") as temporary:
+        fixture.settings.artifact_root = Path(temporary) / "artifacts"
         directory = Path(temporary) / "service"
         socket = directory / "host.sock"
         namespace = hashlib.sha256(
@@ -141,9 +149,10 @@ async def main(image: str) -> None:
                 )
             script = "import json,statistics\nfrom pathlib import Path\nvalues=json.loads(Path('input.json').read_text())\nresult={'mean':statistics.mean(values),'count':len(values)}\nPath('result.json').write_text(json.dumps(result))\nprint(json.dumps(result))\n"
             rounds = 0
+            exported_id = ""
 
             async def model(_capability: Any, messages: Any, _tools: Any, **_kwargs: Any):
-                nonlocal rounds
+                nonlocal rounds, exported_id
                 rounds += 1
                 observed: dict[str, Any] = {}
                 if rounds > 1:
@@ -179,6 +188,21 @@ async def main(image: str) -> None:
                         name="workspace_read",
                         arguments={"revision": 2, "path": "result.json"},
                     )
+                elif rounds == 5:
+                    assert json.loads(observed["content"]) == {"mean": 101, "count": 3}
+                    call = ToolCall(
+                        id="export-result",
+                        name="workspace_export",
+                        arguments={"revision": 2, "path": "result.json"},
+                    )
+                elif rounds == 6:
+                    exported_id = observed["id"]
+                    assert observed["state"]["workspace_source"]["revision"] == 2
+                    call = ToolCall(
+                        id="verify-attachment",
+                        name="artifact_read",
+                        arguments={"artifact_id": exported_id},
+                    )
                 else:
                     assert json.loads(observed["content"]) == {"mean": 101, "count": 3}
                     return ModelReply(
@@ -195,7 +219,18 @@ async def main(image: str) -> None:
                 assert run and run.status == "completed"
                 stored = await session.get(AnalyticalWorkspaceRow, agent["id"])
                 assert stored and stored.revision == 2
-            assert rounds == 5
+                message = await session.scalar(
+                    select(MessageRow)
+                    .where(
+                        MessageRow.thread_id == context.thread_id, MessageRow.role == "assistant"
+                    )
+                    .order_by(MessageRow.seq.desc())
+                    .limit(1)
+                )
+                assert message and exported_id in message.attachment_ids
+            downloaded = await fixture.client.get("/api/artifacts/" + exported_id + "/file")
+            assert downloaded.status_code == 200 and downloaded.json() == {"mean": 101, "count": 3}
+            assert rounds == 7
             checks += 1
 
             await stop(host)
@@ -278,6 +313,7 @@ async def main(image: str) -> None:
                 await docker("rm", "--force", foreign)
             if host is not None:
                 await stop(host)
+            fixture.settings.artifact_root = original_root
             await fixture.close()
 
 

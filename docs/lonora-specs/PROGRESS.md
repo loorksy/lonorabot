@@ -32,8 +32,8 @@ their original evidence and are not the status of this new mandate.
   Branding remains deployed at `db5ffc9`; signed Android 0.2.8 is published with
   the existing production certificate.
 
-Next integration: workspace report/image artifact export, then safe Skill
-execution, dependency pinning and adaptation. Workspace
+Next integration: safe Skill execution, dependency pinning and adaptation on the
+verified workspace; production host activation remains a separate review gate. Workspace
 execution must have aggregate resource limits and no access to broker secrets;
 an unsandboxed subprocess in the Gateway is not an acceptable replacement.
 
@@ -103,6 +103,31 @@ preservation of a separate host namespace during startup cleanup. Full
 upgrade/downgrade/upgrade and merged optional Compose configuration also passed. Generated report/image artifact export, dependency installation,
 executable Skill adaptation/lifecycle and the wider mandate remain open. No APK,
 backup, live trade or production deployment was performed.
+
+### Saved analytical results as real chat attachments
+
+A fifth ordinary operation exports supported text reports and single-frame raster
+images from an exact saved revision into the existing owned ArtifactRepository.
+Source bytes/MIME and raster pixels are validated; canonical call receipts preserve
+the original attachment after later workspace changes. Corrupt/missing files and
+changed export intent fail explicitly. A replaced worker cannot write its file.
+The shared image validator remains the same one used by existing chart/image
+observations; there is no separate delivery or vision subsystem.
+
+Actual PostgreSQL/FS acceptance verifies server message attachment linkage and
+byte-identical authenticated downloads. The scripted model receives real PNG
+pixels only after its explicit existing image-read request; export alone never
+claims visual inspection or owner viewing. The actual Agent→Unix→Docker test also
+runs Python, exports its computed JSON, reads it and downloads the real attachment,
+then verifies host restart and retained files. Existing image-observation and
+native chart snapshot/provenance regressions passed. All 518 pytest cases and full
+`bash scripts/build.sh` passed; the current compact policy has 616 lines.
+
+No new migration was needed for export. The earlier workspace migration remains
+0028. Production systemd activation, physical-device/new provider verification,
+universal executable Skill adaptation/dependencies/lifecycle, final native voice
+handoff redesign and the wider mandate remain open. This branch is not merged or
+deployed; no APK, backup, live trade or financial grant was created.
 
 Current wave (2026-10-19): cancellation-safe MetaApi discovery recovery on `fix/metaapi-discovery-cancellation`, from `f6a5933`. All preceding progressive Skills/environment increments are on `main` and deployed. The full professional Agent program remains incomplete; no APK was built.
 

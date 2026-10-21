@@ -119,6 +119,13 @@ class RunWorkspaceAccess:
     def __init__(self, executor: WorkspaceExecutor | None = None) -> None:
         self.executor = executor
 
+    async def export(
+        self, context: ToolContext, path: str, revision: int, name: str | None
+    ) -> dict[str, Any]:
+        from .workspace_artifacts import export_file
+
+        return await export_file(context, path, revision, name)
+
     async def inspect(self, context: ToolContext) -> dict[str, Any]:
         async with context.db.sessions() as session, session.begin():
             await scoped_run(session, context)

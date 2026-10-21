@@ -109,6 +109,24 @@ RASTER_FORMATS = {
 }
 
 
+def raster_dimensions(content: bytes, media_type: str) -> tuple[int, int]:
+    """Shared bounded single-frame raster validation, without trusting a suffix."""
+    try:
+        with Image.open(BytesIO(content)) as image:
+            width, height = image.size
+            if not (0 < width <= 4096 and 0 < height <= 4096):
+                raise LonoraError("artifact_image_dimensions_exceeded", 413)
+            if (
+                RASTER_FORMATS.get(image.format or "") != media_type
+                or getattr(image, "n_frames", 1) != 1
+            ):
+                raise LonoraError("artifact_image_format_unsupported", 422)
+            image.load()
+    except (UnidentifiedImageError, OSError, SyntaxError, ValueError, Image.DecompressionBombError):
+        raise LonoraError("artifact_image_invalid", 422) from None
+    return width, height
+
+
 async def load_image_observation(
     context: ToolContext,
     artifact_id: str,
@@ -122,7 +140,7 @@ async def load_image_observation(
         raise LonoraError("artifacts_not_found", 404)
     payload = row.payload
     media = payload.get("media_type")
-    if media not in RASTER_FORMATS.values():
+    if not isinstance(media, str) or media not in RASTER_FORMATS.values():
         raise LonoraError("artifact_image_format_unsupported", 422)
     try:
         path = confined_path(context.artifact_root, payload["key"])
@@ -141,19 +159,7 @@ async def load_image_observation(
         or (expected_sha256 is not None and digest != expected_sha256)
     ):
         raise LonoraError("artifact_integrity_failed", 409)
-    try:
-        with Image.open(BytesIO(content)) as image:
-            width, height = image.size
-            if not (0 < width <= 4096 and 0 < height <= 4096):
-                raise LonoraError("artifact_image_dimensions_exceeded", 413)
-            if (
-                RASTER_FORMATS.get(image.format or "") != media
-                or getattr(image, "n_frames", 1) != 1
-            ):
-                raise LonoraError("artifact_image_format_unsupported", 422)
-            image.load()
-    except (UnidentifiedImageError, OSError, SyntaxError, ValueError, Image.DecompressionBombError):
-        raise LonoraError("artifact_image_invalid", 422) from None
+    width, height = raster_dimensions(content, media)
     descriptor: dict[str, Any] = {
         "artifact_id": row.id,
         "sha256": digest,

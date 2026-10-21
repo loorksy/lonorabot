@@ -1,8 +1,8 @@
 # Analytical container execution boundary
 
-Four ordinary tools now expose persistent analytical files and optional isolated
+Five ordinary tools now expose persistent analytical files and optional isolated
 execution through the existing Agent: `workspace_inspect`, `workspace_read`,
-`workspace_update`, and `workspace_execute`. Files and operation receipts live in
+`workspace_update`, `workspace_execute`, and `workspace_export`. Files and operation receipts live in
 PostgreSQL. A dedicated Unix-socket bridge runs commands in fresh, immutable-image
 containers and returns actual exit status, bounded output and validated files.
 No new Agent, model loop, scheduler, broker adapter or financial authority exists.
@@ -187,11 +187,42 @@ Use an explicitly migrated disposable PostgreSQL database accepted by the existi
 fixture; this check is separate from the default Docker-independent foundation
 runner. It never runs against production money or a production database.
 
+## Report/image export and visual inspection
+
+`workspace_export` publishes one exact saved file through the existing artifact
+store. It accepts UTF-8 TXT/MD/CSV/TSV/JSON and decoded single-frame PNG/JPEG/WEBP/GIF.
+Unsupported formats (including HTML/SVG), invalid text/JSON, disguised images and
+animations fail explicitly. The existing raster validation is shared with image
+observations rather than duplicated. Exported image size/dimensions and bytes are
+validated before an attachment can be produced.
+
+Each export records the source path, revision and SHA-256 with its producer
+Run/call. Canonical call identity prevents changed arguments from replacing a
+previous attachment. Identical replay returns the original verified bytes even
+if the workspace later advances. Corrupt or missing artifacts fail explicitly;
+they are never silently regenerated from a newer source. Current ownership and
+fences are checked again before writing an attachment. No new database table or
+file-delivery mechanism is added for this capability.
+
+An export is not visual inspection. The Agent requests `artifact_read` with
+`view_image=true`; the existing model runtime verifies scope/hash/format and
+supplies actual image pixels in its next vision request. Run completion links the
+saved artifacts to the canonical chat message and records that linkage atomically.
+That server linkage is not proof that the owner opened the file or viewed it on a
+physical device. Reports/images retain the existing Web/Mobile attachment path.
+
+`tests/check_workspace_artifacts.py` verifies actual PostgreSQL/FS export,
+immutable replay after source updates, hash/missing-file errors, filename/source
+bounds, a worker replacement before filesystem write, real pixels in the scripted
+model's vision request, canonical attachment IDs and authenticated download bytes.
+The real Unix/Docker acceptance now also exports its Python-generated JSON result,
+reads the actual attachment and downloads it through the existing API. No live
+model quality, physical-device rendering or user viewing is inferred from these
+checks. All 518 pytest cases, full build, existing chart/image observation
+integrations and these export/real-container integrations passed.
+
 ## Remaining integration
 
-- Export generated workspace reports/images through the existing owned artifact
-  and visual-inspection path; binary files currently have metadata but no direct
-  `workspace_read` text view.
 - Reviewed dependency images/installation, faithful Skill adaptation, isolated
   utility validation and executable Skill installation/update/rollback.
 - Production systemd activation and recovery verification, after review of the
