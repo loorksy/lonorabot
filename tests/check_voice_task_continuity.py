@@ -20,7 +20,7 @@ from lonora_db.schema import MessageRow, RunRow, TradingJournalRow, VoiceSession
 from lonora_db.tasks import get_task, snapshot
 from lonora_tools.loader import load_tools
 from lonora_voice.barge_in import barge_in
-from lonora_voice.realtime import RealtimeVoiceSession
+from lonora_voice.realtime import TRANSCRIPT_HANDOFF_TIMEOUT_SECONDS, RealtimeVoiceSession
 from lonora_voice.sessions import end_voice_session
 from sqlalchemy import func, select
 
@@ -298,7 +298,9 @@ async def main() -> None:
             row = await session.get(VoiceSessionRow, voice.session_id, with_for_update=True)
             assert row
             state = json.loads(json.dumps(row.state))
-            state["delegations"]["incomplete-buy"]["received_at"] = time.time() - 10
+            state["delegations"]["incomplete-buy"]["received_at"] = (
+                time.time() - TRANSCRIPT_HANDOFF_TIMEOUT_SECONDS - 1
+            )
             row.state = state
         await voice.delegate()
         async with fixture.runtime.db.sessions() as session:

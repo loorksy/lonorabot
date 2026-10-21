@@ -20,7 +20,12 @@ from lonora_contracts.voice import VoiceSessionCreate
 from lonora_core.user_error import LonoraError
 from lonora_db.schema import MessageRow, RunRow, TradeApprovalRow, VoiceSessionRow
 from lonora_providers.credentials import ProviderCredentials
-from lonora_voice.realtime import RealtimeVoiceSession, text_chunks
+from lonora_voice.realtime import (
+    TRANSCRIPT_HANDOFF_FAILURE,
+    TRANSCRIPT_HANDOFF_TIMEOUT_SECONDS,
+    RealtimeVoiceSession,
+    text_chunks,
+)
 from lonora_voice.sessions import (
     cancel_voice_initialization,
     create_voice_session,
@@ -391,7 +396,9 @@ async def test_incomplete_transcript_fails_closed_and_future_request_can_continu
         row = await session.get(VoiceSessionRow, voice.session_id, with_for_update=True)
         assert row
         state = dict(row.state)
-        state["delegations"]["incomplete"]["received_at"] = time.time() - 10
+        state["delegations"]["incomplete"]["received_at"] = (
+            time.time() - TRANSCRIPT_HANDOFF_TIMEOUT_SECONDS - 1
+        )
         row.state = {**state, "fixture_revision": 1}
     await voice.delegate()
     async with workspace["runtime"].db.sessions() as session:
@@ -400,6 +407,8 @@ async def test_incomplete_transcript_fails_closed_and_future_request_can_continu
         ).all()
         row = await session.get(VoiceSessionRow, voice.session_id)
         assert row and row.state["delegations"]["incomplete"]["status"] == "result"
+        assert row.state["delegations"]["incomplete"]["chunks"] == [TRANSCRIPT_HANDOFF_FAILURE]
+        assert "repeat" not in TRANSCRIPT_HANDOFF_FAILURE.lower()
     await voice.update(
         {
             "type": "session.input_transcript.delta",
@@ -426,6 +435,109 @@ async def test_incomplete_transcript_fails_closed_and_future_request_can_continu
             )
         ).all()
         assert [row.content for row in messages] == ["Only analyze my portfolio risk."]
+
+
+@pytest.mark.asyncio
+async def test_delayed_out_of_order_transcript_is_reassembled_without_partial_execution(
+    workspace: dict[str, Any],
+) -> None:
+    voice = await resident(workspace)
+    await voice.update(
+        {
+            "type": "session.input_transcript.delta",
+            "event_id": "speech-head",
+            "start_ms": 0,
+            "end_ms": 500,
+            "delta": "Buy ",
+        }
+    )
+    await voice.update(
+        {
+            "type": "session.delegation.created",
+            "offset_ms": 1200,
+            "delegation": {"id": "delayed-delegation", "target": "client"},
+        }
+    )
+    async with workspace["runtime"].db.sessions() as session, session.begin():
+        row = await session.get(VoiceSessionRow, voice.session_id, with_for_update=True)
+        assert row
+        state = dict(row.state)
+        state["delegations"]["delayed-delegation"]["received_at"] = time.time() - 6
+        row.state = state
+
+    await voice.delegate()
+    async with workspace["runtime"].db.sessions() as session:
+        row = await session.get(VoiceSessionRow, voice.session_id)
+        assert row and row.state["delegations"]["delayed-delegation"]["status"] == "pending"
+        assert not (
+            await session.scalars(select(RunRow).where(RunRow.thread_id == workspace["thread"]))
+        ).all()
+
+    await voice.update(
+        {
+            "type": "session.input_transcript.delta",
+            "event_id": "speech-tail",
+            "start_ms": 500,
+            "end_ms": 1200,
+            "delta": "0.10 lots.",
+        }
+    )
+    await voice.delegate()
+    async with workspace["runtime"].db.sessions() as session:
+        messages = (
+            await session.scalars(
+                select(MessageRow).where(
+                    MessageRow.thread_id == workspace["thread"], MessageRow.role == "user"
+                )
+            )
+        ).all()
+        assert [row.content for row in messages] == ["Buy 0.10 lots."]
+        runs = (
+            await session.scalars(select(RunRow).where(RunRow.thread_id == workspace["thread"]))
+        ).all()
+        assert len(runs) == 1
+
+
+@pytest.mark.asyncio
+async def test_out_of_order_transcript_fragments_are_reassembled_by_audio_time(
+    workspace: dict[str, Any],
+) -> None:
+    voice = await resident(workspace)
+    await voice.update(
+        {
+            "type": "session.input_transcript.delta",
+            "event_id": "ordered-tail",
+            "start_ms": 400,
+            "end_ms": 900,
+            "delta": "gold.",
+        }
+    )
+    await voice.update(
+        {
+            "type": "session.input_transcript.delta",
+            "event_id": "ordered-head",
+            "start_ms": 0,
+            "end_ms": 400,
+            "delta": "Analyze ",
+        }
+    )
+    await voice.update(
+        {
+            "type": "session.delegation.created",
+            "offset_ms": 900,
+            "delegation": {"id": "ordered-delegation", "target": "client"},
+        }
+    )
+    await voice.delegate()
+    async with workspace["runtime"].db.sessions() as session:
+        messages = (
+            await session.scalars(
+                select(MessageRow).where(
+                    MessageRow.thread_id == workspace["thread"], MessageRow.role == "user"
+                )
+            )
+        ).all()
+        assert [row.content for row in messages] == ["Analyze gold."]
 
 
 @pytest.mark.asyncio

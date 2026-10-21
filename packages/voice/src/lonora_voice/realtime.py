@@ -23,6 +23,11 @@ APPROVAL_CARD = (
     "and do not ask which pair or to repeat the symbol. Speech and chat text are not "
     "approval. Do not start another order."
 )
+TRANSCRIPT_HANDOFF_TIMEOUT_SECONDS = 30
+TRANSCRIPT_HANDOFF_FAILURE = (
+    "I couldn't pass that voice turn to Lonora, so I haven't started new work. "
+    "You can continue in this call or send a message in the chat; any ongoing work is preserved."
+)
 
 
 def text_chunks(content: str) -> list[str]:
@@ -153,6 +158,13 @@ class RealtimeVoiceSession:
                     if float(fragment.get("start_ms") or 0) <= offset
                     and float(fragment.get("end_ms") or 0) > previous
                 ]
+                selected.sort(
+                    key=lambda fragment: (
+                        float(fragment.get("start_ms") or 0),
+                        float(fragment.get("end_ms") or 0),
+                        str(fragment.get("event_id") or ""),
+                    )
+                )
                 spoken = "".join(str(fragment.get("delta") or "") for fragment in selected).strip()
                 caught_up = (
                     selected
@@ -164,13 +176,14 @@ class RealtimeVoiceSession:
                     or float(state.get("input_trimmed_until", -1)) > previous
                     or len(spoken) > 30000
                 ):
-                    if time.time() - float(task["received_at"]) > 5:
+                    if (
+                        time.time() - float(task["received_at"])
+                        > TRANSCRIPT_HANDOFF_TIMEOUT_SECONDS
+                    ):
                         task.update(
                             {
                                 "status": "result",
-                                "chunks": [
-                                    "The full request was not transcribed. Ask the user to repeat it before taking any action."
-                                ],
+                                "chunks": [TRANSCRIPT_HANDOFF_FAILURE],
                                 "next_chunk": 0,
                             }
                         )
