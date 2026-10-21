@@ -1,0 +1,13 @@
+# Optional overlay, after the reviewed host service is installed and started.
+# There is deliberately no Docker socket mount or application credential here.
+services:
+  gateway:
+    environment:
+      LONORA_WORKSPACE_SOCKET: /run/lonora-analysis/host.sock
+    volumes:
+      - type: bind
+        source: /run/lonora-analysis
+        target: /run/lonora-analysis
+        read_only: true
+        bind:
+          create_host_path: false

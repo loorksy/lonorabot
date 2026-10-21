@@ -33,6 +33,15 @@ class Settings(BaseSettings):
     chart_renderer_url: str | None = None
     chart_browser_executable: Path | None = None
     chart_browser_sandbox: bool = True
+    workspace_socket: Path | None = None
+
+    @field_validator("workspace_socket")
+    @classmethod
+    def absolute_workspace_socket(cls, value: Path | None) -> Path | None:
+        if value is not None and not value.is_absolute():
+            raise ValueError("workspace_socket_invalid")
+        return value
+
     artifact_root: Path = Path(".runtime/artifacts")
     android_apk_path: Path = Path(".runtime/releases/android/lonora.apk")
     ota_root: Path = Path(".runtime/releases/ota")

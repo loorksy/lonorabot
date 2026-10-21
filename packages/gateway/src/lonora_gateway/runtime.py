@@ -4,6 +4,8 @@ from pathlib import Path
 from lonora_adapter_kit.secrets import SecretStore
 from lonora_adapters.brokers.base import BrokerManager
 from lonora_adapters.storage.secret_store import EncryptedSecretStore
+from lonora_agent.workspace_access import RunWorkspaceAccess
+from lonora_agent.workspace_client import WorkspaceClient
 from lonora_charts.visual import ChartVisualRuntime
 from lonora_contracts.runs import Lease
 from lonora_db.client import Database
@@ -24,6 +26,7 @@ class OwnerServices:
     trading: ExecutionService
     market: MarketRuntime
     chart_visual: ChartVisualRuntime | None = None
+    workspace_socket: Path | None = None
 
     @classmethod
     def create(
@@ -33,6 +36,7 @@ class OwnerServices:
         key: str,
         *,
         chart_visual: ChartVisualRuntime | None = None,
+        workspace_socket: Path | None = None,
     ) -> "OwnerServices":
         secrets = EncryptedSecretStore(db, key, owner_id)
         brokers = BrokerManager(db, secrets)
@@ -59,6 +63,7 @@ class OwnerServices:
             ExecutionService(db, brokers),
             market,
             chart_visual,
+            workspace_socket,
         )
 
     def tool_context(
@@ -84,6 +89,9 @@ class OwnerServices:
             depth,
             maximum_subagents,
             chart_visual=self.chart_visual,
+            workspace_access=RunWorkspaceAccess(
+                WorkspaceClient(self.workspace_socket) if self.workspace_socket else None
+            ),
         )
 
     async def close(self) -> None:

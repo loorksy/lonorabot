@@ -23,6 +23,7 @@ class ApiRuntime:
                 self.db,
                 owner_id,
                 self.settings.encryption_key.get_secret_value(),
+                workspace_socket=self.settings.workspace_socket,
                 chart_visual=ChartVisualRuntime(
                     self.settings.chart_renderer_url,
                     str(self.settings.chart_browser_executable)

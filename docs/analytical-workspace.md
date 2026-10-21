@@ -1,20 +1,34 @@
 # Analytical container execution boundary
 
-This is the verified execution substrate for the agent-first mandate, **not yet
-an enabled Agent tool or a production workspace service**. `lonora_agent.workspace`
-runs one analytical command in a fresh, immutable-image Docker container. It
-accepts a bounded snapshot and returns exit status, actual command output, regular
-file bytes and host-computed SHA-256 digests. It does not create another Agent,
-model loop, scheduler, broker adapter or financial authority.
+Four ordinary tools now expose persistent analytical files and optional isolated
+execution through the existing Agent: `workspace_inspect`, `workspace_read`,
+`workspace_update`, and `workspace_execute`. Files and operation receipts live in
+PostgreSQL. A dedicated Unix-socket bridge runs commands in fresh, immutable-image
+containers and returns actual exit status, bounded output and validated files.
+No new Agent, model loop, scheduler, broker adapter or financial authority exists.
+
+This capability is verified in development, **not installed or activated in
+production**. File management needs migration `0028_analytical_workspace`;
+execution additionally requires an explicitly configured host socket. Missing
+configuration is reported as unavailable, never replaced with a host subprocess.
 
 ## Privilege boundary
 
-The adapter belongs in a dedicated trusted host process. It requires access to
-the local Docker daemon; that access must never be mounted into Lonora's API,
-Gateway or an analytical job. No tool registry entry or production Compose
-socket mount is introduced by this increment. The future ownership bridge must
-accept only owned, fenced Agent operations and fixed execution requests, never
-Docker arguments, image selection, host paths, environment variables or mounts.
+The adapter runs in a dedicated trusted host process, `lonora_agent.workspace_host`.
+Only that process can access the local Docker daemon. The API/Gateway receive a
+restricted Unix socket, never the Docker socket. The protocol accepts only a
+bounded file snapshot, command and deadline: no image, mount, host path,
+environment, Docker flags, account credential or financial request is accepted.
+The host has no model or database connection and needs no Lonora secret.
+
+The socket directory is mode 0750, the socket 0660; the configured Unix group is
+the trusted application principal. Requests are bounded to 12 MiB, body reads to
+ten seconds and execution concurrency to two by default (maximum four), with
+immediate busy responses rather than an unbounded queue. Startup takes an
+exclusive filesystem lock before removing only this host namespace’s labelled
+analytical orphan containers. The namespace is derived from the canonical socket
+directory, so another host directory cannot reap its live jobs. A second host cannot clean up another active host's jobs. Transport
+uses the fixed local socket with proxy inheritance, redirects and retries disabled.
 
 The administrator builds `infra/analysis/Dockerfile`, reviews its contents and
 configures its full local `sha256:` image ID. Execution never pulls an image and
@@ -70,10 +84,36 @@ The entire container is force-removed after success, failure, timeout, excessive
 output or cancellation. Cleanup waits are bounded and an unconfirmed cleanup
 logs a constant diagnostic without command contents or secrets. If the host
 process disappears, the fixed 120-second root workload lifetime bounds a running
-orphan; restart policy is `no`. A host startup reaper for stopped labelled
-containers is still needed before production activation. Durable file revisions,
-operation receipts, concurrency limits across jobs and restart recovery are not
-implemented by this stateless substrate.
+orphan; restart policy is `no`. The exclusive host
+startup reaper removes this host namespace’s labelled orphan containers before serving requests.
+Unconfirmed cleanup is never treated as proof that a job disappeared.
+
+## Persistent ownership, revisions and recovery
+
+Migration `0028_analytical_workspace` adds two focused tables. One row per Agent
+stores its current bounded binary snapshot, revision and active reservation. An
+operation row stores typed Agent/Run/fence/request identity, status and bounded
+receipt. Only the current file snapshot is retained; receipts contain file
+metadata and output, not duplicate filesystem copies. Agent deletion cascades both
+tables; Run deletion removes its operation receipts. Ownership is derived from
+the existing Agent, avoiding a second owner or permission system.
+
+Every access checks the current owned Agent, Thread, Run and lease. Mutations also
+respect paused Agents and the existing subagent/observe-only restriction. Reads
+name an exact revision. Writes atomically compare that revision, apply bounded
+UTF-8 replacements/deletions and store a receipt under the canonical call identity.
+Duplicate identical calls return that receipt; reusing an identity with changed
+arguments fails. Concurrent stale writes never overwrite newer files.
+
+Execution reserves a revision under a short database transaction, then releases
+all database locks before IPC. Publication checks the current lease/fence and
+reservation again in one transaction. A failed, timed-out, cancelled or superseded
+operation cannot advance the filesystem. Ordinary nonzero process exits still
+return their actual status and bounded files, allowing the Agent to inspect and
+repair failed analysis. A replacement worker abandons an interrupted reservation;
+resuming that call returns its interrupted result instead of running it again.
+Late old-worker results cannot overwrite the replacement's files. Inspection
+projects whether a reservation is genuinely running or needs recovery.
 
 ## Reproduce the actual container acceptance
 
@@ -102,16 +142,60 @@ read-only: Docker 29.8.1 and cgroup v2 are available, but this execution boundar
 has **not** been installed or verified there. No production financial operation
 was performed.
 
+## Host bridge setup and activation
+
+Development launch, using the reviewed local image ID and the existing repository
+virtual environment (the `workspace-host` optional extra declares its HTTP server
+dependencies):
+
+```sh
+.venv/bin/python -m lonora_agent.workspace_host \
+  --image "$analysis_image_id" --directory /run/lonora-analysis \
+  --group 10001 --concurrency 2
+```
+
+The service requires a dedicated trusted host account with Docker control, a
+reviewed installed Agent build and no application `.env`. The supplied
+`infra/analysis/lonora-analysis.service` is a production installation template:
+its dedicated virtual environment and reviewed image ID must exist first. Its
+only environment file contains `LONORA_ANALYSIS_IMAGE`, not DB/model/broker
+credentials. The template restricts host network address families to Unix sockets
+and defines separate control-process resource limits. Its systemd restrictions
+have not been runtime-verified on the VPS in this increment.
+
+Set `LONORA_WORKSPACE_SOCKET` to the absolute socket path for Gateway execution.
+`infra/analysis/compose.workspace.yml` is an optional overlay for the existing
+production Compose file; it binds only the socket directory read-only and refuses
+to create a missing host path. Base production Compose remains unchanged. Its
+merged configuration was validated with non-secret placeholder interpolation;
+no production service, credential, grant or broker state was changed.
+
+`tests/check_workspace_runtime.py` exercises actual PostgreSQL ownership,
+revision conflicts, duplicate calls, failed-call replay, cancellation, late fenced
+results, fresh service-object recovery, deletion and the canonical Agent loop.
+It is registered in the isolated foundation runner, alongside the empty disposable
+DB migration upgrade/downgrade/upgrade check.
+
+`tests/check_workspace_container_runtime.py <image-id>` additionally exercises
+actual PostgreSQL, a task-owned Unix host process and real Docker through the
+same Agent loop. A scripted model saves analysis code/data, runs Python, reads the
+computed output, restarts the host and reruns analysis from the retained files.
+It verifies actual orphan cleanup, socket permissions, concurrency rejection and
+exclusive startup locking and preservation of a different host namespace, with
+unchanged financial journal/approval counts.
+Use an explicitly migrated disposable PostgreSQL database accepted by the existing
+fixture; this check is separate from the default Docker-independent foundation
+runner. It never runs against production money or a production database.
+
 ## Remaining integration
 
-1. A dedicated trusted host bridge with bounded global concurrency and startup
-   cleanup; no Docker socket in application services.
-2. Existing Agent/owner/lease checks, operation identities, persistent snapshot
-   revisions and conflict handling; expose shell/files through ordinary tools.
-3. Existing artifact export and visual inspection, retaining provenance and
-   separating analytical evidence from execution authority.
-4. Reviewed pinned dependencies, faithful Skill adaptation, executable tests,
-   installation, update and rollback through the existing owned Skill lifecycle.
+- Export generated workspace reports/images through the existing owned artifact
+  and visual-inspection path; binary files currently have metadata but no direct
+  `workspace_read` text view.
+- Reviewed dependency images/installation, faithful Skill adaptation, isolated
+  utility validation and executable Skill installation/update/rollback.
+- Production systemd activation and recovery verification, after review of the
+  integration branch. No default production activation is included here.
 
-Generated code can analyze supplied market data. Live trades continue to require
-the existing typed, authorized, risk-checked, journaled and reconciled services.
+Generated code analyzes supplied data. Live trades continue through the existing
+typed, authorized, risk-checked, journaled and reconciled services.

@@ -34,9 +34,11 @@ class Gateway:
         maximum_subagents: int = 4,
         poll_seconds: float = 0.5,
         chart_visual: ChartVisualRuntime | None = None,
+        workspace_socket: Path | None = None,
     ):
         self.db, self.key, self.root = db, key, artifact_root
         self.chart_visual = chart_visual
+        self.workspace_socket = workspace_socket
         self.lease_seconds, self.maximum_subagents, self.poll_seconds = (
             lease_seconds,
             maximum_subagents,
@@ -62,6 +64,7 @@ class Gateway:
                 self.maximum_subagents,
                 lane,
                 self.chart_visual,
+                self.workspace_socket,
             )
             if not claimed:
                 await asyncio.sleep(self.poll_seconds)
@@ -76,7 +79,11 @@ class Gateway:
             if owner:
                 if owner.id not in self.services:
                     self.services[owner.id] = OwnerServices.create(
-                        self.db, owner.id, self.key, chart_visual=self.chart_visual
+                        self.db,
+                        owner.id,
+                        self.key,
+                        chart_visual=self.chart_visual,
+                        workspace_socket=self.workspace_socket,
                     )
                 service = self.services[owner.id]
                 await reconcile_ambiguous(self.db, service.brokers)

@@ -11,6 +11,7 @@ from lonora_session.idempotency import stable_id
 from lonora_trading.execution import ExecutionService
 
 from .skill_access import SkillAccess
+from .workspace_access import WorkspaceAccess
 
 
 @dataclass(frozen=True)
@@ -30,6 +31,7 @@ class ToolContext:
     call_id: str = ""
     chart_visual: ChartVisualRuntime | None = None
     skill_access: SkillAccess | None = None
+    workspace_access: WorkspaceAccess | None = None
 
     @property
     def effect_key(self) -> str:

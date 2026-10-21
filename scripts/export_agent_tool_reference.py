@@ -30,6 +30,7 @@ MODULE_POLICY = {
     "search": "research",
     "mcp": "research",
     "artifacts": "files",
+    "workspace": "files",
     "market": "market",
     "market_watch": "market",
     "trading_decision": "intelligence",

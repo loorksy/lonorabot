@@ -183,10 +183,13 @@ class AnalyticalContainer:
     model. Stdout/stderr and files remain untrusted analytical evidence.
     """
 
-    def __init__(self, image: str) -> None:
+    def __init__(self, image: str, *, namespace: str = "standalone") -> None:
         if not re.fullmatch(r"sha256:[0-9a-f]{64}", image):
             raise LonoraError("workspace_image_unpinned", 422)
+        if not re.fullmatch(r"standalone|[0-9a-f]{32}", namespace):
+            raise LonoraError("workspace_host_identity_invalid", 422)
         self.image = image
+        self.namespace = namespace
 
     def create_arguments(self, name: str) -> list[str]:
         return [
@@ -196,6 +199,8 @@ class AnalyticalContainer:
             name,
             "--label",
             "ai.lonora.analytical-workspace=1",
+            "--label",
+            "ai.lonora.analytical-host=" + self.namespace,
             "--network=none",
             "--init",
             "--ipc=private",
@@ -426,6 +431,23 @@ class AnalyticalContainer:
             except asyncio.CancelledError:
                 await cleanup
                 raise
+
+    async def reap_orphans(self) -> None:
+        """Trusted host startup only, under its exclusive service lock."""
+        _, output, _ = await self._docker(
+            "ps",
+            "--all",
+            "--filter",
+            "label=ai.lonora.analytical-workspace=1",
+            "--filter",
+            "label=ai.lonora.analytical-host=" + self.namespace,
+            "--format",
+            "{{.Names}}",
+        )
+        for name in output.decode().splitlines():
+            if not re.fullmatch(r"lonora-analysis-[0-9a-f]{32}", name):
+                raise LonoraError("workspace_orphan_identity_invalid", 503)
+            await self._docker("rm", "--force", name)
 
     async def _remove(self, name: str) -> None:
         try:

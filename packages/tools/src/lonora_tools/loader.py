@@ -10,6 +10,7 @@ MODULES = (
     "memory",
     "scratchpad",
     "skills",
+    "workspace",
     "routine",
     "search",
     "artifacts",

@@ -1,0 +1,36 @@
+[Unit]
+Description=Lonora isolated analytical execution bridge
+After=docker.service
+Requires=docker.service
+
+[Service]
+# Trusted Docker control plane. Generated code runs in separate restricted jobs.
+User=root
+Group=root
+WorkingDirectory=/opt/lonora-analysis
+# Contains only LONORA_ANALYSIS_IMAGE=sha256:<reviewed local image ID>.
+# Never reuse Lonora's application .env here.
+EnvironmentFile=/etc/lonora-analysis/image.env
+ExecStart=/opt/lonora-analysis/.venv/bin/python -m lonora_agent.workspace_host --image ${LONORA_ANALYSIS_IMAGE} --directory /run/lonora-analysis --group 10001 --concurrency 2
+RuntimeDirectory=lonora-analysis
+RuntimeDirectoryMode=0750
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=65
+KillMode=mixed
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_UNIX
+ReadWritePaths=/run/lonora-analysis
+MemoryMax=512M
+TasksMax=64
+LimitNOFILE=512
+
+[Install]
+WantedBy=multi-user.target

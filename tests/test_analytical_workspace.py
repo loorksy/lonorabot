@@ -141,3 +141,35 @@ async def test_missing_kernel_boundary_blocks_command_and_removes_job(
     with pytest.raises(LonoraError, match="workspace_isolation_unavailable"):
         await UnavailableBoundary(IMAGE).execute("must-not-run")
     assert [args[0] for args in calls] == ["create", "start", "exec", "rm"]
+
+
+def test_host_identity_is_not_a_docker_argument() -> None:
+    with pytest.raises(LonoraError, match="workspace_host_identity_invalid"):
+        AnalyticalContainer(IMAGE, namespace="--privileged")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "name,allowed", [("lonora-analysis-" + "a" * 32, True), ("other-container", False)]
+)
+async def test_reaper_filters_host_identity_and_rejects_foreign_names(
+    name: str, allowed: bool
+) -> None:
+    calls: list[tuple[str, ...]] = []
+
+    class HostFixture(AnalyticalContainer):
+        async def _docker(
+            self, *args: str, data: bytes | None = None, limit: int = 131072, check: bool = True
+        ) -> tuple[int, bytes, bytes]:
+            calls.append(args)
+            return 0, name.encode() if args[0] == "ps" else b"", b""
+
+    host = HostFixture(IMAGE, namespace="b" * 32)
+    if allowed:
+        await host.reap_orphans()
+        assert calls[1] == ("rm", "--force", name)
+    else:
+        with pytest.raises(LonoraError, match="workspace_orphan_identity_invalid"):
+            await host.reap_orphans()
+        assert len(calls) == 1
+    assert "label=ai.lonora.analytical-host=" + "b" * 32 in calls[0]

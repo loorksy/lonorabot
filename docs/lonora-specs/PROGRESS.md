@@ -32,8 +32,8 @@ their original evidence and are not the status of this new mandate.
   Branding remains deployed at `db5ffc9`; signed Android 0.2.8 is published with
   the existing production certificate.
 
-Next integration: owned durable workspace and trusted host bridge, then safe
-Skill import execution and adaptation. Workspace
+Next integration: workspace report/image artifact export, then safe Skill
+execution, dependency pinning and adaptation. Workspace
 execution must have aggregate resource limits and no access to broker secrets;
 an unsandboxed subprocess in the Gateway is not an acceptable replacement.
 
@@ -75,6 +75,34 @@ including actual memory/process/scratch limits, deadline, cancellation and no
 leaked containers. Full `bash scripts/build.sh` passed: Ruff, strict Pyright,
 policy/wheel validation, client lint/types and all seven build targets. No APK
 was built, no production deployment or broker mutation occurred.
+
+### Persistent workspace and Unix execution bridge
+
+The canonical Agent registry now includes inspect/read/update/execute operations.
+Two focused PostgreSQL tables retain one current bounded snapshot per Agent and
+typed operation identities/receipts. Existing owner/Agent/Thread/Run leases are
+validated; exact revisions and short transactions serialize conflicting changes.
+A replacement worker abandons interrupted operations instead of blindly rerunning
+them. Publication rechecks the current fence, so old workers cannot overwrite
+newer results. Read-only inspection distinguishes actual running work from a stale
+reservation that needs recovery.
+
+A dedicated Unix-socket host bridge provides real isolated execution with bounded
+request bodies, global concurrency and no waiting queue, exclusive startup lock
+and labelled orphan cleanup. The Gateway receives only that socket, never Docker
+control. The bridge needs no database, model or broker secrets. Execution stays
+unconfigured by default; files remain available through PostgreSQL. Supplied
+systemd/Compose files are opt-in installation templates, not an enabled production
+change. The compact manual is now 614 lines and accurately describes these tools.
+
+Current evidence: all 503 pytest cases passed without skips in a disposable DB;
+12 actual PostgreSQL ownership/revision/replay/recovery/Agent-loop groups passed;
+four actual Agent→DB→Unix→Docker/restart/host-lock groups passed, including
+preservation of a separate host namespace during startup cleanup. Full
+`bash scripts/build.sh` passed. The empty disposable PostgreSQL migration
+upgrade/downgrade/upgrade and merged optional Compose configuration also passed. Generated report/image artifact export, dependency installation,
+executable Skill adaptation/lifecycle and the wider mandate remain open. No APK,
+backup, live trade or production deployment was performed.
 
 Current wave (2026-10-19): cancellation-safe MetaApi discovery recovery on `fix/metaapi-discovery-cancellation`, from `f6a5933`. All preceding progressive Skills/environment increments are on `main` and deployed. The full professional Agent program remains incomplete; no APK was built.
 
