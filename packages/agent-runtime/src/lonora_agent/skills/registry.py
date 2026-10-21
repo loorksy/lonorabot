@@ -7,6 +7,7 @@ from lonora_contracts.skills import AgentSkill, SkillActivation, SkillManifest
 from lonora_core.user_error import LonoraError
 from pydantic import ValidationError
 
+from .document import skill_document
 from .loader import load_skill, resources_root
 
 CAPABILITY_TOOLS = {
@@ -80,7 +81,9 @@ def built_in_skills() -> dict[str, SkillDefinition]:
             raise LonoraError("skill_manifest_invalid", 500) from error
         if manifest.id != path.parent.name or manifest.source != "builtin":
             raise LonoraError("skill_manifest_identity_invalid", 500)
-        result[manifest.id] = SkillDefinition(manifest, load_skill(manifest.id))
+        description, body = skill_document(load_skill(manifest.id), manifest.id, required=True)
+        manifest = manifest.model_copy(update={"description": description})
+        result[manifest.id] = SkillDefinition(manifest, body)
     return result
 
 
@@ -116,16 +119,24 @@ def installed_registry(
         if skill.name in builtin_ids:
             rejected[skill.name + "@installed"] = "skill_builtin_override_denied"
             continue
+        try:
+            description, content = skill_document(skill.content, skill.name)
+        except LonoraError:
+            rejected[skill.name] = "skill_frontmatter_invalid"
+            continue
         manifest = skill.manifest or SkillManifest(
             id=legacy_skill_id(skill.name),
             version="0.0.0",
             title=skill.name,
-            description="Legacy owner-installed instructions; untyped compatibility metadata.",
+            description=description
+            or "Legacy owner-installed instructions; untyped compatibility metadata.",
             source="legacy",
             stability="legacy",
             context_budget=4000,
             activation=SkillActivation(mode="explicit"),
         )
+        if description:
+            manifest = manifest.model_copy(update={"description": description})
         if manifest.id in definitions:
             raise LonoraError("skill_duplicate_id", 409)
         if not skill.enabled:
@@ -139,7 +150,7 @@ def installed_registry(
         if set(manifest.required_capabilities) - CAPABILITY_TOOLS.keys():
             rejected[manifest.id] = "skill_capability_unknown"
             continue
-        definitions[manifest.id] = SkillDefinition(manifest, skill.content)
+        definitions[manifest.id] = SkillDefinition(manifest, content)
 
     if strict_graph:
         return SkillRegistry(list(definitions.values()), known_tools), rejected

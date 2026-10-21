@@ -8,7 +8,7 @@ version = "0.2.0"
 description = "Persistent agents with a resident Python gateway"
 requires-python = ">=3.12"
 license = "Apache-2.0"
-dependencies = ["alembic>=1.14,<2", "asyncpg>=0.30,<1", "fastapi>=0.115,<1", "httpx>=0.27,<1", "pydantic>=2.10,<3", "pydantic-settings>=2.6,<3", "sqlalchemy[asyncio]>=2.0.36,<3", "uvicorn[standard]>=0.30,<1", "PyJWT>=2.10,<3", "pwdlib[argon2]>=0.2,<1", "cryptography>=44,<48", "webauthn>=2.7,<2.8", "python-multipart>=0.0.20,<1", "croniter>=6,<7", "websockets>=14,<17", "metaapi-cloud-sdk==29.1.1", "numpy>=2,<3", "python-dotenv>=1,<2", "Pillow>=11,<13", "tiktoken==0.12.0", "playwright==1.58.0"]
+dependencies = ["alembic>=1.14,<2", "asyncpg>=0.30,<1", "fastapi>=0.115,<1", "httpx>=0.27,<1", "pydantic>=2.10,<3", "pydantic-settings>=2.6,<3", "sqlalchemy[asyncio]>=2.0.36,<3", "uvicorn[standard]>=0.30,<1", "PyJWT>=2.10,<3", "pwdlib[argon2]>=0.2,<1", "cryptography>=44,<48", "webauthn>=2.7,<2.8", "python-multipart>=0.0.20,<1", "croniter>=6,<7", "websockets>=14,<17", "metaapi-cloud-sdk==29.1.1", "numpy>=2,<3", "python-dotenv>=1,<2", "Pillow>=11,<13", "tiktoken==0.12.0", "playwright==1.58.0", "PyYAML>=6,<7"]
 
 [project.optional-dependencies]
 dev = ["setuptools>=75", "wheel", "aiosqlite>=0.20", "pytest>=8.3,<9", "pytest-asyncio>=0.25,<2", "ruff>=0.11,<1", "pyright>=1.1.406,<2"]
@@ -80,6 +80,7 @@ packages = ["lonora_api", "lonora_api.middleware", "lonora_api.routes", "lonora_
 "lonora_bus" = ["attention_messages.json"]
 
 [tool.setuptools.data-files]
+"share/lonora/bootstrap" = ["packages/agent-runtime/resources/bootstrap/*.md", "packages/agent-runtime/resources/bootstrap/LICENSE.nanobot"]
 "share/lonora/system" = ["packages/agent-runtime/resources/system/lonora.md", "packages/agent-runtime/resources/system/manifest.json"]
 "share/lonora/constitution" = ["packages/agent-runtime/resources/constitution/collaboration-policy.md", "packages/agent-runtime/resources/constitution/identity.md", "packages/agent-runtime/resources/constitution/memory-policy.md", "packages/agent-runtime/resources/constitution/security-policy.md", "packages/agent-runtime/resources/constitution/tool-policy.md", "packages/agent-runtime/resources/constitution/trading-policy.md"]
 "share/lonora/playbooks/ambiguous-execution-recovery" = ["packages/agent-runtime/resources/playbooks/ambiguous-execution-recovery/PLAYBOOK.md", "packages/agent-runtime/resources/playbooks/ambiguous-execution-recovery/playbook.json"]
@@ -88,7 +89,7 @@ packages = ["lonora_api", "lonora_api.middleware", "lonora_api.routes", "lonora_
 "share/lonora/playbooks/position-monitoring" = ["packages/agent-runtime/resources/playbooks/position-monitoring/PLAYBOOK.md", "packages/agent-runtime/resources/playbooks/position-monitoring/playbook.json"]
 "share/lonora/playbooks/trade-entry" = ["packages/agent-runtime/resources/playbooks/trade-entry/PLAYBOOK.md", "packages/agent-runtime/resources/playbooks/trade-entry/playbook.json"]
 "share/lonora/playbooks/trade-exit" = ["packages/agent-runtime/resources/playbooks/trade-exit/PLAYBOOK.md", "packages/agent-runtime/resources/playbooks/trade-exit/playbook.json"]
-"share/lonora/prompts" = ["packages/agent-runtime/resources/prompts/group_behavior.md", "packages/agent-runtime/resources/prompts/identity.md", "packages/agent-runtime/resources/prompts/memory_policy.md", "packages/agent-runtime/resources/prompts/subagent_system.md", "packages/agent-runtime/resources/prompts/tool_contract.md", "packages/agent-runtime/resources/prompts/trading_context.md", "packages/agent-runtime/resources/prompts/untrusted_content.md"]
+"share/lonora/prompts" = ["packages/agent-runtime/resources/prompts/*.md"]
 "share/lonora/references/metaapi" = ["packages/agent-runtime/resources/references/metaapi/operations.md"]
 "share/lonora/schemas" = ["packages/agent-runtime/resources/schemas/playbook.schema.json", "packages/agent-runtime/resources/schemas/skill.schema.json"]
 "share/lonora/skills/chart-analysis" = ["packages/agent-runtime/resources/skills/chart-analysis/SKILL.md", "packages/agent-runtime/resources/skills/chart-analysis/skill.json"]

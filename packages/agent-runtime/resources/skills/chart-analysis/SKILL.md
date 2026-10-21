@@ -1,36 +1,38 @@
+---
+name: chart-analysis
+description: Inspect broker-backed charts, candles and supported indicators; draw attributed analysis and deliver verified snapshots.
+---
+
 # Chart Analysis
 
-## Purpose
-Lonora chart-analysis workflow.
+## Steps
 
-## When to activate
-Use for the matching current task or durable trigger; never infer financial authority from relevance.
+1. Establish the exact owned account/symbol. A specialist preserves its binding;
+   a Personal Agent may inspect owned markets. Never rewrite broker suffixes.
+2. Discover chart_list and chart_inspect; reuse actual IDs and versions. Check
+   scene/source revisions, observation time and candle/indicator alignment.
+3. Read the necessary candle tail and supported server indicators. Narrow large
+   results or page artifact_read when result_ref is returned. Pixels do not
+   replace numerical indicator evidence. Missing/stale evidence means WAIT.
+4. Draw when requested or when it clarifies the analysis. Use chart_annotate with
+   the inspected version and real time/price anchors. Supported types include
+   levels, trend lines, notes, zones, rays, channels, Fibonacci, arrows and scenarios.
+   Edit only your attributed layer; preserve owner and peer work.
+5. Inspect after a change. Saved geometry, refreshed scene and acknowledged
+   client display are distinct outcomes. On version conflict inspect and reconcile
+   actual drawing IDs. Never repeat a mutation just to obtain another response.
+6. For an image use chart_snapshot. renderer=tradingview with actual chart_id and
+   en/ar locale captures browser-rendered PNG after applied-revision acknowledgment
+   when configured. The semantic fallback is distinct: persisted chart evidence,
+   or explicit account/symbol/timeframe for candles only. Report the real source.
+7. Inspect raster pixels with artifact_read(view_image=true) before claiming
+   visual verification. A filename, metadata or saved JSON does not constitute it.
+8. Deliver actual authenticated attachments; never invent sandbox paths or
+   Markdown image destinations. Generated, inspected, attached and owner-viewed
+   are distinct. A snapshot freezes evidence; a cloud chart continues on the server.
 
-## When not to activate
-Unrelated tasks, unavailable required tools, failed dependencies or exhausted context budget.
+## Output
 
-## Preconditions and required evidence
-Use current owner-scoped tool results, exact broker identities and observation times. Missing data remains unavailable.
-
-## Workflow and tool usage
-1. Establish the actual account and exact broker symbol from current Agent scope. A specialist keeps its bound account/symbol; a Personal Agent may inspect owned markets. Do not rewrite suffixes, infer another account, or treat a remembered price as a fresh quote.
-2. Discover an existing scoped chart with chart_list when offered, then chart_inspect. Reuse its actual ID and inspected version. Read symbol, timeframe, scene status/revision, source observation time and candle/indicator alignment. Never invent a chart ID or revision. Missing or stale evidence cannot support an actionable recommendation.
-3. Read only the necessary candle tail and server-calculated supported indicators. Narrow tail or use chart_read_indicator for exact numerical evidence; use artifact_read paging when a large result supplies result_ref. Browser pixels and indicator display do not replace server values.
-4. Explain only what current evidence supports: observed structure, alternative scenarios, invalidation and uncertainty. WAIT is valid. A visual annotation or scenario is not an order, approval, trading authority or proof of profitability.
-5. When drawing is requested or materially clarifies the analysis, use only offered authorized chart mutation tools. Read current state first; use typed time/price anchors and the current version with chart_annotate. The supported surface includes levels, trend lines, notes, zones, rays, channels, Fibonacci, arrows and scenarios. Keep markings focused and labeled; do not draw decoration or invent missing time/price evidence. Change only your attributed drawing layer, preserving owner and peer work.
-6. After a mutation inspect persisted state and scene status. Distinguish saved geometry from a refreshed scene and from a client display acknowledgment. On version conflict inspect and reconcile the actual drawing identities before a new update. Never repeat a mutation solely because its response or image is unavailable.
-7. For a requested chart image or visual drawing check, use chart_snapshot with the actual chart_id and renderer=tradingview when that offered path is configured; choose the conversation's en/ar locale. This captures actual browser-rendered PNG pixels after the applied-revision acknowledgment. On genuine renderer unavailability, a semantic snapshot is a distinct fallback: default renderer=semantic captures persisted candles/indicators/drawings, while explicit account/symbol/timeframe produces a candle-only image. Label the actual returned source honestly. Retain the real artifact ID and original source/revision receipt; none of these outcomes proves the user's device displayed the image.
-8. When artifact_read offers view_image, inspect the saved raster artifact using its real ID before making visual claims about its composition or drawings. A metadata/file-save result is not pixel inspection. Use the actual image observation and its availability status; if pixels are unavailable, state that boundary. Do not claim an image was visually verified from a filename, successful tool call or JSON alone.
-9. Deliver generated files through actual authenticated message attachments. Never manufacture sandbox URLs, storage paths, Markdown image destinations or delivery receipts. Separate generated, inspected, attached and client-rendered outcomes. A cloud chart continues on the server; a snapshot freezes its recorded source state.
-
-## Decision rules and failure handling
-Inspect machine status and stable error code. Correct invalid arguments from the offered schema. Missing data stays unavailable; do not substitute another symbol or stale image. Re-check fresh broker/account evidence immediately before any separately authorized financial decision. Never retry an ambiguous financial mutation. Chart inspection, drawings and image review do not grant financial authority.
-
-## Anti-patterns
-No invented success, stale actionable recommendations, authority escalation, unbounded context or browser-only durable state.
-
-## Output contract
-Return concise sourced findings, actions actually completed, remaining uncertainty, and persisted resource/artifact identities when available.
-
-## Related skills
-None required.
+Give the observed structure, conditional interpretation and limitation. Example:
+"أضفت منطقة الإبطال إلى الشارت؛ الصورة تعكس الحالة المحفوظة وقت التقاطها."
+Drawings and chart inspection never grant trading authority.

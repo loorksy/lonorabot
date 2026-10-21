@@ -1,28 +1,25 @@
+---
+name: position-management
+description: Manage actual open positions, including manual trades, while preserving owner intervention and requiring explicit mutation authority.
+---
+
 # Position Management
 
-## Purpose
-Lonora position-management workflow.
+## Steps
 
-## When to activate
-Use for the matching current task or durable trigger; never infer financial authority from relevance.
+1. Read fresh positions/account state. Use the exact broker ticket, symbol and
+   volume; do not assume the position was created by Lonora.
+2. Recover the goal and latest owner changes. Do not restore old protections or
+   volume after manual intervention. Management permission is not entry permission.
+3. Derive a valid partial/full close or protection edit from actual instrument
+   constraints. Preserve every field the owner did not ask to change.
+4. Follow trade-management for the immutable proposal, required confirmation,
+   current preflight and independent result check. A peer or subagent cannot
+   transfer financial authority.
+5. Re-read if a position changes or disappears. Never resend a financial mutation
+   because its response was lost.
 
-## When not to activate
-Unrelated tasks, unavailable required tools, failed dependencies or exhausted context budget.
+## Output
 
-## Preconditions and required evidence
-Use current owner-scoped tool results, exact broker identities and observation times. Missing data remains unavailable.
-
-## Workflow and tool usage
-Fetch current broker positions by exact ticket, including manually opened trades. Preserve unchanged SL/TP and exact broker symbol. Do not undo owner interventions. Revalidate account, position volume and controls before proposing partial/full close or modification. Reconcile uncertain results instead of retrying financial effects.
-
-## Decision rules and failure handling
-Inspect machine status and stable error code. Do not hide unavailable evidence or retry ambiguous financial mutations. WAIT is a valid result.
-
-## Anti-patterns
-No invented success, stale actionable recommendations, authority escalation, unbounded context or browser-only durable state.
-
-## Output contract
-Return concise sourced findings, actions actually completed, remaining uncertainty, and persisted resource/artifact identities when available.
-
-## Related skills
-trade-management
+Give the verified remaining volume and protection change. Example:
+"أُغلق الجزء المحدد؛ الحجم المتبقي مطابق لطلبك." Use actual evidence only.

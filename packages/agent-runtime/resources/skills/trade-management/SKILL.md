@@ -1,35 +1,42 @@
+---
+name: trade-management
+description: Prepare exact broker orders through immutable owner approval, current preflight, durable identity and independent result verification.
+---
+
 # Trade Management
 
-## Purpose
-Lonora trade-management workflow.
+## Steps
 
-## When to activate
-Use for the matching current task or durable trigger; never infer financial authority from relevance.
+1. Recover the request, chosen side and loss limit. Use the bound account/symbol
+   or discover the owner's connection with list_accounts. Read account_read and
+   actual broker/login/server; saved configuration alone is not connectivity.
+2. Inspect min/max/step volume, tick size, stops and fresh bid/ask. Read broker
+   positions/orders including manual tickets. Derive a proposal from evidence
+   and owner constraints when asked to plan. If blocked on a business decision,
+   ask with wait_for_input; never ask generic consent before real confirmation.
+3. buy/sell are immediate entries. Pending orders use buy_limit, sell_limit,
+   buy_stop or sell_stop with a valid explicit price on the correct quote side.
+   Never substitute an immediate trade for a pending request.
+4. Use trade_execute for the immutable proposal or trade_close_positions for the
+   frozen current ticket set. Financial controls accept approve/reject; typed
+   yes, spoken yes and informational answers are not financial confirmation.
+5. The same server path rechecks controls and targets after approval. Preserve
+   manual intervention. Changed payloads need fresh approval. Respect OFF,
+   Emergency Stop, scope and limits without workarounds.
+6. Inspect the broker receipt and its independent verification. Distinguish not
+   sent, rejected, accepted, placed, filled, partially closed and unverified.
+   Never claim completion from approval or an acknowledgment alone.
+7. Reconcile ambiguous submission before retry. Never change operation identity
+   or send another mutation simply to retrieve a missing response.
 
-## When not to activate
-Unrelated tasks, unavailable required tools, failed dependencies or exhausted context budget.
+## Management and historical questions
 
-## Preconditions and required evidence
-Use current owner-scoped tool results, exact broker identities and observation times. Missing data remains unavailable.
+Preserve unchanged protection fields. Use actual position/order IDs. For a past
+trade use trade_record_history then trade_record_read; today's quote is not
+historical evidence. Missing evidence remains unknown.
 
-## Workflow and tool usage
-Before reading an account, discover saved connections with list_accounts. Pass its exact connection_id as account_id to broker tools; login is the broker's actual account number; broker/server/name identify the user's broker. The adapter provisioning identifier is configuration, never the broker account number. broker_sessions_not_found means the supplied internal connection ID was not found for this owner; it does not prove no accounts are saved or that MetaApi rejected credentials. Refresh the directory rather than declaring the account disconnected. A saved connection is not proof of live connectivity: use account_read to verify actual data. Never expose tokens or secret identifiers.
+## Output
 
-Pending orders require buy_limit, sell_limit, buy_stop or sell_stop and an explicit positive price; buy/sell submit immediate market trades. Do not substitute a market trade when the user requests a pending order. Ask for any missing entry price/volume/side and verify the price is on the correct side of the fresh bid/ask. Preserve existing SL/TP when the owner asks to change just one field. Distinguish a broker rejection from an uncertain transport result. Confirm success only from a confirmed execution result, and use account_read/journal to verify order or position identity. Never invent the broker name or login from a MetaApi UUID. A chart_snapshot is a fixed image; to monitor live updates open the persistent chart.
-
-
-Read global controls and current broker state. Validate exact instrument, quantity min/max/step and price tick/stops. trade_execute creates an immutable approval proposal. Inspect actual confirmed broker receipt; reconcile ambiguous operations through the journal without resending.
-
-For questions about a past trade, use trade_record_history then trade_record_read. Explain the recorded gate, quote/account snapshot, exact request and actual result. Distinguish planned evidence from the later before-send check. Missing legacy evidence stays unavailable; current prices are not historical facts. Reading a receipt never authorizes execution or retry.
-
-## Decision rules and failure handling
-Inspect machine status and stable error code. Do not hide unavailable evidence or retry ambiguous financial mutations. WAIT is a valid result.
-
-## Anti-patterns
-No invented success, stale actionable recommendations, authority escalation, unbounded context or browser-only durable state.
-
-## Output contract
-Return concise sourced findings, actions actually completed, remaining uncertainty, and persisted resource/artifact identities when available.
-
-## Related skills
-market-analysis
+Give the independently verified outcome, real ticket and price/volume when known.
+Explain failure plainly without internal IDs or diagnostic plumbing. Example:
+"رفض الوسيط الحجم المطلوب؛ لم تُفتح صفقة." Never promise profit.

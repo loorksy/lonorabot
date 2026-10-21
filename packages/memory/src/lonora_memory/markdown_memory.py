@@ -3,4 +3,6 @@ def normalize_memory(content: str) -> str:
 
 
 def memory_context(content: str) -> str:
-    return "<persistent_memory>\n" + content + "\n</persistent_memory>" if content.strip() else ""
+    from .profile import profile_context
+
+    return profile_context(content)

@@ -3,6 +3,7 @@ from typing import Any, Literal
 from lonora_contracts.domain import Contract
 from lonora_contracts.super_bot import SuperBotProposal
 from lonora_core.user_error import LonoraError
+from lonora_db.conversation_locale import conversation_locale
 from lonora_db.runs import require_lease
 from lonora_db.schema import EffectReceiptRow, SuperBotRequestRow
 from lonora_db.super_bot import authority_lock, owned_request, propose, request_data, stop_request
@@ -23,17 +24,28 @@ async def proposal(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]
     digest = request_hash(body.model_dump(mode="json"))
     async with context.db.sessions() as session, session.begin():
         await require_lease(session, context.lease, lock=True)
+        locale = await conversation_locale(session, context.owner_id, context.thread_id)
+        summary = (
+            "طلب التفعيل جاهز للمراجعة وتأكيد هويتك من الجهاز. لم يُفعّل التداول التلقائي بعد."
+            if locale == "ar"
+            else "The activation request is ready for review and device authentication. Automatic trading is not enabled yet."
+        )
         key = "super-bot-proposal:" + context.resource_id
         receipt = await session.get(EffectReceiptRow, key)
         if receipt:
             if receipt.result["intent"] != digest:
                 raise LonoraError("super_bot_proposal_conflict", 409)
-            return request_data(
+            data = request_data(
                 await owned_request(session, context.owner_id, receipt.result["request_id"])
             )
+            return {
+                **data,
+                "owner_summary": summary if data["status"] == "pending" else "",
+                "internal_ids_are_private": True,
+            }
         row = await propose(session, context.owner_id, context.agent_id, body)
         session.add(EffectReceiptRow(key=key, result={"intent": digest, "request_id": row.id}))
-        return request_data(row)
+        return {**request_data(row), "owner_summary": summary, "internal_ids_are_private": True}
 
 
 async def status(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:

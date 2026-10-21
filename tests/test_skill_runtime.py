@@ -316,22 +316,24 @@ async def test_actual_context_builder_resolver_and_fenced_diagnostics(
     )
     monkeypatch.setattr(builder, "retrieve_memory", AsyncMock(return_value=""))
     messages = await builder.build_context(context, load_tools())
-    assert '<skill id="memory"' in messages[0].content
+    assert '<skill id="memory"' not in messages[0].content
+    assert "memory — Recall past conversations" in messages[0].content
     assert '<skill id="market-analysis"' not in messages[0].content
     assert "Emergency Stop" in messages[0].content
-    assert run.model_metadata["skill_selection"]["selected_skill_ids"] == ["memory"]
+    assert run.model_metadata["skill_selection"]["selected_skill_ids"] == []
     assert run.model_metadata["provider"] == "keep"
     cast(AsyncMock, skills.require_lease).assert_awaited_with(session, "lease", lock=True)
     assert session.committed
-    # A new steering prompt changes only selected guidance, preserving policies/history.
+    # Steering retains discovery; keywords do not force a procedural body into context.
     messages.append(ModelMessage(role="user", content="Analyze XAUUSDm on 1h chart"))
     before = messages[-1].content
     await skills.refresh_skill_context(context, load_tools(), messages)
     assert '<skill id="memory"' not in messages[0].content
-    assert '<skill id="market-analysis"' in messages[0].content
+    assert '<skill id="market-analysis"' not in messages[0].content
+    assert "market-analysis — Analyze a broker market" in messages[0].content
     assert messages[-1].content == before
     assert "Emergency Stop" in messages[0].content
-    assert run.model_metadata["skill_selection"]["skill_versions"]["market-analysis"] == "1.0.0"
+    assert run.model_metadata["skill_selection"]["skill_versions"] == {}
 
 
 def test_legacy_display_name_compatibility() -> None:
@@ -376,7 +378,8 @@ async def test_postgres_builder_checkpoint_and_lease_recovery(
         context = await fixture.lease(run)
         monkeypatch.setattr(builder, "retrieve_memory", AsyncMock(return_value=""))
         messages = await builder.build_context(context, load_tools())
-        assert '<skill id="memory"' in messages[0].content
+        assert '<skill id="memory"' not in messages[0].content
+        assert "memory — Recall past conversations" in messages[0].content
         assert '<skill id="trade-management"' not in messages[0].content
         async with fixture.runtime.db.sessions() as session, session.begin():
             await checkpoint(
@@ -385,10 +388,18 @@ async def test_postgres_builder_checkpoint_and_lease_recovery(
         async with fixture.runtime.db.sessions() as session:
             stored = await session.get(RunRow, run["id"])
             assert stored is not None
-            assert stored.model_metadata["skill_selection"]["selected_skill_ids"] == ["memory"]
-            assert '<skill id="memory"' in stored.execution_state["messages"][0]["content"]
+            assert stored.model_metadata["skill_selection"]["selected_skill_ids"] == []
+            assert (
+                "memory — Recall past conversations"
+                in stored.execution_state["messages"][0]["content"]
+            )
         messages.append(ModelMessage(role="user", content="Analyze EURUSD on 1h chart"))
         await refresh_skill_context(context, load_tools(), messages)
+        assert '<skill id="market-analysis"' not in messages[0].content
+        # Explicitly admitted instructions are still pinned and fenced.
+        await refresh_skill_context(
+            context, load_tools(), messages, retained_ids=["market-analysis"]
+        )
         assert '<skill id="market-analysis"' in messages[0].content
         async with fixture.runtime.db.sessions() as session, session.begin():
             stored = await session.get(RunRow, run["id"], with_for_update=True)

@@ -4,7 +4,7 @@ from collections.abc import Awaitable, Callable
 from lonora_adapters.brokers.base import BrokerManager
 from lonora_contracts.broker import BrokerConnection
 from lonora_contracts.domain import utcnow
-from lonora_contracts.execution_quality import ExecutionQuality
+from lonora_contracts.execution_quality import ExecutionQuality, ExecutionSnapshot
 from lonora_contracts.runs import Lease
 from lonora_contracts.shadow import ExecutionMode
 from lonora_contracts.tasks import TaskState
@@ -30,6 +30,7 @@ from .idempotency import trade_fingerprint
 from .journal import execution_evidence
 from .manual_activity import material_state
 from .preflight import preflight
+from .verification import verify_effect
 
 
 def receipt(row: TradingJournalRow) -> TradeResult:
@@ -204,14 +205,16 @@ class ExecutionService:
 
         send_authorized = False
         quality: ExecutionQuality | None = None
+        before_snapshot: ExecutionSnapshot | None = None
 
         async def before_send() -> None:
-            nonlocal send_authorized, quality
+            nonlocal send_authorized, quality, before_snapshot
             if send_authorized:
                 raise LonoraError("operation_send_already_authorized", 409)
             if authorization:
                 await authorization()
             snapshot = await preflight(broker, request)
+            before_snapshot = snapshot
             policy = await execution_policy(self.db, owner_id, request.account_id)
             quality = evaluate_execution(
                 request, snapshot, policy, planned_quote=planned_snapshot.quote
@@ -325,6 +328,44 @@ class ExecutionService:
                     {"key": f"execution:{owner_id}:{request.account_id}"},
                 )
                 result = await broker.execute(request, before_send)
+                if result.operation_id == request.operation_id and send_authorized:
+                    if result.status == "confirmed":
+                        # Persist the real acknowledgment before another external
+                        # read. A crash during verification must not erase it or
+                        # reopen permission to send the mutation again.
+                        result.details = {
+                            **result.details,
+                            "execution_quality": actual_execution(request, result, quality),
+                        }
+                        async with self.db.sessions() as saved, saved.begin():
+                            await persist_result(
+                                saved,
+                                request.operation_id,
+                                result.status,
+                                result.model_dump(mode="json"),
+                            )
+                        verification = await verify_effect(broker, request, result, before_snapshot)
+                        async with self.db.sessions() as saved, saved.begin():
+                            journal = await saved.get(
+                                TradingJournalRow, request.operation_id, with_for_update=True
+                            )
+                            if (
+                                journal
+                                and journal.status == "confirmed"
+                                and journal.result.get("broker_id") == result.broker_id
+                            ):
+                                journal.result = {
+                                    **journal.result,
+                                    "details": {
+                                        **journal.result.get("details", {}),
+                                        "verification": verification,
+                                    },
+                                }
+                                journal.updated_at = utcnow()
+                        result.details = {
+                            **result.details,
+                            "verification": verification,
+                        }
             if result.operation_id != request.operation_id or not send_authorized:
                 result = TradeResult(
                     operation_id=request.operation_id,

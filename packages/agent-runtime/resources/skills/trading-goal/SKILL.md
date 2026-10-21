@@ -1,30 +1,35 @@
+---
+name: trading-goal
+description: Persist a bounded trading objective that observes, waits, revalidates and resumes through the existing goal runtime.
+---
+
 # Trading Goal
 
-## Purpose
-Lonora trading-goal workflow.
+## Steps
 
-## When to activate
-Use for the matching current task or durable trigger; never infer financial authority from relevance.
+1. Inspect goal_list/goal_read and the conversation before making a duplicate.
+   Preserve the objective, requested side, horizon and loss limits.
+2. Give steps stable IDs, titles and actual kinds. Watch steps need a full real
+   condition. Never invent a price threshold. Analysis without a justified level
+   can use a review step with review_interval_seconds in the actual schema.
+3. Save with goal_create/goal_plan under the real bound account/symbol.
+   Persistence is not financial permission.
+4. For requested Super Bot use super_bot_propose with the actual returned goal
+   ID. Generic activation prepares supervised mode. The owner reviews the frozen
+   permissions and authenticates the device; chat/memory cannot activate autonomy
+   or grant management of manual positions.
+5. Pending preparation is not activation. Say the request is ready for review
+   and device authentication; do not expose IDs, machine status or internal reports.
+   The server confirms verified activation once.
+6. Resume the same goal on meaningful changes: fresh context, revalidation,
+   WAIT or bounded decision, authorized goal_step_execute, independent result
+   verification, state update and the next persisted wait.
+7. Respect pause/cancel and manual owner intervention. Do not turn a review into
+   entry or infer authority from an avatar or global Trading ON.
 
-## When not to activate
-Unrelated tasks, unavailable required tools, failed dependencies or exhausted context budget.
+## Output
 
-## Preconditions and required evidence
-Use current owner-scoped tool results, exact broker identities and observation times. Missing data remains unavailable.
-
-## Workflow and tool usage
-Use the existing durable TradingGoal steps and decision journal. Read current goal, exact scope, current account and evidence before adapting a plan. Wait through durable watches or scheduled wakes; do not poll with repeated LLM turns. Respect pause, cancellation, lease fencing and approval boundaries. Goal persistence is not authorization for autonomous execution.
-
-Each step requires a stable id, a title and a kind. A watch step requires a full condition: for example {"kind":"price","account_id":"<bound connection>","symbol":"<exact bound symbol>","condition":"above","level":"<verified positive threshold>","prompt":"<continuation objective>"}. Never invent the threshold. For periodic analysis without a justified price level, use {"id":"review","title":"Review current market evidence","kind":"review","review_interval_seconds":900}. Create the Goal with the bound account/symbol and the user's real objective; autonomy stays off. Use the returned Goal ID for super_bot_propose and let the owner review the actual proposal. If schema validation fails, repair it from the tool's issue paths within this same turn rather than asking the owner for a magic phrase or a new instruction.
-
-## Decision rules and failure handling
-Inspect machine status and stable error code. Do not hide unavailable evidence or retry ambiguous financial mutations. WAIT is a valid result.
-
-## Anti-patterns
-No invented success, stale actionable recommendations, authority escalation, unbounded context or browser-only durable state.
-
-## Output contract
-Return concise sourced findings, actions actually completed, remaining uncertainty, and persisted resource/artifact identities when available.
-
-## Related skills
-trade-management
+Explain the next real condition and current progress. Example:
+"الخطة محفوظة؛ سأعيد التقييم عند تحقق الشرط." Only claim saved work after success.
+Repair argument errors from actual schemas instead of asking for ritual phrases.
+Scheduled reviews stay simple prompts, not a workflow language.

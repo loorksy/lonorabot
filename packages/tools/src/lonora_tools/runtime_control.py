@@ -2,6 +2,7 @@ from typing import Any, Literal
 
 from lonora_contracts.domain import Board, Contract, Ticket
 from lonora_contracts.input_request import InputChoice
+from lonora_core.public_reply import public_reply_violation
 from lonora_core.run_state import is_conversational
 from lonora_db.boards import BoardRepository
 from lonora_db.runs import require_lease
@@ -64,6 +65,15 @@ async def wait(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             "ok": False,
             "code": "financial_consent_requires_trade_request",
             "next_tool": "trade_execute",
+        }
+    if any(
+        public_reply_violation(text)
+        for text in [args["question"], *[choice["label"] for choice in args.get("choices", [])]]
+    ):
+        return {
+            "ok": False,
+            "code": "question_wording_private",
+            "guidance": "Ask naturally in the owner's language without implementation vocabulary. Keep the actual question and relevant choices; do not ask for financial consent here.",
         }
     async with context.db.sessions() as session:
         await require_lease(session, context.lease)

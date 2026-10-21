@@ -104,6 +104,10 @@ def export() -> tuple[str, str]:
             {
                 "version": 1,
                 "manual_sha256": hashlib.sha256(text.encode()).hexdigest(),
+                "bootstrap_sha256": {
+                    path.name: hashlib.sha256(path.read_bytes()).hexdigest()
+                    for path in sorted((MANUAL.parent.parent / "bootstrap").glob("*.md"))
+                },
                 "tool_policies": mapping,
             },
             ensure_ascii=False,

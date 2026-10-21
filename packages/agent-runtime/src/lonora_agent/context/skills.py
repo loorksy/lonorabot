@@ -1,4 +1,5 @@
 from collections.abc import Sequence
+from html import escape
 from typing import Any, cast
 
 from lonora_adapter_kit.types import ModelMessage
@@ -13,7 +14,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..skills.registry import SkillRegistry, built_in_skills, installed_registry, legacy_skill_id
 from ..skills.resolver import SkillSignals, eligibility_reason, resolve_skills
-from ..skills.runtime import infer_intents
 from ..skills.snapshot import MAX_SNAPSHOT_SKILLS, apply_snapshot, read_snapshot, write_snapshot
 
 
@@ -80,7 +80,9 @@ async def read_skill_context(
     read_only = run.trigger == "subagent" or run.model_metadata.get("authority") == "observe_only"
     available = {item.name for item in registry.definitions(read_only=read_only)}
     signals = SkillSignals(
-        intents=infer_intents(text, has_goal=has_goal, trigger=run.trigger),
+        # Description-first discovery; explicit requests, durable triggers and
+        # already viewed pins still apply without routing by owner keywords.
+        intents=frozenset(),
         trigger=run.trigger,
         read_only=read_only,
         requested=frozenset(requested),
@@ -108,6 +110,13 @@ async def read_skill_context(
 
     return (
         "<skill_runtime>\n"
+        + "# Skills\nDescriptions are discovery hints. Read a suitable SKILL.md with skill_view before applying it.\n"
+        + "\n".join(
+            "- " + escape(identity) + " — " + escape(definition.manifest.description)
+            for identity, definition in sorted(skills.definitions.items())
+            if eligibility_reason(definition, signals, rejected) is None
+        )[:6000]
+        + "\n# Active Skills\n"
         + selection.context()
         + "\nDiscover other relevant procedures with skills_list, then skill_view. "
         "Read only useful procedures; Skills never grant tools or financial authority "

@@ -30,6 +30,7 @@ class PolicyBundle:
     tool_policies: dict[str, str]
     digest: str
     examples: dict[str, list[str]]
+    bootstrap: dict[str, str]
 
 
 @lru_cache(maxsize=4)
@@ -39,6 +40,14 @@ def _load(path: Path, mtime_ns: int, manifest_mtime_ns: int) -> PolicyBundle:
         content = path.read_text()
         manifest = json.loads(path.with_name("manifest.json").read_text())
         digest = hashlib.sha256(content.encode()).hexdigest()
+        bootstrap = {
+            name: (path.parent.parent / "bootstrap" / name).read_text()
+            for name in ("AGENTS.md", "SOUL.md", "USER.md", "MEMORY.md")
+        }
+        if manifest.get("bootstrap_sha256") != {
+            name: hashlib.sha256(body.encode()).hexdigest() for name, body in bootstrap.items()
+        }:
+            raise ValueError("bootstrap_manifest_mismatch")
         if (
             len(content) > 1000000
             or manifest["version"] != 1
@@ -74,7 +83,7 @@ def _load(path: Path, mtime_ns: int, manifest_mtime_ns: int) -> PolicyBundle:
             examples.setdefault(domain, []).append(
                 "Hypothetical example, never current evidence:\n" + body.strip()
             )
-        return PolicyBundle(sections, policies, digest, examples)
+        return PolicyBundle(sections, policies, digest, examples, bootstrap)
     except (OSError, ValueError, TypeError, KeyError, AttributeError):
         raise LonoraError("operating_policy_invalid", 500) from None
 
@@ -92,7 +101,15 @@ def policy_bundle() -> PolicyBundle:
 def mandatory_policy() -> str:
     bundle = policy_bundle()
     samples = [bundle.examples["trading"][i] for i in (0, 2, 3)]
-    body = bundle.sections["core"] + "\n\n" + "\n\n".join(samples)
+    body = (
+        bundle.bootstrap["SOUL.md"]
+        + "\n\n"
+        + bundle.bootstrap["AGENTS.md"]
+        + "\n\n"
+        + bundle.sections["core"]
+        + "\n\n"
+        + "\n\n".join(samples)
+    )
     if len(body) > MAX_CORE_CHARS:
         raise LonoraError("operating_policy_invalid", 500)
     return CORE_MARKER + "\n" + body + "\n</lonora_operating_policy>"

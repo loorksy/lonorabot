@@ -74,6 +74,7 @@ def record_excerpt(row: TradingJournalRow, *, symbol: str | None = None) -> dict
             "execution",
             "execution_evidence",
             "execution_quality",
+            "verification",
             "price",
             "volume",
             "mode",

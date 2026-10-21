@@ -1,4 +1,13 @@
 Lonora incorporates modified UI primitives and design tokens from Rakazo.
+
+Agent bootstrap profiles, retention instructions and description-first SKILL.md
+organization adapt nanobot (https://github.com/HKUDS/nanobot), revision
+fbb61a373f47769734a0d47d8f61935ffca84b84. Copyright (c) 2025-present Xubin Ren
+and the nanobot contributors, MIT. The full notice is preserved in
+packages/agent-runtime/resources/bootstrap/LICENSE.nanobot and distributed with
+the runtime. Adaptations retain Lonora's existing PostgreSQL ownership,
+financial approval, broker verification and versioned memory boundaries.
+
 Source: https://github.com/elie222/rakazo
 Revision: 2d666c4e98db201c1f7988e09e76a52db20cea69
 Copyright 2026 Rakazo contributors. Apache License 2.0, included in LICENSE.

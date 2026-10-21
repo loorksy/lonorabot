@@ -7,12 +7,13 @@ name = "lonora-agent"
 version = "0.2.0"
 requires-python = ">=3.12"
 license = "Apache-2.0"
-dependencies = ["lonora-adapter-kit==0.2.0", "lonora-automation==0.2.0", "lonora-contracts==0.2.0", "lonora-core==0.2.0", "lonora-db==0.2.0", "lonora-llm-usage==0.2.0", "lonora-memory==0.2.0", "lonora-security==0.2.0", "lonora-session==0.2.0", "lonora-tools==0.2.0", "sqlalchemy[asyncio]>=2.0.36,<3"]
+dependencies = ["lonora-adapter-kit==0.2.0", "lonora-automation==0.2.0", "lonora-contracts==0.2.0", "lonora-core==0.2.0", "lonora-db==0.2.0", "lonora-llm-usage==0.2.0", "lonora-memory==0.2.0", "lonora-security==0.2.0", "lonora-session==0.2.0", "lonora-tools==0.2.0", "sqlalchemy[asyncio]>=2.0.36,<3", "PyYAML>=6,<7"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.data-files]
+"share/lonora/bootstrap" = ["packages/agent-runtime/resources/bootstrap/*.md", "packages/agent-runtime/resources/bootstrap/LICENSE.nanobot"]
 "share/lonora/system" = ["packages/agent-runtime/resources/system/lonora.md", "packages/agent-runtime/resources/system/manifest.json"]
 "share/lonora/constitution" = ["packages/agent-runtime/resources/constitution/collaboration-policy.md", "packages/agent-runtime/resources/constitution/identity.md", "packages/agent-runtime/resources/constitution/memory-policy.md", "packages/agent-runtime/resources/constitution/security-policy.md", "packages/agent-runtime/resources/constitution/tool-policy.md", "packages/agent-runtime/resources/constitution/trading-policy.md"]
 "share/lonora/playbooks/ambiguous-execution-recovery" = ["packages/agent-runtime/resources/playbooks/ambiguous-execution-recovery/PLAYBOOK.md", "packages/agent-runtime/resources/playbooks/ambiguous-execution-recovery/playbook.json"]
@@ -21,7 +22,7 @@ where = ["src"]
 "share/lonora/playbooks/position-monitoring" = ["packages/agent-runtime/resources/playbooks/position-monitoring/PLAYBOOK.md", "packages/agent-runtime/resources/playbooks/position-monitoring/playbook.json"]
 "share/lonora/playbooks/trade-entry" = ["packages/agent-runtime/resources/playbooks/trade-entry/PLAYBOOK.md", "packages/agent-runtime/resources/playbooks/trade-entry/playbook.json"]
 "share/lonora/playbooks/trade-exit" = ["packages/agent-runtime/resources/playbooks/trade-exit/PLAYBOOK.md", "packages/agent-runtime/resources/playbooks/trade-exit/playbook.json"]
-"share/lonora/prompts" = ["packages/agent-runtime/resources/prompts/group_behavior.md", "packages/agent-runtime/resources/prompts/identity.md", "packages/agent-runtime/resources/prompts/memory_policy.md", "packages/agent-runtime/resources/prompts/subagent_system.md", "packages/agent-runtime/resources/prompts/tool_contract.md", "packages/agent-runtime/resources/prompts/trading_context.md", "packages/agent-runtime/resources/prompts/untrusted_content.md"]
+"share/lonora/prompts" = ["packages/agent-runtime/resources/prompts/*.md"]
 "share/lonora/references/metaapi" = ["packages/agent-runtime/resources/references/metaapi/operations.md"]
 "share/lonora/schemas" = ["packages/agent-runtime/resources/schemas/playbook.schema.json", "packages/agent-runtime/resources/schemas/skill.schema.json"]
 "share/lonora/skills/chart-analysis" = ["packages/agent-runtime/resources/skills/chart-analysis/SKILL.md", "packages/agent-runtime/resources/skills/chart-analysis/skill.json"]

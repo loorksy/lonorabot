@@ -13,6 +13,7 @@ from lonora_contracts.model_routing import ModelSelection
 from lonora_db.schema import (
     AgentRow,
     BrokerSessionRow,
+    MessageRow,
     RunRow,
     SuperBotRequestRow,
     TradingGoalRow,
@@ -103,9 +104,11 @@ async def main():
             else:
                 proposal = json.loads(messages[-1].content)
                 assert proposal["ok"] and proposal["status"] == "pending"
-                return ModelReply(
-                    text="The supervised plan is ready to review in its activation card."
-                ), ModelSelection(provider="openai", model="scripted-setup-fixture")
+                assert proposal["internal_ids_are_private"] is True
+                assert "لم يُفعّل التداول التلقائي" in proposal["owner_summary"]
+                return ModelReply(text=proposal["owner_summary"]), ModelSelection(
+                    provider="openai", model="scripted-setup-fixture"
+                )
             phase += 1
             return ModelReply(tool_calls=[call]), ModelSelection(
                 provider="openai", model="scripted-setup-fixture"
@@ -116,6 +119,14 @@ async def main():
         async with f.runtime.db.sessions() as s:
             run = await s.get(RunRow, context.lease.run_id)
             assert run and run.status == "completed" and phase == 3
+            answer = await s.scalar(
+                select(MessageRow)
+                .where(MessageRow.thread_id == thread["id"], MessageRow.role == "assistant")
+                .order_by(MessageRow.seq.desc())
+                .limit(1)
+            )
+            assert answer and goal_id not in answer.content and "pending" not in answer.content
+            assert "بطاقة" not in answer.content and "لم يُفعّل التداول التلقائي" in answer.content
             assert await s.scalar(select(func.count()).select_from(TradingGoalRow)) == 1
             row = await s.scalar(
                 select(SuperBotRequestRow).where(SuperBotRequestRow.goal_id == goal_id)

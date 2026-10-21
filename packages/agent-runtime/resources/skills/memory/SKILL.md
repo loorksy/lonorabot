@@ -1,28 +1,35 @@
+---
+name: memory
+description: Recall past conversations, preserve owner preferences and update verified long-term trading knowledge without confusing memory with live broker state.
+---
+
 # Memory
 
-## Purpose
-Lonora memory workflow.
+## Recall
 
-## When to activate
-Use for the matching current task or durable trigger; never infer financial authority from relevance.
+Read the current conversation and checkpoint first. Search past messages with
+search_internal using a precise topic, date or identifier. Inspect the matching
+context. Remembered facts are not current prices, positions or permissions.
+Do not ask the owner to repeat a known direction, horizon or loss limit.
+Resolve a short answer against the question it actually answered.
 
-## When not to activate
-Unrelated tasks, unavailable required tools, failed dependencies or exhausted context budget.
+## Remember
 
-## Preconditions and required evidence
-Use current owner-scoped tool results, exact broker identities and observation times. Missing data remains unavailable.
+Read memory_read and its revision before changing anything. Keep owner attributes,
+language, length and tone under `# USER.md`; verified durable trading context
+under `# MEMORY.md`. These headings share the existing document and revision.
+Unsectioned old content is valid; do not erase it to adopt the layout.
+Use memory_write with the full merged document and current version. Re-read on
+conflict; say remembered only after a successful write.
 
-## Workflow and tool usage
-Read MEMORY.md and its revision. Separate stable verified knowledge from scratchpad. Commit with expected revision; re-read after conflicts. Never store credentials or speculative market facts.
+Keep atomic current facts, not "discussed risk". Merge duplicates, replace
+corrected facts and remove superseded details. Apply SNIP: Signal, Novel,
+Important, Persistent. Active work belongs in the existing task/goal and
+scratchpad, not permanent identity. Reusable procedures belong in skills,
+not repeated in preferences. Never store secrets or infer financial permission
+from a remembered amount. A reminder in memory does not schedule anything.
 
-## Decision rules and failure handling
-Inspect machine status and stable error code. Do not hide unavailable evidence or retry ambiguous financial mutations. WAIT is a valid result.
+## Output
 
-## Anti-patterns
-No invented success, stale actionable recommendations, authority escalation, unbounded context or browser-only durable state.
-
-## Output contract
-Return concise sourced findings, actions actually completed, remaining uncertainty, and persisted resource/artifact identities when available.
-
-## Related skills
-None required.
+Briefly confirm the actual fact saved or the recall limitation. Example:
+"سأتذكر أنك تفضّل تحليلًا مختصرًا بالعربية." Only say this after persistence.

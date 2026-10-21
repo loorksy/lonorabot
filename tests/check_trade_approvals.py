@@ -6,6 +6,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import replace
 from datetime import timedelta
 from typing import Any, cast
+from unittest.mock import patch
 from uuid import uuid4
 
 from check_streaming import Fixture, ScriptedRouter
@@ -131,6 +132,8 @@ async def main():
             )
             result = await registry.execute(call, context)
             assert result["status"] == "confirmed", result
+            assert result["details"]["verification"]["status"] == "verified", result
+            assert result["details"]["verification"]["financial_retry_allowed"] is False
             assert await registry.execute(call, context) == {
                 "approval_id": approval,
                 "results": result["results"],
@@ -550,6 +553,51 @@ async def main():
         )
         print(
             "PASS native account/position/order/history reads and exact generic min/max/step/stops errors"
+        )
+
+        class VerificationCrash(BaseException):
+            pass
+
+        crash_call = ToolCall(
+            id="crash-after-ack",
+            name="trade_execute",
+            arguments={
+                "account_id": connection_id,
+                "symbol": symbol,
+                "action": "buy",
+                "volume": "0.2",
+            },
+        )
+        proposal = await registry.execute(crash_call, isolated)
+        await fixture.request(
+            "POST",
+            f"/trading/approvals/{proposal['approval_id']}/decision",
+            {"decision": "approve"},
+        )
+        before_count = len((await broker.snapshot()).get("operations", {}))
+        with patch("lonora_trading.execution.verify_effect", side_effect=VerificationCrash):
+            try:
+                await registry.execute(crash_call, isolated)
+            except VerificationCrash:
+                pass
+            else:
+                raise AssertionError(
+                    "Expected interruption after the durable broker acknowledgment"
+                )
+        receipt = await registry.execute(crash_call, isolated)
+        assert receipt["status"] == "confirmed" and "verification" not in receipt["details"]
+        assert len((await broker.snapshot())["operations"]) == before_count + 1
+        from lonora_agent.context.financial_result import unverified_financial_result
+
+        assert unverified_financial_result(
+            [
+                ModelMessage(role="user", content="نفذ الطلب بعد الموافقة"),
+                ModelMessage(role="assistant", content="", tool_calls=[crash_call]),
+                ModelMessage(role="tool", tool_call_id=crash_call.id, content=json.dumps(receipt)),
+            ]
+        )
+        print(
+            "PASS crash during independent verification preserves acknowledgment, sends once and cannot claim verified completion"
         )
 
     finally:
