@@ -32,8 +32,8 @@ their original evidence and are not the status of this new mandate.
   Branding remains deployed at `db5ffc9`; signed Android 0.2.8 is published with
   the existing production certificate.
 
-Next integration: finish policy/build and persistent-checkpoint regressions,
-then the isolated analytical workspace and safe Skill import boundary. Workspace
+Next integration: owned durable workspace and trusted host bridge, then safe
+Skill import execution and adaptation. Workspace
 execution must have aggregate resource limits and no access to broker secrets;
 an unsandboxed subprocess in the Gateway is not an acceptable replacement.
 
@@ -51,6 +51,30 @@ final full build also passed. See [inspection evidence](../skill-repository-insp
 
 Remaining M-S work is still open: faithful adaptation, isolated execution,
 dependency pinning/installation, executable Skill lifecycle and rollback.
+
+### Analytical execution substrate increment
+
+A real, stateless Docker execution boundary now runs shell/Python against bounded
+file snapshots. It uses a pinned minimal Python image, actual cgroup validation,
+private namespaces, no network, read-only root, quota-limited tmpfs, clean command
+environment and no broker/project credentials or mounts. A fixed container-local
+controller terminates detached job descendants before regular-file export; the
+host validates returned bytes and computes file hashes. Timeout, output overflow
+and cancellation remove the whole job container. Docker copy was found unsuitable
+for read-only-root/tmpfs snapshots and replaced by fixed bounded transfer code.
+A real output-overflow acceptance exposed a subprocess pipe-drain deadlock; it was
+fixed rather than extending timeouts.
+
+This is not yet a user-facing workspace: no default tool, production service,
+Docker socket mount, financial route, dependency installer or durable file store
+was added. The next dependency is the trusted host bridge plus existing owned
+Run/Agent fencing, durable revisions/receipts, global concurrency and startup
+cleanup. See [workspace boundary](../analytical-workspace.md) for exact limits and
+acceptance commands. All 31 offline cases and 14 real container checks passed,
+including actual memory/process/scratch limits, deadline, cancellation and no
+leaked containers. Full `bash scripts/build.sh` passed: Ruff, strict Pyright,
+policy/wheel validation, client lint/types and all seven build targets. No APK
+was built, no production deployment or broker mutation occurred.
 
 Current wave (2026-10-19): cancellation-safe MetaApi discovery recovery on `fix/metaapi-discovery-cancellation`, from `f6a5933`. All preceding progressive Skills/environment increments are on `main` and deployed. The full professional Agent program remains incomplete; no APK was built.
 

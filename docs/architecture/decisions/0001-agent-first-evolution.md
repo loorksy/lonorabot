@@ -34,5 +34,6 @@ Keep account ownership, server-verified device grants, exact broker scope, globa
 - Voice regression checks: all 14 cases in `tests/voice/test_live.py` passed against disposable PostgreSQL.
 - The compact policy removes the 60 authored dialogue examples and duplicated schemas for 90 tools. The existing provider schema path, domain guidance, cache boundary, and resumed-checkpoint refresh remain in use.
 - The voice change is a mitigation, not the final protocol redesign: an offset is not a finalized-turn marker, and the current completion predicate remains an open item. Provider documentation: <https://developers.openai.com/api/docs/guides/live-delegation>.
-- The universal external Skill importer, isolated analytical workspace, dependency manager, general strategy backtesting, and native push-initiated calls are not established by this audit and remain unverified or missing.
+- A resource-bounded analytical container substrate is verified locally (31 offline cases and 14 actual Docker checks), including disabled networking, clean environment, actual cgroups, snapshots, descendant cleanup and cancellation. It is not registered as an Agent tool or deployed. A trusted host bridge, owned durable files/operation receipts and recovery remain prerequisites; see [execution boundary](../../analytical-workspace.md).
+- The universal executable Skill importer, dependency manager, general strategy backtesting, and native push-initiated calls remain unverified or missing.
 - This decision record is not a claim that the full mandate is complete.
