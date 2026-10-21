@@ -11,7 +11,7 @@ export function Onboarding({ onLogin }: { onLogin: (owner: Owner) => void }) {
   const [busy, setBusy] = useState(false);
   return (
     <main className="auth-card">
-      <div className="brand-mark">L</div>
+      <img className="brand-mark" src="/brand/logo.svg" alt="" width="54" height="54" />
       <h1>
         <Trans>Your Lonora workspace</Trans>
       </h1>

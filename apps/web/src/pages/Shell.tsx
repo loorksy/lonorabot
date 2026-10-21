@@ -418,7 +418,8 @@ function WorkspaceShell({ onLogout }: { onLogout: () => void }) {
       >
         <div className="tpl-sidebar-top">
           <button type="button" className="tpl-wordmark" onClick={() => open("/app")}>
-            <span className="tpl-logo">L</span>Lonora
+            <img className="tpl-logo" src="/brand/logo.svg" alt="" width="27" height="27" />
+            Lonora
             <span
               className={`tpl-connection ${connected ? "online" : ""}`}
               title={connected ? t`Connected` : t`Reconnecting`}

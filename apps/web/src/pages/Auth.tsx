@@ -9,7 +9,7 @@ export function Auth({ onLogin }: { onLogin: (owner: Owner) => void }) {
   const [busy, setBusy] = useState(false);
   return (
     <main className="auth-card">
-      <div className="brand-mark">L</div>
+      <img className="brand-mark" src="/brand/logo.svg" alt="" width="54" height="54" />
       <h1>Lonora</h1>
       <p>
         <Trans>Sign in to your persistent workspace</Trans>

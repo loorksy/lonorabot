@@ -53,16 +53,10 @@
   font-weight: 600;
 }
 .tpl-logo {
-  display: grid;
-  place-items: center;
+  display: block;
   width: 27px;
   height: 27px;
-  border-radius: 9px;
-  background: var(--foreground);
-  color: var(--background);
-  font-size: 19px;
-  font-weight: 600;
-  line-height: 1;
+  object-fit: contain;
 }
 .tpl-logo.large {
   width: 54px;

@@ -12,11 +12,17 @@ if (!["preview", "production"].includes(channel))
 const config: ExpoConfig = {
   name: brand.name,
   slug: brand.slug,
-  version: "0.2.7",
+  version: "0.2.8",
+  icon: "./assets/brand/icon-light.png",
   scheme: brand.scheme,
   orientation: "portrait",
   userInterfaceStyle: "dark",
   ios: {
+    icon: {
+      light: "./assets/brand/icon-light.png",
+      dark: "./assets/brand/icon-dark.png",
+      tinted: "./assets/brand/icon-tinted.png",
+    },
     supportsTablet: true,
     bundleIdentifier: brand.applicationId,
     associatedDomains: [`webcredentials:${new URL(updateUrl).hostname}`],
@@ -27,7 +33,12 @@ const config: ExpoConfig = {
   },
   android: {
     package: brand.applicationId,
-    versionCode: 26101901,
+    versionCode: 26102101,
+    adaptiveIcon: {
+      foregroundImage: "./assets/brand/adaptive-foreground.png",
+      monochromeImage: "./assets/brand/adaptive-monochrome.png",
+      backgroundColor: "#000000",
+    },
     softwareKeyboardLayoutMode: "resize",
     permissions: ["RECORD_AUDIO", "MODIFY_AUDIO_SETTINGS", "WAKE_LOCK"],
     // Attachments use the system document picker and app cache; no overlays or shared storage.
@@ -49,7 +60,12 @@ const config: ExpoConfig = {
     codeSigningCertificate: "./certificates/ota.pem",
     codeSigningMetadata: { keyid: "main", alg: "rsa-v1_5-sha256" },
   },
-  web: { bundler: "metro", output: "single", name: brand.name },
+  web: {
+    bundler: "metro",
+    output: "single",
+    name: brand.name,
+    favicon: "./assets/brand/favicon.png",
+  },
   plugins: ["expo-router", "expo-secure-store", "./plugins/with-release-signing.cjs"],
   experiments: { typedRoutes: true },
 };

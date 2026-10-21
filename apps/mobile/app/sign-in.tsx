@@ -1,7 +1,7 @@
 import { brand } from "@lonora/ui-tokens";
 import { Redirect } from "expo-router";
 import { useState } from "react";
-import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from "react-native";
+import { Image, KeyboardAvoidingView, Platform, ScrollView, Text, View } from "react-native";
 import { Button, colors, ErrorNotice, Field, Header, Loading, Screen } from "../components/ui";
 import { useSession } from "../lib/session";
 
@@ -52,6 +52,12 @@ export default function SignIn() {
           }}
           keyboardShouldPersistTaps="handled"
         >
+          <Image
+            source={require("../assets/brand/logo.png")}
+            accessibilityIgnoresInvertColors
+            style={{ width: 64, height: 64, alignSelf: "center" }}
+            resizeMode="contain"
+          />
           <Text
             style={{
               fontSize: 30,

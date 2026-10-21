@@ -392,16 +392,11 @@ body {
   margin-top: 10px;
 }
 :where(.brand-mark) {
-  display: grid;
-  place-items: center;
-  width: 38px;
-  height: 38px;
-  border: 1px solid var(--border);
-  border-radius: 13px;
+  display: block;
+  width: 54px;
+  height: 54px;
+  object-fit: contain;
   margin-bottom: 24px;
-  font-size: 23px;
-  background: var(--foreground);
-  color: var(--background);
 }
 :where(.settings-layout) {
   display: grid;
