@@ -1,4 +1,4 @@
-"""Shipped policy, public examples and real request construction regressions.
+"""Shipped policy and real request construction regressions.
 
 These deterministic checks validate policy wiring and the authored corpus. They
 are not a claim that all possible responses of an external model are proven.
@@ -40,7 +40,9 @@ INTERNAL_PUBLIC_TERMS = re.compile(
 
 def test_complete_manual_and_exact_live_tool_coverage():
     manual = (resources_root() / "system/lonora.md").read_text()
-    assert 4000 <= len(manual.splitlines()) <= 5000
+    assert 300 <= len(manual.splitlines()) <= 700
+    assert "## Behavioral examples" not in manual
+    assert "<!-- tool-reference:generated -->" not in manual
     registry = load_tools()
     validate_system_policy(set(registry.tools))
     sections = policy_bundle().sections
@@ -59,13 +61,8 @@ def test_complete_manual_and_exact_live_tool_coverage():
         "research",
         "intelligence",
     } <= sections.keys()
-    # Every generated JSON schema must round-trip to the actual registered one,
-    # including nested definitions and constraints; no invented tool can sneak in.
-    generated = manual.split("<!-- tool-reference:generated -->", 1)[1]
-    found = dict(re.findall(r"### ([a-z_]+)\n.*?```json\n(.*?)\n```", generated, re.S))
-    assert set(found) == set(registry.tools)
-    for name, schema in found.items():
-        assert json.loads(schema) == registry.tools[name].definition().parameters
+    assert all(tool.definition().parameters for tool in registry.tools.values())
+    assert "Exact registered tool contracts" not in manual
 
 
 def test_export_is_repeatable_and_has_no_network_or_database_dependency():
@@ -79,17 +76,11 @@ def test_export_is_repeatable_and_has_no_network_or_database_dependency():
     assert manifest == (resources_root() / "system/manifest.json").read_text()
 
 
-def test_public_examples_never_narrate_internal_implementation():
+def test_internal_manual_is_compact_and_language_neutral():
     manual = (resources_root() / "system/lonora.md").read_text()
-    examples = re.findall(r"```public-(ar|en)\n(.*?)\n```", manual, re.S)
-    assert len(examples) >= 100
-    assert {language for language, _ in examples} == {"ar", "en"}
-    for language, reply in examples:
-        assert not INTERNAL_PUBLIC_TERMS.search(reply), reply
-        assert len(reply) <= 360, reply
-        assert reply.count("?") + reply.count("؟") <= 1
-        if language == "ar":
-            assert re.search(r"[\u0620-\u064a]", reply)
+    assert not re.search(r"[\u0600-\u06ff]", manual)
+    assert "### Example" not in manual
+    assert "```public-ar" not in manual
     for forbidden in [
         "أرسلت بطاقة موافقة",
         "سأستخدم الأداة",

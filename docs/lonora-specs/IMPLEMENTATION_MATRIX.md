@@ -1,5 +1,28 @@
 # Implementation matrix
 
+## Agent-first mandate delta (2026-10-21)
+
+Source: [prompt 1.md](<prompt 1.md>). This is the current incremental audit,
+not a claim that the complete capability set is implemented.
+
+| ID | Mandate scope | Existing foundation | Remaining work | Status | Evidence / owner |
+| --- | --- | --- | --- | --- | --- |
+| M-A | Whole-repository and reference audit | Existing package and contract inventory | Complete source/reference review and acceptance mapping | IN_PROGRESS | ADR 0001; `lonora_agent`, `lonora_tools`, `lonora_trading`, `lonora_voice` inspected |
+| M-B | Compact instructions and natural interaction | One ToolLoop, context builder, model-selected Skill reads | Continued overlap/context audit and whole-mandate conversation acceptance | IN_PROGRESS | 606-line policy; 82 combined policy/Skill/voice cases and full build passed |
+| M-B1 | Remove duplicated policy examples and tool schemas; refresh old checkpoints safely | Existing hashed loader and cache boundary retained | None for this bounded change | VERIFIED | `test_system_policy`, PostgreSQL checkpoint/lease and progressive Skill integrations; installed wheel validation |
+| M-C | Isolated shell/Python/file workspace | Existing artifacts and Agent ownership | Resource-bounded execution substrate, durable files, validated artifacts and lifecycle | NOT_STARTED | Built-in registry has no shell/Python execution tool |
+| M-S | Universal Skill import/adaptation/dependencies/lifecycle | Owned versioned instructions, pinned reads, revocation and validation | Repository inspection/import, isolated script tests, pinned dependency installation, adaptation equivalence and rollback | FOUNDATION_EXISTS | Existing Skill registry and API; no executable importer yet |
+| M-X | MCP and integrations | HTTP/stdio MCP discovery and execution, server-held credentials | Full advertised-schema, health/recovery and external-code isolation acceptance | FOUNDATION_EXISTS | `lonora_adapters.mcp`, `lonora_tools.mcp` |
+| M-D | Market assessment vs entry/execution readiness | Typed historical decisions preserve requested and gated actions | Explicit readiness projections, broader market intelligence and failure-path acceptance | FOUNDATION_EXISTS | `trading_decision`, canonical health and journal |
+| M-R | Strategy research and validation | Indicators, Shadow, historical evidence, performance records | Strategy conversion, realistic backtests, walk-forward, Monte Carlo, quarantine and reproducible datasets | FOUNDATION_EXISTS | Existing market/charts/Shadow services; analytical workspace needed |
+| M-E | Persistent account authorization | Signed, bounded, revocable Goal grants and per-request approvals | Adaptive account envelope independent of predeclared Goal steps; authenticated risk/scope changes | FOUNDATION_EXISTS | `lonora_db.super_bot`, `lonora_trading.goals`, existing executor |
+| M-F | Persistent planning, routines, monitoring and recovery | Durable Tasks/Runs, Watches, Routines, wake and retry paths | Complete new continuation/workflow acceptance without another scheduler | FOUNDATION_EXISTS | Existing Gateway and PostgreSQL checkpoints |
+| M-T | Teams, memory and knowledge | Bounded subagents/peers, conversation recall, owned memory | Strategy knowledge lineage, full consolidation/recovery acceptance | FOUNDATION_EXISTS | Existing collaboration and memory packages |
+| M-G | Native GPT Live delegation reliability | WebRTC + resident client delegation to same thread | Replace offset-as-completeness assumption; test late/overlapping turns and restart | IN_PROGRESS | 14 fixture tests passed; official Live delegation docs reviewed; real call unverified |
+| M-H | Proactive app and telephone calls | Active-call WebRTC transport and attention engine | Verified push registration, native incoming lifecycle, consent/quiet hours; optional PSTN provider | NOT_STARTED | No operational native incoming-call or PSTN integration established |
+| M-I | Simple Web/Mobile experience and localization | Shared state projection, chat, approvals, exact-symbol specialists | Integrate new supported capabilities and complete source-language audit | FOUNDATION_EXISTS | Existing clients and localization resources; no new UI deployed |
+| M-J | Final recovery/safety/full acceptance | Existing typed financial boundaries and simulation tests | Whole-mandate end-to-end, recovery, physical device and provider verification | NOT_STARTED | No live financial mutation performed for this mandate |
+
 Status is behavioral: NOT_STARTED, FOUNDATION_EXISTS, IN_PROGRESS, IMPLEMENTED, VERIFIED, BLOCKED, or DEFERRED WITH REASON. The original section is the authoritative acceptance criteria; each indexed section includes its bullet requirements. NOT_STARTED means the complete section is not yet implemented/verified, even when some existing foundations work. Tests against simulation/scripted brokers only. Native certification is separate.
 
 ## Shared capability integration tracking

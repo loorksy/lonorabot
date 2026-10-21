@@ -1,5 +1,42 @@
 # Progress
 
+## Active mandate — 2026-10-21
+
+Branch: `codex/agent-architecture-audit`, from deployed `main` at `db5ffc9`.
+The new [agent-first engineering mandate](<prompt 1.md>) is preserved verbatim.
+The full program remains in progress. Existing historical sections below retain
+their original evidence and are not the status of this new mandate.
+
+- Phase A: inventory and dependency audit started; existing runtime, tool, Skill,
+  broker, authorization, voice, and context paths inspected. The entire repository
+  and all reference repositories have not yet been re-audited for this mandate.
+- Phase B: removed the 60 dialogue examples and duplicated JSON schemas for 90
+  tools from the operating manual (4,660 → 606 lines). The live registry still
+  supplies tool schemas. Hashed policy distribution, bounded domain selection,
+  cache prefixes, and current-policy projection on old checkpoints remain.
+- Removed the unused keyword-based Skill intent helper after confirming that the
+  production context builder already uses description-first discovery and
+  explicit model-selected Skill reads. Resolver contract tests now use declared
+  metadata rather than a retired language classifier.
+- Voice mitigation: incomplete handoffs no longer ask the owner to repeat after
+  five seconds, and fragments are ordered by source timestamps. This is **not**
+  the final handoff redesign: the existing offset completeness predicate still
+  needs replacement. Official Live delegation documentation confirms that the
+  event contains metadata, not task text or a finalized user turn.
+- Checks: all 82 combined policy/Skill/voice cases passed in disposable
+  PostgreSQL, with no skips. Progressive Skill admission, complete voice/Task
+  continuity, and conversational activation integration groups also passed.
+  `bash scripts/build.sh` passed after final policy compaction, including shipped
+  wheel validation, Python checks and all seven client build targets.
+- No architectural changes from this branch have been merged or deployed.
+  Branding remains deployed at `db5ffc9`; signed Android 0.2.8 is published with
+  the existing production certificate.
+
+Next integration: finish policy/build and persistent-checkpoint regressions,
+then the isolated analytical workspace and safe Skill import boundary. Workspace
+execution must have aggregate resource limits and no access to broker secrets;
+an unsandboxed subprocess in the Gateway is not an acceptable replacement.
+
 Current wave (2026-10-19): cancellation-safe MetaApi discovery recovery on `fix/metaapi-discovery-cancellation`, from `f6a5933`. All preceding progressive Skills/environment increments are on `main` and deployed. The full professional Agent program remains incomplete; no APK was built.
 
 ## Current wave

@@ -3,9 +3,10 @@
 ## Source and runtime
 
 `packages/agent-runtime/resources/system/lonora.md` is the canonical first-party
-manual. It contains mandatory behavior, capability-specific procedures, 60
-bilingual examples and the exact contracts of all 90 registered built-in tools.
-It describes existing capabilities, not an implementation roadmap.
+manual. It contains mandatory behavior and concise capability-specific guidance.
+Tool descriptions and input schemas are passed from the live runtime registry;
+they are not duplicated in the manual. It describes existing capabilities, not
+an implementation roadmap.
 
 The external structural reference was read as reference material only:
 <https://github.com/asgeirtj/system_prompts_leaks/raw/refs/heads/main/xAI/grok-bot.md>.
@@ -33,8 +34,8 @@ trade confirmation, journal/reconciliation and Web/Mobile result presentation.
 
 ## Loading and cost
 
-1. `load_constitution()` prepends the mandatory core and three hypothetical
-   financial examples before the six existing mandatory policy documents.
+1. `load_constitution()` prepends the concise mandatory core before the six
+   existing mandatory policy documents.
 2. `build_context()` retains the existing scoped memory, procedure snapshots,
    bounded history, binding, task/goal evidence and routing context.
 3. `model_turn()` projects at most three domain chapters selected by actual
@@ -44,8 +45,9 @@ trade confirmation, journal/reconciliation and Web/Mobile result presentation.
    preserves complete tool request/result exchanges. A resumed legacy execution
    also receives the mandatory core before the next model request.
 5. The mandatory core is capped at 16,000 characters and domain guidance at
-   14,000 characters. The complete manual and generated schemas are not inserted
-   into each turn. Existing provider context budgeting remains authoritative;
+   14,000 characters. The complete manual and an additional schema copy are not
+   inserted into each turn; exposed schemas come from the live registry through
+   the normal model tool-definition channel. Existing provider context budgeting remains authoritative;
    no mandatory financial law is silently dropped to fit a small model.
 6. Realtime voice loads a short policy from the same manual alongside existing
    voice authority/delegation rules. The existing 7,500-byte voice-context cap
@@ -71,9 +73,10 @@ free-text answer; it cannot replace the real financial confirmation controls.
 ## Contract maintenance
 
 Run `.venv/bin/python scripts/export_agent_tool_reference.py` after changing a
-registered tool contract. The exporter writes full lossless JSON schemas,
-compact shared definitions, effect metadata and a manifest binding the manual
-hash to exact tool-to-domain mappings. It never calls a broker or database.
+registered tool or its routing domain. The exporter verifies that every live
+tool maps to a policy chapter and updates the manual and manifest hashes. The
+tool's actual description and JSON schema remain in the runtime registry. The
+exporter never calls a broker or database.
 
 `--check` is part of `scripts/build.sh`. Startup/resource validation rejects a
 missing/corrupt policy, stale tool coverage or oversized instruction sections.
@@ -85,11 +88,11 @@ No new runtime, permission engine, memory system or procedure registry exists.
 
 ## Verification limits
 
-`tests/test_system_policy.py` checks exact contract round-trips, reproducible
-export, bilingual public examples, forbidden public terminology, mandatory
-policy loading, operation-based selection, complete exchanges, bounded voice,
-cache boundaries and fail-closed resource validation. Scripted HTTP transport
-checks native provider payloads without sending private data externally.
+`tests/test_system_policy.py` checks compact language-neutral policy, live tool
+routing coverage, reproducible export, mandatory policy loading,
+operation-based selection, complete exchanges, bounded voice, cache boundaries
+and fail-closed resource validation. Scripted HTTP transport checks native
+provider payloads without sending private data externally.
 
 These are deterministic regression checks. They do not mathematically prove
 that an arbitrary external language model can never produce an unwanted word.

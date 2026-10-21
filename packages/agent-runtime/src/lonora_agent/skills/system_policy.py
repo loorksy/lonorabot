@@ -29,7 +29,6 @@ class PolicyBundle:
     sections: dict[str, str]
     tool_policies: dict[str, str]
     digest: str
-    examples: dict[str, list[str]]
     bootstrap: dict[str, str]
 
 
@@ -50,8 +49,10 @@ def _load(path: Path, mtime_ns: int, manifest_mtime_ns: int) -> PolicyBundle:
             raise ValueError("bootstrap_manifest_mismatch")
         if (
             len(content) > 1000000
-            or manifest["version"] != 1
+            or manifest["version"] != 2
             or manifest["manual_sha256"] != digest
+            or "## Behavioral examples" in content
+            or "<!-- tool-reference:generated -->" in content
         ):
             raise ValueError("manual_manifest_mismatch")
         sections: dict[str, str] = {}
@@ -75,15 +76,7 @@ def _load(path: Path, mtime_ns: int, manifest_mtime_ns: int) -> PolicyBundle:
             if v != "core"
         ):
             raise ValueError("domain_policy_oversized")
-        examples: dict[str, list[str]] = {}
-        for match in re.finditer(
-            r"### Example \d+: ([a-z]+)\n\n(.*?)<!-- /example -->", content, re.S
-        ):
-            domain, body = match.groups()
-            examples.setdefault(domain, []).append(
-                "Hypothetical example, never current evidence:\n" + body.strip()
-            )
-        return PolicyBundle(sections, policies, digest, examples, bootstrap)
+        return PolicyBundle(sections, policies, digest, bootstrap)
     except (OSError, ValueError, TypeError, KeyError, AttributeError):
         raise LonoraError("operating_policy_invalid", 500) from None
 
@@ -100,15 +93,12 @@ def policy_bundle() -> PolicyBundle:
 
 def mandatory_policy() -> str:
     bundle = policy_bundle()
-    samples = [bundle.examples["trading"][i] for i in (0, 2, 3)]
     body = (
         bundle.bootstrap["SOUL.md"]
         + "\n\n"
         + bundle.bootstrap["AGENTS.md"]
         + "\n\n"
         + bundle.sections["core"]
-        + "\n\n"
-        + "\n\n".join(samples)
     )
     if len(body) > MAX_CORE_CHARS:
         raise LonoraError("operating_policy_invalid", 500)
@@ -143,10 +133,7 @@ def apply_operating_policy(
             if name and name != "core" and name not in domains:
                 domains.append(name)
     # Stable ordering for equivalent sets keeps the reusable instruction prefix stable.
-    chapters = [
-        bundle.sections[name] + "\n\n" + "\n\n".join(bundle.examples.get(name, [])[:1])
-        for name in sorted(domains[:MAX_DOMAINS])
-    ]
+    chapters = [bundle.sections[name] for name in sorted(domains[:MAX_DOMAINS])]
     if sum(map(len, chapters)) > MAX_DOMAIN_CHARS:
         raise LonoraError("operating_policy_invalid", 500)
     result = list(messages)

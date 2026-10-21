@@ -1,5 +1,7 @@
 # Lonora implementation specifications
 
+Current additional mandate: [Agent-first simplification, workspace, autonomous authority and native voice](<prompt 1.md>), preserved verbatim as supplied on 2026-10-21. See the latest entry in [Progress](PROGRESS.md) and [ADR 0001](../architecture/decisions/0001-agent-first-evolution.md). Its newer compact-policy direction supersedes the earlier line-count target; original reference documents remain intact.
+
 All 19 source documents are preserved verbatim under their original filenames. Numbers identify documents, not execution order. The appended in-chat activation/device authorization in 03 is authoritative. The master orchestration instructions govern the entire set.
 
 Initial01–18 audit: `895eaa8` on `feat/coherent-agent-foundations` (historical). The S19 extension was subsequently merged and deployed. Current environment work begins on `feat/trading-agent-environment` from `80b0ff9`; see PROGRESS.md for current evidence.

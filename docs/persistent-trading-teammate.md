@@ -93,7 +93,7 @@ or live-money account is used by the default tests.
 
 ## Completed checks
 
-- `bash scripts/build.sh`: Ruff, Pyright, resources, exact 90-tool export,
+- `bash scripts/build.sh`: Ruff, Pyright, resources, live 90-tool policy routing,
   installed production-wheel resource loading, TypeScript checks and all seven
   package build targets pass. No native APK is built.
 - Full isolated PostgreSQL pytest: 421 tests pass.
@@ -106,6 +106,6 @@ or live-money account is used by the default tests.
 - The authenticated simulation approval journey verifies all supported command
   postconditions, rejection, duplicate approval, response loss and a crash during
   independent verification without repeating execution.
-- The manual has 4660 lines. Only a bounded 15842-character immutable core,
-  applicable guidance and eligible procedure descriptions enter a normal request;
-  the full audit reference is not injected on every turn.
+- The operating manual is now a compact policy. Only its bounded
+  mandatory core, applicable guidance and eligible procedure descriptions enter
+  a normal request; live tool schemas come from the registry.
