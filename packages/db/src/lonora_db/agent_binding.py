@@ -17,7 +17,7 @@ BINDING_POLICY = (
     "If the owner omits the pair, use this binding. Letter case is not a different symbol. "
     "Never strip suffixes or use another market. A different market requires a different bot. "
     "Child agents inherit this binding. Delegation cannot bypass financial authority. "
-    "Trade approval is only the Approve or Reject button on the card inside the call. "
+    "Trade approval requires the real Approve or Reject controls in chat or voice. "
     "Never ask for a spoken or typed yes. Speech and chat text are not approval."
 )
 

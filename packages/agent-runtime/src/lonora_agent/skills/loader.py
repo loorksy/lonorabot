@@ -34,7 +34,9 @@ def load_constitution() -> list[str]:
         "collaboration-policy",
         "trading-policy",
     )
-    result: list[str] = []
+    from .system_policy import mandatory_policy
+
+    result: list[str] = [mandatory_policy()]
     for name in names:
         path = resources_root() / "constitution" / (name + ".md")
         if not path.is_file() or not path.read_text().strip():

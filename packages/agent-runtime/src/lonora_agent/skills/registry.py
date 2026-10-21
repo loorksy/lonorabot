@@ -181,7 +181,10 @@ def validate_resources(known_tools: set[str]) -> dict[str, Any]:
     from .loader import load_constitution
 
     registry = SkillRegistry(list(built_in_skills().values()), known_tools)
+    from .system_policy import validate_system_policy
+
     load_constitution()
+    validate_system_policy(known_tools)
     playbooks: dict[str, Any] = {}
     for path in sorted((resources_root() / "playbooks").glob("*/playbook.json")):
         manifest = PlaybookManifest.model_validate_json(path.read_text())

@@ -146,6 +146,7 @@ test("allow preserves device verification and only shows active after the server
   try {
     await page.goto(`/app/${state.agent.id}?thread=${state.request.thread_id}`);
     const card = page.locator(`[data-super-bot-id="${state.request.id}"]`);
+    await expect(page.locator('[data-super-bot="true"]')).toHaveCount(0);
     await card.getByRole("button", { name: "Review plan", exact: true }).click();
     const details = card.getByRole("dialog");
     await details.getByRole("button", { name: "Register a passkey", exact: true }).click();
@@ -171,6 +172,13 @@ test("allow preserves device verification and only shows active after the server
     ).json();
     expect(persisted.find((row) => row.id === state.request.id).status).toBe("activated");
     expect((await (await context.request.get("/api/trading/controls")).json()).enabled).toBe(false);
+    await expect(page.locator('[data-super-bot="true"]').first()).toBeVisible();
+    const stopped = await context.request.post("/api/super-bot/control", {
+      headers: state.headers,
+      data: { request_id: state.request.id, action: "pause" },
+    });
+    expect(stopped.ok()).toBeTruthy();
+    await expect(page.locator('[data-super-bot="true"]')).toHaveCount(0);
   } finally {
     await state.cleanup();
   }

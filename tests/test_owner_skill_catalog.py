@@ -22,7 +22,9 @@ def row(name: str, **changes: Any) -> SkillRow:
         },
     }
     payload.update(changes)
-    return SkillRow(id=name + "-resource", owner_id="owner", agent_id="agent", payload=payload, version=1)
+    return SkillRow(
+        id=name + "-resource", owner_id="owner", agent_id="agent", payload=payload, version=1
+    )
 
 
 def catalog(rows: list[SkillRow], revoked: list[tuple[str, str]] | None = None):

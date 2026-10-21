@@ -82,7 +82,9 @@ async def main() -> None:
 
         original = f.app.dependency_overrides.get(require_owner)
         f.app.dependency_overrides[require_owner] = lambda: OwnerIdentity(
-            id=str(uuid4()), email="other-catalog-owner@example.com", token_hash="scripted-other-owner"
+            id=str(uuid4()),
+            email="other-catalog-owner@example.com",
+            token_hash="scripted-other-owner",
         )
         try:
             for suffix in ("", "/chart-analysis"):
@@ -97,12 +99,19 @@ async def main() -> None:
         async with f.runtime.db.sessions() as session:
             assert await session.scalar(select(func.count()).select_from(RunRow)) == 0
             assert await session.scalar(select(func.count()).select_from(TradingJournalRow)) == 0
-            assert await session.scalar(
-                select(func.count()).select_from(EventRow).where(
-                    EventRow.agent_id == agent["id"], EventRow.kind == "skill.version_revoked"
+            assert (
+                await session.scalar(
+                    select(func.count())
+                    .select_from(EventRow)
+                    .where(
+                        EventRow.agent_id == agent["id"], EventRow.kind == "skill.version_revoked"
+                    )
                 )
-            ) == 1
-        print("PASS scoped metadata/detail catalog, pagination, exact revocation/edit/delete, no Runs or trades")
+                == 1
+            )
+        print(
+            "PASS scoped metadata/detail catalog, pagination, exact revocation/edit/delete, no Runs or trades"
+        )
     finally:
         await f.close()
 

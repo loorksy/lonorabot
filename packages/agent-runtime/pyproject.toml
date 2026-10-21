@@ -13,6 +13,7 @@ dependencies = ["lonora-adapter-kit==0.2.0", "lonora-automation==0.2.0", "lonora
 where = ["src"]
 
 [tool.setuptools.data-files]
+"share/lonora/system" = ["packages/agent-runtime/resources/system/lonora.md", "packages/agent-runtime/resources/system/manifest.json"]
 "share/lonora/constitution" = ["packages/agent-runtime/resources/constitution/collaboration-policy.md", "packages/agent-runtime/resources/constitution/identity.md", "packages/agent-runtime/resources/constitution/memory-policy.md", "packages/agent-runtime/resources/constitution/security-policy.md", "packages/agent-runtime/resources/constitution/tool-policy.md", "packages/agent-runtime/resources/constitution/trading-policy.md"]
 "share/lonora/playbooks/ambiguous-execution-recovery" = ["packages/agent-runtime/resources/playbooks/ambiguous-execution-recovery/PLAYBOOK.md", "packages/agent-runtime/resources/playbooks/ambiguous-execution-recovery/playbook.json"]
 "share/lonora/playbooks/autonomous-trading-goal" = ["packages/agent-runtime/resources/playbooks/autonomous-trading-goal/PLAYBOOK.md", "packages/agent-runtime/resources/playbooks/autonomous-trading-goal/playbook.json"]

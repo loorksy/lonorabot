@@ -10,6 +10,7 @@ from lonora_tools.context import ToolContext
 from .context.image_observations import prepare_image_observations
 from .context.team import refresh_routing_context
 from .progress import progress
+from .skills.system_policy import apply_operating_policy
 
 
 async def model_turn(
@@ -19,7 +20,9 @@ async def model_turn(
     capability: Capability,
 ) -> tuple[ModelReply, ModelSelection]:
     await refresh_routing_context(context, messages)
-    request_messages, image_diagnostics = await prepare_image_observations(context, messages)
+    request_messages, image_diagnostics = await prepare_image_observations(
+        context, apply_operating_policy(messages, tools)
+    )
     if any(message.images for message in request_messages):
         capability = Capability.VISION
     turn_id = new_id()

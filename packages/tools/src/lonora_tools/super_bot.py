@@ -76,7 +76,7 @@ def tools() -> list[Tool]:
     return [
         Tool(
             "super_bot_propose",
-            "Prepare a persistent Super Bot activation card for an existing goal. This grants NO authority. The owner must review the frozen permissions and complete cryptographically verified device authentication in the UI. Never claim activation from this pending result or from spoken/typed approval.",
+            "Prepare a persistent, reviewable Super Bot activation request for an existing goal. This grants NO authority. The owner must review the frozen permissions and complete cryptographically verified device authentication in the UI. Never claim activation from this pending result or from spoken/typed approval.",
             SuperBotProposal,
             proposal,
         ),

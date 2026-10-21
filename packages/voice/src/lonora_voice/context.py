@@ -4,6 +4,7 @@ import json
 import math
 from typing import Any, Literal, cast
 
+from lonora_agent.skills.system_policy import voice_surface_policy
 from lonora_db.agent_binding import binding_context
 from lonora_db.agent_state import agent_live_state
 from lonora_db.messages import history
@@ -155,7 +156,7 @@ async def voice_context(
         },
         "memory": {
             "version": memory.version if memory else None,
-            "content": bounded_text(memory.content, 1200) if memory else "",
+            "content": bounded_text(memory.content, 600) if memory else "",
         },
         "scratchpad": await _scratchpad(session, owner_id, agent.id),
         "previous_call_transcript": await _previous_call(session, owner_id, agent.id, thread_id),
@@ -164,7 +165,7 @@ async def voice_context(
     context["live_state"] = bounded_text(
         _json(live.model_dump(mode="json", exclude={"health", "runs", "collaborations"})), 900
     )
-    parts = [authority]
+    parts = [authority, voice_surface_policy()]
     market = binding_context(agent)
     if market:
         parts.append(market)

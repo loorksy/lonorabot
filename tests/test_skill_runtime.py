@@ -66,7 +66,8 @@ def test_resources_validate_and_policies_independent() -> None:
     playbooks = validate_resources(TOOLS)
     assert len(playbooks) == 6
     assert "ambiguous-execution-recovery" in playbooks
-    assert len(load_constitution()) == 6
+    assert len(load_constitution()) == 7
+    assert load_constitution()[0].startswith("<lonora_operating_policy>")
     assert "Emergency Stop" in "\n".join(load_constitution())
     assert "MetaApi" not in "\n".join(load_constitution())
     assert len(built_in_skills()) == 8

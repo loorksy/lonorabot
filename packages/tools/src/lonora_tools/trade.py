@@ -427,8 +427,8 @@ def tools() -> list[Tool]:
         ),
         Tool(
             "trade_execute",
-            "Propose a broker operation for the Approve and Reject buttons on the card inside the call. "
-            "Wait for that button; a spoken or typed yes is not approval. The same worker then executes "
+            "Propose a broker operation using the real financial Approve and Reject controls in chat or voice. "
+            "Wait for the actual confirmation; a spoken or typed yes is not approval. The same worker then executes "
             "the immutable approved request and returns the actual broker result. When an immutable "
             "trading market is bound, omit account_id and symbol or pass that bound pair; never ask "
             "which pair or ask the owner to retype the symbol. Read broker positions/orders first, "

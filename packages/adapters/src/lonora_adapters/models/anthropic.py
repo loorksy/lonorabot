@@ -57,6 +57,24 @@ def anthropic_messages(messages: list[ModelMessage]) -> tuple[str, list[dict[str
     return "\n\n".join(systems), result
 
 
+def cacheable_system(system: str) -> str | list[dict[str, Any]]:
+    """Cache only the immutable first-party prefix, before owner/context material.
+
+    Native Anthropic prompt caching is optional optimization, not authorization.
+    Ordinary callers retain their existing string payload; no extra provider call.
+    """
+    start, end = "<lonora_operating_policy>", "</lonora_operating_policy>"
+    if not system.startswith(start) or end not in system:
+        return system
+    split = system.index(end) + len(end)
+    blocks: list[dict[str, Any]] = [
+        {"type": "text", "text": system[:split], "cache_control": {"type": "ephemeral"}}
+    ]
+    if system[split:].strip():
+        blocks.append({"type": "text", "text": system[split:]})
+    return blocks
+
+
 class AnthropicAdapter(BaseModelAdapter):
     def __init__(self, api_key: str, client: httpx.AsyncClient | None = None):
         super().__init__(api_key, "https://api.anthropic.com/v1", client)
@@ -78,7 +96,7 @@ class AnthropicAdapter(BaseModelAdapter):
             "model": model,
             "max_tokens": max_output_tokens or 8192,
             "messages": wire,
-            "system": system,
+            "system": cacheable_system(system),
         }
         if tools:
             payload["tools"] = [
