@@ -97,10 +97,20 @@ export function VoiceSessionProvider({ children }: { children: ReactNode }) {
     let timer: ReturnType<typeof setTimeout>;
     const tick = async () => {
       try {
-        const rows = await api.get<TradeApproval[]>(
-          `/trading/approvals?thread_id=${encodeURIComponent(origin.threadId)}`,
-        );
+        const [rows, currentAgent] = await Promise.all([
+          api.get<TradeApproval[]>(
+            `/trading/approvals?thread_id=${encodeURIComponent(origin.threadId)}`,
+          ),
+          api.get<Agent>(`/agents/${encodeURIComponent(origin.agent.id)}`).catch(() => null),
+        ]);
         if (!disposed) {
+          if (currentAgent)
+            setOrigin((previous) =>
+              previous?.agent.id === currentAgent.id &&
+              previous.agent.super_bot_active !== currentAgent.super_bot_active
+                ? { ...previous, agent: currentAgent }
+                : previous,
+            );
           for (const row of rows) if (row.status === "pending") callRequests.current.add(row.id);
           setApprovals((previous) =>
             rows

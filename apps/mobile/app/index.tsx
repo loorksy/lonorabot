@@ -316,6 +316,7 @@ export default function Inbox() {
                     })}
                     avatar={
                       <BotAvatar
+                        superBot={agent.super_bot_active}
                         identity={agent.name}
                         color={agent.color}
                         variant={agent.avatar}

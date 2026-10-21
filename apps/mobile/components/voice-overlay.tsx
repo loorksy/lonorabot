@@ -55,6 +55,7 @@ export function VoiceOverlay() {
         }}
       >
         <BotAvatar
+          superBot={agent.super_bot_active}
           identity={agent.name}
           variant={agent.avatar}
           color={agent.color}
@@ -93,6 +94,7 @@ export function VoiceOverlay() {
           style={{ transform: [{ scale: 1 + call.activity.level * 0.12 }] }}
         >
           <BotAvatar
+            superBot={agent.super_bot_active}
             identity={agent.name}
             variant={agent.avatar}
             color={agent.color}

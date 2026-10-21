@@ -9,7 +9,7 @@ from .schema import AgentRow, MemoryRow
 from .transactions import owned_agent
 
 
-def agent_data(row: AgentRow) -> dict[str, Any]:
+def agent_data(row: AgentRow, *, super_bot_active: bool = False) -> dict[str, Any]:
     return {
         "id": row.id,
         "name": row.name,
@@ -19,6 +19,7 @@ def agent_data(row: AgentRow) -> dict[str, Any]:
         "color": row.color,
         "instructions": row.instructions,
         "paused": row.paused,
+        "super_bot_active": super_bot_active,
         "role": row.role,
         "execution_mode": row.execution_mode,
         "scope": scope_data(row),

@@ -48,7 +48,13 @@ export function BotMemberPicker({
               opacity: disabled ? 0.5 : 1,
             })}
           >
-            <BotAvatar identity={agent.name} color={agent.color} variant={agent.avatar} size={36} />
+            <BotAvatar
+              superBot={agent.super_bot_active}
+              identity={agent.name}
+              color={agent.color}
+              variant={agent.avatar}
+              size={36}
+            />
             <View style={{ flex: 1, gap: 3 }}>
               <Text
                 style={{

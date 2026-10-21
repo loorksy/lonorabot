@@ -13,6 +13,7 @@ import { ApiError, api } from "../lib/api";
 import { type VoiceFragment, VoiceJoin, voiceSnapshot } from "../lib/voice";
 import { useClient } from "../providers/ClientProvider";
 export type CallTarget = {
+  super_bot_active?: boolean;
   agentId: string;
   threadId: string;
   name: string;
@@ -145,6 +146,7 @@ export function useVoiceController(ownerId: string) {
     };
   }, [ownerId, meter]);
 
+  const targetAgentId = state.target?.agentId;
   useEffect(() => {
     const transport = state.session;
     if (!transport) return;
@@ -153,8 +155,23 @@ export function useVoiceController(ownerId: string) {
     const tick = async () => {
       if (transport.session_id) {
         try {
-          const snapshot = await voiceSnapshot(transport.session_id);
+          const [snapshot, currentAgent] = await Promise.all([
+            voiceSnapshot(transport.session_id),
+            targetAgentId
+              ? api.get<Agent>(`/agents/${encodeURIComponent(targetAgentId)}`).catch(() => null)
+              : Promise.resolve(null),
+          ]);
           if (!live || current.current !== transport) return;
+          if (currentAgent)
+            setState((previous) =>
+              previous.target?.agentId === currentAgent.id &&
+              previous.target.super_bot_active !== currentAgent.super_bot_active
+                ? {
+                    ...previous,
+                    target: { ...previous.target, super_bot_active: currentAgent.super_bot_active },
+                  }
+                : previous,
+            );
           snapshot.input.forEach((fragment) => {
             publish("input", fragment);
           });
@@ -188,7 +205,7 @@ export function useVoiceController(ownerId: string) {
       live = false;
       clearTimeout(timer);
     };
-  }, [state.session, publish]);
+  }, [state.session, targetAgentId, publish]);
 
   useEffect(() => {
     const sessionId = current.current?.session_id;
@@ -219,6 +236,7 @@ export function useVoiceController(ownerId: string) {
         name: agent.name,
         color: agent.color,
         avatar: agent.avatar,
+        super_bot_active: agent.super_bot_active,
       },
       busy: true,
     });
@@ -286,6 +304,7 @@ export function useVoiceController(ownerId: string) {
           name: agent.name,
           color: agent.color,
           avatar: agent.avatar,
+          super_bot_active: agent.super_bot_active,
         },
       }));
       await transport.connect(agent.id, thread.id);

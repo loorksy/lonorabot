@@ -52,7 +52,13 @@ export function MessageBubble({
       {!grouped && !isOwner && !tool ? (
         <View style={{ flexDirection: rtl ? "row-reverse" : "row", alignItems: "center", gap: 8 }}>
           {agent ? (
-            <BotAvatar identity={agent.name} color={agent.color} variant={agent.avatar} size={24} />
+            <BotAvatar
+              superBot={agent.super_bot_active}
+              identity={agent.name}
+              color={agent.color}
+              variant={agent.avatar}
+              size={24}
+            />
           ) : null}
           <Text style={{ color: colors.foreground, fontSize: 13, fontWeight: "600" }}>
             {agent?.name ?? t("system")}

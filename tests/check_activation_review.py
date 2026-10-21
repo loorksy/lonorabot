@@ -3,7 +3,7 @@
 import asyncio
 import json
 from decimal import Decimal
-from typing import Any
+from typing import Any, cast
 from unittest.mock import patch
 
 from check_streaming import Fixture
@@ -11,12 +11,22 @@ from device_fixture import Device
 from lonora_adapter_kit.types import ModelMessage, ModelReply, ToolCall
 from lonora_agent.collaboration.outcome_return import return_pending_outcomes
 from lonora_agent.executor import execute_run
+from lonora_contracts.domain import ThreadCreate
 from lonora_contracts.model_routing import Capability, ModelSelection
 from lonora_contracts.trading import TradeRequest
 from lonora_core.user_error import LonoraError
+from lonora_db.activation_acknowledgment import acknowledge_activation
 from lonora_db.activation_review import dispatch_activation_reviews
 from lonora_db.runs import claim_next, run_data
-from lonora_db.schema import MessageRow, TradingGoalRow, TradingJournalRow
+from lonora_db.schema import (
+    AgentRow,
+    DeviceCredentialRow,
+    MessageRow,
+    SuperBotRequestRow,
+    TradingGoalRow,
+    TradingJournalRow,
+)
+from lonora_db.threads import create_thread
 from lonora_gateway.scheduler import scheduler_tick
 from lonora_tools.loader import load_tools
 from sqlalchemy import func, select
@@ -66,6 +76,19 @@ async def main():
         assert await scheduler_tick(f.runtime.db) == 0
         device = await Device.enroll(f)
         await device.authorize_goal_service(f, goal)
+        active_agent = await f.request("GET", f"/agents/{agent['id']}")
+        assert active_agent["super_bot_active"] is True
+        roster = cast(list[dict[str, Any]], await f.request("GET", "/agents"))
+        assert next(item for item in roster if item["id"] == agent["id"])["super_bot_active"]
+        async with f.runtime.db.sessions() as session, session.begin():
+            identity = await session.get(AgentRow, agent["id"])
+            assert identity
+            identity.paused = True
+        assert not (await f.request("GET", f"/agents/{agent['id']}"))["super_bot_active"]
+        async with f.runtime.db.sessions() as session, session.begin():
+            identity = await session.get(AgentRow, agent["id"])
+            assert identity
+            identity.paused = False
         counts = await asyncio.gather(scheduler_tick(f.runtime.db), scheduler_tick(f.runtime.db))
         assert sum(counts) == 1 and await dispatch_activation_reviews(f.runtime.db) == 0
         async with f.runtime.db.sessions() as session, session.begin():
@@ -147,7 +170,10 @@ async def main():
                     )
                 )
             )
-            assert len(replies) == 1 and "no trade was sent" in replies[0].content
+            assert (
+                len(replies) == 1
+                and replies[0].content == "تم تفعيل السوبر بوت وفق الحدود التي وافقت عليها."
+            )
             assert await session.scalar(select(func.count()).select_from(TradingJournalRow)) == 0
         assert await scheduler_tick(f.runtime.db) == 0
         second = await f.request(
@@ -233,6 +259,59 @@ async def main():
             blocked = await session.get(TradingGoalRow, goal["id"])
             assert blocked and blocked.state["status"] == "blocked"  # Read-only does not resume it.
             assert await session.scalar(select(func.count()).select_from(TradingJournalRow)) == 0
+        async with f.runtime.db.sessions() as session, session.begin():
+            english_thread = await create_thread(
+                session, f.owner, ThreadCreate(agent_id=agent["id"])
+            )
+            session.add(
+                MessageRow(
+                    thread_id=english_thread.id,
+                    seq=english_thread.next_seq,
+                    role="user",
+                    content="Please enable analysis for this account",
+                )
+            )
+            english_thread.next_seq += 1
+            english_thread_id = english_thread.id
+        english_goal = await f.request(
+            "POST",
+            "/trading/goals",
+            {
+                **goal["payload"],
+                "agent_id": agent["id"],
+                "thread_id": english_thread_id,
+                "title": "Localized activation",
+            },
+        )
+        await device.authorize_goal_service(f, english_goal)
+        async with f.runtime.db.sessions() as session, session.begin():
+            english_grant = await session.scalar(
+                select(SuperBotRequestRow).where(SuperBotRequestRow.goal_id == english_goal["id"])
+            )
+            assert english_grant
+            await acknowledge_activation(session, english_grant)
+            await acknowledge_activation(session, english_grant)
+            english_replies = list(
+                await session.scalars(
+                    select(MessageRow).where(
+                        MessageRow.thread_id == english_thread_id, MessageRow.role == "assistant"
+                    )
+                )
+            )
+            assert (
+                len(english_replies) == 1
+                and english_replies[0].content
+                == "Super Bot is enabled within the limits you authorized."
+            )
+        async with f.runtime.db.sessions() as session, session.begin():
+            credentials = list(
+                await session.scalars(
+                    select(DeviceCredentialRow).where(DeviceCredentialRow.owner_id == f.owner)
+                )
+            )
+            for credential in credentials:
+                credential.revoked = True
+        assert not (await f.request("GET", f"/agents/{agent['id']}"))["super_bot_active"]
         print(
             "PASS verified activation schedules one restart-safe observe-only background review; normal AgentRuntime reads the same Goal, cannot execute, and returns one actual result to its conversation"
         )

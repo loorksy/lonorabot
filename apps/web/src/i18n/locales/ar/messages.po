@@ -3102,3 +3102,9 @@ msgstr "الغرض"
 #: src/pages/SkillsSection.tsx
 msgid "Version controls revision"
 msgstr "مراجعة ضوابط الإصدارات"
+
+msgid "Super Bot enabled"
+msgstr "السوبر بوت مفعّل"
+
+msgid "Choose an option or write your reply"
+msgstr "اختر إجابة أو اكتب ردك"

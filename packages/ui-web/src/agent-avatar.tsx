@@ -19,12 +19,16 @@ export const AgentAvatar = memo(function AgentAvatar({
   color = "#7c83fd",
   shape = "orb",
   working = false,
+  superBot = false,
+  superBotLabel,
   className,
 }: {
   name: string;
   color?: string;
   shape?: string;
   working?: boolean;
+  superBot?: boolean;
+  superBotLabel?: string;
   className?: string;
 }) {
   const id = useId().replace(/[^a-zA-Z0-9-_]/g, "");
@@ -37,7 +41,10 @@ export const AgentAvatar = memo(function AgentAvatar({
       className={cn("lonora-agent-avatar", className)}
       data-shape={shape}
       data-working={working}
-      aria-hidden="true"
+      data-super-bot={superBot}
+      aria-hidden={superBot ? undefined : true}
+      role="img"
+      aria-label={superBot ? superBotLabel : undefined}
       style={
         {
           "--agent-color": colorDef.hex,
@@ -58,6 +65,12 @@ export const AgentAvatar = memo(function AgentAvatar({
         />
       ) : (
         <RobotAvatar colorDef={colorDef} isWorking={working} identity={name} gradientId={id} />
+      )}
+      {superBot && (
+        <svg className="lonora-super-bot-mark" viewBox="0 0 20 20" aria-hidden="true">
+          <circle cx="10" cy="10" r="10" fill="#191717" />
+          <path d="M4 7 7 9 10 4 13 9 16 7 14 14H6Z" fill="#f0c866" />
+        </svg>
       )}
     </span>
   );

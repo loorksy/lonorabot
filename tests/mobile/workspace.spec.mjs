@@ -302,7 +302,21 @@ test("Expo profile, routines, groups and authenticated artifacts use the persist
     await page.getByRole("button", { name: "تحديث", exact: true }).click();
     expect((await (await refreshed).json()).requested).toBe(true);
     await page.getByRole("button", { name: "إنشاء رسم بياني", exact: true }).click();
-    await expect(page.getByRole("button", { name: "حفظ", exact: true })).toBeEnabled();
+    const saveChart = page.getByRole("button", { name: "حفظ", exact: true });
+    // This migrated fixture has no immutable market binding. Creation requires
+    // an explicit owner choice even when a chart already exists in the thread.
+    await expect(saveChart).toBeDisabled();
+    const chartConnections = await (await context.request.get("/api/trading/connections")).json();
+    const chartAccountIndex = chartConnections
+      .filter((connection) => connection.payload.enabled)
+      .findIndex((connection) => connection.id === chartFixture.connection_id);
+    expect(chartAccountIndex).toBeGreaterThanOrEqual(0);
+    await page.getByRole("button", { name: "حساب الوسيط", exact: true }).click();
+    await page.getByRole("menu").getByRole("button").nth(chartAccountIndex).click();
+    await expect(saveChart).toBeDisabled();
+    await page.getByRole("button", { name: "الرمز", exact: true }).click();
+    await page.getByRole("menu").getByRole("button", { name: "XAUUSD", exact: true }).click();
+    await expect(saveChart).toBeEnabled();
     const chartCreated = page.waitForResponse(
       (response) =>
         response.request().method() === "POST" && response.url().endsWith("/api/charts"),

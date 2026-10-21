@@ -329,4 +329,7 @@ async def finish_activation(
         {**goal.state, "autonomous": row.mode == "autonomous", "super_bot_request_id": row.id},
     )
     changed(session, row)
+    from lonora_db.activation_acknowledgment import acknowledge_activation
+
+    await acknowledge_activation(session, row)
     return row

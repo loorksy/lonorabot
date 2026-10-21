@@ -137,10 +137,23 @@ async def return_outcome(db: Database, run_id: str) -> None:
                             payload=message_data(final),
                         )
         returned_message: MessageRow | None = None
+        activation_ack = (
+            await session.get(
+                EffectReceiptRow,
+                "activation-ack:" + str(child.model_metadata.get("super_bot_request_id", "")),
+            )
+            if child.trigger == "activation"
+            else None
+        )
+        quiet_activation = activation_ack is not None and child.status != "failed"
         if (
-            child.trigger in {"broker_event", "activation"}
-            or (child.trigger == "watch" and child.model_metadata.get("opportunity_id"))
-        ) and child.model_metadata.get("origin_thread_id"):
+            (
+                child.trigger in {"broker_event", "activation"}
+                or (child.trigger == "watch" and child.model_metadata.get("opportunity_id"))
+            )
+            and child.model_metadata.get("origin_thread_id")
+            and not quiet_activation
+        ):
             origin = await session.get(
                 ThreadRow, child.model_metadata["origin_thread_id"], with_for_update=True
             )
@@ -158,12 +171,19 @@ async def return_outcome(db: Database, run_id: str) -> None:
                 source = await session.get(ThreadRow, child.thread_id)
                 if source is None or source.owner_id != origin.owner_id:
                     raise ValueError("broker_event_owner_mismatch")
+                public_result = child.result
+                if activation_ack is not None:
+                    from lonora_bus.attention import attention_text
+
+                    public_result = attention_text(
+                        "super_bot_review_unavailable", activation_ack.result.get("locale", "ar")
+                    )
                 final = MessageRow(
                     thread_id=origin.id,
                     agent_id=child.agent_id,
                     role="assistant",
                     seq=origin.next_seq,
-                    content=child.result,
+                    content=public_result,
                 )
                 origin.next_seq += 1
                 session.add(final)

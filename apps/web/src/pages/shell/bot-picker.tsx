@@ -1,3 +1,4 @@
+import { t as superBotText } from "@lingui/core/macro";
 // Adapted for Lonora from Tampletgrok pages/shell/bot-picker.tsx; Apache-2.0.
 
 import { t } from "@lingui/core/macro";
@@ -70,6 +71,8 @@ export function NewConversationPicker({
                 name={agent.name}
                 color={agent.color}
                 shape={agent.avatar}
+                superBot={agent.super_bot_active}
+                superBotLabel={superBotText`Super Bot enabled`}
                 className="tpl-picker-avatar"
               />
               <span className="tpl-truncate" dir="auto">

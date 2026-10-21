@@ -121,3 +121,20 @@
     transition: none;
   }
 }
+
+.lonora-agent-avatar[data-super-bot="true"] {
+  outline: 2px solid #f0c866;
+  outline-offset: 2px;
+  border-radius: 50%;
+}
+.lonora-agent-avatar > .lonora-super-bot-mark {
+  position: absolute;
+  width: 38%;
+  height: 38%;
+  min-width: 11px;
+  min-height: 11px;
+  top: -5px;
+  right: -5px;
+  z-index: 11;
+  pointer-events: none;
+}

@@ -18,6 +18,7 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import Svg, { Circle, Defs, Ellipse, G, LinearGradient, Path, Rect, Stop } from "react-native-svg";
+import { useSession } from "../lib/session";
 import { colors } from "./ui";
 export function BotAvatar({
   color,
@@ -25,13 +26,16 @@ export function BotAvatar({
   working = false,
   variant = "orb",
   identity = "",
+  superBot = false,
 }: {
   color: string;
   size?: number;
   working?: boolean;
   variant?: string;
   identity?: string;
+  superBot?: boolean;
 }) {
+  const { t } = useSession();
   const id = useId().replace(/[^a-zA-Z0-9]/g, "");
   const colorDef = resolveAvatarColor(identity, color);
   const seed = avatarIdentitySeed(identity || color);
@@ -90,6 +94,30 @@ export function BotAvatar({
           </Svg>
         )}
       </Animated.View>
+      {superBot ? (
+        <View
+          testID="super-bot-avatar"
+          accessible
+          accessibilityLabel={t("superBotEnabled")}
+          style={{
+            position: "absolute",
+            inset: -3,
+            borderRadius: size,
+            borderWidth: 2,
+            borderColor: "#f0c866",
+          }}
+        >
+          <Svg
+            width={Math.max(12, size * 0.34)}
+            height={Math.max(12, size * 0.34)}
+            viewBox="0 0 20 20"
+            style={{ position: "absolute", right: -3, top: -4 }}
+          >
+            <Circle cx={10} cy={10} r={10} fill={colors.background} />
+            <Path d="M4 7 7 9 10 4 13 9 16 7 14 14H6Z" fill="#f0c866" />
+          </Svg>
+        </View>
+      ) : null}
       {working ? (
         <View
           style={{

@@ -55,6 +55,8 @@ export function CallCard({
           <AgentAvatar
             name={name}
             shape={avatar}
+            superBot={voice.target?.super_bot_active}
+            superBotLabel={t`Super Bot enabled`}
             color={color}
             working={voice.phase === "speaking" && voice.connected}
           />

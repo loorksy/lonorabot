@@ -120,8 +120,10 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
           api.get<{ id: string; state: { status: string } } | null>(
             `/threads/${encodeURIComponent(id)}/collaboration`,
           ),
-        ]).then(([nextFiles, nextApprovals, collaboration]) => {
+          api.get<Agent[]>("/agents"),
+        ]).then(([nextFiles, nextApprovals, collaboration, refreshedAgents]) => {
           if (!stillLive() || !conversationCache.current(scope)) return;
+          setAgents(refreshedAgents);
           setStateRevision((value) => value + 1);
           setCollaborationSessionId(collaboration?.id);
           setCollaborationActive(
@@ -404,6 +406,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
         avatar={
           agent ? (
             <BotAvatar
+              superBot={agent.super_bot_active}
               identity={agent.name}
               color={agent.color}
               variant={agent.avatar}

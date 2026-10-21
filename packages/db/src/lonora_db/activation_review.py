@@ -7,6 +7,7 @@ from lonora_session.idempotency import stable_id
 from sqlalchemy import exists, literal, select
 
 from .client import Database
+from .conversation_locale import conversation_locale
 from .runs import create_run
 from .schema import AgentRow, EffectReceiptRow, SuperBotRequestRow
 from .super_bot import authority_lock, owned_request, require_goal_authority, stop_request
@@ -59,6 +60,7 @@ async def dispatch_activation_reviews(db: Database) -> int:
             thread = await create_thread(
                 session, row.owner_id, ThreadCreate(agent_id=row.agent_id), purpose="work"
             )
+            locale = await conversation_locale(session, row.owner_id, row.thread_id)
             run = await create_run(
                 session,
                 row.owner_id,
@@ -66,7 +68,15 @@ async def dispatch_activation_reviews(db: Database) -> int:
                     agent_id=row.agent_id,
                     thread_id=thread.id,
                     trigger="activation",
-                    prompt="Review the newly authorized saved goal using goal_read, current account/exposure and exact-symbol market tools. Read actual state and explain what is ready, missing or waiting. This first review is observe-only: never execute a financial action, delegate execution, promise profit or claim monitoring without a persisted watch. Activation alone is not an entry signal.",
+                    prompt=(
+                        "Review the verified activated goal using actual account and exact-symbol market evidence. "
+                        "This is an internal observe-only readiness review; the owner has already received activation confirmation. "
+                        "Do not ask whether activation succeeded or ask for permission to perform this review. "
+                        "Do not execute, delegate financial execution, promise profit or claim ongoing monitoring without a persisted watch. "
+                        "Record a concise factual readiness result, at most three sentences, without an unsolicited follow-up question. "
+                        "Activation alone is not an entry signal. "
+                        + ("Write only in Arabic." if locale == "ar" else "Write only in English.")
+                    ),
                     metadata={
                         "authority": "observe_only",
                         "origin_thread_id": row.thread_id,
@@ -74,6 +84,7 @@ async def dispatch_activation_reviews(db: Database) -> int:
                         "review_goal_id": goal.id,
                         "account_id": row.envelope["account_id"],
                         "symbol": row.envelope["symbol"],
+                        "reply_locale": locale,
                     },
                 ),
                 stable_id(row.id, "activation-review"),

@@ -1,3 +1,4 @@
+import { t as superBotText } from "@lingui/core/macro";
 // Adapted for Lonora from Tampletgrok pages/shell/command-palette.tsx; Apache-2.0.
 import { Trans, useLingui } from "@lingui/react/macro";
 import {
@@ -91,6 +92,8 @@ export function SwitchAgentDialog({
                   name={agent.name}
                   color={agent.color}
                   shape={agent.avatar}
+                  superBot={agent.super_bot_active}
+                  superBotLabel={superBotText`Super Bot enabled`}
                   className="tpl-roster-avatar"
                 />
                 <span className="tpl-truncate" dir="auto">

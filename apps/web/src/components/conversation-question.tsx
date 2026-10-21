@@ -66,7 +66,7 @@ export function ConversationQuestion({
       </div>
       <span className="conversation-question-status" role="status">
         {request.status === "pending" ? (
-          <Trans>Choose an option</Trans>
+          <Trans>Choose an option or write your reply</Trans>
         ) : request.status === "answered" ? (
           <Trans>Answered</Trans>
         ) : (

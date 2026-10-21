@@ -1,3 +1,4 @@
+import { t as superBotText } from "@lingui/core/macro";
 // Adapted for Lonora from Tampletgrok Shell.tsx roster rows; Apache-2.0.
 
 import { useLingui } from "@lingui/react/macro";
@@ -53,6 +54,8 @@ export function SidebarRow({
           name={agent.name}
           color={agent.color}
           shape={agent.avatar}
+          superBot={agent.super_bot_active}
+          superBotLabel={superBotText`Super Bot enabled`}
           working={working}
           className="tpl-roster-avatar"
         />

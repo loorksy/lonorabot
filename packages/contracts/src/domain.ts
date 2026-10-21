@@ -1,6 +1,7 @@
 export type Json = string | number | boolean | null | Json[] | { [key: string]: Json };
 export type Payload = Record<string, Json>;
 export type Agent = {
+  super_bot_active?: boolean;
   execution_mode?: "live" | "shadow";
   role?: "personal" | "specialist" | "delegated" | "legacy";
   title?: string;

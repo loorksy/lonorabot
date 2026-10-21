@@ -26,7 +26,10 @@ async def create(data: dict[str, Any]) -> dict[str, Any]:
         choices = (
             [{"id": "analysis", "label": "نعم، حلل السوق"}, {"id": "wait", "label": "لا، انتظر"}]
             if arabic
-            else [{"id": "analysis", "label": "Yes, analyze the market"}, {"id": "wait", "label": "No, wait"}]
+            else [
+                {"id": "analysis", "label": "Yes, analyze the market"},
+                {"id": "wait", "label": "No, wait"},
+            ]
         )
         identity = "browser-question-" + uuid4().hex
 

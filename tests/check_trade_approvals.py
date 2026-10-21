@@ -112,6 +112,17 @@ async def main():
             wait = await registry.execute(call, context)
             assert wait["_runtime_retry"] and await broker.snapshot() == before
             approval = wait["approval_id"]
+            clarification = await registry.execute(
+                ToolCall(
+                    id=uuid4().hex,
+                    name="wait_for_input",
+                    arguments={"question": "Would you like to approve again?"},
+                ),
+                context,
+            )
+            assert clarification["code"] == "trade_confirmation_already_pending"
+            assert "_runtime_wait" not in clarification
+            assert await broker.snapshot() == before
             await fixture.request(
                 "POST", f"/trading/approvals/{approval}/decision", {"decision": "approve"}
             )

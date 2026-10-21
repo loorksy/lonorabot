@@ -3102,3 +3102,9 @@ msgstr "Purpose"
 #: src/pages/SkillsSection.tsx
 msgid "Version controls revision"
 msgstr "Version controls revision"
+
+msgid "Super Bot enabled"
+msgstr "Super Bot enabled"
+
+msgid "Choose an option or write your reply"
+msgstr "Choose an option or write your reply"

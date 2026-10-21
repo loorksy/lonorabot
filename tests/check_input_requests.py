@@ -12,7 +12,7 @@ from lonora_agent.tool_loop import execute_tool_loop
 from lonora_contracts.model_routing import ModelSelection
 from lonora_db.schema import MessageRow, RunRow, TradingJournalRow
 from lonora_tools.loader import load_tools
-from lonora_tools.runtime_control import WaitInput
+from lonora_tools.runtime_control import WaitInput, wait
 from pydantic import ValidationError
 from sqlalchemy import func, select
 
@@ -34,6 +34,7 @@ async def main() -> None:
             *,
             prepublication_crash: bool = False,
             background: bool = False,
+            question_text: str = "هل تريد تحليل السوق؟",
         ) -> tuple[dict[str, Any], Any]:
             run = await fixture.run(agent, thread)
             if background:
@@ -52,7 +53,7 @@ async def main() -> None:
                         ToolCall(
                             id=call_id,
                             name="wait_for_input",
-                            arguments={"question": "هل تريد تحليل السوق؟", "choices": choices},
+                            arguments={"question": question_text, "choices": choices},
                         )
                     ]
                 ), selection
@@ -88,6 +89,17 @@ async def main() -> None:
             assert original["role"] == "assistant" and original["content"] == question["question"]
             return current, context
 
+        consent_run = await fixture.run(agent, thread)
+        consent_context = await fixture.lease(consent_run)
+        consent = await wait(
+            consent_context,
+            {"purpose": "execution_authorization", "question": "Approve?", "choices": []},
+        )
+        assert (
+            consent["code"] == "financial_consent_requires_trade_request"
+            and "_runtime_wait" not in consent
+        )
+        await fixture.request("POST", "/runs/" + consent_run["id"] + "/cancel", {})
         run, _ = await ask(prepublication_crash=True)
         question = run["input_request"]
         # Reclaiming an already published pending question must not duplicate its message.
@@ -163,7 +175,11 @@ async def main() -> None:
             "PASS exact choice validation, nonce replay/conflict, stale clicks and same-Run continuation"
         )
 
-        background, _ = await ask(background=True)
+        choices = [
+            {"id": "intraday", "label": "متابعة خلال اليوم"},
+            {"id": "swing", "label": "متابعة لعدة أيام"},
+        ]
+        background, _ = await ask(background=True, question_text="ما مدة المتابعة التي تفضلها؟")
         free = await fixture.request(
             "POST",
             f"/threads/{thread['id']}/messages",

@@ -75,11 +75,18 @@ export function TradeApprovalCard({
           />
         </View>
       ) : (
-        <Text style={{ color: colors.secondary }}>{t(row.status)}</Text>
+        <Text style={{ color: colors.secondary }}>
+          {t(row.status === "completed" ? "brokerResult" : row.status)}
+        </Text>
       )}
       {row.results.map((result) => (
         <View key={result.operation_id}>
           <Text style={{ color: colors.foreground }}>{t(result.status)}</Text>
+          {result.code === "broker_reconciliation_required" && (
+            <Text style={{ color: colors.foreground, textAlign: rtl ? "right" : "left" }}>
+              {t("broker_reconciliation_required")}
+            </Text>
+          )}
           <Text style={{ color: colors.foreground, writingDirection: "ltr" }}>
             {[result.broker_id, result.code, result.details.price, result.details.description]
               .filter((value) => value != null)

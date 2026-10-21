@@ -123,7 +123,6 @@ async def state(request: Request, agent_id: str, owner: OwnerIdentity = Depends(
         return [request_data(row, timeline_seq=int(seq)) for row, seq in rows]
 
 
-
 @router.post("/agents/{agent_id}/super-bot/proposals", status_code=201)
 async def proposal(
     request: Request,

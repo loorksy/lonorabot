@@ -1,5 +1,6 @@
 export type Locale = "ar" | "en";
 export const labels = {
+  superBotEnabled: ["السوبر بوت مفعّل", "Super Bot enabled"],
   skills: ["المهارات", "Skills"],
   skillsAdd: ["إضافة مهارة", "Add a skill"],
   skillsCreate: ["إنشاء المهارة", "Create skill"],
@@ -157,7 +158,7 @@ export const labels = {
     "تم تسجيل إجابة مختلفة مسبقًا",
     "This answer was already recorded differently",
   ],
-  questionPending: ["اختر أحد الخيارات", "Choose an option"],
+  questionPending: ["اختر إجابة أو اكتب ردك", "Choose an option or write your reply"],
   questionAnswered: ["تمت الإجابة", "Answered"],
   questionClosed: ["أُغلق السؤال", "Question closed"],
   superBotActivationQuestion: ["تفعيل سوبر بوت؟", "Activate Super Bot?"],
@@ -330,6 +331,11 @@ export const labels = {
   voice_transport_unconfigured: [
     "الخدمة الصوتية غير مهيأة بعد.",
     "Voice service is not configured yet.",
+  ],
+  brokerResult: ["نتيجة الوسيط", "Broker result"],
+  broker_reconciliation_required: [
+    "لم يُرسل الطلب؛ يلزم التحقق من نتيجة عملية سابقة لدى الوسيط.",
+    "The request was not sent; a previous broker operation still needs verification.",
   ],
   tradeApproval: ["طلب تداول", "Trading request"],
   approve: ["موافقة", "Approve"],
