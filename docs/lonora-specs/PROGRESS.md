@@ -37,6 +37,21 @@ then the isolated analytical workspace and safe Skill import boundary. Workspace
 execution must have aggregate resource limits and no access to broker secrets;
 an unsandboxed subprocess in the Gateway is not an acceptable replacement.
 
+### Public repository inspection increment
+
+The first Skill import foundation is implemented in the existing ToolRegistry and
+RunSkillAccess, without a new manager/runtime. It resolves immutable GitHub
+revisions, bounds archive and source sizes, rejects unsafe archive paths/symlinks,
+reports instruction-format compatibility and static utility/dependency/license
+metadata, and neither installs nor executes anything. The actual public
+day-trader-skill acceptance source resolves to `3d0f4ef`: 85 files, 11 Skill
+documents and 11 utilities; one document exceeds current format limits. Offline
+security checks pass (25 cases); the real Agent/PostgreSQL dispatch check and
+final full build also passed. See [inspection evidence](../skill-repository-inspection.md).
+
+Remaining M-S work is still open: faithful adaptation, isolated execution,
+dependency pinning/installation, executable Skill lifecycle and rollback.
+
 Current wave (2026-10-19): cancellation-safe MetaApi discovery recovery on `fix/metaapi-discovery-cancellation`, from `f6a5933`. All preceding progressive Skills/environment increments are on `main` and deployed. The full professional Agent program remains incomplete; no APK was built.
 
 ## Current wave

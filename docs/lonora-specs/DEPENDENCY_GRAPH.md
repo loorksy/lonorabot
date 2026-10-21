@@ -1,5 +1,25 @@
 # Capability dependency graph
 
+## Active agent-first mandate (2026-10-21)
+
+```mermaid
+flowchart LR
+  Runtime[Existing Agent/Run/ToolRegistry] --> Compact[Compact policy and model-selected procedures]
+  Runtime --> Inspect[Pinned public repository inspection]
+  Inspect --> Review[Format and adaptation review]
+  Sandbox[Resource-bounded isolated workspace: pending] --> Test[Controlled utility/dependency tests]
+  Review --> Test
+  Test --> Lifecycle[Existing owned Skill versions plus executable lifecycle: pending]
+  Runtime --> Voice[Existing GPT Live client delegation]
+  Voice --> Handoff[Final handoff redesign: pending]
+  Authority[Existing typed financial authority/journal/reconciliation] --> Trading[All broker mutations]
+```
+
+Inspection has no installation or execution edge. Workspace outputs and imported
+instructions remain analytical inputs; they never acquire broker credentials or
+an alternate financial execution route. Current evidence is in PROGRESS.md and
+the M-series matrix rows.
+
 ```mermaid
 flowchart TD
   S[Existing ownership / exact-symbol binding / global controls] --> A[Explicit Agent role / Personal identity]

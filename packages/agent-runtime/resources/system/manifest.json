@@ -16,6 +16,7 @@
     "scratchpad_write": "memory",
     "skills_list": "memory",
     "skill_view": "memory",
+    "skill_repository_inspect": "memory",
     "routine_create": "tasks",
     "routine_list": "tasks",
     "routine_toggle": "tasks",

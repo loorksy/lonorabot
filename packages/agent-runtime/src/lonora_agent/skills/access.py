@@ -168,6 +168,18 @@ class RunSkillAccess:
     registry: ToolRegistry
     active_ids: tuple[str, ...]
 
+    async def inspect_repository(
+        self, context: ToolContext, repository_url: str, ref: str
+    ) -> dict[str, Any]:
+        from .repository import inspect_repository
+
+        async with context.db.sessions() as session, session.begin():
+            await scoped_run(session, context)
+        result = await inspect_repository(repository_url, ref)
+        async with context.db.sessions() as session, session.begin():
+            await scoped_run(session, context)
+        return result
+
     async def catalog(self, context: ToolContext, offset: int, limit: int) -> dict[str, Any]:
         async with context.db.sessions() as session, session.begin():
             run = await scoped_run(session, context)
