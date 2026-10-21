@@ -292,7 +292,11 @@ class SimulationBroker:
             return result
 
     async def reconcile(
-        self, operation_id: str, request: TradeRequest | None = None
+        self,
+        operation_id: str,
+        request: TradeRequest | None = None,
+        *,
+        submitted_at: datetime | None = None,
     ) -> TradeResult:
         value = (await self.snapshot()).get("operations", {}).get(operation_id)
         return (

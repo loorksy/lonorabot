@@ -63,7 +63,9 @@ async def reconcile_ambiguous(db: Database, brokers: BrokerManager) -> int:
             # including a persisted submission left behind by a terminated process.
             broker = await brokers.get(row.owner_id, row.account_id)
             result = await broker.reconcile(
-                row.operation_id, TradeRequest.model_validate(row.request)
+                row.operation_id,
+                TradeRequest.model_validate(row.request),
+                submitted_at=row.submitted_at,
             )
             if result.status not in {"confirmed", "failed"}:
                 continue

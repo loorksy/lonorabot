@@ -103,7 +103,9 @@ async def reconcile_broker_account(
                             unresolved.append(entry.operation_id)
                         continue
                     receipt = await broker.reconcile(
-                        entry.operation_id, TradeRequest.model_validate(entry.request)
+                        entry.operation_id,
+                        TradeRequest.model_validate(entry.request),
+                        submitted_at=entry.submitted_at,
                     )
                     if receipt.operation_id == entry.operation_id and receipt.status in {
                         "confirmed",

@@ -37,6 +37,7 @@ async def main() -> None:
         get_positions=AsyncMock(return_value=[]),
         get_orders=AsyncMock(return_value=[]),
         get_deals_by_time_range=AsyncMock(return_value={"deals": []}),
+        get_history_orders_by_time_range=AsyncMock(return_value={"historyOrders": []}),
     )
     listeners: list[Any] = []
 
@@ -148,6 +149,10 @@ async def main() -> None:
         rpc.get_deals_by_time_range.assert_awaited_once_with(start, end, 0, 20)
         print("PASS bounded broker deal history normalizes timestamps and excludes credentials")
         rpc.get_deals_by_time_range.reset_mock()
+        rpc.get_history_orders_by_time_range.return_value = {
+            "historyOrders": [],
+            "synchronizing": False,
+        }
         rpc.get_positions.return_value = [
             {"id": "p7", "symbol": "XAUUSDm", "clientId": client_id("observed-buy")}
         ]

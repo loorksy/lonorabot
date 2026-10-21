@@ -26,6 +26,10 @@ class BrokerAdapter(BrokerStateReader, Protocol):
         self, request: TradeRequest, before_send: Callable[[], Awaitable[None]] | None = None
     ) -> TradeResult: ...
     async def reconcile(
-        self, operation_id: str, request: TradeRequest | None = None
+        self,
+        operation_id: str,
+        request: TradeRequest | None = None,
+        *,
+        submitted_at: datetime | None = None,
     ) -> TradeResult: ...
     async def close(self) -> None: ...

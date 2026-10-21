@@ -6,7 +6,7 @@ from collections.abc import AsyncGenerator, Awaitable, Callable
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
 from urllib.parse import urlparse
 
 import httpx
@@ -208,7 +208,10 @@ class MetaApiBroker:
         self.account_lock = asyncio.Lock()
         self.rpc_slot = ConnectionSlot("rpc")
         self.stream_slot = ConnectionSlot("streaming")
-        self.evidence: tuple[float, list[dict[str, Any]], list[dict[str, Any]]] | None = None
+        self.evidence: (
+            tuple[float, datetime, list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]
+            | None
+        ) = None
         self.evidence_lock = asyncio.Lock()
         self._closing = False
 
@@ -841,51 +844,119 @@ class MetaApiBroker:
 
     async def reconciliation_evidence(
         self,
-    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-        # The observer checks every uncertain operation of an account in one pass. Share one
-        # broker snapshot between them instead of three RPC reads per operation.
+        submitted_at: datetime | None = None,
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+        # A broad, synchronized read can serve all subsequent requests inside
+        # its history window. Older journal operations must not age out after7d.
+        end = datetime.now(UTC)
+        if submitted_at is not None and submitted_at.tzinfo is None:
+            raise LonoraError("broker_reconciliation_time_invalid", 409)
+        since = min(end - timedelta(days=7), submitted_at or end)
+        start = since.astimezone(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+        start -= timedelta(minutes=5)
         lock = self.__dict__.setdefault("evidence_lock", asyncio.Lock())
         async with lock:
             now = asyncio.get_running_loop().time()
             cached = getattr(self, "evidence", None)
-            if cached is not None and now - cached[0] < EVIDENCE_SECONDS:
-                return cached[1], cached[2]
+            if (
+                cached is not None
+                and len(cached) == 5
+                and now - cached[0] < EVIDENCE_SECONDS
+                and cached[1] <= start
+            ):
+                return cached[2], cached[3], cached[4]
             current = [*await self.read_rpc("get_positions"), *await self.read_rpc("get_orders")]
-            history = await self.read_rpc(
-                "get_deals_by_time_range",
-                datetime.now(UTC) - timedelta(days=7),
-                datetime.now(UTC),
-                0,
-                1000,
-            )
-            deals = list(history.get("deals", []))
-            self.evidence = (now, current, deals)
-            return current, deals
+            collected: list[list[dict[str, Any]]] = []
+            for method, key in (
+                ("get_deals_by_time_range", "deals"),
+                ("get_history_orders_by_time_range", "historyOrders"),
+            ):
+                values: list[dict[str, Any]] = []
+                for offset in range(0, 10000, 1000):
+                    response = await self.read_rpc(method, start, end, offset, 1000)
+                    if response.get("synchronizing"):
+                        raise LonoraError("broker_history_synchronizing", 409)
+                    page = response.get(key, [])
+                    if not isinstance(page, list):
+                        raise LonoraError("broker_history_invalid", 502)
+                    if any(not isinstance(item, dict) for item in cast(list[Any], page)):
+                        raise LonoraError("broker_history_invalid", 502)
+                    values.extend(cast(list[dict[str, Any]], page))
+                    if len(cast(list[Any], page)) < 1000:
+                        break
+                else:
+                    # Keep uncertainty explicit instead of treating truncated
+                    # history as proof of an absent financial operation.
+                    raise LonoraError("broker_history_limit", 409)
+                collected.append(values)
+            deals, orders = collected
+            self.evidence = (now, start, current, deals, orders)
+            return current, deals, orders
 
     async def reconcile(
-        self, operation_id: str, request: TradeRequest | None = None
+        self,
+        operation_id: str,
+        request: TradeRequest | None = None,
+        *,
+        submitted_at: datetime | None = None,
     ) -> TradeResult:
-        # Modification/cancellation evidence cannot be inferred merely from an order
-        # or position carrying an old clientId. Keep uncertainty blocked conservatively.
         if request and request.action in {"modify_order", "modify_position", "cancel_order"}:
             return TradeResult(
                 operation_id=operation_id, status="ambiguous", code="mutation_evidence_required"
             )
         target = client_id(operation_id)
         try:
-            current, deals = await self.reconciliation_evidence()
-            items = deals if request and request.action == "close_position" else current + deals
-            matches = [item for item in items if item.get("clientId") == target]
+            current, deals, orders = await self.reconciliation_evidence(submitted_at)
+            items = (
+                deals
+                if request and request.action == "close_position"
+                else current + deals + orders
+            )
+            matches: list[dict[str, Any]] = []
+            for item in items:
+                # MetaApi may retain the entry clientId on an exit deal; the
+                # exit's own correlation is then in brokerComment, with ':' suffix.
+                comment = item.get("brokerComment") or item.get("comment")
+                tagged = item.get("clientId") == target or comment in {target, target + ":"}
+                if not tagged or not item.get("id"):
+                    continue
+                if request and item.get("symbol") != request.symbol:
+                    continue
+                if (
+                    request
+                    and request.action == "close_position"
+                    and (
+                        str(item.get("positionId")) != request.position_id
+                        or item.get("entryType")
+                        not in {"DEAL_ENTRY_OUT", "DEAL_ENTRY_OUT_BY", "DEAL_ENTRY_INOUT"}
+                    )
+                ):
+                    continue
+                if (
+                    request
+                    and request.action in {"buy", "sell"}
+                    and item in orders
+                    and item.get("state")
+                    not in {"ORDER_STATE_FILLED", "ORDER_STATE_PARTIAL", "ORDER_STATE_REJECTED"}
+                ):
+                    continue
+                matches.append(item)
             if matches:
+                found = matches[0]
+                rejected = found.get("state") == "ORDER_STATE_REJECTED"
                 return TradeResult(
                     operation_id=operation_id,
-                    status="confirmed",
-                    broker_id=str(matches[0].get("id") or ""),
+                    status="failed" if rejected else "confirmed",
+                    broker_id=str(found["id"]),
+                    code="broker_order_rejected" if rejected else None,
                     details={
                         "reconciled": True,
-                        "order_id": matches[0].get("orderId"),
-                        "position_id": matches[0].get("positionId"),
-                        "deal_id": matches[0].get("id") if matches[0] in deals else None,
+                        "order_id": found.get("orderId"),
+                        "position_id": found.get("positionId"),
+                        "deal_id": found.get("id") if found in deals else None,
+                        "broker_state": found.get("state"),
+                        "price": found.get("price", found.get("openPrice")),
+                        "volume": found.get("volume"),
                     },
                 )
             return TradeResult(

@@ -135,7 +135,11 @@ class ScriptedBroker:
         return result
 
     async def reconcile(
-        self, operation_id: str, request: TradeRequest | None = None
+        self,
+        operation_id: str,
+        request: TradeRequest | None = None,
+        *,
+        submitted_at: datetime | None = None,
     ) -> TradeResult:
         self.reconciled += 1
         if self.wrong_reconcile:
