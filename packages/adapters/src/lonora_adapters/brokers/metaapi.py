@@ -5,6 +5,7 @@ import os
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from time import monotonic
 from types import SimpleNamespace
 from typing import Any, cast
 from urllib.parse import urlparse
@@ -31,12 +32,22 @@ from .metaapi_lifecycle import (
 
 log = logging.getLogger("lonora.metaapi")
 EVIDENCE_SECONDS = 15
+MARKET_DATA_BILLING_COOLDOWN_SECONDS = 300
 
 
 def provider_error(error: Exception, stage: str) -> LonoraError:
     if isinstance(error, LonoraError):
         return error
     status = getattr(error, "status_code", None)
+    # This is a specific provider access condition, not an invalid broker
+    # symbol/timeframe or a request to replace working stream credentials.
+    message = " ".join(str(error).split("Request URL:", 1)[0].casefold().split())
+    if (
+        stage == "candles"
+        and status in {400, 402}
+        and message.startswith("to allow market data access please top up your account.")
+    ):
+        return LonoraError("broker_market_data_billing_required", 409)
     if status == 404:
         message = str(error).split("Request URL:", 1)[0].casefold()
         missing = any(
@@ -213,6 +224,9 @@ class MetaApiBroker:
             | None
         ) = None
         self.evidence_lock = asyncio.Lock()
+        self._history_billing_failure: LonoraError | None = None
+        self._history_billing_retry_at = 0.0
+        self._history_billing_probe = False
         self._closing = False
 
     def diagnose(self, error: Exception, stage: str) -> LonoraError:
@@ -618,8 +632,9 @@ class MetaApiBroker:
         validate_timeframe(timeframe)
         if limit < 1:
             raise LonoraError("candle_limit_invalid")
-        account = await self.resolve_account()
+        probe = self._history_access()
         try:
+            account = await self.resolve_account()
             async with asyncio.timeout(35):
                 values = await account.get_historical_candles(
                     symbol=symbol, timeframe=timeframe, start_time=None, limit=min(limit, 1000)
@@ -630,9 +645,37 @@ class MetaApiBroker:
                 for value in values
             ):
                 raise LonoraError("broker_candles_mismatch", 502)
-            return [normalize.candle(value, symbol, timeframe) for value in values]
+            result = [normalize.candle(value, symbol, timeframe) for value in values]
+            self._history_billing_failure = None
+            self._history_billing_retry_at = 0.0
+            return result
         except Exception as error:
-            raise self.diagnose(error, "candles") from error
+            failure = self.diagnose(error, "candles")
+            if failure.code == "broker_market_data_billing_required":
+                self._history_billing_failure = failure
+                self._history_billing_retry_at = monotonic() + MARKET_DATA_BILLING_COOLDOWN_SECONDS
+            raise failure from error
+        finally:
+            if probe:
+                self._history_billing_probe = False
+
+    def _history_access(self) -> bool:
+        """One bounded account-level recovery probe; no financial retry lives here.
+
+        Healthy histories remain concurrent. After a recognized billing failure,
+        all symbols share the cooldown without borrowing or closing stream/RPC
+        connections. Synchronous admission is atomic in this adapter's event loop.
+        """
+        failure = getattr(self, "_history_billing_failure", None)
+        if failure is None:
+            return False
+        now = monotonic()
+        if now < self._history_billing_retry_at or getattr(self, "_history_billing_probe", False):
+            raise failure
+        self._history_billing_probe = True
+        # Cancellation, timeout or another failure must not create a probe loop.
+        self._history_billing_retry_at = now + MARKET_DATA_BILLING_COOLDOWN_SECONDS
+        return True
 
     async def history(self, start: datetime, end: datetime, limit: int) -> list[dict[str, Any]]:
         try:

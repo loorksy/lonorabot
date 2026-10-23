@@ -133,6 +133,8 @@ export function userError(error: unknown) {
       return t`Historical broker candles timed out. Retry the chart refresh.`;
     case "broker_candles_request_rejected":
       return t`The broker rejected this timeframe or candle request.`;
+    case "broker_market_data_billing_required":
+      return t`Historical market data is blocked by the data provider's billing. Fund the provider account, then retry. Live prices may remain available.`;
     case "broker_rate_limited":
       return t`The broker market-data service is rate limited.`;
     case "broker_candles_not_found":

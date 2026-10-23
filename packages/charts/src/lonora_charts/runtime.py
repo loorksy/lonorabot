@@ -62,6 +62,16 @@ async def refresh_chart(
         ):
             return False
         refreshed = state.get("scene_updated_at")
+        retry_at = state.get("scene_retry_at")
+        if (
+            not force
+            and not state.get("refresh_requested")
+            and state.get("scene_revision") == row.version
+            and state.get("error_code") == "broker_market_data_billing_required"
+            and retry_at
+            and datetime.fromisoformat(retry_at) > now
+        ):
+            return False
         if (
             not force
             and not state.get("refresh_requested")
@@ -154,6 +164,9 @@ async def refresh_chart(
             "runtime_lease_until": None,
             "refresh_requested": False,
         }
+        next_state.pop("scene_retry_at", None)
+        if code == "broker_market_data_billing_required":
+            next_state["scene_retry_at"] = (utcnow() + timedelta(minutes=5)).isoformat()
         if scene is not None:
             next_state["scene"] = {
                 **scene,
@@ -290,6 +303,7 @@ async def publish_stream_update(
                     "scene_version": version,
                 }
                 next_state.pop("error_code", None)
+                next_state.pop("scene_retry_at", None)
                 row.state = next_state
                 emit(
                     session,

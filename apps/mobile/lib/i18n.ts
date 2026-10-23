@@ -384,6 +384,10 @@ export const labels = {
     "رفض الوسيط طلب الشموع لهذا الرمز أو الفاصل الزمني. اختر فاصلًا يدعمه الحساب.",
     "The broker rejected candles for this symbol or timeframe. Choose an interval supported by the account.",
   ],
+  broker_market_data_billing_required: [
+    "حُجبت بيانات الشموع بسبب رصيد خدمة البيانات. أضف رصيدًا إلى حساب مزوّد البيانات ثم أعد المحاولة. قد تبقى الأسعار الحية متاحة.",
+    "Historical market data is blocked by the data provider's billing. Fund the provider account, then retry. Live prices may remain available.",
+  ],
   createChart: ["إنشاء رسم بياني", "Create chart"],
   chooseAccount: ["اختر الحساب", "Choose account"],
   chooseSymbol: ["اختر الرمز", "Choose symbol"],
