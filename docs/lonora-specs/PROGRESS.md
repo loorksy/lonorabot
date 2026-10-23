@@ -1,5 +1,33 @@
 # Progress
 
+## Published structure integration — 2026-10-23
+
+Both API and Gateway now run immutable revision
+`47e2d4d7a49a9f77eefad1077099ec565a1f7c97`; the integration branch is pushed.
+The exact first-party wheel SHA256 is
+`9026fd81bc7c77af3a9b9e6b2dcdd8015d396dd1c1e51278c427e101660e91f3`.
+It was built offline from the committed source and byte-checked against the
+changed modules/resources, then installed offline over the tested d189593 image
+with unchanged dependencies and Web assets. The candidate passed source/installed
+module equality,106-tool registry/policy checks and actual closed-bar calculation
+with mixed-symbol rejection without network or broker access.
+
+Production `/health`, `/ready`, `/app/`, fresh Gateway readiness, analytical host
+and actual Gateway-to-restricted numerical execution passed. Migration0030
+remains current; this wave needs no additional migration. Signed OTA44b09c84
+remains available for the unchanged0.2.8 runtime; public signature, actual bundle
+bytes and no-update replay were reverified after activation. No APK, backup,
+production financial grant or broker mutation was created. Release build staging
+and transferred wheel were removed; the backup directory remains absent.
+
+Read-only production checks still show three failed chart scenes with
+`broker_market_data_billing_required`; Gateway diagnostics separately retain
+`broker_account_undeployed`. These require provider-side account deployment and
+service funds, not more simulated OHLC or a reported successful trade. Active
+and pending account-management grants remain zero. Physical-device and actual
+provider trading acceptance remain unverified. This publishes M-D3 and the
+guidance corrections; it does not complete every27-item requirement.
+
 ## Confirmed structure integration — 2026-10-23
 
 The existing read-only market interface now measures strict confirmed swings and
