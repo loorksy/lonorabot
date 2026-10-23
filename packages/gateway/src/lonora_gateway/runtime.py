@@ -7,6 +7,7 @@ from lonora_adapters.storage.secret_store import EncryptedSecretStore
 from lonora_agent.workspace_access import RunWorkspaceAccess
 from lonora_agent.workspace_client import WorkspaceClient
 from lonora_charts.visual import ChartVisualRuntime
+from lonora_contracts.mcp import McpToolDeclaration
 from lonora_contracts.runs import Lease
 from lonora_db.client import Database
 from lonora_market.runtime import MarketRuntime
@@ -27,6 +28,7 @@ class OwnerServices:
     market: MarketRuntime
     chart_visual: ChartVisualRuntime | None = None
     workspace_socket: Path | None = None
+    mcp_declarations: tuple[McpToolDeclaration, ...] = ()
 
     @classmethod
     def create(
@@ -37,6 +39,7 @@ class OwnerServices:
         *,
         chart_visual: ChartVisualRuntime | None = None,
         workspace_socket: Path | None = None,
+        mcp_declarations: tuple[McpToolDeclaration, ...] = (),
     ) -> "OwnerServices":
         secrets = EncryptedSecretStore(db, key, owner_id)
         brokers = BrokerManager(db, secrets)
@@ -64,6 +67,7 @@ class OwnerServices:
             market,
             chart_visual,
             workspace_socket,
+            mcp_declarations,
         )
 
     def tool_context(
@@ -92,6 +96,7 @@ class OwnerServices:
             workspace_access=RunWorkspaceAccess(
                 WorkspaceClient(self.workspace_socket) if self.workspace_socket else None
             ),
+            mcp_declarations=self.mcp_declarations,
         )
 
     async def close(self) -> None:

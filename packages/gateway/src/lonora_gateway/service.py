@@ -5,6 +5,7 @@ from lonora_agent.collaboration.outcome_return import return_pending_outcomes
 from lonora_agent.runtime import AgentRuntime
 from lonora_charts.runtime import chart_runtime_tick
 from lonora_charts.visual import ChartVisualRuntime
+from lonora_contracts.mcp import McpToolDeclaration
 from lonora_db.client import Database
 from lonora_db.owner import get_owner
 from lonora_tools.loader import load_tools
@@ -35,10 +36,12 @@ class Gateway:
         poll_seconds: float = 0.5,
         chart_visual: ChartVisualRuntime | None = None,
         workspace_socket: Path | None = None,
+        mcp_declarations: tuple[McpToolDeclaration, ...] = (),
     ):
         self.db, self.key, self.root = db, key, artifact_root
         self.chart_visual = chart_visual
         self.workspace_socket = workspace_socket
+        self.mcp_declarations = mcp_declarations
         self.lease_seconds, self.maximum_subagents, self.poll_seconds = (
             lease_seconds,
             maximum_subagents,
@@ -65,6 +68,7 @@ class Gateway:
                 lane,
                 self.chart_visual,
                 self.workspace_socket,
+                self.mcp_declarations,
             )
             if not claimed:
                 await asyncio.sleep(self.poll_seconds)
@@ -84,6 +88,7 @@ class Gateway:
                         self.key,
                         chart_visual=self.chart_visual,
                         workspace_socket=self.workspace_socket,
+                        mcp_declarations=self.mcp_declarations,
                     )
                 service = self.services[owner.id]
                 await reconcile_ambiguous(self.db, service.brokers)

@@ -15,6 +15,7 @@ def create_gateway(settings: Settings) -> tuple[Database, Gateway]:
         settings.maximum_subagents,
         settings.worker_poll_seconds,
         workspace_socket=settings.workspace_socket,
+        mcp_declarations=settings.mcp_declarations,
         chart_visual=ChartVisualRuntime(
             settings.chart_renderer_url,
             str(settings.chart_browser_executable) if settings.chart_browser_executable else None,

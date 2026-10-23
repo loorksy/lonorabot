@@ -1,6 +1,7 @@
 from functools import lru_cache
 from pathlib import Path
 
+from lonora_contracts.mcp import McpToolDeclaration
 from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -34,6 +35,17 @@ class Settings(BaseSettings):
     chart_browser_executable: Path | None = None
     chart_browser_sandbox: bool = True
     workspace_socket: Path | None = None
+    mcp_declarations: tuple[McpToolDeclaration, ...] = Field(default=(), max_length=128)
+
+    @field_validator("mcp_declarations")
+    @classmethod
+    def unique_mcp_declarations(
+        cls, values: tuple[McpToolDeclaration, ...]
+    ) -> tuple[McpToolDeclaration, ...]:
+        identities = {(v.owner_id, v.connection_id, v.tool_name) for v in values}
+        if len(identities) != len(values):
+            raise ValueError("mcp_declarations_duplicate")
+        return values
 
     @field_validator("workspace_socket")
     @classmethod

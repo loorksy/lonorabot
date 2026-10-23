@@ -5,6 +5,10 @@ export type Quote = {
   ask: string;
   observed_at: string;
   source: string;
+  profit_tick_value?: string | null;
+  loss_tick_value?: string | null;
+  tick_value_basis?: "account_currency_per_lot" | null;
+  account_currency_exchange_rate?: string | null;
 };
 export type Candle = {
   symbol: string;
@@ -24,6 +28,11 @@ export type Instrument = {
   volume_min: string;
   volume_max: string;
   volume_step: string;
+  stops_level?: number;
+  point_size?: string | null;
+  contract_size?: string | null;
+  base_currency?: string | null;
+  profit_currency?: string | null;
 };
 export type Position = {
   id: string;

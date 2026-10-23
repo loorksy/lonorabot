@@ -40,7 +40,7 @@ class ExposureSnapshot(Contract):
     margin: Decimal
     free_margin: Decimal
     buckets: list[ExposureBucket]
-    # Contracts currently have no contract size/tick value/currency conversion.
+    # A single quote's tick values cannot value the entire cross-symbol portfolio.
     # Never add raw lots across unrelated symbols or label them monetary risk.
     notional: None = None
     monetary_stop_risk: None = None

@@ -4,6 +4,7 @@ from pathlib import Path
 from lonora_adapter_kit.secrets import SecretStore
 from lonora_adapters.brokers.base import BrokerManager
 from lonora_charts.visual import ChartVisualRuntime
+from lonora_contracts.mcp import McpToolDeclaration
 from lonora_contracts.runs import Lease
 from lonora_db.client import Database
 from lonora_providers.router import GlobalModelRouter
@@ -32,6 +33,7 @@ class ToolContext:
     chart_visual: ChartVisualRuntime | None = None
     skill_access: SkillAccess | None = None
     workspace_access: WorkspaceAccess | None = None
+    mcp_declarations: tuple[McpToolDeclaration, ...] = ()
 
     @property
     def effect_key(self) -> str:

@@ -1,5 +1,6 @@
 from datetime import datetime
 from decimal import Decimal
+from typing import Literal
 
 from pydantic import Field, model_validator
 
@@ -16,6 +17,9 @@ class Instrument(Contract):
     volume_step: Decimal = Field(gt=0)
     stops_level: int = Field(default=0, ge=0)
     point_size: Decimal | None = Field(default=None, gt=0)
+    contract_size: Decimal | None = Field(default=None, gt=0)
+    base_currency: str | None = Field(default=None, min_length=1, max_length=80)
+    profit_currency: str | None = Field(default=None, min_length=1, max_length=80)
 
 
 class Quote(Contract):
@@ -24,6 +28,12 @@ class Quote(Contract):
     ask: Decimal = Field(gt=0)
     observed_at: datetime
     source: str
+    # MetaApi uses these values directly in account P&L for one lot and one tick.
+    # The exchange rate below is separate metadata, never an extra tick multiplier.
+    profit_tick_value: Decimal | None = Field(default=None, gt=0)
+    loss_tick_value: Decimal | None = Field(default=None, gt=0)
+    tick_value_basis: Literal["account_currency_per_lot"] | None = None
+    account_currency_exchange_rate: Decimal | None = Field(default=None, gt=0)
 
     @model_validator(mode="after")
     def validate_spread(self) -> "Quote":
