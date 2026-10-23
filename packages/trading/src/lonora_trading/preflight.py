@@ -17,7 +17,8 @@ async def preflight(
         instrument = await broker.instrument(request.symbol)
         validate_trade(request, instrument)
     account = await broker.account()
-    account.id = request.account_id
+    if account.id != request.account_id:
+        raise LonoraError("broker_account_mismatch", 409)
     if financial_authority and (account.trade_allowed is False or account.investor_mode is True):
         raise LonoraError("broker_trading_not_allowed", 409)
     positions = await broker.positions()
