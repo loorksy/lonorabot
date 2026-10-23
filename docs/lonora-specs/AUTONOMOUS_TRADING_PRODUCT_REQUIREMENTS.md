@@ -52,8 +52,8 @@ visible and included in the owner's configured notifications. It must never mean
 concealed trades. This specification does not activate production trading.
 
 This supersedes mandatory numeric-budget setup in earlier planning text. The
-existing bounded-grant implementation remains the current product behavior until
-an explicit, versioned full-management scope is implemented and tested. Never
+explicit versioned full-management scope is implemented alongside existing bounded
+grants; current evidence is recorded in the implementation matrix. Never
 reinterpret a missing field in an old grant as unlimited permission, silently
 upgrade an existing grant, or remove executor checks to simulate the new mode.
 

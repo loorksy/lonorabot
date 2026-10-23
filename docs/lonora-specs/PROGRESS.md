@@ -1,5 +1,34 @@
 # Progress
 
+## Published full-management integration — 2026-10-23
+
+API and Gateway now run immutable revision
+`d189593617ab511c872db9ab7689e96ff32771ba` on the integration branch.
+Migration `0030_full_account_management` and nullable expiry were verified on the
+deployed database. Public `/health`, `/ready` and `/app/` return 200. Actual
+Gateway-to-restricted numerical execution and rejection of an incorrect image
+passed. The installed policy/Skill resources were distributed in a hash-verified
+first-party wheel, installed offline over the tested application image.
+
+Signed Android OTA `44b09c84-97db-4bf9-bcb2-005298f64997` is published for the
+unchanged 0.2.8 native runtime `e4a51ffd7874ea0b8a4fc201e1c39ca376e826ca`.
+Public Expo protocol, pinned-certificate signature, actual bundle bytes and
+no-update replay passed. No new APK, backup, production grant or broker mutation
+was created. Both active and pending account-management grant counts are zero;
+publication does not authorize the production Agent by itself. Physical-device
+download/activation remains separate from protocol verification.
+
+Broker history still reports the previously observed MetaApi service-billing
+prerequisite; the separate read-only account probe reported an undeployed account.
+Three saved scenes remain failed. Deployment health is not broker readiness.
+The full professional Agent program remains incomplete.
+
+Next integration: reconcile remaining model-visible approval guidance and extend
+the existing read-only market evidence with deterministic confirmed swings and
+alternative trendlines. Market owns the pure analyzer; root owns the existing
+tool/Skill integration; independent tests cover the six existing candle patterns.
+No new market runtime, scheduler or financial execution route is introduced.
+
 ## Explicit automatic management integration — 2026-10-23
 
 Implemented a v2 full-management mode in the existing signed account authority,
