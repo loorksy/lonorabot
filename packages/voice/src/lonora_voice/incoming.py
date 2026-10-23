@@ -1,9 +1,11 @@
 """Attention-backed invitations reuse durable voice rows, events and receipts.
 
 No microphone, provider session, task or financial grant is created by an invitation.
-Delivery adapters must honor their idempotency key across ambiguous network outcomes.
+Provider acknowledgement is not evidence that a device presented an invitation.
+An attempt is durably fenced before IO; ambiguous attempts are never blindly retried.
 """
 
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any, Protocol
 
@@ -23,8 +25,13 @@ MODE = "incoming_request"
 ACTIVE = {"ringing"}
 
 
+@dataclass(frozen=True)
+class ProviderAccepted:
+    """The provider accepted a request, not proof of device delivery or ringing."""
+
+
 class IncomingDelivery(Protocol):
-    """Authenticated native push/OS delivery, not an Agent or execution runtime."""
+    """Optional provider transport. Stable keys assist deduplication, not exactly-once IO."""
 
     async def send(
         self,
@@ -34,7 +41,7 @@ class IncomingDelivery(Protocol):
         call_id: str,
         expires_at: datetime,
         idempotency_key: str,
-    ) -> None: ...
+    ) -> ProviderAccepted: ...
 
 
 def call_data(row: VoiceSessionRow) -> dict[str, Any]:
@@ -280,8 +287,13 @@ async def transition(
 async def incoming_tick(
     db: Database, owner_id: str, delivery: IncomingDelivery | None = None
 ) -> int:
-    """Resident Gateway maintenance; safe to replay after a process restart."""
-    delivered = 0
+    """Count provider acknowledgements, never presented/ringing devices.
+
+    Persist uncertainty before IO so cancellation or process loss cannot lead to a
+    second send after restart. Without provider reconciliation or a proven retry
+    guarantee, an uncertain attempt waits for acceptance, cancellation or expiry.
+    """
+    provider_accepted = 0
     async with db.sessions() as session:
         identifiers = list(
             await session.scalars(
@@ -307,38 +319,62 @@ async def incoming_tick(
             except LonoraError:
                 changed(session, row, "cancelled")
                 continue
-            if row.payload["status"] != "ringing" or row.state.get("delivery") == "delivered":
+            state = row.state.get("delivery", "provider_unconfigured")
+            if state == "delivered":
+                # Old rows only proved provider acknowledgement, never presentation.
+                row.state = {**row.state, "delivery": "provider_accepted"}
+                continue
+            if state == "retry_pending":
+                # Earlier code retried timeouts without establishing non-delivery.
+                row.state = {**row.state, "delivery": "uncertain"}
+                continue
+            if state != "provider_unconfigured":
                 continue
             if delivery is None:
-                row.state = {**row.state, "delivery": "provider_unconfigured"}
                 continue
-            retry_at = row.state.get("retry_at")
-            if retry_at and datetime.fromisoformat(retry_at) > now:
+            row.state = {
+                **row.state,
+                "delivery": "uncertain",
+                "attempt": int(row.state.get("attempt", 0)) + 1,
+                "attempted_at": now.isoformat(),
+            }
+        # The uncertainty fence must commit before a provider can observe a send.
+        async with db.sessions() as session, session.begin():
+            await owner_lock(session, owner_id)
+            row = await owned_call(session, owner_id, identifier)
+            if row.payload["status"] not in ACTIVE:
                 continue
-            # Bounded provider IO under the owner lock serializes dispatch with
-            # rejection/revocation. Provider MUST durably honor this stable key.
+            if datetime.fromisoformat(row.payload["expires_at"]) <= utcnow():
+                changed(session, row, "missed")
+                continue
+            try:
+                await require_current_consent(session, row)
+            except LonoraError:
+                changed(session, row, "cancelled")
+                continue
+            # Bounded IO under the owner lock serializes dispatch with responses.
+            # Concurrent ticks see the committed fence and never send this attempt.
             import asyncio
 
             try:
                 async with asyncio.timeout(5):
-                    await delivery.send(
+                    receipt = await delivery.send(
                         owner_id=owner_id,
                         device_id=row.payload["device_id"],
                         call_id=row.id,
                         expires_at=datetime.fromisoformat(row.payload["expires_at"]),
                         idempotency_key="incoming-call:" + row.id,
                     )
-            except Exception:
-                attempt = int(row.state.get("attempt", 0)) + 1
+                if type(receipt) is not ProviderAccepted:
+                    raise TypeError("incoming_provider_acknowledgement_required")
+            except Exception as error:
+                # A timeout/error does not establish that the provider rejected IO.
+                row.state = {**row.state, "delivery_error_type": type(error).__name__}
+            else:
                 row.state = {
                     **row.state,
-                    "delivery": "retry_pending",
-                    "attempt": attempt,
-                    "retry_at": (
-                        now + timedelta(seconds=min(30, 2 ** min(attempt, 5)))
-                    ).isoformat(),
+                    "delivery": "provider_accepted",
+                    "provider_accepted_at": utcnow().isoformat(),
                 }
-            else:
-                row.state = {**row.state, "delivery": "delivered"}
-                delivered += 1
-    return delivered
+                provider_accepted += 1
+    return provider_accepted
