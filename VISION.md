@@ -38,7 +38,9 @@ intended change. Unavailable verification remains explicit.
 Financial mutations pass through the existing Trading ON/OFF, Emergency Stop,
 ownership, exact scope, immutable approval, preflight, operation identity and
 journal boundaries. Super Bot is a mode of the same Agent. Autonomous authority
-requires a current verified device grant and its bounded permissions.
+requires a current owner-authenticated account scope. Full management can leave
+product quotas unset; optional owner limits remain explicit. One review is enough
+for matching subsequent operations, and the owner can stop management directly.
 Collaboration shares evidence without transferring financial authority.
 Manual owner intervention wins over stale automation.
 
