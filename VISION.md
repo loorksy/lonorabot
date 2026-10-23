@@ -63,8 +63,11 @@ contracts currently connect MetaApi or explicitly supplied simulation state.
 Cloud charts, supported server indicators, attributed drawings, snapshots,
 account reads, financial approvals and an execution journal already exist.
 Provider routing is shared; available external services depend on configuration.
-There is no general-purpose desktop, shell or self-modifying coding environment
-in the trading Agent. Native behavior still requires device verification.
+The Agent has a persistent analytical workspace with isolated shell/Python
+execution, reviewed dependencies, artifact delivery and validated reusable
+procedures. It has no general-purpose desktop or access to broker secrets from
+that workspace. Broader strategy adaptation and native behavior still require
+their own implementation and verification.
 
 ## What to resist
 
