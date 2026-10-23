@@ -2,7 +2,16 @@
 
 ## Active follow-up wave — 2026-10-23
 
-The deployed baseline below remains live while this wave is verified. Root defines
+Deployed follow-up code: `b7ad61ae7dd52d2bdacb9aba25b0279ec57a4d45`.
+API/Gateway both run this immutable revision; health, readiness and Web return
+200, and actual Gateway-to-restricted numerical execution passes. No new migration,
+APK, financial grant, trade or backup was created. Signed compatible Android OTA
+`3f4b2078-876b-4878-8bb3-3b2354b9fe98` is published for the existing 0.2.8 runtime.
+Public protocol, pinned certificate, actual bundle bytes and no-update replay pass.
+All three current saved chart errors now report the precise provider billing code;
+provider history remains unavailable until service funds are restored.
+
+Root defines
 shared optional broker economics, typed read-only sizing, immutable operator MCP
 declarations and actual API/Gateway propagation. Independent workers implement
 broker normalization/sizing, external transport policy and honest incoming provider
@@ -36,8 +45,7 @@ history retries and chart retries, and preserves independent price paths. Fourte
 offline cases, scripted SDK history and six PostgreSQL chart groups passed. Actual
 provider history remains blocked until the owner funds the MetaApi service; this
 is separate from broker trading-account funds. No synthetic candles or success
-state is substituted. The new release and compatible signed OTA will be recorded
-after publication; the prior deployed baseline remains below.
+state is substituted. The prior deployed baseline remains below as historical evidence.
 
 ## Current integration — 2026-10-23
 
