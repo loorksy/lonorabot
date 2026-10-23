@@ -190,6 +190,9 @@ async def main() -> None:
         bounded.account_instance = SimpleNamespace(
             get_historical_candles=AsyncMock(side_effect=hung)
         )
+        # The metadata failure now has a real cooldown. This independent history
+        # deadline check starts after that cooldown with restored metadata.
+        bounded._account_metadata_retry_at = 0
         result = cast(
             list[Any],
             await asyncio.gather(bounded.candles("BTCUSD#", "4h", 500), return_exceptions=True),
