@@ -1,8 +1,8 @@
 # Capability dependency graph
 
 Latest [27-item product clarification](AUTONOMOUS_TRADING_PRODUCT_REQUIREMENTS.md)
-reuses this graph: verified broker economics -> signed monetary/daily-risk gates
--> one autonomous trading mission -> multi-position/partial-target management
+reuses this graph: verified broker economics -> explicit full-management scope
+with optional owner-selected monetary limits -> one autonomous trading mission -> multi-position/partial-target management
 -> validated strategy adaptation and peer evidence. Existing chart, Task, memory,
 Skill and voice interfaces consume the same authority; no new parallel framework.
 

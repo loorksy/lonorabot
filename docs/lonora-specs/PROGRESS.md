@@ -6,8 +6,9 @@ Recorded all 27 requested behaviors in
 [the product acceptance mapping](AUTONOMOUS_TRADING_PRODUCT_REQUIREMENTS.md).
 The remaining prompt 1 requirements are retained. One authenticated scope allows
 ordinary autonomous actions without repeated approval; analytical initiative does
-not confer unlimited monetary risk or conceal execution. Prioritize monetary
-limits and one complete persistent trading mission, then validated strategy and
+not confer unlimited monetary risk or conceal execution. Latest clarification removes mandatory numeric-budget setup: prioritize an explicit
+versioned full-management grant with optional owner limits and one complete
+persistent trading mission, then validated strategy and
 multi-position/group acceptance. This is a documentation/priority update, not new
 runtime behavior or a production grant. The readiness-recovery code remains in
 progress; no additional test result is claimed here.

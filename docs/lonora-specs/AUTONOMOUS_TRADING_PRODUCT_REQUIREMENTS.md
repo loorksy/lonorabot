@@ -24,27 +24,44 @@ Broker mutations always use the existing typed financial executor.
 
 ## One authorization, autonomous decisions
 
-The owner reviews one clear account scope and risk budget, authenticates once,
-and may subsequently pause or revoke it. The Agent chooses opportunities,
-direction, size, stops, targets and management actions inside that scope without
-asking for each trade. No predeclared full Goal workflow is needed to grant scope.
-Risk or scope expansion requires a new authenticated review; ordinary analytical
-decisions do not. Existing manually opened positions retain explicit management
-scope and owner intervention takes precedence.
+Latest owner clarification: do not impose default financial restrictions or make
+the owner complete a risk-settings form. The owner connects/selects an account,
+reviews a concise full-management authorization and authenticates once. The Agent
+then chooses opportunities, direction, lot size, stops, targets and management
+actions without per-trade approval. Existing positions must be visibly included
+in the reviewed scope if management of them is granted. Pause/revocation remains
+immediately accessible; owner intervention takes precedence.
+
+Do not invent lot caps, trade-count quotas, daily-loss amounts, short grant
+expirations or default market selections. Optional owner-imposed limits belong
+in advanced settings and apply only when explicitly selected. No selected
+monetary limit means no product-enforced monetary loss ceiling; disclose that
+plainly during the initial review. Agent risk judgments remain decisions, not
+guaranteed protection. The owner need not choose each entry or fill out a Goal.
+Changing the actual account/action scope or removing an explicitly chosen limit
+requires authenticated owner intent; routine trading decisions do not.
 
 "Unrestricted based on intelligence" means broad analytical initiative and
 discretion within the owner's financial mandate. It does not mean shell access
-to broker secrets, unbounded losses, self-granted permission or disabling controls.
+to broker secrets, self-granted permission or bypassing ownership, broker validity,
+revocation, operation identity or uncertain-execution reconciliation. Those
+technical correctness checks are not arbitrary trading quotas.
 "Without the user's knowledge" means no need for advance interaction on each
 authorized operation, including while offline; execution remains recorded,
 visible and included in the owner's configured notifications. It must never mean
 concealed trades. This specification does not activate production trading.
 
+This supersedes mandatory numeric-budget setup in earlier planning text. The
+existing bounded-grant implementation remains the current product behavior until
+an explicit, versioned full-management scope is implemented and tested. Never
+reinterpret a missing field in an old grant as unlimited permission, silently
+upgrade an existing grant, or remove executor checks to simulate the new mode.
+
 ## Complete mapping of the 27 requested behaviors
 
 | Owner item | Required behavior | Existing foundation / remaining acceptance |
 | --- | --- | --- |
-| 1 | Execute trades for the owner | Existing trade tools/executor; verify autonomous end-to-end behavior within the completed monetary envelope |
+| 1 | Execute trades for the owner | Existing trade tools/executor; verify autonomous end-to-end behavior within the explicitly selected account-management scope |
 | 2 | Review the actual market | Existing market reads, detectors and decision evidence; broader source quality and model acceptance remain |
 | 3 | Create work from observed market movement | Existing Tasks, Watches and Gateway wakes; verify meaningful event-to-task creation, deduplication and continuation |
 | 4 | Recommend trades when justified | Existing separate market assessment/entry/execution readiness; verify recommendations use current evidence and clear invalidation |
@@ -58,7 +75,7 @@ concealed trades. This specification does not activate production trading.
 | 12 | Choose stop loss from analysis | Existing trade parameters and instrument constraints; validate structural invalidation and monetary risk before submission |
 | 13 | Choose profit taking from market movement | Existing management tools; verify dynamic management uses fresh evidence and respects authorized operations |
 | 14 | Use multiple profit targets | Reuse durable plan steps and partial closure; honor broker volume steps/minimum remainder and reconcile each partial fill; do not assume native multi-TP support |
-| 15 | Choose lot size independently | Existing broker-economics sizing estimate; authoritative signed monetary ceilings and account-wide risk enforcement remain |
+| 15 | Choose lot size independently | Existing broker-economics sizing estimate; explicit full-management scope and optional owner-set monetary ceilings remain |
 | 16 | Avoid unsuitable entry times | Reuse calendar, market health and execution checks; verify spreads, events, session/holiday constraints and evidence quality |
 | 17 | Know market session and ending time | Use timezone/DST-aware session definitions and actual broker hours; do not assume named regional sessions equal broker availability |
 | 18 | Protect winning positions by moving stops | Existing modification path; verify risk-reducing changes, broker distances, owner intervention and actual confirmation; gaps/slippage prevent guaranteed locked profit |
@@ -68,15 +85,17 @@ concealed trades. This specification does not activate production trading.
 | 22 | Recognize candle and chart formations | Extend tested, documented formation definitions; distinguish forming, confirmed and invalidated patterns; no claim of knowing every possible pattern |
 | 23 | Decide not to trade | Existing readiness and health boundaries; verify evidence-backed abstention and useful next observation instead of reflexive WAIT |
 | 24 | Decide when sufficient profit warrants exit | Existing full/partial close; verify thesis, costs, exposure and fresh state inform the decision |
-| 25 | Avoid greed, revenge and emotional trading | Enforce measurable loss/exposure/frequency limits, cooldowns and evidence requirements; model personality alone is not protection |
-| 26 | Trade after one owner approval | Existing signed persistent volume/activity scope; finish monetary limits, recovery and actual-device acceptance |
+| 25 | Avoid greed, revenge and emotional trading | Evaluate losses, exposure, trading frequency and evidence before acting; enforce any owner-selected limits; model personality alone is not protection |
+| 26 | Trade after one owner approval | Existing signed persistent volume/activity scope; implement explicit full-management scope, optional limits, recovery and actual-device acceptance |
 | 27 | Initiate trades while the owner is away | Existing resident Gateway and persistent state; bounded proactive execution with transparent journal/results, never hidden trades |
 
 ## Dependency-aware completion
 
-1. Complete signed per-entry monetary risk and account-wide daily-loss accounting
-   on the existing executor. Reuse current exact-account tick economics and fresh
-   final preflight. Keep reductions, cancellation and emergency controls usable.
+1. Implement an explicit, versioned full-management authorization on the existing
+   executor and a single concise owner review. Preserve old grants exactly; add
+   regression coverage for absent versus explicitly selected limits. Reuse sourced
+   broker economics for Agent sizing and optional monetary-limit enforcement.
+   Keep reductions, cancellation, revocation and emergency controls usable.
 2. Validate one complete trading mission: observe -> form alternatives -> plan
    risk/size -> watch -> revalidate -> execute -> reconcile -> manage partial
    exits -> review. Restart, owner intervention and uncertain effects are part of
