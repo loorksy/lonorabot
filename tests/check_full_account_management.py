@@ -234,6 +234,9 @@ async def main():
         management_context = context
         context = await f.lease(await f.run(agent, thread))
         limited = await sign(await propose(maximum_order_volume="0.2"))
+        async with f.runtime.db.sessions() as session:
+            old_task = await session.get(TicketRow, task_id)
+            assert old_task and old_task.state["task"]["status"] == "cancelled"
         try:
             await registry.execute(call(volume="0.1"), management_context)
         except LonoraError as error:
@@ -245,6 +248,11 @@ async def main():
         current = (await f.client.get(f"/api/agents/{agent['id']}/account-authorities")).json()
         assert next(r for r in current if r["id"] == grant["id"])["status"] == "revoked"
         await f.request("POST", f"/account-authorities/{limited['id']}/revoke", {})
+        async with f.runtime.db.sessions() as session:
+            stopped = await session.get(
+                TicketRow, stable_id(limited["id"], "account-management-task")
+            )
+            assert stopped and stopped.state["task"]["status"] == "cancelled"
         context = await f.lease(await f.run(agent, thread))
         after_revoke = await trade(volume="0.1")
         assert after_revoke.get("_runtime_wait"), after_revoke
@@ -297,6 +305,17 @@ async def main():
         )
         assert exact["envelope"]["symbols"] == [symbols[0]]
         print("PASS full management never broadens a specialist's immutable market binding")
+        device_grant = await sign(await propose())
+        devices = (await f.client.get("/api/auth/devices")).json()
+        await f.request("DELETE", f"/auth/devices/{devices[0]['id']}")
+        async with f.runtime.db.sessions() as session:
+            stopped = await session.get(
+                TicketRow, stable_id(device_grant["id"], "account-management-task")
+            )
+            assert stopped and stopped.state["task"]["status"] == "cancelled"
+        print(
+            "PASS device revocation cancels its exact management task without deleting broker history"
+        )
     finally:
         await save_controls(f.runtime.db, controls)
         await f.close()

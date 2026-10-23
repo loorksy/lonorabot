@@ -8,6 +8,8 @@ unchanged specialist bindings. Existing v1 grants retain strict required limits
 and their original stored hash. Web/Mobile offer one simple review and signature;
 advanced bounded controls remain separate. Activation atomically starts the same
 Agent’s durable Task, bound to that exact grant against stale replacement work.
+Revocation, replacement and device removal also cancel that exact Task through
+the existing lifecycle; broker journal records remain intact.
 No new executor, scheduler, event bus, authority store or production grant exists.
 Migration0030 makes the existing expiry nullable without rewriting any envelopes.
 Verified locally:811 pytest cases without skips;56 isolated foundation groups plus

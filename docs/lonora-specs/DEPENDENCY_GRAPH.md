@@ -20,7 +20,10 @@ flowchart LR
   Test --> Lifecycle[Owned immutable executable Skill lifecycle]
   Runtime --> Voice[Existing GPT Live client delegation]
   Voice --> Handoff[Ordered provisional handoff and same-work steering]
-  Authority[Existing typed financial authority/journal/reconciliation] --> Trading[All broker mutations]
+  Authority[Existing typed financial authority/journal/reconciliation] --> Consent[Existing signed account scope: bounded v1 or explicit full v2]
+  Consent --> Kickoff[Existing durable Task: bound to exact grant]
+  Kickoff --> Trading[All broker mutations]
+  Authority --> Trading
   Broker[Exact broker account/instrument/quote] --> Economics[Optional sourced account-money tick values]
   Economics --> Sizing[Read-only Decimal stop-budget sizing]
   Sizing -. preparation only .-> Authority

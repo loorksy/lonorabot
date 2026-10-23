@@ -1,6 +1,6 @@
 # Lonora implementation specifications
 
-Latest product clarification: [Simple autonomous trading teammate — all 27 owner requirements](AUTONOMOUS_TRADING_PRODUCT_REQUIREMENTS.md). Extends the existing mandate with one-time bounded authority, discretionary sizing and management, multi-position goals, chart reasoning and peer collaboration. The mapping is an acceptance target, not a completion claim.
+Latest product clarification: [Simple autonomous trading teammate — all 27 owner requirements](AUTONOMOUS_TRADING_PRODUCT_REQUIREMENTS.md). Extends the existing mandate with one-time explicit account authority, discretionary sizing and management, multi-position goals, chart reasoning and peer collaboration. The mapping is an acceptance target, not a completion claim.
 
 Current additional mandate: [Agent-first simplification, workspace, autonomous authority and native voice](<prompt 1.md>), preserved verbatim as supplied on 2026-10-21. See the latest entry in [Progress](PROGRESS.md) and [ADR 0001](../architecture/decisions/0001-agent-first-evolution.md). Its newer compact-policy direction supersedes the earlier line-count target; original reference documents remain intact.
 

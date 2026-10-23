@@ -9,7 +9,12 @@ from lonora_contracts.domain import utcnow
 from lonora_contracts.super_bot import DeviceProof
 from lonora_contracts.tasks import TaskCreate
 from lonora_core.user_error import LonoraError
-from lonora_db.account_authority import changed, owned_authority, validate_scope
+from lonora_db.account_authority import (
+    changed,
+    owned_authority,
+    stop_management_task,
+    validate_scope,
+)
 from lonora_db.conversation_locale import conversation_locale
 from lonora_db.schema import AccountAuthorityRow, RunRow
 from lonora_db.super_bot import authority_lock
@@ -112,6 +117,7 @@ async def finish_activation(
     )
     for prior in previous:
         prior.status = "revoked"
+        await stop_management_task(session, prior)
         changed(session, prior)
     await session.flush()
     device.sign_count, challenge.status = sign_count, "used"

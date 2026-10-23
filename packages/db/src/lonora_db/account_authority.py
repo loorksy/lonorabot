@@ -6,7 +6,7 @@ from typing import Any
 from lonora_contracts.account_authority import AccountAuthorityEnvelope, AccountAuthorityProposal
 from lonora_contracts.domain import utcnow
 from lonora_core.user_error import LonoraError
-from lonora_session.idempotency import request_hash
+from lonora_session.idempotency import request_hash, stable_id
 from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .agent_binding import assert_market_binding, require_financial_agent
 from .broker_sessions import BrokerSessionRepository
 from .events import emit
-from .schema import AccountAuthorityRow, DeviceCredentialRow
+from .schema import AccountAuthorityRow, DeviceCredentialRow, TicketRow
 from .super_bot import authority_lock
 from .transactions import owned_thread
 
@@ -169,5 +169,20 @@ async def revoke(session: AsyncSession, owner_id: str, identifier: str) -> Accou
     await authority_lock(session, candidate.agent_id)
     row = await owned_authority(session, owner_id, identifier, lock=True)
     row.status = "revoked"
+    await stop_management_task(session, row)
     changed(session, row)
     return row
+
+
+async def stop_management_task(session: AsyncSession, row: AccountAuthorityRow) -> None:
+    """Stop only this grant's existing Task; preserve all broker journal effects."""
+    from .tasks import finish_task
+
+    task = await session.get(
+        TicketRow,
+        stable_id(row.id, "account-management-task"),
+        with_for_update=True,
+        populate_existing=True,
+    )
+    if task and task.owner_id == row.owner_id and task.agent_id == row.agent_id:
+        finish_task(session, task, "cancelled")

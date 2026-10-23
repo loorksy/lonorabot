@@ -24,7 +24,8 @@ Activation atomically creates one existing durable Task and its work Run. Signed
 proof replay cannot create another kickoff. It inspects actual state and may
 create/reuse watches, choose trades and manage positions without per-order
 approval. The task is bound to this exact grant; replacement or revocation cannot
-silently let stale kickoff work spend a newer grant. An activation is not an
+silently let stale kickoff work spend a newer grant. Revocation, replacement and
+device removal cancel the corresponding Task using the existing lifecycle. An activation is not an
 entry signal or proof a broker is ready. Global Trading ON/OFF and Emergency Stop
 remain authoritative and are never silently switched by activation.
 
@@ -79,8 +80,9 @@ state this limitation before signing. No authorization was activated on a
 production account while implementing or testing this capability.
 
 The compact Web/Mobile bot settings reuse existing account/market selectors and
-passkey enrollment/signing. Every financial limit and action must be supplied
-explicitly. No pair or permission is preselected for an unbound Personal Agent.
+passkey enrollment/signing. The advanced bounded form requires explicit limits;
+the full-management review explicitly grants discretionary choices without
+product-set numerical quotas. No pair or permission is preselected for an unbound Personal Agent.
 Current authoritative grant summaries enter the existing live Agent projection;
 the badge is presentation, never permission.
 

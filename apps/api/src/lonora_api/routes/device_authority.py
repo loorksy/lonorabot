@@ -97,6 +97,7 @@ async def revoke(request: Request, device_id: str, owner: OwnerIdentity = Depend
         for row in rows:
             await stop_request(session, row, "disabled")
         from lonora_db.account_authority import changed as authority_changed
+        from lonora_db.account_authority import stop_management_task
 
         authorities = await session.scalars(
             select(AccountAuthorityRow).where(
@@ -107,6 +108,7 @@ async def revoke(request: Request, device_id: str, owner: OwnerIdentity = Depend
         )
         for authority in authorities:
             authority.status = "revoked"
+            await stop_management_task(session, authority)
             authority_changed(session, authority)
     return {"revoked": True}
 
