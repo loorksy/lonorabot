@@ -20,6 +20,10 @@ export const labels = {
     "Removes these instructions from this agent's catalog. Version blocks remain saved, and dependent tasks may stop.",
   ],
   skill_duplicate_id: ["يوجد معرّف مهارة مطابق بالفعل", "This skill ID already exists"],
+  skill_package_lifecycle_required: [
+    "يتطلب تفعيل هذا الإجراء أو تغييره إصدارًا جرى التحقق منه.",
+    "This procedure requires a validated version before it can be enabled or changed.",
+  ],
   skillsHint: ["إجراءات العمل وإصداراتها لهذا المساعد", "Procedures and versions for this agent"],
   skillsCatalogHint: [
     "هذه أهلية الكتالوج الحالي؛ المهام الجارية تحتفظ بإصداراتها المثبتة. المهارات لا تمنح صلاحيات تداول.",
@@ -387,6 +391,10 @@ export const labels = {
   broker_market_data_billing_required: [
     "حُجبت بيانات الشموع بسبب رصيد خدمة البيانات. أضف رصيدًا إلى حساب مزوّد البيانات ثم أعد المحاولة. قد تبقى الأسعار الحية متاحة.",
     "Historical market data is blocked by the data provider's billing. Fund the provider account, then retry. Live prices may remain available.",
+  ],
+  broker_account_mismatch: [
+    "بيانات الوسيط لا تطابق الحساب المحدد. لم يُرسل أي أمر.",
+    "Broker data does not match the selected account. Nothing was sent.",
   ],
   createChart: ["إنشاء رسم بياني", "Create chart"],
   chooseAccount: ["اختر الحساب", "Choose account"],

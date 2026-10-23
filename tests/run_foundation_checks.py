@@ -27,6 +27,8 @@ CHECKS = (
     "check_progressive_skills.py",
     "check_skill_repository.py",
     "check_skill_packages.py",
+    "check_managed_skill_updates.py",
+    "check_workspace_skill_creation.py",
     "check_workspace_runtime.py",
     "check_workspace_artifacts.py",
     "check_workspace_migrations.py",

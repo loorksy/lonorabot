@@ -23,7 +23,10 @@ from .packages import (
     PackageVersion,
     fetch_package,
     prepare_package,
+    prepare_workspace_package,
     read_state,
+    validate_package_files,
+    validation_image,
 )
 from .registry import installed_registry
 
@@ -140,11 +143,7 @@ async def assert_files(
     if row is None or row.revision != revision or row.active_operation_id:
         raise LonoraError("workspace_revision_conflict", 409)
     files = read_snapshot(row.snapshot)
-    if any(
-        path not in files or hashlib.sha256(files[path]).hexdigest() != digest
-        for path, digest in entry.files.items()
-    ):
-        raise LonoraError("skill_package_source_changed", 409)
+    validate_package_files(entry, files)
 
 
 async def validate_graph(
@@ -176,6 +175,11 @@ def describe(row: SkillRow, entry: PackageVersion, **extra: Any) -> dict[str, An
         "resource_version": row.version,
         "version": entry.payload.manifest.version,
         "enabled": row.payload["enabled"],
+        "source_kind": entry.source_kind,
+        "repository_url": entry.repository_url,
+        "workspace_source": entry.workspace_source.model_dump(mode="json")
+        if entry.workspace_source
+        else None,
         "commit": entry.commit,
         "archive_sha256": entry.archive_sha256,
         "files": entry.files,
@@ -213,6 +217,19 @@ async def import_package(
         adapted_content=arguments["adapted_content"],
         review=AdaptationReview.model_validate(arguments["review"]),
     )
+    return await install_entry(context, registry, arguments, digest, entry, files)
+
+
+async def install_entry(
+    context: ToolContext,
+    registry: ToolRegistry,
+    arguments: dict[str, Any],
+    digest: str,
+    entry: PackageVersion,
+    files: dict[str, str],
+) -> dict[str, Any]:
+    if context.workspace_access is None:
+        raise LonoraError("workspace_runtime_unavailable", 409)
     identity = entry.payload.name
     # Reserve immutable semantic identities before materializing. No locks span I/O.
     async with context.db.sessions() as session, session.begin():
@@ -267,6 +284,64 @@ async def import_package(
         )
         save_receipt(session, context, digest, result)
         return result
+
+
+async def create_package(
+    context: ToolContext, registry: ToolRegistry, arguments: dict[str, Any]
+) -> dict[str, Any]:
+    digest = request_hash({"kind": "skill-package-create-v1", **arguments})
+    async with context.db.sessions() as session, session.begin():
+        if (result := await prior(session, context, digest)) is not None:
+            return result
+        prepared = await session.get(EffectReceiptRow, receipt_key(context) + ":prepared")
+        if prepared is not None:
+            if prepared.result.get("digest") != digest:
+                raise LonoraError("skill_package_identity_conflict", 409)
+            entry = PackageVersion.model_validate(prepared.result["entry"])
+            files: dict[str, str] = prepared.result["files"]
+        else:
+            workspace = await session.get(AnalyticalWorkspaceRow, context.agent_id)
+            if (
+                workspace is None
+                or workspace.revision != arguments["workspace_revision"]
+                or workspace.active_operation_id
+            ):
+                raise LonoraError("workspace_revision_conflict", 409)
+            entry, files = prepare_workspace_package(
+                read_snapshot(workspace.snapshot),
+                agent_id=context.agent_id,
+                run_id=context.lease.run_id,
+                workspace_revision=workspace.revision,
+                source_directory=arguments["source_directory"],
+                version=arguments["version"],
+                adapted_content=arguments["adapted_content"],
+                review=AdaptationReview.model_validate(arguments["review"]),
+            )
+            row = await owned_skill(session, context, entry.payload.name)
+            await admit_version(session, context, row, entry, arguments["expected_version"])
+            await validate_graph(
+                session,
+                context,
+                registry,
+                entry.payload.model_dump(mode="json"),
+                row.id if row else None,
+            )
+            # A fixed bounded source receipt survives a crash after file copy but
+            # before catalog publication. Retrying cannot read different source
+            # or invent a new origin revision for the same effect identity.
+            session.add(
+                EffectReceiptRow(
+                    key=receipt_key(context) + ":prepared",
+                    result={
+                        "digest": digest,
+                        "entry": entry.model_dump(mode="json"),
+                        "files": files,
+                    },
+                )
+            )
+    if context.workspace_access is None:
+        raise LonoraError("workspace_runtime_unavailable", 409)
+    return await install_entry(context, registry, arguments, digest, entry, files)
 
 
 async def validate_package(context: ToolContext, arguments: dict[str, Any]) -> dict[str, Any]:
@@ -336,6 +411,22 @@ async def control_package(
     context: ToolContext, registry: ToolRegistry, arguments: dict[str, Any]
 ) -> dict[str, Any]:
     digest = request_hash({"kind": "skill-package-control-v1", **arguments})
+    current_image: str | None = None
+    if arguments["action"] == "activate":
+        async with context.db.sessions() as session, session.begin():
+            if (result := await prior(session, context, digest)) is not None:
+                return result
+            candidate = await owned_skill(session, context, arguments["skill_id"])
+            if candidate is None:
+                raise LonoraError("skill_not_found", 404)
+            _, proposed = current_version(candidate, arguments["expected_version"])
+            await assert_unrevoked(session, context, proposed)
+            if proposed.utilities:
+                validation_image(proposed)
+        if proposed.utilities:
+            if context.workspace_access is None:
+                raise LonoraError("workspace_runtime_unavailable", 409)
+            current_image = await context.workspace_access.profile(context)
     async with context.db.sessions() as session, session.begin():
         if (result := await prior(session, context, digest)) is not None:
             return result
@@ -362,11 +453,7 @@ async def control_package(
         elif action == "activate":
             await assert_unrevoked(session, context, entry)
             await assert_files(session, context, entry, arguments["workspace_revision"])
-            if any(
-                not (entry.validation or {}).get(path)
-                or (entry.validation or {})[path].get("exit_code") != 0
-                for path in entry.utilities
-            ):
+            if validation_image(entry) != current_image:
                 raise LonoraError("skill_package_validation_required", 409)
             row.payload = {**row.payload, "enabled": True}
         elif action == "disable":

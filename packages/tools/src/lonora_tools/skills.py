@@ -45,6 +45,15 @@ class SkillPackageImportInput(Contract):
     workspace_revision: int = Field(ge=0)
 
 
+class SkillPackageCreateInput(Contract):
+    source_directory: str = Field(min_length=1, max_length=256)
+    workspace_revision: int = Field(ge=0)
+    version: SkillVersion
+    expected_version: int = Field(ge=0)
+    adapted_content: str = Field(min_length=1, max_length=16000)
+    review: SkillAdaptationReview
+
+
 class SkillPackageValidateInput(Contract):
     skill_id: SkillId
     expected_version: int = Field(ge=1)
@@ -89,6 +98,12 @@ async def import_package(context: ToolContext, arguments: dict[str, Any]) -> dic
     return await context.skill_access.import_package(context, arguments)
 
 
+async def create_package(context: ToolContext, arguments: dict[str, Any]) -> dict[str, Any]:
+    if context.skill_access is None:
+        raise LonoraError("skill_runtime_unavailable", 409)
+    return await context.skill_access.create_package(context, arguments)
+
+
 async def validate_package(context: ToolContext, arguments: dict[str, Any]) -> dict[str, Any]:
     if context.skill_access is None:
         raise LonoraError("skill_runtime_unavailable", 409)
@@ -103,6 +118,13 @@ async def control_package(context: ToolContext, arguments: dict[str, Any]) -> di
 
 def tools() -> list[Tool]:
     return [
+        Tool(
+            "skill_package_create",
+            "Register a reusable analytical Skill from this Agent's exact current workspace revision. Supply a bounded directory containing SKILL.md and UTF-8 utilities, adapted instructions and explicit assumptions/limitations. Preserve actual workspace origin, create disabled, then validate exact utilities before activation. Updates require a new semantic version and current resource version. No external installation, financial authority or host access is granted.",
+            SkillPackageCreateInput,
+            create_package,
+            replay_safe=True,
+        ),
         Tool(
             "skill_package_import",
             "Import one reviewed public Skill at a full immutable Git commit into this Agent's existing workspace and disabled catalog. Supply adapted SKILL.md plus explicit source behavior, adapted behavior, assumptions and limitations. New installation uses expected_version=0; updates require current resource_version and a fresh semantic version. No setup hooks run; imported instructions grant no tools or financial authority. Bounded text-only packages; semantic equivalence is not implied.",

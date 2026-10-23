@@ -5,16 +5,63 @@ from typing import Any, cast
 from lonora_adapter_kit.types import ModelMessage
 from lonora_core.user_error import LonoraError
 from lonora_db.runs import require_lease
-from lonora_db.schema import AgentRow, CloudChartRow, MessageRow, SkillRow
+from lonora_db.schema import AgentRow, AnalyticalWorkspaceRow, CloudChartRow, MessageRow, SkillRow
 from lonora_db.skill_controls import read_skill_controls
 from lonora_tools.context import ToolContext
 from lonora_tools.registry import ToolRegistry
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..skills.registry import SkillRegistry, built_in_skills, installed_registry, legacy_skill_id
+from ..skills.document import skill_document
+from ..skills.packages import PackageVersion, read_state, validate_package_files, validation_image
+from ..skills.registry import (
+    SkillDefinition,
+    SkillRegistry,
+    built_in_skills,
+    installed_registry,
+    legacy_skill_id,
+)
 from ..skills.resolver import SkillSignals, eligibility_reason, resolve_skills
 from ..skills.snapshot import MAX_SNAPSHOT_SKILLS, apply_snapshot, read_snapshot, write_snapshot
+
+
+def package_entry(row: SkillRow, definition: SkillDefinition) -> PackageVersion:
+    entry = next(
+        (
+            item
+            for item in read_state(row.state).versions
+            if item.payload.manifest == definition.manifest
+            and skill_document(item.payload.content, item.payload.name, required=True)[1]
+            == definition.content
+        ),
+        None,
+    )
+    if entry is None:
+        raise LonoraError("skill_package_content_changed", 409)
+    return entry
+
+
+def pin_package_image(
+    metadata: dict[str, Any], rows: Sequence[SkillRow], selected: Sequence[SkillDefinition]
+) -> dict[str, Any]:
+    """Pin the admitted immutable profile; later execution cannot silently switch it."""
+    selected_by_id = {item.manifest.id: item for item in selected}
+    images: set[str] = set()
+    for row in rows:
+        definition = selected_by_id.get(row.payload.get("name", ""))
+        if definition is None or "package" not in row.state:
+            continue
+        image = validation_image(package_entry(row, definition))
+        if image is not None:
+            images.add(image)
+    if not images:
+        return metadata
+    if len(images) != 1:
+        raise LonoraError("skill_package_validation_required", 409)
+    image = next(iter(images))
+    if metadata.get("skill_execution_image") not in {None, image}:
+        raise LonoraError("workspace_profile_changed", 409)
+    return {**metadata, "skill_execution_image": image}
 
 
 async def effective_skill_registry(
@@ -30,6 +77,43 @@ async def effective_skill_registry(
     skills = apply_snapshot(
         skills, rejected, read_snapshot(metadata.get("skill_snapshot")), known_tools
     )
+    current_image: str | None = None
+    profile_failure: str | None = None
+    workspace_files: dict[str, bytes] | None = None
+    for row in rows:
+        identity = row.payload.get("name", "")
+        definition = skills.definitions.get(identity)
+        if definition is None or identity in rejected or "package" not in row.state:
+            continue
+        try:
+            entry = package_entry(row, definition)
+            image = validation_image(entry)
+            if workspace_files is None:
+                from ..workspace import read_snapshot as read_workspace_snapshot
+
+                workspace = await session.get(AnalyticalWorkspaceRow, context.agent_id)
+                if workspace is None or workspace.active_operation_id:
+                    raise LonoraError("skill_package_source_changed", 409)
+                workspace_files = read_workspace_snapshot(workspace.snapshot)
+            validate_package_files(entry, workspace_files)
+            if image is not None:
+                if current_image is None and profile_failure is None:
+                    try:
+                        if context.workspace_access is None:
+                            raise LonoraError("workspace_runtime_unavailable", 409)
+                        current_image = await context.workspace_access.profile(
+                            context.for_call(context.call_id or "skill-profile")
+                        )
+                    except LonoraError as error:
+                        profile_failure = error.code
+                if profile_failure is not None:
+                    raise LonoraError(profile_failure, 409)
+                if image != current_image:
+                    raise LonoraError("skill_package_validation_required", 409)
+                if metadata.get("skill_execution_image") not in {None, image}:
+                    raise LonoraError("workspace_profile_changed", 409)
+        except LonoraError as error:
+            rejected[identity] = error.code
     controls = await read_skill_controls(session, context.owner_id, context.agent_id)
     revoked = {(item.skill_id, item.version) for item in controls.revoked}
     for identity, definition in skills.definitions.items():
@@ -103,7 +187,7 @@ async def read_skill_context(
     async with context.db.sessions() as writer, writer.begin():
         locked = await require_lease(writer, context.lease, lock=True)
         locked.model_metadata = {
-            **locked.model_metadata,
+            **pin_package_image(locked.model_metadata, rows, selection.selected),
             "skill_selection": selection.diagnostics(),
             "skill_snapshot": snapshot_payload,
         }
@@ -195,8 +279,9 @@ async def assert_skill_authority(
         rows = (
             await session.scalars(select(SkillRow).where(SkillRow.agent_id == context.agent_id))
         ).all()
-        known_tools = {item.name for item in registry.definitions()}
-        current, rejected = installed_registry([row.payload for row in rows], known_tools)
+        current, rejected = await effective_skill_registry(
+            session, context, registry, rows, run.model_metadata
+        )
         read_only = (
             run.trigger == "subagent" or run.model_metadata.get("authority") == "observe_only"
         )

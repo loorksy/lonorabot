@@ -131,7 +131,7 @@ async def test_context_refresh_pins_content_after_catalog_update_and_honors_disa
     from lonora_adapter_kit.types import ModelMessage
 
     owner = payload("owner-guide")
-    row = SimpleNamespace(payload=owner)
+    row = SimpleNamespace(payload=owner, state={})
     agent = SimpleNamespace(id="agent", trading_account_id=None)
     run: Any = SimpleNamespace(
         trigger="user",
@@ -197,7 +197,9 @@ async def test_context_refresh_pins_content_after_catalog_update_and_honors_disa
     )
     # A fresh observe-only Run cannot load even a tool-free financial procedure.
     run.model_metadata = dict[str, Any](authority="observe_only")
-    session.rows = [SimpleNamespace(payload=payload("owner-guide", risk_class="financial"))]
+    session.rows = [
+        SimpleNamespace(payload=payload("owner-guide", risk_class="financial"), state={})
+    ]
     await skills.refresh_skill_context(context, load_tools(), messages)
     assert (
         run.model_metadata["skill_selection"]["rejected_skills"]["owner-guide"]

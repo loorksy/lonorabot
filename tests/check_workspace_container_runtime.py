@@ -123,6 +123,14 @@ async def main(image: str) -> None:
             await docker(*AnalyticalContainer(image, namespace="f" * 32).create_arguments(foreign))
             await docker("start", foreign)
             host = await start()
+            client = WorkspaceClient(socket)
+            assert await client.profile() == image
+            try:
+                await client.execute("touch must-not-run", expected_image="sha256:" + "0" * 64)
+            except LonoraError as error:
+                assert error.code == "workspace_profile_changed"
+            else:
+                raise AssertionError("A changed image started an unvalidated command")
             assert not (
                 await docker("ps", "--all", "--filter", "name=" + orphan, "--format", "{{.Names}}")
             ).strip()

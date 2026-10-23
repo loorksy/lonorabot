@@ -7,6 +7,10 @@ if TYPE_CHECKING:
 
 
 class SkillAccess(Protocol):
+    async def create_package(
+        self, context: "ToolContext", arguments: dict[str, Any]
+    ) -> dict[str, Any]: ...
+
     async def import_package(
         self, context: "ToolContext", arguments: dict[str, Any]
     ) -> dict[str, Any]: ...

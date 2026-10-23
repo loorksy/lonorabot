@@ -2,6 +2,7 @@
 
 import asyncio
 import hashlib
+import re
 from typing import Any, Protocol
 
 from lonora_contracts.domain import utcnow
@@ -17,8 +18,15 @@ from .workspace import WorkspaceResult, encode_snapshot, read_snapshot
 
 
 class WorkspaceExecutor(Protocol):
+    async def profile(self) -> str: ...
+
     async def execute(
-        self, command: str, files: dict[str, bytes] | None = None, *, deadline_seconds: float = 30
+        self,
+        command: str,
+        files: dict[str, bytes] | None = None,
+        *,
+        deadline_seconds: float = 30,
+        expected_image: str | None = None,
     ) -> WorkspaceResult: ...
 
 
@@ -118,6 +126,24 @@ def require_revision(row: AnalyticalWorkspaceRow, revision: int) -> None:
 class RunWorkspaceAccess:
     def __init__(self, executor: WorkspaceExecutor | None = None) -> None:
         self.executor = executor
+
+    async def profile(self, context: ToolContext) -> str:
+        async with context.db.sessions() as session, session.begin():
+            await scoped_run(session, context)
+        if self.executor is None:
+            raise LonoraError("workspace_execution_unconfigured", 409)
+        # Profile discovery is bounded local IPC, never a container command and
+        # never performed while an ownership/Run database lock is held.
+        try:
+            async with asyncio.timeout(6):
+                image = await self.executor.profile()
+        except TimeoutError:
+            raise LonoraError("workspace_profile_unavailable", 503) from None
+        if not re.fullmatch(r"sha256:[0-9a-f]{64}", image):
+            raise LonoraError("workspace_profile_invalid", 502)
+        async with context.db.sessions() as session, session.begin():
+            await scoped_run(session, context)
+        return image
 
     async def export(
         self, context: ToolContext, path: str, revision: int, name: str | None
@@ -249,6 +275,13 @@ class RunWorkspaceAccess:
             require_revision(row, revision)
             if self.executor is None:
                 raise LonoraError("workspace_execution_unconfigured", 409)
+            run = await require_lease(session, context.lease)
+            expected_image = run.model_metadata.get("skill_execution_image")
+            if expected_image is not None and (
+                not isinstance(expected_image, str)
+                or not re.fullmatch(r"sha256:[0-9a-f]{64}", expected_image)
+            ):
+                raise LonoraError("workspace_profile_invalid", 409)
             snapshot = read_snapshot(row.snapshot)
             row.active_operation_id = context.resource_id
             session.add(
@@ -266,8 +299,13 @@ class RunWorkspaceAccess:
         # No DB lock is held across container execution or IPC.
         try:
             outcome = await self.executor.execute(
-                command, snapshot, deadline_seconds=deadline_seconds
+                command,
+                snapshot,
+                deadline_seconds=deadline_seconds,
+                expected_image=expected_image,
             )
+            if expected_image is not None and outcome.image != expected_image:
+                raise LonoraError("workspace_profile_changed", 409)
             encoded = encode_snapshot(outcome.files)
             async with context.db.sessions() as session, session.begin():
                 row = await locked_workspace(session, context)

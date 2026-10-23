@@ -191,6 +191,9 @@ class AnalyticalContainer:
         self.image = image
         self.namespace = namespace
 
+    async def profile(self) -> str:
+        return self.image
+
     def create_arguments(self, name: str) -> list[str]:
         return [
             "create",
@@ -344,7 +347,10 @@ class AnalyticalContainer:
         files: dict[str, bytes] | None = None,
         *,
         deadline_seconds: float = 30,
+        expected_image: str | None = None,
     ) -> WorkspaceResult:
+        if expected_image is not None and expected_image != self.image:
+            raise LonoraError("workspace_profile_changed", 409)
         if (
             not command.strip()
             or "\x00" in command

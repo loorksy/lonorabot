@@ -51,9 +51,19 @@ class ScriptedExecutor:
     def __init__(self) -> None:
         self.calls = 0
 
+    async def profile(self) -> str:
+        return IMAGE
+
     async def execute(
-        self, command: str, files: dict[str, bytes] | None = None, *, deadline_seconds: float = 30
+        self,
+        command: str,
+        files: dict[str, bytes] | None = None,
+        *,
+        deadline_seconds: float = 30,
+        expected_image: str | None = None,
     ) -> WorkspaceResult:
+        if expected_image is not None and expected_image != IMAGE:
+            raise LonoraError("workspace_profile_changed", 409)
         self.calls += 1
         assert command.startswith("python3 skills/sample/") and deadline_seconds == 30
         snapshot = dict(files or {})

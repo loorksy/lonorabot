@@ -87,11 +87,8 @@ def archive_files(content: bytes) -> dict[str, bytes]:
     return files
 
 
-def inspect_archive(content: bytes, *, repository: str, commit: str) -> dict[str, Any]:
-    if not re.fullmatch(r"[0-9a-f]{40}", commit):
-        raise LonoraError("skill_repository_archive_invalid", 422)
-    files = archive_files(content)
-
+def inspect_utilities(files: dict[str, bytes]) -> list[dict[str, Any]]:
+    """Shared bounded static utility metadata; never execute or install source."""
     scripts: list[dict[str, Any]] = []
     for name, body in sorted(files.items()):
         path = PurePosixPath(name)
@@ -119,6 +116,16 @@ def inspect_archive(content: bytes, *, repository: str, commit: str) -> dict[str
                 "code": code,
             }
         )
+
+    return scripts
+
+
+def inspect_archive(content: bytes, *, repository: str, commit: str) -> dict[str, Any]:
+    if not re.fullmatch(r"[0-9a-f]{40}", commit):
+        raise LonoraError("skill_repository_archive_invalid", 422)
+    files = archive_files(content)
+
+    scripts = inspect_utilities(files)
 
     skills: list[dict[str, Any]] = []
     for name, body in sorted(files.items()):

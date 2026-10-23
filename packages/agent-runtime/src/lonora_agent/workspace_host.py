@@ -11,6 +11,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import socket
 from pathlib import Path
 from typing import Any, cast
@@ -27,6 +28,10 @@ def create_host(backend: AnalyticalContainer, concurrency: int = 2) -> FastAPI:
         raise ValueError("workspace_concurrency_invalid")
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
     slots = asyncio.Semaphore(concurrency)
+
+    @app.get("/profile")
+    async def profile() -> JSONResponse:
+        return JSONResponse({"image": await backend.profile()})
 
     @app.post("/execute")
     async def execute(request: Request) -> JSONResponse:
@@ -45,13 +50,18 @@ def create_host(backend: AnalyticalContainer, concurrency: int = 2) -> FastAPI:
                 if not isinstance(raw, dict):
                     raise ValueError()
                 value = cast(dict[str, Any], raw)
-                if set(value) != {
-                    "command",
-                    "snapshot",
-                    "deadline_seconds",
-                }:
+                if set(value) not in (
+                    {"command", "snapshot", "deadline_seconds"},
+                    {"command", "snapshot", "deadline_seconds", "expected_image"},
+                ):
                     raise ValueError()
                 command, deadline = value["command"], value["deadline_seconds"]
+                expected_image = value.get("expected_image")
+                if "expected_image" in value and (
+                    not isinstance(expected_image, str)
+                    or not re.fullmatch(r"sha256:[0-9a-f]{64}", expected_image)
+                ):
+                    raise ValueError()
                 if (
                     not isinstance(command, str)
                     or not command.strip()
@@ -64,7 +74,11 @@ def create_host(backend: AnalyticalContainer, concurrency: int = 2) -> FastAPI:
                 snapshot = read_snapshot(json.dumps(value["snapshot"]).encode())
             except (ValueError, TypeError, RecursionError):
                 raise LonoraError("workspace_request_invalid", 422) from None
-            outcome = await backend.execute(command, snapshot, deadline_seconds=deadline)
+            if expected_image is not None and expected_image != await backend.profile():
+                raise LonoraError("workspace_profile_changed", 409)
+            outcome = await backend.execute(
+                command, snapshot, deadline_seconds=deadline, expected_image=expected_image
+            )
             return JSONResponse(
                 {
                     "exit_code": outcome.exit_code,

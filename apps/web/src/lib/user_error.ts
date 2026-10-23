@@ -13,6 +13,8 @@ export function userError(error: unknown) {
       return t`A different answer was already recorded.`;
     case "skill_revocation_limit":
       return t`This agent has reached its blocked-version limit. Existing blocks have been preserved.`;
+    case "skill_package_lifecycle_required":
+      return t`This procedure requires a validated version before it can be enabled or changed.`;
     case "skill_not_found":
       return t`This skill is no longer in the current catalog. Reload the list.`;
     case "skill_controls_invalid":
@@ -127,6 +129,8 @@ export function userError(error: unknown) {
       return t`Broker verification pending. Market data may remain available; trading is blocked until verification finishes.`;
     case "broker_account_not_found":
       return t`Broker account not found.`;
+    case "broker_account_mismatch":
+      return t`Broker data does not match the selected account. Nothing was sent.`;
     case "broker_credentials_rejected":
       return t`Broker authentication was rejected.`;
     case "broker_candles_timeout":

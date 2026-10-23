@@ -1,6 +1,34 @@
 # Progress
 
-## Active follow-up wave — 2026-10-23
+## Active reusable-procedure wave — 2026-10-23
+
+The prior economics/MCP release and signed OTA below are deployed. The next wave
+extends the same owned workspace and Skill lifecycle: genuine local source
+provenance, disabled creation, profile-bound utility validation and existing Run
+image pins. Root owns generic managed-package update guards, reserved metadata,
+policy/registration, integration and deployment. Separate workers own creation,
+the Unix profile/execution boundary, and exact preflight account identity.
+
+Verified: 762 pytest cases without skips; 55 isolated foundation groups plus 11
+Task cases; full `bash scripts/build.sh` (strict Python, policy/wheel, client lint,
+types and all seven build targets). Real restricted containers passed local
+creation/validation/activation/later-Run reuse, eight legacy imported-package
+lifecycle groups and four actual Agent/PostgreSQL/Unix/restart/profile groups.
+The owner catalog now shares source-hash checks and current-image validation with
+runtime admission; unconfigured or changed execution is not labelled available.
+Managed generic updates, forged image metadata, interrupted materialization,
+revocations and source tampering fail closed. New numerical account identity
+checks preserve the real broker account instead of rewriting it.
+
+The enlarged catalog exposed a real context-budget failure. Redundant generated
+schema labels were removed without changing field names, constraints or argument
+validation; nine equivalence cases and the real catalog admission check pass.
+Mandatory policy remains 15,160 characters and the registry contains 105 tools.
+Production publication is the next integration point. No new migration, native
+module, broker mutation or financial authority is created by this wave. Monetary
+grant/daily-loss and native OS delivery remain open.
+
+## Published economics/integration wave — 2026-10-23
 
 Deployed follow-up code: `b7ad61ae7dd52d2bdacb9aba25b0279ec57a4d45`.
 API/Gateway both run this immutable revision; health, readiness and Web return

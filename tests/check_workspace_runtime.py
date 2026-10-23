@@ -35,9 +35,19 @@ class ScriptedExecutor:
         self.started = asyncio.Event()
         self.release = asyncio.Event()
 
+    async def profile(self) -> str:
+        return IMAGE
+
     async def execute(
-        self, command: str, files: dict[str, bytes] | None = None, *, deadline_seconds: float = 30
+        self,
+        command: str,
+        files: dict[str, bytes] | None = None,
+        *,
+        deadline_seconds: float = 30,
+        expected_image: str | None = None,
     ) -> WorkspaceResult:
+        if expected_image is not None and expected_image != IMAGE:
+            raise LonoraError("workspace_profile_changed", 409)
         self.calls += 1
         if command == "failure":
             raise LonoraError("workspace_timeout", 408)
@@ -186,12 +196,60 @@ async def main() -> None:
         )
         backend = ScriptedExecutor()
         configured = replace(context, workspace_access=RunWorkspaceAccess(backend))
+        assert configured.workspace_access is not None
+        assert await configured.workspace_access.profile(configured.for_call("profile")) == IMAGE
+        assert context.workspace_access is not None
+        await denied(
+            context.workspace_access.profile(context.for_call("missing-profile")),
+            "workspace_execution_unconfigured",
+        )
+        async with db.sessions() as session, session.begin():
+            run = await session.get(RunRow, context.lease.run_id)
+            assert run
+            run.model_metadata = {**run.model_metadata, "skill_execution_image": "mutable:latest"}
+        await denied(
+            call(
+                "bad-profile",
+                "workspace_execute",
+                {"revision": 2, "command": "analysis"},
+                configured,
+            ),
+            "workspace_profile_invalid",
+        )
+        assert backend.calls == 0
+        async with db.sessions() as session, session.begin():
+            run = await session.get(RunRow, context.lease.run_id)
+            assert run
+            run.model_metadata = {**run.model_metadata, "skill_execution_image": IMAGE}
         execution = {"revision": 2, "command": "analysis"}
         outcome = await call("execute", "workspace_execute", execution, configured)
         assert outcome["exit_code"] == 0 and outcome["revision"] == 3
         assert outcome["stdout"] == "computed\n" and backend.calls == 1
         assert await call("execute", "workspace_execute", execution, configured) == outcome
         assert backend.calls == 1
+        async with db.sessions() as session, session.begin():
+            run = await session.get(RunRow, context.lease.run_id)
+            assert run
+            run.model_metadata = {
+                **run.model_metadata,
+                "skill_execution_image": "sha256:" + "b" * 64,
+            }
+        assert await call("execute", "workspace_execute", execution, configured) == outcome
+        await denied(
+            call(
+                "profile-changed",
+                "workspace_execute",
+                {"revision": 3, "command": "analysis"},
+                configured,
+            ),
+            "workspace_profile_changed",
+        )
+        assert backend.calls == 1
+        assert (await call("profile-refusal-files", "workspace_inspect", {}))["revision"] == 3
+        async with db.sessions() as session, session.begin():
+            run = await session.get(RunRow, context.lease.run_id)
+            assert run
+            run.model_metadata = {**run.model_metadata, "skill_execution_image": IMAGE}
         checks += 1
 
         await denied(

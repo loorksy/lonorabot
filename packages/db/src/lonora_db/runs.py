@@ -100,6 +100,7 @@ async def create_run(
                 "skill_snapshot",
                 "skill_selection",
                 "skill_authority",
+                "skill_execution_image",
             }
         },
     )

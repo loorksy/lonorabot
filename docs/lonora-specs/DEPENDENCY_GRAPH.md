@@ -271,3 +271,19 @@ and existing incoming delivery semantics. No competing risk engine, authorizatio
 store, event bus or notification scheduler is introduced. The current incoming
 provider fence is distinct from native installation proof and OS presentation;
 those dependencies remain open rather than being hidden behind a delivery label.
+
+## Owned procedure creation and current-image validation
+
+Current Agent workspace revision -> bounded prepared source receipt -> existing
+SkillRow disabled version -> exact isolated utility receipts -> current-image
+activation -> pinned Run instructions -> pre-execution image comparison. Existing
+revocations, owner/scope checks and operation receipts apply throughout. Public
+Git imports and local creation share utility inspection and lifecycle; provenance
+remains distinct and genuine. Owner catalog and runtime admission reuse source
+verification, rather than creating separate availability rules. Generic owner
+instruction editing cannot enable or rewrite a managed executable package.
+
+Profile metadata comes only from the trusted Unix host. A saved receipt replays
+without execution; a changed image cannot silently replace the one used by an
+admitted procedure. None of these edges reaches financial authority. The existing
+preflight now also rejects an account identity mismatch instead of rewriting it.

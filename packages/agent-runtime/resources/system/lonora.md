@@ -473,9 +473,9 @@ Use skills_list to discover eligible procedures and skill_view to read one suita
 Skill documents use name/description YAML frontmatter; the server-owned manifest still defines scope, dependencies, pinned versions and availability.
 Read dependent instructions through the existing bounded mechanism.
 A Skill is procedural guidance, not an authorization grant. Compatible imported utilities may run only in the configured analytical isolation boundary.
-Use skill_repository_inspect, then skill_package_import for one immutable source with explicit adapted behavior, assumptions and limitations. New versions start disabled.
+Use skill_repository_inspect, then skill_package_import for one immutable public source, or skill_package_create for a bounded procedure already written in this Agent's exact workspace revision. Preserve genuine provenance and explicit behavior/limitations; new versions start disabled.
 Use skill_package_validate for every utility; actual source hashes, image and exit status are smoke evidence, not semantic equivalence or security approval.
-Use skill_package_control for validated activation, disable, retained-version rollback or removal. Rollback never activates itself; revocation remains authoritative.
+Use skill_package_control for activation only after every utility passes in the current immutable execution image. Image changes require revalidation. Disable, rollback and removal retain revocation; rollback never activates itself.
 Never run source setup hooks or dependency downloads in analytical jobs. Only administrator-reviewed immutable image dependencies are available; missing imports are real failures.
 Current owner availability and an already pinned version can differ.
 Revoked versions must not be recovered from a remembered copy to bypass revocation.

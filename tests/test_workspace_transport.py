@@ -4,7 +4,7 @@ import asyncio
 import json
 from pathlib import Path
 from typing import Any
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import httpx
 import pytest
@@ -25,8 +25,15 @@ class ScriptedContainer(AnalyticalContainer):
         self.release = asyncio.Event()
 
     async def execute(
-        self, command: str, files: dict[str, bytes] | None = None, *, deadline_seconds: float = 30
+        self,
+        command: str,
+        files: dict[str, bytes] | None = None,
+        *,
+        deadline_seconds: float = 30,
+        expected_image: str | None = None,
     ) -> WorkspaceResult:
+        if expected_image is not None and expected_image != IMAGE:
+            raise LonoraError("workspace_profile_changed", 409)
         self.calls += 1
         if command == "wait":
             self.started.set()
@@ -49,6 +56,8 @@ class ScriptedContainer(AnalyticalContainer):
         {**PAYLOAD, "command": "x\x00y"},
         {**PAYLOAD, "deadline_seconds": True},
         {**PAYLOAD, "deadline_seconds": 46},
+        {**PAYLOAD, "expected_image": "mutable:latest"},
+        {**PAYLOAD, "expected_image": None},
         {**PAYLOAD, "snapshot": {"../secret": "YQ=="}},
     ],
 )
@@ -182,3 +191,112 @@ async def test_client_error_diagnostics_do_not_forward_arbitrary_text(
     ):
         with pytest.raises(LonoraError, match=code):
             await WorkspaceClient(Path("/run/analysis/host.sock")).execute("analysis")
+
+
+@pytest.mark.asyncio
+async def test_profile_reports_fixed_image_without_launching_a_job() -> None:
+    backend = ScriptedContainer()
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(create_host(backend)), base_url="http://workspace.local"
+    ) as client:
+        response = await client.get("/profile")
+        assert response.status_code == 200 and response.json() == {"image": IMAGE}
+        assert backend.calls == 0
+        rejected = await client.post(
+            "/execute", json={**PAYLOAD, "expected_image": "sha256:" + "b" * 64}
+        )
+        assert rejected.status_code == 409
+        assert rejected.json() == {"code": "workspace_profile_changed"}
+        assert backend.calls == 0
+        accepted = await client.post("/execute", json={**PAYLOAD, "expected_image": IMAGE})
+        assert accepted.status_code == 200 and backend.calls == 1
+
+
+@pytest.mark.asyncio
+async def test_direct_container_mismatch_fails_before_docker_or_snapshot_access() -> None:
+    backend = AnalyticalContainer(IMAGE)
+    assert await backend.profile() == IMAGE
+    with patch.object(backend, "_docker", AsyncMock()) as docker:
+        with pytest.raises(LonoraError, match="workspace_profile_changed"):
+            await backend.execute("analysis", expected_image="sha256:" + "b" * 64)
+        docker.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_client_profile_uses_fixed_socket_and_validates_image() -> None:
+    def request(message: httpx.Request) -> httpx.Response:
+        assert message.method == "GET" and message.url == "http://workspace.local/profile"
+        return httpx.Response(200, json={"image": IMAGE})
+
+    with patch(
+        "lonora_agent.workspace_client.httpx.AsyncHTTPTransport",
+        return_value=httpx.MockTransport(request),
+    ) as transport:
+        assert await WorkspaceClient(Path("/run/analysis/host.sock")).profile() == IMAGE
+    transport.assert_called_once_with(uds="/run/analysis/host.sock")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "status,body,code",
+    [
+        (404, {"code": "unknown host"}, "workspace_profile_unavailable"),
+        (200, {"image": "mutable:latest"}, "workspace_profile_invalid"),
+        (200, {"image": IMAGE, "private": "not accepted"}, "workspace_profile_invalid"),
+        (200, [], "workspace_profile_invalid"),
+        (200, None, "workspace_profile_invalid"),
+        (200, {"image": "x" * 1024}, "workspace_profile_invalid"),
+    ],
+)
+async def test_client_profile_rejects_unconfigured_or_invalid_response(
+    status: int, body: object, code: str
+) -> None:
+    with patch(
+        "lonora_agent.workspace_client.httpx.AsyncHTTPTransport",
+        return_value=httpx.MockTransport(lambda request: httpx.Response(status, json=body)),
+    ):
+        with pytest.raises(LonoraError, match=code):
+            await WorkspaceClient(Path("/run/analysis/host.sock")).profile()
+
+
+@pytest.mark.asyncio
+async def test_client_pins_execution_and_does_not_accept_a_different_receipt_image() -> None:
+    def request(message: httpx.Request) -> httpx.Response:
+        assert json.loads(message.content)["expected_image"] == IMAGE
+        return httpx.Response(
+            200,
+            json={
+                "exit_code": 0,
+                "stdout": "",
+                "stderr": "",
+                "snapshot": {},
+                "image": "sha256:" + "b" * 64,
+            },
+        )
+
+    with patch(
+        "lonora_agent.workspace_client.httpx.AsyncHTTPTransport",
+        return_value=httpx.MockTransport(request),
+    ):
+        with pytest.raises(LonoraError, match="workspace_profile_changed"):
+            await WorkspaceClient(Path("/run/analysis/host.sock")).execute(
+                "analysis", expected_image=IMAGE
+            )
+
+
+@pytest.mark.asyncio
+async def test_client_profile_timeout_is_bounded_and_not_retried() -> None:
+    calls = 0
+
+    def request(message: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        raise httpx.ReadTimeout("private details", request=message)
+
+    with patch(
+        "lonora_agent.workspace_client.httpx.AsyncHTTPTransport",
+        return_value=httpx.MockTransport(request),
+    ):
+        with pytest.raises(LonoraError, match="workspace_profile_unavailable") as caught:
+            await WorkspaceClient(Path("/run/analysis/host.sock")).profile()
+        assert "private" not in str(caught.value) and calls == 1
