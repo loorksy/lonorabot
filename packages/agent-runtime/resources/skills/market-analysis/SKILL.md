@@ -24,7 +24,16 @@ change. Read existing intent and limits; do the requested reversible review.
    the entire account unavailable. Never manufacture missing observations.
 4. Read chart-analysis when charts or server indicators help. Derive levels,
    entry, invalidation and proposed size from real evidence and owner limits.
-5. Build the requested bounded plan, remembering the chosen side and loss ceiling.
+   Use market_structure when confirmed swing anchors or alternative trendlines
+   help the analysis. Its strict left/right windows reject equal extrema, and a
+   pivot becomes known only after the confirming right bars close. Keep pivot
+   time distinct from confirmation time; a live candle cannot confirm a swing.
+   Compare the returned alternatives and closed-close breaks using the declared
+   absolute-price tolerance. They are measured hypotheses, not entry signals.
+   Their anchors can feed existing chart annotations; inspect the resulting
+   scene before claiming a drawing is present. Never imply the analyzer checked
+   broker sessions, every formation, or strategy profitability.
+5. Build the requested plan, remembering the chosen side and any explicit loss ceiling.
    If evidence contradicts the side, explain and WAIT instead of asking again.
 6. Persist actionable evidence through market_decision_record when relevant.
    Cross-market claims use market_relationship_record/read over aligned closed

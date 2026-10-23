@@ -6,6 +6,13 @@ with optional owner-selected monetary limits -> one autonomous trading mission -
 -> validated strategy adaptation and peer evidence. Existing chart, Task, memory,
 Skill and voice interfaces consume the same authority; no new parallel framework.
 
+Next evidence integration (2026-10-23): existing exact broker OHLC + shared health
+assessment + shared bar-close semantics -> causal confirmed swings -> alternative
+trendline observations -> existing owned chart annotations/inspection -> existing
+decision evidence. Separate work verifies all six existing candle definitions.
+Session/DST/broker-hours normalization and wider formation/strategy validation
+remain follow-up dependencies, not inferred capabilities of the swing analyzer.
+
 ## Active agent-first mandate (2026-10-21)
 
 ```mermaid

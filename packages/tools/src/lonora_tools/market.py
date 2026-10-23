@@ -1,7 +1,10 @@
+from decimal import Decimal
 from typing import Any
 
-from lonora_contracts.domain import Contract
+from lonora_contracts.domain import Contract, utcnow
+from lonora_core.chart_controller import validate_timeframe
 from lonora_market.broker import broker_market
+from lonora_market.structure import analyze_structure
 from pydantic import Field
 
 from .base import Tool
@@ -21,9 +24,17 @@ class QuoteInput(AccountInput):
 
 class CandlesInput(QuoteInput):
     timeframe: str = Field(
-        description="Broker timeframe: 1m, 5m, 15m, 30m, 1h, 4h, 1d or 1w; not M15/H1."
+        description="Exact supported broker timeframe, e.g. 15m, 1h or 1mn; not M15/H1."
     )
     limit: int = Field(default=300, ge=1, le=1000)
+
+
+class StructureInput(CandlesInput):
+    left_bars: int = Field(default=2, ge=1, le=100)
+    right_bars: int = Field(default=2, ge=1, le=100)
+    tolerance: Decimal = Field(default=Decimal(0), ge=0)
+    max_pivots: int = Field(default=24, ge=1, le=100)
+    max_lines: int = Field(default=6, ge=1, le=24)
 
 
 async def symbols(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
@@ -59,6 +70,26 @@ async def candles(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             for c in await provider.candles(symbol, args["timeframe"], args["limit"])
         ]
     }
+
+
+async def structure(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+    timeframe = validate_timeframe(args["timeframe"])
+    broker = await context.brokers.get(context.owner_id, args["account_id"])
+    symbol = await canonical_broker_symbol(broker, args["symbol"], require_exists=True)
+    provider = await broker_market(context.brokers, context.owner_id, args["account_id"])
+    series = await provider.candles(symbol, timeframe, args["limit"])
+    return analyze_structure(
+        series,
+        account_id=args["account_id"],
+        symbol=symbol,
+        timeframe=timeframe,
+        observed_at=utcnow(),
+        left_bars=args["left_bars"],
+        right_bars=args["right_bars"],
+        tolerance=Decimal(str(args["tolerance"])),
+        max_pivots=args["max_pivots"],
+        max_lines=args["max_lines"],
+    )
 
 
 def tools() -> list[Tool]:
@@ -98,6 +129,16 @@ def tools() -> list[Tool]:
             "Read historical broker candles without symbol rewriting.",
             CandlesInput,
             candles,
+            True,
+        ),
+        Tool(
+            "market_structure",
+            "Measure confirmed swings and alternative support/resistance trendlines from closed broker bars. "
+            "Explicit left/right windows reject tied extrema; confirmation is delayed until right bars close. "
+            "Tolerance is an absolute price distance. Returns exact anchors, source evidence and line breaks "
+            "for existing chart drawings; no trade signal or execution authority.",
+            StructureInput,
+            structure,
             True,
         ),
     ]

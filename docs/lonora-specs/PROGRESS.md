@@ -1,5 +1,44 @@
 # Progress
 
+## Confirmed structure integration — 2026-10-23
+
+The existing read-only market interface now measures strict confirmed swings and
+bounded alternative support/resistance lines from exact broker OHLC. It reuses
+Observation, TrendlineAnchor, health checks, timeframe close semantics and the
+same scoped ToolRegistry. Confirmation requires closed right-hand bars; pivot
+time and availability time are distinct. Ties, malformed/future/stale evidence,
+source corrections, Decimal precision and closed-price breaches are explicit.
+No market scheduler, data feed, financial authority or execution path is added.
+The existing market-analysis procedure is version1.2.0; its guidance consumes
+these hypotheses and verifies drawings through the existing chart inspection.
+
+Four independent workers handled the initial gap audit/pure analyzer, authority
+guidance, candle-definition acceptance and actual registry/chart acceptance;
+root owns shared tool integration and release. Remaining contradictory financial
+tool/Personal identity descriptions now recognize current signed management.
+Independent review found no additional confirmed server-boundary defect.
+
+Verification:1008 pytest cases passed without skips; `bash scripts/build.sh`
+passed, including strict Pyright, Ruff/format, actual installed-wheel policy,
+client lint/types and all seven build targets. The real default catalog token
+budget passes with106 tools. Actual disposable PostgreSQL/simulation acceptance
+passes concurrent four-asset/two-frame reads, specialist restoration/denial,
+precise unknown-symbol errors, quote/history separation and recovery, corrected
+source identity, measured anchors -> attributed drawing -> prepared scene,
+revision/peer protection and zero journal/broker mutations. The first integration
+exposed an unknown-symbol classification gap; strict validation now reuses the
+existing catalog resolver, preserves exact suffixes and propagates actual
+discovery failures. Seven focused symbol cases cover that correction.
+
+125 analyzer cases include all21 supported frames and four asset classes;
+62 cases verify the six existing candle patterns. Actual progressive-Skill and
+context-policy PostgreSQL checks also pass. The new check is registered in the
+foundation runner; this does not claim another complete57-fixture run. Previous
+full56-fixture evidence remains separate. Production publication of this wave
+is the next checkpoint; the preceding management/OTA release remains verified.
+Session/DST/broker-hours evidence, wider formations/strategy validation, complete
+mission/group acceptance and physical/native/provider acceptance remain open.
+
 ## Published full-management integration — 2026-10-23
 
 API and Gateway now run immutable revision

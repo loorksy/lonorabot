@@ -1,6 +1,6 @@
 {
   "id": "market-analysis",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "title": "Market Analysis",
   "description": "Lonora market-analysis workflow.",
   "source": "builtin",
@@ -20,7 +20,8 @@
     "market_symbols",
     "market_instrument",
     "market_quote",
-    "market_candles"
+    "market_candles",
+    "market_structure"
   ],
   "dependencies": [
     "chart-analysis"

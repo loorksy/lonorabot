@@ -67,8 +67,8 @@ upgrade an existing grant, or remove executor checks to simulate the new mode.
 | 4 | Recommend trades when justified | Existing separate market assessment/entry/execution readiness; verify recommendations use current evidence and clear invalidation |
 | 5 | Follow multiple positions concurrently | Existing account/position reads and scoped work; test shared exposure, independent monitoring and serialized conflicting mutations |
 | 6 | Discover a rule-based trading approach | Existing workspace, reusable procedures and bounded research; arbitrary strategy validation and promotion remain incomplete |
-| 7 | Identify swing highs and lows | Reuse market evidence and chart anchors; verify declared swing definitions, timeframes and confirmation timing |
-| 8 | Compare trend lines and evolving formations | Reuse chart drawings and analysis; preserve alternative hypotheses, supporting anchors and invalidation without inventing certainty |
+| 7 | Identify swing highs and lows | Strict confirmed closed-bar swings implemented with explicit windows/tie policy and availability times; all21 timeframes/four asset classes verified (M-D3) |
+| 8 | Compare trend lines and evolving formations | Alternative same-side pivot lines, anchors, touches and closed-price breaks verified through existing chart drawings; wider evolving formations remain open |
 | 9 | Draw on the live chart | Existing attributed drawings, chart state and artifacts; verify drawings against actual chart state and visual observation |
 | 10 | Pursue a capital-growth goal | Existing durable Goals and Tasks; implement bounded risk-aware progress and adaptation, without promising target returns |
 | 11 | Act with broad discretion | Model-selected tools and analytical workspace; discretion cannot enlarge the signed financial envelope |
@@ -82,7 +82,7 @@ upgrade an existing grant, or remove executor checks to simulate the new mode.
 | 19 | Consult fellow Agents | Existing bounded peers/subagents and outcome return; verify evidence consolidation, deadlines and cancellation without authority transfer |
 | 20 | Create a discussion group with colleagues | Reuse existing groups/membership/collaboration; verify Agent-callable creation and discussion lifecycle rather than assuming a UI endpoint proves this behavior |
 | 21 | React to reversal or sudden market change | Existing watches and position management; fresh reanalysis and authorized protective action, no stale automatic reversal or risk expansion |
-| 22 | Recognize candle and chart formations | Extend tested, documented formation definitions; distinguish forming, confirmed and invalidated patterns; no claim of knowing every possible pattern |
+| 22 | Recognize candle and chart formations | Six existing candle definitions have62 positive/negative/boundary/lifecycle cases; broader formations remain open; no claim of knowing every possible pattern |
 | 23 | Decide not to trade | Existing readiness and health boundaries; verify evidence-backed abstention and useful next observation instead of reflexive WAIT |
 | 24 | Decide when sufficient profit warrants exit | Existing full/partial close; verify thesis, costs, exposure and fresh state inform the decision |
 | 25 | Avoid greed, revenge and emotional trading | Evaluate losses, exposure, trading frequency and evidence before acting; enforce any owner-selected limits; model personality alone is not protection |

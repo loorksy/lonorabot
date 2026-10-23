@@ -45,6 +45,7 @@
     "market_instruments": "market",
     "market_quote": "market",
     "market_candles": "market",
+    "market_structure": "market",
     "market_position_size": "trading",
     "market_strategy_research": "intelligence",
     "market_research_history": "intelligence",
