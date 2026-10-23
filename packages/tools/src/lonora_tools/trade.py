@@ -481,9 +481,11 @@ def tools() -> list[Tool]:
         ),
         Tool(
             "trade_execute",
-            "Propose a broker operation using the real financial Approve and Reject controls in chat or voice. "
-            "Wait for the actual confirmation; a spoken or typed yes is not approval. The same worker then executes "
-            "the immutable approved request and returns the actual broker result. When an immutable "
+            "Execute a broker operation within an active signed account grant without per-order confirmation. "
+            "Otherwise propose the immutable operation using the real financial Approve and Reject controls "
+            "in chat or voice and wait for confirmation; spoken or typed agreement is not approval. "
+            "The server validates current authority, broker preflight and the actual broker result. "
+            "Reconcile ambiguous execution before retrying. When an immutable "
             "trading market is bound, omit account_id and symbol or pass that bound pair; never ask "
             "which pair or ask the owner to retype the symbol. Read broker positions/orders first, "
             "including manually opened tickets. Saved goals use goal_step_execute instead.",
@@ -495,7 +497,11 @@ def tools() -> list[Tool]:
         ),
         Tool(
             "trade_close_positions",
-            "Propose closing all currently open broker positions, or only an exact symbol. Approval freezes the ticket set; each ticket has an independent durable receipt. Never include later positions without new approval.",
+            "Close currently open broker positions, or only an exact symbol, within an active signed "
+            "account grant without per-order confirmation. Otherwise propose the current ticket set "
+            "using the real Approve and Reject controls; approval freezes that reviewed set. "
+            "Each ticket has an independent durable receipt. Never silently extend a reviewed operation "
+            "to later positions. Stop after an uncertain result and reconcile before retrying.",
             ClosePositions,
             close_positions,
             financial=True,
