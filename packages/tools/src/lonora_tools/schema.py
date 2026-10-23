@@ -1,8 +1,45 @@
 import re
-from typing import Any
+from typing import Any, cast
 
 from lonora_core.user_error import LonoraError
 from pydantic import BaseModel, ValidationError
+
+
+def compact_input_schema(schema: dict[str, Any]) -> dict[str, Any]:
+    """Omit redundant labels without changing property names or validation rules."""
+    result = dict(schema)
+    result.pop("title", None)
+    for keyword in ("properties", "$defs", "definitions", "patternProperties", "dependentSchemas"):
+        if isinstance(result.get(keyword), dict):
+            result[keyword] = {
+                name: compact_input_schema(cast(dict[str, Any], value))
+                if isinstance(value, dict)
+                else value
+                for name, value in result[keyword].items()
+            }
+    for keyword in (
+        "items",
+        "additionalProperties",
+        "contains",
+        "not",
+        "if",
+        "then",
+        "else",
+        "propertyNames",
+        "unevaluatedItems",
+        "unevaluatedProperties",
+    ):
+        if isinstance(result.get(keyword), dict):
+            result[keyword] = compact_input_schema(result[keyword])
+    for keyword in ("anyOf", "allOf", "oneOf", "prefixItems"):
+        if isinstance(result.get(keyword), list):
+            result[keyword] = [
+                compact_input_schema(cast(dict[str, Any], value))
+                if isinstance(value, dict)
+                else value
+                for value in result[keyword]
+            ]
+    return result
 
 
 class ToolArgumentsError(LonoraError):

@@ -7,6 +7,7 @@ from pydantic import BaseModel
 
 from .context import ToolContext
 from .environment import recovery_metadata
+from .schema import compact_input_schema
 
 
 @dataclass(frozen=True)
@@ -39,8 +40,7 @@ class Tool:
         return result
 
     def definition(self) -> ToolDefinition:
-        schema = self.input_type.model_json_schema()
-        schema.pop("title", None)
+        schema = compact_input_schema(self.input_type.model_json_schema())
         if self.name == "trade_execute":
             schema.get("properties", {}).pop("operation_id", None)
         return ToolDefinition(name=self.name, description=self.description, parameters=schema)
