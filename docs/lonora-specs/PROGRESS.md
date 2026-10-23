@@ -22,6 +22,13 @@ signature acceptance pass. No physical-device or provider trading acceptance is
 claimed. The compatible signed Android OTA is prepared; production activation is
 the next checkpoint. No native APK or backup is built.
 
+The final instruction audit found three older per-order approval/owner-volume
+rules in the constitution, trading domain and trading-management procedure.
+These now consistently recognize current signed full-management discretion;
+trade-management1.4.0 and position-management1.2.0 retain the same server checks.
+811 pytest, installed distribution, context-policy and progressive Skill
+integration pass after the update. This changes guidance, not financial scope.
+
 
 ## Owner clarification: simple autonomous trading — 2026-10-23
 
