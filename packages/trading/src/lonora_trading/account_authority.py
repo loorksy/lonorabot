@@ -41,6 +41,14 @@ async def available_authority(
 ) -> str | None:
     if run.model_metadata.get("goal_id") or await provisional_voice(session, run):
         return None  # Existing Goal-bound permissions and explicit approvals remain separate.
+    management_id = run.model_metadata.get("account_management_id")
+    if management_id:
+        _, envelope = await require_authority(session, owner_id, run.agent_id, management_id)
+        if request.account_id != envelope.account_id or not envelope.permits_symbol(request.symbol):
+            raise LonoraError("account_authority_scope_mismatch", 403)
+        if request.action not in envelope.actions:
+            raise LonoraError("account_authority_action_forbidden", 403)
+        return management_id
     rows = await session.scalars(
         select(AccountAuthorityRow)
         .where(
@@ -48,7 +56,10 @@ async def available_authority(
             AccountAuthorityRow.agent_id == run.agent_id,
             AccountAuthorityRow.account_id == request.account_id,
             AccountAuthorityRow.status == "active",
-            AccountAuthorityRow.valid_until > utcnow(),
+            or_(
+                AccountAuthorityRow.valid_until.is_(None),
+                AccountAuthorityRow.valid_until > utcnow(),
+            ),
         )
         .limit(2)
     )
@@ -57,7 +68,7 @@ async def available_authority(
             _, envelope = await require_authority(session, owner_id, run.agent_id, row.id)
         except LonoraError:
             continue
-        if request.symbol in envelope.symbols and request.action in envelope.actions:
+        if envelope.permits_symbol(request.symbol) and request.action in envelope.actions:
             return row.id
     return None
 
@@ -83,8 +94,10 @@ async def require_account_execution(
 ) -> None:
     if run.model_metadata.get("goal_id") or await provisional_voice(session, run):
         raise LonoraError("trade_approval_required", 409)
+    if run.model_metadata.get("account_management_id", identifier) != identifier:
+        raise LonoraError("account_authority_scope_mismatch", 403)
     _, envelope = await require_authority(session, owner_id, run.agent_id, identifier)
-    if request.account_id != envelope.account_id or request.symbol not in envelope.symbols:
+    if request.account_id != envelope.account_id or not envelope.permits_symbol(request.symbol):
         raise LonoraError("account_authority_scope_mismatch", 403)
     if request.action not in envelope.actions:
         raise LonoraError("account_authority_action_forbidden", 403)
@@ -106,7 +119,7 @@ async def require_account_execution(
             ),
         )
     )
-    if (count or 0) >= envelope.maximum_actions:
+    if envelope.maximum_actions is not None and (count or 0) >= envelope.maximum_actions:
         raise LonoraError("account_authority_action_limit", 409)
     unresolved = await session.scalar(
         select(TradingJournalRow.operation_id)
@@ -121,18 +134,29 @@ async def require_account_execution(
     )
     if unresolved:
         raise LonoraError("broker_reconciliation_required", 409)
-    if request.volume is not None and request.volume > envelope.maximum_order_volume:
+    if (
+        request.volume is not None
+        and envelope.maximum_order_volume is not None
+        and request.volume > envelope.maximum_order_volume
+    ):
         raise LonoraError("account_authority_volume_limit", 409)
     if request.action in ENTRY_ACTIONS:
-        if request.stop_loss is None:
+        if envelope.management_mode == "bounded" and request.stop_loss is None:
             raise LonoraError("account_authority_stop_loss_required", 409)
-        if snapshot.account.equity <= envelope.minimum_equity:
+        if (
+            envelope.minimum_equity is not None
+            and snapshot.account.equity <= envelope.minimum_equity
+        ):
             raise LonoraError("account_authority_equity_floor", 409)
         # Orders can all fill. Reserve a future position slot for each pending entry.
-        if len(snapshot.positions) + len(snapshot.orders) >= envelope.maximum_positions:
+        if (
+            envelope.maximum_positions is not None
+            and len(snapshot.positions) + len(snapshot.orders) >= envelope.maximum_positions
+        ):
             raise LonoraError("account_authority_position_limit", 409)
         if (
             request.action not in {"buy", "sell"}
+            and envelope.maximum_pending_orders is not None
             and len(snapshot.orders) >= envelope.maximum_pending_orders
         ):
             raise LonoraError("account_authority_pending_limit", 409)
@@ -144,7 +168,10 @@ async def require_account_execution(
             ),
             Decimal(0),
         )
-        if volume + (request.volume or 0) > envelope.maximum_symbol_volume:
+        if (
+            envelope.maximum_symbol_volume is not None
+            and volume + (request.volume or 0) > envelope.maximum_symbol_volume
+        ):
             raise LonoraError("account_authority_symbol_volume_limit", 409)
     target = management_target(snapshot, request)
     if request.position_id or request.order_id:
@@ -179,9 +206,13 @@ async def require_account_execution(
                 break
         if not owned and not envelope.allow_manual_positions:
             raise LonoraError("account_authority_manual_permission_required", 403)
-        if request.clear_stop_loss:
+        if envelope.management_mode == "bounded" and request.clear_stop_loss:
             raise LonoraError("account_authority_protection_removal_forbidden", 403)
-        if request.stop_loss is not None and target.stop_loss is not None:
+        if (
+            envelope.management_mode == "bounded"
+            and request.stop_loss is not None
+            and target.stop_loss is not None
+        ):
             buy = target.side.removeprefix("ORDER_TYPE_").casefold().startswith("buy")
             if (
                 request.stop_loss < target.stop_loss

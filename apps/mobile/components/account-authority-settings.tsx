@@ -1,5 +1,6 @@
 import {
   type AccountAuthority,
+  type AccountAuthorityProposal,
   type Agent,
   type AuthorityAction,
   authorityActions,
@@ -14,6 +15,7 @@ import {
   authorityProposal,
   authorityStatus,
   emptyAuthorityDraft,
+  fullManagementProposal,
 } from "@lonora/core";
 import { useEffect, useRef, useState } from "react";
 import { AppState, Modal, Platform, ScrollView, Text, View } from "react-native";
@@ -156,6 +158,23 @@ export function AccountAuthoritySettings({ agent }: { agent: Agent }) {
     actions,
     allow_manual_positions: manual,
   });
+  const fullProposal = fullManagementProposal({
+    thread_id: threadId || threads[0]?.id || "",
+    account_id: pair.trading_account_id,
+    symbol: agent.trading_symbol,
+  });
+  const prepare = (body: AccountAuthorityProposal) =>
+    execute(async () => {
+      const row = await api.post<AccountAuthority>(
+        `/agents/${encodeURIComponent(agent.id)}/account-authorities`,
+        body,
+      );
+      if (alive.current && current.current === scope) {
+        setReview(row);
+        setAcknowledged(false);
+        setRows((value) => [row, ...value.filter((existing) => existing.id !== row.id)]);
+      }
+    });
   const style = {
     color: colors.foreground,
     textAlign: rtl ? ("right" as const) : ("left" as const),
@@ -194,8 +213,30 @@ export function AccountAuthoritySettings({ agent }: { agent: Agent }) {
             contentContainerStyle={{ padding: 20, gap: 16 }}
             keyboardShouldPersistTaps="handled"
           >
-            <Text style={style}>{text.hint}</Text>
-            <Text style={{ ...style, color: colors.warning }}>{text.limitsUnavailable}</Text>
+            {agent.trading_symbol ? (
+              <Text style={style}>
+                {accountName(pair.trading_account_id)} · {agent.trading_symbol}
+              </Text>
+            ) : agent.role === "personal" ? (
+              <SettingsGroup title={text.account}>
+                {connections.map((row) => (
+                  <SettingsRow
+                    key={row.id}
+                    title={accountName(row.id)}
+                    value={row.id === pair.trading_account_id ? "✓" : ""}
+                    disabled={busy}
+                    onPress={() => setPair({ trading_account_id: row.id, trading_symbol: "" })}
+                  />
+                ))}
+              </SettingsGroup>
+            ) : null}
+            <Button
+              label={text.enableManagement}
+              disabled={busy || !fullProposal || agent.execution_mode === "shadow" || agent.paused}
+              onPress={() => {
+                if (fullProposal) void prepare(fullProposal);
+              }}
+            />
             <ErrorNotice text={error} />
             {rows.map((row) => (
               <View
@@ -211,9 +252,11 @@ export function AccountAuthoritySettings({ agent }: { agent: Agent }) {
                 <Text style={style}>
                   {text[authorityStatus(row)]} · {accountName(row.account_id)}
                   {"\n"}
-                  {row.envelope.symbols.join(", ")}
+                  {row.envelope.symbol_scope === "account"
+                    ? text.allMarkets
+                    : row.envelope.symbols.join(", ")}
                   {"\n"}
-                  {new Date(row.valid_until).toLocaleString()}
+                  {row.valid_until ? new Date(row.valid_until).toLocaleString() : text.untilStopped}
                 </Text>
                 {authorityStatus(row) === "pending" && (
                   <Button
@@ -250,31 +293,49 @@ export function AccountAuthoritySettings({ agent }: { agent: Agent }) {
                   {text.review}
                 </Text>
                 <Text style={style}>
-                  {accountName(review.account_id)} · {review.envelope.symbols.join(", ")}
+                  {accountName(review.account_id)} ·{" "}
+                  {review.envelope.symbol_scope === "account"
+                    ? text.allMarkets
+                    : review.envelope.symbols.join(", ")}
                   {"\n"}
                   {review.envelope.actions.map((action) => text[action]).join(" · ")}
                 </Text>
-                {authorityLimitFields.map((field) => (
-                  <Text key={field} style={style}>
-                    {text[field]}: {String(review.envelope[field])}
-                  </Text>
-                ))}
+                {review.envelope.management_mode === "full" && (
+                  <Text style={style}>{text.managementSummary}</Text>
+                )}
+                {review.envelope.management_mode === "full" &&
+                  review.envelope.allow_manual_positions && (
+                    <Text style={style}>{text.managementScope}</Text>
+                  )}
+                {authorityLimitFields.map(
+                  (field) =>
+                    review.envelope[field] !== null && (
+                      <Text key={field} style={style}>
+                        {text[field]}: {String(review.envelope[field])}
+                      </Text>
+                    ),
+                )}
                 <Text style={style}>
                   {text.manual}: {review.envelope.allow_manual_positions ? "✓" : "—"}
                 </Text>
-                <SettingsGroup>
-                  <SettingsSwitch
-                    label={text.acknowledge}
-                    value={acknowledged}
-                    disabled={busy}
-                    onChange={setAcknowledged}
-                  />
-                </SettingsGroup>
+                {review.envelope.management_mode !== "full" && (
+                  <SettingsGroup>
+                    <SettingsSwitch
+                      label={text.acknowledge}
+                      value={acknowledged}
+                      disabled={busy}
+                      onChange={setAcknowledged}
+                    />
+                  </SettingsGroup>
+                )}
                 {!supported && <Text style={style}>{text.unsupported}</Text>}
                 <Button
                   label={text.review}
                   disabled={
-                    busy || !supported || !acknowledged || authorityStatus(review) !== "pending"
+                    busy ||
+                    !supported ||
+                    (review.envelope.management_mode !== "full" && !acknowledged) ||
+                    authorityStatus(review) !== "pending"
                   }
                   onPress={() =>
                     void execute(async () => {
@@ -332,12 +393,14 @@ export function AccountAuthoritySettings({ agent }: { agent: Agent }) {
             )}
             <Button
               secondary
-              label={text.create}
+              label={text.advanced}
               disabled={busy}
               onPress={() => setCreating((value) => !value)}
             />
             {creating && (
               <View style={{ gap: 14 }}>
+                <Text style={style}>{text.hint}</Text>
+                <Text style={{ ...style, color: colors.warning }}>{text.limitsUnavailable}</Text>
                 {!threads.length && <Text style={style}>{text.noThread}</Text>}
                 {threads.length > 1 && (
                   <SettingsGroup title={text.thread}>
@@ -430,23 +493,7 @@ export function AccountAuthoritySettings({ agent }: { agent: Agent }) {
                 <Button
                   label={text.save}
                   disabled={busy || !proposal || agent.execution_mode === "shadow" || agent.paused}
-                  onPress={() =>
-                    void execute(async () => {
-                      if (!proposal) return;
-                      const row = await api.post<AccountAuthority>(
-                        `/agents/${encodeURIComponent(agent.id)}/account-authorities`,
-                        proposal,
-                      );
-                      if (alive.current && current.current === scope) {
-                        setReview(row);
-                        setAcknowledged(false);
-                        setRows((value) => [
-                          row,
-                          ...value.filter((existing) => existing.id !== row.id),
-                        ]);
-                      }
-                    })
-                  }
+                  onPress={() => proposal && void prepare(proposal)}
                 />
               </View>
             )}

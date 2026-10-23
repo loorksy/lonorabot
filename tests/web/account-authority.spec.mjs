@@ -70,7 +70,7 @@ async function setup(context, locale = "en") {
         .click();
       const surface = page.locator("details.tpl-profile-advanced").filter({
         has: page.locator(":scope > summary", {
-          hasText: locale === "ar" ? "تفويض التداول المستقل" : "Independent trading permission",
+          hasText: locale === "ar" ? "إدارة الحساب تلقائيًا" : "Automatic account management",
         }),
       });
       await surface.locator(":scope > summary").click();
@@ -95,10 +95,14 @@ for (const locale of ["en", "ar"])
         locale === "ar" ? "بانتظار توقيعك" : "Waiting for your signature",
       );
       await expect(surface).toContainText(state.data.symbol);
+      await surface
+        .locator("details > summary")
+        .filter({ hasText: locale === "ar" ? "إعدادات متقدمة" : "Advanced:" })
+        .click();
       await expect(surface).toContainText(locale === "ar" ? "لا تضمن" : "cannot guarantee");
       await surface
         .getByRole("button", {
-          name: locale === "ar" ? "إلغاء التفويض" : "Revoke permission",
+          name: locale === "ar" ? "إيقاف الإدارة" : "Stop management",
           exact: true,
         })
         .click();
@@ -114,54 +118,81 @@ for (const locale of ["en", "ar"])
       await state.cleanup();
     }
   });
-test("owner signs reviewed independent scope through real WebAuthn and can revoke it", async ({
-  page,
-  context,
-}) => {
-  const state = await setup(context);
-  const cdp = await context.newCDPSession(page);
-  await cdp.send("WebAuthn.enable");
-  await cdp.send("WebAuthn.addVirtualAuthenticator", {
-    options: {
-      protocol: "ctap2",
-      transport: "internal",
-      hasResidentKey: true,
-      hasUserVerification: true,
-      isUserVerified: true,
-      automaticPresenceSimulation: true,
-    },
+for (const full of [false, true])
+  test(`owner signs ${full ? "full" : "bounded"} independent scope through real WebAuthn and can revoke it`, async ({
+    page,
+    context,
+  }) => {
+    const state = await setup(context);
+    // Fresh authenticator: remove only the disposable owner's prior credentials.
+    const devices = await (await context.request.get("/api/auth/devices")).json();
+    for (const device of devices) {
+      expect(
+        (
+          await context.request.delete(`/api/auth/devices/${device.id}`, { headers: state.headers })
+        ).ok(),
+      ).toBeTruthy();
+    }
+    const cdp = await context.newCDPSession(page);
+    await cdp.send("WebAuthn.enable");
+    await cdp.send("WebAuthn.addVirtualAuthenticator", {
+      options: {
+        protocol: "ctap2",
+        transport: "internal",
+        hasResidentKey: true,
+        hasUserVerification: true,
+        isUserVerified: true,
+        automaticPresenceSimulation: true,
+      },
+    });
+    try {
+      const surface = await state.open(page);
+      if (full)
+        await surface
+          .getByRole("button", { name: "Enable automatic management", exact: true })
+          .click();
+      else await surface.getByRole("button", { name: "Review and sign", exact: true }).click();
+      const review = surface.locator('section[aria-label="Review and sign"]');
+      await expect(review).toContainText(full ? "The agent chooses trades" : "0.10");
+      const sign = review.getByRole("button", { name: "Review and sign", exact: true });
+      if (full) await expect(sign).toBeEnabled();
+      else {
+        await expect(sign).toBeDisabled();
+        await review.getByRole("checkbox").check();
+      }
+      await sign.click();
+      await review
+        .getByLabel("Confirm account password", { exact: true })
+        .fill("ci-only-owner-password");
+      await review.getByRole("button", { name: "Register this device", exact: true }).click();
+      await expect(review.getByLabel("Confirm account password", { exact: true })).toHaveCount(0);
+      const verification = page.waitForResponse(
+        (response) =>
+          response.url().endsWith("/account-authorities/verify") &&
+          response.request().method() === "POST",
+      );
+      await sign.click();
+      const verified = await verification;
+      expect(verified.ok()).toBeTruthy();
+      const activated = await verified.json();
+      if (full) {
+        expect(activated.envelope.schema_version).toBe(2);
+        expect(activated.envelope.management_mode).toBe("full");
+        expect(activated.valid_until).toBeNull();
+        expect(activated.envelope.maximum_order_volume).toBeNull();
+      }
+      await expect(review).toHaveCount(0);
+      await expect(surface.locator(":scope > summary")).toContainText("Active");
+      const saved = await (
+        await context.request.get(`/api/agents/${state.agent.id}/account-authorities`)
+      ).json();
+      expect(saved.find((row) => row.id === activated.id).status).toBe("active");
+      expect((await (await context.request.get("/api/trading/controls")).json()).enabled).toBe(
+        false,
+      );
+      await surface.getByRole("button", { name: "Stop management", exact: true }).first().click();
+      await expect(surface).toContainText("Revoked");
+    } finally {
+      await state.cleanup();
+    }
   });
-  try {
-    const surface = await state.open(page);
-    await surface.getByRole("button", { name: "Review and sign", exact: true }).click();
-    const review = surface.locator('section[aria-label="Review and sign"]');
-    await expect(review).toContainText("0.10");
-    const sign = review.getByRole("button", { name: "Review and sign", exact: true });
-    await expect(sign).toBeDisabled();
-    await review.getByRole("checkbox").check();
-    await sign.click();
-    await review
-      .getByLabel("Confirm account password", { exact: true })
-      .fill("ci-only-owner-password");
-    await review.getByRole("button", { name: "Register this device", exact: true }).click();
-    await expect(review.getByLabel("Confirm account password", { exact: true })).toHaveCount(0);
-    const verification = page.waitForResponse(
-      (response) =>
-        response.url().endsWith("/account-authorities/verify") &&
-        response.request().method() === "POST",
-    );
-    await sign.click();
-    expect((await verification).ok()).toBeTruthy();
-    await expect(review).toHaveCount(0);
-    await expect(surface.locator(":scope > summary")).toContainText("Active");
-    const saved = await (
-      await context.request.get(`/api/agents/${state.agent.id}/account-authorities`)
-    ).json();
-    expect(saved.find((row) => row.id === state.row.id).status).toBe("active");
-    expect((await (await context.request.get("/api/trading/controls")).json()).enabled).toBe(false);
-    await surface.getByRole("button", { name: "Revoke permission", exact: true }).click();
-    await expect(surface).toContainText("Revoked");
-  } finally {
-    await state.cleanup();
-  }
-});

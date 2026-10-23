@@ -37,3 +37,18 @@ Keep account ownership, server-verified device grants, exact broker scope, globa
 - A resource-bounded analytical container substrate is verified locally (31 offline cases and 14 actual Docker checks), including disabled networking, clean environment, actual cgroups, snapshots, descendant cleanup and cancellation. The next increment adds four ordinary tools, Agent-owned durable PostgreSQL files/receipts and a bounded Unix host bridge with fenced publication and startup recovery. Exact saved report/raster exports now reuse owned artifacts and the existing vision/attachment lifecycle. It is not activated in production; see [execution boundary](../../analytical-workspace.md).
 - The universal executable Skill importer, dependency manager, general strategy backtesting, and native push-initiated calls remain unverified or missing.
 - This decision record is not a claim that the full mandate is complete.
+
+
+## Explicit full account management — 2026-10-23
+
+The owner requested a single review without default financial quotas. Extend the
+same signed account envelope with explicit full-management v2, optional limits
+and nullable expiry. Keep v1 absent fields bounded and hash its actual stored
+shape; never upgrade old grants implicitly. A Personal account-wide scope is
+explicit, while specialists stay exact-symbol. Activation creates the existing
+Task/Run atomically; its grant identity prevents stale kickoff work from spending
+a replacement. The same typed executor, global controls, journal and independent
+broker verification remain the execution boundary. This decision does not enable
+production trading or remove the separate existing Goal-linked authorization.
+Migration0030 only relaxes expiry nullability. Downgrade refuses persisted null
+expiry rows instead of inventing expiry timestamps or rewriting signed evidence.

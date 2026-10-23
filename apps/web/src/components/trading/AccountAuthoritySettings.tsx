@@ -1,6 +1,7 @@
 import { useLingui } from "@lingui/react";
 import {
   type AccountAuthority,
+  type AccountAuthorityProposal,
   type Agent,
   type AuthorityAction,
   authorityActions,
@@ -15,6 +16,7 @@ import {
   authorityProposal,
   authorityStatus,
   emptyAuthorityDraft,
+  fullManagementProposal,
   webDeviceProof,
   webDeviceSupported,
 } from "@lonora/core";
@@ -105,6 +107,23 @@ export function AccountAuthoritySettings({ agent }: { agent: Agent }) {
     actions,
     allow_manual_positions: manual,
   });
+  const fullProposal = fullManagementProposal({
+    thread_id: threadId || threads[0]?.id || "",
+    account_id: pair.trading_account_id,
+    symbol: agent.trading_symbol,
+  });
+  const prepare = (body: AccountAuthorityProposal) =>
+    execute(async () => {
+      const row = await api.post<AccountAuthority>(
+        `/agents/${encodeURIComponent(agent.id)}/account-authorities`,
+        body,
+      );
+      if (currentScope.current === scope) {
+        setReview(row);
+        setAcknowledged(false);
+        setRows((value) => [row, ...value.filter((existing) => existing.id !== row.id)]);
+      }
+    });
   const accountName = (id: string) => {
     const index = connections.findIndex((row) => row.id === id);
     return index >= 0 ? brokerIdentityLabel(connections[index], index) : text.account;
@@ -122,18 +141,55 @@ export function AccountAuthoritySettings({ agent }: { agent: Agent }) {
       </summary>
       {open && (
         <fieldset disabled={busy}>
-          <p className="muted">{text.hint}</p>
-          <p>{text.limitsUnavailable}</p>
+          {agent.trading_symbol ? (
+            <p>
+              {accountName(pair.trading_account_id)} · <bdi>{agent.trading_symbol}</bdi>
+            </p>
+          ) : agent.role === "personal" ? (
+            <label>
+              {text.account}
+              <select
+                value={pair.trading_account_id}
+                onChange={(event) =>
+                  setPair({ trading_account_id: event.target.value, trading_symbol: "" })
+                }
+              >
+                <option value="">—</option>
+                {connections.map((row) => (
+                  <option key={row.id} value={row.id}>
+                    {accountName(row.id)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+          <button
+            type="button"
+            disabled={!fullProposal || agent.execution_mode === "shadow" || agent.paused}
+            onClick={() => {
+              if (fullProposal) void prepare(fullProposal);
+            }}
+          >
+            {text.enableManagement}
+          </button>
           {rows.map((row) => (
             <section key={row.id} aria-label={text.title}>
               <p>
                 {text[authorityStatus(row)]} · {accountName(row.account_id)} ·{" "}
-                <bdi>{row.envelope.symbols.join(", ")}</bdi>
+                <bdi>
+                  {row.envelope.symbol_scope === "account"
+                    ? text.allMarkets
+                    : row.envelope.symbols.join(", ")}
+                </bdi>
               </p>
               <p>
-                <time dateTime={row.valid_until}>
-                  {new Date(row.valid_until).toLocaleString(i18n.locale)}
-                </time>
+                {row.valid_until ? (
+                  <time dateTime={row.valid_until}>
+                    {new Date(row.valid_until).toLocaleString(i18n.locale)}
+                  </time>
+                ) : (
+                  text.untilStopped
+                )}
               </p>
               {authorityStatus(row) === "pending" && (
                 <button
@@ -166,31 +222,50 @@ export function AccountAuthoritySettings({ agent }: { agent: Agent }) {
           ))}
           {review && (
             <section aria-label={text.review}>
-              <h4>{text.review}</h4>
+              <h4>
+                {review.envelope.management_mode === "full" ? text.managementReview : text.review}
+              </h4>
               <p>
-                {accountName(review.account_id)} · <bdi>{review.envelope.symbols.join(", ")}</bdi>
+                {accountName(review.account_id)} ·{" "}
+                <bdi>
+                  {review.envelope.symbol_scope === "account"
+                    ? text.allMarkets
+                    : review.envelope.symbols.join(", ")}
+                </bdi>
               </p>
+              {review.envelope.management_mode === "full" && <p>{text.managementSummary}</p>}
+              {review.envelope.management_mode === "full" &&
+                review.envelope.allow_manual_positions && <p>{text.managementScope}</p>}
               <p>{review.envelope.actions.map((action) => text[action]).join(" · ")}</p>
-              {authorityLimitFields.map((field) => (
-                <p key={field}>
-                  {text[field]}: <bdi>{String(review.envelope[field])}</bdi>
-                </p>
-              ))}
+              {authorityLimitFields.map(
+                (field) =>
+                  review.envelope[field] !== null && (
+                    <p key={field}>
+                      {text[field]}: <bdi>{String(review.envelope[field])}</bdi>
+                    </p>
+                  ),
+              )}
               <p>
                 {text.manual}: {review.envelope.allow_manual_positions ? "✓" : "—"}
               </p>
-              <label className="check">
-                <input
-                  type="checkbox"
-                  checked={acknowledged}
-                  onChange={(event) => setAcknowledged(event.target.checked)}
-                />
-                {text.acknowledge}
-              </label>
+              {review.envelope.management_mode !== "full" && (
+                <label className="check">
+                  <input
+                    type="checkbox"
+                    checked={acknowledged}
+                    onChange={(event) => setAcknowledged(event.target.checked)}
+                  />
+                  {text.acknowledge}
+                </label>
+              )}
               {!supported && <p>{text.unsupported}</p>}
               <button
                 type="button"
-                disabled={!supported || !acknowledged || authorityStatus(review) !== "pending"}
+                disabled={
+                  !supported ||
+                  (review.envelope.management_mode !== "full" && !acknowledged) ||
+                  authorityStatus(review) !== "pending"
+                }
                 onClick={() =>
                   void execute(async () => {
                     const updated = await activateAccountAuthority(api, review, webDeviceProof);
@@ -252,7 +327,9 @@ export function AccountAuthoritySettings({ agent }: { agent: Agent }) {
             </section>
           )}
           <details>
-            <summary>{text.create}</summary>
+            <summary>{text.advanced}</summary>
+            <p className="muted">{text.hint}</p>
+            <p>{text.limitsUnavailable}</p>
             {!threads.length && <p>{text.noThread}</p>}
             {threads.length > 1 && (
               <label>
@@ -347,23 +424,7 @@ export function AccountAuthoritySettings({ agent }: { agent: Agent }) {
             <button
               type="button"
               disabled={!proposal || agent.execution_mode === "shadow" || agent.paused}
-              onClick={() =>
-                void execute(async () => {
-                  if (!proposal) return;
-                  const row = await api.post<AccountAuthority>(
-                    `/agents/${encodeURIComponent(agent.id)}/account-authorities`,
-                    proposal,
-                  );
-                  if (currentScope.current === scope) {
-                    setReview(row);
-                    setAcknowledged(false);
-                    setRows((value) => [
-                      row,
-                      ...value.filter((existing) => existing.id !== row.id),
-                    ]);
-                  }
-                })
-              }
+              onClick={() => proposal && void prepare(proposal)}
             >
               {text.save}
             </button>

@@ -184,7 +184,10 @@ async def agent_live_state(session: AsyncSession, owner_id: str, agent_id: str) 
                 AccountAuthorityRow.agent_id == agent.id,
                 AccountAuthorityRow.status == "pending",
                 AccountAuthorityRow.activation_expires_at > utcnow(),
-                AccountAuthorityRow.valid_until > utcnow(),
+                or_(
+                    AccountAuthorityRow.valid_until.is_(None),
+                    AccountAuthorityRow.valid_until > utcnow(),
+                ),
             )
         )
         or 0
@@ -196,7 +199,10 @@ async def agent_live_state(session: AsyncSession, owner_id: str, agent_id: str) 
             AccountAuthorityRow.owner_id == owner_id,
             AccountAuthorityRow.agent_id == agent.id,
             AccountAuthorityRow.status.in_(["pending", "active"]),
-            AccountAuthorityRow.valid_until > utcnow(),
+            or_(
+                AccountAuthorityRow.valid_until.is_(None),
+                AccountAuthorityRow.valid_until > utcnow(),
+            ),
         )
         .order_by(
             (AccountAuthorityRow.status == "active").desc(),
@@ -222,7 +228,11 @@ async def agent_live_state(session: AsyncSession, owner_id: str, agent_id: str) 
                 "status": account_grant.status,
                 "symbols": envelope.get("symbols", [])[:100],
                 "actions": envelope.get("actions", [])[:10],
-                "valid_until": account_grant.valid_until.isoformat(),
+                "valid_until": account_grant.valid_until.isoformat()
+                if account_grant.valid_until
+                else None,
+                "management_mode": envelope.get("management_mode", "bounded"),
+                "symbol_scope": envelope.get("symbol_scope", "selected"),
                 "maximum_order_volume": envelope.get("maximum_order_volume"),
                 "maximum_symbol_volume": envelope.get("maximum_symbol_volume"),
                 "maximum_positions": envelope.get("maximum_positions"),

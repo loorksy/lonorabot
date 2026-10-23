@@ -1,7 +1,16 @@
 /** The same bounded owner controls and risk wording on Web and Mobile. */
 export const accountAuthorityLabels = {
   en: {
-    title: "Independent trading permission",
+    title: "Automatic account management",
+    enableManagement: "Enable automatic management",
+    managementSummary:
+      "The agent chooses trades, lot sizes, stops and targets, and manages permitted positions without asking before each order. No product-set volume, trade-count or loss limit applies unless you set one. Losses can use the available account funds.",
+    allMarkets: "All markets on this account",
+    untilStopped: "Until you stop management",
+    advanced: "Advanced: set specific limits",
+    managementReview: "Confirm automatic management",
+    managementScope:
+      "Includes positions opened outside Lonora. You can stop management at any time.",
     off: "Off",
     active: "Active",
     pending: "Waiting for your signature",
@@ -9,10 +18,10 @@ export const accountAuthorityLabels = {
     expired: "Expired",
     hint: "Authorize this agent once within exact limits. Trading controls and Emergency Stop still apply to every order.",
     limitsUnavailable:
-      "Dollar stop-risk sizing and daily loss budgets are unavailable. These limits control volume, equity and activity; they cannot guarantee a maximum loss.",
+      "These limits control volume, equity and activity. Monetary loss ceilings and daily loss budgets are not implemented; these limits cannot guarantee a maximum loss.",
     create: "Review new permission",
     review: "Review and sign",
-    revoke: "Revoke permission",
+    revoke: "Stop management",
     refresh: "Refresh",
     close: "Close",
     expand: "Configure permission",
@@ -51,7 +60,15 @@ export const accountAuthorityLabels = {
     modify_order: "Modify pending order",
   },
   ar: {
-    title: "تفويض التداول المستقل",
+    title: "إدارة الحساب تلقائيًا",
+    enableManagement: "تفعيل الإدارة التلقائية",
+    managementSummary:
+      "يختار الوكيل الصفقات واللوت والوقف والأهداف، ويدير الصفقات المسموح بها دون طلب موافقتك على كل أمر. لا يفرض النظام حدًا للحجم أو عدد الصفقات أو الخسارة ما لم تحدده أنت. قد تستنفد الخسائر الأموال المتاحة في الحساب.",
+    allMarkets: "جميع أسواق هذا الحساب",
+    untilStopped: "حتى توقف الإدارة",
+    advanced: "إعدادات متقدمة: تحديد حدود خاصة",
+    managementReview: "تأكيد الإدارة التلقائية",
+    managementScope: "يشمل الصفقات المفتوحة خارج لونورا. يمكنك إيقاف الإدارة في أي وقت.",
     off: "متوقف",
     active: "مفعّل",
     pending: "بانتظار توقيعك",
@@ -59,10 +76,10 @@ export const accountAuthorityLabels = {
     expired: "منتهي",
     hint: "فوّض هذا الوكيل مرة واحدة ضمن حدود واضحة. تبقى ضوابط التداول والإيقاف الطارئ نافذة على كل أمر.",
     limitsUnavailable:
-      "حساب مخاطرة الوقف بالدولار وحد الخسارة اليومية غير متاحين. تضبط هذه الحدود الحجم والسيولة والنشاط، ولا تضمن حداً أقصى للخسارة.",
+      "تضبط هذه الحدود الحجم والسيولة والنشاط. حد الخسارة النقدية للصفقة وحد الخسارة اليومية غير مطبّقين، وهذه الحدود لا تضمن حداً أقصى للخسارة.",
     create: "مراجعة تفويض جديد",
     review: "مراجعة وتوقيع",
-    revoke: "إلغاء التفويض",
+    revoke: "إيقاف الإدارة",
     refresh: "تحديث",
     close: "إغلاق",
     expand: "إعداد التفويض",

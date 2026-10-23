@@ -43,10 +43,11 @@ async def proposal(
     rt = runtime(request)
     async with rt.db.sessions() as session:
         await owned_agent(session, owner.id, agent_id)
-    broker = await rt.services(owner.id).brokers.get(owner.id, body.account_id)
-    symbols = set(await broker.symbols())
-    if any(symbol not in symbols for symbol in body.symbols):
-        raise LonoraError("symbol_not_found", 404)
+    if body.symbol_scope == "selected":
+        broker = await rt.services(owner.id).brokers.get(owner.id, body.account_id)
+        symbols = set(await broker.symbols())
+        if any(symbol not in symbols for symbol in body.symbols):
+            raise LonoraError("symbol_not_found", 404)
     async with rt.db.sessions() as session, session.begin():
         return authority_data(await propose(session, owner.id, agent_id, body))
 

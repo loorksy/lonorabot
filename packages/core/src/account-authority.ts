@@ -5,6 +5,38 @@ import type {
   DeviceChallenge,
   DeviceProof,
 } from "@lonora/contracts";
+import { authorityActions } from "@lonora/contracts";
+
+/** Explicit owner-reviewed full management; no implicit upgrade of existing grants. */
+export function fullManagementProposal(scope: {
+  thread_id: string;
+  account_id: string;
+  symbol?: string | null;
+}): AccountAuthorityProposal | null {
+  if (!scope.thread_id || !scope.account_id) return null;
+  if (
+    scope.symbol !== undefined &&
+    scope.symbol !== null &&
+    (!scope.symbol || scope.symbol.trim() !== scope.symbol || scope.symbol.length > 80)
+  )
+    return null;
+  return {
+    thread_id: scope.thread_id,
+    account_id: scope.account_id,
+    management_mode: "full",
+    symbol_scope: scope.symbol ? "selected" : "account",
+    symbols: scope.symbol ? [scope.symbol] : [],
+    actions: [...authorityActions],
+    maximum_order_volume: null,
+    maximum_symbol_volume: null,
+    maximum_positions: null,
+    maximum_pending_orders: null,
+    maximum_actions: null,
+    minimum_equity: null,
+    valid_until: null,
+    allow_manual_positions: true,
+  };
+}
 
 export const authorityLimitFields = [
   "maximum_order_volume",
@@ -91,8 +123,9 @@ export function authorityStatus(
 ): AccountAuthority["status"] {
   if (row.status === "revoked" || row.status === "expired") return row.status;
   if (
-    Date.parse(row.valid_until) <= now ||
-    !Number.isFinite(Date.parse(row.valid_until)) ||
+    (row.valid_until === null
+      ? row.envelope.schema_version !== 2 || row.envelope.management_mode !== "full"
+      : Date.parse(row.valid_until) <= now || !Number.isFinite(Date.parse(row.valid_until))) ||
     (row.status === "pending" &&
       (!Number.isFinite(Date.parse(row.activation_expires_at)) ||
         Date.parse(row.activation_expires_at) <= now))

@@ -7,6 +7,7 @@ from lonora_contracts.account_authority import AccountAuthorityEnvelope, Account
 from lonora_contracts.domain import utcnow
 from lonora_core.user_error import LonoraError
 from lonora_session.idempotency import request_hash
+from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -27,11 +28,16 @@ def authority_data(row: AccountAuthorityRow) -> dict[str, Any]:
         "account_id": row.account_id,
         "status": "expired"
         if row.status in {"pending", "active"}
-        and (row.valid_until <= now or row.status == "pending" and row.activation_expires_at <= now)
+        and (
+            row.valid_until is not None
+            and row.valid_until <= now
+            or row.status == "pending"
+            and row.activation_expires_at <= now
+        )
         else row.status,
         "envelope": row.envelope,
         "activation_expires_at": row.activation_expires_at.isoformat(),
-        "valid_until": row.valid_until.isoformat(),
+        "valid_until": row.valid_until.isoformat() if row.valid_until else None,
         "created_at": row.created_at.isoformat(),
         "updated_at": row.updated_at.isoformat(),
         "monetary_stop_risk": "unavailable",
@@ -73,6 +79,10 @@ async def validate_scope(
     if thread.agent_id != agent_id or thread.group_id:
         raise LonoraError("agent_thread_mismatch", 409)
     await BrokerSessionRepository().get(session, owner_id, envelope.account_id)
+    if envelope.symbol_scope == "account" and (
+        agent.role != "personal" or agent.trading_account_id or agent.trading_symbol
+    ):
+        raise LonoraError("account_authority_scope_mismatch", 403)
     for symbol in envelope.symbols:
         assert_market_binding(agent, envelope.account_id, symbol)
 
@@ -81,9 +91,18 @@ async def propose(
     session: AsyncSession, owner_id: str, agent_id: str, body: AccountAuthorityProposal
 ) -> AccountAuthorityRow:
     await authority_lock(session, agent_id)
-    if not utcnow() < body.valid_until <= utcnow() + timedelta(days=30):
+    if body.valid_until is not None and (
+        body.valid_until <= utcnow()
+        or body.management_mode == "bounded"
+        and body.valid_until > utcnow() + timedelta(days=30)
+    ):
         raise LonoraError("account_authority_expiry_invalid", 422)
-    envelope = AccountAuthorityEnvelope(**body.model_dump(), owner_id=owner_id, agent_id=agent_id)
+    envelope = AccountAuthorityEnvelope(
+        **body.model_dump(),
+        owner_id=owner_id,
+        agent_id=agent_id,
+        schema_version=2 if body.management_mode == "full" else 1,
+    )
     await validate_scope(session, owner_id, agent_id, envelope)
     payload = envelope.model_dump(mode="json")
     digest = request_hash(payload)
@@ -120,11 +139,18 @@ async def require_authority(
     session: AsyncSession, owner_id: str, agent_id: str, identifier: str
 ) -> tuple[AccountAuthorityRow, AccountAuthorityEnvelope]:
     row = await owned_authority(session, owner_id, identifier)
-    if row.agent_id != agent_id or row.status != "active" or row.valid_until <= utcnow():
+    if (
+        row.agent_id != agent_id
+        or row.status != "active"
+        or (row.valid_until is not None and row.valid_until <= utcnow())
+    ):
         raise LonoraError("account_authority_unavailable", 403)
     if request_hash(row.envelope) != row.envelope_hash:
         raise LonoraError("account_authority_changed", 403)
-    envelope = AccountAuthorityEnvelope.model_validate(row.envelope)
+    try:
+        envelope = AccountAuthorityEnvelope.model_validate(row.envelope)
+    except ValidationError as error:
+        raise LonoraError("account_authority_changed", 403) from error
     if (
         envelope.valid_until != row.valid_until
         or envelope.account_id != row.account_id

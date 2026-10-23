@@ -10,7 +10,8 @@
     "super_bot_activated_supervised": "تم تفعيل السوبر بوت. سأطلب تأكيدك قبل تنفيذ أي صفقة.",
     "super_bot_activated_autonomous": "تم تفعيل السوبر بوت وفق الحدود التي وافقت عليها.",
     "super_bot_activated_shadow": "تم تفعيل السوبر بوت للمحاكاة؛ لن تُرسل صفقات إلى الوسيط.",
-    "super_bot_review_unavailable": "تم التفعيل، لكن فحص الجاهزية لم يكتمل بعد. لم تُرسل أي صفقة."
+    "super_bot_review_unavailable": "تم التفعيل، لكن فحص الجاهزية لم يكتمل بعد. لم تُرسل أي صفقة.",
+    "account_management_task": "إدارة حساب التداول"
   },
   "en": {
     "super_bot_authorization": "A Super Bot request needs your review and device authorization in the conversation. No execution authority has been granted yet.",
@@ -23,6 +24,7 @@
     "super_bot_activated_supervised": "Super Bot is enabled. I will ask for your confirmation before placing any trade.",
     "super_bot_activated_autonomous": "Super Bot is enabled within the limits you authorized.",
     "super_bot_activated_shadow": "Super Bot is enabled in virtual mode; no trades will be sent to the broker.",
-    "super_bot_review_unavailable": "Activation succeeded, but the readiness check is incomplete. No trade was sent."
+    "super_bot_review_unavailable": "Activation succeeded, but the readiness check is incomplete. No trade was sent.",
+    "account_management_task": "Manage the trading account"
   }
 }

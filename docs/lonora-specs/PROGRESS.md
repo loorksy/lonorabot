@@ -1,12 +1,33 @@
 # Progress
 
+## Explicit automatic management integration — 2026-10-23
+
+Implemented a v2 full-management mode in the existing signed account authority,
+with nullable optional limits/expiry, explicit Personal account-wide scope and
+unchanged specialist bindings. Existing v1 grants retain strict required limits
+and their original stored hash. Web/Mobile offer one simple review and signature;
+advanced bounded controls remain separate. Activation atomically starts the same
+Agent’s durable Task, bound to that exact grant against stale replacement work.
+No new executor, scheduler, event bus, authority store or production grant exists.
+Migration0030 makes the existing expiry nullable without rewriting any envelopes.
+Verified locally:811 pytest cases without skips;56 isolated foundation groups plus
+11 Task cases (the existing SDK deadline fixture was updated to account for the
+new metadata cooldown); full `bash scripts/build.sh`, strict Pyright zero errors,
+Ruff/format, policy/wheel checks and all seven client build targets. Eight shared
+client unit cases, four actual Web browser cases (full and bounded WebAuthn), four
+Expo Web EN/AR cases, signed full-management simulation and genuine original-v1
+signature acceptance pass. No physical-device or provider trading acceptance is
+claimed. The compatible signed Android OTA is prepared; production activation is
+the next checkpoint. No native APK or backup is built.
+
+
 ## Owner clarification: simple autonomous trading — 2026-10-23
 
 Recorded all 27 requested behaviors in
 [the product acceptance mapping](AUTONOMOUS_TRADING_PRODUCT_REQUIREMENTS.md).
 The remaining prompt 1 requirements are retained. One authenticated scope allows
-ordinary autonomous actions without repeated approval; analytical initiative does
-not confer unlimited monetary risk or conceal execution. Latest clarification removes mandatory numeric-budget setup: prioritize an explicit
+ordinary autonomous actions without repeated approval; analytical initiative alone
+never grants financial authority or conceals execution. Latest clarification removes mandatory numeric-budget setup: prioritize an explicit
 versioned full-management grant with optional owner limits and one complete
 persistent trading mission, then validated strategy and
 multi-position/group acceptance. This is a documentation/priority update, not new

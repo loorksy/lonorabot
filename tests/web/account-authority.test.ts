@@ -6,6 +6,7 @@ import {
   authorityProposal,
   authorityStatus,
   emptyAuthorityDraft,
+  fullManagementProposal,
 } from "../../packages/core/src/account-authority";
 
 const now = Date.now();
@@ -121,4 +122,43 @@ test("different server scope or expanded limits fail closed", async () => {
       activateAccountAuthority(transport(changed, []), pending, async () => proof),
       /scope_changed/,
     );
+});
+
+test("full management is an explicit proposal without default quotas, markets or expiry", () => {
+  assert.equal(fullManagementProposal({ thread_id: "", account_id: "" }), null);
+  const full = fullManagementProposal({ thread_id: scope.thread_id, account_id: scope.account_id });
+  assert.ok(full);
+  assert.equal(full.management_mode, "full");
+  assert.equal(full.symbol_scope, "account");
+  assert.deepEqual(full.symbols, []);
+  assert.equal(full.maximum_order_volume, null);
+  assert.equal(full.maximum_actions, null);
+  assert.equal(full.valid_until, null);
+  assert.equal(full.allow_manual_positions, true);
+  const specialist = fullManagementProposal({ ...scope, symbol: "EXACT.suffix" });
+  assert.deepEqual(specialist?.symbols, ["EXACT.suffix"]);
+  assert.equal(specialist?.symbol_scope, "selected");
+});
+test("non-expiring permission requires explicit full mode and v2, with pending timeout retained", () => {
+  const full = fullManagementProposal({ thread_id: scope.thread_id, account_id: scope.account_id });
+  assert.ok(full);
+  const active: AccountAuthority = {
+    ...pending,
+    status: "active",
+    valid_until: null,
+    envelope: {
+      ...full,
+      owner_id: "owner",
+      agent_id: "agent",
+      execution_mode: "live",
+      schema_version: 2,
+    },
+  };
+  assert.equal(authorityStatus(active, now + 365 * 86400000), "active");
+  assert.equal(authorityStatus({ ...active, status: "pending" }, now + 600001), "expired");
+  assert.equal(
+    authorityStatus({ ...active, envelope: { ...active.envelope, schema_version: 1 } }, now),
+    "expired",
+  );
+  assert.equal(authorityStatus({ ...active, status: "revoked" }, now), "revoked");
 });

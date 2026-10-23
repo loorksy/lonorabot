@@ -188,6 +188,20 @@ async def main() -> None:
             "PASS immutable pending requests deduplicate and text/pending requests grant no authority"
         )
 
+        # Reconstruct the original v1 persisted shape before obtaining its genuine
+        # signature. Verification must hash the stored bytes, not new default fields.
+        from lonora_session.idempotency import request_hash
+
+        async with f.runtime.db.sessions() as session, session.begin():
+            legacy = await session.get(AccountAuthorityRow, proposal["id"], with_for_update=True)
+            assert legacy
+            legacy.envelope = {
+                k: v
+                for k, v in legacy.envelope.items()
+                if k not in {"management_mode", "symbol_scope"}
+            }
+            legacy.envelope_hash = request_hash(legacy.envelope)
+
         challenge = await f.request("POST", f"/account-authorities/{proposal['id']}/challenge", {})
         async with f.runtime.db.sessions() as session:
             identity = await read_session(session, f.client.cookies.get("lonora_session"))
@@ -449,7 +463,7 @@ async def main() -> None:
 
         async with f.runtime.db.sessions() as session:
             row = await session.get(AccountAuthorityRow, grant["id"])
-            assert row
+            assert row and row.valid_until is not None
             with patch(
                 "lonora_db.account_authority.utcnow",
                 return_value=row.valid_until + timedelta(seconds=1),

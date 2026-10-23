@@ -71,13 +71,20 @@ for (const locale of ["en", "ar"])
     context,
   }) => {
     const state = await setup(context, locale);
-    const title = locale === "ar" ? "تفويض التداول المستقل" : "Independent trading permission";
-    const revoke = locale === "ar" ? "إلغاء التفويض" : "Revoke permission";
+    const title = locale === "ar" ? "إدارة الحساب تلقائيًا" : "Automatic account management";
+    const revoke = locale === "ar" ? "إيقاف الإدارة" : "Stop management";
     try {
       await page.goto(`/bot-settings?botId=${state.agent.id}`);
       await page.getByRole("button", { name: title, exact: true }).click();
+      await page
+        .getByRole("button", {
+          name:
+            locale === "ar" ? "إعدادات متقدمة: تحديد حدود خاصة" : "Advanced: set specific limits",
+          exact: true,
+        })
+        .click();
       await expect(
-        page.getByText(locale === "ar" ? /حساب مخاطرة الوقف بالدولار/ : /Dollar stop-risk sizing/),
+        page.getByText(locale === "ar" ? /تضبط هذه الحدود الحجم/ : /These limits control volume/),
       ).toBeVisible();
       await expect(
         page.getByText(locale === "ar" ? /بانتظار توقيعك/ : /Waiting for your signature/),
@@ -88,6 +95,56 @@ for (const locale of ["en", "ar"])
         await context.request.get(`/api/agents/${state.agent.id}/account-authorities`)
       ).json();
       expect(saved.find((row) => row.id === state.row.id).status).toBe("revoked");
+      expect((await (await context.request.get("/api/trading/controls")).json()).enabled).toBe(
+        false,
+      );
+    } finally {
+      await state.cleanup();
+    }
+  });
+
+for (const locale of ["en", "ar"])
+  test(`Expo ${locale} prepares full management without numeric forms or granting authority`, async ({
+    page,
+    context,
+  }) => {
+    const state = await setup(context, locale);
+    try {
+      await page.goto(`/bot-settings?botId=${state.agent.id}`);
+      await page
+        .getByRole("button", {
+          name: locale === "ar" ? "إدارة الحساب تلقائيًا" : "Automatic account management",
+          exact: true,
+        })
+        .click();
+      const response = page.waitForResponse(
+        (r) =>
+          r.url().endsWith(`/agents/${state.agent.id}/account-authorities`) &&
+          r.request().method() === "POST",
+      );
+      await page
+        .getByRole("button", {
+          name: locale === "ar" ? "تفعيل الإدارة التلقائية" : "Enable automatic management",
+          exact: true,
+        })
+        .click();
+      const proposed = await response;
+      expect(proposed.status()).toBe(201);
+      const row = await proposed.json();
+      expect(row.envelope.management_mode).toBe("full");
+      expect(row.envelope.schema_version).toBe(2);
+      expect(row.envelope.symbols).toEqual([state.data.symbol]);
+      expect(row.envelope.maximum_actions).toBeNull();
+      expect(row.valid_until).toBeNull();
+      expect(row.status).toBe("pending");
+      await expect(
+        page.getByText(
+          locale === "ar" ? /يختار الوكيل الصفقات واللوت/ : /The agent chooses trades, lot sizes/,
+        ),
+      ).toBeVisible();
+      await expect(
+        page.getByText(locale === "ar" ? /أقصى حجم للأمر/ : /Maximum volume per order/),
+      ).toHaveCount(0);
       expect((await (await context.request.get("/api/trading/controls")).json()).enabled).toBe(
         false,
       );

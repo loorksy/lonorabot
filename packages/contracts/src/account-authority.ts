@@ -15,15 +15,17 @@ export type AuthorityAction = (typeof authorityActions)[number];
 export type AccountAuthorityProposal = {
   thread_id: string;
   account_id: string;
+  management_mode?: "bounded" | "full";
+  symbol_scope?: "selected" | "account";
   symbols: string[];
   actions: AuthorityAction[];
-  maximum_order_volume: string;
-  maximum_symbol_volume: string;
-  maximum_positions: number;
-  maximum_pending_orders: number;
-  maximum_actions: number;
-  minimum_equity: string;
-  valid_until: string;
+  maximum_order_volume: string | null;
+  maximum_symbol_volume: string | null;
+  maximum_positions: number | null;
+  maximum_pending_orders: number | null;
+  maximum_actions: number | null;
+  minimum_equity: string | null;
+  valid_until: string | null;
   allow_manual_positions: boolean;
 };
 export type AccountAuthority = {
@@ -36,10 +38,10 @@ export type AccountAuthority = {
     owner_id: string;
     agent_id: string;
     execution_mode: "live";
-    schema_version: 1;
+    schema_version: 1 | 2;
   };
   activation_expires_at: string;
-  valid_until: string;
+  valid_until: string | null;
   created_at: string;
   updated_at: string;
   monetary_stop_risk: "unavailable";

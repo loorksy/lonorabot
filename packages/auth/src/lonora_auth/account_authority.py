@@ -3,14 +3,19 @@
 import json
 from typing import Any
 
+from lonora_bus.attention import attention_text
 from lonora_contracts.account_authority import AccountAuthorityEnvelope
 from lonora_contracts.domain import utcnow
 from lonora_contracts.super_bot import DeviceProof
+from lonora_contracts.tasks import TaskCreate
 from lonora_core.user_error import LonoraError
 from lonora_db.account_authority import changed, owned_authority, validate_scope
-from lonora_db.schema import AccountAuthorityRow
+from lonora_db.conversation_locale import conversation_locale
+from lonora_db.schema import AccountAuthorityRow, RunRow
 from lonora_db.super_bot import authority_lock
-from lonora_session.idempotency import request_hash
+from lonora_db.tasks import create_task
+from lonora_session.idempotency import request_hash, stable_id
+from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from webauthn import generate_authentication_options, options_to_json
@@ -36,7 +41,8 @@ async def begin_activation(
     if (
         row.status != "pending"
         or row.activation_expires_at <= utcnow()
-        or row.valid_until <= utcnow()
+        or row.valid_until is not None
+        and row.valid_until <= utcnow()
     ):
         raise LonoraError("account_authority_expired_or_used", 409)
     known = await devices(session, owner.id)
@@ -76,12 +82,16 @@ async def finish_activation(
     if (
         row.status != "pending"
         or row.activation_expires_at <= utcnow()
-        or row.valid_until <= utcnow()
+        or row.valid_until is not None
+        and row.valid_until <= utcnow()
         or challenge.binding_hash != row.envelope_hash
         or request_hash(row.envelope) != row.envelope_hash
     ):
         raise LonoraError("account_authority_expired_or_changed", 409)
-    envelope = AccountAuthorityEnvelope.model_validate(row.envelope)
+    try:
+        envelope = AccountAuthorityEnvelope.model_validate(row.envelope)
+    except ValidationError as error:
+        raise LonoraError("account_authority_changed", 403) from error
     if (
         envelope.valid_until != row.valid_until
         or envelope.account_id != row.account_id
@@ -106,5 +116,40 @@ async def finish_activation(
     await session.flush()
     device.sign_count, challenge.status = sign_count, "used"
     row.status, row.device_id = "active", device.id
+    if envelope.management_mode == "full":
+        locale = await conversation_locale(session, owner.id, row.thread_id)
+        task = await create_task(
+            session,
+            owner.id,
+            row.agent_id,
+            row.thread_id,
+            TaskCreate(
+                title=attention_text("account_management_task", locale),
+                description=(
+                    "The owner has authenticated automatic management of account "
+                    + row.account_id
+                    + ". Inspect the current signed account scope and actual broker state. "
+                    "Assess existing positions and relevant markets, choose your own justified "
+                    "direction, lot size, stops, targets and management plan within that scope. "
+                    "Do not ask for each order or ask the owner to choose routine trading parameters. "
+                    "Trade only when fresh evidence supports the action; activation alone is not an entry signal. "
+                    "Use the existing journaled trade services and verify actual broker effects. "
+                    "Global controls, revocation, exact specialist binding and owner intervention still apply. "
+                    "Inspect existing watches and schedules before creating any; persist meaningful "
+                    "market-triggered follow-up without duplicate monitoring or continuous model polling. "
+                    "Continue useful authorized work while the owner is away. Report actual results "
+                    "and concrete blockers concisely in the conversation language; never promise returns."
+                ),
+            ),
+            task_id=stable_id(row.id, "account-management-task"),
+        )
+        run = await session.get(RunRow, task.payload["run_id"])
+        assert run is not None
+        run.model_metadata = {
+            **run.model_metadata,
+            "account_id": row.account_id,
+            "account_management_id": row.id,
+            "reply_locale": locale,
+        }
     changed(session, row)
     return row

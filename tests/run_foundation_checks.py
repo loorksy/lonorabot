@@ -49,6 +49,7 @@ CHECKS = (
     "check_decision_readiness.py",
     "check_strategy_research.py",
     "check_account_authority.py",
+    "check_full_account_management.py",
     "check_account_recovery.py",
     "check_decision_replay.py",
     "check_review_findings.py",

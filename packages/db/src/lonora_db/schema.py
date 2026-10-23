@@ -151,7 +151,7 @@ class AccountAuthorityRow(Base):
         ForeignKey("ln_device_credentials.id", ondelete="SET NULL")
     )
     activation_expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    valid_until: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    valid_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
