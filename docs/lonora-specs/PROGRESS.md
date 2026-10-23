@@ -2,6 +2,23 @@
 
 ## Current integration — 2026-10-23
 
+Deployed code: `2f9d3c1627013dc0e96ef22d8d93f6711ed07bb3` (with
+`4006646` analytical dependencies/runtime identity). Both API and Gateway report
+that immutable revision. `/health`, `/ready` and `/app/` return 200; migration0029
+is installed, all 13 saved chart scenes report ready, and independent account
+permission has zero active/pending production rows. Real Gateway-to-isolated
+NumPy execution passed. The managed environment reconnected during activation;
+the host-side persistent activation completed and readiness was reverified.
+
+Signed Android OTA release `e3e3c7ab-2288-446f-a305-493150851707` is published for
+the actual 0.2.8 native runtime `e4a51ffd7874ea0b8a4fc201e1c39ca376e826ca`.
+Public Expo protocol, the pinned certificate signature, actual bundle SHA and
+no-update replay were verified. No runtime override, certificate rotation or APK
+build was used. Compatible clients download normally and apply at their next
+native launch; installation on a physical device is not claimed. No backup was
+created; the old backup directory remains absent. Existing unrelated VPS services
+were left running. The complete original mandate still has open matrix rows.
+
 The active branch remains `codex/agent-architecture-audit`; no direct merge to
 `main` was performed. The verified baseline `b66b213` was pushed, built and
 activated on the production VPS before the next parallel wave. Public health,
@@ -45,17 +62,28 @@ Integrated behavior in the current wave:
   Native background/killed-app delivery and PSTN remain unimplemented/unconfigured;
   a fake-provider or saved invitation is never called real device delivery.
 
-Evidence so far:589 pytest cases with no skips;38 voice/policy cases; genuine
+Evidence so far: 589 pytest cases with no skips; 38 voice/policy cases; genuine
 WebAuthn+simulation account authority groups; actual EN/AR Web review/revoke plus
 virtual-authenticator signing; shared client tests; actual public-source/container
-validation; migration roundtrip. All51 isolated foundation groups and11 Task cases passed; full
+validation; migration roundtrip. All 51 isolated foundation groups and 11 Task cases passed; full
 `bash scripts/build.sh` passed, including Ruff, strict Pyright, installed policy
-verification, client lint/types and seven build targets. Web3 and Expo Web2
+verification, client lint/types and seven build targets. Web 3 and Expo Web 2
 account-permission cases passed. Late voice corrections also withdraw stale
 financial approval before it remains actionable. Physical Samsung, external Live model behavior, native incoming
 push, arbitrary strategy equivalence, monetary risk metadata, remaining source
 requirements and final whole-program review remain open. Earlier sections below
 are historical evidence, not a claim that all current requirements are complete.
+
+### Next shared dependencies
+
+Monetary sizing is remaining implementation work, not a request for missing
+credentials: the pinned MetaApi SDK exposes profit/loss tick values and contract
+size, but Lonora must preserve their units/currency/source time through its
+broker-neutral contracts before enforcing monetary stops or daily loss limits.
+MCP/stdio effect isolation and whole-source acceptance remain an explicit M-X/M-A
+audit, rather than an assertion that every external integration is safe. Universal
+package/strategy adaptation and native incoming delivery remain partial for the
+concrete reasons recorded in the matrix. The current wave does not close them.
 
 ## Active mandate — 2026-10-21
 
@@ -547,7 +575,7 @@ Actual PostgreSQL acceptance passed for real ToolLoop death/new fence, stale wor
 
 ### Final integration checkpoint for chart recovery (2026-10-19)
 
-All36 registered isolated PostgreSQL integration groups and11 Task cases passed after creation recovery. The first final run exposed an old snapshot-provenance fixture reading candles from the creation acknowledgment; it was corrected to invoke the real chart_inspect read preparation and retain all original provenance assertions. That fixture and the full runner then passed. Combined339 pytest, zero-error Pyright and Ruff are retained; Web build/lint/Mobile types passed for localized Skills diagnostics. Additional actual Chromium chart-to-vision acceptance, Agent market/trading flow, generated artifacts and chart tools passed independently. No production broker operation, APK or deployment.
+All36 registered isolated PostgreSQL integration groups and 11 Task cases passed after creation recovery. The first final run exposed an old snapshot-provenance fixture reading candles from the creation acknowledgment; it was corrected to invoke the real chart_inspect read preparation and retain all original provenance assertions. That fixture and the full runner then passed. Combined339 pytest, zero-error Pyright and Ruff are retained; Web build/lint/Mobile types passed for localized Skills diagnostics. Additional actual Chromium chart-to-vision acceptance, Agent market/trading flow, generated artifacts and chart tools passed independently. No production broker operation, APK or deployment.
 
 Next shared foundation: owner-controlled exact Skill-version revocation independent of deletable installed resources, before evaluated candidate/adoption/rollback. Persistent Chart Use viewport/navigation and broad/native/provider acceptance remain open. Current branch changes are pushed incrementally; the full professional Agent program is not complete.
 
@@ -559,7 +587,7 @@ Review found a second recovery gap: refreshed selection diagnostics could commit
 
 Actual PostgreSQL acceptance passed for pinned-v1 revocation/current-v2 availability, metadata-versus-checkpoint crash boundary, source/content/delete/reinstall resistance, dependencies, unrelated historical entries, owner/Agent scope, concurrency, exact duplicate events, overflow, Agent cleanup and stale worker. Combined347 pytest, strict Pyright and Ruff passed. The new fixture is registered in the37-group foundation runner; its final regression follows below. Tests use scripted effects only. Remaining: owner version-control UI, evaluated candidate/adoption/rollback, retained Task version-transition policy, persistent visual workspace/navigation and broader external/native/quality acceptance. No migration, APK or deployment.
 
-Final revocation integration gate: all37 isolated foundation groups and11 Task cases passed. The expanded revocation fixture (including unused historical snapshots and bounded controls/Agent cleanup) passed independently, and all347 pytest cases, strict Pyright and Ruff passed. No remote CI or production acceptance is inferred from these local results.
+Final revocation integration gate: all37 isolated foundation groups and 11 Task cases passed. The expanded revocation fixture (including unused historical snapshots and bounded controls/Agent cleanup) passed independently, and all347 pytest cases, strict Pyright and Ruff passed. No remote CI or production acceptance is inferred from these local results.
 
 Next continuation point after a1efd1a: progressive Skill discovery/view through the canonical ToolRegistry. Actual source/caller audit confirms there is no such tool today; deterministic activation and owner explicit hints alone do not close that requirement. Reuse one injected access boundary to avoid an Agent↔tools import cycle and keep admitted instructions/checkpoints/revocations aligned. This is not implemented yet. All current changes are verified and pushed on feat/trading-agent-environment; no APK, main merge or VPS deployment. The full program remains incomplete.
 
