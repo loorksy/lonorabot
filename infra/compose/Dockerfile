@@ -28,7 +28,7 @@ RUN --mount=type=secret,id=system_ca,required=false \
 COPY --from=web /build/apps/web/dist ./apps/web/dist
 COPY scripts ./scripts
 COPY entrypoint.sh ./entrypoint.sh
-RUN useradd --system --uid 10001 --create-home lonora && mkdir -p /app/.runtime/artifacts && chmod -R a+rX /app && chown -R lonora:lonora /app/.runtime && chmod +x /app/entrypoint.sh /app/scripts/*.sh
+RUN groupadd --system --gid 10001 lonora && useradd --system --uid 10001 --gid 10001 --create-home lonora && mkdir -p /app/.runtime/artifacts && chmod -R a+rX /app && chown -R lonora:lonora /app/.runtime && chmod +x /app/entrypoint.sh /app/scripts/*.sh
 USER lonora
 EXPOSE 8000
 ENTRYPOINT ["/app/entrypoint.sh"]

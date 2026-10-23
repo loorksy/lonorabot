@@ -7,8 +7,8 @@ PostgreSQL. A dedicated Unix-socket bridge runs commands in fresh, immutable-ima
 containers and returns actual exit status, bounded output and validated files.
 No new Agent, model loop, scheduler, broker adapter or financial authority exists.
 
-This capability is verified in development, **not installed or activated in
-production**. File management needs migration `0028_analytical_workspace`;
+The persistent workspace and isolated host bridge are now installed and verified
+on the production VPS (2026-10-23), initially at commit `b66b213`. File management needs migration `0028_analytical_workspace`;
 execution additionally requires an explicitly configured host socket. Missing
 configuration is reported as unavailable, never replaced with a host subprocess.
 
@@ -34,8 +34,13 @@ The administrator builds `infra/analysis/Dockerfile`, reviews its contents and
 configures its full local `sha256:` image ID. Execution never pulls an image and
 does not accept mutable tags. The base Python image is digest-pinned; the image
 contains no Lonora application, broker SDK, credentials or project checkout.
-Only Python's standard library and the base shell are available initially.
-Third-party dependency installation remains unimplemented and network-disabled.
+The minimal profile contains Python's standard library and the base shell.
+An optional reviewed analytics profile adds NumPy, pandas, SciPy, matplotlib and
+Pillow with fifteen exact wheel hashes. `build-analytics.sh` downloads only those
+hash-verified Python3.12/Linux x86_64 wheels, then installs them offline during
+image construction. Jobs cannot select packages, download dependencies or alter
+the image. Unsupported imports remain actual failures. The profile is not a
+universal dependency installer and does not supply broker credentials or feeds.
 
 Each command runs as UID/GID 10001, with zero effective capabilities and
 `no-new-privileges`, in private PID, IPC, cgroup and network namespaces. The root
@@ -230,3 +235,25 @@ integrations and these export/real-container integrations passed.
 
 Generated code analyzes supplied data. Live trades continue through the existing
 typed, authorized, risk-checked, journaled and reconciled services.
+
+
+## Reviewed analytics profile and production identity
+
+`infra/analysis/analytics.requirements.lock` pins the complete wheel bundle.
+Hashes were compared with the official PyPI release metadata before the first
+build. The base image stays digest-pinned. `tests/check_analytics_profile.py` takes
+an explicit immutable local image ID and exercises actual rolling/statistical
+calculations, plotting, raster decoding, exact installed versions, report output
+and unsupported dependency failures inside the existing resource boundary.
+BLAS/OpenMP threads are bounded to one per analytical process; this avoids library
+thread pools exhausting the container PID allowance. This does not increase CPU,
+memory, process, deadline or financial authority limits.
+
+The production Unix service runs separately under systemd, with no application
+`.env`, DB/model/broker secrets or Gateway Docker access. Actual production
+Gateway-to-host-to-restricted-container execution was verified. The initial
+application image's UID10001 had primary GID997, exposing a real socket access
+failure. The optional Compose overlay now supplies supplemental GID10001, and
+future application images explicitly pin both UID/GID10001. The fix was verified
+from the actual running Gateway; permissive socket modes were not used.
+No production trading mutation, financial grant, APK or backup was created.

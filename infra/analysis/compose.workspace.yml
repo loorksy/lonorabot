@@ -2,6 +2,8 @@
 # There is deliberately no Docker socket mount or application credential here.
 services:
   gateway:
+    group_add:
+      - "10001"
     environment:
       LONORA_WORKSPACE_SOCKET: /run/lonora-analysis/host.sock
     volumes:
