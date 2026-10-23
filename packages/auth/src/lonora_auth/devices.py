@@ -135,6 +135,42 @@ def credential_size(proof: DeviceProof) -> None:
         raise LonoraError("device_proof_invalid", 422)
 
 
+async def verified_device_assertion(
+    session: AsyncSession,
+    owner_id: str,
+    body: DeviceProof,
+    challenge: DeviceChallengeRow,
+    origin: str,
+    native_origins: list[str] | None = None,
+) -> tuple[DeviceCredentialRow, int]:
+    """One standard assertion verifier shared by Goal and account delegation."""
+    credential_size(body)
+    device = await session.scalar(
+        select(DeviceCredentialRow)
+        .where(
+            DeviceCredentialRow.owner_id == owner_id,
+            DeviceCredentialRow.credential_id == body.credential.get("id"),
+            DeviceCredentialRow.revoked.is_(False),
+        )
+        .with_for_update()
+    )
+    if device is None:
+        raise LonoraError("device_proof_invalid", 403)
+    try:
+        verified = verify_authentication_response(
+            credential=body.credential,
+            expected_challenge=base64url_to_bytes(challenge.challenge),
+            expected_rp_id=relying_party(origin),
+            expected_origin=[origin] + (native_origins or []),
+            credential_public_key=base64url_to_bytes(device.public_key),
+            credential_current_sign_count=device.sign_count,
+            require_user_verification=True,
+        )
+    except Exception as error:
+        raise LonoraError("device_proof_invalid", 403) from error
+    return device, verified.new_sign_count
+
+
 async def begin_enrollment(
     session: AsyncSession, owner: OwnerIdentity, body: DeviceEnrollment, origin: str
 ) -> dict[str, Any]:
@@ -285,29 +321,9 @@ async def finish_activation(
         or goal.payload["max_trade_actions"] != envelope.max_trade_actions
     ):
         raise LonoraError("super_bot_plan_changed", 409)
-    device = await session.scalar(
-        select(DeviceCredentialRow)
-        .where(
-            DeviceCredentialRow.owner_id == owner.id,
-            DeviceCredentialRow.credential_id == body.credential.get("id"),
-            DeviceCredentialRow.revoked.is_(False),
-        )
-        .with_for_update()
+    device, sign_count = await verified_device_assertion(
+        session, owner.id, body, challenge, origin, native_origins
     )
-    if device is None:
-        raise LonoraError("device_proof_invalid", 403)
-    try:
-        verified = verify_authentication_response(
-            credential=body.credential,
-            expected_challenge=base64url_to_bytes(challenge.challenge),
-            expected_rp_id=relying_party(origin),
-            expected_origin=[origin] + (native_origins or []),
-            credential_public_key=base64url_to_bytes(device.public_key),
-            credential_current_sign_count=device.sign_count,
-            require_user_verification=True,
-        )
-    except Exception as error:
-        raise LonoraError("device_proof_invalid", 403) from error
     if row.mode == "autonomous":
         require_autonomous_limits(goal)
     previous = list(
@@ -321,7 +337,7 @@ async def finish_activation(
     for prior in previous:
         await stop_request(session, prior, "disabled")
     await session.flush()
-    device.sign_count, challenge.status = verified.new_sign_count, "used"
+    device.sign_count, challenge.status = sign_count, "used"
     row.status, row.device_id = "activated", device.id
     update_goal_state(
         session,

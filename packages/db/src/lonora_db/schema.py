@@ -116,6 +116,46 @@ class SuperBotRequestRow(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class AccountAuthorityRow(Base):
+    """Immutable signed account scope, independent of any predeclared Goal."""
+
+    __tablename__ = "ln_account_authorities"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('pending','active','revoked','expired')", name="ln_account_authority_status"
+        ),
+        Index(
+            "ln_account_authority_active",
+            "agent_id",
+            "account_id",
+            unique=True,
+            postgresql_where=text("status = 'active'"),
+            sqlite_where=text("status = 'active'"),
+        ),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    owner_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_owners.id", ondelete="CASCADE"), index=True
+    )
+    agent_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_agents.id", ondelete="CASCADE"), index=True
+    )
+    thread_id: Mapped[str] = mapped_column(ForeignKey("ln_threads.id", ondelete="CASCADE"))
+    account_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_broker_sessions.id", ondelete="CASCADE"), index=True
+    )
+    status: Mapped[str] = mapped_column(String(16), default="pending", server_default="pending")
+    envelope: Mapped[dict[str, Any]] = mapped_column(JSON)
+    envelope_hash: Mapped[str] = mapped_column(String(64))
+    device_id: Mapped[str | None] = mapped_column(
+        ForeignKey("ln_device_credentials.id", ondelete="SET NULL")
+    )
+    activation_expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    valid_until: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class AgentRow(Base):
     execution_mode: Mapped[str] = mapped_column(String(12), default="live", server_default="live")
     __tablename__ = "ln_agents"

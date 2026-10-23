@@ -4,11 +4,13 @@ from typing import Any
 
 from lonora_contracts.agent_state import AgentLiveState
 from lonora_contracts.domain import utcnow
+from lonora_core.user_error import LonoraError
 from lonora_session.idempotency import stable_id
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .schema import (
+    AccountAuthorityRow,
     BrokerSessionRow,
     CollaborationSessionRow,
     MarketWatchRow,
@@ -173,6 +175,66 @@ async def agent_live_state(session: AsyncSession, owner_id: str, agent_id: str) 
         )
         or 0
     )
+    pending_authorizations += int(
+        await session.scalar(
+            select(func.count())
+            .select_from(AccountAuthorityRow)
+            .where(
+                AccountAuthorityRow.owner_id == owner_id,
+                AccountAuthorityRow.agent_id == agent.id,
+                AccountAuthorityRow.status == "pending",
+                AccountAuthorityRow.activation_expires_at > utcnow(),
+                AccountAuthorityRow.valid_until > utcnow(),
+            )
+        )
+        or 0
+    )
+    account_authorities: list[dict[str, Any]] = []
+    account_grants = await session.scalars(
+        select(AccountAuthorityRow)
+        .where(
+            AccountAuthorityRow.owner_id == owner_id,
+            AccountAuthorityRow.agent_id == agent.id,
+            AccountAuthorityRow.status.in_(["pending", "active"]),
+            AccountAuthorityRow.valid_until > utcnow(),
+        )
+        .order_by(
+            (AccountAuthorityRow.status == "active").desc(),
+            AccountAuthorityRow.created_at.desc(),
+        )
+        .limit(6)
+    )
+    from .account_authority import require_authority
+
+    for account_grant in account_grants:
+        if account_grant.status == "pending" and account_grant.activation_expires_at <= utcnow():
+            continue
+        if account_grant.status == "active":
+            try:
+                await require_authority(session, owner_id, agent.id, account_grant.id)
+            except LonoraError:
+                continue
+        envelope = account_grant.envelope
+        account_authorities.append(
+            {
+                "id": account_grant.id,
+                "account_id": account_grant.account_id,
+                "status": account_grant.status,
+                "symbols": envelope.get("symbols", [])[:100],
+                "actions": envelope.get("actions", [])[:10],
+                "valid_until": account_grant.valid_until.isoformat(),
+                "maximum_order_volume": envelope.get("maximum_order_volume"),
+                "maximum_symbol_volume": envelope.get("maximum_symbol_volume"),
+                "maximum_positions": envelope.get("maximum_positions"),
+                "maximum_pending_orders": envelope.get("maximum_pending_orders"),
+                "maximum_actions": envelope.get("maximum_actions"),
+                "minimum_equity": envelope.get("minimum_equity"),
+                "allow_manual_positions": bool(envelope.get("allow_manual_positions")),
+                "monetary_stop_risk": "unavailable",
+            }
+        )
+        if len(account_authorities) == 3:
+            break
     grants = (
         await session.execute(
             select(SuperBotRequestRow, TradingGoalRow)
@@ -335,6 +397,7 @@ async def agent_live_state(session: AsyncSession, owner_id: str, agent_id: str) 
         watch_count=watches,
         pending_authorization_count=pending_authorizations,
         super_bot=authority_summaries,
+        account_authorities=account_authorities,
         collaborations=[
             {
                 "id": row.id,

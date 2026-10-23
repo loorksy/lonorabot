@@ -6,7 +6,7 @@ import sys
 
 from check_streaming import test_settings
 from lonora_db.client import Database
-from lonora_db.schema import AnalyticalWorkspaceRow, WorkspaceOperationRow
+from lonora_db.schema import AccountAuthorityRow, AnalyticalWorkspaceRow, WorkspaceOperationRow
 from sqlalchemy import func, inspect, select
 
 
@@ -18,6 +18,7 @@ async def main() -> None:
                 select(func.count()).select_from(AnalyticalWorkspaceRow)
             )
             assert not await session.scalar(select(func.count()).select_from(WorkspaceOperationRow))
+            assert not await session.scalar(select(func.count()).select_from(AccountAuthorityRow))
         await db.close()
         command = [sys.executable, "-m", "alembic", "-c", "packages/db/alembic.ini"]
         await asyncio.to_thread(
@@ -32,6 +33,7 @@ async def main() -> None:
                 "ln_analytical_workspaces" not in tables and "ln_workspace_operations" not in tables
             )
             assert "ln_agents" in tables and "ln_trading_journal" in tables
+            assert "ln_account_authorities" not in tables
         await db.close()
         await asyncio.to_thread(
             subprocess.run, [*command, "upgrade", "head"], check=True, stdout=subprocess.DEVNULL
@@ -39,6 +41,7 @@ async def main() -> None:
         async with db.engine.connect() as connection:
             tables = await connection.run_sync(lambda conn: inspect(conn).get_table_names())
             assert "ln_analytical_workspaces" in tables and "ln_workspace_operations" in tables
+            assert "ln_account_authorities" in tables
         print(
             "PASS: empty disposable PostgreSQL workspace migration upgrade/downgrade/upgrade; existing tables preserved"
         )

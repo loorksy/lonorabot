@@ -11,6 +11,7 @@ from lonora_db.steering import user_interrupt_pending
 from lonora_db.trade_approvals import approval_event
 from lonora_db.transactions import owned_thread
 from lonora_session.idempotency import request_hash, stable_id
+from lonora_trading.account_authority import available_authority
 from lonora_trading.idempotency import trade_fingerprint
 from lonora_trading.journal import record_excerpt
 from lonora_trading.manual_activity import material_state
@@ -68,6 +69,16 @@ async def approved_execution(
             reader, context.owner_id, context.agent_id, execution_mode=mode
         )
         previous = await reader.get(TradeApprovalRow, approval_id)
+        grants = (
+            [
+                await available_authority(reader, context.owner_id, origin, request)
+                for request in requests
+            ]
+            if mode == "live" and not gate_only and previous is None
+            else []
+        )
+    if grants and all(grants):
+        return await account_authorized_execution(context, requests, grants)
     if mode == "shadow" and previous is None:
         from lonora_trading.shadow import ShadowReadView
 
@@ -209,6 +220,49 @@ async def approved_execution(
         "approval_id": approval_id,
         "results": results,
         **(results[0] if len(results) == 1 else {}),
+    }
+
+
+async def account_authorized_execution(
+    context: ToolContext, requests: list[TradeRequest], grants: list[str | None]
+) -> dict[str, Any]:
+    """Standing authority uses the same executor, journal and independent verification."""
+    expected = await management_snapshot(context, requests)
+    results: list[dict[str, Any]] = []
+    for request, identifier in zip(requests, grants, strict=True):
+        assert identifier is not None
+
+        async def current() -> None:
+            async with context.db.sessions() as session:
+                await require_lease(session, context.lease)
+                if await user_interrupt_pending(session, context.lease.run_id):
+                    raise LonoraError("tool_call_superseded", 409)
+
+        key = (
+            request.account_id
+            + (":position:" if request.position_id else ":order:")
+            + str(request.position_id or request.order_id or "")
+        )
+        try:
+            result = await context.trading.execute(
+                context.owner_id,
+                request,
+                context.lease,
+                authorization=current,
+                account_authority_id=identifier,
+                expected_target=expected.get(key),
+            )
+        except LonoraError as error:
+            result = TradeResult(
+                operation_id=request.operation_id, status="failed", code=error.code
+            )
+        results.append(result.model_dump(mode="json"))
+        if result.status != "confirmed":
+            break  # Never advance a batch after uncertain/blocked financial state.
+    return {
+        "results": results,
+        **(results[0] if len(results) == 1 else {}),
+        "authorization": "account_authority",
     }
 
 

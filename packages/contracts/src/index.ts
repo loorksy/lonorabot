@@ -1,3 +1,4 @@
+export * from "./account-authority";
 export type * from "./agent-state";
 export type * from "./attention";
 export type * from "./auth";

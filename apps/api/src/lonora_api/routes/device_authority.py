@@ -15,7 +15,7 @@ from lonora_contracts.super_bot import (
     SuperBotProposal,
 )
 from lonora_core.user_error import LonoraError
-from lonora_db.schema import MessageRow, SuperBotRequestRow
+from lonora_db.schema import AccountAuthorityRow, MessageRow, SuperBotRequestRow
 from lonora_db.super_bot import (
     authority_lock,
     changed,
@@ -96,6 +96,18 @@ async def revoke(request: Request, device_id: str, owner: OwnerIdentity = Depend
         )
         for row in rows:
             await stop_request(session, row, "disabled")
+        from lonora_db.account_authority import changed as authority_changed
+
+        authorities = await session.scalars(
+            select(AccountAuthorityRow).where(
+                AccountAuthorityRow.owner_id == owner.id,
+                AccountAuthorityRow.device_id == device.id,
+                AccountAuthorityRow.status == "active",
+            )
+        )
+        for authority in authorities:
+            authority.status = "revoked"
+            authority_changed(session, authority)
     return {"revoked": True}
 
 

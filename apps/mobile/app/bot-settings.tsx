@@ -4,6 +4,7 @@ import type { Agent } from "@lonora/contracts";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
+import { AccountAuthoritySettings } from "../components/account-authority-settings";
 import { AvatarPicker } from "../components/avatar-picker";
 import { ExecutionModeSettings } from "../components/execution-mode-settings";
 import { PersonalAgentBadge } from "../components/personal-agent-badge";
@@ -132,6 +133,7 @@ export default function BotSettings() {
             }}
           />
           <ExecutionModeSettings agent={agent} onChange={setAgent} />
+          <AccountAuthoritySettings key={agent.id} agent={agent} />
           <Field
             label={t("title")}
             value={agent.title ?? ""}

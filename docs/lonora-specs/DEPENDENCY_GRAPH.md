@@ -230,3 +230,28 @@ Existing MetaApi transport hook → shared shielded discovery task + bounded fai
 Existing manifest/installed registry → shared resolver and current exact-version controls → owner-scoped current metadata catalog → lazy procedural detail → Web Knowledge/Skills and Mobile Agent settings. Current catalog observations do not replace pinned Run snapshots. Confirmed owner version denials feed the same runtime boundary checks; CRUD uses the same resource revision/graph validation. Evaluated candidates/adoption/rollback remain downstream, not a second permission or learning system.
 
 Next Chart Use dependency was audited read-only against actual tools/visual runtime/renderer: structured Agent viewport intent and actual renderer range acknowledgment are missing. User viewport remains local; future Run/Task-scoped Agent view state can reuse server-owned metadata, fences and effect receipts before view-specific captures. One-shot visual capture, Follow/Free Browse and current scene history are existing foundations. Historical paging, persistent sessions and coordinate interactions remain separate unimplemented acceptance requirements.
+
+
+## Integrated shared capability wave — 2026-10-23
+
+Pinned source inspection -> bounded disabled Skill package -> existing owned
+workspace -> immutable reviewed dependency image -> real utility receipt ->
+current-version activation/rollback/revocation -> existing Run instruction pinning.
+No imported source can modify financial authority or install runtime dependencies.
+
+Existing broker history/specification -> typed scenario research -> chronological
+validation/OOS/robustness -> immutable report artifact -> same Agent's historical
+context. Existing detector+health -> independent opinion/entry/execution projection.
+Neither report nor projection is execution permission.
+
+Existing verified device assertion -> immutable account envelope -> existing
+account-serialized executor -> final snapshot/owner-change/scope/limits -> existing
+journal/reconciliation. The same signed scope feeds existing live state/avatar
+presentation and Web/Mobile settings. Monetary loss sizing depends on verified
+contract/tick/currency metadata and remains unavailable.
+
+Existing attention -> consent/device/quiet-hours/rate -> durable invitation ->
+foreground accept/reject -> same Agent/Thread GPT Live. Native push and PSTN need
+real provider/native integration and independent delivery acceptance. Bounded Live
+transcript revisions -> same-work steering -> provisional provenance -> financial
+confirmation boundary. Audio offsets cannot manufacture semantic finality.

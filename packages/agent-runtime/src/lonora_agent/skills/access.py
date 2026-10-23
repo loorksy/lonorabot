@@ -168,6 +168,27 @@ class RunSkillAccess:
     registry: ToolRegistry
     active_ids: tuple[str, ...]
 
+    async def import_package(
+        self, context: ToolContext, arguments: dict[str, Any]
+    ) -> dict[str, Any]:
+        from .lifecycle import import_package
+
+        return await import_package(context, self.registry, arguments)
+
+    async def validate_package(
+        self, context: ToolContext, arguments: dict[str, Any]
+    ) -> dict[str, Any]:
+        from .lifecycle import validate_package
+
+        return await validate_package(context, arguments)
+
+    async def control_package(
+        self, context: ToolContext, arguments: dict[str, Any]
+    ) -> dict[str, Any]:
+        from .lifecycle import control_package
+
+        return await control_package(context, self.registry, arguments)
+
     async def inspect_repository(
         self, context: ToolContext, repository_url: str, ref: str
     ) -> dict[str, Any]:

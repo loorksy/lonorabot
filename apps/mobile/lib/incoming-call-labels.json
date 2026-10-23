@@ -1,0 +1,36 @@
+{
+  "en": {
+    "title": "Lonora would like to talk",
+    "accept": "Answer",
+    "reject": "Decline",
+    "settings": "Incoming conversations",
+    "limited": "Available while Lonora is open. Background and closed-app calls are not configured.",
+    "off": "Off",
+    "enable": "Allow urgent calls on this device",
+    "disable": "Turn off incoming calls",
+    "device": "Choose an enrolled device",
+    "noDevice": "Enroll a device before enabling incoming conversations.",
+    "opportunities": "Opportunity calls",
+    "actionRequired": "Calls when my input is needed",
+    "quietStart": "Quiet hours start (0–23)",
+    "quietEnd": "Quiet hours end (0–23)",
+    "save": "Save preferences"
+  },
+  "ar": {
+    "title": "لونورا يريد التحدث معك",
+    "accept": "رد",
+    "reject": "رفض",
+    "settings": "المكالمات الواردة",
+    "limited": "متاحة أثناء فتح لونورا. المكالمات في الخلفية أو عند إغلاق التطبيق غير مهيأة.",
+    "off": "متوقفة",
+    "enable": "السماح بالمكالمات العاجلة على هذا الجهاز",
+    "disable": "إيقاف المكالمات الواردة",
+    "device": "اختر جهازًا موثّقًا",
+    "noDevice": "وثّق جهازًا قبل تفعيل المكالمات الواردة.",
+    "opportunities": "مكالمات الفرص",
+    "actionRequired": "الاتصال عند الحاجة إلى ردي",
+    "quietStart": "بداية وقت الهدوء (0–23)",
+    "quietEnd": "نهاية وقت الهدوء (0–23)",
+    "save": "حفظ التفضيلات"
+  }
+}

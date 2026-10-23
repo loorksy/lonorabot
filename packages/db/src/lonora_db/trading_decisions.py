@@ -91,6 +91,7 @@ def decision_changes(earlier: TradingDecision, later: TradingDecision) -> dict[s
         return {
             "action": record.action,
             "gate_codes": record.gate_codes,
+            "readiness": readiness_summary(record),
             "bid": str(e.quote.bid) if e.quote else None,
             "ask": str(e.quote.ask) if e.quote else None,
             "spread": str(e.quote.ask - e.quote.bid) if e.quote else None,
@@ -137,6 +138,23 @@ def decision_summary(decision: TradingDecision) -> dict[str, Any]:
         "evidence_id": decision.evidence.id,
         "execution_authorized": False,
         "relationship_ids": [value.id for value in decision.evidence.relationships],
+        "readiness": readiness_summary(decision),
+    }
+
+
+def readiness_summary(decision: TradingDecision) -> dict[str, Any] | None:
+    """Compact historical states; detailed condition observations stay in the exact read."""
+    value = decision.readiness
+    if value is None:
+        return None
+    return {
+        "market_bias": value.market_assessment.bias,
+        "market_reason_codes": value.market_assessment.reason_codes,
+        "entry_state": value.entry_readiness.state,
+        "entry_reason_codes": value.entry_readiness.reason_codes,
+        "execution_state": value.execution_readiness.state,
+        "execution_reason_codes": value.execution_readiness.reason_codes,
+        "execution_authorized": False,
     }
 
 

@@ -1,5 +1,62 @@
 # Progress
 
+## Current integration — 2026-10-23
+
+The active branch remains `codex/agent-architecture-audit`; no direct merge to
+`main` was performed. The verified baseline `b66b213` was pushed, built and
+activated on the production VPS before the next parallel wave. Public health,
+database and Gateway readiness passed. Migration0028 is installed. A dedicated
+systemd analytical host now receives only its immutable image configuration;
+the actual production Gateway executed and verified isolated Python output.
+No APK, backup, real trade or financial grant was created.
+
+Parallel ownership covered executable Skills, voice handoff, research/readiness,
+account authority, incoming attention and the owner authorization UI. Root owns
+schema/migration0029, shared loader/policy, context, dependency profile, integration
+and deployment. All work extends existing services and financial boundaries.
+
+Integrated behavior in the current wave:
+
+- Pinned public text/Python packages import disabled, retain source/license hashes,
+  run exact utilities in the existing workspace, and use versioned activation,
+  update/rollback/removal with permanent revocation. Smoke tests do not certify
+  strategy equivalence or security. The actual pinned day-trader stock allocation
+  utility ran in a networkless container with declared fixture prices; automatic
+  stock-shares-to-gold-lots conversion was explicitly rejected as unsupported.
+- Fifteen exact analytical wheel hashes were checked against official PyPI
+  metadata; installation occurs offline during trusted image construction.
+  Numerical, statistical, tabular and real raster results passed actual isolation.
+  Jobs cannot download packages or acquire broker credentials.
+- Historical SMA research records next-bar fills, explicit scenario costs,
+  chronological train/validation/OOS folds and seeded robustness. Actual reports
+  are attached and integrity checked. Market view, measurable entry confirmation
+  and execution readiness remain separate immutable observations.
+- Independent account permission needs an exact reviewed immutable envelope and
+  genuine device signature, defaults OFF, and revalidates the same executor's
+  owner/scope/risk/controls/journal/reconciliation. Submitted rejection consumes
+  the lifetime action budget; owner intervention and revocation win. Dollar stop
+  sizing/daily loss budgets remain unavailable without verified monetary metadata.
+- Native voice delegates bounded provisional observations, orders fragments,
+  persists revisions, handles late corrections and steers the same work. The
+  public client protocol supplies no semantic-finality proof. Provisional speech
+  cannot spend standing authority; exact financial confirmation remains valid.
+- Attention-backed incoming invitations implement consent/categories/device,
+  quiet hours/rate/TTL/dedup/reject/miss/restart and foreground presentation.
+  Native background/killed-app delivery and PSTN remain unimplemented/unconfigured;
+  a fake-provider or saved invitation is never called real device delivery.
+
+Evidence so far:589 pytest cases with no skips;38 voice/policy cases; genuine
+WebAuthn+simulation account authority groups; actual EN/AR Web review/revoke plus
+virtual-authenticator signing; shared client tests; actual public-source/container
+validation; migration roundtrip. All51 isolated foundation groups and11 Task cases passed; full
+`bash scripts/build.sh` passed, including Ruff, strict Pyright, installed policy
+verification, client lint/types and seven build targets. Web3 and Expo Web2
+account-permission cases passed. Late voice corrections also withdraw stale
+financial approval before it remains actionable. Physical Samsung, external Live model behavior, native incoming
+push, arbitrary strategy equivalence, monetary risk metadata, remaining source
+requirements and final whole-program review remain open. Earlier sections below
+are historical evidence, not a claim that all current requirements are complete.
+
 ## Active mandate — 2026-10-21
 
 Branch: `codex/agent-architecture-audit`, from deployed `main` at `db5ffc9`.

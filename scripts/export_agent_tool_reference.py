@@ -32,6 +32,8 @@ MODULE_POLICY = {
     "artifacts": "files",
     "workspace": "files",
     "market": "market",
+    "strategy_research": "intelligence",
+    "incoming_call": "voice",
     "market_watch": "market",
     "trading_decision": "intelligence",
     "relationships": "intelligence",

@@ -7,6 +7,18 @@ if TYPE_CHECKING:
 
 
 class SkillAccess(Protocol):
+    async def import_package(
+        self, context: "ToolContext", arguments: dict[str, Any]
+    ) -> dict[str, Any]: ...
+
+    async def validate_package(
+        self, context: "ToolContext", arguments: dict[str, Any]
+    ) -> dict[str, Any]: ...
+
+    async def control_package(
+        self, context: "ToolContext", arguments: dict[str, Any]
+    ) -> dict[str, Any]: ...
+
     async def catalog(self, context: "ToolContext", offset: int, limit: int) -> dict[str, Any]: ...
 
     async def view(self, context: "ToolContext", skill_id: str) -> dict[str, Any]: ...

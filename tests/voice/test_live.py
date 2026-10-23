@@ -6,6 +6,7 @@ import json
 import os
 import time
 from collections.abc import AsyncGenerator
+from datetime import timedelta
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -16,6 +17,7 @@ import pytest_asyncio
 from lonora_adapters.voice.realtime import OpenAILiveAdapter
 from lonora_api.app import create_app
 from lonora_api.env import get_settings
+from lonora_contracts.domain import utcnow
 from lonora_contracts.voice import VoiceSessionCreate
 from lonora_core.user_error import LonoraError
 from lonora_db.schema import MessageRow, RunRow, TradeApprovalRow, VoiceSessionRow
@@ -27,6 +29,7 @@ from lonora_voice.realtime import (
     text_chunks,
 )
 from lonora_voice.sessions import (
+    blocking_voice_call,
     cancel_voice_initialization,
     create_voice_session,
     end_voice_session,
@@ -37,6 +40,8 @@ from sqlalchemy.engine import make_url
 
 @pytest_asyncio.fixture
 async def workspace(monkeypatch: pytest.MonkeyPatch) -> AsyncGenerator[dict[str, Any]]:
+    # Most fixtures exercise durable admission directly; stability is covered separately.
+    monkeypatch.setattr("lonora_voice.realtime.TRANSCRIPT_STABILITY_SECONDS", 0)
     url = make_url(os.environ.get("LONORA_DATABASE_URL", ""))
     if not (
         url.drivername.startswith("postgresql")
@@ -372,7 +377,7 @@ async def test_close_before_delegation_does_not_submit_new_agent_work(
 
 
 @pytest.mark.asyncio
-async def test_incomplete_transcript_fails_closed_and_future_request_can_continue(
+async def test_ambiguous_transcript_fails_closed_and_future_request_can_continue(
     workspace: dict[str, Any],
 ) -> None:
     voice = await resident(workspace)
@@ -383,6 +388,17 @@ async def test_incomplete_transcript_fails_closed_and_future_request_can_continu
             "start_ms": 0,
             "end_ms": 300,
             "delta": "Buy ",
+        }
+    )
+    # Conflicting overlapping spans are known ambiguity; silence after speech alone
+    # is not evidence of an incomplete utterance in the actual provider contract.
+    await voice.update(
+        {
+            "type": "session.input_transcript.delta",
+            "event_id": "speech-overlap",
+            "start_ms": 200,
+            "end_ms": 400,
+            "delta": "Sell ",
         }
     )
     await voice.update(
@@ -440,7 +456,9 @@ async def test_incomplete_transcript_fails_closed_and_future_request_can_continu
 @pytest.mark.asyncio
 async def test_delayed_out_of_order_transcript_is_reassembled_without_partial_execution(
     workspace: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setattr("lonora_voice.realtime.TRANSCRIPT_STABILITY_SECONDS", 1.2)
     voice = await resident(workspace)
     await voice.update(
         {
@@ -482,6 +500,7 @@ async def test_delayed_out_of_order_transcript_is_reassembled_without_partial_ex
             "delta": "0.10 lots.",
         }
     )
+    monkeypatch.setattr("lonora_voice.realtime.TRANSCRIPT_STABILITY_SECONDS", 0)
     await voice.delegate()
     async with workspace["runtime"].db.sessions() as session:
         messages = (
@@ -682,3 +701,93 @@ async def test_approval_pause_keeps_voice_delegation_until_original_run_finishes
         assert task["status"] == "result"
         assert "native-42" in "".join(task["chunks"])
         assert "1.23456" in "".join(task["chunks"])
+
+
+@pytest.mark.asyncio
+async def test_distinct_receipts_cannot_open_simultaneous_owner_calls(
+    workspace: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    first = intent(workspace)
+    second = first.model_copy(update={"client_nonce": uuid4().hex})
+    runtime = workspace["runtime"]
+    allocating = asyncio.Event()
+    release = asyncio.Event()
+    calls = 0
+
+    async def negotiate(
+        _self: OpenAILiveAdapter, _config: dict[str, Any], _sdp: str
+    ) -> dict[str, Any]:
+        nonlocal calls
+        calls += 1
+        allocating.set()
+        await release.wait()
+        return {"session": {"id": "one-owner-call"}, "transport": {"sdp": "answer"}}
+
+    monkeypatch.setattr(OpenAILiveAdapter, "create", negotiate)
+    identifier = hashlib.sha256(
+        (workspace["owner"] + ":" + first.client_nonce).encode()
+    ).hexdigest()[:36]
+    pending = asyncio.create_task(
+        create_voice_session(runtime.db, workspace["credentials"], workspace["owner"], first)
+    )
+    try:
+        await asyncio.wait_for(allocating.wait(), 3)
+        with pytest.raises(LonoraError) as blocked:
+            await create_voice_session(
+                runtime.db, workspace["credentials"], workspace["owner"], second
+            )
+        assert blocked.value.code == "voice_call_already_active" and calls == 1
+        async with runtime.db.sessions() as session:
+            assert not await blocking_voice_call(session, "a-different-owner")
+        release.set()
+        for _ in range(100):
+            async with runtime.db.sessions() as session, session.begin():
+                row = await session.get(VoiceSessionRow, identifier, with_for_update=True)
+                if row and row.payload["status"] == "joining":
+                    row.payload = {**row.payload, "status": "connected"}
+                    break
+            await asyncio.sleep(0.02)
+        else:
+            raise AssertionError("Voice admission did not reach observer")
+        original, replay = await asyncio.gather(
+            pending,
+            create_voice_session(runtime.db, workspace["credentials"], workspace["owner"], first),
+        )
+        assert original == replay and calls == 1
+    finally:
+        release.set()
+        pending.cancel()
+        await asyncio.gather(pending, return_exceptions=True)
+
+
+@pytest.mark.asyncio
+async def test_dead_unadmitted_allocation_expires_but_remote_call_requires_closure(
+    workspace: dict[str, Any],
+) -> None:
+    runtime = workspace["runtime"]
+    identifier = uuid4().hex
+    async with runtime.db.sessions() as session, session.begin():
+        session.add(
+            VoiceSessionRow(
+                id=identifier,
+                owner_id=workspace["owner"],
+                agent_id=workspace["agent"],
+                thread_id=workspace["thread"],
+                payload={"mode": "gpt_live", "status": "allocating"},
+                state={},
+                created_at=utcnow() - timedelta(seconds=100),
+            )
+        )
+    async with runtime.db.sessions() as session, session.begin():
+        assert not await blocking_voice_call(session, workspace["owner"])
+        row = await session.get(VoiceSessionRow, identifier)
+        assert row and row.payload["status"] == "failed"
+        row.payload = {"mode": "gpt_live", "status": "connected", "remote_id": "known-remote"}
+        row.state = {"last_activity": time.time() - 200}
+    async with runtime.db.sessions() as session, session.begin():
+        assert await blocking_voice_call(session, workspace["owner"])
+        row = await session.get(VoiceSessionRow, identifier)
+        assert row and row.payload["status"] == "closing"
+        row.payload = {**row.payload, "status": "closed"}
+    async with runtime.db.sessions() as session:
+        assert not await blocking_voice_call(session, workspace["owner"])

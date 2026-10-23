@@ -17,6 +17,7 @@ MODULES = (
     "mcp",
     "subagent",
     "market",
+    "strategy_research",
     "market_watch",
     "trading_decision",
     "relationships",
@@ -33,6 +34,7 @@ MODULES = (
     "runtime_control",
     "tasks",
     "collaboration",
+    "incoming_call",
 )
 
 

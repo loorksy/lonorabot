@@ -2,6 +2,7 @@ import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { View } from "react-native";
 import { ChartSheetProvider } from "../components/chart-sheet";
+import { IncomingCallOverlay } from "../components/incoming-call";
 import { colors } from "../components/ui";
 import { VoiceOverlay } from "../components/voice-overlay";
 import { useOtaUpdates } from "../lib/ota";
@@ -35,6 +36,7 @@ export default function Layout() {
               <Stack.Screen name="settings" options={{ presentation: "modal" }} />
             </Stack>
             <VoiceOverlay />
+            <IncomingCallOverlay />
           </View>
         </ChartSheetProvider>
       </VoiceSessionProvider>

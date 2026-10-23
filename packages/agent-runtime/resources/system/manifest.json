@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "manual_sha256": "f0f0a89883ad88a0c0d2f3c933ea698a8d5f8509149cd4812639335f0787f36b",
+  "manual_sha256": "ecadc7492377d09862b900286a73a0994db7b6713bb7739bb256d93487ab071d",
   "bootstrap_sha256": {
     "AGENTS.md": "e49bf686b452d5a1102586f7120509166697304688c6d4c65ab37c781e25d686",
     "MEMORY.md": "3d1a19663897e1e37d9e37c835318ecb9b23a0a984d89f9e0ed630d34a807302",
@@ -14,6 +14,9 @@
     "memory_write": "memory",
     "scratchpad_read": "memory",
     "scratchpad_write": "memory",
+    "skill_package_import": "memory",
+    "skill_package_validate": "memory",
+    "skill_package_control": "memory",
     "skills_list": "memory",
     "skill_view": "memory",
     "skill_repository_inspect": "memory",
@@ -41,6 +44,8 @@
     "market_instruments": "market",
     "market_quote": "market",
     "market_candles": "market",
+    "market_strategy_research": "intelligence",
+    "market_research_history": "intelligence",
     "watch_create": "market",
     "watch_list": "market",
     "market_decision_read": "intelligence",
@@ -103,6 +108,8 @@
     "collaboration_start": "collaboration",
     "collaboration_inspect": "collaboration",
     "collaboration_finish": "collaboration",
+    "owner_attention_list": "voice",
+    "owner_call_request": "voice",
     "tool_environment": "core"
   }
 }

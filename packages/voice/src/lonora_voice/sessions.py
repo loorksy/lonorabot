@@ -11,9 +11,11 @@ from lonora_db.schema import EffectReceiptRow, VoiceSessionRow
 from lonora_db.transactions import owned_agent, owned_thread
 from lonora_db.voice import VoiceSessionRepository
 from lonora_providers.credentials import ProviderCredentials
-from sqlalchemy import text
+from sqlalchemy import select, text
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from .context import voice_context
+from .incoming import owner_lock
 from .routing import live_model
 
 VOICE_INSTRUCTIONS = (
@@ -31,6 +33,43 @@ VOICE_INSTRUCTIONS = (
 )
 
 
+async def blocking_voice_call(session: AsyncSession, owner_id: str) -> bool:
+    """One admitted conversation per owner, independent of client receipt identity.
+
+    Never declare a known remote call closed solely because its heartbeat is old.
+    Gateway must drain that remote session before a replacement can be admitted.
+    An abandoned allocation without an SDP answer cannot connect a microphone;
+    its original immutable receipt remains failed and cannot be negotiated again.
+    """
+    rows = await session.scalars(
+        select(VoiceSessionRow)
+        .where(
+            VoiceSessionRow.owner_id == owner_id,
+            VoiceSessionRow.payload["mode"].as_string() == "gpt_live",
+            VoiceSessionRow.payload["status"]
+            .as_string()
+            .in_(["allocating", "joining", "connected", "closing"]),
+        )
+        .with_for_update()
+    )
+    blocked = False
+    now = time.time()
+    for row in rows:
+        age = now - row.created_at.timestamp()
+        if not row.payload.get("remote_id") and age > 90:
+            row.payload = {
+                **row.payload,
+                "status": "failed",
+                "error": "voice_allocation_expired",
+            }
+            row.version += 1
+            continue
+        blocked = True
+        if row.payload.get("remote_id") and now - float(row.state.get("last_activity", now)) > 120:
+            row.payload = {**row.payload, "status": "closing", "reason": "inactive_transport"}
+    return blocked
+
+
 async def create_voice_session(
     db: Database, credentials: ProviderCredentials, owner_id: str, request: VoiceSessionCreate
 ) -> dict[str, Any]:
@@ -39,11 +78,13 @@ async def create_voice_session(
     digest = hashlib.sha256((owner_id + ":" + request.client_nonce).encode()).hexdigest()
     session_id = digest[:36]
     allocate = False
+    blocked = False
     instructions = VOICE_INSTRUCTIONS
     seed: list[dict[str, Any]] = []
     # Commit admission before the external paid effect: an ambiguous HTTP failure
     # must never admit the same client receipt as another paid negotiation.
     async with db.sessions() as session, session.begin():
+        await owner_lock(session, owner_id)
         if session.get_bind().dialect.name == "postgresql":
             await session.execute(
                 text("SELECT pg_advisory_xact_lock(:key)"), {"key": int(digest[:15], 16)}
@@ -68,6 +109,8 @@ async def create_voice_session(
                 raise LonoraError("voice_session_mismatch", 409)
             if previous.payload.get("status") not in {"allocating", "joining", "connected"}:
                 raise LonoraError("voice_session_closed", 409)
+        elif blocked := await blocking_voice_call(session, owner_id):
+            pass
         else:
             instructions, seed = await voice_context(
                 session, owner_id, agent, thread.id, VOICE_INSTRUCTIONS
@@ -93,6 +136,10 @@ async def create_voice_session(
                 "last_activity": time.time(),
             }
             allocate = True
+    if blocked:
+        # The transaction intentionally commits stale-call cleanup before this
+        # response. No provider allocation has occurred for the new receipt.
+        raise LonoraError("voice_call_already_active", 409)
     remote_id = ""
     if allocate:
         try:

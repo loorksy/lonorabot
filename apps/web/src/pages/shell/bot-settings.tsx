@@ -5,6 +5,7 @@ import { Trans } from "@lingui/react/macro";
 import { AgentAvatar } from "@lonora/ui-web";
 import { useEffect, useRef, useState } from "react";
 import { PersonalAgentBadge } from "../../components/ai/PersonalAgentBadge";
+import { AccountAuthoritySettings } from "../../components/trading/AccountAuthoritySettings";
 import { ExecutionModeSettings } from "../../components/trading/ExecutionModeSettings";
 import { type Agent, api } from "../../lib/api";
 import { userError } from "../../lib/user_error";
@@ -74,6 +75,7 @@ export function AgentSettings({
         </p>
       )}
       <ExecutionModeSettings agent={agent} />
+      <AccountAuthoritySettings key={agent.id} agent={agent} />
       <label>
         <Trans>Name</Trans>
         <input

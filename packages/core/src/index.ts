@@ -1,3 +1,5 @@
+export * from "./account-authority";
+export { accountAuthorityLabels } from "./account-authority-labels";
 export { attachmentTooLarge, maxAttachmentBytes } from "./attachments";
 export * from "./avatar-geometry";
 export * from "./avatar-motion";

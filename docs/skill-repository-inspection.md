@@ -11,7 +11,9 @@ include the commit, archive digest, `SKILL.md` identities/descriptions/digests,
 utility paths/digests, statically detected Python imports, dependency filenames,
 license-file digests, format errors, and explicit validation limitations.
 
-This is an inspection foundation for the importer, not the full importer. Python
+This operation is the inspection foundation, not an installation action. The
+separate [pinned package lifecycle](skill-executable-lifecycle.md) now imports,
+validates and activates the supported bounded package subset. Python
 AST parsing checks syntax and imports; it does not prove code safe. Dynamic
 dependencies are unresolved. Import names are not pinned package requirements.
 Other script languages are reported as not syntax-validated. Every package still

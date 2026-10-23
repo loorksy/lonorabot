@@ -20,7 +20,11 @@ from lonora_db.schema import MessageRow, RunRow, TradingJournalRow, VoiceSession
 from lonora_db.tasks import get_task, snapshot
 from lonora_tools.loader import load_tools
 from lonora_voice.barge_in import barge_in
-from lonora_voice.realtime import TRANSCRIPT_HANDOFF_TIMEOUT_SECONDS, RealtimeVoiceSession
+from lonora_voice.realtime import (
+    TRANSCRIPT_HANDOFF_TIMEOUT_SECONDS,
+    TRANSCRIPT_STABILITY_SECONDS,
+    RealtimeVoiceSession,
+)
 from lonora_voice.sessions import end_voice_session
 from sqlalchemy import func, select
 
@@ -97,6 +101,8 @@ async def main() -> None:
                     "delegation": {"id": identifier, "target": "client"},
                 }
             )
+            # Exercise the real scheduling grace; it is not semantic finality.
+            await asyncio.sleep(TRANSCRIPT_STABILITY_SECONDS + 0.05)
             await asyncio.gather(voice.delegate(), voice.delegate())
             async with fixture.runtime.db.sessions() as session:
                 row = await session.get(VoiceSessionRow, voice.session_id)

@@ -1,5 +1,6 @@
 import asyncio
 from collections.abc import Awaitable, Callable
+from typing import Any
 
 from lonora_adapters.brokers.base import BrokerManager
 from lonora_contracts.broker import BrokerConnection
@@ -22,6 +23,7 @@ from lonora_db.trading_journal import persist_result, reserve_operation
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from .account_authority import require_account_execution
 from .controls import read_controls
 from .execution_quality import actual_execution, evaluate_execution, execution_policy
 from .goals import guard_goal_execution
@@ -129,6 +131,8 @@ class ExecutionService:
         *,
         goal: GoalExecution | None = None,
         authorization: Callable[[], Awaitable[None]] | None = None,
+        account_authority_id: str | None = None,
+        expected_target: dict[str, Any] | None = None,
     ) -> TradeResult:
         async with self.db.sessions() as session:
             if lease:
@@ -159,6 +163,18 @@ class ExecutionService:
             if not configuration.enabled:
                 raise LonoraError("broker_disabled", 409)
             leased_run = await require_lease(session, lease, lock=True) if lease else None
+            if account_authority_id:
+                if leased_run is None or goal is not None:
+                    raise LonoraError("account_authority_run_required", 403)
+                await require_account_execution(
+                    session,
+                    owner_id,
+                    leased_run,
+                    request,
+                    account_authority_id,
+                    planned_snapshot,
+                    expected_target,
+                )
             if goal:
                 await guard_goal_execution(session, owner_id, goal, request, lease)
             journal, fresh = await reserve_operation(
@@ -189,6 +205,11 @@ class ExecutionService:
                         "agent_id": leased_run.agent_id if leased_run else None,
                         "provider": configuration.provider,
                         "broker_account_id": configuration.account_id,
+                        **(
+                            {"account_authority_id": account_authority_id}
+                            if account_authority_id
+                            else {}
+                        ),
                         **(
                             {
                                 "goal_id": goal.goal_id,
@@ -294,6 +315,17 @@ class ExecutionService:
                         request,
                         material_state(target) if target else None,
                     )
+                    if account_authority_id:
+                        leased_run = await require_lease(session, lease)
+                        await require_account_execution(
+                            session,
+                            owner_id,
+                            leased_run,
+                            request,
+                            account_authority_id,
+                            snapshot,
+                            expected_target,
+                        )
                 from .opportunities import require_entry_thesis
 
                 await require_entry_thesis(session, owner_id, request)
@@ -308,6 +340,14 @@ class ExecutionService:
                     **row.result,
                     "details": {
                         **row.result.get("details", {}),
+                        # Durable conservative budget consumption: the final
+                        # checks allowed a broker mutation. A rejected broker
+                        # attempt or crash after this point cannot restore a
+                        # standing grant's lifetime action budget.
+                        "execution": {
+                            **row.result.get("details", {}).get("execution", {}),
+                            "send_authorized": True,
+                        },
                         "execution_quality": quality.model_dump(mode="json"),
                         "execution_evidence": {
                             **row.result.get("details", {}).get("execution_evidence", {}),

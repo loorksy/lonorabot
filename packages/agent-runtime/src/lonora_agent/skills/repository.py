@@ -44,8 +44,9 @@ def repository_identity(url: str) -> tuple[str, str]:
     return owner, repository
 
 
-def inspect_archive(content: bytes, *, repository: str, commit: str) -> dict[str, Any]:
-    if len(content) > MAX_ARCHIVE_BYTES or not re.fullmatch(r"[0-9a-f]{40}", commit):
+def archive_files(content: bytes) -> dict[str, bytes]:
+    """One bounded archive reader shared by inspection and owned import."""
+    if len(content) > MAX_ARCHIVE_BYTES:
         raise LonoraError("skill_repository_archive_invalid", 422)
     files: dict[str, bytes] = {}
     size = 0
@@ -83,6 +84,13 @@ def inspect_archive(content: bytes, *, repository: str, commit: str) -> dict[str
                 files[relative] = archive.read(member)
     except (BadZipFile, RuntimeError, OSError, ValueError):
         raise LonoraError("skill_repository_archive_invalid", 422) from None
+    return files
+
+
+def inspect_archive(content: bytes, *, repository: str, commit: str) -> dict[str, Any]:
+    if not re.fullmatch(r"[0-9a-f]{40}", commit):
+        raise LonoraError("skill_repository_archive_invalid", 422)
+    files = archive_files(content)
 
     scripts: list[dict[str, Any]] = []
     for name, body in sorted(files.items()):

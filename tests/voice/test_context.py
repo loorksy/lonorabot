@@ -12,8 +12,13 @@ import pytest_asyncio
 from lonora_adapters.voice.realtime import OpenAILiveAdapter
 from lonora_contracts.voice import VoiceSessionCreate
 from lonora_core.user_error import LonoraError
-from lonora_db.schema import MessageRow, ThreadRow, VoiceSessionRow
-from lonora_voice.context import CONTEXT_AUTHORITY, CONTEXT_PREAMBLE, MAX_CONTEXT_BYTES
+from lonora_db.schema import AgentRow, MessageRow, ThreadRow, VoiceSessionRow
+from lonora_voice.context import (
+    CONTEXT_AUTHORITY,
+    CONTEXT_PREAMBLE,
+    MAX_CONTEXT_BYTES,
+    voice_context,
+)
 from lonora_voice.sessions import VOICE_INSTRUCTIONS, create_voice_session
 from test_live import intent
 from test_live import workspace as workspace
@@ -301,7 +306,15 @@ async def test_previous_finalized_same_call_context_excludes_delegated_input_and
             },
             status,
         )
-    configuration = await negotiate(workspace, monkeypatch)
+    # Inspect context directly while the previous call is active: owner-wide
+    # admission correctly prevents negotiating a second simultaneous paid call.
+    async with workspace["runtime"].db.sessions() as session:
+        agent = await session.get(AgentRow, agent_id)
+        assert agent is not None
+        instructions, seed = await voice_context(
+            session, workspace["owner"], agent, thread_id, VOICE_INSTRUCTIONS
+        )
+    configuration: dict[str, Any] = {"instructions": instructions, "input": seed}
     loaded = context(configuration)
     assert loaded["previous_call_transcript"] == {
         "input": "نادني أبا عمر في المكالمة القادمة.",

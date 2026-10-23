@@ -138,11 +138,14 @@ class Gateway:
             await asyncio.sleep(2)
 
     async def attention_loop(self) -> None:
+        from lonora_voice.incoming import incoming_tick
+
         from .attention import attention_tick
 
         while not self.stop.is_set():
             for service in list(self.services.values()):
                 await attention_tick(self.db, service.brokers, service.owner_id)
+                await incoming_tick(self.db, service.owner_id)
             await asyncio.sleep(2)
 
     async def serve(self) -> None:

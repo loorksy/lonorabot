@@ -4,8 +4,10 @@ import asyncio
 import hashlib
 from typing import Any
 
+from lonora_contracts.broker import BrokerConnection
 from lonora_contracts.domain import utcnow
 from lonora_contracts.market_health import HealthSnapshot
+from lonora_contracts.trading import TradingControl
 from lonora_contracts.trading_decision import (
     DecisionCompare,
     DecisionEvidence,
@@ -15,6 +17,7 @@ from lonora_contracts.trading_decision import (
     TradingDecision,
 )
 from lonora_core.chart_controller import validate_timeframe
+from lonora_core.runtime_failure import TRANSIENT_READ_CODES
 from lonora_core.user_error import LonoraError
 from lonora_db.agent_binding import agent_binding, assert_market_binding
 from lonora_db.broker_sessions import BrokerSessionRepository
@@ -29,8 +32,10 @@ from lonora_db.trading_decisions import (
     read_decision,
     store_decision,
 )
+from lonora_db.transactions import SettingsRepository
 from lonora_market.health import assess_account, assess_candles, assess_quote, timeframe_age_seconds
 from lonora_market.relationships import relationship_usable
+from lonora_trading.decision_readiness import decision_readiness
 
 from .base import Tool
 from .context import ToolContext
@@ -38,11 +43,10 @@ from .context import ToolContext
 
 def fingerprint(params: DecisionRequest) -> str:
     # Preserve old durable operation identities when the optional evidence is absent.
-    return hashlib.sha256(
-        params.model_dump_json(
-            exclude={"relationship_ids"} if not params.relationship_ids else set()
-        ).encode()
-    ).hexdigest()
+    absent = {name for name in ("market_view", "entry_condition") if getattr(params, name) is None}
+    if not params.relationship_ids:
+        absent.add("relationship_ids")
+    return hashlib.sha256(params.model_dump_json(exclude=absent).encode()).hexdigest()
 
 
 async def record(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
@@ -53,7 +57,10 @@ async def record(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         await require_lease(session, context.lease)
         agent = await agent_binding(session, context.owner_id, context.agent_id)
         assert_market_binding(agent, params.account_id, params.symbol)
-        await BrokerSessionRepository().get(session, context.owner_id, params.account_id)
+        connection = await BrokerSessionRepository().get(
+            session, context.owner_id, params.account_id
+        )
+        connection_version = connection.version
         prior = await session.get(EffectReceiptRow, "decision:" + context.resource_id)
         if prior:
             if prior.result.get("intent") != intent:
@@ -62,31 +69,45 @@ async def record(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     evidence = DecisionEvidence(id=context.resource_id, captured_at=utcnow())
     try:
         async with asyncio.timeout(35):
-            broker = await context.brokers.get(context.owner_id, params.account_id)
             # Exact symbols are intentional. No hidden aliases or suffix stripping.
             for kind in ("quote", "candles", "account", "positions", "orders"):
-                try:
-                    if kind == "quote":
-                        evidence.quote = await broker.quote(params.symbol)
-                    elif kind == "candles":
-                        evidence.candles = (
-                            await broker.candles(params.symbol, params.timeframe, 100)
-                        )[-100:]
-                    elif kind == "account":
-                        evidence.account = await broker.account()
-                        evidence.account.id = params.account_id
-                    elif kind == "positions":
-                        positions = await broker.positions()
-                        evidence.positions = positions[:1000]
-                        if len(positions) > 1000:
-                            evidence.missing_codes.append("decision_positions_truncated")
-                    else:
-                        orders = await broker.orders()
-                        evidence.orders = orders[:1000]
-                        if len(orders) > 1000:
-                            evidence.missing_codes.append("decision_orders_truncated")
-                except LonoraError as error:
-                    evidence.missing_codes.append(error.code)
+                recovered_code = None
+                for attempt in range(2):
+                    try:
+                        async with asyncio.timeout(5):
+                            # Reacquire through the existing manager after a read failure;
+                            # a closed adapter must not become a private retry cache.
+                            broker = await context.brokers.get(context.owner_id, params.account_id)
+                            if kind == "quote":
+                                evidence.quote = await broker.quote(params.symbol)
+                            elif kind == "candles":
+                                evidence.candles = (
+                                    await broker.candles(params.symbol, params.timeframe, 100)
+                                )[-100:]
+                            elif kind == "account":
+                                evidence.account = await broker.account()
+                                evidence.account.id = params.account_id
+                            elif kind == "positions":
+                                positions = await broker.positions()
+                                evidence.positions = positions[:1000]
+                                if len(positions) > 1000:
+                                    evidence.missing_codes.append("decision_positions_truncated")
+                            else:
+                                orders = await broker.orders()
+                                evidence.orders = orders[:1000]
+                                if len(orders) > 1000:
+                                    evidence.missing_codes.append("decision_orders_truncated")
+                        if recovered_code:
+                            evidence.recovered_read_codes.append(kind + ":" + recovered_code)
+                        break
+                    except (TimeoutError, LonoraError) as error:
+                        code = error.code if isinstance(error, LonoraError) else "tool_read_timeout"
+                        if attempt == 0 and code in TRANSIENT_READ_CODES:
+                            recovered_code = code
+                            await asyncio.sleep(0.1)
+                            continue
+                        evidence.missing_codes.append(code)
+                        break
     except (TimeoutError, LonoraError) as error:
         evidence.missing_codes.append(
             error.code if isinstance(error, LonoraError) else "decision_evidence_timeout"
@@ -132,6 +153,23 @@ async def record(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     gates = list(
         dict.fromkeys([h.reason_code for h in health if not h.healthy] + evidence.missing_codes)
     )
+    async with context.db.sessions() as session:
+        current_connection = await BrokerSessionRepository().get(
+            session, context.owner_id, params.account_id
+        )
+        config = BrokerConnection.model_validate(current_connection.payload)
+        controls = TradingControl.model_validate(
+            await SettingsRepository().get(session, "trading_control")
+        )
+        recovery = current_connection.state.get("broker_recovery")
+        readiness = decision_readiness(
+            params,
+            evidence,
+            controls=controls,
+            broker_enabled=config.enabled,
+            broker_recovery_status=recovery.get("status") if recovery else None,
+            connection_changed=current_connection.version != connection_version,
+        )
     decision = TradingDecision(
         id=context.resource_id,
         owner_id=context.owner_id,
@@ -146,6 +184,7 @@ async def record(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         summary=params.summary,
         gate_codes=gates,
         evidence=evidence,
+        readiness=readiness,
     )
     async with context.db.sessions() as session, session.begin():
         await require_lease(session, context.lease, lock=True)
@@ -232,7 +271,7 @@ def tools() -> list[Tool]:
         ),
         Tool(
             "market_decision_record",
-            "Record a concise user-visible BUY/SELL/WAIT rationale with server-captured broker evidence. Missing/stale data forces WAIT. This never authorizes or executes a trade.",
+            "Record BUY/SELL/WAIT rationale with captured broker evidence. Optional market_view needs a supporting measurable condition; entry_condition is checked independently. Readiness separates supported market interpretation, actual entry confirmation and financial blockers. Account failures do not erase supported market analysis. This never authorizes or executes a trade.",
             DecisionRequest,
             record,
         ),

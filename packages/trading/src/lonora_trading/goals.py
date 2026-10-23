@@ -32,6 +32,7 @@ from lonora_session.idempotency import stable_id
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from .account_authority import provisional_voice
 from .goals_market import fresh_goal_evidence
 from .goals_targets import resolve_trade
 from .idempotency import trade_fingerprint
@@ -79,7 +80,7 @@ async def goal_requires_approval(session: AsyncSession, goal: TradingGoalRow, ru
         grant = await session.get(SuperBotRequestRow, grant_id)
         if grant and grant.status == "activated" and grant.mode == "advisory":
             raise LonoraError("super_bot_advisory_only", 403)
-    if run.trigger in {"user", "group"}:
+    if run.trigger in {"user", "group"} or await provisional_voice(session, run):
         return True
     if goal.state.get("autonomous", False):
         require_autonomous_limits(goal)

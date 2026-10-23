@@ -1,3 +1,5 @@
+import type { AccountAuthorityProposal } from "./account-authority";
+
 export type AgentLiveState = {
   agent_id: string;
   observed_at: string;
@@ -12,6 +14,13 @@ export type AgentLiveState = {
   pending_approval_count: number;
   watch_count: number;
   pending_authorization_count?: number;
+  account_authorities?: Array<
+    Omit<AccountAuthorityProposal, "thread_id"> & {
+      id: string;
+      status: "pending" | "active";
+      monetary_stop_risk: "unavailable";
+    }
+  >;
   super_bot?: Array<{
     request_id: string;
     goal_id: string;

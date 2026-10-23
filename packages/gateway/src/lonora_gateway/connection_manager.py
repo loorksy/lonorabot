@@ -27,6 +27,8 @@ async def maintain_voice(
             )
         ).all()
         for row in rows:
+            if row.payload.get("mode") == "incoming_request":
+                continue
             if row.payload.get("mode") != "gpt_live":
                 if row.payload.get("status") not in {"closed", "failed"}:
                     row.payload = {

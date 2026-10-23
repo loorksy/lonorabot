@@ -3,19 +3,31 @@
 import asyncio
 import hashlib
 import json
+import logging
 import time
 from copy import deepcopy
 from typing import Any
 
 from lonora_adapters.voice.realtime import OpenAILiveAdapter
-from lonora_contracts.domain import MessageCreate
+from lonora_contracts.domain import MessageCreate, utcnow
 from lonora_db.client import Database
 from lonora_db.events import emit
 from lonora_db.messages import send_message
 from lonora_db.schema import MessageRow, RunRow, TradeApprovalRow, VoiceSessionRow
+from lonora_db.trade_approvals import approval_event
 from lonora_providers.credentials import ProviderCredentials
 from sqlalchemy import select
 from websockets.asyncio.client import ClientConnection
+
+from .handoff import (
+    MAX_FRAGMENTS,
+    TRANSCRIPT_STABILITY_SECONDS,
+    observe_window,
+    timestamp,
+    transcript_fragment,
+)
+
+logger = logging.getLogger(__name__)
 
 APPROVAL_CARD = (
     "The approval card is inside this call and has Approve and Reject buttons. "
@@ -71,20 +83,36 @@ class RealtimeVoiceSession:
             if kind in {"session.input_transcript.delta", "session.output_transcript.delta"}:
                 channel = "input" if kind == "session.input_transcript.delta" else "output"
                 fragments = list(state.get(channel, []))
-                fragment = {
-                    key: event.get(key) for key in ("event_id", "start_ms", "end_ms", "delta")
-                }
-                if isinstance(fragment["delta"], str) and not any(
-                    item.get("event_id") == fragment["event_id"] for item in fragments
+                fragment = transcript_fragment(event)
+                existing = next(
+                    (item for item in fragments if item.get("event_id") == event.get("event_id")),
+                    None,
+                )
+                if channel == "input" and (
+                    fragment is None or (existing is not None and existing != fragment)
                 ):
+                    # The API does not specify a revision ordering for conflicting event IDs.
+                    # Never silently replace already observed speech with an arbitrary version.
+                    state["transcript_protocol_error"] = (
+                        "transcript_event_conflict" if existing else "transcript_event_invalid"
+                    )
+                elif existing is None and fragment is not None:
                     fragments.append(fragment)
-                    removed = fragments[:-2048]
-                    state[channel] = fragments[-2048:]
-                    if channel == "input" and removed:
-                        state["input_trimmed_until"] = max(
-                            float(state.get("input_trimmed_until", -1)),
-                            max(float(item.get("end_ms") or 0) for item in removed),
-                        )
+                    removed = fragments[:-MAX_FRAGMENTS]
+                    fragments = fragments[-MAX_FRAGMENTS:]
+                    size = sum(len(item["delta"]) for item in fragments)
+                    while fragments and size > 60000:
+                        item = fragments.pop(0)
+                        size -= len(item["delta"])
+                        removed.append(item)
+                    state[channel] = fragments
+                    if channel == "input":
+                        state["input_changed_at"] = time.time()
+                        if removed:
+                            state["input_trimmed_until"] = max(
+                                float(state.get("input_trimmed_until", -1)),
+                                max(float(item["end_ms"]) for item in removed),
+                            )
                     emit(
                         session,
                         row.owner_id,
@@ -95,16 +123,30 @@ class RealtimeVoiceSession:
                     )
             elif kind == "session.delegation.created":
                 delegation = event.get("delegation", {})
+                offset = timestamp(event.get("offset_ms"))
                 if delegation.get("target") == "client" and isinstance(delegation.get("id"), str):
                     entries = dict(state.get("delegations", {}))
-                    entries.setdefault(
-                        delegation["id"],
-                        {
-                            "offset": event.get("offset_ms", 0),
+                    identity = delegation["id"]
+                    if offset is None or not identity:
+                        state["transcript_protocol_error"] = "delegation_event_invalid"
+                    elif identity in entries:
+                        if entries[identity].get("offset") != offset:
+                            state["transcript_protocol_error"] = "delegation_event_conflict"
+                    elif len(entries) >= 256:
+                        # Retain receipts instead of evicting IDs and admitting replays again.
+                        row.payload = {
+                            **row.payload,
+                            "status": "closing",
+                            "reason": "voice_context_limit",
+                        }
+                    else:
+                        entries[identity] = {
+                            "offset": offset,
+                            "source_event_id": event.get("event_id"),
                             "received_at": time.time(),
+                            "sequence": len(entries),
                             "status": "pending",
-                        },
-                    )
+                        }
                     state["delegations"] = entries
             elif kind == "session.commentary.appended":
                 entries = dict(state.get("delegations", {}))
@@ -147,55 +189,77 @@ class RealtimeVoiceSession:
             state = deepcopy(row.state)
             entries = dict(state.get("delegations", {}))
             fragments = list(state.get("input", []))
-            for identity, task in entries.items():
-                if task.get("status") != "pending":
+            # Audio offsets order source windows, independent of socket arrival order.
+            ordered = sorted(
+                entries.items(),
+                key=lambda item: (
+                    float(item[1]["offset"]),
+                    int(item[1].get("sequence", 0)),
+                    float(item[1].get("received_at", 0)),
+                    item[0],
+                ),
+            )
+            lower = -1.0
+            for identity, task in ordered:
+                offset = float(task["offset"])
+                window = observe_window(
+                    fragments, lower, offset, float(state.get("input_trimmed_until", -1))
+                )
+                boundary = lower
+                lower = offset
+                if task.get("status") not in {"pending", "running", "result", "delivered"}:
                     continue
-                offset = float(task.get("offset", 0))
-                previous = float(state.get("input_offset", -1))
-                selected = [
-                    fragment
-                    for fragment in fragments
-                    if float(fragment.get("start_ms") or 0) <= offset
-                    and float(fragment.get("end_ms") or 0) > previous
-                ]
-                selected.sort(
-                    key=lambda fragment: (
-                        float(fragment.get("start_ms") or 0),
-                        float(fragment.get("end_ms") or 0),
-                        str(fragment.get("event_id") or ""),
+                now = time.time()
+                if window.fingerprint in {
+                    task.get("submitted_fingerprint"),
+                    task.get("failed_fingerprint"),
+                    task.get("suppressed_fingerprint"),
+                }:
+                    continue
+                if task.get("fingerprint") != window.fingerprint:
+                    task["fingerprint"] = window.fingerprint
+                    if task.get("submitted_fingerprint"):
+                        task["status"] = "pending"
+                        for stale_key in ("chunks", "event_id", "sent_at", "next_chunk"):
+                            task.pop(stale_key, None)
+                    task["stable_since"] = max(
+                        float(task.get("received_at", now)),
+                        float(state.get("input_changed_at", task.get("received_at", now))),
                     )
-                )
-                spoken = "".join(str(fragment.get("delta") or "") for fragment in selected).strip()
-                caught_up = (
-                    selected
-                    and max(float(fragment.get("end_ms") or 0) for fragment in selected) >= offset
-                )
-                if (
-                    not spoken
-                    or not caught_up
-                    or float(state.get("input_trimmed_until", -1)) > previous
-                    or len(spoken) > 30000
-                ):
-                    if (
-                        time.time() - float(task["received_at"])
-                        > TRANSCRIPT_HANDOFF_TIMEOUT_SECONDS
-                    ):
+                reason = state.get("transcript_protocol_error") or window.error
+                if boundary == offset:
+                    # A second provider delegation at the same source boundary observes the
+                    # same speech. Keep its receipt without submitting another user action.
+                    task.update(
+                        {"status": "duplicate", "handoff_error": "delegation_offset_replayed"}
+                    )
+                    continue
+                if reason or now - float(task["stable_since"]) < TRANSCRIPT_STABILITY_SECONDS:
+                    task["handoff_error"] = reason or "transcript_settling"
+                    if now - float(task["received_at"]) > TRANSCRIPT_HANDOFF_TIMEOUT_SECONDS:
                         task.update(
                             {
                                 "status": "result",
                                 "chunks": [TRANSCRIPT_HANDOFF_FAILURE],
                                 "next_chunk": 0,
+                                "failed_fingerprint": window.fingerprint,
                             }
                         )
-                        state["input_offset"] = offset
+                        logger.warning(
+                            "voice_handoff_failed session_id=%s delegation_id=%s code=%s",
+                            row.id,
+                            identity,
+                            task["handoff_error"],
+                        )
                     continue
+                spoken = window.text
                 pending_approval = await session.scalar(
                     select(TradeApprovalRow.id).where(
                         TradeApprovalRow.thread_id == row.thread_id,
                         TradeApprovalRow.status == "pending",
                     )
                 )
-                if pending_approval:
+                if pending_approval and not task.get("submitted_fingerprint"):
                     # Another spoken fragment must not become a user message: that steering
                     # cancels the approval before the owner can press the button.
                     task.update(
@@ -203,18 +267,89 @@ class RealtimeVoiceSession:
                             "status": "result",
                             "chunks": text_chunks(APPROVAL_CARD),
                             "next_chunk": 0,
+                            "suppressed_fingerprint": window.fingerprint,
                         }
                     )
                     continue
-                nonce = "voice:" + hashlib.sha256((row.id + identity).encode()).hexdigest()[:64]
+                revision = int(task.get("revision", 0)) + 1
+                nonce = (
+                    "voice:"
+                    + hashlib.sha256(
+                        (row.id + ":" + identity + ":" + window.fingerprint).encode()
+                    ).hexdigest()[:64]
+                )
+                # Corrections remain explicit observations in this conversation; never
+                # overwrite a historical request or pretend the source was finalized.
+                content = (
+                    spoken
+                    if revision == 1
+                    else "Updated voice transcript for the preceding request (supersedes that observation):\n"
+                    + spoken
+                )
                 receipt = await send_message(
                     session,
                     row.owner_id,
                     row.thread_id or "",
-                    MessageCreate(content=spoken, client_nonce=nonce),
+                    MessageCreate(content=content, client_nonce=nonce),
                 )
-                task.update({"status": "running", "run_ids": receipt["run_ids"]})
-                state["input_offset"] = offset
+                if task.get("submitted_fingerprint"):
+                    # Admission holds the same thread lock as approval decisions.
+                    # A correction must immediately withdraw its old unexecuted
+                    # proposal, while ordinary spoken replies cannot approve it.
+                    superseded = await session.scalars(
+                        select(TradeApprovalRow)
+                        .where(
+                            TradeApprovalRow.owner_id == row.owner_id,
+                            TradeApprovalRow.thread_id == row.thread_id,
+                            TradeApprovalRow.run_id.in_(task.get("run_ids", [])),
+                            TradeApprovalRow.status.in_(["pending", "approved"]),
+                        )
+                        .with_for_update()
+                    )
+                    for approval in superseded:
+                        approval.status, approval.updated_at = "cancelled", utcnow()
+                        approval_event(session, approval)
+                task.update(
+                    {
+                        "status": "running",
+                        "run_ids": receipt["run_ids"],
+                        "revision": revision,
+                        "submitted_fingerprint": window.fingerprint,
+                        "message_id": receipt["message"]["id"],
+                        "source_event_ids": window.event_ids,
+                    }
+                )
+                task.pop("handoff_error", None)
+                # Same-thread send_message owns steering and task identity. Suppress
+                # earlier spoken outcomes when newer steering targets the same run.
+                for earlier_id, earlier in entries.items():
+                    if earlier_id != identity and set(earlier.get("run_ids", [])) & set(
+                        receipt["run_ids"]
+                    ):
+                        earlier["status"] = "superseded"
+                        earlier["superseded_by"] = identity
+                for run_id in receipt["run_ids"]:
+                    run = await session.get(RunRow, run_id, with_for_update=True)
+                    if run:
+                        run.model_metadata = {
+                            **run.model_metadata,
+                            "voice_handoff": {
+                                "session_id": row.id,
+                                "delegation_id": identity,
+                                "revision": revision,
+                                "fingerprint": window.fingerprint,
+                                "source_event_ids": window.event_ids,
+                                "finalized": False,
+                            },
+                        }
+                state["input_offset"] = max(float(state.get("input_offset", -1)), offset)
+                logger.info(
+                    "voice_handoff_observed session_id=%s delegation_id=%s revision=%s fragments=%s",
+                    row.id,
+                    identity,
+                    revision,
+                    len(window.event_ids),
+                )
             state["delegations"] = entries
             row.state = state
 
