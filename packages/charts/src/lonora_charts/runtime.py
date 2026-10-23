@@ -24,6 +24,11 @@ from .controller import render_scene
 from .scene import chart_scene
 
 logger = logging.getLogger(__name__)
+EXTERNAL_RETRY_SECONDS = {
+    "broker_market_data_billing_required": 300,
+    "broker_account_undeployed": 30,
+    "broker_account_not_ready": 30,
+}
 
 
 def log_safe_exception(logger: logging.Logger, event: str, error: Exception, *, code: str) -> None:
@@ -67,7 +72,7 @@ async def refresh_chart(
             not force
             and not state.get("refresh_requested")
             and state.get("scene_revision") == row.version
-            and state.get("error_code") == "broker_market_data_billing_required"
+            and state.get("error_code") in EXTERNAL_RETRY_SECONDS
             and retry_at
             and datetime.fromisoformat(retry_at) > now
         ):
@@ -165,8 +170,10 @@ async def refresh_chart(
             "refresh_requested": False,
         }
         next_state.pop("scene_retry_at", None)
-        if code == "broker_market_data_billing_required":
-            next_state["scene_retry_at"] = (utcnow() + timedelta(minutes=5)).isoformat()
+        if code in EXTERNAL_RETRY_SECONDS:
+            next_state["scene_retry_at"] = (
+                utcnow() + timedelta(seconds=EXTERNAL_RETRY_SECONDS[code])
+            ).isoformat()
         if scene is not None:
             next_state["scene"] = {
                 **scene,

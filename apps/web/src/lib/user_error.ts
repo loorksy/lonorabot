@@ -131,6 +131,10 @@ export function userError(error: unknown) {
       return t`Broker account not found.`;
     case "broker_account_mismatch":
       return t`Broker data does not match the selected account. Nothing was sent.`;
+    case "broker_account_undeployed":
+      return t`The broker connection is stopped at the connection provider. Start it there, then retry.`;
+    case "broker_account_not_ready":
+      return t`The broker account is not ready at the connection provider. Check its status, then retry.`;
     case "broker_credentials_rejected":
       return t`Broker authentication was rejected.`;
     case "broker_candles_timeout":

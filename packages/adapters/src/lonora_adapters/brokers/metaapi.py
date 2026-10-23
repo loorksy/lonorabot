@@ -33,6 +33,7 @@ from .metaapi_lifecycle import (
 log = logging.getLogger("lonora.metaapi")
 EVIDENCE_SECONDS = 15
 MARKET_DATA_BILLING_COOLDOWN_SECONDS = 300
+ACCOUNT_METADATA_SECONDS = 30
 
 
 def provider_error(error: Exception, stage: str) -> LonoraError:
@@ -212,6 +213,9 @@ class MetaApiBroker:
         self.connection_id = connection_id
         self._log_redactions = (token, account_id)
         self.account_instance: Any = None
+        self._account_resolved_at = 0.0
+        self._account_metadata_failure: LonoraError | None = None
+        self._account_metadata_retry_at = 0.0
         self.rpc: Any = None
         self.streaming: Any = None
         self.stream_lock = asyncio.Lock()
@@ -249,14 +253,27 @@ class MetaApiBroker:
     async def resolve_account(self) -> Any:
         # Historical REST data needs the account's own region, not an RPC lease.
         async with self.account_lock:
-            if self.account_instance is None:
+            failure = getattr(self, "_account_metadata_failure", None)
+            if failure is not None and monotonic() < self._account_metadata_retry_at:
+                raise failure
+            if (
+                self.account_instance is None
+                or monotonic() - getattr(self, "_account_resolved_at", monotonic())
+                >= ACCOUNT_METADATA_SECONDS
+            ):
                 try:
                     async with asyncio.timeout(25):
                         self.account_instance = await self.api.metatrader_account_api.get_account(
                             self.account_id
                         )
+                        self._account_resolved_at = monotonic()
+                        self._account_metadata_failure = None
+                        self._account_metadata_retry_at = 0.0
                 except Exception as error:
-                    raise self.diagnose(error, "account") from error
+                    failure = self.diagnose(error, "account")
+                    self._account_metadata_failure = failure
+                    self._account_metadata_retry_at = monotonic() + ACCOUNT_METADATA_SECONDS
+                    raise failure from error
             return self.account_instance
 
     def _slot(self, kind: str) -> ConnectionSlot:
@@ -327,6 +344,17 @@ class MetaApiBroker:
         async def create() -> Any:
             try:
                 account = await self.resolve_account()
+                state = getattr(account, "state", None)
+                if isinstance(state, str) and state != "DEPLOYED":
+                    # Do not silently redeploy an owner-stopped provider account.
+                    # Refresh metadata later rather than waiting for impossible
+                    # terminal synchronization against a permanently cached state.
+                    raise LonoraError(
+                        "broker_account_undeployed"
+                        if state in {"UNDEPLOYED", "UNDEPLOYING"}
+                        else "broker_account_not_ready",
+                        409,
+                    )
             except Exception as error:
                 failure = self.diagnose(error, kind)
                 slot.failed(failure)

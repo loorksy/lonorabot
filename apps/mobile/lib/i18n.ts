@@ -396,6 +396,14 @@ export const labels = {
     "بيانات الوسيط لا تطابق الحساب المحدد. لم يُرسل أي أمر.",
     "Broker data does not match the selected account. Nothing was sent.",
   ],
+  broker_account_undeployed: [
+    "اتصال حساب الوسيط متوقف لدى مزوّد الربط. شغّله هناك ثم أعد المحاولة.",
+    "The broker connection is stopped at the connection provider. Start it there, then retry.",
+  ],
+  broker_account_not_ready: [
+    "حساب الوسيط غير جاهز لدى مزوّد الربط. تحقق من حالته ثم أعد المحاولة.",
+    "The broker account is not ready at the connection provider. Check its status, then retry.",
+  ],
   createChart: ["إنشاء رسم بياني", "Create chart"],
   chooseAccount: ["اختر الحساب", "Choose account"],
   chooseSymbol: ["اختر الرمز", "Choose symbol"],

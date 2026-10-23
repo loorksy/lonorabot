@@ -181,66 +181,76 @@ async def main() -> None:
             "PASS failed provider refresh hides stale scene, releases fence and immediately recovers"
         )
 
-        billing = AsyncMock(side_effect=LonoraError("broker_market_data_billing_required", 409))
-        with patch("lonora_charts.runtime.render_scene", billing):
-            assert await refresh_chart(
-                fixture.runtime.db, brokers, fixture.owner, target, "billing-first", force=True
-            )
-            failed_billing = await inspect_chart(fixture.runtime.db, fixture.owner, target)
-            assert failed_billing["scene"] is None
-            assert failed_billing["code"] == "broker_market_data_billing_required"
-            assert failed_billing["chart"]["state"]["runtime_lease_until"] is None
-            assert not await refresh_chart(
-                fixture.runtime.db, brokers, fixture.owner, target, "billing-cooldown"
-            )
-            assert billing.await_count == 1
-            assert await refresh_chart(
-                fixture.runtime.db, brokers, fixture.owner, target, "billing-manual", force=True
-            )
+        for code, retry_seconds in [
+            ("broker_market_data_billing_required", 300),
+            ("broker_account_undeployed", 30),
+            ("broker_account_not_ready", 30),
+        ]:
+            failure = AsyncMock(side_effect=LonoraError(code, 409))
+            with patch("lonora_charts.runtime.render_scene", failure):
+                assert await refresh_chart(
+                    fixture.runtime.db, brokers, fixture.owner, target, "failure-first", force=True
+                )
+                failed_failure = await inspect_chart(fixture.runtime.db, fixture.owner, target)
+                assert failed_failure["scene"] is None
+                assert failed_failure["code"] == code
+                assert failed_failure["chart"]["state"]["runtime_lease_until"] is None
+                state = failed_failure["chart"]["state"]
+                delay = datetime.fromisoformat(state["scene_retry_at"]) - datetime.fromisoformat(
+                    state["scene_updated_at"]
+                )
+                assert retry_seconds <= delay.total_seconds() < retry_seconds + 2
+                assert not await refresh_chart(
+                    fixture.runtime.db, brokers, fixture.owner, target, "failure-cooldown"
+                )
+                assert failure.await_count == 1
+                assert await refresh_chart(
+                    fixture.runtime.db, brokers, fixture.owner, target, "failure-manual", force=True
+                )
+                async with fixture.runtime.db.sessions() as session, session.begin():
+                    row = await session.get(CloudChartRow, target, with_for_update=True)
+                    assert row is not None
+                    row.state = {**row.state, "refresh_requested": True}
+                assert await refresh_chart(
+                    fixture.runtime.db, brokers, fixture.owner, target, "failure-requested"
+                )
+                assert failure.await_count == 3
+            # A changed configuration cannot inherit the old revision's retry fence.
             async with fixture.runtime.db.sessions() as session, session.begin():
                 row = await session.get(CloudChartRow, target, with_for_update=True)
                 assert row is not None
-                row.state = {**row.state, "refresh_requested": True}
+                row.version += 1
             assert await refresh_chart(
-                fixture.runtime.db, brokers, fixture.owner, target, "billing-requested"
+                fixture.runtime.db, brokers, fixture.owner, target, "failure-revision"
             )
-            assert billing.await_count == 3
-        # A changed configuration cannot inherit the old revision's retry fence.
-        async with fixture.runtime.db.sessions() as session, session.begin():
-            row = await session.get(CloudChartRow, target, with_for_update=True)
-            assert row is not None
-            row.version += 1
-        assert await refresh_chart(
-            fixture.runtime.db, brokers, fixture.owner, target, "billing-revision"
-        )
-        billing_recovered = await inspect_chart(fixture.runtime.db, fixture.owner, target)
-        assert billing_recovered["scene"] is not None
-        assert "scene_retry_at" not in billing_recovered["chart"]["state"]
-        assert "error_code" not in billing_recovered["chart"]["state"]
-        with patch("lonora_charts.runtime.render_scene", billing):
+            failure_recovered = await inspect_chart(fixture.runtime.db, fixture.owner, target)
+            assert failure_recovered["scene"] is not None
+            assert "scene_retry_at" not in failure_recovered["chart"]["state"]
+            assert "error_code" not in failure_recovered["chart"]["state"]
+            with patch("lonora_charts.runtime.render_scene", failure):
+                assert await refresh_chart(
+                    fixture.runtime.db, brokers, fixture.owner, target, "failure-again", force=True
+                )
+            async with fixture.runtime.db.sessions() as session, session.begin():
+                row = await session.get(CloudChartRow, target, with_for_update=True)
+                assert row is not None
+                row.state = {
+                    **row.state,
+                    "scene_retry_at": (datetime.now(UTC) - timedelta(seconds=1)).isoformat(),
+                    "scene_updated_at": (datetime.now(UTC) - timedelta(seconds=11)).isoformat(),
+                }
             assert await refresh_chart(
-                fixture.runtime.db, brokers, fixture.owner, target, "billing-again", force=True
+                fixture.runtime.db, brokers, fixture.owner, target, "failure-expired"
             )
-        async with fixture.runtime.db.sessions() as session, session.begin():
-            row = await session.get(CloudChartRow, target, with_for_update=True)
-            assert row is not None
-            row.state = {
-                **row.state,
-                "scene_retry_at": (datetime.now(UTC) - timedelta(seconds=1)).isoformat(),
-                "scene_updated_at": (datetime.now(UTC) - timedelta(seconds=11)).isoformat(),
-            }
-        assert await refresh_chart(
-            fixture.runtime.db, brokers, fixture.owner, target, "billing-expired"
-        )
-        assert (
-            "scene_retry_at"
-            not in (await inspect_chart(fixture.runtime.db, fixture.owner, target))["chart"][
-                "state"
-            ]
-        )
-        print(
-            "PASS provider billing preserves exact failure, bounds automatic chart retries and recovers after expiry or revision"
-        )
+            assert (
+                "scene_retry_at"
+                not in (await inspect_chart(fixture.runtime.db, fixture.owner, target))["chart"][
+                    "state"
+                ]
+            )
+            print(
+                f"PASS {code} preserves exact failure, bounds chart retries and recovers after expiry or revision"
+            )
 
         async with fixture.runtime.db.sessions() as session, session.begin():
             row = await session.get(CloudChartRow, target, with_for_update=True)
