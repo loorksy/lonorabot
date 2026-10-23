@@ -1,5 +1,9 @@
 # Implementation matrix
 
+Current priority: the [complete trading teammate checkpoint](AUTONOMOUS_TRADING_PRODUCT_REQUIREMENTS.md#first-completion-checkpoint)
+in the existing Agent/Task/execution owners. The 2026-10-23 refocus changes order,
+not completion status; existing requirements and blockers remain tracked below.
+
 ## Agent-first mandate delta (updated 2026-10-23)
 
 Source: [prompt 1.md](<prompt 1.md>). This is the current incremental audit,

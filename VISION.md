@@ -5,6 +5,30 @@ objectives, observe real markets, and finish authorized work beyond a single cha
 It provides one durable home for each Agent's identity, conversation, memory,
 procedures, schedules, chart state and trading goals.
 
+## Current delivery focus
+
+The next product milestone is one dependable trading teammate, measured through
+one complete mission. The owner's journey is: connect an account, describe an
+objective, authorize management once when wanted, and follow actual results with
+a directly accessible stop control. Internal Task, Goal and grant distinctions
+must not become instructions the owner has to learn.
+
+Reuse the current Agent loop, memory, progressive procedures, durable work and
+financial executor. Resolve competing management paths and test conversational
+continuity before expanding capability families. The acceptance sequence is:
+understand -> inspect -> plan -> act or wait -> verify -> remember -> resume.
+Choosing not to trade is a valid result when supported by current evidence.
+
+Each Agent should have private persistent working state and isolated computation
+when needed. A dedicated always-running desktop is not a prerequisite. Add visual
+computer interaction only for an identified task that needs it. Model quality,
+context and complete feedback determine useful behavior; more infrastructure or
+longer instructions do not establish intelligence or profitable trading.
+
+The concrete acceptance priorities and current gaps are maintained in
+[the existing product requirements](docs/lonora-specs/AUTONOMOUS_TRADING_PRODUCT_REQUIREMENTS.md).
+This focus sets implementation order; it does not claim the mission is verified.
+
 ## Persistent trading teammates
 
 An Agent is a continuing identity with one primary visible conversation. Text,

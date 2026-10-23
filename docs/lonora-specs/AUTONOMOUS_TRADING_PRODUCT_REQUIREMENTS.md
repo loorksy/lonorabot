@@ -89,25 +89,73 @@ upgrade an existing grant, or remove executor checks to simulate the new mode.
 | 26 | Trade after one owner approval | Existing signed persistent volume/activity scope; implement explicit full-management scope, optional limits, recovery and actual-device acceptance |
 | 27 | Initiate trades while the owner is away | Existing resident Gateway and persistent state; bounded proactive execution with transparent journal/results, never hidden trades |
 
-## Dependency-aware completion
+## Current focus: one complete trading teammate
 
-1. Implement an explicit, versioned full-management authorization on the existing
-   executor and a single concise owner review. Preserve old grants exactly; add
-   regression coverage for absent versus explicitly selected limits. Reuse sourced
-   broker economics for Agent sizing and optional monetary-limit enforcement.
-   Keep reductions, cancellation, revocation and emergency controls usable.
-2. Validate one complete trading mission: observe -> form alternatives -> plan
-   risk/size -> watch -> revalidate -> execute -> reconcile -> manage partial
-   exits -> review. Restart, owner intervention and uncertain effects are part of
-   the same acceptance, not separate trading engines.
-3. Extend market/session/pattern evidence and strategy research using the existing
-   workspace and Skills. Test rules, data provenance, out-of-sample behavior and
-   shadow performance before allowing a researched strategy to use live scope.
-4. Verify multi-position and peer/group collaboration using existing ownership,
-   account serialization, shared risk and bounded result consolidation.
-5. Complete native voice/background calling and real device/provider acceptance
-   from prompt 1. Keep the owner interface to conversation, chart, account/risk,
-   active work and clear pause controls.
+The owner's latest clarification prioritizes a comprehensible, capable product
+over further feature expansion. Preserve the requirements above and in prompt 1;
+sequence them around one complete trading mission. This is a priority decision,
+not a claim that all requested behavior already works.
+
+Read-only source comparison used nanobot revision
+`df63526ddfb3674619231f0daf4d25ba3c8b7e54` (2026-10-22) and Lonora
+`1e5406f`. Nanobot already has substantial session/channel/runtime infrastructure.
+Adopt its small operating contract: compact identity and memory, discoverable
+procedures, one action/observation loop and background work returning to that
+same Agent. Do not import a second engine, scheduler or state store.
+
+### Findings to address in the existing owners
+
+| Finding | Existing implementation | Next bounded work |
+| --- | --- | --- |
+| The persistent core already exists | `lonora_agent/runtime.py`, `tool_loop.py`, `context/builder.py`; existing memory and Skills | Fix measured continuity failures in this loop; retain one primary conversation |
+| Management and Goal authority differ | `lonora_trading/account_authority.py` explicitly excludes Goal-linked Runs; full management starts an existing Task | Make the default management journey coherent; resolve Goal compatibility deliberately, preserving exact existing signed scopes and old-grant semantics |
+| Waiting and resumption already exist | `lonora_tools/market_watch.py`, `lonora_market/watchers.py`, `lonora_db/task_wait.py` | Test one mission through deduplicated wake, restart and fresh reanalysis; do not add another monitoring loop |
+| Skills are progressive but tool schemas are broad | `lonora_agent/context/skills.py`; `tool_loop.py` passes registry definitions, currently106 tools | Measure selection accuracy, input tokens and latency; use the existing registry for selective discovery only if the evaluation supports it |
+| Each Agent already has persistent analytical files and isolated execution | `lonora_agent/workspace.py`, `workspace_client.py`, `workspace_host.py` | Use on-demand computation; defer a general desktop until an actual trading task demonstrates the need |
+| Behavioral acceptance is narrower than infrastructure coverage | Existing scripted Agent, simulation and recovery checks; matrix M-B/M-F/M-T/M-J remain open | Evaluate the configured model's understanding and initiative separately from deterministic correctness checks |
+
+Keep current financial verification, ownership, revocation, exact symbols,
+serialization and reconciliation. These are execution correctness, not arbitrary
+trading quotas. Any compatibility change needs explicit scope checks and regression
+tests; this audit does not remove the existing Goal authority boundary.
+
+### First completion checkpoint
+
+One scenario follows the same Agent and management Task from a natural-language
+objective through current account/market inspection, justified alternatives and
+sizing, a saved watch, client closure, meaningful wake, revalidation, authorized
+execution, independent broker verification, position management and a concise
+owner update. Include a valid no-trade outcome and preserve the objective after
+a temporary failure. A background wait must exist durably before it is promised.
+
+Test this in the existing simulation and disposable-database infrastructure,
+including duplicate wakes, restart, unknown execution results, owner intervention
+and revocation. Then evaluate actual model behavior against the same controlled
+market environment, without live-money mutation. A scripted model proves runtime
+behavior; it does not prove the configured model understands the conversation.
+
+The behavioral suite must include the owner's earlier failing conversation:
+retain the chosen plan and risk answer across turns, interpret a short reply in
+its conversational context, choose direction and size when the granted mandate
+allows it, and request only genuinely missing information. When a question is
+needed, use context-specific choices plus free text. Check language consistency,
+evidence-backed claims, useful continuation, unnecessary questions, elapsed time
+and model usage. Every claim of execution must trace to verified broker state.
+
+### Computer and expansion policy
+
+Private files, memory and isolation belong to each Agent; CPU/RAM can be allocated
+only while computation runs. A future browser or desktop adapter would supply
+observations and actions through the same runtime. Broker mutations remain in
+the shared financial executor, including when several Agents collaborate.
+Do not grant shell access to broker credentials to imitate a computer-using bot.
+
+After the first checkpoint, expand session/formation evidence, validated strategy
+research, multi-position/peer acceptance and native background behavior according
+to measured failures and owner value. These requirements remain open. Broader
+imports, additional integrations and a fleet of desktops are not prerequisites
+for the first complete mission. No new runtime or mandatory user workflow is
+introduced by this refocus.
 
 Mandatory acceptance includes offline/paper testing of automatic sizing and
 entries, multiple positions and targets, no-trade conditions, DST/holidays,

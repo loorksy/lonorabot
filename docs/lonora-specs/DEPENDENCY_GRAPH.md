@@ -1,5 +1,11 @@
 # Capability dependency graph
 
+Current integration priority: coherent management authority and current broker
+evidence -> one complete persistent trading mission -> actual model-behavior
+acceptance -> broader capabilities. Reuse the owners below; the
+[product refocus](AUTONOMOUS_TRADING_PRODUCT_REQUIREMENTS.md#current-focus-one-complete-trading-teammate)
+does not introduce a second Agent engine or require a desktop per Agent.
+
 Latest [27-item product clarification](AUTONOMOUS_TRADING_PRODUCT_REQUIREMENTS.md)
 reuses this graph: verified broker economics -> explicit full-management scope
 with optional owner-selected monetary limits -> one autonomous trading mission -> multi-position/partial-target management

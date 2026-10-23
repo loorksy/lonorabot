@@ -1,5 +1,24 @@
 # Progress
 
+## Product refocus — 2026-10-23
+
+The owner prioritizes a simple persistent trading teammate after capability
+growth made the program difficult to follow. Two independent read-only audits
+compared the existing core and pinned nanobot sources. The current delivery
+focus is recorded in VISION.md and the existing autonomous-trading requirements;
+no additional planning system or specification file was created.
+
+Next integration is one complete trading mission and model-behavior acceptance.
+Concrete audit findings: Goal-linked Runs and full-management Tasks retain
+different authority semantics; Skills load progressively while normal turns
+expose all permitted tool schemas. Existing watch/task resumption, isolated
+analytical workspaces and financial verification should be reused. Wider feature
+families follow this checkpoint. Existing requirement statuses remain unchanged.
+
+This change updates documentation only. No runtime tests, new build, deployment,
+financial authorization or fresh production probe are claimed. The preceding
+verified release and reported MetaApi prerequisites below remain the last evidence.
+
 ## Published structure integration — 2026-10-23
 
 Both API and Gateway now run immutable revision
