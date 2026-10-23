@@ -1,5 +1,44 @@
 # Progress
 
+## Active follow-up wave — 2026-10-23
+
+The deployed baseline below remains live while this wave is verified. Root defines
+shared optional broker economics, typed read-only sizing, immutable operator MCP
+declarations and actual API/Gateway propagation. Independent workers implement
+broker normalization/sizing, external transport policy and honest incoming provider
+acknowledgement. Ownership boundaries exclude shared contracts and deployment.
+
+Current integration target: fresh exact-account money sizing without FX guesses;
+default-deny external read operations with exact endpoint/schema/effect review;
+provider acknowledgement separated from actual device presentation, with a durable
+uncertainty fence and no blind resend. No native dependency, APK build, migration,
+financial grant or broker mutation is authorized by this implementation wave.
+
+Remaining shared dependencies: signed per-trade monetary ceilings and complete
+account-wide daily-loss history; native installation possession, provider
+configuration, OS incoming-call integration and physical-device acceptance;
+isolated stdio and wider source/strategy compatibility. These are not closed by a
+reader interface or fake provider.
+
+Verified locally: 704 pytest cases without skips; 53 isolated foundation groups
+and 11 Task cases; full `bash scripts/build.sh` (Ruff, strict Pyright, policy/wheel,
+client lint/types and seven build targets). Exact market-entry sizing passed 61
+unit cases, actual scripted RPC/stream converters and real PostgreSQL/simulation
+tool checks. External boundary passed 37 offline cases and actual owned registry
+execution with scripted transport. Existing durable trade approvals, manual
+positions, broker receipt verification and ambiguous-result recovery also passed.
+All financial tests used simulation/disposable databases.
+
+A read-only production probe found three saved chart scenes failed because the
+provider explicitly says: "To allow market data access please top up your account."
+The new code identifies `broker_market_data_billing_required`, bounds account-wide
+history retries and chart retries, and preserves independent price paths. Fourteen
+offline cases, scripted SDK history and six PostgreSQL chart groups passed. Actual
+provider history remains blocked until the owner funds the MetaApi service; this
+is separate from broker trading-account funds. No synthetic candles or success
+state is substituted. The new release and compatible signed OTA will be recorded
+after publication; the prior deployed baseline remains below.
+
 ## Current integration — 2026-10-23
 
 Deployed code: `2f9d3c1627013dc0e96ef22d8d93f6711ed07bb3` (with

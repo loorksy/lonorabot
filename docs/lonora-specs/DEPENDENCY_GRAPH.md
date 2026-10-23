@@ -9,12 +9,18 @@ flowchart LR
   Inspect --> Review[Format and adaptation review]
   Sandbox[Verified container execution substrate] --> Bridge[Owned durable workspace and Unix host bridge]
   Bridge --> Artifacts[Owned report/image export and existing vision]
-  Bridge --> Test[Controlled utility/dependency tests: pending]
+  Bridge --> Test[Controlled reviewed utility/dependency tests]
   Review --> Test
-  Test --> Lifecycle[Existing owned Skill versions plus executable lifecycle: pending]
+  Test --> Lifecycle[Owned immutable executable Skill lifecycle]
   Runtime --> Voice[Existing GPT Live client delegation]
-  Voice --> Handoff[Final handoff redesign: pending]
+  Voice --> Handoff[Ordered provisional handoff and same-work steering]
   Authority[Existing typed financial authority/journal/reconciliation] --> Trading[All broker mutations]
+  Broker[Exact broker account/instrument/quote] --> Economics[Optional sourced account-money tick values]
+  Economics --> Sizing[Read-only Decimal stop-budget sizing]
+  Sizing -. preparation only .-> Authority
+  Operator[Operator-owned endpoint/schema/effect declaration] --> External[Schema-validated HTTP readers]
+  External -. untrusted evidence only .-> Runtime
+  Handoff -. provisional voice cannot spend grants .-> Authority
 ```
 
 Inspection has no installation or execution edge. Workspace outputs and imported
@@ -255,3 +261,13 @@ foreground accept/reject -> same Agent/Thread GPT Live. Native push and PSTN nee
 real provider/native integration and independent delivery acceptance. Bounded Live
 transcript revisions -> same-work steering -> provisional provenance -> financial
 confirmation boundary. Audio offsets cannot manufacture semantic finality.
+
+## Follow-up ownership — 2026-10-23
+
+Root owns shared market/sizing/MCP contracts, operator configuration propagation,
+registry/policy distribution, documentation, integration and deployment. Separate
+workers own broker normalization plus sizing, MCP adapters plus boundary tests,
+and existing incoming delivery semantics. No competing risk engine, authorization
+store, event bus or notification scheduler is introduced. The current incoming
+provider fence is distinct from native installation proof and OS presentation;
+those dependencies remain open rather than being hidden behind a delivery label.

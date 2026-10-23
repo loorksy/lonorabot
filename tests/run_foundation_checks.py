@@ -39,6 +39,8 @@ CHECKS = (
     "check_chart_creation_receipts.py",
     "check_collaboration_sessions.py",
     "check_metaapi_discovery.py",
+    "check_mcp_directory.py",
+    "check_position_sizing.py",
     "check_market_health.py",
     "check_dynamic_watches.py",
     "check_execution_quality.py",
