@@ -12,7 +12,12 @@ description: Prepare exact broker orders through immutable owner approval, curre
    actual broker/login/server; saved configuration alone is not connectivity.
 2. Inspect min/max/step volume, tick size, stops and fresh bid/ask. Read broker
    positions/orders including manual tickets. Derive a proposal from evidence
-   and owner constraints when asked to plan. If blocked on a business decision,
+   and owner constraints when asked to plan. For a market entry with a money
+   budget and explicit stop, use market_position_size in the exact account currency;
+   do not convert cent-account units or invent tick economics. Its estimated stop
+   loss excludes gaps, slippage, fees, carry and margin checks. Recheck the actual
+   proposal after price movement; the estimate grants no permission.
+   If blocked on a business decision,
    ask with wait_for_input; never ask generic consent before real confirmation.
 3. buy/sell are immediate entries. Pending orders use buy_limit, sell_limit,
    buy_stop or sell_stop with a valid explicit price on the correct quote side.

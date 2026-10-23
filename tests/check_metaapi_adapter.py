@@ -22,6 +22,9 @@ async def main() -> None:
         "time": datetime(2026, 10, 13, tzinfo=UTC),
         "bid": 2700,
         "ask": 2701,
+        "profitTickValue": "1.2",
+        "lossTickValue": "1.25",
+        "accountCurrencyExchangeRate": "0.01",
     }
     rpc = SimpleNamespace(
         get_symbol_price=AsyncMock(return_value=raw),
@@ -66,13 +69,31 @@ async def main() -> None:
     ):
         broker.streaming = stream
         quotes = broker.stream_quotes("XAUUSDm")
-        assert (await anext(quotes)).symbol == "XAUUSDm"
+        initial = await anext(quotes)
+        assert initial.symbol == "XAUUSDm"
+        assert initial.profit_tick_value == Decimal("1.2")
+        assert initial.loss_tick_value == Decimal("1.25")
+        assert initial.tick_value_basis == "account_currency_per_lot"
+        assert initial.account_currency_exchange_rate == Decimal("0.01")
         stream.subscribe_to_market_data.assert_awaited_once_with("XAUUSDm", [{"type": "quotes"}])
         await listeners[0].on_symbol_prices_updated(
             "fixture-instance",
-            [{**raw, "symbol": "XAUUSD", "bid": 1, "ask": 2}, {**raw, "bid": 2702, "ask": 2703}],
+            [
+                {**raw, "symbol": "XAUUSD", "bid": 1, "ask": 2},
+                {**raw, "bid": 2702, "ask": 2703, "lossTickValue": "1.3"},
+            ],
         )
-        assert str((await anext(quotes)).bid) == "2702"
+        updated = await anext(quotes)
+        assert str(updated.bid) == "2702"
+        assert updated.loss_tick_value == Decimal("1.3")
+        assert updated.profit_tick_value == Decimal("1.2")
+        assert updated.account_currency_exchange_rate == Decimal("0.01")
+        await listeners[0].on_symbol_prices_updated(
+            "fixture-instance", [{**raw, "lossTickValue": "NaN", "profitTickValue": None}]
+        )
+        without_money = await anext(quotes)
+        assert without_money.bid == 2700 and without_money.loss_tick_value is None
+        assert without_money.profit_tick_value is None and without_money.tick_value_basis is None
         await quotes.aclose()
         assert not listeners
         stream.unsubscribe_from_market_data.assert_awaited_once_with(
@@ -80,6 +101,9 @@ async def main() -> None:
         )
         print(
             "PASS native SDK subscription, exact symbol filtering, listener cleanup and unsubscribe"
+        )
+        print(
+            "PASS RPC and live price callbacks retain tick money without FX multiplication; invalid economics do not stop prices"
         )
         request = TradeRequest(
             account_id="fixture",
@@ -180,6 +204,9 @@ async def streamed_market_state() -> None:
         "bid": 102.13,
         "ask": 102.22,
         "time": quiet_time,
+        "profitTickValue": "2.4",
+        "lossTickValue": "2.5",
+        "accountCurrencyExchangeRate": "7.52",
     }
     specifications = [
         {
@@ -197,6 +224,9 @@ async def streamed_market_state() -> None:
             "minVolume": 1,
             "maxVolume": 1000,
             "volumeStep": 1,
+            "contractSize": "123.4",
+            "baseCurrency": "XYZ",
+            "profitCurrency": "USC",
         },
     ]
 
@@ -218,13 +248,23 @@ async def streamed_market_state() -> None:
     rpc = SimpleNamespace(
         get_symbols=AsyncMock(return_value=["XAUUSDm"]),
         get_symbol_specification=AsyncMock(),
-        get_symbol_price=AsyncMock(return_value={**quiet, "time": datetime.now(UTC)}),
+        get_symbol_price=AsyncMock(
+            return_value={**quiet, "time": datetime.now(UTC), "lossTickValue": "3.75"}
+        ),
     )
     with patch.object(MetaApiBroker, "prepare", AsyncMock(return_value=rpc)):
         assert await broker.symbols() == ["ABTm", "XAUUSDm"]
-        assert (await broker.instrument("ABTm")).volume_min == 1
+        contract = await broker.instrument("ABTm")
+        assert contract.volume_min == 1
+        assert contract.contract_size == Decimal("123.4")
+        assert contract.base_currency == "XYZ" and contract.profit_currency == "USC"
         assert [item.symbol for item in await broker.instruments()] == ["ABTm", "XAUUSDm"]
-        assert (await broker.quote("ABTm")).observed_at == quiet_time
+        quiet_quote = await broker.quote("ABTm")
+        assert quiet_quote.observed_at == quiet_time
+        assert quiet_quote.loss_tick_value == Decimal("2.5")
+        assert quiet_quote.profit_tick_value == Decimal("2.4")
+        assert quiet_quote.tick_value_basis == "account_currency_per_lot"
+        assert quiet_quote.account_currency_exchange_rate == Decimal("7.52")
         rpc.get_symbols.assert_not_awaited()
         rpc.get_symbol_specification.assert_not_awaited()
         rpc.get_symbol_price.assert_not_awaited()
@@ -232,12 +272,18 @@ async def streamed_market_state() -> None:
             "PASS synchronized streaming state serves symbols, specifications and quiet subscribed quotes without RPC credits"
         )
         del subscriptions["ABTm"]
-        assert (await broker.quote("ABTm")).observed_at > quiet_time
+        rpc_quote = await broker.quote("ABTm")
+        assert rpc_quote.observed_at > quiet_time
+        assert rpc_quote.loss_tick_value == Decimal("3.75")
+        assert rpc_quote.account_currency_exchange_rate == Decimal("7.52")
         rpc.get_symbol_price.assert_awaited_once_with("ABTm")
         shared.synchronized = False
         assert await broker.symbols() == ["XAUUSDm"]
         rpc.get_symbols.assert_awaited_once()
         print("PASS stale unsubscribed prices and unsynchronized state still use broker RPC")
+        print(
+            "PASS synchronized and RPC quote economics share broker-account units and preserve instrument metadata"
+        )
 
 
 async def symbol_case() -> None:

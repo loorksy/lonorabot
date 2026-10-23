@@ -1,5 +1,5 @@
 from datetime import UTC, datetime
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from lonora_contracts.account import AccountState, Order, Position
@@ -15,6 +15,19 @@ def observed(value: Any) -> datetime:
     return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
 
 
+def positive_decimal(value: Any) -> Decimal | None:
+    """Optional economics must never take down a valid broker price stream."""
+    try:
+        number = Decimal(str(value))
+    except (InvalidOperation, ValueError, TypeError):
+        return None
+    return number if number.is_finite() and number > 0 else None
+
+
+def currency(value: Any) -> str | None:
+    return value if isinstance(value, str) and value.strip() and len(value) <= 80 else None
+
+
 def instrument(value: dict[str, Any]) -> Instrument:
     return Instrument(
         symbol=value["symbol"],
@@ -26,16 +39,31 @@ def instrument(value: dict[str, Any]) -> Instrument:
         volume_step=value["volumeStep"],
         stops_level=value.get("stopsLevel", 0),
         point_size=value.get("point"),
+        contract_size=positive_decimal(value.get("contractSize")),
+        base_currency=currency(value.get("baseCurrency")),
+        profit_currency=currency(value.get("profitCurrency")),
     )
 
 
 def quote(value: dict[str, Any]) -> Quote:
+    profit_tick_value = positive_decimal(value.get("profitTickValue"))
+    loss_tick_value = positive_decimal(value.get("lossTickValue"))
     return Quote(
         symbol=value["symbol"],
         bid=value["bid"],
         ask=value["ask"],
         observed_at=observed(value["time"]),
         source="metaapi",
+        profit_tick_value=profit_tick_value,
+        loss_tick_value=loss_tick_value,
+        # SDK terminal_state._update_position_profits multiplies these values by
+        # lots and price-distance/tickSize, then adds P&L directly to balance.
+        # accountCurrencyExchangeRate is a separate reporting conversion: applying
+        # it here would convert account-denominated P&L a second time.
+        tick_value_basis="account_currency_per_lot"
+        if profit_tick_value is not None or loss_tick_value is not None
+        else None,
+        account_currency_exchange_rate=positive_decimal(value.get("accountCurrencyExchangeRate")),
     )
 
 
