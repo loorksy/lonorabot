@@ -32,9 +32,10 @@ AGENT_HARNESS_SOURCE_REVIEW.md and THIRD_PARTY_NOTICES.md.
 
 Final validation passed1103 offline cases and `bash scripts/build.sh` (Ruff,
 strict Pyright, resource/policy distribution and all seven Web/Expo/package
-targets). Eight relevant isolated PostgreSQL scripts passed: LLM harness,
+targets). Nine relevant isolated PostgreSQL scripts passed: LLM harness,
 continuous Task boundary, Task continuation, Task wait environment, Task recovery,
-full account management, voice Task continuity and trade approvals. An additional
+full account management, voice Task continuity, trade approvals and the dedicated
+wait-settlement ledger runner. An additional
 22 Task/wait ledger cases passed against disposable PostgreSQL, including update
 rollback, attachment linkage, pause/cancel races and worker replacement. The
 signed simulation path independently verified execution without a real broker
