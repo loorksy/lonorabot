@@ -42,6 +42,23 @@ signed simulation path independently verified execution without a real broker
 mutation. Publication remains separate from these development checks.
 No APK or live-money test was run.
 
+Published API/Gateway revision:
+`2248dc61208c6b2c66f06ac228765cbe30656583` on the integration branch
+`codex/agent-architecture-audit` (feature commit `3d4e3a6`). The offline wheel
+SHA256 is `85444dddaf01a78c73eec97bd1e029f218c41126168dd2ee49c96866d9527a72`.
+Every packaged first-party module/resource was compared to its archived commit,
+including the distributed Hermes notice. The networkless candidate checked exact
+installed modules, finite/continuous contracts, structural gate bounds and the
+existing discretionary/conditional decision contracts before activation.
+
+Actual production acceptance passed `/health`, `/ready`, `/app/`, pinned running
+API/Gateway identities, the installed Gateway stop gate, and Gateway-to-restricted
+numerical execution with mismatched-profile rejection. Migration0030 and signed
+authority boundaries remain unchanged. The deployment created no financial grant,
+broker mutation, migration, APK or backup; wheel/release transfer staging was
+removed. This is runtime availability/installation acceptance, not proof of a real
+model's trading quality or repair of the external MetaApi billing prerequisite.
+
 Remaining dependencies: bounded consolidation of indefinitely retained checkpoint
 history; Task/Goal lifecycle convergence; separating work identity from automatic
 Board creation; source removal/disable after an already admitted wait; effect-owner
