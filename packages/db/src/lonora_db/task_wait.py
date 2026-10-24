@@ -54,6 +54,8 @@ async def prepare_wait(
         wait = dict(receipt.result)
         if wait.get("intent") != request_hash(request.model_dump(mode="json")):
             raise LonoraError("operation_id_conflict", 409)
+        if wait.get("resumed"):
+            raise LonoraError("task_wait_already_resumed", 409)
     else:
         wait = {
             "kind": request.kind,
@@ -118,7 +120,13 @@ async def wake_waiting_run(
             return False
         session.add(EffectReceiptRow(key=consumed, result={"run_id": run.id, "task_id": task.id}))
     session.add(EffectReceiptRow(key=receipt_key, result={"run_id": run.id, "task_id": task.id}))
+    admission = await session.get(
+        EffectReceiptRow, "task-wait:" + stable_id(run.id, str(wait["call_id"]))
+    )
+    if admission:
+        admission.result = {**admission.result, "resumed": True}
     environment.pop("wait", None)
+    environment.pop("wait_update", None)
     environment["last_wake"] = {
         "kind": kind,
         "source_id": source_id,
@@ -127,7 +135,13 @@ async def wake_waiting_run(
     }
     environment["phase"] = "revalidating"
     run.execution_state = {
-        **run.execution_state,
+        # A real external wake starts a fresh bounded review. Worker retries
+        # and restarts alone must not replenish this compute budget.
+        **{
+            key: value
+            for key, value in run.execution_state.items()
+            if key not in {"task_continuation", "continuous_stop_gate"}
+        },
         "environment": environment,
         "prior_attempt_rounds": int(run.execution_state.get("prior_attempt_rounds", 0))
         + int(run.execution_state.get("rounds", 0)),

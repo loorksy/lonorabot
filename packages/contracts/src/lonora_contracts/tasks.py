@@ -8,6 +8,7 @@ from .domain import Contract
 
 TaskStatus = Literal["queued", "running", "waiting", "paused", "completed", "failed", "cancelled"]
 TaskRecovery = Literal["automatic", "owner", "reconcile", "modify_plan", "terminal"]
+TaskCompletionMode = Literal["finite", "continuous"]
 
 
 class TaskRetryPolicy(Contract):
@@ -38,6 +39,10 @@ class TaskStep(Contract):
 class TaskCreate(Contract):
     title: str = Field(min_length=1, max_length=160)
     description: str = Field(default="", max_length=16000)
+    completion_mode: TaskCompletionMode = Field(
+        default="finite",
+        description="Finite work can complete; continuous monitoring/management must persist a real wait between reviews until stopped. This grants no trading authority.",
+    )
     steps: list[TaskStep] = Field(default_factory=list[TaskStep], max_length=50)
     retry_policy: TaskRetryPolicy = Field(default_factory=TaskRetryPolicy)
 
@@ -53,6 +58,7 @@ class TaskCreate(Contract):
 class TaskState(Contract):
     schema_version: Literal[1] = 1
     origin_thread_id: str
+    completion_mode: TaskCompletionMode = "finite"
     status: TaskStatus = "queued"
     phase: str = "queued"
     waiting_reason: str | None = None

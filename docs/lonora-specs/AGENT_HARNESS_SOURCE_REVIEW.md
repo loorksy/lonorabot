@@ -1,5 +1,36 @@
 # LLM-owned trading: source review and integration
 
+## Continuous-work implementation after the structural audit
+
+The first structural finding is now addressed in code: full-management activation
+creates continuous work; an ordinary model answer cannot complete that Task.
+Generic bounded Tasks retain finite completion by default. Legacy running
+account-management work is recognized by its existing grant-bound Run metadata;
+historical terminal work is neither revived nor granted new permission.
+
+The typed `StopGateVerdict` and bounded structural protocol nudge adapt actual
+Hermes `agent/turn_stop_gates.py`, at the pinned revision below. The complete MIT
+notice ships in `lonora_agent/stop_gates.py`. Unlike the reference's unrelated
+coding gates, Lonora checks its real persisted Task identity and requires actual
+suspension. No English intent regex or claim such as "I will monitor" proves a
+continuation. Two checkpointed nudges bound a review; exhaustion is an inspectable
+plan-repair failure, not fake completion or endless self-polling.
+
+Nanobot's sustained-goal and bounded-continuation separation informed the
+existing slice contract and the distinction between finishing an answer and
+finishing work. No new Nanobot engine or local session database was imported.
+The existing PostgreSQL wait/wake path now publishes a concise originating
+model update only after accepting its actual wait, with a stable receipt across
+worker replacement. Owner controls and steering can supersede it. Unexecuted
+siblings are explicitly cancelled before sleeping, including legacy checkpoints;
+fresh market evidence must precede a new decision after waking.
+
+This is one capability integrated into the same Agent. Board/Ticket coupling,
+Task/Goal lifecycle convergence, approval ownership and reverse package imports
+identified below remain separate restructuring work. Persistent checkpoint
+history also needs periodic bounded consolidation for indefinite service life;
+bounded model slices alone do not bound the stored history across every wake.
+
 Review date: 2026-10-24. Lonora baseline: `825e794`, integration branch
 `codex/agent-architecture-audit`. This review follows the owner's clarification:
 the model analyzes and decides; the harness supplies context, capabilities,

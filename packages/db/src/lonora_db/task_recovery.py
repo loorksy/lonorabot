@@ -28,6 +28,7 @@ PLAN_CODES = frozenset(
         "context_limit_exceeded",
         "tool_round_limit",
         "task_steps_incomplete",
+        "task_wait_required",
     }
 )
 OWNER_CODES = frozenset(

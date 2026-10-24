@@ -16,6 +16,7 @@ from check_streaming import Fixture
 from device_fixture import Device
 from lonora_adapter_kit.types import ModelMessage, ModelReply, ToolCall, ToolDefinition
 from lonora_agent.executor import execute_run
+from lonora_agent.tool_loop import persist as original_persist
 from lonora_contracts.domain import utcnow
 from lonora_contracts.model_routing import ModelSelection
 from lonora_contracts.trading import TradingControl
@@ -28,6 +29,7 @@ from lonora_db.schema import (
     TicketRow,
     TradeApprovalRow,
     TradingAccountRow,
+    TradingJournalRow,
 )
 from lonora_db.task_wait import resume_ready_waits
 from lonora_db.trading_decisions import decision_history
@@ -271,10 +273,20 @@ async def managed_task(f: Fixture, account: str) -> tuple[dict[str, Any], ToolCo
     )
     async with f.runtime.db.sessions() as session:
         task = await session.get(TicketRow, stable_id(grant["id"], "account-management-task"))
-        assert task
+        assert task and task.state["task"]["completion_mode"] == "continuous"
         run = await session.get(RunRow, task.payload["run_id"])
         assert run and run.model_metadata["account_management_id"] == grant["id"]
-        data = {"id": run.id, "agent_id": run.agent_id, "thread_id": run.thread_id}
+        origin = await session.get(ThreadRow, thread["id"])
+        assert origin
+        data = {
+            "id": run.id,
+            "agent_id": run.agent_id,
+            "thread_id": run.thread_id,
+            "task_id": task.id,
+            "origin_thread_id": thread["id"],
+            "origin_seq": origin.next_seq,
+            "grant_id": grant["id"],
+        }
     return data, await f.lease(data)
 
 
@@ -286,6 +298,7 @@ async def conditional_mission(f: Fixture, valid: bool) -> None:
     phase = 0
     decided = ""
     verified = False
+    replayed_wait = False
     conditional = {
         "direction": "BUY",
         "condition": "A retest holds the observed support and buyers regain control.",
@@ -299,11 +312,17 @@ async def conditional_mission(f: Fixture, valid: bool) -> None:
         "summary": "Interpret the developing retest using current broker evidence.",
         "market_view": {"bias": "BULLISH"},
     }
+    initial_update = "حفظت شرط الدخول؛ سأراجع السوق عند موعد المتابعة."
+    result_update = (
+        "فُتحت الصفقة وتحققت من وجودها ومن مستويات الحماية."
+        if valid
+        else "أعدت التقييم، ولم يتحقق شرط الدخول؛ لم أفتح صفقة."
+    )
 
     async def model(
         _: Any, messages: list[ModelMessage], tools: list[ToolDefinition], **kwargs: Any
     ) -> tuple[ModelReply, ModelSelection]:
-        nonlocal phase, decided, verified
+        nonlocal phase, decided, verified, replayed_wait
         phase += 1
         names = {tool.name for tool in tools}
         if phase == 1:
@@ -326,10 +345,19 @@ async def conditional_mission(f: Fixture, valid: bool) -> None:
             assert saved["readiness"]["entry_readiness"]["state"] == "AWAITING_REASSESSMENT"
             return inspect("discover-wait", "task_wait")
         if phase == 4:
-            return response(call("review-later", "task_wait", kind="timer", seconds=30))
+            return response(
+                call("review-later", "task_wait", kind="timer", seconds=30),
+                text=initial_update,
+            )
         assert any("<runtime_wake>" in message.content for message in messages)
         if phase == 5:
             assert "market_decision_record" in names and "task_wait" in names
+            if not valid and not replayed_wait:
+                replayed_wait = True
+                phase -= 1
+                return response(call("review-later", "task_wait", kind="timer", seconds=30))
+            elif not valid:
+                assert observation(messages, "review-later")["code"] == "task_wait_already_resumed"
             return inspect("discover-live-quote", "market_quote")
         if phase == 6:
             return response(call("fresh-quote", "market_quote", account_id=account, symbol=symbol))
@@ -345,7 +373,7 @@ async def conditional_mission(f: Fixture, valid: bool) -> None:
             reassessed = observation(messages, "reassessed")
             assert reassessed["action"] == decided and not reassessed["execution_authorized"]
             if not valid:
-                return response(text="أعدت التقييم، ولم يتحقق شرط الدخول؛ لم أفتح صفقة.")
+                return response(text=result_update)
             assert reassessed["readiness"]["market_assessment"]["bias"] == "BULLISH"
             assert reassessed["readiness"]["entry_readiness"]["state"] == "MODEL_SELECTED"
             assert (
@@ -353,6 +381,13 @@ async def conditional_mission(f: Fixture, valid: bool) -> None:
             )
             return inspect("discover-trade", "trade_execute")
         if phase == 9:
+            if not valid:
+                # A substantive answer is an update, not the end of account management.
+                assert any("task_wait" in message.content for message in messages[-2:])
+                return response(
+                    call("continue-management", "task_wait", kind="timer", seconds=60),
+                    text=result_update,
+                )
             return response(
                 call(
                     "entry",
@@ -365,18 +400,77 @@ async def conditional_mission(f: Fixture, valid: bool) -> None:
                     take_profit="110",
                 )
             )
-        result = observation(messages, "entry")
-        assert result["status"] == "confirmed", result
-        assert result["details"]["verification"]["status"] == "verified"
-        verified = True
-        return response(text="فُتحت الصفقة وتحققت من وجودها ومن مستويات الحماية.")
+        if phase == 10:
+            result = observation(messages, "entry")
+            assert result["status"] == "confirmed", result
+            assert result["details"]["verification"]["status"] == "verified"
+            verified = True
+            return response(text=result_update)
+        assert phase == 11 and valid
+        assert any("task_wait" in message.content for message in messages[-2:])
+        return response(
+            call("continue-management", "task_wait", kind="timer", seconds=60),
+            text=result_update,
+        )
+
+    crashed = False
+
+    async def crash_before_settlement(
+        context: ToolContext,
+        state: dict[str, Any],
+        messages: list[ModelMessage],
+        pending: list[ToolCall],
+    ) -> None:
+        nonlocal crashed
+        await original_persist(context, state, messages, pending)
+        if valid and not crashed and state.get("environment", {}).get("wait"):
+            crashed = True
+            # The wait intent and accepted prose are durable, but no owner
+            # update or worker release has committed yet.
+            raise asyncio.CancelledError()
 
     with patch.object(ctx.router, "complete", model):
-        await execute_run(ctx, registry, 120, 16)
+        with patch("lonora_agent.tool_loop.persist", crash_before_settlement):
+            try:
+                await execute_run(ctx, registry, 120, 16)
+            except asyncio.CancelledError:
+                assert valid and crashed
+            else:
+                assert not valid
+        if valid:
+            async with f.runtime.db.sessions() as session:
+                assert (
+                    await session.scalar(
+                        select(func.count())
+                        .select_from(MessageRow)
+                        .where(
+                            MessageRow.thread_id == run["origin_thread_id"],
+                            MessageRow.seq >= run["origin_seq"],
+                            MessageRow.content == initial_update,
+                        )
+                    )
+                    == 0
+                )
+            ctx = await f.lease(run)
+            await execute_run(ctx, registry, 120, 16)
     assert phase == 4 and not await broker.positions()
     async with f.runtime.db.sessions() as session:
         row = await session.get(RunRow, run["id"])
         assert row and row.status == "waiting_takeover"
+        task = await session.get(TicketRow, run["task_id"])
+        assert task and task.state["task"]["status"] == "waiting"
+        assert (
+            await session.scalar(
+                select(func.count())
+                .select_from(MessageRow)
+                .where(
+                    MessageRow.thread_id == run["origin_thread_id"],
+                    MessageRow.seq >= run["origin_seq"],
+                    MessageRow.content == initial_update,
+                )
+            )
+            == 1
+        )
         due = datetime.fromisoformat(row.execution_state["environment"]["wait"]["due_at"])
     assert await resume_ready_waits(f.runtime.db) == 0
     async with f.runtime.db.sessions() as session, session.begin():
@@ -406,7 +500,25 @@ async def conditional_mission(f: Fixture, valid: bool) -> None:
         await execute_run(ctx, registry, 120, 16)
     async with f.runtime.db.sessions() as session:
         row = await session.get(RunRow, run["id"])
-        assert row and row.status == "completed", row.error_code if row else None
+        assert row and row.status == "waiting_takeover", row.error_code if row else None
+        assert row.execution_state["environment"]["wait"]["call_id"] == "continue-management"
+        task = await session.get(TicketRow, run["task_id"])
+        assert task and task.state["task"]["status"] == "waiting"
+        assert task.payload["run_id"] == run["id"]
+        updates = list(
+            await session.scalars(
+                select(MessageRow)
+                .where(
+                    MessageRow.thread_id == run["origin_thread_id"],
+                    MessageRow.seq >= run["origin_seq"],
+                )
+                .order_by(MessageRow.seq)
+            )
+        )
+        assert [message.content for message in updates if message.role == "assistant"] == [
+            initial_update,
+            result_update,
+        ]
         records = await decision_history(session, f.owner, account_id=account)
         assert len(records) == 2
         assert records[-1].action == "CONDITIONAL_ENTRY"
@@ -425,7 +537,23 @@ async def conditional_mission(f: Fixture, valid: bool) -> None:
             )
             == 0
         )
+        assert await session.scalar(
+            select(func.count())
+            .select_from(TradingJournalRow)
+            .where(TradingJournalRow.account_id == account)
+        ) == int(valid)
     assert len(await broker.positions()) == int(valid) and verified is valid
+    # Revocation stops the ongoing work without erasing or repeating a broker effect.
+    await f.request("POST", f"/account-authorities/{run['grant_id']}/revoke", {})
+    async with f.runtime.db.sessions() as session:
+        task = await session.get(TicketRow, run["task_id"])
+        row = await session.get(RunRow, run["id"])
+        assert task and task.state["task"]["status"] == "cancelled"
+        assert row
+        next_due = datetime.fromisoformat(row.execution_state["environment"]["wait"]["due_at"])
+    with patch("lonora_db.task_wait.utcnow", return_value=next_due + timedelta(seconds=1)):
+        assert await resume_ready_waits(f.runtime.db) == 0
+    assert len(await broker.positions()) == int(valid)
     print(
         "PASS conditional intent -> durable wait -> same-Run fresh reassessment -> "
         + (
@@ -433,6 +561,110 @@ async def conditional_mission(f: Fixture, valid: bool) -> None:
             if valid
             else "invalidated condition with zero trades"
         )
+        + " -> exactly-once owner updates, continued management and authoritative revocation"
+    )
+
+
+async def wait_supersedes_proposed_mutation(f: Fixture) -> None:
+    """An external wait must not carry a stale proposed trade into a later review."""
+    account, symbol = await simulation(f, "BTCUSD.pro")
+    run, context = await managed_task(f, account)
+    broker = await context.brokers.get(f.owner, account)
+    phase = 0
+    safe_update = "راجعت السعر الحديث؛ المتابعة مستمرة."
+    unsafe_update = "فُتحت الصفقة وتحققت من وجودها."
+
+    async def model(
+        _: Any, messages: list[ModelMessage], tools: list[ToolDefinition], **kwargs: Any
+    ) -> tuple[ModelReply, ModelSelection]:
+        nonlocal phase
+        phase += 1
+        if phase == 1:
+            return inspect("discover-wait", "task_wait")
+        if phase == 2:
+            reply, selection = response(
+                call("yield-before-trade", "task_wait", kind="timer", seconds=30),
+                text=unsafe_update,
+            )
+            reply.tool_calls.append(
+                call(
+                    "stale-proposed-entry",
+                    "trade_execute",
+                    account_id=account,
+                    symbol=symbol,
+                    action="buy",
+                    volume="0.1",
+                    stop_loss="90",
+                    take_profit="110",
+                )
+            )
+            return reply, selection
+        assert any("<runtime_wake>" in message.content for message in messages)
+        if phase == 3:
+            assert observation(messages, "stale-proposed-entry")["code"] == "tool_call_superseded"
+            return inspect("discover-quote", "market_quote")
+        if phase == 4:
+            return response(
+                call("revalidated-quote", "market_quote", account_id=account, symbol=symbol)
+            )
+        assert phase == 5 and observation(messages, "revalidated-quote")["ok"]
+        return response(
+            call("continue-after-review", "task_wait", kind="timer", seconds=60),
+            text=safe_update,
+        )
+
+    with patch.object(context.router, "complete", model):
+        await execute_run(context, load_tools(), 120, 12)
+    assert phase == 2 and not await broker.positions()
+    async with f.runtime.db.sessions() as session:
+        row = await session.get(RunRow, run["id"])
+        assert row and row.status == "waiting_takeover" and not row.execution_state["pending"]
+        due = datetime.fromisoformat(row.execution_state["environment"]["wait"]["due_at"])
+        assert (
+            await session.scalar(
+                select(func.count())
+                .select_from(MessageRow)
+                .where(
+                    MessageRow.thread_id == run["origin_thread_id"],
+                    MessageRow.seq >= run["origin_seq"],
+                    MessageRow.content == unsafe_update,
+                )
+            )
+            == 0
+        )
+    with patch("lonora_db.task_wait.utcnow", return_value=due + timedelta(seconds=1)):
+        assert await resume_ready_waits(f.runtime.db) == 1
+    context = await f.lease(run)
+    with patch.object(context.router, "complete", model):
+        await execute_run(context, load_tools(), 120, 12)
+    async with f.runtime.db.sessions() as session:
+        row = await session.get(RunRow, run["id"])
+        assert row and row.status == "waiting_takeover" and not row.execution_state["pending"]
+        assert (
+            await session.scalar(
+                select(func.count())
+                .select_from(TradingJournalRow)
+                .where(TradingJournalRow.account_id == account)
+            )
+            == 0
+        )
+        assert (
+            await session.scalar(
+                select(func.count())
+                .select_from(MessageRow)
+                .where(
+                    MessageRow.thread_id == run["origin_thread_id"],
+                    MessageRow.seq >= run["origin_seq"],
+                    MessageRow.content == safe_update,
+                )
+            )
+            == 1
+        )
+    assert not await broker.positions()
+    await f.request("POST", f"/account-authorities/{run['grant_id']}/revoke", {})
+    print(
+        "PASS saved wait supersedes sibling financial proposal, suppresses unverified success prose, "
+        "and fresh wake never replays the stale mutation"
     )
 
 
@@ -444,6 +676,7 @@ async def main() -> None:
         await discovery_and_context(f)
         await conditional_mission(f, True)
         await conditional_mission(f, False)
+        await wait_supersedes_proposed_mutation(f)
     finally:
         await save_controls(f.runtime.db, original)
         await f.close()

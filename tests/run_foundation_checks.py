@@ -49,6 +49,7 @@ CHECKS = (
     "check_execution_quality.py",
     "check_decision_readiness.py",
     "check_llm_harness.py",
+    "check_continuous_task_runtime.py",
     "check_task_continuation.py",
     "check_strategy_research.py",
     "check_account_authority.py",

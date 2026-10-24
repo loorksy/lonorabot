@@ -8,6 +8,7 @@ from lonora_db.generated_artifacts import link_generated_artifacts, resolve_repl
 from lonora_db.runs import complete_run, fail_run, locked_run_thread, renew_lease, require_lease
 from lonora_db.schema import MessageRow, SteeringRow, TradeApprovalRow
 from lonora_db.streaming import settle_stream, stream_identity
+from lonora_db.task_wait_settlement import settle_task_wait
 from lonora_tools.context import ToolContext
 from lonora_tools.registry import ToolRegistry
 from sqlalchemy import select
@@ -62,21 +63,14 @@ async def execute_run(
             outcome = await execute_tool_loop(context, registry, maximum_rounds)
             async with context.db.sessions() as session, session.begin():
                 if outcome.external_wait:
-                    row, _ = await locked_run_thread(session, context.lease)
-                    row.status, row.lease_expires_at, row.updated_at = (
-                        "waiting_takeover",
-                        None,
-                        utcnow(),
-                    )
-                    emit(
+                    settled = await settle_task_wait(
                         session,
-                        context.owner_id,
-                        "task.waiting",
-                        thread_id=context.thread_id,
-                        agent_id=context.agent_id,
-                        run_id=row.id,
-                        payload={"source_kind": row.execution_state["environment"]["wait"]["kind"]},
+                        context.lease,
+                        outcome.text,
+                        outcome.metadata.get("external_wait_call_id"),
                     )
+                    if settled == "continue":
+                        continue
                     return
                 if outcome.waiting:
                     row, thread = await locked_run_thread(session, context.lease)

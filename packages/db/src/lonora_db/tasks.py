@@ -33,6 +33,17 @@ def task_state(row: TicketRow) -> TaskState:
     return TaskState.model_validate(row.state["task"])
 
 
+def is_continuous_task(state: TaskState, run: RunRow) -> bool:
+    """Legacy account-management work already has an explicitly ongoing purpose.
+
+    Infer that purpose only for its existing Run; never revive terminal work or
+    infer financial permission from this lifecycle property.
+    """
+    return state.completion_mode == "continuous" or bool(
+        run.model_metadata.get("account_management_id")
+    )
+
+
 def save_task(session: AsyncSession, row: TicketRow, state: TaskState) -> None:
     row.state = {**row.state, "task": state.model_dump(mode="json")}
     row.payload = {
@@ -71,6 +82,8 @@ def finish_task(session: AsyncSession, row: TicketRow, status: TaskStatus) -> No
         return
     if state.control_requested == "cancel":
         status = "cancelled"
+    if status == "completed" and state.completion_mode == "continuous":
+        raise LonoraError("task_wait_required", 409)
     if status == "failed" and state.status == "waiting" and state.waiting_reason == "retry_backoff":
         return
     state.status, state.phase, state.control_requested = status, status, None
@@ -99,6 +112,7 @@ async def create_task(
                 prior.payload.get("title") != request.title
                 or prior.payload.get("description") != request.description
                 or prior.state.get("task", {}).get("origin_thread_id") != origin_thread_id
+                or task_state(prior).completion_mode != request.completion_mode
             ):
                 raise LonoraError("task_intent_conflict", 409)
             return prior
@@ -125,6 +139,7 @@ async def create_task(
         state={
             "task": TaskState(
                 origin_thread_id=origin_thread_id,
+                completion_mode=request.completion_mode,
                 steps=request.steps,
                 retry_policy=request.retry_policy,
             ).model_dump(mode="json")
@@ -563,6 +578,8 @@ async def require_completed_task_steps(session: AsyncSession, run: RunRow) -> No
     if row is None or row.agent_id != run.agent_id or row.thread_id != run.thread_id:
         raise LonoraError("task_run_mismatch", 409)
     state = task_state(row)
+    if is_continuous_task(state, run):
+        raise LonoraError("task_wait_required", 409)
     if any(step.state not in {"completed", "skipped"} for step in state.steps):
         raise LonoraError("task_steps_incomplete", 409)
 

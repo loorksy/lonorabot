@@ -79,7 +79,7 @@ def tools() -> list[Tool]:
     return [
         Tool(
             "task_wait",
-            "Suspend this same durable Task until its owned market watch triggers, its broker recovery is verified, or a timer is due. No owner input or financial permission is implied. The same Run/checkpoint resumes and must revalidate external state.",
+            "Suspend this same durable Task until its owned market watch triggers, its broker recovery is verified, or a timer is due. Continuous work must establish a real wait before yielding. Include a brief useful owner update in the accompanying assistant text when warranted; the server delivers it only after accepting this wait. No owner input or financial permission is implied. The same Run/checkpoint resumes and must revalidate external state.",
             TaskWait,
             wait,
             replay_safe=True,
@@ -93,7 +93,7 @@ def tools() -> list[Tool]:
         ),
         Tool(
             "task_start",
-            "Start durable background work as this same agent while the current conversation remains responsive. Use for substantial multi-step work; never report invented progress.",
+            "Start durable background work as this same agent while the current conversation remains responsive. Use finite completion for bounded results, continuous for ongoing monitoring or management until stopped. Neither mode grants trading authority; never report invented progress.",
             TaskCreate,
             start,
             replay_safe=True,

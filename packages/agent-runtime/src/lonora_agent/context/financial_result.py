@@ -123,3 +123,115 @@ def unverified_financial_result(messages: list[ModelMessage]) -> str | None:
                 else "The broker acknowledged the request, but its resulting state is not yet independently verified. I will not resend it."
             )
     return None
+
+
+def unsettled_wait_result(messages: list[ModelMessage]) -> str | None:
+    """Return known outcome facts for wait prose, without hiding broker failures.
+
+    Only the latest financial result in the current owner request is relevant.
+    This gate leaves ordinary final explanations unchanged. Unknown diagnostic
+    strings are never copied into the public conversation.
+    """
+    names = {
+        call.id: call.name
+        for message in messages
+        for call in message.tool_calls
+        if call.name in FINANCIAL_CALLS
+    }
+    arabic = True
+    for owner in reversed(messages):
+        if owner.role != "user":
+            continue
+        if re.search(r"[\u0620-\u064a]", owner.content):
+            break
+        if " " in owner.content and len(re.findall(r"[A-Za-z]", owner.content)) >= 8:
+            arabic = False
+            break
+    unknown = (
+        "تعذر تأكيد نتيجة الطلب؛ سأتحقق من حساب الوسيط قبل أي إعادة إرسال."
+        if arabic
+        else "The request outcome could not be confirmed. I will check the broker account before any resend."
+    )
+    for message in reversed(messages):
+        if message.role == "user":
+            break
+        if message.role != "tool" or message.tool_call_id not in names:
+            continue
+        try:
+            raw = json.loads(message.content)
+        except ValueError:
+            return unknown
+        if not isinstance(raw, dict):
+            return unknown
+        data = cast(dict[str, Any], raw)
+        rows = data.get("results", [data])
+        if not isinstance(rows, list) or not rows:
+            return unknown
+        rows = cast(list[Any], rows)
+        unsettled: list[dict[str, Any]] = []
+        for candidate in rows:
+            if not isinstance(candidate, dict):
+                return unknown
+            row = cast(dict[str, Any], candidate)
+            details: Any = row.get("details", {})
+            verification: Any = (
+                cast(dict[str, Any], details).get("verification", {})
+                if isinstance(details, dict)
+                else {}
+            )
+            if (
+                row.get("status") != "confirmed"
+                or not isinstance(verification, dict)
+                or cast(dict[str, Any], verification).get("status") != "verified"
+            ):
+                unsettled.append(row)
+        if not unsettled:
+            return unknown if data.get("ok") is False else None
+        if len(rows) != 1:
+            return (
+                "لم تتأكد جميع نتائج طلبات التداول؛ سأتحقق من حالة الحساب قبل أي إعادة إرسال."
+                if arabic
+                else "Not all trading outcomes are confirmed. I will check the account state before any resend."
+            )
+        result = unsettled[0]
+        status = result.get("status")
+        if status in {"failed", "rejected"}:
+            reason = _known_financial_failure(result.get("code"), arabic)
+            return (
+                "لم يُنفّذ الطلب" + (": " + reason if reason else ".")
+                if arabic
+                else "The request was not executed" + (": " + reason if reason else ".")
+            )
+        if status == "ambiguous":
+            return (
+                "نتيجة الطلب غير محسومة؛ سأتحقق من حساب الوسيط قبل أي إعادة إرسال."
+                if arabic
+                else "The request outcome is uncertain. I will check the broker account before any resend."
+            )
+        return unknown
+    return None
+
+
+def _known_financial_failure(code: Any, arabic: bool) -> str | None:
+    # Only documented server/broker codes select these safe human descriptions.
+    # Arbitrary provider descriptions may contain credentials or account IDs.
+    causes = {
+        "INVALID_VOLUME": (
+            "حجم التداول غير مقبول لدى الوسيط.",
+            "the trading volume is invalid for the broker.",
+        ),
+        "INVALID_TRADE_VOLUME": (
+            "حجم التداول غير مقبول لدى الوسيط.",
+            "the trading volume is invalid for the broker.",
+        ),
+        "MARKET_CLOSED": ("السوق مغلق.", "the market is closed."),
+        "INVALID_STOPS": (
+            "مستويات وقف الخسارة أو جني الربح غير مقبولة.",
+            "the stop-loss or take-profit levels are invalid.",
+        ),
+        "NO_MONEY": ("الرصيد المتاح غير كافٍ.", "available funds are insufficient."),
+        "NOT_ENOUGH_MONEY": ("الرصيد المتاح غير كافٍ.", "available funds are insufficient."),
+    }
+    name = str(code or "").upper().removeprefix("TRADE_RETCODE_").removeprefix("ERR_")
+    cause = causes.get(name)
+    return cause[0 if arabic else 1] if cause else None

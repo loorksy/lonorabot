@@ -156,6 +156,7 @@ async def main():
         async with f.runtime.db.sessions() as session:
             task = await session.get(TicketRow, task_id)
             assert task and task.state["task"]["origin_thread_id"] == thread["id"]
+            assert task.state["task"]["completion_mode"] == "continuous"
             kickoff = await session.get(RunRow, task.payload["run_id"])
             assert kickoff and kickoff.model_metadata["account_management_id"] == grant["id"]
             assert (

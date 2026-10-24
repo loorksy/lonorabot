@@ -7,7 +7,12 @@ from lonora_llm_usage.models import UsageRecord
 from lonora_llm_usage.store import save_usage
 from lonora_tools.context import ToolContext
 
-from .context.financial_result import public_broker_ids, unverified_financial_result
+from .context.financial_result import (
+    FINANCIAL_CALLS,
+    public_broker_ids,
+    unsettled_wait_result,
+    unverified_financial_result,
+)
 from .context.image_observations import prepare_image_observations
 from .context.team import refresh_routing_context
 from .progress import progress
@@ -66,8 +71,20 @@ async def model_turn(
     names = set(policy_bundle().tool_policies) | {tool.name for tool in tools}
     public_ids = public_broker_ids(messages)
     unverified = unverified_financial_result(messages)
-    if not reply.tool_calls and unverified:
+    if any(call.name in FINANCIAL_CALLS for call in reply.tool_calls):
+        # Proposed mutations have no broker outcome yet. Keep their execution
+        # once, but do not publish premature success beside the proposal.
+        reply = reply.model_copy(update={"text": ""})
+    elif unverified and (reply.text or not reply.tool_calls):
+        # A wait may carry an owner update as well as tool calls. That prose
+        # has the same independent-verification boundary as a final answer.
         reply = reply.model_copy(update={"text": unverified})
+    elif any(call.name == "task_wait" for call in reply.tool_calls):
+        # Continuous work still reports real failures before suspending. Never
+        # replace an uncertain result with a premature success or silent wait.
+        result_summary = unsettled_wait_result(messages)
+        if result_summary:
+            reply = reply.model_copy(update={"text": result_summary})
     rewritten = False
     if public_reply_violation(reply.text, names, public_ids=public_ids):
         if reply.tool_calls:

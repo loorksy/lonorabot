@@ -35,6 +35,7 @@ from .recovery import restore_execution
 from .skills.access import RunSkillAccess, admitted_view_ids
 from .skills.snapshot import read_snapshot
 from .steering import merge_steering, owner_steering_pending
+from .stop_gates import reset_stop_gate, task_stop_gate
 from .tasks import task_checkpoint
 from .tool_guard import advance_guard
 
@@ -62,12 +63,92 @@ async def persist(
         await checkpoint(session, context.lease, state)
 
 
+def wait_update(messages: list[ModelMessage], call_id: str) -> dict[str, str]:
+    """Only prose submitted with this exact accepted wait can describe its work."""
+    prose = next(
+        (
+            message.content
+            for message in reversed(messages)
+            if message.role == "assistant"
+            and any(call.id == call_id for call in message.tool_calls)
+        ),
+        "",
+    ).strip()
+    return {"call_id": call_id, "text": prose}
+
+
+def external_wait_outcome(state: dict[str, Any]) -> LoopOutcome:
+    environment = environment_state(state)
+    identifier = environment["wait"].get("call_id")
+    if not isinstance(identifier, str) or not identifier:
+        raise LonoraError("task_wait_identity_invalid", 409)
+    update = environment.get("wait_update")
+    # Legacy checkpoints never published this narration. Keep them silent rather
+    # than promoting old private prose through a newer disclosure boundary.
+    if update is None:
+        text = ""
+    elif not isinstance(update, dict):
+        raise LonoraError("task_wait_identity_invalid", 409)
+    else:
+        saved = cast(dict[str, Any], update)
+        if saved.get("call_id") != identifier or not isinstance(saved.get("text"), str):
+            raise LonoraError("task_wait_identity_invalid", 409)
+        text = cast(str, saved["text"])
+    return LoopOutcome(
+        text,
+        {**state.get("selection", {}), "external_wait_call_id": identifier},
+        external_wait=True,
+    )
+
+
+def supersede_wait_siblings(messages: list[ModelMessage], pending: list[ToolCall]) -> None:
+    """Close the current tool block without carrying stale actions across a wait.
+
+    Their identities remain durable observations, just as for owner steering.
+    After waking, the model must decide again from current external evidence.
+    """
+    for sibling in pending:
+        messages.append(
+            ModelMessage(
+                role="tool",
+                tool_call_id=sibling.id,
+                content=json.dumps(
+                    {
+                        "ok": False,
+                        "code": "tool_call_superseded",
+                        "reason": "task_wait_requires_fresh_analysis_after_wake",
+                    }
+                ),
+            )
+        )
+    pending.clear()
+
+
+async def report_wait_superseded(context: ToolContext, superseded: list[ToolCall]) -> None:
+    for sibling in superseded:
+        await progress(
+            context,
+            "tool.cancelled",
+            {"name": sibling.name, "call_id": sibling.id, "code": "tool_call_superseded"},
+        )
+
+
+async def continue_ongoing_task(
+    context: ToolContext, state: dict[str, Any], messages: list[ModelMessage]
+) -> bool:
+    verdict = await task_stop_gate(context, state)
+    if verdict.continue_turn:
+        messages.append(ModelMessage(role="system", content=verdict.nudge or ""))
+        await persist(context, state, messages, [])
+    return verdict.continue_turn
+
+
 async def execute_tool_loop(
     context: ToolContext, registry: ToolRegistry, maximum_rounds: int
 ) -> LoopOutcome:
     async with context.db.sessions() as session:
         run = await require_lease(session, context.lease)
-        state = dict(run.execution_state)
+        state: dict[str, Any] = dict(run.execution_state)
         read_only = (
             run.trigger == "subagent" or run.model_metadata.get("authority") == "observe_only"
         )
@@ -115,9 +196,23 @@ async def execute_tool_loop(
         await persist(context, state, messages, pending)
     environment = environment_state(state)
     if environment.get("wait"):
-        return LoopOutcome("", state.get("selection", {}), external_wait=True)
+        if pending:
+            # Older checkpoints could suspend halfway through a tool block.
+            # Repair their unexecuted siblings before any future wake can run
+            # stale financial intent or insert a user message into that block.
+            superseded = list(pending)
+            supersede_wait_siblings(messages, pending)
+            await persist(context, state, messages, pending)
+            await report_wait_superseded(context, superseded)
+        return external_wait_outcome(state)
     wake = environment.get("last_wake")
+    wake_superseded: list[ToolCall] = []
     if wake and environment.get("consumed_wake") != wake:
+        # A previous release may have committed the wake before upgrading its
+        # worker. Close its pre-wait proposals before adding the new observation.
+        wake_superseded = list(pending)
+        supersede_wait_siblings(messages, pending)
+        reset_stop_gate(state)
         messages.append(
             ModelMessage(
                 role="user",
@@ -128,6 +223,7 @@ async def execute_tool_loop(
         )
         environment["consumed_wake"] = wake
     await persist(context, state, messages, pending)
+    await report_wait_superseded(context, wake_superseded)
     while int(state.get("rounds", 0)) < slice_limit(state, maximum_rounds):
         await cancellation_checkpoint(context)
         await task_checkpoint(context)
@@ -340,7 +436,7 @@ async def execute_tool_loop(
                     set(state.get("viewed_skill_ids", [])) | set(viewed_ids)
                 )
                 state["instruction_skill_ids"] = sorted(
-                    set(state["instruction_skill_ids"]) | set(viewed_ids)
+                    set(cast(list[str], state["instruction_skill_ids"])) | set(viewed_ids)
                 )
             content = json.dumps(result, ensure_ascii=False)
             if len(content) > 120000:
@@ -364,9 +460,13 @@ async def execute_tool_loop(
                 content = json.dumps(summary, ensure_ascii=False)
             messages.append(ModelMessage(role="tool", content=content, tool_call_id=call.id))
             pending = pending[1:]
+            superseded: list[ToolCall] = []
             if result.get("_runtime_external_wait"):
                 environment_state(state)["wait"] = result["_runtime_external_wait"]
+                environment_state(state)["wait_update"] = wait_update(messages, call.id)
                 environment_state(state)["phase"] = "waiting"
+                superseded = list(pending)
+                supersede_wait_siblings(messages, pending)
             if result.get("_runtime_wait"):
                 state["pending_input_request"] = {
                     "id": call.id,
@@ -388,7 +488,8 @@ async def execute_tool_loop(
                 },
             )
             if result.get("_runtime_external_wait"):
-                return LoopOutcome("", state.get("selection", {}), external_wait=True)
+                await report_wait_superseded(context, superseded)
+                return external_wait_outcome(state)
             if result.get("_runtime_wait"):
                 return LoopOutcome(
                     str(result["question"]),
@@ -397,6 +498,8 @@ async def execute_tool_loop(
                     input_request=state["pending_input_request"],
                 )
             if result.get("_runtime_silence") and not pending:
+                if await continue_ongoing_task(context, state, messages):
+                    break
                 prose = next(
                     (
                         message.content
@@ -421,14 +524,18 @@ async def execute_tool_loop(
                     set(updated_skills) | set(state.get("viewed_skill_ids", []))
                 )
         await task_checkpoint(context, state, messages)
-        await assert_skill_authority(context, registry, active_ids=state["instruction_skill_ids"])
+        await assert_skill_authority(
+            context, registry, active_ids=cast(list[str], state["instruction_skill_ids"])
+        )
         turn_capability = (
             Capability.VISION if any(message.images for message in messages) else capability
         )
         reply, selection = await model_turn(
             context,
             messages,
-            registry.discovery_definitions(read_only, set(state["discovered_tool_names"])),
+            registry.discovery_definitions(
+                read_only, set(cast(list[str], state["discovered_tool_names"]))
+            ),
             turn_capability,
         )
         state["rounds"] = int(state.get("rounds", 0)) + 1
@@ -461,6 +568,8 @@ async def execute_tool_loop(
                 )
             )
             await persist(context, state, messages, pending)
+            continue
+        if await continue_ongoing_task(context, state, messages):
             continue
         return LoopOutcome(
             reply.text,

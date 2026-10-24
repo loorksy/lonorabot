@@ -32,7 +32,7 @@ async def task_checkpoint(
                             role="user",
                             content="<task_plan_revision>"
                             + task.model_dump_json(
-                                include={"plan_revision", "steps", "instruction"}
+                                include={"plan_revision", "steps", "instruction", "completion_mode"}
                             )
                             + "</task_plan_revision>",
                         )

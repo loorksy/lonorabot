@@ -14,8 +14,11 @@ description: Persist event-driven market monitoring and resume analysis on meani
    continuation objective. Never invent a threshold just to fill a schema.
 3. A trigger wakes analysis, never execution directly. Read fresh market, account,
    positions and goal before deciding the next step.
-4. Use task_wait for work awaiting a watch, recovery or timer. Use an existing
-   routine for a requested time/interval. Memory entries are not schedules.
+4. Use continuous work for ongoing monitoring. Before yielding, use task_wait
+   on the actual watch, recovery or justified timer; a reply does not finish
+   that responsibility. Include a brief useful result with the wait when
+   warranted. Use an existing routine for a requested time/interval. Memory
+   entries are not schedules.
 5. Respect cancellation and health suspension. Do not poll the model or promise
    uninterrupted monitoring. Keep repeated no-change checks quiet.
 

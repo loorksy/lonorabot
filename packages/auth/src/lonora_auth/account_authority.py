@@ -131,6 +131,7 @@ async def finish_activation(
             row.thread_id,
             TaskCreate(
                 title=attention_text("account_management_task", locale),
+                completion_mode="continuous",
                 description=(
                     "The owner has authenticated automatic management of account "
                     + row.account_id
@@ -144,7 +145,11 @@ async def finish_activation(
                     "Inspect existing watches and schedules before creating any; persist meaningful "
                     "market-triggered follow-up without duplicate monitoring or continuous model polling. "
                     "Continue useful authorized work while the owner is away. Report actual results "
-                    "and concrete blockers concisely in the conversation language; never promise returns."
+                    "and concrete blockers concisely in the conversation language; never promise returns. "
+                    "A review or reply does not finish this ongoing responsibility. Before yielding, "
+                    "persist a real wait on the relevant watch, broker recovery or a justified timer "
+                    "so this same work resumes with fresh evidence. Include a brief useful owner update "
+                    "with that wait when there is an actual result or changed blocker to report."
                 ),
             ),
             task_id=stable_id(row.id, "account-management-task"),

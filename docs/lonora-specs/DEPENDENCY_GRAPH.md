@@ -1,5 +1,13 @@
 # Capability dependency graph
 
+Continuous-work integration (2026-10-24): existing Task identity and signed
+account-management scope -> explicit finite/continuous completion -> structural
+bounded stop gate -> actual watch/recovery/timer wait -> atomic suspension and
+deduplicated owner update -> same Run wake with fresh evidence and a new bounded
+review. Owner pause/cancel/revocation wins at settlement. A response never proves
+a saved follow-up, and pending sibling actions cannot cross a market wait.
+This extends the existing scheduler/checkpoint path, not another Agent runtime.
+
 LLM-owned integration (2026-10-24): existing compact policy and progressive
 Skills -> model-selected exact schema discovery -> same action/observation loop
 and bounded durable Task slices -> sourced model interpretation or conditional

@@ -1,5 +1,53 @@
 # Progress
 
+## Continuous responsibility integrated — 2026-10-24
+
+Current wave separates a model reply from completion of ongoing work. Full
+account management creates a continuous Task; finite Tasks retain their existing
+default and historical terminal records remain untouched. A typed structural
+stop gate adapted from actual Hermes source permits two checkpointed nudges per
+review to establish a real watch/recovery/timer wait or necessary owner input.
+Budget exhaustion is a recoverable plan-repair failure, not fake completion.
+
+The same PostgreSQL Task/Run and existing wake scheduler remain authoritative.
+Wait admission, worker replacement and owner-update publication are checked
+independently: the update reaches the original conversation exactly once only
+after settlement; pause/cancel/steering can supersede it. Pending sibling actions
+are cancelled with explicit observations before sleeping, including recoverable
+legacy checkpoints. Consumed wait identities cannot install an unwakeable old
+timer. A genuine wake starts a new bounded review and fresh evidence; worker
+restarts alone do not replenish the budget.
+
+Financial narration accompanying a wait has the same disclosure and independent
+verification boundary as final replies. Proposed actions cannot advertise success;
+uncertain results remain uncertain, and known failures receive a concise human
+explanation. Ordinary model analysis, signed authority and broker effect/journal
+owners are reused. There is no second runtime, scheduler, strategy engine,
+financial resend path or migration.
+
+Parallel ownership: Task/activation contract; structural loop gate; wait settlement
+and truth boundary; PostgreSQL/runtime acceptance; independent race review. The
+actual reference component and MIT distribution are recorded in
+AGENT_HARNESS_SOURCE_REVIEW.md and THIRD_PARTY_NOTICES.md.
+
+Final validation passed1103 offline cases and `bash scripts/build.sh` (Ruff,
+strict Pyright, resource/policy distribution and all seven Web/Expo/package
+targets). Eight relevant isolated PostgreSQL scripts passed: LLM harness,
+continuous Task boundary, Task continuation, Task wait environment, Task recovery,
+full account management, voice Task continuity and trade approvals. An additional
+22 Task/wait ledger cases passed against disposable PostgreSQL, including update
+rollback, attachment linkage, pause/cancel races and worker replacement. The
+signed simulation path independently verified execution without a real broker
+mutation. Publication remains separate from these development checks.
+No APK or live-money test was run.
+
+Remaining dependencies: bounded consolidation of indefinitely retained checkpoint
+history; Task/Goal lifecycle convergence; separating work identity from automatic
+Board creation; source removal/disable after an already admitted wait; effect-owner
+cleanup and reverse package imports. Real-model,
+provider and physical-device acceptance remain separate. Current broker history
+is still blocked by the documented MetaApi billing/deployment prerequisites.
+
 ## Architecture challenged and source-audited — 2026-10-24
 
 The current tree/framework is open to replacement, not presumed correct because
