@@ -86,3 +86,39 @@ Current test outcomes and remaining work belong in PROGRESS.md and the
 implementation matrix. This source review alone does not mark the integrated
 product or the upstream runtimes verified. Production financial mutations and
 native application builds are outside this audit.
+
+## Structural ownership review at b7f24cc — 2026-10-24
+
+The owner explicitly challenges the existing tree/framework. Prior investment
+and passing tests do not establish that the current decomposition is the best
+product architecture. This follow-up inspected source and AST imports; it did
+not modify runtime behavior or reproduce these findings against production.
+
+The26 package directories are not26 services: pyproject.toml builds one Python
+distribution. An AST pass over548 first-party Python files found package-level
+dependency cycles in contracts/core, db/session/bus, adapters/market/charts/trading
+and Agent/tools/voice. The pass includes local and TYPE_CHECKING imports; it
+identifies architectural dependencies, not necessarily import-time failures.
+Folder count and line count are not themselves defects.
+
+| Evidence in actual code | Structural consequence | Target ownership |
+| --- | --- | --- |
+| `lonora_auth/account_authority.py` starts management with an empty-step Task; ToolLoop accepts final prose; `lonora_db/runs.py:complete_run` checks declared steps; `lonora_agent/collaboration/outcome_return.py` maps completed Run to completed Task | A response/turn can structurally finish supposedly ongoing management, including when no durable monitor was established | Separate response/attempt completion from persistent work completion; continuous management ends on its defined terminal condition or owner stop |
+| `lonora_db/tasks.py:create_task` creates BoardRow, work ThreadRow, TicketRow and RunRow; legacy ticket startup has its own entry path | Background work depends on board presentation and competing start/control mechanisms | One logical task lifecycle; boards/tickets display work rather than define its execution |
+| Goal wait creates its own watch/routine and updates Goal state; Task wait retains its checkpoint; market watcher branches between new-Run and resumed-Run paths | Different continuation/recovery semantics depend on how the same objective was started | One persistent work owner for wait/wake/control; retain trading plans and signed Goal envelopes as domain data during an explicit migration |
+| `lonora_agent/tool_loop.py:139` mutates TradeApprovalRow and interprets `_runtime_*` dictionaries; tools reverse-import Agent implementations | The generic loop, trading internals and tools depend on each other through implicit control messages | Typed tool/control outcomes and one narrow injected Agent-actions boundary; trading owns financial cancellation |
+| `lonora_db/tasks.py` accepts financial step evidence with status confirmed; `lonora_agent/context/financial_result.py` also requires independent verification | Different layers can disagree about what constitutes financial completion | One typed verified execution outcome, consumed by task state and public presentation |
+| API imports shared OwnerServices from Gateway; Worker and migration setup import settings from `lonora_api.env` | Composition/configuration are physically owned by application entry points that do not own their behavior | One shared application bootstrap; API and Worker remain entry points |
+
+Keep distinct responsibilities that reflect real facts: Agent identity, bounded
+execution attempts, durable work, source observations, broker operations and
+their execution journal. Simplification must not merge these into an ambiguous
+status field or delete historical identity/receipts. Existing SkillAccess and
+WorkspaceAccess demonstrate useful injected boundaries already in the code.
+
+The provisional logical shape is Agent/harness, durable runtime, trading
+environment, interfaces and infrastructure. This is an ownership direction,
+not a completed file move or a new mandatory framework. Define the response/work
+completion contract first, migrate one full management mission through it, then
+remove obsolete lifecycle paths and consolidate files where that clarifies the
+actual responsibilities. Original requirement coverage remains tracked.

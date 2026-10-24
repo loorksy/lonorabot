@@ -1,5 +1,26 @@
 # Progress
 
+## Architecture challenged and source-audited — 2026-10-24
+
+The current tree/framework is open to replacement, not presumed correct because
+it exists. Two independent source reviews plus an AST dependency pass identified
+concrete ownership problems. The findings are recorded in
+[the existing harness source review](AGENT_HARNESS_SOURCE_REVIEW.md#structural-ownership-review-at-b7f24cc--2026-10-24).
+
+Priority findings: response completion can terminate ongoing account-management
+work; Task creation inherently creates a board/ticket; Goal and Task own different
+continuation paths; the generic loop mutates financial approvals; tools import
+the runtime that imports them; financial completion has inconsistent consumers.
+Shared application configuration/composition also lives under API/Gateway entry
+points. These findings require behavioral/lifecycle restructuring, not only
+folder renaming. They do not imply26 microservices or Python import failures.
+
+This is a source-review and priority update, not an implemented restructuring.
+No runtime code, production state or requirement completion status changed, and
+no additional build/test/deployment is claimed. The published release below
+remains the current runtime. Next foundation is a clear response-versus-work
+completion contract, followed by one coherent persistent management lifecycle.
+
 ## Published LLM-owned harness — 2026-10-24
 
 The integration branch is pushed. API and Gateway run immutable source revision
