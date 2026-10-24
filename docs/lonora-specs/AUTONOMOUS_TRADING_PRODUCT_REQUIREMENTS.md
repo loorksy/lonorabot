@@ -4,6 +4,23 @@ Owner clarification, 2026-10-23. This supplements [prompt 1.md](<prompt 1.md>)
 and the existing specifications; it does not replace their unfinished requirements.
 This document records the requested behavior, not completed implementation.
 
+## Latest clarification: model-owned judgment
+
+The 2026-10-24 clarification makes the LLM the analysis and decision owner.
+Algorithms provide data, calculations and wake observations; no predefined
+pattern catalog may become a universal entry prerequisite. The Agent can judge
+developing structures while describing their actual confirmation state honestly.
+BUY/SELL and natural-language conditional entry are the ordinary planning choices.
+WAIT remains readable for existing history and available for a justified
+abstention. The expressed preference for rare abstention is not an implementation
+quota or permission to fabricate an opportunity when data is unavailable.
+
+Only the previously proposed consistency harness was accepted. Confidence
+calibration, teaching examples, counterfactual comparison, additional reference
+feeds, instrument lifecycle and beginner training are not added requirements.
+Inspect and reuse actual Hermes/Nanobot code where it improves the existing loop;
+remove unnecessary coupling rather than introduce a second Agent framework.
+
 ## Product and architecture
 
 One continuing trading Agent observes, reasons, acts, verifies and resumes work.

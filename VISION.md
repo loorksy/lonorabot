@@ -7,6 +7,19 @@ procedures, schedules, chart state and trading goals.
 
 ## Current delivery focus
 
+The LLM owns analysis, trade selection, timing, sizing and position management
+within the owner's current mandate. Market readers, numerical helpers and chart
+detectors supply observations; their fixed pattern vocabulary must not decide
+which interpretations or trades the model is allowed to propose. Broker
+validation, ownership and execution verification remain server responsibilities.
+
+BUY, SELL and model-authored conditional entry are the ordinary planning choices.
+A conditional entry may describe a developing formation, candle close, retest or
+other observable situation in natural language. Persist its review through the
+existing watch/Task mechanism, then let the same Agent reassess fresh evidence.
+Operational unavailability is separate from market judgment. Do not manufacture
+trades or impose a numeric abstention quota to simulate initiative.
+
 The next product milestone is one dependable trading teammate, measured through
 one complete mission. The owner's journey is: connect an account, describe an
 objective, authorize management once when wanted, and follow actual results with

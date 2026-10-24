@@ -138,7 +138,7 @@ async def main() -> None:
             broker, "orders", AsyncMock(side_effect=LonoraError("broker_orders_unavailable", 503))
         ):
             unrelated = await record("orders-unavailable", symbols[0], frames[0])
-        assert unrelated["action"] == "WAIT"
+        assert unrelated["action"] == "BUY"
         assert unrelated["readiness"]["market_assessment"]["bias"] == "BULLISH"
         assert unrelated["readiness"]["entry_readiness"]["state"] == "CONFIRMED"
         assert unrelated["readiness"]["execution_readiness"]["state"] == "BLOCKED"

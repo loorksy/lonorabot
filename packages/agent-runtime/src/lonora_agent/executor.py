@@ -200,7 +200,9 @@ async def execute_run(
                 agent_id=context.agent_id,
                 run_id=row.id,
                 payload={
-                    "reason_code": "tool_read_recovery",
+                    "reason_code": row.execution_state["environment"]["retry"].get(
+                        "reason_code", "tool_read_recovery"
+                    ),
                     "retry_at": row.execution_state["environment"]["retry"]["not_before"],
                 },
             )

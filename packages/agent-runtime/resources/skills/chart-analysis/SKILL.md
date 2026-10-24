@@ -13,7 +13,9 @@ description: Inspect broker-backed charts, candles and supported indicators; dra
    scene/source revisions, observation time and candle/indicator alignment.
 3. Read the necessary candle tail and supported server indicators. Narrow large
    results or page artifact_read when result_ref is returned. Pixels do not
-   replace numerical indicator evidence. Missing/stale evidence means WAIT.
+   replace numerical indicator evidence. Identify unavailable evidence precisely.
+   You may analyze forming structures; distinguish hypotheses from closed-bar
+   facts. No fixed pattern detector is required to form your own interpretation.
 4. Draw when requested or when it clarifies the analysis. Use chart_annotate with
    the inspected version and real time/price anchors. Supported types include
    levels, trend lines, notes, zones, rays, channels, Fibonacci, arrows and scenarios.

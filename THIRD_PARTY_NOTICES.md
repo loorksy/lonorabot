@@ -8,6 +8,16 @@ packages/agent-runtime/resources/bootstrap/LICENSE.nanobot and distributed with
 the runtime. Adaptations retain Lonora's existing PostgreSQL ownership,
 financial approval, broker verification and versioned memory boundaries.
 
+Progressive tool discovery adapts bounded catalog ranking from Hermes Agent,
+https://github.com/NousResearch/hermes-agent, revision
+c78ca093aa4b6759c055c3ed2bfbe7f741cf0292,
+tools/tool_search_catalog.py. Copyright (c) 2025 Nous Research, MIT.
+Adapted portions: BM25 corpus/scoring and bounded rare-term/coverage matching.
+Changes: Unicode normalization/tokenization, existing Lonora typed registry,
+native exact-name calls and current caller scope; no Hermes bridge, plugin
+runtime, English stemmer or new dependency. The full MIT permission/warranty
+notice is retained in lonora_tools/tool_discovery.py and ships in the wheel.
+
 Source: https://github.com/elie222/rakazo
 Revision: 2d666c4e98db201c1f7988e09e76a52db20cea69
 Copyright 2026 Rakazo contributors. Apache License 2.0, included in LICENSE.

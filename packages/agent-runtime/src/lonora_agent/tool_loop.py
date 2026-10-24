@@ -18,6 +18,7 @@ from lonora_tools.tool_results import store_result, stored_result
 from .cancellation import cancellation_checkpoint
 from .context.builder import build_context
 from .context.skills import assert_skill_authority, refresh_skill_context, selected_skill_ids
+from .continuation import schedule_task_continuation, slice_limit
 from .environment import (
     ToolRetryScheduled,
     blocked_route,
@@ -74,6 +75,18 @@ async def execute_tool_loop(
             Capability.BACKGROUND if run.trigger in WORK_TRIGGERS else Capability.CONVERSATION
         )
     messages, pending = restore_execution(state)
+    if "discovered_tool_names" not in state:
+        # Restore the presentation of previously used capabilities on legacy
+        # checkpoints. Discovery never changes the registry's authority checks.
+        state["discovered_tool_names"] = sorted(
+            {
+                call.name
+                for message in messages
+                for call in message.tool_calls
+                if call.name in registry.tools
+            }
+            | {call.name for call in pending if call.name in registry.tools}
+        )
     if messages and "instruction_skill_ids" not in state:
         # Legacy checkpoints have no binding between saved instructions and the
         # latest metadata selection. Conservatively check all retained versions.
@@ -115,7 +128,7 @@ async def execute_tool_loop(
         )
         environment["consumed_wake"] = wake
     await persist(context, state, messages, pending)
-    while int(state.get("rounds", 0)) < maximum_rounds:
+    while int(state.get("rounds", 0)) < slice_limit(state, maximum_rounds):
         await cancellation_checkpoint(context)
         await task_checkpoint(context)
         # New user input follows the complete tool-result block, never splits it.
@@ -315,6 +328,10 @@ async def execute_tool_loop(
                     True,
                 )
             state.pop("waiting_call_id", None)
+            if call.name == "tool_environment" and result.get("ok") is not False:
+                state["discovered_tool_names"] = sorted(
+                    set(state["discovered_tool_names"]) | registry.discovered_names(result)
+                )
             viewed_ids = await admitted_view_ids(
                 context, registry, call, result, state["instruction_skill_ids"]
             )
@@ -409,7 +426,10 @@ async def execute_tool_loop(
             Capability.VISION if any(message.images for message in messages) else capability
         )
         reply, selection = await model_turn(
-            context, messages, registry.definitions(read_only), turn_capability
+            context,
+            messages,
+            registry.discovery_definitions(read_only, set(state["discovered_tool_names"])),
+            turn_capability,
         )
         state["rounds"] = int(state.get("rounds", 0)) + 1
         state["selection"] = {
@@ -446,4 +466,6 @@ async def execute_tool_loop(
             reply.text,
             {**state["selection"], "reply_outcome": "answered" if reply.text.strip() else "silent"},
         )
+    if await schedule_task_continuation(context, state, maximum_rounds):
+        raise ToolRetryScheduled()
     raise LonoraError("tool_round_limit", 409)

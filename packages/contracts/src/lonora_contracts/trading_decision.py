@@ -1,9 +1,9 @@
 """Historical evidence belongs to its recording time, never to hindsight."""
 
 from datetime import datetime
-from typing import Literal
+from typing import Literal, Self
 
-from pydantic import Field
+from pydantic import Field, field_validator, model_validator
 
 from .account import AccountState, Order, Position
 from .domain import Contract
@@ -14,10 +14,26 @@ from .relationships import MarketRelationship
 
 
 class MarketViewRequest(Contract):
-    """An explicit interpretation with a condition the server can independently inspect."""
+    """Model interpretation; optional detectors contribute observations, not a verdict."""
 
     bias: Literal["BULLISH", "BEARISH", "NEUTRAL"]
-    supporting_condition: DetectorDefinition
+    supporting_condition: DetectorDefinition | None = None
+
+
+class ConditionalEntryPlan(Contract):
+    """A model-authored review objective, not an order or an installed watch."""
+
+    direction: Literal["BUY", "SELL"]
+    condition: str = Field(min_length=1, max_length=1200)
+    invalidation: str = Field(min_length=1, max_length=1200)
+    review_instruction: str = Field(min_length=1, max_length=1200)
+
+    @field_validator("condition", "invalidation", "review_instruction")
+    @classmethod
+    def meaningful_text(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("conditional_entry_text_required")
+        return value
 
 
 class MarketAssessment(Contract):
@@ -32,11 +48,18 @@ class MarketAssessment(Contract):
     reason_codes: list[str] = Field(default_factory=list[str], max_length=16)
     supporting_condition: DetectorDefinition | None = None
     supporting_observation: Observation | None = None
+    supporting_reason_codes: list[str] = Field(default_factory=list[str], max_length=8)
     confidence: Literal["not_calibrated"] = "not_calibrated"
 
 
 class EntryReadiness(Contract):
-    state: Literal["CONFIRMED", "NOT_CONFIRMED", "INSUFFICIENT_EVIDENCE"]
+    state: Literal[
+        "CONFIRMED",
+        "MODEL_SELECTED",
+        "AWAITING_REASSESSMENT",
+        "NOT_CONFIRMED",
+        "INSUFFICIENT_EVIDENCE",
+    ]
     reason_codes: list[str] = Field(default_factory=list[str], max_length=16)
     condition: DetectorDefinition | None = None
     observation: Observation | None = None
@@ -60,7 +83,7 @@ class ExecutionReadiness(Contract):
 
 
 class DecisionReadiness(Contract):
-    schema_version: Literal[1] = 1
+    schema_version: Literal[1, 2] = 2
     market_assessment: MarketAssessment
     entry_readiness: EntryReadiness
     execution_readiness: ExecutionReadiness
@@ -70,7 +93,7 @@ class DecisionRequest(Contract):
     account_id: str = Field(min_length=1, max_length=120)
     symbol: str = Field(min_length=1, max_length=80)
     timeframe: str = Field(min_length=1, max_length=12)
-    action: Literal["BUY", "SELL", "WAIT"]
+    action: Literal["BUY", "SELL", "CONDITIONAL_ENTRY", "WAIT"]
     summary: str = Field(
         min_length=1,
         max_length=1200,
@@ -79,12 +102,22 @@ class DecisionRequest(Contract):
     relationship_ids: list[str] = Field(default_factory=list, max_length=6)
     market_view: MarketViewRequest | None = Field(
         default=None,
-        description="Optional market interpretation with a supporting measurable condition; never execution permission.",
+        description="Model interpretation of captured evidence. Supporting detector observations are optional; never execution permission.",
     )
     entry_condition: DetectorDefinition | None = Field(
         default=None,
-        description="Optional concrete entry condition, independently checked against captured broker evidence. A bias alone is not an entry.",
+        description="Optional detector observation checked against captured evidence; not a prerequisite for a model-selected immediate entry.",
     )
+    conditional_entry: ConditionalEntryPlan | None = Field(
+        default=None,
+        description="Required only for CONDITIONAL_ENTRY. Records your review objective; use an existing Task watch or timer separately to start monitoring.",
+    )
+
+    @model_validator(mode="after")
+    def conditional_plan_matches_action(self) -> Self:
+        if (self.action == "CONDITIONAL_ENTRY") != (self.conditional_entry is not None):
+            raise ValueError("conditional_entry_action_mismatch")
+        return self
 
 
 class DecisionEvidence(Contract):
@@ -106,7 +139,7 @@ class DecisionEvidence(Contract):
 
 
 class TradingDecision(Contract):
-    schema_version: Literal[1] = 1
+    schema_version: Literal[1, 2] = 2
     id: str
     owner_id: str
     agent_id: str
@@ -115,14 +148,15 @@ class TradingDecision(Contract):
     symbol: str
     timeframe: str
     recorded_at: datetime
-    requested_action: Literal["BUY", "SELL", "WAIT"]
-    action: Literal["BUY", "SELL", "WAIT"]
+    requested_action: Literal["BUY", "SELL", "CONDITIONAL_ENTRY", "WAIT"]
+    action: Literal["BUY", "SELL", "CONDITIONAL_ENTRY", "WAIT"]
     summary: str
     gate_codes: list[str]
     evidence: DecisionEvidence
     readiness: DecisionReadiness | None = None
+    conditional_entry: ConditionalEntryPlan | None = None
     execution_authorized: Literal[False] = False
-    logic_version: Literal["market-evidence-v1"] = "market-evidence-v1"
+    logic_version: Literal["market-evidence-v1", "market-evidence-v2"] = "market-evidence-v2"
 
 
 class DecisionHistory(Contract):

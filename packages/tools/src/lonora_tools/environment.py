@@ -9,6 +9,12 @@ from pydantic import Field
 
 class EnvironmentInput(Contract):
     tool_name: str | None = Field(default=None, min_length=1, max_length=100)
+    query: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=300,
+        description="Search available tool names/descriptions using concise catalog terms. Use English terms for the first-party catalog, or inspect an exact tool_name. Search grants no authority.",
+    )
     offset: int = Field(default=0, ge=0, le=10000)
     limit: int = Field(default=20, ge=1, le=40)
 

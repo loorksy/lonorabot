@@ -11,7 +11,7 @@ from .context.financial_result import public_broker_ids, unverified_financial_re
 from .context.image_observations import prepare_image_observations
 from .context.team import refresh_routing_context
 from .progress import progress
-from .skills.system_policy import apply_operating_policy
+from .skills.system_policy import apply_operating_policy, policy_bundle
 
 
 async def model_turn(
@@ -61,7 +61,9 @@ async def model_turn(
             context_budget=reply.provider_metadata.get("context_budget", {}),
         ),
     )
-    names = {tool.name for tool in tools}
+    # A compact advertised surface must not weaken public disclosure checks for
+    # other first-party capability names retained in history or tool results.
+    names = set(policy_bundle().tool_policies) | {tool.name for tool in tools}
     public_ids = public_broker_ids(messages)
     unverified = unverified_financial_result(messages)
     if not reply.tool_calls and unverified:

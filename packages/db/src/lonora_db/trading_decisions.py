@@ -90,6 +90,9 @@ def decision_changes(earlier: TradingDecision, later: TradingDecision) -> dict[s
         e = record.evidence
         return {
             "action": record.action,
+            "conditional_entry": record.conditional_entry.model_dump(mode="json")
+            if record.conditional_entry
+            else None,
             "gate_codes": record.gate_codes,
             "readiness": readiness_summary(record),
             "bid": str(e.quote.bid) if e.quote else None,
@@ -139,6 +142,9 @@ def decision_summary(decision: TradingDecision) -> dict[str, Any]:
         "execution_authorized": False,
         "relationship_ids": [value.id for value in decision.evidence.relationships],
         "readiness": readiness_summary(decision),
+        "conditional_entry": decision.conditional_entry.model_dump(mode="json")
+        if decision.conditional_entry
+        else None,
     }
 
 

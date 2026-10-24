@@ -1,6 +1,7 @@
 """Market interpretation remains useful without pretending an entry is executable."""
 
 import hashlib
+import json
 from datetime import timedelta
 from decimal import Decimal
 
@@ -11,6 +12,7 @@ from lonora_contracts.market import Candle, Quote
 from lonora_contracts.market_intelligence import DetectorDefinition
 from lonora_contracts.trading import TradingControl
 from lonora_contracts.trading_decision import (
+    ConditionalEntryPlan,
     DecisionEvidence,
     DecisionRequest,
     MarketViewRequest,
@@ -18,6 +20,7 @@ from lonora_contracts.trading_decision import (
 )
 from lonora_tools.trading_decision import fingerprint
 from lonora_trading.decision_readiness import decision_readiness
+from pydantic import ValidationError
 
 
 def sample(symbol: str = "EURUSDm", timeframe: str = "15m"):
@@ -168,27 +171,31 @@ def test_requested_buy_and_available_prices_do_not_manufacture_market_assessment
     request.entry_condition = None
     value = project(request, evidence)
     assert value.market_assessment.bias == "INSUFFICIENT_EVIDENCE"
-    assert value.entry_readiness.reason_codes == ["entry_condition_required"]
+    assert value.entry_readiness.reason_codes == ["market_interpretation_not_supplied"]
     assert value.execution_readiness.state == "BLOCKED"
 
 
-def test_unconfirmed_support_does_not_become_an_opinion():
+def test_unconfirmed_optional_observation_does_not_overrule_model_interpretation():
     request, evidence = sample()
     assert request.market_view
     request.market_view.supporting_condition = DetectorDefinition(
         id="not-broken", kind="level", level=Decimal("105")
     )
     value = project(request, evidence)
-    assert value.market_assessment.bias == "INSUFFICIENT_EVIDENCE"
-    assert "market_supporting_condition_unconfirmed" in value.market_assessment.reason_codes
+    assert value.market_assessment.bias == "BULLISH"
+    assert not value.market_assessment.reason_codes
+    assert value.market_assessment.supporting_observation
+    assert value.market_assessment.supporting_observation.state == "pending"
+    assert value.execution_readiness.state == "REVALIDATION_REQUIRED"
 
 
-def test_directional_opinion_does_not_manufacture_entry_and_open_bar_is_not_closed_confirmation():
+def test_model_selected_entry_does_not_turn_open_bar_into_closed_confirmation():
     request, evidence = sample()
     request.entry_condition = None
     value = project(request, evidence)
     assert (
-        value.market_assessment.bias == "BULLISH" and value.entry_readiness.state == "NOT_CONFIRMED"
+        value.market_assessment.bias == "BULLISH"
+        and value.entry_readiness.state == "MODEL_SELECTED"
     )
     request.entry_condition = DetectorDefinition(id="doji", kind="candle", pattern="doji")
     evidence.candles[-1].open = evidence.candles[-1].close
@@ -196,7 +203,10 @@ def test_directional_opinion_does_not_manufacture_entry_and_open_bar_is_not_clos
     assert (
         value.entry_readiness.observation and value.entry_readiness.observation.state == "forming"
     )
-    assert value.entry_readiness.state == "NOT_CONFIRMED"
+    assert value.entry_readiness.state == "MODEL_SELECTED"
+    assert value.entry_readiness.reason_codes == ["entry_condition_unconfirmed"]
+    assert value.execution_readiness.state == "REVALIDATION_REQUIRED"
+    assert value.execution_readiness.execution_authorized is False
 
 
 def test_controls_and_changed_connection_stay_authoritative():
@@ -221,8 +231,15 @@ def test_legacy_identity_and_record_remain_readable():
     request, evidence = sample()
     request.market_view = None
     request.entry_condition = None
-    old_json = request.model_dump_json(
-        exclude={"market_view", "entry_condition", "relationship_ids"}
+    old_json = json.dumps(
+        {
+            "account_id": request.account_id,
+            "symbol": request.symbol,
+            "timeframe": request.timeframe,
+            "action": request.action,
+            "summary": request.summary,
+        },
+        separators=(",", ":"),
     )
     assert fingerprint(request) == hashlib.sha256(old_json.encode()).hexdigest()
     old = TradingDecision(
@@ -240,5 +257,116 @@ def test_legacy_identity_and_record_remain_readable():
         gate_codes=[],
         evidence=evidence,
     )
-    serialized = old.model_dump(mode="json", exclude={"readiness"})
-    assert TradingDecision.model_validate(serialized).readiness is None
+    serialized = old.model_dump(mode="json", exclude={"readiness", "conditional_entry"})
+    serialized["schema_version"] = 1
+    serialized["logic_version"] = "market-evidence-v1"
+    restored = TradingDecision.model_validate(serialized)
+    assert restored.readiness is None and restored.conditional_entry is None
+    assert restored.schema_version == 1 and restored.logic_version == "market-evidence-v1"
+
+
+@pytest.mark.parametrize("side", ["BUY", "SELL"])
+def test_sourced_model_entry_needs_no_predefined_detector(side: str):
+    request, evidence = sample()
+    arguments = request.model_dump()
+    arguments.update(
+        action=side,
+        market_view={"bias": "BULLISH" if side == "BUY" else "BEARISH"},
+        entry_condition=None,
+    )
+    request = DecisionRequest.model_validate(arguments)
+    value = project(request, evidence)
+    assert request.market_view
+    assert value.schema_version == 2
+    assert value.market_assessment.bias == request.market_view.bias
+    assert value.market_assessment.supporting_condition is None
+    assert value.market_assessment.supporting_observation is None
+    assert value.entry_readiness.state == "MODEL_SELECTED"
+    assert value.entry_readiness.observation is None
+    assert value.execution_readiness.state == "REVALIDATION_REQUIRED"
+    assert value.execution_readiness.execution_authorized is False
+
+
+def plan() -> ConditionalEntryPlan:
+    return ConditionalEntryPlan(
+        direction="BUY",
+        condition="A retest retains the reclaimed zone with developing buying pressure.",
+        invalidation="The model finds the reclaim rejected on fresh evidence.",
+        review_instruction="Inspect the next relevant candle and reassess the retest from fresh data.",
+    )
+
+
+@pytest.mark.parametrize("direction", ["BUY", "SELL"])
+def test_natural_conditional_intent_requires_reassessment_not_detector_or_permission(
+    direction: str,
+):
+    request, evidence = sample()
+    arguments = request.model_dump()
+    conditional = {**plan().model_dump(), "direction": direction}
+    arguments.update(
+        action="CONDITIONAL_ENTRY",
+        market_view={"bias": "BULLISH"},
+        entry_condition=None,
+        conditional_entry=conditional,
+    )
+    request = DecisionRequest.model_validate(arguments)
+    value = project(request, evidence)
+    assert request.conditional_entry and request.conditional_entry.direction == direction
+    assert value.market_assessment.bias == "BULLISH"
+    assert value.entry_readiness.state == "AWAITING_REASSESSMENT"
+    assert value.entry_readiness.reason_codes == ["conditional_reassessment_required"]
+    assert value.execution_readiness.state == "BLOCKED"
+    assert value.execution_readiness.reason_codes == ["conditional_reassessment_required"]
+    assert value.execution_readiness.execution_authorized is False
+    assert "watch" not in request.model_dump()
+
+
+@pytest.mark.parametrize("side", ["BUY", "SELL", "WAIT", "CONDITIONAL_ENTRY"])
+def test_conditional_plan_matches_only_conditional_action(side: str):
+    request, _ = sample()
+    arguments = request.model_dump()
+    arguments["action"] = side
+    arguments["conditional_entry"] = None if side == "CONDITIONAL_ENTRY" else plan().model_dump()
+    with pytest.raises(ValidationError, match="conditional_entry_action_mismatch"):
+        DecisionRequest.model_validate(arguments)
+
+
+@pytest.mark.parametrize("field", ["condition", "invalidation", "review_instruction"])
+@pytest.mark.parametrize("invalid", ["", " \n\t", "x" * 1201])
+def test_conditional_text_is_meaningful_and_bounded(field: str, invalid: str):
+    arguments = plan().model_dump()
+    arguments[field] = invalid
+    with pytest.raises(ValidationError):
+        ConditionalEntryPlan.model_validate(arguments)
+
+
+def test_explicit_abstention_is_preserved_without_erasing_market_view():
+    request, evidence = sample()
+    request.action = "WAIT"
+    value = project(request, evidence)
+    assert value.market_assessment.bias == "BULLISH"
+    assert value.entry_readiness.state == "NOT_CONFIRMED"
+    assert value.entry_readiness.reason_codes == ["model_abstained"]
+    assert value.execution_readiness.state == "BLOCKED"
+    assert value.execution_readiness.execution_authorized is False
+
+
+def test_old_full_request_fingerprint_is_identical_when_plan_absent():
+    request, _ = sample()
+    old_json = request.model_dump_json(exclude={"relationship_ids", "conditional_entry"})
+    assert fingerprint(request) == hashlib.sha256(old_json.encode()).hexdigest()
+
+
+def test_legacy_readiness_observations_remain_readable():
+    from lonora_contracts.trading_decision import DecisionReadiness
+
+    request, evidence = sample()
+    serialized = project(request, evidence).model_dump(mode="json")
+    serialized["schema_version"] = 1
+    serialized["market_assessment"].pop("supporting_reason_codes")
+    old = DecisionReadiness.model_validate(serialized)
+    assert old.schema_version == 1
+    assert old.market_assessment.bias == "BULLISH"
+    assert old.market_assessment.supporting_reason_codes == []
+    assert old.entry_readiness.state == "CONFIRMED"
+    assert old.execution_readiness.execution_authorized is False

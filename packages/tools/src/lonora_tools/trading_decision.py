@@ -43,7 +43,11 @@ from .context import ToolContext
 
 def fingerprint(params: DecisionRequest) -> str:
     # Preserve old durable operation identities when the optional evidence is absent.
-    absent = {name for name in ("market_view", "entry_condition") if getattr(params, name) is None}
+    absent = {
+        name
+        for name in ("market_view", "entry_condition", "conditional_entry")
+        if getattr(params, name) is None
+    }
     if not params.relationship_ids:
         absent.add("relationship_ids")
     return hashlib.sha256(params.model_dump_json(exclude=absent).encode()).hexdigest()
@@ -180,7 +184,10 @@ async def record(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         timeframe=params.timeframe,
         recorded_at=now,
         requested_action=params.action,
-        action="WAIT" if gates else params.action,
+        # Operational availability cannot silently rewrite the model's intent.
+        # Readiness records missing evidence and execution blockers separately.
+        action=params.action,
+        conditional_entry=params.conditional_entry,
         summary=params.summary,
         gate_codes=gates,
         evidence=evidence,
@@ -271,7 +278,7 @@ def tools() -> list[Tool]:
         ),
         Tool(
             "market_decision_record",
-            "Record BUY/SELL/WAIT rationale with captured broker evidence. Optional market_view needs a supporting measurable condition; entry_condition is checked independently. Readiness separates supported market interpretation, actual entry confirmation and financial blockers. Account failures do not erase supported market analysis. This never authorizes or executes a trade.",
+            "Record your BUY, SELL or CONDITIONAL_ENTRY decision with current broker evidence and rationale; WAIT remains explicit abstention. Optional detector observations assist your analysis, never choose the side. Conditional entry stores your condition, invalidation and review instruction; create a durable Task watch/wait separately before claiming monitoring. Operational failures remain separate from your decision. This never authorizes or executes a trade.",
             DecisionRequest,
             record,
         ),

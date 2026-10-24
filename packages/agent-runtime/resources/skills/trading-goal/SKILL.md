@@ -7,6 +7,10 @@ description: Persist a bounded trading objective that observes, waits, revalidat
 
 ## Steps
 
+For active account management, continue the existing Task with its exact grant.
+An ordinary trading objective does not require a separate Goal or new consent.
+Use this procedure for the existing Goal/Super Bot path and its actual authority.
+
 1. Inspect goal_list/goal_read and the conversation before making a duplicate.
    Preserve the objective, requested side, horizon and loss limits.
 2. Give steps stable IDs, titles and actual kinds. Watch steps need a full real
@@ -22,7 +26,7 @@ description: Persist a bounded trading objective that observes, waits, revalidat
    and device authentication; do not expose IDs, machine status or internal reports.
    The server confirms verified activation once.
 6. Resume the same goal on meaningful changes: fresh context, revalidation,
-   WAIT or bounded decision, authorized goal_step_execute, independent result
+   model-selected immediate or conditional decision, authorized goal_step_execute, independent result
    verification, state update and the next persisted wait.
 7. Respect pause/cancel and manual owner intervention. Do not turn a review into
    entry or infer authority from an avatar or global Trading ON.

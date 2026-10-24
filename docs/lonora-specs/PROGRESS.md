@@ -1,5 +1,48 @@
 # Progress
 
+## LLM-owned trading harness integration — 2026-10-24
+
+Fresh Hermes and Nanobot source checkouts were downloaded beside Lonora and their
+actual loops, catalogs, continuation and persistence code compared. The pinned
+source findings and per-component reuse decisions are in
+[AGENT_HARNESS_SOURCE_REVIEW.md](AGENT_HARNESS_SOURCE_REVIEW.md). Hermes catalog
+ranking is adapted with its full MIT notice in the distributed Python module.
+No second Agent engine, scheduler, registry or financial executor was introduced.
+
+The model now owns sourced market interpretation without needing a predefined
+detector to confirm it. Optional detector facts remain explicit, including
+forming/unconfirmed observations. BUY/SELL intent survives unrelated account
+read failure; execution blockers are separate. A versioned CONDITIONAL_ENTRY
+stores the model's natural-language condition, invalidation and review objective;
+the existing Task timer/watch wakes the same Agent for fresh judgment. Legacy
+WAIT, schema1 records and original request fingerprints remain supported.
+
+Normal model turns start with four discovery/clarification capabilities and load
+exact allowed native schemas as needed. Discovery survives worker replacement;
+the complete first-party name inventory still guards public replies. Durable
+Tasks can continue across four bounded compute slices on the same Run, retaining
+their original budget, pending calls and effect identities. Owner pause/cancel,
+revocation, stale fences and financial reconciliation remain authoritative.
+
+Final verification:1047 pytest cases passed without skips. Four actual PostgreSQL
+continuation groups passed separately. The integrated Agent/PostgreSQL harness passed four
+groups covering context variants, discovery/restart, read-only denial,
+conditional wake/reassessment and genuinely signed verified simulation execution
+versus invalidation with zero trades. Existing readiness, progressive Skills,
+Agent recovery, full account management, Goal call identity, Task waits and
+opportunity/runtime PostgreSQL checks all passed. `bash scripts/build.sh` passed
+after correcting one test-format issue; the final aggregate build also passed
+strict Pyright, Ruff/format, installed-wheel policy and all seven client targets.
+Both new integration checks are registered in the foundation runner; no complete
+59-fixture foundation rerun is claimed for this wave.
+
+These are deterministic/scripted harness results, not a claim about a deployed
+model's independent strategy quality. No production authorization, broker trade,
+native application build, migration or fresh production probe occurred. Goal and
+account grants retain distinct semantics; guidance now uses the existing
+management Task for ordinary full-management objectives rather than introducing
+an unnecessary separate Goal. The last recorded provider prerequisites remain.
+
 ## Product refocus — 2026-10-23
 
 The owner prioritizes a simple persistent trading teammate after capability

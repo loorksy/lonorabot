@@ -1,5 +1,13 @@
 # Capability dependency graph
 
+LLM-owned integration (2026-10-24): existing compact policy and progressive
+Skills -> model-selected exact schema discovery -> same action/observation loop
+and bounded durable Task slices -> sourced model interpretation or conditional
+review -> existing watch/timer wake -> fresh model reassessment -> existing
+authority/preflight/executor/independent verification. Detector observations
+assist judgment; no named detector is a universal prerequisite for model bias.
+Conditional recording alone neither starts monitoring nor authorizes execution.
+
 Current integration priority: coherent management authority and current broker
 evidence -> one complete persistent trading mission -> actual model-behavior
 acceptance -> broader capabilities. Reuse the owners below; the

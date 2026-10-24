@@ -1,5 +1,14 @@
 # Implementation matrix
 
+## LLM-owned judgment and harness delta — 2026-10-24
+
+| ID | Requirement / existing owner | Behavior delivered | Status | Evidence / limit |
+| --- | --- | --- | --- | --- |
+| H-DECISION | Model owns interpretation; existing decision ledger/readiness | Optional detectors, retained model intent, versioned natural-language conditional entry and separate execution state | VERIFIED |40 focused units; real PostgreSQL readiness and signed conditional/reassessment harness; old fingerprints/history retained; no execution permission from a decision |
+| H-DISCOVERY | Existing ToolRegistry/environment/Run checkpoint | Hermes-derived bounded catalog ranking, four initial capabilities, exact allowed schemas loaded on demand and restored after worker replacement | VERIFIED |6 units; actual Agent/PostgreSQL context/discovery/restart and read-only denial; initial serialized schemas under10% of full catalog in unit fixture; no latency or live-model quality claim |
+| H-CONTINUE | Existing Task/Run/checkpoint/claimant | Finite persisted compute slices retain last-round calls and original receipts, with owner controls and fencing | VERIFIED |13 units and4 actual PostgreSQL groups; exactly-once receipt-backed test effect, finite budget, pause/cancel, stale lease; no new financial retry path |
+| H-CONSISTENCY | Accepted behavioral harness; existing AgentRuntime | Arabic/English/contextual follow-ups, conditional wait/wake/recheck, verified signed simulation entry or no-entry branch | VERIFIED |4 deterministic actual Agent/PostgreSQL groups; a scripted provider does not prove real model reasoning quality |
+
 Current priority: the [complete trading teammate checkpoint](AUTONOMOUS_TRADING_PRODUCT_REQUIREMENTS.md#first-completion-checkpoint)
 in the existing Agent/Task/execution owners. The 2026-10-23 refocus changes order,
 not completion status; existing requirements and blockers remain tracked below.

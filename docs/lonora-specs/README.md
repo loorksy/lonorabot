@@ -36,6 +36,7 @@ Initial01–18 audit: `895eaa8` on `feat/coherent-agent-foundations` (historical
 - [Requirement matrix](IMPLEMENTATION_MATRIX.md): behavior, existing implementation, missing work, shared dependencies and verification evidence.
 - [Dependency graph](DEPENDENCY_GRAPH.md): capability ownership and safe integration waves.
 - [Progress](PROGRESS.md): current wave, blockers, test evidence and next integration point.
+- [LLM-owned Agent harness source review](AGENT_HARNESS_SOURCE_REVIEW.md): actual pinned Hermes/Nanobot code comparison, selective source reuse, model decision boundaries and integrated harness acceptance.
 - [Professional trading Agent environment build plan](NANOBOT_PARITY_AND_RELIABILITY_PLAN.md): selective Hermes Agent, gbrain, Rakazo, and Nanobot patterns integrated into Lonora's existing owners; seven waves, B01–B08 delivery requirements, R01–R07 architecture/product requirements, and C01–C11 TradingView/Chart Use requirements covering per-Bot scope, live drawings, on-demand visual sessions, observation/correction, Follow Agent/Free Browse, and English/Arabic bottom-sheet UX. AiChart is a visual reference only. The filename is retained for existing links; this is a proposal, not an implementation completion claim.
 
 A source file being stored does not make its functionality implemented. VERIFIED requires an executed behavioral test. Native/device verification is reported independently of browser validation. Financial authorization, ownership, exact symbols, journal, reconciliation and global controls remain authoritative.

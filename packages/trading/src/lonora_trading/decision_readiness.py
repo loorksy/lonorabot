@@ -1,4 +1,4 @@
-"""Separate a grounded market opinion from entry confirmation and financial authority.
+"""Keep model judgment, optional detector observations and execution state separate.
 
 This is a projection over captured evidence and existing server state, not a signal
 generator, risk engine or execution gate. Submission still uses the executor's
@@ -60,17 +60,15 @@ def decision_readiness(
     market_codes = list(dict.fromkeys(market_codes))
     assessment_codes = list(market_codes)
     supporting_observation = None
+    supporting_codes: list[str] = []
     if not request.summary.strip():
         assessment_codes.append("market_rationale_required")
     if request.market_view is None:
         assessment_codes.append("market_interpretation_not_supplied")
-    elif not assessment_codes:
-        supporting_observation, reasons = inspect_condition(
+    elif not assessment_codes and request.market_view.supporting_condition is not None:
+        supporting_observation, supporting_codes = inspect_condition(
             request.market_view.supporting_condition, request, evidence
         )
-        assessment_codes.extend(reasons)
-        if supporting_observation is not None and supporting_observation.state != "confirmed":
-            assessment_codes.append("market_supporting_condition_unconfirmed")
     assessment = MarketAssessment(
         bias=request.market_view.bias
         if not assessment_codes and request.market_view
@@ -81,53 +79,38 @@ def decision_readiness(
         quote_observed_at=evidence.quote.observed_at if evidence.quote else None,
         candle_observed_at=evidence.candles[-1].time if evidence.candles else None,
         supporting_observation=supporting_observation,
+        supporting_reason_codes=supporting_codes,
         supporting_condition=request.market_view.supporting_condition
         if request.market_view
         else None,
     )
 
-    entry = EntryReadiness(state="NOT_CONFIRMED", reason_codes=["entry_condition_required"])
-    if request.entry_condition is not None:
-        required = detector_inputs(request.entry_condition)
-        unavailable = [
-            value.reason_code
-            for name, value in (("quote", quote), ("candles", candles))
-            if name in required and not value.healthy
-        ]
-        # Relationship detectors require their own deterministic current snapshots;
-        # this projection does not invent them or map an unrelated relationship ID.
-        if "relationships" in required:
-            unavailable.append("entry_relationship_confirmation_unavailable")
-        if market_codes:
-            unavailable.extend(market_codes)
-        if unavailable:
-            entry = EntryReadiness(
-                state="INSUFFICIENT_EVIDENCE",
-                reason_codes=list(dict.fromkeys(unavailable)),
-                condition=request.entry_condition,
-            )
-        else:
-            observation = evaluate_detector(
-                request.entry_condition,
-                symbol=request.symbol,
-                timeframe=request.timeframe,
-                quote=evidence.quote,
-                candles=evidence.candles,
-                observed_at=now,
-            )
-            confirmed = observation.state == "confirmed" and request.action != "WAIT"
-            entry = EntryReadiness(
-                state="CONFIRMED" if confirmed else "NOT_CONFIRMED",
-                reason_codes=[]
-                if confirmed
-                else [
-                    "entry_direction_required"
-                    if request.action == "WAIT"
-                    else "entry_condition_unconfirmed"
-                ],
-                observation=observation,
-                condition=request.entry_condition,
-            )
+    observation = None
+    observation_codes: list[str] = []
+    if request.entry_condition is not None and not market_codes:
+        observation, observation_codes = inspect_condition(
+            request.entry_condition, request, evidence
+        )
+        if observation is not None and observation.state != "confirmed":
+            observation_codes.append("entry_condition_unconfirmed")
+    if assessment_codes:
+        entry = EntryReadiness(state="INSUFFICIENT_EVIDENCE", reason_codes=assessment_codes)
+    elif request.action == "CONDITIONAL_ENTRY":
+        entry = EntryReadiness(
+            state="AWAITING_REASSESSMENT", reason_codes=["conditional_reassessment_required"]
+        )
+    elif request.action == "WAIT":
+        entry = EntryReadiness(state="NOT_CONFIRMED", reason_codes=["model_abstained"])
+    else:
+        # A detector can confirm its own measured condition. Its absence, false
+        # result or forming state does not choose the model's action for it.
+        entry = EntryReadiness(
+            state="CONFIRMED"
+            if observation is not None and observation.state == "confirmed"
+            else "MODEL_SELECTED",
+            reason_codes=observation_codes,
+        )
+    entry.condition, entry.observation = request.entry_condition, observation
 
     execution_codes = [item.reason_code for item in (quote, candles, account) if not item.healthy]
     execution_codes.extend(assessment_codes)
@@ -146,7 +129,9 @@ def decision_readiness(
         evidence.account.trade_allowed is False or evidence.account.investor_mode is True
     ):
         execution_codes.append("broker_trading_not_allowed")
-    if entry.state != "CONFIRMED":
+    if request.action == "CONDITIONAL_ENTRY":
+        execution_codes.append("conditional_reassessment_required")
+    elif entry.state not in {"CONFIRMED", "MODEL_SELECTED"}:
         execution_codes.append("entry_not_confirmed")
     return DecisionReadiness(
         market_assessment=assessment,

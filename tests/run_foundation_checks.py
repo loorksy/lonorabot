@@ -48,6 +48,8 @@ CHECKS = (
     "check_market_structure.py",
     "check_execution_quality.py",
     "check_decision_readiness.py",
+    "check_llm_harness.py",
+    "check_task_continuation.py",
     "check_strategy_research.py",
     "check_account_authority.py",
     "check_full_account_management.py",
