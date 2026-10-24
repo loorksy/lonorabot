@@ -1,5 +1,46 @@
 # Progress
 
+## Published LLM-owned harness — 2026-10-24
+
+The integration branch is pushed. API and Gateway run immutable source revision
+`a2d37f4f2686aada9e04cc4b12ce441d330f769e`, built from an offline first-party
+wheel with SHA256
+`b52f17396912d974fd3666c39bf33022b9ab91c068ee95ced24c3bda2d30c60f`.
+All Python modules were byte-compared to the archived commit before transfer;
+the candidate also verified installed source equality, distributed MIT notice,
+106 registered/four initial schemas, discretionary interpretation, conditional
+reassessment and the retained compute budget without broker/network access.
+
+Production checks pass `/health`, `/ready`, `/app/`, current API/Gateway labels,
+unchanged migration0030, and actual Gateway -> restricted numerical execution
+with rejection of a mismatched image. Active and pending account grants remain
+zero. No financial authorization, broker mutation, APK, migration or backup was
+created; transferred wheel, image archive and release staging were removed.
+
+The post-activation execution check exposed an absent analytical image, even
+though the host service was active. The previously built reviewed numerical
+profile was restored from development over hash-verified SSH transport and
+validated against the existing dependency lock, actual numerical/statistical
+calculations, raster generation and unsupported-dependency rejection. Its pinned
+VPS image is now
+`sha256:d4f1832eb31f966307ebcdfbc5dcebd6bc9869ea9e5d9847a2775f9b2e7e2598`.
+Existing image-bound procedure validations are not silently rewritten; the
+normal validation lifecycle must establish compatibility with the current image.
+
+A host restart also exposed the systemd runtime directory being recreated while
+Gateway retained its old bind mount. The service template and deployed drop-in
+now preserve that directory across restart. Actual production acceptance verified
+the directory inode and Gateway identity remain stable, followed by successful
+Gateway execution. The negative dependency fixture's deadline is now30seconds,
+including cold container setup; it still requires actual dependency rejection.
+
+All1047 offline tests and the full build passed for the Agent integration;
+the operational fixture also passed on the VPS. Strategy quality of the real
+model, physical-device acceptance and the wider product program remain open.
+Three saved charts still report `broker_market_data_billing_required`; recent
+Gateway diagnostics also include `broker_account_undeployed`. These are current
+provider prerequisites, not repaired or bypassed by the harness deployment.
+
 ## LLM-owned trading harness integration — 2026-10-24
 
 Fresh Hermes and Nanobot source checkouts were downloaded beside Lonora and their

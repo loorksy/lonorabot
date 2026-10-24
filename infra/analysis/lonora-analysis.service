@@ -14,6 +14,8 @@ EnvironmentFile=/etc/lonora-analysis/image.env
 ExecStart=/opt/lonora-analysis/.venv/bin/python -m lonora_agent.workspace_host --image ${LONORA_ANALYSIS_IMAGE} --directory /run/lonora-analysis --group 10001 --concurrency 2
 RuntimeDirectory=lonora-analysis
 RuntimeDirectoryMode=0750
+# Keep the directory inode used by the Gateway's read-only bind mount on restart.
+RuntimeDirectoryPreserve=restart
 Restart=on-failure
 RestartSec=5
 TimeoutStopSec=65

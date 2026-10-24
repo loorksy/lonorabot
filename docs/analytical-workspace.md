@@ -7,6 +7,15 @@ PostgreSQL. A dedicated Unix-socket bridge runs commands in fresh, immutable-ima
 containers and returns actual exit status, bounded output and validated files.
 No new Agent, model loop, scheduler, broker adapter or financial authority exists.
 
+The 2026-10-24 deployment restored a missing numerical image using the reviewed
+profile and existing dependency lock. The VPS now pins
+`sha256:d4f1832eb31f966307ebcdfbc5dcebd6bc9869ea9e5d9847a2775f9b2e7e2598`.
+Existing image-specific validation is not rewritten to match a new profile.
+The systemd template uses `RuntimeDirectoryPreserve=restart`: the Gateway binds
+the socket directory, so replacing its inode on a host-service restart would
+disconnect the still-running Gateway. Actual restart acceptance preserved the
+directory and Gateway identity, then verified restricted numerical execution.
+
 The persistent workspace and isolated host bridge are now installed and verified
 on the production VPS (2026-10-23), initially at commit `b66b213`. File management needs migration `0028_analytical_workspace`;
 execution additionally requires an explicitly configured host socket. Missing

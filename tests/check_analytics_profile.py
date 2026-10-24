@@ -65,7 +65,10 @@ async def main() -> None:
     )
     assert failure.exit_code != 0 and "ModuleNotFoundError" in failure.stderr
     no_install = await backend.execute(
-        "python -m pip install --no-index lonora_nonexistent_dependency", deadline_seconds=10
+        # The deadline includes cold Docker/container setup on the production
+        # host; the assertion checks dependency rejection, not startup speed.
+        "python -m pip install --no-index lonora_nonexistent_dependency",
+        deadline_seconds=30,
     )
     assert no_install.exit_code != 0
     print(
