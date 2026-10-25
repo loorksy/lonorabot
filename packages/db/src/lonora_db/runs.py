@@ -51,6 +51,7 @@ def run_data(row: RunRow) -> dict[str, Any]:
         "parent_run_id": row.parent_run_id,
         "status": row.status,
         "trigger": row.trigger,
+        "input_seq": row.input_seq,
         "error_code": row.error_code,
         "result": row.result,
         "model_metadata": row.model_metadata,

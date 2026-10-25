@@ -113,15 +113,17 @@ export function MessageBubble({
           })}
         </div>
         <div className="message-meta template-message-meta">
-          <time
-            dateTime={message.created_at}
-            title={new Date(message.created_at).toLocaleString(i18n.locale)}
-          >
-            {new Date(message.created_at).toLocaleTimeString(i18n.locale, {
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
-          </time>
+          {!outgoing && (
+            <time
+              dateTime={message.created_at}
+              title={new Date(message.created_at).toLocaleString(i18n.locale)}
+            >
+              {new Date(message.created_at).toLocaleTimeString(i18n.locale, {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </time>
+          )}
           {outgoing ? (
             outgoing.delivery === "failed" ? (
               <button
@@ -272,7 +274,12 @@ export function StreamingMessageCard({
           <ChatMarkdown streaming={stream.phase === "streaming"}>{stream.text}</ChatMarkdown>
         </div>
         <div className="message-meta template-message-meta">
-          <WorkingIndicator run={run} />
+          {stream.phase === "streaming" && (
+            <span role="status">
+              {agent && <AgentAvatar agent={agent} state="writing" />}
+              <Trans>Writing</Trans>
+            </span>
+          )}
         </div>
         {stream.truncated && (
           <p className="muted">

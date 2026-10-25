@@ -76,6 +76,7 @@ test("message appears before delayed POST and slow runs, survives navigation, th
     const pending = page.locator("article[data-delivery='sending']");
     await expect(pending).toContainText(content, { timeout: 1000 });
     await expect(pending).toHaveCount(1);
+    await expect(pending.locator("time")).toHaveCount(0);
     await expect(pending.getByRole("status")).toHaveText("جارٍ الإرسال…");
     await expect(page.locator("[data-stream-run-id]")).toHaveCount(0);
 

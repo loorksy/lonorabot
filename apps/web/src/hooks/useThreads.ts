@@ -204,15 +204,21 @@ export function useThreads(agentId?: string, threadId?: string) {
         mentions,
         inputAnswer,
       ]);
-      const intent = enqueueOutgoing(key, threadId, fingerprint, {
-        content,
-        attachment_ids,
-        reply_to,
-        ...(inputAnswer ? { input_answer: inputAnswer } : {}),
-        mention_agent_ids: mentions?.agent_ids ?? [],
-        mention_all: mentions?.all ?? false,
-        collaboration_session_id: mentions?.collaboration_session_id,
-      });
+      const intent = enqueueOutgoing(
+        key,
+        threadId,
+        fingerprint,
+        {
+          content,
+          attachment_ids,
+          reply_to,
+          ...(inputAnswer ? { input_answer: inputAnswer } : {}),
+          mention_agent_ids: mentions?.agent_ids ?? [],
+          mention_all: mentions?.all ?? false,
+          collaboration_session_id: mentions?.collaboration_session_id,
+        },
+        Math.max(0, ...canonicalMessages.map((message) => message.seq)),
+      );
       await deliver(intent);
     },
     retry: async (nonce: string) => {

@@ -10,28 +10,16 @@ import { runActivity } from "../../lib/run-activity";
 import { AgentAvatar } from "./AgentAvatar";
 import "./beautiful-ui.css";
 
-const CHEVRON_CELLS = Array.from({ length: 9 }, (_, index) => {
-  const row = Math.floor(index / 3);
-  const column = index % 3;
-  return { key: `${row}:${column}`, delay: (column + Math.abs(row - 1)) * 90 };
-});
-
 /** Tampletgrok's shimmer presentation, with the label supplied by the real runtime state. */
 export function Shimmer({ children }: { children: ReactNode }) {
   return <span className="lonora-shimmer">{children}</span>;
 }
 
-/** Accessible pixel-grid activity indicator; it never invents a running task. */
+/** Activity uses the actual avatar when available; no separate grid animation. */
 export function LoadingState({ label, indicator }: { label: ReactNode; indicator?: ReactNode }) {
   return (
     <span role="status" className="working lonora-loading-state">
-      {indicator ?? (
-        <span className="lonora-pixel-grid" aria-hidden="true">
-          {CHEVRON_CELLS.map((cell) => (
-            <span key={cell.key} style={{ animationDelay: `${cell.delay}ms` }} />
-          ))}
-        </span>
-      )}
+      {indicator}
       <Shimmer>{label}</Shimmer>
     </span>
   );

@@ -1166,3 +1166,19 @@ public index/main JavaScript matched the release manifest. API/Gateway health,
 restricted execution bridge and unchanged migration0031 passed. No broker action,
 conversation, APK or backup was created; temporary authentication and transfer
 staging were removed. Full1122-test and build checks passed for this release.
+
+## Coherent live reply timeline and authoritative timestamps — 2026-10-25
+
+Live previews now join the conversation timeline at the Run's actual input
+sequence rather than a detached transcript footer. Completed historical previews
+whose canonical messages are outside the loaded history window cannot reappear;
+canonical acknowledgement replaces its own preview once. Optimistic messages use
+a nearby provisional ordering anchor instead of MAX_SAFE_INTEGER, and display
+server timestamps only after admission, avoiding a client-clock timestamp flash.
+Existing stored timestamps and message sequences are not rewritten.
+
+The nine-cell fallback loading animation is removed. A streaming reply displays
+the actual writing avatar/label instead of the generic Working grid.
+Validation: six real Chromium/API/PostgreSQL browser scenarios (including a later
+owner message during streaming and pending timestamp suppression), nine Node
+outbox/timeline cases and the full build pass. No migration or financial change.

@@ -15,7 +15,6 @@ const entries = new Map<string, OutgoingIntent[]>();
 const uncertain = new Map<string, Map<string, OutgoingIntent>>();
 const listeners = new Set<() => void>();
 const empty: OutgoingIntent[] = [];
-let sequence = 0;
 
 export function outgoingKey(ownerId: string, threadId: string) {
   return JSON.stringify([ownerId, threadId]);
@@ -37,6 +36,7 @@ export function enqueueOutgoing(
   threadId: string,
   fingerprint: string,
   body: Record<string, unknown>,
+  afterSeq = 0,
 ): OutgoingIntent {
   const prior =
     outgoingMessages(key).find((row) => row.fingerprint === fingerprint) ??
@@ -59,7 +59,7 @@ export function enqueueOutgoing(
       thread_id: threadId,
       agent_id: null,
       // Local sequence is presentation only. The server's accepted seq always wins.
-      seq: Number.MAX_SAFE_INTEGER - 1_000_000 + ++sequence,
+      seq: Math.max(afterSeq, ...outgoingMessages(key).map((row) => row.message.seq)) + 0.25,
       role: "user",
       content: String(body.content ?? ""),
       reply_to: typeof body.reply_to === "string" ? body.reply_to : null,

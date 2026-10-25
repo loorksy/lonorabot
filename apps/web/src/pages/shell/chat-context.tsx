@@ -48,6 +48,7 @@ import { useThreads } from "../../hooks/useThreads";
 import type { Agent, Message, Resource, Run } from "../../lib/api";
 import { api } from "../../lib/api";
 import { streamForRun } from "../../lib/response_streaming";
+import { type StreamRow, streamTimeline, streamVisible } from "../../lib/stream-timeline";
 import { userError } from "../../lib/user_error";
 import { useClient } from "../../providers/ClientProvider";
 import { MessageBubble, RecoveryNotice, StreamingMessageCard } from "./message-cards";
@@ -191,16 +192,10 @@ export function ThreadViewport({
       (run.status !== "completed" || run.model_metadata.reply_outcome === "silent"),
   );
   const working = activeRuns.some((run) => isWorking(run.status));
-  const messageIds = new Set(thread.messages.map((message) => message.id));
   const streamingRows = thread.runs
     .filter((run) => run.thread_id === threadId)
     .map((run) => ({ run, stream: streamForRun(run, streams[run.id]) }))
-    .filter(
-      ({ stream }) =>
-        stream?.text &&
-        stream.phase !== "discarded" &&
-        (!stream.message_id || !messageIds.has(stream.message_id)),
-    )
+    .filter(({ run, stream }) => streamVisible(run, stream, thread.messages))
     .sort((a, b) => a.run.created_at.localeCompare(b.run.created_at));
 
   async function changeRun(action: "resume" | "cancel", id?: string) {
@@ -262,6 +257,7 @@ export function ThreadViewport({
       <ThreadMessages
         key={`messages:${threadId}`}
         messages={thread.messages}
+        streaming={streamingRows.flatMap(({ run, stream }) => (stream ? [{ run, stream }] : []))}
         onAnswer={(answer, label, messageId) =>
           thread.send(label, [], messageId, undefined, answer)
         }
@@ -285,31 +281,17 @@ export function ThreadViewport({
         onOlder={thread.older}
         onRetrySend={thread.retry}
         trailing={
-          <>
-            {streamingRows.map(
-              ({ run, stream }) =>
-                stream && (
-                  <StreamingMessageCard
-                    key={`${run.id}:${stream.turn_id}`}
-                    run={run}
-                    showSpeaker={!agentId}
-                    stream={stream}
-                    agent={agents.find((agent) => agent.id === run.agent_id)}
-                  />
-                ),
-            )}
-            <div className="thread-progress template-thread-progress">
-              <AgentActivity
-                events={local}
-                runs={thread.runs.filter(
-                  (run) => !streamingRows.some((entry) => entry.run.id === run.id),
-                )}
-                agents={agents}
-              />
-              <ToolActivityDisclosure events={local} />
-              <SubagentTasks runs={thread.runs} />
-            </div>
-          </>
+          <div className="thread-progress template-thread-progress">
+            <AgentActivity
+              events={local}
+              runs={thread.runs.filter(
+                (run) => !streamingRows.some((entry) => entry.run.id === run.id),
+              )}
+              agents={agents}
+            />
+            <ToolActivityDisclosure events={local} />
+            <SubagentTasks runs={thread.runs} />
+          </div>
         }
       />
       <Composer
@@ -797,7 +779,8 @@ function measureTextareaHeight(field: HTMLTextAreaElement, width?: number) {
 }
 
 export function ThreadMessages({
-  messages,
+  messages: canonicalMessages,
+  streaming = [],
   agents,
   artifacts,
   peers = [],
@@ -818,6 +801,7 @@ export function ThreadMessages({
   onRetrySend?: (nonce: string) => Promise<void>;
   showSpeakers?: boolean;
   messages: Message[];
+  streaming?: StreamRow[];
   approvals?: TradeApproval[];
   superBotRequests?: SuperBotRequest[];
   renderSuperBot?: (row: SuperBotRequest) => ReactNode;
@@ -831,6 +815,8 @@ export function ThreadMessages({
   onOlder: () => Promise<void>;
   trailing?: ReactNode;
 }) {
+  const messages = streamTimeline(canonicalMessages, streaming);
+  const previews = new Map(streaming.map((row) => [`preview:${row.run.id}`, row]));
   const { i18n } = useLingui();
   const scroll = useRef<HTMLElement>(null);
   const content = useRef<HTMLDivElement>(null);
@@ -954,10 +940,23 @@ export function ThreadMessages({
             if (item.kind === "approval")
               return <Fragment key={item.id}>{renderApproval?.(item.approval)}</Fragment>;
             const message = item.message;
+            const preview = previews.get(message.id);
+            if (preview)
+              return (
+                <StreamingMessageCard
+                  key={message.id}
+                  run={preview.run}
+                  stream={preview.stream}
+                  agent={agents.find((agent) => agent.id === preview.run.agent_id)}
+                  showSpeaker={showSpeakers}
+                />
+              );
             const question = questions.get(message.id);
             const previousMessage =
               messages[messages.findIndex((row) => row.id === message.id) - 1];
-            const separator = needsTimeSeparator(message.created_at, previousMessage?.created_at);
+            const separator =
+              !message.id.startsWith("pending:") &&
+              needsTimeSeparator(message.created_at, previousMessage?.created_at);
             return (
               <Fragment key={message.id}>
                 {separator && (

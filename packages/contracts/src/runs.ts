@@ -20,6 +20,7 @@ export type InputRequest = {
   answer_message_id: string | null;
 };
 export type Run = {
+  input_seq?: number;
   input_requests?: InputRequest[];
   input_request?: InputRequest | null;
   id: string;
