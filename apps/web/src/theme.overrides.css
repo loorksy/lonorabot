@@ -1,19 +1,22 @@
-/* Modified for Lonora from the template shell layout; see THIRD_PARTY_NOTICES.md. */
+/* Lonora shell with OpenUI AgentInterface layout (MIT, Thesys Inc., revision9d73d17).
+   Earlier template-derived rules retain their THIRD_PARTY_NOTICES.md attribution. */
 .tpl-shell {
   position: relative;
   display: flex;
   height: 100dvh;
   overflow: hidden;
-  background: var(--background);
+  padding: 8px;
+  gap: 8px;
+  background: var(--sidebar);
 }
 .tpl-sidebar {
   position: relative;
   display: flex;
   flex-shrink: 0;
   flex-direction: column;
-  width: 316px;
+  width: 272px;
   min-height: 0;
-  border-inline-end: 1px solid var(--sidebar-border);
+  border-inline-end: 0;
   background: var(--sidebar);
   transition: width 150ms;
 }
@@ -32,6 +35,8 @@
   min-width: 0;
   min-height: 0;
   overflow: hidden;
+  border: 1px solid var(--sidebar-border);
+  border-radius: 22px;
   background: var(--background);
 }
 .tpl-sidebar-top {
@@ -250,9 +255,9 @@
   justify-content: space-between;
   gap: 10px;
   flex-shrink: 0;
-  min-height: 70px;
-  padding: 14px 22px;
-  border-bottom: 1px solid var(--sidebar-border);
+  min-height: 60px;
+  padding: 10px 20px;
+  border-bottom: 0;
 }
 .tpl-header-leading {
   display: flex;
@@ -524,6 +529,14 @@
   background: var(--overlay);
 }
 @media (max-width: 767px) {
+  .tpl-shell {
+    padding: 0;
+    gap: 0;
+  }
+  .tpl-main {
+    border: 0;
+    border-radius: 0;
+  }
   .tpl-mobile-only {
     display: inline-flex;
   }

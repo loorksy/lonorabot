@@ -5,6 +5,7 @@ from lonora_contracts.domain import utcnow
 from lonora_core.user_error import LonoraError
 from lonora_db.events import emit
 from lonora_db.generated_artifacts import link_generated_artifacts, resolve_reply_artifacts
+from lonora_db.rich_response import validated_rich_content
 from lonora_db.runs import complete_run, fail_run, locked_run_thread, renew_lease, require_lease
 from lonora_db.schema import MessageRow, SteeringRow, TradeApprovalRow
 from lonora_db.streaming import settle_stream, stream_identity
@@ -68,6 +69,7 @@ async def execute_run(
                         context.lease,
                         outcome.text,
                         outcome.metadata.get("external_wait_call_id"),
+                        rich_content=validated_rich_content(outcome.metadata.get("rich_content")),
                     )
                     if settled == "continue":
                         continue
@@ -105,7 +107,8 @@ async def execute_run(
                         )
                     ):
                         raise LonoraError("input_question_identity_conflict", 409)
-                    if thread and outcome.text and prior_question is None:
+                    rich_content = validated_rich_content(outcome.metadata.get("rich_content"))
+                    if thread and (outcome.text or rich_content) and prior_question is None:
                         answer, artifacts = await resolve_reply_artifacts(
                             session, context.owner_id, row, outcome.text
                         )
@@ -115,6 +118,7 @@ async def execute_run(
                             seq=thread.next_seq,
                             role="assistant",
                             content=answer,
+                            rich_content=rich_content,
                         )
                         thread.next_seq += 1
                         session.add(message)
@@ -142,7 +146,11 @@ async def execute_run(
                                 "input_requests": history[-20:],
                             }
                         snapshot = settle_stream(
-                            row, "committed", message_id=message.id, text=answer
+                            row,
+                            "committed",
+                            message_id=message.id,
+                            text=answer,
+                            rich_content=rich_content,
                         )
                         if snapshot:
                             emit(

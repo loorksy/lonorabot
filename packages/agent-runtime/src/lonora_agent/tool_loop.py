@@ -63,18 +63,29 @@ async def persist(
         await checkpoint(session, context.lease, state)
 
 
-def wait_update(messages: list[ModelMessage], call_id: str) -> dict[str, str]:
-    """Only prose submitted with this exact accepted wait can describe its work."""
-    prose = next(
+def rich_metadata(state: dict[str, Any]) -> dict[str, Any]:
+    value = state.get("rich_content")
+    return {"rich_content": value} if isinstance(value, dict) else {}
+
+
+def wait_update(messages: list[ModelMessage], call_id: str) -> dict[str, Any]:
+    """Only display content attached to this exact accepted wait describes it."""
+    message = next(
         (
-            message.content
+            message
             for message in reversed(messages)
             if message.role == "assistant"
             and any(call.id == call_id for call in message.tool_calls)
         ),
-        "",
-    ).strip()
-    return {"call_id": call_id, "text": prose}
+        None,
+    )
+    result: dict[str, Any] = {
+        "call_id": call_id,
+        "text": message.content.strip() if message else "",
+    }
+    if message and message.rich_content is not None:
+        result["rich_content"] = message.rich_content
+    return result
 
 
 def external_wait_outcome(state: dict[str, Any]) -> LoopOutcome:
@@ -85,6 +96,7 @@ def external_wait_outcome(state: dict[str, Any]) -> LoopOutcome:
     update = environment.get("wait_update")
     # Legacy checkpoints never published this narration. Keep them silent rather
     # than promoting old private prose through a newer disclosure boundary.
+    rich_content: dict[str, Any] | None = None
     if update is None:
         text = ""
     elif not isinstance(update, dict):
@@ -94,9 +106,16 @@ def external_wait_outcome(state: dict[str, Any]) -> LoopOutcome:
         if saved.get("call_id") != identifier or not isinstance(saved.get("text"), str):
             raise LonoraError("task_wait_identity_invalid", 409)
         text = cast(str, saved["text"])
+        raw_rich = saved.get("rich_content")
+        if isinstance(raw_rich, dict):
+            rich_content = cast(dict[str, Any], raw_rich)
     return LoopOutcome(
         text,
-        {**state.get("selection", {}), "external_wait_call_id": identifier},
+        {
+            **state.get("selection", {}),
+            "external_wait_call_id": identifier,
+            **({"rich_content": rich_content} if rich_content is not None else {}),
+        },
         external_wait=True,
     )
 
@@ -187,7 +206,7 @@ async def execute_tool_loop(
         if not await owner_steering_pending(context):
             return LoopOutcome(
                 str(question["question"]),
-                state.get("selection", {}),
+                {**state.get("selection", {}), **rich_metadata(state)},
                 True,
                 input_request=question,
             )
@@ -493,7 +512,7 @@ async def execute_tool_loop(
             if result.get("_runtime_wait"):
                 return LoopOutcome(
                     str(result["question"]),
-                    state.get("selection", {}),
+                    {**state.get("selection", {}), **rich_metadata(state)},
                     True,
                     input_request=state["pending_input_request"],
                 )
@@ -512,7 +531,8 @@ async def execute_tool_loop(
                     prose,
                     {
                         **state.get("selection", {}),
-                        "reply_outcome": "answered" if prose else "silent",
+                        "reply_outcome": "answered" if prose or rich_metadata(state) else "silent",
+                        **rich_metadata(state),
                     },
                 )
         if await merge_steering(context, state, messages):
@@ -539,6 +559,10 @@ async def execute_tool_loop(
             turn_capability,
             capability_inventory=registry.capability_inventory(read_only),
         )
+        if reply.rich_content is None:
+            state.pop("rich_content", None)
+        else:
+            state["rich_content"] = reply.rich_content
         state["rounds"] = int(state.get("rounds", 0)) + 1
         state["selection"] = {
             "provider": selection.provider,
@@ -546,7 +570,12 @@ async def execute_tool_loop(
             "capability": reply.provider_metadata.get("runtime_capability", turn_capability.value),
         }
         messages.append(
-            ModelMessage(role="assistant", content=reply.text, tool_calls=reply.tool_calls)
+            ModelMessage(
+                role="assistant",
+                content=reply.text,
+                tool_calls=reply.tool_calls,
+                rich_content=reply.rich_content,
+            )
         )
         pending = list(reply.tool_calls)
         await persist(context, state, messages, pending)
@@ -561,7 +590,7 @@ async def execute_tool_loop(
                     set(updated_skills) | set(state.get("viewed_skill_ids", []))
                 )
             continue
-        if not reply.text.strip() and is_conversational(run.trigger):
+        if not reply.text.strip() and reply.rich_content is None and is_conversational(run.trigger):
             messages.append(
                 ModelMessage(
                     role="system",
@@ -574,7 +603,13 @@ async def execute_tool_loop(
             continue
         return LoopOutcome(
             reply.text,
-            {**state["selection"], "reply_outcome": "answered" if reply.text.strip() else "silent"},
+            {
+                **state["selection"],
+                **rich_metadata(state),
+                "reply_outcome": "answered"
+                if reply.text.strip() or reply.rich_content
+                else "silent",
+            },
         )
     if await schedule_task_continuation(context, state, maximum_rounds):
         raise ToolRetryScheduled()

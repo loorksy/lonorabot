@@ -1,5 +1,19 @@
 export type Locale = "ar" | "en";
 export const labels = {
+  visualExample: ["مثال توضيحي", "Illustrative example"],
+  visualEstimate: ["تقدير", "Estimate"],
+  visualUnavailable: ["غير متاح", "Unavailable"],
+  visualObservedAt: ["وقت الملاحظة", "Observed at"],
+  visualSources: ["بيانات الاستجابة", "Response evidence"],
+  visualActionUnavailable: [
+    "هذا الإجراء غير متاح في هذه المحادثة.",
+    "This action is unavailable in this conversation.",
+  ],
+  visualFilter: ["تصفية", "Filter"],
+  visualDetails: ["التفاصيل", "Details"],
+  visualTrue: ["نعم", "Yes"],
+  visualFalse: ["لا", "No"],
+
   superBotEnabled: ["السوبر بوت مفعّل", "Super Bot enabled"],
   skills: ["المهارات", "Skills"],
   skillsAdd: ["إضافة مهارة", "Add a skill"],

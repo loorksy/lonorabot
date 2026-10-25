@@ -4,6 +4,8 @@
 
 بنية الملفات ووظائفها في [docs/FRONTEND_STRUCTURE.md](docs/FRONTEND_STRUCTURE.md). خطة النقل ومصادر المكونات ومعايير القبول في [docs/UI_MIGRATION_PLAN.md](docs/UI_MIGRATION_PLAN.md). إشعارات المصادر والتراخيص في [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
+الردود البصرية الأصلية تُركّب داخل المحادثة بواسطة الوكيل نفسه، مع نصوص ومكونات وتفاعلات محلية، وتستخدم هوية Lonora وصلاحياتها الحالية. تفاصيل العقود والتصميم والحفظ في [docs/native-visual-responses.md](docs/native-visual-responses.md). يتطلب نشرها ترحيل `0032_message_rich_content`؛ لا تتطلب نموذجًا إضافيًا أو منصة ملفات جديدة.
+
 أهداف التداول الدائمة متاحة من لوحة «الأهداف» في ملف الوكيل، مع حدود الحجم والعمليات وتفعيل التداول التلقائي بواسطة المالك. تفاصيل التشغيل والاسترجاع في [docs/trading-goals.md](docs/trading-goals.md). طبّق ترحيل `0015_trading_goals` قبل تشغيل هذه النسخة.
 
 ## التشغيل المحلي

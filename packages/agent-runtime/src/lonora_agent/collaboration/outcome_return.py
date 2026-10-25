@@ -5,6 +5,7 @@ from lonora_contracts.runs import RunRequest
 from lonora_db.client import Database
 from lonora_db.events import emit
 from lonora_db.messages import message_data
+from lonora_db.rich_response import validated_rich_content
 from lonora_db.runs import create_run
 from lonora_db.schema import (
     EffectReceiptRow,
@@ -45,6 +46,7 @@ async def return_outcome(db: Database, run_id: str) -> None:
         child = await session.get(RunRow, run_id, with_for_update=True, populate_existing=True)
         if child is None or child.status not in {"completed", "failed", "cancelled"}:
             return
+        rich_content = validated_rich_content(child.model_metadata.get("rich_content"))
         receipt = outcome_receipt(run_id, child.lease_fence)
         if await session.get(EffectReceiptRow, receipt):
             return
@@ -115,14 +117,15 @@ async def return_outcome(db: Database, run_id: str) -> None:
                         origin
                         and origin.owner_id == ticket.owner_id
                         and origin.agent_id == child.agent_id
-                        and child.result
+                        and (child.result or rich_content)
                     ):
                         final = MessageRow(
                             thread_id=origin.id,
                             agent_id=child.agent_id,
                             role="assistant",
                             seq=origin.next_seq,
-                            content=child.result,
+                            content=child.result or "",
+                            rich_content=rich_content,
                         )
                         origin.next_seq += 1
                         session.add(final)
@@ -159,7 +162,7 @@ async def return_outcome(db: Database, run_id: str) -> None:
             )
             if (
                 origin
-                and child.result
+                and (child.result or rich_content)
                 and (
                     origin.agent_id == child.agent_id
                     or (
@@ -171,7 +174,7 @@ async def return_outcome(db: Database, run_id: str) -> None:
                 source = await session.get(ThreadRow, child.thread_id)
                 if source is None or source.owner_id != origin.owner_id:
                     raise ValueError("broker_event_owner_mismatch")
-                public_result = child.result
+                public_result = child.result or ""
                 if activation_ack is not None:
                     from lonora_bus.attention import attention_text
 
@@ -184,6 +187,7 @@ async def return_outcome(db: Database, run_id: str) -> None:
                     role="assistant",
                     seq=origin.next_seq,
                     content=public_result,
+                    rich_content=rich_content if activation_ack is None else None,
                 )
                 origin.next_seq += 1
                 session.add(final)
@@ -205,6 +209,7 @@ async def return_outcome(db: Database, run_id: str) -> None:
                 role="assistant",
                 seq=thread.next_seq,
                 content=outcome,
+                rich_content=rich_content,
             )
             thread.next_seq += 1
             session.add(message)

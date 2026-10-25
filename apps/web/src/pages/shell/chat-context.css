@@ -1,5 +1,10 @@
-/* Adapted from Tampletgrok's ThreadView/Composer layout; Apache-2.0. Modified for Lonora. */
+/* OpenUI AgentInterface layout adapted for Lonora (MIT, Thesys Inc., revision9d73d17).
+   Existing Tampletgrok chat boundaries retain their Apache-2.0 attribution. */
 .template-thread {
+  --chat-content-width: 728px;
+  --chat-inline-space: 24px;
+  --chat-composer-height: 96px;
+  position: relative;
   display: flex;
   flex-direction: column;
   flex: 1;
@@ -26,13 +31,17 @@
   min-height: 0;
   overscroll-behavior: contain;
   overflow-anchor: none;
-  padding: 20px 28px 8px;
+  padding: 24px var(--chat-inline-space) calc(var(--chat-composer-height) + 24px);
+  scroll-padding-block: 24px calc(var(--chat-composer-height) + 24px);
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar) transparent;
 }
 .template-transcript-content {
   display: flex;
   flex-direction: column;
   min-height: 100%;
-  max-width: 900px;
+  max-width: var(--chat-content-width);
   margin-inline: auto;
 }
 .template-thread-status {
@@ -101,7 +110,7 @@
 }
 .template-thread .template-message {
   padding: 0;
-  margin: 5px 0 10px;
+  margin: 0 0 28px;
   border-radius: 0;
   background: transparent;
   display: flex;
@@ -114,7 +123,10 @@
 .template-message-frame {
   min-width: 0;
   width: fit-content;
-  max-width: 88%;
+  max-width: 100%;
+}
+.template-message:where(.assistant:not(.template-peer-card)) .template-message-frame {
+  width: 100%;
 }
 .template-peer-card .template-message-frame {
   padding: 12px 16px;
@@ -127,7 +139,7 @@
   border-radius: 14px;
 }
 .template-message.user .template-message-frame {
-  max-width: 84%;
+  max-width: 85%;
 }
 .template-speaker {
   display: flex;
@@ -158,17 +170,20 @@
   color: var(--lonora-muted);
 }
 .template-message-text {
-  padding: 12px 18px;
-  border-radius: 20px;
-  background: var(--muted);
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
   font-size: 15.5px;
   line-height: 1.5;
   color: var(--foreground);
 }
 .template-message.user .template-message-text {
+  padding: 10px 18px;
+  border-radius: 24px;
   background: var(--chat-user);
   color: var(--chat-user-foreground);
-  line-height: 1.45;
+  font-size: 14px;
+  line-height: 1.55;
 }
 .template-user-text {
   white-space: pre-wrap;
@@ -316,7 +331,7 @@ html[dir="rtl"] .template-message-body .message-copy {
 }
 .template-jump-latest {
   position: absolute;
-  bottom: 12px;
+  bottom: calc(var(--chat-composer-height) + 8px);
   inset-inline-start: 50%;
   transform: translateX(-50%);
   width: 36px;
@@ -329,47 +344,53 @@ html[dir="rtl"] .template-message-body .message-copy {
   transform: translateX(50%);
 }
 .template-thread .template-composer {
-  position: relative;
+  position: absolute;
+  inset-inline: 0;
+  inset-block-end: 0;
   z-index: 3;
   flex-shrink: 0;
   min-width: 0;
   border: 0;
   border-radius: 0;
-  background: transparent;
-  padding: 10px 24px 22px;
+  padding: 16px var(--chat-inline-space) 20px;
+  background: linear-gradient(to bottom, transparent, var(--lonora-surface) 22px);
   margin: 0;
 }
 .template-composer[data-dragging="files"] {
   box-shadow: inset 0 0 0 2px var(--lonora-accent);
 }
 .template-composer-bar {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 14px;
-  padding: 9px 10px 9px 12px;
-  border: 1px solid var(--lonora-line);
-  border-radius: 26px;
-  background: var(--lonora-surface);
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  min-height: 56px;
+  padding: 11px 12px;
+  border: 1px solid transparent;
+  border-radius: 28px;
+  background: var(--lonora-panel);
+  box-shadow:
+    0 0 0 0.5px color-mix(in srgb, var(--lonora-text) 12%, transparent),
+    0 4px 16px color-mix(in srgb, var(--background) 8%, transparent);
   transition: border-color 120ms;
   min-width: 0;
-  max-width: 900px;
+  max-width: var(--chat-content-width);
   margin-inline: auto;
 }
 .template-composer-bar:focus-within {
-  border-color: var(--lonora-muted);
+  border-color: color-mix(in srgb, var(--lonora-muted) 50%, transparent);
 }
 .template-composer-field {
   display: flex;
+  flex: 1;
   min-width: 0;
 }
 .template-thread .template-composer textarea {
   display: block;
   width: 100%;
   min-width: 0;
-  min-height: 24px;
-  max-height: 120px;
-  padding: 1px 0;
+  min-height: 32px;
+  max-height: 200px;
+  padding: 4px 0;
   margin: 0;
   font-size: 15px;
   line-height: 24px;
@@ -386,7 +407,6 @@ html[dir="rtl"] .template-message-body .message-copy {
   color: var(--lonora-muted);
 }
 .template-composer .template-composer-actions {
-  grid-column: 3;
   display: flex;
   align-items: center;
   gap: 7px;
@@ -394,23 +414,33 @@ html[dir="rtl"] .template-message-body .message-copy {
   flex-wrap: nowrap;
 }
 .template-attach-button {
-  grid-column: 1;
-  background: var(--lonora-panel);
+  border-color: transparent;
+  background: transparent;
 }
-.template-composer-bar[data-expanded="true"] {
-  gap: 8px;
-  padding-top: 12px;
+/* Long drafts scroll inside the same pill; controls stay on the last line. */
+.template-composer-bar[data-overflow-top],
+.template-composer-bar[data-overflow-bottom] {
+  --chat-input-fade-top: 0px;
+  --chat-input-fade-bottom: 0px;
 }
-.template-composer-bar[data-expanded="true"] .template-composer-field {
-  grid-column: 1 / 4;
-  grid-row: 1;
-  padding-inline: 4px;
+.template-composer-bar[data-overflow-top] {
+  --chat-input-fade-top: 16px;
 }
-.template-composer-bar[data-expanded="true"] .template-attach-button,
-.template-composer-bar[data-expanded="true"] .template-composer-actions {
-  grid-row: 2;
+.template-composer-bar[data-overflow-bottom] {
+  --chat-input-fade-bottom: 16px;
 }
-.template-composer .template-send-button {
+.template-composer-bar[data-overflow-top] textarea,
+.template-composer-bar[data-overflow-bottom] textarea {
+  mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    #000 var(--chat-input-fade-top),
+    #000 calc(100% - var(--chat-input-fade-bottom)),
+    transparent
+  );
+}
+.template-composer .template-send-button,
+.template-composer .template-stop-button {
   background: var(--lonora-text);
   color: var(--lonora-surface);
   border-color: transparent;
@@ -423,7 +453,7 @@ html[dir="rtl"] .template-message-body .message-copy {
   border-color: var(--lonora-accent);
 }
 .template-composer-menu {
-  max-width: 900px;
+  max-width: var(--chat-content-width);
   margin: 0 auto 8px;
   border: 1px solid var(--lonora-line);
   border-radius: 14px;
@@ -455,7 +485,7 @@ html[dir="rtl"] .template-message-body .message-copy {
 .template-reply-preview,
 .template-attachment-chips,
 .template-composer-error {
-  max-width: 900px;
+  max-width: var(--chat-content-width);
   margin: 0 auto 10px;
 }
 .template-thread .template-reply-preview {
@@ -594,24 +624,27 @@ html[dir="rtl"] .template-message-body .message-copy {
   }
 }
 @media (max-width: 767px) {
+  .template-thread {
+    --chat-inline-space: 16px;
+  }
   .template-thread .template-transcript {
-    padding: 14px 16px 6px;
+    padding-block-start: 20px;
   }
   .template-thread .template-composer {
     padding: 8px 12px max(12px, env(safe-area-inset-bottom));
   }
   .template-composer-bar {
-    gap: 9px;
-    padding-inline: 10px;
+    gap: 8px;
+    padding-inline: 11px;
   }
   .template-message-frame {
-    max-width: 92%;
+    max-width: 100%;
   }
   .template-message.user .template-message-frame {
     max-width: 88%;
   }
   .template-message-body {
-    font-size: 14px;
+    font-size: 15px;
   }
   .template-thread .template-composer textarea {
     font-size: 16px;

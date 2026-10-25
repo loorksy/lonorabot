@@ -282,14 +282,16 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
   const agent = agents.find((value) => value.id === thread?.agent_id);
   const group = groups.find((value) => value.id === thread?.group_id);
   const title = agent?.name ?? group?.payload.name ?? thread?.title ?? t("inbox");
-  const send = async (mentions?: MentionAddress) => {
-    if (busy || uploading || !thread || (!draft.trim() && !attachments.length)) return;
-    const content = draft.trim() || t("attach");
-    const attachment_ids = attachments.map((file) => file.id);
+  const send = async (mentions?: MentionAddress, followUp?: string) => {
+    if (busy || uploading || !thread || (!followUp?.trim() && !draft.trim() && !attachments.length))
+      return;
+    const content = followUp?.trim() || draft.trim() || t("attach");
+    const attachment_ids = followUp ? [] : attachments.map((file) => file.id);
+    const reply_to = followUp ? null : (reply?.id ?? null);
     const signature = JSON.stringify({
       content,
       attachment_ids,
-      reply_to: reply?.id ?? null,
+      reply_to,
       mentions,
     });
     if (receipt.current?.signature !== signature)
@@ -303,7 +305,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
       await api.post(`/threads/${encodeURIComponent(id)}/messages`, {
         content,
         attachment_ids,
-        reply_to: reply?.id ?? null,
+        reply_to,
         client_nonce: receipt.current.nonce,
         mention_agent_ids: mentions?.agent_ids ?? [],
         mention_all: mentions?.all ?? false,
@@ -311,13 +313,16 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
       });
       following.current = true;
       setAtEnd(true);
-      setDraft("");
-      setAttachments([]);
-      setReply(null);
+      if (!followUp) {
+        setDraft("");
+        setAttachments([]);
+        setReply(null);
+      }
       receipt.current = null;
       await snapshot();
     } catch (reason) {
       setError(errorText(reason));
+      if (followUp) throw reason;
     } finally {
       setBusy(false);
     }
@@ -594,6 +599,20 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
                         } catch {
                           return false;
                         }
+                      }}
+                      onVisualAction={async (action) => {
+                        if (action.kind === "follow_up") await send(undefined, action.text);
+                        else if (action.kind === "open_chart")
+                          chartSheet.open({
+                            threadId: id,
+                            ...(agent ? { botId: agent.id } : {}),
+                            chartId: action.resource_id,
+                          });
+                        else
+                          router.push({
+                            pathname: "/artifact",
+                            params: { artifactId: action.resource_id },
+                          });
                       }}
                       message={message}
                       body={

@@ -23,3 +23,17 @@ export { mergeSuperBotRequest } from "./super-bot";
 export { formatTimeSeparator, needsTimeSeparator, timeSeparatorIds } from "./time-separators";
 export * from "./trading-avatar-motion";
 export { errorCode } from "./user-error";
+export {
+  evaluateVisualValue,
+  expandVisualAction,
+  filterVisualRows,
+  initialVisualState,
+  MAX_VISUAL_BYTES,
+  MAX_VISUAL_DEPTH,
+  MAX_VISUAL_NODES,
+  updateVisualState,
+  validateRichContent,
+  validateVisualDocument,
+  visualDocumentKey,
+  visualStateStorageKey,
+} from "./visual-response";

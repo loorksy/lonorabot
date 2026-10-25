@@ -2,7 +2,7 @@
 
 Lonora serves Expo Updates protocol v1 at `/api/mobile/updates`. The native app pins the public certificate in `apps/mobile/certificates/ota.pem`; unsigned or modified manifests are rejected by Expo's native verifier. Assets are immutable and verified by SHA256. Runtime fingerprints keep incompatible native builds separate. The service is public and read-only; there is no upload endpoint.
 
-**Current bootstrap: 0.2.7 / Android versionCode 26101901.** This owner-authorized release uses a new Android signing certificate; the first installation requires removing the earlier differently signed app and signing in again. Older APKs do not contain `expo-updates` or the new native voice dependencies and cannot gain those native modules through OTA. After that, compatible JavaScript/assets updates download automatically on launch or return to foreground and activate on the next cold launch. An active call or conversation is never forcibly reloaded. Native dependencies, permissions or signing changes still require a new APK.
+**Current bootstrap: 0.2.8 / Android versionCode 26102101.** It uses the same Android signing certificate introduced by the owner-authorized 0.2.7 release. Installing over an older app signed with the previous certificate requires removing that differently signed app and signing in again. Older APKs do not contain `expo-updates` or the new native voice dependencies and cannot gain those native modules through OTA. After that, compatible JavaScript/assets updates download automatically on launch or return to foreground and activate on the next cold launch. An active call or conversation is never forcibly reloaded. Native dependencies, permissions or signing changes still require a new APK.
 
 ## Publish
 
@@ -37,6 +37,12 @@ Deploy its signed directive directory and active pointer last as above. The mult
 After deployment, request the endpoint with `expo-protocol-version: 1`, `expo-platform: android`, `expo-channel-name: production`, and `expo-runtime-version: <installed fingerprint>`. A matching release returns a signed manifest, an unknown runtime returns 204. On a device install the bootstrap APK, publish a compatible small text/style change, reopen the app, let it download, close fully and reopen; confirm the new UI and unchanged login/conversation. Check an in-progress call is not interrupted. Native WebRTC calls require a real device check separately.
 
 
-### Recorded0.2.7 runtime
+### Current 0.2.8 runtime
 
-The native release and the resolver from its actual build environment both produced `a954b90f9547b7c5a25444f4087d93eb42deeb90`. Compatible production OTA publication uses this exact runtime and the unchanged pinned OTA certificate. Public Android release-certificate SHA256 is `f1739a3196d6a9d1ce446d883d1d87527dab50226f979aa35dc8aef22ddcceee`. Android APK signing and OTA manifest signing remain separate identities. The full resolver inputs are retained locally with build artifacts; never replace this fingerprint with a previous host's runtime.
+The distributed APK at `/opt/lonora/downloads/lonora.apk`, its local release artifact and the current Android runtime resolver agree on `e4a51ffd7874ea0b8a4fc201e1c39ca376e826ca`. Publish compatible updates for the current bootstrap to that runtime. The APK remains version `0.2.8`, Android versionCode `26102101`; JavaScript-only updates do not require a new APK.
+
+Native visual responses use the existing React Native components, SVG and file-system modules. They require the matching server release, including migration `0032_message_rich_content`, before the signed OTA pointer is activated. Local controls calculate and persist on the device; opening a chart or file and sending a follow-up continue through existing authenticated services. OTA publication does not grant trading authority.
+
+### Historical 0.2.7 runtime
+
+The native release and the resolver from its actual build environment both produced `a954b90f9547b7c5a25444f4087d93eb42deeb90`. This is the historical runtime for 0.2.7 clients, not the current 0.2.8 publication target. Its pinned OTA certificate remains unchanged. Public Android release-certificate SHA256 is `f1739a3196d6a9d1ce446d883d1d87527dab50226f979aa35dc8aef22ddcceee`. Android APK signing and OTA manifest signing remain separate identities. The full resolver inputs are retained locally with build artifacts; never replace this fingerprint with a previous host's runtime.

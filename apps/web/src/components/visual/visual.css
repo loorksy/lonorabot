@@ -1,0 +1,484 @@
+/* Trusted native primitives inherit Lonora semantic colors; documents cannot supply CSS. */
+.native-rich-response,
+.native-rich-text,
+.native-visual-response {
+  min-width: 0;
+  max-width: 100%;
+}
+.native-rich-response {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.native-visual-response {
+  color: var(--foreground);
+  font-size: 1rem;
+  line-height: 1.55;
+}
+.native-visual-response p,
+.native-visual-response h2,
+.native-visual-response h3,
+.native-visual-response h4,
+.native-visual-response h5,
+.native-visual-response dl,
+.native-visual-response figure {
+  margin: 0;
+}
+.native-visual-node {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.native-visual-column,
+.native-visual-container,
+.native-visual-card,
+.native-visual-form,
+.native-visual-child {
+  display: flex;
+  flex-direction: column;
+  gap: var(--visual-gap, var(--visual-space));
+}
+.native-visual-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--visual-gap, var(--visual-space));
+  align-items: start;
+}
+.native-visual-row > * {
+  flex: 1 1 140px;
+}
+.native-visual-grid {
+  display: grid;
+  grid-template-columns: repeat(var(--visual-columns), minmax(0, 1fr));
+  gap: var(--visual-gap, var(--visual-space));
+}
+.native-visual-card,
+.native-visual-form {
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--visual-radius);
+  background: var(--card);
+}
+.native-visual-divider {
+  width: 100%;
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin-block: var(--visual-space);
+}
+.native-visual-label {
+  font-weight: 500;
+  color: var(--foreground);
+  margin-block-end: 6px;
+}
+.native-visual-heading {
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.015em;
+}
+.native-visual-response h2 {
+  font-size: 1.625rem;
+}
+.native-visual-response h3 {
+  font-size: 1.4375rem;
+}
+.native-visual-response h4 {
+  font-size: 1.25rem;
+}
+.native-visual-response h5 {
+  font-size: 1.125rem;
+}
+.native-visual-metric dt {
+  font-size: 0.875rem;
+  color: var(--muted-foreground);
+}
+.native-visual-metric dd {
+  margin: 3px 0 0;
+  font-size: 1.75rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.native-visual-metric dd small {
+  font-size: 0.875rem;
+  font-weight: 400;
+}
+.native-visual-badge,
+.native-visual-mode {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 9px;
+  background: var(--secondary);
+  width: fit-content;
+}
+.native-visual-response .native-visual-mode {
+  margin-block-end: 12px;
+  color: var(--muted-foreground);
+}
+.native-visual-tone-success {
+  color: var(--success);
+}
+.native-visual-tone-warning {
+  color: var(--warning);
+}
+.native-visual-tone-danger,
+.native-visual-error {
+  color: var(--destructive);
+}
+.native-visual-tone-info {
+  color: var(--link);
+}
+.native-visual-list ul {
+  margin: 0;
+  padding-inline-start: 23px;
+  display: grid;
+  gap: 10px;
+}
+.native-visual-timeline ol {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.native-visual-timeline li {
+  padding-inline-start: 20px;
+  padding-block-end: 16px;
+  border-inline-start: 1px solid var(--border);
+  position: relative;
+}
+.native-visual-timeline li:before {
+  content: "";
+  position: absolute;
+  inset-inline-start: -4px;
+  top: 8px;
+  width: 7px;
+  height: 7px;
+  background: var(--muted-foreground);
+  border-radius: 50%;
+}
+.native-visual-progress {
+  display: grid;
+  gap: 6px;
+}
+.native-visual-progress progress {
+  width: 100%;
+  height: 9px;
+  accent-color: var(--ring);
+}
+.native-visual-progress output {
+  font-size: 0.875rem;
+}
+.native-visual-table-scroll {
+  overflow-x: auto;
+  max-width: 100%;
+  border: 1px solid var(--border);
+  border-radius: var(--visual-radius);
+}
+.native-visual-table table {
+  border-collapse: collapse;
+  min-width: 100%;
+  font-size: 0.875rem;
+}
+.native-visual-table th,
+.native-visual-table td {
+  padding: 10px 12px;
+  text-align: start;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.native-visual-table th {
+  color: var(--muted-foreground);
+  font-weight: 500;
+  background: var(--card);
+}
+.native-visual-table tr:last-child td {
+  border-bottom: 0;
+}
+.native-visual-response input:not([type="checkbox"]):not([type="range"]),
+.native-visual-response select {
+  width: 100%;
+  min-height: var(--visual-touch);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 9px 11px;
+  color: var(--foreground);
+  background: var(--background);
+  font: inherit;
+  box-sizing: border-box;
+}
+.native-visual-response input:focus-visible,
+.native-visual-response select:focus-visible,
+.native-visual-response button:focus-visible,
+.native-visual-response summary:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
+}
+.native-visual-response input[type="range"] {
+  width: 100%;
+  accent-color: var(--ring);
+  min-height: var(--visual-touch);
+  margin: 0;
+}
+.native-visual-response input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--ring);
+  flex-shrink: 0;
+}
+.native-visual-checkbox {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  min-height: var(--visual-touch);
+  cursor: pointer;
+}
+.native-visual-slider > div {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+.native-visual-slider output {
+  font-variant-numeric: tabular-nums;
+  min-width: 4ch;
+  text-align: end;
+}
+.native-visual-input,
+.native-visual-select {
+  display: block;
+}
+.native-visual-filter {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-block-end: 10px;
+  font-size: 0.875rem;
+}
+.native-visual-button {
+  min-height: var(--visual-touch);
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  color: var(--primary-foreground);
+  background: var(--primary);
+  padding: 9px 16px;
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+.native-visual-button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.native-visual-tabs [role="tablist"] {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 4px;
+  background: var(--secondary);
+  border-radius: 10px;
+}
+.native-visual-tabs [role="tab"] {
+  min-height: var(--visual-touch);
+  border: 0;
+  background: transparent;
+  color: var(--muted-foreground);
+  border-radius: 7px;
+  padding: 6px 13px;
+  font: inherit;
+  cursor: pointer;
+}
+.native-visual-tabs [role="tab"][aria-selected="true"] {
+  background: var(--card);
+  color: var(--foreground);
+  box-shadow: 0 1px 4px color-mix(in srgb, var(--foreground) 8%, transparent);
+}
+.native-visual-tabs [role="tabpanel"] {
+  padding-block-start: 14px;
+}
+.native-visual-tabs [hidden] {
+  display: none;
+}
+.native-visual-disclosure {
+  border: 1px solid var(--border);
+  border-radius: var(--visual-radius);
+  padding: 12px 14px;
+}
+.native-visual-disclosure summary,
+.native-visual-provenance summary {
+  cursor: pointer;
+  min-height: 24px;
+}
+.native-visual-disclosure > div {
+  padding-block-start: 12px;
+  display: grid;
+  gap: var(--visual-space);
+}
+.native-visual-provenance {
+  margin-block-start: 14px;
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+}
+.native-visual-provenance ul {
+  margin-block: 7px;
+  padding-inline-start: 20px;
+}
+.native-visual-reset {
+  border: 0;
+  background: transparent;
+  color: var(--muted-foreground);
+  padding: 8px 0;
+  font: inherit;
+  font-size: 0.75rem;
+  cursor: pointer;
+  min-height: 36px;
+}
+.native-visual-muted {
+  color: var(--muted-foreground);
+}
+.native-visual-image img {
+  max-width: 100%;
+  max-height: 480px;
+  object-fit: contain;
+  border-radius: var(--visual-radius);
+}
+.native-visual-image figcaption {
+  font-size: 0.875rem;
+  color: var(--muted-foreground);
+}
+.native-visual-graphic {
+  min-width: 0;
+}
+.native-visual-graphic > svg {
+  display: block;
+  width: 100%;
+  max-height: 320px;
+  color: var(--muted-foreground);
+  overflow: visible;
+}
+.native-visual-graphic figcaption {
+  font-weight: 500;
+  margin-block-end: 8px;
+}
+.native-visual-axis {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+.native-visual-chart-line {
+  fill: none;
+  stroke: var(--ring);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.native-visual-series,
+.native-visual-key {
+  fill: var(--ring);
+  background: var(--ring);
+}
+.native-visual-series.series-1,
+.native-visual-key.series-1 {
+  fill: var(--success);
+  background: var(--success);
+}
+.native-visual-series.series-2,
+.native-visual-key.series-2 {
+  fill: var(--warning);
+  background: var(--warning);
+}
+.native-visual-series.series-3,
+.native-visual-key.series-3 {
+  fill: var(--link);
+  background: var(--link);
+}
+.native-visual-series.series-4,
+.native-visual-key.series-4 {
+  fill: var(--destructive);
+  background: var(--destructive);
+}
+.native-visual-chart-values {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  font-size: 0.75rem;
+}
+.native-visual-chart-values > div {
+  display: flex;
+  gap: 8px;
+}
+.native-visual-chart-values dt {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--muted-foreground);
+}
+.native-visual-chart-values dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+.native-visual-key {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+.native-visual-edge path {
+  fill: none;
+  stroke: var(--muted-foreground);
+  stroke-width: 1.5;
+}
+.native-visual-edge text {
+  fill: var(--muted-foreground);
+  font-size: 11px;
+}
+.native-visual-vertex rect {
+  fill: var(--card);
+  stroke: var(--border);
+}
+.native-visual-vertex text {
+  fill: var(--foreground);
+  font-size: 14px;
+}
+.native-visual-diagram > svg {
+  max-height: 680px;
+}
+.native-visual-accessible-structure {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+@media (max-width: 500px) {
+  .native-visual-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .native-visual-row > * {
+    flex-basis: 100%;
+  }
+  .native-visual-card,
+  .native-visual-form {
+    padding: 12px;
+  }
+  .native-visual-graphic > svg {
+    max-height: 240px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .native-visual-response * {
+    scroll-behavior: auto;
+    transition: none;
+  }
+}
+
+.native-visual-form {
+  margin: 0;
+  min-inline-size: 0;
+}
+.native-visual-form legend {
+  padding-inline: 6px;
+  font-weight: 500;
+}

@@ -3,12 +3,14 @@ import { t } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { plainTextLinkParts } from "@lonora/chat-ui/markdown";
 import { ChatMarkdown } from "@lonora/chat-ui/web";
+import type { VisualAction } from "@lonora/contracts";
 import { ArrowRight, CornerUpLeft, MessagesSquare } from "lucide-react";
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { ArtifactFileCard } from "../../components/ArtifactFileCard";
 import { AgentAvatar } from "../../components/ai/AgentAvatar";
 import { WorkingIndicator } from "../../components/ai/primitives";
+import { RichResponse } from "../../components/visual/RichResponse";
 import type { Agent, Event, Message, ReplyStreamSnapshot, Resource, Run } from "../../lib/api";
 import { isOutgoingMessage } from "../../lib/outgoing-messages";
 import { userError } from "../../lib/user_error";
@@ -55,8 +57,12 @@ export function MessageBubble({
   showSpeaker = true,
   body,
   onRetrySend,
+  ownerId = "",
+  onVisualAction,
 }: {
   message: Message;
+  ownerId?: string;
+  onVisualAction?: (action: VisualAction) => Promise<void>;
   body?: ReactNode;
   onRetrySend?: (nonce: string) => Promise<void>;
   agent?: Agent;
@@ -104,7 +110,7 @@ export function MessageBubble({
             </blockquote>
           )}
           {body ??
-            (message.content && (
+            ((message.content || message.rich_content) && (
               <div className="template-message-text">
                 {user ? (
                   <div className="template-user-text">
@@ -124,7 +130,15 @@ export function MessageBubble({
                     )}
                   </div>
                 ) : (
-                  <ChatMarkdown>{message.content}</ChatMarkdown>
+                  <RichResponse
+                    content={message.rich_content}
+                    fallback={message.content}
+                    ownerId={ownerId}
+                    threadId={message.thread_id}
+                    messageId={message.id}
+                    artifacts={artifacts}
+                    onAction={onVisualAction}
+                  />
                 )}
               </div>
             ))}
@@ -281,7 +295,13 @@ export function StreamingMessageCard({
   stream,
   agent,
   showSpeaker = true,
+  ownerId = "",
+  artifacts = [],
+  onVisualAction,
 }: {
+  ownerId?: string;
+  artifacts?: Resource[];
+  onVisualAction?: (action: VisualAction) => Promise<void>;
   run: Run;
   stream: ReplyStreamSnapshot;
   agent?: Agent;
@@ -302,7 +322,19 @@ export function StreamingMessageCard({
           </div>
         )}
         <div className="message-body template-message-body template-message-text" dir="auto">
-          <ChatMarkdown streaming={stream.phase === "streaming"}>{stream.text}</ChatMarkdown>
+          {stream.phase === "committed" && stream.rich_content ? (
+            <RichResponse
+              content={stream.rich_content}
+              fallback={stream.text}
+              ownerId={ownerId}
+              threadId={run.thread_id}
+              messageId={stream.message_id ?? `preview:${run.id}`}
+              artifacts={artifacts}
+              onAction={onVisualAction}
+            />
+          ) : (
+            <ChatMarkdown streaming={stream.phase === "streaming"}>{stream.text}</ChatMarkdown>
+          )}
         </div>
         <div className="message-meta template-message-meta">
           {stream.phase === "streaming" && (

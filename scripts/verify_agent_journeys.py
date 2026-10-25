@@ -28,17 +28,21 @@ from lonora_adapter_kit.types import ModelMessage, ModelReply, ToolCall, ToolDef
 from lonora_adapters.storage.secret_store import EncryptedSecretStore
 from lonora_agent.executor import execute_run
 from lonora_agent.skills.access import view_key
+from lonora_agent.workspace import encode_snapshot
 from lonora_agent.workspace_access import RunWorkspaceAccess
 from lonora_agent.workspace_client import WorkspaceClient
 from lonora_api.env import get_settings
 from lonora_contracts.domain import utcnow
 from lonora_contracts.model_routing import Capability, ModelSelection
 from lonora_contracts.runs import Lease
+from lonora_contracts.visual_response import RichContent, VisualDocument, VisualNode
+from lonora_core.model_routing import select_model
 from lonora_core.public_reply import public_reply_violation
 from lonora_core.user_error import LonoraError
 from lonora_db.client import Database
 from lonora_db.schema import (
     AgentRow,
+    AnalyticalWorkspaceRow,
     ArtifactRow,
     EffectReceiptRow,
     EventRow,
@@ -51,6 +55,7 @@ from lonora_db.schema import (
 )
 from lonora_providers.credentials import ProviderCredentials
 from lonora_providers.router import GlobalModelRouter
+from lonora_providers.routing_policy import read_policy
 from lonora_security.runtime_storage import confined_path
 from lonora_session.idempotency import stable_id
 from lonora_tools.context import ToolContext
@@ -88,8 +93,126 @@ JOURNEYS = {
     ),
     "capabilities": "طيب بدي منك قائمة جميع ادواتك",
     "topic_switch": "ما الفرق بين السكالبينغ والسوينغ باختصار؟",
+    "visual_plain": "ما معنى حقوق الحساب (Equity) بجملة واحدة؟",
+    "visual_workspace": (
+        "راجع الملفات الموجودة فعلاً في مساحة التحليل وقارن أحجامها، واجمع حجمها الإجمالي، "
+        "وبيّن توزيع الأحجام وما يستحق تنظيمه أولاً. اعتمد على الفحص الفعلي ولا تعدّل أي ملف. "
+        "اختر طريقة العرض الأنسب لتوضيح المقارنة."
+    ),
+    "visual_diagram": (
+        "اشرح مسار رسالة المستخدم داخل Lonora بمخطط أصلي داخل الرد: فهم الطلب، "
+        "العمليات المتاحة عند الحاجة، التحقق، ثم النتيجة المحفوظة. لا أريد ملفاً أو كوداً "
+        "أو صورة، بل مخططاً بأسماء عربية وروابط مرئية ومعه شرح قصير."
+    ),
+    "visual_calculator": (
+        "ساعدني أفهم حجم المركز بحاسبة تعليمية تفاعلية داخل الرد. هذا مثال لعقد افتراضي "
+        "فقط، قيمة النقطة فيه دولار واحد لكل وحدة؛ ليس أداة مالية حقيقية ولا حساباً فعلياً. "
+        "ابدأ بمخاطرة 100 دولار ومسافة وقف 20 نقطة. أريد تغيير المخاطرة ومسافة الوقف "
+        "محلياً ورؤية حجم الوحدات يتغير مباشرة، دون تنفيذ أي صفقة أو إرسال سؤال جديد. "
+        "بيّن الافتراضات بوضوح واكتب شرحاً قصيراً قبل الحاسبة وبعدها."
+    ),
 }
 TOPIC_SWITCH_REQUEST = "خلينا نغيّر الموضوع: احسب سبعة ضرب ثمانية وأجب بالنتيجة فقط."
+VISUAL_JOURNEYS = frozenset(name for name in JOURNEYS if name.startswith("visual_"))
+# Real isolated workspace contents, not fabricated financial/account observations.
+VISUAL_WORKSPACE_FILES = {
+    "notes.txt": b"Review candidate observations.\n" * 3,
+    "session-plan.md": b"# Session plan\nConfirm the current evidence before acting.\n" * 7,
+    "journal.csv": b"date,observation\n2026-10-25,educational review\n" * 11,
+    "summary.json": b'{"purpose":"nonfinancial acceptance","status":"example"}\n',
+    "symbols.csv": b"label,description\nSample,not a live instrument\n" * 2,
+    "report.txt": b"This workspace contains synthetic documents, not account data.\n" * 17,
+}
+
+
+def visual_nodes(node: VisualNode) -> list[VisualNode]:
+    return [node, *(descendant for child in node.children for descendant in visual_nodes(child))]
+
+
+def visual_documents(answer: MessageRow) -> list[VisualDocument]:
+    if answer.rich_content is None:
+        return []
+    rich = RichContent.model_validate(answer.rich_content)
+    return [part.document for part in rich.parts if part.type == "ui"]
+
+
+def assert_visual_journey(
+    journey: str, answer: MessageRow, observations: dict[str, list[dict[str, Any]]]
+) -> dict[str, Any]:
+    """Inspect actual persisted model composition, without prescribing a template."""
+    docs = visual_documents(answer)
+    nodes = [node for doc in docs for node in visual_nodes(doc.root)]
+    if journey == "visual_plain":
+        assert not docs, "A one-sentence definition acquired an unnecessary visual"
+        assert not observations, "A simple definition unexpectedly invoked operations"
+    else:
+        assert docs, "The real model reply did not publish a valid native visual"
+        assert "```lonora-ui" not in answer.content, "Raw visual protocol reached public text"
+        assert nodes, "The model's visual document contains no native components"
+    if journey == "visual_workspace":
+        inspections = [
+            value
+            for value in observations.get("workspace_inspect", [])
+            if value.get("ok") is not False
+        ]
+        assert inspections, "No real workspace inspection was performed"
+        assert any(
+            {item["path"]: item["size"] for item in value.get("files", [])}
+            == {path: len(data) for path, data in VISUAL_WORKSPACE_FILES.items()}
+            for value in inspections
+        ), "Inspected files do not match the actual isolated workspace"
+        observed = [doc for doc in docs if doc.mode == "observed"]
+        assert observed and any(doc.facts for doc in observed), (
+            "No verified observations in the visual"
+        )
+        assert all(fact.source in ALLOWED for doc in observed for fact in doc.facts.values()), (
+            "Observed visual included data from an unexpected operation"
+        )
+    elif journey == "visual_diagram":
+        assert any(
+            node.type == "diagram" and len(node.vertices) >= 3 and len(node.edges) >= 2
+            for node in nodes
+        ), "The real model did not compose a connected native diagram"
+    elif journey == "visual_calculator":
+        numeric_controls = [
+            node
+            for node in nodes
+            if node.type == "slider" or (node.type == "input" and node.input_kind == "number")
+        ]
+        assert len(numeric_controls) >= 2, "Calculator is missing adjustable risk/stop inputs"
+        assert any(
+            node.type == "metric" and isinstance(node.value, dict) and "op" in node.value
+            for node in nodes
+        ), "Calculator has no locally derived numeric result"
+        assert all(doc.mode in {"example", "estimate"} for doc in docs), (
+            "Hypothetical instrument was presented as an observed account"
+        )
+        assert set(observations) <= {"tool_environment", "skills_list", "skill_view"}, (
+            "This self-contained illustrative calculator invoked unrelated operations"
+        )
+        rich = RichContent.model_validate(answer.rich_content)
+        assert any(part.type == "text" for part in rich.parts), "Mixed prose was not preserved"
+    return {
+        "presentation": "native" if docs else "text",
+        "visual_documents": len(docs),
+        "native_components": sorted({node.type for node in nodes}),
+        "verified_facts": sum(len(doc.facts) for doc in docs),
+        "compiled_ui_bytes": len(json.dumps(answer.rich_content, ensure_ascii=False).encode())
+        if docs
+        else 0,
+    }
+
+
+def write_visual_evidence(directory: Path, journey: str, answer: MessageRow) -> None:
+    """Export only public nonfinancial composition for subsequent native UI checks."""
+    assert journey in VISUAL_JOURNEYS
+    directory.mkdir(parents=True, exist_ok=True)
+    path = directory / (journey + ".json")
+    payload = {"journey": journey, "content": answer.content, "rich_content": answer.rich_content}
+    with path.open("w", encoding="utf-8") as handle:
+        json.dump(payload, handle, ensure_ascii=False, indent=2)
+        handle.write("\n")
+    path.chmod(0o600)
 
 
 def assert_capability_explanation(answer: str, catalog: ToolRegistry) -> None:
@@ -165,6 +288,7 @@ class AcceptanceRouter:
     def __init__(self, router: GlobalModelRouter):
         self.router = router
         self.credentials = router.credentials
+        self.model_calls = 0
 
     async def complete(
         self,
@@ -175,6 +299,7 @@ class AcceptanceRouter:
         on_delta: Callable[[str], Awaitable[None]] | None = None,
         on_attempt: Callable[[ModelSelection], Awaitable[None]] | None = None,
     ) -> tuple[ModelReply, ModelSelection]:
+        self.model_calls += 1
         reply, selection = await self.router.complete(
             capability, messages, tools, on_delta=on_delta, on_attempt=on_attempt
         )
@@ -220,6 +345,7 @@ async def run_journey(
     artifact_root: Path,
     journey: str,
     seconds: float,
+    evidence_dir: Path | None = None,
 ) -> dict[str, Any]:
     settings = get_settings()
     agent_id, thread_id, run_id = str(uuid4()), str(uuid4()), str(uuid4())
@@ -268,6 +394,14 @@ async def run_journey(
                 )
             )
             await session.flush()
+            if journey == "visual_workspace":
+                session.add(
+                    AnalyticalWorkspaceRow(
+                        agent_id=agent_id,
+                        revision=1,
+                        snapshot=encode_snapshot(VISUAL_WORKSPACE_FILES),
+                    )
+                )
             for seq, (role, content) in enumerate(history, start=1):
                 session.add(
                     MessageRow(
@@ -295,6 +429,7 @@ async def run_journey(
             )
         created = True
         denied = DeniedService()
+        acceptance_router = AcceptanceRouter(router)
         context = ToolContext(
             db=db,
             owner_id=owner_id,
@@ -304,7 +439,7 @@ async def run_journey(
             brokers=cast(Any, denied),
             trading=cast(Any, denied),
             secrets=secrets,
-            router=cast(Any, AcceptanceRouter(router)),
+            router=cast(Any, acceptance_router),
             artifact_root=artifact_root,
             maximum_subagents=0,
             workspace_access=RunWorkspaceAccess(
@@ -323,6 +458,7 @@ async def run_journey(
                 "status": row.status,
                 "error_code": row.error_code,
                 "elapsed_seconds": round(time.monotonic() - started, 2),
+                "model_generations": acceptance_router.model_calls,
                 "successful_operations": sorted(
                     name
                     for name, values in observations.items()
@@ -349,6 +485,14 @@ async def run_journey(
                 .limit(1)
             )
             assert answer is not None and answer.content == row.result
+            if journey in VISUAL_JOURNEYS:
+                summary.update(assert_visual_journey(journey, answer, observations))
+                assert answer.rich_content == row.model_metadata.get("rich_content"), (
+                    "Published composition differs from the settled Agent reply"
+                )
+                if evidence_dir is not None:
+                    write_visual_evidence(evidence_dir, journey, answer)
+                print(json.dumps(summary), flush=True)
             assert not await session.scalar(
                 select(func.count())
                 .select_from(TradingJournalRow)
@@ -567,9 +711,30 @@ async def main(args: argparse.Namespace) -> None:
     try:
         async with db.sessions() as session:
             owner_id = await session.scalar(select(OwnerRow.id))
-            assert owner_id, "Acceptance needs an existing configured owner"
+        if not owner_id:
+            print(json.dumps({"model_readiness": "unavailable", "reason": "owner_not_configured"}))
+            assert args.check_model, "Acceptance needs an existing configured owner"
+            return
         secrets = EncryptedSecretStore(db, settings.encryption_key.get_secret_value(), owner_id)
-        router = GlobalModelRouter(db, ProviderCredentials(db, secrets))
+        credentials = ProviderCredentials(db, secrets)
+        try:
+            selection = select_model(await read_policy(db), Capability.CONVERSATION)
+            configured = await credentials.configured(selection.provider)
+            readiness = {
+                "model_readiness": "ready" if configured else "unavailable",
+                "provider": selection.provider,
+                "model": selection.model,
+                "credential_configured": configured,
+                "workspace_socket_configured": bool(settings.workspace_socket),
+            }
+        except LonoraError as error:
+            configured = False
+            readiness = {"model_readiness": "unavailable", "reason": error.code}
+        print(json.dumps(readiness), flush=True)
+        if args.check_model:
+            return
+        assert configured, "Acceptance requires an already configured model credential"
+        router = GlobalModelRouter(db, credentials)
         registry = AcceptanceRegistry()
         settings.artifact_root.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(
@@ -581,7 +746,15 @@ async def main(args: argparse.Namespace) -> None:
                         "Report acceptance requires the configured workspace socket"
                     )
                 await run_journey(
-                    db, owner_id, router, secrets, registry, Path(directory), journey, args.timeout
+                    db,
+                    owner_id,
+                    router,
+                    secrets,
+                    registry,
+                    Path(directory),
+                    journey,
+                    args.timeout,
+                    args.evidence_dir,
                 )
         print(
             json.dumps(
@@ -602,12 +775,21 @@ if __name__ == "__main__":
     parser.add_argument(
         "--allow-live-model",
         action="store_true",
-        required=True,
         help="Explicitly allow billable real provider requests; no live finance is enabled",
+    )
+    parser.add_argument(
+        "--check-model", action="store_true", help="Check configuration without calling the model"
     )
     parser.add_argument("--journey", action="append", choices=list(JOURNEYS))
     parser.add_argument("--timeout", type=float, default=240)
+    parser.add_argument(
+        "--evidence-dir",
+        type=Path,
+        help="Optionally save public nonfinancial visual replies for browser/native replay",
+    )
     arguments = parser.parse_args()
+    if not arguments.check_model and not arguments.allow_live_model:
+        parser.error("--allow-live-model is required to make real model requests")
     if not 30 <= arguments.timeout <= 600:
         parser.error("--timeout must be between 30 and 600 seconds")
     asyncio.run(main(arguments))

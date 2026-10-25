@@ -103,3 +103,36 @@ driver as a distribution dependency. System Chromium is installed by the server
 Docker build; its BSD-style and third-party notices remain in the Debian package
 documentation. The service automates only the configured internal Lonora chart
 renderer; no reference Agent implementation or arbitrary browser tool is bundled.
+
+## OpenUI conversational experience
+
+Source: https://github.com/thesysdev/openui
+Revision: 9d73d17d2bbac565672a85e78f6eb7740cb0d9ca
+License: MIT. Copyright (c) 2011-2024 Thesys Inc.
+
+Adapted portions: packages/react-ui/src/components/AgentInterface conversation
+column geometry, composer sizing/placement, unboxed assistant and rounded user
+message treatment, manual-scroll following and latest-message affordance.
+Modifications: Lonora's existing React conversation/outbox, stream fences,
+steering, ownership, file/voice/chart/trading interactions, Arabic/English and
+mobile layouts. No OpenUI headless conversation store, model client, gateway or
+arbitrary executable rendering runtime is imported. Native visual documents use
+Lonora's versioned Python/TypeScript contract and Web/React Native renderers.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.

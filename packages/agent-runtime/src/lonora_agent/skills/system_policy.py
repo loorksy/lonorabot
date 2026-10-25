@@ -151,6 +151,9 @@ def apply_operating_policy(
             flags=re.S,
         )
         result[0] = result[0].model_copy(update={"content": content})
+    from .visual_policy import refresh_visual_policy
+
+    result[0] = result[0].model_copy(update={"content": refresh_visual_policy(result[0].content)})
     if chapters:
         index = next(
             (i for i, message in enumerate(result) if message.role != "system"), len(result)

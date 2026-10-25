@@ -1,0 +1,16 @@
+{
+  "id": "lonora-design",
+  "version": "1.0.0",
+  "title": "Lonora Design Skill",
+  "description": "Compose native, evidence-backed visual replies with accessible layouts, diagrams and local interactive calculations using Lonora's shared visual identity.",
+  "source": "builtin",
+  "stability": "stable",
+  "activation": {"mode": "explicit", "intents": [], "triggers": []},
+  "risk_class": "read_only",
+  "required_capabilities": [],
+  "required_tools": [],
+  "dependencies": [],
+  "conflicts": [],
+  "priority": 50,
+  "context_budget": 8000
+}

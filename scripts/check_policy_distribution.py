@@ -10,7 +10,9 @@ from unittest.mock import patch
 from zipfile import ZipFile
 
 from lonora_agent.skills.loader import load_constitution, resources_root
+from lonora_agent.skills.registry import built_in_skills
 from lonora_agent.skills.system_policy import mandatory_policy, validate_system_policy
+from lonora_agent.skills.visual_policy import native_visual_policy
 from lonora_tools.loader import load_tools
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -18,6 +20,8 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def main() -> None:
     expected = mandatory_policy()
+    expected_visual = native_visual_policy()
+    expected_design = built_in_skills()["lonora-design"]
     with tempfile.TemporaryDirectory(prefix="lonora_policy_distribution_") as temporary:
         target = Path(temporary)
         source = target / "source"
@@ -83,6 +87,8 @@ def main() -> None:
         ):
             assert resources_root() == target / "share/lonora"
             assert mandatory_policy() == expected
+            assert native_visual_policy() == expected_visual
+            assert built_in_skills()["lonora-design"] == expected_design
             assert len(load_constitution()) == 7
             validate_system_policy(set(load_tools().tools))
     print(

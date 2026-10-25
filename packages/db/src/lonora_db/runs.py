@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .events import emit
 from .generated_artifacts import link_generated_artifacts, resolve_reply_artifacts
+from .rich_response import validated_rich_content
 from .schema import AgentRow, GroupRow, MessageRow, RunRow, SteeringRow, ThreadRow
 from .streaming import STREAM_KEY, settle_stream, stream_data, stream_identity
 from .transactions import owned_agent, owned_thread
@@ -98,6 +99,7 @@ async def create_run(
             not in {
                 STREAM_KEY,
                 "result_message_id",
+                "rich_content",
                 "skill_snapshot",
                 "skill_selection",
                 "skill_authority",
@@ -248,13 +250,15 @@ async def complete_run(
     final_message_id: str | None = None
     final_message: MessageRow | None = None
     answer, artifacts = await resolve_reply_artifacts(session, thread.owner_id, row, answer)
-    if (answer or artifacts) and row.trigger != "tickets":
+    rich_content = validated_rich_content(metadata.get("rich_content"))
+    if (answer or artifacts or rich_content) and row.trigger != "tickets":
         message = MessageRow(
             thread_id=thread.id,
             agent_id=row.agent_id,
             role="assistant",
             seq=thread.next_seq,
             content=answer,
+            rich_content=rich_content,
         )
         thread.next_seq += 1
         session.add(message)
@@ -267,6 +271,7 @@ async def complete_run(
         "committed" if final_message_id else "discarded",
         message_id=final_message_id,
         text=answer if final_message_id else "",
+        rich_content=rich_content if final_message_id else None,
     )
     if snapshot:
         emit(
@@ -300,7 +305,11 @@ async def complete_run(
             if key not in {STREAM_KEY, "result_message_id"}
         },
     }
-    row.model_metadata = {**row.model_metadata, "result_message_id": final_message_id}
+    row.model_metadata = {
+        **row.model_metadata,
+        "result_message_id": final_message_id,
+        "rich_content": rich_content,
+    }
     row.updated_at = utcnow()
     row.lease_expires_at = None
     emit(

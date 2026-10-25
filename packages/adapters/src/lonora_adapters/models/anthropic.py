@@ -67,6 +67,13 @@ def cacheable_system(system: str) -> str | list[dict[str, Any]]:
     if not system.startswith(start) or end not in system:
         return system
     split = system.index(end) + len(end)
+    # The adjacent visual vocabulary is also immutable first-party guidance.
+    # Never scan past owner/context content to discover another cache boundary.
+    visual_start = "<lonora_native_visual_response>"
+    visual_end = "</lonora_native_visual_response>"
+    tail = system[split:]
+    if tail.lstrip().startswith(visual_start) and visual_end in tail:
+        split += tail.index(visual_end) + len(visual_end)
     blocks: list[dict[str, Any]] = [
         {"type": "text", "text": system[:split], "cache_control": {"type": "ephemeral"}}
     ]

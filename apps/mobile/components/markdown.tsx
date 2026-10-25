@@ -2,9 +2,19 @@
 // Native, selectable message typography. Links open only on explicit user action.
 import { Linking, Platform, Text, View } from "react-native";
 import { useSession } from "../lib/session";
+import type { NativeVisualPalette } from "./native-rich-theme";
 import { colors } from "./ui";
 
-function Inline({ value, onChartLink }: { value: string; onChartLink?: (url: string) => boolean }) {
+function Inline({
+  value,
+  onChartLink,
+  palette,
+}: {
+  value: string;
+  onChartLink?: (url: string) => boolean;
+  palette?: NativeVisualPalette;
+}) {
+  const ink = palette ? { ...colors, link: palette.link, accent: palette.accent } : colors;
   return (
     <>
       {value
@@ -16,7 +26,7 @@ function Inline({ value, onChartLink }: { value: string; onChartLink?: (url: str
               <Text
                 key={index}
                 accessibilityRole="link"
-                style={{ color: colors.link }}
+                style={{ color: ink.link }}
                 onPress={() => {
                   if (!onChartLink?.(link[2])) void Linking.openURL(link[2]).catch(() => undefined);
                 }}
@@ -36,7 +46,7 @@ function Inline({ value, onChartLink }: { value: string; onChartLink?: (url: str
                 key={index}
                 style={{
                   fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
-                  backgroundColor: colors.accent,
+                  backgroundColor: ink.accent,
                   fontSize: 14,
                 }}
               >
@@ -51,11 +61,21 @@ function Inline({ value, onChartLink }: { value: string; onChartLink?: (url: str
 export function Markdown({
   content,
   onChartLink,
+  palette,
 }: {
   content: string;
   onChartLink?: (url: string) => boolean;
+  palette?: NativeVisualPalette;
 }) {
   const { rtl } = useSession();
+  const ink = palette
+    ? {
+        ...colors,
+        foreground: palette.foreground,
+        secondary: palette["muted-foreground"],
+        muted: palette.muted,
+      }
+    : colors;
   const blocks = content.split(/(```[^\n]*\n[\s\S]*?```)/g).filter(Boolean);
   return (
     <View style={{ gap: 8 }}>
@@ -65,9 +85,9 @@ export function Markdown({
           return (
             <View
               key={index}
-              style={{ borderRadius: 12, padding: 14, backgroundColor: colors.muted, gap: 8 }}
+              style={{ borderRadius: 12, padding: 14, backgroundColor: ink.muted, gap: 8 }}
             >
-              <Text style={{ color: colors.secondary, fontSize: 12 }}>
+              <Text style={{ color: ink.secondary, fontSize: 12 }}>
                 {block.slice(3, firstLine)}
               </Text>
               <Text
@@ -76,7 +96,7 @@ export function Markdown({
                   fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
                   fontSize: 13,
                   lineHeight: 20,
-                  color: colors.foreground,
+                  color: ink.foreground,
                   writingDirection: "ltr",
                 }}
               >
@@ -98,7 +118,7 @@ export function Markdown({
                     key={lineIndex}
                     selectable
                     style={{
-                      color: colors.foreground,
+                      color: ink.foreground,
                       fontSize: heading ? 19 : 16,
                       lineHeight: heading ? 28 : 25,
                       fontWeight: heading ? "600" : "400",
@@ -106,7 +126,7 @@ export function Markdown({
                       textAlign: rtl ? "right" : "left",
                     }}
                   >
-                    <Inline value={value} onChartLink={onChartLink} />
+                    <Inline value={value} onChartLink={onChartLink} palette={palette} />
                   </Text>
                 );
               })}

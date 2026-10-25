@@ -124,7 +124,15 @@ function NotFound() {
     </div>
   );
 }
-function AgentConversation({ agent, agents }: { agent: Agent; agents: Agent[] }) {
+function AgentConversation({
+  agent,
+  agents,
+  onOpenChart,
+}: {
+  agent: Agent;
+  agents: Agent[];
+  onOpenChart: (id: string) => void;
+}) {
   const [params, setParams] = useSearchParams();
   const { refresh } = useClient();
   const { thread, threads, error } = usePersistentThread(agent.id, params.get("thread"));
@@ -171,7 +179,13 @@ function AgentConversation({ agent, agents }: { agent: Agent; agents: Agent[] })
           </label>
         </div>
       )}
-      <ThreadViewport key={thread.id} threadId={thread.id} agentId={agent.id} agents={agents} />
+      <ThreadViewport
+        key={thread.id}
+        threadId={thread.id}
+        agentId={agent.id}
+        agents={agents}
+        onOpenChart={onOpenChart}
+      />
     </>
   );
 }
@@ -209,6 +223,7 @@ function WorkspaceShell({ onLogout }: { onLogout: () => void }) {
   });
   const [query, setQuery] = useState("");
   const [panel, setPanel] = useState<Panel>(null);
+  const [preferredChartId, setPreferredChartId] = useState<string>();
   const [pendingProfile, setPendingProfile] = useState<string | null>(null);
   const [picker, setPicker] = useState(false);
   const [accountMenu, setAccountMenu] = useState(false);
@@ -888,6 +903,10 @@ function WorkspaceShell({ onLogout }: { onLogout: () => void }) {
                     threadId={String(group.state.thread_id)}
                     agentId=""
                     conversationName={String(group.payload.name)}
+                    onOpenChart={(id) => {
+                      setPreferredChartId(id);
+                      openPanel("charts");
+                    }}
                     agents={memberAgents}
                   />
                 ) : (
@@ -903,7 +922,15 @@ function WorkspaceShell({ onLogout }: { onLogout: () => void }) {
                     <Trans>Loading agents…</Trans>
                   </div>
                 ) : agent ? (
-                  <AgentConversation key={agent.id} agent={agent} agents={agents} />
+                  <AgentConversation
+                    key={agent.id}
+                    agent={agent}
+                    agents={agents}
+                    onOpenChart={(id) => {
+                      setPreferredChartId(id);
+                      openPanel("charts");
+                    }}
+                  />
                 ) : (
                   <NotFound />
                 )
@@ -1024,6 +1051,7 @@ function WorkspaceShell({ onLogout }: { onLogout: () => void }) {
           {panel === "charts" && (
             <ConversationCharts
               key={entityKey}
+              preferredChartId={preferredChartId}
               agentId={agent?.id}
               binding={
                 agent?.trading_account_id && agent.trading_symbol

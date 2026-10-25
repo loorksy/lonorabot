@@ -1,8 +1,9 @@
-// Extracted from Tampletgrok's chat workspace boundaries; Apache-2.0. Uses Lonora's persistent runtime.
+// Lonora persistent chat. Composer layout adapts OpenUI (MIT, Thesys Inc.; revision9d73d17).
+// Existing timeline/runtime boundaries retain their Tampletgrok Apache-2.0 attribution.
 
 import { t } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
-import type { InputAnswer, SuperBotRequest, TradeApproval } from "@lonora/contracts";
+import type { InputAnswer, SuperBotRequest, TradeApproval, VisualAction } from "@lonora/contracts";
 import {
   canCancel,
   conversationTimeline,
@@ -30,6 +31,7 @@ import {
 import {
   Fragment,
   type ReactNode,
+  useCallback,
   useEffect,
   useId,
   useLayoutEffect,
@@ -47,6 +49,7 @@ import { TradeApprovalCard, useTradeApprovals } from "../../components/trading/T
 import { useThreads } from "../../hooks/useThreads";
 import type { Agent, Message, Resource, Run } from "../../lib/api";
 import { api } from "../../lib/api";
+import { showLatestButton } from "../../lib/chat-scroll";
 import { failedReplies } from "../../lib/failed-replies";
 import { streamForRun } from "../../lib/response_streaming";
 import { type StreamRow, streamTimeline, streamVisible } from "../../lib/stream-timeline";
@@ -65,8 +68,10 @@ export function ThreadViewport({
   agentId,
   agents,
   conversationName,
+  onOpenChart,
 }: {
   conversationName?: string;
+  onOpenChart?: (id: string) => void;
   threadId: string;
   agentId: string;
   agents: Agent[];
@@ -74,7 +79,7 @@ export function ThreadViewport({
   const thread = useThreads(undefined, threadId);
   const approvalState = useTradeApprovals(threadId);
   const superBot = useSuperBotRequests(agentId, { threadId });
-  const { events, revision, streams, seedStreams, connected } = useClient();
+  const { owner, events, revision, streams, seedStreams, connected } = useClient();
   const repairingStreams = useRef(new Set<string>());
   const lastRepair = useRef(new Map<string, number>());
   const [reply, setReply] = useState<Message | null>(null);
@@ -266,6 +271,20 @@ export function ThreadViewport({
       )}
       <ThreadMessages
         key={`messages:${threadId}`}
+        ownerId={owner.id}
+        onVisualAction={async (action) => {
+          if (action.kind === "follow_up") {
+            await thread.send(action.text);
+          } else if (action.kind === "open_artifact") {
+            const artifact = await api.get<Resource>(`/artifacts/${action.resource_id}`);
+            setPreview(artifact);
+          } else if (onOpenChart) {
+            await api.get<Resource>(`/charts/${action.resource_id}`);
+            onOpenChart(action.resource_id);
+          } else {
+            throw new Error("visual_action_unavailable");
+          }
+        }}
         messages={thread.messages}
         streaming={streamingRows.flatMap(({ run, stream }) => (stream ? [{ run, stream }] : []))}
         onAnswer={(answer, label, messageId) =>
@@ -364,15 +383,13 @@ export function Composer({
   const [sending, setSending] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<unknown>();
-  const [expanded, setExpanded] = useState(false);
+  const [inputOverflow, setInputOverflow] = useState({ top: false, bottom: false });
   const [dragging, setDragging] = useState(false);
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
   const [highlight, setHighlight] = useState(0);
   const fileInput = useRef<HTMLInputElement>(null);
   const textarea = useRef<HTMLTextAreaElement>(null);
-  const bar = useRef<HTMLDivElement>(null);
-  const attach = useRef<HTMLButtonElement>(null);
-  const actions = useRef<HTMLDivElement>(null);
+  const composer = useRef<HTMLFormElement>(null);
   const sendingRef = useRef(false);
   const uploadRef = useRef(false);
   const mounted = useRef(true);
@@ -404,27 +421,28 @@ export function Composer({
     if (replyId) textarea.current?.focus();
   }, [replyId]);
 
+  const updateInputOverflow = useCallback(() => {
+    const field = textarea.current;
+    if (!field) return;
+    const maximum = field.scrollHeight - field.clientHeight;
+    const next = {
+      top: maximum > 1 && field.scrollTop > 1,
+      bottom: maximum > 1 && field.scrollTop < maximum - 1,
+    };
+    setInputOverflow((current) =>
+      current.top === next.top && current.bottom === next.bottom ? current : next,
+    );
+  }, []);
+
   useLayoutEffect(() => {
     const field = textarea.current;
     if (!field) return;
     const resize = () => {
-      const height = Math.min(measureTextareaHeight(field), 120);
-      if (!text) setExpanded(false);
-      else if (height > 36 || text.includes("\n")) setExpanded(true);
-      else if (bar.current && attach.current && actions.current) {
-        const styles = window.getComputedStyle(bar.current);
-        const available =
-          bar.current.clientWidth -
-          Number.parseFloat(styles.paddingInlineStart) -
-          Number.parseFloat(styles.paddingInlineEnd) -
-          attach.current.offsetWidth -
-          actions.current.offsetWidth -
-          2 * Number.parseFloat(styles.columnGap) -
-          16;
-        // Keep Tampletgrok's collapse slack so one-line/expanded widths cannot oscillate.
-        if (measureTextareaHeight(field, Math.max(24, available)) <= 36) setExpanded(false);
-      }
-      field.style.height = `${Math.max(24, height)}px`;
+      // A long recipient name in the placeholder must not expand an empty
+      // composer (especially on narrow RTL screens).
+      field.style.height = `${text ? Math.max(32, Math.min(measureTextareaHeight(field), 200)) : 32}px`;
+      if (!text) field.scrollTop = 0;
+      updateInputOverflow();
     };
     resize();
     let lastWidth = field.getBoundingClientRect().width;
@@ -436,7 +454,30 @@ export function Composer({
     });
     observer.observe(field);
     return () => observer.disconnect();
-  }, [text]);
+  }, [text, updateInputOverflow]);
+
+  // OpenUI keeps the transcript behind a floating composer. Publish the actual
+  // slot height so attachments, reply previews and multiline drafts never cover
+  // the latest answer; no fixed height or delayed layout animation is needed.
+  useLayoutEffect(() => {
+    const slot = composer.current;
+    const thread = slot?.closest<HTMLElement>(".template-thread");
+    if (!slot || !thread) return;
+    const measure = () =>
+      thread.style.setProperty("--chat-composer-height", `${slot.offsetHeight}px`);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(slot);
+    return () => {
+      observer.disconnect();
+      thread.style.removeProperty("--chat-composer-height");
+    };
+  }, []);
+
+  useEffect(() => {
+    if (window.matchMedia("(min-width: 768px)").matches)
+      textarea.current?.focus({ preventScroll: true });
+  }, []);
 
   function updateDraft(value: string, position = value.length) {
     committedMentions.current = rebaseMentions(text, value, committedMentions.current);
@@ -530,7 +571,9 @@ export function Composer({
 
   return (
     <form
+      ref={composer}
       className="composer template-composer"
+      data-drafting={Boolean(text)}
       aria-label={t`Message composer`}
       data-dragging={dragging ? "files" : undefined}
       onSubmit={(event) => {
@@ -596,7 +639,7 @@ export function Composer({
       {files.length > 0 && (
         <div className="template-attachment-chips">
           {files.map((file) => {
-            const name = String(file.payload.filename ?? "");
+            const name = String(file.payload.name ?? file.payload.filename ?? "");
             return (
               <div className="template-attachment-chip" key={file.id}>
                 <Paperclip size={13} />
@@ -648,9 +691,9 @@ export function Composer({
         </div>
       )}
       <div
-        ref={bar}
         className="template-composer-bar"
-        data-expanded={expanded}
+        data-overflow-top={inputOverflow.top || undefined}
+        data-overflow-bottom={inputOverflow.bottom || undefined}
         data-testid="composer-bar"
       >
         <input
@@ -665,7 +708,6 @@ export function Composer({
           }}
         />
         <button
-          ref={attach}
           type="button"
           className="template-icon-button template-attach-button"
           disabled={uploading}
@@ -699,6 +741,7 @@ export function Composer({
             }
             value={text}
             onChange={(event) => updateDraft(event.target.value, event.target.selectionStart)}
+            onScroll={updateInputOverflow}
             onSelect={(event) => {
               caret.current = event.currentTarget.selectionStart;
               setMentionQuery(readMentionQuery(text.slice(0, caret.current)));
@@ -741,20 +784,22 @@ export function Composer({
             }}
           />
         </div>
-        <div ref={actions} className="composer-actions template-composer-actions">
-          <button
-            type="submit"
-            className="template-icon-button template-send-button"
-            aria-label={working ? t`Send direction` : t`Send`}
-            title={working ? t`Send direction` : t`Send`}
-            disabled={sending || uploading || !canSend}
-          >
-            {sending ? (
-              <LoaderCircle size={16} className="template-spinning" />
-            ) : (
-              <ArrowUp size={17} strokeWidth={2.2} />
-            )}
-          </button>
+        <div className="composer-actions template-composer-actions">
+          {(!working || canSend) && (
+            <button
+              type="submit"
+              className="template-icon-button template-send-button"
+              aria-label={working ? t`Send direction` : t`Send`}
+              title={working ? t`Send direction` : t`Send`}
+              disabled={sending || uploading || !canSend}
+            >
+              {sending ? (
+                <LoaderCircle size={16} className="template-spinning" />
+              ) : (
+                <ArrowUp size={17} strokeWidth={2.2} />
+              )}
+            </button>
+          )}
           {working && (
             <button
               type="button"
@@ -775,21 +820,20 @@ export function Composer({
   );
 }
 
-/** Tampletgrok's textarea measurement, preserving the measured field's inline styles. */
-function measureTextareaHeight(field: HTMLTextAreaElement, width?: number) {
+/** Reset before measuring so a shortened draft contracts without a second frame. */
+function measureTextareaHeight(field: HTMLTextAreaElement) {
   const oldOverflow = field.style.overflowY;
-  const oldWidth = field.style.width;
   field.style.overflowY = "hidden";
-  if (width !== undefined) field.style.width = `${width}px`;
   field.style.height = "0px";
   const height = field.scrollHeight;
   field.style.overflowY = oldOverflow;
-  field.style.width = oldWidth;
   return height;
 }
 
 export function ThreadMessages({
   messages: canonicalMessages,
+  ownerId = "",
+  onVisualAction,
   streaming = [],
   agents,
   artifacts,
@@ -807,6 +851,8 @@ export function ThreadMessages({
   onAnswer,
   onRetrySend,
 }: {
+  ownerId?: string;
+  onVisualAction?: (action: VisualAction) => Promise<void>;
   onAnswer?: (answer: InputAnswer, label: string, messageId: string) => Promise<void>;
   onRetrySend?: (nonce: string) => Promise<void>;
   showSpeakers?: boolean;
@@ -833,7 +879,7 @@ export function ThreadMessages({
   const content = useRef<HTMLDivElement>(null);
   const following = useRef(true);
   const previous = useRef({ first: "", last: "", height: 0 });
-  const [atEnd, setAtEnd] = useState(true);
+  const [showLatest, setShowLatest] = useState(false);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [olderError, setOlderError] = useState<unknown>();
   const byId = new Map(messages.map((message) => [message.id, message]));
@@ -869,7 +915,9 @@ export function ThreadMessages({
       element.scrollTop = element.scrollHeight;
     }
     previous.current = { first, last, height: element.scrollHeight };
-    setAtEnd(nearConversationBottom(element.scrollHeight, element.clientHeight, element.scrollTop));
+    setShowLatest((visible) =>
+      showLatestButton(visible, element.scrollHeight - element.clientHeight - element.scrollTop),
+    );
   }, [messages]);
 
   useEffect(() => {
@@ -880,11 +928,15 @@ export function ThreadMessages({
       if (!element) return;
       if (following.current) element.scrollTop = element.scrollHeight;
       previous.current.height = element.scrollHeight;
-      setAtEnd(
-        nearConversationBottom(element.scrollHeight, element.clientHeight, element.scrollTop),
+      setShowLatest((visible) =>
+        showLatestButton(visible, element.scrollHeight - element.clientHeight - element.scrollTop),
       );
     });
     observer.observe(transcript);
+    // The floating composer changes the viewport's bottom padding. Observe the
+    // viewport as well as the content so a growing draft keeps the latest reply
+    // visible without disturbing an owner who deliberately scrolled upwards.
+    if (scroll.current) observer.observe(scroll.current);
     return () => observer.disconnect();
   }, []);
 
@@ -923,7 +975,12 @@ export function ThreadMessages({
             element.scrollTop,
           );
           following.current = nearEnd;
-          setAtEnd(nearEnd);
+          setShowLatest((visible) =>
+            showLatestButton(
+              visible,
+              element.scrollHeight - element.clientHeight - element.scrollTop,
+            ),
+          );
         }}
       >
         <div ref={content} className="template-transcript-content">
@@ -958,6 +1015,9 @@ export function ThreadMessages({
                   key={message.id}
                   run={preview.run}
                   stream={preview.stream}
+                  ownerId={ownerId}
+                  artifacts={artifacts}
+                  onVisualAction={onVisualAction}
                   agent={agents.find((agent) => agent.id === preview.run.agent_id)}
                   showSpeaker={showSpeakers}
                 />
@@ -982,6 +1042,8 @@ export function ThreadMessages({
                 )}
                 <MessageBubble
                   message={message}
+                  ownerId={ownerId}
+                  onVisualAction={onVisualAction}
                   body={
                     onAnswer && question?.choices.length ? (
                       <ConversationQuestion request={question} onAnswer={onAnswer} />
@@ -1015,7 +1077,7 @@ export function ThreadMessages({
           {trailing}
         </div>
       </section>
-      {!atEnd && (
+      {showLatest && (
         <button
           type="button"
           className="template-icon-button template-jump-latest"

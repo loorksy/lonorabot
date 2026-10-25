@@ -1,3 +1,4 @@
+import { validateRichContent } from "@lonora/core";
 import type { Event, ReplyStreamSnapshot, Run } from "./api";
 
 export const MAX_STREAM_CHARS = 60000;
@@ -52,6 +53,7 @@ export function accumulateStream(
       ? {
           ...current,
           phase: event.kind === "run.failed" ? "failed" : "cancelled",
+          rich_content: null,
           cursor: event.cursor,
         }
       : undefined;
@@ -108,6 +110,7 @@ export function accumulateStream(
     ...stream,
     sequence: Math.max(stream.sequence, sequence),
     phase: payload.phase === "discarded" ? "discarded" : "committed",
+    rich_content: payload.phase === "discarded" ? null : validateRichContent(payload.rich_content),
     message_id: typeof payload.message_id === "string" ? payload.message_id : null,
     cursor: event.cursor,
   };
@@ -125,6 +128,8 @@ export function seedStream(
   if (same && current && !current.gap && current.sequence > snapshot.sequence) return current;
   let rebased: LiveReplyStream = {
     ...snapshot,
+    rich_content:
+      snapshot.phase === "committed" ? validateRichContent(snapshot.rich_content) : null,
     run_id: run.id,
     thread_id: run.thread_id,
     agent_id: run.agent_id,
@@ -138,6 +143,7 @@ export function seedStream(
     if (current.phase !== "streaming" && snapshot.phase === "streaming") {
       rebased.phase = current.phase;
       rebased.message_id = current.message_id;
+      rebased.rich_content = current.rich_content;
     }
   }
   return rebased;

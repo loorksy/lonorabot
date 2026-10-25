@@ -12,8 +12,10 @@ export function ConversationCharts({
   threadId,
   onOpenMarket,
   binding,
+  preferredChartId,
 }: {
   binding?: { accountId: string; symbol: string };
+  preferredChartId?: string;
   agentId?: string;
   threadId?: string;
   onOpenMarket: () => void;
@@ -44,7 +46,13 @@ export function ConversationCharts({
               (row.payload.account_id === boundAccount && row.payload.symbol === boundSymbol)),
         );
         setRows(matching);
-        setSelected((id) => (matching.some((row) => row.id === id) ? id : (matching[0]?.id ?? "")));
+        setSelected((id) =>
+          preferredChartId && matching.some((row) => row.id === preferredChartId)
+            ? preferredChartId
+            : matching.some((row) => row.id === id)
+              ? id
+              : (matching[0]?.id ?? ""),
+        );
         setError(undefined);
       })
       .catch((caught: unknown) => {
@@ -56,7 +64,7 @@ export function ConversationCharts({
     return () => {
       live = false;
     };
-  }, [agentId, threadId, connected, cursor, boundAccount, boundSymbol]);
+  }, [agentId, threadId, connected, cursor, boundAccount, boundSymbol, preferredChartId]);
   const row = rows.find((item) => item.id === selected);
   return (
     <div className="conversation-charts">

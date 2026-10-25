@@ -68,7 +68,7 @@ def test_resources_validate_and_policies_independent() -> None:
     assert load_constitution()[0].startswith("<lonora_operating_policy>")
     assert "Emergency Stop" in "\n".join(load_constitution())
     assert "MetaApi" not in "\n".join(load_constitution())
-    assert len(built_in_skills()) == 8
+    assert len(built_in_skills()) == 9
 
 
 def test_explicit_and_trigger_modes() -> None:

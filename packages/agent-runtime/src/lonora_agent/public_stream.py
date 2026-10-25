@@ -5,6 +5,8 @@ from time import monotonic
 
 from lonora_core.public_reply import public_reply_violation
 
+from .visual_response import visual_stream_prefix
+
 # Disclosure filtering, not user-intent routing or a trading decision rule.
 EFFECT_CLAIM = re.compile(
     r"\b(?:executed|opened|closed|placed|bought|sold|approved|confirmed|sent|activated|done|buy|sell|password|secret|credential|authorization|token)\b"
@@ -28,20 +30,21 @@ class PublicStream:
         # disclosure scan until publication is eligible, then check every byte.
         if self.sent and monotonic() - self.last_publish < 0.2:
             return ""
-        if EFFECT_CLAIM.search(self.buffer) or public_reply_violation(
-            self.buffer, self.names, public_ids=self.public_ids
+        candidate = visual_stream_prefix(self.buffer)
+        if EFFECT_CLAIM.search(candidate) or public_reply_violation(
+            candidate, self.names, public_ids=self.public_ids
         ):
             self.enabled = False
             return ""
         # Admit complete words, never half an internal identifier. Bound writes
         # by time and characters rather than provider token framing.
-        boundaries = list(re.finditer(r"\s+", self.buffer))
+        boundaries = list(re.finditer(r"\s+", candidate))
         if not boundaries:
             return ""
         end = boundaries[-1].end()
-        text = self.buffer[len(self.sent) : end]
+        text = candidate[len(self.sent) : end]
         if len(text) < 8 or (self.sent and monotonic() - self.last_publish < 0.2):
             return ""
-        self.sent = self.buffer[:end]
+        self.sent = candidate[:end]
         self.last_publish = monotonic()
         return text

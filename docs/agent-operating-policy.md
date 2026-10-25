@@ -53,8 +53,8 @@ trade confirmation, journal/reconciliation and Web/Mobile result presentation.
    voice authority/delegation rules. The existing 7,500-byte voice-context cap
    remains; the long-term-memory excerpt is reduced to make room.
 
-Native Anthropic requests mark only the immutable first-party core as an
-`ephemeral` cache prefix. Owner instructions, memory, broker state, source
+Native Anthropic requests mark the immutable first-party core and its adjacent
+compact native-response vocabulary as an `ephemeral` cache prefix. Owner instructions, memory, broker state, source
 observations and conversation remain outside that cache breakpoint. This adds
 no network call, stores no secret in the manual and changes no permission.
 Other providers retain their current behavior and can use their own automatic
@@ -85,6 +85,9 @@ manual and manifest under `share/lonora/system`.
 `check_policy_distribution.py` builds the production wheel offline and exercises
 the real installed-layout fallback; this is also part of `scripts/build.sh`.
 No new runtime, permission engine, memory system or procedure registry exists.
+The optional `lonora-design` procedure uses that existing registry; its compact
+response vocabulary is a separate bounded instruction block. See
+[native visual responses](native-visual-responses.md).
 
 ## Verification limits
 

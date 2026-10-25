@@ -1,4 +1,5 @@
 import type { Payload } from "./domain";
+import type { RichContent } from "./visual-response";
 export type ReplyStreamSnapshot = {
   input_seq?: number;
   turn_id: string;
@@ -9,6 +10,8 @@ export type ReplyStreamSnapshot = {
   truncated: boolean;
   phase: "streaming" | "committed" | "discarded" | "failed" | "cancelled";
   message_id: string | null;
+  /** Only a validated, atomically committed reply may expose native composition. */
+  rich_content?: RichContent | null;
 };
 export type InputRequest = {
   id: string;

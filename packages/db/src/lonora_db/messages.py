@@ -29,6 +29,7 @@ def message_data(row: MessageRow) -> dict[str, Any]:
         "seq": row.seq,
         "role": row.role,
         "content": row.content,
+        "rich_content": row.rich_content,
         "reply_to": row.reply_to,
         "mentions": row.mentions,
         "attachment_ids": row.attachment_ids,

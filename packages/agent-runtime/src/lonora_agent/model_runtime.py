@@ -17,6 +17,7 @@ from .context.team import refresh_routing_context
 from .progress import progress
 from .public_stream import PublicStream
 from .skills.system_policy import apply_operating_policy
+from .visual_response import parse_visual_reply
 
 
 async def model_turn(
@@ -68,6 +69,9 @@ async def model_turn(
     reply, selection = await context.router.complete(
         capability, request_messages, tools, on_delta=delta, on_attempt=attempt
     )
+    # Providers cannot inject compiled display data. Only this request's output
+    # can be compiled against its actual observations and owned resources.
+    reply = reply.model_copy(update={"rich_content": None})
     await save_usage(
         context.db,
         context.owner_id,
@@ -100,15 +104,17 @@ async def model_turn(
     # Style is model guidance, never a second generation or a failed user
     # request. Sensitive spans are removed deterministically from the actual
     # answer; financial truth was established above and is not rewritten.
-    protected = redact_private_reply(reply.text, public_ids=public_ids)
-    privacy_redacted = protected != reply.text
-    reply = reply.model_copy(update={"text": protected})
+    answer, rich_content, visual_errors = await parse_visual_reply(context, reply.text, messages)
+    protected = redact_private_reply(answer, public_ids=public_ids)
+    privacy_redacted = protected != answer
+    reply = reply.model_copy(update={"text": protected, "rich_content": rich_content})
     reply.provider_metadata = {
         **reply.provider_metadata,
         "runtime_capability": capability.value,
         "image_observations": image_diagnostics,
         "public_rewrite": False,
         "privacy_redacted": privacy_redacted,
+        "visual_errors": visual_errors,
     }
     # Publish the accepted reply once. The fenced event writer chunks it in one
     # transaction, independently of tiny provider tokens, retries or rewrites.

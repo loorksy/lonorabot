@@ -236,6 +236,7 @@ class MessageRow(Base):
     seq: Mapped[int] = mapped_column(Integer)
     role: Mapped[str] = mapped_column(String(16))
     content: Mapped[str] = mapped_column(Text)
+    rich_content: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
     client_nonce: Mapped[str | None] = mapped_column(String(100))
     reply_to: Mapped[str | None] = mapped_column(String(36))
     attachment_ids: Mapped[list[str]] = mapped_column(JSON, default=list)

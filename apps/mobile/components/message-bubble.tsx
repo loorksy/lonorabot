@@ -1,11 +1,17 @@
 import type { Agent, Artifact, Message } from "@lonora/contracts";
-import { type ReactNode, useState } from "react";
+import { validateRichContent } from "@lonora/core";
+import { type ReactNode, useMemo, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { useSession } from "../lib/session";
 import { ArtifactFileCard } from "./artifact-file-card";
 import { BotAvatar } from "./bot-avatar";
 import { ComposerReplyPreview } from "./composer-reply-preview";
 import { Markdown } from "./markdown";
+import {
+  NativeRichResponse,
+  type NativeVisualAction,
+  nativeRichImageIds,
+} from "./native-rich-response";
 import { NativeSymbol } from "./native-symbol";
 import { colors } from "./ui";
 export function MessageBubble({
@@ -15,6 +21,7 @@ export function MessageBubble({
   files,
   onArtifact,
   onChartLink,
+  onVisualAction,
   grouped = false,
   reply,
   onReply,
@@ -25,6 +32,7 @@ export function MessageBubble({
   files: Artifact[];
   onArtifact: (id: string) => void;
   onChartLink?: (url: string) => boolean;
+  onVisualAction?: NativeVisualAction;
   grouped?: boolean;
   reply?: Message;
   onReply?: (message: Message) => void;
@@ -33,6 +41,11 @@ export function MessageBubble({
   const [expanded, setExpanded] = useState(false);
   const isOwner = message.role === "user";
   const tool = message.role === "tool";
+  const rich = useMemo(
+    () => (message.role === "assistant" ? validateRichContent(message.rich_content) : null),
+    [message.rich_content, message.role],
+  );
+  const imageIds = useMemo(() => nativeRichImageIds(rich), [rich]);
   return (
     <Pressable
       onLongPress={() => onReply?.(message)}
@@ -121,16 +134,28 @@ export function MessageBubble({
         </View>
       ) : (
         (body ??
-        (message.content ? <Markdown content={message.content} onChartLink={onChartLink} /> : null))
+        (rich ? (
+          <NativeRichResponse
+            content={rich}
+            messageId={message.id}
+            threadId={message.thread_id}
+            onAction={onVisualAction}
+            onChartLink={onChartLink}
+          />
+        ) : message.content ? (
+          <Markdown content={message.content} onChartLink={onChartLink} />
+        ) : null))
       )}
-      {message.attachment_ids.map((id) => (
-        <ArtifactFileCard
-          key={id}
-          id={id}
-          artifact={files.find((file) => file.id === id)}
-          onOpen={() => onArtifact(id)}
-        />
-      ))}
+      {message.attachment_ids
+        .filter((id) => !imageIds.has(id))
+        .map((id) => (
+          <ArtifactFileCard
+            key={id}
+            id={id}
+            artifact={files.find((file) => file.id === id)}
+            onOpen={() => onArtifact(id)}
+          />
+        ))}
     </Pressable>
   );
 }

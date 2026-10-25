@@ -1,3 +1,5 @@
+import type { RichContent } from "./visual-response";
+
 export type Json = string | number | boolean | null | Json[] | { [key: string]: Json };
 export type Payload = Record<string, Json>;
 export type Agent = {
@@ -26,6 +28,7 @@ export type Thread = {
 };
 export type InputAnswer = { run_id: string; question_id: string; choice_id: string };
 export type Message = {
+  rich_content?: RichContent | null;
   client_nonce?: string | null;
   mentions?: { agent_ids: string[]; all: boolean; session_id?: string | null };
   id: string;

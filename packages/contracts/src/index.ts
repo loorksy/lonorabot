@@ -10,3 +10,4 @@ export type * from "./runs";
 export type * from "./skills";
 export type * from "./super-bot";
 export type * from "./trading";
+export type * from "./visual-response";

@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .events import emit
 from .generated_artifacts import link_generated_artifacts, resolve_reply_artifacts
 from .messages import message_data
+from .rich_response import validated_rich_content
 from .runs import locked_run_thread
 from .schema import EffectReceiptRow, MessageRow, SteeringRow, ThreadRow, TicketRow
 from .streaming import settle_stream, stream_identity
@@ -19,7 +20,12 @@ from .tasks import checkpoint_task, save_task, task_state
 
 
 async def settle_task_wait(
-    session: AsyncSession, lease: Lease, text: str, call_id: str | None
+    session: AsyncSession,
+    lease: Lease,
+    text: str,
+    call_id: str | None,
+    *,
+    rich_content: dict[str, Any] | None = None,
 ) -> Literal["settled", "continue", "suspended"]:
     """Publish only after admission, lease and owner control still agree.
 
@@ -80,7 +86,12 @@ async def settle_task_wait(
         raise LonoraError("task_wait_receipt_invalid", 409)
     raw_update = environment.get("wait_update")
     update = cast(dict[str, Any], raw_update) if isinstance(raw_update, dict) else None
-    if text and (update is None or update.get("call_id") != call_id or update.get("text") != text):
+    if (text or rich_content) and (
+        update is None
+        or update.get("call_id") != call_id
+        or update.get("text") != text
+        or validated_rich_content(update.get("rich_content")) != rich_content
+    ):
         raise LonoraError("task_wait_update_invalid", 409)
     key = "task-wait-update:" + stable_id(run.id, call_id)
     previous = await session.get(EffectReceiptRow, key)
@@ -92,13 +103,15 @@ async def settle_task_wait(
         if origin is None or origin.owner_id != work.owner_id or origin.agent_id != run.agent_id:
             raise LonoraError("task_origin_thread_invalid", 409)
         answer, artifacts = await resolve_reply_artifacts(session, work.owner_id, run, text)
-        if answer or artifacts:
+        compiled_rich = validated_rich_content(rich_content)
+        if answer or artifacts or compiled_rich:
             message = MessageRow(
                 thread_id=origin.id,
                 agent_id=run.agent_id,
                 role="assistant",
                 seq=origin.next_seq,
                 content=answer,
+                rich_content=compiled_rich,
             )
             origin.next_seq += 1
             session.add(message)
@@ -138,6 +151,7 @@ async def settle_task_wait(
         "committed" if message else "discarded",
         message_id=message.id if message else None,
         text=message.content if message else "",
+        rich_content=message.rich_content if message else None,
     )
     if snapshot:
         emit(

@@ -5,6 +5,7 @@ from typing import Any, cast
 from lonora_contracts.runs import Lease
 from lonora_core.user_error import LonoraError
 
+from .rich_response import validated_rich_content
 from .schema import RunRow
 
 MAX_STREAM_CHARS = 60000
@@ -58,12 +59,21 @@ def append_stream(row: RunRow, lease: Lease, turn_id: str, text: str) -> tuple[d
 
 
 def settle_stream(
-    row: RunRow, phase: str, *, message_id: str | None = None, text: str | None = None
+    row: RunRow,
+    phase: str,
+    *,
+    message_id: str | None = None,
+    text: str | None = None,
+    rich_content: dict[str, Any] | None = None,
 ) -> dict[str, Any] | None:
     stream = stream_data(row)
     if stream is None:
         return None
     stream.update(phase=phase, message_id=message_id)
+    stream.pop("rich_content", None)
+    compiled = validated_rich_content(rich_content) if phase == "committed" else None
+    if compiled is not None:
+        stream["rich_content"] = compiled
     if text is not None:
         stream.update(text=text[:MAX_STREAM_CHARS], truncated=len(text) > MAX_STREAM_CHARS)
     save_stream(row, stream)
@@ -82,6 +92,7 @@ def stream_identity(stream: dict[str, Any]) -> dict[str, Any]:
             "phase",
             "message_id",
             "truncated",
+            "rich_content",
         )
         if key in stream
     }
