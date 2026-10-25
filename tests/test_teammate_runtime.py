@@ -319,3 +319,82 @@ def test_rewrite_draft_is_data_with_no_private_history_or_executable_calls():
     assert len(request) == 2
     assert json.loads(request[1].content) == {"draft": draft}
     assert all(not m.tool_calls and not m.images for m in request)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "راجعت مشروع day-trader-skill، وهو أداة تعليمية لتحليل الأسواق.",
+        "المصدر: https://github.com/Jakeschincariol/day-trader-skill",
+        "أتابع الأحداث الاقتصادية المؤثرة في السوق.",
+        "Trading skills improve with practice; economic events affect volatility.",
+        "This project offers educational tools for market research.",
+        "Run Python locally to check your calculations.",
+        "The external project uses an API and workers for market research.",
+        "المشروع يستخدم OpenAI API لتحليل السوق.",
+    ],
+)
+def test_domain_vocabulary_and_external_project_names_are_not_internal_disclosure(text: str):
+    assert not public_reply_violation(text, set(load_tools().tools))
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "My tools are ready.",
+        "I loaded a skill.",
+        "The tool returned a result.",
+        "Created a run.",
+        "سأستخدم الأداة الآن.",
+        "تم تحميل مهارات التنفيذ.",
+        "أرسلت لك بطاقة موافقة.",
+    ],
+)
+def test_runtime_narration_remains_private(text: str):
+    assert public_reply_violation(text, set(load_tools().tools))
+
+
+@pytest.mark.asyncio
+async def test_each_turn_gets_current_scoped_inventory_without_rewriting_checkpoint(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    history = [
+        ModelMessage(role="system", content="old context"),
+        ModelMessage(role="user", content="احسب النتيجة"),
+    ]
+    inventory = load_tools().capability_inventory(read_only=True)
+    complete = AsyncMock(
+        return_value=(
+            ModelReply(text="النتيجة تحتاج حسابًا أولًا."),
+            ModelSelection(provider="openai", model="offline"),
+        )
+    )
+    monkeypatch.setattr(model_runtime, "refresh_routing_context", AsyncMock())
+
+    async def images(
+        context: Any, request: list[ModelMessage]
+    ) -> tuple[list[ModelMessage], dict[str, Any]]:
+        assert sum(m.content == inventory for m in request) == 1
+        assert "workspace_read" in inventory and "workspace_execute" not in inventory
+        return request, {}
+
+    monkeypatch.setattr(model_runtime, "prepare_image_observations", images)
+    monkeypatch.setattr(model_runtime, "progress", AsyncMock())
+    monkeypatch.setattr(model_runtime, "save_usage", AsyncMock())
+    context = cast(
+        ToolContext,
+        SimpleNamespace(
+            db=None,
+            owner_id="owner",
+            agent_id="agent",
+            thread_id="thread",
+            lease=SimpleNamespace(run_id="run"),
+            router=SimpleNamespace(complete=complete),
+        ),
+    )
+    for _ in range(2):
+        await model_runtime.model_turn(
+            context, history, [], Capability.CONVERSATION, capability_inventory=inventory
+        )
+    assert len(history) == 2 and history[0].content == "old context"
+    assert complete.await_count == 2

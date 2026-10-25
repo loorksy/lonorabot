@@ -1223,3 +1223,22 @@ executor, broker action, lease, run or conversation write was exposed. Public
 authenticated SSE became ready in74.18ms, and the served index/main JavaScript
 matched the tested release hashes. Health/readiness passed; temporary probe auth
 and transfer staging were removed. Failed operations were not automatically retried.
+
+## Capability truth and real journey acceptance — 2026-10-25
+
+See `RUNTIME_ACCEPTANCE.md` for confirmed defects and evidence limits. The next
+production failure was again reply rejection, this time while discussing an
+external repository. The same actual unmodified Personal Agent had no discovered
+operations and denied real research/terminal capabilities. Registry-generated
+current inventory now accompanies each model turn; catalog descriptions reflect
+actual actions; external subject vocabulary is distinguished from private
+implementation narration. No alternate Agent runtime or intent router was added.
+
+Passing checks before production acceptance:1150 Python cases on disposable
+PostgreSQL;67 targeted audit cases;12 workspace integration groups; skill creation
+and progressive loading; market/Agent execution, chart and trade-approval/recovery
+integration scripts using scripted models and simulation brokers. A new explicit
+real-model acceptance script checks natural requests against actual handlers and
+final attachment bytes; results follow after deployment. Live read-only broker
+probes found all3 enabled MetaApi connections undeployed, so live financial paths
+remain externally blocked. No financial mutation or provider redeployment occurred.

@@ -537,6 +537,7 @@ async def execute_tool_loop(
                 read_only, set(cast(list[str], state["discovered_tool_names"]))
             ),
             turn_capability,
+            capability_inventory=registry.capability_inventory(read_only),
         )
         state["rounds"] = int(state.get("rounds", 0)) + 1
         state["selection"] = {

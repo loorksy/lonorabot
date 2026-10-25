@@ -119,7 +119,7 @@ def tools() -> list[Tool]:
         ),
         Tool(
             "market_quote",
-            "Read a sourced quote and observation time for an exact broker symbol.",
+            "Read current market price quotes (bid/ask) and sourced observation time for an exact broker symbol.",
             QuoteInput,
             quote,
             True,

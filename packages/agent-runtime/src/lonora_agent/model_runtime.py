@@ -26,10 +26,17 @@ async def model_turn(
     messages: list[ModelMessage],
     tools: list[ToolDefinition],
     capability: Capability,
+    *,
+    capability_inventory: str = "",
 ) -> tuple[ModelReply, ModelSelection]:
     await refresh_routing_context(context, messages)
+    request_messages = apply_operating_policy(messages, tools)
+    if capability_inventory:
+        # Fresh projection on every model turn, including restored checkpoints.
+        # This is the actual permitted registry, not remembered self-description.
+        request_messages.insert(1, ModelMessage(role="system", content=capability_inventory))
     request_messages, image_diagnostics = await prepare_image_observations(
-        context, apply_operating_policy(messages, tools)
+        context, request_messages
     )
     if any(message.images for message in request_messages):
         capability = Capability.VISION

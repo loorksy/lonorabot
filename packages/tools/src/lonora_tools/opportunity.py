@@ -168,7 +168,7 @@ def tools() -> list[Tool]:
         ),
         Tool(
             "market_opportunity_update",
-            "Version-check a thesis update using actual evidence IDs. Confirmation requires fresh matching evidence; expiry/invalidation needs a recorded rule/evidence. Cannot forge execution or revive a terminal thesis.",
+            "Version-check a thesis update using actual evidence IDs. Confirmation requires fresh matching evidence; expiry/invalidation needs a recorded rule/evidence. Cannot forge execution or revive an ended thesis.",
             OpportunityUpdate,
             update,
         ),

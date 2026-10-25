@@ -11,6 +11,8 @@ from .market_binding import guard_market_tool, prepare_market_arguments, scope_m
 from .schema import validate_arguments
 from .tool_discovery import search_definitions
 
+MAX_CAPABILITY_INVENTORY_CHARS = 8000
+
 DISCOVERY_BASE = frozenset({"tool_environment", "skills_list", "skill_view", "wait_for_input"})
 
 
@@ -68,6 +70,54 @@ class ToolRegistry:
         return [
             tool.definition() for tool in self.tools.values() if not read_only or tool.read_only
         ]
+
+    def capability_inventory(self, read_only: bool = False) -> str:
+        """Bounded names from the current permitted registry, never a second catalog.
+
+        Native input schemas stay progressively loaded. This snapshot prevents a
+        compact initial schema surface from being mistaken for missing abilities.
+        Availability here means registered in scope, not configured or authorized.
+        """
+        families: dict[str, list[str]] = {}
+        for name, tool in sorted(self.tools.items()):
+            if read_only and not tool.read_only:
+                continue
+            family = getattr(tool.handler, "__module__", "capabilities").rsplit(".", 1)[-1]
+            families.setdefault(family, []).append(name)
+        total = sum(len(names) for names in families.values())
+        prefix = (
+            "Current capability inventory from the permitted live registry. The small initial "
+            "schema list is progressive discovery, not the full set of abilities. Inspect an "
+            "exact name with tool_environment to load its callable schema before use or before "
+            "claiming the ability is absent. Registered does not establish backend readiness, "
+            "account authority or permission; execution still validates all current boundaries. "
+            "Historical self-descriptions do not override this current inventory.\n"
+            "<available_capabilities>\n"
+        )
+        lines: list[str] = []
+        shown = 0
+        # Reserve enough space for a bounded count/footer even for a large registry.
+        budget = MAX_CAPABILITY_INVENTORY_CHARS - len(prefix) - 250
+        for family, names in sorted(families.items()):
+            line = family + ": "
+            included = 0
+            for name in names:
+                piece = (", " if included else "") + name
+                if len(line) + len(piece) > budget:
+                    break
+                line += piece
+                included += 1
+            if included:
+                lines.append(line)
+                shown += included
+                budget -= len(line) + 1
+            if included < len(names):
+                break
+        return (
+            prefix + "\n".join(lines) + f"\nListed {shown} of {total} permitted capabilities. "
+            "Use tool_environment without a query to paginate complete metadata if needed.\n"
+            "</available_capabilities>"
+        )
 
     def discovery_definitions(
         self, read_only: bool = False, discovered_names: set[str] | None = None

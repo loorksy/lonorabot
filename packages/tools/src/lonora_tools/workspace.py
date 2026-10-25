@@ -96,7 +96,7 @@ def tools() -> list[Tool]:
         ),
         Tool(
             "workspace_execute",
-            "Run shell or Python analysis from an exact workspace revision in a resource-bounded, networkless container without host files or credentials. Returns actual exit status, bounded output and new file revision. No broker mutation is possible through this path. Interrupted operations are not automatically rerun.",
+            "Run a shell terminal command or Python analysis from an exact workspace revision in a resource-bounded, networkless container without host files or credentials. Returns actual exit status, bounded output and new file revision. No broker mutation is possible through this path. Interrupted operations are not automatically rerun.",
             ExecuteInput,
             execute,
             replay_safe=True,

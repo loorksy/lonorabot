@@ -14,7 +14,7 @@ from lonora_tools.base import Tool
 from lonora_tools.context import ToolContext
 from lonora_tools.environment import EnvironmentInput
 from lonora_tools.loader import load_tools
-from lonora_tools.registry import ToolRegistry
+from lonora_tools.registry import MAX_CAPABILITY_INVENTORY_CHARS, ToolRegistry
 from lonora_tools.tool_discovery import MAX_SEARCH_RESULTS, search_definitions
 from pydantic import Field, ValidationError
 
@@ -162,3 +162,63 @@ def test_activation_rejects_replaced_or_removed_schema():
     assert not catalog.discovered_names(result)
     del catalog.tools["market_quote"]
     assert not catalog.discovered_names(result)
+
+
+@pytest.mark.parametrize(
+    ("query", "expected"),
+    [
+        ("terminal", "workspace_execute"),
+        ("run terminal command", "workspace_execute"),
+        ("open trade", "trade_execute"),
+        ("place order", "trade_execute"),
+        ("buy sell positions", "trade_execute"),
+        ("read market quotes", "market_quote"),
+        ("read github repository", "web_fetch"),
+    ],
+)
+def test_real_catalog_discovers_supported_work_from_business_terms(query: str, expected: str):
+    catalog = load_tools()
+    assert expected in search_definitions(catalog.definitions(), query)
+    if query == "terminal":
+        assert search_definitions(catalog.definitions(), query)[0] == expected
+
+
+def test_current_inventory_contains_all_real_names_without_changing_native_schemas():
+    catalog = load_tools()
+    initial = catalog.discovery_definitions()
+    inventory = catalog.capability_inventory()
+    assert len(inventory) <= MAX_CAPABILITY_INVENTORY_CHARS
+    names = {
+        name
+        for line in inventory.split("<available_capabilities>\n")[1].splitlines()
+        if ": " in line
+        for name in line.split(": ", 1)[1].split(", ")
+    }
+    assert names == set(catalog.tools)
+    assert f"Listed {len(catalog.tools)} of {len(catalog.tools)}" in inventory
+    assert "not establish backend readiness" in inventory
+    assert "account authority or permission" in inventory
+    assert catalog.discovery_definitions() == initial and len(initial) == 4
+
+
+def test_inventory_obeys_current_read_only_scope_and_has_no_invented_abilities():
+    catalog = registry()
+    inventory = catalog.capability_inventory(read_only=True)
+    assert "market_quote" in inventory and "قراءة_السعر" in inventory
+    assert "trade_execute" not in inventory and "wait_for_input" not in inventory
+    del catalog.tools["market_quote"]
+    assert "market_quote" not in catalog.capability_inventory(read_only=True)
+
+
+def test_large_inventory_is_explicitly_bounded_and_directs_to_paginated_metadata():
+    catalog = ToolRegistry(
+        [
+            Tool(f"capability_{index:05d}", "Read bounded evidence", Input, unused, True)
+            for index in range(2000)
+        ]
+    )
+    inventory = catalog.capability_inventory()
+    assert len(inventory) <= MAX_CAPABILITY_INVENTORY_CHARS
+    assert f"of {len(catalog.tools)} permitted capabilities" in inventory
+    assert f"Listed {len(catalog.tools)} of" not in inventory
+    assert "paginate complete metadata" in inventory

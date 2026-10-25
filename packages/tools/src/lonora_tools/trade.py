@@ -481,7 +481,7 @@ def tools() -> list[Tool]:
         ),
         Tool(
             "trade_execute",
-            "Execute a broker operation within an active signed account grant without per-order confirmation. "
+            "Execute a broker trade: buy or sell to open a position, place a pending limit/stop order, close or modify a position, or modify/cancel an order. Use an active signed account grant without per-order confirmation. "
             "Otherwise propose the immutable operation using the real financial Approve and Reject controls "
             "in chat or voice and wait for confirmation; spoken or typed agreement is not approval. "
             "The server validates current authority, broker preflight and the actual broker result. "
