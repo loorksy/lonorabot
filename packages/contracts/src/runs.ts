@@ -1,5 +1,6 @@
 import type { Payload } from "./domain";
 export type ReplyStreamSnapshot = {
+  input_seq?: number;
   turn_id: string;
   fence: number;
   generation: number;

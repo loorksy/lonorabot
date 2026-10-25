@@ -24,6 +24,7 @@ def start_stream(row: RunRow, lease: Lease, turn_id: str) -> dict[str, Any]:
     previous = stream_data(row) or {}
     stream: dict[str, Any] = {
         "turn_id": turn_id,
+        "input_seq": row.input_seq,
         "fence": lease.fence,
         "generation": int(previous.get("generation", 0)) + 1,
         "sequence": 0,
@@ -73,6 +74,7 @@ def stream_identity(stream: dict[str, Any]) -> dict[str, Any]:
     return {
         key: stream[key]
         for key in (
+            "input_seq",
             "turn_id",
             "fence",
             "generation",
@@ -81,4 +83,5 @@ def stream_identity(stream: dict[str, Any]) -> dict[str, Any]:
             "message_id",
             "truncated",
         )
+        if key in stream
     }

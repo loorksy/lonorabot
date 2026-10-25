@@ -577,6 +577,10 @@ async def browser_action(data: dict[str, Any]):
             return {**data, "text": data["text"] + text}
         if action == "recover":
             context = await fixture.lease(data["run"])
+            from lonora_db.steering import consume_steering
+
+            async with fixture.runtime.db.sessions() as session, session.begin():
+                await consume_steering(session, context.lease)
             turn = uuid4().hex
             await progress(context, "run.reply_started", {"turn_id": turn})
             await progress(

@@ -146,6 +146,21 @@ test("live reply stays before a later owner message instead of moving to the foo
         ),
       );
     expect(order.indexOf(data.run.id)).toBeLessThan(order.indexOf(saved.message.id));
+    // Keep the Run GET stale: the resumed generation must carry its own anchor.
+    await page.route("**/api/runs**", (route) => route.abort());
+    const resumed = fixture({ ...data, action: "recover" });
+    await expect(page.locator(`[data-stream-run-id='${data.run.id}']`)).toContainText(resumed.text);
+    const resumedOrder = await page
+      .locator('[data-testid="transcript"] article')
+      .evaluateAll((nodes) =>
+        nodes.map(
+          (node) => node.getAttribute("data-stream-run-id") ?? node.getAttribute("data-message-id"),
+        ),
+      );
+    expect(resumedOrder.indexOf(data.run.id)).toBeGreaterThan(
+      resumedOrder.indexOf(saved.message.id),
+    );
+    await page.unroute("**/api/runs**");
     await expect(page.locator(".lonora-pixel-grid")).toHaveCount(0);
   } finally {
     fixture({ ...data, action: "cleanup" });

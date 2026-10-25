@@ -34,3 +34,14 @@ test("canonical acknowledgement replaces preview exactly once", () => {
     ["input", "answer"],
   );
 });
+
+test("a new generation uses its own server anchor despite a stale Run snapshot", () => {
+  const reply = { ...stream, input_seq: 11 };
+  assert.deepEqual(
+    streamTimeline(
+      [message("input", 10), message("followup", 11)],
+      [{ run: { ...run, input_seq: 1 }, stream: reply }],
+    ).map((m) => m.id),
+    ["input", "followup", "preview:r"],
+  );
+});

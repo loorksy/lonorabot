@@ -1182,3 +1182,8 @@ the actual writing avatar/label instead of the generic Working grid.
 Validation: six real Chromium/API/PostgreSQL browser scenarios (including a later
 owner message during streaming and pending timestamp suppression), nine Node
 outbox/timeline cases and the full build pass. No migration or financial change.
+
+Generation-specific input anchors now persist with each fenced stream and travel
+in SSE identity frames. This keeps resumed replies aligned even while the Run GET
+is deliberately stale. Six browser cases pass including before/after steering,
+10 Node outbox/timeline cases,1122 Python cases and the full build pass.

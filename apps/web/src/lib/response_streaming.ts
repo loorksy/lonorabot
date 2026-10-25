@@ -67,7 +67,13 @@ export function accumulateStream(
     typeof sequence !== "number"
   )
     return current;
-  const identity = { turn_id, fence, generation, sequence };
+  const identity = {
+    turn_id,
+    fence,
+    generation,
+    sequence,
+    ...(typeof payload.input_seq === "number" ? { input_seq: payload.input_seq } : {}),
+  };
   if (current && compareVersion(current, identity) > 0) return current;
   const same =
     current?.turn_id === turn_id && current.fence === fence && current.generation === generation;
@@ -89,6 +95,7 @@ export function accumulateStream(
       };
   if (event.kind === "run.reply_started")
     return same ? stream : { ...stream, cursor: event.cursor };
+  if (typeof payload.input_seq === "number") stream = { ...stream, input_seq: payload.input_seq };
   if (event.kind === "run.delta") {
     stream = append(stream, {
       sequence,

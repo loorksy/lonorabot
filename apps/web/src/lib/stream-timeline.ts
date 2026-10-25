@@ -10,11 +10,8 @@ export function streamVisible(
   if (stream.message_id && messages.some((m) => m.id === stream.message_id)) return false;
   const canonical = messages.filter((m) => !m.id.startsWith("pending:"));
   if (stream.phase === "committed" && !canonical.length) return false;
-  if (
-    canonical.length &&
-    run.input_seq != null &&
-    run.input_seq < Math.min(...canonical.map((m) => m.seq))
-  )
+  const inputSeq = stream.input_seq ?? run.input_seq;
+  if (canonical.length && inputSeq != null && inputSeq < Math.min(...canonical.map((m) => m.seq)))
     return false;
   return true;
 }
@@ -25,6 +22,7 @@ export function streamTimeline(messages: Message[], streams: StreamRow[]): Messa
     ...messages,
     ...rows.map(({ run, stream }) => {
       const anchor =
+        stream.input_seq ??
         run.input_seq ??
         Math.max(
           0,
