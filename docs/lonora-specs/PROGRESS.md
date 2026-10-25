@@ -1150,6 +1150,12 @@ financial outcomes remain final-only. Final disclosure/verification checks and
 generation replacement still apply. This is provider-driven text, not a cosmetic
 typewriter animation. Short or withheld replies may still appear together.
 
-Validation:1121 Python cases, actual PostgreSQL streaming/peer checks, activity
+Validation:1122 Python cases, actual PostgreSQL streaming/peer checks, activity
 projection test and full build passed before release preparation. Production
 publication is tracked separately from these development checks.
+
+Publication9536397 passed public SSE and exact Web asset verification. A follow-up
+performance check moved cumulative disclosure scanning behind the publication
+throttle:1800 one-character provider fragments fell from3.851seconds of local
+CPU to0.0047seconds. Throttled text is still checked in full before release; a
+private suffix regression and the full1122-test suite/build passed.

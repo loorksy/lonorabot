@@ -22,7 +22,11 @@ class PublicStream:
 
     def feed(self, chunk: str) -> str:
         self.buffer += chunk
-        if not self.enabled:
+        if not self.enabled or len(self.buffer) - len(self.sent) < 8:
+            return ""
+        # No text can leave during this interval. Defer the costly cumulative
+        # disclosure scan until publication is eligible, then check every byte.
+        if self.sent and monotonic() - self.last_publish < 0.2:
             return ""
         if EFFECT_CLAIM.search(self.buffer) or public_reply_violation(
             self.buffer, self.names, public_ids=self.public_ids

@@ -1,3 +1,4 @@
+import pytest
 from lonora_agent.public_stream import PublicStream
 
 
@@ -26,3 +27,16 @@ def test_private_text_and_effect_claims_are_not_admitted():
 def test_financial_context_can_disable_incremental_publication():
     stream = PublicStream(set(), set(), enabled=False)
     assert stream.feed("A public sentence. " * 20) == ""
+
+
+def test_throttled_private_suffix_is_checked_before_next_publication(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    now = [0.0]
+    monkeypatch.setattr("lonora_agent.public_stream.monotonic", lambda: now[0])
+    stream = PublicStream({"trade_execute"}, set(), enabled=True)
+    assert stream.feed("A welcome message. ")
+    assert not stream.feed("I used trade_execute. ")
+    now[0] = 0.3
+    assert not stream.feed("Further details. ")
+    assert stream.sent == "A welcome message. "
