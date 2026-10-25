@@ -101,7 +101,8 @@ def test_every_request_keeps_mandatory_rules_before_owner_content():
         "typed approval",
         "exact-symbol",
         "Shadow",
-        "Never mention internal",
+        "Do not expose credentials",
+        "Capability names and ordinary technical vocabulary are not secrets",
         "free-text",
     ]:
         assert safety.lower() in laws[0].lower()
@@ -166,7 +167,8 @@ def test_voice_style_stays_bounded_and_explicit_about_real_results():
     assert len(voice.encode()) <= 800
     for requirement in [
         "owner's language",
-        "Never narrate",
+        "Avoid unprompted implementation narration",
+        "answer explicit capability questions directly",
         "Spoken agreement is not financial approval",
         "not misunderstanding",
     ]:

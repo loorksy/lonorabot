@@ -1,8 +1,7 @@
 from lonora_adapter_kit.types import ModelMessage, ModelReply, ToolDefinition
 from lonora_contracts.domain import new_id
 from lonora_contracts.model_routing import Capability, ModelSelection
-from lonora_core.public_reply import public_reply_violation
-from lonora_core.user_error import LonoraError
+from lonora_core.public_reply import redact_private_reply
 from lonora_llm_usage.models import UsageRecord
 from lonora_llm_usage.store import save_usage
 from lonora_tools.context import ToolContext
@@ -16,9 +15,8 @@ from .context.financial_result import (
 from .context.image_observations import prepare_image_observations
 from .context.team import refresh_routing_context
 from .progress import progress
-from .public_rewrite import rewrite_request
 from .public_stream import PublicStream
-from .skills.system_policy import apply_operating_policy, policy_bundle
+from .skills.system_policy import apply_operating_policy
 
 
 async def model_turn(
@@ -43,10 +41,9 @@ async def model_turn(
     turn_id = new_id()
     await progress(context, "run.reply_started", {"turn_id": turn_id})
 
-    names = set(policy_bundle().tool_policies) | {tool.name for tool in tools}
     public_ids = public_broker_ids(messages)
     streaming = PublicStream(
-        names,
+        set(),
         public_ids,
         enabled=not any(tool.name in FINANCIAL_CALLS for tool in tools)
         and not unverified_financial_result(messages)
@@ -61,7 +58,7 @@ async def model_turn(
     async def attempt(selection: ModelSelection) -> None:
         nonlocal turn_id, streaming
         turn_id = new_id()
-        streaming = PublicStream(names, public_ids, enabled=streaming.enabled)
+        streaming = PublicStream(set(), public_ids, enabled=streaming.enabled)
         await progress(
             context,
             "run.reply_started",
@@ -84,9 +81,6 @@ async def model_turn(
             context_budget=reply.provider_metadata.get("context_budget", {}),
         ),
     )
-    # A compact advertised surface must not weaken public disclosure checks for
-    # other first-party capability names retained in history or tool results.
-    names = set(policy_bundle().tool_policies) | {tool.name for tool in tools}
     public_ids = public_broker_ids(messages)
     unverified = unverified_financial_result(messages)
     if any(call.name in FINANCIAL_CALLS for call in reply.tool_calls):
@@ -103,45 +97,23 @@ async def model_turn(
         result_summary = unsettled_wait_result(messages)
         if result_summary:
             reply = reply.model_copy(update={"text": result_summary})
-    rewritten = False
-    if public_reply_violation(reply.text, names, public_ids=public_ids):
-        if reply.tool_calls:
-            # Keep the actual operation once; discard only private narration.
-            reply = reply.model_copy(update={"text": ""})
-        else:
-            rewritten = True
-            # Editing is a separate text-only task. Replaying the working
-            # conversation here made the model repeat the owner's raw diagnostic
-            # codes instead of explaining their meaning, rejecting even greetings.
-            rewrite_messages = rewrite_request(reply.text)
-            reply, selection = await context.router.complete(
-                capability, rewrite_messages, [], on_delta=delta, on_attempt=attempt
-            )
-            await save_usage(
-                context.db,
-                context.owner_id,
-                context.agent_id,
-                context.thread_id,
-                UsageRecord(
-                    context.lease.run_id,
-                    selection.provider,
-                    selection.model,
-                    reply.usage,
-                    context_budget=reply.provider_metadata.get("context_budget", {}),
-                ),
-            )
-            if reply.tool_calls or public_reply_violation(reply.text, names, public_ids=public_ids):
-                raise LonoraError("public_reply_unavailable", 502)
+    # Style is model guidance, never a second generation or a failed user
+    # request. Sensitive spans are removed deterministically from the actual
+    # answer; financial truth was established above and is not rewritten.
+    protected = redact_private_reply(reply.text, public_ids=public_ids)
+    privacy_redacted = protected != reply.text
+    reply = reply.model_copy(update={"text": protected})
     reply.provider_metadata = {
         **reply.provider_metadata,
         "runtime_capability": capability.value,
         "image_observations": image_diagnostics,
-        "public_rewrite": rewritten,
+        "public_rewrite": False,
+        "privacy_redacted": privacy_redacted,
     }
     # Publish the accepted reply once. The fenced event writer chunks it in one
     # transaction, independently of tiny provider tokens, retries or rewrites.
     if streaming.sent and not reply.text.startswith(streaming.sent):
-        # A guarded rewrite or late tool call replaces the provisional generation.
+        # Privacy redaction or a late tool call replaces the provisional generation.
         turn_id = new_id()
         await progress(context, "run.reply_started", {"turn_id": turn_id})
         streaming.sent = ""

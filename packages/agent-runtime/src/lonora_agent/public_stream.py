@@ -1,4 +1,4 @@
-"""Incremental public sentence admission; effect claims remain final-only."""
+"""Incremental privacy admission; effect claims remain final-only."""
 
 import re
 from time import monotonic

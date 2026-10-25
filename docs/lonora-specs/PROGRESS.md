@@ -1260,3 +1260,29 @@ Production acceptance of revision `16c21e9710a797f5634b09f11ddd3a4b94f5f437`:
   current account/market/financial readiness is not claimed, and no owner-stopped
   provider terminal was silently deployed. Native device/voice and continuous
   watch operation were not newly verified by these two journeys.
+
+## Root response boundary: privacy is not presentation — 2026-10-25
+
+Production request `7dc96a19-7ce9-4796-a909-b720c978ef57` asked for all
+capabilities and failed `public_reply_unavailable` after24.32s. The response
+pipeline's combined lexical veto contradicted that ordinary owner request. Earlier
+wording exceptions and rewrite isolation reduced symptoms but did not resolve this
+class of failure. Source audit found no deterministic loss of the latest owner
+input; stale assistant claims remain fallible history, not authority.
+
+The model's one generated answer now reaches publication without a style-triggered
+second model call or502. The obsolete rewrite module and name/vocabulary blacklist
+are removed. Style is instruction guidance, with explicit capability questions
+answered from the current real registry. Actual credential patterns, private UUIDs
+and local filesystem references are redacted deterministically; public broker
+receipt IDs retain their existing verified allowlist. Cumulative streaming and
+clarification questions use the same privacy-only boundary. Financial proposal,
+independent result verification, owner authority, operation identity and no-resend
+semantics are unchanged. No alternate Agent engine or user-keyword routing exists.
+
+Frozen code validation:1169 Python cases against disposable PostgreSQL, and the
+full build. Explicit real-model acceptance now includes the exact Arabic capability
+request despite a stale assistant denial, plus a two-turn topic change checking
+latest-input preservation. Scripted harness acceptance passed for both additions;
+production model results are recorded after deployment. This is a response-path
+repair, not closure of the remaining architecture/product capabilities.

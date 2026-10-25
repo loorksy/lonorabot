@@ -14,9 +14,11 @@ import argparse
 import asyncio
 import hashlib
 import json
+import re
 import tempfile
 import time
 from collections.abc import Awaitable, Callable
+from dataclasses import replace
 from datetime import timedelta
 from pathlib import Path
 from typing import Any, cast
@@ -84,7 +86,41 @@ JOURNEYS = {
         "واحفظ النتيجة في ملف تقرير نصي باسم calculation-report.txt وأرفقه هنا. "
         "لا ترسل مجرد كود لأن المطلوب النتيجة المحسوبة والملف الجاهز."
     ),
+    "capabilities": "طيب بدي منك قائمة جميع ادواتك",
+    "topic_switch": "ما الفرق بين السكالبينغ والسوينغ باختصار؟",
 }
+TOPIC_SWITCH_REQUEST = "خلينا نغيّر الموضوع: احسب سبعة ضرب ثمانية وأجب بالنتيجة فقط."
+
+
+def assert_capability_explanation(answer: str, catalog: ToolRegistry) -> None:
+    """Require meaningful current abilities, without prescribing their phrasing."""
+    assert re.search(r"[\u0620-\u064a]", answer), "Capability explanation is not in Arabic"
+    categories = (
+        ("web_fetch", "skill_repository_inspect", "بحث", "روابط", "مستودع", "مصادر", "ويب"),
+        ("workspace_execute", "workspace_update", "بايثون", "حساب", "تحليل", "تنفيذ", "أوامر"),
+        (
+            "workspace_export",
+            "workspace_read",
+            "artifact_read",
+            "ملف",
+            "ملفات",
+            "تقرير",
+            "تقارير",
+            "مرفق",
+        ),
+        ("skills_list", "skill_view", "مهارات", "إجراءات", "اجراءات"),
+        ("wait_for_input", "استيضاح", "توضيح", "سؤال", "أسئلة"),
+    )
+    matched = sum(
+        any(label.casefold() in answer.casefold() for label in group) for group in categories
+    )
+    available = {tool.name for tool in catalog.discovery_definitions(discovered_names=set(ALLOWED))}
+    mentioned = {
+        name for name in available if re.search(r"(?<!\w)" + re.escape(name) + r"(?!\w)", answer)
+    }
+    assert matched >= 2 or len(mentioned) >= 2, (
+        "Capability answer does not explain the current permitted catalog"
+    )
 
 
 class AcceptanceRegistry(ToolRegistry):
@@ -190,8 +226,19 @@ async def run_journey(
     worker = "acceptance:" + uuid4().hex
     lease = Lease(run_id=run_id, owner=worker, fence=1)
     context: ToolContext | None = None
+    contexts: dict[str, ToolContext] = {}
+    run_ids = [run_id]
     created = True
     started = time.monotonic()
+    history = (
+        [
+            ("user", "هل تستطيع قراءة الروابط وتشغيل حسابات بايثون؟"),
+            ("assistant", "لا أستطيع فتح روابط أو تشغيل بايثون، يمكنني شرح التعليمات فقط."),
+            ("user", JOURNEYS[journey]),
+        ]
+        if journey == "capabilities"
+        else [("user", JOURNEYS[journey])]
+    )
     try:
         async with db.sessions() as session, session.begin():
             # A 24-hour explicit lease keeps the ordinary Gateway claimant away
@@ -215,17 +262,22 @@ async def run_journey(
                 )
             )
             await session.flush()
-            session.add(ThreadRow(id=thread_id, owner_id=owner_id, agent_id=agent_id, next_seq=2))
-            await session.flush()
             session.add(
-                MessageRow(
-                    thread_id=thread_id,
-                    agent_id=agent_id,
-                    seq=1,
-                    role="user",
-                    content=JOURNEYS[journey],
+                ThreadRow(
+                    id=thread_id, owner_id=owner_id, agent_id=agent_id, next_seq=len(history) + 1
                 )
             )
+            await session.flush()
+            for seq, (role, content) in enumerate(history, start=1):
+                session.add(
+                    MessageRow(
+                        thread_id=thread_id,
+                        agent_id=agent_id,
+                        seq=seq,
+                        role=role,
+                        content=content,
+                    )
+                )
             session.add(
                 RunRow(
                     id=run_id,
@@ -234,7 +286,7 @@ async def run_journey(
                     status="leased",
                     trigger="user",
                     prompt="",
-                    input_seq=1,
+                    input_seq=len(history),
                     lease_owner=worker,
                     lease_fence=1,
                     lease_expires_at=utcnow() + timedelta(seconds=LEASE_SECONDS),
@@ -259,6 +311,7 @@ async def run_journey(
                 WorkspaceClient(settings.workspace_socket) if settings.workspace_socket else None
             ),
         )
+        contexts[run_id] = context
         async with asyncio.timeout(seconds):
             await execute_run(context, registry, LEASE_SECONDS, maximum_rounds=16)
         async with db.sessions() as session:
@@ -314,7 +367,13 @@ async def run_journey(
                 .select_from(TradeApprovalRow)
                 .where(TradeApprovalRow.agent_id == agent_id)
             )
-            if journey == "repository":
+            if journey == "capabilities":
+                assert_capability_explanation(answer.content, registry)
+            elif journey == "topic_switch":
+                # The first reply must complete naturally. A separate real turn
+                # below changes subjects in the same canonical conversation.
+                assert answer.content.strip()
+            elif journey == "repository":
                 repo = [
                     v
                     for v in observations.get("skill_repository_inspect", [])
@@ -335,7 +394,7 @@ async def run_journey(
                         and v.get("code_executed") is False
                         for v in repo
                     )
-            else:
+            elif journey == "report":
                 executed = [
                     v
                     for v in observations.get("workspace_execute", [])
@@ -372,25 +431,102 @@ async def run_journey(
                     ):
                         found = True
                 assert found, "Report bytes did not contain the verified calculation"
-            return summary
+        if journey == "topic_switch":
+            followup_id = str(uuid4())
+            run_ids.append(followup_id)
+            async with db.sessions() as session, session.begin():
+                thread = await session.get(ThreadRow, thread_id, with_for_update=True)
+                assert thread is not None
+                seq = thread.next_seq
+                thread.next_seq += 1
+                session.add(
+                    MessageRow(
+                        thread_id=thread_id,
+                        agent_id=agent_id,
+                        seq=seq,
+                        role="user",
+                        content=TOPIC_SWITCH_REQUEST,
+                    )
+                )
+                session.add(
+                    RunRow(
+                        id=followup_id,
+                        thread_id=thread_id,
+                        agent_id=agent_id,
+                        status="leased",
+                        trigger="user",
+                        prompt="",
+                        input_seq=seq,
+                        lease_owner=worker,
+                        lease_fence=1,
+                        lease_expires_at=utcnow() + timedelta(seconds=LEASE_SECONDS),
+                        model_metadata={"acceptance_probe": True},
+                    )
+                )
+            followup = replace(context, lease=Lease(run_id=followup_id, owner=worker, fence=1))
+            contexts[followup_id] = followup
+            async with asyncio.timeout(seconds):
+                await execute_run(followup, registry, LEASE_SECONDS, maximum_rounds=16)
+            async with db.sessions() as session:
+                row = await session.get(RunRow, followup_id)
+                assert row is not None
+                assert row.status == "completed", "Topic-switch reply did not complete: " + str(
+                    row.error_code or row.status
+                )
+                assert row.result and not public_reply_violation(row.result)
+                observations = observe_results(row)
+                working = [
+                    ModelMessage.model_validate(item)
+                    for item in row.execution_state.get("messages", [])
+                ]
+                latest_owner = next(
+                    message.content
+                    for message in reversed(working)
+                    if message.role == "user" and message.context_origin == "conversation"
+                )
+                assert latest_owner == TOPIC_SWITCH_REQUEST, "Latest owner request was lost"
+                numerals = row.result.translate(str.maketrans("٠١٢٣٤٥٦٧٨٩", "0123456789"))
+                assert re.search(r"(?<!\d)56(?!\d)", numerals), (
+                    "Latest arithmetic question was not answered"
+                )
+                answer = await session.scalar(
+                    select(MessageRow)
+                    .where(MessageRow.thread_id == thread_id, MessageRow.role == "assistant")
+                    .order_by(MessageRow.seq.desc())
+                    .limit(1)
+                )
+                assert answer is not None and answer.content == row.result
+                summary = {
+                    **summary,
+                    "turns": 2,
+                    "latest_owner_preserved": True,
+                    "topic_switch_result": "PASS",
+                    "elapsed_seconds": round(time.monotonic() - started, 2),
+                    "followup_operations": sorted(observations),
+                }
+                print(json.dumps(summary), flush=True)
+        return summary
     finally:
         if created:
             async with db.sessions() as session, session.begin():
-                row = await session.get(RunRow, run_id)
-                calls = [
-                    call
-                    for raw in cast(
-                        list[Any], row.execution_state.get("messages", []) if row else []
-                    )
-                    for call in ModelMessage.model_validate(raw).tool_calls
-                ]
-                receipts = ["outcome:" + run_id, "outcome:" + run_id + ":1"]
-                if context:
-                    receipts.extend(
-                        view_key(context.for_call(call.id))
-                        for call in calls
-                        if call.name == "skill_view"
-                    )
+                receipts: list[str] = []
+                for identity in run_ids:
+                    row = await session.get(RunRow, identity)
+                    calls = [
+                        call
+                        for raw in cast(
+                            list[Any], row.execution_state.get("messages", []) if row else []
+                        )
+                        for call in ModelMessage.model_validate(raw).tool_calls
+                    ]
+                    receipts.extend(["outcome:" + identity, "outcome:" + identity + ":1"])
+                    turn_context = contexts.get(identity)
+                    if turn_context:
+                        receipts.extend(
+                            view_key(turn_context.for_call(call.id))
+                            for call in calls
+                            if call.name == "skill_view"
+                        )
                 await session.execute(
                     delete(EffectReceiptRow).where(EffectReceiptRow.key.in_(receipts))
                 )
@@ -399,7 +535,7 @@ async def run_journey(
                         or_(
                             EventRow.agent_id == agent_id,
                             EventRow.thread_id == thread_id,
-                            EventRow.run_id == run_id,
+                            EventRow.run_id.in_(run_ids),
                         )
                     )
                 )
@@ -409,7 +545,8 @@ async def run_journey(
             async with db.sessions() as session:
                 assert await session.get(AgentRow, agent_id) is None
                 assert await session.get(ThreadRow, thread_id) is None
-                assert await session.get(RunRow, run_id) is None
+                for identity in run_ids:
+                    assert await session.get(RunRow, identity) is None
                 assert not await session.scalar(
                     select(func.count())
                     .select_from(EventRow)
@@ -417,7 +554,7 @@ async def run_journey(
                         or_(
                             EventRow.agent_id == agent_id,
                             EventRow.thread_id == thread_id,
-                            EventRow.run_id == run_id,
+                            EventRow.run_id.in_(run_ids),
                         )
                     )
                 )

@@ -73,7 +73,7 @@ async def wait(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         return {
             "ok": False,
             "code": "question_wording_private",
-            "guidance": "Ask naturally in the owner's language without implementation vocabulary. Keep the actual question and relevant choices; do not ask for financial consent here.",
+            "guidance": "Ask naturally in the owner's language without private identifiers, credentials or filesystem paths. Keep the actual question and relevant choices; do not ask for financial consent here.",
         }
     async with context.db.sessions() as session:
         await require_lease(session, context.lease)

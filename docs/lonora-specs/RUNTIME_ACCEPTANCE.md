@@ -16,18 +16,22 @@ verified.
 - Real catalog search returned a thesis lifecycle operation for `terminal`, and
   omitted execution for `place order`. Actual operation descriptions now name their
   supported business actions. No user-intent keyword router was added.
-- The reply filter treated ordinary external-project names and research vocabulary
-  as Lonora internals. It now distinguishes implementation narration from ordinary
-  market/external-source language. Exact internal operation names, diagnostic codes,
-  private resource IDs and filesystem references remain blocked. Financial outcome
-  verification is unchanged.
+- **Root response-boundary repair:** the former filter classified presentation,
+  operation names and diagnostic vocabulary as security failures. A request to
+  list capabilities therefore contradicted the server's own delivery rule. This
+  combined veto and its second-model rewrite are removed. The model owns useful
+  presentation, including explicit capability questions. The server deterministically
+  redacts actual credential patterns, private resource IDs and local paths; verified
+  broker IDs remain usable. Financial verification precedes this transformation,
+  so another model cannot rewrite uncertainty into a success claim. Reply streaming
+  and clarification questions use the same privacy-only boundary.
 
 ## Evidence matrix
 
 | Capability | Evidence | Current limit |
 | --- | --- | --- |
 | Discovery and scoped inventory | Real106-tool catalog tests; compact4-schema surface retained | Model selection also needs actual-model journeys below |
-| Reply disclosure | Arabic/English business language, external repository name, internal narration, exact identifier and financial-truth regressions | Heuristic disclosure checks cannot certify every possible phrase |
+| Response boundary | Full real106-operation catalog and technical wording accepted with one model call; credential/private-ID/path redaction and financial truth regressions | Style remains model guidance; recognized-pattern privacy does not claim universal secret detection |
 | Workspace isolation and durable execution |12 disposable PostgreSQL integration groups | Production execution must also complete a natural-language journey |
 | Procedure creation and progressive loading | Existing skill creation/progressive integration checks | No external repository package was installed |
 | Market-to-Agent-to-trade loop | `check_agent_market.py`, real executor and simulation broker | Model choices scripted; no live order sent |
@@ -42,7 +46,7 @@ verified.
 
 `scripts/verify_agent_journeys.py --allow-live-model` exercises the actual model,
 normal context, discovery, Agent loop, registered handlers, persisted final message
-and verified attachment bytes. It runs two natural Arabic requests: inspect the
+and verified attachment bytes. It runs four natural Arabic journeys: capability discovery despite stale denial; a two-turn subject switch; inspect the
 supplied public GitHub repository without installation; compute a result with
 actual Python and deliver a real report attachment.
 

@@ -38,7 +38,9 @@ async def test_wait_prose_cannot_publish_premature_or_private_financial_claims(
     )
     proposed = "The position was opened. I will review after the next close."
     answer = (
-        "I used trade_execute; I will review the API result." if scenario == "private" else proposed
+        "Review aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee at /mnt/data/private.json before the next check."
+        if scenario == "private"
+        else proposed
     )
     if scenario == "failed_final":
         answer = "The broker rejected the request because the volume is invalid."
@@ -107,8 +109,13 @@ async def test_wait_prose_cannot_publish_premature_or_private_financial_claims(
         if call.args[1] == "run.delta"
     )
     assert text == actual.text
-    if scenario in {"proposed", "private"}:
+    if scenario == "proposed":
         assert not actual.text
+    elif scenario == "private":
+        assert "[REDACTED]" in actual.text
+        assert "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee" not in actual.text
+        assert "/mnt/data/private.json" not in actual.text
+        assert "position was opened" not in actual.text
     elif scenario in {"failed", "rejected"}:
         assert "لم يُنفّذ الطلب" in actual.text and "حجم التداول" in actual.text
         assert "position was opened" not in actual.text
