@@ -1213,3 +1213,13 @@ failure cases,1124 Python cases against an explicit disposable PostgreSQL databa
 and `bash scripts/build.sh` pass. The first bare pytest attempt lacked the required
 explicit database URL for voice fixtures; the full configured rerun passed.
 No migration, financial policy, native APK or backup is added.
+
+Production acceptance: code revision `e974fbc06bb79eb1018e2d0be44bf449477d406d`
+is activated on API/Gateway. A process-local frozen-input replay of the actual
+failed request through the installed `model_turn` and real configured model
+returned an accepted821-character reply in5.99s, with matching final-generation
+stream text. Only observation/usage callbacks were replaced; no tool definitions,
+executor, broker action, lease, run or conversation write was exposed. Public
+authenticated SSE became ready in74.18ms, and the served index/main JavaScript
+matched the tested release hashes. Health/readiness passed; temporary probe auth
+and transfer staging were removed. Failed operations were not automatically retried.
