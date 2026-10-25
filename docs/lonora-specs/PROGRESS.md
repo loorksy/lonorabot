@@ -1159,3 +1159,10 @@ performance check moved cumulative disclosure scanning behind the publication
 throttle:1800 one-character provider fragments fell from3.851seconds of local
 CPU to0.0047seconds. Throttled text is still checked in full before release; a
 private suffix regression and the full1122-test suite/build passed.
+
+Published final runtime e6833f67ac26aa0b1b462b27b118f428c2a5593f with the same
+verified activity Web assets. Public authenticated SSE readiness passed100.41ms;
+public index/main JavaScript matched the release manifest. API/Gateway health,
+restricted execution bridge and unchanged migration0031 passed. No broker action,
+conversation, APK or backup was created; temporary authentication and transfer
+staging were removed. Full1122-test and build checks passed for this release.
