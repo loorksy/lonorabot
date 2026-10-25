@@ -37,6 +37,25 @@ concurrent downgrade/upgrade and invalid-index recovery all passed. Production
 deployment and post-deployment measurements are recorded separately below when
 complete; this does not promise a fixed provider generation time or native APK.
 
+Published API/Gateway and Web revision
+`e58cfd49a7f7eb9c105adef4341fb96dd9f9707e`. The offline first-party wheel SHA256
+is `c0a60454e111d615f87cf06f4a27fc3248ebf0211db386fb77c6c12be20dc0a3`;
+the tested Web archive SHA256 is
+`291b542b30cd765a6ab9c1c90d0094c3f9d071afcac1eea512beb19324eb05df`.
+Candidate checks compared installed modules and every Web file against the release
+manifest before activation. Migration0031 completed concurrently, all four indexes
+are valid, and `/health`, `/ready`, `/app/` pass with pinned running identities.
+
+Actual public HTTPS acceptance established authenticated SSE readiness in112.72ms;
+the served index/main JavaScript match the exact tested asset hashes. On the
+production event ledger, measured query execution was58.563ms for replay,
+0.05ms for unpublished events,0.721ms for context and0.16ms for a Run, each using
+its intended index. These are transport/database measurements, not LLM response
+times. Probe authentication was removed in finally; no test conversation, broker
+action, financial grant, APK or backup was created. Transfer staging was removed.
+The production edge is Traefik and flushed SSE correctly; the repository's Caddy
+template also declares explicit flushing for installations using that template.
+
 ## Continuous responsibility integrated — 2026-10-24
 
 Current wave separates a model reply from completion of ongoing work. Full
