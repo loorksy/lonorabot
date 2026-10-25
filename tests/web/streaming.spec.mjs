@@ -11,7 +11,7 @@ function fixture(data) {
   );
 }
 
-test("durable reply survives event eviction, reload and a fenced restart without duplicate handoff", async ({
+test("durable SSE reply survives event eviction, reload and a fenced restart without duplicate handoff", async ({
   page,
   context,
 }) => {
@@ -26,9 +26,19 @@ test("durable reply survives event eviction, reload and a fenced restart without
   expect(login.ok()).toBeTruthy();
   await context.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
   const errors = [];
+  const sockets = [];
   page.on("pageerror", (error) => errors.push(error.message));
+  page.on("websocket", (socket) => sockets.push(socket.url()));
   try {
+    const streaming = page.waitForResponse(
+      (response) => new URL(response.url()).pathname === "/api/events/stream",
+    );
     await page.goto(`/app/g/${data.group}`);
+    const connection = await streaming;
+    expect(connection.status()).toBe(200);
+    expect(connection.headers()["content-type"]).toContain("text/event-stream");
+    expect(connection.headers()["cache-control"]).toContain("no-transform");
+    expect(new URL(connection.url()).searchParams.get("live")).toBe("true");
     const preview = page.locator(`[data-stream-run-id='${data.run.id}']`);
     await expect(preview).toContainText(data.text);
     await page.getByRole("button", { name: "Load earlier messages", exact: true }).click();
@@ -65,6 +75,7 @@ test("durable reply survives event eviction, reload and a fenced restart without
       page.getByTestId("transcript").getByText("HISTORY 000 immutable fixture", { exact: true }),
     ).toHaveCount(1);
     expect(errors).toEqual([]);
+    expect(sockets.filter((url) => new URL(url).pathname === "/api/ws/events")).toEqual([]);
   } finally {
     fixture({ ...data, action: "cleanup" });
   }

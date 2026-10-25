@@ -282,6 +282,20 @@ class SteeringRow(Base):
 
 class EventRow(Base):
     __tablename__ = "ln_events"
+    __table_args__ = (
+        Index(
+            "ln_events_owner_public_cursor",
+            "owner_id",
+            text("CAST(payload ->> '_ln_public_cursor' AS INTEGER)"),
+        ).ddl_if(dialect="postgresql"),
+        Index(
+            "ln_events_unpublished_cursor",
+            "cursor",
+            postgresql_where=text("CAST(payload ->> '_ln_public_cursor' AS INTEGER) IS NULL"),
+        ).ddl_if(dialect="postgresql"),
+        Index("ln_events_run_cursor", "run_id", "cursor"),
+        Index("ln_events_owner_agent_kind_cursor", "owner_id", "agent_id", "kind", "cursor"),
+    )
     cursor: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     owner_id: Mapped[str] = mapped_column(
         ForeignKey("ln_owners.id", ondelete="CASCADE"), index=True

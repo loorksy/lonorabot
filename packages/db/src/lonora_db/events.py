@@ -1,12 +1,28 @@
 import time
 from typing import Any
 
-from sqlalchemy import func, select, text
+from sqlalchemy import JSON, bindparam, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.elements import ColumnElement
 
 from .schema import EventRow, SettingRow
 
 PUBLIC_CURSOR = "_ln_public_cursor"
+
+
+def public_cursor_expression() -> ColumnElement[int]:
+    """Keep this trusted JSON key literal so prepared plans can use its index.
+
+    JSONStrIndexType preserves SQLite's JSON path translation in unit fixtures;
+    only this server constant is expanded, never user input.
+    """
+    key = bindparam(
+        "public_event_key",
+        PUBLIC_CURSOR,
+        type_=JSON.JSONStrIndexType(),
+        literal_execute=True,
+    )
+    return EventRow.payload[key].as_integer()
 
 
 async def publish_committed(session: AsyncSession, force: bool = False) -> None:
@@ -21,17 +37,13 @@ async def publish_committed(session: AsyncSession, force: bool = False) -> None:
         await session.flush()
     state = dict(counter.payload)
     now = time.time()
-    if (
-        not force
-        and maximum == state.get("primary_max")
-        and now - float(state.get("scan_at", 0)) < 5
-    ):
-        await session.commit()
-        return
+    # The partial unpublished index makes this probe cheap even when idle.
+    # A primary-key maximum is not a commit watermark: a lower ID can commit
+    # late. Always probe rather than hiding that committed event for five seconds.
     rows = (
         await session.scalars(
             select(EventRow)
-            .where(EventRow.payload[PUBLIC_CURSOR].as_integer().is_(None))
+            .where(public_cursor_expression().is_(None))
             .order_by(EventRow.cursor)
             .limit(1000)
             .with_for_update(skip_locked=True)
@@ -69,11 +81,24 @@ async def events_after(
     limit: int = 200,
 ) -> list[EventRow]:
     await publish_committed(session)
-    public = EventRow.payload[PUBLIC_CURSOR].as_integer()
+    public = public_cursor_expression()
     query = select(EventRow).where(EventRow.owner_id == owner_id, public > cursor)
     if thread_id:
         query = query.where(EventRow.thread_id == thread_id)
     return list((await session.scalars(query.order_by(public).limit(min(limit, 500)))).all())
+
+
+async def current_event_cursor(session: AsyncSession, owner_id: str) -> int:
+    """Capture a live baseline before consumers refresh canonical snapshots.
+
+    Reconnects still replay their exact cursor; only a new live subscriber skips
+    historical delivery. Snapshot refresh after ready closes the admission gap.
+    """
+    await publish_committed(session)
+    public = public_cursor_expression()
+    return int(
+        (await session.scalar(select(func.max(public)).where(EventRow.owner_id == owner_id))) or 0
+    )
 
 
 def emit(

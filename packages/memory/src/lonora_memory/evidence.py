@@ -4,6 +4,7 @@ No cache or secondary store: edits/deletes are visible on the next request.
 Recorded times are storage times, never claims of market-data freshness.
 """
 
+import asyncio
 import json
 from dataclasses import asdict, dataclass, field, replace
 from typing import Any, cast
@@ -157,6 +158,7 @@ async def _retrieve_evidence(
     limit: int = 5,
     maximum_chars: int = MAX_EVIDENCE_CHARS,
     conversation_scope: ConversationRecallScope | None = None,
+    semantic_timeout_seconds: float | None = None,
 ) -> RetrievalResult:
     from .semantic import cosine_similarity, embed_text
 
@@ -271,7 +273,13 @@ async def _retrieve_evidence(
             from lonora_core.user_error import LonoraError
 
             try:
-                query_vector = await embed_text(credentials, str(config["model"]), query_cut)
+                # Automatic conversational recall is optional enrichment. A slow
+                # embedding provider must not hold up the answer; lexical and
+                # scoped conversation evidence above remain immediately usable.
+                async with asyncio.timeout(semantic_timeout_seconds):
+                    query_vector = await embed_text(credentials, str(config["model"]), query_cut)
+            except TimeoutError:
+                semantic_status = "timeout"
             except LonoraError:
                 semantic_status = "unavailable"
             else:
@@ -358,6 +366,7 @@ async def retrieve_evidence(
     limit: int = 5,
     maximum_chars: int = MAX_EVIDENCE_CHARS,
     conversation_scope: ConversationRecallScope | None = None,
+    semantic_timeout_seconds: float | None = None,
 ) -> RetrievalResult:
     try:
         return await _retrieve_evidence(
@@ -369,6 +378,7 @@ async def retrieve_evidence(
             limit=limit,
             maximum_chars=maximum_chars,
             conversation_scope=conversation_scope,
+            semantic_timeout_seconds=semantic_timeout_seconds,
         )
     except SQLAlchemyError:
         # Authorization denials are LonoraError and deliberately propagate.

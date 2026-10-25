@@ -1,3 +1,6 @@
+import logging
+from time import perf_counter
+
 from lonora_adapter_kit.types import ModelMessage
 from lonora_core.user_error import LonoraError
 from lonora_db.agent_binding import binding_context
@@ -24,10 +27,13 @@ from .scratchpad import scratchpad_context
 from .skills import read_skill_context
 from .team import routing_frame
 
+log = logging.getLogger(__name__)
+
 
 async def build_context(
     context: ToolContext, registry: ToolRegistry | None = None
 ) -> list[ModelMessage]:
+    started = perf_counter()
     async with context.db.sessions() as session:
         run = await require_lease(session, context.lease)
         agent = await session.get(AgentRow, context.agent_id)
@@ -124,4 +130,10 @@ async def build_context(
             )
             if target:
                 target.images = images
-        return govern_context(messages)
+        prepared = govern_context(messages)
+        log.info(
+            "agent_context_ready duration_ms=%d messages=%d",
+            round((perf_counter() - started) * 1000),
+            len(prepared),
+        )
+        return prepared

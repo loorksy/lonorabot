@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Event, Run } from "../lib/api";
-import { eventSocket } from "../lib/events";
+import { eventStream } from "../lib/events";
 import { accumulateStream, type LiveReplyStream, seedStream } from "../lib/response_streaming";
 
 const MAX_LIVE_STREAMS = 64;
@@ -32,50 +32,37 @@ export function useEvents(enabled: boolean) {
       cursor.current = 0;
       return;
     }
-    let stopped = false;
-    let timer: ReturnType<typeof setTimeout>;
-    let socket: WebSocket;
-    const connect = () => {
-      socket = eventSocket(
-        cursor.current,
-        (event) => {
-          if (event.cursor <= cursor.current) return;
-          cursor.current = event.cursor;
-          setState((old) => {
-            const stream = accumulateStream(
-              event.run_id ? old.streams[event.run_id] : undefined,
-              event,
-            );
-            return {
-              events: [...old.events, event].slice(-150),
-              streams: stream
-                ? trimStreams({ ...old.streams, [stream.run_id]: stream })
-                : old.streams,
-              revision: [
-                "run.delta",
-                "run.reply_started",
-                "run.progress",
-                "market.quote_updated",
-                "cloud_charts.scene_updated",
-              ].includes(event.kind)
-                ? old.revision
-                : event.cursor,
-            };
-          });
-        },
-        () => {
-          setConnected(false);
-          if (!stopped) timer = setTimeout(connect, 2000);
-        },
-      );
-      socket.addEventListener("open", () => setConnected(true));
-    };
-    connect();
+    const stream = eventStream(
+      cursor.current,
+      (event) => {
+        if (event.cursor <= cursor.current) return;
+        cursor.current = event.cursor;
+        setState((old) => {
+          const stream = accumulateStream(
+            event.run_id ? old.streams[event.run_id] : undefined,
+            event,
+          );
+          return {
+            events: [...old.events, event].slice(-150),
+            streams: stream
+              ? trimStreams({ ...old.streams, [stream.run_id]: stream })
+              : old.streams,
+            revision: [
+              "run.delta",
+              "run.reply_started",
+              "run.progress",
+              "market.quote_updated",
+              "cloud_charts.scene_updated",
+            ].includes(event.kind)
+              ? old.revision
+              : event.cursor,
+          };
+        });
+      },
+      setConnected,
+    );
     return () => {
-      stopped = true;
-      clearTimeout(timer);
-      socket?.close();
-      setConnected(false);
+      stream.close();
     };
   }, [enabled]);
   return { ...state, seedStreams, connected, cursor: cursor.current };

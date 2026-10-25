@@ -6,6 +6,12 @@
         Referrer-Policy "same-origin"
         Permissions-Policy "microphone=(self), camera=()"
     }
+    @event_stream path /api/events/stream
+    handle @event_stream {
+        reverse_proxy api:8000 {
+            flush_interval -1
+        }
+    }
     handle {
         reverse_proxy api:8000
     }

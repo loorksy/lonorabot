@@ -4,6 +4,7 @@ Embedding replies are scripted; this never contacts a model or a broker.
 """
 
 import asyncio
+import json
 from typing import cast
 from unittest.mock import AsyncMock, patch
 from uuid import uuid4
@@ -14,6 +15,7 @@ from lonora_db.memory import commit_memory
 from lonora_db.schema import SemanticMemoryRow
 from lonora_db.transactions import SettingsRepository
 from lonora_memory.evidence import CANDIDATE_LIMIT, retrieve_evidence
+from lonora_memory.semantic import retrieve_memory
 from lonora_providers.credentials import ProviderCredentials
 from sqlalchemy import delete
 
@@ -116,6 +118,34 @@ async def main() -> None:
             )
         assert fallback.status == "partial" and fallback.semantic_status == "unavailable"
         assert fallback.items and unavailable.status == "unavailable" and not unavailable.items
+
+        # Optional embeddings cannot hold a conversational turn for their45s
+        # HTTP timeout. Cancellation preserves scoped lexical recall and does
+        # not leave an orphan provider request running in the background.
+        embedding_cancelled = asyncio.Event()
+
+        async def stalled_embedding(*_args: object) -> list[float]:
+            try:
+                await asyncio.Event().wait()
+            finally:
+                embedding_cancelled.set()
+            return [1.0, 0.0]
+
+        with (
+            patch("lonora_memory.semantic.embed_text", stalled_embedding),
+            patch("lonora_memory.semantic.AUTOMATIC_RECALL_SEMANTIC_TIMEOUT_SECONDS", 0.01),
+        ):
+            recalled = await asyncio.wait_for(
+                retrieve_memory(db, credentials, fixture.owner, agent_id, "needle"), timeout=1
+            )
+        fallback_payload = json.loads(recalled.split("\n", 1)[1])
+        assert embedding_cancelled.is_set()
+        assert fallback_payload["semantic_status"] == "timeout"
+        assert fallback_payload["mode"] == "lexical"
+        assert "semantic_timeout" in fallback_payload["reasons"]
+        assert fallback_payload["items"][0]["id"] == "note:" + old_id
+        assert "private peer secret" not in recalled
+        print("PASS automatic recall bounds stalled embeddings and retains scoped lexical evidence")
 
         # Same durable store, no cached old memory or deleted note on the next read.
         async with db.sessions() as session, session.begin():

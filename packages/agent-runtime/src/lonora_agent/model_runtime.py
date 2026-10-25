@@ -33,17 +33,17 @@ async def model_turn(
         capability = Capability.VISION
     turn_id = new_id()
     await progress(context, "run.reply_started", {"turn_id": turn_id})
-    fragments: list[str] = []
 
     async def delta(chunk: str) -> None:
-        fragments.append(chunk)
         # Provisional provider text is private until the complete reply passes
         # the disclosure boundary. A later rewrite cannot retract leaked bytes.
+        # The adapter already assembles the authoritative reply. Do not retain
+        # a second token-sized copy or tie database writes to provider framing.
+        del chunk
 
     async def attempt(selection: ModelSelection) -> None:
         nonlocal turn_id
         turn_id = new_id()
-        fragments.clear()
         await progress(
             context,
             "run.reply_started",
@@ -131,12 +131,8 @@ async def model_turn(
         "image_observations": image_diagnostics,
         "public_rewrite": rewritten,
     }
-    # Emit only accepted text, including providers that omit or retry deltas.
-    accepted = (
-        fragments
-        if "".join(fragments) == reply.text
-        else [reply.text[offset : offset + 120] for offset in range(0, len(reply.text), 120)]
-    )
-    for chunk in accepted:
-        await progress(context, "run.delta", {"turn_id": turn_id, "text": chunk})
+    # Publish the accepted reply once. The fenced event writer chunks it in one
+    # transaction, independently of tiny provider tokens, retries or rewrites.
+    if reply.text:
+        await progress(context, "run.delta", {"turn_id": turn_id, "text": reply.text})
     return reply, selection

@@ -1,5 +1,42 @@
 # Progress
 
+## Immediate chat delivery and event-query latency — 2026-10-25
+
+Production diagnosis separated three problems: accepted messages were hidden
+behind a second message+Run snapshot request; the Web client replayed the entire
+owner event history on every new connection; validated replies published every
+provider token in a separate database transaction. Recent ordinary conversation
+Runs were claimed within0.1–1seconds, but context preparation took10–25seconds
+before the first model request and text publication added further delays. The
+1,527,228-row event ledger had only primary, owner and thread indexes; real replay
+and context query plans performed full scans/sorts. Semantic recall was disabled
+and was not the observed production cause. Ordinary text already went to the LLM,
+not a keyword router or an automatically created background Task.
+
+Web now displays a scoped optimistic user message before network acknowledgement,
+reconciles the canonical record by client_nonce, retains pending sends across SPA
+navigation and exposes a safe same-nonce retry. Message visibility no longer waits
+for the independent Run projection. Credentialed SSE establishes a current
+baseline before refreshing canonical state; reconnects replay their exact cursor,
+with heartbeats, revocation checks, disconnect cleanup and proxy flushing.
+
+Migration0031 adds four concurrent, retry-repairable event indexes. The trusted
+public-cursor JSON key stays literal even in generic prepared plans. Indexed
+unpublished probes also remove the five-second late-commit blind window. Accepted
+reply text publishes ordered1024-character deltas and its fenced snapshot in one
+transaction, after the existing disclosure/financial checks. Automatic optional
+semantic enrichment has a1.5-second fallback deadline; explicit retrieval remains
+unchanged. No model downgrade, command-keyword routing or trading authority change.
+
+Validation:1118 pytest cases, all seven build targets,12 Node transport/outbox
+cases, five actual Chromium/API/PostgreSQL browser scenarios,19 streaming/peer
+checks,11 browser/native session checks, eight PostgreSQL batch cases and the
+knowledge-retrieval regression passed. Actual PostgreSQL query/migration checks
+used60k historical events: four index plans, generic-plan reuse, late commits,
+concurrent downgrade/upgrade and invalid-index recovery all passed. Production
+deployment and post-deployment measurements are recorded separately below when
+complete; this does not promise a fixed provider generation time or native APK.
+
 ## Continuous responsibility integrated — 2026-10-24
 
 Current wave separates a model reply from completion of ongoing work. Full

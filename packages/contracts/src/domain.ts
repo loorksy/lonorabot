@@ -26,6 +26,7 @@ export type Thread = {
 };
 export type InputAnswer = { run_id: string; question_id: string; choice_id: string };
 export type Message = {
+  client_nonce?: string | null;
   mentions?: { agent_ids: string[]; all: boolean; session_id?: string | null };
   id: string;
   thread_id: string;

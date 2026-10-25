@@ -3192,3 +3192,7 @@ msgstr "Your Personal Agent cannot be deleted."
 #: src/pages/shell/conversation-inbox.tsx:180
 msgid "Your team starts here"
 msgstr "Your team starts here"
+
+#: src/pages/shell/message-cards.tsx:136
+msgid "Sending…"
+msgstr "Sending…"

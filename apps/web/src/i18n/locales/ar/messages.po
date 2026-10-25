@@ -3192,3 +3192,7 @@ msgstr "لا يمكن حذف مساعدك الشخصي."
 #: src/pages/shell/conversation-inbox.tsx:180
 msgid "Your team starts here"
 msgstr "فريقك يبدأ من هنا"
+
+#: src/pages/shell/message-cards.tsx:136
+msgid "Sending…"
+msgstr "جارٍ الإرسال…"

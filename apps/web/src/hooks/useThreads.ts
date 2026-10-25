@@ -1,9 +1,26 @@
 import type { InputAnswer } from "@lonora/contracts";
 import type { MentionAddress } from "@lonora/core";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { api, isRequestCancelled, type Message, type Run, type Thread } from "../lib/api";
 import { conversationKey, readConversation, retainConversation } from "../lib/conversation-cache";
+import {
+  acknowledgeOutgoing,
+  enqueueOutgoing,
+  failOutgoing,
+  type OutgoingIntent,
+  outgoingKey,
+  outgoingMessages,
+  subscribeOutgoing,
+} from "../lib/outgoing-messages";
 import { useClient } from "../providers/ClientProvider";
+
+const inFlightSends = new Map<string, Promise<void>>();
+
+function mergeMessages(...groups: Message[][]) {
+  const messages = new Map(groups.flat().map((message) => [message.id, message]));
+  return [...messages.values()].sort((a, b) => a.seq - b.seq);
+}
+
 export function useThreads(agentId?: string, threadId?: string) {
   const { owner, revision, refresh, events } = useClient();
   const [threads, setThreads] = useState<Thread[]>([]);
@@ -14,8 +31,12 @@ export function useThreads(agentId?: string, threadId?: string) {
   );
   const [runs, setRuns] = useState<Run[]>(() => readConversation<Run[]>(runKey) ?? []);
   const [error, setError] = useState<unknown>();
+  const [runError, setRunError] = useState<unknown>();
   const [listingError, setListingError] = useState<unknown>();
-  const pendingSend = useRef<{ fingerprint: string; nonce: string } | null>(null);
+  const key = outgoingKey(owner.id, threadId ?? "");
+  const outgoing = useSyncExternalStore(subscribeOutgoing, () => outgoingMessages(key));
+  const selectedKey = useRef(messageKey);
+  selectedKey.current = messageKey;
   useEffect(() => {
     // The durable revision (or explicit refresh tick) invalidates this fetched state.
     void revision;
@@ -39,42 +60,56 @@ export function useThreads(agentId?: string, threadId?: string) {
   useEffect(() => {
     // The durable revision (or explicit refresh tick) invalidates this fetched state.
     void threadId;
-    pendingSend.current = null;
     setMessages(readConversation<Message[]>(messageKey) ?? []);
     setRuns(readConversation<Run[]>(runKey) ?? []);
     setError(undefined);
+    setRunError(undefined);
   }, [threadId, messageKey, runKey]);
   useEffect(() => {
     // The durable revision (or explicit refresh tick) invalidates this fetched state.
     void revision;
     if (!threadId) return;
     let live = true;
-    Promise.all([
-      api.get<Message[]>(`/threads/${threadId}/messages`),
-      api.get<Run[]>(`/runs?thread_id=${threadId}`),
-    ])
-      .then(([m, r]) => {
+    // Message visibility must never wait for the independent Run projection.
+    api
+      .get<Message[]>(`/threads/${threadId}/messages`)
+      .then((m) => {
         if (live) {
           setMessages((old) => {
-            const merged = new Map(old.map((message) => [message.id, message]));
-            for (const message of m) merged.set(message.id, message);
-            const result = [...merged.values()].sort((a, b) => a.seq - b.seq);
+            const result = mergeMessages(old, m);
             retainConversation(messageKey, result.slice(-500));
             return result;
           });
-          setRuns(retainConversation(runKey, r));
           setError(undefined);
         }
       })
       .catch((e) => {
         if (live && !isRequestCancelled(e)) setError(e);
       });
+    api
+      .get<Run[]>(`/runs?thread_id=${threadId}`)
+      .then((r) => {
+        if (live) {
+          setRuns(retainConversation(runKey, r));
+          setRunError(undefined);
+        }
+      })
+      .catch((e) => {
+        if (live && !isRequestCancelled(e)) setRunError(e);
+      });
     return () => {
       live = false;
     };
   }, [threadId, revision, messageKey, runKey]);
-  const visibleMessages = useMemo(() => {
-    const visible = new Map(messages.map((message) => [message.id, message]));
+  const canonicalMessages = useMemo(() => {
+    // An accepted send may finish while this viewport is unmounted. Its scoped
+    // cache and outbox notification restore it on navigation without another GET.
+    void outgoing;
+    const visible = new Map(
+      mergeMessages(readConversation<Message[]>(messageKey) ?? [], messages)
+        .filter((message) => message.thread_id === threadId)
+        .map((message) => [message.id, message]),
+    );
     for (const event of events) {
       if (
         !["message.created", "message.updated"].includes(event.kind) ||
@@ -94,12 +129,60 @@ export function useThreads(agentId?: string, threadId?: string) {
       visible.set(payload.id, payload as unknown as Message);
     }
     return [...visible.values()].sort((a, b) => a.seq - b.seq);
-  }, [messages, events, threadId]);
+  }, [messages, events, threadId, messageKey, outgoing]);
+  useEffect(() => {
+    retainConversation(messageKey, canonicalMessages.slice(-500));
+    acknowledgeOutgoing(key, canonicalMessages);
+  }, [canonicalMessages, messageKey, key]);
+  const visibleMessages = useMemo(() => {
+    const accepted = new Set(canonicalMessages.map((message) => message.client_nonce));
+    return mergeMessages(
+      canonicalMessages,
+      outgoing.filter((row) => !accepted.has(row.nonce)).map((row) => row.message),
+    );
+  }, [canonicalMessages, outgoing]);
+
+  async function deliver(intent: OutgoingIntent): Promise<void> {
+    if (!threadId) throw new Error("thread_not_found");
+    const flightKey = `${key}:${intent.nonce}`;
+    const existing = inFlightSends.get(flightKey);
+    if (existing) return existing;
+    const operation = (async () => {
+      try {
+        const accepted = await api.post<{ message: Message; run_ids: string[] }>(
+          `/threads/${threadId}/messages`,
+          intent.body,
+        );
+        const saved = mergeMessages(readConversation<Message[]>(messageKey) ?? [], [
+          accepted.message,
+        ]);
+        retainConversation(messageKey, saved.slice(-500));
+        if (selectedKey.current === messageKey) setMessages(saved);
+        acknowledgeOutgoing(key, [accepted.message], true);
+        refresh();
+      } catch (caught) {
+        // A live event can independently confirm a committed send whose HTTP
+        // response was lost. It must not turn into a misleading failed bubble.
+        const confirmed = readConversation<Message[]>(messageKey)?.find(
+          (message) => message.client_nonce === intent.nonce,
+        );
+        if (confirmed) {
+          acknowledgeOutgoing(key, [confirmed], true);
+          refresh();
+          return;
+        }
+        if (!isRequestCancelled(caught)) failOutgoing(key, intent.nonce);
+        throw caught;
+      }
+    })().finally(() => inFlightSends.delete(flightKey));
+    inFlightSends.set(flightKey, operation);
+    return operation;
+  }
   return {
     threads,
     messages: visibleMessages,
     runs,
-    error: error ?? listingError,
+    error: error ?? runError ?? listingError,
     create: async (id: string) => {
       const thread = await api.post<Thread>("/threads", { agent_id: id, title: "" });
       refresh();
@@ -112,8 +195,7 @@ export function useThreads(agentId?: string, threadId?: string) {
       mentions?: MentionAddress,
       inputAnswer?: InputAnswer,
     ) => {
-      // A response can be lost after the server has committed this intent and its run.
-      // Retry unchanged content with the same receipt key; a confirmed repeat gets a new key.
+      if (!threadId) throw new Error("thread_not_found");
       const fingerprint = JSON.stringify([
         threadId,
         content,
@@ -122,21 +204,22 @@ export function useThreads(agentId?: string, threadId?: string) {
         mentions,
         inputAnswer,
       ]);
-      if (pendingSend.current?.fingerprint !== fingerprint)
-        pendingSend.current = { fingerprint, nonce: crypto.randomUUID() };
-      const nonce = pendingSend.current.nonce;
-      await api.post(`/threads/${threadId}/messages`, {
+      const intent = enqueueOutgoing(key, threadId, fingerprint, {
         content,
         attachment_ids,
         reply_to,
-        client_nonce: nonce,
         ...(inputAnswer ? { input_answer: inputAnswer } : {}),
         mention_agent_ids: mentions?.agent_ids ?? [],
         mention_all: mentions?.all ?? false,
         collaboration_session_id: mentions?.collaboration_session_id,
       });
-      if (pendingSend.current?.nonce === nonce) pendingSend.current = null;
-      refresh();
+      await deliver(intent);
+    },
+    retry: async (nonce: string) => {
+      if (!threadId) return;
+      const prior = outgoingMessages(key).find((row) => row.nonce === nonce);
+      if (!prior) return;
+      await deliver(enqueueOutgoing(key, threadId, prior.fingerprint, prior.body));
     },
     cancel: async (id: string) => {
       await api.post(`/runs/${id}/cancel`, {});

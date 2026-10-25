@@ -10,6 +10,7 @@ import { ArtifactFileCard } from "../../components/ArtifactFileCard";
 import { AgentAvatar } from "../../components/ai/AgentAvatar";
 import { WorkingIndicator } from "../../components/ai/primitives";
 import type { Agent, Event, Message, ReplyStreamSnapshot, Resource, Run } from "../../lib/api";
+import { isOutgoingMessage } from "../../lib/outgoing-messages";
 
 export function MessageBubble({
   message,
@@ -22,9 +23,11 @@ export function MessageBubble({
   peerRun,
   showSpeaker = true,
   body,
+  onRetrySend,
 }: {
   message: Message;
   body?: ReactNode;
+  onRetrySend?: (nonce: string) => Promise<void>;
   agent?: Agent;
   artifacts: Resource[];
   replyParent?: Message;
@@ -37,6 +40,7 @@ export function MessageBubble({
   const { i18n } = useLingui();
   if (peer) return <PeerMessageCard message={message} peer={peer} run={peerRun} />;
   const user = message.role === "user";
+  const outgoing = isOutgoingMessage(message) ? message : undefined;
   let partOffset = 0;
   const literalParts = user
     ? plainTextLinkParts(message.content).map((part) => {
@@ -46,7 +50,11 @@ export function MessageBubble({
       })
     : [];
   return (
-    <article className={`message template-message ${message.role}`} data-message-id={message.id}>
+    <article
+      className={`message template-message ${message.role}`}
+      data-message-id={message.id}
+      data-delivery={outgoing?.delivery}
+    >
       <div className={`template-message-frame${body ? " has-interactive-body" : ""}`}>
         {!user && showSpeaker && (
           <div className="template-speaker">
@@ -114,15 +122,31 @@ export function MessageBubble({
               minute: "2-digit",
             })}
           </time>
-          <button
-            type="button"
-            className="template-icon-button"
-            onClick={() => onReply(message)}
-            aria-label={t`Reply`}
-            title={t`Reply`}
-          >
-            <CornerUpLeft size={14} />
-          </button>
+          {outgoing ? (
+            outgoing.delivery === "failed" ? (
+              <button
+                type="button"
+                className="template-icon-button"
+                onClick={() => void onRetrySend?.(outgoing.retry_nonce).catch(() => undefined)}
+              >
+                <Trans>Retry</Trans>
+              </button>
+            ) : (
+              <span role="status">
+                <Trans>Sending…</Trans>
+              </span>
+            )
+          ) : (
+            <button
+              type="button"
+              className="template-icon-button"
+              onClick={() => onReply(message)}
+              aria-label={t`Reply`}
+              title={t`Reply`}
+            >
+              <CornerUpLeft size={14} />
+            </button>
+          )}
         </div>
       </div>
     </article>

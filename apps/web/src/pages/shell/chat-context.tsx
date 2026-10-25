@@ -283,6 +283,7 @@ export function ThreadViewport({
         onReply={setReply}
         onPreview={setPreview}
         onOlder={thread.older}
+        onRetrySend={thread.retry}
         trailing={
           <>
             {streamingRows.map(
@@ -811,8 +812,10 @@ export function ThreadMessages({
   superBotRequests = [],
   renderSuperBot,
   onAnswer,
+  onRetrySend,
 }: {
   onAnswer?: (answer: InputAnswer, label: string, messageId: string) => Promise<void>;
+  onRetrySend?: (nonce: string) => Promise<void>;
   showSpeakers?: boolean;
   messages: Message[];
   approvals?: TradeApproval[];
@@ -980,6 +983,7 @@ export function ThreadMessages({
                   replyParent={message.reply_to ? byId.get(message.reply_to) : undefined}
                   onReply={onReply}
                   onPreview={onPreview}
+                  onRetrySend={onRetrySend}
                   peer={peersByMessageId.get(message.id)}
                   peerRun={runsById.get(
                     String(peersByMessageId.get(message.id)?.payload.run_id ?? ""),

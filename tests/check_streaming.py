@@ -15,7 +15,7 @@ from lonora_agent.collaboration.outcome_return import return_outcome, return_pen
 from lonora_agent.collaboration.peer_messages import delegate_peer
 from lonora_agent.context.builder import build_context
 from lonora_agent.model_runtime import model_turn
-from lonora_agent.progress import progress
+from lonora_agent.progress import DELTA_CHUNK_CHARS, progress
 from lonora_api.app import create_app
 from lonora_api.env import get_settings
 from lonora_api.runtime import ApiRuntime
@@ -214,8 +214,20 @@ async def checks():
         fresh = await fixture.request("GET", "/runs/" + ar["id"])
         stream = fresh["stream"]
         check(
-            "170 deltas survive a fresh API read independently of the 150-event client window",
-            stream["sequence"] == 170 and stream["text"] == "".join(chunks),
+            "provider fragments coalesce into bounded durable deltas without changing the reply",
+            stream["sequence"]
+            == (len("".join(chunks)) + DELTA_CHUNK_CHARS - 1) // DELTA_CHUNK_CHARS
+            and stream["text"] == "".join(chunks),
+        )
+        # Independent accepted updates still exercise eviction beyond the client
+        # event window. Token framing no longer controls publication transactions.
+        for chunk in chunks:
+            await progress(context, "run.delta", {"turn_id": stream["turn_id"], "text": chunk})
+        fresh = await fixture.request("GET", "/runs/" + ar["id"])
+        stream = fresh["stream"]
+        check(
+            "more than150 accepted deltas survive independently of the client event window",
+            stream["sequence"] > 150 and stream["text"] == "".join(chunks) * 2,
         )
         old_turn = stream["turn_id"]
         await progress(context, "run.reply_started", {"turn_id": "fallback-fixture"})

@@ -11,6 +11,8 @@ from lonora_session.idempotency import stable_id
 
 from .conversation import ConversationRecallScope
 
+AUTOMATIC_RECALL_SEMANTIC_TIMEOUT_SECONDS = 1.5
+
 
 def cosine_similarity(first: list[float], second: list[float]) -> float:
     if not first or len(first) != len(second) or any(not math.isfinite(v) for v in first + second):
@@ -63,7 +65,13 @@ async def retrieve_memory(
 
     return render_evidence(
         await retrieve_evidence(
-            db, credentials, owner_id, agent_id, query, conversation_scope=conversation_scope
+            db,
+            credentials,
+            owner_id,
+            agent_id,
+            query,
+            conversation_scope=conversation_scope,
+            semantic_timeout_seconds=AUTOMATIC_RECALL_SEMANTIC_TIMEOUT_SECONDS,
         )
     )
 

@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import create_async_engine
 
 CHECKS = (
     "check_model_context.py",
+    "check_event_query_plans.py",
     "check_input_requests.py",
     "check_personal_agent.py",
     "check_skill_installation.py",

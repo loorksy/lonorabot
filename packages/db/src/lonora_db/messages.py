@@ -33,6 +33,7 @@ def message_data(row: MessageRow) -> dict[str, Any]:
         "mentions": row.mentions,
         "attachment_ids": row.attachment_ids,
         "created_at": row.created_at.isoformat(),
+        "client_nonce": row.client_nonce,
     }
 
 
