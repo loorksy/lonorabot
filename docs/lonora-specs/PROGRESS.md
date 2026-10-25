@@ -1242,3 +1242,21 @@ real-model acceptance script checks natural requests against actual handlers and
 final attachment bytes; results follow after deployment. Live read-only broker
 probes found all3 enabled MetaApi connections undeployed, so live financial paths
 remain externally blocked. No financial mutation or provider redeployment occurred.
+
+Production acceptance of revision `16c21e9710a797f5634b09f11ddd3a4b94f5f437`:
+- Real model chose discovery and `web_fetch` for the owner's exact GitHub source;
+  actual source read and durable final answer passed in38.95s, with no operation
+  errors. This used the normal Agent loop, not scripted model choices.
+- Real model chose discovery, `workspace_execute` and `workspace_export`; actual
+  Python execution, independent result calculation, attachment record and on-disk
+  report SHA256/bytes passed in7.45s. No operation errors.
+- Both temporary identities/conversations/receipts/events/files were removed;
+  independent follow-up query found no remaining diagnostic runs. No financial
+  capability or broker service was available to either journey.
+- Public authenticated SSE ready73.44ms; served index/main bundle hashes matched
+  the tested release. API/Gateway healthy; migration0031 unchanged. Full build
+  (including the new explicitly invoked acceptance script's strict typing) passed.
+- All3 saved enabled MetaApi connections remain externally undeployed. Their
+  current account/market/financial readiness is not claimed, and no owner-stopped
+  provider terminal was silently deployed. Native device/voice and continuous
+  watch operation were not newly verified by these two journeys.
