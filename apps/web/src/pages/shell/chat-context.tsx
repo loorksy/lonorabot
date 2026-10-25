@@ -47,11 +47,17 @@ import { TradeApprovalCard, useTradeApprovals } from "../../components/trading/T
 import { useThreads } from "../../hooks/useThreads";
 import type { Agent, Message, Resource, Run } from "../../lib/api";
 import { api } from "../../lib/api";
+import { failedReplies } from "../../lib/failed-replies";
 import { streamForRun } from "../../lib/response_streaming";
 import { type StreamRow, streamTimeline, streamVisible } from "../../lib/stream-timeline";
 import { userError } from "../../lib/user_error";
 import { useClient } from "../../providers/ClientProvider";
-import { MessageBubble, RecoveryNotice, StreamingMessageCard } from "./message-cards";
+import {
+  FailedReplyNotice,
+  MessageBubble,
+  RecoveryNotice,
+  StreamingMessageCard,
+} from "./message-cards";
 import "./chat-context.css";
 
 export function ThreadViewport({
@@ -186,8 +192,12 @@ export function ThreadViewport({
       ? activeRuns
       : [...latestByAgent.values()].filter((run) => run.agent_id === agentId)
     : [...latestByAgent.values()];
+  const inlineFailures = new Set(
+    failedReplies(thread.runs, thread.messages).map(({ run }) => run.id),
+  );
   const notices = statusRuns.filter(
     (run) =>
+      !inlineFailures.has(run.id) &&
       !isWorking(run.status) &&
       (run.status !== "completed" || run.model_metadata.reply_outcome === "silent"),
   );
@@ -816,6 +826,7 @@ export function ThreadMessages({
   trailing?: ReactNode;
 }) {
   const messages = streamTimeline(canonicalMessages, streaming);
+  const failures = failedReplies(runs, canonicalMessages);
   const previews = new Map(streaming.map((row) => [`preview:${row.run.id}`, row]));
   const { i18n } = useLingui();
   const scroll = useRef<HTMLElement>(null);
@@ -988,6 +999,16 @@ export function ThreadMessages({
                     String(peersByMessageId.get(message.id)?.payload.run_id ?? ""),
                   )}
                 />
+                {failures
+                  .filter((failure) => failure.message.id === message.id)
+                  .map(({ run }) => (
+                    <FailedReplyNotice
+                      key={run.id}
+                      run={run}
+                      agent={agents.find((agent) => agent.id === run.agent_id)}
+                      showSpeaker={showSpeakers}
+                    />
+                  ))}
               </Fragment>
             );
           })}

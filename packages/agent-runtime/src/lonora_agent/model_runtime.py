@@ -16,6 +16,7 @@ from .context.financial_result import (
 from .context.image_observations import prepare_image_observations
 from .context.team import refresh_routing_context
 from .progress import progress
+from .public_rewrite import rewrite_request
 from .public_stream import PublicStream
 from .skills.system_policy import apply_operating_policy, policy_bundle
 
@@ -102,21 +103,10 @@ async def model_turn(
             reply = reply.model_copy(update={"text": ""})
         else:
             rewritten = True
-            rewrite_messages = [
-                *request_messages,
-                ModelMessage(role="assistant", content=reply.text),
-                ModelMessage(
-                    role="system",
-                    content="Rewrite only the preceding answer in the owner's conversation language. "
-                    "Keep its supported facts, uncertainty and result unchanged. "
-                    "Do not perform work, call anything or add success claims. "
-                    "Use short ordinary prose without internal identifiers, machine status, "
-                    "cards, tools, skills, runs, events, API or translated equivalents. "
-                    "For approval say the request awaits confirmation. For pending verification "
-                    "say the actual outcome still needs checking. Never claim an action occurred "
-                    "unless its independently verified evidence is present.",
-                ),
-            ]
+            # Editing is a separate text-only task. Replaying the working
+            # conversation here made the model repeat the owner's raw diagnostic
+            # codes instead of explaining their meaning, rejecting even greetings.
+            rewrite_messages = rewrite_request(reply.text)
             reply, selection = await context.router.complete(
                 capability, rewrite_messages, [], on_delta=delta, on_attempt=attempt
             )

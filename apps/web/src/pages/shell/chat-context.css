@@ -121,6 +121,11 @@
   border: 1px solid var(--lonora-line);
   border-radius: 14px;
 }
+.template-reply-failure .template-message-frame {
+  padding: 10px 14px;
+  border: 1px solid var(--lonora-line);
+  border-radius: 14px;
+}
 .template-message.user .template-message-frame {
   max-width: 84%;
 }
@@ -147,6 +152,10 @@
   color: var(--lonora-text);
   font-size: 15px;
   line-height: 1.7;
+}
+.template-reply-failure .template-message-body {
+  font-size: 13px;
+  color: var(--lonora-muted);
 }
 .template-message-text {
   padding: 12px 18px;

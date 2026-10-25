@@ -11,6 +11,37 @@ import { AgentAvatar } from "../../components/ai/AgentAvatar";
 import { WorkingIndicator } from "../../components/ai/primitives";
 import type { Agent, Event, Message, ReplyStreamSnapshot, Resource, Run } from "../../lib/api";
 import { isOutgoingMessage } from "../../lib/outgoing-messages";
+import { userError } from "../../lib/user_error";
+
+export function FailedReplyNotice({
+  run,
+  agent,
+  showSpeaker,
+}: {
+  run: Run;
+  agent?: Agent;
+  showSpeaker: boolean;
+}) {
+  return (
+    <article
+      className="message template-message assistant template-reply-failure"
+      data-failed-run-id={run.id}
+      role="alert"
+    >
+      <div className="template-message-frame">
+        {showSpeaker && (
+          <div className="template-speaker">
+            {agent && <AgentAvatar agent={agent} />}
+            <strong dir="auto">{agent?.name ?? <Trans>Agent</Trans>}</strong>
+          </div>
+        )}
+        <div className="message-body template-message-body" dir="auto">
+          {userError({ code: run.error_code })}
+        </div>
+      </div>
+    </article>
+  );
+}
 
 export function MessageBubble({
   message,

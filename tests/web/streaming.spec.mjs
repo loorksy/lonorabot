@@ -166,3 +166,52 @@ test("live reply stays before a later owner message instead of moving to the foo
     fixture({ ...data, action: "cleanup" });
   }
 });
+
+test("a failed reply explains the problem beside its owner input without exposing private codes", async ({
+  page,
+  context,
+}) => {
+  const data = fixture({ action: "init", history: true });
+  try {
+    const login = await context.request.post("/api/auth/login", {
+      data: {
+        email: process.env.LONORA_UI_TEST_EMAIL ?? "ci@example.com",
+        password: process.env.LONORA_UI_TEST_PASSWORD ?? "ci-only-owner-password",
+      },
+    });
+    expect(login.ok()).toBeTruthy();
+    await page.addInitScript(() => localStorage.setItem("lonora.locale", "ar"));
+    // A controlled failed projection exercises the UI without contacting a model or broker.
+    await page.route("**/api/runs**", async (route) => {
+      const response = await route.fetch();
+      const value = await response.json();
+      if (!Array.isArray(value)) return route.fulfill({ response });
+      await route.fulfill({
+        json: value.map((run) =>
+          run.id === data.run.id
+            ? {
+                ...run,
+                status: "failed",
+                error_code: "public_reply_unavailable",
+                stream: run.stream ? { ...run.stream, phase: "failed" } : null,
+              }
+            : run,
+        ),
+      });
+    });
+    await page.goto(`/app/g/${data.group}`);
+    const notice = page.locator(`[data-failed-run-id='${data.run.id}']`);
+    await expect(notice).toBeVisible();
+    await expect(notice).toContainText("تعذر إكمال الطلب. أعد المحاولة.");
+    await expect(notice).not.toContainText("public_reply_unavailable");
+    await expect(page.locator(`[data-run-status-id='${data.run.id}']`)).toHaveCount(0);
+    await expect(page.locator(`[data-progress-run-id='${data.run.id}']`)).toHaveCount(0);
+    await expect(page.locator(`[data-stream-run-id='${data.run.id}']`)).toHaveCount(0);
+    const previous = await notice.evaluate((node) => node.previousElementSibling?.textContent);
+    expect(previous).toContain("HISTORY 104 immutable fixture");
+    // No generic retry button may replay a potentially financial request.
+    await expect(notice.getByRole("button")).toHaveCount(0);
+  } finally {
+    fixture({ ...data, action: "cleanup" });
+  }
+});

@@ -1187,3 +1187,29 @@ Generation-specific input anchors now persist with each fenced stream and travel
 in SSE identity frames. This keeps resumed replies aligned even while the Run GET
 is deliberately stale. Six browser cases pass including before/after steering,
 10 Node outbox/timeline cases,1122 Python cases and the full build pass.
+
+## Restore replies after owner-quoted diagnostic questions — 2026-10-25
+
+Production inspection confirmed eight consecutive owner requests (including
+simple greetings) failed `public_reply_unavailable`: an earlier diagnostic
+question remained unanswered, and both the draft and its full-history rewrite
+repeated the raw diagnostic identifier. This was generation rejection, not a
+missing canonical message or an SSE transport failure. A text-only frozen model
+probe reproduced it; an isolated editing request produced an accepted explanation.
+
+The single rewrite now receives only the draft as untrusted JSON and a bounded
+editing instruction, without replaying private execution context or conversation
+history. It must explain diagnostic meaning without raw identifiers. The existing
+final disclosure check and independent financial-verification boundaries remain;
+an invalid second answer still fails closed. No failed financial work is replayed.
+
+Web now places a localized failure explanation beside the exact owner input when
+a conversational request fails; private codes, duplicate header notices and a
+generic operation-retry button are excluded. Background/child/cancelled requests
+and failures outside the loaded window do not become misplaced conversation rows.
+
+Validation: seven actual Chromium/API/PostgreSQL cases,13 Node outbox/timeline/
+failure cases,1124 Python cases against an explicit disposable PostgreSQL database,
+and `bash scripts/build.sh` pass. The first bare pytest attempt lacked the required
+explicit database URL for voice fixtures; the full configured rerun passed.
+No migration, financial policy, native APK or backup is added.
