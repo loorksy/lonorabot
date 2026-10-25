@@ -1286,3 +1286,23 @@ request despite a stale assistant denial, plus a two-turn topic change checking
 latest-input preservation. Scripted harness acceptance passed for both additions;
 production model results are recorded after deployment. This is a response-path
 repair, not closure of the remaining architecture/product capabilities.
+
+Production acceptance: revision `c47cbb3f0337113b833f4cbe893e376f94fd2a63`
+is activated on API/Gateway. The exact previously failed capability request was
+replayed through the installed model path with the real configured provider and
+current full registry: one model call,6062-character accepted reply, no rewrite,
+and final stream text equality (21.51s). This frozen replay had no executor,
+broker service or conversation write; it did not rerun an old financial operation.
+
+All four real-model AgentRuntime journeys passed on production with normal
+context/discovery/handlers/persisted replies: GitHub source read29.18s; actual
+Python execution and verified physical report attachment13.19s; capability list
+with stale prior denial6.84s; two-turn subject change4.10s with the newest owner
+request preserved and answered. No operation errors. Financial capabilities and
+broker handles were unavailable; all diagnostic identities, events, receipts and
+files were removed. Public authenticated SSE ready111.22ms, exact served Web
+hashes and API/Gateway health passed. The obsolete rewrite module is absent from
+both installed distribution and source tree; staging removed, no migration, APK,
+backup, provider deployment or financial mutation. Full frozen1169-case suite and
+all seven build targets passed. These measured scenarios are not a guarantee of
+fixed provider latency or closure of the remaining product implementation list.

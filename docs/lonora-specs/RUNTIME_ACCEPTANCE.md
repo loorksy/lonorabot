@@ -38,7 +38,7 @@ verified.
 | Chart state/drawings/indicators/image | `check_chart_tools.py`, durable state/replay/concurrency/ownership | Native device display not exercised in this audit |
 | Approvals/execution/reconciliation | `check_trade_approvals.py`, immutable review, ambiguous receipt, crash verification, exact no-resend | Simulation broker only |
 | Actual connected broker reads | Read-only probes against all3 enabled saved MetaApi connections | **BLOCKED_EXTERNAL:** each returned `broker_account_undeployed`; no account/quote or execution readiness claimed |
-| Real-model repository and computed report | **VERIFIED_REAL_MODEL:** production model discovered/fetched the supplied repository; executed Python and exported a physically verified report attachment |38.95s research;7.45s report. Nonfinancial allowlist; temporary diagnostic state cleaned |
+| Real-model natural journeys | **VERIFIED_REAL_MODEL:** repository read, computed report, requested capability list despite stale denial, and two-turn topic switch | Latest production results:29.18s /13.19s /6.84s /4.10s. Nonfinancial allowlist; temporary state cleaned |
 | Web SSE/timeline/failure notice | Prior7 actual Chromium/API/PostgreSQL cases and public authenticated SSE verification | Does not establish native Android/voice behavior |
 | Android, voice, continuous watches and live financial outcomes | No new claim in this audit | Need separate device/live-runtime verification; no live-money tests |
 
