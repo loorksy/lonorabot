@@ -16,6 +16,7 @@ from .context.financial_result import (
 from .context.image_observations import prepare_image_observations
 from .context.team import refresh_routing_context
 from .progress import progress
+from .public_stream import PublicStream
 from .skills.system_policy import apply_operating_policy, policy_bundle
 
 
@@ -34,16 +35,25 @@ async def model_turn(
     turn_id = new_id()
     await progress(context, "run.reply_started", {"turn_id": turn_id})
 
+    names = set(policy_bundle().tool_policies) | {tool.name for tool in tools}
+    public_ids = public_broker_ids(messages)
+    streaming = PublicStream(
+        names,
+        public_ids,
+        enabled=not any(tool.name in FINANCIAL_CALLS for tool in tools)
+        and not unverified_financial_result(messages)
+        and not unsettled_wait_result(messages),
+    )
+
     async def delta(chunk: str) -> None:
-        # Provisional provider text is private until the complete reply passes
-        # the disclosure boundary. A later rewrite cannot retract leaked bytes.
-        # The adapter already assembles the authoritative reply. Do not retain
-        # a second token-sized copy or tie database writes to provider framing.
-        del chunk
+        accepted = streaming.feed(chunk)
+        if accepted:
+            await progress(context, "run.delta", {"turn_id": turn_id, "text": accepted})
 
     async def attempt(selection: ModelSelection) -> None:
-        nonlocal turn_id
+        nonlocal turn_id, streaming
         turn_id = new_id()
+        streaming = PublicStream(names, public_ids, enabled=streaming.enabled)
         await progress(
             context,
             "run.reply_started",
@@ -133,6 +143,12 @@ async def model_turn(
     }
     # Publish the accepted reply once. The fenced event writer chunks it in one
     # transaction, independently of tiny provider tokens, retries or rewrites.
-    if reply.text:
-        await progress(context, "run.delta", {"turn_id": turn_id, "text": reply.text})
+    if streaming.sent and not reply.text.startswith(streaming.sent):
+        # A guarded rewrite or late tool call replaces the provisional generation.
+        turn_id = new_id()
+        await progress(context, "run.reply_started", {"turn_id": turn_id})
+        streaming.sent = ""
+    remaining = reply.text[len(streaming.sent) :]
+    if remaining:
+        await progress(context, "run.delta", {"turn_id": turn_id, "text": remaining})
     return reply, selection

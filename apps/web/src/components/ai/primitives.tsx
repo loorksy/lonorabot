@@ -6,6 +6,7 @@ import { Trans } from "@lingui/react/macro";
 import { isWorking } from "@lonora/core";
 import type { ReactNode } from "react";
 import type { Agent, Event, Run } from "../../lib/api";
+import { runActivity } from "../../lib/run-activity";
 import { AgentAvatar } from "./AgentAvatar";
 import "./beautiful-ui.css";
 
@@ -72,7 +73,6 @@ export function AgentActivity({
   runs: Run[];
   agents: Agent[];
 }) {
-  void events;
   const working = runs.filter((run) => isWorking(run.status));
   if (!working.length) return null;
   return (
@@ -80,12 +80,26 @@ export function AgentActivity({
       {working.map((run) => {
         const agent = agents.find((item) => item.id === run.agent_id);
         const name = agent?.name ?? t`Agent`;
+        const activity = runActivity(run, events);
+        const labels: Record<string, string> = {
+          learning: t`Learning`,
+          sending: t`Sending…`,
+          thinking: t`Thinking`,
+          writing: t`Writing`,
+          searching: t`Searching`,
+          analyzing: t`Analyzing`,
+          executing: t`Executing`,
+          inspecting: t`Reading`,
+          waiting: t`Queued`,
+        };
         return (
           <div key={run.id} data-progress-run-id={run.id}>
             <LoadingState
-              indicator={agent ? <AgentAvatar agent={agent} working /> : undefined}
+              indicator={agent ? <AgentAvatar agent={agent} working state={activity} /> : undefined}
               label={
-                <bdi>{run.status === "queued" ? t`${name} is queued` : t`${name} is working`}</bdi>
+                <bdi>
+                  {name} · {labels[activity] ?? t`Thinking`}
+                </bdi>
               }
             />
           </div>

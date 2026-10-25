@@ -1134,3 +1134,22 @@ Final owner-management integration:371 pytest, all41 isolated PostgreSQL foundat
 Compatible Android OTA044bbcb3-6bff-41dc-bfc0-6bc4fd5d4c81 was exported, signed and its immutable assets transferred; native runtime remains a954b90f9547b7c5a25444f4087d93eb42deeb90, matching published0.2.7. The active production pointer is deliberately unchanged until the new catalog API is deployed. No new APK, migration, backup or production broker mutation. Publication/service checks and physical-device activation remain distinct from local browser verification.
 
 Next implementation dependency remains ENV-CHART-VIEW-01, documented from the independent read-only source audit. Skills candidate generation, independent evaluation/adoption/rollback and Task version transitions are also open. Full specifications01–19 and the professional Agent program remain incomplete; this closes the owner-management capability only.
+
+## Observed activity and incremental public replies — 2026-10-25
+
+Web activity now consumes actual per-Run model/tool events instead of ignoring
+those events and labeling every active Run as working. Existing supplied avatar
+motion states represent thinking, writing, searching, analyzing, inspecting,
+executing, sending and memory updates. Finished calls leave the active set;
+no timer invents a progression of actions.
+
+Public reply admission now runs during provider generation at complete-word
+boundaries, with a200ms write throttle. Known internal terms and effect/credential
+claims stop incremental admission; financial-capability turns and unsettled
+financial outcomes remain final-only. Final disclosure/verification checks and
+generation replacement still apply. This is provider-driven text, not a cosmetic
+typewriter animation. Short or withheld replies may still appear together.
+
+Validation:1121 Python cases, actual PostgreSQL streaming/peer checks, activity
+projection test and full build passed before release preparation. Production
+publication is tracked separately from these development checks.

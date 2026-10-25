@@ -3196,3 +3196,21 @@ msgstr "فريقك يبدأ من هنا"
 #: src/pages/shell/message-cards.tsx:136
 msgid "Sending…"
 msgstr "جارٍ الإرسال…"
+
+msgid "Thinking"
+msgstr "يفكر"
+
+msgid "Writing"
+msgstr "يكتب"
+
+msgid "Searching"
+msgstr "يبحث"
+
+msgid "Analyzing"
+msgstr "يحلل"
+
+msgid "Reading"
+msgstr "يقرأ"
+
+msgid "Learning"
+msgstr "يحفظ المعلومات"

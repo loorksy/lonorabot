@@ -3196,3 +3196,21 @@ msgstr "Your team starts here"
 #: src/pages/shell/message-cards.tsx:136
 msgid "Sending…"
 msgstr "Sending…"
+
+msgid "Thinking"
+msgstr "Thinking"
+
+msgid "Writing"
+msgstr "Writing"
+
+msgid "Searching"
+msgstr "Searching"
+
+msgid "Analyzing"
+msgstr "Analyzing"
+
+msgid "Reading"
+msgstr "Reading"
+
+msgid "Learning"
+msgstr "Learning"

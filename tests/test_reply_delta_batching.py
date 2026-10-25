@@ -26,9 +26,10 @@ from test_task_runtime import task_db as task_db
 
 
 @pytest.mark.asyncio
-async def test_many_provider_fragments_publish_one_accepted_reply(
+async def test_native_fragments_publish_safe_prefix_before_completion_with_bounded_writes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setattr("lonora_agent.public_stream.monotonic", lambda: 0.0)
     answer = "صباح النور. " * 150
     published = AsyncMock()
 
@@ -37,7 +38,11 @@ async def test_many_provider_fragments_publish_one_accepted_reply(
         await kwargs["on_attempt"](selection)
         for character in answer:
             await kwargs["on_delta"](character)
-            assert not any(item.args[1] == "run.delta" for item in published.await_args_list)
+            # Safe complete sentences may publish while the provider is generating.
+            assert (
+                len([item for item in published.await_args_list if item.args[1] == "run.delta"])
+                <= len(answer) // 96 + 1
+            )
         return ModelReply(text=answer), selection
 
     async def images(
@@ -64,7 +69,8 @@ async def test_many_provider_fragments_publish_one_accepted_reply(
         context, [ModelMessage(role="user", content="صباح الخير")], [], Capability.CONVERSATION
     )
     deltas = [item for item in published.await_args_list if item.args[1] == "run.delta"]
-    assert len(deltas) == 1 and deltas[0].args[2]["text"] == reply.text == answer
+    assert 1 < len(deltas) <= len(answer) // 96 + 1
+    assert "".join(item.args[2]["text"] for item in deltas) == reply.text == answer
 
 
 async def stream_context(fixture: tuple[Database, str, str, str]) -> ToolContext:
