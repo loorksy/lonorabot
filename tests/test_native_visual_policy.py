@@ -122,6 +122,18 @@ def test_authored_skill_examples_validate_against_actual_contract():
     assert result.value["op"] == "div"
 
 
+def test_model_vocabulary_complete_examples_use_valid_native_contract():
+    examples = [
+        line for line in native_visual_policy().splitlines() if line.startswith('{"version"')
+    ]
+    assert len(examples) == 2
+    documents = [VisualDocument.model_validate_json(example) for example in examples]
+    assert [doc.mode for doc in documents] == ["example", "observed"]
+    total = documents[1].root.children[0]
+    assert isinstance(total.value, dict) and total.value["op"] == "add"
+    assert len(documents[1].root.children[1].points) == 2
+
+
 def test_missing_or_oversized_vocabulary_is_an_explicit_resource_error(tmp_path: Path):
     with patch("lonora_agent.skills.visual_policy.resources_root", return_value=tmp_path):
         with pytest.raises(LonoraError, match="visual_policy_invalid"):

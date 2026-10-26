@@ -322,6 +322,8 @@ if (process.env.LONORA_MODEL_VISUAL_RESULT) {
       }
     }
     expect(checked).toBeGreaterThan(0);
-    await page.screenshot({ path: ".runtime/visual-web-live-model.png", fullPage: true });
+    await page.locator(".native-visual-response").first().screenshot({
+      path: ".runtime/visual-web-live-model.png",
+    });
   });
 }
