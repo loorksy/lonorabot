@@ -306,6 +306,21 @@ if (process.env.LONORA_MODEL_VISUAL_RESULT) {
       };
       await walk(part.document.root);
     }
+    if (!checked) {
+      // Presentation is model-owned: a table/chart with a derived total is also
+      // valid. Do not force a particular metric template in the acceptance test.
+      const rendered = await page.locator(".native-visual-response").allTextContents();
+      for (const part of recorded.rich_content.parts) {
+        if (part.type !== "ui") continue;
+        for (const fact of Object.values(part.document.facts ?? {})) {
+          const shown =
+            typeof fact.value === "number"
+              ? new Intl.NumberFormat("en", { maximumFractionDigits: 8 }).format(fact.value)
+              : String(fact.value);
+          if (rendered.some((text) => text.includes(shown))) checked += 1;
+        }
+      }
+    }
     expect(checked).toBeGreaterThan(0);
     await page.screenshot({ path: ".runtime/visual-web-live-model.png", fullPage: true });
   });

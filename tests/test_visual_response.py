@@ -11,7 +11,11 @@ import pytest
 from lonora_adapter_kit.types import ModelMessage, ModelReply, ToolCall
 from lonora_agent import model_runtime
 from lonora_agent.public_stream import PublicStream
-from lonora_agent.visual_response import compile_document, parse_visual_reply
+from lonora_agent.visual_response import (
+    compile_document,
+    parse_visual_reply,
+    visual_observation_catalog,
+)
 from lonora_contracts.model_routing import Capability, ModelSelection
 from lonora_contracts.visual_response import RichContent, VisualDocument
 from lonora_db.client import Database
@@ -172,6 +176,17 @@ def test_fragmented_provider_stream_never_exposes_visual_fence_or_payload():
     assert emitted == prefix and stream.sent == prefix
 
 
+def test_model_can_address_actual_transport_ids_without_new_observations_or_presentation_rule():
+    history = messages()
+    catalog = visual_observation_catalog(history)
+    assert '"call_id":"actual"' in catalog and '"tool":"account_read"' in catalog
+    assert "1234.5" not in catalog and "plain prose remains valid" in catalog
+    assert not visual_observation_catalog(messages({"ok": False, "equity": 1234.5}))
+    assert not visual_observation_catalog(
+        [*history, ModelMessage(role="user", content="A new question")]
+    )
+
+
 @pytest.mark.asyncio
 async def test_plain_reply_is_byte_identical_and_needs_no_database():
     text = "Equity means your balance plus floating profit or loss."
@@ -269,6 +284,9 @@ async def test_existing_model_turn_composes_once_and_streams_no_serialized_docum
         model_context(complete), messages(), [], Capability.CONVERSATION
     )
     assert complete.await_count == usage.await_count == 1 and reply.rich_content
+    assert complete.await_args is not None
+    supplied = complete.await_args.args[1]
+    assert any('"call_id":"actual"' in item.content for item in supplied if item.role == "system")
     assert reply.rich_content["parts"][1]["type"] == "ui"
     visible = "".join(data["text"] for kind, data in published if kind == "run.delta")
     assert visible == reply.text and "lonora-ui" not in visible and "Equity: 42 USD" in visible

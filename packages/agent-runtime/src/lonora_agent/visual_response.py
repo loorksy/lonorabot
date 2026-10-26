@@ -69,6 +69,39 @@ def _evidence(messages: list[ModelMessage]) -> dict[str, tuple[str, Any]]:
     return evidence
 
 
+def visual_observation_catalog(messages: list[ModelMessage]) -> str:
+    """Expose transport call identities to the model, without duplicating data.
+
+    Provider tool-use IDs are not necessarily visible as tokens in their result
+    content. This current-request projection makes exact evidence addressable;
+    it neither selects presentation nor reads any new data or invokes a model.
+    """
+    references = [
+        {"call_id": identity, "tool": name}
+        for identity, (name, result) in _evidence(messages).items()
+        if len(identity) <= 200
+        and not (
+            isinstance(result, dict)
+            and (
+                cast(dict[str, Any], result).get("ok") is False
+                or cast(dict[str, Any], result).get("error")
+                or str(cast(dict[str, Any], result).get("status", "")).lower() in FAILED
+            )
+        )
+    ][-24:]
+    if not references:
+        return ""
+    return (
+        "<lonora_visual_observations>\n"
+        "Actual current-request evidence identities (metadata, never user-facing). "
+        "For an observed visual use fact.call_id exactly as listed, not the tool name. "
+        "JSON Pointer paths refer to that call's actual returned JSON. This list "
+        "does not require a visual; plain prose remains valid.\n"
+        + json.dumps(references, separators=(",", ":"))
+        + "\n</lonora_visual_observations>"
+    )
+
+
 def _pointer(data: Any, path: str) -> tuple[Any, str | None]:
     timestamp = None
     for token in [*path.split("/")[1:], None]:

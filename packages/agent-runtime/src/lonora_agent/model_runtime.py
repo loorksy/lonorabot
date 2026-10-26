@@ -17,7 +17,7 @@ from .context.team import refresh_routing_context
 from .progress import progress
 from .public_stream import PublicStream
 from .skills.system_policy import apply_operating_policy
-from .visual_response import parse_visual_reply
+from .visual_response import parse_visual_reply, visual_observation_catalog
 
 
 async def model_turn(
@@ -34,6 +34,9 @@ async def model_turn(
         # Fresh projection on every model turn, including restored checkpoints.
         # This is the actual permitted registry, not remembered self-description.
         request_messages.insert(1, ModelMessage(role="system", content=capability_inventory))
+    observations = visual_observation_catalog(messages)
+    if observations:
+        request_messages.append(ModelMessage(role="system", content=observations))
     request_messages, image_diagnostics = await prepare_image_observations(
         context, request_messages
     )
