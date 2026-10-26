@@ -1,5 +1,7 @@
 # Native visual responses
 
+Release evidence and practical limits: [verification report](native-visual-acceptance.md).
+
 Lonora's existing Agent chooses whether an ordinary answer contains text,
 interactive native components, or both. There is no presentation classifier,
 second model, secondary conversation store or alternative financial executor.

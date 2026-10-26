@@ -1306,3 +1306,18 @@ both installed distribution and source tree; staging removed, no migration, APK,
 backup, provider deployment or financial mutation. Full frozen1169-case suite and
 all seven build targets passed. These measured scenarios are not a guarantee of
 fixed provider latency or closure of the remaining product implementation list.
+## 2026-10-26: native visual responses and OpenUI chat experience
+
+The existing Agent can publish ordered text/native responses through the current
+message pipeline. Shared bounded contracts, 26 native primitives, local controls,
+observed-data grounding, persisted state, design tokens and the Lonora Design Skill
+are implemented for Web/native clients. OpenUI chat layout and interaction behavior
+are adapted without replacing the conversation engine or trading authorization.
+
+Runtime `10dfdf7af72a4253762871ea07708623ac123c43` is deployed. All five actual
+configured-model journeys passed, including grounded comparison, diagram and local
+calculator; the observed response also passed browser replay. Full Python suite:
+1277 passed; required build passed. Compatible signed Android OTA is published.
+See [release verification](../native-visual-acceptance.md) for exact evidence and
+the physical-device/live-broker limitations. This closes this UI delivery scope,
+not every earlier trading-product item in the implementation matrix.
