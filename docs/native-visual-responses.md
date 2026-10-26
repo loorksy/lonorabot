@@ -40,7 +40,10 @@ retain their existing caching behavior. No additional provider call is added.
 `visual_response.py` compiles optional documents in the same model generation.
 The compiler removes unsupported/malformed documents from public text, preserving
 useful prose and a text fallback. Partial JSON is withheld from the public stream;
-validated mixed content is published atomically with its canonical message.
+A finished frame may recover missing or transposed terminal container closers;
+interior syntax, keys, values and strings are never rewritten. All recovered data
+passes the same contract, grounding and authorization checks. Validated mixed
+content is published atomically with its canonical message.
 `content` remains the backward-compatible text representation and `rich_content`
 is an ordered version-1 list of text/UI parts. Migration 0032 adds the nullable
 message column. Waiting, resumed and peer-return paths use the same payload.
@@ -58,8 +61,11 @@ bounded separately. Every node has a unique stable identity.
 
 The draft's `mode` is explicit: `observed`, `example` or `estimate`. Observed
 metric/table/chart values resolve exact current-request tool call IDs and JSON
-Pointer paths. The compiler rejects missing, failed, private or non-scalar
-references and materializes bounded provenance and available observation times.
+Pointer paths, with `/length` for the number of items in an actually returned
+array. Missing call/path references become unavailable cells only when the same
+document retains an independently resolved non-null fact. Failed, private and
+non-scalar references still reject the document. The compiler materializes bounded
+provenance and available observation times only for resolved references.
 Draft-supplied trusted source/facts maps are rejected. Arithmetic may derive
 values from evidence. Null means unavailable. The renderer labels example and
 estimate documents; these labels do not turn hypothetical values into evidence.

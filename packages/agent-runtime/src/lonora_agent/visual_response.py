@@ -6,6 +6,7 @@ resource references use the existing owned database rows.
 """
 
 import json
+import logging
 import math
 import re
 from typing import Any, cast
@@ -126,6 +127,8 @@ def _pointer(data: Any, path: str) -> tuple[Any, str | None]:
             data = cast(dict[str, Any], data)[key]
         elif isinstance(data, list) and key.isdigit() and int(key) < len(cast(list[Any], data)):
             data = cast(list[Any], data)[int(key)]
+        elif isinstance(data, list) and key == "length":
+            data = len(cast(list[Any], data))
         else:
             raise ValueError("visual_evidence_path_unknown")
     if not (data is None or isinstance(data, str | int | float | bool)):
@@ -200,6 +203,7 @@ async def compile_document(
     evidence = _evidence(messages)
     facts: dict[str, Any] = {}
     resolved: dict[tuple[str, str], str] = {}
+    unavailable: set[tuple[str, str]] = set()
     public_ids = public_broker_ids(messages)
 
     def transform(value: Any) -> Any:
@@ -212,12 +216,26 @@ async def compile_document(
             raise ValueError("visual_untrusted_source")
         if set(value) == {"fact"}:
             call_id, path = value["fact"]["call_id"], value["fact"]["path"]
-            if call_id not in evidence:
-                raise ValueError("visual_evidence_unknown")
             identity = (call_id, path)
+            if identity in unavailable:
+                return None
             if identity not in resolved:
-                source, result = evidence[call_id]
-                scalar, timestamp = _pointer(result, path)
+                try:
+                    if call_id not in evidence:
+                        raise ValueError("visual_evidence_unknown")
+                    source, result = evidence[call_id]
+                    scalar, timestamp = _pointer(result, path)
+                except ValueError as error:
+                    if str(error) not in {
+                        "visual_evidence_unknown",
+                        "visual_evidence_path_unknown",
+                    }:
+                        raise
+                    # Missing observations have no value or trusted provenance.
+                    # Keep independently verified cells in an otherwise valid
+                    # document; never guess a replacement call, path or value.
+                    unavailable.add(identity)
+                    return None
                 key = "f" + str(len(facts))
                 if isinstance(scalar, str):
                     scalar = redact_private_reply(scalar, public_ids=public_ids)
@@ -253,6 +271,12 @@ async def compile_document(
         return result
 
     document = transform(document)
+    if unavailable and not any(fact["value"] is not None for fact in facts.values()):
+        raise ValueError("visual_evidence_unavailable")
+    if unavailable:
+        logging.getLogger(__name__).warning(
+            "visual_evidence_partial", extra={"unavailable_fact_count": len(unavailable)}
+        )
     document["state"] = {
         key: redact_private_reply(value, public_ids=public_ids) if isinstance(value, str) else value
         for key, value in document.get("state", {}).items()
@@ -360,21 +384,23 @@ def text_projection(document: dict[str, Any]) -> str:
 
 
 def read_frame(raw: str) -> Any:
-    """Complete only missing terminal container closers in a finished fence.
+    """Recover only terminal container closers in a finished fence.
 
-    Some providers omit the last brace of otherwise complete JSON. This adds no
+    Some providers omit or transpose the last braces of complete JSON. This adds no
     key, value, quotation or action; all resulting data still passes the exact
     same evidence, resource and native-contract checks. Truncated strings,
-    mismatched delimiters and nonterminal syntax errors remain invalid.
+    interior mismatches and nonterminal syntax errors remain invalid.
     """
     try:
         return json.loads(raw)
     except json.JSONDecodeError as error:
-        if error.pos < len(raw.rstrip()):
+        end = len(raw.rstrip("}] \t\r\n"))
+        if error.pos < end:
             raise
     stack: list[str] = []
     quoted = escaped = False
-    for character in raw:
+    prefix = raw[:end]
+    for character in prefix:
         if quoted:
             if escaped:
                 escaped = False
@@ -393,7 +419,7 @@ def read_frame(raw: str) -> Any:
                 raise ValueError("visual_json_mismatch")
     if quoted or not stack:
         raise ValueError("visual_json_incomplete")
-    return json.loads(raw + "".join(reversed(stack)))
+    return json.loads(prefix + "".join(reversed(stack)))
 
 
 async def parse_visual_reply(

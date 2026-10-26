@@ -14,6 +14,7 @@ from lonora_agent.public_stream import PublicStream
 from lonora_agent.visual_response import (
     compile_document,
     parse_visual_reply,
+    read_frame,
     visual_observation_catalog,
 )
 from lonora_contracts.model_routing import Capability, ModelSelection
@@ -158,12 +159,105 @@ async def test_finished_frame_missing_terminal_brace_keeps_verified_values_and_c
 @pytest.mark.parametrize(
     "raw", ['{"mode":"example', '{"mode":"example",}', '{"root":[}', '{"root":']
 )
-async def test_terminal_completion_never_invents_strings_values_or_fixes_mismatched_json(raw: str):
+async def test_terminal_completion_never_invents_strings_values_or_bypasses_schema(raw: str):
     answer, rich, errors = await parse_visual_reply(
         context(), "```lonora-ui\n" + raw + "\n```\n", messages()
     )
     assert errors and rich and all(part["type"] == "text" for part in rich["parts"])
     assert raw not in answer
+
+
+def test_terminal_delimiter_recovery_preserves_every_value_and_escaped_string():
+    expected = {"items": [{"text": 'an escaped " and } ]', "value": 3}]}
+    raw = json.dumps(expected)
+    assert read_frame(raw[:-3] + "]}}") == expected
+    assert read_frame(raw[:-3]) == expected
+    assert read_frame(raw + "}") == expected
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        '{"items":[1},"value":2}',
+        '{"items":[1]} false',
+        '{"items":[1]} {"other":2}',
+        '{"value":"unfinished',
+        '{"value":}',
+        '{"value":1,}',
+    ],
+)
+def test_terminal_recovery_cannot_rewrite_interior_syntax_or_invent_values(raw: str):
+    with pytest.raises(ValueError):
+        read_frame(raw)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("missing", ["call", "path"])
+async def test_missing_cell_is_unavailable_while_independently_observed_cells_survive(missing: str):
+    known = {"fact": {"call_id": "actual", "path": "/equity"}}
+    unknown = {"fact": {"call_id": "unknown", "path": "/equity"}}
+    if missing == "path":
+        unknown = {"fact": {"call_id": "actual", "path": "/missing"}}
+    raw = {
+        "version": 1,
+        "mode": "observed",
+        "root": {
+            "id": "comparison",
+            "type": "table",
+            "fields": [
+                {"key": "known", "label": "Verified"},
+                {"key": "missing", "label": "Missing"},
+            ],
+            "rows": [{"known": known, "missing": unknown}],
+        },
+    }
+    answer, rich, errors = await parse_visual_reply(context(), frame(raw), messages())
+    assert not errors and rich
+    compiled = rich["parts"][0]["document"]
+    assert compiled["root"]["rows"] == [{"known": {"source": "f0"}, "missing": None}]
+    assert len(compiled["facts"]) == 1 and "1234.5 | —" in answer
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("bad", ["private", "failed", "object", "nonfinite"])
+async def test_good_fact_cannot_launder_a_forbidden_observation(bad: str):
+    result: dict[str, Any] = {"equity": 1234.5, "password": "private-value"}
+    path = "/password"
+    if bad == "failed":
+        result["nested"] = {"ok": False, "equity": 999}
+        path = "/nested/equity"
+    if bad == "object":
+        result["nested"] = {"equity": 999}
+        path = "/nested"
+    if bad == "nonfinite":
+        result["bad"] = float("inf")
+        path = "/bad"
+    raw = document(
+        {
+            "op": "add",
+            "args": [
+                {"fact": {"call_id": "actual", "path": "/equity"}},
+                {"fact": {"call_id": "actual", "path": path}},
+            ],
+        },
+        "observed",
+    )
+    answer, rich, errors = await parse_visual_reply(context(), frame(raw), messages(result))
+    assert errors and rich and all(part["type"] == "text" for part in rich["parts"])
+    assert "1234.5" not in answer and "private-value" not in answer
+
+
+@pytest.mark.asyncio
+async def test_array_length_counts_only_actual_returned_items():
+    raw = document({"fact": {"call_id": "actual", "path": "/files/length"}}, "observed")
+    compiled = await compile_document(context(), raw, messages({"files": [{"size": 3}, {}]}))
+    assert compiled["facts"]["f0"]["value"] == 2
+    compiled = await compile_document(context(), raw, messages({"files": []}))
+    assert compiled["facts"]["f0"]["value"] == 0
+    with pytest.raises(ValueError):
+        await compile_document(context(), raw, messages({"files": "not-an-array"}))
+    compiled = await compile_document(context(), raw, messages({"files": {"length": 7}}))
+    assert compiled["facts"]["f0"]["value"] == 7
 
 
 def test_fragmented_provider_stream_never_exposes_visual_fence_or_payload():
