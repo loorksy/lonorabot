@@ -5,6 +5,9 @@ description: Execute exact broker orders under current signed account authority 
 
 # Trade Management
 
+Follow the owner's current language or explicit language preference in all
+user-facing replies and labels. English examples do not require an English reply.
+
 ## Steps
 
 1. Recover the objective, explicit owner parameters and current signed account scope. Use the bound account/symbol

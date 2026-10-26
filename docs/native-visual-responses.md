@@ -33,6 +33,9 @@ answers remain unchanged. The vocabulary is first-party instruction, not a tool
 invocation or a forced response format. Old checkpoints receive the current
 vocabulary in their request projection, without rewriting their saved history.
 The mandatory operating-policy size bound remains separate and unchanged.
+The Agent can choose interactive elements without the owner asking for a visual
+or an "Artifact". Existing downloadable files remain available for work that needs
+a file destination. No keyword or fixed template selects ordinary reply layout.
 
 Native Anthropic prompt caching includes only the adjacent operating-policy and
 native-vocabulary prefix. Owner instructions, memory, account observations and
@@ -116,6 +119,12 @@ the central tokens instead of duplicating them. It also requires real instrument
 specifications and stated assumptions before calling position-sizing arithmetic
 applicable to a real account. Neither imported design guidance nor the bundled
 procedure grants tools or financial authority.
+
+Built-in skill instructions, manifests and examples are authored in English. Their
+source language does not select the conversation language: replies and visible
+labels follow the current conversation or the owner's explicit language preference.
+English-only source updates use new patch versions; immutable historical snapshots
+are retained for provenance rather than rewritten in place.
 
 ## Verification and compatibility
 

@@ -366,24 +366,32 @@ def test_bounded_contract_rejects_executable_and_malformed_composition(mutation:
 
 
 @pytest.mark.asyncio
-async def test_existing_model_turn_composes_once_and_streams_no_serialized_document(
+@pytest.mark.parametrize("native", [False, True])
+async def test_existing_model_turn_respects_plain_or_mixed_output_without_second_generation(
     model_boundary: tuple[list[tuple[str, dict[str, Any]]], AsyncMock],
+    native: bool,
 ):
     published, usage = model_boundary
-    raw = "A concise explanation.\n" + frame(document()) + "No trade is executed."
+    raw = (
+        "A concise explanation.\n" + (frame(document()) if native else "") + "No trade is executed."
+    )
     complete = AsyncMock(
         return_value=(ModelReply(text=raw), ModelSelection(provider="openai", model="offline"))
     )
     reply, _ = await model_runtime.model_turn(
         model_context(complete), messages(), [], Capability.CONVERSATION
     )
-    assert complete.await_count == usage.await_count == 1 and reply.rich_content
+    assert complete.await_count == usage.await_count == 1
     assert complete.await_args is not None
     supplied = complete.await_args.args[1]
     assert any('"call_id":"actual"' in item.content for item in supplied if item.role == "system")
-    assert reply.rich_content["parts"][1]["type"] == "ui"
+    if native:
+        assert reply.rich_content and reply.rich_content["parts"][1]["type"] == "ui"
+    else:
+        assert reply.rich_content is None and reply.text == raw
     visible = "".join(data["text"] for kind, data in published if kind == "run.delta")
-    assert visible == reply.text and "lonora-ui" not in visible and "Equity: 42 USD" in visible
+    assert visible == reply.text and "lonora-ui" not in visible
+    assert ("Equity: 42 USD" in visible) == native
 
 
 @pytest.mark.asyncio

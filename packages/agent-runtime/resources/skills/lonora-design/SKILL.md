@@ -5,6 +5,9 @@ description: Compose native, evidence-backed visual replies with accessible layo
 
 # Lonora Design Skill
 
+Follow the owner's current language or explicit language preference in all
+user-facing replies and labels. English examples do not require an English reply.
+
 ## Steps
 
 1. Answer the real question first. Choose prose, a native composition, or a mixture
@@ -47,8 +50,9 @@ description: Compose native, evidence-backed visual replies with accessible layo
    logical reading order and let responsive rows/grids wrap. Use short tables
    with meaningful column labels; offer a local text filter when useful. Visible
    control labels must make sense without a mouse, color or an icon. Avoid
-   pictograms as the sole description. Use the conversation's Arabic or English
-   consistently. Preserve exact broker symbols, decimal values and units; do not
+   pictograms as the sole description. Use the conversation's current language
+   consistently, honoring an explicit language preference. Preserve exact broker
+   symbols, decimal values and units; do not
    translate identifiers. Let native RTL direction handle layout rather than
    reversing text or inserting manual spaces. Check mixed Arabic/numeric labels
    for an unambiguous meaning.

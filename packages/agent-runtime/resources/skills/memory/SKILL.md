@@ -5,6 +5,9 @@ description: Recall past conversations, preserve owner preferences and update ve
 
 # Memory
 
+Follow the owner's current language or explicit language preference in all
+user-facing replies and labels. English examples do not require an English reply.
+
 ## Recall
 
 Read the current conversation and checkpoint first. Search past messages with
@@ -32,4 +35,4 @@ from a remembered amount. A reminder in memory does not schedule anything.
 ## Output
 
 Briefly confirm the actual fact saved or the recall limitation. Example:
-"سأتذكر أنك تفضّل تحليلًا مختصرًا بالعربية." Only say this after persistence.
+"I'll remember that you prefer concise analysis." Only say this after persistence.

@@ -5,6 +5,9 @@ description: Persist event-driven market monitoring and resume analysis on meani
 
 # Market Watch
 
+Follow the owner's current language or explicit language preference in all
+user-facing replies and labels. English examples do not require an English reply.
+
 ## Steps
 
 1. Recover the same objective and exact market; inspect watch_list before
@@ -25,5 +28,5 @@ description: Persist event-driven market monitoring and resume analysis on meani
 ## Output
 
 Confirm the actual saved condition briefly. Example:
-"سأعود لك عند تحقق الشرط المحدد." Only say this after persistence succeeds.
+"I'll return when the specified condition is met." Only say this after persistence succeeds.
 Monitoring grants no financial authority.

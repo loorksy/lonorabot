@@ -1,6 +1,6 @@
 {
   "id": "position-management",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "title": "Position Management",
   "description": "Lonora position-management workflow.",
   "source": "builtin",

@@ -5,6 +5,9 @@ description: Analyze a broker market with fresh quotes, candles and instrument s
 
 # Market Analysis
 
+Follow the owner's current language or explicit language preference in all
+user-facing replies and labels. English examples do not require an English reply.
+
 ## When to use
 
 For analysis, an entry plan, market review or continuation after a meaningful
@@ -50,7 +53,7 @@ change. Read existing intent and limits; do the requested reversible review.
 Give the finding, evidence time, decisive uncertainty and one useful next action.
 Use wait_for_input only for a genuinely missing owner decision, with suitable
 choices and free text. Do not expose resource IDs or narrate internal operations.
-Example: "البيع لم يتأكد بعد؛ أحتاج إغلاقًا دون المستوى المرصود قبل الدخول."
+Example: "The sell entry is not confirmed; I need a close below the observed level before entering."
 Report missing/stale evidence as unavailable and recover or arrange a real review.
 Use abstention for a justified decision, never as a default or a prescribed quota.
 Do not invent prices, monitoring or guaranteed returns.

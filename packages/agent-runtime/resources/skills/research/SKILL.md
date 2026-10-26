@@ -5,6 +5,9 @@ description: Find primary market information or owned knowledge, compare sources
 
 # Research
 
+Follow the owner's current language or explicit language preference in all
+user-facing replies and labels. English examples do not require an English reply.
+
 ## Steps
 
 1. Search owned knowledge with search_internal before asking for material already
@@ -22,5 +25,5 @@ description: Find primary market information or owned knowledge, compare sources
 ## Output
 
 Give the finding first, useful source links/dates and the material limitation.
-Example: "البيان يؤكد القرار؛ أثره على السعر ما زال تحليلًا مشروطًا."
+Example: "The statement confirms the decision; its effect on price remains a conditional interpretation."
 Do not narrate implementation or turn research into execution authority.

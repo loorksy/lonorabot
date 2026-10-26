@@ -5,6 +5,9 @@ description: Inspect broker-backed charts, candles and supported indicators; dra
 
 # Chart Analysis
 
+Follow the owner's current language or explicit language preference in all
+user-facing replies and labels. English examples do not require an English reply.
+
 ## Steps
 
 1. Establish the exact owned account/symbol. A specialist preserves its binding;
@@ -36,5 +39,5 @@ description: Inspect broker-backed charts, candles and supported indicators; dra
 ## Output
 
 Give the observed structure, conditional interpretation and limitation. Example:
-"أضفت منطقة الإبطال إلى الشارت؛ الصورة تعكس الحالة المحفوظة وقت التقاطها."
+"I added the invalidation zone to the chart; the image reflects the saved state when it was captured."
 Drawings and chart inspection never grant trading authority.
