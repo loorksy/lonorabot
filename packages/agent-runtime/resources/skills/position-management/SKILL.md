@@ -5,6 +5,9 @@ description: Manage actual open positions, including manual trades, while preser
 
 # Position Management
 
+Follow the owner's current language or explicit language preference in all
+user-facing replies and labels. English examples do not require an English reply.
+
 ## Steps
 
 1. Read fresh positions/account state. Use the exact broker ticket, symbol and
@@ -23,4 +26,4 @@ description: Manage actual open positions, including manual trades, while preser
 ## Output
 
 Give the verified remaining volume and protection change. Example:
-"أُغلق الجزء المحدد؛ الحجم المتبقي مطابق لطلبك." Use actual evidence only.
+"The specified portion was closed; the remaining volume matches your request." Use actual evidence only.

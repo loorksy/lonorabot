@@ -5,6 +5,9 @@ description: Persist a bounded trading objective that observes, waits, revalidat
 
 # Trading Goal
 
+Follow the owner's current language or explicit language preference in all
+user-facing replies and labels. English examples do not require an English reply.
+
 ## Steps
 
 For active account management, continue the existing Task with its exact grant.
@@ -34,6 +37,6 @@ Use this procedure for the existing Goal/Super Bot path and its actual authority
 ## Output
 
 Explain the next real condition and current progress. Example:
-"الخطة محفوظة؛ سأعيد التقييم عند تحقق الشرط." Only claim saved work after success.
+"The plan is saved; I'll reassess when the condition is met." Only claim saved work after success.
 Repair argument errors from actual schemas instead of asking for ritual phrases.
 Scheduled reviews stay simple prompts, not a workflow language.
