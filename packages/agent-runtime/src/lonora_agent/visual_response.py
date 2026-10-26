@@ -326,6 +326,43 @@ def text_projection(document: dict[str, Any]) -> str:
     return "\n".join(lines)[:18000]
 
 
+def read_frame(raw: str) -> Any:
+    """Complete only missing terminal container closers in a finished fence.
+
+    Some providers omit the last brace of otherwise complete JSON. This adds no
+    key, value, quotation or action; all resulting data still passes the exact
+    same evidence, resource and native-contract checks. Truncated strings,
+    mismatched delimiters and nonterminal syntax errors remain invalid.
+    """
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError as error:
+        if error.pos < len(raw.rstrip()):
+            raise
+    stack: list[str] = []
+    quoted = escaped = False
+    for character in raw:
+        if quoted:
+            if escaped:
+                escaped = False
+            elif character == "\\":
+                escaped = True
+            elif character == '"':
+                quoted = False
+        elif character == '"':
+            quoted = True
+        elif character in "{[":
+            stack.append("}" if character == "{" else "]")
+            if len(stack) > 24:
+                raise ValueError("visual_json_too_deep")
+        elif character in "}]":
+            if not stack or stack.pop() != character:
+                raise ValueError("visual_json_mismatch")
+    if quoted or not stack:
+        raise ValueError("visual_json_incomplete")
+    return json.loads(raw + "".join(reversed(stack)))
+
+
 async def parse_visual_reply(
     context: ToolContext, text: str, messages: list[ModelMessage]
 ) -> tuple[str, dict[str, Any] | None, list[str]]:
@@ -363,7 +400,7 @@ async def parse_visual_reply(
         try:
             if not closing or len(raw.encode()) > MAX_VISUAL_BYTES:
                 raise ValueError("visual_frame_invalid")
-            parsed = json.loads(raw)
+            parsed = read_frame(raw)
             document = await compile_document(context, parsed, messages)
             parts.append({"type": "ui", "document": document})
             fallback.append(text_projection(document))

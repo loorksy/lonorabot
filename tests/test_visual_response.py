@@ -140,6 +140,28 @@ async def test_unclosed_frame_does_not_expose_raw_output():
     assert errors and "metric" not in answer and "Safe." in answer
 
 
+@pytest.mark.asyncio
+async def test_finished_frame_missing_terminal_brace_keeps_verified_values_and_controls():
+    raw = json.dumps(document({"fact": {"call_id": "actual", "path": "/equity"}}, "observed"))
+    answer, rich, errors = await parse_visual_reply(
+        context(), "```lonora-ui\n" + raw[:-1] + "\n```\n", messages()
+    )
+    assert not errors and rich and "1234.5" in answer
+    assert rich["parts"][0]["document"]["facts"]["f0"]["value"] == 1234.5
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "raw", ['{"mode":"example', '{"mode":"example",}', '{"root":[}', '{"root":']
+)
+async def test_terminal_completion_never_invents_strings_values_or_fixes_mismatched_json(raw: str):
+    answer, rich, errors = await parse_visual_reply(
+        context(), "```lonora-ui\n" + raw + "\n```\n", messages()
+    )
+    assert errors and rich and all(part["type"] == "text" for part in rich["parts"])
+    assert raw not in answer
+
+
 def test_fragmented_provider_stream_never_exposes_visual_fence_or_payload():
     stream = PublicStream(set(), set(), enabled=True)
     prefix = "This is a useful introductory paragraph.\n"

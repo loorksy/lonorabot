@@ -99,6 +99,11 @@ JOURNEYS = {
         "وبيّن توزيع الأحجام وما يستحق تنظيمه أولاً. اعتمد على الفحص الفعلي ولا تعدّل أي ملف. "
         "اختر طريقة العرض الأنسب لتوضيح المقارنة."
     ),
+    "visual_observed": (
+        "افحص ملفات مساحة التحليل الفعلية واعرض أحجامها بمقاييس ورسم بياني أصلي داخل الرد، "
+        "مع الحجم الإجمالي وشرح قصير. اعتمد على الأحجام الموجودة فعلاً ولا تعدّل الملفات، "
+        "ولا ترسل ملفاً أو صورة للمقارنة."
+    ),
     "visual_diagram": (
         "اشرح مسار رسالة المستخدم داخل Lonora بمخطط أصلي داخل الرد: فهم الطلب، "
         "العمليات المتاحة عند الحاجة، التحقق، ثم النتيجة المحفوظة. لا أريد ملفاً أو كوداً "
@@ -145,11 +150,11 @@ def assert_visual_journey(
     if journey == "visual_plain":
         assert not docs, "A one-sentence definition acquired an unnecessary visual"
         assert not observations, "A simple definition unexpectedly invoked operations"
-    else:
+    elif journey != "visual_workspace" or docs:
         assert docs, "The real model reply did not publish a valid native visual"
         assert "```lonora-ui" not in answer.content, "Raw visual protocol reached public text"
         assert nodes, "The model's visual document contains no native components"
-    if journey == "visual_workspace":
+    if journey in {"visual_workspace", "visual_observed"}:
         inspections = [
             value
             for value in observations.get("workspace_inspect", [])
@@ -162,9 +167,14 @@ def assert_visual_journey(
             for value in inspections
         ), "Inspected files do not match the actual isolated workspace"
         observed = [doc for doc in docs if doc.mode == "observed"]
-        assert observed and any(doc.facts for doc in observed), (
-            "No verified observations in the visual"
-        )
+        if docs:
+            assert observed and any(doc.facts for doc in observed), (
+                "No verified observations in the visual"
+            )
+        else:
+            assert "تعذر عرض هذا الجزء التفاعلي" not in answer.content, (
+                "Malformed native output was not a model-selected plain response"
+            )
         assert all(fact.source in ALLOWED for doc in observed for fact in doc.facts.values()), (
             "Observed visual included data from an unexpected operation"
         )
@@ -394,7 +404,7 @@ async def run_journey(
                 )
             )
             await session.flush()
-            if journey == "visual_workspace":
+            if journey in {"visual_workspace", "visual_observed"}:
                 session.add(
                     AnalyticalWorkspaceRow(
                         agent_id=agent_id,
@@ -486,12 +496,12 @@ async def run_journey(
             )
             assert answer is not None and answer.content == row.result
             if journey in VISUAL_JOURNEYS:
+                if evidence_dir is not None:
+                    write_visual_evidence(evidence_dir, journey, answer)
                 summary.update(assert_visual_journey(journey, answer, observations))
                 assert answer.rich_content == row.model_metadata.get("rich_content"), (
                     "Published composition differs from the settled Agent reply"
                 )
-                if evidence_dir is not None:
-                    write_visual_evidence(evidence_dir, journey, answer)
                 print(json.dumps(summary), flush=True)
             assert not await session.scalar(
                 select(func.count())

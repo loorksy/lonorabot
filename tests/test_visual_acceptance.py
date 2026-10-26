@@ -40,14 +40,14 @@ class ScriptedAcceptanceRouter:
         **kwargs: Any,
     ) -> tuple[ModelReply, ModelSelection]:
         self.calls += 1
-        if self.journey == "visual_workspace" and self.calls <= 2:
+        if self.journey in {"visual_workspace", "visual_observed"} and self.calls <= 2:
             name = "tool_environment" if self.calls == 1 else "workspace_inspect"
             arguments = {"query": "workspace"} if self.calls == 1 else {}
             return ModelReply(
                 tool_calls=[ToolCall(id="probe-" + str(self.calls), name=name, arguments=arguments)]
             ), ModelSelection(provider="openai", model="scripted-acceptance")
         value: dict[str, Any] = {"version": 1, "mode": "example", "root": {}}
-        if self.journey == "visual_workspace":
+        if self.journey in {"visual_workspace", "visual_observed"}:
             value["mode"] = "observed"
             value["root"] = {
                 "id": "size",
@@ -116,7 +116,8 @@ class ScriptedAcceptanceRouter:
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "journey", ["visual_plain", "visual_workspace", "visual_diagram", "visual_calculator"]
+    "journey",
+    ["visual_plain", "visual_workspace", "visual_observed", "visual_diagram", "visual_calculator"],
 )
 async def test_acceptance_records_real_runtime_publication_and_cleans_identity(
     task_db: tuple[Database, str, str, str], tmp_path: Path, journey: str
@@ -140,7 +141,9 @@ async def test_acceptance_records_real_runtime_publication_and_cleans_identity(
         evidence,
     )
     assert summary["status"] == "completed"
-    assert summary["model_generations"] == (3 if journey == "visual_workspace" else 1)
+    assert summary["model_generations"] == (
+        3 if journey in {"visual_workspace", "visual_observed"} else 1
+    )
     record = json.loads((evidence / (journey + ".json")).read_text())
     assert record["journey"] == journey
     assert record["content"] and "```lonora-ui" not in record["content"]
@@ -155,3 +158,31 @@ async def test_acceptance_cannot_acquire_financial_services_or_execute_financial
     registry = acceptance.AcceptanceRegistry()
     with pytest.raises(LonoraError, match="acceptance_tool_denied"):
         await registry.execute(ToolCall(id="forged", name="trade_execute", arguments={}), None)
+
+
+@pytest.mark.parametrize("malformed", [False, True])
+def test_autonomous_presentation_allows_plain_text_but_not_rejected_visuals(malformed: bool):
+    from lonora_db.schema import MessageRow
+
+    answer = MessageRow(
+        content="تعذر عرض هذا الجزء التفاعلي."
+        if malformed
+        else "The six actual files total 2245 bytes.",
+        rich_content=None,
+    )
+    observations = {
+        "workspace_inspect": [
+            {
+                "files": [
+                    {"path": path, "size": len(data)}
+                    for path, data in acceptance.VISUAL_WORKSPACE_FILES.items()
+                ]
+            }
+        ]
+    }
+    if malformed:
+        with pytest.raises(AssertionError, match="Malformed native output"):
+            acceptance.assert_visual_journey("visual_workspace", answer, observations)
+    else:
+        result = acceptance.assert_visual_journey("visual_workspace", answer, observations)
+        assert result["presentation"] == "text" and result["visual_documents"] == 0
