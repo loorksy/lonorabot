@@ -2,6 +2,7 @@
 
 import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
+import { projectRunEvents, turnActivity } from "@lonora/core";
 import {
   Dialog,
   DialogContent,
@@ -200,7 +201,7 @@ export function Shell({ onLogout }: { onLogout: () => void }) {
 function WorkspaceShell({ onLogout }: { onLogout: () => void }) {
   const voice = useVoice();
   useTheme();
-  const { owner, connected, revision, refresh } = useClient();
+  const { owner, connected, revision, refresh, events } = useClient();
   const { agents, create, remove, loading, error: agentError } = useAgents();
   const location = useLocation();
   const navigate = useNavigate();
@@ -406,11 +407,21 @@ function WorkspaceShell({ onLogout }: { onLogout: () => void }) {
       /* Preference only. */
     }
   }
+  const observedRuns = projectRunEvents(runs, events);
   const busyIds = new Set(
-    runs
+    observedRuns
       .filter((row) => ["queued", "leased", "running"].includes(row.status))
       .map((row) => row.agent_id),
   );
+  const currentRun =
+    agent &&
+    [...observedRuns]
+      .reverse()
+      .find(
+        (run) =>
+          run.agent_id === agent.id &&
+          ["queued", "leased", "running", "waiting_input", "waiting_takeover"].includes(run.status),
+      );
   const needle = query.trim().toLocaleLowerCase();
   const filtered = agents.filter((row) => !needle || row.name.toLocaleLowerCase().includes(needle));
   const backgroundInert = (mobile && drawer) || (panelOverlay && Boolean(panel));
@@ -723,7 +734,11 @@ function WorkspaceShell({ onLogout }: { onLogout: () => void }) {
               disabled={!agent && !group}
             >
               {agent ? (
-                <AgentAvatar agent={agent} working={busyIds.has(agent.id)} />
+                <AgentAvatar
+                  agent={agent}
+                  working={busyIds.has(agent.id)}
+                  state={currentRun ? turnActivity(currentRun, events).avatar : "waiting"}
+                />
               ) : group ? (
                 <GroupAvatar members={memberAgents} />
               ) : null}

@@ -85,15 +85,30 @@ export function projectRunEvents(runs: Run[], events: Event[], threadId?: string
   return [...rows.values()].sort((a, b) => a.created_at.localeCompare(b.created_at));
 }
 function toolPhase(names: string[]): ActivityPhase {
-  if (names.some((name) => /^(trade_|goal_step_execute)/.test(name))) return "executing";
+  if (
+    names.some((name) =>
+      /^(trade_execute|trade_close_positions|goal_step_execute|workspace_execute|mcp_execute)$/.test(
+        name,
+      ),
+    )
+  )
+    return "executing";
   if (names.some((name) => /memory_write|memory_update/.test(name))) return "learning";
   if (names.some((name) => /peer_send|message_send/.test(name))) return "sending";
   if (names.some((name) => /chart_annotat/.test(name))) return "writing";
-  if (names.some((name) => /search|recall|retrieve|web_fetch|web_search/.test(name)))
-    return "searching";
+  if (names.some((name) => /search|recall|retrieve/.test(name))) return "searching";
   if (names.some((name) => /chart_|market_|indicator|workspace_execute/.test(name)))
     return "analyzing";
+  if (names.some((name) => /web_fetch|_read$|_inspect$|skill_view/.test(name))) return "reading";
   return "reading";
+}
+function observedPhase(kind: unknown, name?: unknown): ActivityPhase | undefined {
+  if (kind === "run.context_started") return "preparing";
+  if (kind === "run.reply_started") return "thinking";
+  if (kind === "run.delta" || kind === "run.rich_partial") return "writing";
+  if (kind === "tool.started" && typeof name === "string") return toolPhase([name]);
+  if (["tool.completed", "tool.failed", "tool.cancelled"].includes(String(kind))) return "thinking";
+  return undefined;
 }
 const avatar: Record<ActivityPhase, AvatarStateId> = {
   queued: "waiting",
@@ -121,13 +136,25 @@ export function turnActivity(
     run.stream?.phase === "streaming" && (run.stream.text || run.stream.rich_content?.parts.length)
       ? "writing"
       : "preparing";
-  let observedAt = run.updated_at;
+  const saved = run.model_metadata?.activity;
+  const snapshot = saved && typeof saved === "object" && !Array.isArray(saved) ? saved : undefined;
+  const snapshotPhase = observedPhase(snapshot?.kind, snapshot?.name);
+  let phaseAt =
+    snapshotPhase && typeof snapshot?.observed_at === "string"
+      ? Date.parse(snapshot.observed_at)
+      : 0;
+  if (snapshotPhase && Number.isFinite(phaseAt)) phase = snapshotPhase;
+  else phaseAt = 0;
+  let observedAt = phaseAt ? String(snapshot?.observed_at) : run.updated_at;
   for (const event of [...events].sort((a, b) => a.cursor - b.cursor)) {
     if (event.run_id !== run.id) continue;
-    observedAt = event.created_at;
-    if (event.kind === "run.reply_started") phase = "thinking";
-    if ((event.kind === "run.delta" && event.payload.text) || event.kind === "run.rich_partial")
-      phase = "writing";
+    const nextPhase = observedPhase(event.kind, event.payload.name);
+    const eventTime = Date.parse(event.created_at);
+    if (nextPhase && (eventTime >= phaseAt || (!phaseAt && !Number.isFinite(eventTime)))) {
+      phase = nextPhase;
+      phaseAt = Number.isFinite(eventTime) ? eventTime : phaseAt;
+      observedAt = event.created_at;
+    }
     const id = event.payload.call_id;
     if (typeof id !== "string" || !id || !event.kind.startsWith("tool.")) continue;
     const previous = calls.get(id);

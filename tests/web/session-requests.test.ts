@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { runInNewContext } from "node:vm";
 import ts from "typescript";
+import { ReadRequestGate } from "../../packages/core/src/read-request-gate";
 
 type Client = typeof import("../../apps/web/src/lib/api");
 function fixture() {
@@ -23,6 +24,10 @@ function fixture() {
   });
   runInNewContext(outputText, {
     exports,
+    require(name: string) {
+      if (name === "@lonora/core") return { ReadRequestGate };
+      throw new Error(`Unexpected module ${name}`);
+    },
     window,
     document,
     Headers,
@@ -133,4 +138,29 @@ test("background startup retains bootstrap and session authentication", async ()
   waiting[0].resolve(new Response('{"owner_initialized":true}'));
   waiting[1].resolve(new Response('{"id":"owner-a"}'));
   await Promise.all([bootstrap, auth]);
+});
+
+test("Send starts while slow projection reads fill their bounded slots", async () => {
+  const { client, waiting } = fixture();
+  const reads = Array.from({ length: 7 }, (_, i) => client.api.get(`/projection/${i}`));
+  assert.equal(waiting.length, 3);
+  const sent = client.api.post("/threads/chat/messages", { content: "Hello" });
+  assert.equal(waiting.length, 4);
+  assert.equal(waiting[3].init.method, "POST");
+  assert.equal(waiting[3].init.priority, "high");
+  waiting[3].resolve(new Response('{"accepted":true}'));
+  assert.deepEqual(await sent, { accepted: true });
+  // No projection has finished; the message was still sent and acknowledged.
+  assert.equal(waiting.length, 4);
+  const resolved = new Set<number>([3]);
+  for (let round = 0; round < 7; round++) {
+    for (let i = 0; i < waiting.length; i++) {
+      if (resolved.has(i)) continue;
+      resolved.add(i);
+      waiting[i].resolve(new Response("[]"));
+    }
+    await new Promise((resolve) => setImmediate(resolve));
+  }
+  await Promise.all(reads);
+  assert.equal(waiting.length, 8);
 });

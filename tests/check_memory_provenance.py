@@ -36,7 +36,13 @@ async def main() -> None:
             if phase == 1:
                 call = ToolCall(id="owner-read", name="memory_read", arguments={})
             elif phase == 2:
-                result = json.loads(messages[-1].content)
+                result = json.loads(
+                    next(
+                        message.content
+                        for message in reversed(messages)
+                        if message.role == "tool" and message.tool_call_id == "owner-read"
+                    )
+                )
                 assert result["provenance"]["source"] == "owner_provided"
                 call = ToolCall(
                     id="observed-revision",
@@ -50,7 +56,13 @@ async def main() -> None:
             elif phase == 3:
                 call = ToolCall(id="agent-read", name="memory_read", arguments={})
             else:
-                result = json.loads(messages[-1].content)
+                result = json.loads(
+                    next(
+                        message.content
+                        for message in reversed(messages)
+                        if message.role == "tool" and message.tool_call_id == "agent-read"
+                    )
+                )
                 provenance = result["provenance"]
                 assert (
                     provenance["source"] == "agent_authored"

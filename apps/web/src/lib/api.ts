@@ -1,4 +1,5 @@
 import type { Resource } from "@lonora/contracts";
+import { ReadRequestGate } from "@lonora/core";
 
 export type * from "@lonora/contracts";
 export class ApiError extends Error {
@@ -24,6 +25,7 @@ export function isRequestCancelled(error: unknown) {
 let sessionGeneration = 0;
 const active = new Map<AbortController, boolean>();
 const pendingReads = new Map<string, Promise<unknown>>();
+const reads = new ReadRequestGate();
 export function resetSessionRequests() {
   sessionGeneration += 1;
   for (const controller of active.keys()) controller.abort();
@@ -60,7 +62,13 @@ async function perform<T>(path: string, init: RequestInit): Promise<T> {
   const current = () => {
     if (generation !== sessionGeneration || controller.signal.aborted) throw new RequestCancelled();
   };
+  let releaseRead: (() => void) | undefined;
   try {
+    current();
+    if (read) {
+      const admitted = reads.enter(controller.signal);
+      releaseRead = typeof admitted === "function" ? admitted : await admitted;
+    }
     current();
     const headers = new Headers(init.headers);
     headers.set("Accept", "application/json");
@@ -73,6 +81,7 @@ async function perform<T>(path: string, init: RequestInit): Promise<T> {
       signal: controller.signal,
       headers,
       credentials: "include",
+      priority: read ? "low" : "high",
     });
     current();
     if (!response.ok) {
@@ -89,6 +98,7 @@ async function perform<T>(path: string, init: RequestInit): Promise<T> {
     current();
     throw error;
   } finally {
+    releaseRead?.();
     active.delete(controller);
     init.signal?.removeEventListener("abort", abort);
   }

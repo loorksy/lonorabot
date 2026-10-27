@@ -60,8 +60,7 @@ async def model_turn(
     if any(message.images for message in request_messages):
         capability = Capability.VISION
     turn_id = new_id()
-    await progress(context, "run.reply_started", {"turn_id": turn_id})
-    prepared("stream_start_commit")
+    stream_started = False
     preparation_ms["total"] = round((monotonic() - preparation_started) * 1000, 2)
 
     public_ids = public_broker_ids(messages)
@@ -73,6 +72,12 @@ async def model_turn(
     request_started = monotonic()
     first_text_ms: float | None = None
     first_publication_ms: float | None = None
+
+    async def ensure_stream() -> None:
+        nonlocal stream_started
+        if not stream_started:
+            await progress(context, "run.reply_started", {"turn_id": turn_id})
+            stream_started = True
 
     def publication_for(
         active_turn: str, admission: PublicStream, compiler: VisualReplyProjector
@@ -93,6 +98,7 @@ async def model_turn(
             rich = projection.rich_until(len(admission.sent))
             rich_changed = rich is not None and rich != last_rich
             if accepted or rich_changed:
+                await ensure_stream()
                 payload: dict[str, Any] = {"turn_id": active_turn, "text": accepted}
                 if rich_changed:
                     payload["rich_content"] = rich
@@ -112,7 +118,7 @@ async def model_turn(
         await publication.offer(chunk)
 
     async def attempt(selection: ModelSelection) -> None:
-        nonlocal turn_id, streaming, projector, publication
+        nonlocal turn_id, streaming, projector, publication, stream_started
         await publication.cancel()
         turn_id = new_id()
         streaming = PublicStream(set(), public_ids, enabled=incremental_allowed)
@@ -122,6 +128,7 @@ async def model_turn(
             "run.reply_started",
             {"turn_id": turn_id, "provider": selection.provider, "model": selection.model},
         )
+        stream_started = True
         publication = publication_for(turn_id, streaming, projector)
 
     try:
@@ -199,8 +206,10 @@ async def model_turn(
         # Privacy redaction or a late tool call replaces the provisional generation.
         turn_id = new_id()
         await progress(context, "run.reply_started", {"turn_id": turn_id})
+        stream_started = True
         streaming.sent = ""
     remaining = reply.text[len(streaming.sent) :]
     if remaining:
+        await ensure_stream()
         await progress(context, "run.delta", {"turn_id": turn_id, "text": remaining})
     return reply, selection

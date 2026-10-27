@@ -99,3 +99,37 @@ test("delayed GET and acknowledgement projections cannot regress a newer run", (
   assert.deepEqual(projectRunEvents([], [queuedEvent], "other-thread"), []);
   assert.equal(projectRunEvents([], [queuedEvent], "thread")[0].status, "queued");
 });
+
+test("restored activity reflects actual work without a status fetch or replay", () => {
+  const restored: Run = {
+    ...run,
+    model_metadata: {
+      activity: {
+        kind: "tool.started",
+        name: "web_search",
+        observed_at: "2026-10-27T10:00:00.400Z",
+      },
+    },
+  };
+  assert.equal(turnActivity(restored, []).phase, "searching");
+  assert.equal(turnActivity(restored, [event("run.reply_started", 1)]).phase, "searching");
+  assert.equal(
+    turnActivity(restored, [event("run.delta", 5, { text: "The result." })]).phase,
+    "writing",
+  );
+  assert.equal(turnActivity({ ...restored, status: "completed" }, []).phase, "completed");
+  assert.equal(
+    turnActivity(run, [event("tool.started", 2, { call_id: "exec", name: "workspace_execute" })])
+      .phase,
+    "executing",
+  );
+  assert.equal(
+    turnActivity(run, [event("tool.started", 2, { call_id: "read", name: "web_fetch" })]).phase,
+    "reading",
+  );
+  assert.equal(
+    turnActivity(run, [event("tool.started", 2, { call_id: "read", name: "trade_record_read" })])
+      .phase,
+    "reading",
+  );
+});
