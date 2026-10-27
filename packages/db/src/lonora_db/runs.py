@@ -113,7 +113,15 @@ async def create_run(
         row.id = run_id
     session.add(row)
     await session.flush()
-    emit(session, owner_id, "run.queued", thread_id=thread.id, agent_id=agent.id, run_id=row.id)
+    emit(
+        session,
+        owner_id,
+        "run.queued",
+        thread_id=thread.id,
+        agent_id=agent.id,
+        run_id=row.id,
+        payload={"run": run_data(row)},
+    )
     return row
 
 
@@ -187,7 +195,7 @@ async def claim_next(
         thread_id=row.thread_id,
         agent_id=row.agent_id,
         run_id=row.id,
-        payload={"fence": row.lease_fence},
+        payload={"fence": row.lease_fence, "run": run_data(row)},
     )
     await session.flush()
     return row

@@ -1,5 +1,8 @@
 # Native visual responses: release verification
 
+This is historical evidence for the previous release. Current runtime defects,
+repairs and acceptance status are tracked in [chat runtime repair](chat-runtime-repair.md).
+
 Verified 2026-10-26. Runtime release:
 `10dfdf7af72a4253762871ea07708623ac123c43`.
 Implementation and limits: [native visual responses](native-visual-responses.md).

@@ -1,7 +1,7 @@
 // Native GenUI acceptance over Lonora's authenticated conversation and outbox.
 // biome-ignore-all lint/suspicious/noUndeclaredEnvVars: Playwright environment is not cached by Turbo.
 import { randomUUID } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { appendFileSync, readFileSync } from "node:fs";
 import { test as base, expect } from "@playwright/test";
 import { visualFixture } from "../fixtures/visual-response.mjs";
 import { brokerFixture } from "./broker-fixture.mjs";
@@ -246,6 +246,243 @@ test("invalid or executable display content falls back to the original text", as
   await expect(page.getByText("The original answer is still available.")).toBeVisible();
   await expect(page.locator(".native-visual-response")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Do not execute" })).toHaveCount(0);
+});
+
+for (const locale of ["en", "ar"]) {
+  test(`compact numeric drafts remain editable on a phone in ${locale}`, async ({
+    page,
+    conversation,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.addInitScript((language) => {
+      localStorage.setItem("lonora.locale", language);
+      localStorage.setItem("lonora.theme", JSON.stringify("dark"));
+    }, locale);
+    const state = { a: 1, b: 1000, c: 3, d: 4, e: 5, f: 6 };
+    const document = {
+      version: 1,
+      mode: "example",
+      state,
+      root: {
+        id: "calc",
+        type: "card",
+        label: "Educational calculation",
+        children: [
+          {
+            id: "fields",
+            type: "grid",
+            columns: 2,
+            children: Object.keys(state).map((key) => ({
+              id: key,
+              type: "input",
+              label: `Input ${key}`,
+              input_kind: "number",
+              state_key: key,
+              minimum: key === "b" ? 100 : -100,
+              maximum: key === "b" ? 10000 : 100,
+              step: key === "a" ? 1 : 0.01,
+            })),
+          },
+          {
+            id: "metrics",
+            type: "grid",
+            columns: 2,
+            children: [
+              { id: "m1", type: "metric", label: "Quantity", value: { state: "a" } },
+              {
+                id: "m2",
+                type: "metric",
+                label: "Double",
+                value: { op: "mul", args: [{ state: "a" }, 2] },
+              },
+            ],
+          },
+        ],
+      },
+    };
+    const row = {
+      id: randomUUID(),
+      thread_id: conversation.thread.id,
+      agent_id: conversation.agent.id,
+      seq: 1,
+      role: "assistant",
+      content: "Educational example.",
+      rich_content: { version: 1, parts: [{ type: "ui", document }] },
+      reply_to: null,
+      attachment_ids: [],
+      created_at: "2026-10-26T08:00:00Z",
+    };
+    await page.route(`**/api/threads/${conversation.thread.id}/messages*`, (route) =>
+      route.request().method() === "GET" ? route.fulfill({ json: [row] }) : route.continue(),
+    );
+    await page.goto(`/app/${conversation.agent.id}`);
+    const response = page.locator('[data-visual-document="calc"]');
+    await expect(response).toBeVisible();
+    const mutations = [];
+    page.on("request", (request) => {
+      if (request.method() !== "GET" && request.url().includes("/api/"))
+        mutations.push(request.url());
+    });
+    const height = (await response.boundingBox()).height;
+    expect(height).toBeLessThan(550);
+    const geometry = await page.evaluate(() => {
+      const fields = document.querySelector('[data-visual-node="fields"]');
+      const input = fields.querySelector("input");
+      return {
+        gridColumns: getComputedStyle(fields).gridTemplateColumns,
+        inputFont: getComputedStyle(input).fontSize,
+        inputHeight: input.getBoundingClientRect().height,
+        rootWidth: document.documentElement.clientWidth,
+        scrollWidth: document.documentElement.scrollWidth,
+      };
+    });
+    expect(geometry.gridColumns.split(" ")).toHaveLength(2);
+    expect(geometry.inputHeight).toBeGreaterThanOrEqual(44);
+    expect(geometry.inputFont).toBe("16px");
+    expect(geometry.scrollWidth).toBeLessThanOrEqual(geometry.rootWidth + 1);
+    const input = page.getByRole("spinbutton", { name: "Input a", exact: true });
+    await input.fill("");
+    await input.pressSequentially("-1.25");
+    await expect(input).toHaveValue("-1.25");
+    await expect(input).toHaveAttribute("aria-valuenow", "-1.25");
+    const derived = page.locator('[data-visual-value="m2"]');
+    await expect(derived).toHaveText(new Intl.NumberFormat(locale).format(-2.5));
+    const bounded = page.getByRole("spinbutton", { name: "Input b", exact: true });
+    await bounded.fill("");
+    await bounded.pressSequentially("2");
+    await expect(bounded).not.toHaveAttribute("aria-valuenow");
+    await bounded.pressSequentially("50");
+    await expect(bounded).toHaveValue("250");
+    await expect(bounded).toHaveAttribute("aria-valuenow", "250");
+    await input.fill("1.");
+    await expect(input).toHaveValue("1.");
+    await bounded.focus();
+    await expect(input).toHaveValue("1");
+    await input.fill("-");
+    await expect(input).toHaveValue("-");
+    await bounded.focus();
+    await expect(input).toHaveValue("1");
+    await input.fill("١٢٫٥");
+    await expect(input).toHaveValue("١٢٫٥");
+    await expect(derived).toHaveText(new Intl.NumberFormat(locale).format(25));
+    await input.press("ArrowUp");
+    await expect(input).toHaveValue("13.5");
+    await bounded.fill("20000");
+    await input.focus();
+    await expect(bounded).toHaveValue("10000");
+    expect(mutations).toEqual([]);
+    appendFileSync(
+      ".runtime/visual-density-after.jsonl",
+      `${JSON.stringify({ locale, height, geometry, numeric: "editable/decimal/Arabic/bounds passed" })}\n`,
+    );
+    await response.screenshot({ path: `.runtime/visual-density-after-${locale}.png` });
+    await page.reload();
+    await expect(input).toHaveValue("13.5");
+    await expect(bounded).toHaveValue("10000");
+  });
+}
+
+test("dense tables, charts and diagrams remain local and contained at 320px", async ({
+  page,
+  conversation,
+}) => {
+  await page.setViewportSize({ width: 320, height: 740 });
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.addInitScript(() => localStorage.setItem("lonora.locale", "ar"));
+  const document = {
+    version: 1,
+    mode: "example",
+    root: {
+      id: "compact",
+      type: "column",
+      children: [
+        {
+          id: "table",
+          type: "table",
+          label: "جدول توضيحي",
+          fields: [
+            { key: "name", label: "الاسم" },
+            { key: "amount", label: "القيمة" },
+            { key: "detail", label: "التفاصيل" },
+          ],
+          rows: Array.from({ length: 12 }, (_, index) => ({
+            name: `Illustrative symbol ${index}`,
+            amount: index * 12.5,
+            detail: "شرح طويل توضيحي مستقل عن بيانات الحساب",
+          })),
+        },
+        {
+          id: "chart",
+          type: "chart",
+          chart_kind: "line",
+          label: "رسم توضيحي",
+          points: Array.from({ length: 12 }, (_, index) => ({
+            label: `Example ${index}`,
+            value: index * 12.5,
+          })),
+        },
+        {
+          id: "diagram",
+          type: "diagram",
+          label: "مخطط توضيحي",
+          vertices: [
+            { id: "a", label: "قراءة السوق والتحقق من البيانات الحديثة قبل التحليل" },
+            { id: "b", label: "تفسير البيانات وتوضيح النتيجة باللغة المناسبة" },
+          ],
+          edges: [{ source: "a", target: "b", label: "شرح توضيحي" }],
+        },
+      ],
+    },
+  };
+  await page.route(`**/api/threads/${conversation.thread.id}/messages*`, (route) =>
+    route.fulfill({
+      json: [
+        {
+          id: randomUUID(),
+          thread_id: conversation.thread.id,
+          agent_id: conversation.agent.id,
+          seq: 1,
+          role: "assistant",
+          content: "Illustrative examples.",
+          rich_content: { version: 1, parts: [{ type: "ui", document }] },
+          reply_to: null,
+          attachment_ids: [],
+          created_at: "2026-10-26T08:00:00Z",
+        },
+      ],
+    }),
+  );
+  await page.goto(`/app/${conversation.agent.id}`);
+  await expect(page.locator(".native-visual-response")).toBeVisible();
+  const mutations = [];
+  page.on("request", (request) => {
+    if (request.method() !== "GET" && request.url().includes("/api/"))
+      mutations.push(request.url());
+  });
+  await expect(page.locator(".native-visual-table tbody tr")).toHaveCount(8);
+  await page.getByRole("button", { name: "عرض المزيد (12)", exact: true }).click();
+  await expect(page.locator(".native-visual-table tbody tr")).toHaveCount(12);
+  await page.getByRole("button", { name: "عرض أقل", exact: true }).click();
+  await expect(page.locator(".native-visual-table tbody tr")).toHaveCount(8);
+  await expect(page.locator(".native-visual-table th[data-numeric]")).toHaveText("القيمة");
+  await expect(page.locator(".native-visual-chart-values > div:visible")).toHaveCount(8);
+  await page.locator(".native-visual-chart-more summary").click();
+  await expect(page.locator(".native-visual-chart-values > div:visible")).toHaveCount(12);
+  await page.locator(".native-visual-diagram-description summary").click();
+  await expect(page.locator(".native-visual-diagram-description li")).toHaveCount(2);
+  expect(mutations).toEqual([]);
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1,
+    ),
+  ).toBe(true);
+  const table = page.locator(".native-visual-table-scroll");
+  await table.focus();
+  expect(
+    await table.evaluate((element) => Number.parseFloat(getComputedStyle(element).outlineWidth)),
+  ).toBeGreaterThanOrEqual(2);
+  expect(await table.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(true);
+  await page.screenshot({ path: ".runtime/visual-320px-after.png", fullPage: true });
 });
 
 // Replay only when a live, existing-Agent acceptance record was explicitly supplied.

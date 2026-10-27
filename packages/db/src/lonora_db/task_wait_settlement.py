@@ -117,15 +117,6 @@ async def settle_task_wait(
             session.add(message)
             await session.flush()
             link_generated_artifacts(message, artifacts)
-            emit(
-                session,
-                work.owner_id,
-                "message.created",
-                thread_id=origin.id,
-                agent_id=run.agent_id,
-                run_id=run.id,
-                payload=message_data(message),
-            )
         session.add(
             EffectReceiptRow(
                 key=key,
@@ -162,6 +153,19 @@ async def settle_task_wait(
             agent_id=run.agent_id,
             run_id=run.id,
             payload=stream_identity(snapshot),
+        )
+    if previous is None and message is not None:
+        # Match ordinary reply settlement: hand off the preview identity before
+        # delivering the canonical message, so incremental clients cannot show
+        # the same answer twice between two independently received events.
+        emit(
+            session,
+            work.owner_id,
+            "message.created",
+            thread_id=state.origin_thread_id,
+            agent_id=run.agent_id,
+            run_id=run.id,
+            payload=message_data(message),
         )
     run.status, run.lease_expires_at, run.updated_at = "waiting_takeover", None, utcnow()
     state.status, state.phase, state.waiting_reason = (

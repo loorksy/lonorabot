@@ -681,3 +681,40 @@ html[dir="rtl"] .template-message-body .message-copy {
 .template-active-agents .lonora-loading-state {
   gap: 9px;
 }
+
+.template-turn-activity {
+  padding-block: 6px;
+  color: var(--lonora-muted);
+  font-size: 12px;
+  min-width: 0;
+}
+.template-turn-activity summary {
+  cursor: pointer;
+  width: fit-content;
+}
+.template-turn-activity .lonora-loading-state {
+  gap: 8px;
+}
+.template-thread .template-turn-activity .lonora-agent-avatar {
+  width: 28px;
+  height: 28px;
+}
+.template-turn-steps {
+  margin-block-start: 8px;
+  display: grid;
+  gap: 6px;
+}
+.template-turn-step {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+.template-turn-step code {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.template-thread .template-turn-step time {
+  color: var(--lonora-muted);
+  font-variant-numeric: tabular-nums;
+}

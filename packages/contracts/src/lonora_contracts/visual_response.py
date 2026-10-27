@@ -5,13 +5,16 @@ import re
 from typing import Literal, Self
 from uuid import UUID
 
-from pydantic import Field, JsonValue, model_validator
+from pydantic import Field, JsonValue, field_validator, model_validator
+from pydantic_core import PydanticCustomError
 
 from .domain import Contract
+from .visual_values import EXTENDED_ARITY, has_visual_placeholder, legacy_visual_bindings
 
 MAX_VISUAL_BYTES = 64000
 MAX_VISUAL_NODES = 120
 MAX_VISUAL_DEPTH = 10
+MAX_VISUAL_EXPRESSION_DEPTH = 8
 NodeKind = Literal[
     "column",
     "row",
@@ -43,27 +46,33 @@ NodeKind = Literal[
 Scalar = str | int | float | bool | None
 KEY = re.compile(r"^[A-Za-z][A-Za-z0-9_-]{0,47}$")
 RESERVED = {"__proto__", "prototype", "constructor"}
-OPERATORS = frozenset(
-    {
-        "add",
-        "sub",
-        "mul",
-        "div",
-        "min",
-        "max",
-        "round",
-        "abs",
-        "eq",
-        "gt",
-        "gte",
-        "lt",
-        "lte",
-        "and",
-        "or",
-        "not",
-        "if",
-    }
-)
+OPERATOR_ARITY: dict[str, tuple[int, int]] = {
+    "add": (1, 8),
+    "sub": (2, 2),
+    "mul": (1, 8),
+    "div": (2, 2),
+    "min": (1, 8),
+    "max": (1, 8),
+    "round": (1, 2),
+    "abs": (1, 1),
+    "eq": (2, 2),
+    "gt": (2, 2),
+    "gte": (2, 2),
+    "lt": (2, 2),
+    "lte": (2, 2),
+    "and": (1, 8),
+    "or": (1, 8),
+    "not": (1, 1),
+    "if": (3, 3),
+    **EXTENDED_ARITY,
+}
+OPERATORS = frozenset(OPERATOR_ARITY)
+
+
+def _display(value: str | None) -> str | None:
+    if value is not None and has_visual_placeholder(value):
+        raise ValueError("visual_display_binding_unresolved")
+    return value
 
 
 class VisualAction(Contract):
@@ -87,22 +96,26 @@ class VisualAction(Contract):
 class VisualChoice(Contract):
     value: str = Field(max_length=100)
     label: str = Field(max_length=160)
+    _label_display = field_validator("label")(_display)
 
 
 class VisualField(Contract):
     key: str = Field(pattern=KEY.pattern)
     label: str = Field(max_length=160)
+    _label_display = field_validator("label")(_display)
 
 
 class DiagramVertex(Contract):
     id: str = Field(pattern=KEY.pattern)
     label: str = Field(max_length=160)
+    _label_display = field_validator("label")(_display)
 
 
 class DiagramEdge(Contract):
     source: str = Field(pattern=KEY.pattern)
     target: str = Field(pattern=KEY.pattern)
     label: str = Field(default="", max_length=100)
+    _label_display = field_validator("label")(_display)
 
 
 # Only these properties can be supplied for each trusted component. No arbitrary
@@ -166,6 +179,7 @@ class VisualNode(Contract):
     input_kind: Literal["text", "number"] = "text"
     artifact_id: str | None = Field(default=None, max_length=36)
     action: VisualAction | None = None
+    _text_display = field_validator("text", "label")(_display)
 
     @model_validator(mode="after")
     def properties(self) -> Self:
@@ -227,6 +241,11 @@ class VisualDocument(Contract):
     state: dict[str, str | int | float | bool | None] = Field(default_factory=dict, max_length=20)
     facts: dict[str, VisualFact] = Field(default_factory=dict, max_length=200)
 
+    @model_validator(mode="before")
+    @classmethod
+    def legacy_bindings(cls, value: object) -> object:
+        return legacy_visual_bindings(value)
+
     @model_validator(mode="after")
     def bounded(self) -> Self:
         if any(not KEY.fullmatch(key) or key in RESERVED for key in self.state):
@@ -238,17 +257,29 @@ class VisualDocument(Contract):
         ):
             raise ValueError("visual_number_invalid")
         if any(
+            isinstance(value, str) and has_visual_placeholder(value)
+            for value in self.state.values()
+        ):
+            raise ValueError("visual_display_binding_unresolved")
+        if any(
             not KEY.fullmatch(key)
             or key in RESERVED
             or (isinstance(fact.value, float) and not math.isfinite(fact.value))
             for key, fact in self.facts.items()
         ):
             raise ValueError("visual_fact_invalid")
+        if any(
+            isinstance(fact.value, str) and has_visual_placeholder(fact.value)
+            for fact in self.facts.values()
+        ):
+            raise ValueError("visual_display_binding_unresolved")
         seen: set[str] = set()
 
-        def walk(node: VisualNode, depth: int) -> None:
+        def walk(node: VisualNode, depth: int, path: str = "root") -> None:
             if depth > MAX_VISUAL_DEPTH or node.id in seen or len(seen) >= MAX_VISUAL_NODES:
-                raise ValueError("visual_tree_invalid")
+                raise PydanticCustomError(
+                    "visual_tree_invalid", "Invalid visual tree", {"visual_path": path}
+                )
             seen.add(node.id)
             if any(key and key not in self.state for key in [node.state_key, node.filter_key]):
                 raise ValueError("visual_state_unknown")
@@ -283,29 +314,51 @@ class VisualDocument(Contract):
                 template = re.sub(r"\{\{([^{}]+)\}\}", substitute, node.action.text or "")
                 if "{{" in template or "}}" in template:
                     raise ValueError("visual_action_template_invalid")
-            for value in [
-                node.value,
-                node.unit,
-                node.visible,
-                *[v for row in node.rows for v in row.values()],
-                *[v for point in node.points for v in point.values()],
-            ]:
-                validate_value(value, set(self.state), set(self.facts))
-            for child in node.children:
-                walk(child, depth + 1)
+            values = [
+                (path + "." + field, getattr(node, field)) for field in ["value", "unit", "visible"]
+            ]
+            values.extend(
+                (f"{path}.rows.{row_index}.cells.{cell_index}", value)
+                for row_index, row in enumerate(node.rows)
+                for cell_index, value in enumerate(row.values())
+            )
+            values.extend(
+                (f"{path}.points.{index}.{field}", point[field])
+                for index, point in enumerate(node.points)
+                for field in ["label", "value"]
+            )
+            for value_path, value in values:
+                validate_value(value, set(self.state), set(self.facts), path=value_path)
+            for index, child in enumerate(node.children):
+                walk(child, depth + 1, f"{path}.children.{index}")
 
         walk(self.root, 0)
         return self
 
 
 def validate_value(
-    value: JsonValue, state_keys: set[str], fact_keys: set[str], depth: int = 0
+    value: JsonValue, state_keys: set[str], fact_keys: set[str], depth: int = 0, path: str = "value"
 ) -> None:
-    if depth > 8:
+    try:
+        _validate_value(value, state_keys, fact_keys, depth, path)
+    except PydanticCustomError:
+        raise
+    except ValueError:
+        raise PydanticCustomError(
+            "visual_expression_invalid", "Invalid visual expression", {"visual_path": path}
+        ) from None
+
+
+def _validate_value(
+    value: JsonValue, state_keys: set[str], fact_keys: set[str], depth: int, path: str
+) -> None:
+    if depth > MAX_VISUAL_EXPRESSION_DEPTH:
         raise ValueError("visual_expression_too_deep")
     if isinstance(value, float) and not math.isfinite(value):
         raise ValueError("visual_number_invalid")
     if value is None or isinstance(value, str | int | float | bool):
+        if isinstance(value, str) and has_visual_placeholder(value):
+            raise ValueError("visual_display_binding_unresolved")
         return
     if not isinstance(value, dict):
         raise ValueError("visual_expression_invalid")
@@ -337,15 +390,10 @@ def validate_value(
     ):
         arity = len(value["args"])
         op = value["op"]
-        if (
-            (op in {"abs", "not"} and arity != 1)
-            or (op in {"sub", "div", "eq", "gt", "gte", "lt", "lte"} and arity != 2)
-            or (op == "if" and arity != 3)
-            or (op == "round" and arity not in {1, 2})
-        ):
+        if not OPERATOR_ARITY[op][0] <= arity <= OPERATOR_ARITY[op][1]:
             raise ValueError("visual_operator_arity")
-        for item in value["args"]:
-            validate_value(item, state_keys, fact_keys, depth + 1)
+        for index, item in enumerate(value["args"]):
+            validate_value(item, state_keys, fact_keys, depth + 1, f"{path}.args.{index}")
         return
     raise ValueError("visual_expression_invalid")
 

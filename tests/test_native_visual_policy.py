@@ -2,6 +2,7 @@
 
 import json
 import re
+import runpy
 from pathlib import Path
 from unittest.mock import patch
 
@@ -132,6 +133,32 @@ def test_model_vocabulary_complete_examples_use_valid_native_contract():
     total = documents[1].root.children[0]
     assert isinstance(total.value, dict) and total.value["op"] == "add"
     assert len(documents[1].root.children[1].points) == 2
+
+
+def test_model_vocabulary_is_generated_from_current_registry():
+    root = Path(__file__).resolve().parents[1]
+    exporter = runpy.run_path(str(root / "scripts/export_native_visual_reference.py"))
+    guide = root / "packages/agent-runtime/resources/prompts/native_visual_response.md"
+    # Adding a component property, enum, operator or bound must invalidate this
+    # exact generated snapshot instead of silently leaving stale model guidance.
+    assert exporter["export"]() == guide.read_text()
+
+
+def test_authored_design_sources_fit_budget_and_explain_real_bindings():
+    definition = built_in_skills()["lonora-design"]
+    source = resources_root() / "skills/lonora-design/SKILL.md"
+    text = source.read_text()
+    assert len(text.strip()) <= definition.manifest.context_budget
+    assert not re.search(r"[\u0600-\u06ff\u0750-\u077f\u08a0-\u08ff]", text)
+    examples = re.findall(r"```lonora-ui\n(.*?)\n```", text, re.S)
+    preview = VisualDocument.model_validate_json(examples[1])
+    assert preview.root.children[1].value == {
+        "op": "concat",
+        "args": ["Preview: ", {"state": "note"}],
+    }
+    action = preview.root.children[2].action
+    assert action is not None and action.kind == "follow_up"
+    assert action.text == "Explain the hypothetical scenario {{note}}"
 
 
 def test_missing_or_oversized_vocabulary_is_an_explicit_resource_error(tmp_path: Path):

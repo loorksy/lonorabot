@@ -7,10 +7,12 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from lonora_auth.sessions import read_session
 from lonora_bus.durable_events import stream_events
 from lonora_core.user_error import LonoraError
+from lonora_db.events import current_event_cursor
 
 from ..runtime import ApiRuntime
 
 router = APIRouter()
+MAX_CURSOR = 2**63 - 1
 
 
 async def guarded_stream(
@@ -72,13 +74,20 @@ async def events(socket: WebSocket) -> None:
         token = auth.get("token") or socket.cookies.get("lonora_session")
         if token is not None and not isinstance(token, str):
             raise LonoraError("websocket_auth_invalid", 403)
+        cursor = auth.get("cursor", 0)
+        if not isinstance(cursor, int) or isinstance(cursor, bool) or not 0 <= cursor <= MAX_CURSOR:
+            raise LonoraError("websocket_cursor_invalid", 400)
         async with rt.db.sessions() as session:
             owner = await read_session(session, token)
-        cursor = auth.get("cursor", 0)
-        if not isinstance(cursor, int) or isinstance(cursor, bool) or cursor < 0:
-            raise LonoraError("websocket_cursor_invalid", 400)
+            # Capture the initial live boundary before readiness. Clients then
+            # refresh canonical snapshots, so events committed during admission
+            # are covered by either that snapshot or this durable subscription.
+            # A nonzero resume cursor must never jump to the present.
+            if auth.get("live") is True and cursor == 0:
+                cursor = await current_event_cursor(session, owner.id)
 
         async def send() -> None:
+            await socket.send_json({"type": "ready", "cursor": cursor})
             async for event in stream_events(rt.db, owner.id, cursor):
                 await socket.send_json(event)
 

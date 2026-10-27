@@ -1,5 +1,5 @@
 import type { InputAnswer } from "@lonora/contracts";
-import type { MentionAddress } from "@lonora/core";
+import { type MentionAddress, projectRunEvents } from "@lonora/core";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { api, isRequestCancelled, type Message, type Run, type Thread } from "../lib/api";
 import { conversationKey, readConversation, retainConversation } from "../lib/conversation-cache";
@@ -90,7 +90,9 @@ export function useThreads(agentId?: string, threadId?: string) {
       .get<Run[]>(`/runs?thread_id=${threadId}`)
       .then((r) => {
         if (live) {
-          setRuns(retainConversation(runKey, r));
+          setRuns((old) =>
+            retainConversation(runKey, projectRunEvents([...old, ...r], [], threadId)),
+          );
           setRunError(undefined);
         }
       })
@@ -134,11 +136,25 @@ export function useThreads(agentId?: string, threadId?: string) {
     retainConversation(messageKey, canonicalMessages.slice(-500));
     acknowledgeOutgoing(key, canonicalMessages);
   }, [canonicalMessages, messageKey, key]);
+  const projectedRuns = useMemo(
+    () => projectRunEvents(runs, events, threadId),
+    [runs, events, threadId],
+  );
+  useEffect(() => {
+    retainConversation(runKey, projectedRuns);
+  }, [runKey, projectedRuns]);
   const visibleMessages = useMemo(() => {
     const accepted = new Set(canonicalMessages.map((message) => message.client_nonce));
+    const pending = outgoing.filter((row) => !accepted.has(row.nonce));
+    const after = Math.max(0, ...canonicalMessages.map((message) => message.seq));
     return mergeMessages(
       canonicalMessages,
-      outgoing.filter((row) => !accepted.has(row.nonce)).map((row) => row.message),
+      pending.map((row, index) => ({
+        ...row.message,
+        // Canonical integer sequences win as earlier concurrent sends arrive.
+        // Remaining optimistic rows keep their order after the accepted history.
+        seq: after + (index + 1) / (pending.length + 1),
+      })),
     );
   }, [canonicalMessages, outgoing]);
 
@@ -149,7 +165,7 @@ export function useThreads(agentId?: string, threadId?: string) {
     if (existing) return existing;
     const operation = (async () => {
       try {
-        const accepted = await api.post<{ message: Message; run_ids: string[] }>(
+        const accepted = await api.post<{ message: Message; run_ids: string[]; runs?: Run[] }>(
           `/threads/${threadId}/messages`,
           intent.body,
         );
@@ -158,6 +174,13 @@ export function useThreads(agentId?: string, threadId?: string) {
         ]);
         retainConversation(messageKey, saved.slice(-500));
         if (selectedKey.current === messageKey) setMessages(saved);
+        const acknowledgedRuns = projectRunEvents(
+          [...(readConversation<Run[]>(runKey) ?? []), ...(accepted.runs ?? [])],
+          [],
+          threadId,
+        );
+        retainConversation(runKey, acknowledgedRuns);
+        if (selectedKey.current === messageKey) setRuns(acknowledgedRuns);
         acknowledgeOutgoing(key, [accepted.message], true);
         refresh();
       } catch (caught) {
@@ -178,48 +201,57 @@ export function useThreads(agentId?: string, threadId?: string) {
     inFlightSends.set(flightKey, operation);
     return operation;
   }
+  function queueIntent(
+    content: string,
+    attachment_ids: string[] = [],
+    reply_to: string | null = null,
+    mentions?: MentionAddress,
+    inputAnswer?: InputAnswer,
+  ): OutgoingIntent {
+    if (!threadId) throw new Error("thread_not_found");
+    const fingerprint = JSON.stringify([
+      threadId,
+      content,
+      attachment_ids,
+      reply_to,
+      mentions,
+      inputAnswer,
+    ]);
+    const intent = enqueueOutgoing(
+      key,
+      threadId,
+      fingerprint,
+      {
+        content,
+        attachment_ids,
+        reply_to,
+        ...(inputAnswer ? { input_answer: inputAnswer } : {}),
+        mention_agent_ids: mentions?.agent_ids ?? [],
+        mention_all: mentions?.all ?? false,
+        collaboration_session_id: mentions?.collaboration_session_id,
+      },
+      Math.max(0, ...canonicalMessages.map((message) => message.seq)),
+    );
+    return intent;
+  }
   return {
     threads,
     messages: visibleMessages,
-    runs,
+    runs: projectedRuns,
     error: error ?? runError ?? listingError,
     create: async (id: string) => {
       const thread = await api.post<Thread>("/threads", { agent_id: id, title: "" });
       refresh();
       return thread;
     },
-    send: async (
-      content: string,
-      attachment_ids: string[] = [],
-      reply_to: string | null = null,
-      mentions?: MentionAddress,
-      inputAnswer?: InputAnswer,
-    ) => {
-      if (!threadId) throw new Error("thread_not_found");
-      const fingerprint = JSON.stringify([
-        threadId,
-        content,
-        attachment_ids,
-        reply_to,
-        mentions,
-        inputAnswer,
-      ]);
-      const intent = enqueueOutgoing(
-        key,
-        threadId,
-        fingerprint,
-        {
-          content,
-          attachment_ids,
-          reply_to,
-          ...(inputAnswer ? { input_answer: inputAnswer } : {}),
-          mention_agent_ids: mentions?.agent_ids ?? [],
-          mention_all: mentions?.all ?? false,
-          collaboration_session_id: mentions?.collaboration_session_id,
-        },
-        Math.max(0, ...canonicalMessages.map((message) => message.seq)),
-      );
-      await deliver(intent);
+    // Synchronous acceptance is the composer's draft boundary. Network failures
+    // remain on the existing outgoing bubble, with the same nonce for Retry.
+    queue: (...args: Parameters<typeof queueIntent>) => {
+      const intent = queueIntent(...args);
+      void deliver(intent).catch(() => undefined);
+    },
+    send: async (...args: Parameters<typeof queueIntent>) => {
+      await deliver(queueIntent(...args));
     },
     retry: async (nonce: string) => {
       if (!threadId) return;

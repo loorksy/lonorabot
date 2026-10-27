@@ -17,7 +17,15 @@ export type VisualOperator =
   | "and"
   | "or"
   | "not"
-  | "if";
+  | "if"
+  | "floor"
+  | "ceil"
+  | "pow"
+  | "sqrt"
+  | "clamp"
+  | "percent"
+  | "change"
+  | "concat";
 export type VisualValue =
   | VisualScalar
   | { state: string }

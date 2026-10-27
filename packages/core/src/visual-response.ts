@@ -11,6 +11,7 @@ import type {
   VisualState,
   VisualValue,
 } from "@lonora/contracts";
+import { unsafeVisualText } from "./visual-private-text";
 
 export const MAX_VISUAL_BYTES = 64000;
 export const MAX_VISUAL_NODES = 120;
@@ -27,8 +28,10 @@ const isScalar = (value: unknown): value is VisualScalar =>
   typeof value === "string" ||
   typeof value === "boolean" ||
   (typeof value === "number" && Number.isFinite(value));
+const hasPlaceholder = (value: unknown) => typeof value === "string" && value.includes("{{");
 const text = (value: unknown, maximum: number, nullable = false) =>
-  (nullable && value === null) || (typeof value === "string" && value.length <= maximum);
+  (nullable && value === null) ||
+  (typeof value === "string" && value.length <= maximum && !hasPlaceholder(value));
 const literal = (value: unknown, choices: readonly string[]) =>
   typeof value === "string" && choices.includes(value);
 const object = (value: unknown): value is Record<string, unknown> => {
@@ -107,7 +110,95 @@ const operatorArity: Record<string, [number, number]> = {
   or: [1, 8],
   not: [1, 1],
   if: [3, 3],
+  floor: [1, 1],
+  ceil: [1, 1],
+  sqrt: [1, 1],
+  pow: [2, 2],
+  clamp: [3, 3],
+  percent: [2, 2],
+  change: [2, 2],
+  concat: [1, 8],
 };
+
+/** Read old text bindings as explicit expressions over existing declared state.
+ * Other fields and unknown bindings still fail validation. No input is mutated.
+ */
+function legacyBindings(document: Record<string, unknown>): Record<string, unknown> {
+  const state = document.state ?? {};
+  if (!object(state)) return document;
+  const concat = (initial: unknown[]): unknown => {
+    let parts = initial;
+    while (parts.length > 8) {
+      const next: unknown[] = [];
+      for (let index = 0; index < parts.length; index += 8)
+        next.push({ op: "concat", args: parts.slice(index, index + 8) });
+      parts = next;
+    }
+    return { op: "concat", args: parts };
+  };
+  const walk = (node: unknown, depth = 0): unknown => {
+    if (!object(node) || depth > MAX_VISUAL_DEPTH) return node;
+    const result = { ...node };
+    if (
+      (node.type === "text" || node.type === "badge") &&
+      !own(node, "value") &&
+      typeof node.text === "string" &&
+      node.text.length <= 4000 &&
+      hasPlaceholder(node.text)
+    ) {
+      const parts: unknown[] = [];
+      let position = 0;
+      let valid = true;
+      for (const match of node.text.matchAll(/\{\{([^{}]+)\}\}/g)) {
+        const key = match[1];
+        if (!isKey(key) || !own(state, key) || !isScalar(state[key])) {
+          valid = false;
+          break;
+        }
+        if (match.index > position) parts.push(node.text.slice(position, match.index));
+        parts.push({ state: key });
+        position = match.index + match[0].length;
+      }
+      if (position < node.text.length) parts.push(node.text.slice(position));
+      if (valid && parts.length && !parts.some(hasPlaceholder)) {
+        delete result.text;
+        result.value = concat(parts);
+      }
+    }
+    if (array(node.children, 40)) {
+      const children = node.children.map((child) => walk(child, depth + 1));
+      if (children.some((child, index) => child !== (node.children as unknown[])[index]))
+        result.children = children;
+    }
+    return Object.keys(result).some((key) => result[key] !== node[key]) ||
+      (!own(result, "text") && own(node, "text"))
+      ? result
+      : node;
+  };
+  const root = walk(document.root);
+  return root === document.root ? document : { ...document, root };
+}
+
+/** Empty is null; an unfinished/invalid number keeps its draft without a state update. */
+export function parseVisualNumberDraft(text: string): number | null | undefined {
+  const normalized = text
+    .trim()
+    .replace(/[٠-٩۰-۹]/gu, (digit) =>
+      String(
+        "٠١٢٣٤٥٦٧٨٩".includes(digit) ? "٠١٢٣٤٥٦٧٨٩".indexOf(digit) : "۰۱۲۳۴۵۶۷۸۹".indexOf(digit),
+      ),
+    )
+    .replace(/٫/g, ".")
+    .replace(/٬/g, "");
+  if (!normalized) return null;
+  if (
+    normalized.length > 2000 ||
+    !/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/.test(normalized)
+  )
+    return undefined;
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
 
 function byteLength(value: string): number {
   let size = 0;
@@ -120,7 +211,7 @@ function byteLength(value: string): number {
 
 function validValue(value: unknown, state: Set<string>, facts: Set<string>, depth = 0): boolean {
   if (depth > 8) return false;
-  if (isScalar(value)) return true;
+  if (isScalar(value)) return !hasPlaceholder(value);
   if (!object(value)) return false;
   if (fieldsOnly(value, ["state"]) && typeof value.state === "string")
     return state.has(value.state);
@@ -170,12 +261,16 @@ export function validateVisualDocument(value: unknown): VisualDocument | null {
       !literal(value.mode, ["observed", "example", "estimate"])
     )
       return null;
+    value = legacyBindings(value);
+    if (!object(value)) return null;
     const state = value.state ?? {};
     const facts = value.facts ?? {};
     if (
       !object(state) ||
       Object.keys(state).length > 20 ||
-      !Object.entries(state).every(([key, item]) => isKey(key) && isScalar(item))
+      !Object.entries(state).every(
+        ([key, item]) => isKey(key) && isScalar(item) && !hasPlaceholder(item),
+      )
     )
       return null;
     if (
@@ -188,6 +283,7 @@ export function validateVisualDocument(value: unknown): VisualDocument | null {
           fieldsOnly(fact, ["value", "source", "observed_at"]) &&
           own(fact, "value") &&
           isScalar(fact.value) &&
+          !hasPlaceholder(fact.value) &&
           text(fact.source, 100) &&
           (fact.observed_at === undefined || text(fact.observed_at, 80, true)),
       )
@@ -413,19 +509,26 @@ export function validateRichContent(value: unknown): RichContent | null {
       !value.parts.length
     )
       return null;
-    if (
-      !value.parts.every(
-        (part) =>
-          object(part) &&
-          (part.type === "text"
-            ? fieldsOnly(part, ["type", "text"]) && text(part.text, 32000)
-            : part.type === "ui" &&
-              fieldsOnly(part, ["type", "document"]) &&
-              validateVisualDocument(part.document) !== null),
-      )
-    )
-      return null;
-    return byteLength(JSON.stringify(value)) <= 128000 ? (value as unknown as RichContent) : null;
+    const parts: RichContent["parts"] = [];
+    for (const part of value.parts) {
+      if (!object(part)) return null;
+      if (part.type === "text") {
+        if (
+          !fieldsOnly(part, ["type", "text"]) ||
+          typeof part.text !== "string" ||
+          part.text.length > 32000
+        )
+          return null;
+        parts.push({ type: "text", text: part.text });
+      } else {
+        if (part.type !== "ui" || !fieldsOnly(part, ["type", "document"])) return null;
+        const document = validateVisualDocument(part.document);
+        if (!document) return null;
+        parts.push({ type: "ui", document });
+      }
+    }
+    const result: RichContent = { version: 1, parts };
+    return byteLength(JSON.stringify(result)) <= 128000 ? result : null;
   } catch {
     return null;
   }
@@ -451,6 +554,11 @@ export function evaluateVisualValue(
         ? evaluate(item.args[1], depth + 1)
         : evaluate(item.args[2], depth + 1);
     const args = item.args.map((argument) => evaluate(argument, depth + 1));
+    if (item.op === "concat") {
+      if (args.some((argument) => argument === null)) return null;
+      const result = args.map(String).join("");
+      return Array.from(result).length <= 4000 ? result : null;
+    }
     if (item.op === "eq") return args[0] === args[1];
     if (item.op === "and") return args.every(Boolean);
     if (item.op === "or") return args.some(Boolean);
@@ -484,6 +592,27 @@ export function evaluateVisualValue(
       case "abs":
         result = Math.abs(args[0]);
         break;
+      case "floor":
+        result = Math.floor(args[0]);
+        break;
+      case "ceil":
+        result = Math.ceil(args[0]);
+        break;
+      case "sqrt":
+        result = Math.sqrt(args[0]);
+        break;
+      case "pow":
+        result = args[0] ** args[1];
+        break;
+      case "clamp":
+        result = args[1] > args[2] ? null : Math.min(args[2], Math.max(args[1], args[0]));
+        break;
+      case "percent":
+        result = args[1] === 0 ? null : (args[0] / args[1]) * 100;
+        break;
+      case "change":
+        result = args[1] === 0 ? null : ((args[0] - args[1]) / Math.abs(args[1])) * 100;
+        break;
       case "round": {
         const places = args[1] ?? 0;
         if (!Number.isInteger(places) || places < 0 || places > 8) return null;
@@ -508,7 +637,8 @@ export function evaluateVisualValue(
     }
     return isScalar(result) ? result : null;
   };
-  return evaluate(value, 0);
+  const result = evaluate(value, 0);
+  return typeof result === "string" && unsafeVisualText(result) ? null : result;
 }
 
 function controlValue(node: VisualNode, value: unknown, fallback: VisualScalar): VisualScalar {
@@ -538,6 +668,9 @@ function controlValue(node: VisualNode, value: unknown, fallback: VisualScalar):
         ? fallback
         : minimum;
     const bounded = Math.min(maximum, Math.max(minimum, number));
+    // Numeric text fields preserve decimal amounts. A step is a keyboard hint,
+    // whereas a slider actually selects discrete ticks.
+    if (node.type === "input") return bounded;
     const snapped = minimum + Math.round((bounded - minimum) / step) * step;
     return Math.min(maximum, Math.max(minimum, Number(snapped.toPrecision(12))));
   }
@@ -622,7 +755,8 @@ export function expandVisualAction(
     }
     return String(known[key] ?? "");
   });
-  if (invalid || /\{\{|\}\}/.test(expanded) || !expanded.trim() || expanded.length > 2000)
+  const template = action.text.replace(/\{\{([^{}]+)\}\}/g, "");
+  if (invalid || /\{\{|\}\}/.test(template) || !expanded.trim() || expanded.length > 2000)
     return null;
   return { kind: "follow_up", text: expanded };
 }

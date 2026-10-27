@@ -13,20 +13,43 @@ from typing import Any, cast
 
 from lonora_adapter_kit.types import ModelMessage
 from lonora_contracts.visual_response import MAX_VISUAL_BYTES, RichContent, VisualDocument
-from lonora_core.public_reply import redact_private_reply
+from lonora_contracts.visual_values import EXTENDED_ARITY, evaluate_extended_visual_op
+from lonora_core.public_reply import public_reply_violation, redact_private_reply
 from lonora_db.schema import ArtifactRow, CloudChartRow
 from lonora_tools.context import ToolContext
+from pydantic import ValidationError
 from sqlalchemy.exc import SQLAlchemyError
 
 from .context.financial_result import public_broker_ids
+from .display_bindings import unbound_prose
 
-START = re.compile(r"^[ \t]*`{3,}[ \t]*lonora-ui\b[^\n]*\n?", re.M | re.I)
-END = re.compile(r"(?m)^[ \t]*`{3,}[ \t]*(?:\r?\n|$)")
+START = re.compile(r"^[ \t]*(?:`{3,}|~{3,})[ \t]*lonora-ui\b[^\n]*\n?", re.M | re.I)
+END = re.compile(r"(?m)^[ \t]*(?:`{3,}|~{3,})[ \t]*(?:\r?\n|$)")
 PRIVATE_KEY = re.compile(
     r"password|secret|token|credential|private.?key|authorization|api.?key|access.?key|signing.?key|recovery.?code",
     re.I,
 )
 FAILED = {"error", "failed", "denied", "unavailable", "rejected"}
+
+
+def visual_start(text: str, position: int = 0) -> re.Match[str] | None:
+    """Find protocol frames outside ordinary Markdown code examples."""
+    fence: tuple[str, int] | None = None
+    offset = 0
+    for line in text.splitlines(keepends=True):
+        marker = re.match(r"^[ \t]*(`{3,}|~{3,})([^\r\n]*)", line)
+        if marker:
+            ticks, language = marker.groups()
+            if fence is not None:
+                if ticks[0] == fence[0] and len(ticks) >= fence[1] and not language.strip():
+                    fence = None
+            else:
+                native = START.match(text, offset)
+                if native is not None and offset >= position:
+                    return native
+                fence = (ticks[0], len(ticks))
+        offset += len(line)
+    return None
 
 
 def visual_stream_prefix(text: str) -> str:
@@ -35,12 +58,12 @@ def visual_stream_prefix(text: str) -> str:
     Following text waits for the atomic validated composition too, so mixed
     ordering cannot change between provisional streaming and durable publication.
     """
-    match = START.search(text)
+    match = visual_start(text)
     if match:
         return text[: match.start()]
     last_line = text.rsplit("\n", 1)[-1]
     token = last_line.lstrip(" \t")
-    opening = re.fullmatch(r"`+[ \t]*([^`\n]*)", token)
+    opening = re.fullmatch(r"(?:`+|~+)[ \t]*([^`~\n]*)", token)
     if opening and "lonora-ui".startswith(opening[1].lower()):
         return text[: len(text) - len(last_line)]
     return text
@@ -282,10 +305,42 @@ async def compile_document(
         for key, value in document.get("state", {}).items()
     }
     document["facts"] = facts
+    _guard_composed_display(document, public_ids)
     if document["mode"] == "observed":
         _observed(document["root"])
     await _resources(context, document["root"])
     return VisualDocument.model_validate(document).model_dump(mode="json", exclude_unset=True)
+
+
+def _guard_composed_display(document: dict[str, Any], public_ids: set[str]) -> None:
+    """Check expressions too: split literals must not bypass display privacy.
+
+    Inspect every branch, including currently hidden nodes. Direct display
+    strings are already scrubbed above; a sensitive newly composed expression
+    rejects its frame before either the compatibility text or rich tree leaves.
+    Local subsequent state edits also use the shared evaluator's privacy check.
+    """
+
+    def walk(value: Any) -> None:
+        if isinstance(value, list):
+            for item in cast(list[Any], value):
+                walk(item)
+        elif isinstance(value, dict):
+            value = cast(dict[str, Any], value)
+            if value.get("op") == "concat":
+                args = [_evaluate(arg, document) for arg in value.get("args", [])]
+                if all(isinstance(arg, str | int | float | bool) for arg in args):
+                    composed = "".join(str(arg) for arg in args)
+                    if "{{" in composed:
+                        raise ValueError("visual_display_binding_unresolved")
+                    if public_reply_violation(composed, public_ids=public_ids):
+                        raise ValueError("visual_composed_display_private")
+            for item in value.values():
+                walk(item)
+
+    walk(document["root"])
+    if public_reply_violation(text_projection(document), public_ids=public_ids):
+        raise ValueError("visual_composed_display_private")
 
 
 def _evaluate(value: Any, document: dict[str, Any]) -> Any:
@@ -303,6 +358,8 @@ def _evaluate(value: Any, document: dict[str, Any]) -> Any:
             condition, positive, negative = value["args"]
             return _evaluate(positive if _evaluate(condition, document) else negative, document)
         args = [_evaluate(arg, document) for arg in value.get("args", [])]
+        if op in EXTENDED_ARITY:
+            return evaluate_extended_visual_op(op, args)
         if op == "eq":
             # JavaScript strict equality considers int/float the same numeric
             # type, but never treats a boolean as the number zero or one.
@@ -422,64 +479,236 @@ def read_frame(raw: str) -> Any:
     return json.loads(prefix + "".join(reversed(stack)))
 
 
+class VisualProjection:
+    """An ordered safe projection; offsets also bound the legacy text stream."""
+
+    def __init__(self) -> None:
+        self.segments: list[tuple[dict[str, Any], str]] = []
+        self.errors: list[str] = []
+        self.saw_visual = False
+        self.privacy_redacted = False
+
+    @property
+    def text(self) -> str:
+        return "".join(text for _, text in self.segments)
+
+    def prose(self, text: str) -> None:
+        if text:
+            self.segments.append(({"type": "text", "text": text}, text))
+
+    def visual(self, document: dict[str, Any]) -> None:
+        # Preserve all original prose whitespace. Replacing just the internal
+        # frame makes the progressively admitted prefix equal the final message.
+        self.segments.append(
+            ({"type": "ui", "document": document}, text_projection(document) + "\n")
+        )
+
+    def visual_boundaries(self) -> list[int]:
+        end = 0
+        boundaries: list[int] = []
+        for part, projected in self.segments:
+            end += len(projected)
+            if part["type"] == "ui":
+                boundaries.append(end)
+        return boundaries
+
+    def rich_until(self, limit: int | None = None) -> dict[str, Any] | None:
+        if not self.saw_visual:
+            return None
+        remaining = len(self.text) if limit is None else limit
+        parts: list[dict[str, Any]] = []
+        for part, projected in self.segments:
+            if remaining <= 0:
+                break
+            if part["type"] == "ui":
+                if remaining < len(projected):
+                    break
+                parts.append(part)
+            else:
+                visible = projected[:remaining].strip("\r\n")
+                if visible.strip():
+                    if parts and parts[-1]["type"] == "text":
+                        parts[-1] = {"type": "text", "text": parts[-1]["text"] + "\n" + visible}
+                    else:
+                        parts.append({"type": "text", "text": visible})
+            remaining -= len(projected)
+        if not parts:
+            return None
+        try:
+            return RichContent.model_validate({"version": 1, "parts": parts}).model_dump(
+                mode="json", exclude_unset=True
+            )
+        except (ValueError, TypeError, RecursionError):
+            if "visual_response_rejected" not in self.errors:
+                self.errors.append("visual_response_rejected")
+            return None
+
+
+class VisualReplyProjector:
+    """Compile complete frames once, while independent prose keeps flowing.
+
+    A prefix never synthesizes a missing property, state or partial component.
+    Incomplete frames wait for their closing line; earlier validated frames and
+    following ordinary prose do not wait for the complete model generation.
+    """
+
+    def __init__(self, context: ToolContext, messages: list[ModelMessage]):
+        self.context, self.messages = context, messages
+        self.public_ids = public_broker_ids(messages)
+        self.cache: dict[tuple[int, str], dict[str, Any] | None] = {}
+        self.diagnostics: list[dict[str, Any]] = []
+        owner = next(
+            (
+                m.content
+                for m in reversed(messages)
+                if m.role == "user" and m.context_origin == "conversation"
+            ),
+            "",
+        )
+        self.failure = (
+            "تعذر عرض هذا الجزء التفاعلي."
+            if re.search(r"[\u0620-\u064a]", owner)
+            else "This interactive section could not be displayed."
+        )
+        self.unavailable = "غير متاح" if re.search(r"[\u0620-\u064a]", owner) else "Unavailable"
+        self.missing_binding_logged = False
+
+    def _failure(self, error: Exception, index: int) -> None:
+        # Never log Pydantic inputs, model output, resource IDs or exception
+        # strings. Codes and structural locations suffice to replay a failure.
+        code = "visual_frame_rejected"
+        paths: list[str] = []
+        if isinstance(error, ValidationError):
+            known = {
+                "root",
+                "children",
+                "value",
+                "label",
+                "text",
+                "state",
+                "action",
+                "args",
+                "type",
+                "id",
+                "version",
+                "mode",
+                "fields",
+                "rows",
+                "points",
+                "options",
+                "state_key",
+                "fact",
+                "path",
+                "call_id",
+            }
+            for item in error.errors(include_input=False)[:8]:
+                structural = item.get("ctx", {}).get("visual_path")
+                # The contract builds these locations from fixed field names
+                # and numeric positions, never from user-defined state/row keys.
+                if isinstance(structural, str) and re.fullmatch(
+                    r"(?:root|value)(?:\.(?:children|value|unit|visible|args|rows|cells|points|label|[0-9]+))*",
+                    structural,
+                ):
+                    paths.append(structural)
+                else:
+                    paths.append(
+                        ".".join(
+                            str(p) if isinstance(p, int) or p in known else "field"
+                            for p in item["loc"]
+                        )
+                        or "document"
+                    )
+            code = "visual_schema_invalid"
+        elif (
+            error.args
+            and isinstance(error.args[0], str)
+            and re.fullmatch(r"visual_[a-z_]+", error.args[0])
+        ):
+            code = error.args[0]
+        diagnostic = {"frame": index, "code": code, "paths": paths}
+        if isinstance(error, json.JSONDecodeError):
+            diagnostic.update({"line": error.lineno, "column": error.colno})
+        self.diagnostics.append(diagnostic)
+        logging.getLogger(__name__).warning(
+            "visual_frame_rejected", extra={"visual_diagnostic": diagnostic}
+        )
+
+    def _prose(self, result: VisualProjection, text: str, *, partial: bool = False) -> None:
+        protected = redact_private_reply(text, public_ids=self.public_ids)
+        result.privacy_redacted |= text != protected
+        protected, missing = unbound_prose(protected, self.unavailable, partial=partial)
+        if missing:
+            result.errors.append("visual_unresolved_text_binding")
+            if not self.missing_binding_logged:
+                self.diagnostics.append(
+                    {"code": "visual_unresolved_text_binding", "paths": ["prose"]}
+                )
+                self.missing_binding_logged = True
+        result.prose(protected)
+
+    async def project(self, text: str, *, partial: bool = False) -> VisualProjection:
+        result = VisualProjection()
+        position = 0
+        for index in range(12):
+            match = visual_start(text, position)
+            if not match:
+                break
+            result.saw_visual = True
+            self._prose(result, text[position : match.start()])
+            closing = END.search(text, match.end())
+            # A closing line at the provider's current EOF is still ambiguous:
+            # its next chunk may extend the line. Final EOF itself is complete.
+            if partial and (closing is None or not text[: closing.end()].endswith("\n")):
+                return result
+            position = closing.end() if closing else len(text)
+            raw = text[match.end() : closing.start() if closing else len(text)]
+            identity = (match.start(), raw)
+            if identity not in self.cache:
+                try:
+                    if closing is None or len(raw.encode()) > MAX_VISUAL_BYTES:
+                        raise ValueError("visual_frame_invalid")
+                    self.cache[identity] = await compile_document(
+                        self.context, read_frame(raw), self.messages
+                    )
+                except (
+                    ValueError,
+                    TypeError,
+                    KeyError,
+                    RecursionError,
+                    OverflowError,
+                    SQLAlchemyError,
+                ) as error:
+                    self._failure(error, index)
+                    self.cache[identity] = None
+            document = self.cache[identity]
+            if document is None:
+                result.errors.append("visual_frame_rejected")
+                result.prose(self.failure + "\n")
+            else:
+                if not partial:
+                    try:
+                        await _resources(self.context, document["root"])
+                    except (ValueError, SQLAlchemyError) as error:
+                        self._failure(error, index)
+                        result.errors.append("visual_frame_rejected")
+                        result.prose(self.failure + "\n")
+                        continue
+                result.visual(document)
+        tail = text[position:]
+        excess = visual_start(tail)
+        if excess:
+            tail = tail[: excess.start()]
+            result.errors.append("visual_parts_exceeded")
+        if partial:
+            tail = visual_stream_prefix(tail)
+        self._prose(result, tail, partial=partial)
+        return result
+
+
 async def parse_visual_reply(
     context: ToolContext, text: str, messages: list[ModelMessage]
 ) -> tuple[str, dict[str, Any] | None, list[str]]:
-    if not START.search(text):
+    if not visual_start(text) and "{{" not in text:
         return text, None, []
-    parts: list[dict[str, Any]] = []
-    fallback: list[str] = []
-    errors: list[str] = []
-    position = 0
-    public_ids = public_broker_ids(messages)
-    owner = next(
-        (
-            m.content
-            for m in reversed(messages)
-            if m.role == "user" and m.context_origin == "conversation"
-        ),
-        "",
-    )
-    failure = (
-        "تعذر عرض هذا الجزء التفاعلي."
-        if re.search(r"[\u0620-\u064a]", owner)
-        else "This interactive section could not be displayed."
-    )
-    for _ in range(12):
-        match = START.search(text, position)
-        if not match:
-            break
-        prefix = redact_private_reply(text[position : match.start()], public_ids=public_ids)
-        if prefix.strip():
-            parts.append({"type": "text", "text": prefix.strip()})
-            fallback.append(prefix.strip())
-        closing = END.search(text, match.end())
-        position = closing.end() if closing else len(text)
-        raw = text[match.end() : closing.start() if closing else len(text)]
-        try:
-            if not closing or len(raw.encode()) > MAX_VISUAL_BYTES:
-                raise ValueError("visual_frame_invalid")
-            parsed = read_frame(raw)
-            document = await compile_document(context, parsed, messages)
-            parts.append({"type": "ui", "document": document})
-            fallback.append(text_projection(document))
-        except (ValueError, TypeError, KeyError, RecursionError, OverflowError, SQLAlchemyError):
-            errors.append("visual_frame_rejected")
-            parts.append({"type": "text", "text": failure})
-            fallback.append(failure)
-    tail = text[position:]
-    # Never leak excess documents or a partially accumulated serialized frame.
-    excess = START.search(tail)
-    if excess:
-        tail = tail[: excess.start()]
-        errors.append("visual_parts_exceeded")
-    tail = redact_private_reply(tail, public_ids=public_ids)
-    if tail.strip():
-        parts.append({"type": "text", "text": tail.strip()})
-        fallback.append(tail.strip())
-    answer = "\n\n".join(item for item in fallback if item)
-    try:
-        rich = RichContent.model_validate({"version": 1, "parts": parts})
-        return answer, rich.model_dump(mode="json", exclude_unset=True), errors
-    except (ValueError, TypeError, RecursionError):
-        return answer or failure, None, [*errors, "visual_response_rejected"]
+    result = await VisualReplyProjector(context, messages).project(text)
+    return result.text, result.rich_until(), result.errors

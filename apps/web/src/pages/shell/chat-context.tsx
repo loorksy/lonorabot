@@ -40,19 +40,29 @@ import {
 } from "react";
 import { AgentLiveStatus } from "../../components/ai/AgentLiveStatus";
 import { SubagentTasks } from "../../components/ai/CollaborationMarker";
-import { AgentActivity, WorkingIndicator } from "../../components/ai/primitives";
+import { WorkingIndicator } from "../../components/ai/primitives";
+import { TurnActivity } from "../../components/ai/TurnActivity";
 import { FilePreviewPanel } from "../../components/common/FilePreviewPanel";
 import { ConversationQuestion } from "../../components/conversation-question";
-import { ToolActivityDisclosure } from "../../components/ToolActivityDisclosure";
 import { SuperBotCard, useSuperBotRequests } from "../../components/trading/SuperBotCards";
 import { TradeApprovalCard, useTradeApprovals } from "../../components/trading/TradeApprovals";
 import { useThreads } from "../../hooks/useThreads";
 import type { Agent, Message, Resource, Run } from "../../lib/api";
 import { api } from "../../lib/api";
 import { showLatestButton } from "../../lib/chat-scroll";
+import {
+  appendDraftFiles,
+  draftKey,
+  finishDraftUpload,
+  observeDraftUploads,
+  pendingDraftUploads,
+  readComposerDraft,
+  saveComposerDraft,
+  startDraftUpload,
+} from "../../lib/composer-drafts";
 import { failedReplies } from "../../lib/failed-replies";
 import { streamForRun } from "../../lib/response_streaming";
-import { type StreamRow, streamTimeline, streamVisible } from "../../lib/stream-timeline";
+import { activityTimeline, type StreamRow, streamVisible } from "../../lib/stream-timeline";
 import { userError } from "../../lib/user_error";
 import { useClient } from "../../providers/ClientProvider";
 import {
@@ -82,7 +92,9 @@ export function ThreadViewport({
   const { owner, events, revision, streams, seedStreams, connected } = useClient();
   const repairingStreams = useRef(new Set<string>());
   const lastRepair = useRef(new Map<string, number>());
-  const [reply, setReply] = useState<Message | null>(null);
+  const [reply, setReply] = useState<Message | null>(
+    () => readComposerDraft(draftKey(owner.id, threadId)).reply,
+  );
   const [artifacts, setArtifacts] = useState<Resource[]>([]);
   const [collaboration, setCollaboration] = useState<Resource | null>(null);
   const [peers, setPeers] = useState<Resource[]>([]);
@@ -93,14 +105,14 @@ export function ThreadViewport({
 
   useEffect(() => {
     void threadId;
-    setReply(null);
+    setReply(readComposerDraft(draftKey(owner.id, threadId)).reply);
     setPreview(null);
     setActionError(undefined);
     setArtifactError(undefined);
     setPeerError(undefined);
     setArtifacts([]);
     setPeers([]);
-  }, [threadId]);
+  }, [threadId, owner.id]);
 
   useEffect(() => {
     void revision;
@@ -305,20 +317,22 @@ export function ThreadViewport({
         artifacts={artifacts}
         peers={peers}
         runs={thread.runs}
+        previousVisualMessageIds={
+          new Map(
+            thread.runs.flatMap((run) => {
+              const stream = streamForRun(run, streams[run.id]);
+              return stream?.message_id ? [[stream.message_id, `preview:${run.id}`] as const] : [];
+            }),
+          )
+        }
+        events={local}
+        connected={connected}
         onReply={setReply}
         onPreview={setPreview}
         onOlder={thread.older}
         onRetrySend={thread.retry}
         trailing={
           <div className="thread-progress template-thread-progress">
-            <AgentActivity
-              events={local}
-              runs={thread.runs.filter(
-                (run) => !streamingRows.some((entry) => entry.run.id === run.id),
-              )}
-              agents={agents}
-            />
-            <ToolActivityDisclosure events={local} />
             <SubagentTasks runs={thread.runs} />
           </div>
         }
@@ -326,6 +340,7 @@ export function ThreadViewport({
       <Composer
         key={`composer:${threadId}`}
         threadId={threadId}
+        ownerId={owner.id}
         working={working}
         reply={reply}
         recipientName={conversationName ?? agents.find((agent) => agent.id === agentId)?.name}
@@ -338,7 +353,7 @@ export function ThreadViewport({
             ),
         )}
         onClearReply={() => setReply(null)}
-        onSend={thread.send}
+        onSend={thread.queue}
         onCancel={() => {
           void changeRun("cancel");
         }}
@@ -350,6 +365,7 @@ export function ThreadViewport({
 
 export function Composer({
   threadId,
+  ownerId = "",
   working,
   reply,
   mentionTargets = [],
@@ -361,6 +377,7 @@ export function Composer({
   onCancel,
 }: {
   threadId: string;
+  ownerId?: string;
   working: boolean;
   reply: Message | null;
   mentionTargets?: Agent[];
@@ -368,20 +385,17 @@ export function Composer({
   collaborationSessionId?: string;
   recipientName?: string;
   onClearReply: () => void;
-  onSend: (
-    text: string,
-    ids: string[],
-    reply: string | null,
-    mentions?: MentionAddress,
-  ) => Promise<void>;
+  onSend: (text: string, ids: string[], reply: string | null, mentions?: MentionAddress) => void;
   onCancel: () => void;
 }) {
-  const [text, setText] = useState("");
-  const committedMentions = useRef<MentionRange[]>([]);
+  const storageKey = draftKey(ownerId, threadId);
+  const initial = useRef(readComposerDraft(storageKey));
+  const [text, setText] = useState(initial.current.text);
+  const committedMentions = useRef<MentionRange[]>(initial.current.mentions);
   const caret = useRef(0);
-  const [files, setFiles] = useState<Resource[]>([]);
+  const [files, setFiles] = useState<Resource[]>(initial.current.files);
   const [sending, setSending] = useState(false);
-  const [uploading, setUploading] = useState(false);
+  const [uploading, setUploading] = useState(() => pendingDraftUploads(storageKey) > 0);
   const [error, setError] = useState<unknown>();
   const [inputOverflow, setInputOverflow] = useState({ top: false, bottom: false });
   const [dragging, setDragging] = useState(false);
@@ -391,7 +405,7 @@ export function Composer({
   const textarea = useRef<HTMLTextAreaElement>(null);
   const composer = useRef<HTMLFormElement>(null);
   const sendingRef = useRef(false);
-  const uploadRef = useRef(false);
+  const uploadRef = useRef(pendingDraftUploads(storageKey) > 0);
   const mounted = useRef(true);
   const draftRevision = useRef(0);
   const dragDepth = useRef(0);
@@ -400,6 +414,22 @@ export function Composer({
   const latestReply = useRef(reply?.id);
   latestReply.current = reply?.id;
   const replyId = reply?.id;
+  const currentDraft = useRef({ text, files, mentions: committedMentions.current, reply });
+  currentDraft.current = { text, files, mentions: committedMentions.current, reply };
+  useEffect(() => {
+    saveComposerDraft(storageKey, { text, files, mentions: committedMentions.current, reply });
+  }, [storageKey, text, files, reply]);
+  useEffect(() => () => saveComposerDraft(storageKey, currentDraft.current), [storageKey]);
+  useEffect(
+    () =>
+      observeDraftUploads(storageKey, () => {
+        const pending = pendingDraftUploads(storageKey) > 0;
+        uploadRef.current = pending;
+        setUploading(pending);
+        setFiles(readComposerDraft(storageKey).files);
+      }),
+    [storageKey],
+  );
   const canSend = Boolean(text.trim() || files.length);
   const mentionOptions: Array<Agent | null> = mentionCandidates(
     mentionTargets,
@@ -516,24 +546,25 @@ export function Composer({
   async function upload(picked: File[]) {
     if (!picked.length || uploadRef.current) return;
     uploadRef.current = true;
+    startDraftUpload(storageKey);
     setUploading(true);
     setError(undefined);
     try {
       const results = await Promise.allSettled(picked.map((file) => api.upload(file, threadId)));
-      if (!mounted.current) return;
       const uploaded = results.flatMap((result) =>
         result.status === "fulfilled" ? [result.value] : [],
       );
-      setFiles((old) => [...old, ...uploaded]);
+      appendDraftFiles(storageKey, uploaded);
       const failure = results.find((result) => result.status === "rejected");
-      if (failure?.status === "rejected") setError(failure.reason);
+      if (mounted.current && failure?.status === "rejected") setError(failure.reason);
     } finally {
       uploadRef.current = false;
+      finishDraftUpload(storageKey);
       if (mounted.current) setUploading(false);
     }
   }
 
-  async function send() {
+  function send() {
     if ((!text.trim() && !files.length) || sendingRef.current || uploadRef.current) return;
     sendingRef.current = true;
     setSending(true);
@@ -541,13 +572,20 @@ export function Composer({
     const attachments = files.map((file) => file.id);
     const sentReply = reply?.id ?? null;
     try {
-      await onSend(
+      onSend(
         text.trim() || t`Attached files`,
         attachments,
         sentReply,
         mentionAddress(text, committedMentions.current),
       );
       if (!mounted.current) return;
+      currentDraft.current = {
+        text: "",
+        files: files.filter((file) => !attachments.includes(file.id)),
+        mentions: [],
+        reply: null,
+      };
+      saveComposerDraft(storageKey, currentDraft.current);
       if (draftRevision.current === revision) {
         setText("");
         committedMentions.current = [];
@@ -850,7 +888,13 @@ export function ThreadMessages({
   renderSuperBot,
   onAnswer,
   onRetrySend,
+  events = [],
+  connected = true,
+  previousVisualMessageIds,
 }: {
+  previousVisualMessageIds?: Map<string, string>;
+  events?: import("../../lib/api").Event[];
+  connected?: boolean;
   ownerId?: string;
   onVisualAction?: (action: VisualAction) => Promise<void>;
   onAnswer?: (answer: InputAnswer, label: string, messageId: string) => Promise<void>;
@@ -871,7 +915,7 @@ export function ThreadMessages({
   onOlder: () => Promise<void>;
   trailing?: ReactNode;
 }) {
-  const messages = streamTimeline(canonicalMessages, streaming);
+  const messages = activityTimeline(canonicalMessages, runs, streaming);
   const failures = failedReplies(runs, canonicalMessages);
   const previews = new Map(streaming.map((row) => [`preview:${row.run.id}`, row]));
   const { i18n } = useLingui();
@@ -1008,6 +1052,18 @@ export function ThreadMessages({
             if (item.kind === "approval")
               return <Fragment key={item.id}>{renderApproval?.(item.approval)}</Fragment>;
             const message = item.message;
+            if (message.id.startsWith("activity:")) {
+              const run = runsById.get(message.id.slice("activity:".length));
+              return run ? (
+                <TurnActivity
+                  key={message.id}
+                  run={run}
+                  events={events}
+                  connected={connected}
+                  agent={agents.find((agent) => agent.id === run.agent_id)}
+                />
+              ) : null;
+            }
             const preview = previews.get(message.id);
             if (preview)
               return (
@@ -1015,6 +1071,8 @@ export function ThreadMessages({
                   key={message.id}
                   run={preview.run}
                   stream={preview.stream}
+                  events={events}
+                  connected={connected}
                   ownerId={ownerId}
                   artifacts={artifacts}
                   onVisualAction={onVisualAction}
@@ -1042,6 +1100,7 @@ export function ThreadMessages({
                 )}
                 <MessageBubble
                   message={message}
+                  previousVisualMessageId={previousVisualMessageIds?.get(message.id)}
                   ownerId={ownerId}
                   onVisualAction={onVisualAction}
                   body={

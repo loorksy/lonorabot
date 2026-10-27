@@ -1,3 +1,4 @@
+from time import perf_counter
 from typing import cast
 
 from fastapi import Request
@@ -13,6 +14,7 @@ def runtime(request: Request) -> ApiRuntime:
 
 
 async def require_owner(request: Request) -> OwnerIdentity:
+    started = perf_counter()
     authorization = request.headers.get("authorization", "")
     bearer = authorization[7:] if authorization.lower().startswith("bearer ") else None
     token = bearer or request.cookies.get("lonora_session")
@@ -21,4 +23,5 @@ async def require_owner(request: Request) -> OwnerIdentity:
         if not bearer and request.method not in {"GET", "HEAD", "OPTIONS"}:
             await check_csrf(session, identity, request.headers.get("x-csrf-token"))
         await ensure_personal_agent(session, identity.id)
+        request.state.auth_ms = round((perf_counter() - started) * 1000, 2)
         return identity

@@ -10,6 +10,7 @@ from lonora_adapters.models.anthropic import anthropic_messages
 from lonora_adapters.models.openai_compatible import wire_message
 from lonora_agent.collaboration.outcome_return import return_outcome
 from lonora_agent.executor import execute_run
+from lonora_agent.progress import DELTA_CHUNK_CHARS, progress
 from lonora_agent.recovery import restore_execution
 from lonora_agent.tool_loop import external_wait_outcome, wait_update
 from lonora_contracts.domain import MessageCreate
@@ -22,7 +23,13 @@ from lonora_db.messages import history, message_data, send_message
 from lonora_db.rich_response import validated_rich_content
 from lonora_db.runs import claim_next, complete_run, create_run
 from lonora_db.schema import AgentRow, EventRow, MessageRow, RunRow, ThreadRow
-from lonora_db.streaming import settle_stream, start_stream, stream_data, stream_identity
+from lonora_db.streaming import (
+    append_rich_partial,
+    settle_stream,
+    start_stream,
+    stream_data,
+    stream_identity,
+)
 from lonora_db.task_wait_settlement import settle_task_wait
 from lonora_db.tasks import control_task, create_task, get_task
 from lonora_tools.context import ToolContext
@@ -215,6 +222,98 @@ async def test_rollback_and_stale_worker_cannot_publish_visual_content(
             await complete_run(session, lease, "Lost worker", {"rich_content": RICH})
     async with db.sessions() as session:
         assert len(await history(session, owner, thread)) == 1
+
+
+@pytest.mark.asyncio
+async def test_partial_rich_and_text_share_one_fenced_sequence_without_retransmitting_tree(
+    task_db: tuple[Database, str, str, str],
+):
+    db, owner, agent, thread = task_db
+    lease = await leased(task_db)
+    context = ToolContext(
+        db,
+        owner,
+        agent,
+        thread,
+        lease,
+        cast(Any, None),
+        cast(Any, None),
+        cast(Any, None),
+        cast(Any, None),
+        Path("/tmp"),
+    )
+    await progress(context, "run.rich_partial", {"turn_id": "visual-turn", "rich_content": RICH})
+    updated = deepcopy(RICH)
+    updated["parts"][1]["document"]["root"]["children"][1]["value"] = 43
+    text = "x" * (DELTA_CHUNK_CHARS * 2 + 1)
+    await progress(
+        context, "run.delta", {"turn_id": "visual-turn", "text": text, "rich_content": updated}
+    )
+    await progress(context, "run.delta", {"turn_id": "visual-turn", "text": " tail"})
+    async with db.sessions() as session:
+        run = await session.get(RunRow, lease.run_id)
+        assert run
+        snapshot = stream_data(run)
+        assert snapshot and snapshot["phase"] == "streaming" and snapshot["message_id"] is None
+        assert snapshot["text"] == text + " tail" and snapshot["rich_content"] == updated
+        events = list(
+            await session.scalars(
+                select(EventRow)
+                .where(
+                    EventRow.run_id == run.id, EventRow.kind.in_(["run.delta", "run.rich_partial"])
+                )
+                .order_by(EventRow.cursor)
+            )
+        )
+        assert [event.payload["sequence"] for event in events] == [1, 2, 3, 4, 5]
+        assert events[0].kind == "run.rich_partial" and events[0].payload["rich_content"] == RICH
+        assert "rich_content" not in events[1].payload and "rich_content" not in events[2].payload
+        assert events[3].payload["rich_content"] == updated
+        assert "rich_content" not in events[4].payload
+        assert len(await history(session, owner, thread)) == 1
+
+
+@pytest.mark.asyncio
+async def test_partial_rich_is_transactional_and_stale_generation_cannot_replace_it(
+    task_db: tuple[Database, str, str, str],
+):
+    db, _, _, _ = task_db
+    lease = await leased(task_db)
+    async with db.sessions() as session:
+        await session.begin()
+        run = await session.get(RunRow, lease.run_id)
+        assert run and append_rich_partial(run, lease, "visual-turn", RICH)
+        await session.flush()
+        await session.rollback()
+    async with db.sessions() as session, session.begin():
+        run = await session.get(RunRow, lease.run_id)
+        assert run and "rich_content" not in (stream_data(run) or {})
+        start_stream(run, lease, "new-provider-attempt")
+        with pytest.raises(LonoraError, match="stale_stream_turn"):
+            append_rich_partial(run, lease, "visual-turn", RICH)
+        assert append_rich_partial(run, lease, "new-provider-attempt", RICH)
+        with pytest.raises(LonoraError, match="stale_stream_turn"):
+            append_rich_partial(
+                run,
+                Lease(run_id=lease.run_id, owner=lease.owner, fence=lease.fence + 1),
+                "new-provider-attempt",
+                RICH,
+            )
+
+
+@pytest.mark.parametrize("phase", ["failed", "cancelled"])
+def test_interrupted_stream_keeps_only_previously_validated_content(phase: str):
+    run = RunRow(input_seq=1, model_metadata={})
+    lease = Lease(run_id="run", owner="worker", fence=1)
+    start_stream(run, lease, "accepted")
+    append_rich_partial(run, lease, "accepted", RICH)
+    forged = {"version": 1, "parts": [{"type": "html", "text": "<script>"}]}
+    assert append_rich_partial(run, lease, "accepted", forged) is None
+    snapshot = settle_stream(run, phase, rich_content=forged)
+    assert snapshot and snapshot["phase"] == phase and snapshot["message_id"] is None
+    assert snapshot["rich_content"] == RICH
+    assert settle_stream(run, "committed", message_id="plain", text="Plain answer")
+    assert "rich_content" not in (stream_data(run) or {})
 
 
 @pytest.mark.asyncio

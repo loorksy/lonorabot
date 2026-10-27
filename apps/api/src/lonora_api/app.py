@@ -100,6 +100,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
         allow_headers=["Content-Type", "X-CSRF-Token", "Authorization", "X-Request-Id"],
+        expose_headers=["X-Request-Id", "Server-Timing"],
     )
     app.add_middleware(BodyLimitMiddleware)
     app.add_middleware(RateLimitMiddleware)

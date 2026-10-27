@@ -65,16 +65,17 @@ test("a committed SSE/history record replaces its optimistic copy by nonce", () 
   assert.equal(outbox.outgoingMessages(key).length, 0);
 });
 
-test("lost HTTP receipt remains safe to retry even after an event confirms the message", () => {
+test("a durable event settles a lost HTTP receipt; a later intentional send gets a new nonce", () => {
   const { outbox, key } = fixture();
   const intent = outbox.enqueueOutgoing(key, "thread", "same text", { content: "hello" });
   outbox.failOutgoing(key, intent.nonce);
   outbox.acknowledgeOutgoing(key, [accepted(intent)]);
-  const retry = outbox.enqueueOutgoing(key, "thread", "same text", intent.body);
-  assert.equal(retry.nonce, intent.nonce);
-  outbox.acknowledgeOutgoing(key, [accepted(retry)], true);
+  assert.equal(outbox.outgoingMessages(key).length, 0);
+  // There is no failed Retry affordance after the server independently confirms
+  // commitment. Re-entering identical text is a new explicit user intent.
   const next = outbox.enqueueOutgoing(key, "thread", "same text", intent.body);
   assert.notEqual(next.nonce, intent.nonce);
+  assert.equal(next.body.client_nonce, next.nonce);
 });
 
 test("navigation and other owners cannot consume another conversation's outbox", () => {

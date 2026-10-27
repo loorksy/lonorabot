@@ -1,4 +1,5 @@
 import type { VisualNode, VisualScalar } from "@lonora/contracts";
+import { parseVisualNumberDraft } from "@lonora/core";
 import { visual } from "@lonora/ui-tokens";
 import { useEffect, useRef, useState } from "react";
 import { Pressable, Text, TextInput, View } from "react-native";
@@ -11,19 +12,6 @@ type Props = {
   rtl: boolean;
   onChange: (value: VisualScalar) => void;
 };
-
-function localizedNumber(value: string) {
-  return Number(
-    value
-      .replace(/[٠-٩۰-۹]/gu, (digit) =>
-        String(
-          "٠١٢٣٤٥٦٧٨٩".includes(digit) ? "٠١٢٣٤٥٦٧٨٩".indexOf(digit) : "۰۱۲۳۴۵۶۷۸۹".indexOf(digit),
-        ),
-      )
-      .replace(/٫/g, ".")
-      .replace(/٬/g, ""),
-  );
-}
 
 export function NativeVisualInput({ node, value, palette, rtl, onChange }: Props) {
   const [draft, setDraft] = useState(String(value ?? ""));
@@ -54,14 +42,29 @@ export function NativeVisualInput({ node, value, palette, rtl, onChange }: Props
         }}
         onBlur={() => {
           focused.current = false;
-          setDraft(String(value ?? ""));
+          if (node.input_kind !== "number") return;
+          const parsed = parseVisualNumberDraft(draft);
+          if (parsed === undefined) setDraft(String(value ?? ""));
+          else if (parsed === null) {
+            onChange(null);
+            setDraft("");
+          } else {
+            const bounded = Math.max(node.minimum ?? 0, Math.min(node.maximum ?? 100, parsed));
+            onChange(bounded);
+            setDraft(String(bounded));
+          }
         }}
         onChangeText={(next) => {
           setDraft(next);
           if (node.input_kind === "number") {
-            const number = localizedNumber(next);
-            if (next.trim() && Number.isFinite(number)) onChange(number);
-            else if (!next.trim()) onChange(null);
+            const parsed = parseVisualNumberDraft(next);
+            if (
+              parsed === null ||
+              (parsed !== undefined &&
+                parsed >= (node.minimum ?? 0) &&
+                parsed <= (node.maximum ?? 100))
+            )
+              onChange(parsed);
           } else onChange(next);
         }}
         placeholderTextColor={palette["muted-foreground"]}
@@ -73,7 +76,7 @@ export function NativeVisualInput({ node, value, palette, rtl, onChange }: Props
           backgroundColor: palette.input,
           color: palette.foreground,
           paddingHorizontal: visual.space.normal,
-          fontSize: visual.font.body,
+          fontSize: visual.controlFont,
           textAlign: rtl ? "right" : "left",
           writingDirection: rtl ? "rtl" : "ltr",
         }}

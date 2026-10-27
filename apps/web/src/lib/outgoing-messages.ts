@@ -12,7 +12,8 @@ export type OutgoingIntent = {
 };
 
 const entries = new Map<string, OutgoingIntent[]>();
-const uncertain = new Map<string, Map<string, OutgoingIntent>>();
+const loaded = new Set<string>();
+const prefix = "lonora:outbox:v1:";
 const listeners = new Set<() => void>();
 const empty: OutgoingIntent[] = [];
 
@@ -24,11 +25,47 @@ export function subscribeOutgoing(listener: () => void) {
   return () => listeners.delete(listener);
 }
 export function outgoingMessages(key: string): OutgoingIntent[] {
+  if (!loaded.has(key)) {
+    loaded.add(key);
+    try {
+      const saved = JSON.parse(localStorage.getItem(prefix + key) ?? "null") as
+        | OutgoingIntent[]
+        | null;
+      if (
+        Array.isArray(saved) &&
+        saved.length <= 100 &&
+        saved.every(
+          (row) =>
+            typeof row.nonce === "string" &&
+            typeof row.fingerprint === "string" &&
+            row.body?.client_nonce === row.nonce &&
+            row.message?.id === `pending:${row.nonce}` &&
+            row.message.role === "user" &&
+            row.message.thread_id === JSON.parse(key)[1] &&
+            typeof row.message.content === "string" &&
+            Array.isArray(row.message.attachment_ids),
+        )
+      ) {
+        entries.set(
+          key,
+          saved.map((row) => ({ ...row, message: { ...row.message, delivery: "failed" } })),
+        );
+      }
+    } catch {
+      /* Closed storage or corrupt local state cannot replace server history. */
+    }
+  }
   return entries.get(key) ?? empty;
 }
 function save(key: string, rows: OutgoingIntent[]) {
   if (rows.length) entries.set(key, rows);
   else entries.delete(key);
+  try {
+    if (rows.length) localStorage.setItem(prefix + key, JSON.stringify(rows));
+    else localStorage.removeItem(prefix + key);
+  } catch {
+    /* Memory still retains the recoverable outgoing message. */
+  }
   for (const listener of listeners) listener();
 }
 export function enqueueOutgoing(
@@ -38,14 +75,16 @@ export function enqueueOutgoing(
   body: Record<string, unknown>,
   afterSeq = 0,
 ): OutgoingIntent {
-  const prior =
-    outgoingMessages(key).find((row) => row.fingerprint === fingerprint) ??
-    uncertain.get(key)?.get(fingerprint);
+  const prior = outgoingMessages(key).find((row) => row.fingerprint === fingerprint);
   if (prior) {
     const next = { ...prior, message: { ...prior.message, delivery: "sending" as const } };
-    save(key, [...outgoingMessages(key).filter((row) => row.nonce !== prior.nonce), next]);
-    return prior;
+    save(
+      key,
+      outgoingMessages(key).map((row) => (row.nonce === prior.nonce ? next : row)),
+    );
+    return next;
   }
+  if (outgoingMessages(key).length >= 100) throw new Error("outbox_full");
   const nonce = crypto.randomUUID();
   const intent: OutgoingIntent = {
     fingerprint,
@@ -71,12 +110,6 @@ export function enqueueOutgoing(
   return intent;
 }
 export function failOutgoing(key: string, nonce: string) {
-  const intent = outgoingMessages(key).find((row) => row.nonce === nonce);
-  if (intent) {
-    const receipts = uncertain.get(key) ?? new Map<string, OutgoingIntent>();
-    receipts.set(intent.fingerprint, intent);
-    uncertain.set(key, receipts);
-  }
   save(
     key,
     outgoingMessages(key).map((row) =>
@@ -86,12 +119,7 @@ export function failOutgoing(key: string, nonce: string) {
 }
 export function acknowledgeOutgoing(key: string, messages: Message[], httpConfirmed = false) {
   const nonces = new Set(messages.map((message) => message.client_nonce).filter(Boolean));
-  if (httpConfirmed) {
-    const receipts = uncertain.get(key);
-    if (receipts)
-      for (const [fingerprint, intent] of receipts)
-        if (nonces.has(intent.nonce)) receipts.delete(fingerprint);
-  }
+  void httpConfirmed; // A canonical nonce acknowledges the same committed receipt over HTTP or SSE.
   const current = outgoingMessages(key);
   const next = current.filter((row) => !nonces.has(row.nonce));
   if (next.length !== current.length) save(key, next);
@@ -100,10 +128,17 @@ export function isOutgoingMessage(message: Message): message is OutgoingMessage 
   return message.id.startsWith("pending:") && "delivery" in message && "retry_nonce" in message;
 }
 
-// Keep unacknowledged messages during navigation/reconnect, never across sessions.
+// Recover pending text after reload without automatically resubmitting uncertain work.
+// Session reset removes persisted private drafts/outbox for the departing principal.
 if (typeof window !== "undefined")
   window.addEventListener("lonora:session-reset", () => {
     entries.clear();
-    uncertain.clear();
+    loaded.clear();
+    try {
+      for (const key of Object.keys(localStorage))
+        if (key.startsWith(prefix)) localStorage.removeItem(key);
+    } catch {
+      /* Storage may be denied. */
+    }
     for (const listener of listeners) listener();
   });

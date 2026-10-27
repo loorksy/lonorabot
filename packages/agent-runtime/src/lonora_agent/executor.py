@@ -1,15 +1,24 @@
 import asyncio
 import logging
+from time import perf_counter
 
 from lonora_contracts.domain import utcnow
 from lonora_core.user_error import LonoraError
 from lonora_db.events import emit
 from lonora_db.generated_artifacts import link_generated_artifacts, resolve_reply_artifacts
 from lonora_db.rich_response import validated_rich_content
-from lonora_db.runs import complete_run, fail_run, locked_run_thread, renew_lease, require_lease
+from lonora_db.runs import (
+    complete_run,
+    fail_run,
+    locked_run_thread,
+    renew_lease,
+    require_lease,
+    run_data,
+)
 from lonora_db.schema import MessageRow, SteeringRow, TradeApprovalRow
 from lonora_db.streaming import settle_stream, stream_identity
 from lonora_db.task_wait_settlement import settle_task_wait
+from lonora_logging.context import run_id as diagnostic_run_id
 from lonora_tools.context import ToolContext
 from lonora_tools.registry import ToolRegistry
 from sqlalchemy import select
@@ -26,6 +35,7 @@ log = logging.getLogger("lonora.executor")
 async def execute_run(
     context: ToolContext, registry: ToolRegistry, lease_seconds: int, maximum_rounds: int
 ) -> None:
+    correlation = diagnostic_run_id.set(context.lease.run_id)
     current = asyncio.current_task()
     lost_lease = asyncio.Event()
 
@@ -54,12 +64,18 @@ async def execute_run(
                 thread_id=context.thread_id,
                 agent_id=context.agent_id,
                 run_id=row.id,
+                payload={"run": run_data(row)},
             )
         async with context.db.sessions() as session:
             row = await require_lease(session, context.lease)
             restored = bool(row.execution_state)
         if not restored:
+            preparing = perf_counter()
             await compact_history(context)
+            log.info(
+                "agent_history_prepared duration_ms=%.2f",
+                (perf_counter() - preparing) * 1000,
+            )
         while True:
             outcome = await execute_tool_loop(context, registry, maximum_rounds)
             async with context.db.sessions() as session, session.begin():
@@ -246,3 +262,4 @@ async def execute_run(
     finally:
         heartbeat_task.cancel()
         await asyncio.gather(heartbeat_task, return_exceptions=True)
+        diagnostic_run_id.reset(correlation)

@@ -1,6 +1,6 @@
 import type { AgentLiveState } from "@lonora/contracts";
 import { useFocusEffect } from "expo-router";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { AppState, Pressable, Text, View } from "react-native";
 import { api } from "../lib/api";
 import { useSession } from "../lib/session";
@@ -11,6 +11,8 @@ export function AgentLiveStatus({ agentId }: { agentId: string }) {
   const [state, setState] = useState<AgentLiveState | null>(null);
   const [expanded, setExpanded] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const reportError = useRef(errorText);
+  reportError.current = errorText;
   useFocusEffect(
     useCallback(() => {
       let live = true;
@@ -27,16 +29,16 @@ export function AgentLiveStatus({ agentId }: { agentId: string }) {
             }
           }
         } catch (caught) {
-          if (live) setError(errorText(caught));
+          if (live) setError(reportError.current(caught));
         }
-        if (live) timer = setTimeout(() => void refresh(), 3000);
+        if (live) timer = setTimeout(() => void refresh(), 15000);
       };
       void refresh();
       return () => {
         live = false;
         clearTimeout(timer);
       };
-    }, [agentId, errorText]),
+    }, [agentId]),
   );
   if (!state) return null;
   return (
@@ -45,8 +47,11 @@ export function AgentLiveStatus({ agentId }: { agentId: string }) {
         accessibilityRole="button"
         accessibilityState={{ expanded }}
         onPress={() => setExpanded(!expanded)}
+        style={{ minHeight: 44, justifyContent: "center" }}
       >
-        <Text style={{ color: colors.secondary }}>{t(`live_${state.state}`)}</Text>
+        <Text style={{ color: colors.secondary }}>
+          {t("backgroundActivity")} · {t(`live_${state.state}`)}
+        </Text>
       </Pressable>
       {expanded && (
         <View style={{ gap: 8, paddingVertical: 8 }}>
