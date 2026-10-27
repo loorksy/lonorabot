@@ -301,3 +301,50 @@ test("native durable WS authenticates live, resumes cursor, refreshes after read
   ]);
   stop();
 });
+
+test("native visual persistence retains complete scope identity beyond filesystem filename limits", async () => {
+  const files = new Map<string, string>();
+  class Directory {
+    path: string;
+    constructor(...parts: string[]) {
+      this.path = parts.join("/");
+    }
+    create() {}
+  }
+  class File {
+    path: string;
+    constructor(directory: Directory, name: string) {
+      this.path = `${directory.path}/${name}`;
+    }
+    get exists() {
+      return files.has(this.path);
+    }
+    async text() {
+      return files.get(this.path) ?? "";
+    }
+    write(raw: string) {
+      files.set(this.path, raw);
+    }
+  }
+  const fixture = () =>
+    moduleFixture<typeof import("../../apps/mobile/lib/visual-state")>("visual-state", {
+      "react-native": { Platform: { OS: "android" } },
+      "./session-lifecycle": { registerSessionTeardown() {} },
+      "expo-file-system": { Directory, File, Paths: { document: "document" } },
+    });
+  const first = fixture();
+  const prefix = `same-owner-server-thread-message-${"x".repeat(300)}`;
+  await first.saveVisualState(`${prefix}-document-one`, { state: { amount: 250 }, expanded: {} });
+  await first.saveVisualState(`${prefix}-document-two`, { state: { amount: 500 }, expanded: {} });
+  assert.equal(files.size, 2);
+  const restarted = fixture();
+  const restoredOne = await restarted.loadVisualState(`${prefix}-document-one`);
+  const restoredTwo = await restarted.loadVisualState(`${prefix}-document-two`);
+  assert.ok(restoredOne);
+  assert.ok(restoredTwo);
+  assert.equal((restoredOne.state as { amount: number }).amount, 250);
+  assert.equal((restoredTwo.state as { amount: number }).amount, 500);
+  for (const [key, raw] of files)
+    files.set(key, JSON.stringify({ ...JSON.parse(raw), key: "different-owner-document" }));
+  assert.equal(await fixture().loadVisualState(`${prefix}-document-one`), null);
+});

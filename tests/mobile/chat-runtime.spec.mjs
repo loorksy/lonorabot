@@ -272,7 +272,18 @@ test("native failed outgoing message retries same nonce after reload and navigat
     const composer = page.getByRole("textbox", { name: "Message…", exact: true });
     await expect(page.getByTestId("conversation-transcript")).toBeVisible();
     await composer.fill("Recover me once");
-    await page.getByRole("button", { name: "Send", exact: true }).click();
+    await composer.press("Shift+Enter");
+    await expect(composer).toHaveValue("Recover me once\n");
+    expect(posted).toHaveLength(0);
+    await composer.dispatchEvent("keydown", {
+      key: "Enter",
+      keyCode: 229,
+      isComposing: true,
+      bubbles: true,
+    });
+    expect(posted).toHaveLength(0);
+    await composer.fill("Recover me once");
+    await composer.press("Enter");
     await expect(page.getByText("Message not sent", { exact: true })).toBeVisible();
     await expect(composer).toHaveValue("");
     await page.reload();
@@ -293,5 +304,59 @@ test("native failed outgoing message retries same nonce after reload and navigat
   } finally {
     await data.remove();
     await data.remove(other.agent.id);
+  }
+});
+
+test("native reconnect ready drains a fresh snapshot after an older recovery read finishes", async ({
+  page,
+  context,
+}) => {
+  test.setTimeout(60000);
+  const data = await fixture(context);
+  let release,
+    block = false,
+    blockedOnce = false,
+    recovered = false,
+    newest;
+  const waiting = new Promise((resolve) => {
+    release = resolve;
+  });
+  const sockets = [];
+  await page.routeWebSocket("**/api/ws/events", (socket) => {
+    sockets.push(socket);
+    socket.onMessage(() => socket.send(JSON.stringify({ type: "ready", cursor: 100 })));
+  });
+  await page.route(`**/api/threads/${data.thread.id}/messages`, (route) =>
+    route.fulfill({ json: recovered ? [newest] : [] }),
+  );
+  await page.route(`**/api/runs?thread_id=${data.thread.id}`, async (route) => {
+    if (block && !blockedOnce) {
+      blockedOnce = true;
+      await waiting;
+    }
+    await route.fulfill({ json: [] });
+  });
+  try {
+    await page.goto(`/thread?id=${data.thread.id}`);
+    await expect(page.getByTestId("conversation-transcript")).toBeVisible();
+    block = true;
+    // The normal15s fallback begins before the reconnect boundary and captures old history.
+    await expect.poll(() => blockedOnce, { timeout: 20000 }).toBeTruthy();
+    newest = {
+      ...outgoing(data, { content: "Recovered across readiness boundary" }),
+      role: "assistant",
+      agent_id: data.agent.id,
+    };
+    recovered = true;
+    sockets[0].close({ code: 1001, reason: "controlled reconnect" });
+    await expect.poll(() => sockets.length).toBe(2);
+    await page.waitForTimeout(300);
+    release();
+    // A queued post-ready read must run now; waiting for the next15s fallback is incorrect.
+    await expect(page.getByText(newest.content, { exact: true })).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText(newest.content, { exact: true })).toHaveCount(1);
+  } finally {
+    release();
+    await data.remove();
   }
 });
