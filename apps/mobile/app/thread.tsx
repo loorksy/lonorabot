@@ -323,11 +323,19 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
       let timer: ReturnType<typeof setTimeout> | undefined;
       let queued: ReturnType<typeof setTimeout> | undefined;
       let refreshing = false;
+      let refreshAgain = false;
       const refresh = async () => {
-        if (disposed || refreshing) return;
+        if (disposed) return;
+        if (refreshing) {
+          refreshAgain = true;
+          return;
+        }
         refreshing = true;
         try {
-          await snapshotRef.current();
+          do {
+            refreshAgain = false;
+            await snapshotRef.current();
+          } while (refreshAgain && !disposed);
         } finally {
           refreshing = false;
         }
