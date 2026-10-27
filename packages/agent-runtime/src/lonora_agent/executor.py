@@ -1,6 +1,5 @@
 import asyncio
 import logging
-from time import perf_counter
 
 from lonora_contracts.domain import utcnow
 from lonora_core.user_error import LonoraError
@@ -24,7 +23,6 @@ from lonora_tools.registry import ToolRegistry
 from sqlalchemy import select
 
 from .collaboration.outcome_return import return_outcome
-from .context.compaction import compact_history
 from .environment import ToolRetryScheduled
 from .tasks import TaskSuspended
 from .tool_loop import execute_tool_loop
@@ -65,16 +63,6 @@ async def execute_run(
                 agent_id=context.agent_id,
                 run_id=row.id,
                 payload={"run": run_data(row)},
-            )
-        async with context.db.sessions() as session:
-            row = await require_lease(session, context.lease)
-            restored = bool(row.execution_state)
-        if not restored:
-            preparing = perf_counter()
-            await compact_history(context)
-            log.info(
-                "agent_history_prepared duration_ms=%.2f",
-                (perf_counter() - preparing) * 1000,
             )
         while True:
             outcome = await execute_tool_loop(context, registry, maximum_rounds)

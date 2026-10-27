@@ -491,6 +491,14 @@ async def browser_action(data: dict[str, Any]):
                 await fixture.agent("Peer browser recipient"),
             )
             source, target = await fixture.conversation(a), await fixture.conversation(b)
+            if data.get("source_input"):
+                admission = await fixture.request(
+                    "POST",
+                    f"/threads/{source['id']}/messages",
+                    {"content": "Explicit header activity fixture", "client_nonce": uuid4().hex},
+                )
+                for run_id in admission["run_ids"]:
+                    await fixture.request("POST", f"/runs/{run_id}/cancel", {})
             parent = await fixture.run(a, source)
             context = await fixture.lease(parent)
             child = await delegate_peer(
@@ -501,7 +509,19 @@ async def browser_action(data: dict[str, Any]):
                 "source_thread": source["id"],
                 "target_thread": target["id"],
                 "child": child,
+                "parent": parent,
+                "lease": context.lease.model_dump(),
             }
+        if action == "peer_activity":
+            context = fixture.context({"run": data["parent"], "lease": data["lease"]})
+            assert data["kind"] in {
+                "tool.started",
+                "tool.completed",
+                "run.reply_started",
+                "run.delta",
+            }
+            await progress(context, data["kind"], data.get("payload", {}))
+            return {"published": True}
         if action == "peer_complete":
             context = await fixture.lease(data["child"])
             await progress(context, "run.reply_started", {"turn_id": "browser-peer-answer"})

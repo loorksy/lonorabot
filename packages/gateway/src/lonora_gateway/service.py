@@ -14,6 +14,7 @@ from lonora_trading.reconciliation import reconcile_ambiguous
 from .connection_manager import close_connections, maintain_voice
 from .event_dispatch import dispatch_channels
 from .heartbeat import write_heartbeat
+from .history_maintenance import maintain_history
 from .lifecycle import GatewayState
 from .process_identity import process_identity
 from .run_dispatch import dispatch_one
@@ -112,6 +113,12 @@ class Gateway:
                 await advance_shadow(self.db, service.brokers, service.owner_id)
             await asyncio.sleep(2)
 
+    async def history_loop(self) -> None:
+        while not self.stop.is_set():
+            for service in list(self.services.values()):
+                await maintain_history(service, self.root)
+            await asyncio.sleep(10)
+
     async def charts_loop(self) -> None:
         while not self.stop.is_set():
             for service in list(self.services.values()):
@@ -171,6 +178,7 @@ class Gateway:
         loops.append(asyncio.create_task(supervise("channels", self.channels_loop, self.stop)))
         loops.append(asyncio.create_task(supervise("voice", self.voice_loop, self.stop)))
         loops.append(asyncio.create_task(supervise("market", self.market_loop, self.stop)))
+        loops.append(asyncio.create_task(supervise("history", self.history_loop, self.stop)))
         loops.append(asyncio.create_task(supervise("charts", self.charts_loop, self.stop)))
         loops.append(asyncio.create_task(supervise("watches", self.watches_loop, self.stop)))
         await self.stop.wait()

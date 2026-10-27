@@ -2,11 +2,13 @@ from lonora_adapter_kit.types import ModelMessage
 from lonora_contracts.model_routing import Capability
 from lonora_core.user_error import LonoraError
 from lonora_db.runs import locked_run_thread, require_lease
-from lonora_db.schema import MessageRow, ThreadRow
+from lonora_db.schema import MessageRow, RunRow, ThreadRow
+from lonora_db.transactions import owned_thread
 from lonora_llm_usage.models import UsageRecord
 from lonora_llm_usage.store import save_usage
 from lonora_tools.context import ToolContext
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..skills.loader import load_prompt
 from .governance import MAXIMUM_CONTEXT_CHARS
@@ -16,9 +18,35 @@ RECENT_HISTORY_LIMIT = 48000
 COMPACTION_PROMPT = load_prompt("consolidator_archive")
 
 
-async def compact_history(context: ToolContext) -> None:
+async def compact_history(context: ToolContext, *, settled: bool = False) -> None:
+    """Summarize canonical history; settled mode cannot mutate execution state.
+
+    Gateway maintenance calls this only after the reply is independently committed.
+    Begin early enough to leave headroom under the 100-message context window.
+    A concurrent new turn may continue from the previous summary; the optimistic
+    summary cursor can only advance through this completed turn's fixed input.
+    """
+
+    async def current_run(session: AsyncSession) -> RunRow | None:
+        if not settled:
+            return await require_lease(session, context.lease)
+        row = await session.get(RunRow, context.lease.run_id)
+        if (
+            row is None
+            or row.status != "completed"
+            or row.thread_id != context.thread_id
+            or row.agent_id != context.agent_id
+            or row.lease_fence != context.lease.fence
+            or row.lease_owner != context.lease.owner
+        ):
+            return None
+        await owned_thread(session, context.owner_id, context.thread_id)
+        return row
+
     async with context.db.sessions() as session:
-        run = await require_lease(session, context.lease)
+        run = await current_run(session)
+        if run is None:
+            return
         thread = await session.get(ThreadRow, context.thread_id)
         if thread is None:
             return
@@ -36,7 +64,11 @@ async def compact_history(context: ToolContext) -> None:
                 )
             ).all()
         )
-        if len(rows) < 120 and sum(len(row.content) + 80 for row in rows) <= RECENT_HISTORY_LIMIT:
+        threshold = 80 if settled else 120
+        if (
+            len(rows) < threshold
+            and sum(len(row.content) + 80 for row in rows) <= RECENT_HISTORY_LIMIT
+        ):
             return
         retained = 0
         size = 0
@@ -51,7 +83,8 @@ async def compact_history(context: ToolContext) -> None:
 
     while True:
         async with context.db.sessions() as session:
-            await require_lease(session, context.lease)
+            if await current_run(session) is None:
+                return
             thread = await session.get(ThreadRow, context.thread_id)
             if thread is None or thread.summary_seq >= cutoff:
                 return
@@ -117,7 +150,14 @@ async def compact_history(context: ToolContext) -> None:
         if len(reply.text) > SUMMARY_LIMIT:
             raise LonoraError("history_summary_too_large", 502)
         async with context.db.sessions() as session, session.begin():
-            _, thread = await locked_run_thread(session, context.lease)
+            if settled:
+                # No model call holds a database lock. A deleted thread or an
+                # overlapping summary is harmless; never resurrect owner data.
+                if await current_run(session) is None:
+                    return
+                thread = await owned_thread(session, context.owner_id, context.thread_id, lock=True)
+            else:
+                _, thread = await locked_run_thread(session, context.lease)
             if thread.summary_seq == prior_seq:
                 thread.context_summary = reply.text
                 thread.summary_seq = through

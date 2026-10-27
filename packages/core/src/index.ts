@@ -18,6 +18,7 @@ export {
   nearConversationBottom,
 } from "./conversation-timeline";
 export { webDeviceProof, webDeviceSupported } from "./device-proof";
+export { ReadRequestGate } from "./read-request-gate";
 export {
   accumulateStream,
   type LiveReplyStream,

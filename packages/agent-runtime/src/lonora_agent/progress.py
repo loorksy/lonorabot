@@ -1,5 +1,6 @@
 from typing import Any
 
+from lonora_contracts.domain import utcnow
 from lonora_db.events import emit
 from lonora_db.rich_response import validated_rich_content
 from lonora_db.runs import require_lease
@@ -14,6 +15,27 @@ async def progress(context: ToolContext, kind: str, payload: dict[str, Any]) -> 
     async with context.db.sessions() as session, session.begin():
         row = await require_lease(session, context.lease, lock=True)
         payload = redact(payload)
+        if kind in {
+            "run.context_started",
+            "run.reply_started",
+            "run.delta",
+            "run.rich_partial",
+            "tool.started",
+            "tool.completed",
+            "tool.failed",
+            "tool.cancelled",
+        }:
+            # Reconnection can project the actual latest activity without
+            # replaying the entire token/tool history. This shares the existing
+            # event transaction: no status request, model call or extra commit.
+            row.model_metadata = {
+                **row.model_metadata,
+                "activity": {
+                    "kind": kind,
+                    "name": payload.get("name"),
+                    "observed_at": utcnow().isoformat(),
+                },
+            }
         turn_id = payload.get("turn_id")
         if kind == "run.reply_started" and isinstance(turn_id, str):
             payload = {**payload, **stream_identity(start_stream(row, context.lease, turn_id))}

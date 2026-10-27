@@ -1,5 +1,5 @@
 import type { Artifact } from "@lonora/contracts";
-import { attachmentTooLarge } from "@lonora/core";
+import { attachmentTooLarge, ReadRequestGate } from "@lonora/core";
 import type { DocumentPickerAsset } from "expo-document-picker";
 import { Platform } from "react-native";
 import { ApiError } from "./api-error";
@@ -12,6 +12,7 @@ let csrf = "";
 let expired: (() => void) | null = null;
 let generation = 0;
 const pending = new Set<{ controller: AbortController; readOnly: boolean; cancelled: boolean }>();
+const reads = new ReadRequestGate();
 
 // Cancellation is lifecycle state, not an unsuccessful server response.
 export class SessionRequestCancelled extends Error {
@@ -61,7 +62,13 @@ async function sessionFetch<T>(
   init.signal?.addEventListener("abort", cancel, { once: true });
   if (init.signal?.aborted) cancel();
   const timeout = setTimeout(() => controller.abort(), 30_000);
+  let releaseRead: (() => void) | undefined;
   try {
+    assertCurrent();
+    if (!init.method || ["GET", "HEAD"].includes(init.method)) {
+      const admitted = reads.enter(controller.signal);
+      releaseRead = typeof admitted === "function" ? admitted : await admitted;
+    }
     assertCurrent();
     const response = await fetch(`${base}/api${path}`, {
       ...init,
@@ -83,6 +90,7 @@ async function sessionFetch<T>(
     assertCurrent();
     throw error;
   } finally {
+    releaseRead?.();
     clearTimeout(timeout);
     pending.delete(entry);
     init.signal?.removeEventListener("abort", cancel);

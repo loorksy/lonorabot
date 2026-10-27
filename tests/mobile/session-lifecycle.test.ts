@@ -4,6 +4,7 @@ import test from "node:test";
 import { runInNewContext } from "node:vm";
 import ts from "typescript";
 import { ApiError } from "../../apps/mobile/lib/api-error";
+import { ReadRequestGate } from "../../packages/core/src/read-request-gate";
 
 type Client = typeof import("../../apps/mobile/lib/api");
 function fixture() {
@@ -24,7 +25,7 @@ function fixture() {
     require(name: string) {
       if (name === "react-native") return { Platform: { OS: "android" } };
       if (name === "./api-error") return { ApiError };
-      if (name === "@lonora/core") return { attachmentTooLarge: () => false };
+      if (name === "@lonora/core") return { attachmentTooLarge: () => false, ReadRequestGate };
       throw new Error(`Unexpected module ${name}`);
     },
     Headers,
@@ -45,6 +46,23 @@ function fixture() {
   });
   return { client: exports, waiting, timers, expired: () => expired };
 }
+
+test("native Send bypasses saturated reads without cancelling their results", async () => {
+  const { client, waiting } = fixture();
+  const reads = Array.from({ length: 3 }, (_, i) => client.api.get(`/projection/${i}`));
+  const queued = client.api.get("/projection/queued");
+  assert.equal(waiting.length, 3);
+  const send = client.api.post("/threads/chat/messages", { content: "Hello" });
+  assert.equal(waiting.length, 4);
+  waiting[3].resolve(new Response('{"accepted":true}'));
+  assert.equal(((await send) as { accepted: boolean }).accepted, true);
+  assert.equal(waiting.length, 4);
+  for (const entry of waiting.slice(0, 3)) entry.resolve(new Response("[]"));
+  await Promise.all(reads);
+  assert.equal(waiting.length, 5);
+  waiting[4].resolve(new Response("[]"));
+  await queued;
+});
 
 test("logout cancels pending reads and financial requests without returning stale results", async () => {
   const { client, waiting } = fixture();

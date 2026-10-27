@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .events import emit
-from .schema import EffectReceiptRow, EventRow, MemoryRow
+from .schema import AgentRow, EffectReceiptRow, EventRow, MemoryRow
 from .transactions import owned_agent
 
 
@@ -28,9 +28,14 @@ def memory_data(row: MemoryRow) -> dict[str, Any]:
 
 
 async def memory_provenance(session: AsyncSession, agent_id: str, version: int) -> dict[str, Any]:
+    # The event index starts with owner_id. Omitting that equality made a
+    # missing/legacy revision scan the entire ledger on every conversation turn.
+    # Resolve ownership from the canonical Agent, never caller-supplied memory.
+    owner_id = select(AgentRow.owner_id).where(AgentRow.id == agent_id).scalar_subquery()
     event = await session.scalar(
         select(EventRow)
         .where(
+            EventRow.owner_id == owner_id,
             EventRow.agent_id == agent_id,
             EventRow.kind == "memory.updated",
             EventRow.payload["version"].as_integer() == version,

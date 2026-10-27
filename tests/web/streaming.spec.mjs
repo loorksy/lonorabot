@@ -11,6 +11,45 @@ function fixture(data) {
   );
 }
 
+test("header and turn avatars follow actual work while status reads are unavailable", async ({
+  page,
+  context,
+}) => {
+  const data = fixture({ action: "peer_init", source_input: true });
+  const login = await context.request.post("/api/auth/login", {
+    data: {
+      email: process.env.LONORA_UI_TEST_EMAIL ?? "ci@example.com",
+      password: process.env.LONORA_UI_TEST_PASSWORD ?? "ci-only-owner-password",
+    },
+  });
+  expect(login.ok()).toBeTruthy();
+  try {
+    await page.goto(`/app/${data.agents[0]}?thread=${data.source_thread}`);
+    const avatar = page.locator(".tpl-chat-header .mta-avatar");
+    await expect(avatar).toHaveAttribute("data-state", "thinking");
+    await page.route("**/api/runs**", (route) => route.abort());
+    const observe = async (kind, payload, state) => {
+      fixture({ ...data, action: "peer_activity", kind, payload });
+      await expect(avatar).toHaveAttribute("data-state", state);
+    };
+    await observe("tool.started", { call_id: "lookup", name: "web_search" }, "searching");
+    await observe("tool.completed", { call_id: "lookup", name: "web_search" }, "thinking");
+    await observe("tool.started", { call_id: "execute", name: "workspace_execute" }, "executing");
+    await observe("tool.completed", { call_id: "execute", name: "workspace_execute" }, "thinking");
+    await observe("run.reply_started", { turn_id: "header-status-proof" }, "thinking");
+    await observe(
+      "run.delta",
+      { turn_id: "header-status-proof", text: "The observed result is ready." },
+      "writing",
+    );
+    await expect(page.locator(`[data-stream-run-id='${data.parent.id}']`)).toContainText(
+      "The observed result is ready.",
+    );
+  } finally {
+    fixture({ ...data, action: "peer_cleanup" });
+  }
+});
+
 test("durable SSE reply survives event eviction, reload and a fenced restart without duplicate handoff", async ({
   page,
   context,
