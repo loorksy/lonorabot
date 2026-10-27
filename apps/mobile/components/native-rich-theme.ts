@@ -22,7 +22,12 @@ export function useNativeVisualTheme(): NativeVisualPalette {
     });
     return () => observer.disconnect();
   }, []);
-  return appearance[browserTheme ?? (system === "light" ? "light" : "dark")];
+  // Native conversation surfaces use ui.tsx's dark palette. Following a light
+  // OS theme here would put dark rich prose on that dark conversation surface.
+  // The browser renderer still follows its actual page theme in both modes.
+  return appearance[
+    Platform.OS === "web" ? (browserTheme ?? (system === "light" ? "light" : "dark")) : "dark"
+  ];
 }
 
 export function visualTone(palette: NativeVisualPalette, tone?: string): string {
