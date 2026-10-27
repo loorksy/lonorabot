@@ -92,6 +92,18 @@ async def test_settlement_commits_real_wait_and_update_together(
         assert receipt.result["message_id"] == messages[0].id
         assert run.model_metadata["reply_stream"]["message_id"] == messages[0].id
         assert run.model_metadata["reply_stream"]["phase"] == "committed"
+        delivery = list(
+            await session.scalars(
+                select(EventRow)
+                .where(
+                    EventRow.run_id == run.id,
+                    EventRow.kind.in_(["run.reply_committed", "message.created"]),
+                )
+                .order_by(EventRow.cursor)
+            )
+        )
+        assert [row.kind for row in delivery] == ["run.reply_committed", "message.created"]
+        assert delivery[0].payload["message_id"] == delivery[1].payload["id"]
         assert (
             await session.scalar(
                 select(func.count()).select_from(EventRow).where(EventRow.kind == "message.created")

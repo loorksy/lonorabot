@@ -34,11 +34,21 @@ import {
   TriangleAlert,
   X,
 } from "lucide-react";
-import { type CSSProperties, type ReactNode, useEffect, useState } from "react";
+import {
+  type CSSProperties,
+  type ReactNode,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type { Resource } from "../../lib/api";
 import { artifactUrl } from "../../lib/artifacts";
 import { userError } from "../../lib/user_error";
 import { VisualChart, VisualDiagram } from "./VisualGraphics";
+import { VisualNumberInput } from "./VisualNumberInput";
+import { VisualTable } from "./VisualTable";
 import "./visual.css";
 
 type Props = {
@@ -47,6 +57,8 @@ type Props = {
   ownerId: string;
   threadId: string;
   messageId: string;
+  /** Exact prior preview identity, scoped to this owner/thread/document. */
+  previousMessageId?: string;
   artifacts?: Resource[];
   onAction?: (action: VisualAction) => Promise<void>;
 };
@@ -65,6 +77,8 @@ function labels(arabic: boolean) {
         reset: "إعادة ضبط المدخلات",
         image: "صورة",
         working: "جارٍ الإرسال…",
+        more: "عرض المزيد",
+        less: "عرض أقل",
       }
     : {
         unavailable: "Unavailable",
@@ -77,11 +91,13 @@ function labels(arabic: boolean) {
         reset: "Reset inputs",
         image: "Image",
         working: "Sending…",
+        more: "Show more",
+        less: "Show less",
       };
 }
 
 export function RichResponse(props: Props) {
-  const rich = validateRichContent(props.content);
+  const rich = useMemo(() => validateRichContent(props.content), [props.content]);
   if (!rich) return <ChatMarkdown>{props.fallback}</ChatMarkdown>;
   return (
     <div className="native-rich-response" data-rich-response-version="1">
@@ -107,21 +123,60 @@ export function VisualDocumentView({
   ownerId,
   threadId,
   messageId,
+  previousMessageId,
   artifacts = [],
   onAction,
 }: Omit<Props, "content" | "fallback"> & { document: VisualDocument }) {
   const { i18n } = useLingui();
+  const instanceId = useId();
   const chrome = labels(i18n.locale.startsWith("ar"));
-  const storageKey = visualStateStorageKey(ownerId, threadId, messageId, document);
-  const [state, setState] = useState<VisualState>(() => {
+  const storageKey = useMemo(
+    () => visualStateStorageKey(ownerId, threadId, messageId, document),
+    [ownerId, threadId, messageId, document],
+  );
+  const previousStorageKey = previousMessageId
+    ? visualStateStorageKey(ownerId, threadId, previousMessageId, document)
+    : null;
+  const formatter = useMemo(
+    () => new Intl.NumberFormat(i18n.locale, { maximumFractionDigits: 8 }),
+    [i18n.locale],
+  );
+  const [initial] = useState(() => {
     try {
-      return initialVisualState(document, JSON.parse(localStorage.getItem(storageKey) ?? "null"));
+      const canonical = localStorage.getItem(storageKey);
+      const prior =
+        canonical ?? (previousStorageKey ? localStorage.getItem(previousStorageKey) : null);
+      return {
+        state: initialVisualState(document, JSON.parse(prior ?? "null")),
+        canonical: canonical !== null,
+      };
     } catch {
-      return initialVisualState(document);
+      return { state: initialVisualState(document), canonical: false };
     }
   });
+  const [state, setState] = useState<VisualState>(initial.state);
+  const userEdited = useRef(false);
+  const migratedFrom = useRef(previousStorageKey);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<unknown>();
+  useEffect(() => {
+    // A canonical message may arrive before its run links it to the preview.
+    // Restore only that exact document, and never overwrite edits made here.
+    if (
+      !previousStorageKey ||
+      migratedFrom.current === previousStorageKey ||
+      initial.canonical ||
+      userEdited.current
+    )
+      return;
+    migratedFrom.current = previousStorageKey;
+    try {
+      const prior = localStorage.getItem(previousStorageKey);
+      if (prior !== null) setState(initialVisualState(document, JSON.parse(prior)));
+    } catch {
+      /* The answer remains usable when local storage is unavailable. */
+    }
+  }, [previousStorageKey, document, initial.canonical]);
   useEffect(() => {
     try {
       localStorage.setItem(storageKey, JSON.stringify(state));
@@ -135,11 +190,13 @@ export function VisualDocumentView({
     return evaluated === null
       ? chrome.unavailable
       : typeof evaluated === "number"
-        ? new Intl.NumberFormat(i18n.locale, { maximumFractionDigits: 8 }).format(evaluated)
+        ? formatter.format(evaluated)
         : String(evaluated);
   };
-  const change = (node: VisualNode, next: VisualScalar) =>
+  const change = (node: VisualNode, next: VisualScalar) => {
+    userEdited.current = true;
     setState((old) => updateVisualState(document, old, node, next));
+  };
   async function act(node: VisualNode) {
     if (!node.action || busy) return;
     const action = expandVisualAction(node.action, document, state);
@@ -166,7 +223,7 @@ export function VisualDocumentView({
         </div>
       ));
     const title = node.label ? <div className="native-visual-label">{node.label}</div> : null;
-    const fieldId = `${messageId}:${node.id}`;
+    const fieldId = `${messageId}:${instanceId}:${node.id}`;
     const tone = `native-visual-tone-${node.tone ?? "neutral"}`;
     const className = `native-visual-node native-visual-${node.type} ${tone}`;
     const stateValue = node.state_key ? state[node.state_key] : null;
@@ -240,8 +297,12 @@ export function VisualDocumentView({
           <dl className={className}>
             {node.label && <dt>{node.label}</dt>}
             <dd>
-              <span data-visual-value={node.id}>{display(node.value)}</span>
-              {node.unit != null && <small>{display(node.unit)}</small>}
+              <bdi data-visual-value={node.id}>{display(node.value)}</bdi>
+              {node.unit != null && (
+                <small>
+                  <bdi>{display(node.unit)}</bdi>
+                </small>
+              )}
             </dd>
           </dl>
         );
@@ -289,45 +350,16 @@ export function VisualDocumentView({
       case "table": {
         const rows = filterVisualRows(node, document, state);
         return (
-          <section className={className}>
-            {title}
-            {node.filter_key && (
-              <label className="native-visual-filter">
-                {chrome.filter}
-                <input
-                  value={String(state[node.filter_key ?? ""] ?? "")}
-                  onChange={(event) => change(node, event.target.value)}
-                />
-              </label>
-            )}
-            <section
-              className="native-visual-table-scroll"
-              // biome-ignore lint/a11y/noNoninteractiveTabindex: Keyboard users must be able to scroll wide tables.
-              tabIndex={0}
-              aria-label={node.label ?? chrome.filter}
-            >
-              <table>
-                <thead>
-                  <tr>
-                    {(node.fields ?? []).map((field) => (
-                      <th scope="col" key={field.key}>
-                        {field.label}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((row, index) => (
-                    <tr key={index}>
-                      {(node.fields ?? []).map((field) => (
-                        <td key={field.key}>{display(row[field.key])}</td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </section>
-          </section>
+          <VisualTable
+            node={node}
+            fieldId={fieldId}
+            rows={rows}
+            display={display}
+            numeric={(item) => typeof value(item) === "number"}
+            filter={String(state[node.filter_key ?? ""] ?? "")}
+            onFilter={(next) => change(node, next)}
+            labels={chrome}
+          />
         );
       }
       case "chart":
@@ -335,6 +367,10 @@ export function VisualDocumentView({
           <VisualChart
             node={node}
             unavailable={chrome.unavailable}
+            formatValue={(number) =>
+              number === null ? chrome.unavailable : formatter.format(number)
+            }
+            moreLabel={chrome.more}
             points={(node.points ?? []).map((point) => {
               const number = value(point.value);
               return {
@@ -483,25 +519,22 @@ export function VisualDocumentView({
         return (
           <label className={className} htmlFor={fieldId}>
             {title}
-            <input
-              id={fieldId}
-              type={node.input_kind === "number" ? "number" : "text"}
-              min={node.input_kind === "number" ? (node.minimum ?? 0) : undefined}
-              max={node.input_kind === "number" ? (node.maximum ?? 100) : undefined}
-              step={node.input_kind === "number" ? (node.step ?? 1) : undefined}
-              maxLength={2000}
-              value={stateValue === null ? "" : String(stateValue)}
-              onChange={(event) =>
-                change(
-                  node,
-                  node.input_kind === "number"
-                    ? event.target.value === ""
-                      ? null
-                      : event.target.valueAsNumber
-                    : event.target.value,
-                )
-              }
-            />
+            {node.input_kind === "number" ? (
+              <VisualNumberInput
+                id={fieldId}
+                node={node}
+                value={stateValue}
+                onChange={(next) => change(node, next)}
+              />
+            ) : (
+              <input
+                id={fieldId}
+                type="text"
+                maxLength={2000}
+                value={stateValue === null ? "" : String(stateValue)}
+                onChange={(event) => change(node, event.target.value)}
+              />
+            )}
           </label>
         );
     }
@@ -511,6 +544,18 @@ export function VisualDocumentView({
     "--visual-space": `${visual.space.normal}px`,
     "--visual-radius": `${visual.radius.normal}px`,
     "--visual-touch": `${visual.touch}px`,
+    "--visual-panel-padding": `${visual.panelPadding}px`,
+    "--visual-body-font": `${visual.font.body}px`,
+    "--visual-label-font": `${visual.font.label}px`,
+    "--visual-small-font": `${visual.font.small}px`,
+    "--visual-control-font": `${visual.controlFont}px`,
+    "--visual-body-line": `${visual.line.body}px`,
+    "--visual-heading-1": `${visual.font.heading[0]}px`,
+    "--visual-heading-2": `${visual.font.heading[1]}px`,
+    "--visual-heading-3": `${visual.font.heading[2]}px`,
+    "--visual-heading-4": `${visual.font.heading[3]}px`,
+    "--visual-metric-font": `${visual.font.metric}px`,
+    "--visual-column-minimum": `${visual.columnMinimum}px`,
   } as CSSProperties;
   return (
     <section
@@ -556,7 +601,10 @@ export function VisualDocumentView({
         <button
           type="button"
           className="native-visual-reset"
-          onClick={() => setState(initialVisualState(document))}
+          onClick={() => {
+            userEdited.current = true;
+            setState(initialVisualState(document));
+          }}
         >
           {chrome.reset}
         </button>

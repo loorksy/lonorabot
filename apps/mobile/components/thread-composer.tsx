@@ -10,7 +10,15 @@ import {
   rebaseMentions,
 } from "@lonora/core";
 import { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import {
+  ActivityIndicator,
+  Platform,
+  Pressable,
+  ScrollView,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 import { useSession } from "../lib/session";
 import { BotAvatar } from "./bot-avatar";
 import { ComposerReplyPreview } from "./composer-reply-preview";
@@ -219,13 +227,33 @@ export function ThreadComposer({
               setCursor(Math.max(0, Math.min(value.length, cursor + value.length - draft.length)));
               onChange(value);
             }}
+            onKeyPress={(event) => {
+              if (Platform.OS !== "web") return;
+              const keyboard = event as unknown as {
+                key: string;
+                shiftKey: boolean;
+                keyCode: number;
+                nativeEvent: { isComposing?: boolean };
+                preventDefault: () => void;
+              };
+              if (
+                keyboard.key === "Enter" &&
+                !keyboard.shiftKey &&
+                !keyboard.nativeEvent.isComposing &&
+                keyboard.keyCode !== 229 &&
+                canSend
+              ) {
+                keyboard.preventDefault();
+                onSend(mentionAddress(draft, committed.current));
+              }
+            }}
             onSelectionChange={(event) => setCursor(event.nativeEvent.selection.start)}
             multiline
             onContentSizeChange={(event) =>
               setInputHeight(Math.max(44, Math.min(132, event.nativeEvent.contentSize.height)))
             }
             maxLength={30000}
-            editable={!busy && !disabled}
+            editable={!disabled}
             placeholderTextColor={colors.secondary}
             blurOnSubmit={false}
             textAlignVertical="top"

@@ -10,6 +10,7 @@ import { Link } from "react-router-dom";
 import { ArtifactFileCard } from "../../components/ArtifactFileCard";
 import { AgentAvatar } from "../../components/ai/AgentAvatar";
 import { WorkingIndicator } from "../../components/ai/primitives";
+import { TurnActivity } from "../../components/ai/TurnActivity";
 import { RichResponse } from "../../components/visual/RichResponse";
 import type { Agent, Event, Message, ReplyStreamSnapshot, Resource, Run } from "../../lib/api";
 import { isOutgoingMessage } from "../../lib/outgoing-messages";
@@ -59,7 +60,9 @@ export function MessageBubble({
   onRetrySend,
   ownerId = "",
   onVisualAction,
+  previousVisualMessageId,
 }: {
+  previousVisualMessageId?: string;
   message: Message;
   ownerId?: string;
   onVisualAction?: (action: VisualAction) => Promise<void>;
@@ -136,6 +139,7 @@ export function MessageBubble({
                     ownerId={ownerId}
                     threadId={message.thread_id}
                     messageId={message.id}
+                    previousMessageId={previousVisualMessageId}
                     artifacts={artifacts}
                     onAction={onVisualAction}
                   />
@@ -298,7 +302,11 @@ export function StreamingMessageCard({
   ownerId = "",
   artifacts = [],
   onVisualAction,
+  events = [],
+  connected = true,
 }: {
+  events?: Event[];
+  connected?: boolean;
   ownerId?: string;
   artifacts?: Resource[];
   onVisualAction?: (action: VisualAction) => Promise<void>;
@@ -322,7 +330,7 @@ export function StreamingMessageCard({
           </div>
         )}
         <div className="message-body template-message-body template-message-text" dir="auto">
-          {stream.phase === "committed" && stream.rich_content ? (
+          {stream.rich_content ? (
             <RichResponse
               content={stream.rich_content}
               fallback={stream.text}
@@ -337,11 +345,13 @@ export function StreamingMessageCard({
           )}
         </div>
         <div className="message-meta template-message-meta">
-          {stream.phase === "streaming" && (
-            <span role="status">
-              {agent && <AgentAvatar agent={agent} state="writing" />}
-              <Trans>Writing</Trans>
-            </span>
+          {stream.phase !== "committed" && (
+            <TurnActivity
+              run={{ ...run, stream }}
+              agent={agent}
+              events={events}
+              connected={connected}
+            />
           )}
         </div>
         {stream.truncated && (

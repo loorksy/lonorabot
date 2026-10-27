@@ -568,7 +568,15 @@ async def execute_tool_loop(
             "provider": selection.provider,
             "model": selection.model,
             "capability": reply.provider_metadata.get("runtime_capability", turn_capability.value),
+            "stream_timings": reply.provider_metadata.get("stream_timings", {}),
+            "visual_errors": reply.provider_metadata.get("visual_errors", []),
+            "visual_diagnostics": reply.provider_metadata.get("visual_diagnostics", []),
         }
+        log.info(
+            "model_turn_completed timings=%s visual_errors=%s",
+            json.dumps(state["selection"]["stream_timings"], sort_keys=True),
+            len(state["selection"]["visual_errors"]),
+        )
         messages.append(
             ModelMessage(
                 role="assistant",

@@ -45,3 +45,28 @@ test("a new generation uses its own server anchor despite a stale Run snapshot",
     ["input", "followup", "preview:r"],
   );
 });
+
+test("actual queued activity stays after its own input instead of a detached footer", async () => {
+  const { activityTimeline } = await import("../../apps/web/src/lib/stream-timeline");
+  const input = { ...message("input", 10), thread_id: "thread" };
+  const later = { ...message("later", 11), thread_id: "thread" };
+  const queued = {
+    ...run,
+    thread_id: "thread",
+    status: "queued",
+    trigger: "user",
+    parent_run_id: null,
+  } as Run;
+  assert.deepEqual(
+    activityTimeline([input, later], [queued], []).map((row) => row.id),
+    ["input", "activity:r", "later"],
+  );
+  assert.deepEqual(
+    activityTimeline([input, later], [queued], [{ run: queued, stream }]).map((row) => row.id),
+    ["input", "preview:r", "later"],
+  );
+  assert.deepEqual(
+    activityTimeline([input], [{ ...queued, trigger: "routine" }], []).map((row) => row.id),
+    ["input"],
+  );
+});

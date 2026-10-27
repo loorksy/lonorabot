@@ -1,6 +1,7 @@
 import type {
   Agent,
   Artifact,
+  Event,
   Group,
   InputAnswer,
   Message,
@@ -9,16 +10,22 @@ import type {
   TradeApproval,
 } from "@lonora/contracts";
 import {
+  accumulateStream,
   activeStatuses,
   type ConversationItem,
   conversationTimeline,
+  type LiveReplyStream,
   type MentionAddress,
   needsTimeSeparator,
+  projectRunEvents,
+  seedStream,
+  streamForRun,
+  turnActivity,
 } from "@lonora/core";
 // Persistent-thread navigation follows Tampletgrok's native thread screen; see NOTICE.
 import * as DocumentPicker from "expo-document-picker";
 import { Redirect, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import {
   AppState,
   FlatList,
@@ -34,7 +41,6 @@ import { BotAvatar } from "../components/bot-avatar";
 import { useChartSheet } from "../components/chart-sheet";
 import { ConversationQuestion } from "../components/conversation-question";
 import { GroupAvatar } from "../components/group-avatar";
-import { Markdown } from "../components/markdown";
 import { MessageBubble } from "../components/message-bubble";
 import { NativeSymbol } from "../components/native-symbol";
 import { SuperBotCard, useSuperBotRequests } from "../components/super-bot-cards";
@@ -42,14 +48,32 @@ import { ThreadComposer } from "../components/thread-composer";
 import { ThreadHeader } from "../components/thread-header";
 import { TimeSeparator } from "../components/time-separator";
 import { TradeApprovalCard } from "../components/trade-approval";
+import { TurnActivity } from "../components/turn-activity";
 import { Button, colors, ErrorNotice, Loading, Screen } from "../components/ui";
-import { WorkingIndicator } from "../components/WorkingIndicator";
 import { ApiError, api, upload } from "../lib/api";
+import {
+  type ComposerDraft,
+  composerDraft,
+  consumeComposerDraft,
+  editComposerDraft,
+} from "../lib/composer-drafts";
 import {
   type ConversationSnapshot,
   conversationCache,
   type InboxSnapshot,
 } from "../lib/conversation-cache";
+import { projectConversation } from "../lib/conversation-projection";
+import { type EventConnection, subscribeOwnerEvents } from "../lib/events";
+import {
+  acknowledgeOutgoing,
+  enqueueOutgoing,
+  failOutgoing,
+  hydrateOutgoing,
+  type OutgoingIntent,
+  outgoingKey,
+  outgoingMessages,
+  subscribeOutgoing,
+} from "../lib/outgoing-messages";
 import { useSession } from "../lib/session";
 import { useVoiceSession } from "../lib/voice-session";
 
@@ -95,8 +119,34 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
   const [loaded, setLoaded] = useState(false);
   const [stateRevision, setStateRevision] = useState(0);
   const superBot = useSuperBotRequests(thread?.agent_id ?? undefined, id, stateRevision);
-  const answerReceipts = useRef(new Map<string, string>());
-  const receipt = useRef<{ signature: string; nonce: string } | null>(null);
+  const [events, setEvents] = useState<Event[]>([]);
+  const [streams, setStreams] = useState<Record<string, LiveReplyStream>>({});
+  const [connection, setConnection] = useState<EventConnection>("connecting");
+  const sendLocks = useRef(new Set<string>());
+  const deliveries = useRef(new Set<string>());
+  const selected = useRef({ id, scope });
+  selected.current = { id, scope };
+  const canonical = useRef(messages);
+  canonical.current = messages;
+  const outboxKey = outgoingKey(server, owner?.id ?? "signed-out", id);
+  const outgoing = useSyncExternalStore(
+    subscribeOutgoing,
+    useCallback(() => outgoingMessages(outboxKey), [outboxKey]),
+  );
+  const updateDraft = (patch: Partial<Omit<ComposerDraft, "revision">>) => {
+    const next = editComposerDraft(outboxKey, patch);
+    setDraft(next.text);
+    setAttachments(next.attachments);
+    setReply(next.reply);
+  };
+  const current = () =>
+    selected.current.id === id &&
+    selected.current.scope === scope &&
+    conversationCache.current(scope);
+  const snapshotRef = useRef<() => Promise<void>>(async () => undefined);
+  useEffect(() => {
+    void hydrateOutgoing(outboxKey);
+  }, [outboxKey]);
   const reportError = useRef(errorText);
   reportError.current = errorText;
 
@@ -108,9 +158,24 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
           api.get<Message[]>(`/threads/${encodeURIComponent(id)}/messages`),
           api.get<Run[]>(`/runs?thread_id=${encodeURIComponent(id)}`),
         ]).then(([nextMessages, nextRuns]) => {
-          if (!stillLive() || !conversationCache.current(scope)) return;
+          if (
+            !stillLive() ||
+            !conversationCache.current(scope) ||
+            selected.current.id !== id ||
+            selected.current.scope !== scope
+          )
+            return;
           setMessages((old) => mergeMessages(old, nextMessages));
-          setRuns(nextRuns);
+          acknowledgeOutgoing(outboxKey, nextMessages);
+          setStreams((old) => {
+            const next = { ...old };
+            for (const run of nextRuns) {
+              const value = seedStream(next[run.id], run);
+              if (value) next[run.id] = value;
+            }
+            return next;
+          });
+          setRuns((old) => projectRunEvents([...old, ...nextRuns], [], id));
           setLoaded(true);
           setError(null);
         });
@@ -122,7 +187,13 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
           ),
           api.get<Agent[]>("/agents"),
         ]).then(([nextFiles, nextApprovals, collaboration, refreshedAgents]) => {
-          if (!stillLive() || !conversationCache.current(scope)) return;
+          if (
+            !stillLive() ||
+            !conversationCache.current(scope) ||
+            selected.current.id !== id ||
+            selected.current.scope !== scope
+          )
+            return;
           setAgents(refreshedAgents);
           setStateRevision((value) => value + 1);
           setCollaborationSessionId(collaboration?.id);
@@ -150,12 +221,19 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
         });
         await Promise.all([primary, auxiliary]);
       } catch (reason) {
-        if (stillLive() && conversationCache.current(scope)) setError(reportError.current(reason));
+        if (
+          stillLive() &&
+          conversationCache.current(scope) &&
+          selected.current.id === id &&
+          selected.current.scope === scope
+        )
+          setError(reportError.current(reason));
       }
     },
-    [id, scope],
+    [id, scope, outboxKey],
   );
 
+  snapshotRef.current = snapshot;
   useEffect(() => {
     const cached = conversationCache.get<ConversationSnapshot>(scope, cacheKey);
     const inbox = conversationCache.get<InboxSnapshot>(scope, "inbox");
@@ -168,16 +246,18 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     setApprovals(cached?.approvals ?? []);
     setCollaborationActive(cached?.collaborationActive ?? false);
     setCollaborationSessionId(cached?.collaborationSessionId);
-    setAttachments([]);
+    const savedDraft = composerDraft(outboxKey);
+    setAttachments(savedDraft.attachments);
     setFiles(cached?.files ?? []);
-    setDraft("");
-    setReply(null);
+    setDraft(savedDraft.text);
+    setReply(savedDraft.reply);
+    setUploading(false);
     setHasOlder(cached?.hasOlder ?? true);
     following.current = true;
     setAtEnd(true);
     setLoaded(cached?.loaded ?? false);
-    receipt.current = null;
-    answerReceipts.current.clear();
+    setEvents([]);
+    setStreams({});
     if (!id || !owner) return;
     let live = true;
     void api
@@ -201,7 +281,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     return () => {
       live = false;
     };
-  }, [id, scope, cacheKey, owner]);
+  }, [id, scope, cacheKey, owner, outboxKey]);
 
   useEffect(() => {
     if (hydrated?.scope !== scope || hydrated.id !== id || !thread || !loaded) return;
@@ -240,18 +320,82 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     useCallback(() => {
       if (!ready || !owner || !id) return;
       let disposed = false;
-      let timer: ReturnType<typeof setTimeout>;
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      let queued: ReturnType<typeof setTimeout> | undefined;
       let refreshing = false;
-      const tick = async () => {
-        if (refreshing || disposed) return;
+      const refresh = async () => {
+        if (disposed || refreshing) return;
         refreshing = true;
         try {
-          if (AppState.currentState === "active") await snapshot(() => !disposed);
+          await snapshotRef.current();
         } finally {
           refreshing = false;
-          if (!disposed) timer = setTimeout(() => void tick(), 2500);
         }
       };
+      const schedule = () => {
+        if (queued || disposed) return;
+        queued = setTimeout(() => {
+          queued = undefined;
+          void refresh();
+        }, 150);
+      };
+      const unsubscribe = subscribeOwnerEvents(
+        server,
+        (event) => {
+          if (disposed || event.thread_id !== id) return;
+          setRuns((old) => projectRunEvents(old, [event], id));
+          setEvents((old) =>
+            [...old, event]
+              .filter((row) => row.kind !== "run.delta" || row.cursor === event.cursor)
+              .slice(-250),
+          );
+          if (event.run_id)
+            setStreams((old) => {
+              const value = accumulateStream(old[event.run_id as string], event);
+              if (!value) return old;
+              if (value.gap) schedule();
+              return { ...old, [value.run_id]: value };
+            });
+          if (event.kind === "message.created") {
+            const value = event.payload;
+            if (
+              typeof value.id === "string" &&
+              typeof value.content === "string" &&
+              typeof value.seq === "number" &&
+              value.thread_id === id &&
+              Array.isArray(value.attachment_ids)
+            ) {
+              const message = value as unknown as Message;
+              setMessages((old) => mergeMessages(old, [message]));
+              acknowledgeOutgoing(outboxKey, [message]);
+            }
+          }
+          if (
+            ![
+              "run.delta",
+              "run.rich_partial",
+              "run.reply_started",
+              "run.progress",
+              "tool.started",
+              "tool.completed",
+              "tool.cancelled",
+            ].includes(event.kind)
+          )
+            schedule();
+        },
+        () => void refresh(),
+        (state) => {
+          if (!disposed) setConnection(state);
+        },
+      );
+      // A slow snapshot is recovery only; token delivery uses the durable stream.
+      const fallback = () => {
+        if (!disposed) {
+          if (AppState.currentState === "active") void refresh();
+          timer = setTimeout(fallback, 15000);
+        }
+      };
+      timer = setTimeout(fallback, 15000);
       void Promise.all([api.get<Agent[]>("/agents"), api.get<Group[]>("/groups")])
         .then(([nextAgents, nextGroups]) => {
           if (!disposed) {
@@ -259,23 +403,94 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
             setGroups(nextGroups);
           }
         })
-        .catch((reason) => {
-          if (!disposed) setError(reportError.current(reason));
-        });
-      const subscription = AppState.addEventListener("change", (state) => {
-        if (state === "active" && !disposed) {
-          clearTimeout(timer);
-          void tick();
-        }
-      });
-      void tick();
+        .catch(() => undefined);
       return () => {
-        subscription.remove();
         disposed = true;
-        clearTimeout(timer);
+        unsubscribe();
+        if (timer) clearTimeout(timer);
+        if (queued) clearTimeout(queued);
       };
-    }, [ready, owner, id, snapshot]),
+    }, [ready, owner, id, server, outboxKey]),
   );
+
+  const acceptedNonces = new Set(messages.map((message) => message.client_nonce).filter(Boolean));
+  const visibleMessages = projectConversation(
+    mergeMessages(
+      messages,
+      outgoing.filter((row) => !acceptedNonces.has(row.nonce)).map((row) => row.message),
+    ),
+    runs,
+    streams,
+  );
+  const deliver = async (intent: OutgoingIntent, targetKey: string, targetId: string) => {
+    if (!conversationCache.current(scope) || deliveries.current.has(intent.nonce)) return;
+    deliveries.current.add(intent.nonce);
+    try {
+      const accepted = await api.post<{ message: Message; run_ids: string[]; runs?: Run[] }>(
+        `/threads/${encodeURIComponent(targetId)}/messages`,
+        intent.body,
+      );
+      const cached = conversationCache.get<ConversationSnapshot>(scope, `thread:${targetId}`);
+      if (cached)
+        conversationCache.set(scope, `thread:${targetId}`, {
+          ...cached,
+          messages: mergeMessages(cached.messages, [accepted.message]),
+        });
+      if (!conversationCache.current(scope)) return;
+      acknowledgeOutgoing(targetKey, [accepted.message]);
+      if (
+        selected.current.id === targetId &&
+        selected.current.scope === scope &&
+        conversationCache.current(scope)
+      ) {
+        setMessages((old) => mergeMessages(old, [accepted.message]));
+        if (accepted.runs?.length)
+          setRuns((old) => {
+            const projected = new Map(old.map((run) => [run.id, run]));
+            for (const run of accepted.runs ?? []) {
+              const prior = projected.get(run.id);
+              if (!prior || Date.parse(run.updated_at) >= Date.parse(prior.updated_at))
+                projected.set(run.id, run);
+            }
+            return [...projected.values()];
+          });
+        void snapshotRef.current();
+      }
+    } catch (reason) {
+      const confirmed = canonical.current.find(
+        (message) => message.thread_id === targetId && message.client_nonce === intent.nonce,
+      );
+      if (confirmed) {
+        acknowledgeOutgoing(targetKey, [confirmed]);
+        return;
+      }
+      failOutgoing(targetKey, intent.nonce);
+      if (selected.current.id === targetId && selected.current.scope === scope)
+        setError(reportError.current(reason));
+      throw reason;
+    } finally {
+      deliveries.current.delete(intent.nonce);
+    }
+  };
+  const retryOutgoing = async (nonce: string) => {
+    const prior = outgoingMessages(outboxKey).find((row) => row.nonce === nonce);
+    if (prior?.message.delivery !== "failed" || deliveries.current.has(nonce)) return;
+    try {
+      await deliver(
+        await enqueueOutgoing(
+          outboxKey,
+          id,
+          prior.fingerprint,
+          prior.body,
+          Math.max(0, ...messages.map((row) => row.seq)),
+        ),
+        outboxKey,
+        id,
+      );
+    } catch {
+      /* The failed intent remains available for retry. */
+    }
+  };
 
   if (!ready) return <Loading />;
   if (!owner) return <Redirect href="/sign-in" />;
@@ -283,73 +498,86 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
   const group = groups.find((value) => value.id === thread?.group_id);
   const title = agent?.name ?? group?.payload.name ?? thread?.title ?? t("inbox");
   const send = async (mentions?: MentionAddress, followUp?: string) => {
-    if (busy || uploading || !thread || (!followUp?.trim() && !draft.trim() && !attachments.length))
+    if (
+      sendLocks.current.has(outboxKey) ||
+      uploading ||
+      !thread ||
+      (!followUp?.trim() && !draft.trim() && !attachments.length)
+    )
       return;
+    const submittedDraft = composerDraft(outboxKey);
     const content = followUp?.trim() || draft.trim() || t("attach");
     const attachment_ids = followUp ? [] : attachments.map((file) => file.id);
     const reply_to = followUp ? null : (reply?.id ?? null);
-    const signature = JSON.stringify({
+    const targetKey = outboxKey,
+      targetId = id;
+    const body = {
       content,
       attachment_ids,
       reply_to,
-      mentions,
-    });
-    if (receipt.current?.signature !== signature)
-      receipt.current = {
-        signature,
-        nonce: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`,
-      };
-    setBusy(true);
+      mention_agent_ids: mentions?.agent_ids ?? [],
+      mention_all: mentions?.all ?? false,
+      collaboration_session_id: mentions?.collaboration_session_id,
+    };
+    const fingerprint = JSON.stringify([targetId, body]);
+    sendLocks.current.add(targetKey);
     setError(null);
+    let intent: OutgoingIntent;
     try {
-      await api.post(`/threads/${encodeURIComponent(id)}/messages`, {
-        content,
-        attachment_ids,
-        reply_to,
-        client_nonce: receipt.current.nonce,
-        mention_agent_ids: mentions?.agent_ids ?? [],
-        mention_all: mentions?.all ?? false,
-        collaboration_session_id: mentions?.collaboration_session_id,
-      });
-      following.current = true;
-      setAtEnd(true);
-      if (!followUp) {
-        setDraft("");
-        setAttachments([]);
-        setReply(null);
+      intent = await enqueueOutgoing(
+        targetKey,
+        targetId,
+        fingerprint,
+        body,
+        Math.max(0, ...messages.map((message) => message.seq)),
+      );
+      const nextDraft = followUp
+        ? composerDraft(targetKey)
+        : consumeComposerDraft(targetKey, submittedDraft.revision);
+      if (current()) {
+        following.current = true;
+        setAtEnd(true);
+        if (!followUp) {
+          setDraft(nextDraft.text);
+          setAttachments(nextDraft.attachments);
+          setReply(nextDraft.reply);
+        }
       }
-      receipt.current = null;
-      await snapshot();
     } catch (reason) {
-      setError(errorText(reason));
+      if (current()) setError(errorText(reason));
       if (followUp) throw reason;
+      return;
     } finally {
-      setBusy(false);
+      sendLocks.current.delete(targetKey);
+    }
+    try {
+      await deliver(intent, targetKey, targetId);
+    } catch (reason) {
+      if (followUp) throw reason;
     }
   };
   const answerQuestion = async (answer: InputAnswer, label: string, messageId: string) => {
-    const key = JSON.stringify(answer);
-    let nonce = answerReceipts.current.get(key);
-    if (!nonce) {
-      nonce = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
-      answerReceipts.current.set(key, nonce);
+    const body = { content: label, reply_to: messageId, input_answer: answer, attachment_ids: [] };
+    const intent = await enqueueOutgoing(
+      outboxKey,
+      id,
+      JSON.stringify([id, body]),
+      body,
+      Math.max(0, ...messages.map((message) => message.seq)),
+    );
+    if (current()) {
+      following.current = true;
+      setAtEnd(true);
     }
-    try {
-      await api.post(`/threads/${encodeURIComponent(id)}/messages`, {
-        content: label,
-        reply_to: messageId,
-        input_answer: answer,
-        client_nonce: nonce,
-      });
-    } finally {
-      await snapshot();
-    }
+    await deliver(intent, outboxKey, id);
   };
   const questions = new Map(
     runs.flatMap((run) => run.input_requests ?? []).map((request) => [request.message_id, request]),
   );
   const attach = async () => {
     if (!thread || uploading || attachments.length >= 10) return;
+    const targetId = id,
+      targetKey = outboxKey;
     setUploading(true);
     setError(null);
     try {
@@ -358,13 +586,18 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
         multiple: false,
       });
       if (!result.canceled) {
-        const file = await upload(result.assets[0], id);
-        setAttachments((old) => [...old, file]);
+        if (!conversationCache.current(scope)) return;
+        const file = await upload(result.assets[0], targetId);
+        if (!conversationCache.current(scope)) return;
+        const next = editComposerDraft(targetKey, {
+          attachments: [...composerDraft(targetKey).attachments, file],
+        });
+        if (current()) setAttachments(next.attachments);
       }
     } catch (reason) {
-      setError(errorText(reason));
+      if (current()) setError(errorText(reason));
     } finally {
-      setUploading(false);
+      if (current()) setUploading(false);
     }
   };
   const changeRun = async (run: Run, action: "cancel" | "resume") => {
@@ -416,7 +649,12 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
               color={agent.color}
               variant={agent.avatar}
               size={28}
-              working={runs.some((run) => activeStatuses.includes(run.status))}
+              state={(() => {
+                const active = [...runs]
+                  .reverse()
+                  .find((run) => activeStatuses.includes(run.status));
+                return active ? turnActivity(active, events).avatar : "waiting";
+              })()}
             />
           ) : group ? (
             <GroupAvatar
@@ -524,7 +762,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
               testID="conversation-transcript"
               inverted
               data={conversationTimeline(
-                messages,
+                visibleMessages,
                 approvals.filter((row) => row.thread_id === id),
                 superBot.rows,
               ).reverse()}
@@ -578,11 +816,26 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
                   );
                 const message = item.message;
                 const question = questions.get(message.id);
-                const previous = messages[messages.findIndex((row) => row.id === message.id) - 1];
+                const previous =
+                  visibleMessages[visibleMessages.findIndex((row) => row.id === message.id) - 1];
+                const responseRun = message.id.startsWith("preview:")
+                  ? runs.find((run) => `preview:${run.id}` === message.id)
+                  : undefined;
                 return (
                   <View>
                     {needsTimeSeparator(message.created_at, previous?.created_at) ? (
                       <TimeSeparator createdAt={message.created_at} />
+                    ) : null}
+                    {responseRun ? (
+                      <TurnActivity
+                        run={{
+                          ...responseRun,
+                          stream: streamForRun(responseRun, streams[responseRun.id]),
+                        }}
+                        events={events}
+                        connection={connection}
+                        agent={agents.find((value) => value.id === responseRun.agent_id)}
+                      />
                     ) : null}
                     <MessageBubble
                       onChartLink={(value) => {
@@ -621,14 +874,27 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
                         ) : undefined
                       }
                       reply={messages.find((row) => row.id === message.reply_to)}
-                      onReply={setReply}
+                      onReply={
+                        message.id.startsWith("preview:")
+                          ? undefined
+                          : (value) => updateDraft({ reply: value })
+                      }
+                      onRetry={(nonce) => void retryOutgoing(nonce)}
+                      previousVisualMessageId={(() => {
+                        const settled = runs.find(
+                          (run) =>
+                            (streams[run.id]?.message_id ?? run.stream?.message_id) === message.id,
+                        );
+                        return settled ? `preview:${settled.id}` : undefined;
+                      })()}
                       grouped={Boolean(
-                        previous &&
-                          previous.role === message.role &&
-                          previous.agent_id === message.agent_id &&
-                          new Date(message.created_at).getTime() -
-                            new Date(previous.created_at).getTime() <
-                            180000,
+                        responseRun ||
+                          (previous &&
+                            previous.role === message.role &&
+                            previous.agent_id === message.agent_id &&
+                            new Date(message.created_at).getTime() -
+                              new Date(previous.created_at).getTime() <
+                              180000),
                       )}
                       agent={agents.find((value) => value.id === message.agent_id)}
                       files={files}
@@ -640,25 +906,14 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
                 );
               }}
               ListHeaderComponent={
-                <View style={{ gap: 12 }}>
-                  {runs
-                    .filter(
-                      (run) =>
-                        activeStatuses.includes(run.status) &&
-                        run.stream?.phase === "streaming" &&
-                        run.stream.text &&
-                        (!run.stream.message_id ||
-                          !messages.some((message) => message.id === run.stream?.message_id)),
-                    )
-                    .map((run) => (
-                      <View key={run.id} accessibilityLabel={t("running")} style={{ gap: 8 }}>
-                        <Markdown content={run.stream?.text ?? ""} />
-                      </View>
-                    ))}
-                  {runs.some((run) => activeStatuses.includes(run.status)) ? (
-                    <WorkingIndicator />
-                  ) : null}
-                </View>
+                outgoing.some((row) => row.message.delivery === "sending") ? (
+                  <Text
+                    accessibilityLiveRegion="polite"
+                    style={{ color: colors.secondary, padding: 8 }}
+                  >
+                    {t("sending")}
+                  </Text>
+                ) : null
               }
             />
           )}
@@ -695,10 +950,12 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
           mentionAll={collaborationActive}
           collaborationSessionId={collaborationSessionId}
           reply={reply}
-          onCancelReply={() => setReply(null)}
-          onChange={setDraft}
+          onCancelReply={() => updateDraft({ reply: null })}
+          onChange={(text) => updateDraft({ text })}
           attachments={attachments}
-          onRemove={(fileId) => setAttachments((old) => old.filter((file) => file.id !== fileId))}
+          onRemove={(fileId) =>
+            updateDraft({ attachments: attachments.filter((file) => file.id !== fileId) })
+          }
           onAttach={() => void attach()}
           onSend={(mentions) => void send(mentions)}
           busy={busy}

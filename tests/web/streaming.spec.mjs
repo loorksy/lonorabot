@@ -206,7 +206,9 @@ test("a failed reply explains the problem beside its owner input without exposin
     await expect(notice).not.toContainText("public_reply_unavailable");
     await expect(page.locator(`[data-run-status-id='${data.run.id}']`)).toHaveCount(0);
     await expect(page.locator(`[data-progress-run-id='${data.run.id}']`)).toHaveCount(0);
-    await expect(page.locator(`[data-stream-run-id='${data.run.id}']`)).toHaveCount(0);
+    // Accepted partial output remains visible after failure, without pretending completion.
+    await expect(page.locator(`[data-stream-run-id='${data.run.id}']`)).toContainText(data.text);
+    await expect(page.locator('[data-activity-phase="failed"]')).toHaveCount(1);
     const previous = await notice.evaluate((node) => node.previousElementSibling?.textContent);
     expect(previous).toContain("HISTORY 104 immutable fixture");
     // No generic retry button may replay a potentially financial request.

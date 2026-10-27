@@ -43,6 +43,7 @@ export type NativeVisualAction = (action: VisualAction) => void | Promise<void>;
 type Props = {
   content: RichContent;
   messageId: string;
+  previousMessageId?: string;
   threadId: string;
   onAction?: NativeVisualAction;
   onChartLink?: (url: string) => boolean;
@@ -67,7 +68,14 @@ export function nativeRichImageIds(content?: RichContent | null): Set<string> {
   return ids;
 }
 
-export function NativeRichResponse({ content, messageId, threadId, onAction, onChartLink }: Props) {
+export function NativeRichResponse({
+  content,
+  messageId,
+  previousMessageId,
+  threadId,
+  onAction,
+  onChartLink,
+}: Props) {
   const palette = useNativeVisualTheme();
   const parts = useMemo(() => validatedParts(content), [content]);
   const { rtl, t } = useSession();
@@ -88,6 +96,7 @@ export function NativeRichResponse({ content, messageId, threadId, onAction, onC
             key={`ui:${index}:${part.document.root.id}`}
             document={part.document}
             messageId={messageId}
+            previousMessageId={previousMessageId}
             threadId={threadId}
             palette={palette}
             onAction={onAction}
@@ -102,6 +111,7 @@ export function NativeRichResponse({ content, messageId, threadId, onAction, onC
 type DocumentProps = {
   document: VisualDocument;
   messageId: string;
+  previousMessageId?: string;
   threadId: string;
   palette: NativeVisualPalette;
   onAction?: NativeVisualAction;
@@ -110,6 +120,7 @@ type DocumentProps = {
 function NativeVisualDocument({
   document,
   messageId,
+  previousMessageId,
   threadId,
   palette,
   onAction,
@@ -131,6 +142,7 @@ function NativeVisualDocument({
   const [hydrated, setHydrated] = useState("");
   const [pending, setPending] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const hydrationOrigin = useRef({ key: "", initialized: false, saved: false, edited: false });
   const latestDocument = useRef(document);
   latestDocument.current = document;
   const savedState = useRef({ storageKey, state, expanded, ready: false });
@@ -142,19 +154,46 @@ function NativeVisualDocument({
   };
   useEffect(() => {
     let live = true;
-    setState(initialVisualState(latestDocument.current));
-    setExpanded({});
-    setHydrated("");
-    void loadVisualState(storageKey).then((saved) => {
+    if (hydrationOrigin.current.key !== storageKey) {
+      hydrationOrigin.current = {
+        key: storageKey,
+        initialized: false,
+        saved: false,
+        edited: false,
+      };
+      setState(initialVisualState(latestDocument.current));
+      setExpanded({});
+      setHydrated("");
+    }
+    void (async () => {
+      let saved = await loadVisualState(storageKey);
       if (!live) return;
-      setState(initialVisualState(latestDocument.current, saved?.state));
-      setExpanded(saved?.expanded ?? {});
+      const origin = hydrationOrigin.current;
+      if (!origin.initialized) {
+        origin.initialized = true;
+        origin.saved = Boolean(saved);
+      }
+      if (!origin.saved && !origin.edited && previousMessageId)
+        saved =
+          (await loadVisualState(
+            visualStateStorageKey(
+              `${server}|${owner?.id ?? "signed-out"}`,
+              threadId,
+              previousMessageId,
+              latestDocument.current,
+            ),
+          )) ?? saved;
+      if (!live) return;
+      if (!origin.edited) {
+        setState(initialVisualState(latestDocument.current, saved?.state));
+        setExpanded(saved?.expanded ?? {});
+      }
       setHydrated(storageKey);
-    });
+    })();
     return () => {
       live = false;
     };
-  }, [storageKey]);
+  }, [storageKey, previousMessageId, owner?.id, server, threadId]);
   useEffect(() => {
     if (hydrated !== storageKey || !owner) return;
     const timer = setTimeout(() => void saveVisualState(storageKey, { state, expanded }), 100);
@@ -205,8 +244,10 @@ function NativeVisualDocument({
       setPending(null);
     }
   };
-  const change = (node: VisualNode, next: VisualScalar) =>
+  const change = (node: VisualNode, next: VisualScalar) => {
+    hydrationOrigin.current.edited = true;
     setState((old) => updateVisualState(document, old, node, next));
+  };
   const textStyle = {
     color: palette.foreground,
     fontSize: visual.font.body,
@@ -241,7 +282,7 @@ function NativeVisualDocument({
         key={child.id}
         style={
           node.type === "row"
-            ? { flexGrow: 1, flexBasis: visual.columnMinimum, minWidth: 0 }
+            ? { flexGrow: 1, flexShrink: 1, flexBasis: visual.columnMinimum, minWidth: 0 }
             : undefined
         }
       >
@@ -378,20 +419,11 @@ function NativeVisualDocument({
         );
       case "grid":
         return (
-          <View style={{ flexDirection: rtl ? "row-reverse" : "row", flexWrap: "wrap", gap }}>
+          <NativeVisualGrid rtl={rtl} gap={gap} columns={node.columns ?? 2}>
             {(node.children ?? []).map((child) => (
-              <View
-                key={child.id}
-                style={{
-                  flexGrow: 1,
-                  flexBasis: `${Math.floor(100 / (node.columns ?? 2)) - 4}%`,
-                  minWidth: visual.columnMinimum,
-                }}
-              >
-                {render(child)}
-              </View>
+              <View key={child.id}>{render(child)}</View>
             ))}
-          </View>
+          </NativeVisualGrid>
         );
       case "list":
       case "timeline":
@@ -558,7 +590,10 @@ function NativeVisualDocument({
               accessibilityLabel={node.label ?? t("visualDetails")}
               accessibilityState={{ expanded: open }}
               aria-expanded={open}
-              onPress={() => setExpanded((old) => ({ ...old, [node.id]: !open }))}
+              onPress={() => {
+                hydrationOrigin.current.edited = true;
+                setExpanded((old) => ({ ...old, [node.id]: !open }));
+              }}
               style={{
                 minHeight: visual.touch,
                 flexDirection: rtl ? "row-reverse" : "row",
@@ -745,6 +780,44 @@ function NativeVisualDocument({
           {error}
         </Text>
       ) : null}
+    </View>
+  );
+}
+
+function NativeVisualGrid({
+  rtl,
+  gap,
+  columns,
+  children,
+}: {
+  rtl: boolean;
+  gap: number;
+  columns: number;
+  children: ReactNode[];
+}) {
+  const [width, setWidth] = useState(0);
+  const count = Math.max(
+    1,
+    Math.min(columns, Math.floor((width + gap) / (visual.columnMinimum + gap))),
+  );
+  return (
+    <View
+      onLayout={(event) => setWidth(event.nativeEvent.layout.width)}
+      style={{ flexDirection: rtl ? "row-reverse" : "row", flexWrap: "wrap", gap }}
+    >
+      {children.map((child, index) => (
+        <View
+          key={index}
+          style={{
+            flexGrow: 1,
+            flexShrink: 1,
+            flexBasis: width ? Math.max(0, (width - gap * (count - 1)) / count) : "100%",
+            minWidth: 0,
+          }}
+        >
+          {child}
+        </View>
+      ))}
     </View>
   );
 }

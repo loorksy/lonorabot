@@ -18,10 +18,24 @@ export {
   nearConversationBottom,
 } from "./conversation-timeline";
 export { webDeviceProof, webDeviceSupported } from "./device-proof";
+export {
+  accumulateStream,
+  type LiveReplyStream,
+  MAX_STREAM_CHARS,
+  seedStream,
+  streamForRun,
+  streamText,
+} from "./reply-stream";
 export { activeStatuses, canCancel, canResume, isWorking } from "./run-state";
 export { mergeSuperBotRequest } from "./super-bot";
 export { formatTimeSeparator, needsTimeSeparator, timeSeparatorIds } from "./time-separators";
 export * from "./trading-avatar-motion";
+export {
+  type ActivityCall,
+  type ActivityPhase,
+  projectRunEvents,
+  turnActivity,
+} from "./turn-activity";
 export { errorCode } from "./user-error";
 export {
   evaluateVisualValue,
@@ -31,6 +45,7 @@ export {
   MAX_VISUAL_BYTES,
   MAX_VISUAL_DEPTH,
   MAX_VISUAL_NODES,
+  parseVisualNumberDraft,
   updateVisualState,
   validateRichContent,
   validateVisualDocument,

@@ -1,12 +1,15 @@
 /** Semantic native-response metrics shared by Web and React Native renderers. */
 export const visual = {
-  space: { small: 8, normal: 12, large: 20 },
-  radius: { small: 8, normal: 12, large: 18 },
+  space: { small: 6, normal: 10, large: 16 },
+  radius: { small: 8, normal: 12, large: 16 },
   border: 1,
-  font: { small: 12, body: 16, label: 14, heading: [26, 23, 20, 18], metric: 28 },
-  line: { body: 25, small: 19 },
+  font: { small: 12, body: 14, label: 13, heading: [22, 20, 18, 16], metric: 24 },
+  line: { body: 22, small: 18 },
   touch: 44,
-  chartHeight: 220,
+  controlFont: 16,
+  controlHeight: 44,
+  panelPadding: 12,
+  chartHeight: 200,
   contentWidth: 728,
-  columnMinimum: 168,
+  columnMinimum: 144,
 } as const;

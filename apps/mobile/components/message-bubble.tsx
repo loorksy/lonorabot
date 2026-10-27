@@ -2,6 +2,7 @@ import type { Agent, Artifact, Message } from "@lonora/contracts";
 import { validateRichContent } from "@lonora/core";
 import { type ReactNode, useMemo, useState } from "react";
 import { Pressable, Text, View } from "react-native";
+import { isOutgoingMessage } from "../lib/outgoing-messages";
 import { useSession } from "../lib/session";
 import { ArtifactFileCard } from "./artifact-file-card";
 import { BotAvatar } from "./bot-avatar";
@@ -22,6 +23,8 @@ export function MessageBubble({
   onArtifact,
   onChartLink,
   onVisualAction,
+  onRetry,
+  previousVisualMessageId,
   grouped = false,
   reply,
   onReply,
@@ -33,6 +36,8 @@ export function MessageBubble({
   onArtifact: (id: string) => void;
   onChartLink?: (url: string) => boolean;
   onVisualAction?: NativeVisualAction;
+  onRetry?: (nonce: string) => void;
+  previousVisualMessageId?: string;
   grouped?: boolean;
   reply?: Message;
   onReply?: (message: Message) => void;
@@ -138,6 +143,7 @@ export function MessageBubble({
           <NativeRichResponse
             content={rich}
             messageId={message.id}
+            previousMessageId={previousVisualMessageId}
             threadId={message.thread_id}
             onAction={onVisualAction}
             onChartLink={onChartLink}
@@ -146,6 +152,23 @@ export function MessageBubble({
           <Markdown content={message.content} onChartLink={onChartLink} />
         ) : null))
       )}
+      {isOutgoingMessage(message) ? (
+        <View style={{ flexDirection: rtl ? "row-reverse" : "row", alignItems: "center", gap: 8 }}>
+          <Text style={{ color: colors.secondary, fontSize: 12 }}>
+            {t(message.delivery === "failed" ? "sendFailed" : "sending")}
+          </Text>
+          {message.delivery === "failed" && onRetry ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t("retry")}
+              onPress={() => onRetry(message.retry_nonce)}
+              style={{ minHeight: 44, minWidth: 44, justifyContent: "center" }}
+            >
+              <Text style={{ color: colors.link, fontSize: 13 }}>{t("retry")}</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
       {message.attachment_ids
         .filter((id) => !imageIds.has(id))
         .map((id) => (

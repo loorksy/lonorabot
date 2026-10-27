@@ -1,4 +1,5 @@
 from collections.abc import Awaitable, Callable
+from time import monotonic
 
 from lonora_adapter_kit.model import ModelAdapter
 from lonora_adapter_kit.types import ModelMessage, ModelReply, ToolDefinition
@@ -35,6 +36,7 @@ class GlobalModelRouter:
         on_delta: Callable[[str], Awaitable[None]] | None = None,
         on_attempt: Callable[[ModelSelection], Awaitable[None]] | None = None,
     ) -> tuple[ModelReply, ModelSelection]:
+        started = monotonic()
         choice = select_model(await read_policy(self.db), capability)
         async with self.db.sessions() as session:
             settings = SettingsRepository()
@@ -49,6 +51,7 @@ class GlobalModelRouter:
                 catalogs[provider] = [
                     ModelDescriptor.model_validate(item) for item in payload.get("models", [])
                 ]
+        routing_ms = round((monotonic() - started) * 1000, 2)
         failure: LonoraError | None = None
         for selection in choices:
             descriptor = next(
@@ -60,6 +63,7 @@ class GlobalModelRouter:
                 None,
             )
             # Rebuild from the original working messages for EVERY attempt, including fallback.
+            preparing = monotonic()
             prepared = prepare_context(
                 messages,
                 tools,
@@ -68,19 +72,45 @@ class GlobalModelRouter:
                 provider=selection.provider,
                 model=selection.model,
             )
+            context_ms = round((monotonic() - preparing) * 1000, 2)
+            credentials_started = monotonic()
             adapter = self.factory(
                 selection.provider, await self.credentials.resolve(selection.provider)
             )
+            credentials_ms = round((monotonic() - credentials_started) * 1000, 2)
             try:
+                admission_started = monotonic()
                 if on_attempt:
                     await on_attempt(selection)
+                admission_ms = round((monotonic() - admission_started) * 1000, 2)
+                provider_started = monotonic()
+                provider_first_text_ms: float | None = None
+
+                async def observed_delta(
+                    chunk: str, request_started: float = provider_started
+                ) -> None:
+                    nonlocal provider_first_text_ms
+                    if chunk and provider_first_text_ms is None:
+                        provider_first_text_ms = round((monotonic() - request_started) * 1000, 2)
+                    if on_delta:
+                        await on_delta(chunk)
+
                 reply = await adapter.complete(
                     selection.model,
                     prepared.messages,
                     tools,
                     max_output_tokens=prepared.output_tokens,
-                    on_delta=on_delta,
+                    on_delta=observed_delta if on_delta else None,
                 )
+                reply.provider_metadata["request_timings"] = {
+                    "routing_configuration_ms": routing_ms,
+                    "context_preparation_ms": context_ms,
+                    "credentials_and_adapter_ms": credentials_ms,
+                    "generation_admission_ms": admission_ms,
+                    "provider_first_text_ms": provider_first_text_ms,
+                    "provider_request_ms": round((monotonic() - provider_started) * 1000, 2),
+                    "router_total_ms": round((monotonic() - started) * 1000, 2),
+                }
                 reply.provider_metadata["context_budget"] = {
                     **prepared.diagnostics,
                     "actual_input_tokens": reply.usage.input_tokens or None,

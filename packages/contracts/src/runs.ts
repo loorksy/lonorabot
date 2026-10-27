@@ -10,7 +10,7 @@ export type ReplyStreamSnapshot = {
   truncated: boolean;
   phase: "streaming" | "committed" | "discarded" | "failed" | "cancelled";
   message_id: string | null;
-  /** Only a validated, atomically committed reply may expose native composition. */
+  /** Cumulative, server-validated complete frames; never a raw partial document. */
   rich_content?: RichContent | null;
 };
 export type InputRequest = {

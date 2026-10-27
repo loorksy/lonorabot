@@ -9,6 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .events import emit
+from .runs import run_data
 from .schema import (
     AgentRow,
     ArtifactRow,
@@ -53,6 +54,20 @@ async def history(
         (await session.scalars(query.order_by(MessageRow.seq.desc()).limit(min(limit, 200)))).all()
     )
     return list(reversed(rows))
+
+
+async def acknowledged_runs(session: AsyncSession, run_ids: list[str]) -> list[dict[str, Any]]:
+    """Return current canonical activity with the already committed message ack.
+
+    A recovered nonce reuses its original identities. This projection does not
+    start another Run or wait for the Gateway/model to handle the message.
+    """
+    if not run_ids:
+        return []
+    rows = {
+        row.id: row for row in await session.scalars(select(RunRow).where(RunRow.id.in_(run_ids)))
+    }
+    return [run_data(rows[identity]) for identity in run_ids if identity in rows]
 
 
 async def send_message(
@@ -111,6 +126,7 @@ async def send_message(
         return {
             "message": message_data(existing),
             "run_ids": receipt.result.get("run_ids", []),
+            "runs": await acknowledged_runs(session, receipt.result.get("run_ids", [])),
             "deduplicated": True,
         }
     answer_run: RunRow | None = None
@@ -322,6 +338,7 @@ async def send_message(
                 thread_id=thread_id,
                 agent_id=agent_id,
                 run_id=run.id,
+                payload={"run": run_data(run)},
             )
     if thread.agent_id and (request.mention_agent_ids or request.mention_all):
         from .collaboration import invite
@@ -354,4 +371,9 @@ async def send_message(
         receipt_result["input_answer"] = request.input_answer.model_dump()
     session.add(EffectReceiptRow(key="message:" + message.id, result=receipt_result))
     emit(session, owner_id, "message.created", thread_id=thread_id, payload=message_data(message))
-    return {"message": message_data(message), "run_ids": run_ids, "deduplicated": False}
+    return {
+        "message": message_data(message),
+        "run_ids": run_ids,
+        "runs": await acknowledged_runs(session, run_ids),
+        "deduplicated": False,
+    }

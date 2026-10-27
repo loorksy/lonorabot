@@ -38,7 +38,14 @@ def start_stream(row: RunRow, lease: Lease, turn_id: str) -> dict[str, Any]:
     return stream
 
 
-def append_stream(row: RunRow, lease: Lease, turn_id: str, text: str) -> tuple[dict[str, Any], str]:
+def append_stream(
+    row: RunRow,
+    lease: Lease,
+    turn_id: str,
+    text: str,
+    *,
+    rich_content: dict[str, Any] | None = None,
+) -> tuple[dict[str, Any], str]:
     stream = stream_data(row)
     if (
         stream is None
@@ -54,8 +61,27 @@ def append_stream(row: RunRow, lease: Lease, turn_id: str, text: str) -> tuple[d
         text=current + delta,
         truncated=bool(stream.get("truncated")) or len(delta) != len(text),
     )
+    compiled = validated_rich_content(rich_content)
+    if compiled is not None:
+        stream["rich_content"] = compiled
     save_stream(row, stream)
     return stream, delta
+
+
+def append_rich_partial(
+    row: RunRow, lease: Lease, turn_id: str, rich_content: dict[str, Any]
+) -> dict[str, Any] | None:
+    """Publish only whole validated components, on the existing stream sequence.
+
+    There is no canonical assistant message until final settlement. Invalid
+    display data leaves an already admitted preview intact and never executes
+    an action or converts a failed turn into a completed one.
+    """
+    compiled = validated_rich_content(rich_content)
+    if compiled is None:
+        return None
+    stream, _ = append_stream(row, lease, turn_id, "", rich_content=compiled)
+    return stream
 
 
 def settle_stream(
@@ -70,17 +96,28 @@ def settle_stream(
     if stream is None:
         return None
     stream.update(phase=phase, message_id=message_id)
-    stream.pop("rich_content", None)
-    compiled = validated_rich_content(rich_content) if phase == "committed" else None
-    if compiled is not None:
-        stream["rich_content"] = compiled
+    if phase == "committed":
+        # A committed reply is exact: a newer plain answer must not inherit an
+        # older preview. Interrupted turns retain only previously admitted UI.
+        stream.pop("rich_content", None)
+        compiled = validated_rich_content(rich_content)
+        if compiled is not None:
+            stream["rich_content"] = compiled
+    elif phase in {"cancelled", "failed"}:
+        compiled = validated_rich_content(stream.get("rich_content"))
+        if compiled is not None:
+            stream["rich_content"] = compiled
+        else:
+            stream.pop("rich_content", None)
+    else:
+        stream.pop("rich_content", None)
     if text is not None:
         stream.update(text=text[:MAX_STREAM_CHARS], truncated=len(text) > MAX_STREAM_CHARS)
     save_stream(row, stream)
     return stream
 
 
-def stream_identity(stream: dict[str, Any]) -> dict[str, Any]:
+def stream_identity(stream: dict[str, Any], *, include_rich: bool = True) -> dict[str, Any]:
     return {
         key: stream[key]
         for key in (
@@ -94,5 +131,5 @@ def stream_identity(stream: dict[str, Any]) -> dict[str, Any]:
             "truncated",
             "rich_content",
         )
-        if key in stream
+        if key in stream and (key != "rich_content" or include_rich)
     }

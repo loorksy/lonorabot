@@ -47,15 +47,18 @@ export function useEvents(enabled: boolean) {
             streams: stream
               ? trimStreams({ ...old.streams, [stream.run_id]: stream })
               : old.streams,
-            revision: [
-              "run.delta",
-              "run.reply_started",
-              "run.progress",
-              "market.quote_updated",
-              "cloud_charts.scene_updated",
-            ].includes(event.kind)
-              ? old.revision
-              : event.cursor,
+            revision:
+              event.kind.startsWith("tool.") ||
+              [
+                "run.delta",
+                "run.rich_partial",
+                "run.reply_started",
+                "run.progress",
+                "market.quote_updated",
+                "cloud_charts.scene_updated",
+              ].includes(event.kind)
+                ? old.revision
+                : event.cursor,
           };
         });
       },

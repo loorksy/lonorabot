@@ -1,6 +1,7 @@
 # Native visual responses
 
-Release evidence and practical limits: [verification report](native-visual-acceptance.md).
+Current repair and acceptance status: [chat runtime repair](chat-runtime-repair.md).
+Historical release evidence: [previous verification report](native-visual-acceptance.md).
 
 Lonora's existing Agent chooses whether an ordinary answer contains text,
 interactive native components, or both. There is no presentation classifier,
@@ -32,7 +33,10 @@ immediately after the mandatory operating policy. The model may insert complete
 answers remain unchanged. The vocabulary is first-party instruction, not a tool
 invocation or a forced response format. Old checkpoints receive the current
 vocabulary in their request projection, without rewriting their saved history.
-The mandatory operating-policy size bound remains separate and unchanged.
+The mandatory operating-policy size bound remains separate and unchanged. The
+marked native vocabulary is generated from the live component/property/enum and
+operator registry by `scripts/export_native_visual_reference.py`; `--check`
+rejects schema/documentation drift during the build.
 The Agent can choose interactive elements without the owner asking for a visual
 or an "Artifact". Existing downloadable files remain available for work that needs
 a file destination. No keyword or fixed template selects ordinary reply layout.
@@ -44,7 +48,8 @@ retain their existing caching behavior. No additional provider call is added.
 
 `visual_response.py` compiles optional documents in the same model generation.
 The compiler removes unsupported/malformed documents from public text, preserving
-useful prose and a text fallback. Partial JSON is withheld from the public stream;
+useful prose and a text fallback. Partial JSON is withheld from the public stream. Independently complete validated
+frames and their surrounding prose may stream before the remainder finishes.
 A finished frame may recover missing or transposed terminal container closers;
 interior syntax, keys, values and strings are never rewritten. All recovered data
 passes the same contract, grounding and authorization checks. Validated mixed
@@ -87,7 +92,10 @@ they are distinct from the existing live TradingView chart.
 
 `@lonora/core/visual-response` evaluates bounded expressions without `eval`,
 networking or model calls. Supported operators cover scalar arithmetic,
-comparisons, booleans and conditional values. Inputs update declared scalar state;
+comparisons, booleans and conditional values, with finite typed floor/ceil, square
+root/power, clamp, percentage/change and bounded scalar text concatenation.
+Missing values and invalid arithmetic remain unavailable. Literal display text
+does not interpolate mustaches; dynamic previews use state/value expressions. Inputs update declared scalar state;
 selectors, tabs, disclosures, filters and derived displays remain local. Persisted
 local state is scoped to the owner, thread, message and document identity; it
 cannot silently migrate into an unrelated response. Native and Web rendering use

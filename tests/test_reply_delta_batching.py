@@ -1,5 +1,6 @@
 """Validated replies publish atomically, independent of provider token framing."""
 
+import asyncio
 from importlib import import_module
 from math import ceil
 from types import SimpleNamespace
@@ -31,18 +32,34 @@ async def test_native_fragments_publish_safe_prefix_before_completion_with_bound
 ) -> None:
     monkeypatch.setattr("lonora_agent.public_stream.monotonic", lambda: 0.0)
     answer = "صباح النور. " * 150
-    published = AsyncMock()
+    first_publication = asyncio.Event()
+    provider_finished = False
+
+    async def accept(_context: Any, kind: str, _payload: Any) -> None:
+        if kind == "run.delta" and not first_publication.is_set():
+            assert not provider_finished
+            first_publication.set()
+
+    published = AsyncMock(side_effect=accept)
 
     async def complete(_capability: Any, _messages: Any, _tools: Any, **kwargs: Any):
+        nonlocal provider_finished
         selection = ModelSelection(provider="openai", model="scripted")
         await kwargs["on_attempt"](selection)
-        for character in answer:
+        opening = "صباح النور. " * 10
+        await kwargs["on_delta"](opening)
+        # A provider pause must allow delivery without waiting for its final reply.
+        await asyncio.wait_for(first_publication.wait(), timeout=1)
+        for character in answer[len(opening) :]:
             await kwargs["on_delta"](character)
             # Safe complete sentences may publish while the provider is generating.
             assert (
                 len([item for item in published.await_args_list if item.args[1] == "run.delta"])
                 <= len(answer) // 96 + 1
             )
+        # The final drain can write after the provider returns; the first event
+        # above already proves genuine publication while generation is active.
+        provider_finished = True
         return ModelReply(text=answer), selection
 
     async def images(

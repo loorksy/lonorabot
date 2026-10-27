@@ -284,6 +284,8 @@ async def test_actual_context_builder_resolver_and_fenced_diagnostics(
     )
     for module in (builder, skills):
         monkeypatch.setattr(module, "require_lease", AsyncMock(return_value=run))
+    activity = AsyncMock()
+    monkeypatch.setattr(builder, "progress", activity)
 
     def empty_context(_: Any) -> str:
         return ""
@@ -312,6 +314,16 @@ async def test_actual_context_builder_resolver_and_fenced_diagnostics(
     )
     monkeypatch.setattr(builder, "retrieve_memory", AsyncMock(return_value=""))
     messages = await builder.build_context(context, load_tools())
+    assert [call.args[1] for call in activity.await_args_list] == [
+        "run.context_started",
+        "run.context_ready",
+    ]
+    diagnostics = activity.await_args_list[-1].args[2]
+    assert diagnostics["duration_ms"] >= 0
+    assert all(duration >= 0 for duration in diagnostics["stage_timings"].values())
+    assert {"skills", "attachments", "history", "recall", "governance"} <= set(
+        diagnostics["stage_timings"]
+    )
     assert '<skill id="memory"' not in messages[0].content
     assert "memory — Recall past conversations" in messages[0].content
     assert '<skill id="market-analysis"' not in messages[0].content
