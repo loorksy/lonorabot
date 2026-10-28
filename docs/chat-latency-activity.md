@@ -59,12 +59,17 @@ deletion, new index or provenance cache is required.
   generation followed immediately by another. Fallback remains fenced, and legacy
   adapters without attempt callbacks initialize their stream on first publication.
   The existing bounded publisher still keeps provider reads independent of storage.
+- Cold-release acceptance exposed another avoidable cost: skill scope checks were
+  serializing the entire native schema catalog merely to read permitted names.
+  Those checks now read current registry membership directly, retaining the same
+  read-only exclusions and fresh revocation checks. Hash-verified offline encoders
+  are initialized before Gateway readiness rather than during the first message.
 
 ## Verification
 
 - `bash scripts/build.sh`: required formatting, lint, Pyright, generated-resource
   checks, TypeScript checks and all seven builds pass.
-- Full Python suite: **1,345 passed**, using disposable migrated PostgreSQL.
+- Full Python suite: **1,347 passed**, using disposable migrated PostgreSQL.
 - `tests/check_chat_latency.py`: actual provenance reads, durable activity, a
   committed reply and a subsequent Send while the archive model is deliberately
   blocked; later owner input is excluded from that earlier summary.

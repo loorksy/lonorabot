@@ -71,6 +71,10 @@ class ToolRegistry:
             tool.definition() for tool in self.tools.values() if not read_only or tool.read_only
         ]
 
+    def names(self, read_only: bool = False) -> set[str]:
+        """Current permitted membership without generating native JSON schemas."""
+        return {name for name, tool in self.tools.items() if not read_only or tool.read_only}
+
     def capability_inventory(self, read_only: bool = False) -> str:
         """Bounded names from the current permitted registry, never a second catalog.
 

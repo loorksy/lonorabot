@@ -72,7 +72,7 @@ async def effective_skill_registry(
     metadata: dict[str, Any],
 ) -> tuple[SkillRegistry, dict[str, str]]:
     """One effective pinned catalog for automatic selection and progressive reads."""
-    known_tools = {item.name for item in registry.definitions()}
+    known_tools = registry.names()
     skills, rejected = installed_registry([row.payload for row in rows], known_tools)
     skills = apply_snapshot(
         skills, rejected, read_snapshot(metadata.get("skill_snapshot")), known_tools
@@ -162,7 +162,7 @@ async def read_skill_context(
         )
     )
     read_only = run.trigger == "subagent" or run.model_metadata.get("authority") == "observe_only"
-    available = {item.name for item in registry.definitions(read_only=read_only)}
+    available = registry.names(read_only)
     signals = SkillSignals(
         # Description-first discovery; explicit requests, durable triggers and
         # already viewed pins still apply without routing by owner keywords.
@@ -287,7 +287,7 @@ async def assert_skill_authority(
         )
         signals = SkillSignals(
             read_only=read_only,
-            available_tools=frozenset(item.name for item in registry.definitions(read_only)),
+            available_tools=frozenset(registry.names(read_only)),
         )
         controls = await read_skill_controls(session, context.owner_id, context.agent_id)
         revoked = {(item.skill_id, item.version) for item in controls.revoked}
