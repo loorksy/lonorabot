@@ -83,6 +83,20 @@ def test_initial_surface_is_compact_and_full_definitions_remain_available():
     }
 
 
+def test_scope_membership_never_generates_or_caches_native_schemas():
+    catalog = registry()
+    complete = {tool.name for tool in catalog.definitions()}
+    read_only = {tool.name for tool in catalog.definitions(True)}
+    with patch.object(
+        Tool, "definition", side_effect=AssertionError("Schema work on membership path")
+    ):
+        assert catalog.names() == complete
+        assert catalog.names(True) == read_only
+        assert "trade_execute" not in catalog.names(True)
+        del catalog.tools["market_quote"]
+        assert "market_quote" not in catalog.names()
+
+
 @pytest.mark.asyncio
 async def test_search_then_inspection_activate_exact_native_schemas_only():
     catalog = registry()
