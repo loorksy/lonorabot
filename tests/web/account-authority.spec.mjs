@@ -60,21 +60,42 @@ async function setup(context, locale = "en") {
     thread,
     row,
     headers,
-    async open(page) {
+    async open(page, full = false) {
       await page.goto(`/app/${agent.id}?thread=${thread.id}`);
-      await page
-        .getByRole("button", {
-          name: locale === "ar" ? agent.name : `Agent settings: ${agent.name}`,
-          exact: true,
-        })
-        .click();
-      const surface = page.locator("details.tpl-profile-advanced").filter({
-        has: page.locator(":scope > summary", {
-          hasText: locale === "ar" ? "إدارة الحساب تلقائيًا" : "Automatic account management",
-        }),
-      });
-      await surface.locator(":scope > summary").click();
-      return surface;
+      const selector = page.getByTestId("permission-selector");
+      await expect(selector).toBeVisible();
+      if (full) {
+        await selector.click();
+        await page.getByTestId("permission-option-analysis").click();
+        await expect
+          .poll(
+            async () =>
+              (await (await context.request.get(`/api/agents/${agent.id}/permissions`)).json())
+                .pending_authority,
+          )
+          .toBeNull();
+      }
+      await selector.click();
+      await page.getByTestId("permission-option-autonomous").click();
+      const review = page.getByTestId("permission-review");
+      await expect(review).toBeVisible();
+      return review;
+    },
+    async revoke(page) {
+      if (await page.getByTestId("permission-review").count())
+        await page.getByTestId("permission-cancel").click();
+      await page.getByTestId("permission-selector").click();
+      const changed = page.waitForResponse(
+        (response) =>
+          response.url().endsWith(`/agents/${agent.id}/permissions`) &&
+          response.request().method() === "PUT",
+      );
+      await page.getByTestId("permission-option-analysis").click();
+      expect((await changed).ok()).toBeTruthy();
+      await expect(page.getByTestId("permission-effective")).toHaveAttribute(
+        "data-level",
+        "analysis",
+      );
     },
     async cleanup() {
       await context.request.delete(`/api/agents/${agent.id}`, { headers });
@@ -91,22 +112,17 @@ for (const locale of ["en", "ar"])
     if (locale === "ar") await page.setViewportSize({ width: 390, height: 844 });
     try {
       const surface = await state.open(page);
-      await expect(surface).toContainText(
-        locale === "ar" ? "بانتظار توقيعك" : "Waiting for your signature",
-      );
       await expect(surface).toContainText(state.data.symbol);
-      await surface
-        .locator("details > summary")
-        .filter({ hasText: locale === "ar" ? "إعدادات متقدمة" : "Advanced:" })
-        .click();
-      await expect(surface).toContainText(locale === "ar" ? "لا تضمن" : "cannot guarantee");
-      await surface
-        .getByRole("button", {
-          name: locale === "ar" ? "إيقاف الإدارة" : "Stop management",
-          exact: true,
-        })
-        .click();
-      await expect(surface).toContainText(locale === "ar" ? "ملغى" : "Revoked");
+      await expect(surface).toContainText("0.10");
+      await expect(surface).toContainText(
+        locale === "ar" ? "أهداف الربح غير مضمونة" : "Profit targets are not guaranteed",
+      );
+      const pending = await (
+        await context.request.get(`/api/agents/${state.agent.id}/permissions`)
+      ).json();
+      expect(pending.effective_level).toBe("analysis");
+      expect(pending.pending_authority.id).toBe(state.row.id);
+      await state.revoke(page);
       const saved = await (
         await context.request.get(`/api/agents/${state.agent.id}/account-authorities`)
       ).json();
@@ -119,7 +135,7 @@ for (const locale of ["en", "ar"])
     }
   });
 for (const full of [false, true])
-  test(`owner signs ${full ? "full" : "bounded"} independent scope through real WebAuthn and can revoke it`, async ({
+  test(`owner signs ${full ? "full" : "bounded"} independent scope through virtual WebAuthn and can revoke it`, async ({
     page,
     context,
   }) => {
@@ -146,20 +162,10 @@ for (const full of [false, true])
       },
     });
     try {
-      const surface = await state.open(page);
-      if (full)
-        await surface
-          .getByRole("button", { name: "Enable automatic management", exact: true })
-          .click();
-      else await surface.getByRole("button", { name: "Review and sign", exact: true }).click();
-      const review = surface.locator('section[aria-label="Review and sign"]');
-      await expect(review).toContainText(full ? "The agent chooses trades" : "0.10");
-      const sign = review.getByRole("button", { name: "Review and sign", exact: true });
-      if (full) await expect(sign).toBeEnabled();
-      else {
-        await expect(sign).toBeDisabled();
-        await review.getByRole("checkbox").check();
-      }
+      const review = await state.open(page, full);
+      await expect(review).toContainText(full ? "Not restricted" : "0.10");
+      const sign = review.getByTestId("permission-sign");
+      await expect(sign).toBeEnabled();
       await sign.click();
       await review
         .getByLabel("Confirm account password", { exact: true })
@@ -182,7 +188,10 @@ for (const full of [false, true])
         expect(activated.envelope.maximum_order_volume).toBeNull();
       }
       await expect(review).toHaveCount(0);
-      await expect(surface.locator(":scope > summary")).toContainText("Active");
+      await expect(page.getByTestId("permission-effective")).toHaveAttribute(
+        "data-level",
+        "autonomous",
+      );
       const saved = await (
         await context.request.get(`/api/agents/${state.agent.id}/account-authorities`)
       ).json();
@@ -190,8 +199,11 @@ for (const full of [false, true])
       expect((await (await context.request.get("/api/trading/controls")).json()).enabled).toBe(
         false,
       );
-      await surface.getByRole("button", { name: "Stop management", exact: true }).first().click();
-      await expect(surface).toContainText("Revoked");
+      await state.revoke(page);
+      const stopped = await (
+        await context.request.get(`/api/agents/${state.agent.id}/account-authorities`)
+      ).json();
+      expect(stopped.find((row) => row.id === activated.id).status).toBe("revoked");
     } finally {
       await state.cleanup();
     }

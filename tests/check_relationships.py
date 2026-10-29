@@ -180,9 +180,10 @@ async def main():
             {**args, "relationship_ids": [unknown["id"]]},
         )
         assert (
-            blocked["action"] == "WAIT"
+            blocked["action"] == "BUY"
             and "relationship_evidence_unreliable" in blocked["gate_codes"]
         )
+        assert blocked["readiness"]["execution_readiness"]["state"] == "BLOCKED"
         # Reading after a source correction returns the original metric, never hindsight.
         async with f.runtime.db.sessions() as session, session.begin():
             snapshot = await session.get(TradingAccountRow, connection)
@@ -209,7 +210,7 @@ async def main():
                 raise AssertionError("owner evidence leaked")
             assert await session.scalar(select(func.count()).select_from(TradingJournalRow)) == 0
         print(
-            "PASS missing broker data forces WAIT, immutable aligned samples survive later source changes, owner isolation holds and no financial journal/mutation is created"
+            "PASS missing broker data blocks execution while preserving intent; immutable aligned samples, owner isolation and zero financial mutations hold"
         )
 
         async with f.runtime.db.sessions() as session, session.begin():
@@ -236,9 +237,10 @@ async def main():
         with patch("lonora_tools.trading_decision.utcnow", return_value=now + timedelta(hours=1)):
             expired = await call("expired", "market_decision_record", args)
         assert (
-            expired["action"] == "WAIT"
+            expired["action"] == "BUY"
             and "relationship_evidence_unreliable" in expired["gate_codes"]
         )
+        assert expired["readiness"]["execution_readiness"]["state"] == "BLOCKED"
         print(
             "PASS specialist comparisons require its own exact symbol/account; expired historical relationship evidence cannot justify a fresh recommendation"
         )
@@ -264,7 +266,12 @@ async def main():
                     ]
                 )
             elif phase == 2:
-                relationship = json.loads(messages[-1].content)
+                observation = next(
+                    message
+                    for message in messages
+                    if message.role == "tool" and message.tool_call_id == "runtime-relationship"
+                )
+                relationship = json.loads(observation.content)
                 assert relationship["ok"] is True and relationship["state"] == "unavailable"
                 reply = ModelReply(
                     tool_calls=[
@@ -276,8 +283,15 @@ async def main():
                     ]
                 )
             else:
-                outcome = json.loads(messages[-1].content)
-                assert outcome["ok"] is True and outcome["action"] == "WAIT"
+                observation = next(
+                    message
+                    for message in messages
+                    if message.role == "tool"
+                    and message.tool_call_id == "runtime-relationship-decision"
+                )
+                outcome = json.loads(observation.content)
+                assert outcome["ok"] is True and outcome["action"] == "BUY"
+                assert outcome["readiness"]["execution_readiness"]["state"] == "BLOCKED"
                 reply = ModelReply(text="WAIT: relationship evidence is unavailable")
             return reply, ModelSelection(provider="openai", model="scripted-relationship-fixture")
 
@@ -291,7 +305,7 @@ async def main():
                 and run.result == "WAIT: relationship evidence is unavailable"
             )
         print(
-            "PASS same AgentRuntime/global router/tool loop consumes measured relationship state, persists gated WAIT and returns it to the conversation"
+            "PASS same AgentRuntime/global router/tool loop persists measured relationship blockers and returns the model's observation to the conversation"
         )
         historical_context = await f.lease(await f.run(agent, thread))
         async with f.runtime.db.sessions() as session, session.begin():

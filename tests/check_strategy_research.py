@@ -131,7 +131,12 @@ async def main() -> None:
                         ]
                     )
                 else:
-                    result = json.loads(messages[-1].content)
+                    observation = next(
+                        message
+                        for message in messages
+                        if message.role == "tool" and message.tool_call_id == "historical-analysis"
+                    )
+                    result = json.loads(observation.content)
                     assert (
                         result["mode"] == "historical_research"
                         and not result["execution_authorized"]

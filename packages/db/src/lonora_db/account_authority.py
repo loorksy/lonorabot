@@ -88,9 +88,19 @@ async def validate_scope(
 
 
 async def propose(
-    session: AsyncSession, owner_id: str, agent_id: str, body: AccountAuthorityProposal
+    session: AsyncSession,
+    owner_id: str,
+    agent_id: str,
+    body: AccountAuthorityProposal,
+    *,
+    permission_revision: int | None = None,
 ) -> AccountAuthorityRow:
+    from .agent_permissions import assert_permission_revision, bump_permission
+
     await authority_lock(session, agent_id)
+    # The broker symbol lookup happens before this transaction. Recheck the
+    # selector revision while holding the same lock as downgrade and final send.
+    await assert_permission_revision(session, owner_id, agent_id, permission_revision)
     if body.valid_until is not None and (
         body.valid_until <= utcnow()
         or body.management_mode == "bounded"
@@ -119,6 +129,19 @@ async def propose(
     )
     if previous:
         return previous
+    pending = await session.scalars(
+        select(AccountAuthorityRow)
+        .where(
+            AccountAuthorityRow.owner_id == owner_id,
+            AccountAuthorityRow.agent_id == agent_id,
+            AccountAuthorityRow.status == "pending",
+        )
+        .order_by(AccountAuthorityRow.id)
+        .with_for_update()
+    )
+    for prior in pending:
+        prior.status = "revoked"
+        changed(session, prior)
     row = AccountAuthorityRow(
         owner_id=owner_id,
         agent_id=agent_id,
@@ -132,6 +155,7 @@ async def propose(
     session.add(row)
     await session.flush()
     changed(session, row)
+    await bump_permission(session, owner_id, agent_id)
     return row
 
 
@@ -165,12 +189,15 @@ async def require_authority(
 
 
 async def revoke(session: AsyncSession, owner_id: str, identifier: str) -> AccountAuthorityRow:
+    from .agent_permissions import bump_permission
+
     candidate = await owned_authority(session, owner_id, identifier)
     await authority_lock(session, candidate.agent_id)
     row = await owned_authority(session, owner_id, identifier, lock=True)
     row.status = "revoked"
     await stop_management_task(session, row)
     changed(session, row)
+    await bump_permission(session, owner_id, row.agent_id)
     return row
 
 

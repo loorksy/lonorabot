@@ -162,9 +162,8 @@ async def main() -> None:
                 "summary": "Requested direction, subject to actual data health",
             },
         )
-        assert changed["action"] == "WAIT" and any(
-            "stale" in code for code in changed["gate_codes"]
-        )
+        assert changed["action"] == "BUY" and any("stale" in code for code in changed["gate_codes"])
+        assert changed["readiness"]["execution_readiness"]["state"] == "BLOCKED"
         with patch.object(
             context.brokers,
             "get",
@@ -181,14 +180,15 @@ async def main() -> None:
                 "market_decision_compare",
                 {"earlier_id": records[0]["id"], "later_id": changed["id"]},
             )
-            assert changes["changes"]["action"] == {"before": "BUY", "after": "WAIT"}
+            assert "action" not in changes["changes"]
+            assert "readiness" in changes["changes"]
             assert changes["changes"]["bid"] == {"before": "100", "after": "105"}
             recent = await call("recent", "market_decision_history", {"account_id": connection})
             assert all(
                 "evidence" not in item and "evidence_id" in item for item in recent["decisions"]
             )
         print(
-            "PASS stale evidence forces WAIT; immutable replay/deltas never substitute future prices; context stays bounded"
+            "PASS stale evidence blocks execution while preserving model intent; immutable replay/deltas never substitute future prices"
         )
 
         unknown = await call(
@@ -202,7 +202,8 @@ async def main() -> None:
                 "summary": "No invented quote for unknown market",
             },
         )
-        assert unknown["action"] == "WAIT" and unknown["gate_codes"]
+        assert unknown["action"] == "SELL" and unknown["gate_codes"]
+        assert unknown["readiness"]["execution_readiness"]["state"] == "BLOCKED"
         try:
             async with f.runtime.db.sessions() as session:
                 await read_decision(session, uuid4().hex, records[0]["id"])
@@ -235,8 +236,14 @@ async def main() -> None:
                     ]
                 )
             else:
-                persisted = json.loads(messages[-1].content)
-                assert persisted["action"] == "WAIT" and persisted["ok"] is True
+                observation = next(
+                    message
+                    for message in messages
+                    if message.role == "tool" and message.tool_call_id == "runtime-decision"
+                )
+                persisted = json.loads(observation.content)
+                assert persisted["action"] == "BUY" and persisted["ok"] is True
+                assert persisted["readiness"]["execution_readiness"]["state"] == "BLOCKED"
                 reply = ModelReply(text="WAIT: stored source data is stale")
             return reply, ModelSelection(provider="openai", model="scripted-decision-fixture")
 
@@ -282,7 +289,7 @@ async def main() -> None:
         retained = await f.request("GET", f"/trading/decisions/{records[0]['id']}")
         assert retained == api
         print(
-            "PASS missing market records honest WAIT, owner isolation and API replay survive fresh database sessions"
+            "PASS missing market blocks execution without rewriting model intent; owner isolation and API replay survive fresh sessions"
         )
     finally:
         if connection:

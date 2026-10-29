@@ -9,7 +9,7 @@ from uuid import uuid4
 from check_streaming import Fixture
 from lonora_adapter_kit.types import ToolCall
 from lonora_contracts.domain import utcnow
-from lonora_contracts.trading import TradeRequest, TradingControl
+from lonora_contracts.trading import TradeRequest, TradeResult, TradingControl
 from lonora_db.schema import AgentRow, TradingAccountRow, TradingJournalRow
 from lonora_db.trading_journal import persist_result
 from lonora_tools.loader import load_tools
@@ -204,11 +204,32 @@ async def main() -> None:
         from lonora_contracts.shadow import PerformanceRead
         from lonora_trading.performance import performance_snapshot
 
-        attributed = await service.execute(
-            fixture.owner,
-            TradeRequest(account_id=account_id, symbol=symbol, action="buy", volume=Decimal("0.1")),
-            context.lease,
+        permission = await fixture.request("GET", f"/agents/{agent['id']}/permissions")
+        assert permission["effective_level"] == "analysis"
+        await fixture.request(
+            "PUT",
+            f"/agents/{agent['id']}/permissions",
+            {"level": "supervised", "expected_revision": permission["revision"]},
         )
+        intent = ToolCall(
+            id="approved-quality-attribution",
+            name="trade_execute",
+            arguments={
+                "account_id": account_id,
+                "symbol": symbol,
+                "action": "buy",
+                "volume": "0.1",
+            },
+        )
+        pending = await registry.execute(intent, context)
+        assert pending["_runtime_wait"]
+        await fixture.request(
+            "POST",
+            f"/trading/approvals/{pending['approval_id']}/decision",
+            {"decision": "approve"},
+        )
+        submitted = await registry.execute(intent, context)
+        attributed = TradeResult.model_validate(submitted["results"][0])
         assert attributed.status == "confirmed"
         assert attributed.details["execution"]["agent_id"] == agent["id"]
         assert "lease" not in attributed.details

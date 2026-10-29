@@ -34,7 +34,7 @@ import {
   Target,
   X,
 } from "lucide-react";
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import {
   Navigate,
   Route,
@@ -129,10 +129,12 @@ function AgentConversation({
   agent,
   agents,
   onOpenChart,
+  knownRuns,
 }: {
   agent: Agent;
   agents: Agent[];
   onOpenChart: (id: string) => void;
+  knownRuns: Run[];
 }) {
   const [params, setParams] = useSearchParams();
   const { refresh } = useClient();
@@ -185,6 +187,7 @@ function AgentConversation({
         threadId={thread.id}
         agentId={agent.id}
         agents={agents}
+        knownRuns={knownRuns}
         onOpenChart={onOpenChart}
       />
     </>
@@ -407,7 +410,7 @@ function WorkspaceShell({ onLogout }: { onLogout: () => void }) {
       /* Preference only. */
     }
   }
-  const observedRuns = projectRunEvents(runs, events);
+  const observedRuns = useMemo(() => projectRunEvents(runs, events), [runs, events]);
   const busyIds = new Set(
     observedRuns
       .filter((row) => ["queued", "leased", "running"].includes(row.status))
@@ -917,6 +920,7 @@ function WorkspaceShell({ onLogout }: { onLogout: () => void }) {
                     key={String(group.state.thread_id)}
                     threadId={String(group.state.thread_id)}
                     agentId=""
+                    knownRuns={observedRuns}
                     conversationName={String(group.payload.name)}
                     onOpenChart={(id) => {
                       setPreferredChartId(id);
@@ -941,6 +945,7 @@ function WorkspaceShell({ onLogout }: { onLogout: () => void }) {
                     key={agent.id}
                     agent={agent}
                     agents={agents}
+                    knownRuns={observedRuns}
                     onOpenChart={(id) => {
                       setPreferredChartId(id);
                       openPanel("charts");

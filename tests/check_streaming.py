@@ -86,7 +86,7 @@ class Fixture:
         assert response.is_success, f"{method} {path}: HTTP {response.status_code}"
         return response.json()
 
-    async def agent(self, name: str) -> dict[str, Any]:
+    async def agent(self, name: str, *, supervised: bool = False) -> dict[str, Any]:
         # Legacy unbound fixture identities model migrated agents. Production
         # POST /agents requires a real, owner-selected broker market.
         from lonora_contracts.domain import AgentCreate
@@ -99,6 +99,15 @@ class Fixture:
                 )
             )
         self.agents.append(row["id"])
+        if supervised:
+            # Financial fixtures opt in through the same authenticated owner
+            # transition as clients. Production/new fixture defaults stay analysis.
+            state = await self.request("GET", f"/agents/{row['id']}/permissions")
+            await self.request(
+                "PUT",
+                f"/agents/{row['id']}/permissions",
+                {"level": "supervised", "expected_revision": state["revision"]},
+            )
         return row
 
     async def conversation(self, agent: dict[str, Any]) -> dict[str, Any]:

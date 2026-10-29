@@ -39,8 +39,6 @@ async def provisional_voice(session: AsyncSession, run: RunRow) -> bool:
 async def available_authority(
     session: AsyncSession, owner_id: str, run: RunRow, request: TradeRequest
 ) -> str | None:
-    if run.model_metadata.get("goal_id") or await provisional_voice(session, run):
-        return None  # Existing Goal-bound permissions and explicit approvals remain separate.
     management_id = run.model_metadata.get("account_management_id")
     if management_id:
         _, envelope = await require_authority(session, owner_id, run.agent_id, management_id)
@@ -92,8 +90,8 @@ async def require_account_execution(
     snapshot: ExecutionSnapshot,
     expected_target: dict[str, Any] | None,
 ) -> None:
-    if run.model_metadata.get("goal_id") or await provisional_voice(session, run):
-        raise LonoraError("trade_approval_required", 409)
+    # The central permission gate additionally requires exact-operation owner
+    # approval for provisional speech; a signed grant alone cannot spend it.
     if run.model_metadata.get("account_management_id", identifier) != identifier:
         raise LonoraError("account_authority_scope_mismatch", 403)
     _, envelope = await require_authority(session, owner_id, run.agent_id, identifier)

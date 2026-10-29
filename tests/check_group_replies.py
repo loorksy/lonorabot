@@ -65,7 +65,7 @@ async def checks() -> None:
             context = await fixture.lease(run)
             seen: list[list[ModelMessage]] = []
 
-            async def model(*args: Any):
+            async def model(*args: Any, **kwargs: Any):
                 seen.append(list(args[1]))
                 assert replies, "Unexpected extra model request"
                 return replies.pop(0), ModelSelection(provider="openai", model="scripted-fixture")

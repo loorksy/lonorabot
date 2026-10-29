@@ -476,7 +476,7 @@ def tools() -> list[Tool]:
     return [
         Tool(
             "goal_create",
-            "Persist a trading goal and ordered plan in this same agent/chat. Financial autonomy is always OFF until the owner explicitly enables it; do not promise profits.",
+            "Persist a trading goal and ordered plan in this same agent/chat. Saving a plan grants no authority; live actions follow current Agent permission and exact signed account scope. Do not promise profits.",
             GoalProposal,
             create,
             replay_safe=True,
@@ -522,7 +522,7 @@ def tools() -> list[Tool]:
         ),
         Tool(
             "goal_step_execute",
-            "Execute the exact current step in its frozen live/shadow Goal mode, with current evidence and signed background authority. Live steps additionally require global Trading ON; Shadow steps only mutate virtual state. Fixed goal/step/attempt identity across runs; ambiguity blocks retries.",
+            "Execute the exact current step in its frozen live/shadow Goal mode with fresh evidence. Live steps follow current Agent permission: analysis prohibits mutations, supervised needs exact approval, autonomous needs matching signed AccountAuthority. Global Trading ON is independently required; Shadow only mutates virtual state. Fixed step/attempt identity across runs; ambiguity blocks retries.",
             GoalStepNote,
             execute,
             financial=True,

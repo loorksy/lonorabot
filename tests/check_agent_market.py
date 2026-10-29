@@ -21,7 +21,7 @@ async def main() -> None:
     connection_id = None
     chart_id = None
     try:
-        agent = await fixture.agent("Ordinary persistent agent fixture")
+        agent = await fixture.agent("Ordinary persistent agent fixture", supervised=True)
         thread = await fixture.conversation(agent)
         connection = await fixture.request(
             "POST",
@@ -81,6 +81,16 @@ async def main() -> None:
         phase = 0
         operation_id = None
 
+        def observation(messages: list[ModelMessage], identifier: str) -> dict[str, Any]:
+            # Trusted capability updates can follow tool results. Associate
+            # observations with the actual call rather than the last message.
+            message = next(
+                message
+                for message in reversed(messages)
+                if message.role == "tool" and message.tool_call_id == identifier
+            )
+            return json.loads(message.content)
+
         async def complete(
             capability: Any, messages: list[ModelMessage], tools: Any, **kwargs: Any
         ):
@@ -92,7 +102,7 @@ async def main() -> None:
                     tool_calls=[ToolCall(id="discover", name="list_accounts", arguments={})]
                 )
             elif phase == 2:
-                previous = json.loads(messages[-1].content)
+                previous = observation(messages, "discover")
                 assert connection_id in {item["connection_id"] for item in previous["accounts"]}
                 result = ModelReply(
                     tool_calls=[
@@ -123,7 +133,7 @@ async def main() -> None:
                     ]
                 )
             elif phase == 4:
-                previous = json.loads(messages[-1].content)
+                previous = observation(messages, "open")
                 chart_id = previous["chart"]["id"]
                 assert previous["chart"]["payload"]["symbol"] == symbol
                 assert previous["scene"] is None and previous["requires_scene_inspection"]
@@ -145,7 +155,7 @@ async def main() -> None:
                     ]
                 )
             elif phase == 5:
-                previous = json.loads(messages[-1].content)
+                previous = observation(messages, "trade")
                 assert previous["status"] == "confirmed", previous
                 operation_id = previous["operation_id"]
                 result = ModelReply(
@@ -158,7 +168,7 @@ async def main() -> None:
                     ]
                 )
             else:
-                previous = json.loads(messages[-1].content)
+                previous = observation(messages, "account")
                 assert previous["positions"][0]["symbol"] == symbol
                 result = ModelReply(
                     text="Explicit scripted fixture: persistent chart, snapshot and simulated trade completed."

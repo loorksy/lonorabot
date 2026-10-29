@@ -68,7 +68,12 @@ async def main():
                     },
                 )
             elif phase == 1:
-                error = json.loads(messages[-1].content)
+                observation = next(
+                    message
+                    for message in messages
+                    if message.role == "tool" and message.tool_call_id == "invalid-watch"
+                )
+                error = json.loads(observation.content)
                 assert error["code"] == "tool_arguments_invalid" and error["retryable"]
                 assert error["issues"] == [
                     {
@@ -93,7 +98,12 @@ async def main():
                     },
                 )
             elif phase == 2:
-                saved = json.loads(messages[-1].content)
+                observation = next(
+                    message
+                    for message in messages
+                    if message.role == "tool" and message.tool_call_id == "repaired-goal"
+                )
+                saved = json.loads(observation.content)
                 assert saved["ok"] and saved["payload"]["steps"][0]["kind"] == "review"
                 goal_id = saved["id"]
                 call = ToolCall(
@@ -102,7 +112,12 @@ async def main():
                     arguments={"goal_id": goal_id, "mode": "supervised"},
                 )
             else:
-                proposal = json.loads(messages[-1].content)
+                observation = next(
+                    message
+                    for message in messages
+                    if message.role == "tool" and message.tool_call_id == "prepare-card"
+                )
+                proposal = json.loads(observation.content)
                 assert proposal["ok"] and proposal["status"] == "pending"
                 assert proposal["internal_ids_are_private"] is True
                 assert "لم يُفعّل التداول التلقائي" in proposal["owner_summary"]

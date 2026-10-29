@@ -27,7 +27,7 @@ async def main():
     controls = await read_controls(fixture.runtime.db)
     connection_id = None
     try:
-        agent = await fixture.agent("Financial approval")
+        agent = await fixture.agent("Financial approval", supervised=True)
         thread = await fixture.conversation(agent)
         context = await fixture.lease(await fixture.run(agent, thread))
         registry = load_tools()

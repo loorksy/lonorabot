@@ -22,6 +22,7 @@ ROUTES = (
     "auth",
     "device_authority",
     "account_authority",
+    "agent_permissions",
     "onboarding",
     "agents",
     "agent_state",

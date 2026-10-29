@@ -74,7 +74,7 @@ async def main() -> None:
                 }
             },
         )
-        agent = await f.agent("Evolving thesis")
+        agent = await f.agent("Evolving thesis", supervised=True)
         thread = await f.conversation(agent)
         context = await f.lease(await f.run(agent, thread))
         tools = load_tools()

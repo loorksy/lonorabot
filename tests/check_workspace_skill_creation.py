@@ -105,7 +105,19 @@ async def main() -> None:
             nonlocal rounds
             rounds += 1
             if rounds > 1:
-                result = json.loads(messages[-1].content)
+                expected_call = (
+                    "write-source",
+                    "create-local",
+                    "test-local",
+                    "activate-local",
+                    "read-local",
+                )[rounds - 2]
+                observation = next(
+                    message
+                    for message in messages
+                    if message.role == "tool" and message.tool_call_id == expected_call
+                )
+                result = json.loads(observation.content)
                 assert result["ok"], result
                 results.append(result)
             if rounds == 1:

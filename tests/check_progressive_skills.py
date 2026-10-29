@@ -75,7 +75,7 @@ async def main() -> None:
         phase = 0
 
         async def model(
-            ctx: Any, messages: list[ModelMessage], *args: Any
+            ctx: Any, messages: list[ModelMessage], *args: Any, **kwargs: Any
         ) -> tuple[ModelReply, ModelSelection]:
             nonlocal phase
             phase += 1
@@ -204,7 +204,9 @@ async def main() -> None:
             )
             return True
 
-        async def after_steering(ctx: Any, messages: list[ModelMessage], *args: Any) -> Any:
+        async def after_steering(
+            ctx: Any, messages: list[ModelMessage], *args: Any, **kwargs: Any
+        ) -> Any:
             assert any(content in message.content for message in messages)
             assert "Conflicting automatic instructions" not in messages[0].content
             return ModelReply(text="Continued"), ModelSelection(provider="openai", model="scripted")
@@ -274,7 +276,7 @@ async def pending_effect_guard(
         ToolCall(id="effect", name="script_effect", arguments={}),
     ]
 
-    async def model(*args: Any) -> Any:
+    async def model(*args: Any, **kwargs: Any) -> Any:
         return ModelReply(text="", tool_calls=calls), ModelSelection(
             provider="openai", model="scripted"
         )

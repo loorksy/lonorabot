@@ -5,13 +5,14 @@ from lonora_contracts.shadow import ExecutionMode
 from lonora_contracts.trading import TradeRequest, TradeResult
 from lonora_core.user_error import LonoraError
 from lonora_db.agent_binding import agent_binding, assert_market_binding, require_financial_agent
+from lonora_db.agent_permissions import effective_permission
 from lonora_db.runs import require_lease
 from lonora_db.schema import EffectReceiptRow, TradeApprovalRow, TradingJournalRow
 from lonora_db.steering import user_interrupt_pending
 from lonora_db.trade_approvals import approval_event
 from lonora_db.transactions import owned_thread
 from lonora_session.idempotency import request_hash, stable_id
-from lonora_trading.account_authority import available_authority
+from lonora_trading.account_authority import available_authority, provisional_voice
 from lonora_trading.idempotency import trade_fingerprint
 from lonora_trading.journal import record_excerpt
 from lonora_trading.manual_activity import material_state
@@ -58,6 +59,8 @@ async def approved_execution(
     context: ToolContext, requests: list[TradeRequest], *, gate_only: bool = False
 ) -> dict[str, Any]:
     approval_id = stable_id(context.lease.run_id, "approval:" + context.call_id)
+    level = "analysis"
+    provisional = False
     async with context.db.sessions() as reader:
         origin = await require_lease(reader, context.lease)
         mode = (
@@ -69,16 +72,28 @@ async def approved_execution(
             reader, context.owner_id, context.agent_id, execution_mode=mode
         )
         previous = await reader.get(TradeApprovalRow, approval_id)
+        if mode == "live" and (previous is None or previous.status != "completed"):
+            level = await effective_permission(reader, context.owner_id, context.agent_id)
+            if level == "analysis":
+                raise LonoraError("agent_analysis_only", 403)
+            provisional = await provisional_voice(reader, origin)
+        authority_requests = (
+            [TradeRequest.model_validate(item) for item in previous.requests]
+            if previous is not None
+            else requests
+        )
         grants = (
             [
                 await available_authority(reader, context.owner_id, origin, request)
-                for request in requests
+                for request in authority_requests
             ]
-            if mode == "live" and not gate_only and previous is None
+            if mode == "live" and not gate_only and level == "autonomous"
             else []
         )
-    if grants and all(grants):
-        return await account_authorized_execution(context, requests, grants)
+        if grants and not all(grants):
+            raise LonoraError("account_authority_scope_mismatch", 403)
+    if grants and all(grants) and not provisional:
+        return await account_authorized_execution(context, authority_requests, grants)
     if mode == "shadow" and previous is None:
         from lonora_trading.shadow import ShadowReadView
 
@@ -162,7 +177,7 @@ async def approved_execution(
             return {"approved": True, "approval_id": row.id}
 
     results: list[dict[str, Any]] = []
-    for request in frozen:
+    for index, request in enumerate(frozen):
 
         async def authorize(request: TradeRequest = request) -> None:
             async with context.db.sessions() as session:
@@ -190,8 +205,18 @@ async def approved_execution(
                     raise LonoraError("trade_approval_broker_state_changed", 409)
 
         try:
+            target_key = (
+                request.account_id
+                + (":position:" if request.position_id else ":order:")
+                + str(request.position_id or request.order_id or "")
+            )
             result = await context.trading.execute(
-                context.owner_id, request, context.lease, authorization=authorize
+                context.owner_id,
+                request,
+                context.lease,
+                authorization=authorize,
+                account_authority_id=grants[index] if grants else None,
+                expected_target=expected_snapshot.get(target_key),
             )
         except LonoraError as error:
             result = TradeResult(

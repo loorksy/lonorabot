@@ -44,6 +44,7 @@ import { WorkingIndicator } from "../../components/ai/primitives";
 import { TurnActivity } from "../../components/ai/TurnActivity";
 import { FilePreviewPanel } from "../../components/common/FilePreviewPanel";
 import { ConversationQuestion } from "../../components/conversation-question";
+import { AgentPermissions } from "../../components/permissions/AgentPermissions";
 import { SuperBotCard, useSuperBotRequests } from "../../components/trading/SuperBotCards";
 import { TradeApprovalCard, useTradeApprovals } from "../../components/trading/TradeApprovals";
 import { useThreads } from "../../hooks/useThreads";
@@ -79,14 +80,17 @@ export function ThreadViewport({
   agents,
   conversationName,
   onOpenChart,
+  knownRuns,
 }: {
   conversationName?: string;
   onOpenChart?: (id: string) => void;
   threadId: string;
   agentId: string;
   agents: Agent[];
+  knownRuns?: Run[];
 }) {
-  const thread = useThreads(undefined, threadId);
+  const agent = agents.find((item) => item.id === agentId);
+  const thread = useThreads(undefined, threadId, knownRuns);
   const approvalState = useTradeApprovals(threadId);
   const superBot = useSuperBotRequests(agentId, { threadId });
   const { owner, events, revision, streams, seedStreams, connected } = useClient();
@@ -342,6 +346,11 @@ export function ThreadViewport({
         threadId={threadId}
         ownerId={owner.id}
         working={working}
+        permissions={
+          agent ? (
+            <AgentPermissions key={`${owner.id}:${agentId}`} agent={agent} threadId={threadId} />
+          ) : undefined
+        }
         reply={reply}
         recipientName={conversationName ?? agents.find((agent) => agent.id === agentId)?.name}
         mentionTargets={agents}
@@ -372,6 +381,7 @@ export function Composer({
   mentionAll = false,
   collaborationSessionId,
   recipientName,
+  permissions,
   onClearReply,
   onSend,
   onCancel,
@@ -384,6 +394,7 @@ export function Composer({
   mentionAll?: boolean;
   collaborationSessionId?: string;
   recipientName?: string;
+  permissions?: ReactNode;
   onClearReply: () => void;
   onSend: (text: string, ids: string[], reply: string | null, mentions?: MentionAddress) => void;
   onCancel: () => void;
@@ -728,6 +739,7 @@ export function Composer({
           </button>
         </div>
       )}
+      {permissions}
       <div
         className="template-composer-bar"
         data-overflow-top={inputOverflow.top || undefined}

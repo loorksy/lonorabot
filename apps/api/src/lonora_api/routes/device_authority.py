@@ -82,7 +82,6 @@ async def revoke(request: Request, device_id: str, owner: OwnerIdentity = Depend
         )
         if device is None:
             raise LonoraError("device_not_found", 404)
-        device.revoked = True
         rows = list(
             await session.scalars(
                 select(SuperBotRequestRow)
@@ -94,22 +93,40 @@ async def revoke(request: Request, device_id: str, owner: OwnerIdentity = Depend
                 .order_by(SuperBotRequestRow.goal_id)
             )
         )
-        for row in rows:
-            await stop_request(session, row, "disabled")
         from lonora_db.account_authority import changed as authority_changed
         from lonora_db.account_authority import stop_management_task
+        from lonora_db.agent_permissions import bump_permission
 
-        authorities = await session.scalars(
-            select(AccountAuthorityRow).where(
-                AccountAuthorityRow.owner_id == owner.id,
-                AccountAuthorityRow.device_id == device.id,
-                AccountAuthorityRow.status == "active",
+        authorities = list(
+            await session.scalars(
+                select(AccountAuthorityRow).where(
+                    AccountAuthorityRow.owner_id == owner.id,
+                    AccountAuthorityRow.device_id == device.id,
+                    AccountAuthorityRow.status == "active",
+                )
             )
         )
+        # Device verification and revocation share the owner-device lock. Lock
+        # every affected Agent before mutation too, so a final send is admitted
+        # either before revocation or rejected by the newly committed state.
+        for agent_id in sorted({row.agent_id for row in [*rows, *authorities]}):
+            await authority_lock(session, agent_id)
+        device.revoked = True
+        for row in rows:
+            await session.refresh(row)
+            if row.status == "activated":
+                await stop_request(session, row, "disabled")
+        changed_agents: set[str] = set()
         for authority in authorities:
+            await session.refresh(authority)
+            if authority.status != "active":
+                continue
             authority.status = "revoked"
             await stop_management_task(session, authority)
             authority_changed(session, authority)
+            changed_agents.add(authority.agent_id)
+        for agent_id in sorted(changed_agents):
+            await bump_permission(session, owner.id, agent_id)
     return {"revoked": True}
 
 

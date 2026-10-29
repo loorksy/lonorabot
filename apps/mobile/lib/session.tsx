@@ -1,4 +1,5 @@
 import type { Owner } from "@lonora/contracts";
+import { agentPermissionError } from "@lonora/core";
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useState } from "react";
 import { AppState, Platform } from "react-native";
 import {
@@ -153,6 +154,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const errorText = (error: unknown) => {
     if (error instanceof SessionRequestCancelled) return "";
     if (error instanceof ApiError) {
+      const permissionMessage = agentPermissionError(error.code, locale);
+      if (permissionMessage) return permissionMessage;
       return Object.hasOwn(labels, error.code)
         ? translate(locale, error.code as Label)
         : t("request_failed");

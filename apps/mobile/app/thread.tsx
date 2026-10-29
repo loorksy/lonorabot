@@ -37,6 +37,7 @@ import {
 } from "react-native";
 import { ActionMenu } from "../components/action-menu";
 import { AgentLiveStatus } from "../components/agent-live-status";
+import { AgentPermissions } from "../components/agent-permissions";
 import { BotAvatar } from "../components/bot-avatar";
 import { useChartSheet } from "../components/chart-sheet";
 import { ConversationQuestion } from "../components/conversation-question";
@@ -118,6 +119,9 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
   const [atEnd, setAtEnd] = useState(true);
   const [loaded, setLoaded] = useState(false);
   const [stateRevision, setStateRevision] = useState(0);
+  const [permissionRevision, setPermissionRevision] = useState(0);
+  const permissionAgent = useRef(thread?.agent_id);
+  permissionAgent.current = thread?.agent_id;
   const superBot = useSuperBotRequests(thread?.agent_id ?? undefined, id, stateRevision);
   const [events, setEvents] = useState<Event[]>([]);
   const [streams, setStreams] = useState<Record<string, LiveReplyStream>>({});
@@ -350,6 +354,12 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
       const unsubscribe = subscribeOwnerEvents(
         server,
         (event) => {
+          if (
+            !disposed &&
+            event.agent_id === permissionAgent.current &&
+            ["agent.permission.updated", "account_authority.updated"].includes(event.kind)
+          )
+            setPermissionRevision((value) => value + 1);
           if (disposed || event.thread_id !== id) return;
           setRuns((old) => projectRunEvents(old, [event], id));
           setEvents((old) =>
@@ -953,6 +963,11 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
           )}
         </View>
         <ThreadComposer
+          permissionControl={
+            agent && !thread?.group_id ? (
+              <AgentPermissions agent={agent} threadId={id} revision={permissionRevision} />
+            ) : undefined
+          }
           draft={draft}
           members={agents}
           mentionAll={collaborationActive}

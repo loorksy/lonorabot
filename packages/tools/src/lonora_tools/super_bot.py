@@ -23,6 +23,7 @@ async def proposal(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]
     body = SuperBotProposal.model_validate(args)
     digest = request_hash(body.model_dump(mode="json"))
     async with context.db.sessions() as session, session.begin():
+        await authority_lock(session, context.agent_id)
         await require_lease(session, context.lease, lock=True)
         locale = await conversation_locale(session, context.owner_id, context.thread_id)
         summary = (
@@ -64,8 +65,8 @@ async def status(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
 
 async def stop(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     async with context.db.sessions() as session, session.begin():
-        await require_lease(session, context.lease, lock=True)
         await authority_lock(session, context.agent_id)
+        await require_lease(session, context.lease, lock=True)
         rows = list(
             await session.scalars(
                 select(SuperBotRequestRow)
@@ -88,20 +89,20 @@ def tools() -> list[Tool]:
     return [
         Tool(
             "super_bot_propose",
-            "Prepare a persistent, reviewable Super Bot activation request for an existing goal. This grants NO authority. The owner must review the frozen permissions and complete cryptographically verified device authentication in the UI. Never claim activation from this pending result or from spoken/typed approval.",
+            "Prepare a legacy Super Bot request for an existing goal. This never grants current financial permission. Live trading follows the Agent permission selector and matching signed AccountAuthority; never claim activation from a pending result or chat agreement.",
             SuperBotProposal,
             proposal,
         ),
         Tool(
             "super_bot_status",
-            "Read this Agent's authoritative Super Bot requests and active authority. Global Trading ON/OFF and Emergency Stop still independently govern execution.",
+            "Read this Agent's historical Super Bot request state. This does not establish current financial permission or active AccountAuthority. Global Trading ON/OFF and Emergency Stop independently govern execution.",
             Empty,
             status,
             True,
         ),
         Tool(
             "super_bot_stop",
-            "Immediately pause/stop this Agent's Super Bot authority without device authentication. Never close broker positions as a side effect.",
+            "Pause/stop this Agent's legacy Super Bot Goal requests. Does not revoke separate AccountAuthority; use current permission controls for that. Never close broker positions as a side effect.",
             Stop,
             stop,
         ),

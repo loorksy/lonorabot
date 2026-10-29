@@ -15,13 +15,14 @@ import {
 import { useClient } from "../providers/ClientProvider";
 
 const inFlightSends = new Map<string, Promise<void>>();
+const noKnownRuns: Run[] = [];
 
 function mergeMessages(...groups: Message[][]) {
   const messages = new Map(groups.flat().map((message) => [message.id, message]));
   return [...messages.values()].sort((a, b) => a.seq - b.seq);
 }
 
-export function useThreads(agentId?: string, threadId?: string) {
+export function useThreads(agentId?: string, threadId?: string, knownRuns: Run[] = noKnownRuns) {
   const { owner, revision, refresh, events } = useClient();
   const [threads, setThreads] = useState<Thread[]>([]);
   const messageKey = conversationKey(owner.id, `/threads/${threadId}/messages`);
@@ -137,8 +138,11 @@ export function useThreads(agentId?: string, threadId?: string) {
     acknowledgeOutgoing(key, canonicalMessages);
   }, [canonicalMessages, messageKey, key]);
   const projectedRuns = useMemo(
-    () => projectRunEvents(runs, events, threadId),
-    [runs, events, threadId],
+    // The workspace can already know this Run while a slower thread-specific
+    // read is still pending or unavailable. Reuse that canonical snapshot so
+    // valid live tokens do not wait for a second successful status request.
+    () => projectRunEvents([...knownRuns, ...runs], events, threadId),
+    [knownRuns, runs, events, threadId],
   );
   useEffect(() => {
     retainConversation(runKey, projectedRuns);

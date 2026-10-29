@@ -121,7 +121,9 @@ async def build_context(
                 role="system",
                 content=await timed(
                     "collaboration",
-                    routing_frame(session, context.owner_id, context.agent_id, context.thread_id),
+                    routing_frame(
+                        session, context.owner_id, context.agent_id, context.thread_id, run
+                    ),
                 ),
             ),
         ] + await timed(

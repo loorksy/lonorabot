@@ -138,7 +138,13 @@ async def checks() -> None:
         registry = load_tools()
         origin = await fixture.run(agent, thread)
         origin_context = await fixture.lease(origin)
-        trade = {"account_id": account_id, "symbol": "FIXTURE", "action": "buy", "volume": "0.1"}
+        trade = {
+            "account_id": account_id,
+            "symbol": "FIXTURE",
+            "action": "buy",
+            "volume": "0.1",
+            "stop_loss": "9",
+        }
         payload = {
             "title": "Explicit fixture goal",
             "objective": "Scripted lifecycle, no promised return",
@@ -272,11 +278,82 @@ async def checks() -> None:
             )
             raise AssertionError("Background autonomy bypass")
         except LonoraError as error:
-            assert error.code == "goal_autonomy_required"
+            assert error.code == "agent_analysis_only"
         device = await Device.enroll(fixture)
         await device.authorize_goal_service(
             fixture, await fixture.request("GET", "/trading/goals/" + goal_id)
         )
+        # Historical Goal signatures are analytical state, not a bypass around
+        # the Agent's currently selected financial permission.
+        permission = await fixture.request("GET", f"/agents/{agent['id']}/permissions")
+        assert permission["effective_level"] == "analysis"
+        try:
+            await execute_goal_step(
+                db,
+                brokers,
+                executor,
+                fixture.owner,
+                goal_id,
+                "entry",
+                entry_context.lease,
+            )
+        except LonoraError as error:
+            assert error.code == "agent_analysis_only"
+        else:
+            raise AssertionError("Legacy Goal signature bypassed Analysis Only")
+
+        async def authorize_account() -> None:
+            permission = await fixture.request("GET", f"/agents/{agent['id']}/permissions")
+            proposal = await fixture.request(
+                "POST",
+                f"/agents/{agent['id']}/account-authorities?permission_revision={permission['revision']}",
+                {
+                    "thread_id": thread["id"],
+                    "account_id": account_id,
+                    "symbols": ["FIXTURE"],
+                    "actions": [
+                        "buy",
+                        "sell",
+                        "buy_limit",
+                        "sell_limit",
+                        "buy_stop",
+                        "sell_stop",
+                        "close_position",
+                        "modify_position",
+                        "cancel_order",
+                        "modify_order",
+                    ],
+                    "maximum_order_volume": "0.1",
+                    "maximum_symbol_volume": "100",
+                    "maximum_positions": 100,
+                    "maximum_pending_orders": 100,
+                    "maximum_actions": 10000,
+                    "minimum_equity": "1",
+                    "valid_until": (utcnow() + timedelta(days=1)).isoformat(),
+                    "allow_manual_positions": True,
+                },
+            )
+            challenge = await fixture.request(
+                "POST", f"/account-authorities/{proposal['id']}/challenge", {}
+            )
+            await fixture.request(
+                "POST",
+                "/account-authorities/verify",
+                device.assertion(challenge, fixture.settings.allowed_origin),
+            )
+            assert (await fixture.request("GET", f"/agents/{agent['id']}/permissions"))[
+                "effective_level"
+            ] == "autonomous"
+
+        async def select_permission(level: str) -> None:
+            permission = await fixture.request("GET", f"/agents/{agent['id']}/permissions")
+            await fixture.request(
+                "PUT",
+                f"/agents/{agent['id']}/permissions",
+                {"level": level, "expected_revision": permission["revision"]},
+            )
+
+        await authorize_account()
         async with db.sessions() as session, session.begin():
             goal = await owned_goal(session, fixture.owner, goal_id)
             await control_goal(
@@ -410,14 +487,9 @@ async def checks() -> None:
             async with db.sessions() as session, session.begin():
                 await complete_run(session, context.lease, "Explicit fixture turn ended", {})
 
-        # A signed supervised reduction prepares the SAME approval card on a background wake.
+        # Agent selection governs the same exact approval on a background wake.
         supervised = await make_goal()
-        async with db.sessions() as session:
-            saved = await owned_goal(session, fixture.owner, supervised["id"])
-            grant_id = saved.state["super_bot_request_id"]
-        await fixture.request(
-            "POST", "/super-bot/control", {"request_id": grant_id, "action": "supervised"}
-        )
+        await select_permission("supervised")
         context = await goal_lease(supervised)
         call = ToolCall(
             id=uuid4().hex,
@@ -456,6 +528,7 @@ async def checks() -> None:
 
             grant = await session.get(SuperBotRequestRow, grant_id)
             assert grant and grant.mode == "advisory"
+        await select_permission("analysis")
         context = await goal_lease(advisory)
         sent = gate.sent
         try:
@@ -463,14 +536,15 @@ async def checks() -> None:
                 db, brokers, executor, fixture.owner, advisory["id"], "entry", context.lease
             )
         except LonoraError as error:
-            assert error.code == "super_bot_advisory_only"
+            assert error.code == "agent_analysis_only"
         else:
             raise AssertionError("advisory plan mutated the broker")
         assert gate.sent == sent
         await finish(context)
         print(
-            "PASS signed supervised background wake waits for the real owner approval and executes once; advisory cannot mutate"
+            "PASS current Agent supervision waits for exact owner approval; legacy Goal signatures cannot bypass Analysis Only"
         )
+        await authorize_account()
 
         # Pause and cancel arriving after preflight but before send block the exact operation.
         for action in ("pause", "cancel"):
@@ -1011,8 +1085,19 @@ async def checks() -> None:
             ) -> ModelReply:
                 nonlocal adapter_rounds, gateway_goal
                 adapter_rounds += 1
-                assert model == "explicit-scripted-goal-model"
+                assert model == "explicit-scripted-goal-model", model
                 if adapter_rounds == 1:
+                    assert any(tool.name == "tool_environment" for tool in tools)
+                    return ModelReply(
+                        tool_calls=[
+                            ToolCall(
+                                id="gateway-discover-create",
+                                name="tool_environment",
+                                arguments={"tool_name": "goal_create"},
+                            )
+                        ]
+                    )
+                if adapter_rounds == 2:
                     assert any(tool.name == "goal_create" for tool in tools)
                     return ModelReply(
                         tool_calls=[
@@ -1021,7 +1106,7 @@ async def checks() -> None:
                             )
                         ]
                     )
-                if adapter_rounds == 2:
+                if adapter_rounds == 3:
                     result = json.loads(
                         next(
                             message.content
@@ -1036,14 +1121,25 @@ async def checks() -> None:
                     return ModelReply(
                         tool_calls=[
                             ToolCall(
+                                id="gateway-discover-read",
+                                name="tool_environment",
+                                arguments={"tool_name": "goal_read"},
+                            )
+                        ]
+                    )
+                if adapter_rounds == 4:
+                    assert any(tool.name == "goal_read" for tool in tools)
+                    return ModelReply(
+                        tool_calls=[
+                            ToolCall(
                                 id="gateway-goal-read",
                                 name="goal_read",
                                 arguments={"goal_id": gateway_goal},
                             )
                         ]
                     )
-                assert adapter_rounds == 3
-                answer = "Saved the goal in this same chat; financial autonomy remains off."
+                assert adapter_rounds == 5
+                answer = "Saved your ongoing analysis in this chat."
                 if on_delta:
                     await on_delta(answer)
                 return ModelReply(text=answer)
@@ -1110,9 +1206,9 @@ async def checks() -> None:
             assert (
                 answer is not None
                 and answer.content == run.result
-                and "autonomy remains off" in answer.content
+                and "Saved your ongoing analysis in this chat." in answer.content
             )
-        assert adapter_rounds == 3
+        assert adapter_rounds == 5
         print(
             "Goals: actual message/Gateway/AgentRuntime/tool/reply, closed loop, pending fill/restart, worker death, fixed identities, ambiguity, stop controls, peer ancestry, verified fresh crossings and bounded context passed; local scripted/simulation fixtures only"
         )

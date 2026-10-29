@@ -34,7 +34,7 @@ async def main() -> None:
     f = await Fixture().open()
     controls = await read_controls(f.runtime.db)
     try:
-        agent = await f.agent("Account authority")
+        agent = await f.agent("Account authority", supervised=True)
         thread = await f.conversation(agent)
         context = await f.lease(await f.run(agent, thread))
         registry = load_tools()
@@ -512,9 +512,8 @@ async def main() -> None:
 
         revoked = await f.request("POST", f"/account-authorities/{grant['id']}/revoke", {})
         assert revoked["status"] == "revoked"
-        assert (await f.request("POST", "/account-authorities/verify", proof))[
-            "status"
-        ] == "revoked"
+        replay = await f.client.post("/api/account-authorities/verify", json=proof)
+        assert replay.status_code == 403
         needs_approval = await operation(volume="0.1", stop_loss="90")
         assert needs_approval["_runtime_wait"]
         print(
