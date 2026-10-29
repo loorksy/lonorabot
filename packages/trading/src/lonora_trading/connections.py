@@ -13,7 +13,9 @@ from lonora_db.broker_sessions import (
     current_broker_identity,
 )
 from lonora_db.client import Database
+from lonora_db.schema import BrokerSessionRow
 from lonora_db.transactions import resource_data
+from sqlalchemy import select
 
 
 async def verified_identity(config: BrokerConnection, token: str) -> dict[str, Any]:
@@ -53,6 +55,7 @@ async def connect_account(
         if config.provider == "metaapi":
             # Backfill old connections from trusted provider metadata if no
             # current observed identity exists. Never trust caller identity fields.
+            observations: list[tuple[str, int, BrokerConnection, dict[str, Any]]] = []
             for row in await repository.all_connections(session, owner_id):
                 if row.payload.get("provider") != "metaapi":
                     continue
@@ -62,10 +65,32 @@ async def connect_account(
                 existing = BrokerConnection.model_validate(row.payload)
                 if not existing.secret_id:
                     raise LonoraError("broker_identity_unavailable", 503)
+                version = row.version
                 observed = await verified_identity(existing, await secrets.read(existing.secret_id))
-                row.state = {
-                    **row.state,
-                    "broker_identity": {**observed, "connection_version": row.version},
+                observations.append((row.id, version, existing, observed))
+            # Finish ALL provider I/O before taking any broker row lock. Keeping
+            # one earlier row locked while observing the next would stall recovery.
+            for connection_id, version, existing, observed in observations:
+                # Recovery observations do not acquire the owner lock. Refresh
+                # under the broker row lock AFTER provider I/O so merging an
+                # identity never overwrites a concurrently committed snapshot.
+                refreshed = await session.scalar(
+                    select(BrokerSessionRow)
+                    .where(
+                        BrokerSessionRow.id == connection_id, BrokerSessionRow.owner_id == owner_id
+                    )
+                    .with_for_update()
+                    .execution_options(populate_existing=True)
+                )
+                if (
+                    refreshed is None
+                    or refreshed.version != version
+                    or BrokerConnection.model_validate(refreshed.payload) != existing
+                ):
+                    raise LonoraError("broker_connection_changed", 409)
+                refreshed.state = {
+                    **refreshed.state,
+                    "broker_identity": {**observed, "connection_version": refreshed.version},
                 }
             await repository.assert_unique(
                 session, owner_id, config.model_dump(mode="json"), identity=identity
