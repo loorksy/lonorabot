@@ -50,42 +50,84 @@
   min-width: 0;
 }
 .permission-options h3 {
-  margin: 2px 4px 10px;
-  font-size: 13px;
+  margin: 2px 4px 14px;
+  font-size: 15px;
   font-weight: 600;
+}
+.permission-level-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 .permission-options .permission-level-option {
   display: flex;
-  position: relative;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  gap: 12px;
   width: 100%;
+  min-height: 82px;
+  padding: 12px 14px;
+  border: 1px solid var(--lonora-line, var(--border));
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--lonora-surface, var(--popover)) 88%, transparent);
+  transition:
+    border-color 160ms ease,
+    background 160ms ease,
+    box-shadow 160ms ease;
+}
+.permission-options .permission-level-option[data-selected="true"] {
+  border-color: #8d7bff;
+  background: linear-gradient(
+    105deg,
+    color-mix(in srgb, #8d7bff 16%, var(--lonora-surface, var(--muted))),
+    color-mix(in srgb, #6d5ce7 8%, var(--lonora-surface, var(--muted)))
+  );
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, #8d7bff 45%, transparent),
+    0 8px 26px color-mix(in srgb, #6d5ce7 22%, transparent);
+}
+.permission-options .permission-level-select {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  color: inherit;
   text-align: start;
-  border: 1px solid transparent;
-  border-radius: 9px;
-  padding: 10px;
   background: transparent;
   cursor: pointer;
 }
-.permission-options .permission-level-option[data-selected="true"] {
-  background: var(--lonora-surface, var(--muted));
-  border-color: var(--lonora-line, var(--border));
+.permission-options .permission-level-select:disabled {
+  cursor: not-allowed;
 }
 .permission-options .permission-level-icon {
   display: grid;
   place-items: center;
-  flex: 0 0 36px;
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
+  flex: 0 0 52px;
+  width: 52px;
+  height: 52px;
+  border: 1px solid color-mix(in srgb, var(--lonora-text, var(--foreground)) 18%, transparent);
+  border-radius: 50%;
   color: var(--lonora-muted, var(--muted-foreground));
-  background: color-mix(in srgb, currentColor 9%, transparent);
+  background: radial-gradient(
+    circle at 35% 25%,
+    color-mix(in srgb, var(--lonora-text, var(--foreground)) 24%, transparent),
+    color-mix(in srgb, var(--lonora-surface, var(--muted)) 76%, transparent) 65%
+  );
+  box-shadow:
+    inset 0 1px 1px color-mix(in srgb, white 14%, transparent),
+    0 5px 16px color-mix(in srgb, black 20%, transparent);
 }
 .permission-options .permission-level-option[data-selected="true"] .permission-level-icon {
-  color: var(--lonora-text, var(--foreground));
+  color: #e7e2ff;
+  border-color: color-mix(in srgb, #b2a8ff 62%, transparent);
+  background: radial-gradient(circle at 35% 25%, #b0a3ff, #5b48cc 75%);
+  box-shadow:
+    inset 0 1px 1px rgb(255 255 255 / 36%),
+    0 0 22px rgb(121 101 255 / 48%);
 }
-.permission-options .permission-level-option > span:nth-of-type(2) {
+.permission-options .permission-level-copy {
   flex: 1;
   min-width: 0;
 }
@@ -98,6 +140,27 @@
   font-size: 11px;
   line-height: 1.5;
   color: var(--lonora-muted, var(--muted-foreground));
+}
+.permission-options .permission-level-switch {
+  flex: none;
+  width: 46px;
+  height: 28px;
+  border-radius: 999px;
+  transform: scale(1.03);
+}
+.permission-options .permission-level-switch[data-checked] {
+  background: #8d7bff;
+  box-shadow: 0 0 14px rgb(125 103 255 / 42%);
+}
+.permission-options .permission-level-switch[data-unchecked] {
+  background: color-mix(in srgb, var(--lonora-muted, var(--muted-foreground)) 32%, transparent);
+}
+.permission-options .permission-level-switch [data-slot="switch-thumb"] {
+  width: 24px;
+  height: 24px;
+}
+.permission-options .permission-level-option[data-disabled="true"] {
+  opacity: 0.52;
 }
 .permission-options .permission-link {
   margin: 10px;
@@ -542,21 +605,10 @@
   }
 }
 
-.permission-level-option input[type="radio"] {
-  position: absolute;
-  inset: 0;
-  opacity: 0;
-  width: 100%;
-  height: 100%;
-  cursor: pointer;
-}
-.permission-level-option:focus-within {
+.permission-level-select:focus-visible,
+.permission-level-switch:focus-visible {
   outline: 2px solid var(--ring, #8b7aff);
   outline-offset: 2px;
-}
-.permission-level-option:has(input:disabled) {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 .agent-permissions {
   max-width: var(--chat-content-width);

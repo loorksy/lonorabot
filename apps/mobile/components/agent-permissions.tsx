@@ -28,6 +28,7 @@ import {
   Platform,
   Pressable,
   ScrollView,
+  Switch,
   Text,
   View,
 } from "react-native";
@@ -52,6 +53,8 @@ const permissionSymbols = {
   supervised: "shield-check",
   autonomous: "zap",
 } as const;
+const permissionAccent = "#8d7bff";
+const permissionAccentSoft = "rgba(141,123,255,0.16)";
 const durations: AuthorityDuration[] = ["until_stopped", "12h", "24h", "7d"];
 
 /** A native projection/editor of the existing server authority. Drafts grant nothing. */
@@ -753,51 +756,86 @@ function PermissionControl({ agent, threadId, revision = 0, settings = false }: 
                       busy,
                       true,
                     )
-                  : levels.map((level) => (
-                      <Pressable
-                        key={level}
-                        testID={`permission-choice-${level}`}
-                        accessibilityRole="radio"
-                        accessibilityLabel={copy[level]}
-                        aria-checked={selected === level}
-                        accessibilityState={{
-                          checked: selected === level,
-                          selected: selected === level,
-                          disabled: busy,
-                        }}
-                        disabled={busy}
-                        onPress={() => choose(level)}
-                        style={{
-                          minHeight: 68,
-                          padding: 12,
-                          borderRadius: 14,
-                          backgroundColor: selected === level ? colors.accent : colors.muted,
-                          flexDirection: rowDirection,
-                          alignItems: "center",
-                          gap: 12,
-                          opacity: busy ? 0.5 : 1,
-                        }}
-                      >
-                        <View testID={`permission-choice-icon-${level}`}>
-                          <NativeSymbol
-                            name={permissionSymbols[level]}
-                            size={22}
-                            color={selected === level ? colors.foreground : colors.secondary}
-                          />
-                        </View>
-                        <View style={{ flex: 1, gap: 4 }}>
-                          <Text style={{ ...textStyle, fontWeight: "600" }}>{copy[level]}</Text>
-                          <Text style={{ ...textStyle, fontSize: 13, color: colors.secondary }}>
-                            {copy[`${level}Hint`]}
-                          </Text>
-                        </View>
-                        {selected === level ? (
-                          <View testID={`permission-choice-selected-${level}`}>
-                            <NativeSymbol name="check" size={20} color={colors.foreground} />
+                  : levels.map((level) => {
+                      const isSelected = selected === level;
+                      return (
+                        <Pressable
+                          key={level}
+                          testID={`permission-choice-${level}`}
+                          accessibilityRole="radio"
+                          accessibilityLabel={copy[level]}
+                          aria-checked={isSelected}
+                          accessibilityState={{
+                            checked: isSelected,
+                            selected: isSelected,
+                            disabled: busy,
+                          }}
+                          disabled={busy}
+                          onPress={() => {
+                            if (!isSelected) choose(level);
+                          }}
+                          style={({ pressed }) => ({
+                            minHeight: 86,
+                            padding: 12,
+                            borderRadius: 18,
+                            borderWidth: isSelected ? 1.5 : 1,
+                            borderColor: isSelected ? permissionAccent : colors.border,
+                            backgroundColor: isSelected ? permissionAccentSoft : colors.muted,
+                            flexDirection: rowDirection,
+                            alignItems: "center",
+                            gap: 12,
+                            opacity: busy ? 0.5 : pressed ? 0.82 : 1,
+                          })}
+                        >
+                          <View
+                            testID={`permission-choice-icon-${level}`}
+                            style={{
+                              width: 54,
+                              height: 54,
+                              borderRadius: 27,
+                              alignItems: "center",
+                              justifyContent: "center",
+                              borderWidth: 1,
+                              borderColor: isSelected ? "rgba(205,198,255,0.68)" : colors.border,
+                              backgroundColor: isSelected ? "#6651d4" : colors.accent,
+                              shadowColor: isSelected ? permissionAccent : "#000000",
+                              shadowOpacity: isSelected ? 0.45 : 0.18,
+                              shadowRadius: 12,
+                              shadowOffset: { width: 0, height: 5 },
+                              elevation: isSelected ? 5 : 1,
+                            }}
+                          >
+                            <NativeSymbol
+                              name={permissionSymbols[level]}
+                              size={23}
+                              color={isSelected ? "#f3f0ff" : colors.secondary}
+                            />
                           </View>
-                        ) : null}
-                      </Pressable>
-                    ))}
+                          <View style={{ flex: 1, gap: 4 }}>
+                            <Text style={{ ...textStyle, fontWeight: "600" }}>{copy[level]}</Text>
+                            <Text style={{ ...textStyle, fontSize: 13, color: colors.secondary }}>
+                              {copy[`${level}Hint`]}
+                            </Text>
+                          </View>
+                          <View testID={`permission-choice-selected-${level}`}>
+                            <Switch
+                              testID={`permission-choice-switch-${level}`}
+                              value={isSelected}
+                              disabled={busy}
+                              onValueChange={(value) => {
+                                if (value && !isSelected) choose(level);
+                              }}
+                              accessibilityLabel={copy[level]}
+                              accessibilityRole="switch"
+                              accessibilityState={{ checked: isSelected, disabled: busy }}
+                              trackColor={{ false: colors.border, true: permissionAccent }}
+                              thumbColor={isSelected ? "#f3f0ff" : colors.secondary}
+                              ios_backgroundColor={colors.border}
+                            />
+                          </View>
+                        </Pressable>
+                      );
+                    })}
                 {selected === "autonomous" &&
                   actionButton(
                     copy.advanced,

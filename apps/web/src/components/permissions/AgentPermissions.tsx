@@ -26,9 +26,10 @@ import {
   Popover,
   PopoverContent,
   PopoverTrigger,
+  Switch,
 } from "@lonora/ui-web";
 import { Check, ChevronDown, Eye, ShieldCheck, X, Zap } from "lucide-react";
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useOverlayHistory } from "../../hooks/useOverlayHistory";
 import { ApiError, api, isRequestCancelled } from "../../lib/api";
 import { userError } from "../../lib/user_error";
@@ -138,7 +139,6 @@ export function AgentPermissions({
   const [password, setPassword] = useState("");
   const [reload, setReload] = useState(0);
   const compact = useCompactSurface();
-  const radioName = useId();
   const flowActive = flow !== null;
   const path = `/agents/${encodeURIComponent(agent.id)}/permissions`;
   const supported = webDeviceSupported();
@@ -476,40 +476,49 @@ export function AgentPermissions({
   const optionList = (
     <div className="permission-options" data-testid="permission-options" dir={rtl ? "rtl" : "ltr"}>
       <h3>{text.title}</h3>
-      <div role="radiogroup" aria-label={text.title}>
+      <div className="permission-level-list">
         {agentPermissionLevels.map((level) => {
           const LevelIcon = permissionLevelIcons[level];
+          const disabled = busy || !state || (agent.role === "delegated" && level !== "analysis");
           return (
-            <label
+            <div
               key={level}
               className="permission-level-option"
               data-selected={selected === level}
+              data-disabled={disabled || undefined}
             >
-              <input
-                type="radio"
-                name={radioName}
-                checked={selected === level}
+              <button
+                type="button"
+                className="permission-level-select"
+                aria-pressed={selected === level}
                 data-testid={`permission-option-${level}`}
-                disabled={busy || !state || (agent.role === "delegated" && level !== "analysis")}
-                onChange={() => choose(level)}
-                onClick={() => {
-                  if (selected === level) choose(level);
+                disabled={disabled}
+                onClick={() => choose(level)}
+              >
+                <span
+                  className="permission-level-icon"
+                  data-testid={`permission-option-icon-${level}`}
+                  data-level={level}
+                  aria-hidden="true"
+                >
+                  <LevelIcon size={22} />
+                </span>
+                <span className="permission-level-copy">
+                  <strong>{text[level]}</strong>
+                  <small>{text[`${level}Hint`]}</small>
+                </span>
+              </button>
+              <Switch
+                data-testid={`permission-option-switch-${level}`}
+                className="permission-level-switch"
+                checked={selected === level}
+                disabled={disabled}
+                aria-label={`${text.title}: ${text[level]}`}
+                onCheckedChange={(checked) => {
+                  if (checked && selected !== level) choose(level);
                 }}
               />
-              <span
-                className="permission-level-icon"
-                data-testid={`permission-option-icon-${level}`}
-                data-level={level}
-                aria-hidden="true"
-              >
-                <LevelIcon size={20} />
-              </span>
-              <span>
-                <strong>{text[level]}</strong>
-                <small>{text[`${level}Hint`]}</small>
-              </span>
-              {selected === level && <Check size={17} />}
-            </label>
+            </div>
           );
         })}
       </div>
