@@ -9,7 +9,7 @@ import {
   mentionQuery,
   rebaseMentions,
 } from "@lonora/core";
-import { useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Platform,
@@ -42,6 +42,7 @@ export function ThreadComposer({
   collaborationSessionId,
   reply,
   onCancelReply,
+  permissionControl,
 }: {
   draft: string;
   onChange: (value: string) => void;
@@ -59,6 +60,7 @@ export function ThreadComposer({
   collaborationSessionId?: string;
   reply?: Message | null;
   onCancelReply?: () => void;
+  permissionControl?: ReactNode;
 }) {
   const { rtl, t } = useSession();
   const [inputHeight, setInputHeight] = useState(44);
@@ -87,6 +89,7 @@ export function ThreadComposer({
         backgroundColor: colors.background,
       }}
     >
+      {permissionControl}
       {reply ? <ComposerReplyPreview message={reply} onClose={onCancelReply} /> : null}
       {candidates.length ? (
         <View style={{ backgroundColor: colors.muted, borderRadius: 14, overflow: "hidden" }}>

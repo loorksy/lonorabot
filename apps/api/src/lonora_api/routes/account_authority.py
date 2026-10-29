@@ -1,6 +1,6 @@
 """Owner-authenticated proposals; only signed user verification activates authority."""
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Query, Request
 from lonora_auth.account_authority import begin_activation, finish_activation
 from lonora_auth.identity import OwnerIdentity
 from lonora_contracts.account_authority import AccountAuthorityProposal
@@ -39,6 +39,7 @@ async def proposal(
     agent_id: str,
     body: AccountAuthorityProposal,
     owner: OwnerIdentity = Depends(require_owner),
+    permission_revision: int | None = Query(default=None, ge=0),
 ):
     rt = runtime(request)
     async with rt.db.sessions() as session:
@@ -49,7 +50,15 @@ async def proposal(
         if any(symbol not in symbols for symbol in body.symbols):
             raise LonoraError("symbol_not_found", 404)
     async with rt.db.sessions() as session, session.begin():
-        return authority_data(await propose(session, owner.id, agent_id, body))
+        return authority_data(
+            await propose(
+                session,
+                owner.id,
+                agent_id,
+                body,
+                permission_revision=permission_revision,
+            )
+        )
 
 
 @router.post("/account-authorities/{identifier}/challenge")

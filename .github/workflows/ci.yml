@@ -774,6 +774,8 @@ jobs:
 
       - name: Verify coherent shared foundations in isolated PostgreSQL databases
         run: .venv/bin/python tests/run_foundation_checks.py --isolated-databases
+      - name: Verify shared permission proposal construction
+        run: pnpm exec tsx --test tests/web/agent-permission.test.ts tests/web/account-authority.test.ts
       - name: Verify native sessions and concurrent persistent conversations
         run: .venv/bin/python tests/check_clients.py
       - name: Verify durable reply streams and idempotent peer communication

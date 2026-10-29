@@ -18,12 +18,14 @@ from lonora_db.broker_sessions import BrokerSessionRepository
 from lonora_db.client import Database
 from lonora_db.runs import require_lease
 from lonora_db.schema import RunRow, TicketRow, TradingJournalRow
+from lonora_db.super_bot import authority_lock
 from lonora_db.trade_approvals import require_approved_target_current
 from lonora_db.trading_journal import persist_result, reserve_operation
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .account_authority import require_account_execution
+from .agent_permission import require_operation_permission
 from .controls import read_controls
 from .execution_quality import actual_execution, evaluate_execution, execution_policy
 from .goals import guard_goal_execution
@@ -57,7 +59,10 @@ async def require_goal_lineage(
         await require_financial_agent(
             session, owner_id, origin_run.agent_id, execution_mode=execution_mode
         )
-    if origin_run.model_metadata.get("authority") == "observe_only":
+    if (
+        origin_run.trigger == "subagent"
+        or origin_run.model_metadata.get("authority") == "observe_only"
+    ):
         raise LonoraError("observe_only_execution_forbidden", 403)
     await require_task_authority(session, origin_run, execution_mode=execution_mode)
     if owner_id is not None and request is not None:
@@ -80,7 +85,10 @@ async def require_goal_lineage(
         ancestor = await session.get(RunRow, ancestor.parent_run_id)
         if ancestor is None:
             raise LonoraError("goal_run_ancestry_invalid", 409)
-        if ancestor.model_metadata.get("authority") == "observe_only":
+        if (
+            ancestor.trigger == "subagent"
+            or ancestor.model_metadata.get("authority") == "observe_only"
+        ):
             raise LonoraError("observe_only_execution_forbidden", 403)
         await require_task_authority(session, ancestor, execution_mode=execution_mode)
         if owner_id is not None and request is not None:
@@ -146,6 +154,11 @@ class ExecutionService:
                 ):
                     raise LonoraError("idempotency_conflict", 409)
                 return receipt(previous)
+            if lease:
+                origin = await require_lease(session, lease)
+                await require_operation_permission(
+                    session, owner_id, origin, request, account_authority_id
+                )
             connection = await BrokerSessionRepository().get(session, owner_id, request.account_id)
             connection_version = connection.version
         if authorization:
@@ -154,6 +167,12 @@ class ExecutionService:
         broker = await self.brokers.get(owner_id, request.account_id)
         planned_snapshot = await preflight(broker, request)
         async with self.db.sessions() as session, session.begin():
+            if lease:
+                origin = await require_lease(session, lease)
+                await authority_lock(session, origin.agent_id)
+                await require_operation_permission(
+                    session, owner_id, origin, request, account_authority_id
+                )
             connection = await BrokerSessionRepository().get(
                 session, owner_id, request.account_id, lock=True
             )
@@ -164,7 +183,7 @@ class ExecutionService:
                 raise LonoraError("broker_disabled", 409)
             leased_run = await require_lease(session, lease, lock=True) if lease else None
             if account_authority_id:
-                if leased_run is None or goal is not None:
+                if leased_run is None:
                     raise LonoraError("account_authority_run_required", 403)
                 await require_account_execution(
                     session,
@@ -280,6 +299,15 @@ class ExecutionService:
             )
             require_trading(await read_controls(self.db))
             async with self.db.sessions() as session, session.begin():
+                if lease:
+                    # Match owner downgrade/signature lock ordering: authority
+                    # first, then Run/approval/Goal rows. No network call runs
+                    # while the final permission decision holds this lock.
+                    origin = await require_lease(session, lease)
+                    await authority_lock(session, origin.agent_id)
+                    await require_operation_permission(
+                        session, owner_id, origin, request, account_authority_id
+                    )
                 connection = await BrokerSessionRepository().get(
                     session, owner_id, request.account_id
                 )

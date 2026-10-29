@@ -83,7 +83,7 @@ async def main() -> None:
             },
         )
         await save_controls(db, TradingControl(enabled=True))
-        agent = await fixture.agent("Readiness analyst")
+        agent = await fixture.agent("Readiness analyst", supervised=True)
         context = await fixture.lease(await fixture.run(agent, await fixture.conversation(agent)))
         registry = load_tools()
         broker = await context.brokers.get(fixture.owner, connection)

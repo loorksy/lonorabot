@@ -146,7 +146,7 @@ async def main() -> None:
             ModelReply(text="Here is the chart image."),
         ]
 
-        async def model(*args: Any):
+        async def model(*args: Any, **kwargs: Any):
             assert scripted
             return scripted.pop(0), ModelSelection(
                 provider="openai", model="explicit-attachment-fixture"

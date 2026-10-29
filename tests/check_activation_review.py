@@ -22,6 +22,7 @@ from lonora_db.schema import (
     AgentRow,
     DeviceCredentialRow,
     MessageRow,
+    RunRow,
     SuperBotRequestRow,
     TradingGoalRow,
     TradingJournalRow,
@@ -135,7 +136,13 @@ async def main():
                     ]
                 )
             elif phase == 2:
-                result = json.loads(messages[-1].content)
+                result = json.loads(
+                    next(
+                        message.content
+                        for message in reversed(messages)
+                        if message.role == "tool" and message.tool_call_id == "activation-read-goal"
+                    )
+                )
                 assert (
                     result["ok"] is True
                     and result["id"] == goal["id"]
@@ -151,7 +158,14 @@ async def main():
                     ]
                 )
             else:
-                result = json.loads(messages[-1].content)
+                result = json.loads(
+                    next(
+                        message.content
+                        for message in reversed(messages)
+                        if message.role == "tool"
+                        and message.tool_call_id == "activation-connections"
+                    )
+                )
                 assert result["ok"] is True and result["account"]["balance"] == "2500"
                 reply = ModelReply(
                     text="Reviewed the saved goal and configured broker account. Waiting for current market evidence; no trade was sent."
@@ -160,6 +174,10 @@ async def main():
 
         with patch.object(context.router, "complete", complete):
             await execute_run(context, load_tools(), 120, 5)
+        assert phase == 3
+        async with f.runtime.db.sessions() as session:
+            completed = await session.get(RunRow, context.lease.run_id)
+            assert completed and completed.status == "completed"
         await return_pending_outcomes(f.runtime.db)
         await return_pending_outcomes(f.runtime.db)
         async with f.runtime.db.sessions() as session:
@@ -246,6 +264,10 @@ async def main():
         phase = 0
         with patch.object(group_context.router, "complete", complete):
             await execute_run(group_context, load_tools(), 120, 5)
+        assert phase == 3
+        async with f.runtime.db.sessions() as session:
+            completed = await session.get(RunRow, group_context.lease.run_id)
+            assert completed and completed.status == "completed"
         await return_pending_outcomes(f.runtime.db)
         async with f.runtime.db.sessions() as session:
             replies = list(

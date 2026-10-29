@@ -198,8 +198,12 @@ async def main() -> None:
                     )
                 else:
                     assert capability is Capability.VISION
-                    assert messages[-1].images and messages[-1].context_origin == "tool_observation"
-                    observed = base64.b64decode(messages[-1].images[0].split(",", 1)[1])
+                    observation = next(
+                        message
+                        for message in messages
+                        if message.images and message.context_origin == "tool_observation"
+                    )
+                    observed = base64.b64decode(observation.images[0].split(",", 1)[1])
                     assert observed == png
                     with Image.open(BytesIO(observed)) as pixels:
                         assert pixels.getpixel((0, 0)) == (11, 77, 123)

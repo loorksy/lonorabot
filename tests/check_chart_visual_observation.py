@@ -266,13 +266,21 @@ async def main(url: str) -> None:
                     self.stage += 1
                     selection = ModelSelection(provider="openai", model="scripted-browser-vision")
                     if self.stage == 1:
-                        result = json.loads(messages[-1].content)
+                        observation = next(
+                            message for message in reversed(messages) if message.role == "tool"
+                        )
+                        result = json.loads(observation.content)
                         assert result["id"] == snapshot["id"]
                         assert result["chart_snapshot"]["source"] == "tradingview_renderer"
                         return ModelReply(tool_calls=[read_call]), selection
-                    assert capability is Capability.VISION and messages[-1].images
+                    observation = next(
+                        message
+                        for message in reversed(messages)
+                        if message.images and message.context_origin == "tool_observation"
+                    )
+                    assert capability is Capability.VISION
                     assert (
-                        base64.b64decode(messages[-1].images[0].split(",", 1)[1])
+                        base64.b64decode(observation.images[0].split(",", 1)[1])
                         == confined_path(
                             context.artifact_root, snapshot["payload"]["key"]
                         ).read_bytes()

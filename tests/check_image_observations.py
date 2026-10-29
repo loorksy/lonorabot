@@ -97,7 +97,12 @@ async def main() -> None:
                     self.stage += 1
                     selection = ModelSelection(provider="openai", model="scripted-vision")
                     if self.stage == 1:
-                        result = json.loads(messages[-1].content)
+                        observation = next(
+                            message
+                            for message in messages
+                            if message.role == "tool" and message.tool_call_id == "snapshot"
+                        )
+                        result = json.loads(observation.content)
                         assert result["ok"] and result["payload"]["media_type"] == "image/png"
                         observed_id = result["id"]
                         return ModelReply(
@@ -115,16 +120,21 @@ async def main() -> None:
                             ]
                         ), selection
                     assert capability is Capability.VISION
-                    assert messages[-1].role == "user" and messages[-1].images
-                    assert (
-                        messages[-2].tool_call_id == "metadata"
-                        and messages[-3].tool_call_id == "inspect"
+                    observation = next(
+                        message
+                        for message in reversed(messages)
+                        if message.images and message.context_origin == "tool_observation"
                     )
+                    assert observation.role == "user"
+                    tool_ids = [
+                        message.tool_call_id for message in messages if message.role == "tool"
+                    ]
+                    assert tool_ids.index("inspect") < tool_ids.index("metadata")
                     with Image.open(
-                        BytesIO(base64.b64decode(messages[-1].images[0].split(",")[1]))
+                        BytesIO(base64.b64decode(observation.images[0].split(",")[1]))
                     ) as image:
                         assert image.format == "PNG" and image.width > 0
-                    assert '"symbol": "EURUSDm"' in messages[-1].content
+                    assert '"symbol": "EURUSDm"' in observation.content
                     if self.stage == 2:
                         raise Interrupted()
                     return ModelReply(

@@ -1,0 +1,513 @@
+/* Permission surfaces stay outside the chat request path and inherit both themes. */
+.agent-permissions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 2px 10px 6px;
+  font-size: 11px;
+  color: var(--lonora-muted, var(--muted-foreground));
+}
+.permission-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border: 1px solid var(--lonora-line, var(--border));
+  border-radius: 9px;
+  background: transparent;
+  color: var(--lonora-text, var(--foreground));
+  white-space: nowrap;
+  min-height: 32px;
+  font-size: 11px;
+  cursor: pointer;
+}
+.permission-trigger:hover {
+  background: var(--lonora-surface, var(--muted));
+}
+.permission-effective {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 45%;
+}
+.permission-inline-error {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+.permission-inline-error button,
+.permission-link {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  background: transparent;
+  cursor: pointer;
+}
+.permission-options {
+  color: var(--lonora-text, var(--foreground));
+  font-size: 13px;
+  min-width: 0;
+}
+.permission-options h3 {
+  margin: 2px 4px 10px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.permission-options .permission-level-option {
+  display: flex;
+  position: relative;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  text-align: start;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  padding: 10px;
+  background: transparent;
+  cursor: pointer;
+}
+.permission-options .permission-level-option[data-selected="true"] {
+  background: var(--lonora-surface, var(--muted));
+  border-color: var(--lonora-line, var(--border));
+}
+.permission-options strong,
+.permission-options small {
+  display: block;
+}
+.permission-options small {
+  margin-top: 4px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--lonora-muted, var(--muted-foreground));
+}
+.permission-options .permission-link {
+  margin: 10px;
+}
+.permission-picker-popover {
+  width: min(330px, calc(100vw - 24px));
+}
+.permission-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+  max-height: min(86dvh, 860px);
+  width: min(960px, calc(100vw - 48px));
+  max-width: none;
+  color: var(--lonora-text, var(--popover-foreground));
+  background: var(--popover);
+  border-radius: 18px;
+}
+.permission-dialog-review {
+  width: min(610px, calc(100vw - 48px));
+}
+.permission-dialog-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px 16px;
+  padding: 22px 24px 16px;
+  border-bottom: 1px solid var(--lonora-line, var(--border));
+  flex: none;
+}
+.permission-dialog-header [data-slot="dialog-title"] {
+  line-height: 1.5;
+  font-size: 18px;
+}
+.permission-dialog-header [data-slot="dialog-description"] {
+  grid-column: 1 / -1;
+  color: var(--lonora-muted, var(--muted-foreground));
+  font-size: 12px;
+}
+.permission-dialog-header button {
+  min-width: 32px;
+  min-height: 32px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  border-radius: 8px;
+}
+.permission-current-state {
+  display: block;
+  margin-top: 5px;
+}
+.permission-dialog-scroll {
+  overflow: auto;
+  overscroll-behavior: contain;
+  min-height: 0;
+  padding: 20px 24px;
+}
+.permission-editor-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  align-items: start;
+  gap: 22px;
+}
+.permission-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+.permission-groups details {
+  min-width: 0;
+  border: 1px solid var(--lonora-line, var(--border));
+  border-radius: 12px;
+}
+.permission-groups summary {
+  min-height: 52px;
+  padding: 15px 14px;
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 13px;
+}
+.permission-groups :where(summary) span {
+  float: inline-end;
+  color: var(--lonora-muted, var(--muted-foreground));
+  font-size: 11px;
+  font-weight: 400;
+  margin-inline-start: 6px;
+}
+.permission-group-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 4px 14px 16px;
+  min-width: 0;
+}
+.permission-group-body label,
+.permission-account-choice label,
+.permission-enrollment label {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  font-size: 12px;
+  line-height: 1.5;
+  min-width: 0;
+}
+.permission-dialog select,
+.permission-dialog input:not([type="checkbox"]) {
+  width: 100%;
+  min-width: 0;
+  min-height: 40px;
+  padding: 9px 10px;
+  border: 1px solid var(--lonora-line, var(--border));
+  border-radius: 8px;
+  background: var(--lonora-surface, var(--background));
+  color: inherit;
+  font-size: 13px;
+}
+.permission-dialog select {
+  text-overflow: ellipsis;
+}
+.permission-dialog input:focus-visible,
+.permission-dialog select:focus-visible,
+.permission-dialog button:focus-visible,
+.permission-trigger:focus-visible,
+.permission-options button:focus-visible,
+.permission-groups summary:focus-visible {
+  outline: 2px solid var(--ring, #8b7aff);
+  outline-offset: 2px;
+}
+.permission-inline-buttons {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.permission-inline-buttons button {
+  text-decoration: underline;
+  font-size: 11px;
+  cursor: pointer;
+}
+.permission-action-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 8px;
+}
+.permission-group-body label.permission-checkbox {
+  display: flex;
+  flex-direction: row;
+  align-items: start;
+  gap: 8px;
+}
+.permission-checkbox input {
+  margin-top: 3px;
+  accent-color: var(--primary, #8373ff);
+  flex: none;
+  width: 16px;
+  height: 16px;
+}
+.permission-limit-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 15px 12px;
+}
+.permission-limit-grid label small {
+  color: var(--lonora-muted, var(--muted-foreground));
+}
+.permission-span-all {
+  grid-column: 1 / -1;
+}
+.permission-fixed-scope {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-wrap: anywhere;
+  line-height: 1.6;
+}
+.permission-markets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.permission-markets button {
+  padding: 5px 8px;
+  border: 1px solid var(--lonora-line, var(--border));
+  border-radius: 8px;
+  cursor: pointer;
+}
+.permission-summary {
+  min-width: 0;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.permission-summary h3 {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0 0 14px;
+}
+.permission-summary p {
+  margin: 8px 0;
+  line-height: 1.65;
+}
+.permission-summary-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin: 14px 0;
+}
+.permission-summary-actions > span {
+  padding: 4px 7px;
+  border: 1px solid var(--lonora-line, var(--border));
+  border-radius: 6px;
+  font-size: 10px;
+}
+.permission-summary dl {
+  margin: 14px 0;
+}
+.permission-summary dl > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 15px;
+  border-bottom: 1px solid var(--lonora-line, var(--border));
+  padding: 9px 0;
+}
+.permission-summary dt {
+  color: var(--lonora-muted, var(--muted-foreground));
+  line-height: 1.5;
+}
+.permission-summary dd {
+  margin: 0;
+  text-align: end;
+  flex-shrink: 0;
+  max-width: 50%;
+  line-height: 1.5;
+}
+.permission-explanation {
+  font-size: 11px;
+  line-height: 1.65;
+  color: var(--lonora-muted, var(--muted-foreground));
+}
+.permission-dialog-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 24px 18px;
+  border-top: 1px solid var(--lonora-line, var(--border));
+  background: var(--popover);
+  flex: none;
+}
+.permission-footer-buttons {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+}
+.permission-primary,
+.permission-secondary,
+.permission-enrollment > button {
+  padding: 11px 16px;
+  min-height: 42px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1.4;
+  text-align: center;
+}
+.permission-primary {
+  color: var(--primary-foreground);
+  background: var(--primary);
+}
+.permission-secondary,
+.permission-enrollment > button {
+  background: var(--lonora-surface, var(--muted));
+  color: var(--lonora-text, var(--foreground));
+  border: 1px solid var(--lonora-line, var(--border));
+}
+.permission-save-state {
+  font-size: 11px;
+  color: var(--lonora-muted, var(--muted-foreground));
+  line-height: 1.5;
+}
+.permission-error,
+.permission-notice {
+  margin-top: 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--lonora-line, var(--border));
+  border-radius: 9px;
+  font-size: 12px;
+  line-height: 1.65;
+}
+.permission-error {
+  color: var(--destructive, #e96d74);
+}
+.permission-enrollment {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 14px;
+  border: 1px solid var(--lonora-line, var(--border));
+  border-radius: 12px;
+}
+.permission-dialog button:disabled,
+.permission-options button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.permission-account-choice {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+@media (max-width: 767px), (max-height: 500px) {
+  .agent-permissions {
+    padding: 0 8px 5px;
+    gap: 7px;
+  }
+  .permission-trigger {
+    font-size: 10px;
+    min-height: 30px;
+  }
+  .permission-effective {
+    font-size: 10px;
+  }
+  .permission-picker-sheet {
+    top: auto;
+    bottom: 0;
+    left: 0;
+    transform: none;
+    translate: none;
+    width: 100%;
+    max-width: none;
+    border-radius: 18px 18px 0 0;
+    padding: 18px 16px max(16px, env(safe-area-inset-bottom));
+    max-height: 90dvh;
+    overflow: auto;
+  }
+  .permission-dialog {
+    top: 0;
+    left: 0;
+    transform: none;
+    translate: none;
+    width: 100%;
+    height: 100dvh;
+    max-height: 100dvh;
+    max-width: none;
+    border-radius: 0;
+  }
+  .permission-dialog-header {
+    padding: max(14px, env(safe-area-inset-top)) 16px 12px;
+    gap: 5px 12px;
+  }
+  .permission-dialog-header [data-slot="dialog-title"] {
+    font-size: 16px;
+  }
+  .permission-dialog-scroll {
+    flex: 1;
+    padding: 16px;
+    scroll-padding-block: 16px;
+  }
+  .permission-editor-columns {
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+  }
+  .permission-groups,
+  .permission-summary {
+    width: 100%;
+  }
+  .permission-dialog-editor .permission-summary {
+    border-top: 1px solid var(--lonora-line, var(--border));
+    padding-top: 18px;
+  }
+  .permission-dialog-footer {
+    padding: 10px 16px max(12px, env(safe-area-inset-bottom));
+  }
+  .permission-footer-buttons {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .permission-primary,
+  .permission-secondary {
+    padding: 11px 12px;
+  }
+}
+@media (max-width: 359px) {
+  .permission-action-grid,
+  .permission-limit-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .permission-effective {
+    max-width: 38%;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .permission-dialog,
+  .permission-picker-sheet,
+  .permission-picker-popover {
+    animation: none;
+    transition: none;
+  }
+}
+
+.permission-level-option input[type="radio"] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+}
+.permission-level-option:focus-within {
+  outline: 2px solid var(--ring, #8b7aff);
+  outline-offset: 2px;
+}
+.permission-level-option:has(input:disabled) {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.agent-permissions {
+  max-width: var(--chat-content-width);
+  margin-inline: auto;
+}
+@media (min-width: 768px) and (min-height: 501px) {
+  .permission-editor-columns > .permission-summary {
+    position: sticky;
+    top: 0;
+  }
+}

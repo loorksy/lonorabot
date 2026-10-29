@@ -60,7 +60,12 @@ async def main() -> None:
                     ]
                 )
             else:
-                result = json.loads(messages[-1].content)
+                observation = next(
+                    message
+                    for message in messages
+                    if message.role == "tool" and message.tool_call_id == "inspect-package"
+                )
+                result = json.loads(observation.content)
                 assert result["ok"] and result["commit"] == "b" * 40
                 assert result["skills"][0]["requires_isolated_execution"]
                 assert result["code_executed"] is result["installed"] is False

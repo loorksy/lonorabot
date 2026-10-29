@@ -5,11 +5,12 @@ from lonora_core.user_error import LonoraError
 from lonora_db.agent_directory import agent_directory
 from lonora_db.agent_state import agent_live_state
 from lonora_db.runs import require_lease
-from lonora_db.schema import AgentRow, GroupRow, ThreadRow
+from lonora_db.schema import AgentRow, GroupRow, RunRow, ThreadRow
 from lonora_tools.context import ToolContext
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .group import group_context
+from .permissions import permission_context
 
 ROUTING_FRAME_PREFIX = "[Lonora live routing metadata v1]\n"
 DIRECTORY_CHAR_BUDGET = 12000
@@ -54,7 +55,9 @@ async def team_context(session: AsyncSession, owner_id: str, agent_id: str) -> s
     )
 
 
-async def routing_frame(session: AsyncSession, owner_id: str, agent_id: str, thread_id: str) -> str:
+async def routing_frame(
+    session: AsyncSession, owner_id: str, agent_id: str, thread_id: str, run: RunRow | None = None
+) -> str:
     agent = await session.get(AgentRow, agent_id)
     thread = await session.get(ThreadRow, thread_id)
     if agent is None or thread is None or agent.owner_id != owner_id or thread.owner_id != owner_id:
@@ -82,15 +85,17 @@ async def routing_frame(session: AsyncSession, owner_id: str, agent_id: str, thr
         + await team_context(session, owner_id, agent_id)
         + "\n"
         + await group_context(session, thread.group_id, agent_id)
+        + "\n"
+        + await permission_context(session, owner_id, agent_id, run)
     )
 
 
 async def refresh_routing_context(context: ToolContext, messages: list[ModelMessage]) -> None:
     """Replace our dedicated snapshot; never strip content from a user's persona."""
     async with context.db.sessions() as session:
-        await require_lease(session, context.lease)
+        run = await require_lease(session, context.lease)
         content = await routing_frame(
-            session, context.owner_id, context.agent_id, context.thread_id
+            session, context.owner_id, context.agent_id, context.thread_id, run
         )
     retained = [
         message

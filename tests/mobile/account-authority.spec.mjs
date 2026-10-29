@@ -71,26 +71,29 @@ for (const locale of ["en", "ar"])
     context,
   }) => {
     const state = await setup(context, locale);
-    const title = locale === "ar" ? "إدارة الحساب تلقائيًا" : "Automatic account management";
-    const revoke = locale === "ar" ? "إيقاف الإدارة" : "Stop management";
     try {
       await page.goto(`/bot-settings?botId=${state.agent.id}`);
-      await page.getByRole("button", { name: title, exact: true }).click();
       await page
         .getByRole("button", {
-          name:
-            locale === "ar" ? "إعدادات متقدمة: تحديد حدود خاصة" : "Advanced: set specific limits",
+          name: locale === "ar" ? "صلاحيات الوكيل" : "Agent Permissions",
           exact: true,
         })
         .click();
-      await expect(
-        page.getByText(locale === "ar" ? /تضبط هذه الحدود الحجم/ : /These limits control volume/),
-      ).toBeVisible();
-      await expect(
-        page.getByText(locale === "ar" ? /بانتظار توقيعك/ : /Waiting for your signature/),
-      ).toBeVisible();
-      await page.getByRole("button", { name: revoke, exact: true }).click();
-      await expect(page.getByText(locale === "ar" ? /ملغى/ : /Revoked/)).toBeVisible();
+      await page.getByTestId("permission-choice-autonomous").click();
+      const review = page.getByTestId("permission-review-native");
+      await expect(review).toBeVisible();
+      await expect(review).toContainText(state.data.symbol);
+      await expect(review).toContainText("0.10");
+      await expect(review).toContainText(
+        locale === "ar" ? "أهداف الربح غير مضمونة" : "Profit targets are not guaranteed",
+      );
+      const pending = await (
+        await context.request.get(`/api/agents/${state.agent.id}/permissions`)
+      ).json();
+      expect(pending.effective_level).toBe("analysis");
+      expect(pending.pending_authority.id).toBe(state.row.id);
+      await review.getByTestId("permission-cancel-native").click();
+      await expect(page.getByTestId("permission-sheet-native")).toBeVisible();
       const saved = await (
         await context.request.get(`/api/agents/${state.agent.id}/account-authorities`)
       ).json();
@@ -110,24 +113,30 @@ for (const locale of ["en", "ar"])
   }) => {
     const state = await setup(context, locale);
     try {
+      const before = await (
+        await context.request.get(`/api/agents/${state.agent.id}/permissions`)
+      ).json();
+      expect(
+        (
+          await context.request.put(`/api/agents/${state.agent.id}/permissions`, {
+            headers: state.headers,
+            data: { level: "analysis", expected_revision: before.revision },
+          })
+        ).ok(),
+      ).toBeTruthy();
       await page.goto(`/bot-settings?botId=${state.agent.id}`);
       await page
         .getByRole("button", {
-          name: locale === "ar" ? "إدارة الحساب تلقائيًا" : "Automatic account management",
+          name: locale === "ar" ? "صلاحيات الوكيل" : "Agent Permissions",
           exact: true,
         })
         .click();
       const response = page.waitForResponse(
         (r) =>
-          r.url().endsWith(`/agents/${state.agent.id}/account-authorities`) &&
+          r.url().includes(`/agents/${state.agent.id}/account-authorities?permission_revision=`) &&
           r.request().method() === "POST",
       );
-      await page
-        .getByRole("button", {
-          name: locale === "ar" ? "تفعيل الإدارة التلقائية" : "Enable automatic management",
-          exact: true,
-        })
-        .click();
+      await page.getByTestId("permission-choice-autonomous").click();
       const proposed = await response;
       expect(proposed.status()).toBe(201);
       const row = await proposed.json();
@@ -137,14 +146,17 @@ for (const locale of ["en", "ar"])
       expect(row.envelope.maximum_actions).toBeNull();
       expect(row.valid_until).toBeNull();
       expect(row.status).toBe("pending");
-      await expect(
-        page.getByText(
-          locale === "ar" ? /يختار الوكيل الصفقات واللوت/ : /The agent chooses trades, lot sizes/,
-        ),
-      ).toBeVisible();
-      await expect(
-        page.getByText(locale === "ar" ? /أقصى حجم للأمر/ : /Maximum volume per order/),
-      ).toHaveCount(0);
+      const review = page.getByTestId("permission-review-native");
+      await expect(review).toBeVisible();
+      await expect(review).toContainText(
+        locale === "ar" ? "دون حدود رقمية" : "No numerical limits",
+      );
+      await expect(review.getByRole("textbox")).toHaveCount(0);
+      const pending = await (
+        await context.request.get(`/api/agents/${state.agent.id}/permissions`)
+      ).json();
+      expect(pending.effective_level).toBe("analysis");
+      expect(pending.pending_authority.id).toBe(row.id);
       expect((await (await context.request.get("/api/trading/controls")).json()).enabled).toBe(
         false,
       );

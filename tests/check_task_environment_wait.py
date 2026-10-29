@@ -80,7 +80,10 @@ async def main() -> None:
                     ), ModelSelection(provider="openai", model="scripted-wait")
                 if (phase == 1 and kind != "watch") or (phase == 2 and kind == "watch"):
                     if kind == "watch":
-                        watch_id = json.loads(messages[-1].content)["id"]
+                        observation = next(
+                            message for message in reversed(messages) if message.role == "tool"
+                        )
+                        watch_id = json.loads(observation.content)["id"]
                     return ModelReply(
                         tool_calls=[
                             ToolCall(

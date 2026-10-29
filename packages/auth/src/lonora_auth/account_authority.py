@@ -12,6 +12,7 @@ from lonora_core.user_error import LonoraError
 from lonora_db.account_authority import (
     changed,
     owned_authority,
+    require_authority,
     stop_management_task,
     validate_scope,
 )
@@ -76,13 +77,18 @@ async def finish_activation(
     origin: str,
     native_origins: list[str] | None = None,
 ) -> AccountAuthorityRow:
+    from lonora_db.agent_permissions import bump_permission
+
     challenge = await pending_challenge(
         session, owner, body.challenge_id, "account_activate", allow_used=True
     )
-    if challenge.status == "used":
-        return await owned_authority(session, owner.id, challenge.request_id or "")
     candidate = await owned_authority(session, owner.id, challenge.request_id or "")
     await authority_lock(session, candidate.agent_id)
+    if challenge.status == "used":
+        # An idempotent receipt is valid only while its original signed grant
+        # remains effective. Replaying an old proof must never imply activation.
+        row, _ = await require_authority(session, owner.id, candidate.agent_id, candidate.id)
+        return row
     row = await owned_authority(session, owner.id, candidate.id, lock=True)
     if (
         row.status != "pending"
@@ -163,4 +169,5 @@ async def finish_activation(
             "reply_locale": locale,
         }
     changed(session, row)
+    await bump_permission(session, owner.id, row.agent_id)
     return row

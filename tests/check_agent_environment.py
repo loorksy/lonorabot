@@ -40,6 +40,13 @@ def registry_with(tools: list[Tool]) -> ToolRegistry:
     )
 
 
+def last_tool_result(messages: list[ModelMessage]) -> dict[str, Any]:
+    # Provider requests may end with trusted presentation metadata. Assert on
+    # the most recent actual observation, never on a projection's position.
+    observation = next(message for message in reversed(messages) if message.role == "tool")
+    return json.loads(observation.content)
+
+
 async def context(f: Fixture) -> ToolContext:
     agent = await f.agent("Environment acceptance")
     thread = await f.conversation(agent)
@@ -98,7 +105,7 @@ async def main() -> None:
             model_turns += 1
             if model_turns == 1:
                 return reply(ToolCall(id="stable-read", name="probe", arguments={"limit": 1}))
-            result = json.loads(messages[-1].content)
+            result = last_tool_result(messages)
             assert result["ok"] and result["symbol"] == "EURUSDm"
             return reply()
 
@@ -152,7 +159,7 @@ async def main() -> None:
             phase += 1
             if phase == 1:
                 return reply(ToolCall(id="bad-1", name="probe", arguments={"limit": 99}))
-            result = json.loads(messages[-1].content)
+            result = last_tool_result(messages)
             if phase == 2:
                 assert (
                     result["code"] == "tool_arguments_invalid"
@@ -196,7 +203,7 @@ async def main() -> None:
             phase += 1
             if phase <= 4:
                 return reply(ToolCall(id=f"same-{phase}", name="probe", arguments={"limit": 1}))
-            result = json.loads(messages[-1].content)
+            result = last_tool_result(messages)
             if phase == 5:
                 assert (
                     result["code"] == "tool_route_exhausted"
@@ -229,7 +236,7 @@ async def main() -> None:
             phase += 1
             if phase == 1:
                 return reply(ToolCall(id="committed", name="effect", arguments={}))
-            result = json.loads(messages[-1].content)
+            result = last_tool_result(messages)
             assert (
                 result["ok"]
                 and result["operation_id"] == "test-effect"
@@ -267,11 +274,11 @@ async def main() -> None:
             if phase <= 2:
                 if phase == 2:
                     assert (
-                        json.loads(messages[-1].content)["recovery"]["next_action"]
+                        last_tool_result(messages)["recovery"]["next_action"]
                         == "reconcile_before_any_resend"
                     )
                 return reply(ToolCall(id=f"uncertain-{phase}", name="effect", arguments={}))
-            assert json.loads(messages[-1].content)["code"] == "broker_result_ambiguous"
+            assert last_tool_result(messages)["code"] == "broker_result_ambiguous"
             return reply()
 
         with patch.object(ctx.router, "complete", uncertain):
@@ -330,7 +337,7 @@ async def main() -> None:
             phase += 1
             if phase == 1:
                 return reply(ToolCall(id="interrupted-effect", name="unreceipted", arguments={}))
-            result = json.loads(messages[-1].content)
+            result = last_tool_result(messages)
             assert (
                 result["code"] == "tool_execution_uncertain"
                 and not result["recovery"]["safe_to_retry"]
@@ -381,7 +388,7 @@ async def main() -> None:
                 return reply(
                     ToolCall(id="large-read", name="bounded_read", arguments={"limit": 10})
                 )
-            result = json.loads(messages[-1].content)
+            result = last_tool_result(messages)
             if phase == 2:
                 assert (
                     result["result_omitted"]
@@ -489,7 +496,7 @@ async def main() -> None:
                         arguments={"timeframe": "15m", "limit": 1},
                     )
                 )
-            result = json.loads(messages[-1].content)
+            result = last_tool_result(messages)
             assert result["ok"] and result["candles"][0]["symbol"] == "XAUUSDm"
             assert str(result["candles"][0]["close"]) == "101"
             return reply()
@@ -545,7 +552,7 @@ async def main() -> None:
                         arguments={},
                     )
                 )
-            result = json.loads(messages[-1].content)
+            result = last_tool_result(messages)
             assert (
                 result["status"] == "confirmed"
                 and result["operation_id"] == "same-financial-operation"
@@ -599,7 +606,7 @@ async def main() -> None:
         async def inspect_legacy(_: Any, messages: list[ModelMessage], tools: Any, **kwargs: Any):
             nonlocal phase
             phase += 1
-            result = json.loads(messages[-1].content)
+            result = last_tool_result(messages)
             assert result["code"] in {"tool_execution_uncertain", "broker_result_ambiguous"}
             if phase == 1:
                 return reply(ToolCall(id="renamed-legacy", name="legacy_financial", arguments={}))

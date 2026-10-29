@@ -163,7 +163,7 @@ async def main() -> None:
         )
 
         await f.request("PUT", "/trading/controls", {"enabled": True, "emergency_stop": False})
-        agent = await f.agent("Manual management")
+        agent = await f.agent("Manual management", supervised=True)
         thread = await f.conversation(agent)
         manager = await f.lease(await f.run(agent, thread))
         registry = load_tools()

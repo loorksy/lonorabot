@@ -165,7 +165,16 @@ class ToolRegistry:
         if tool is None or (read_only and not tool.read_only):
             raise LonoraError("tool_not_allowed", 403)
         async with context.db.sessions() as session:
-            await require_lease(session, context.lease)
+            run = await require_lease(session, context.lease)
+            if tool.financial:
+                if (
+                    run.trigger == "subagent"
+                    or run.model_metadata.get("authority") == "observe_only"
+                ):
+                    raise LonoraError("observe_only_execution_forbidden", 403)
+                # The financial implementation checks current permission before
+                # preparing a new action. Keep completed receipt retrieval
+                # possible after downgrade; the executor rechecks before send.
         arguments = await prepare_market_arguments(
             context, call.name, dict(call.arguments), tool.input_type
         )

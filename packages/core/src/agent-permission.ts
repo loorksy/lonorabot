@@ -1,14 +1,19 @@
 import type {
   AccountAuthority,
   AccountAuthorityProposal,
-  AuthorityAction,
+  AgentPermissionLevel,
+  AuthorityDuration,
+  ManagementCustomization,
 } from "@lonora/contracts";
 import { authorityActions } from "@lonora/contracts";
 import { authorityStatus } from "./account-authority";
 
 export const agentPermissionLevels = ["analysis", "supervised", "autonomous"] as const;
-export type AgentPermissionLevel = (typeof agentPermissionLevels)[number];
-export type AuthorityDuration = "until_stopped" | "12h" | "24h" | "7d";
+export type {
+  AgentPermissionLevel,
+  AuthorityDuration,
+  ManagementCustomization,
+} from "@lonora/contracts";
 export const numericalAuthorityLimits = [
   "maximum_order_volume",
   "maximum_symbol_volume",
@@ -17,12 +22,6 @@ export const numericalAuthorityLimits = [
   "maximum_actions",
   "minimum_equity",
 ] as const;
-export type ManagementCustomization = {
-  actions: AuthorityAction[];
-  limits: Record<(typeof numericalAuthorityLimits)[number], string>;
-  duration: AuthorityDuration;
-  allow_manual_positions: boolean;
-};
 
 export function emptyManagementCustomization(): ManagementCustomization {
   return {
@@ -74,7 +73,10 @@ export function customizedManagementProposal(
     draft.actions.some((action) => !authorityActions.includes(action))
   )
     return null;
-  if (scope.symbol_scope === "selected" ? !scope.symbols.length : scope.symbols.length !== 0)
+  if (
+    !["selected", "account"].includes(scope.symbol_scope) ||
+    (scope.symbol_scope === "selected" ? !scope.symbols.length : scope.symbols.length !== 0)
+  )
     return null;
   if (
     scope.symbols.length > 100 ||
@@ -93,23 +95,26 @@ export function customizedManagementProposal(
       field,
     );
     if (!(integer ? /^\d+$/ : /^\d+(\.\d+)?$/).test(raw)) return null;
-    const value = Number(raw);
-    if (
-      !Number.isFinite(value) ||
-      value < (field === "maximum_pending_orders" ? 0 : integer ? 1 : Number.MIN_VALUE)
-    )
-      return null;
-    if (
-      integer &&
-      (!Number.isSafeInteger(value) || value > (field === "maximum_actions" ? 10000 : 100))
-    )
-      return null;
-    limits[field] = integer ? value : raw;
+    if (integer) {
+      const value = Number(raw);
+      if (
+        !Number.isSafeInteger(value) ||
+        value < (field === "maximum_pending_orders" ? 0 : 1) ||
+        value > (field === "maximum_actions" ? 10000 : 100)
+      )
+        return null;
+      limits[field] = value;
+    } else {
+      // These are Decimal fields on the server. Keep their exact value rather
+      // than rounding through JavaScript's floating-point representation.
+      if (!/[1-9]/.test(raw)) return null;
+      limits[field] = raw;
+    }
   }
   if (
     limits.maximum_order_volume !== null &&
     limits.maximum_symbol_volume !== null &&
-    Number(limits.maximum_order_volume) > Number(limits.maximum_symbol_volume)
+    decimalExceeds(String(limits.maximum_order_volume), String(limits.maximum_symbol_volume))
   )
     return null;
   const hours: Record<AuthorityDuration, number | null> = {
@@ -120,8 +125,11 @@ export function customizedManagementProposal(
   };
   const duration = hours[draft.duration];
   if (duration === undefined) return null;
+  const expiry = duration === null ? null : new Date(now + duration * 3600000);
+  if (expiry !== null && !Number.isFinite(expiry.getTime())) return null;
   return {
     ...scope,
+    symbols: [...scope.symbols],
     management_mode: "full",
     actions: [...draft.actions],
     maximum_order_volume: limits.maximum_order_volume as string | null,
@@ -130,7 +138,18 @@ export function customizedManagementProposal(
     maximum_pending_orders: limits.maximum_pending_orders as number | null,
     maximum_actions: limits.maximum_actions as number | null,
     minimum_equity: limits.minimum_equity as string | null,
-    valid_until: duration === null ? null : new Date(now + duration * 3600000).toISOString(),
+    valid_until: expiry?.toISOString() ?? null,
     allow_manual_positions: draft.allow_manual_positions,
   };
+}
+
+function decimalExceeds(left: string, right: string): boolean {
+  const [leftWhole, leftFraction = ""] = left.split(".");
+  const [rightWhole, rightFraction = ""] = right.split(".");
+  const wholeA = leftWhole.replace(/^0+/, "") || "0";
+  const wholeB = rightWhole.replace(/^0+/, "") || "0";
+  if (wholeA.length !== wholeB.length) return wholeA.length > wholeB.length;
+  if (wholeA !== wholeB) return wholeA > wholeB;
+  const digits = Math.max(leftFraction.length, rightFraction.length);
+  return leftFraction.padEnd(digits, "0") > rightFraction.padEnd(digits, "0");
 }

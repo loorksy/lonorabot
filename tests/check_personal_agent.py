@@ -105,6 +105,13 @@ async def checks() -> None:
             context,
         )
         assert set(symbols) <= set(actual["symbols"])
+        permission = await f.request("GET", f"/agents/{personal_id}/permissions")
+        assert permission["effective_level"] == "analysis"
+        await f.request(
+            "PUT",
+            f"/agents/{personal_id}/permissions",
+            {"level": "supervised", "expected_revision": permission["revision"]},
+        )
         trade = await registry.execute(
             ToolCall(
                 id=uuid4().hex,

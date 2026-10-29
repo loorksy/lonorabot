@@ -1,9 +1,12 @@
+import { i18n } from "@lingui/core";
 import { t } from "@lingui/core/macro";
-import { errorCode } from "@lonora/core";
+import { agentPermissionError, errorCode } from "@lonora/core";
 import { isRequestCancelled } from "./api";
 export function userError(error: unknown) {
   if (isRequestCancelled(error)) return "";
   const code = errorCode(error);
+  const permissionMessage = agentPermissionError(code, i18n.locale);
+  if (permissionMessage) return permissionMessage;
   switch (code) {
     case "input_answer_invalid":
       return t`Choose an available answer.`;
