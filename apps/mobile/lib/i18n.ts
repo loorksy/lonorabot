@@ -1,5 +1,13 @@
 export type Locale = "ar" | "en";
 export const labels = {
+  broker_account_already_connected: [
+    "حساب الوسيط مرتبط بالفعل. استخدم الاتصال الموجود.",
+    "This broker account is already connected. Use the existing connection.",
+  ],
+  broker_identity_unavailable: [
+    "تعذر التحقق من حساب الوسيط. راجع بيانات الاتصال وحاول مجددًا.",
+    "The broker account could not be verified. Check its connection details and try again.",
+  ],
   sending: ["جارٍ الإرسال", "Sending"],
   sendFailed: ["لم تُرسل الرسالة", "Message not sent"],
   connecting: ["جارٍ الاتصال", "Connecting"],

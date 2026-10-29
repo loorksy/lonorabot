@@ -3254,3 +3254,11 @@ msgstr "Your Personal Agent cannot be deleted."
 #: src/pages/shell/conversation-inbox.tsx:180
 msgid "Your team starts here"
 msgstr "Your team starts here"
+
+#: src/lib/user_error.ts
+msgid "This broker account is already connected. Use the existing connection."
+msgstr "This broker account is already connected. Use the existing connection."
+
+#: src/lib/user_error.ts
+msgid "The broker account could not be verified. Check its connection details and try again."
+msgstr "The broker account could not be verified. Check its connection details and try again."

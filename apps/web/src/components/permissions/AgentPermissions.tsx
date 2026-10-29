@@ -27,7 +27,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@lonora/ui-web";
-import { Check, ChevronDown, ShieldCheck, X } from "lucide-react";
+import { Check, ChevronDown, Eye, ShieldCheck, X, Zap } from "lucide-react";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useOverlayHistory } from "../../hooks/useOverlayHistory";
 import { ApiError, api, isRequestCancelled } from "../../lib/api";
@@ -72,7 +72,15 @@ function useCompactSurface() {
 
 /** One owner control for the actual composer and settings. Only server-verified
  * grants establish autonomy; presentation and saved preferences never do. */
-export function AgentPermissions({ agent, threadId }: { agent: Agent; threadId: string }) {
+export function AgentPermissions({
+  agent,
+  threadId,
+  surface = "settings",
+}: {
+  agent: Agent;
+  threadId: string;
+  surface?: "composer" | "settings";
+}) {
   const { i18n } = useLingui();
   const locale = i18n.locale;
   const rtl = locale.startsWith("ar");
@@ -452,6 +460,14 @@ export function AgentPermissions({ agent, threadId }: { agent: Agent; threadId: 
     setPassword("");
     setEnroll(false);
   };
+  const inlineError = !flow && error != null && (
+    <span className="permission-inline-error" role="alert">
+      {state ? userError(error) : text.permissionUnavailable}
+      <button type="button" onClick={() => setReload((value) => value + 1)}>
+        {text.retry}
+      </button>
+    </span>
+  );
   const optionList = (
     <div className="permission-options" data-testid="permission-options" dir={rtl ? "rtl" : "ltr"}>
       <h3>{text.title}</h3>
@@ -487,26 +503,45 @@ export function AgentPermissions({ agent, threadId }: { agent: Agent; threadId: 
           {text.advanced}
         </button>
       )}
+      {surface === "composer" && inlineError}
       {statusText && <p className="permission-explanation">{statusText}</p>}
       <p className="permission-explanation">{text.stoppedHint}</p>
     </div>
   );
+  const PermissionIcon =
+    state?.effective_level === "autonomous"
+      ? Zap
+      : state?.effective_level === "supervised"
+        ? ShieldCheck
+        : Eye;
+  const triggerLabel = state ? `${text.title}: ${text[state.effective_level]}` : text.loading;
   const trigger = (
     <>
-      <ShieldCheck size={14} />
-      <span>{state ? text[state.effective_level] : text.title}</span>
-      <ChevronDown size={12} />
+      <PermissionIcon
+        size={surface === "composer" ? 18 : 14}
+        aria-hidden="true"
+        data-permission-icon={state?.effective_level ?? "loading"}
+      />
+      <span className="permission-trigger-label">
+        {state ? text[state.effective_level] : text.title}
+      </span>
+      <ChevronDown className="permission-trigger-chevron" size={12} aria-hidden="true" />
     </>
   );
   return (
-    <div className="agent-permissions" dir={rtl ? "rtl" : "ltr"}>
+    <div
+      className={`agent-permissions${surface === "composer" ? " agent-permissions-composer" : ""}`}
+      dir={rtl ? "rtl" : "ltr"}
+      data-surface={surface}
+    >
       {compact ? (
         <>
           <button
             type="button"
             className="permission-trigger"
             data-testid="permission-selector"
-            aria-label={text.title}
+            aria-label={triggerLabel}
+            title={triggerLabel}
             aria-haspopup="dialog"
             aria-expanded={picker}
             onClick={() => setPicker((value) => !value)}
@@ -539,7 +574,8 @@ export function AgentPermissions({ agent, threadId }: { agent: Agent; threadId: 
             type="button"
             className="permission-trigger"
             data-testid="permission-selector"
-            aria-label={text.title}
+            aria-label={triggerLabel}
+            title={triggerLabel}
           >
             {trigger}
           </PopoverTrigger>
@@ -549,21 +585,14 @@ export function AgentPermissions({ agent, threadId }: { agent: Agent; threadId: 
         </Popover>
       )}
       <span
-        className="permission-effective"
+        className={`permission-effective${surface === "composer" ? " sr-only" : ""}`}
         data-testid="permission-effective"
         data-level={state?.effective_level ?? "loading"}
         aria-live="polite"
       >
         {state ? statusText || text[state.effective_level] : text.loading}
       </span>
-      {!flow && error != null && (
-        <span className="permission-inline-error" role="alert">
-          {state ? userError(error) : text.permissionUnavailable}
-          <button type="button" onClick={() => setReload((value) => value + 1)}>
-            {text.retry}
-          </button>
-        </span>
-      )}
+      {surface !== "composer" && inlineError}
       <Dialog
         open={Boolean(flow)}
         onOpenChange={(open) => {

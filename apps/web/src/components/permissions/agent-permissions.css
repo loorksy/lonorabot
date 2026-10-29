@@ -551,3 +551,38 @@
     top: 0;
   }
 }
+
+/* The composer keeps attachment, permission and send controls on its last line. */
+.agent-permissions.agent-permissions-composer {
+  flex: none;
+  align-self: flex-end;
+  gap: 0;
+  padding: 0;
+  margin: 0;
+  max-width: 220px;
+}
+.agent-permissions-composer .permission-trigger {
+  min-height: 32px;
+  max-width: 100%;
+  padding: 6px;
+  border-color: transparent;
+  border-radius: 16px;
+  font-size: 11px;
+}
+.agent-permissions-composer .permission-trigger > svg {
+  flex: none;
+}
+.agent-permissions-composer .permission-trigger-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+@media (max-width: 767px), (max-height: 500px) {
+  .agent-permissions-composer .permission-trigger {
+    width: 32px;
+    justify-content: center;
+  }
+  .agent-permissions-composer .permission-trigger-label,
+  .agent-permissions-composer .permission-trigger-chevron {
+    display: none;
+  }
+}

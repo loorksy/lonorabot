@@ -1,6 +1,7 @@
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, Request
+from lonora_adapters.storage.secret_store import EncryptedSecretStore
 from lonora_auth.identity import OwnerIdentity
 from lonora_contracts.broker import BrokerConnection
 from lonora_contracts.domain import Contract
@@ -9,6 +10,7 @@ from lonora_db.broker_sessions import BrokerSessionRepository
 from lonora_db.trading_journal import journal_entries
 from lonora_db.transactions import resource_data
 from lonora_trading.accounts import account_snapshot
+from lonora_trading.connections import connect_account
 from lonora_trading.controls import read_controls, save_controls
 from lonora_trading.journal import journal_data
 from lonora_trading.simulation import import_simulation
@@ -57,16 +59,13 @@ async def connect(
 ) -> dict[str, Any]:
     rt = runtime(request)
     config = BrokerConnection.model_validate(body.model_dump(exclude={"api_key"}))
-    if body.api_key:
-        config.secret_id = await rt.services(owner.id).secrets.write(
-            body.account_id, body.api_key, "broker"
-        )
-    async with rt.db.sessions() as session, session.begin():
-        return resource_data(
-            await BrokerSessionRepository().create(
-                session, owner.id, config.model_dump(mode="json")
-            )
-        )
+    return await connect_account(
+        rt.db,
+        EncryptedSecretStore(rt.db, rt.settings.encryption_key.get_secret_value(), owner.id),
+        owner.id,
+        config,
+        body.api_key,
+    )
 
 
 @router.delete("/connections/{connection_id}")

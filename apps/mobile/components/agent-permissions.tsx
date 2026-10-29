@@ -37,6 +37,7 @@ import { brokerIdentityLabel } from "../lib/broker-identity";
 import { deviceProof, deviceSupported } from "../lib/device-proof";
 import { permissionLabels } from "../lib/permission-labels";
 import { useSession } from "../lib/session";
+import { NativeSymbol } from "./native-symbol";
 import { SettingsGroup, SettingsRow, SettingsSwitch } from "./settings-group";
 import { SheetHeader } from "./sheet-header";
 import { colors, ErrorNotice, Field } from "./ui";
@@ -669,32 +670,36 @@ function PermissionControl({ agent, threadId, revision = 0, settings = false }: 
           />
         </SettingsGroup>
       ) : (
-        <View style={{ alignItems: rtl ? "flex-end" : "flex-start" }}>
+        <View style={{ flexShrink: 0 }}>
           <Pressable
             testID="permission-selector-native"
-            hitSlop={6}
             accessibilityRole="button"
             aria-expanded={open}
             accessibilityLabel={`${copy.title}: ${effective ? copy[effective] : copy.unavailable}`}
             accessibilityState={{ expanded: open }}
             onPress={openControl}
-            style={{
-              minHeight: 36,
-              maxWidth: "100%",
-              paddingHorizontal: 12,
-              paddingVertical: 8,
-              borderRadius: 18,
-              borderWidth: 1,
-              borderColor: colors.border,
-              flexDirection: rowDirection,
-              gap: 6,
+            style={({ pressed }) => ({
+              width: 44,
+              height: 44,
+              borderRadius: 22,
               alignItems: "center",
-            }}
+              justifyContent: "center",
+              backgroundColor: pressed ? colors.accent : "transparent",
+            })}
           >
-            <Text numberOfLines={1} style={{ ...textStyle, fontSize: 12, flexShrink: 1 }}>
-              {effective ? copy[effective] : copy.title}
-            </Text>
-            <Text style={{ color: colors.secondary }}>⌄</Text>
+            <View testID={`permission-icon-${effective ?? "unavailable"}-native`}>
+              <NativeSymbol
+                name={
+                  effective
+                    ? ({ analysis: "eye", supervised: "shield-check", autonomous: "zap" } as const)[
+                        effective
+                      ]
+                    : "shield"
+                }
+                size={20}
+                color={effective === "autonomous" ? colors.success : colors.secondary}
+              />
+            </View>
           </Pressable>
         </View>
       )}

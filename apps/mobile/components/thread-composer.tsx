@@ -89,7 +89,6 @@ export function ThreadComposer({
         backgroundColor: colors.background,
       }}
     >
-      {permissionControl}
       {reply ? <ComposerReplyPreview message={reply} onClose={onCancelReply} /> : null}
       {candidates.length ? (
         <View style={{ backgroundColor: colors.muted, borderRadius: 14, overflow: "hidden" }}>
@@ -185,118 +184,126 @@ export function ThreadComposer({
       ) : null}
       <View style={{ flexDirection: rtl ? "row-reverse" : "row", alignItems: "flex-end", gap: 10 }}>
         <View
-          style={{
-            width: 44,
-            height: 44,
-            borderRadius: 22,
-            backgroundColor: colors.muted,
-            alignItems: "center",
-            justifyContent: "center",
-            borderWidth: 0.5,
-            borderColor: colors.border,
-          }}
-        >
-          <HeaderButton
-            label={t("attach")}
-            onPress={onAttach}
-            disabled={busy || uploading || disabled || attachments.length >= 10}
-          >
-            {uploading ? (
-              <ActivityIndicator color={colors.secondary} size="small" />
-            ) : (
-              <NativeSymbol name="plus" size={18} color={colors.secondary} />
-            )}
-          </HeaderButton>
-        </View>
-        <View
+          testID="thread-composer-input-native"
           style={{
             flex: 1,
-            minHeight: 44,
-            borderRadius: 22,
+            minWidth: 0,
+            minHeight: 52,
+            borderRadius: 26,
             flexDirection: rtl ? "row-reverse" : "row",
             alignItems: "flex-end",
-            paddingHorizontal: 4,
+            gap: 2,
+            padding: 4,
             backgroundColor: colors.muted,
             borderWidth: 0.5,
             borderColor: colors.border,
           }}
         >
-          <TextInput
-            accessibilityLabel={t("message")}
-            placeholder={t("message")}
-            value={draft}
-            onChangeText={(value) => {
-              committed.current = rebaseMentions(draft, value, committed.current);
-              setCursor(Math.max(0, Math.min(value.length, cursor + value.length - draft.length)));
-              onChange(value);
-            }}
-            onKeyPress={(event) => {
-              if (Platform.OS !== "web") return;
-              const keyboard = event as unknown as {
-                key: string;
-                shiftKey: boolean;
-                keyCode: number;
-                nativeEvent: { isComposing?: boolean };
-                preventDefault: () => void;
-              };
-              if (
-                keyboard.key === "Enter" &&
-                !keyboard.shiftKey &&
-                !keyboard.nativeEvent.isComposing &&
-                keyboard.keyCode !== 229 &&
-                canSend
-              ) {
-                keyboard.preventDefault();
-                onSend(mentionAddress(draft, committed.current));
-              }
-            }}
-            onSelectionChange={(event) => setCursor(event.nativeEvent.selection.start)}
-            multiline
-            onContentSizeChange={(event) =>
-              setInputHeight(Math.max(44, Math.min(132, event.nativeEvent.contentSize.height)))
-            }
-            maxLength={30000}
-            editable={!disabled}
-            placeholderTextColor={colors.secondary}
-            blurOnSubmit={false}
-            textAlignVertical="top"
+          <View
+            testID="thread-composer-attach-native"
+            style={{ width: 44, height: 44, alignItems: "center", justifyContent: "center" }}
+          >
+            <HeaderButton
+              label={t("attach")}
+              onPress={onAttach}
+              disabled={busy || uploading || disabled || attachments.length >= 10}
+            >
+              {uploading ? (
+                <ActivityIndicator color={colors.secondary} size="small" />
+              ) : (
+                <NativeSymbol name="plus" size={18} color={colors.secondary} />
+              )}
+            </HeaderButton>
+          </View>
+          {permissionControl}
+          <View
             style={{
               flex: 1,
+              minWidth: 0,
               minHeight: 44,
-              height: inputHeight,
-              maxHeight: 132,
-              fontSize: 17,
-              lineHeight: 22,
-              paddingTop: 11,
-              paddingBottom: 11,
-              paddingHorizontal: 12,
-              color: colors.foreground,
-              textAlign: rtl ? "right" : "left",
-              writingDirection: "auto",
+              flexDirection: rtl ? "row-reverse" : "row",
+              alignItems: "flex-end",
             }}
-          />
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={t("send")}
-            disabled={!canSend}
-            onPress={() => onSend(mentionAddress(draft, committed.current))}
-            style={({ pressed }) => ({
-              marginBottom: 8,
-              width: 32,
-              height: 28,
-              borderRadius: 14,
-              backgroundColor: colors.primary,
-              alignItems: "center",
-              justifyContent: "center",
-              opacity: pressed || !canSend ? 0.4 : 1,
-            })}
           >
-            {busy ? (
-              <ActivityIndicator size="small" color={colors.primaryForeground} />
-            ) : (
-              <NativeSymbol name="send" size={16} color={colors.primaryForeground} />
-            )}
-          </Pressable>
+            <TextInput
+              accessibilityLabel={t("message")}
+              placeholder={t("message")}
+              value={draft}
+              onChangeText={(value) => {
+                committed.current = rebaseMentions(draft, value, committed.current);
+                setCursor(
+                  Math.max(0, Math.min(value.length, cursor + value.length - draft.length)),
+                );
+                onChange(value);
+              }}
+              onKeyPress={(event) => {
+                if (Platform.OS !== "web") return;
+                const keyboard = event as unknown as {
+                  key: string;
+                  shiftKey: boolean;
+                  keyCode: number;
+                  nativeEvent: { isComposing?: boolean };
+                  preventDefault: () => void;
+                };
+                if (
+                  keyboard.key === "Enter" &&
+                  !keyboard.shiftKey &&
+                  !keyboard.nativeEvent.isComposing &&
+                  keyboard.keyCode !== 229 &&
+                  canSend
+                ) {
+                  keyboard.preventDefault();
+                  onSend(mentionAddress(draft, committed.current));
+                }
+              }}
+              onSelectionChange={(event) => setCursor(event.nativeEvent.selection.start)}
+              multiline
+              onContentSizeChange={(event) =>
+                setInputHeight(Math.max(44, Math.min(132, event.nativeEvent.contentSize.height)))
+              }
+              maxLength={30000}
+              editable={!disabled}
+              placeholderTextColor={colors.secondary}
+              blurOnSubmit={false}
+              textAlignVertical="top"
+              style={{
+                flex: 1,
+                minHeight: 44,
+                height: inputHeight,
+                maxHeight: 132,
+                fontSize: 17,
+                lineHeight: 22,
+                paddingTop: 11,
+                paddingBottom: 11,
+                paddingHorizontal: 4,
+                color: colors.foreground,
+                textAlign: rtl ? "right" : "left",
+                writingDirection: "auto",
+              }}
+            />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t("send")}
+              disabled={!canSend}
+              onPress={() => onSend(mentionAddress(draft, committed.current))}
+              style={({ pressed }) => ({
+                marginBottom: 8,
+                width: 32,
+                height: 28,
+                borderRadius: 14,
+                backgroundColor: colors.primary,
+                alignItems: "center",
+                justifyContent: "center",
+                opacity: pressed || !canSend ? 0.4 : 1,
+              })}
+            >
+              {busy ? (
+                <ActivityIndicator size="small" color={colors.primaryForeground} />
+              ) : (
+                <NativeSymbol name="send" size={16} color={colors.primaryForeground} />
+              )}
+            </Pressable>
+          </View>
         </View>
         {working && onStop ? (
           <View
