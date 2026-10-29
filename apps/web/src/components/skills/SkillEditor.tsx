@@ -88,6 +88,9 @@ export function SkillEditor({
       <label className="check">
         <input
           type="checkbox"
+          role="switch"
+          data-lonora-switch="true"
+          aria-checked={enabled}
           checked={enabled}
           onChange={(event) => {
             setEnabled(event.target.checked);

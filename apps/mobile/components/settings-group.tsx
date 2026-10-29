@@ -163,11 +163,13 @@ export function SettingsSwitch({
   value,
   onChange,
   disabled = false,
+  testID,
 }: {
   label: string;
   value: boolean;
   onChange: (value: boolean) => void;
   disabled?: boolean;
+  testID?: string;
 }) {
   const { rtl } = useSession();
   return (
@@ -183,6 +185,7 @@ export function SettingsSwitch({
         {label}
       </Text>
       <Switch
+        testID={testID}
         accessibilityLabel={label}
         value={value}
         onValueChange={onChange}

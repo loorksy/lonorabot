@@ -73,6 +73,9 @@ export function AttentionInbox({
         <label className="check">
           <input
             type="checkbox"
+            role="switch"
+            data-lonora-switch="true"
+            aria-checked={settings.opportunities}
             checked={settings.opportunities}
             disabled={saving}
             onChange={async (event) => {

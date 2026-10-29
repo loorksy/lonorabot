@@ -28,7 +28,6 @@ import {
   Platform,
   Pressable,
   ScrollView,
-  Switch,
   Text,
   View,
 } from "react-native";
@@ -772,7 +771,7 @@ function PermissionControl({ agent, threadId, revision = 0, settings = false }: 
                           }}
                           disabled={busy}
                           onPress={() => {
-                            if (!isSelected) choose(level);
+                            choose(level);
                           }}
                           style={({ pressed }) => ({
                             minHeight: 86,
@@ -816,22 +815,6 @@ function PermissionControl({ agent, threadId, revision = 0, settings = false }: 
                             <Text style={{ ...textStyle, fontSize: 13, color: colors.secondary }}>
                               {copy[`${level}Hint`]}
                             </Text>
-                          </View>
-                          <View testID={`permission-choice-selected-${level}`}>
-                            <Switch
-                              testID={`permission-choice-switch-${level}`}
-                              value={isSelected}
-                              disabled={busy}
-                              onValueChange={(value) => {
-                                if (value && !isSelected) choose(level);
-                              }}
-                              accessibilityLabel={copy[level]}
-                              accessibilityRole="switch"
-                              accessibilityState={{ checked: isSelected, disabled: busy }}
-                              trackColor={{ false: colors.border, true: permissionAccent }}
-                              thumbColor={isSelected ? "#f3f0ff" : colors.secondary}
-                              ios_backgroundColor={colors.border}
-                            />
                           </View>
                         </Pressable>
                       );
@@ -1064,44 +1047,24 @@ function PermissionControl({ agent, threadId, revision = 0, settings = false }: 
                               )}
                             </View>
                           </View>
-                          <View style={{ flexDirection: rowDirection, flexWrap: "wrap", gap: 8 }}>
+                          <SettingsGroup>
                             {authorityActions.map((action) => (
-                              <Pressable
+                              <SettingsSwitch
                                 key={action}
                                 testID={`permission-action-${action}-native`}
-                                accessibilityRole="checkbox"
-                                accessibilityLabel={authorityCopy[action]}
-                                accessibilityState={{
-                                  checked: draft.actions.includes(action),
-                                  disabled: busy || conflict,
-                                }}
+                                label={authorityCopy[action]}
+                                value={draft.actions.includes(action)}
                                 disabled={busy || conflict}
-                                onPress={() =>
+                                onChange={(enabled) =>
                                   updateDraft({
-                                    actions: draft.actions.includes(action)
-                                      ? draft.actions.filter((value) => value !== action)
-                                      : [...draft.actions, action],
+                                    actions: enabled
+                                      ? [...draft.actions, action]
+                                      : draft.actions.filter((value) => value !== action),
                                   })
                                 }
-                                style={{
-                                  minHeight: 44,
-                                  padding: 10,
-                                  borderRadius: 12,
-                                  borderWidth: 1,
-                                  borderColor: colors.border,
-                                  backgroundColor: draft.actions.includes(action)
-                                    ? colors.accent
-                                    : colors.background,
-                                  maxWidth: "100%",
-                                }}
-                              >
-                                <Text style={textStyle}>
-                                  {draft.actions.includes(action) ? "✓ " : ""}
-                                  {authorityCopy[action]}
-                                </Text>
-                              </Pressable>
+                              />
                             ))}
-                          </View>
+                          </SettingsGroup>
                         </>,
                       )}
                       {section(

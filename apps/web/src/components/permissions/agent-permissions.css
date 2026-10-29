@@ -141,24 +141,6 @@
   line-height: 1.5;
   color: var(--lonora-muted, var(--muted-foreground));
 }
-.permission-options .permission-level-switch {
-  flex: none;
-  width: 46px;
-  height: 28px;
-  border-radius: 999px;
-  transform: scale(1.03);
-}
-.permission-options .permission-level-switch[data-checked] {
-  background: #8d7bff;
-  box-shadow: 0 0 14px rgb(125 103 255 / 42%);
-}
-.permission-options .permission-level-switch[data-unchecked] {
-  background: color-mix(in srgb, var(--lonora-muted, var(--muted-foreground)) 32%, transparent);
-}
-.permission-options .permission-level-switch [data-slot="switch-thumb"] {
-  width: 24px;
-  height: 24px;
-}
 .permission-options .permission-level-option[data-disabled="true"] {
   opacity: 0.52;
 }
@@ -343,14 +325,20 @@
 }
 .permission-action-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px 8px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+  border: 1px solid var(--lonora-line, var(--border));
+  border-radius: 14px;
+  overflow: hidden;
 }
 .permission-group-body label.permission-checkbox {
   display: flex;
   flex-direction: row;
-  align-items: start;
-  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px;
+  border-bottom: 1px solid var(--lonora-line, var(--border));
 }
 .permission-checkbox input {
   margin-top: 3px;

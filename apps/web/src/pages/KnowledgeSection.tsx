@@ -146,6 +146,9 @@ function SemanticKnowledge({ agentId }: { agentId: string }) {
         <label className="check">
           <input
             type="checkbox"
+            role="switch"
+            data-lonora-switch="true"
+            aria-checked={configuration.enabled}
             checked={configuration.enabled}
             onChange={(e) => setConfiguration({ ...configuration, enabled: e.target.checked })}
           />

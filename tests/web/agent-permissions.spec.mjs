@@ -305,6 +305,7 @@ for (const layout of layouts) {
       await composer.fill(draft);
       await page.getByTestId("permission-selector").click();
       const options = page.getByTestId("permission-options");
+      await expect(options.getByRole("switch")).toHaveCount(0);
       for (const level of ["analysis", "supervised", "autonomous"]) {
         await expect(options.getByTestId(`permission-option-${level}`)).toBeVisible();
         await expect(options.getByTestId(`permission-option-icon-${level}`)).toBeVisible();
@@ -481,8 +482,13 @@ test("customized scope signs through actual virtual WebAuthn, then downgrade rev
       "cancel_order",
       "modify_order",
     ];
-    for (const action of actions)
+    for (const action of actions) {
+      await expect(surface.getByTestId(`permission-action-${action}`)).toHaveAttribute(
+        "role",
+        "switch",
+      );
       await expect(surface.getByTestId(`permission-action-${action}`)).toBeChecked();
+    }
     await surface.getByTestId("permission-deselect-all").click();
     await expect(surface.getByTestId("permission-review-continue")).toBeDisabled();
     await surface.getByTestId("permission-action-buy").check();

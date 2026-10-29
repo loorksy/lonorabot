@@ -489,6 +489,9 @@ export function VisualDocumentView({
             <input
               id={fieldId}
               type="checkbox"
+              role="switch"
+              data-lonora-switch="true"
+              aria-checked={Boolean(stateValue)}
               checked={Boolean(stateValue)}
               onChange={(event) => change(node, event.target.checked)}
             />
