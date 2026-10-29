@@ -259,6 +259,9 @@ export function PermissionEditor({
                 <input
                   data-testid={`permission-action-${action}`}
                   type="checkbox"
+                  role="switch"
+                  data-lonora-switch="true"
+                  aria-checked={draft.actions.includes(action)}
                   checked={draft.actions.includes(action)}
                   onChange={(event) =>
                     onChange({
@@ -329,6 +332,9 @@ export function PermissionEditor({
             <input
               data-testid="permission-manual"
               type="checkbox"
+              role="switch"
+              data-lonora-switch="true"
+              aria-checked={draft.allow_manual_positions}
               checked={draft.allow_manual_positions}
               onChange={(event) =>
                 onChange({ ...draft, allow_manual_positions: event.target.checked })

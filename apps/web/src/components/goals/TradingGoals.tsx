@@ -277,6 +277,9 @@ export function TradingGoals({ agentId }: { agentId: string }) {
               <label className="row">
                 <input
                   type="checkbox"
+                  role="switch"
+                  data-lonora-switch="true"
+                  aria-checked={autonomous}
                   checked={autonomous}
                   disabled={terminal || busy === goal.id}
                   onChange={(event) =>

@@ -164,7 +164,7 @@ for (const layout of layouts)
         await expect(sheet.getByTestId(`permission-choice-${level}`)).toBeVisible();
         await expect(sheet.getByTestId(`permission-choice-icon-${level}`)).toBeVisible();
       }
-      await expect(sheet.getByTestId("permission-choice-selected-analysis")).toBeVisible();
+      await expect(sheet.getByRole("switch")).toHaveCount(0);
       if (layout.height > layout.width) {
         for (const level of ["analysis", "supervised", "autonomous"])
           await insideViewport(page, sheet.getByTestId(`permission-choice-${level}`));

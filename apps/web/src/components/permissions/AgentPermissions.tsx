@@ -26,7 +26,6 @@ import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-  Switch,
 } from "@lonora/ui-web";
 import { Check, ChevronDown, Eye, ShieldCheck, X, Zap } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -508,16 +507,6 @@ export function AgentPermissions({
                   <small>{text[`${level}Hint`]}</small>
                 </span>
               </button>
-              <Switch
-                data-testid={`permission-option-switch-${level}`}
-                className="permission-level-switch"
-                checked={selected === level}
-                disabled={disabled}
-                aria-label={`${text.title}: ${text[level]}`}
-                onCheckedChange={(checked) => {
-                  if (checked && selected !== level) choose(level);
-                }}
-              />
             </div>
           );
         })}

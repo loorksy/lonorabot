@@ -44,6 +44,9 @@ export function ExecutionModeSettings({ agent }: { agent: Agent }) {
       <label className="check">
         <input
           type="checkbox"
+          role="switch"
+          data-lonora-switch="true"
+          aria-checked={mode === "shadow"}
           checked={mode === "shadow"}
           onChange={async (event) => {
             const next = event.target.checked ? "shadow" : "live";

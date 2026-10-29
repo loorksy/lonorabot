@@ -130,6 +130,9 @@ export function AgentSettings({
         <label className="check">
           <input
             type="checkbox"
+            role="switch"
+            data-lonora-switch="true"
+            aria-checked={paused}
             checked={paused}
             onChange={(event) => setPaused(event.target.checked)}
           />

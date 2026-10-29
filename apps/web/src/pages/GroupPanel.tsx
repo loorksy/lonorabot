@@ -61,6 +61,9 @@ export function GroupCreatePanel({
           <label className="check" key={agent.id}>
             <input
               type="checkbox"
+              role="switch"
+              data-lonora-switch="true"
+              aria-checked={members.includes(agent.id)}
               checked={members.includes(agent.id)}
               onChange={(event) =>
                 setMembers((values) =>
@@ -124,6 +127,9 @@ export function GroupSettings({
         <label className="check" key={a.id}>
           <input
             type="checkbox"
+            role="switch"
+            data-lonora-switch="true"
+            aria-checked={members.includes(a.id)}
             checked={members.includes(a.id)}
             onChange={(e) =>
               setMembers((old) =>

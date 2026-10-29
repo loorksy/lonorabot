@@ -21,6 +21,56 @@
 * {
   box-sizing: border-box;
 }
+/* Boolean controls share one iOS-style track; their native form behavior stays intact. */
+body input[type="checkbox"][data-lonora-switch] {
+  appearance: none;
+  display: inline-block;
+  flex: none;
+  position: relative;
+  width: 46px;
+  height: 28px;
+  min-width: 46px;
+  min-height: 28px;
+  margin: 0;
+  padding: 2px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--muted-foreground);
+  background-image: none;
+  cursor: pointer;
+  vertical-align: middle;
+  transition: background 160ms ease;
+}
+body input[type="checkbox"][data-lonora-switch]::before {
+  content: "";
+  display: block;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 24%);
+  transform: translateX(0);
+  transition: transform 160ms ease;
+}
+body input[type="checkbox"][data-lonora-switch]:checked {
+  background: #8d7bff;
+}
+body input[type="checkbox"][data-lonora-switch]:checked::before {
+  transform: translateX(18px);
+}
+body input[type="checkbox"][data-lonora-switch]:dir(rtl):checked::before {
+  transform: translateX(-18px);
+}
+body input[type="checkbox"][data-lonora-switch]:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+@media (prefers-reduced-motion: reduce) {
+  body input[type="checkbox"][data-lonora-switch],
+  body input[type="checkbox"][data-lonora-switch]::before {
+    transition: none;
+  }
+}
 html,
 body,
 #root {
