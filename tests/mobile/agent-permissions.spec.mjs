@@ -151,7 +151,7 @@ for (const layout of layouts)
           ? attachBox.x - (selectorBox.x + selectorBox.width)
           : selectorBox.x - (attachBox.x + attachBox.width);
       expect(inlineGap).toBeGreaterThanOrEqual(0);
-      expect(inlineGap).toBeLessThanOrEqual(3);
+      expect(inlineGap).toBeLessThanOrEqual(9);
       const composer = page.getByRole("textbox", {
         name: layout.locale === "ar" ? "اكتب رسالة…" : "Message…",
         exact: true,

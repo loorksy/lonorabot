@@ -679,6 +679,7 @@ function PermissionControl({ agent, threadId, revision = 0, settings = false }: 
       ) : (
         <View style={{ flexShrink: 0 }}>
           <Pressable
+            hitSlop={6}
             testID="permission-selector-native"
             accessibilityRole="button"
             aria-expanded={open}
@@ -686,9 +687,9 @@ function PermissionControl({ agent, threadId, revision = 0, settings = false }: 
             accessibilityState={{ expanded: open }}
             onPress={openControl}
             style={({ pressed }) => ({
-              width: 44,
-              height: 44,
-              borderRadius: 22,
+              width: 32,
+              height: 32,
+              borderRadius: 16,
               alignItems: "center",
               justifyContent: "center",
               backgroundColor: pressed ? colors.accent : "transparent",
