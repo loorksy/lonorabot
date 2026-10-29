@@ -133,6 +133,46 @@
   display: block;
   margin-top: 5px;
 }
+.permission-authority-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+.permission-authority-list h3 {
+  margin: 0 0 4px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.permission-authority-list button {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+  padding: 10px 12px;
+  border: 1px solid var(--lonora-line, var(--border));
+  border-radius: 10px;
+  background: transparent;
+  color: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.permission-authority-list button[aria-pressed="true"] {
+  background: var(--lonora-surface, var(--muted));
+  border-color: var(--ring, #8b7aff);
+}
+.permission-authority-list strong,
+.permission-authority-list small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+.permission-authority-list small {
+  margin-top: 5px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--lonora-muted, var(--muted-foreground));
+}
 .permission-dialog-scroll {
   overflow: auto;
   overscroll-behavior: contain;

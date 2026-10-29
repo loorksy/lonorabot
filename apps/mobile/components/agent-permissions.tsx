@@ -142,7 +142,11 @@ function PermissionControl({ agent, threadId, revision = 0, settings = false }: 
         setSelected(next.requested_level);
       loaded.current = true;
       setReview((existing) =>
-        existing && next.pending_authority?.id !== existing.id ? null : existing,
+        existing
+          ? ([next.pending_authority, ...next.active_authorities].find(
+              (candidate) => candidate?.id === existing.id,
+            ) ?? null)
+          : null,
       );
     },
     [agent, open],
@@ -403,6 +407,13 @@ function PermissionControl({ agent, threadId, revision = 0, settings = false }: 
       if (state?.pending_authority && authorityStatus(state.pending_authority) === "pending") {
         setReview(state.pending_authority);
         setPage("review");
+      } else if (
+        state?.active_authorities.some((row) => authorityStatus(row, clock) === "active")
+      ) {
+        setReview(
+          state.active_authorities.find((row) => authorityStatus(row, clock) === "active") ?? null,
+        );
+        setPage("review");
       } else if (effective !== "autonomous") {
         if (draft.account_id) void execute(prepare);
         else {
@@ -484,6 +495,9 @@ function PermissionControl({ agent, threadId, revision = 0, settings = false }: 
     review !== null &&
     authorityStatus(review, clock) === "pending" &&
     state?.pending_authority?.id === review.id;
+  const activeAuthorities =
+    state?.active_authorities.filter((row) => authorityStatus(row, clock) === "active") ?? [];
+  const reviewIsActive = review !== null && activeAuthorities.some((row) => row.id === review.id);
   const section = (name: Group, children: ReactNode) => (
     <View
       key={name}
@@ -516,12 +530,14 @@ function PermissionControl({ agent, threadId, revision = 0, settings = false }: 
     id?: string,
     disabled = false,
     secondary = false,
+    selected = false,
   ) => (
     <Pressable
+      key={id}
       testID={id}
       accessibilityRole="button"
       accessibilityLabel={label}
-      accessibilityState={{ disabled }}
+      accessibilityState={{ disabled, selected }}
       disabled={disabled}
       onPress={onPress}
       style={({ pressed }) => ({
@@ -531,7 +547,7 @@ function PermissionControl({ agent, threadId, revision = 0, settings = false }: 
         borderRadius: 14,
         alignItems: "center",
         justifyContent: "center",
-        backgroundColor: secondary ? colors.muted : colors.primary,
+        backgroundColor: selected ? colors.accent : secondary ? colors.muted : colors.primary,
         opacity: disabled || pressed ? 0.45 : 1,
       })}
     >
@@ -545,6 +561,29 @@ function PermissionControl({ agent, threadId, revision = 0, settings = false }: 
         {label}
       </Text>
     </Pressable>
+  );
+  const activeReviews = activeAuthorities.length > 0 && (
+    <View testID="permission-active-authorities-native" style={{ gap: 8 }}>
+      <Text accessibilityRole="header" style={{ ...textStyle, fontWeight: "600" }}>
+        {copy.activeAuthorizations}
+      </Text>
+      {activeAuthorities.map((authority) =>
+        actionButton(
+          `${accountName(authority.account_id)} · ${authority.envelope.symbol_scope === "account" ? copy.accountScope : authority.envelope.symbols.join(", ")}`,
+          () => {
+            setReview(authority);
+            setPage("review");
+            setPassword("");
+            setEnroll(false);
+            setSigning(null);
+          },
+          `permission-active-${authority.id}-native`,
+          busy,
+          true,
+          page === "review" && review?.id === authority.id,
+        ),
+      )}
+    </View>
   );
   const summary = (exact?: AccountAuthority) => {
     const envelope = exact?.envelope;
@@ -770,6 +809,7 @@ function PermissionControl({ agent, threadId, revision = 0, settings = false }: 
                     busy,
                     true,
                   )}
+                {activeReviews}
                 {notice}
               </ScrollView>
             </SafeAreaView>
@@ -788,7 +828,13 @@ function PermissionControl({ agent, threadId, revision = 0, settings = false }: 
                 style={{ flex: 1 }}
               >
                 <SheetHeader
-                  title={page === "editor" ? copy.advanced : authorityCopy.review}
+                  title={
+                    page === "editor"
+                      ? copy.advanced
+                      : reviewIsActive
+                        ? copy.activeReviewTitle
+                        : authorityCopy.review
+                  }
                   onClose={close}
                 />
                 <Text
@@ -1086,19 +1132,22 @@ function PermissionControl({ agent, threadId, revision = 0, settings = false }: 
                     </>
                   ) : review ? (
                     <>
-                      <Text style={textStyle}>{copy.signHint}</Text>
+                      <Text style={textStyle}>
+                        {reviewIsActive ? copy.activeReviewHint : copy.signHint}
+                      </Text>
+                      {activeReviews}
                       {summary(review)}
-                      {!readyToSign && (
+                      {!readyToSign && !reviewIsActive && (
                         <Text style={{ ...textStyle, color: colors.warning }}>
                           {copy.authorization_expired}
                         </Text>
                       )}
-                      {!supported && (
+                      {!supported && readyToSign && (
                         <Text style={{ ...textStyle, color: colors.warning }}>
                           {copy.signingUnsupported}
                         </Text>
                       )}
-                      {enroll && (
+                      {enroll && readyToSign && (
                         <>
                           <Field
                             label={authorityCopy.password}
@@ -1147,7 +1196,7 @@ function PermissionControl({ agent, threadId, revision = 0, settings = false }: 
                         true,
                       )}
                       {actionButton(
-                        copy.cancelRequest,
+                        reviewIsActive ? authorityCopy.revoke : copy.cancelRequest,
                         () => {
                           void execute(async () => {
                             await api.post(
@@ -1165,7 +1214,7 @@ function PermissionControl({ agent, threadId, revision = 0, settings = false }: 
                           });
                         },
                         "permission-cancel-native",
-                        busy || !readyToSign,
+                        busy || (!readyToSign && !reviewIsActive),
                         true,
                       )}
                     </>
@@ -1203,35 +1252,43 @@ function PermissionControl({ agent, threadId, revision = 0, settings = false }: 
                           agent.execution_mode === "shadow" ||
                           agent.paused,
                       )
-                    : actionButton(
-                        copy.sign,
-                        () => {
-                          if (!review) return;
-                          void execute(async () => {
-                            signingFlow.current = true;
-                            setSigning("preparing");
-                            await activateAccountAuthority(api, review, async (challenge) => {
-                              setSigning("confirming");
-                              const proof = await deviceProof(challenge);
-                              if (!mounted.current) throw new SessionRequestCancelled();
-                              if (mounted.current) setSigning("verifying");
-                              return proof;
+                    : reviewIsActive
+                      ? actionButton(
+                          copy.close,
+                          close,
+                          "permission-close-active-native",
+                          busy,
+                          true,
+                        )
+                      : actionButton(
+                          copy.sign,
+                          () => {
+                            if (!review) return;
+                            void execute(async () => {
+                              signingFlow.current = true;
+                              setSigning("preparing");
+                              await activateAccountAuthority(api, review, async (challenge) => {
+                                setSigning("confirming");
+                                const proof = await deviceProof(challenge);
+                                if (!mounted.current) throw new SessionRequestCancelled();
+                                if (mounted.current) setSigning("verifying");
+                                return proof;
+                              });
+                              const next = await refresh();
+                              if (next.effective_level !== "autonomous")
+                                throw new Error("account_authority_activation_unconfirmed");
+                              if (mounted.current) {
+                                setSelected("autonomous");
+                                setReview(null);
+                                setPage("select");
+                                setSigning("activated");
+                                setPassword("");
+                              }
                             });
-                            const next = await refresh();
-                            if (next.effective_level !== "autonomous")
-                              throw new Error("account_authority_activation_unconfirmed");
-                            if (mounted.current) {
-                              setSelected("autonomous");
-                              setReview(null);
-                              setPage("select");
-                              setSigning("activated");
-                              setPassword("");
-                            }
-                          });
-                        },
-                        "permission-sign-native",
-                        busy || !readyToSign || !supported || enroll,
-                      )}
+                          },
+                          "permission-sign-native",
+                          busy || !readyToSign || !supported || enroll,
+                        )}
                 </View>
               </View>
             </KeyboardAvoidingView>
