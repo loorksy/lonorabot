@@ -160,8 +160,11 @@ for (const layout of layouts)
       await composer.fill(draft);
       await page.getByTestId("permission-selector-native").click();
       const sheet = page.getByTestId("permission-sheet-native");
-      for (const level of ["analysis", "supervised", "autonomous"])
+      for (const level of ["analysis", "supervised", "autonomous"]) {
         await expect(sheet.getByTestId(`permission-choice-${level}`)).toBeVisible();
+        await expect(sheet.getByTestId(`permission-choice-icon-${level}`)).toBeVisible();
+      }
+      await expect(sheet.getByTestId("permission-choice-selected-analysis")).toBeVisible();
       if (layout.height > layout.width) {
         for (const level of ["analysis", "supervised", "autonomous"])
           await insideViewport(page, sheet.getByTestId(`permission-choice-${level}`));

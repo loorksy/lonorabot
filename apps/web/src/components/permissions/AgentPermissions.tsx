@@ -38,6 +38,11 @@ import { permissionLabels } from "./permission-labels";
 import "./agent-permissions.css";
 
 const unsavedPreferences = new Map<string, PermissionCustomization>();
+const permissionLevelIcons = {
+  analysis: Eye,
+  supervised: ShieldCheck,
+  autonomous: Zap,
+} as const;
 type AgentBinding = Pick<Agent, "trading_account_id" | "trading_symbol">;
 function defaults(agent: AgentBinding): PermissionCustomization {
   return {
@@ -472,26 +477,41 @@ export function AgentPermissions({
     <div className="permission-options" data-testid="permission-options" dir={rtl ? "rtl" : "ltr"}>
       <h3>{text.title}</h3>
       <div role="radiogroup" aria-label={text.title}>
-        {agentPermissionLevels.map((level) => (
-          <label key={level} className="permission-level-option" data-selected={selected === level}>
-            <input
-              type="radio"
-              name={radioName}
-              checked={selected === level}
-              data-testid={`permission-option-${level}`}
-              disabled={busy || !state || (agent.role === "delegated" && level !== "analysis")}
-              onChange={() => choose(level)}
-              onClick={() => {
-                if (selected === level) choose(level);
-              }}
-            />
-            <span>
-              <strong>{text[level]}</strong>
-              <small>{text[`${level}Hint`]}</small>
-            </span>
-            {selected === level && <Check size={17} />}
-          </label>
-        ))}
+        {agentPermissionLevels.map((level) => {
+          const LevelIcon = permissionLevelIcons[level];
+          return (
+            <label
+              key={level}
+              className="permission-level-option"
+              data-selected={selected === level}
+            >
+              <input
+                type="radio"
+                name={radioName}
+                checked={selected === level}
+                data-testid={`permission-option-${level}`}
+                disabled={busy || !state || (agent.role === "delegated" && level !== "analysis")}
+                onChange={() => choose(level)}
+                onClick={() => {
+                  if (selected === level) choose(level);
+                }}
+              />
+              <span
+                className="permission-level-icon"
+                data-testid={`permission-option-icon-${level}`}
+                data-level={level}
+                aria-hidden="true"
+              >
+                <LevelIcon size={20} />
+              </span>
+              <span>
+                <strong>{text[level]}</strong>
+                <small>{text[`${level}Hint`]}</small>
+              </span>
+              {selected === level && <Check size={17} />}
+            </label>
+          );
+        })}
       </div>
       {showAdvanced && (
         <button
@@ -508,12 +528,7 @@ export function AgentPermissions({
       <p className="permission-explanation">{text.stoppedHint}</p>
     </div>
   );
-  const PermissionIcon =
-    state?.effective_level === "autonomous"
-      ? Zap
-      : state?.effective_level === "supervised"
-        ? ShieldCheck
-        : Eye;
+  const PermissionIcon = permissionLevelIcons[state?.effective_level ?? "analysis"];
   const triggerLabel = state ? `${text.title}: ${text[state.effective_level]}` : text.loading;
   const trigger = (
     <>

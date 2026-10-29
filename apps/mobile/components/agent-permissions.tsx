@@ -47,6 +47,11 @@ type Group = "scope" | "operations" | "limits" | "duration";
 type Signing = "preparing" | "confirming" | "verifying" | "activated" | "cancelled" | "failed";
 type Props = { agent: Agent; threadId?: string; revision?: number; settings?: boolean };
 const levels = ["analysis", "supervised", "autonomous"] as const;
+const permissionSymbols = {
+  analysis: "eye",
+  supervised: "shield-check",
+  autonomous: "zap",
+} as const;
 const durations: AuthorityDuration[] = ["until_stopped", "12h", "24h", "7d"];
 
 /** A native projection/editor of the existing server authority. Drafts grant nothing. */
@@ -689,13 +694,7 @@ function PermissionControl({ agent, threadId, revision = 0, settings = false }: 
           >
             <View testID={`permission-icon-${effective ?? "unavailable"}-native`}>
               <NativeSymbol
-                name={
-                  effective
-                    ? ({ analysis: "eye", supervised: "shield-check", autonomous: "zap" } as const)[
-                        effective
-                      ]
-                    : "shield"
-                }
+                name={effective ? permissionSymbols[effective] : "shield"}
                 size={20}
                 color={effective === "autonomous" ? colors.success : colors.secondary}
               />
@@ -779,15 +778,24 @@ function PermissionControl({ agent, threadId, revision = 0, settings = false }: 
                           opacity: busy ? 0.5 : 1,
                         }}
                       >
-                        <Text style={{ color: colors.foreground }}>
-                          {selected === level ? "●" : "○"}
-                        </Text>
+                        <View testID={`permission-choice-icon-${level}`}>
+                          <NativeSymbol
+                            name={permissionSymbols[level]}
+                            size={22}
+                            color={selected === level ? colors.foreground : colors.secondary}
+                          />
+                        </View>
                         <View style={{ flex: 1, gap: 4 }}>
                           <Text style={{ ...textStyle, fontWeight: "600" }}>{copy[level]}</Text>
                           <Text style={{ ...textStyle, fontSize: 13, color: colors.secondary }}>
                             {copy[`${level}Hint`]}
                           </Text>
                         </View>
+                        {selected === level ? (
+                          <View testID={`permission-choice-selected-${level}`}>
+                            <NativeSymbol name="check" size={20} color={colors.foreground} />
+                          </View>
+                        ) : null}
                       </Pressable>
                     ))}
                 {selected === "autonomous" &&
