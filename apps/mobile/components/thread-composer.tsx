@@ -22,7 +22,6 @@ import {
 import { useSession } from "../lib/session";
 import { BotAvatar } from "./bot-avatar";
 import { ComposerReplyPreview } from "./composer-reply-preview";
-import { HeaderButton } from "./header-button";
 import { NativeSymbol } from "./native-symbol";
 import { colors } from "./ui";
 export function ThreadComposer({
@@ -63,7 +62,7 @@ export function ThreadComposer({
   permissionControl?: ReactNode;
 }) {
   const { rtl, t } = useSession();
-  const [inputHeight, setInputHeight] = useState(44);
+  const [inputHeight, setInputHeight] = useState(32);
   const [cursor, setCursor] = useState(0);
   const committed = useRef<MentionRange[]>([]);
   const textBeforeCaret = draft.slice(0, cursor);
@@ -74,7 +73,7 @@ export function ThreadComposer({
   useEffect(() => {
     if (!draft) {
       committed.current = [];
-      setInputHeight(44);
+      setInputHeight(32);
       setCursor(0);
     }
   }, [draft]);
@@ -82,8 +81,8 @@ export function ThreadComposer({
   return (
     <View
       style={{
-        paddingHorizontal: 16,
-        paddingBottom: 10,
+        paddingHorizontal: 12,
+        paddingBottom: 12,
         paddingTop: 8,
         gap: 8,
         backgroundColor: colors.background,
@@ -188,12 +187,13 @@ export function ThreadComposer({
           style={{
             flex: 1,
             minWidth: 0,
-            minHeight: 52,
-            borderRadius: 26,
+            minHeight: 56,
+            borderRadius: 28,
             flexDirection: rtl ? "row-reverse" : "row",
             alignItems: "flex-end",
-            gap: 2,
-            padding: 4,
+            gap: 8,
+            paddingHorizontal: 11,
+            paddingVertical: 11,
             backgroundColor: colors.muted,
             borderWidth: 0.5,
             borderColor: colors.border,
@@ -201,10 +201,13 @@ export function ThreadComposer({
         >
           <View
             testID="thread-composer-attach-native"
-            style={{ width: 44, height: 44, alignItems: "center", justifyContent: "center" }}
+            style={{ width: 32, height: 32, alignItems: "center", justifyContent: "center" }}
           >
-            <HeaderButton
-              label={t("attach")}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t("attach")}
+              hitSlop={6}
+              style={{ width: 32, height: 32, alignItems: "center", justifyContent: "center" }}
               onPress={onAttach}
               disabled={busy || uploading || disabled || attachments.length >= 10}
             >
@@ -213,115 +216,113 @@ export function ThreadComposer({
               ) : (
                 <NativeSymbol name="plus" size={18} color={colors.secondary} />
               )}
-            </HeaderButton>
+            </Pressable>
           </View>
           {permissionControl}
-          <View
+          <TextInput
+            accessibilityLabel={t("message")}
+            placeholder={t("message")}
+            value={draft}
+            onChangeText={(value) => {
+              committed.current = rebaseMentions(draft, value, committed.current);
+              setCursor(Math.max(0, Math.min(value.length, cursor + value.length - draft.length)));
+              onChange(value);
+            }}
+            onKeyPress={(event) => {
+              if (Platform.OS !== "web") return;
+              const keyboard = event as unknown as {
+                key: string;
+                shiftKey: boolean;
+                keyCode: number;
+                nativeEvent: { isComposing?: boolean };
+                preventDefault: () => void;
+              };
+              if (
+                keyboard.key === "Enter" &&
+                !keyboard.shiftKey &&
+                !keyboard.nativeEvent.isComposing &&
+                keyboard.keyCode !== 229 &&
+                canSend
+              ) {
+                keyboard.preventDefault();
+                onSend(mentionAddress(draft, committed.current));
+              }
+            }}
+            onSelectionChange={(event) => setCursor(event.nativeEvent.selection.start)}
+            multiline
+            onContentSizeChange={(event) =>
+              setInputHeight(Math.max(32, Math.min(160, event.nativeEvent.contentSize.height)))
+            }
+            maxLength={30000}
+            editable={!disabled}
+            placeholderTextColor={colors.secondary}
+            blurOnSubmit={false}
+            textAlignVertical="top"
+            underlineColorAndroid="transparent"
+            selectionColor={colors.foreground}
             style={{
               flex: 1,
-              minWidth: 0,
-              minHeight: 44,
-              flexDirection: rtl ? "row-reverse" : "row",
-              alignItems: "flex-end",
+              minHeight: 32,
+              height: inputHeight,
+              maxHeight: 160,
+              fontSize: 16,
+              lineHeight: 24,
+              paddingVertical: 4,
+              paddingHorizontal: 0,
+              borderWidth: 0,
+              backgroundColor: "transparent",
+              includeFontPadding: false,
+              color: colors.foreground,
+              textAlign: rtl ? "right" : "left",
+              writingDirection: "auto",
             }}
+          />
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t("send")}
+            disabled={!canSend}
+            onPress={() => onSend(mentionAddress(draft, committed.current))}
+            hitSlop={6}
+            testID="thread-composer-send-native"
+            style={({ pressed }) => ({
+              width: 32,
+              height: 32,
+              borderRadius: 16,
+              backgroundColor: colors.primary,
+              alignItems: "center",
+              justifyContent: "center",
+              opacity: pressed || !canSend ? 0.4 : 1,
+            })}
           >
-            <TextInput
-              accessibilityLabel={t("message")}
-              placeholder={t("message")}
-              value={draft}
-              onChangeText={(value) => {
-                committed.current = rebaseMentions(draft, value, committed.current);
-                setCursor(
-                  Math.max(0, Math.min(value.length, cursor + value.length - draft.length)),
-                );
-                onChange(value);
-              }}
-              onKeyPress={(event) => {
-                if (Platform.OS !== "web") return;
-                const keyboard = event as unknown as {
-                  key: string;
-                  shiftKey: boolean;
-                  keyCode: number;
-                  nativeEvent: { isComposing?: boolean };
-                  preventDefault: () => void;
-                };
-                if (
-                  keyboard.key === "Enter" &&
-                  !keyboard.shiftKey &&
-                  !keyboard.nativeEvent.isComposing &&
-                  keyboard.keyCode !== 229 &&
-                  canSend
-                ) {
-                  keyboard.preventDefault();
-                  onSend(mentionAddress(draft, committed.current));
-                }
-              }}
-              onSelectionChange={(event) => setCursor(event.nativeEvent.selection.start)}
-              multiline
-              onContentSizeChange={(event) =>
-                setInputHeight(Math.max(44, Math.min(132, event.nativeEvent.contentSize.height)))
-              }
-              maxLength={30000}
-              editable={!disabled}
-              placeholderTextColor={colors.secondary}
-              blurOnSubmit={false}
-              textAlignVertical="top"
+            {busy ? (
+              <ActivityIndicator size="small" color={colors.primaryForeground} />
+            ) : (
+              <NativeSymbol name="send" size={16} color={colors.primaryForeground} />
+            )}
+          </Pressable>
+          {working && onStop ? (
+            <View
               style={{
-                flex: 1,
-                minHeight: 44,
-                height: inputHeight,
-                maxHeight: 132,
-                fontSize: 17,
-                lineHeight: 22,
-                paddingTop: 11,
-                paddingBottom: 11,
-                paddingHorizontal: 4,
-                color: colors.foreground,
-                textAlign: rtl ? "right" : "left",
-                writingDirection: "auto",
-              }}
-            />
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={t("send")}
-              disabled={!canSend}
-              onPress={() => onSend(mentionAddress(draft, committed.current))}
-              style={({ pressed }) => ({
-                marginBottom: 8,
                 width: 32,
-                height: 28,
-                borderRadius: 14,
+                height: 32,
+                borderRadius: 16,
                 backgroundColor: colors.primary,
                 alignItems: "center",
                 justifyContent: "center",
-                opacity: pressed || !canSend ? 0.4 : 1,
-              })}
+              }}
             >
-              {busy ? (
-                <ActivityIndicator size="small" color={colors.primaryForeground} />
-              ) : (
-                <NativeSymbol name="send" size={16} color={colors.primaryForeground} />
-              )}
-            </Pressable>
-          </View>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t("cancel")}
+                onPress={onStop}
+                disabled={busy}
+                style={{ width: 32, height: 32, alignItems: "center", justifyContent: "center" }}
+              >
+                <NativeSymbol name="stop" size={16} color={colors.primaryForeground} />
+              </Pressable>
+            </View>
+          ) : null}
         </View>
-        {working && onStop ? (
-          <View
-            style={{
-              width: 44,
-              height: 44,
-              borderRadius: 22,
-              borderWidth: 1,
-              borderColor: colors.border,
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <HeaderButton label={t("cancel")} onPress={onStop} disabled={busy}>
-              <NativeSymbol name="stop" size={18} />
-            </HeaderButton>
-          </View>
-        ) : null}
       </View>
     </View>
   );

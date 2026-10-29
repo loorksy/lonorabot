@@ -768,8 +768,9 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
         ))}
       {thread?.agent_id && <AgentLiveStatus agentId={thread.agent_id} />}
       <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        testID="thread-keyboard-layout-native"
+        style={{ flex: 1, minHeight: 0 }}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
         <View style={{ flex: 1 }}>
           {!loaded || !thread ? (
