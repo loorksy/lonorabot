@@ -305,8 +305,13 @@ for (const layout of layouts) {
       await composer.fill(draft);
       await page.getByTestId("permission-selector").click();
       const options = page.getByTestId("permission-options");
-      for (const level of ["analysis", "supervised", "autonomous"])
+      for (const level of ["analysis", "supervised", "autonomous"]) {
         await expect(options.getByTestId(`permission-option-${level}`)).toBeVisible();
+        await expect(options.getByTestId(`permission-option-icon-${level}`)).toBeVisible();
+        await expect(
+          options.getByTestId(`permission-option-icon-${level}`).locator("svg"),
+        ).toBeVisible();
+      }
       await expect(options.getByTestId("permission-advanced")).toHaveCount(0);
       await options.getByTestId("permission-option-supervised").click();
       await expect.poll(async () => (await state.state()).effective_level).toBe("supervised");

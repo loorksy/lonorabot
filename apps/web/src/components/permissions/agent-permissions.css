@@ -72,6 +72,23 @@
   background: var(--lonora-surface, var(--muted));
   border-color: var(--lonora-line, var(--border));
 }
+.permission-options .permission-level-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  color: var(--lonora-muted, var(--muted-foreground));
+  background: color-mix(in srgb, currentColor 9%, transparent);
+}
+.permission-options .permission-level-option[data-selected="true"] .permission-level-icon {
+  color: var(--lonora-text, var(--foreground));
+}
+.permission-options .permission-level-option > span:nth-of-type(2) {
+  flex: 1;
+  min-width: 0;
+}
 .permission-options strong,
 .permission-options small {
   display: block;
