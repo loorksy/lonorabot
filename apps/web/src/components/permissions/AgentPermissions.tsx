@@ -143,11 +143,11 @@ export function AgentPermissions({ agent, threadId }: { agent: Agent; threadId: 
         setDraft(bindDraft(binding, next.customization ?? defaults(binding)));
       }
       setReview((current) =>
-        current &&
-        next.pending_authority?.id !== current.id &&
-        !next.active_authorities.some((row) => row.id === current.id)
-          ? null
-          : current,
+        current
+          ? next.pending_authority?.id === current.id
+            ? next.pending_authority
+            : (next.active_authorities.find((row) => row.id === current.id) ?? null)
+          : null,
       );
     },
     [alive, boundAccount, boundSymbol],
@@ -432,6 +432,17 @@ export function AgentPermissions({ agent, threadId }: { agent: Agent; threadId: 
   const reviewPending = Boolean(
     review && authorityStatus(review) === "pending" && state?.pending_authority?.id === review.id,
   );
+  const reviewActive = Boolean(
+    review &&
+      authorityStatus(review) === "active" &&
+      state?.active_authorities.some((row) => row.id === review.id),
+  );
+  const reviewableAuthorities = [
+    ...(state?.pending_authority && authorityStatus(state.pending_authority) === "pending"
+      ? [state.pending_authority]
+      : []),
+    ...(state?.active_authorities.filter((row) => authorityStatus(row) === "active") ?? []),
+  ];
   const showAdvanced = selected === "autonomous";
   const openAdvanced = () => {
     setPicker(false);
@@ -583,6 +594,49 @@ export function AgentPermissions({ agent, threadId }: { agent: Agent; threadId: 
             </DialogDescription>
           </header>
           <div className="permission-dialog-scroll">
+            {flow === "review" && state && state.active_authorities.length > 0 && (
+              <nav
+                className="permission-authority-list"
+                aria-label={text.authorizations}
+                data-testid="permission-authorities"
+              >
+                <h3>{text.authorizations}</h3>
+                {reviewableAuthorities.map((row) => (
+                  <button
+                    type="button"
+                    key={row.id}
+                    data-testid={`permission-authority-${row.id}`}
+                    aria-pressed={review?.id === row.id}
+                    disabled={busy}
+                    onClick={() => {
+                      setReview(row);
+                      setPhase(null);
+                      setEnroll(false);
+                      setPassword("");
+                      setError(undefined);
+                    }}
+                  >
+                    <span>
+                      <strong>
+                        <bdi>{permissionAccountName(accounts, row.account_id, labels.account)}</bdi>
+                      </strong>
+                      <small>
+                        <bdi>
+                          {row.envelope.symbol_scope === "account"
+                            ? text.accountWide
+                            : row.envelope.symbols.join(" · ")}
+                        </bdi>
+                        {" · "}
+                        {authorityStatus(row) === "active"
+                          ? text.activeAuthorization
+                          : text.pending}
+                      </small>
+                    </span>
+                    {review?.id === row.id && <Check size={16} />}
+                  </button>
+                ))}
+              </nav>
+            )}
             {flow === "editor" ? (
               <div className="permission-editor-columns">
                 <PermissionEditor
@@ -747,7 +801,7 @@ export function AgentPermissions({ agent, threadId }: { agent: Agent; threadId: 
                 >
                   {busy ? text.preparing : text.continue}
                 </button>
-              ) : (
+              ) : reviewPending ? (
                 <button
                   type="button"
                   data-testid="permission-sign"
@@ -784,6 +838,14 @@ export function AgentPermissions({ agent, threadId }: { agent: Agent; threadId: 
                 >
                   {busy && phase ? text[phase] : text.sign}
                 </button>
+              ) : (
+                <p
+                  className="permission-explanation"
+                  role="status"
+                  data-testid="permission-review-state"
+                >
+                  {reviewActive ? text.activeAuthorization : text.expired}
+                </p>
               )}
             </div>
           </footer>

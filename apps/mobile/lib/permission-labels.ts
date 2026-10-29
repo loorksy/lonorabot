@@ -62,6 +62,10 @@ export const permissionLabels = {
     close: "Close",
     noAccounts: "Connect a trading account before authorizing management.",
     signHint: "Review the exact scope below. Your device confirms this authorization securely.",
+    activeAuthorizations: "Active signed authorizations",
+    activeReviewTitle: "Review active authorization",
+    activeReviewHint:
+      "This is the exact active signed scope. Viewing it does not create or change authorization.",
   },
   ar: {
     lots: "لوت",
@@ -125,5 +129,8 @@ export const permissionLabels = {
     close: "إغلاق",
     noAccounts: "اربط حساب تداول قبل تفويض الإدارة.",
     signHint: "راجع النطاق الدقيق أدناه. يؤكد جهازك هذا التفويض بأمان.",
+    activeAuthorizations: "التفويضات الموقّعة النشطة",
+    activeReviewTitle: "مراجعة التفويض النشط",
+    activeReviewHint: "هذا هو النطاق الموقّع النشط كما هو. مراجعته لا تنشئ تفويضًا ولا تغيّره.",
   },
 } as const;

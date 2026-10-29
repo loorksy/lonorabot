@@ -11,6 +11,46 @@ function simulation(data) {
   );
 }
 
+function signedAccounts() {
+  // Standards-shaped proofs reach the actual production verifier. No direct
+  // status changes or test-only authorization switches seed active authority.
+  const source = `
+import asyncio,json,sys
+from datetime import timedelta
+from uuid import uuid4
+sys.path.insert(0,'tests')
+from check_streaming import Fixture
+from device_fixture import Device
+from lonora_contracts.domain import utcnow
+async def main():
+ f=await Fixture().open()
+ try:
+  agent=next(row for row in await f.request('GET','/agents') if row['role']=='personal')
+  thread=await f.conversation(agent)
+  previous={row['id'] for row in await f.request('GET','/auth/devices')}
+  device=await Device.enroll(f)
+  device_id=next(row['id'] for row in await f.request('GET','/auth/devices') if row['id'] not in previous)
+  accounts=[];grants=[]
+  for index,symbol in enumerate(('EURUSD.exact','XAUUSD.exact')):
+   connection=await f.request('POST','/trading/connections',{'provider':'simulation','account_id':'native-active-'+uuid4().hex,'enabled':True})
+   account=connection['id'];accounts.append(account)
+   await f.request('POST',f'/trading/connections/{account}/simulation',{'snapshot':{'currency':'USD','balance':'10000','instruments':[{'symbol':symbol,'digits':2,'tick_size':'0.01','volume_min':'0.01','volume_max':'10','volume_step':'0.01'}]}})
+   body={'thread_id':thread['id'],'account_id':account,'management_mode':'full','symbol_scope':'selected','symbols':[symbol],'actions':['buy'] if index==0 else ['sell'],'maximum_order_volume':'0.11' if index==0 else '0.22','valid_until':(utcnow()+timedelta(hours=12)).isoformat() if index==0 else None,'allow_manual_positions':index==1}
+   pending=await f.request('POST',f"/agents/{agent['id']}/account-authorities",body)
+   challenge=await f.request('POST',f"/account-authorities/{pending['id']}/challenge",{})
+   active=await f.request('POST','/account-authorities/verify',device.assertion(challenge,f.settings.allowed_origin))
+   assert active['status']=='active';grants.append(active)
+  state=await f.request('GET',f"/agents/{agent['id']}/permissions")
+  draft={'account_id':accounts[0],'symbol_scope':'account','symbols':[],'actions':['modify_order'],'limits':{'maximum_order_volume':'0.77','maximum_symbol_volume':'','maximum_positions':'','maximum_pending_orders':'','maximum_actions':'','minimum_equity':''},'duration':'7d','allow_manual_positions':False}
+  state=await f.request('PUT',f"/agents/{agent['id']}/permissions/customization",{'expected_revision':state['revision'],'customization':draft})
+  assert len(state['active_authorities'])==2
+  print(json.dumps({'agent':agent,'thread':thread,'accounts':accounts,'grants':grants,'draft':draft,'device_id':device_id,'cookies':[{'name':cookie.name,'value':cookie.value} for cookie in f.client.cookies.jar]}))
+ finally:await f.close(cleanup=False)
+asyncio.run(main())
+`;
+  return JSON.parse(execFileSync(".venv/bin/python", ["-c", source], { encoding: "utf8" }));
+}
+
 async function setup(context, locale) {
   const data = simulation({ action: "init", empty: true });
   await context.addCookies(
@@ -158,5 +198,153 @@ for (const layout of layouts)
       expect(errors).toEqual([]);
     } finally {
       await state.cleanup();
+    }
+  });
+
+for (const locale of ["en", "ar"])
+  test(`Expo ${locale}: all active signed accounts remain readable independently of draft and pending changes`, async ({
+    page,
+    context,
+  }) => {
+    test.setTimeout(60000);
+    const data = signedAccounts();
+    await context.addCookies(
+      data.cookies.map((cookie) => ({
+        ...cookie,
+        url: test.info().project.use.baseURL,
+        httpOnly: cookie.name === "lonora_session",
+        sameSite: "Strict",
+      })),
+    );
+    await context.addInitScript((value) => localStorage.setItem("lonora.locale", value), locale);
+    const headers = {
+      "X-CSRF-Token": data.cookies.find((row) => row.name === "lonora_csrf").value,
+    };
+    const endpoint = `/api/agents/${data.agent.id}/permissions`;
+    const read = async () => {
+      const response = await context.request.get(endpoint);
+      expect(response.ok()).toBeTruthy();
+      return response.json();
+    };
+    const mutations = [];
+    page.on("request", (request) => {
+      if (
+        ["POST", "PUT", "PATCH", "DELETE"].includes(request.method()) &&
+        /account-authorities|\/permissions/.test(request.url())
+      )
+        mutations.push(`${request.method()} ${new URL(request.url()).pathname}`);
+    });
+    try {
+      const before = await read();
+      const journalBefore = await (await context.request.get("/api/trading/journal")).json();
+      await page.goto(`/thread?id=${data.thread.id}`);
+      await page.getByTestId("permission-selector-native").click();
+      await page.getByTestId("permission-choice-autonomous").click();
+      const review = page.getByTestId("permission-review-native");
+      await expect(review).toBeVisible();
+      const exact = review.getByTestId("permission-exact-scope-native");
+      for (const grant of data.grants) {
+        await review.getByTestId(`permission-active-${grant.id}-native`).click();
+        await expect(exact).toContainText(grant.envelope.symbols[0]);
+        await expect(exact).toContainText(grant.envelope.maximum_order_volume);
+        await expect(exact).not.toContainText("0.77");
+        await expect(exact).toContainText(
+          locale === "ar"
+            ? grant.envelope.actions[0] === "buy"
+              ? "شراء سوقي"
+              : "بيع سوقي"
+            : grant.envelope.actions[0] === "buy"
+              ? "Market buy"
+              : "Market sell",
+        );
+        await expect(exact).toContainText(
+          locale === "ar"
+            ? grant.envelope.allow_manual_positions
+              ? "يشمل الصفقات المفتوحة خارج لونورا"
+              : "لا يشمل الصفقات المفتوحة خارج لونورا"
+            : grant.envelope.allow_manual_positions
+              ? "Includes positions opened outside Lonora"
+              : "Positions opened outside Lonora are excluded",
+        );
+        await expect(exact).toContainText(
+          grant.valid_until ?? (locale === "ar" ? "حتى أوقفه" : "Until I Stop It"),
+        );
+        await expect(review.getByTestId("permission-sign-native")).toHaveCount(0);
+        await expect(review).not.toContainText(
+          locale === "ar" ? "انتهى التفويض" : "Authorization Expired",
+        );
+      }
+      expect(mutations).toEqual([]);
+      expect((await read()).active_authorities).toEqual(before.active_authorities);
+      expect((await read()).customization).toEqual(data.draft);
+
+      // A replacement stays pending while each older active account remains
+      // visible. Reviewing those scopes must not create/verify another proposal.
+      const pendingResponse = await context.request.post(
+        `/api/agents/${data.agent.id}/account-authorities`,
+        {
+          headers,
+          data: {
+            thread_id: data.thread.id,
+            account_id: data.accounts[1],
+            management_mode: "full",
+            symbol_scope: "selected",
+            symbols: ["XAUUSD.exact"],
+            actions: ["buy_limit"],
+            maximum_order_volume: "0.33",
+            allow_manual_positions: false,
+          },
+        },
+      );
+      expect(pendingResponse.status()).toBe(201);
+      const pending = await pendingResponse.json();
+      await page.reload();
+      await page.getByTestId("permission-selector-native").click();
+      await page.getByTestId("permission-choice-autonomous").click();
+      await expect(review).toBeVisible();
+      await expect(exact).toContainText("0.33");
+      for (const grant of data.grants) {
+        await review.getByTestId(`permission-active-${grant.id}-native`).click();
+        await expect(exact).toContainText(grant.envelope.symbols[0]);
+        await expect(exact).toContainText(grant.envelope.maximum_order_volume);
+        await expect(review.getByTestId("permission-sign-native")).toHaveCount(0);
+      }
+      const after = await read();
+      expect(after.pending_authority.id).toBe(pending.id);
+      expect(after.active_authorities).toEqual(before.active_authorities);
+      expect(after.customization).toEqual(data.draft);
+      expect(mutations).toEqual([]);
+      expect(await (await context.request.get("/api/trading/journal")).json()).toEqual(
+        journalBefore,
+      );
+      await review.getByTestId(`permission-active-${data.grants[0].id}-native`).click();
+      const revoked = page.waitForResponse(
+        (response) =>
+          response.url().endsWith(`/account-authorities/${data.grants[0].id}/revoke`) &&
+          response.request().method() === "POST",
+      );
+      await review.getByTestId("permission-cancel-native").click();
+      expect((await revoked).ok()).toBeTruthy();
+      await expect
+        .poll(async () => (await read()).active_authorities.map((grant) => grant.id))
+        .toEqual([data.grants[1].id]);
+      const reduced = await read();
+      expect(reduced.effective_level).toBe("autonomous");
+      expect(reduced.pending_authority.id).toBe(pending.id);
+      expect(await (await context.request.get("/api/trading/journal")).json()).toEqual(
+        journalBefore,
+      );
+    } finally {
+      const current = await read();
+      for (const grant of [...current.active_authorities, current.pending_authority].filter(
+        Boolean,
+      ))
+        await context.request.post(`/api/account-authorities/${grant.id}/revoke`, {
+          headers,
+          data: {},
+        });
+      await context.request.delete(`/api/auth/devices/${data.device_id}`, { headers });
+      for (const account of data.accounts)
+        await context.request.delete(`/api/trading/connections/${account}`, { headers });
     }
   });

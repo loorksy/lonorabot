@@ -98,6 +98,132 @@ async function noOverflow(page) {
   ).toBeTruthy();
 }
 
+function activeAuthorityFixture(data) {
+  const script = `
+import asyncio,json,sys
+from datetime import timedelta
+from uuid import uuid4
+sys.path.insert(0,'tests')
+from check_streaming import Fixture
+from device_fixture import Device
+from lonora_contracts.domain import utcnow
+async def main():
+    data=json.load(sys.stdin)
+    f=await Fixture().open()
+    try:
+        agents=await f.request('GET','/agents')
+        personal=next(row for row in agents if row['role']=='personal')
+        path='/agents/'+personal['id']+'/permissions'
+        current=await f.request('GET',path)
+        await f.request('PUT',path,{'level':'analysis','expected_revision':current['revision']})
+        thread=await f.conversation(personal)
+        connection=await f.request('POST','/trading/connections',{'provider':'simulation','account_id':'grant-review-'+uuid4().hex,'enabled':True})
+        other_symbol='REVIEW.second'
+        await f.request('POST','/trading/connections/'+connection['id']+'/simulation',{'snapshot':{'currency':'EUR','balance':'10000','instruments':[{'symbol':other_symbol,'digits':2,'tick_size':'0.01','volume_min':'0.01','volume_max':'100','volume_step':'0.01'}]}})
+        device=await Device.enroll(f)
+        async def propose(account,symbol,actions,maximum):
+            return await f.request('POST','/agents/'+personal['id']+'/account-authorities',{'thread_id':thread['id'],'account_id':account,'management_mode':'full','symbol_scope':'selected','symbols':[symbol],'actions':actions,'maximum_order_volume':maximum,'valid_until':(utcnow()+timedelta(hours=12)).isoformat()})
+        async def sign(proposal):
+            challenge=await f.request('POST','/account-authorities/'+proposal['id']+'/challenge',{})
+            return await f.request('POST','/account-authorities/verify',device.assertion(challenge,f.settings.allowed_origin))
+        first=await sign(await propose(data['account'],data['symbol'],['buy'],'0.05'))
+        second=await sign(await propose(connection['id'],other_symbol,['sell','modify_position'],'0.17'))
+        current=await f.request('GET',path)
+        await f.request('PUT',path+'/customization',{'expected_revision':current['revision'],'customization':{'account_id':data['account'],'symbol_scope':'selected','symbols':[data['symbol']],'actions':['buy'],'limits':{'maximum_order_volume':'0.96'},'duration':'7d','allow_manual_positions':True}})
+        pending=await propose(data['account'],data['symbol'],['close_position'],'0.23')
+        print(json.dumps({'agent':personal,'thread':thread,'first':first,'second':second,'pending':pending,'extra_account':connection['id']}))
+    finally:
+        await f.close(cleanup=False)
+asyncio.run(main())
+`;
+  return JSON.parse(
+    execFileSync(".venv/bin/python", ["-c", script], {
+      input: JSON.stringify(data),
+      encoding: "utf8",
+    }),
+  );
+}
+
+for (const locale of ["en", "ar"])
+  test(`${locale}: every active account scope is reviewable without replacing its signed grant`, async ({
+    page,
+    context,
+  }) => {
+    test.setTimeout(60000);
+    if (locale === "ar") await page.setViewportSize({ width: 390, height: 844 });
+    const state = await setup(context, locale);
+    const granted = activeAuthorityFixture(state.data);
+    const writes = [];
+    page.on("request", (request) => {
+      if (
+        request.method() === "POST" &&
+        /\/account-authorities(?:[/?]|$)/.test(new URL(request.url()).pathname) &&
+        !new URL(request.url()).pathname.endsWith("/revoke")
+      )
+        writes.push(request.url());
+    });
+    try {
+      await state.open(page, granted);
+      await choose(page, "autonomous");
+      const review = page.getByTestId("permission-review");
+      const authorities = review.getByTestId("permission-authorities");
+      await expect(authorities.locator("button")).toHaveCount(3);
+      await expect(review.locator(".permission-summary")).toContainText("0.23");
+      await expect(review.getByTestId("permission-sign")).toBeVisible();
+      for (const [grant, limit] of [
+        [granted.first, "0.05"],
+        [granted.second, "0.17"],
+      ]) {
+        await authorities.getByTestId(`permission-authority-${grant.id}`).click();
+        await expect(authorities.getByTestId(`permission-authority-${grant.id}`)).toHaveAttribute(
+          "aria-pressed",
+          "true",
+        );
+        await expect(review.locator(".permission-summary")).toContainText(limit);
+        await expect(review.locator(".permission-summary")).toContainText(
+          grant.envelope.symbols[0],
+        );
+        await expect(review.locator(".permission-summary")).not.toContainText("0.96");
+        await expect(review.getByTestId("permission-sign")).toHaveCount(0);
+        await expect(review.getByTestId("permission-review-state")).toHaveText(
+          locale === "ar" ? "تفويض موقّع ساري" : "Active signed authorization",
+        );
+      }
+      await authorities.getByTestId(`permission-authority-${granted.first.id}`).click();
+      const revoke = await context.request.post(
+        `/api/account-authorities/${granted.first.id}/revoke`,
+        {
+          headers: state.headers,
+          data: {},
+        },
+      );
+      expect(revoke.ok()).toBeTruthy();
+      await expect(authorities.getByTestId(`permission-authority-${granted.first.id}`)).toHaveCount(
+        0,
+      );
+      await authorities.getByTestId(`permission-authority-${granted.second.id}`).click();
+      await expect(review.locator(".permission-summary")).toContainText("0.17");
+      await authorities.getByTestId(`permission-authority-${granted.pending.id}`).click();
+      await expect(review.locator(".permission-summary")).toContainText("0.23");
+      await expect(review.getByTestId("permission-sign")).toBeVisible();
+      await noOverflow(page);
+      expect(writes).toEqual([]);
+      const current = await state.state(granted.agent.id);
+      expect(current.active_authorities.map((row) => row.id)).toEqual([granted.second.id]);
+      expect(current.customization.limits.maximum_order_volume).toBe("0.96");
+    } finally {
+      const current = await state.state(granted.agent.id);
+      await context.request.put(`/api/agents/${granted.agent.id}/permissions`, {
+        headers: state.headers,
+        data: { level: "analysis", expected_revision: current.revision },
+      });
+      await context.request.delete(`/api/trading/connections/${granted.extra_account}`, {
+        headers: state.headers,
+      });
+      await state.cleanup();
+    }
+  });
+
 const layouts = [
   { label: "desktop EN dark", locale: "en", theme: "dark", width: 1440, height: 900 },
   { label: "mobile AR dark", locale: "ar", theme: "dark", width: 390, height: 844 },
