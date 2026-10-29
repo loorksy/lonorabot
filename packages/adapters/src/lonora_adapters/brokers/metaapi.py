@@ -276,6 +276,23 @@ class MetaApiBroker:
                     raise failure from error
             return self.account_instance
 
+    async def metadata_identity(self) -> dict[str, Any]:
+        """Read provisioning identity without opening RPC or placing an order."""
+        entity = await self.resolve_account()
+        identity: dict[str, Any] = {}
+        for key in ("login", "server", "broker", "name"):
+            try:
+                value = getattr(entity, key, None)
+            except (AttributeError, KeyError):
+                value = None
+            identity[key] = str(value).strip() if value is not None else None
+        try:
+            version = getattr(entity, "version", None)
+        except (AttributeError, KeyError):
+            version = None
+        identity["platform"] = "mt" + str(version) if str(version) in {"4", "5"} else None
+        return identity
+
     def _slot(self, kind: str) -> ConnectionSlot:
         # Some scripted adapter tests instantiate without __init__.
         name = "rpc_slot" if kind == "rpc" else "stream_slot"

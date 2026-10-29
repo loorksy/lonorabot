@@ -3254,3 +3254,11 @@ msgstr "لا يمكن حذف مساعدك الشخصي."
 #: src/pages/shell/conversation-inbox.tsx:180
 msgid "Your team starts here"
 msgstr "فريقك يبدأ من هنا"
+
+#: src/lib/user_error.ts
+msgid "This broker account is already connected. Use the existing connection."
+msgstr "حساب الوسيط مرتبط بالفعل. استخدم الاتصال الموجود."
+
+#: src/lib/user_error.ts
+msgid "The broker account could not be verified. Check its connection details and try again."
+msgstr "تعذر التحقق من حساب الوسيط. راجع بيانات الاتصال وحاول مجددًا."

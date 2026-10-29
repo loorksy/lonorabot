@@ -164,6 +164,16 @@ for (const locale of ["en", "ar"])
     });
     try {
       await state.open(page, granted);
+      const trigger = page.getByTestId("permission-selector");
+      await expect(trigger.locator("[data-permission-icon]")).toHaveAttribute(
+        "data-permission-icon",
+        "autonomous",
+      );
+      await expect(trigger).toHaveAccessibleName(
+        locale === "ar"
+          ? "صلاحيات الوكيل: إدارة مستقلة"
+          : "Agent Permissions: Autonomous Management",
+      );
       await choose(page, "autonomous");
       const review = page.getByTestId("permission-review");
       const authorities = review.getByTestId("permission-authorities");
@@ -249,8 +259,37 @@ for (const layout of layouts) {
         "data-level",
         "analysis",
       );
+      const trigger = page.getByTestId("permission-selector");
+      const bar = page.getByTestId("composer-bar");
+      // Permission is part of the input pill, immediately beside attachment +.
+      await expect(bar.getByTestId("permission-selector")).toBeVisible();
+      expect(
+        await trigger.evaluate((element) =>
+          element
+            .closest(".agent-permissions")
+            .previousElementSibling?.classList.contains("template-attach-button"),
+        ),
+      ).toBeTruthy();
+      await expect(trigger.locator("[data-permission-icon]")).toHaveAttribute(
+        "data-permission-icon",
+        "analysis",
+      );
+      const compact = layout.width < 768 || layout.height <= 500;
+      if (compact) {
+        await expect(trigger.locator(".permission-trigger-label")).toBeHidden();
+        await expect(trigger.locator(".permission-trigger-chevron")).toBeHidden();
+        expect((await trigger.boundingBox()).width).toBeLessThanOrEqual(34);
+      } else {
+        await expect(trigger.locator(".permission-trigger-label")).toBeVisible();
+        await expect(trigger.locator(".permission-trigger-label")).toHaveText(
+          layout.locale === "ar" ? "تحليل فقط" : "Analysis Only",
+        );
+      }
+      const buttonBox = await trigger.boundingBox();
+      const attachBox = await bar.locator(".template-attach-button").boundingBox();
+      expect(Math.abs(buttonBox.y - attachBox.y)).toBeLessThan(3);
+      await noOverflow(page);
       if (layout.width === 1440) {
-        const trigger = page.getByTestId("permission-selector");
         await trigger.focus();
         await trigger.press("Enter");
         await expect(page.getByTestId("permission-options")).toBeVisible();
@@ -271,6 +310,13 @@ for (const layout of layouts) {
       await expect(options.getByTestId("permission-advanced")).toHaveCount(0);
       await options.getByTestId("permission-option-supervised").click();
       await expect.poll(async () => (await state.state()).effective_level).toBe("supervised");
+      await expect(trigger.locator("[data-permission-icon]")).toHaveAttribute(
+        "data-permission-icon",
+        "supervised",
+      );
+      await expect(trigger).toHaveAccessibleName(
+        layout.locale === "ar" ? "صلاحيات الوكيل: بموافقتي" : "Agent Permissions: With My Approval",
+      );
       await expect(composer).toHaveValue(draft);
       await page.reload();
       await expect(composer).toHaveValue(draft);

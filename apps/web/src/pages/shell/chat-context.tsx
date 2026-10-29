@@ -348,7 +348,12 @@ export function ThreadViewport({
         working={working}
         permissions={
           agent ? (
-            <AgentPermissions key={`${owner.id}:${agentId}`} agent={agent} threadId={threadId} />
+            <AgentPermissions
+              key={`${owner.id}:${agentId}`}
+              agent={agent}
+              threadId={threadId}
+              surface="composer"
+            />
           ) : undefined
         }
         reply={reply}
@@ -739,7 +744,6 @@ export function Composer({
           </button>
         </div>
       )}
-      {permissions}
       <div
         className="template-composer-bar"
         data-overflow-top={inputOverflow.top || undefined}
@@ -771,6 +775,7 @@ export function Composer({
             <Plus size={18} />
           )}
         </button>
+        {permissions}
         <div className="template-composer-field">
           <textarea
             ref={textarea}

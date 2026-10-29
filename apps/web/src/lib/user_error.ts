@@ -132,6 +132,10 @@ export function userError(error: unknown) {
       return t`Broker verification pending. Market data may remain available; trading is blocked until verification finishes.`;
     case "broker_account_not_found":
       return t`Broker account not found.`;
+    case "broker_account_already_connected":
+      return t`This broker account is already connected. Use the existing connection.`;
+    case "broker_identity_unavailable":
+      return t`The broker account could not be verified. Check its connection details and try again.`;
     case "broker_account_mismatch":
       return t`Broker data does not match the selected account. Nothing was sent.`;
     case "broker_account_undeployed":

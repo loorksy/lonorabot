@@ -3,6 +3,10 @@ import Svg, { Circle, Path, Rect } from "react-native-svg";
 import { colors } from "./ui";
 
 export type SymbolName =
+  | "eye"
+  | "shield"
+  | "shield-check"
+  | "zap"
   | "call"
   | "mic"
   | "mic-off"
@@ -29,6 +33,10 @@ export type SymbolName =
   | "globe";
 
 const paths: Partial<Record<SymbolName, string>> = {
+  eye: "M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z",
+  shield: "M12 22s8-4 8-11V5l-8-3-8 3v6c0 7 8 11 8 11Z",
+  "shield-check": "M12 22s8-4 8-11V5l-8-3-8 3v6c0 7 8 11 8 11Zm-4-11 3 3 5-5",
+  zap: "M13 2 3 14h9l-1 8 10-12h-9l1-8Z",
   call: "M22 16.9v3a2 2 0 0 1-2.2 2A19.8 19.8 0 0 1 3.1 5.2 2 2 0 0 1 5.1 3h3a2 2 0 0 1 2 1.7l.4 3a2 2 0 0 1-.6 1.7L8.6 10.7a16 16 0 0 0 4.7 4.7l1.3-1.3a2 2 0 0 1 1.7-.6l3 .4a2 2 0 0 1 1.7 2Z",
   mic: "M9 6a3 3 0 0 1 6 0v6a3 3 0 0 1-6 0V6ZM5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8",
   "mic-off":
@@ -79,6 +87,7 @@ export function NativeSymbol({
       importantForAccessibility="no-hide-descendants"
     >
       {paths[name] ? <Path d={paths[name]} /> : null}
+      {name === "eye" ? <Circle cx={12} cy={12} r={3} /> : null}
       {name === "search" ? <Circle cx={10.5} cy={10.5} r={6.5} /> : null}
       {name === "clock" || name === "globe" ? <Circle cx={12} cy={12} r={9} /> : null}
       {name === "agent" || name === "group" ? (

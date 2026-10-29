@@ -134,6 +134,24 @@ for (const layout of layouts)
     try {
       await state.open(page);
       expect((await state.state()).effective_level).toBe("analysis");
+      const selector = page.getByTestId("permission-selector-native");
+      const inputSurface = page.getByTestId("thread-composer-input-native");
+      await expect(inputSurface.getByTestId("permission-selector-native")).toBeVisible();
+      await expect(selector).toHaveText("");
+      await expect(selector).toHaveAccessibleName(
+        layout.locale === "ar" ? "صلاحيات الوكيل: تحليل فقط" : "Agent Permissions: Analysis Only",
+      );
+      await expect(selector.getByTestId("permission-icon-analysis-native")).toBeVisible();
+      const attachBox = await page.getByTestId("thread-composer-attach-native").boundingBox();
+      const selectorBox = await selector.boundingBox();
+      expect(Math.abs(attachBox.y - selectorBox.y)).toBeLessThanOrEqual(1);
+      expect(Math.abs(attachBox.height - selectorBox.height)).toBeLessThanOrEqual(1);
+      const inlineGap =
+        layout.locale === "ar"
+          ? attachBox.x - (selectorBox.x + selectorBox.width)
+          : selectorBox.x - (attachBox.x + attachBox.width);
+      expect(inlineGap).toBeGreaterThanOrEqual(0);
+      expect(inlineGap).toBeLessThanOrEqual(3);
       const composer = page.getByRole("textbox", {
         name: layout.locale === "ar" ? "اكتب رسالة…" : "Message…",
         exact: true,
@@ -157,6 +175,8 @@ for (const layout of layouts)
         await page.screenshot({ path: ".runtime/permission-qa-native-web-sheet.png" });
       await sheet.getByTestId("permission-choice-supervised").click();
       await expect.poll(async () => (await state.state()).effective_level).toBe("supervised");
+      await expect(selector.getByTestId("permission-icon-supervised-native")).toBeVisible();
+      await expect(selector).toHaveText("");
       await expect(composer).toHaveValue(draft);
       await page.reload();
       await expect(page.getByTestId("permission-selector-native")).toBeVisible();
@@ -238,6 +258,8 @@ for (const locale of ["en", "ar"])
       const before = await read();
       const journalBefore = await (await context.request.get("/api/trading/journal")).json();
       await page.goto(`/thread?id=${data.thread.id}`);
+      await expect(page.getByTestId("permission-icon-autonomous-native")).toBeVisible();
+      await expect(page.getByTestId("permission-selector-native")).toHaveText("");
       await page.getByTestId("permission-selector-native").click();
       await page.getByTestId("permission-choice-autonomous").click();
       const review = page.getByTestId("permission-review-native");
