@@ -111,7 +111,7 @@ async def fixture_data(data: dict[str, Any]) -> dict[str, Any]:
             ModelReply(text="Original generated chart image."),
         ]
 
-        async def model(*args: Any):
+        async def model(*args: Any, **kwargs: Any):
             assert scripted
             return scripted.pop(0), ModelSelection(
                 provider="openai", model="explicit-chart-ui-fixture"

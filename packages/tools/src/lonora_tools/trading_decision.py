@@ -19,7 +19,7 @@ from lonora_contracts.trading_decision import (
 from lonora_core.chart_controller import validate_timeframe
 from lonora_core.runtime_failure import TRANSIENT_READ_CODES
 from lonora_core.user_error import LonoraError
-from lonora_db.agent_binding import agent_binding, assert_market_binding
+from lonora_db.agent_binding import agent_binding, assert_market_binding, fixed_market
 from lonora_db.broker_sessions import BrokerSessionRepository
 from lonora_db.relationships import read_relationship
 from lonora_db.runs import require_lease
@@ -116,7 +116,7 @@ async def record(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         evidence.missing_codes.append(
             error.code if isinstance(error, LonoraError) else "decision_evidence_timeout"
         )
-    if agent.trading_symbol:
+    if fixed_market(agent) and agent.trading_symbol:
         evidence.positions = [p for p in evidence.positions if p.symbol == agent.trading_symbol]
         evidence.orders = [o for o in evidence.orders if o.symbol == agent.trading_symbol]
     now = utcnow()
@@ -208,8 +208,13 @@ async def history(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         rows = await decision_history(
             session,
             context.owner_id,
-            account_id=agent.trading_account_id or params.account_id,
-            symbol=agent.trading_symbol or params.symbol,
+            account_id=params.account_id or agent.trading_account_id,
+            symbol=params.symbol
+            or (
+                agent.trading_symbol
+                if not params.account_id or params.account_id == agent.trading_account_id
+                else None
+            ),
             limit=params.limit,
         )
         return {"decisions": [decision_summary(row) for row in rows]}
@@ -223,7 +228,7 @@ async def read(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         assert_market_binding(agent, row.account_id, row.symbol)
         result = decision_excerpt(row)
         # A specialist cannot use a Personal decision to inspect other symbols.
-        if agent.trading_symbol:
+        if fixed_market(agent) and agent.trading_symbol:
             result["evidence"]["positions"] = [
                 p for p in result["evidence"]["positions"] if p["symbol"] == agent.trading_symbol
             ]
@@ -241,7 +246,7 @@ async def compare(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         after = await read_decision(session, context.owner_id, params.later_id)
         for item in (before, after):
             assert_market_binding(agent, item.account_id, item.symbol)
-        if agent.trading_symbol:
+        if fixed_market(agent) and agent.trading_symbol:
 
             def scoped(item: TradingDecision) -> TradingDecision:
                 return item.model_copy(

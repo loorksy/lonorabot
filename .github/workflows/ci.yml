@@ -766,6 +766,7 @@ jobs:
           .venv/bin/python tests/check_trade_approvals.py
           .venv/bin/python tests/check_bound_market.py
           .venv/bin/python tests/check_agent_binding.py
+          .venv/bin/python tests/check_flexible_agents.py
           .venv/bin/python tests/check_broker_orders.py
           .venv/bin/python tests/check_pending_orders.py
           .venv/bin/python tests/check_chart_streaming.py
