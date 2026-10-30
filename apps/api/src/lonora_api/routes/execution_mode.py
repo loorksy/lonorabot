@@ -36,8 +36,13 @@ async def performance(
         assert_market_binding(agent, account_id, symbol)
         params = PerformanceRead(
             execution_mode=execution_mode,
-            account_id=agent.trading_account_id or account_id,
-            symbol=agent.trading_symbol or symbol,
+            account_id=account_id or agent.trading_account_id,
+            symbol=symbol
+            or (
+                agent.trading_symbol
+                if not account_id or account_id == agent.trading_account_id
+                else None
+            ),
         )
     return await performance_snapshot(db, owner.id, agent_id, params)
 
@@ -56,8 +61,12 @@ async def trades(
     async with db.sessions() as session:
         agent = await owned_agent(session, owner.id, agent_id)
         assert_market_binding(agent, account_id, symbol)
-        account_id = agent.trading_account_id or account_id
-        symbol = agent.trading_symbol or symbol
+        account_id = account_id or agent.trading_account_id
+        symbol = symbol or (
+            agent.trading_symbol
+            if not account_id or account_id == agent.trading_account_id
+            else None
+        )
     rows = await shadow_rows(db, owner.id, agent_id, account_id, symbol)
     return {"mode": "shadow", "trades": [shadow_data(row) for row in rows[:100]]}
 

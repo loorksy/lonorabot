@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Any
 
 from lonora_contracts.domain import Contract
-from lonora_db.agent_binding import agent_binding, assert_market_binding
+from lonora_db.agent_binding import agent_binding, assert_market_binding, fixed_market
 from lonora_db.broker_sessions import BrokerSessionRepository
 from lonora_db.schema import EventRow
 from lonora_trading.accounts import account_snapshot
@@ -90,7 +90,7 @@ async def activity(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]
             EventRow.kind == "broker.external_activity",
             EventRow.payload["account_id"].as_string() == params.account_id,
         )
-        if agent.trading_symbol:
+        if fixed_market(agent) and agent.trading_symbol:
             query = query.where(EventRow.payload["symbol"].as_string() == agent.trading_symbol)
         rows = await session.scalars(query.order_by(EventRow.cursor.desc()).limit(params.limit))
         return {

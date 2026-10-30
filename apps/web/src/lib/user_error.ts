@@ -8,6 +8,10 @@ export function userError(error: unknown) {
   const permissionMessage = agentPermissionError(code, i18n.locale);
   if (permissionMessage) return permissionMessage;
   switch (code) {
+    case "agent_scope_change_forbidden":
+      return t`This agent’s market scope cannot be changed.`;
+    case "agent_scope_change_incomplete":
+      return t`Choose a complete market scope and reload the saved settings before continuing.`;
     case "input_answer_invalid":
       return t`Choose an available answer.`;
     case "input_answer_expired":

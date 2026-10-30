@@ -31,7 +31,11 @@ async def read(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     async with context.db.sessions() as session:
         agent = await agent_binding(session, context.owner_id, context.agent_id)
         assert_market_binding(agent, body.account_id, body.symbol)
-        symbol = agent.trading_symbol or body.symbol
+        symbol = body.symbol or (
+            agent.trading_symbol
+            if not body.account_id or body.account_id == agent.trading_account_id
+            else None
+        )
     rows = await shadow_rows(
         context.db, context.owner_id, context.agent_id, body.account_id, symbol
     )
@@ -51,8 +55,13 @@ async def performance(context: ToolContext, args: dict[str, Any]) -> dict[str, A
         assert_market_binding(agent, body.account_id, body.symbol)
         body = body.model_copy(
             update={
-                "account_id": agent.trading_account_id or body.account_id,
-                "symbol": agent.trading_symbol or body.symbol,
+                "account_id": body.account_id or agent.trading_account_id,
+                "symbol": body.symbol
+                or (
+                    agent.trading_symbol
+                    if not body.account_id or body.account_id == agent.trading_account_id
+                    else None
+                ),
             }
         )
     return await performance_snapshot(context.db, context.owner_id, context.agent_id, body)
