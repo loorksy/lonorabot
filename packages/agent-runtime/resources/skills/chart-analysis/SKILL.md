@@ -10,8 +10,9 @@ user-facing replies and labels. English examples do not require an English reply
 
 ## Steps
 
-1. Establish the exact owned account/symbol. A specialist preserves its binding;
-   a Personal Agent may inspect owned markets. Never rewrite broker suffixes.
+1. Establish the exact owned account/symbol. A fixed-market agent preserves its binding;
+   general and flexible agents may inspect owned markets. A configured default
+   applies only when the request omits the market. Never rewrite broker suffixes.
 2. Discover chart_list and chart_inspect; reuse actual IDs and versions. Check
    scene/source revisions, observation time and candle/indicator alignment.
 3. Read the necessary candle tail and supported server indicators. Narrow large

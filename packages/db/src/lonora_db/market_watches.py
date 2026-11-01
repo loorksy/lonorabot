@@ -42,7 +42,11 @@ class MarketWatchRepository(ResourceRepository):
         if not agent_id:
             raise LonoraError("watch_agent_required", 422)
         agent = await owned_agent(session, owner_id, agent_id)
-        if agent.trading_symbol and not payload.get("symbol"):
+        if (
+            agent.trading_symbol
+            and not payload.get("symbol")
+            and payload.get("account_id", agent.trading_account_id) == agent.trading_account_id
+        ):
             payload = {**payload, "symbol": agent.trading_symbol}
         if payload.get("goal_id"):
             goal = await owned_goal(session, owner_id, str(payload["goal_id"]))

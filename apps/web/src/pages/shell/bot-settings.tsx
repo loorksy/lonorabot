@@ -2,10 +2,12 @@
 
 import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
+import { type AgentMarketMode, agentMarketMode, marketScopeChange } from "@lonora/core";
 import { AgentAvatar } from "@lonora/ui-web";
 import { useEffect, useRef, useState } from "react";
 import { PersonalAgentBadge } from "../../components/ai/PersonalAgentBadge";
 import { AccountAuthoritySettings } from "../../components/trading/AccountAuthoritySettings";
+import { AgentMarketPicker } from "../../components/trading/AgentMarketPicker";
 import { ExecutionModeSettings } from "../../components/trading/ExecutionModeSettings";
 import { type Agent, api } from "../../lib/api";
 import { userError } from "../../lib/user_error";
@@ -20,6 +22,13 @@ export function AgentSettings({
   onDelete: () => Promise<void>;
 }) {
   const { refresh } = useClient();
+  const [scopeBase] = useState(agent);
+  const [mode, setMode] = useState<AgentMarketMode>(() => agentMarketMode(agent));
+  const [pair, setPair] = useState({
+    trading_account_id: agent.trading_account_id ?? "",
+    trading_symbol: agent.trading_symbol ?? "",
+  });
+  const canEditScope = !agent.parent_id && agent.role !== "personal" && agent.role !== "delegated";
   const [name, setName] = useState(agent.name);
   const [title, setTitle] = useState(agent.title ?? "");
   const [description, setDescription] = useState(agent.description ?? "");
@@ -45,6 +54,9 @@ export function AgentSettings({
         setError(undefined);
         try {
           await api.patch(`/agents/${agent.id}`, {
+            ...(canEditScope
+              ? marketScopeChange(mode, pair, scopeBase.scope_revision ?? 0, scopeBase)
+              : {}),
             name: name.trim(),
             title: title.trim(),
             description: description.trim(),
@@ -73,6 +85,15 @@ export function AgentSettings({
         <p>
           <Trans>Trading pair</Trans>: <bdi>{agent.trading_symbol}</bdi>
         </p>
+      )}
+      {canEditScope && (
+        <AgentMarketPicker
+          mode={mode}
+          pair={pair}
+          onMode={setMode}
+          onPair={setPair}
+          allowFixed={agentMarketMode(agent) === "fixed"}
+        />
       )}
       <ExecutionModeSettings agent={agent} />
       <AccountAuthoritySettings key={agent.id} agent={agent} />
@@ -152,7 +173,14 @@ export function AgentSettings({
         <button
           type="submit"
           className="primary"
-          disabled={!name.trim() || saving || confirmDelete}
+          disabled={
+            !name.trim() ||
+            saving ||
+            confirmDelete ||
+            (canEditScope &&
+              mode === "market" &&
+              (!pair.trading_account_id || !pair.trading_symbol))
+          }
         >
           <Trans>Save</Trans>
         </button>

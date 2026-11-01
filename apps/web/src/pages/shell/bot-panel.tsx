@@ -1,9 +1,11 @@
 // Modified for Lonora; source attribution in THIRD_PARTY_NOTICES.md. Apache-2.0.
 import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
+import type { AgentMarketMode } from "@lonora/core";
 import { AgentAvatar } from "@lonora/ui-web";
 import { useState } from "react";
-import { type BrokerPair, BrokerPairPicker } from "../../components/trading/BrokerPairPicker";
+import { AgentMarketPicker } from "../../components/trading/AgentMarketPicker";
+import type { BrokerPair } from "../../components/trading/BrokerPairPicker";
 import type { Agent } from "../../lib/api";
 import { userError } from "../../lib/user_error";
 
@@ -16,11 +18,20 @@ export function AgentCreatePanel({
     name: string,
     avatar: string,
     color: string,
-    profile?: { title?: string; description?: string } & BrokerPair,
+    profile?: {
+      title?: string;
+      description?: string;
+      instructions?: string;
+      scope_mode?: "flexible";
+      trading_account_id?: string | null;
+      trading_symbol?: string | null;
+    },
   ) => Promise<Agent>;
   onCreated: (agent: Agent) => void;
 }) {
   const [pair, setPair] = useState<BrokerPair>({ trading_account_id: "", trading_symbol: "" });
+  const [mode, setMode] = useState<AgentMarketMode>("general");
+  const [instructions, setInstructions] = useState("");
   const [name, setName] = useState("");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -38,7 +49,10 @@ export function AgentCreatePanel({
         try {
           onCreated(
             await create(name.trim(), avatar, color, {
-              ...pair,
+              scope_mode: "flexible",
+              trading_account_id: mode === "market" ? pair.trading_account_id : null,
+              trading_symbol: mode === "market" ? pair.trading_symbol : null,
+              instructions: instructions.trim(),
               title: title.trim(),
               description: description.trim(),
             }),
@@ -79,7 +93,16 @@ export function AgentCreatePanel({
           placeholder={t`What this agent is for`}
         />
       </label>
-      <BrokerPairPicker value={pair} onChange={setPair} />
+      <label>
+        <Trans>Instructions</Trans>
+        <textarea
+          value={instructions}
+          maxLength={16000}
+          rows={3}
+          onChange={(e) => setInstructions(e.target.value)}
+        />
+      </label>
+      <AgentMarketPicker mode={mode} pair={pair} onMode={setMode} onPair={setPair} />
       <details className="tpl-profile-appearance">
         <summary>
           <Trans>Appearance</Trans>
@@ -113,7 +136,11 @@ export function AgentCreatePanel({
       <button
         className="primary"
         type="submit"
-        disabled={!name.trim() || !pair.trading_account_id || !pair.trading_symbol || busy}
+        disabled={
+          !name.trim() ||
+          (mode === "market" && (!pair.trading_account_id || !pair.trading_symbol)) ||
+          busy
+        }
       >
         <Trans>Create agent</Trans>
       </button>

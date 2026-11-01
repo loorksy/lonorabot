@@ -76,7 +76,9 @@ export function SettingsRow({
   onPress,
   destructive = false,
   disabled = false,
+  testID,
 }: {
+  testID?: string;
   title: string;
   detail?: string;
   value?: string;
@@ -146,6 +148,7 @@ export function SettingsRow({
   ];
   return onPress ? (
     <Pressable
+      testID={testID}
       accessibilityRole="button"
       accessibilityLabel={title}
       disabled={disabled}

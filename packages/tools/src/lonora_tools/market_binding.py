@@ -4,6 +4,8 @@ from lonora_core.user_error import LonoraError
 from lonora_db.agent_binding import (
     agent_binding,
     assert_payload_binding,
+    fixed_market,
+    flexible_scope,
     require_financial_agent,
     same_binding,
 )
@@ -44,7 +46,12 @@ def fill_bound_fields(agent: AgentRow, args: dict[str, Any], fields: set[str]) -
     filled = dict(args)
     if agent.trading_account_id and "account_id" in fields and not filled.get("account_id"):
         filled["account_id"] = agent.trading_account_id
-    if agent.trading_symbol and "symbol" in fields and not filled.get("symbol"):
+    if (
+        agent.trading_symbol
+        and "symbol" in fields
+        and not filled.get("symbol")
+        and (not flexible_scope(agent) or filled.get("account_id") == agent.trading_account_id)
+    ):
         filled["symbol"] = agent.trading_symbol
     return filled
 
@@ -58,7 +65,7 @@ async def prepare_market_arguments(
         agent = await agent_binding(session, context.owner_id, context.agent_id)
         if not agent.trading_account_id or not agent.trading_symbol:
             return args
-        aligned = align_payload(agent, args)
+        aligned = args if flexible_scope(agent) else align_payload(agent, args)
         if not isinstance(aligned, dict):
             return args
         return fill_bound_fields(agent, cast(dict[str, Any], aligned), set(model.model_fields))
@@ -87,7 +94,7 @@ async def guard_market_tool(
             await require_financial_agent(
                 session, context.owner_id, context.agent_id, execution_mode=mode
             )
-        if not agent.trading_account_id:
+        if not fixed_market(agent):
             return args
         aligned = align_payload(agent, args)
         if isinstance(aligned, dict):
@@ -134,7 +141,7 @@ async def scope_market_result(
         return result
     async with context.db.sessions() as session:
         agent = await agent_binding(session, context.owner_id, context.agent_id)
-        if not agent.trading_account_id:
+        if not fixed_market(agent):
             return result
         result = dict(result)
         if name == "market_symbols":

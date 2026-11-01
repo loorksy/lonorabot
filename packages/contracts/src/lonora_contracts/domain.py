@@ -18,6 +18,7 @@ class Contract(BaseModel):
 
 
 class AgentCreate(Contract):
+    scope_mode: Literal["fixed_market", "flexible"] = "fixed_market"
     trading_account_id: str | None = Field(default=None, min_length=1, max_length=36)
     trading_symbol: str | None = Field(default=None, min_length=1, max_length=80)
 
@@ -36,6 +37,28 @@ class AgentCreate(Contract):
 
 
 class AgentUpdate(Contract):
+    scope_mode: Literal["flexible"] | None = None
+    trading_account_id: str | None = Field(default=None, min_length=1, max_length=36)
+    trading_symbol: str | None = Field(default=None, min_length=1, max_length=80)
+    expected_scope_revision: int | None = Field(default=None, ge=0)
+
+    @model_validator(mode="after")
+    def scope_change(self) -> "AgentUpdate":
+        fields = self.model_fields_set
+        if fields.intersection({"scope_mode", "trading_account_id", "trading_symbol"}):
+            if not {
+                "scope_mode",
+                "trading_account_id",
+                "trading_symbol",
+                "expected_scope_revision",
+            }.issubset(fields):
+                raise ValueError("agent_scope_change_incomplete")
+            if self.scope_mode != "flexible" or self.expected_scope_revision is None:
+                raise ValueError("agent_scope_change_incomplete")
+            if (self.trading_account_id is None) != (self.trading_symbol is None):
+                raise ValueError("agent_trading_binding_required")
+        return self
+
     title: str | None = Field(default=None, max_length=160)
     description: str | None = Field(default=None, max_length=2000)
     name: str | None = Field(default=None, min_length=1, max_length=80)

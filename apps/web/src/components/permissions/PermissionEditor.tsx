@@ -6,7 +6,11 @@ import {
   type PermissionCustomization,
   type Resource,
 } from "@lonora/contracts";
-import { type accountAuthorityLabels, numericalAuthorityLimits } from "@lonora/core";
+import {
+  type accountAuthorityLabels,
+  hasFixedMarket,
+  numericalAuthorityLimits,
+} from "@lonora/core";
 import { useState } from "react";
 import { brokerIdentityLabel } from "../../lib/broker-identity";
 import type { PermissionText } from "./permission-labels";
@@ -124,7 +128,7 @@ export function PermissionEditor({
   symbolError?: string;
 }) {
   const [market, setMarket] = useState("");
-  const bound = Boolean(agent.trading_account_id && agent.trading_symbol);
+  const bound = hasFixedMarket(agent);
   return (
     <div className="permission-groups">
       <details data-testid="permission-group-scope">

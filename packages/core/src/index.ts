@@ -2,6 +2,12 @@ export * from "./account-authority";
 export { accountAuthorityLabels } from "./account-authority-labels";
 export * from "./agent-permission";
 export { agentPermissionError } from "./agent-permission-errors";
+export {
+  type AgentMarketMode,
+  agentMarketMode,
+  hasFixedMarket,
+  marketScopeChange,
+} from "./agent-scope";
 export { attachmentTooLarge, maxAttachmentBytes } from "./attachments";
 export * from "./avatar-geometry";
 export * from "./avatar-motion";

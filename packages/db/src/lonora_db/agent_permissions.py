@@ -221,7 +221,7 @@ async def change_permission(
 async def save_customization(
     session: AsyncSession, owner_id: str, agent_id: str, body: PermissionCustomizationChange
 ) -> dict[str, Any]:
-    from .agent_binding import assert_market_binding
+    from .agent_binding import account_wide_scope, assert_market_binding
     from .broker_sessions import BrokerSessionRepository
 
     await authority_lock(session, agent_id)
@@ -231,7 +231,7 @@ async def save_customization(
     if draft.account_id:
         await BrokerSessionRepository().get(session, owner_id, draft.account_id)
         assert_market_binding(agent, draft.account_id)
-    if draft.symbol_scope == "account" and agent.role != "personal":
+    if draft.symbol_scope == "account" and not account_wide_scope(agent):
         raise LonoraError("account_authority_scope_mismatch", 403)
     for symbol in draft.symbols:
         if not symbol or len(symbol) > 80 or symbol != symbol.strip():

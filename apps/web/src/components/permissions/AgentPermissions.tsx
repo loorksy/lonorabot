@@ -15,6 +15,7 @@ import {
   authorityStatus,
   customizedManagementProposal,
   emptyManagementCustomization,
+  hasFixedMarket,
   webDeviceProof,
   webDeviceSupported,
 } from "@lonora/core";
@@ -43,7 +44,7 @@ const permissionLevelIcons = {
   supervised: ShieldCheck,
   autonomous: Zap,
 } as const;
-type AgentBinding = Pick<Agent, "trading_account_id" | "trading_symbol">;
+type AgentBinding = Pick<Agent, "trading_account_id" | "trading_symbol" | "scope_mode">;
 function defaults(agent: AgentBinding): PermissionCustomization {
   return {
     ...emptyManagementCustomization(),
@@ -53,7 +54,7 @@ function defaults(agent: AgentBinding): PermissionCustomization {
   };
 }
 function bindDraft(agent: AgentBinding, draft: PermissionCustomization): PermissionCustomization {
-  return agent.trading_account_id && agent.trading_symbol
+  return hasFixedMarket(agent) && agent.trading_account_id && agent.trading_symbol
     ? {
         ...draft,
         account_id: agent.trading_account_id,
@@ -106,6 +107,8 @@ export function AgentPermissions({
   const scope = `${owner.id}:${agent.id}`;
   const boundAccount = agent.trading_account_id;
   const boundSymbol = agent.trading_symbol;
+  const scopeMode = agent.scope_mode;
+  const fixedMarket = hasFixedMarket(agent);
   const mounted = useRef(true);
   const currentScope = useRef(scope);
   currentScope.current = scope;
@@ -151,7 +154,11 @@ export function AgentPermissions({
       setState(next);
       setSelected(next.requested_level);
       if (!dirty.current) {
-        const binding = { trading_account_id: boundAccount, trading_symbol: boundSymbol };
+        const binding = {
+          trading_account_id: boundAccount,
+          trading_symbol: boundSymbol,
+          scope_mode: scopeMode,
+        };
         setDraft(bindDraft(binding, next.customization ?? defaults(binding)));
       }
       setReview((current) =>
@@ -162,7 +169,7 @@ export function AgentPermissions({
           : null,
       );
     },
-    [alive, boundAccount, boundSymbol],
+    [alive, boundAccount, boundSymbol, scopeMode],
   );
   const fresh = useCallback(async () => {
     const next = await api.get<PermissionState>(path);
@@ -257,7 +264,7 @@ export function AgentPermissions({
       .catch((cause) => {
         if (active && !isRequestCancelled(cause)) setSymbolError(userError(cause));
       });
-    if (!agent.trading_symbol)
+    if (!fixedMarket)
       void api
         .get<string[]>(`/market/symbols?account_id=${encodeURIComponent(accountContext)}`)
         .then((value) => {
@@ -269,7 +276,7 @@ export function AgentPermissions({
     return () => {
       active = false;
     };
-  }, [flowActive, accountContext, agent.trading_symbol]);
+  }, [flowActive, accountContext, fixedMarket]);
   const edit = (value: PermissionCustomization) => {
     const next = bindDraft(agent, value);
     dirty.current = true;

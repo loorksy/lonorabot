@@ -7,7 +7,7 @@ from lonora_contracts.domain import utcnow
 from lonora_contracts.market import Candle
 from lonora_contracts.relationships import RelationshipReference, RelationshipRequest
 from lonora_core.user_error import LonoraError
-from lonora_db.agent_binding import agent_binding, assert_market_binding
+from lonora_db.agent_binding import agent_binding, assert_market_binding, fixed_market
 from lonora_db.broker_sessions import BrokerSessionRepository
 from lonora_db.relationships import read_relationship, relationship_summary, save_relationship
 from lonora_db.runs import require_lease
@@ -27,7 +27,7 @@ async def check_scope(
         await require_lease(session, context.lease)
         agent = await agent_binding(session, context.owner_id, context.agent_id)
         assert_market_binding(agent, account_id)
-        if agent.trading_symbol and agent.trading_symbol not in symbols:
+        if fixed_market(agent) and agent.trading_symbol and agent.trading_symbol not in symbols:
             raise LonoraError("agent_trading_symbol_mismatch", 409)
         if require_connection:
             await BrokerSessionRepository().get(session, context.owner_id, account_id)

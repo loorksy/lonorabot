@@ -1,5 +1,21 @@
 export type Locale = "ar" | "en";
 export const labels = {
+  agentMarketScope: ["نطاق الوكيل", "Agent market scope"],
+  generalAgent: ["وكيل عام", "General agent"],
+  defaultMarket: ["سوق افتراضي", "Default market"],
+  keepFixedMarket: ["الإبقاء على السوق الثابت الحالي", "Keep current fixed market"],
+  keepFixedMarketHint: [
+    "يبقى السوق الثابت الحالي حتى تختار نطاقًا جديدًا.",
+    "The fixed market stays unchanged until you choose a new scope.",
+  ],
+  defaultMarketHint: [
+    "السوق الافتراضي اختياري. يمكن تحليل أسواق أخرى؛ التداول يخضع لتفويضك المنفصل.",
+    "The default market is optional. Other markets can be analyzed; trading follows your separate authorization.",
+  ],
+  agent_scope_change_forbidden: [
+    "لا يمكن تعديل نطاق هذا الوكيل.",
+    "This agent’s scope cannot be changed.",
+  ],
   broker_account_already_connected: [
     "حساب الوسيط مرتبط بالفعل. استخدم الاتصال الموجود.",
     "This broker account is already connected. Use the existing connection.",

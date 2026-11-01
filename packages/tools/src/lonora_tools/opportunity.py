@@ -109,11 +109,19 @@ async def list_opportunities(context: ToolContext, args: dict[str, Any]) -> dict
         )
         if params.account_id or agent.trading_account_id:
             query = query.where(
-                TradingOpportunityRow.account_id == (agent.trading_account_id or params.account_id)
+                TradingOpportunityRow.account_id == (params.account_id or agent.trading_account_id)
             )
         if params.symbol or agent.trading_symbol:
             query = query.where(
-                TradingOpportunityRow.symbol == (agent.trading_symbol or params.symbol)
+                TradingOpportunityRow.symbol
+                == (
+                    params.symbol
+                    or (
+                        agent.trading_symbol
+                        if not params.account_id or params.account_id == agent.trading_account_id
+                        else None
+                    )
+                )
             )
         rows = await session.scalars(
             query.order_by(TradingOpportunityRow.updated_at.desc()).limit(params.limit)

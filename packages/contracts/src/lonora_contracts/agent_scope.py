@@ -4,10 +4,11 @@ from typing import Literal
 
 from .domain import Contract
 
-AgentRole = Literal["personal", "specialist", "delegated", "legacy"]
+AgentRole = Literal["personal", "general", "specialist", "delegated", "legacy"]
 
 
 class AgentScope(Contract):
+    mode: Literal["fixed_market", "flexible"] = "fixed_market"
     role: AgentRole
     account_id: str | None = None
     broker_symbol: str | None = None

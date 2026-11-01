@@ -11,6 +11,11 @@ export const agents = {
     body: Pick<
       Agent,
       "name" | "title" | "description" | "avatar" | "color" | "instructions" | "paused"
-    >,
+    > & {
+      scope_mode?: "flexible";
+      trading_account_id?: string | null;
+      trading_symbol?: string | null;
+      expected_scope_revision?: number;
+    },
   ) => api.patch<Agent>(`/agents/${encodeURIComponent(id)}`, body),
 };

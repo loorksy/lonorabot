@@ -130,7 +130,7 @@ test("owner shadow mode persists through reload without enabling live trading", 
   const { agent } = workspace;
   await page.goto(`/app/${agent.id}`);
   await page.getByRole("button", { name: `Agent settings: ${agent.name}`, exact: true }).click();
-  let control = page.getByRole("checkbox", {
+  let control = page.getByRole("switch", {
     name: "Shadow trading — virtual orders only",
     exact: true,
   });
@@ -148,7 +148,7 @@ test("owner shadow mode persists through reload without enabling live trading", 
   await expect(page.getByText("Shadow observations", { exact: false })).toBeVisible();
   await page.reload();
   await page.getByRole("button", { name: `Agent settings: ${agent.name}`, exact: true }).click();
-  control = page.getByRole("checkbox", {
+  control = page.getByRole("switch", {
     name: "Shadow trading — virtual orders only",
     exact: true,
   });
@@ -270,6 +270,7 @@ test("ticket modal and profile creation remain usable under StrictMode and Back"
   await expect(page.getByTestId("side-panel")).toBeVisible();
   await page.getByRole("button", { name: "Create", exact: true }).click();
   await page.getByTestId("create-new-agent").click();
+  await page.getByTestId("agent-market-mode").selectOption("market");
   await expect(page.getByTestId("new-conversation-picker")).toHaveCount(0);
   await page
     .getByTestId("side-panel")
@@ -372,19 +373,21 @@ test("retry after a committed message response is lost reuses its real receipt",
     const composer = page.getByRole("combobox", { name: "Message", exact: true });
     await composer.fill(message);
     await page.getByRole("button", { name: "Send", exact: true }).click();
-    await expect(page.locator(".template-composer-error")).toBeVisible();
-    await expect(composer).toHaveValue(message);
+    // A durable event acknowledges the canonical message even when HTTP delivery
+    // loses its response. Replay the same nonce explicitly to verify the receipt;
+    // the UI must not ask the owner to resend an already committed message.
+    await expect(composer).toHaveValue("");
+    await expect.poll(() => lostReceipt?.message.id).toBeTruthy();
+    await expect(page.locator(`[data-message-id="${lostReceipt.message.id}"]`)).toBeVisible();
     expect(lostReceipt.run_ids).toHaveLength(1);
-
-    const retryResponse = messageResponse();
-    await page.getByRole("button", { name: "Send direction", exact: true }).click();
-    const recovered = await (await retryResponse).json();
+    const replay = await post(`/threads/${lostReceipt.message.thread_id}/messages`, {
+      content: message,
+      client_nonce: nonces[0],
+    });
+    const recovered = replay;
     for (const id of recovered.run_ids) ownedRuns.add(id);
-    expect(nonces).toHaveLength(2);
-    expect(nonces[1]).toBe(nonces[0]);
     expect(recovered.message.id).toBe(lostReceipt.message.id);
     expect(recovered.run_ids).toEqual(lostReceipt.run_ids);
-    await expect(composer).toHaveValue("");
     const threadId = recovered.message.thread_id;
     const committedMessages = await (
       await context.request.get(`/api/threads/${threadId}/messages`)
@@ -401,8 +404,8 @@ test("retry after a committed message response is lost reuses its real receipt",
     await page.getByRole("button", { name: "Send direction", exact: true }).click();
     const repeated = await (await repeatedResponse).json();
     for (const id of repeated.run_ids) ownedRuns.add(id);
-    expect(nonces).toHaveLength(3);
-    expect(nonces[2]).not.toBe(nonces[0]);
+    expect(nonces).toHaveLength(2);
+    expect(nonces[1]).not.toBe(nonces[0]);
     expect(repeated.message.id).not.toBe(recovered.message.id);
     const deliberateMessages = await (
       await context.request.get(`/api/threads/${threadId}/messages`)

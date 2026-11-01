@@ -22,14 +22,32 @@ BINDING_POLICY = (
 )
 
 
+def flexible_scope(agent: AgentRow) -> bool:
+    """Only explicit owner-created root preferences permit cross-market visibility."""
+    return (
+        getattr(agent, "scope_mode", "fixed_market") == "flexible"
+        and agent.parent_id is None
+        and agent.role in {"general", "specialist"}
+    )
+
+
+def fixed_market(agent: AgentRow) -> bool:
+    return bool(agent.trading_account_id) and not flexible_scope(agent)
+
+
+def account_wide_scope(agent: AgentRow) -> bool:
+    return agent.role == "personal" or flexible_scope(agent)
+
+
 def scope_data(agent: AgentRow) -> dict[str, Any]:
     role = cast(AgentRole, agent.role or "legacy")
     return AgentScope(
+        mode=getattr(agent, "scope_mode", None) or "fixed_market",
         role=role,
         account_id=agent.trading_account_id,
         broker_symbol=agent.trading_symbol,
         visibility="owner_accounts"
-        if role == "personal"
+        if account_wide_scope(agent)
         else "bound_market"
         if agent.trading_account_id
         else "delegated_research"
@@ -48,6 +66,8 @@ def same_binding(value: object, bound: str | None) -> bool:
 def assert_market_binding(
     agent: AgentRow, account_id: str | None = None, symbol: str | None = None
 ) -> None:
+    if flexible_scope(agent):
+        return
     if agent.trading_account_id is None and agent.trading_symbol is None:
         if agent.role not in {None, "personal", "delegated", "legacy"}:
             raise LonoraError("agent_trading_binding_invalid", 409)
@@ -158,6 +178,22 @@ def _identity_context(agent: AgentRow) -> str:
             "emergency controls. Never claim owner intent "
             "for external trades. Account-level observations have one conversational owner: you."
             "</personal_agent_scope>"
+        )
+    if flexible_scope(agent):
+        return (
+            "<flexible_agent_scope>"
+            "You are an independent persistent agent with your own instructions and memory. "
+            "Your optional account_id and broker_symbol below are defaults, not authorization boundaries. "
+            "Use them only when the owner omits the market; explicit requests for other owned accounts "
+            "or exact broker symbols take precedence. With no default, discover relevant owned accounts "
+            "and symbols; never invent a default or ask for a trading account for non-market work. "
+            "Market visibility does not authorize financial actions. Existing server controls, "
+            "exact-operation approval or an active signed account/symbol/action grant determine "
+            "execution authority. Editing defaults never modifies grants or authorizes new actions. "
+            + json.dumps(
+                {"account_id": agent.trading_account_id, "broker_symbol": agent.trading_symbol}
+            )
+            + "</flexible_agent_scope>"
         )
     if not agent.trading_account_id or not agent.trading_symbol:
         return ""

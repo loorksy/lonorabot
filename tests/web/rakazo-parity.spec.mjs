@@ -108,6 +108,7 @@ test("conversation shows safe generated SVG, cloud chart side panel and persiste
     await page.getByRole("button", { name: "Create", exact: true }).click();
     await expect(page.getByTestId("new-conversation-picker")).toBeVisible();
     await page.getByTestId("create-new-agent").click();
+    await page.getByTestId("agent-market-mode").selectOption("market");
     await panel.getByLabel("Name", { exact: true }).fill("Role parity fixture");
     await panel.getByLabel("Title", { exact: true }).fill("Risk analyst");
     await panel.getByLabel("Description", { exact: true }).fill("Review exposure before trading.");

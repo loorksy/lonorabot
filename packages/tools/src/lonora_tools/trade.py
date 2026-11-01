@@ -4,7 +4,12 @@ from lonora_contracts.domain import Contract, utcnow
 from lonora_contracts.shadow import ExecutionMode
 from lonora_contracts.trading import TradeRequest, TradeResult
 from lonora_core.user_error import LonoraError
-from lonora_db.agent_binding import agent_binding, assert_market_binding, require_financial_agent
+from lonora_db.agent_binding import (
+    agent_binding,
+    assert_market_binding,
+    fixed_market,
+    require_financial_agent,
+)
 from lonora_db.agent_permissions import effective_permission
 from lonora_db.runs import require_lease
 from lonora_db.schema import EffectReceiptRow, TradeApprovalRow, TradingJournalRow
@@ -441,7 +446,7 @@ async def read_record(context: ToolContext, args: dict[str, Any]) -> dict[str, A
         if row is None or row.owner_id != context.owner_id:
             raise LonoraError("operation_not_found", 404)
         assert_market_binding(agent, row.account_id, row.request.get("symbol"))
-        return record_excerpt(row, symbol=agent.trading_symbol)
+        return record_excerpt(row, symbol=agent.trading_symbol if fixed_market(agent) else None)
 
 
 async def record_history(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
@@ -449,8 +454,12 @@ async def record_history(context: ToolContext, args: dict[str, Any]) -> dict[str
     async with context.db.sessions() as session:
         agent = await agent_binding(session, context.owner_id, context.agent_id)
         assert_market_binding(agent, params.account_id, params.symbol)
-        account_id = agent.trading_account_id or params.account_id
-        symbol = agent.trading_symbol or params.symbol
+        account_id = params.account_id or agent.trading_account_id
+        symbol = params.symbol or (
+            agent.trading_symbol
+            if not params.account_id or params.account_id == agent.trading_account_id
+            else None
+        )
         query = select(TradingJournalRow).where(TradingJournalRow.owner_id == context.owner_id)
         if account_id:
             query = query.where(TradingJournalRow.account_id == account_id)

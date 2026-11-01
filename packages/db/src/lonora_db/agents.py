@@ -1,6 +1,7 @@
 from typing import Any
 
 from lonora_contracts.domain import AgentCreate, AgentUpdate
+from lonora_core.user_error import LonoraError
 from sqlalchemy import case, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -11,6 +12,8 @@ from .transactions import owned_agent
 
 def agent_data(row: AgentRow, *, super_bot_active: bool = False) -> dict[str, Any]:
     return {
+        "scope_mode": row.scope_mode,
+        "scope_revision": row.scope_revision,
         "id": row.id,
         "name": row.name,
         "title": row.title,
@@ -37,7 +40,13 @@ async def create_agent(
     parent_id: str | None = None,
     agent_id: str | None = None,
 ) -> AgentRow:
-    role = "specialist" if request.trading_account_id else "legacy"
+    role = (
+        "specialist"
+        if request.trading_account_id
+        else "general"
+        if request.scope_mode == "flexible"
+        else "legacy"
+    )
     execution_mode = "live"
     if parent_id:
         parent = await owned_agent(session, owner_id, parent_id)
@@ -46,8 +55,6 @@ async def create_agent(
             # Owner-wide visibility is not a financial scope a child can inherit.
             # Unbound legacy parents also cannot mint new unrestricted children.
             if request.trading_account_id is not None or request.trading_symbol is not None:
-                from lonora_core.user_error import LonoraError
-
                 raise LonoraError("delegated_financial_authority_forbidden", 403)
             role = "delegated"
         else:
@@ -60,6 +67,7 @@ async def create_agent(
             update={
                 "trading_account_id": parent.trading_account_id,
                 "trading_symbol": parent.trading_symbol,
+                "scope_mode": "fixed_market",
             }
         )
     row = AgentRow(
@@ -97,6 +105,19 @@ async def update_agent(
     session: AsyncSession, owner_id: str, agent_id: str, request: AgentUpdate
 ) -> AgentRow:
     row = await owned_agent(session, owner_id, agent_id, lock=True)
-    for key, value in request.model_dump(exclude_none=True).items():
+    if "scope_mode" in request.model_fields_set:
+        if row.parent_id or row.role in {"personal", "delegated"}:
+            raise LonoraError("agent_scope_change_forbidden", 403)
+        if request.expected_scope_revision != row.scope_revision:
+            raise LonoraError("version_conflict", 409)
+        row.scope_mode = "flexible"
+        row.trading_account_id = request.trading_account_id
+        row.trading_symbol = request.trading_symbol
+        row.role = "specialist" if request.trading_account_id else "general"
+        row.scope_revision += 1
+    for key, value in request.model_dump(
+        exclude_none=True,
+        exclude={"scope_mode", "trading_account_id", "trading_symbol", "expected_scope_revision"},
+    ).items():
         setattr(row, key, value)
     return row

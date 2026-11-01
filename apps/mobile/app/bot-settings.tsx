@@ -1,10 +1,12 @@
 // Agent profile sheet follows Tampletgrok's native profile structure; see NOTICE.
 
 import type { Agent } from "@lonora/contracts";
+import { type AgentMarketMode, agentMarketMode, marketScopeChange } from "@lonora/core";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 import { AccountAuthoritySettings } from "../components/account-authority-settings";
+import { AgentMarketPicker } from "../components/agent-market-picker";
 import { AvatarPicker } from "../components/avatar-picker";
 import { ExecutionModeSettings } from "../components/execution-mode-settings";
 import { PersonalAgentBadge } from "../components/personal-agent-badge";
@@ -21,6 +23,9 @@ export default function BotSettings() {
   const { ready, owner, rtl, t, errorText } = useSession();
   const router = useRouter();
   const [agent, setAgent] = useState<Agent | null>(null);
+  const [mode, setMode] = useState<AgentMarketMode>("general");
+  const [allowFixed, setAllowFixed] = useState(false);
+  const [pair, setPair] = useState({ trading_account_id: "", trading_symbol: "" });
   const [memory, setMemory] = useState<Memory | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -34,8 +39,15 @@ export default function BotSettings() {
       .then((rows) => {
         if (live) {
           const value = rows.find((row) => row.id === botId);
-          if (value) setAgent(value);
-          else setError(t("agentMissing"));
+          if (value) {
+            setAgent(value);
+            setMode(agentMarketMode(value));
+            setAllowFixed(agentMarketMode(value) === "fixed");
+            setPair({
+              trading_account_id: value.trading_account_id ?? "",
+              trading_symbol: value.trading_symbol ?? "",
+            });
+          } else setError(t("agentMissing"));
         }
       })
       .catch((reason) => {
@@ -61,6 +73,9 @@ export default function BotSettings() {
     try {
       setAgent(
         await agents.update(agent.id, {
+          ...(!agent.parent_id && agent.role !== "personal" && agent.role !== "delegated"
+            ? marketScopeChange(mode, pair, agent.scope_revision ?? 0, agent)
+            : {}),
           name: agent.name.trim(),
           title: agent.title ?? "",
           description: agent.description ?? "",
@@ -70,6 +85,7 @@ export default function BotSettings() {
           paused: agent.paused,
         }),
       );
+      if (mode !== "fixed") setAllowFixed(false);
       if (memory)
         setMemory(
           await api.put<Memory>(`/agents/${encodeURIComponent(botId)}/memory`, {
@@ -95,7 +111,12 @@ export default function BotSettings() {
         }}
         action={t("save")}
         onAction={() => void save()}
-        disabled={busy || confirmDelete || !agent?.name.trim()}
+        disabled={
+          busy ||
+          confirmDelete ||
+          !agent?.name.trim() ||
+          (mode === "market" && (!pair.trading_account_id || !pair.trading_symbol))
+        }
       />
       <ErrorNotice text={error} />
       {agent ? (
@@ -118,7 +139,7 @@ export default function BotSettings() {
             <Text style={{ color: colors.foreground, fontSize: 17 }}>{agent.name}</Text>
             <PersonalAgentBadge agent={agent} />
           </View>
-          {agent.trading_symbol && (
+          {agent.trading_symbol && agent.scope_mode !== "flexible" && (
             <SettingsGroup footer={t("immutableTradingPair")}>
               <SettingsRow title={t("symbol")} value={agent.trading_symbol} />
             </SettingsGroup>
@@ -132,6 +153,15 @@ export default function BotSettings() {
               setSaved(false);
             }}
           />
+          {!agent.parent_id && agent.role !== "personal" && agent.role !== "delegated" && (
+            <AgentMarketPicker
+              mode={mode}
+              pair={pair}
+              onMode={setMode}
+              onPair={setPair}
+              allowFixed={allowFixed}
+            />
+          )}
           <ExecutionModeSettings agent={agent} onChange={setAgent} />
           <AccountAuthoritySettings key={agent.id} agent={agent} />
           <Field

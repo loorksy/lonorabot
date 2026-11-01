@@ -1,9 +1,11 @@
 import type { Agent, Thread } from "@lonora/contracts";
+import type { AgentMarketMode } from "@lonora/core";
 import { Redirect, useRouter } from "expo-router";
 import { useState } from "react";
 import { ScrollView } from "react-native";
+import { AgentMarketPicker } from "../components/agent-market-picker";
 import { AvatarPicker } from "../components/avatar-picker";
-import { type BrokerPair, BrokerPairPicker } from "../components/broker-pair-picker";
+import type { BrokerPair } from "../components/broker-pair-picker";
 import { SheetHeader } from "../components/sheet-header";
 import { Button, ErrorNotice, Field, Loading, Screen } from "../components/ui";
 import { api } from "../lib/api";
@@ -13,6 +15,8 @@ export default function NewAgent() {
   const { ready, owner, t, errorText } = useSession();
   const router = useRouter();
   const [pair, setPair] = useState<BrokerPair>({ trading_account_id: "", trading_symbol: "" });
+  const [mode, setMode] = useState<AgentMarketMode>("general");
+  const [instructions, setInstructions] = useState("");
   const [name, setName] = useState("");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -27,7 +31,10 @@ export default function NewAgent() {
     setError(null);
     try {
       const agent = await api.post<Agent>("/agents", {
-        ...pair,
+        scope_mode: "flexible",
+        trading_account_id: mode === "market" ? pair.trading_account_id : null,
+        trading_symbol: mode === "market" ? pair.trading_symbol : null,
+        instructions: instructions.trim(),
         name: name.trim(),
         title: title.trim(),
         description: description.trim(),
@@ -71,12 +78,23 @@ export default function NewAgent() {
           multiline
           style={{ minHeight: 108, textAlignVertical: "top" }}
         />
-        <BrokerPairPicker value={pair} onChange={setPair} />
+        <Field
+          label={t("instructions")}
+          value={instructions}
+          onChangeText={setInstructions}
+          maxLength={16000}
+          multiline
+        />
+        <AgentMarketPicker mode={mode} pair={pair} onMode={setMode} onPair={setPair} />
         <ErrorNotice text={error} />
         <Button
           label={busy ? t("connecting") : t("create")}
           onPress={() => void create()}
-          disabled={busy || !name.trim() || !pair.trading_account_id || !pair.trading_symbol}
+          disabled={
+            busy ||
+            !name.trim() ||
+            (mode === "market" && (!pair.trading_account_id || !pair.trading_symbol))
+          }
         />
       </ScrollView>
     </Screen>

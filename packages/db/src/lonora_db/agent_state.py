@@ -9,6 +9,7 @@ from lonora_session.idempotency import stable_id
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from .agent_binding import fixed_market
 from .schema import (
     AccountAuthorityRow,
     BrokerSessionRow,
@@ -125,7 +126,7 @@ async def agent_live_state(session: AsyncSession, owner_id: str, agent_id: str) 
         )
     )
     connection_query = select(BrokerSessionRow).where(BrokerSessionRow.owner_id == owner_id)
-    if agent.trading_account_id:
+    if fixed_market(agent):
         connection_query = connection_query.where(BrokerSessionRow.id == agent.trading_account_id)
     connections = list(await session.scalars(connection_query.limit(32)))
     health: list[dict[str, Any]] = []
@@ -143,7 +144,7 @@ async def agent_live_state(session: AsyncSession, owner_id: str, agent_id: str) 
             )
         for value in connection.state.get("market_health", {}).values():
             if value.get("state") != "healthy" and (
-                not agent.trading_symbol or value.get("symbol") == agent.trading_symbol
+                not fixed_market(agent) or value.get("symbol") == agent.trading_symbol
             ):
                 health.append(
                     {

@@ -15,13 +15,15 @@ change. Read existing intent and limits; do the requested reversible review.
 
 ## Steps
 
-1. Use the specialist's bound account and exact symbol. For a Personal Agent
-   discover connections with list_accounts and instruments with market_symbols.
+1. Honor the server-provided scope. A legacy fixed-market agent uses its exact
+   bound market. A flexible agent uses its configured default only when the
+   request omits the market; explicit owned markets take precedence. General
+   agents discover connections with list_accounts and symbols with market_symbols.
    Use connection_id internally; actual broker/login/server describe the account
    publicly. A MetaApi UUID is not the account number.
 2. Read market_instrument, market_quote and sufficient market_candles for that
    account/symbol. Preserve suffixes and exact broker case. Use actual timeframes
-   such as 15m or 1h. Never invent a pair or choose a default market.
+   such as 15m or 1h. Never invent a pair or silently choose an unconfigured default market.
 3. Check timestamps and closed versus developing candles. Quote, history and
    chart failures are distinct; inspect the failed boundary before declaring
    the entire account unavailable. Never manufacture missing observations.

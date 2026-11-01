@@ -5,7 +5,9 @@ export type Payload = Record<string, Json>;
 export type Agent = {
   super_bot_active?: boolean;
   execution_mode?: "live" | "shadow";
-  role?: "personal" | "specialist" | "delegated" | "legacy";
+  role?: "personal" | "general" | "specialist" | "delegated" | "legacy";
+  scope_mode?: "fixed_market" | "flexible";
+  scope_revision?: number;
   title?: string;
   description?: string;
   id: string;

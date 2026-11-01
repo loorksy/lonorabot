@@ -11,7 +11,7 @@ from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .agent_binding import assert_market_binding, require_financial_agent
+from .agent_binding import account_wide_scope, assert_market_binding, require_financial_agent
 from .broker_sessions import BrokerSessionRepository
 from .events import emit
 from .schema import AccountAuthorityRow, DeviceCredentialRow, TicketRow
@@ -79,9 +79,7 @@ async def validate_scope(
     if thread.agent_id != agent_id or thread.group_id:
         raise LonoraError("agent_thread_mismatch", 409)
     await BrokerSessionRepository().get(session, owner_id, envelope.account_id)
-    if envelope.symbol_scope == "account" and (
-        agent.role != "personal" or agent.trading_account_id or agent.trading_symbol
-    ):
+    if envelope.symbol_scope == "account" and not account_wide_scope(agent):
         raise LonoraError("account_authority_scope_mismatch", 403)
     for symbol in envelope.symbols:
         assert_market_binding(agent, envelope.account_id, symbol)

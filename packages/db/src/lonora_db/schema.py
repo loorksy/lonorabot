@@ -157,12 +157,25 @@ class AccountAuthorityRow(Base):
 
 
 class AgentRow(Base):
+    scope_mode: Mapped[str] = mapped_column(
+        String(16), default="fixed_market", server_default="fixed_market"
+    )
+    scope_revision: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     execution_mode: Mapped[str] = mapped_column(String(12), default="live", server_default="live")
     __tablename__ = "ln_agents"
     __table_args__ = (
         CheckConstraint("execution_mode IN ('live','shadow')", name="ln_agents_execution_mode"),
         CheckConstraint(
-            "role IN ('personal','specialist','delegated','legacy')", name="ln_agent_role"
+            "role IN ('personal','general','specialist','delegated','legacy')", name="ln_agent_role"
+        ),
+        CheckConstraint("scope_mode IN ('fixed_market','flexible')", name="ln_agent_scope_mode"),
+        CheckConstraint(
+            "scope_mode != 'flexible' OR (parent_id IS NULL AND role IN ('general','specialist'))",
+            name="ln_agent_flexible_root",
+        ),
+        CheckConstraint(
+            "role != 'general' OR (scope_mode = 'flexible' AND trading_account_id IS NULL AND trading_symbol IS NULL)",
+            name="ln_agent_general_scope",
         ),
         CheckConstraint(
             "role != 'personal' OR (parent_id IS NULL AND trading_account_id IS NULL AND trading_symbol IS NULL)",

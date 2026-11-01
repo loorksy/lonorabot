@@ -16,6 +16,7 @@ import {
   authorityStatus,
   customizedManagementProposal,
   emptyManagementCustomization,
+  hasFixedMarket,
   numericalAuthorityLimits,
 } from "@lonora/core";
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
@@ -103,7 +104,7 @@ function PermissionControl({ agent, threadId, revision = 0, settings = false }: 
   const path = `/agents/${encodeURIComponent(agent.id)}/permissions`;
   const validThread =
     threadId || threads.find((row) => row.agent_id === agent.id && !row.group_id)?.id || "";
-  const specialist = agent.role !== "personal";
+  const specialist = hasFixedMarket(agent);
   const textStyle = {
     color: colors.foreground,
     textAlign: rtl ? ("right" as const) : ("left" as const),

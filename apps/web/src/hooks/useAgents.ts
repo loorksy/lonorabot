@@ -42,8 +42,10 @@ export function useAgents() {
       profile?: {
         title?: string;
         description?: string;
-        trading_account_id: string;
-        trading_symbol: string;
+        instructions?: string;
+        scope_mode?: "flexible";
+        trading_account_id?: string | null;
+        trading_symbol?: string | null;
       },
     ) => {
       const agent = await api.post<Agent>("/agents", { name, avatar, color, ...profile });

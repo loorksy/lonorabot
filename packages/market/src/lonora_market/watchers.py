@@ -15,7 +15,7 @@ from lonora_contracts.relationships import MarketRelationship, RelationshipReque
 from lonora_contracts.runs import RunRequest
 from lonora_core.market_watch import condition_met
 from lonora_core.user_error import LonoraError
-from lonora_db.agent_binding import agent_binding, assert_payload_binding
+from lonora_db.agent_binding import agent_binding, assert_payload_binding, fixed_market
 from lonora_db.broker_sessions import BrokerSessionRepository
 from lonora_db.client import Database
 from lonora_db.events import emit
@@ -193,7 +193,7 @@ async def observe(
         async with db.sessions() as session:
             agent = await agent_binding(session, row.owner_id, row.agent_id)
             assert_payload_binding(agent, config.model_dump(mode="json"))
-            bound_symbol = agent.trading_symbol
+            bound_symbol = agent.trading_symbol if fixed_market(agent) else None
     if config.kind == "calendar":
         async with db.sessions() as session:
             source = await session.get(IntegrationRow, config.integration_id or "")
