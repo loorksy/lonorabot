@@ -68,6 +68,7 @@ export function NewConversationPicker({
               data-testid={`picker-agent-${agent.id}`}
             >
               <AgentAvatar
+                identity={agent.id}
                 name={agent.name}
                 color={agent.color}
                 shape={agent.avatar}

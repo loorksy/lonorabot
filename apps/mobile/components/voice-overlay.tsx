@@ -57,7 +57,7 @@ export function VoiceOverlay() {
       >
         <BotAvatar
           superBot={agent.super_bot_active}
-          identity={agent.name}
+          identity={agent.id}
           variant={agent.avatar}
           color={agent.color}
           size={28}
@@ -99,7 +99,7 @@ export function VoiceOverlay() {
         >
           <BotAvatar
             superBot={agent.super_bot_active}
-            identity={agent.name}
+            identity={agent.id}
             variant={agent.avatar}
             color={agent.color}
             size={52}

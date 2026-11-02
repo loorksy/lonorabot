@@ -35,7 +35,7 @@ export function BotMemberPicker({
           >
             <BotAvatar
               superBot={agent.super_bot_active}
-              identity={agent.name}
+              identity={agent.id}
               color={agent.color}
               variant={agent.avatar}
               size={36}

@@ -7,11 +7,13 @@ import { SheetHeader } from "./sheet-header";
 import { colors, Screen } from "./ui";
 export function AvatarPicker({
   name,
+  identity,
   color,
   avatar,
   onChange,
 }: {
   name: string;
+  identity?: string;
   color: string;
   avatar: string;
   onChange: (avatar: string, color: string) => void;
@@ -26,7 +28,7 @@ export function AvatarPicker({
         onPress={() => setOpen(true)}
         style={{ alignSelf: "center", alignItems: "center", gap: 10, paddingVertical: 12 }}
       >
-        <BotAvatar identity={name} color={color} variant={avatar} size={88} />
+        <BotAvatar identity={identity ?? name} color={color} variant={avatar} size={88} />
         <Text style={{ color: colors.secondary, fontSize: 13 }}>{t("edit")}</Text>
       </Pressable>
       <Modal
@@ -39,7 +41,7 @@ export function AvatarPicker({
           <SheetHeader title={t("avatar")} onClose={() => setOpen(false)} />
           <ScrollView contentContainerStyle={{ padding: 24, gap: 24 }}>
             <View style={{ alignItems: "center", paddingVertical: 20 }}>
-              <BotAvatar identity={name} color={color} variant={avatar} size={110} />
+              <BotAvatar identity={identity ?? name} color={color} variant={avatar} size={110} />
             </View>
             <Text
               style={{ color: colors.secondary, textAlign: rtl ? "right" : "left", fontSize: 13 }}

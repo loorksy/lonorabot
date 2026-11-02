@@ -125,6 +125,7 @@ export default function BotSettings() {
           keyboardShouldPersistTaps="handled"
         >
           <AvatarPicker
+            identity={agent.id}
             name={agent.name}
             color={agent.color}
             avatar={agent.avatar}

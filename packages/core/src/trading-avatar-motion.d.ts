@@ -40,6 +40,8 @@ export const GEOMETRY: {
 };
 
 export interface MountOptions {
+  /** Stable bot ID; absent identities receive an independent per-instance fallback. */
+  identity?: string;
   state?: AvatarStateId;
   /** 0.25 … 4 (1 = normal) */
   speed?: number;
@@ -53,6 +55,7 @@ export interface MountOptions {
 }
 
 export interface AvatarController {
+  setIdentity(identity?: string): void;
   setState(id: AvatarStateId): void;
   setSpeed(speed: number): void;
   setPaused(paused: boolean): void;
@@ -102,12 +105,35 @@ export function mount(root: Element, options?: MountOptions): AvatarController;
 /** Avatar SVG markup for plain-HTML usage. quality: "full" (liquid + glow + glossy highlight) | "lite" | "flat". */
 export function markup(uid?: string | null, quality?: "full" | "lite" | "flat"): string;
 /** Pure sampler: the 4 bar poses of a state at loop phase u (0…1). */
-export function poseAt(stateId: AvatarStateId, u: number, accent?: string): BarPose[];
+export function poseAt(
+  stateId: AvatarStateId,
+  u: number,
+  accent?: string,
+  identity?: string,
+): BarPose[];
 /** Loop length in seconds. */
 export function loopSeconds(stateId: AvatarStateId, speed?: number): number;
 
+export interface AvatarPersonality {
+  readonly phase: number;
+  readonly direction: 1 | -1;
+  readonly tempo: number;
+  readonly cycleSeconds: number;
+  readonly spinSeconds: number;
+  readonly pattern: number;
+  readonly gazeXFrequency: number;
+  readonly gazeYFrequency: number;
+  readonly gazeXAmplitude: number;
+  readonly gazeYAmplitude: number;
+}
+/** Deterministic idle-only visual behavior from a bot ID. */
+export function avatarPersonality(identity?: string): AvatarPersonality;
+
 /** Lively waiting gaze plus an occasional complete turn. seconds counts visible active time. */
-export function idleAvatarPose(seconds: number): { gazeX: number; gazeY: number; yaw: number };
+export function idleAvatarPose(
+  seconds: number,
+  identity?: string,
+): { gazeX: number; gazeY: number; yaw: number };
 /** Project a visor around the sphere; back-facing content is invisible and never mirrored. */
 export function avatarTurn(yaw: number): { tx: number; scaleX: number; opacity: number };
 

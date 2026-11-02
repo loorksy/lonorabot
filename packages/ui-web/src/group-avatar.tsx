@@ -7,7 +7,7 @@ export function GroupAvatar({
   return (
     <span className="inline-flex -space-x-2">
       {members.slice(0, 3).map((member) => (
-        <AgentAvatar key={member.id} name={member.name} color={member.color} />
+        <AgentAvatar key={member.id} identity={member.id} name={member.name} color={member.color} />
       ))}
     </span>
   );

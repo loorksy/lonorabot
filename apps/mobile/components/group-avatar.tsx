@@ -26,7 +26,7 @@ export function GroupAvatar({ members, size = 54 }: { members: Agent[]; size?: n
     return (
       <BotAvatar
         superBot={members[0].super_bot_active}
-        identity={members[0].name}
+        identity={members[0].id}
         color={members[0].color}
         variant={members[0].avatar}
         size={size}
@@ -53,7 +53,7 @@ export function GroupAvatar({ members, size = 54 }: { members: Agent[]; size?: n
         >
           <BotAvatar
             superBot={member.super_bot_active}
-            identity={member.name}
+            identity={member.id}
             color={member.color}
             variant={member.avatar}
             size={miniSize}

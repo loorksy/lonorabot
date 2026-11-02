@@ -1,5 +1,6 @@
 import {
   type AvatarStateId,
+  avatarPersonality,
   type BarPose,
   GLYPH_SCALE,
   loopSeconds,
@@ -13,16 +14,27 @@ import {
 /** DOM-free adapter of the supplied engine for native SVG. Retargets the mass on screen. */
 export class AvatarMotion {
   private state: AvatarStateId;
+  private identity: string;
   private phase = 0;
   private elapsed = MORPH.seconds;
   private shown: BarPose[];
   private from: BarPose[] | null = null;
   private plan;
 
-  constructor(state: AvatarStateId = "waiting") {
+  constructor(state: AvatarStateId = "waiting", identity = "") {
     this.state = state;
-    this.shown = poseAt(state, 0);
+    this.identity = identity;
+    this.shown = poseAt(state, 0, undefined, identity);
     this.plan = planMorph(this.shown, this.shown);
+  }
+
+  setIdentity(identity: string) {
+    if (identity === this.identity) return;
+    this.identity = identity;
+    if (this.state !== "waiting") return;
+    this.from = this.shown.map((bar) => ({ ...bar }));
+    this.elapsed = 0;
+    this.plan = planMorph(this.from, poseAt(this.state, this.phase, undefined, identity));
   }
 
   setState(state: AvatarStateId) {
@@ -31,14 +43,15 @@ export class AvatarMotion {
     this.state = state;
     this.phase = 0;
     this.elapsed = 0;
-    this.plan = planMorph(this.from, poseAt(state, 0));
+    this.plan = planMorph(this.from, poseAt(state, 0, undefined, this.identity));
   }
 
   frame(seconds: number, reduced = false): BarPose[] {
     const dt = Math.max(0, Math.min(seconds, 0.1));
-    this.phase = reduced ? 0.3 : (this.phase + dt / loopSeconds(this.state)) % 1;
+    const tempo = this.state === "waiting" ? avatarPersonality(this.identity).tempo : 1;
+    this.phase = reduced ? 0.3 : (this.phase + (dt * tempo) / loopSeconds(this.state)) % 1;
     this.elapsed = reduced ? MORPH.seconds : this.elapsed + dt;
-    const target = poseAt(this.state, this.phase);
+    const target = poseAt(this.state, this.phase, undefined, this.identity);
     for (let i = 0; i < this.shown.length; i++) {
       const bar = this.shown[i];
       const source = this.from?.[i] ?? null;

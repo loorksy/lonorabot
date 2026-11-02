@@ -71,7 +71,7 @@ export function TurnActivity({
         {agent ? (
           <BotAvatar
             color={agent.color}
-            identity={agent.name}
+            identity={agent.id}
             superBot={agent.super_bot_active}
             state={reconnecting ? "connecting" : activity.avatar}
             size={42}

@@ -75,7 +75,7 @@ export function AgentSettings({
       }}
     >
       <div className="tpl-profile-preview">
-        <AgentAvatar name={name} shape={avatar} color={color} />
+        <AgentAvatar identity={agent.id} name={name} shape={avatar} color={color} />
       </div>
       <p dir="auto">
         {agent.name}

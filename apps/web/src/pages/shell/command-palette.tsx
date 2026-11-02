@@ -89,6 +89,7 @@ export function SwitchAgentDialog({
                 data-testid={`switch-agent-${agent.id}`}
               >
                 <AgentAvatar
+                  identity={agent.id}
                   name={agent.name}
                   color={agent.color}
                   shape={agent.avatar}
