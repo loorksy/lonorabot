@@ -20,8 +20,8 @@ export default function NewAgent() {
   const [name, setName] = useState("");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const color = "#8B5CF6";
-  const avatar = "orb";
+  const [color, setColor] = useState("#8B5CF6");
+  const [avatar, setAvatar] = useState("orb");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   if (!ready) return <Loading />;
@@ -59,7 +59,15 @@ export default function NewAgent() {
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={{ padding: 24, gap: 24 }}
       >
-        <AvatarPicker name={name} color={color} avatar={avatar} />
+        <AvatarPicker
+          name={name}
+          color={color}
+          avatar={avatar}
+          onChange={(shape, value) => {
+            setAvatar(shape);
+            setColor(value);
+          }}
+        />
         <Field label={t("name")} value={name} onChangeText={setName} maxLength={80} autoFocus />
         <Field label={t("title")} value={title} onChangeText={setTitle} maxLength={160} />
         <Field

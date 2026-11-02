@@ -371,3 +371,232 @@ export function poseAt(stateId, u, accent = DEFAULT_ACCENT) {
 export const PARTICLES = N;
 export const loopSeconds = (stateId, speed = 1) => (BASE_SECONDS * STATES[stateId].k) / speed;
 export const MORPH = Object.freeze({ seconds: MORPH_SECONDS, delay: MORPH_DELAY });
+
+/* ───────────────────────────── 3D face ───────────────────────────── */
+export function faceTransform(gx = 0, gy = 0, poke = 0) {
+  const s = 1 - 0.07 * poke;
+  return { tx: gx * 26, ty: gy * 15 + 3 * poke, rot: -gx * 5, skew: -gx * 4, sx: (1 - 0.1 * Math.abs(gx)) * s, sy: (1 - 0.06 * Math.abs(gy)) * s };
+}
+const fmt = (n) => Math.round(n * 100) / 100;
+const fmtT = (t) => "translate(" + fmt(200 + t.tx) + " " + fmt(CY + t.ty) + ") rotate(" + fmt(t.rot) + ") skewY(" + fmt(t.skew) +
+  ") scale(" + fmt(t.sx) + " " + fmt(t.sy) + ") translate(-200 " + -CY + ")";
+
+/* ───────────────────────────── markup ───────────────────────────── */
+let _uid = 0;
+/** quality: "full" = liquid mass + glow + glossy highlight · "lite" = liquid + glow · "flat" = liquid only */
+export function markup(uid, quality = "full") {
+  uid = uid || "mta" + ++_uid;
+  if (quality === true) quality = "full"; if (quality === false) quality = "flat";
+  const f = GEOMETRY.face;
+  let bars = "";
+  for (let i = 0; i < N; i++) bars += `<path class="mta-bar" data-mta-bar="${i}" d="${REST_PATHS[i]}" stroke-width="${REST_WIDTHS[i]}" fill="none" stroke-linecap="round" stroke-linejoin="round" style="stroke:${REST_STROKES[i]}"/>`;
+  const pill = `x="${f.x}" y="${f.y}" width="${f.width}" height="${f.height}" rx="${f.rx}"`;
+  const light = quality === "full"
+    ? `<feGaussianBlur in="g" stdDeviation="2.4" result="bump"/><feSpecularLighting in="bump" surfaceScale="6" specularConstant=".9" specularExponent="26" lighting-color="#fff" result="sp"><fePointLight x="150" y="105" z="95"/></feSpecularLighting><feComposite in="sp" in2="g" operator="in" result="sp2"/>`
+    : "";
+  const glow = quality === "flat" ? "" : `<feGaussianBlur in="g" stdDeviation="9" result="gl0"/><feColorMatrix in="gl0" type="matrix" values="1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 .5 0" result="gl"/>`;
+  const merge = `<feMerge>${quality === "flat" ? "" : '<feMergeNode in="gl"/>'}<feMergeNode in="g"/>${quality === "full" ? '<feMergeNode in="sp2"/>' : ""}</feMerge>`;
+  return `<svg class="mta-svg" viewBox="${GEOMETRY.viewBox}" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">` +
+    `<defs><clipPath id="${uid}-clip"><rect ${pill}/></clipPath>` +
+    `<radialGradient id="${uid}-shade" cx=".34" cy=".27" r=".95"><stop offset="0" stop-color="#fff" stop-opacity=".4"/><stop offset=".38" stop-color="#fff" stop-opacity="0"/><stop offset=".6" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".42"/></radialGradient>` +
+    `<radialGradient id="${uid}-gloss" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#fff" stop-opacity=".5"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>` +
+    `<filter id="${uid}-goo" filterUnits="userSpaceOnUse" x="${f.x}" y="${f.y}" width="${f.width}" height="${f.height}" color-interpolation-filters="sRGB">` +
+    `<feGaussianBlur data-mta-goo in="SourceGraphic" stdDeviation="1.65" result="b"/><feColorMatrix in="b" type="matrix" values="1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 20 -9.5" result="g"/>` +
+    glow + light + merge + `</filter></defs>` +
+    `<circle class="mta-shell" cx="200" cy="200" r="177"/><circle cx="200" cy="200" r="177" fill="url(#${uid}-shade)"/>` +
+    `<g data-mta-face><rect class="mta-face" ${pill}/>` +
+    `<g clip-path="url(#${uid}-clip)"><g data-mta-bars><g filter="url(#${uid}-goo)">${bars}</g></g></g></g>` +
+    `<g data-mta-gloss><ellipse cx="150" cy="82" rx="86" ry="38" transform="rotate(-24 150 82)" fill="url(#${uid}-gloss)" opacity=".55"/></g></svg>`;
+}
+
+/* ───────────────────────────── shared ticker + pointer ───────────────────────────── */
+const live = new Set();
+let raf = 0, last = 0;
+function frame(now) {
+  const dt = Math.min(0.05, Math.max(0, (now - last) / 1000));
+  last = now;
+  for (const a of live) a._step(dt);
+  raf = live.size ? requestAnimationFrame(frame) : 0;
+}
+function wake(a) { live.add(a); if (!raf) { last = performance.now(); raf = requestAnimationFrame(frame); } }
+const ptr = { x: 0, y: 0, t: -1e9 };
+let ptrBound = false, pointerUsers = 0, unbindPointer = () => {};
+function bindPointer() {
+  pointerUsers++;
+  if (ptrBound || typeof window === "undefined") return;
+  ptrBound = true;
+  const move = (e) => { ptr.x = e.clientX; ptr.y = e.clientY; ptr.t = performance.now(); };
+  window.addEventListener("pointermove", move, { passive: true });
+  window.addEventListener("pointerdown", move, { passive: true });
+  const leave = () => { ptr.t = -1e9; };
+  document.documentElement.addEventListener("mouseleave", leave);
+  unbindPointer = () => {
+    window.removeEventListener("pointermove", move);
+    window.removeEventListener("pointerdown", move);
+    document.documentElement.removeEventListener("mouseleave", leave);
+    ptrBound = false;
+    ptr.t = -1e9;
+  };
+}
+
+/* ───────────────────────────── controller ───────────────────────────── */
+class Avatar {
+  constructor(root, o) {
+    this.root = root;
+    const sorted = (sel, key) => Array.from(root.querySelectorAll(sel)).sort((a, b) => a.dataset[key] - b.dataset[key]);
+    this.els = sorted("[data-mta-bar]", "mtaBar");
+    if (this.els.length !== N) throw new Error("TradingAvatar: expected " + N + " [data-mta-bar] elements");
+    this.faceG = root.querySelector("[data-mta-face]");
+    this.barsG = root.querySelector("[data-mta-bars]");
+    this.glossG = root.querySelector("[data-mta-gloss]");
+    this.gooEl = root.querySelector("[data-mta-goo]");
+    this.fl = this.fl0 = this.flT = 1;
+    this.cache = this.els.map(() => ({})); this.cg = {};
+    this.speed = clamp(Number.isFinite(o.speed) ? o.speed : 1, 0.25, 4);
+    this.paused = !!o.paused;
+    this.look = o.look || "pointer";
+    this.accent = parseColor(o.accent, parseColor(DEFAULT_ACCENT));
+    this.tgt = newSegs();
+    this.shown = newSegs().map((s) => Object.assign(s, { r: EYE[0], g: EYE[1], b: EYE[2] }));
+    this.snap = null; this.bt = MORPH_SECONDS; this.u = 0; this.visible = true;
+    this.plan = ID_PLAN();
+    this.destroyed = false;
+    this._onVisibility = () => {
+      if (document.hidden) live.delete(this);
+      else this._refresh(true);
+    };
+    document.addEventListener("visibilitychange", this._onVisibility);
+    this.g = { x: 0, y: 0, vx: 0, vy: 0 }; this.pk = 0; this.pv = 0;
+    this.seed = Math.random() * 100; this.rect = null; this.rectAge = 0;
+    this.mq = typeof matchMedia === "function" ? matchMedia("(prefers-reduced-motion: reduce)") : null;
+    this._onMq = () => this._refresh();
+    if (this.mq && this.mq.addEventListener) this.mq.addEventListener("change", this._onMq);
+    if (typeof IntersectionObserver === "function") {
+      this.io = new IntersectionObserver((e) => { this.visible = e[e.length - 1].isIntersecting; this._refresh(); });
+      this.io.observe(root);
+    }
+    if (o.interactive !== false) { this._down = () => this.poke(); root.addEventListener("pointerdown", this._down); }
+    bindPointer();
+    this._setState(STATE_IDS.includes(o.state) ? o.state : "waiting", true);
+  }
+  get reduced() { return !!(this.mq && this.mq.matches); }
+
+  _setState(id, instant) {
+    if (!STATES[id]) return;
+    this.id = id; this.def = STATES[id];
+    this.fl0 = this.fl; this.flT = this.def.fluid === undefined ? 1 : this.def.fluid;
+    this.u = this.reduced ? this.def.poster : 0;
+    runState(this.def, this.u, this.tgt);
+    if (instant || this.reduced) { this.snap = null; this.bt = MORPH_SECONDS; this.plan = ID_PLAN(); this.fl = this.flT; }
+    else {
+      this.snap = this.shown.map((s) => Object.assign({}, s));
+      this.plan = planMorph(this.snap, this.tgt);
+      this.bt = 0;
+    }
+    this.root.setAttribute("data-state", id);
+    this._refresh(true);
+  }
+  _compose() {
+    runState(this.def, this.u, this.tgt);
+    const acc = SEMANTIC[this.id] || this.accent, morphing = this.snap && this.bt < MORPH_SECONDS;
+    for (let i = 0; i < N; i++) {
+      const o = this.shown[i], t = this.tgt[this.plan.perm[i]];
+      const e = morphSegment(morphing ? this.snap[i] : null, this.tgt, this.plan, i, this.bt, o);
+      const c = tint(t, acc);
+      if (e >= 1) { o.r = c[0]; o.g = c[1]; o.b = c[2]; }
+      else { const s = this.snap[i]; o.r = lerp(s.r, c[0], e); o.g = lerp(s.g, c[1], e); o.b = lerp(s.b, c[2], e); }
+    }
+    this.fl = lerp(this.fl0, this.flT, morphing ? inOut(this.bt / MORPH_SECONDS) : 1);
+    this._paint();
+  }
+  _paint() {
+    const gx = this.g.x, gy = this.g.y;
+    if (this.gooEl) { const sd = (1.2 + 3 * this.fl).toFixed(1); if (this.cg.sd !== sd) { this.cg.sd = sd; this.gooEl.setAttribute("stdDeviation", sd); } }
+    for (let i = 0; i < N; i++) {
+      const s = this.shown[i];
+      const depth = (1 - gx * clamp((s.cx - 200) / 60, -1, 1) * 0.14) * GLYPH_SCALE;      // far side of the turn looks smaller
+      const w = s.w < 1 ? "0.01" : fmt(s.w * depth);
+      const d = segPath(200 + (s.cx - 200) * GLYPH_SCALE, CY + (s.cy - CY) * GLYPH_SCALE, s.L * depth, s.th, s.k / depth);
+      const stroke = "rgb(" + Math.round(s.r) + "," + Math.round(s.g) + "," + Math.round(s.b) + ")", op = String(fmt(s.o));
+      const el = this.els[i], c = this.cache[i];
+      if (c.d !== d) { c.d = d; el.setAttribute("d", d); }
+      if (c.w !== w) { c.w = w; el.setAttribute("stroke-width", w); }
+      if (c.s !== stroke) { c.s = stroke; el.style.stroke = stroke; }
+      if (c.o !== op) { c.o = op; el.style.opacity = op; }
+    }
+    if (this.faceG) { const ft = fmtT(faceTransform(gx, gy, this.pk)); if (this.cg.f !== ft) { this.cg.f = ft; this.faceG.setAttribute("transform", ft); } }
+    if (this.barsG) { const bt = "translate(" + fmt(gx * 6) + " " + fmt(gy * 4) + ")"; if (this.cg.b !== bt) { this.cg.b = bt; this.barsG.setAttribute("transform", bt); } }
+    if (this.glossG) { const gt = "translate(" + fmt(-gx * 12 - this.pk * 4) + " " + fmt(-gy * 9) + ")"; if (this.cg.g !== gt) { this.cg.g = gt; this.glossG.setAttribute("transform", gt); } }
+  }
+  _gaze(dt) {
+    let tx = 0, ty = 0;
+    const sg = this.def.gaze ? this.def.gaze(this.u) : null, now = performance.now();
+    if (this.look === "off") { /* centred */ }
+    else if (sg) { tx = sg[0]; ty = sg[1]; }
+    else if (this.look === "pointer" && now - ptr.t < 3500) {
+      if (!this.rect || this.rectAge++ % 30 === 0) this.rect = this.root.getBoundingClientRect();
+      const r = this.rect, span = Math.max(r.width * 1.1, 120);
+      tx = clamp((ptr.x - (r.left + r.width / 2)) / span, -1, 1); ty = clamp((ptr.y - (r.top + r.height / 2)) / span, -1, 1) * 0.8;
+    } else {
+      const t = now / 1000 + this.seed;
+      tx = 0.8 * Math.sin(t * 0.42) * (0.65 + 0.35 * Math.sin(t * 0.13)); ty = 0.22 * Math.sin(t * 0.29 + 1.3);
+    }
+    const g = this.g;
+    g.vx += ((tx - g.x) * 90 - g.vx * 14) * dt; g.x += g.vx * dt;
+    g.vy += ((ty - g.y) * 90 - g.vy * 14) * dt; g.y += g.vy * dt;
+  }
+  _step(dt) {
+    if (!this.visible) { live.delete(this); return; }
+    if (!this.paused) { this.u = wrap(this.u + (dt * this.speed) / (BASE_SECONDS * this.def.k)); this._gaze(dt); }
+    if (this.bt < MORPH_SECONDS) this.bt += dt;
+    if (this.pk !== 0 || this.pv !== 0) {
+      this.pv += (-160 * this.pk - 12 * this.pv) * dt; this.pk += this.pv * dt;
+      if (Math.abs(this.pk) < 0.002 && Math.abs(this.pv) < 0.02) { this.pk = 0; this.pv = 0; }
+    }
+    this._compose();
+    if (this.paused && this.bt >= MORPH_SECONDS && this.pk === 0 && this.pv === 0) live.delete(this);
+  }
+  _refresh(force) {
+    if (this.destroyed || document.hidden) { live.delete(this); return; }
+    if (this.reduced) { live.delete(this); this.bt = MORPH_SECONDS; this.snap = null; this.g.x = this.g.y = 0; this.u = this.def.poster; this._compose(); return; }
+    if (force) this._compose();
+    if (this.visible && (!this.paused || this.bt < MORPH_SECONDS)) wake(this);
+  }
+  setState(id) { if (id !== this.id) this._setState(id, false); }
+  setSpeed(v) { this.speed = clamp(Number.isFinite(v) ? v : 1, 0.25, 4); }
+  setLook(m) { this.look = m || "pointer"; }
+  setPaused(p) { this.paused = !!p; if (this.paused) { this.bt = MORPH_SECONDS; this._compose(); live.delete(this); } else this._refresh(); }
+  setAccent(c) { this.accent = parseColor(c, parseColor(DEFAULT_ACCENT)); this._compose(); }
+  poke() { if (this.reduced || this.paused || document.hidden || this.destroyed) return; this.pk = 0; this.pv = 12; if (this.visible) wake(this); }
+  seek(u, gx, gy) {
+    this.bt = MORPH_SECONDS; this.u = wrap(u);
+    if (gx !== undefined) { this.g.x = gx; this.g.vx = 0; }
+    if (gy !== undefined) { this.g.y = gy; this.g.vy = 0; }
+    this._compose();
+  }
+  /** Test/demo helper: start a morph to `id` and freeze it `t` seconds in. */
+  scrubMorph(id, t) {
+    this._setState(id, false); live.delete(this); this.paused = true;
+    this.bt = t; this.u = wrap(t / (BASE_SECONDS * this.def.k)); this._compose();
+  }
+  destroy() {
+    if (this.destroyed) return;
+    this.destroyed = true;
+    live.delete(this);
+    if (!live.size && raf) { cancelAnimationFrame(raf); raf = 0; }
+    document.removeEventListener("visibilitychange", this._onVisibility);
+    if (--pointerUsers === 0) unbindPointer();
+    if (this.io) this.io.disconnect();
+    if (this._down) this.root.removeEventListener("pointerdown", this._down);
+    if (this.mq && this.mq.removeEventListener) this.mq.removeEventListener("change", this._onMq);
+  }
+}
+
+export function mount(root, options = {}) {
+  const a = new Avatar(root, options);
+  return {
+    setState: (id) => a.setState(id), setSpeed: (v) => a.setSpeed(v), setPaused: (p) => a.setPaused(p),
+    setAccent: (c) => a.setAccent(c), setLook: (m) => a.setLook(m), poke: () => a.poke(),
+    seek: (u, gx, gy) => a.seek(u, gx, gy), scrubMorph: (id, t) => a.scrubMorph(id, t), getState: () => a.id, destroy: () => a.destroy(),
+  };
+}
