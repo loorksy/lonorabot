@@ -1,12 +1,12 @@
 import { AVATAR_COLORS, AVATAR_FACES, DEFAULT_AVATAR_COLOR, resolveAvatarFace } from "@lonora/core";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Keyboard, Modal, Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
 import type { Label } from "../lib/i18n";
 import { useSession } from "../lib/session";
 import { BotAvatar } from "./bot-avatar";
-import { colors } from "./ui";
+import { colors, ErrorNotice } from "./ui";
 
 const faceLabels: Record<string, Label> = {
   orb: "avatarSignals",
@@ -27,27 +27,59 @@ const faceLabels: Record<string, Label> = {
   "face-determined": "avatarDetermined",
 };
 
-/** Studio edits a local draft; Done applies it to the surrounding creation/profile form. */
+/** Saved agents persist appearance independently; new agents keep their creation draft. */
 export function AvatarPicker({
   name,
   identity,
   color,
   avatar,
   onChange,
+  onSave,
+  onBusyChange,
+  disabled = false,
 }: {
   name: string;
   identity?: string;
   color: string;
   avatar: string;
   onChange: (avatar: string, color: string) => void;
+  onSave?: (avatar: string, color: string) => Promise<void>;
+  onBusyChange?: (busy: boolean) => void;
+  disabled?: boolean;
 }) {
-  const { rtl, t } = useSession();
+  const { rtl, t, errorText } = useSession();
   const [open, setOpen] = useState(false);
   const [draftFace, setDraftFace] = useState(avatar);
   const [draftColor, setDraftColor] = useState(color);
+  const [saving, setSaving] = useState(false);
+  const saveLock = useRef(false);
+  const [error, setError] = useState<string | null>(null);
+  const dismiss = () => {
+    if (!saveLock.current) setOpen(false);
+  };
+  const save = async () => {
+    if (saveLock.current) return;
+    saveLock.current = true;
+    setSaving(true);
+    setError(null);
+    onBusyChange?.(true);
+    try {
+      if (onSave) await onSave(draftFace, draftColor);
+      else onChange(draftFace, draftColor);
+      setOpen(false);
+    } catch (reason) {
+      setError(errorText(reason));
+    } finally {
+      saveLock.current = false;
+      setSaving(false);
+      onBusyChange?.(false);
+    }
+  };
   const direction = rtl ? "row-reverse" : "row";
   const begin = () => {
+    if (disabled || saveLock.current) return;
     Keyboard.dismiss();
+    setError(null);
     setDraftFace(avatar);
     setDraftColor(color);
     setOpen(true);
@@ -58,6 +90,7 @@ export function AvatarPicker({
         accessibilityRole="button"
         accessibilityLabel={t("avatarEdit")}
         onPress={begin}
+        disabled={disabled || saving}
         style={{
           alignSelf: "center",
           width: 112,
@@ -95,7 +128,7 @@ export function AvatarPicker({
           </Svg>
         </View>
       </Pressable>
-      <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
+      <Modal visible={open} transparent animationType="fade" onRequestClose={dismiss}>
         <SafeAreaView
           style={{
             flex: 1,
@@ -108,7 +141,8 @@ export function AvatarPicker({
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={t("close")}
-            onPress={() => setOpen(false)}
+            disabled={saving}
+            onPress={dismiss}
             style={{ position: "absolute", inset: 0 }}
           />
           <View
@@ -149,7 +183,8 @@ export function AvatarPicker({
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={t("close")}
-                onPress={() => setOpen(false)}
+                disabled={saving}
+                onPress={dismiss}
                 style={{
                   minWidth: 44,
                   minHeight: 44,
@@ -180,7 +215,7 @@ export function AvatarPicker({
                   lineHeight: 18,
                 }}
               >
-                {t("avatarStudioHint")}
+                {t(onSave ? "avatarStudioSaveHint" : "avatarStudioHint")}
               </Text>
               <View
                 style={{
@@ -204,6 +239,7 @@ export function AvatarPicker({
                 </Text>
                 <Pressable
                   accessibilityRole="button"
+                  disabled={saving}
                   onPress={() => {
                     setDraftFace("orb");
                     setDraftColor(DEFAULT_AVATAR_COLOR);
@@ -225,6 +261,7 @@ export function AvatarPicker({
                         accessibilityLabel={label}
                         accessibilityState={{ checked: selected }}
                         aria-checked={selected}
+                        disabled={saving}
                         onPress={() => setDraftFace(face.id)}
                         style={{
                           minHeight: 86,
@@ -284,6 +321,7 @@ export function AvatarPicker({
                       accessibilityLabel={`${t("color")} ${value}`}
                       accessibilityState={{ checked: selected }}
                       aria-checked={selected}
+                      disabled={saving}
                       onPress={() => setDraftColor(value)}
                       style={{
                         width: 44,
@@ -300,6 +338,7 @@ export function AvatarPicker({
                 })}
               </View>
             </ScrollView>
+            <ErrorNotice text={error} />
             <View
               style={{
                 flexDirection: direction,
@@ -311,10 +350,10 @@ export function AvatarPicker({
             >
               <Pressable
                 accessibilityRole="button"
-                onPress={() => {
-                  onChange(draftFace, draftColor);
-                  setOpen(false);
-                }}
+                testID="avatar-studio-save"
+                disabled={saving}
+                accessibilityState={{ disabled: saving, busy: saving }}
+                onPress={() => void save()}
                 style={{
                   flex: 1,
                   minHeight: 46,
@@ -325,12 +364,13 @@ export function AvatarPicker({
                 }}
               >
                 <Text style={{ color: colors.foreground, fontSize: 15, fontWeight: "600" }}>
-                  {t("avatarDone")}
+                  {t("save")}
                 </Text>
               </Pressable>
               <Pressable
                 accessibilityRole="button"
-                onPress={() => setOpen(false)}
+                disabled={saving}
+                onPress={dismiss}
                 style={{
                   minHeight: 46,
                   paddingHorizontal: 14,

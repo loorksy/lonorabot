@@ -216,6 +216,7 @@ export function poseAt(
   accent?: string,
   identity?: string,
   face?: string,
+  reactionProgress?: number,
 ): BarPose[];
 /** Loop length in seconds. */
 export function loopSeconds(stateId: AvatarStateId, speed?: number): number;
@@ -239,6 +240,7 @@ export function avatarPersonality(identity?: string): AvatarPersonality;
 export function idleAvatarPose(
   seconds: number,
   identity?: string,
+  face?: string,
 ): { gazeX: number; gazeY: number; yaw: number };
 /** Project a visor around the sphere; back-facing content is invisible and never mirrored. */
 export function avatarTurn(yaw: number): { tx: number; scaleX: number; opacity: number };
@@ -265,3 +267,19 @@ export function segmentPoints(
   pose: Pick<BarPose, "cx" | "cy" | "L" | "th" | "k">,
   n?: number,
 ): [number, number][];
+
+/** A visual gesture belonging to the selected face, independent of agent execution. */
+export function faceReaction(
+  progress: number,
+  face?: string,
+  identity?: string,
+): {
+  gazeX: number;
+  gazeY: number;
+  yaw: number;
+  scale: number;
+  offsetY: number;
+  tilt: number;
+  blink: number;
+  mouth: number;
+};

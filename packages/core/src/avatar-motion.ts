@@ -17,6 +17,7 @@ export class AvatarMotion {
   private state: AvatarStateId;
   private identity: string;
   private face: string;
+  private reactionTime: number | null = null;
   private phase = 0;
   private elapsed = MORPH.seconds;
   private shown: BarPose[];
@@ -29,6 +30,10 @@ export class AvatarMotion {
     this.face = resolveAvatarFace(face);
     this.shown = poseAt(state, 0, undefined, identity, this.face);
     this.plan = planMorph(this.shown, this.shown);
+  }
+
+  react() {
+    if (this.state === "waiting") this.reactionTime = 0;
   }
 
   setIdentity(identity: string) {
@@ -70,7 +75,17 @@ export class AvatarMotion {
     const tempo = this.state === "waiting" ? avatarPersonality(this.identity).tempo : 1;
     this.phase = reduced ? 0.3 : (this.phase + (dt * tempo) / loopSeconds(this.state)) % 1;
     this.elapsed = reduced ? MORPH.seconds : this.elapsed + dt;
-    const target = poseAt(this.state, this.phase, undefined, this.identity, this.face);
+    if (reduced || this.state !== "waiting") this.reactionTime = null;
+    if (this.reactionTime !== null) {
+      this.reactionTime += dt;
+      if (this.reactionTime >= avatarPersonality(this.identity).spinSeconds)
+        this.reactionTime = null;
+    }
+    const reaction =
+      this.reactionTime === null
+        ? 1
+        : this.reactionTime / avatarPersonality(this.identity).spinSeconds;
+    const target = poseAt(this.state, this.phase, undefined, this.identity, this.face, reaction);
     for (let i = 0; i < this.shown.length; i++) {
       const bar = this.shown[i];
       const source = this.from?.[i] ?? null;

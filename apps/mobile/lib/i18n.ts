@@ -6,9 +6,10 @@ export const labels = {
   avatarDone: ["تم", "Done"],
   avatarCancel: ["إلغاء", "Cancel"],
   avatarReset: ["إعادة الضبط", "Reset"],
-  avatarStudioHint: [
-    "اختر وجهًا ولونًا، ثم اضغط تم للمعاينة في الملف الشخصي.",
-    "Choose a face and color, then tap Done to preview them in the profile.",
+  avatarStudioHint: ["اختر وجهًا ولونًا، ثم اضغط حفظ.", "Choose a face and color, then tap Save."],
+  avatarStudioSaveHint: [
+    "يحفظ الوجه واللون مباشرة دون تغيير بقية إعدادات الوكيل.",
+    "Save the face and color directly without changing other agent settings.",
   ],
   avatarSignals: ["الإشارات", "Signals"],
   avatarSmile: ["مبتسم", "Smile"],

@@ -419,20 +419,10 @@
   margin-inline: auto;
   padding: 20px clamp(16px, 4vw, 36px) 32px;
 }
-.tpl-inbox-heading,
 .tpl-inbox-title {
   display: flex;
   align-items: center;
   gap: 10px;
-}
-.tpl-inbox-heading {
-  justify-content: space-between;
-  margin-bottom: 14px;
-}
-.tpl-inbox-heading h1 {
-  margin: 0;
-  font-size: 22px;
-  font-weight: 600;
 }
 .tpl-inbox-search {
   width: 100%;

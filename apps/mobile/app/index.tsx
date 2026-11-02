@@ -49,6 +49,7 @@ export default function Inbox() {
   const [searching, setSearching] = useState(false);
   const [activity, setActivity] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [more, setMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [opening, setOpening] = useState<string | null>(null);
@@ -196,22 +197,7 @@ export default function Inbox() {
           paddingBottom: 10,
         }}
       >
-        <View
-          style={{
-            width: 44,
-            height: 44,
-            borderRadius: 22,
-            backgroundColor: colors.accent,
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <HeaderButton label={t("settings")} onPress={() => router.push("/settings")}>
-            <Text style={{ color: colors.foreground, fontSize: 15, fontWeight: "600" }}>
-              {owner.email.slice(0, 2).toUpperCase()}
-            </Text>
-          </HeaderButton>
-        </View>
+        <Text style={{ color: colors.foreground, fontSize: 19, fontWeight: "600" }}>Lonora</Text>
         <View
           style={{
             flexDirection: rtl ? "row-reverse" : "row",
@@ -220,18 +206,6 @@ export default function Inbox() {
             backgroundColor: colors.accent,
           }}
         >
-          <HeaderButton
-            label={t("activity")}
-            active={activity}
-            filled={activity}
-            onPress={() => setActivity(!activity)}
-          >
-            <NativeSymbol
-              name="activity"
-              size={17}
-              color={activity ? colors.primaryForeground : colors.foreground}
-            />
-          </HeaderButton>
           <HeaderButton
             label={t("search")}
             active={searching}
@@ -242,11 +216,11 @@ export default function Inbox() {
           >
             <NativeSymbol name="search" size={17} />
           </HeaderButton>
-          <HeaderButton label={t("artifacts")} onPress={() => router.push("/artifacts")}>
-            <NativeSymbol name="layers" size={17} />
-          </HeaderButton>
           <HeaderButton label={t("create")} onPress={() => setCreating(true)}>
             <NativeSymbol name="plus" size={18} />
+          </HeaderButton>
+          <HeaderButton label={t("more")} onPress={() => setMore(true)}>
+            <NativeSymbol name="more" size={18} />
           </HeaderButton>
         </View>
       </View>
@@ -261,6 +235,15 @@ export default function Inbox() {
           />
         </View>
       ) : null}
+      <ActionMenu
+        visible={more}
+        onClose={() => setMore(false)}
+        actions={[
+          { label: t("activity"), icon: "activity", onPress: () => setActivity(!activity) },
+          { label: t("artifacts"), icon: "layers", onPress: () => router.push("/artifacts") },
+          { label: t("settings"), icon: "settings", onPress: () => router.push("/settings") },
+        ]}
+      />
       <ActionMenu
         visible={creating}
         onClose={() => setCreating(false)}

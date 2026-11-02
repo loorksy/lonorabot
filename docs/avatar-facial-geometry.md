@@ -95,10 +95,19 @@ Actual application captures: [Arabic Web Studio](visual/avatar-refinement/web-st
 ## Verification results
 
 - `bash scripts/build.sh`: passed, including Python checks, resource validation, lint, TypeScript, Web and Expo exports.
-- Motion/activity unit tests: **23 passed**. Geometry coverage includes all 256 face-to-face transitions before clipping, gaze extremes, original-shell/visor invariance, original state poses, canonical anchors and stroke weights.
-- Web face workflows: both Arabic and English creation, selection, Reset/Cancel/Done, persistence, reload and narrow layout passed. Existing avatar/motion browser checks also passed.
-- Native component workflow: selection, cancellation, reset, profile persistence/reload and new bot creation passed through the actual API in an isolated test database.
+- Motion/activity unit tests: **25 passed**. Geometry coverage includes all 256 face-to-face transitions before clipping, gaze extremes, original-shell/visor invariance, original state poses, canonical anchors and stroke weights.
+- Web face workflows: both Arabic and English creation, selection, Reset/Cancel/Save, independent appearance persistence, dirty profile preservation, failed-save retry, reload and narrow layout passed. Existing avatar/motion browser checks also passed.
+- Native component workflow: selection, cancellation, reset, independent profile appearance persistence/reload, failed-save retry, dirty profile preservation and new bot creation passed through the actual API in an isolated test database.
 - Existing general-agent creation and chat/streaming regression checks passed. One 30-second streaming scenario initially timed out during concurrent builds; its isolated rerun passed without application changes.
 - The visual capture script verified the original signal avatar raster is byte-identical and all sixteen full-quality previews contain visible white facial pixels inside the canonical safe area.
 
 No live trading or real account operations were used for verification.
+
+
+## Independent saving, expression reactions and home toolbar
+
+For an existing agent, the Studio **Save** action persists only `avatar` and `color` through the existing update endpoint. It does not submit unsaved profile fields, and the separate profile Save excludes appearance fields so it cannot restore stale values. Failed appearance saves retain the selection and show a retryable error; pending saves reject duplicate submissions and dismissal. New-agent selections are saved into the creation draft until the agent itself is created.
+
+Angry and worried labels/IDs remain stable. Their eyebrow slopes were corrected: angry eyebrows angle down toward the center, while worried eyebrows lift toward the center. Face-specific `idleAvatarPose` and `faceReaction` now give each preset a calm visual temperament, including different gaze, blink, mouth, nod, tilt and recoil behavior. The signal face retains its original full turn. These are local presentation effects, independent of actual agent execution states; active-work glyphs and reduced-motion handling remain intact.
+
+The home view now places search and creation actions in its top toolbar, with no visible Conversations heading or home Settings shortcut. Settings remain available through existing secondary menus. Web and native tests exercise both Arabic and English search and creation entry points. Settled mobile-viewport captures show the [Web home](visual/avatar-refinement/home-web-ar.png) and [native home rendered through Expo Web](visual/avatar-refinement/home-native-ar.png).

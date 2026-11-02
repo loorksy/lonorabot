@@ -6,6 +6,7 @@ import {
   avatarState,
   avatarTurn,
   FACE_TOKENS,
+  faceReaction,
   faceTransform,
   GEOMETRY,
   GLYPH_SCALE,
@@ -61,6 +62,8 @@ export const BotAvatar = memo(function BotAvatar({
   const profile = useMemo(() => avatarPersonality(motionIdentity), [motionIdentity]);
   const visualState = state ?? avatarState({ working });
   const faceId = resolveAvatarFace(variant);
+  const currentFace = useRef(faceId);
+  currentFace.current = faceId;
   const [sampler] = useState(() => new AvatarMotion(visualState, motionIdentity, faceId));
   const motion = useRef(sampler);
   const [bars, setBars] = useState(() => motion.current.frame(0));
@@ -73,7 +76,7 @@ export const BotAvatar = memo(function BotAvatar({
   const idleEpoch = useRef(0);
   const tapSpin = useRef<number | null>(null);
   const pointer = useRef<{ x: number; y: number; until: number } | null>(null);
-  const [pose, setPose] = useState({ gazeX: 0, gazeY: 0, yaw: 0 });
+  const [pose, setPose] = useState({ gazeX: 0, gazeY: 0, yaw: 0, scale: 1, offsetY: 0, tilt: 0 });
   useEffect(() => {
     const listener = AppState.addEventListener("change", (next) =>
       setForeground(next === "active"),
@@ -100,12 +103,18 @@ export const BotAvatar = memo(function BotAvatar({
         setBars(motion.current.frame(dt));
         const idle =
           visualState === "waiting"
-            ? idleAvatarPose(elapsed.current - idleEpoch.current, motionIdentity)
+            ? idleAvatarPose(
+                elapsed.current - idleEpoch.current,
+                motionIdentity,
+                currentFace.current,
+              )
             : { gazeX: Math.sin(now / 2400) * 0.4, gazeY: 0, yaw: 0 };
         let yaw = idle.yaw;
+        let reaction = faceReaction(1, "face-smile");
         if (visualState === "waiting" && tapSpin.current !== null) {
           const progress = Math.min(1, (elapsed.current - tapSpin.current) / profile.spinSeconds);
-          yaw = profile.direction * Math.PI * 2 * (progress * progress * (3 - 2 * progress));
+          reaction = faceReaction(progress, currentFace.current, motionIdentity);
+          yaw = reaction.yaw;
           if (progress >= 1) {
             tapSpin.current = null;
             // Start the next idle cycle facing forward after a manually requested turn.
@@ -114,9 +123,24 @@ export const BotAvatar = memo(function BotAvatar({
         }
         const target = pointer.current;
         setPose({
-          gazeX: target && elapsed.current < target.until ? target.x : idle.gazeX,
-          gazeY: target && elapsed.current < target.until ? target.y : idle.gazeY,
+          gazeX: Math.max(
+            -1,
+            Math.min(
+              1,
+              (target && elapsed.current < target.until ? target.x : idle.gazeX) + reaction.gazeX,
+            ),
+          ),
+          gazeY: Math.max(
+            -1,
+            Math.min(
+              1,
+              (target && elapsed.current < target.until ? target.y : idle.gazeY) + reaction.gazeY,
+            ),
+          ),
           yaw,
+          scale: reaction.scale,
+          offsetY: reaction.offsetY,
+          tilt: reaction.tilt,
         });
         setPoke((value) => (value < 0.005 ? 0 : value * Math.exp(-dt * 12)));
         previous = now;
@@ -145,7 +169,10 @@ export const BotAvatar = memo(function BotAvatar({
     if (reduced || paused) return;
     aim(event);
     setPoke(0.8);
-    if (visualState === "waiting") tapSpin.current = elapsed.current;
+    if (visualState === "waiting") {
+      tapSpin.current = elapsed.current;
+      motion.current.react();
+    }
   };
   const facial = visualState === "waiting" && faceId !== "orb";
   const face = GEOMETRY.face;
@@ -235,7 +262,14 @@ export const BotAvatar = memo(function BotAvatar({
             <G transform={transform}>
               <Rect {...face} fill="#0d0d11" />
               <G clipPath={`url(#${id}clip)`}>
-                <G filter={size >= 48 ? `url(#${id}goo)` : undefined}>
+                <G
+                  transform={
+                    reduced || paused
+                      ? undefined
+                      : `translate(200 ${200.5 + pose.offsetY}) rotate(${pose.tilt}) scale(${pose.scale}) translate(-200 -200.5)`
+                  }
+                  filter={size >= 48 ? `url(#${id}goo)` : undefined}
+                >
                   {bars.map((bar, i) => (
                     <Path
                       // biome-ignore lint/suspicious/noArrayIndexKey: fixed particle slots never reorder.
