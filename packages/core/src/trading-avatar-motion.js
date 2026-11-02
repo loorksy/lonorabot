@@ -278,7 +278,38 @@ for (const id of STATE_IDS) if (STATES[id].accent) SEMANTIC[id] = parseColor(STA
 
 /* ───────────────────────────── geometry of a segment ───────────────────────────── */
 const newSegs = () => Array.from({ length: N }, (_, i) => ({ i, cx: 200, cy: CY, L: 0.01, th: 90, k: 0, w: 0.01, o: 1, c: 0, ar: null }));
-const runState = (def, u, B) => { for (const b of B) H(b); def.fn(u, B); };
+const runState = (def, u, B, identity = "") => {
+  for (const b of B) H(b);
+  if (def === STATES.waiting && identity) personalizedWaiting(u, B, avatarPersonality(identity));
+  else def.fn(u, B);
+};
+
+/** Idle-only expressions keep the four capsules while changing their independent rhythm. */
+function personalizedWaiting(u, B, profile) {
+  const time = wrap(u + profile.phase), direction = profile.direction;
+  const sway = 3 * Math.sin(TAU * time);
+  for (let i = 0; i < 4; i++) {
+    const wave = Math.sin(TAU * (time - i * 0.17 * direction));
+    let height = REST[i], lift = 0, dx = 0;
+    if (profile.pattern === 0) height += 7 * wave;
+    else if (profile.pattern === 1) {
+      height *= 0.93 + 0.08 * Math.sin(TAU * time);
+      lift = 3 * (1 + Math.sin(TAU * (time + i * 0.2 * direction)));
+    } else if (profile.pattern === 2) {
+      height += 4 * wave;
+      dx = sway + 1.5 * Math.sin(TAU * (time - i * 0.1));
+      lift = 2.5 * Math.sin(TAU * (time + i * 0.15 * direction));
+    } else {
+      const bounce = Math.max(0, Math.sin(TAU * (time - i * 0.16 * direction)));
+      height += 5 * bounce;
+      lift = 7 * bounce;
+      dx = sway * 0.5;
+    }
+    height = clamp(height, 30, 94);
+    P(B[i], height, sit(height) - lift, 1, i === 2 ? 1 : 0, dx);
+    if (i === 2) B[i].ar = [31, 212, 179];
+  }
+}
 function pointAt(cx, cy, th, k, s) {
   const t = th * DEG;
   if (Math.abs(k) < 1e-5) return [cx + s * Math.cos(t), cy + s * Math.sin(t)];
@@ -361,11 +392,11 @@ export function morphSegment(from, tgt, plan, i, t, out) {
 const tint = (s, acc) => { const a = s.ar || acc; return [lerp(EYE[0], a[0], s.c), lerp(EYE[1], a[1], s.c), lerp(EYE[2], a[2], s.c)]; };
 
 /** Pure sampler: the 4 shapes of `stateId` at loop phase u (0..1) — no DOM. */
-export function poseAt(stateId, u, accent = DEFAULT_ACCENT) {
+export function poseAt(stateId, u, accent = DEFAULT_ACCENT, identity = "") {
   const def = STATES[stateId];
   if (!def) throw new Error("Unknown avatar state: " + stateId);
   const B = newSegs();
-  runState(def, wrap(u), B);
+  runState(def, wrap(u), B, identity);
   const acc = SEMANTIC[stateId] || parseColor(accent, parseColor(DEFAULT_ACCENT));
   return B.map((s) => { const c = tint(s, acc); return { cx: s.cx, cy: s.cy, L: s.L, th: s.th, k: s.k, w: s.w, o: s.o, r: c[0], g: c[1], b: c[2] }; });
 }
@@ -373,15 +404,40 @@ export const PARTICLES = N;
 export const loopSeconds = (stateId, speed = 1) => (BASE_SECONDS * STATES[stateId].k) / speed;
 export const MORPH = Object.freeze({ seconds: MORPH_SECONDS, delay: MORPH_DELAY });
 
-/** Deterministic lively idle look, including a complete turn during each seven-second cycle. */
-export function idleAvatarPose(seconds) {
+/** Stable visual personality from the agent's ID, independent of its name or saved colour. */
+export function avatarPersonality(identity = "") {
+  if (!identity) return Object.freeze({
+    phase: 0, direction: 1, tempo: 1, cycleSeconds: 7, spinSeconds: 1.2, pattern: 0,
+    gazeXFrequency: 0.58, gazeYFrequency: 0.31, gazeXAmplitude: 0.85, gazeYAmplitude: 0.22,
+  });
+  let hash = 2166136261;
+  for (let i = 0; i < identity.length; i++) hash = Math.imul(hash ^ identity.charCodeAt(i), 16777619) >>> 0;
+  const direction = hash & 1 ? -1 : 1, pattern = (hash >>> 8) % 4;
+  let seed = hash;
+  const sample = () => {
+    seed = (seed + 0x6d2b79f5) >>> 0;
+    let value = Math.imul(seed ^ (seed >>> 15), seed | 1);
+    value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
+    return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
+  };
+  return Object.freeze({
+    phase: sample(), direction, tempo: 0.78 + sample() * 0.5,
+    cycleSeconds: 5.8 + sample() * 4.4, spinSeconds: 1.05 + sample() * 0.4, pattern,
+    gazeXFrequency: 0.38 + sample() * 0.46, gazeYFrequency: 0.2 + sample() * 0.25,
+    gazeXAmplitude: 0.55 + sample() * 0.35, gazeYAmplitude: 0.13 + sample() * 0.17,
+  });
+}
+
+/** Agent-specific idle gaze and complete turns; every agent starts with its visor facing forward. */
+export function idleAvatarPose(seconds, identity = "") {
   const time = Number.isFinite(seconds) ? Math.max(0, seconds) : 0;
-  const cycle = time % 7, spin = clamp((cycle - 5.8) / 1.2);
-  const focus = 1 - Math.sin(Math.PI * spin);
+  const profile = avatarPersonality(identity), cycle = time % profile.cycleSeconds;
+  const start = profile.cycleSeconds - profile.spinSeconds, spin = clamp((cycle - start) / profile.spinSeconds);
+  const focus = 1 - Math.sin(Math.PI * spin), phase = profile.phase * TAU;
   return {
-    gazeX: Math.sin(time * TAU * 0.58) * 0.85 * focus,
-    gazeY: Math.sin(time * TAU * 0.31) * 0.22 * focus,
-    yaw: cycle < 5.8 ? 0 : TAU * inOut(spin),
+    gazeX: Math.sin(time * TAU * profile.gazeXFrequency + phase) * profile.gazeXAmplitude * focus * profile.direction,
+    gazeY: Math.sin(time * TAU * profile.gazeYFrequency + phase * 0.7) * profile.gazeYAmplitude * focus,
+    yaw: cycle < start ? 0 : TAU * inOut(spin) * profile.direction,
   };
 }
 
@@ -460,9 +516,13 @@ function bindPointer() {
 }
 
 /* ───────────────────────────── controller ───────────────────────────── */
+let avatarInstances = 0;
 class Avatar {
   constructor(root, o) {
     this.root = root;
+    this.fallbackIdentity = "avatar-instance-" + ++avatarInstances;
+    this.identity = o.identity || this.fallbackIdentity;
+    this.personality = avatarPersonality(this.identity);
     const sorted = (sel, key) => Array.from(root.querySelectorAll(sel)).sort((a, b) => a.dataset[key] - b.dataset[key]);
     this.els = sorted("[data-mta-bar]", "mtaBar");
     if (this.els.length !== N) throw new Error("TradingAvatar: expected " + N + " [data-mta-bar] elements");
@@ -488,7 +548,7 @@ class Avatar {
     };
     document.addEventListener("visibilitychange", this._onVisibility);
     this.g = { x: 0, y: 0, vx: 0, vy: 0 }; this.pk = 0; this.pv = 0;
-    this.seed = Math.random() * 100; this.rect = null; this.rectAge = 0;
+    this.seed = this.personality.phase * 100; this.rect = null; this.rectAge = 0;
     this.mq = typeof matchMedia === "function" ? matchMedia("(prefers-reduced-motion: reduce)") : null;
     this._onMq = () => this._refresh();
     if (this.mq && this.mq.addEventListener) this.mq.addEventListener("change", this._onMq);
@@ -508,7 +568,7 @@ class Avatar {
     this.idleTime = 0; this.spinTime = null; this.yaw = 0;
     this.fl0 = this.fl; this.flT = this.def.fluid === undefined ? 1 : this.def.fluid;
     this.u = this.reduced ? this.def.poster : 0;
-    runState(this.def, this.u, this.tgt);
+    runState(this.def, this.u, this.tgt, this.identity);
     if (instant || this.reduced) { this.snap = null; this.bt = MORPH_SECONDS; this.plan = ID_PLAN(); this.fl = this.flT; }
     else {
       this.snap = this.shown.map((s) => Object.assign({}, s));
@@ -519,7 +579,7 @@ class Avatar {
     this._refresh(true);
   }
   _compose() {
-    runState(this.def, this.u, this.tgt);
+    runState(this.def, this.u, this.tgt, this.identity);
     const acc = SEMANTIC[this.id] || this.accent, morphing = this.snap && this.bt < MORPH_SECONDS;
     for (let i = 0; i < N; i++) {
       const o = this.shown[i], t = this.tgt[this.plan.perm[i]];
@@ -557,17 +617,22 @@ class Avatar {
     if (this.barsG) { const bt = "translate(" + fmt(gx * 6) + " " + fmt(gy * 4) + ")"; if (this.cg.b !== bt) { this.cg.b = bt; this.barsG.setAttribute("transform", bt); } }
     if (this.glossG) { const gt = "translate(" + fmt(-gx * 12 - this.pk * 4) + " " + fmt(-gy * 9) + ")"; if (this.cg.g !== gt) { this.cg.g = gt; this.glossG.setAttribute("transform", gt); } }
   }
+  _pointerNear() {
+    const r = this.root.getBoundingClientRect(), margin = Math.min(36, r.width * 0.4);
+    this.rect = r;
+    return ptr.x >= r.left - margin && ptr.x <= r.right + margin && ptr.y >= r.top - margin && ptr.y <= r.bottom + margin;
+  }
   _gaze(dt) {
     let tx = 0, ty = 0;
     const sg = this.def.gaze ? this.def.gaze(this.u) : null, now = performance.now();
     if (this.look === "off") { /* centred */ }
     else if (sg) { tx = sg[0]; ty = sg[1]; }
-    else if (this.look === "pointer" && now - ptr.t < 3500) {
+    else if (this.look === "pointer" && now - ptr.t < 1600 && this._pointerNear()) {
       if (!this.rect || this.rectAge++ % 30 === 0) this.rect = this.root.getBoundingClientRect();
       const r = this.rect, span = Math.max(r.width * 1.1, 120);
       tx = clamp((ptr.x - (r.left + r.width / 2)) / span, -1, 1); ty = clamp((ptr.y - (r.top + r.height / 2)) / span, -1, 1) * 0.8;
     } else if (this.id === "waiting") {
-      const idle = idleAvatarPose(this.idleTime);
+      const idle = idleAvatarPose(this.idleTime, this.identity);
       tx = idle.gazeX; ty = idle.gazeY;
     } else {
       const t = now / 1000 + this.seed;
@@ -580,14 +645,14 @@ class Avatar {
   _step(dt) {
     if (!this.visible) { live.delete(this); return; }
     if (!this.paused) {
-      this.u = wrap(this.u + (dt * this.speed) / (BASE_SECONDS * this.def.k));
+      this.u = wrap(this.u + (dt * this.speed * (this.id === "waiting" ? this.personality.tempo : 1)) / (BASE_SECONDS * this.def.k));
       if (this.id === "waiting") {
         this.idleTime += dt * this.speed;
         if (this.spinTime !== null) {
           this.spinTime += dt * this.speed;
-          this.yaw = TAU * inOut(clamp(this.spinTime / 1.2));
-          if (this.spinTime >= 1.2) { this.spinTime = null; this.idleTime = 0; this.yaw = 0; }
-        } else this.yaw = idleAvatarPose(this.idleTime).yaw;
+          this.yaw = TAU * inOut(clamp(this.spinTime / this.personality.spinSeconds)) * this.personality.direction;
+          if (this.spinTime >= this.personality.spinSeconds) { this.spinTime = null; this.idleTime = 0; this.yaw = 0; }
+        } else this.yaw = idleAvatarPose(this.idleTime, this.identity).yaw;
       }
       this._gaze(dt);
     }
@@ -604,6 +669,12 @@ class Avatar {
     if (this.reduced) { live.delete(this); this.bt = MORPH_SECONDS; this.snap = null; this.g.x = this.g.y = 0; this.yaw = 0; this.u = this.def.poster; this._compose(); return; }
     if (force) this._compose();
     if (this.visible && (!this.paused || this.bt < MORPH_SECONDS)) wake(this);
+  }
+  setIdentity(identity) {
+    const next = identity || this.fallbackIdentity;
+    if (next === this.identity) return;
+    this.identity = next; this.personality = avatarPersonality(next); this.seed = this.personality.phase * 100;
+    if (this.id === "waiting") this._setState(this.id, false);
   }
   setState(id) { if (id !== this.id) this._setState(id, false); }
   setSpeed(v) { this.speed = clamp(Number.isFinite(v) ? v : 1, 0.25, 4); }
@@ -638,7 +709,7 @@ class Avatar {
 export function mount(root, options = {}) {
   const a = new Avatar(root, options);
   return {
-    setState: (id) => a.setState(id), setSpeed: (v) => a.setSpeed(v), setPaused: (p) => a.setPaused(p),
+    setIdentity: (identity) => a.setIdentity(identity), setState: (id) => a.setState(id), setSpeed: (v) => a.setSpeed(v), setPaused: (p) => a.setPaused(p),
     setAccent: (c) => a.setAccent(c), setLook: (m) => a.setLook(m), poke: () => a.poke(),
     seek: (u, gx, gy) => a.seek(u, gx, gy), scrubMorph: (id, t) => a.scrubMorph(id, t), getState: () => a.id, destroy: () => a.destroy(),
   };

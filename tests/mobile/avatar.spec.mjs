@@ -40,6 +40,8 @@ test("Expo chat renders interactive idle capsules for saved shape profiles", asy
   const headers = { "X-CSRF-Token": (await (await loggingIn).json()).csrf };
   const broker = await brokerFixture(context, headers);
   let agent;
+  let secondAgent;
+  let group;
   try {
     const created = await context.request.post("/api/agents", {
       headers,
@@ -90,8 +92,55 @@ test("Expo chat renders interactive idle capsules for saved shape profiles", asy
       .toBe(0);
     await expect.poll(async () => Number(await turn.getAttribute("opacity"))).toBeGreaterThan(0.9);
     await page.screenshot({ path: ".runtime/liquid-lonora-mobile.png", fullPage: true });
+    const secondCreated = await context.request.post("/api/agents", {
+      headers,
+      data: { name: agent.name, avatar: "organic", color: agent.color, ...broker.binding },
+    });
+    expect(secondCreated.status()).toBe(201);
+    secondAgent = await secondCreated.json();
+    const grouped = await context.request.post("/api/groups/create", {
+      headers,
+      data: {
+        name: `Independent motion ${randomUUID()}`,
+        member_ids: [agent.id, secondAgent.id],
+        participation: "mentions_or_lead",
+      },
+    });
+    expect(grouped.ok()).toBeTruthy();
+    group = await grouped.json();
+    await page.goto(`/thread?id=${group.thread_id}`);
+    for (const id of [agent.id, secondAgent.id]) {
+      await expect(
+        page.locator(`[data-testid="trading-avatar"][id$="-motion-${id}"]`),
+      ).toBeVisible();
+    }
+    // Same names and simultaneous mounting still produce different faces and internal signals.
+    await expect
+      .poll(() =>
+        page.evaluate(
+          ([firstId, secondId]) => {
+            const frames = [firstId, secondId].map((id) => {
+              const root = document.querySelector(
+                `[data-testid="trading-avatar"][id$="-motion-${id}"]`,
+              );
+              return {
+                face: root.querySelector('g[id$="turn"] > g')?.getAttribute("transform"),
+                signals: [...root.querySelectorAll("path")]
+                  .map((path) => path.getAttribute("d"))
+                  .join("|"),
+              };
+            });
+            return frames[0].face !== frames[1].face && frames[0].signals !== frames[1].signals;
+          },
+          [agent.id, secondAgent.id],
+        ),
+      )
+      .toBe(true);
+    await page.screenshot({ path: ".runtime/individual-avatar-mobile.png", fullPage: true });
     expect(errors).toEqual([]);
   } finally {
+    if (group) await context.request.delete(`/api/groups/${group.id}`, { headers });
+    if (secondAgent) await context.request.delete(`/api/agents/${secondAgent.id}`, { headers });
     if (agent) await context.request.delete(`/api/agents/${agent.id}`, { headers });
     await broker.close();
   }

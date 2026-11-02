@@ -7,6 +7,7 @@ import "./avatar.css";
 /** Retains saved identity/colour and the verified Super Bot marker across existing surfaces. */
 export const AgentAvatar = memo(function AgentAvatar({
   name,
+  identity,
   color = "#7c83fd",
   shape = "orb",
   working = false,
@@ -17,6 +18,7 @@ export const AgentAvatar = memo(function AgentAvatar({
   className,
 }: {
   name: string;
+  identity?: string;
   color?: string;
   shape?: string;
   working?: boolean;
@@ -37,6 +39,7 @@ export const AgentAvatar = memo(function AgentAvatar({
       aria-label={superBot ? superBotLabel : undefined}
     >
       <TradingAvatar
+        identity={identity || name}
         state={state ?? avatarState({ working })}
         primaryColor={resolveAvatarColor(name, color).hex}
         size="100%"

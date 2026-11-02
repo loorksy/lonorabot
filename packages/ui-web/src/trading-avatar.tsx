@@ -10,6 +10,8 @@ export const TRADING_AVATAR_STATES = STATE_IDS;
 
 export interface TradingAvatarProps extends Omit<HTMLAttributes<HTMLSpanElement>, "children"> {
   state?: TradingAvatarState;
+  /** Stable bot ID determines its individual idle motion. */
+  identity?: string;
   /** Diameter of the sphere, e.g. 72, "8rem", "100%". */
   size?: number | string;
   /** 1 = normal, 2 = twice as fast (clamped to 0.25 … 4). */
@@ -38,6 +40,7 @@ const strokeProps = {
 
 export function TradingAvatar({
   state = "waiting",
+  identity,
   size = 160,
   speed = 1,
   paused = false,
@@ -56,6 +59,7 @@ export function TradingAvatar({
   const ctl = useRef<AvatarController | null>(null);
   const currentOptions = useEffectEvent(() => ({
     state,
+    identity: identity || uid,
     speed,
     paused,
     accent: accentColor,
@@ -71,12 +75,13 @@ export function TradingAvatar({
     };
   }, [interactive]);
   useEffect(() => {
+    ctl.current?.setIdentity(identity || uid);
     ctl.current?.setState(state);
     ctl.current?.setSpeed(speed);
     ctl.current?.setPaused(paused);
     ctl.current?.setAccent(accentColor);
     ctl.current?.setLook(look);
-  }, [state, speed, paused, accentColor, look]);
+  }, [state, identity, uid, speed, paused, accentColor, look]);
 
   const dimension = typeof size === "number" ? `${size}px` : size;
   const cssVars = {
@@ -90,6 +95,7 @@ export function TradingAvatar({
     <span
       ref={rootRef}
       className={`mta-avatar ${className}`.trim()}
+      data-avatar-identity={identity || uid}
       data-state={state}
       data-paused={paused ? "true" : "false"}
       style={cssVars}

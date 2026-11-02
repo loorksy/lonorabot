@@ -317,7 +317,7 @@ export default function Inbox() {
                     avatar={
                       <BotAvatar
                         superBot={agent.super_bot_active}
-                        identity={agent.name}
+                        identity={agent.id}
                         color={agent.color}
                         variant={agent.avatar}
                         working={activeStatuses.includes(run.status)}
@@ -388,7 +388,7 @@ export default function Inbox() {
                   />
                 ) : (
                   <BotAvatar
-                    identity={agent?.name}
+                    identity={agent?.id}
                     color={agent?.color ?? "#85858A"}
                     variant={agent?.avatar}
                     working={Boolean(run)}

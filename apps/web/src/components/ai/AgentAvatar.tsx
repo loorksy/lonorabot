@@ -13,6 +13,7 @@ export function AgentAvatar({
 }) {
   return (
     <Avatar
+      identity={agent.id}
       name={agent.name}
       color={agent.color}
       shape={agent.avatar}

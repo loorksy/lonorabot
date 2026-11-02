@@ -2,6 +2,7 @@ import {
   AvatarMotion,
   type AvatarStateId,
   avatarBarPath,
+  avatarPersonality,
   avatarState,
   avatarTurn,
   faceTransform,
@@ -10,7 +11,7 @@ import {
   idleAvatarPose,
   resolveAvatarColor,
 } from "@lonora/core";
-import { memo, useEffect, useId, useRef, useState } from "react";
+import { memo, useEffect, useId, useMemo, useRef, useState } from "react";
 import { AppState, View } from "react-native";
 import { useReducedMotion } from "react-native-reanimated";
 import Svg, {
@@ -51,8 +52,10 @@ export const BotAvatar = memo(function BotAvatar({
 }) {
   const { t } = useSession();
   const id = `mta${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
+  const motionIdentity = identity || id;
+  const profile = useMemo(() => avatarPersonality(motionIdentity), [motionIdentity]);
   const visualState = state ?? avatarState({ working });
-  const [sampler] = useState(() => new AvatarMotion(visualState));
+  const [sampler] = useState(() => new AvatarMotion(visualState, motionIdentity));
   const motion = useRef(sampler);
   const [bars, setBars] = useState(() => motion.current.frame(0));
   const reduced = useReducedMotion();
@@ -72,6 +75,7 @@ export const BotAvatar = memo(function BotAvatar({
     return () => listener.remove();
   }, []);
   useEffect(() => {
+    motion.current.setIdentity(motionIdentity);
     motion.current.setState(visualState);
     idleEpoch.current = elapsed.current;
     tapSpin.current = null;
@@ -86,12 +90,12 @@ export const BotAvatar = memo(function BotAvatar({
         setBars(motion.current.frame(dt));
         const idle =
           visualState === "waiting"
-            ? idleAvatarPose(elapsed.current - idleEpoch.current)
+            ? idleAvatarPose(elapsed.current - idleEpoch.current, motionIdentity)
             : { gazeX: Math.sin(now / 2400) * 0.4, gazeY: 0, yaw: 0 };
         let yaw = idle.yaw;
         if (visualState === "waiting" && tapSpin.current !== null) {
-          const progress = Math.min(1, (elapsed.current - tapSpin.current) / 1.2);
-          yaw = Math.PI * 2 * (progress * progress * (3 - 2 * progress));
+          const progress = Math.min(1, (elapsed.current - tapSpin.current) / profile.spinSeconds);
+          yaw = profile.direction * Math.PI * 2 * (progress * progress * (3 - 2 * progress));
           if (progress >= 1) {
             tapSpin.current = null;
             // Start the next idle cycle facing forward after a manually requested turn.
@@ -111,7 +115,7 @@ export const BotAvatar = memo(function BotAvatar({
     };
     frame = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(frame);
-  }, [visualState, reduced, foreground]);
+  }, [visualState, reduced, foreground, motionIdentity, profile]);
   const aim = (event: {
     nativeEvent: { locationX?: number; locationY?: number; offsetX?: number; offsetY?: number };
   }) => {
@@ -145,6 +149,7 @@ export const BotAvatar = memo(function BotAvatar({
   return (
     <View
       testID="trading-avatar"
+      nativeID={`${id}-motion-${motionIdentity}`}
       style={{ width: size, height: size }}
       onTouchStart={react}
       onTouchMove={aim}

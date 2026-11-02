@@ -124,7 +124,7 @@ export function ThreadComposer({
               })}
             >
               <BotAvatar
-                identity={agent?.name ?? "all"}
+                identity={agent?.id ?? "all"}
                 color={agent?.color ?? colors.accent}
                 variant={agent?.avatar}
                 size={24}

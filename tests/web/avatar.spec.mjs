@@ -30,6 +30,7 @@ test("idle avatars use smooth signal capsules for every saved shape profile", as
   const headers = { "X-CSRF-Token": (await login.json()).csrf };
   const broker = await brokerFixture(context, headers);
   const ids = [];
+  const sharedName = `Motion Bot ${randomUUID()}`;
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   try {
@@ -38,7 +39,7 @@ test("idle avatars use smooth signal capsules for every saved shape profile", as
       const response = await context.request.post("/api/agents", {
         headers,
         data: {
-          name: `Liquid ${avatar} ${randomUUID()}`,
+          name: sharedName,
           avatar,
           color: "#818cf8",
           ...broker.binding,
@@ -73,6 +74,24 @@ test("idle avatars use smooth signal capsules for every saved shape profile", as
       expect(box.width).toBeGreaterThan(20);
       expect(Math.abs(box.width - box.height)).toBeLessThan(1);
     }
+    // Same-name bots mounted together retain different deterministic motion profiles.
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.goto("/app");
+    const signatures = [];
+    for (const id of ids) {
+      const avatar = page.locator(`[data-inbox-agent-id="${id}"] .mta-avatar`);
+      await expect(avatar).toBeVisible();
+      await expect(avatar).toHaveAttribute("data-avatar-identity", id);
+      signatures.push(
+        await avatar
+          .locator("[data-mta-bar]")
+          .evaluateAll((paths) => paths.map((path) => path.getAttribute("d")).join("|")),
+      );
+    }
+    expect(new Set(signatures).size).toBe(ids.length);
+    await page.screenshot({ path: ".runtime/individual-avatar-inbox.png", fullPage: true });
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await page.goto(`/app/${ids.at(-1)}`);
     await page.setViewportSize({ width: 390, height: 844 });
     await page.emulateMedia({ reducedMotion: "reduce" });
     await expect(page.locator(".tpl-chat-identity .mta-avatar")).toBeVisible();
