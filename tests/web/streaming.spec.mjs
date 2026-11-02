@@ -25,12 +25,15 @@ test("header and turn avatars follow actual work while status reads are unavaila
   expect(login.ok()).toBeTruthy();
   try {
     await page.goto(`/app/${data.agents[0]}?thread=${data.source_thread}`);
-    const avatar = page.locator(".tpl-chat-header .mta-avatar");
+    const avatar = page.locator(".tpl-chat-header .lonora-cat-avatar");
+    const status = page.locator(`[data-turn-run-id='${data.parent.id}']`);
     await expect(avatar).toHaveAttribute("data-state", "thinking");
     await page.route("**/api/runs**", (route) => route.abort());
     const observe = async (kind, payload, state) => {
       fixture({ ...data, action: "peer_activity", kind, payload });
       await expect(avatar).toHaveAttribute("data-state", state);
+      await expect(status).toHaveAttribute("data-activity-phase", state);
+      await expect(status.getByRole("status")).toBeVisible();
     };
     await observe("tool.started", { call_id: "lookup", name: "web_search" }, "searching");
     await observe("tool.completed", { call_id: "lookup", name: "web_search" }, "thinking");

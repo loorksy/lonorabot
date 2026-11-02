@@ -1,0 +1,130 @@
+/* Presentation follows observed activity; it never schedules or delays replies. */
+.lonora-turn-signal {
+  --activity-color: var(--foreground);
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 62px;
+  max-width: 100%;
+  padding: 9px 14px 9px 10px;
+  border: 1px solid color-mix(in srgb, var(--activity-color) 15%, var(--border));
+  border-radius: 20px;
+  background: color-mix(in srgb, var(--activity-color) 4%, var(--background));
+  color: var(--foreground);
+  text-align: start;
+}
+.lonora-turn-signal[data-tone="attention"] {
+  --activity-color: var(--warning);
+}
+.lonora-turn-signal[data-tone="error"] {
+  --activity-color: var(--destructive);
+}
+.lonora-turn-signal[data-tone="success"] {
+  --activity-color: var(--success);
+}
+.lonora-turn-signal[data-tone="quiet"] {
+  --activity-color: var(--muted-foreground);
+}
+.lonora-turn-label {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+.lonora-turn-name {
+  color: var(--muted-foreground);
+  font-size: 11px;
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lonora-turn-phase {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.5;
+}
+.lonora-turn-phase bdi {
+  overflow-wrap: anywhere;
+}
+.lonora-status-dot {
+  display: inline-block;
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--activity-color, currentColor);
+}
+.lonora-turn-signal[data-active="true"] .lonora-status-dot {
+  animation: lonora-status-breathe 1.7s ease-in-out infinite;
+}
+.lonora-turn-expand {
+  flex: none;
+  margin-inline-start: 6px;
+  color: var(--muted-foreground);
+}
+.lonora-status-expand {
+  flex: none;
+  margin-inline-start: 4px;
+}
+.template-turn-activity[open] .lonora-turn-expand,
+.lonora-background-status[open] .lonora-status-expand {
+  transform: rotate(180deg);
+}
+.template-turn-activity summary:focus-visible,
+.lonora-background-status summary:focus-visible {
+  outline: 2px solid var(--foreground);
+  outline-offset: 4px;
+  border-radius: 20px;
+}
+.template-run-status.lonora-background-status {
+  --activity-color: var(--muted-foreground);
+  display: block;
+  flex-shrink: 0;
+  min-width: 0;
+  margin-block: 4px;
+  padding-inline: 16px;
+  color: var(--muted-foreground);
+}
+.lonora-background-status[data-state="action_required"],
+.lonora-background-status[data-state="degraded"] {
+  --activity-color: var(--warning);
+}
+.lonora-background-status[data-state="working"] {
+  --activity-color: var(--foreground);
+}
+.lonora-background-status > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 5px 10px;
+  border: 1px solid color-mix(in srgb, var(--activity-color) 14%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--activity-color) 4%, transparent);
+  font-size: 11px;
+  line-height: 1.5;
+  list-style: none;
+  cursor: pointer;
+}
+.lonora-background-status > summary::-webkit-details-marker {
+  display: none;
+}
+@keyframes lonora-status-breathe {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lonora-turn-signal[data-active="true"] .lonora-status-dot {
+    animation: none;
+  }
+}

@@ -124,15 +124,7 @@ export default function BotSettings() {
           contentContainerStyle={{ padding: 20, gap: 22 }}
           keyboardShouldPersistTaps="handled"
         >
-          <AvatarPicker
-            name={agent.name}
-            color={agent.color}
-            avatar={agent.avatar}
-            onChange={(avatar, color) => {
-              setAgent({ ...agent, avatar, color });
-              setSaved(false);
-            }}
-          />
+          <AvatarPicker name={agent.name} color={agent.color} avatar={agent.avatar} />
           <View
             style={{ flexDirection: rtl ? "row-reverse" : "row", alignItems: "center", gap: 6 }}
           >

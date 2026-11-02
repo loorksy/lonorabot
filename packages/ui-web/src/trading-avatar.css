@@ -1,40 +1,39 @@
-/* Trading Avatar — static styles only (v2).
-   All motion is driven by trading-avatar-motion.js, which animates the four
-   signal bars *inside* the circle. Nothing here (or there) draws outside it. */
-.mta-avatar {
-  --mta-primary: #7776ee; /* circle colour */
-  --mta-face: #0d0d11; /* dark pill behind the signals */
-  width: 100%;
-  height: 100%;
-  aspect-ratio: 1;
+/* Original matte cat shell with 20 live signal states, shared with native. */
+.lonora-cat-avatar {
   display: inline-flex;
+  flex: none;
+  aspect-ratio: 1;
   align-items: center;
   justify-content: center;
-  flex: none;
   isolation: isolate;
-  border-radius: 50%;
+  user-select: none;
 }
-.mta-avatar *,
-.mta-avatar *::before,
-.mta-avatar *::after {
-  box-sizing: border-box;
-}
-.mta-avatar .mta-svg {
+.lonora-cat-avatar svg {
   width: 100%;
   height: 100%;
   display: block;
-  overflow: hidden;
+  overflow: visible;
 }
-.mta-avatar .mta-shell {
-  fill: var(--mta-primary);
+.lonora-cat-avatar path {
+  stroke: #eae3df;
 }
-.mta-avatar .mta-face {
-  fill: var(--mta-face);
+.lonora-cat-day {
+  display: none;
 }
-/* resting look of a signal (first paint / SSR); the engine takes over via inline style */
-.mta-avatar .mta-bar {
-  fill: none;
-  stroke: #f8f8fb;
-  stroke-linecap: round;
-  stroke-linejoin: round;
+[data-theme="light"] .lonora-cat-night {
+  display: none;
+}
+[data-theme="light"] .lonora-cat-day {
+  display: block;
+}
+[data-theme="light"] .lonora-cat-avatar path {
+  stroke: #323133;
+}
+.lonora-cat-avatar[data-interactive="true"]:active > svg {
+  transform: scale(0.96);
+}
+@media (prefers-reduced-motion: reduce) {
+  .lonora-cat-avatar[data-interactive="true"]:active > svg {
+    transform: none;
+  }
 }

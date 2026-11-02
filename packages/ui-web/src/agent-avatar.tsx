@@ -1,13 +1,13 @@
-import { type AvatarStateId, avatarState, resolveAvatarColor } from "@lonora/core";
+import { type AvatarStateId, avatarState } from "@lonora/core";
 import { memo } from "react";
 import { cn } from "./lib/utils";
 import { TradingAvatar } from "./trading-avatar";
 import "./avatar.css";
 
-/** Retains saved identity/colour and the verified Super Bot marker across existing surfaces. */
+/** Common cat appearance for saved identities, preserving the verified Super Bot marker. */
 export const AgentAvatar = memo(function AgentAvatar({
   name,
-  color = "#7c83fd",
+  color: _color,
   shape = "orb",
   working = false,
   state,
@@ -38,7 +38,7 @@ export const AgentAvatar = memo(function AgentAvatar({
     >
       <TradingAvatar
         state={state ?? avatarState({ working })}
-        primaryColor={resolveAvatarColor(name, color).hex}
+        label={name}
         size="100%"
         quality={quality}
         aria-hidden="true"

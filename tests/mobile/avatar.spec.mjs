@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
 import { brokerFixture } from "../web/broker-fixture.mjs";
 
-test("Expo chat renders the native candle avatar for saved shape profiles", async ({
+test("Expo chat and settings use the supplied cat for existing shape profiles", async ({
   page,
   context,
 }) => {
@@ -44,7 +44,7 @@ test("Expo chat renders the native candle avatar for saved shape profiles", asyn
     const created = await context.request.post("/api/agents", {
       headers,
       data: {
-        name: `Native candle ${randomUUID()}`,
+        name: `Native cat ${randomUUID()}`,
         avatar: "organic",
         color: "#818cf8",
         ...broker.binding,
@@ -61,9 +61,29 @@ test("Expo chat renders the native candle avatar for saved shape profiles", asyn
     await page.goto(`/thread?id=${thread.id}`);
     const avatar = page.getByTestId("trading-avatar").first();
     await expect(avatar).toBeVisible();
-    await expect(avatar.locator("svg").first()).toHaveAttribute("viewBox", "22 22 356 356");
+    await expect(avatar.locator("svg").first()).toHaveAttribute("viewBox", "0 0 400 400");
     await expect(avatar.locator("path")).toHaveCount(8);
-    await page.screenshot({ path: ".runtime/liquid-lonora-mobile.png", fullPage: true });
+    await expect(avatar.locator("image")).toHaveAttribute("href", /^data:image\/png;base64,/);
+    await expect(avatar.locator("circle")).toHaveCount(0);
+    await page.screenshot({ path: ".runtime/cat-lonora-mobile.png", fullPage: true });
+
+    // Gallery interactions preview the artwork without changing a saved agent or real work.
+    await page.goto(`/bot-settings?botId=${agent.id}`);
+    await page.getByRole("button", { name: "الشكل · معاينة", exact: true }).click();
+    await expect(page.getByRole("radio")).toHaveCount(0);
+    const thinking = page.getByRole("button", { name: "يفكر", exact: true });
+    await thinking.click();
+    const preview = page.getByTestId("trading-avatar").last();
+    const before = await preview.locator("path").first().getAttribute("d");
+    await expect.poll(() => preview.locator("path").first().getAttribute("d")).not.toBe(before);
+    const writing = page.getByRole("button", { name: "يكتب الرد", exact: true });
+    await writing.click();
+    const saved = (await (await context.request.get("/api/agents")).json()).find(
+      (row) => row.id === agent.id,
+    );
+    expect(saved.avatar).toBe("organic");
+    expect(saved.color).toBe("#818cf8");
+    await page.screenshot({ path: ".runtime/cat-lonora-mobile-preview.png", fullPage: true });
     expect(errors).toEqual([]);
   } finally {
     if (agent) await context.request.delete(`/api/agents/${agent.id}`, { headers });

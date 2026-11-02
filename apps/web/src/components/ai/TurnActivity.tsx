@@ -1,9 +1,10 @@
 import { t } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { type ActivityPhase, isWorking, turnActivity } from "@lonora/core";
+import { ChevronDown } from "lucide-react";
 import type { Agent, Event, Run } from "../../lib/api";
 import { AgentAvatar } from "./AgentAvatar";
-import { LoadingState } from "./primitives";
+import "./agent-status.css";
 
 /** Compact, turn-scoped observations. Never model reasoning or guessed progress. */
 export function TurnActivity({
@@ -38,33 +39,44 @@ export function TurnActivity({
   };
   const active = isWorking(run.status);
   const reconnecting = active && !connected;
+  const attention = reconnecting || ["waiting_input", "waiting_external"].includes(activity.phase);
+  const tone =
+    activity.phase === "failed"
+      ? "error"
+      : attention
+        ? "attention"
+        : activity.phase === "completed"
+          ? "success"
+          : active
+            ? "active"
+            : "quiet";
   const label = reconnecting ? t`Reconnecting` : labels[activity.phase];
   const indicator = agent ? (
     <AgentAvatar
       agent={agent}
-      state={reconnecting ? "waiting" : activity.avatar}
+      state={reconnecting ? "connecting" : activity.avatar}
       working={active}
     />
   ) : undefined;
-  const title = (
-    <bdi>
-      {agent?.name ? `${agent.name} · ` : ""}
-      {label}
-    </bdi>
-  );
   const compact = (
     <span
+      className="lonora-turn-signal"
       data-progress-run-id={active ? run.id : undefined}
       data-turn-run-id={run.id}
       data-activity-phase={reconnecting ? "reconnecting" : activity.phase}
+      data-tone={tone}
+      data-active={active && !reconnecting}
     >
-      {active ? (
-        <LoadingState indicator={indicator} label={title} />
-      ) : (
-        <span role="status" className="lonora-loading-state">
-          {indicator}
-          {title}
+      {indicator}
+      <span className="lonora-turn-label" role="status" aria-live="polite" aria-atomic="true">
+        {agent?.name && <bdi className="lonora-turn-name">{agent.name}</bdi>}
+        <span className="lonora-turn-phase">
+          <i className="lonora-status-dot" aria-hidden="true" />
+          <bdi>{label}</bdi>
         </span>
+      </span>
+      {activity.calls.length > 0 && (
+        <ChevronDown className="lonora-turn-expand" size={16} aria-hidden="true" />
       )}
     </span>
   );
