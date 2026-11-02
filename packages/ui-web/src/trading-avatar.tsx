@@ -4,7 +4,7 @@ import "./trading-avatar.css";
 import type { AvatarController, AvatarStateId } from "@lonora/core";
 import { GEOMETRY, mount, REST_PATHS, REST_STROKES, REST_WIDTHS, STATE_IDS } from "@lonora/core";
 
-/** The 20 available states. The resting glyph is four trading candles; in each state one liquid mass takes the shape of the job's icon. */
+/** The 20 available states. The resting glyph is four rounded signal bars; in each state one liquid mass takes the shape of the job's icon. */
 export type TradingAvatarState = AvatarStateId;
 export const TRADING_AVATAR_STATES = STATE_IDS;
 
@@ -105,6 +105,9 @@ export function TradingAvatar({
         focusable="false"
       >
         <defs>
+          <clipPath id={`${uid}-shellclip`}>
+            <circle cx="200" cy="200" r="177" />
+          </clipPath>
           <clipPath id={`${uid}-clip`}>
             <rect {...pill} />
           </clipPath>
@@ -167,23 +170,27 @@ export function TradingAvatar({
         </defs>
         <circle className="mta-shell" cx="200" cy="200" r="177" />
         <circle cx="200" cy="200" r="177" fill={`url(#${uid}-shade)`} />
-        <g data-mta-face>
-          <rect className="mta-face" {...pill} />
-          <g clipPath={`url(#${uid}-clip)`}>
-            <g data-mta-bars>
-              <g filter={`url(#${uid}-goo)`}>
-                {REST_PATHS.map((d, i) => (
-                  <path
-                    // biome-ignore lint/suspicious/noArrayIndexKey: fixed particle slots never reorder.
-                    key={i}
-                    className="mta-bar"
-                    data-mta-bar={i}
-                    d={d}
-                    strokeWidth={REST_WIDTHS[i]}
-                    style={{ stroke: REST_STROKES[i] }}
-                    {...strokeProps}
-                  />
-                ))}
+        <g clipPath={`url(#${uid}-shellclip)`}>
+          <g data-mta-turn>
+            <g data-mta-face>
+              <rect className="mta-face" {...pill} />
+              <g clipPath={`url(#${uid}-clip)`}>
+                <g data-mta-bars>
+                  <g filter={`url(#${uid}-goo)`}>
+                    {REST_PATHS.map((d, i) => (
+                      <path
+                        // biome-ignore lint/suspicious/noArrayIndexKey: fixed particle slots never reorder.
+                        key={i}
+                        className="mta-bar"
+                        data-mta-bar={i}
+                        d={d}
+                        strokeWidth={REST_WIDTHS[i]}
+                        style={{ stroke: REST_STROKES[i] }}
+                        {...strokeProps}
+                      />
+                    ))}
+                  </g>
+                </g>
               </g>
             </g>
           </g>

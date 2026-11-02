@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
 import { brokerFixture } from "../web/broker-fixture.mjs";
 
-test("Expo chat renders the native candle avatar for saved shape profiles", async ({
+test("Expo chat renders interactive idle capsules for saved shape profiles", async ({
   page,
   context,
 }) => {
@@ -62,7 +62,33 @@ test("Expo chat renders the native candle avatar for saved shape profiles", asyn
     const avatar = page.getByTestId("trading-avatar").first();
     await expect(avatar).toBeVisible();
     await expect(avatar.locator("svg").first()).toHaveAttribute("viewBox", "22 22 356 356");
-    await expect(avatar.locator("path")).toHaveCount(8);
+    const paths = avatar.locator("path");
+    await expect(paths).toHaveCount(8);
+    // Four rounded capsules remain visible: no second wick per trading candle.
+    await expect
+      .poll(() =>
+        paths.evaluateAll(
+          (nodes) =>
+            nodes.filter(
+              (node) =>
+                Number(node.getAttribute("stroke-width")) > 1 &&
+                Number(node.getAttribute("opacity")) > 0.01,
+            ).length,
+        ),
+      )
+      .toBe(4);
+    await expect.poll(() => paths.nth(2).getAttribute("stroke")).toBe("rgb(31,212,179)");
+    const initialPath = await paths.first().getAttribute("d");
+    await expect.poll(() => paths.first().getAttribute("d")).not.toBe(initialPath);
+    const turn = avatar.locator('g[id$="turn"]');
+    const initialTurn = await turn.getAttribute("transform");
+    await avatar.dispatchEvent("pointerdown", { pointerType: "touch", clientX: 8, clientY: 8 });
+    await expect.poll(() => turn.getAttribute("transform")).not.toBe(initialTurn);
+    // A full turn occludes the visor on the back, then returns it to the front.
+    await expect
+      .poll(async () => Number(await turn.getAttribute("opacity")), { intervals: [30, 50, 75] })
+      .toBe(0);
+    await expect.poll(async () => Number(await turn.getAttribute("opacity"))).toBeGreaterThan(0.9);
     await page.screenshot({ path: ".runtime/liquid-lonora-mobile.png", fullPage: true });
     expect(errors).toEqual([]);
   } finally {

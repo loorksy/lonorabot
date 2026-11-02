@@ -1,5 +1,5 @@
 /*!
- * Trading Avatar — Liquid Candle Engine (v6)
+ * Trading Avatar — Interactive Signal Engine (v7)
  * ------------------------------------------------------------------
  * A glossy 3D sphere with a dark visor. Inside the visor live FOUR
  * "signals". Each signal is a stroked segment (position, length, angle,
@@ -103,11 +103,12 @@ const CELEBRATE = [[255, 209, 102], [102, 244, 178], [125, 211, 252], [255, 158,
 /* ───────────────────────────── the 20 states ───────────────────────────── */
 const sendX = (u) => u < 0.34 ? 56 * inCubic(u / 0.34) : u < 0.5 ? 56 + 120 * seg(u, 0.34, 0.5) : u < 0.56 ? -130 : -130 + 130 * outCubic(seg(u, 0.56, 0.88));
 const STATES = {
-  /* ── candle family: the resting brand glyph is four trading candles ── */
-  waiting: { k: 1.7, fluid: 0.15, poster: 0, fn(u, B) {
+  /* Four smooth, bottom-aligned capsules are the idle identity; no price wicks. */
+  waiting: { k: 0.72, fluid: 0.15, poster: 0, fn(u, B) {
     for (let i = 0; i < 4; i++) {
-      const p = u - i * 0.07, live = i === 3 ? 5 * Math.sin(TAU * p) : 1.5 * Math.sin(TAU * p);
-      candle(B, i, CO[i], CC[i] + live, CHI[i] + (i === 3 ? 5 * Math.sin(TAU * p) - 3 * Math.abs(Math.sin(TAU * p)) : live), CLO[i], 0.95 + 0.05 * Math.sin(TAU * (p + 0.25)));
+      const h = REST[i] + (i === 2 ? 4 : 2) * Math.sin(TAU * u);
+      P(B[i], h, sit(h), 1, i === 2 ? 1 : 0);
+      if (i === 2) B[i].ar = [31, 212, 179];
     }
   } },
   sleeping: { k: 2.6, fluid: 0.15, poster: 0.3, gaze: () => [0, 0.4], fn(u, B) {
@@ -372,6 +373,24 @@ export const PARTICLES = N;
 export const loopSeconds = (stateId, speed = 1) => (BASE_SECONDS * STATES[stateId].k) / speed;
 export const MORPH = Object.freeze({ seconds: MORPH_SECONDS, delay: MORPH_DELAY });
 
+/** Deterministic lively idle look, including a complete turn during each seven-second cycle. */
+export function idleAvatarPose(seconds) {
+  const time = Number.isFinite(seconds) ? Math.max(0, seconds) : 0;
+  const cycle = time % 7, spin = clamp((cycle - 5.8) / 1.2);
+  const focus = 1 - Math.sin(Math.PI * spin);
+  return {
+    gazeX: Math.sin(time * TAU * 0.58) * 0.85 * focus,
+    gazeY: Math.sin(time * TAU * 0.31) * 0.22 * focus,
+    yaw: cycle < 5.8 ? 0 : TAU * inOut(spin),
+  };
+}
+
+/** Spherical visor projection; the back stays hidden rather than showing mirrored eyes. */
+export function avatarTurn(yaw) {
+  const angle = Number.isFinite(yaw) ? yaw : 0, facing = Math.cos(angle);
+  return { tx: 125 * Math.sin(angle), scaleX: Math.max(0.001, facing), opacity: smooth(clamp((facing - 0.02) / 0.12)) };
+}
+
 /* ───────────────────────────── 3D face ───────────────────────────── */
 export function faceTransform(gx = 0, gy = 0, poke = 0) {
   const s = 1 - 0.07 * poke;
@@ -397,15 +416,15 @@ export function markup(uid, quality = "full") {
   const glow = quality === "flat" ? "" : `<feGaussianBlur in="g" stdDeviation="9" result="gl0"/><feColorMatrix in="gl0" type="matrix" values="1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 .5 0" result="gl"/>`;
   const merge = `<feMerge>${quality === "flat" ? "" : '<feMergeNode in="gl"/>'}<feMergeNode in="g"/>${quality === "full" ? '<feMergeNode in="sp2"/>' : ""}</feMerge>`;
   return `<svg class="mta-svg" viewBox="${GEOMETRY.viewBox}" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">` +
-    `<defs><clipPath id="${uid}-clip"><rect ${pill}/></clipPath>` +
+    `<defs><clipPath id="${uid}-shellclip"><circle cx="200" cy="200" r="177"/></clipPath><clipPath id="${uid}-clip"><rect ${pill}/></clipPath>` +
     `<radialGradient id="${uid}-shade" cx=".34" cy=".27" r=".95"><stop offset="0" stop-color="#fff" stop-opacity=".4"/><stop offset=".38" stop-color="#fff" stop-opacity="0"/><stop offset=".6" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".42"/></radialGradient>` +
     `<radialGradient id="${uid}-gloss" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#fff" stop-opacity=".5"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>` +
     `<filter id="${uid}-goo" filterUnits="userSpaceOnUse" x="${f.x}" y="${f.y}" width="${f.width}" height="${f.height}" color-interpolation-filters="sRGB">` +
     `<feGaussianBlur data-mta-goo in="SourceGraphic" stdDeviation="1.65" result="b"/><feColorMatrix in="b" type="matrix" values="1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 20 -9.5" result="g"/>` +
     glow + light + merge + `</filter></defs>` +
     `<circle class="mta-shell" cx="200" cy="200" r="177"/><circle cx="200" cy="200" r="177" fill="url(#${uid}-shade)"/>` +
-    `<g data-mta-face><rect class="mta-face" ${pill}/>` +
-    `<g clip-path="url(#${uid}-clip)"><g data-mta-bars><g filter="url(#${uid}-goo)">${bars}</g></g></g></g>` +
+    `<g clip-path="url(#${uid}-shellclip)"><g data-mta-turn><g data-mta-face><rect class="mta-face" ${pill}/>` +
+    `<g clip-path="url(#${uid}-clip)"><g data-mta-bars><g filter="url(#${uid}-goo)">${bars}</g></g></g></g></g></g>` +
     `<g data-mta-gloss><ellipse cx="150" cy="82" rx="86" ry="38" transform="rotate(-24 150 82)" fill="url(#${uid}-gloss)" opacity=".55"/></g></svg>`;
 }
 
@@ -413,6 +432,7 @@ export function markup(uid, quality = "full") {
 const live = new Set();
 let raf = 0, last = 0;
 function frame(now) {
+  if (now - last < 1000 / 30) { raf = live.size ? requestAnimationFrame(frame) : 0; return; }
   const dt = Math.min(0.05, Math.max(0, (now - last) / 1000));
   last = now;
   for (const a of live) a._step(dt);
@@ -446,6 +466,7 @@ class Avatar {
     const sorted = (sel, key) => Array.from(root.querySelectorAll(sel)).sort((a, b) => a.dataset[key] - b.dataset[key]);
     this.els = sorted("[data-mta-bar]", "mtaBar");
     if (this.els.length !== N) throw new Error("TradingAvatar: expected " + N + " [data-mta-bar] elements");
+    this.turnG = root.querySelector("[data-mta-turn]");
     this.faceG = root.querySelector("[data-mta-face]");
     this.barsG = root.querySelector("[data-mta-bars]");
     this.glossG = root.querySelector("[data-mta-gloss]");
@@ -484,6 +505,7 @@ class Avatar {
   _setState(id, instant) {
     if (!STATES[id]) return;
     this.id = id; this.def = STATES[id];
+    this.idleTime = 0; this.spinTime = null; this.yaw = 0;
     this.fl0 = this.fl; this.flT = this.def.fluid === undefined ? 1 : this.def.fluid;
     this.u = this.reduced ? this.def.poster : 0;
     runState(this.def, this.u, this.tgt);
@@ -511,6 +533,13 @@ class Avatar {
   }
   _paint() {
     const gx = this.g.x, gy = this.g.y;
+    if (this.turnG) {
+      const turn = avatarTurn(this.id === "waiting" ? this.yaw : 0);
+      const transform = "translate(" + fmt(200 + turn.tx) + " " + CY + ") scale(" + fmt(turn.scaleX) + " 1) translate(-200 " + -CY + ")";
+      if (this.cg.turn !== transform) { this.cg.turn = transform; this.turnG.setAttribute("transform", transform); }
+      if (this.cg.opacity !== turn.opacity) { this.cg.opacity = turn.opacity; this.turnG.setAttribute("opacity", String(turn.opacity)); }
+      this.turnG.setAttribute("data-yaw", String(fmt(this.id === "waiting" ? this.yaw : 0)));
+    }
     if (this.gooEl) { const sd = (1.2 + 3 * this.fl).toFixed(1); if (this.cg.sd !== sd) { this.cg.sd = sd; this.gooEl.setAttribute("stdDeviation", sd); } }
     for (let i = 0; i < N; i++) {
       const s = this.shown[i];
@@ -537,6 +566,9 @@ class Avatar {
       if (!this.rect || this.rectAge++ % 30 === 0) this.rect = this.root.getBoundingClientRect();
       const r = this.rect, span = Math.max(r.width * 1.1, 120);
       tx = clamp((ptr.x - (r.left + r.width / 2)) / span, -1, 1); ty = clamp((ptr.y - (r.top + r.height / 2)) / span, -1, 1) * 0.8;
+    } else if (this.id === "waiting") {
+      const idle = idleAvatarPose(this.idleTime);
+      tx = idle.gazeX; ty = idle.gazeY;
     } else {
       const t = now / 1000 + this.seed;
       tx = 0.8 * Math.sin(t * 0.42) * (0.65 + 0.35 * Math.sin(t * 0.13)); ty = 0.22 * Math.sin(t * 0.29 + 1.3);
@@ -547,7 +579,18 @@ class Avatar {
   }
   _step(dt) {
     if (!this.visible) { live.delete(this); return; }
-    if (!this.paused) { this.u = wrap(this.u + (dt * this.speed) / (BASE_SECONDS * this.def.k)); this._gaze(dt); }
+    if (!this.paused) {
+      this.u = wrap(this.u + (dt * this.speed) / (BASE_SECONDS * this.def.k));
+      if (this.id === "waiting") {
+        this.idleTime += dt * this.speed;
+        if (this.spinTime !== null) {
+          this.spinTime += dt * this.speed;
+          this.yaw = TAU * inOut(clamp(this.spinTime / 1.2));
+          if (this.spinTime >= 1.2) { this.spinTime = null; this.idleTime = 0; this.yaw = 0; }
+        } else this.yaw = idleAvatarPose(this.idleTime).yaw;
+      }
+      this._gaze(dt);
+    }
     if (this.bt < MORPH_SECONDS) this.bt += dt;
     if (this.pk !== 0 || this.pv !== 0) {
       this.pv += (-160 * this.pk - 12 * this.pv) * dt; this.pk += this.pv * dt;
@@ -558,7 +601,7 @@ class Avatar {
   }
   _refresh(force) {
     if (this.destroyed || document.hidden) { live.delete(this); return; }
-    if (this.reduced) { live.delete(this); this.bt = MORPH_SECONDS; this.snap = null; this.g.x = this.g.y = 0; this.u = this.def.poster; this._compose(); return; }
+    if (this.reduced) { live.delete(this); this.bt = MORPH_SECONDS; this.snap = null; this.g.x = this.g.y = 0; this.yaw = 0; this.u = this.def.poster; this._compose(); return; }
     if (force) this._compose();
     if (this.visible && (!this.paused || this.bt < MORPH_SECONDS)) wake(this);
   }
@@ -567,7 +610,7 @@ class Avatar {
   setLook(m) { this.look = m || "pointer"; }
   setPaused(p) { this.paused = !!p; if (this.paused) { this.bt = MORPH_SECONDS; this._compose(); live.delete(this); } else this._refresh(); }
   setAccent(c) { this.accent = parseColor(c, parseColor(DEFAULT_ACCENT)); this._compose(); }
-  poke() { if (this.reduced || this.paused || document.hidden || this.destroyed) return; this.pk = 0; this.pv = 12; if (this.visible) wake(this); }
+  poke() { if (this.reduced || this.paused || document.hidden || this.destroyed) return; this.pk = 0; this.pv = 12; if (this.id === "waiting" && this.spinTime === null) { this.spinTime = 0; this.yaw = 0; } if (this.visible) wake(this); }
   seek(u, gx, gy) {
     this.bt = MORPH_SECONDS; this.u = wrap(u);
     if (gx !== undefined) { this.g.x = gx; this.g.vx = 0; }
