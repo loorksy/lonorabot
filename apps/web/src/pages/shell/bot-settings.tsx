@@ -3,8 +3,8 @@
 import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
 import { type AgentMarketMode, agentMarketMode, marketScopeChange } from "@lonora/core";
-import { AgentAvatar } from "@lonora/ui-web";
 import { useEffect, useRef, useState } from "react";
+import { AvatarStudio } from "../../components/ai/AvatarStudio";
 import { PersonalAgentBadge } from "../../components/ai/PersonalAgentBadge";
 import { AccountAuthoritySettings } from "../../components/trading/AccountAuthoritySettings";
 import { AgentMarketPicker } from "../../components/trading/AgentMarketPicker";
@@ -32,8 +32,7 @@ export function AgentSettings({
   const [name, setName] = useState(agent.name);
   const [title, setTitle] = useState(agent.title ?? "");
   const [description, setDescription] = useState(agent.description ?? "");
-  // Existing shape values remain round-trippable; every bot now uses the candle avatar.
-  const avatar = agent.avatar;
+  const [avatar, setAvatar] = useState(agent.avatar);
   const [color, setColor] = useState(agent.color);
   const [instructions, setInstructions] = useState(agent.instructions);
   const [paused, setPaused] = useState(agent.paused);
@@ -74,9 +73,17 @@ export function AgentSettings({
         }
       }}
     >
-      <div className="tpl-profile-preview">
-        <AgentAvatar identity={agent.id} name={name} shape={avatar} color={color} />
-      </div>
+      <AvatarStudio
+        identity={agent.id}
+        name={name}
+        avatar={avatar}
+        color={color}
+        disabled={saving}
+        onChange={(face, value) => {
+          setAvatar(face);
+          setColor(value);
+        }}
+      />
       <p dir="auto">
         {agent.name}
         <PersonalAgentBadge agent={agent} />
@@ -123,22 +130,7 @@ export function AgentSettings({
         <summary>
           <Trans>Advanced</Trans>
         </summary>
-        <details className="tpl-profile-appearance">
-          <summary>
-            <Trans>Appearance</Trans>
-          </summary>
-          <div className="tpl-profile-identity">
-            <label>
-              <Trans>Color</Trans>
-              <input
-                type="color"
-                aria-label={t`Color`}
-                value={color}
-                onChange={(event) => setColor(event.target.value)}
-              />
-            </label>
-          </div>
-        </details>
+
         <label>
           <Trans>Instructions</Trans>
           <textarea

@@ -5,11 +5,13 @@ import {
   avatarPersonality,
   avatarState,
   avatarTurn,
+  FACE_TOKENS,
   faceTransform,
   GEOMETRY,
   GLYPH_SCALE,
   idleAvatarPose,
   resolveAvatarColor,
+  resolveAvatarFace,
 } from "@lonora/core";
 import { memo, useEffect, useId, useMemo, useRef, useState } from "react";
 import { AppState, View } from "react-native";
@@ -41,6 +43,8 @@ export const BotAvatar = memo(function BotAvatar({
   identity = "",
   superBot = false,
   state,
+  variant = "orb",
+  paused = false,
 }: {
   color: string;
   size?: number;
@@ -49,13 +53,15 @@ export const BotAvatar = memo(function BotAvatar({
   identity?: string;
   superBot?: boolean;
   state?: AvatarStateId;
+  paused?: boolean;
 }) {
   const { t } = useSession();
   const id = `mta${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
   const motionIdentity = identity || id;
   const profile = useMemo(() => avatarPersonality(motionIdentity), [motionIdentity]);
   const visualState = state ?? avatarState({ working });
-  const [sampler] = useState(() => new AvatarMotion(visualState, motionIdentity));
+  const faceId = resolveAvatarFace(variant);
+  const [sampler] = useState(() => new AvatarMotion(visualState, motionIdentity, faceId));
   const motion = useRef(sampler);
   const [bars, setBars] = useState(() => motion.current.frame(0));
   const reduced = useReducedMotion();
@@ -75,12 +81,16 @@ export const BotAvatar = memo(function BotAvatar({
     return () => listener.remove();
   }, []);
   useEffect(() => {
+    motion.current.setFace(faceId);
+    setBars(motion.current.frame(0, reduced || paused));
+  }, [faceId, reduced, paused]);
+  useEffect(() => {
     motion.current.setIdentity(motionIdentity);
     motion.current.setState(visualState);
     idleEpoch.current = elapsed.current;
     tapSpin.current = null;
-    setBars(motion.current.frame(0, reduced));
-    if (reduced || !foreground) return;
+    setBars(motion.current.frame(0, reduced || paused));
+    if (reduced || paused || !foreground) return;
     let frame = 0;
     let previous = 0;
     const draw = (now: number) => {
@@ -115,11 +125,11 @@ export const BotAvatar = memo(function BotAvatar({
     };
     frame = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(frame);
-  }, [visualState, reduced, foreground, motionIdentity, profile]);
+  }, [visualState, reduced, paused, foreground, motionIdentity, profile]);
   const aim = (event: {
     nativeEvent: { locationX?: number; locationY?: number; offsetX?: number; offsetY?: number };
   }) => {
-    if (reduced) return;
+    if (reduced || paused) return;
     const { locationX, locationY, offsetX, offsetY } = event.nativeEvent;
     const x = locationX ?? offsetX;
     const y = locationY ?? offsetY;
@@ -132,18 +142,19 @@ export const BotAvatar = memo(function BotAvatar({
     }
   };
   const react = (event: Parameters<typeof aim>[0]) => {
-    if (reduced) return;
+    if (reduced || paused) return;
     aim(event);
     setPoke(0.8);
     if (visualState === "waiting") tapSpin.current = elapsed.current;
   };
+  const facial = visualState === "waiting" && faceId !== "orb";
   const face = GEOMETRY.face;
   const look = faceTransform(
-    reduced ? 0 : pose.gazeX,
-    reduced ? 0 : pose.gazeY,
-    reduced ? 0 : poke,
+    reduced || paused ? 0 : pose.gazeX,
+    reduced || paused ? 0 : pose.gazeY,
+    reduced || paused ? 0 : poke,
   );
-  const turn = avatarTurn(reduced || visualState !== "waiting" ? 0 : pose.yaw);
+  const turn = avatarTurn(reduced || paused || visualState !== "waiting" ? 0 : pose.yaw);
   const turnTransform = `translate(${200 + turn.tx} 200.5) scale(${turn.scaleX} 1) translate(-200 -200.5)`;
   const transform = `translate(${200 + look.tx} ${200.5 + look.ty}) rotate(${look.rot}) skewY(${look.skew}) scale(${look.sx} ${look.sy}) translate(-200 -200.5)`;
   return (
@@ -160,6 +171,7 @@ export const BotAvatar = memo(function BotAvatar({
         width={size}
         height={size}
         viewBox={GEOMETRY.viewBox}
+        preserveAspectRatio="xMidYMid meet"
         accessibilityElementsHidden
         importantForAccessibility="no-hide-descendants"
       >
@@ -168,7 +180,7 @@ export const BotAvatar = memo(function BotAvatar({
             <Rect {...face} />
           </ClipPath>
           <ClipPath id={`${id}sphere`}>
-            <Circle cx={200} cy={200} r={177} />
+            <Circle {...GEOMETRY.shell} />
           </ClipPath>
           <RadialGradient id={`${id}shade`} cx="34%" cy="27%" r="95%">
             <Stop offset="0" stopColor="#fff" stopOpacity={0.4} />
@@ -188,26 +200,42 @@ export const BotAvatar = memo(function BotAvatar({
             width={face.width}
             height={face.height}
           >
-            <FeGaussianBlur in="SourceGraphic" stdDeviation={1.65} result="b" />
+            <FeGaussianBlur
+              in="SourceGraphic"
+              stdDeviation={facial ? FACE_TOKENS.render.gooBlur : 1.65}
+              result="b"
+            />
             <FeColorMatrix
               in="b"
               type="matrix"
               values="1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 20 -9.5"
               result="g"
             />
+            <FeGaussianBlur
+              in="g"
+              stdDeviation={facial ? FACE_TOKENS.render.glowBlur : 5}
+              result="glowSource"
+            />
+            <FeColorMatrix
+              in="glowSource"
+              type="matrix"
+              values={`1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 ${facial ? FACE_TOKENS.render.glowOpacity : 1} 0`}
+              result="glow"
+            />
             <FeMerge>
+              <FeMergeNode in="glow" />
               <FeMergeNode in="g" />
             </FeMerge>
           </Filter>
         </Defs>
-        <Circle cx={200} cy={200} r={177} fill={resolveAvatarColor(identity, color).hex} />
-        <Circle cx={200} cy={200} r={177} fill={`url(#${id}shade)`} />
+        <Circle {...GEOMETRY.shell} fill={resolveAvatarColor(identity, color).hex} />
+        <Circle {...GEOMETRY.shell} fill={`url(#${id}shade)`} />
         <G clipPath={`url(#${id}sphere)`}>
           <G id={`${id}turn`} transform={turnTransform} opacity={turn.opacity}>
             <G transform={transform}>
               <Rect {...face} fill="#0d0d11" />
               <G clipPath={`url(#${id}clip)`}>
-                <G filter={size >= 64 ? `url(#${id}goo)` : undefined}>
+                <G filter={size >= 48 ? `url(#${id}goo)` : undefined}>
                   {bars.map((bar, i) => (
                     <Path
                       // biome-ignore lint/suspicious/noArrayIndexKey: fixed particle slots never reorder.

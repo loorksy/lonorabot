@@ -49,8 +49,8 @@ msgstr "Account number"
 msgid "Action"
 msgstr "Action"
 
-#: src/components/ai/AgentLiveStatus.tsx:37
-#: src/components/ai/AgentLiveStatus.tsx:93
+#: src/components/ai/AgentLiveStatus.tsx:39
+#: src/components/ai/AgentLiveStatus.tsx:99
 msgid "Action required"
 msgstr "Action required"
 
@@ -62,13 +62,13 @@ msgstr "Activate Super Bot?"
 msgid "Activate with device authentication"
 msgstr "Activate with device authentication"
 
-#: src/components/ai/AgentLiveStatus.tsx:101
+#: src/components/ai/AgentLiveStatus.tsx:107
 #: src/components/trading/SuperBotCards.tsx:156
 #: src/lib/goal-status.ts:6
 msgid "Active"
 msgstr "Active"
 
-#: src/components/ai/AgentLiveStatus.tsx:67
+#: src/components/ai/AgentLiveStatus.tsx:73
 msgid "Active watches"
 msgstr "Active watches"
 
@@ -125,11 +125,11 @@ msgstr "Add line"
 msgid "Add owner instructions"
 msgstr "Add owner instructions"
 
-#: src/pages/shell/bot-settings.tsx:121
+#: src/pages/shell/bot-settings.tsx:131
 msgid "Advanced"
 msgstr "Advanced"
 
-#: src/components/ai/AgentLiveStatus.tsx:83
+#: src/components/ai/AgentLiveStatus.tsx:89
 #: src/components/trading/SuperBotCards.tsx:153
 msgid "Advisory"
 msgstr "Advisory"
@@ -138,7 +138,7 @@ msgstr "Advisory"
 #: src/components/charts/ChartAnnotations.tsx:81
 #: src/pages/Board.tsx:387
 #: src/pages/Board.tsx:389
-#: src/pages/shell/bot-picker.tsx:115
+#: src/pages/shell/bot-picker.tsx:116
 #: src/pages/shell/chat-context.tsx:255
 #: src/pages/shell/message-cards.tsx:38
 #: src/pages/shell/message-cards.tsx:102
@@ -161,7 +161,7 @@ msgstr "Agent collaboration"
 msgid "Agent market scope"
 msgstr "Agent market scope"
 
-#: src/pages/shell/bot-panel.tsx:74
+#: src/pages/shell/bot-panel.tsx:82
 msgid "Agent name"
 msgstr "Agent name"
 
@@ -218,9 +218,13 @@ msgid "An active skill is no longer available. Review its settings before resumi
 msgstr "An active skill is no longer available. Review its settings before resuming this task."
 
 #: src/components/ai/primitives.tsx:78
-#: src/components/ai/TurnActivity.tsx:30
+#: src/components/ai/TurnActivity.tsx:31
 msgid "Analyzing"
 msgstr "Analyzing"
+
+#: src/components/ai/AvatarStudio.tsx:45
+msgid "Angry"
+msgstr "Angry"
 
 #: src/components/conversation-question.tsx:71
 msgid "Answered"
@@ -231,8 +235,6 @@ msgid "API key"
 msgstr "API key"
 
 #: src/pages/settings-sidebar.tsx:18
-#: src/pages/shell/bot-panel.tsx:108
-#: src/pages/shell/bot-settings.tsx:125
 msgid "Appearance"
 msgstr "Appearance"
 
@@ -284,7 +286,7 @@ msgstr "Attached files"
 msgid "Attachment"
 msgstr "Attachment"
 
-#: src/components/ai/AgentLiveStatus.tsx:80
+#: src/components/ai/AgentLiveStatus.tsx:86
 #: src/components/trading/SuperBotCards.tsx:153
 msgid "Autonomous"
 msgstr "Autonomous"
@@ -299,6 +301,10 @@ msgstr "Available"
 #: src/pages/shell/bot-settings.tsx:110
 #~ msgid "Avatar"
 #~ msgstr "Avatar"
+
+#: src/components/ai/AvatarStudio.tsx:87
+msgid "Avatar Studio"
+msgstr "Avatar Studio"
 
 #: src/components/trading/TradeApprovals.tsx:210
 #: src/components/trading/TradingJournal.tsx:24
@@ -422,7 +428,7 @@ msgstr "Broker connection needs review"
 msgid "Broker connection recovered"
 msgstr "Broker connection recovered"
 
-#: src/components/ai/AgentLiveStatus.tsx:157
+#: src/components/ai/AgentLiveStatus.tsx:163
 msgid "Broker connection requires attention"
 msgstr "Broker connection requires attention"
 
@@ -452,7 +458,7 @@ msgstr "Broker symbol"
 msgid "Broker ticket"
 msgstr "Broker ticket"
 
-#: src/components/ai/AgentLiveStatus.tsx:152
+#: src/components/ai/AgentLiveStatus.tsx:158
 #: src/lib/user_error.ts:136
 msgid "Broker verification pending. Market data may remain available; trading is blocked until verification finishes."
 msgstr "Broker verification pending. Market data may remain available; trading is blocked until verification finishes."
@@ -499,13 +505,14 @@ msgstr "Call ended"
 msgid "Call with {name}"
 msgstr "Call with {name}"
 
-#: src/components/ai/AgentLiveStatus.tsx:143
+#: src/components/ai/AgentLiveStatus.tsx:149
+#: src/components/ai/AvatarStudio.tsx:179
 #: src/components/skills/RevokeVersion.tsx:103
 #: src/components/skills/SkillCard.tsx:133
 #: src/components/skills/SkillEditor.tsx:141
 #: src/components/trading/SuperBotCards.tsx:421
 #: src/pages/Board.tsx:547
-#: src/pages/shell/bot-settings.tsx:211
+#: src/pages/shell/bot-settings.tsx:206
 msgid "Cancel"
 msgstr "Cancel"
 
@@ -518,8 +525,8 @@ msgid "Cancel order"
 msgstr "Cancel order"
 
 #: src/components/ai/primitives.tsx:47
-#: src/components/ai/TurnActivity.tsx:37
-#: src/components/ai/TurnActivity.tsx:87
+#: src/components/ai/TurnActivity.tsx:38
+#: src/components/ai/TurnActivity.tsx:99
 #: src/components/ToolActivityDisclosure.tsx:23
 #: src/components/trading/SuperBotCards.tsx:159
 #: src/components/trading/TradeApprovals.tsx:194
@@ -599,8 +606,12 @@ msgstr "Choose a discovered model"
 msgid "Choose a feed"
 msgstr "Choose a feed"
 
+#: src/components/ai/AvatarStudio.tsx:94
+msgid "Choose a glowing face and color. Preview your changes before applying them."
+msgstr "Choose a glowing face and color. Preview your changes before applying them."
+
 #: src/pages/Knowledge.tsx:53
-#: src/pages/shell/bot-picker.tsx:116
+#: src/pages/shell/bot-picker.tsx:117
 msgid "Choose an agent"
 msgstr "Choose an agent"
 
@@ -644,6 +655,7 @@ msgstr "Choose trading pair"
 
 #: ../../packages/ui-web/src/components/ui/dialog.tsx:69
 #: ../../packages/ui-web/src/components/ui/dialog.tsx:104
+#: src/components/ai/AvatarStudio.tsx:89
 #: src/components/charts/ChartSheetHandle.tsx:76
 #: src/components/common/FilePreviewPanel.tsx:99
 #: src/components/trading/SuperBotCards.tsx:283
@@ -651,7 +663,7 @@ msgstr "Choose trading pair"
 #: src/pages/Board.tsx:508
 #: src/pages/RoutineEditor.tsx:103
 #: src/pages/Shell.tsx:687
-#: src/pages/shell/bot-settings.tsx:168
+#: src/pages/shell/bot-settings.tsx:163
 msgid "Close"
 msgstr "Close"
 
@@ -689,16 +701,15 @@ msgstr "Collaboration result is ready"
 msgid "Collapse chart"
 msgstr "Collapse chart"
 
-#: src/pages/shell/bot-panel.tsx:115
-#: src/pages/shell/bot-panel.tsx:122
-#: src/pages/shell/bot-settings.tsx:129
-#: src/pages/shell/bot-settings.tsx:132
+#: src/components/ai/AvatarStudio.tsx:151
+#: src/components/ai/AvatarStudio.tsx:154
+#: src/components/ai/AvatarStudio.tsx:160
 msgid "Color"
 msgstr "Color"
 
 #: src/components/ai/primitives.tsx:49
-#: src/components/ai/TurnActivity.tsx:35
-#: src/components/ai/TurnActivity.tsx:83
+#: src/components/ai/TurnActivity.tsx:36
+#: src/components/ai/TurnActivity.tsx:95
 #: src/components/ToolActivityDisclosure.tsx:27
 #: src/lib/goal-status.ts:36
 #: src/pages/ActivityList.tsx:119
@@ -841,7 +852,7 @@ msgid "Create a routine to schedule recurring work."
 msgstr "Create a routine to schedule recurring work."
 
 #: src/pages/Shell.tsx:272
-#: src/pages/shell/bot-panel.tsx:145
+#: src/pages/shell/bot-panel.tsx:125
 msgid "Create agent"
 msgstr "Create agent"
 
@@ -868,7 +879,7 @@ msgstr "Create group"
 msgid "Create new agent"
 msgstr "Create new agent"
 
-#: src/pages/shell/bot-picker.tsx:94
+#: src/pages/shell/bot-picker.tsx:95
 msgid "Create new group"
 msgstr "Create new group"
 
@@ -906,9 +917,14 @@ msgstr "Crosses above"
 msgid "Crosses below"
 msgstr "Crosses below"
 
-#: src/pages/shell/bot-panel.tsx:129
+#: src/components/ai/AvatarStudio.tsx:166
+#: src/components/ai/AvatarStudio.tsx:169
 msgid "Custom color"
 msgstr "Custom color"
+
+#: src/components/ai/AvatarStudio.tsx:70
+msgid "Customize avatar"
+msgstr "Customize avatar"
 
 #: src/pages/LocalSettings.tsx:33
 msgid "Dark"
@@ -935,12 +951,12 @@ msgstr "Delegated task"
 msgid "Delete"
 msgstr "Delete"
 
-#: src/pages/shell/bot-settings.tsx:190
-#: src/pages/shell/bot-settings.tsx:240
+#: src/pages/shell/bot-settings.tsx:185
+#: src/pages/shell/bot-settings.tsx:235
 msgid "Delete agent"
 msgstr "Delete agent"
 
-#: src/pages/shell/bot-settings.tsx:199
+#: src/pages/shell/bot-settings.tsx:194
 msgid "Delete agent permanently?"
 msgstr "Delete agent permanently?"
 
@@ -948,7 +964,7 @@ msgstr "Delete agent permanently?"
 msgid "Delete owner instructions"
 msgstr "Delete owner instructions"
 
-#: src/pages/shell/bot-settings.tsx:229
+#: src/pages/shell/bot-settings.tsx:224
 msgid "Delete permanently"
 msgstr "Delete permanently"
 
@@ -964,16 +980,20 @@ msgstr "Dependencies"
 msgid "Dependency unavailable"
 msgstr "Dependency unavailable"
 
-#: src/pages/shell/bot-panel.tsx:83
+#: src/pages/shell/bot-panel.tsx:91
 msgid "Describe this agent's role"
 msgstr "Describe this agent's role"
 
 #: src/pages/Board.tsx:361
 #: src/pages/Board.tsx:363
-#: src/pages/shell/bot-panel.tsx:87
-#: src/pages/shell/bot-settings.tsx:111
+#: src/pages/shell/bot-panel.tsx:95
+#: src/pages/shell/bot-settings.tsx:121
 msgid "Description"
 msgstr "Description"
+
+#: src/components/ai/AvatarStudio.tsx:53
+msgid "Determined"
+msgstr "Determined"
 
 #: src/lib/user_error.ts:63
 msgid "Device authentication was cancelled. No authority was granted."
@@ -1009,6 +1029,10 @@ msgstr "Discovered models"
 msgid "Dismiss error"
 msgstr "Dismiss error"
 
+#: src/components/ai/AvatarStudio.tsx:189
+msgid "Done"
+msgstr "Done"
+
 #: src/components/ArtifactFileCard.tsx:64
 #: src/components/common/FilePreviewPanel.tsx:93
 #: src/pages/Artifacts.tsx:325
@@ -1019,6 +1043,10 @@ msgstr "Download"
 #: src/components/common/FilePreviewPanel.tsx:117
 msgid "Download this file to view it"
 msgstr "Download this file to view it"
+
+#: src/components/ai/AvatarStudio.tsx:49
+msgid "Dreamy"
+msgstr "Dreamy"
 
 #: src/components/trading/TradingJournal.tsx:7
 msgid "Durable trading journal"
@@ -1115,12 +1143,16 @@ msgstr "Every · minutes"
 msgid "Exact broker symbol"
 msgstr "Exact broker symbol"
 
+#: src/components/ai/AvatarStudio.tsx:47
+msgid "Excited"
+msgstr "Excited"
+
 #: src/components/trading/TradeActionCard.tsx:153
 msgid "Execute"
 msgstr "Execute"
 
 #: src/components/ai/primitives.tsx:79
-#: src/components/ai/TurnActivity.tsx:31
+#: src/components/ai/TurnActivity.tsx:32
 #: src/lib/goal-status.ts:22
 msgid "Executing"
 msgstr "Executing"
@@ -1154,9 +1186,14 @@ msgstr "Expand chart"
 msgid "Expired"
 msgstr "Expired"
 
+#: src/components/ai/AvatarStudio.tsx:108
+#: src/components/ai/AvatarStudio.tsx:122
+msgid "Face"
+msgstr "Face"
+
 #: src/components/ai/primitives.tsx:45
-#: src/components/ai/TurnActivity.tsx:36
-#: src/components/ai/TurnActivity.tsx:85
+#: src/components/ai/TurnActivity.tsx:37
+#: src/components/ai/TurnActivity.tsx:97
 #: src/components/ToolActivityDisclosure.tsx:25
 #: src/components/trading/TradeApprovals.tsx:212
 #: src/components/trading/TradingJournal.tsx:22
@@ -1192,6 +1229,10 @@ msgstr "Filters"
 #: src/pages/SpaceSearch.tsx:91
 msgid "Find your agents, conversations and memory."
 msgstr "Find your agents, conversations and memory."
+
+#: src/components/ai/AvatarStudio.tsx:50
+msgid "Focused"
+msgstr "Focused"
 
 #: src/components/charts/TradingChart.tsx:360
 msgid "Follow Agent"
@@ -1275,6 +1316,10 @@ msgstr "Group settings"
 msgid "Groups"
 msgstr "Groups"
 
+#: src/components/ai/AvatarStudio.tsx:41
+msgid "Happy"
+msgstr "Happy"
+
 #: src/lib/user_error.ts:152
 msgid "Historical broker candles timed out. Retry the chart refresh."
 msgstr "Historical broker candles timed out. Retry the chart refresh."
@@ -1283,7 +1328,7 @@ msgstr "Historical broker candles timed out. Retry the chart refresh."
 msgid "Historical market data is blocked by the data provider's billing. Fund the provider account, then retry. Live prices may remain available."
 msgstr "Historical market data is blocked by the data provider's billing. Fund the provider account, then retry. Live prices may remain available."
 
-#: src/components/ai/AgentLiveStatus.tsx:34
+#: src/components/ai/AgentLiveStatus.tsx:36
 msgid "Idle"
 msgstr "Idle"
 
@@ -1327,8 +1372,8 @@ msgstr "Instruction budget exceeded"
 msgid "Instruction version"
 msgstr "Instruction version"
 
-#: src/pages/shell/bot-panel.tsx:97
-#: src/pages/shell/bot-settings.tsx:140
+#: src/pages/shell/bot-panel.tsx:105
+#: src/pages/shell/bot-settings.tsx:135
 msgid "Instructions"
 msgstr "Instructions"
 
@@ -1347,7 +1392,7 @@ msgstr "Integrations"
 #~ msgid "Interrupt"
 #~ msgstr "Interrupt"
 
-#: src/components/ai/TurnActivity.tsx:88
+#: src/components/ai/TurnActivity.tsx:100
 msgid "Interrupted"
 msgstr "Interrupted"
 
@@ -1391,8 +1436,12 @@ msgstr "Label"
 msgid "Language"
 msgstr "Language"
 
+#: src/components/ai/AvatarStudio.tsx:52
+msgid "Laugh"
+msgstr "Laugh"
+
 #: src/components/ai/primitives.tsx:73
-#: src/components/ai/TurnActivity.tsx:23
+#: src/components/ai/TurnActivity.tsx:24
 msgid "Learning"
 msgstr "Learning"
 
@@ -1520,7 +1569,7 @@ msgstr "Market and charts"
 msgid "Market buy"
 msgstr "Market buy"
 
-#: src/components/ai/AgentLiveStatus.tsx:160
+#: src/components/ai/AgentLiveStatus.tsx:166
 msgid "Market data unavailable"
 msgstr "Market data unavailable"
 
@@ -1642,8 +1691,8 @@ msgstr "My device"
 
 #: src/components/integrations/IntegrationSetup.tsx:75
 #: src/pages/McpServersOverlay.tsx:52
-#: src/pages/shell/bot-panel.tsx:68
-#: src/pages/shell/bot-settings.tsx:98
+#: src/pages/shell/bot-panel.tsx:76
+#: src/pages/shell/bot-settings.tsx:108
 msgid "Name"
 msgstr "Name"
 
@@ -1669,8 +1718,8 @@ msgid "Next run"
 msgstr "Next run"
 
 #: src/pages/Shell.tsx:576
-#: src/pages/shell/bot-picker.tsx:86
-#: src/pages/shell/bot-picker.tsx:98
+#: src/pages/shell/bot-picker.tsx:87
+#: src/pages/shell/bot-picker.tsx:99
 #: src/pages/shell/command-palette.tsx:77
 msgid "No agents match"
 msgstr "No agents match"
@@ -1878,7 +1927,7 @@ msgstr "Password"
 msgid "Password · at least 12 characters"
 msgstr "Password · at least 12 characters"
 
-#: src/components/ai/AgentLiveStatus.tsx:143
+#: src/components/ai/AgentLiveStatus.tsx:149
 #: src/components/goals/TradingGoals.tsx:315
 #: src/components/market/MarketWatch.tsx:294
 #: src/pages/Board.tsx:543
@@ -1886,12 +1935,12 @@ msgstr "Password · at least 12 characters"
 msgid "Pause"
 msgstr "Pause"
 
-#: src/pages/shell/bot-settings.tsx:157
+#: src/pages/shell/bot-settings.tsx:152
 msgid "Pause agent and scheduled work"
 msgstr "Pause agent and scheduled work"
 
-#: src/components/ai/AgentLiveStatus.tsx:39
-#: src/components/ai/AgentLiveStatus.tsx:100
+#: src/components/ai/AgentLiveStatus.tsx:41
+#: src/components/ai/AgentLiveStatus.tsx:106
 #: src/components/trading/SuperBotCards.tsx:160
 #: src/lib/goal-status.ts:40
 #: src/pages/Board.tsx:26
@@ -1920,11 +1969,11 @@ msgid "Period"
 msgstr "Period"
 
 #. placeholder {0}: agent.name
-#: src/pages/shell/bot-settings.tsx:202
+#: src/pages/shell/bot-settings.tsx:197
 msgid "Permanently delete {0}? This cannot be undone."
 msgstr "Permanently delete {0}? This cannot be undone."
 
-#: src/pages/shell/bot-settings.tsx:161
+#: src/pages/shell/bot-settings.tsx:156
 msgid "Persistent child agent"
 msgstr "Persistent child agent"
 
@@ -1942,6 +1991,10 @@ msgstr "Planning"
 msgid "Play audio"
 msgstr "Play audio"
 
+#: src/components/ai/AvatarStudio.tsx:46
+msgid "Playful"
+msgstr "Playful"
+
 #: src/components/market/MarketWatch.tsx:108
 msgid "Position"
 msgstr "Position"
@@ -1958,7 +2011,7 @@ msgstr "Position open"
 msgid "Positions"
 msgstr "Positions"
 
-#: src/components/ai/TurnActivity.tsx:26
+#: src/components/ai/TurnActivity.tsx:27
 msgid "Preparing"
 msgstr "Preparing"
 
@@ -2026,7 +2079,7 @@ msgstr "Question closed"
 
 #: src/components/ai/primitives.tsx:33
 #: src/components/ai/primitives.tsx:81
-#: src/components/ai/TurnActivity.tsx:25
+#: src/components/ai/TurnActivity.tsx:26
 #: src/pages/ActivityList.tsx:111
 #: src/pages/shell/message-cards.tsx:280
 #: src/pages/shell/sidebar-activity.tsx:64
@@ -2038,7 +2091,7 @@ msgid "Ray"
 msgstr "Ray"
 
 #: src/components/ai/primitives.tsx:80
-#: src/components/ai/TurnActivity.tsx:29
+#: src/components/ai/TurnActivity.tsx:30
 msgid "Reading"
 msgstr "Reading"
 
@@ -2075,8 +2128,8 @@ msgstr "Rechecking market conditions"
 msgid "Reconciling with broker"
 msgstr "Reconciling with broker"
 
-#: src/components/ai/TurnActivity.tsx:41
-#: src/components/ai/TurnActivity.tsx:102
+#: src/components/ai/TurnActivity.tsx:53
+#: src/components/ai/TurnActivity.tsx:114
 #: src/pages/Shell.tsx:454
 msgid "Reconnecting"
 msgstr "Reconnecting"
@@ -2173,6 +2226,10 @@ msgstr "Required tools"
 msgid "Research"
 msgstr "Research"
 
+#: src/components/ai/AvatarStudio.tsx:119
+msgid "Reset"
+msgstr "Reset"
+
 #: src/pages/ActivityList.tsx:157
 msgid "Reset all"
 msgstr "Reset all"
@@ -2189,7 +2246,7 @@ msgstr "Resize chart"
 msgid "Resize panel"
 msgstr "Resize panel"
 
-#: src/components/ai/AgentLiveStatus.tsx:143
+#: src/components/ai/AgentLiveStatus.tsx:149
 #: src/components/goals/TradingGoals.tsx:313
 #: src/components/market/MarketWatch.tsx:294
 #: src/pages/ActivityList.tsx:281
@@ -2214,8 +2271,8 @@ msgstr "Resume"
 msgid "Retry"
 msgstr "Retry"
 
-#: src/components/ai/AgentLiveStatus.tsx:51
-#: src/components/ai/AgentLiveStatus.tsx:111
+#: src/components/ai/AgentLiveStatus.tsx:57
+#: src/components/ai/AgentLiveStatus.tsx:117
 msgid "Retry scheduled"
 msgstr "Retry scheduled"
 
@@ -2263,7 +2320,7 @@ msgstr "Routines"
 msgid "Run task"
 msgstr "Run task"
 
-#: src/components/ai/TurnActivity.tsx:81
+#: src/components/ai/TurnActivity.tsx:93
 #: src/components/ToolActivityDisclosure.tsx:29
 msgid "Running"
 msgstr "Running"
@@ -2277,7 +2334,7 @@ msgstr "Sampled quote fills are hypothetical. Monetary profit is unavailable."
 #: src/pages/KnowledgeSection.tsx:174
 #: src/pages/RoutineEditor.tsx:100
 #: src/pages/ScratchpadSection.tsx:195
-#: src/pages/shell/bot-settings.tsx:182
+#: src/pages/shell/bot-settings.tsx:177
 msgid "Save"
 msgstr "Save"
 
@@ -2397,7 +2454,7 @@ msgid "Search your workspace"
 msgstr "Search your workspace"
 
 #: src/components/ai/primitives.tsx:77
-#: src/components/ai/TurnActivity.tsx:28
+#: src/components/ai/TurnActivity.tsx:29
 msgid "Searching"
 msgstr "Searching"
 
@@ -2446,7 +2503,7 @@ msgid "Send direction"
 msgstr "Send direction"
 
 #: src/components/ai/primitives.tsx:74
-#: src/components/ai/TurnActivity.tsx:24
+#: src/components/ai/TurnActivity.tsx:25
 #: src/pages/shell/message-cards.tsx:187
 msgid "Sending…"
 msgstr "Sending…"
@@ -2455,7 +2512,7 @@ msgstr "Sending…"
 msgid "Server URL"
 msgstr "Server URL"
 
-#: src/components/ai/AgentLiveStatus.tsx:38
+#: src/components/ai/AgentLiveStatus.tsx:40
 msgid "Service needs attention"
 msgstr "Service needs attention"
 
@@ -2481,7 +2538,7 @@ msgstr "Shadow history"
 msgid "Shadow observations"
 msgstr "Shadow observations"
 
-#: src/components/ai/AgentLiveStatus.tsx:88
+#: src/components/ai/AgentLiveStatus.tsx:94
 #: src/components/goals/TradingGoals.tsx:202
 #: src/components/trading/ExecutionModeSettings.tsx:68
 #: src/components/trading/SuperBotCards.tsx:239
@@ -2526,6 +2583,10 @@ msgstr "Sign out"
 msgid "Sign-in failed. Check your email and password."
 msgstr "Sign-in failed. Check your email and password."
 
+#: src/components/ai/AvatarStudio.tsx:38
+msgid "Signals"
+msgstr "Signals"
+
 #: src/components/integrations/IntegrationSetup.tsx:70
 msgid "Signed webhook"
 msgstr "Signed webhook"
@@ -2547,6 +2608,10 @@ msgstr "Simulation snapshot JSON"
 msgid "Simulation with an imported snapshot"
 msgstr "Simulation with an imported snapshot"
 
+#: src/components/ai/AvatarStudio.tsx:48
+msgid "Skeptical"
+msgstr "Skeptical"
+
 #: src/pages/SkillsSection.tsx:93
 msgid "Skill catalog"
 msgstr "Skill catalog"
@@ -2567,6 +2632,14 @@ msgstr "Skills"
 #: src/pages/SkillsSection.tsx:85
 msgid "Skills guide how this agent works. They do not grant trading permissions. This catalog shows current instructions; active tasks keep their pinned versions."
 msgstr "Skills guide how this agent works. They do not grant trading permissions. This catalog shows current instructions; active tasks keep their pinned versions."
+
+#: src/components/ai/AvatarStudio.tsx:43
+msgid "Sleepy"
+msgstr "Sleepy"
+
+#: src/components/ai/AvatarStudio.tsx:39
+msgid "Smile"
+msgstr "Smile"
 
 #: src/components/market/MarketQuote.tsx:30
 msgid "Source"
@@ -2649,7 +2722,7 @@ msgstr "Stopped"
 msgid "Submitted"
 msgstr "Submitted"
 
-#: src/components/ai/AgentLiveStatus.tsx:78
+#: src/components/ai/AgentLiveStatus.tsx:84
 #: src/components/trading/SuperBotCards.tsx:212
 #: src/components/trading/SuperBotCards.tsx:457
 msgid "Super Bot"
@@ -2663,12 +2736,12 @@ msgstr "Super Bot authority updated"
 msgid "Super Bot details"
 msgstr "Super Bot details"
 
-#: src/components/ai/AgentAvatar.tsx:22
+#: src/components/ai/AgentAvatar.tsx:23
 #: src/components/call/CallCard.tsx:60
 #: src/components/call/CallPill.tsx:24
-#: src/pages/shell/bot-picker.tsx:75
-#: src/pages/shell/bot-roster-row.tsx:58
-#: src/pages/shell/command-palette.tsx:96
+#: src/pages/shell/bot-picker.tsx:76
+#: src/pages/shell/bot-roster-row.tsx:59
+#: src/pages/shell/command-palette.tsx:97
 msgid "Super Bot enabled"
 msgstr "Super Bot enabled"
 
@@ -2680,7 +2753,7 @@ msgstr "Super Bot needs device authorization"
 msgid "Superseded version"
 msgstr "Superseded version"
 
-#: src/components/ai/AgentLiveStatus.tsx:82
+#: src/components/ai/AgentLiveStatus.tsx:88
 #: src/components/trading/SuperBotCards.tsx:153
 msgid "Supervised"
 msgstr "Supervised"
@@ -2688,6 +2761,10 @@ msgstr "Supervised"
 #: src/components/trading/BrokerConnection.tsx:81
 msgid "Supply account, instruments, quotes and candles explicitly. Simulation data is labelled in the workspace."
 msgstr "Supply account, instruments, quotes and candles explicitly. Simulation data is labelled in the workspace."
+
+#: src/components/ai/AvatarStudio.tsx:44
+msgid "Surprised"
+msgstr "Surprised"
 
 #: src/pages/Shell.tsx:538
 #: src/pages/shell/command-palette.tsx:63
@@ -2731,7 +2808,7 @@ msgstr "Task completed"
 msgid "Task details"
 msgstr "Task details"
 
-#: src/components/ai/AgentLiveStatus.tsx:120
+#: src/components/ai/AgentLiveStatus.tsx:126
 #: src/components/ai/AttentionInbox.tsx:57
 msgid "Task needs review"
 msgstr "Task needs review"
@@ -2867,7 +2944,7 @@ msgstr "These settings apply to every agent and routine. Voice routes require mo
 
 #: src/components/ai/primitives.tsx:75
 #: src/components/ai/primitives.tsx:89
-#: src/components/ai/TurnActivity.tsx:27
+#: src/components/ai/TurnActivity.tsx:28
 msgid "Thinking"
 msgstr "Thinking"
 
@@ -2967,6 +3044,10 @@ msgstr "This task is waiting for an uncertain external operation to be reconcile
 msgid "This week"
 msgstr "This week"
 
+#: src/components/ai/AvatarStudio.tsx:40
+msgid "Thoughtful"
+msgstr "Thoughtful"
+
 #: src/components/market/MarketOverview.tsx:9
 msgid "Tick size"
 msgstr "Tick size"
@@ -2983,8 +3064,8 @@ msgstr "Timezone"
 #: src/components/skills/CreateSkill.tsx:92
 #: src/pages/ScratchpadSection.tsx:69
 #: src/pages/ScratchpadSection.tsx:160
-#: src/pages/shell/bot-panel.tsx:78
-#: src/pages/shell/bot-settings.tsx:107
+#: src/pages/shell/bot-panel.tsx:86
+#: src/pages/shell/bot-settings.tsx:117
 msgid "Title"
 msgstr "Title"
 
@@ -3060,7 +3141,7 @@ msgstr "Trading OFF"
 msgid "Trading ON"
 msgstr "Trading ON"
 
-#: src/pages/shell/bot-settings.tsx:83
+#: src/pages/shell/bot-settings.tsx:93
 msgid "Trading pair"
 msgstr "Trading pair"
 
@@ -3182,8 +3263,8 @@ msgstr "Volume"
 msgid "Volume step"
 msgstr "Volume step"
 
-#: src/components/ai/AgentLiveStatus.tsx:36
-#: src/components/ai/AgentLiveStatus.tsx:51
+#: src/components/ai/AgentLiveStatus.tsx:38
+#: src/components/ai/AgentLiveStatus.tsx:57
 msgid "Waiting"
 msgstr "Waiting"
 
@@ -3192,25 +3273,25 @@ msgstr "Waiting"
 msgid "Waiting for a condition"
 msgstr "Waiting for a condition"
 
-#: src/components/ai/AgentLiveStatus.tsx:62
+#: src/components/ai/AgentLiveStatus.tsx:68
 #: src/components/ai/AttentionInbox.tsx:48
 msgid "Waiting for approval"
 msgstr "Waiting for approval"
 
-#: src/components/ai/AgentLiveStatus.tsx:72
-#: src/components/ai/AgentLiveStatus.tsx:98
+#: src/components/ai/AgentLiveStatus.tsx:78
+#: src/components/ai/AgentLiveStatus.tsx:104
 #: src/components/trading/SuperBotCards.tsx:155
 msgid "Waiting for device authorization"
 msgstr "Waiting for device authorization"
 
 #: src/components/ai/primitives.tsx:43
-#: src/components/ai/TurnActivity.tsx:34
+#: src/components/ai/TurnActivity.tsx:35
 #: src/pages/ActivityList.tsx:117
 #: src/pages/shell/sidebar-activity.tsx:70
 msgid "Waiting for handover"
 msgstr "Waiting for handover"
 
-#: src/components/ai/AgentLiveStatus.tsx:116
+#: src/components/ai/AgentLiveStatus.tsx:122
 msgid "Waiting for reconciliation"
 msgstr "Waiting for reconciliation"
 
@@ -3219,7 +3300,7 @@ msgid "Waiting for the broker to report the entry position. The accepted order w
 msgstr "Waiting for the broker to report the entry position. The accepted order will not be submitted again."
 
 #: src/components/ai/primitives.tsx:41
-#: src/components/ai/TurnActivity.tsx:33
+#: src/components/ai/TurnActivity.tsx:34
 #: src/pages/ActivityList.tsx:115
 #: src/pages/Board.tsx:22
 #: src/pages/shell/sidebar-activity.tsx:68
@@ -3238,15 +3319,19 @@ msgstr "Watch confirmed — review current evidence"
 msgid "Watch source"
 msgstr "Watch source"
 
-#: src/pages/shell/bot-settings.tsx:144
+#: src/pages/shell/bot-settings.tsx:139
 msgid "What should this agent know about its work?"
 msgstr "What should this agent know about its work?"
 
-#: src/pages/shell/bot-panel.tsx:93
+#: src/pages/shell/bot-panel.tsx:101
 msgid "What this agent is for"
 msgstr "What this agent is for"
 
-#: src/components/ai/AgentLiveStatus.tsx:35
+#: src/components/ai/AvatarStudio.tsx:42
+msgid "Wink"
+msgstr "Wink"
+
+#: src/components/ai/AgentLiveStatus.tsx:37
 #: src/components/ai/primitives.tsx:33
 #: src/pages/ActivityList.tsx:113
 #: src/pages/Board.tsx:20
@@ -3263,8 +3348,12 @@ msgstr "Workspace menu"
 msgid "Workspace settings"
 msgstr "Workspace settings"
 
+#: src/components/ai/AvatarStudio.tsx:51
+msgid "Worried"
+msgstr "Worried"
+
 #: src/components/ai/primitives.tsx:76
-#: src/components/ai/TurnActivity.tsx:32
+#: src/components/ai/TurnActivity.tsx:33
 msgid "Writing"
 msgstr "Writing"
 
@@ -3289,7 +3378,7 @@ msgid "Your Lonora workspace"
 msgstr "Your Lonora workspace"
 
 #: src/lib/user_error.ts:40
-#: src/pages/shell/bot-settings.tsx:187
+#: src/pages/shell/bot-settings.tsx:182
 msgid "Your Personal Agent cannot be deleted."
 msgstr "Your Personal Agent cannot be deleted."
 

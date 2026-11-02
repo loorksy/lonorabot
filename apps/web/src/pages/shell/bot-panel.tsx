@@ -1,15 +1,14 @@
 // Modified for Lonora; source attribution in THIRD_PARTY_NOTICES.md. Apache-2.0.
 import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
-import type { AgentMarketMode } from "@lonora/core";
-import { AgentAvatar } from "@lonora/ui-web";
+import { type AgentMarketMode, DEFAULT_AVATAR_COLOR } from "@lonora/core";
 import { useState } from "react";
+import { AvatarStudio } from "../../components/ai/AvatarStudio";
 import { AgentMarketPicker } from "../../components/trading/AgentMarketPicker";
 import type { BrokerPair } from "../../components/trading/BrokerPairPicker";
 import type { Agent } from "../../lib/api";
 import { userError } from "../../lib/user_error";
 
-const colors = ["#ee8555", "#818cf8", "#4fb8a7", "#e2ba58", "#ce77ae", "#8a9eae"];
 export function AgentCreatePanel({
   create,
   onCreated,
@@ -35,8 +34,8 @@ export function AgentCreatePanel({
   const [name, setName] = useState("");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [color, setColor] = useState(colors[0]);
-  const avatar = "orb";
+  const [color, setColor] = useState(DEFAULT_AVATAR_COLOR);
+  const [avatar, setAvatar] = useState("face-smile");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>();
   return (
@@ -64,6 +63,15 @@ export function AgentCreatePanel({
         }
       }}
     >
+      <AvatarStudio
+        name={name}
+        avatar={avatar}
+        color={color}
+        onChange={(face, value) => {
+          setAvatar(face);
+          setColor(value);
+        }}
+      />
       <label>
         <Trans>Name</Trans>
         <input
@@ -103,35 +111,7 @@ export function AgentCreatePanel({
         />
       </label>
       <AgentMarketPicker mode={mode} pair={pair} onMode={setMode} onPair={setPair} />
-      <details className="tpl-profile-appearance">
-        <summary>
-          <Trans>Appearance</Trans>
-        </summary>
-        <div className="tpl-profile-preview">
-          <AgentAvatar name={name || "L"} color={color} shape={avatar} />
-        </div>
-        <fieldset className="tpl-colors">
-          <legend>
-            <Trans>Color</Trans>
-          </legend>
-          {colors.map((value) => (
-            <button
-              type="button"
-              key={value}
-              style={{ backgroundColor: value }}
-              aria-label={`${t`Color`} ${value}`}
-              aria-pressed={value === color}
-              onClick={() => setColor(value)}
-            />
-          ))}
-          <input
-            type="color"
-            aria-label={t`Custom color`}
-            value={color}
-            onChange={(event) => setColor(event.target.value)}
-          />
-        </fieldset>
-      </details>
+
       {error != null && <p role="alert">{userError(error)}</p>}
       <button
         className="primary"

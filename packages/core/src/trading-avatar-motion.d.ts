@@ -21,6 +21,25 @@ export type AvatarStateId =
   | "connecting";
 
 export const STATE_IDS: readonly AvatarStateId[];
+export type AvatarFaceId =
+  | "orb"
+  | "face-smile"
+  | "face-thoughtful"
+  | "face-happy"
+  | "face-wink"
+  | "face-sleepy"
+  | "face-surprised"
+  | "face-angry"
+  | "face-playful"
+  | "face-excited"
+  | "face-skeptical"
+  | "face-dreamy"
+  | "face-focused"
+  | "face-worried"
+  | "face-laugh"
+  | "face-determined";
+export const AVATAR_FACES: readonly { readonly id: AvatarFaceId; readonly label: string }[];
+export function resolveAvatarFace(value?: string | null): AvatarFaceId;
 
 export const GEOMETRY: {
   readonly viewBox: string;
@@ -39,7 +58,92 @@ export const GEOMETRY: {
   readonly restHeights: readonly number[];
 };
 
+/** Canonical facial design tokens derived from the original signal bar and visor dimensions. */
+export const FACE_TOKENS: {
+  readonly stroke: Readonly<
+    Record<"primary" | "curvedEye" | "secondary" | "eyebrow" | "accent" | "indicator", number>
+  >;
+  readonly shape: Readonly<
+    Record<
+      | "eyeWidth"
+      | "eyeHeight"
+      | "eyeArcRadius"
+      | "eyeArcSpan"
+      | "eyebrowLength"
+      | "eyebrowRise"
+      | "mouthWidth"
+      | "mouthRadius"
+      | "mouthArcSpan"
+      | "laughingMouthScale"
+      | "roundMouthRadius"
+      | "tongueWidth"
+      | "tongueLength"
+      | "winkHalfWidth"
+      | "winkHalfHeight"
+      | "closedEyeLength"
+      | "accentLength"
+      | "accentRadius"
+      | "questionRadius"
+      | "cornerRadius",
+      number
+    >
+  >;
+  readonly spacing: Readonly<
+    Record<
+      | "eyeHalfSpacing"
+      | "eyeLine"
+      | "browLine"
+      | "mouthLine"
+      | "minimumSeparation"
+      | "accentPitch"
+      | "accentLine"
+      | "sideAccentX"
+      | "tongueLine"
+      | "sideAccentLine",
+      number
+    >
+  >;
+  readonly optical: Readonly<
+    Record<
+      | "eyeArcCorrection"
+      | "mouthCorrection"
+      | "openMouthOffset"
+      | "thoughtfulEyeOffset"
+      | "focusedMouthOffset",
+      number
+    >
+  >;
+  readonly motion: Readonly<
+    Record<"breathAmplitude" | "blinkPhase" | "blinkHalfDuration" | "blinkStrokeRatio", number>
+  >;
+  readonly render: {
+    readonly gooBlur: number;
+    readonly glowBlur: number;
+    readonly glowOpacity: number;
+  };
+};
+/** Anchors are pre-GLYPH_SCALE world coordinates; the safe area is in rendered SVG coordinates. */
+export const FACIAL_GEOMETRY: {
+  readonly viewBox: string;
+  readonly outerShell: typeof GEOMETRY.shell;
+  readonly faceDisplay: typeof GEOMETRY.face;
+  readonly horizontalCenter: number;
+  readonly verticalCenter: number;
+  readonly eyeAnchors: {
+    readonly left: Readonly<{ x: number; y: number }>;
+    readonly right: Readonly<{ x: number; y: number }>;
+  };
+  readonly eyebrowAnchors: {
+    readonly left: Readonly<{ x: number; y: number }>;
+    readonly right: Readonly<{ x: number; y: number }>;
+  };
+  readonly mouthAnchor: Readonly<{ x: number; y: number }>;
+  readonly expressionBounds: Readonly<{ left: number; right: number; top: number; bottom: number }>;
+  readonly facialSafeArea: Readonly<{ x: number; y: number; width: number; height: number }>;
+};
+
 export interface MountOptions {
+  face?: string;
   /** Stable bot ID; absent identities receive an independent per-instance fallback. */
   identity?: string;
   state?: AvatarStateId;
@@ -55,6 +159,7 @@ export interface MountOptions {
 }
 
 export interface AvatarController {
+  setFace(face: string): void;
   setIdentity(identity?: string): void;
   setState(id: AvatarStateId): void;
   setSpeed(speed: number): void;
@@ -110,6 +215,7 @@ export function poseAt(
   u: number,
   accent?: string,
   identity?: string,
+  face?: string,
 ): BarPose[];
 /** Loop length in seconds. */
 export function loopSeconds(stateId: AvatarStateId, speed?: number): number;
