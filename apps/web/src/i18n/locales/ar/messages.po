@@ -73,8 +73,8 @@ msgid "Active watches"
 msgstr "المراقبات النشطة"
 
 #: src/pages/ActivityList.tsx:82
-#: src/pages/Shell.tsx:256
-#: src/pages/Shell.tsx:461
+#: src/pages/Shell.tsx:265
+#: src/pages/Shell.tsx:470
 #: src/pages/shell/sidebar-activity.tsx:40
 msgid "Activity"
 msgstr "النشاط"
@@ -125,7 +125,7 @@ msgstr "إضافة خط"
 msgid "Add owner instructions"
 msgstr "إضافة تعليمات خاصة"
 
-#: src/pages/shell/bot-settings.tsx:131
+#: src/pages/shell/bot-settings.tsx:133
 msgid "Advanced"
 msgstr "إعدادات متقدمة"
 
@@ -165,22 +165,22 @@ msgstr "نطاق الوكيل"
 msgid "Agent name"
 msgstr "اسم الوكيل"
 
-#: src/pages/Shell.tsx:266
-#: src/pages/Shell.tsx:561
+#: src/pages/Shell.tsx:275
+#: src/pages/Shell.tsx:570
 msgid "Agent settings"
 msgstr "إعدادات الوكيل"
 
-#: src/pages/Shell.tsx:270
-#: src/pages/Shell.tsx:1000
+#: src/pages/Shell.tsx:279
+#: src/pages/Shell.tsx:1037
 msgid "Agent workspace"
 msgstr "مساحة عمل الوكيل"
 
-#: src/pages/Shell.tsx:534
+#: src/pages/Shell.tsx:543
 #: src/pages/SpaceSearch.tsx:21
 msgid "Agents"
 msgstr "الوكلاء"
 
-#: src/pages/Shell.tsx:446
+#: src/pages/Shell.tsx:455
 msgid "Agents and groups"
 msgstr "الوكلاء والمجموعات"
 
@@ -222,7 +222,7 @@ msgstr "إحدى المهارات النشطة لم تعد متاحة. راجع 
 msgid "Analyzing"
 msgstr "يحلل"
 
-#: src/components/ai/AvatarStudio.tsx:45
+#: src/components/ai/AvatarStudio.tsx:67
 msgid "Angry"
 msgstr "غاضب"
 
@@ -255,9 +255,9 @@ msgid "Arrow"
 msgstr "سهم"
 
 #: src/pages/Artifacts.tsx:140
-#: src/pages/Shell.tsx:258
-#: src/pages/Shell.tsx:639
-#: src/pages/Shell.tsx:1124
+#: src/pages/Shell.tsx:267
+#: src/pages/Shell.tsx:648
+#: src/pages/Shell.tsx:1161
 msgid "Artifacts"
 msgstr "الملفات والمخرجات"
 
@@ -302,7 +302,7 @@ msgstr "متاحة"
 #~ msgid "Avatar"
 #~ msgstr "الصورة الرمزية"
 
-#: src/components/ai/AvatarStudio.tsx:87
+#: src/components/ai/AvatarStudio.tsx:111
 msgid "Avatar Studio"
 msgstr "استوديو الأفاتار"
 
@@ -319,7 +319,7 @@ msgstr "بانتظار مطابقة التنفيذ. لن تُرسل هذه ال�
 msgid "Back to artifacts"
 msgstr "العودة إلى الملفات"
 
-#: src/pages/Shell.tsx:707
+#: src/pages/Shell.tsx:716
 msgid "Back to conversations"
 msgstr "العودة إلى المحادثات"
 
@@ -385,7 +385,7 @@ msgstr "عنوان اللوحة"
 msgid "Brave web search"
 msgstr "بحث الويب عبر Brave"
 
-#: src/pages/Shell.tsx:605
+#: src/pages/Shell.tsx:614
 msgid "Bring agents together in a group."
 msgstr "اجمع الوكلاء في مجموعة."
 
@@ -492,8 +492,8 @@ msgstr "بايت"
 msgid "Cached"
 msgstr "من الذاكرة المؤقتة"
 
-#: src/pages/Shell.tsx:768
-#: src/pages/Shell.tsx:769
+#: src/pages/Shell.tsx:777
+#: src/pages/Shell.tsx:778
 msgid "Call"
 msgstr "اتصال"
 
@@ -506,13 +506,13 @@ msgid "Call with {name}"
 msgstr "مكالمة مع {name}"
 
 #: src/components/ai/AgentLiveStatus.tsx:149
-#: src/components/ai/AvatarStudio.tsx:179
+#: src/components/ai/AvatarStudio.tsx:220
 #: src/components/skills/RevokeVersion.tsx:103
 #: src/components/skills/SkillCard.tsx:133
 #: src/components/skills/SkillEditor.tsx:141
 #: src/components/trading/SuperBotCards.tsx:421
 #: src/pages/Board.tsx:547
-#: src/pages/shell/bot-settings.tsx:206
+#: src/pages/shell/bot-settings.tsx:208
 msgid "Cancel"
 msgstr "إلغاء"
 
@@ -566,9 +566,9 @@ msgstr "تعذّر تحديث مظهر الشارت."
 msgid "Chart could not be displayed."
 msgstr "تعذّر عرض الشارت."
 
-#: src/pages/Shell.tsx:271
-#: src/pages/Shell.tsx:785
-#: src/pages/Shell.tsx:786
+#: src/pages/Shell.tsx:280
+#: src/pages/Shell.tsx:794
+#: src/pages/Shell.tsx:795
 msgid "Charts"
 msgstr "الرسوم البيانية"
 
@@ -606,7 +606,7 @@ msgstr "اختر نموذجًا من الكتالوج"
 msgid "Choose a feed"
 msgstr "اختر مصدرًا"
 
-#: src/components/ai/AvatarStudio.tsx:94
+#: src/components/ai/AvatarStudio.tsx:123
 msgid "Choose a glowing face and color. Preview your changes before applying them."
 msgstr "اختر وجهًا مضيئًا ولونًا، وعاين التغييرات قبل تطبيقها."
 
@@ -655,15 +655,15 @@ msgstr "اختر زوج التداول"
 
 #: ../../packages/ui-web/src/components/ui/dialog.tsx:69
 #: ../../packages/ui-web/src/components/ui/dialog.tsx:104
-#: src/components/ai/AvatarStudio.tsx:89
+#: src/components/ai/AvatarStudio.tsx:116
 #: src/components/charts/ChartSheetHandle.tsx:76
 #: src/components/common/FilePreviewPanel.tsx:99
 #: src/components/trading/SuperBotCards.tsx:283
 #: src/pages/Board.tsx:316
 #: src/pages/Board.tsx:508
 #: src/pages/RoutineEditor.tsx:103
-#: src/pages/Shell.tsx:687
-#: src/pages/shell/bot-settings.tsx:163
+#: src/pages/Shell.tsx:696
+#: src/pages/shell/bot-settings.tsx:165
 msgid "Close"
 msgstr "إغلاق"
 
@@ -672,12 +672,12 @@ msgid "Close chart"
 msgstr "إغلاق الشارت"
 
 #: src/pages/ResizableSidePanel.tsx:138
-#: src/pages/Shell.tsx:975
+#: src/pages/Shell.tsx:1012
 msgid "Close context panel"
 msgstr "إغلاق لوحة السياق"
 
-#: src/pages/Shell.tsx:438
-#: src/pages/Shell.tsx:487
+#: src/pages/Shell.tsx:447
+#: src/pages/Shell.tsx:496
 msgid "Close navigation"
 msgstr "إغلاق قائمة التنقل"
 
@@ -701,9 +701,9 @@ msgstr "نتيجة التعاون جاهزة"
 msgid "Collapse chart"
 msgstr "تصغير الشارت"
 
-#: src/components/ai/AvatarStudio.tsx:151
-#: src/components/ai/AvatarStudio.tsx:154
-#: src/components/ai/AvatarStudio.tsx:160
+#: src/components/ai/AvatarStudio.tsx:182
+#: src/components/ai/AvatarStudio.tsx:185
+#: src/components/ai/AvatarStudio.tsx:191
 msgid "Color"
 msgstr "اللون"
 
@@ -764,7 +764,7 @@ msgstr "ربط الحساب"
 msgid "Connect server"
 msgstr "ربط الخادم"
 
-#: src/pages/Shell.tsx:454
+#: src/pages/Shell.tsx:463
 msgid "Connected"
 msgstr "متصل"
 
@@ -813,8 +813,7 @@ msgstr "معرّف المحادثة للرسائل الواردة"
 msgid "Conversation transcript"
 msgstr "نص المحادثة"
 
-#: src/pages/shell/conversation-inbox.tsx:71
-#: src/pages/shell/conversation-inbox.tsx:76
+#: src/pages/shell/conversation-inbox.tsx:79
 msgid "Conversations"
 msgstr "المحادثات"
 
@@ -831,7 +830,7 @@ msgstr "نسخ الرسالة"
 msgid "Copy table"
 msgstr "نسخ الجدول"
 
-#: src/pages/Shell.tsx:479
+#: src/pages/Shell.tsx:488
 msgid "Create"
 msgstr "إنشاء"
 
@@ -851,7 +850,7 @@ msgstr "إنشاء مجموعة"
 msgid "Create a routine to schedule recurring work."
 msgstr "أنشئ مهمة لجدولة العمل المتكرر."
 
-#: src/pages/Shell.tsx:272
+#: src/pages/Shell.tsx:281
 #: src/pages/shell/bot-panel.tsx:125
 msgid "Create agent"
 msgstr "إنشاء وكيل"
@@ -864,14 +863,14 @@ msgstr "أنشئ وكلاء قبل بدء مجموعة."
 msgid "Create an agent before adding a routine."
 msgstr "أنشئ وكيلًا قبل إضافة مهمة مجدولة."
 
-#: src/pages/shell/conversation-inbox.tsx:94
-#: src/pages/shell/conversation-inbox.tsx:184
+#: src/pages/Shell.tsx:820
+#: src/pages/shell/conversation-inbox.tsx:167
 msgid "Create conversation"
 msgstr "إنشاء محادثة"
 
 #: src/pages/GroupPanel.tsx:90
-#: src/pages/Shell.tsx:273
-#: src/pages/Shell.tsx:584
+#: src/pages/Shell.tsx:282
+#: src/pages/Shell.tsx:593
 msgid "Create group"
 msgstr "إنشاء المجموعة"
 
@@ -917,12 +916,12 @@ msgstr "يتجاوز إلى الأعلى"
 msgid "Crosses below"
 msgstr "يتجاوز إلى الأسفل"
 
-#: src/components/ai/AvatarStudio.tsx:166
-#: src/components/ai/AvatarStudio.tsx:169
+#: src/components/ai/AvatarStudio.tsx:197
+#: src/components/ai/AvatarStudio.tsx:200
 msgid "Custom color"
 msgstr "لون مخصص"
 
-#: src/components/ai/AvatarStudio.tsx:70
+#: src/components/ai/AvatarStudio.tsx:94
 msgid "Customize avatar"
 msgstr "تخصيص الأفاتار"
 
@@ -951,12 +950,12 @@ msgstr "مهمة مفوّضة"
 msgid "Delete"
 msgstr "حذف"
 
-#: src/pages/shell/bot-settings.tsx:185
-#: src/pages/shell/bot-settings.tsx:235
+#: src/pages/shell/bot-settings.tsx:187
+#: src/pages/shell/bot-settings.tsx:237
 msgid "Delete agent"
 msgstr "حذف المساعد"
 
-#: src/pages/shell/bot-settings.tsx:194
+#: src/pages/shell/bot-settings.tsx:196
 msgid "Delete agent permanently?"
 msgstr "حذف المساعد نهائيًا؟"
 
@@ -964,7 +963,7 @@ msgstr "حذف المساعد نهائيًا؟"
 msgid "Delete owner instructions"
 msgstr "حذف التعليمات الخاصة"
 
-#: src/pages/shell/bot-settings.tsx:224
+#: src/pages/shell/bot-settings.tsx:226
 msgid "Delete permanently"
 msgstr "حذف نهائي"
 
@@ -987,11 +986,11 @@ msgstr "صف دور هذا الوكيل"
 #: src/pages/Board.tsx:361
 #: src/pages/Board.tsx:363
 #: src/pages/shell/bot-panel.tsx:95
-#: src/pages/shell/bot-settings.tsx:121
+#: src/pages/shell/bot-settings.tsx:123
 msgid "Description"
 msgstr "الوصف"
 
-#: src/components/ai/AvatarStudio.tsx:53
+#: src/components/ai/AvatarStudio.tsx:75
 msgid "Determined"
 msgstr "مصمم"
 
@@ -1030,8 +1029,8 @@ msgid "Dismiss error"
 msgstr "إخفاء الخطأ"
 
 #: src/components/ai/AvatarStudio.tsx:189
-msgid "Done"
-msgstr "تم"
+#~ msgid "Done"
+#~ msgstr "تم"
 
 #: src/components/ArtifactFileCard.tsx:64
 #: src/components/common/FilePreviewPanel.tsx:93
@@ -1044,7 +1043,7 @@ msgstr "تنزيل"
 msgid "Download this file to view it"
 msgstr "نزّل هذا الملف لعرضه"
 
-#: src/components/ai/AvatarStudio.tsx:49
+#: src/components/ai/AvatarStudio.tsx:71
 msgid "Dreamy"
 msgstr "حالم"
 
@@ -1143,7 +1142,7 @@ msgstr "التكرار · بالدقائق"
 msgid "Exact broker symbol"
 msgstr "رمز الوسيط كما هو"
 
-#: src/components/ai/AvatarStudio.tsx:47
+#: src/components/ai/AvatarStudio.tsx:69
 msgid "Excited"
 msgstr "متحمس"
 
@@ -1186,8 +1185,8 @@ msgstr "توسيع الشارت"
 msgid "Expired"
 msgstr "منتهي الصلاحية"
 
-#: src/components/ai/AvatarStudio.tsx:108
-#: src/components/ai/AvatarStudio.tsx:122
+#: src/components/ai/AvatarStudio.tsx:137
+#: src/components/ai/AvatarStudio.tsx:153
 msgid "Face"
 msgstr "الوجه"
 
@@ -1230,7 +1229,7 @@ msgstr "عوامل التصفية"
 msgid "Find your agents, conversations and memory."
 msgstr "ابحث في وكلائك ومحادثاتك وذاكرتك."
 
-#: src/components/ai/AvatarStudio.tsx:50
+#: src/components/ai/AvatarStudio.tsx:72
 msgid "Focused"
 msgstr "مركّز"
 
@@ -1274,7 +1273,7 @@ msgid "Global embedding model"
 msgstr "نموذج التضمين العالمي"
 
 #: src/pages/settings-sidebar.tsx:19
-#: src/pages/Shell.tsx:1130
+#: src/pages/Shell.tsx:1167
 msgid "Global models"
 msgstr "النماذج العالمية"
 
@@ -1290,8 +1289,8 @@ msgstr "يبقى التحكم العام بالتداول والإيقاف ال�
 msgid "Global trading settings"
 msgstr "إعدادات التداول العالمية"
 
-#: src/pages/Shell.tsx:269
-#: src/pages/Shell.tsx:1009
+#: src/pages/Shell.tsx:278
+#: src/pages/Shell.tsx:1046
 msgid "Goals"
 msgstr "الأهداف"
 
@@ -1308,15 +1307,15 @@ msgstr "GPT-Live غير متاح لمشروع OpenAI هذا. تحقق من صل�
 msgid "Group name"
 msgstr "اسم المجموعة"
 
-#: src/pages/Shell.tsx:274
+#: src/pages/Shell.tsx:283
 msgid "Group settings"
 msgstr "إعدادات المجموعة"
 
-#: src/pages/Shell.tsx:580
+#: src/pages/Shell.tsx:589
 msgid "Groups"
 msgstr "المجموعات"
 
-#: src/components/ai/AvatarStudio.tsx:41
+#: src/components/ai/AvatarStudio.tsx:63
 msgid "Happy"
 msgstr "سعيد"
 
@@ -1373,7 +1372,7 @@ msgid "Instruction version"
 msgstr "إصدار التعليمات"
 
 #: src/pages/shell/bot-panel.tsx:105
-#: src/pages/shell/bot-settings.tsx:135
+#: src/pages/shell/bot-settings.tsx:137
 msgid "Instructions"
 msgstr "التعليمات"
 
@@ -1383,7 +1382,7 @@ msgstr "بيانات غير كافية لاستنتاجات الأداء"
 
 #: src/components/integrations/IntegrationSetup.tsx:57
 #: src/pages/settings-sidebar.tsx:22
-#: src/pages/Shell.tsx:615
+#: src/pages/Shell.tsx:624
 msgid "Integrations"
 msgstr "التكاملات"
 
@@ -1412,14 +1411,14 @@ msgstr "الانتقال إلى الأحدث"
 msgid "Keep current fixed market"
 msgstr "الإبقاء على السوق الثابت الحالي"
 
-#: src/pages/Shell.tsx:1089
+#: src/pages/Shell.tsx:1126
 msgid "Keep working beside the conversation."
 msgstr "واصل العمل بجانب المحادثة."
 
 #: src/pages/Knowledge.tsx:16
-#: src/pages/Shell.tsx:263
-#: src/pages/Shell.tsx:267
-#: src/pages/Shell.tsx:996
+#: src/pages/Shell.tsx:272
+#: src/pages/Shell.tsx:276
+#: src/pages/Shell.tsx:1033
 msgid "Knowledge"
 msgstr "المعرفة"
 
@@ -1436,7 +1435,7 @@ msgstr "التسمية"
 msgid "Language"
 msgstr "اللغة"
 
-#: src/components/ai/AvatarStudio.tsx:52
+#: src/components/ai/AvatarStudio.tsx:74
 msgid "Laugh"
 msgstr "ضاحك"
 
@@ -1485,8 +1484,8 @@ msgstr "جارٍ التحميل"
 msgid "Loading activity…"
 msgstr "جارٍ تحميل النشاط…"
 
-#: src/pages/Shell.tsx:546
-#: src/pages/Shell.tsx:941
+#: src/pages/Shell.tsx:555
+#: src/pages/Shell.tsx:978
 msgid "Loading agents…"
 msgstr "جارٍ تحميل الوكلاء…"
 
@@ -1496,11 +1495,11 @@ msgstr "جارٍ تحميل الوكلاء…"
 msgid "Loading chart…"
 msgstr "جارٍ تحميل الشارت…"
 
-#: src/pages/shell/conversation-inbox.tsx:120
+#: src/pages/shell/conversation-inbox.tsx:103
 msgid "Loading conversations…"
 msgstr "جارٍ تحميل المحادثات…"
 
-#: src/pages/Shell.tsx:916
+#: src/pages/Shell.tsx:953
 msgid "Loading group…"
 msgstr "جارٍ تحميل المجموعة…"
 
@@ -1508,11 +1507,11 @@ msgstr "جارٍ تحميل المجموعة…"
 msgid "Loading preview…"
 msgstr "جارٍ تحميل المعاينة…"
 
-#: src/pages/Shell.tsx:1166
+#: src/pages/Shell.tsx:1203
 msgid "Loading settings…"
 msgstr "جارٍ تحميل الإعدادات…"
 
-#: src/pages/Shell.tsx:816
+#: src/pages/Shell.tsx:850
 msgid "Loading workspace…"
 msgstr "جارٍ تحميل مساحة العمل…"
 
@@ -1555,13 +1554,13 @@ msgstr "تحديد كمقروء"
 
 #: src/components/trading/SuperBotCards.tsx:292
 #: src/pages/Market.tsx:23
-#: src/pages/Shell.tsx:260
-#: src/pages/Shell.tsx:643
+#: src/pages/Shell.tsx:269
+#: src/pages/Shell.tsx:652
 msgid "Market"
 msgstr "السوق"
 
 #: src/components/charts/ConversationCharts.tsx:104
-#: src/pages/Shell.tsx:1106
+#: src/pages/Shell.tsx:1143
 msgid "Market and charts"
 msgstr "السوق والمخططات"
 
@@ -1600,7 +1599,7 @@ msgid "MCP servers"
 msgstr "خوادم MCP"
 
 #: src/pages/GroupPanel.tsx:58
-#: src/pages/Shell.tsx:599
+#: src/pages/Shell.tsx:608
 msgid "Members"
 msgstr "الأعضاء"
 
@@ -1609,7 +1608,7 @@ msgstr "الأعضاء"
 msgid "Memory"
 msgstr "الذاكرة"
 
-#: src/pages/Shell.tsx:1094
+#: src/pages/Shell.tsx:1131
 msgid "Memory, skills and open work"
 msgstr "الذاكرة والمهارات والعمل المفتوح"
 
@@ -1654,7 +1653,7 @@ msgstr "المقياس"
 msgid "Microphone muted"
 msgstr "الميكروفون مكتوم"
 
-#: src/pages/Shell.tsx:471
+#: src/pages/Shell.tsx:480
 msgid "Minimize agents"
 msgstr "طي قائمة الوكلاء"
 
@@ -1692,7 +1691,7 @@ msgstr "جهازي"
 #: src/components/integrations/IntegrationSetup.tsx:75
 #: src/pages/McpServersOverlay.tsx:52
 #: src/pages/shell/bot-panel.tsx:76
-#: src/pages/shell/bot-settings.tsx:108
+#: src/pages/shell/bot-settings.tsx:110
 msgid "Name"
 msgstr "الاسم"
 
@@ -1717,7 +1716,7 @@ msgstr "التالي"
 msgid "Next run"
 msgstr "التنفيذ القادم"
 
-#: src/pages/Shell.tsx:576
+#: src/pages/Shell.tsx:585
 #: src/pages/shell/bot-picker.tsx:87
 #: src/pages/shell/bot-picker.tsx:99
 #: src/pages/shell/command-palette.tsx:77
@@ -1736,7 +1735,7 @@ msgstr "لم يتم العثور على شموع تاريخية لهذا الر�
 msgid "No candles available for this instrument and timeframe."
 msgstr "لا تتوفر شموع لهذه الأداة والفترة الزمنية."
 
-#: src/pages/shell/conversation-inbox.tsx:180
+#: src/pages/shell/conversation-inbox.tsx:163
 msgid "No conversations match"
 msgstr "لا توجد محادثات مطابقة"
 
@@ -1826,8 +1825,8 @@ msgstr "الآن"
 msgid "One model for text work"
 msgstr "نموذج واحد للمهام النصية"
 
-#: src/pages/Shell.tsx:768
-#: src/pages/Shell.tsx:769
+#: src/pages/Shell.tsx:777
+#: src/pages/Shell.tsx:778
 msgid "Open active call"
 msgstr "فتح المكالمة الحالية"
 
@@ -1850,7 +1849,7 @@ msgstr "فتح المحادثة"
 msgid "Open conversation with {name}"
 msgstr "فتح المحادثة مع {name}"
 
-#: src/pages/Shell.tsx:716
+#: src/pages/Shell.tsx:725
 msgid "Open navigation"
 msgstr "فتح قائمة التنقل"
 
@@ -1935,7 +1934,7 @@ msgstr "كلمة المرور · 12 حرفًا على الأقل"
 msgid "Pause"
 msgstr "إيقاف مؤقت"
 
-#: src/pages/shell/bot-settings.tsx:152
+#: src/pages/shell/bot-settings.tsx:154
 msgid "Pause agent and scheduled work"
 msgstr "إيقاف الوكيل ومهامه المجدولة مؤقتًا"
 
@@ -1945,9 +1944,9 @@ msgstr "إيقاف الوكيل ومهامه المجدولة مؤقتًا"
 #: src/lib/goal-status.ts:40
 #: src/pages/Board.tsx:26
 #: src/pages/Routines.tsx:83
-#: src/pages/Shell.tsx:757
+#: src/pages/Shell.tsx:766
 #: src/pages/shell/bot-roster-row.tsx:36
-#: src/pages/shell/conversation-inbox.tsx:136
+#: src/pages/shell/conversation-inbox.tsx:119
 msgid "Paused"
 msgstr "متوقف مؤقتًا"
 
@@ -1969,11 +1968,11 @@ msgid "Period"
 msgstr "الفترة"
 
 #. placeholder {0}: agent.name
-#: src/pages/shell/bot-settings.tsx:197
+#: src/pages/shell/bot-settings.tsx:199
 msgid "Permanently delete {0}? This cannot be undone."
 msgstr "هل تريد حذف {0} نهائيًا؟ لا يمكن التراجع عن هذا الإجراء."
 
-#: src/pages/shell/bot-settings.tsx:156
+#: src/pages/shell/bot-settings.tsx:158
 msgid "Persistent child agent"
 msgstr "وكيل ابن دائم"
 
@@ -1991,7 +1990,7 @@ msgstr "جارٍ التخطيط"
 msgid "Play audio"
 msgstr "تشغيل الصوت"
 
-#: src/components/ai/AvatarStudio.tsx:46
+#: src/components/ai/AvatarStudio.tsx:68
 msgid "Playful"
 msgstr "مرح"
 
@@ -2051,7 +2050,7 @@ msgstr "منطقة سعرية"
 #~ msgid "Processing the task"
 #~ msgstr "جارٍ معالجة المهمة"
 
-#: src/pages/Shell.tsx:992
+#: src/pages/Shell.tsx:1029
 msgid "Profile"
 msgstr "الهوية"
 
@@ -2130,7 +2129,7 @@ msgstr "جارٍ التحقق من التنفيذ لدى الوسيط"
 
 #: src/components/ai/TurnActivity.tsx:53
 #: src/components/ai/TurnActivity.tsx:114
-#: src/pages/Shell.tsx:454
+#: src/pages/Shell.tsx:463
 msgid "Reconnecting"
 msgstr "جارٍ إعادة الاتصال"
 
@@ -2226,7 +2225,7 @@ msgstr "الأدوات المطلوبة"
 msgid "Research"
 msgstr "البحث المعمق"
 
-#: src/components/ai/AvatarStudio.tsx:119
+#: src/components/ai/AvatarStudio.tsx:150
 msgid "Reset"
 msgstr "إعادة الضبط"
 
@@ -2265,8 +2264,8 @@ msgstr "استئناف"
 #: src/pages/Routines.tsx:169
 #: src/pages/Shell.tsx:147
 #: src/pages/Shell.tsx:163
-#: src/pages/Shell.tsx:809
-#: src/pages/shell/conversation-inbox.tsx:114
+#: src/pages/Shell.tsx:843
+#: src/pages/shell/conversation-inbox.tsx:97
 #: src/pages/shell/message-cards.tsx:183
 msgid "Retry"
 msgstr "إعادة المحاولة"
@@ -2310,9 +2309,9 @@ msgid "Route by capability"
 msgstr "التوجيه حسب القدرة"
 
 #: src/pages/Routines.tsx:24
-#: src/pages/Shell.tsx:262
-#: src/pages/Shell.tsx:268
-#: src/pages/Shell.tsx:1004
+#: src/pages/Shell.tsx:271
+#: src/pages/Shell.tsx:277
+#: src/pages/Shell.tsx:1041
 msgid "Routines"
 msgstr "المهام المجدولة"
 
@@ -2329,12 +2328,13 @@ msgstr "جارٍ التنفيذ"
 msgid "Sampled quote fills are hypothetical. Monetary profit is unavailable."
 msgstr "التنفيذ بأسعار مأخوذة دوريًا افتراضي. الربح المالي غير متاح."
 
+#: src/components/ai/AvatarStudio.tsx:230
 #: src/components/skills/SkillEditor.tsx:123
 #: src/pages/Board.tsx:457
 #: src/pages/KnowledgeSection.tsx:174
 #: src/pages/RoutineEditor.tsx:100
 #: src/pages/ScratchpadSection.tsx:195
-#: src/pages/shell/bot-settings.tsx:177
+#: src/pages/shell/bot-settings.tsx:179
 msgid "Save"
 msgstr "حفظ"
 
@@ -2365,6 +2365,7 @@ msgstr "تم الحفظ"
 msgid "Saved chart"
 msgstr "الشارت المحفوظ"
 
+#: src/components/ai/AvatarStudio.tsx:230
 #: src/pages/Board.tsx:165
 #: src/pages/Board.tsx:457
 msgid "Saving…"
@@ -2382,7 +2383,7 @@ msgstr "الجدولة"
 msgid "Schedule recurring work for your agents."
 msgstr "جدول العمل المتكرر لوكلائك."
 
-#: src/pages/Shell.tsx:1100
+#: src/pages/Shell.tsx:1137
 msgid "Scheduled work"
 msgstr "العمل المجدول"
 
@@ -2390,9 +2391,9 @@ msgstr "العمل المجدول"
 msgid "Scratchpad"
 msgstr "مسودة العمل"
 
-#: src/pages/Shell.tsx:259
-#: src/pages/Shell.tsx:503
-#: src/pages/Shell.tsx:504
+#: src/pages/Shell.tsx:268
+#: src/pages/Shell.tsx:512
+#: src/pages/Shell.tsx:513
 #: src/pages/SpaceSearch.tsx:124
 msgid "Search"
 msgstr "بحث"
@@ -2425,9 +2426,9 @@ msgstr "البحث في الملفات…"
 msgid "Search broker symbols"
 msgstr "ابحث في رموز الوسيط"
 
-#: src/pages/shell/conversation-inbox.tsx:82
-#: src/pages/shell/conversation-inbox.tsx:104
-#: src/pages/shell/conversation-inbox.tsx:105
+#: src/pages/Shell.tsx:807
+#: src/pages/shell/conversation-inbox.tsx:87
+#: src/pages/shell/conversation-inbox.tsx:88
 msgid "Search conversations"
 msgstr "البحث في المحادثات"
 
@@ -2446,8 +2447,8 @@ msgstr "البحث في عمليات التنفيذ"
 msgid "Search separate knowledge notes using real embeddings from a globally selected OpenAI model."
 msgstr "ابحث في الملاحظات المعرفية المنفصلة باستخدام تضمينات فعلية من نموذج OpenAI تختاره عالميًا."
 
-#: src/pages/Shell.tsx:510
-#: src/pages/Shell.tsx:511
+#: src/pages/Shell.tsx:519
+#: src/pages/Shell.tsx:520
 #: src/pages/SpaceSearch.tsx:88
 #: src/pages/SpaceSearch.tsx:115
 msgid "Search your workspace"
@@ -2516,8 +2517,8 @@ msgstr "رابط الخادم"
 msgid "Service needs attention"
 msgstr "الخدمة تحتاج إلى مراجعة"
 
-#: src/pages/Shell.tsx:651
-#: src/pages/Shell.tsx:797
+#: src/pages/Shell.tsx:660
+#: src/pages/Shell.tsx:831
 #: src/pages/shell/chat-context.tsx:743
 msgid "Settings"
 msgstr "الإعدادات"
@@ -2551,7 +2552,7 @@ msgstr "تداول ظلي — أوامر افتراضية فقط"
 #~ msgid "Shared chart workspace"
 #~ msgstr "مساحة الرسم البياني المشتركة"
 
-#: src/pages/Shell.tsx:1160
+#: src/pages/Shell.tsx:1197
 msgid "Shared preferences and connections for all your agents."
 msgstr "تفضيلات واتصالات مشتركة لجميع وكلائك."
 
@@ -2559,7 +2560,7 @@ msgstr "تفضيلات واتصالات مشتركة لجميع وكلائك."
 msgid "Show Agent analysis"
 msgstr "عرض تحليل الوكيل"
 
-#: src/pages/Shell.tsx:725
+#: src/pages/Shell.tsx:734
 msgid "Show agents"
 msgstr "إظهار الوكلاء"
 
@@ -2575,7 +2576,7 @@ msgstr "تسجيل الدخول"
 msgid "Sign in to your persistent workspace"
 msgstr "سجّل دخولك إلى مساحة عملك الدائمة"
 
-#: src/pages/Shell.tsx:676
+#: src/pages/Shell.tsx:685
 msgid "Sign out"
 msgstr "تسجيل الخروج"
 
@@ -2583,7 +2584,7 @@ msgstr "تسجيل الخروج"
 msgid "Sign-in failed. Check your email and password."
 msgstr "فشل تسجيل الدخول. تحقق من البريد الإلكتروني وكلمة المرور."
 
-#: src/components/ai/AvatarStudio.tsx:38
+#: src/components/ai/AvatarStudio.tsx:60
 msgid "Signals"
 msgstr "أعمدة الإشارة"
 
@@ -2608,7 +2609,7 @@ msgstr "بيانات المحاكاة بصيغة JSON"
 msgid "Simulation with an imported snapshot"
 msgstr "محاكاة باستخدام بيانات مستوردة"
 
-#: src/components/ai/AvatarStudio.tsx:48
+#: src/components/ai/AvatarStudio.tsx:70
 msgid "Skeptical"
 msgstr "متشكك"
 
@@ -2633,11 +2634,11 @@ msgstr "المهارات"
 msgid "Skills guide how this agent works. They do not grant trading permissions. This catalog shows current instructions; active tasks keep their pinned versions."
 msgstr "توجّه المهارات طريقة عمل الوكيل ولا تمنحه صلاحيات تداول. تعرض هذه المكتبة التعليمات الحالية، وتحتفظ المهام النشطة بإصداراتها المثبتة."
 
-#: src/components/ai/AvatarStudio.tsx:43
+#: src/components/ai/AvatarStudio.tsx:65
 msgid "Sleepy"
 msgstr "نعسان"
 
-#: src/components/ai/AvatarStudio.tsx:39
+#: src/components/ai/AvatarStudio.tsx:61
 msgid "Smile"
 msgstr "مبتسم"
 
@@ -2674,7 +2675,7 @@ msgstr "فارق السعر"
 msgid "Stable facts and preferences kept separately from conversation history."
 msgstr "حقائق وتفضيلات ثابتة محفوظة بشكل مستقل عن سجل المحادثة."
 
-#: src/pages/shell/conversation-inbox.tsx:171
+#: src/pages/shell/conversation-inbox.tsx:154
 msgid "Start a conversation"
 msgstr "ابدأ محادثة"
 
@@ -2762,11 +2763,11 @@ msgstr "بإشرافك"
 msgid "Supply account, instruments, quotes and candles explicitly. Simulation data is labelled in the workspace."
 msgstr "أدخل بيانات الحساب والأدوات والأسعار والشموع. تظهر بيانات المحاكاة بوسم واضح في مساحة العمل."
 
-#: src/components/ai/AvatarStudio.tsx:44
+#: src/components/ai/AvatarStudio.tsx:66
 msgid "Surprised"
 msgstr "متفاجئ"
 
-#: src/pages/Shell.tsx:538
+#: src/pages/Shell.tsx:547
 #: src/pages/shell/command-palette.tsx:63
 msgid "Switch agent"
 msgstr "تبديل الوكيل"
@@ -2794,9 +2795,9 @@ msgid "Task"
 msgstr "المهمة"
 
 #: src/pages/Board.tsx:79
-#: src/pages/Shell.tsx:257
-#: src/pages/Shell.tsx:635
-#: src/pages/Shell.tsx:1118
+#: src/pages/Shell.tsx:266
+#: src/pages/Shell.tsx:644
+#: src/pages/Shell.tsx:1155
 msgid "Task boards"
 msgstr "لوحات المهام"
 
@@ -3044,7 +3045,7 @@ msgstr "تنتظر المهمة التحقق من عملية خارجية غير
 msgid "This week"
 msgstr "هذا الأسبوع"
 
-#: src/components/ai/AvatarStudio.tsx:40
+#: src/components/ai/AvatarStudio.tsx:62
 msgid "Thoughtful"
 msgstr "متأمل"
 
@@ -3065,7 +3066,7 @@ msgstr "المنطقة الزمنية"
 #: src/pages/ScratchpadSection.tsx:69
 #: src/pages/ScratchpadSection.tsx:160
 #: src/pages/shell/bot-panel.tsx:86
-#: src/pages/shell/bot-settings.tsx:117
+#: src/pages/shell/bot-settings.tsx:119
 msgid "Title"
 msgstr "العنوان"
 
@@ -3089,7 +3090,7 @@ msgid "Today"
 msgstr "اليوم"
 
 #: src/pages/settings-sidebar.tsx:24
-#: src/pages/Shell.tsx:655
+#: src/pages/Shell.tsx:664
 #: src/pages/UsageSettingsPanel.tsx:18
 msgid "Token usage"
 msgstr "استهلاك الرموز"
@@ -3107,13 +3108,13 @@ msgid "Trade action"
 msgstr "عملية تداول"
 
 #: src/pages/settings-sidebar.tsx:21
-#: src/pages/Shell.tsx:261
-#: src/pages/Shell.tsx:647
+#: src/pages/Shell.tsx:270
+#: src/pages/Shell.tsx:656
 #: src/pages/Trading.tsx:25
 msgid "Trading"
 msgstr "التداول"
 
-#: src/pages/Shell.tsx:1112
+#: src/pages/Shell.tsx:1149
 msgid "Trading and operation journal"
 msgstr "التداول وسجل العمليات"
 
@@ -3141,7 +3142,7 @@ msgstr "التداول متوقف"
 msgid "Trading ON"
 msgstr "التداول مفعّل"
 
-#: src/pages/shell/bot-settings.tsx:93
+#: src/pages/shell/bot-settings.tsx:95
 msgid "Trading pair"
 msgstr "زوج التداول"
 
@@ -3319,7 +3320,7 @@ msgstr "تأكدت المراقبة — راجع الأدلة الحالية"
 msgid "Watch source"
 msgstr "مصدر المراقبة"
 
-#: src/pages/shell/bot-settings.tsx:139
+#: src/pages/shell/bot-settings.tsx:141
 msgid "What should this agent know about its work?"
 msgstr "ما الذي يجب أن يعرفه هذا الوكيل عن عمله؟"
 
@@ -3327,7 +3328,7 @@ msgstr "ما الذي يجب أن يعرفه هذا الوكيل عن عمله؟
 msgid "What this agent is for"
 msgstr "ما مهمة هذا الوكيل؟"
 
-#: src/components/ai/AvatarStudio.tsx:42
+#: src/components/ai/AvatarStudio.tsx:64
 msgid "Wink"
 msgstr "غمزة"
 
@@ -3340,15 +3341,15 @@ msgstr "غمزة"
 msgid "Working"
 msgstr "جارٍ العمل"
 
-#: src/pages/Shell.tsx:632
+#: src/pages/Shell.tsx:641
 msgid "Workspace menu"
 msgstr "قائمة مساحة العمل"
 
-#: src/pages/Shell.tsx:1157
+#: src/pages/Shell.tsx:1194
 msgid "Workspace settings"
 msgstr "إعدادات مساحة العمل"
 
-#: src/components/ai/AvatarStudio.tsx:51
+#: src/components/ai/AvatarStudio.tsx:73
 msgid "Worried"
 msgstr "قلق"
 
@@ -3378,10 +3379,10 @@ msgid "Your Lonora workspace"
 msgstr "مساحة عملك في Lonora"
 
 #: src/lib/user_error.ts:40
-#: src/pages/shell/bot-settings.tsx:182
+#: src/pages/shell/bot-settings.tsx:184
 msgid "Your Personal Agent cannot be deleted."
 msgstr "لا يمكن حذف مساعدك الشخصي."
 
-#: src/pages/shell/conversation-inbox.tsx:180
+#: src/pages/shell/conversation-inbox.tsx:163
 msgid "Your team starts here"
 msgstr "فريقك يبدأ من هنا"

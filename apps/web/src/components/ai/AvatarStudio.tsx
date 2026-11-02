@@ -12,10 +12,11 @@ import {
   TradingAvatar,
 } from "@lonora/ui-web";
 import { Pencil, RotateCcw, X } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { userError } from "../../lib/user_error";
 import "./avatar-studio.css";
 
-/** Face selection is a local draft until Done; the surrounding form owns persistence. */
+/** Existing profiles save appearance independently; new-agent selections remain creation drafts. */
 export function AvatarStudio({
   name,
   identity,
@@ -23,6 +24,7 @@ export function AvatarStudio({
   color,
   disabled = false,
   onChange,
+  onSave,
 }: {
   name: string;
   identity?: string;
@@ -30,10 +32,30 @@ export function AvatarStudio({
   color: string;
   disabled?: boolean;
   onChange: (avatar: string, color: string) => void;
+  onSave?: (avatar: string, color: string) => Promise<void>;
 }) {
   const [open, setOpen] = useState(false);
   const [draftAvatar, setDraftAvatar] = useState(avatar);
   const [draftColor, setDraftColor] = useState(color);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<unknown>();
+  const savingRef = useRef(false);
+  const save = async () => {
+    if (savingRef.current) return;
+    savingRef.current = true;
+    setSaving(true);
+    setError(undefined);
+    try {
+      await onSave?.(draftAvatar, draftColor);
+      onChange(draftAvatar, draftColor);
+      setOpen(false);
+    } catch (reason) {
+      setError(reason);
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
+    }
+  };
   const labels: Record<string, string> = {
     orb: t`Signals`,
     "face-smile": t`Smile`,
@@ -56,7 +78,9 @@ export function AvatarStudio({
     <Dialog
       open={open}
       onOpenChange={(next) => {
+        if (savingRef.current) return;
         if (next) {
+          setError(undefined);
           setDraftAvatar(resolveAvatarFace(avatar));
           setDraftColor(color);
         }
@@ -68,7 +92,7 @@ export function AvatarStudio({
           type="button"
           className="avatar-studio-trigger"
           aria-label={t`Customize avatar`}
-          disabled={disabled}
+          disabled={disabled || saving}
           data-testid="avatar-studio-trigger"
         >
           <AgentAvatar identity={identity} name={name || "Lonora"} shape={avatar} color={color} />
@@ -86,7 +110,12 @@ export function AvatarStudio({
           <DialogTitle>
             <Trans>Avatar Studio</Trans>
           </DialogTitle>
-          <DialogClose type="button" className="avatar-studio-icon" aria-label={t`Close`}>
+          <DialogClose
+            type="button"
+            className="avatar-studio-icon"
+            aria-label={t`Close`}
+            disabled={saving}
+          >
             <X size={20} />
           </DialogClose>
         </header>
@@ -111,6 +140,7 @@ export function AvatarStudio({
               type="button"
               className="avatar-studio-reset"
               data-testid="avatar-studio-reset"
+              disabled={saving}
               onClick={() => {
                 setDraftAvatar("orb");
                 setDraftColor(DEFAULT_AVATAR_COLOR);
@@ -120,7 +150,7 @@ export function AvatarStudio({
               <Trans>Reset</Trans>
             </button>
           </div>
-          <fieldset className="avatar-studio-faces" aria-label={t`Face`}>
+          <fieldset className="avatar-studio-faces" aria-label={t`Face`} disabled={saving}>
             {AVATAR_FACES.map(({ id }) => (
               <button
                 type="button"
@@ -152,7 +182,7 @@ export function AvatarStudio({
               <Trans>Color</Trans>
             </h3>
           </div>
-          <fieldset className="avatar-studio-colors" aria-label={t`Color`}>
+          <fieldset className="avatar-studio-colors" aria-label={t`Color`} disabled={saving}>
             {AVATAR_COLORS.map((value) => (
               <button
                 type="button"
@@ -175,24 +205,29 @@ export function AvatarStudio({
             </label>
           </fieldset>
         </div>
+        {error != null && (
+          <p role="alert" className="avatar-studio-error">
+            {userError(error)}
+          </p>
+        )}
         <footer className="avatar-studio-actions">
           <DialogClose
             type="button"
             className="avatar-studio-cancel"
             data-testid="avatar-studio-cancel"
+            disabled={saving}
           >
             <Trans>Cancel</Trans>
           </DialogClose>
           <button
             type="button"
             className="avatar-studio-done"
-            data-testid="avatar-studio-done"
-            onClick={() => {
-              onChange(draftAvatar, draftColor);
-              setOpen(false);
-            }}
+            data-testid="avatar-studio-save"
+            disabled={saving}
+            aria-busy={saving}
+            onClick={() => void save()}
           >
-            <Trans>Done</Trans>
+            {saving ? <Trans>Saving…</Trans> : <Trans>Save</Trans>}
           </button>
         </footer>
       </DialogContent>

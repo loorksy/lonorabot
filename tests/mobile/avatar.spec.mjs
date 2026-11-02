@@ -138,8 +138,10 @@ test("Expo chat renders interactive idle capsules for saved shape profiles", asy
       )
       .toBe(true);
     await page.screenshot({ path: ".runtime/individual-avatar-mobile.png", fullPage: true });
-    // Studio drafts are local until Done, then the surrounding profile's Save persists them.
+    // Existing-agent appearance saves independently of unsaved profile fields.
     await page.goto(`/bot-settings?botId=${agent.id}`);
+    const dirtyName = `Unsaved profile ${randomUUID()}`;
+    await page.getByRole("textbox", { name: "الاسم", exact: true }).fill(dirtyName);
     const editAvatar = page.getByRole("button", { name: "تعديل الأفاتار", exact: true });
     await editAvatar.click();
     const studio = page.getByTestId("avatar-studio");
@@ -166,12 +168,45 @@ test("Expo chat renders interactive idle capsules for saved shape profiles", asy
     await editAvatar.click();
     await studio.getByTestId("avatar-face-face-wink").click();
     await studio.getByRole("radio", { name: /#06B6D4/i }).click();
-    await studio.getByRole("button", { name: "تم", exact: true }).click();
-    await expect(studio).not.toBeVisible();
+    const appearanceWrites = [];
+    let failAppearance = true;
+    await page.route(`**/api/agents/${agent.id}`, async (route) => {
+      if (route.request().method() !== "PATCH") return route.continue();
+      const body = route.request().postDataJSON();
+      appearanceWrites.push(body);
+      if (failAppearance) {
+        failAppearance = false;
+        return route.fulfill({
+          status: 503,
+          contentType: "application/json",
+          body: JSON.stringify({ detail: "temporarily_unavailable" }),
+        });
+      }
+      return route.continue();
+    });
+    await studio.getByRole("button", { name: "حفظ", exact: true }).click();
+    await expect(studio).toBeVisible();
+    await expect(studio.getByRole("alert")).toBeVisible();
+    await expect(studio.getByTestId("avatar-face-face-wink")).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
     const readAgent = async (id) => await (await context.request.get(`/api/agents/${id}`)).json();
     expect((await readAgent(agent.id)).avatar).toBe("organic");
-    await page.getByRole("button", { name: "حفظ", exact: true }).click();
+    await studio.getByRole("button", { name: "حفظ", exact: true }).click();
+    await expect(studio).not.toBeVisible();
     await expect.poll(async () => (await readAgent(agent.id)).avatar).toBe("face-wink");
+    expect((await readAgent(agent.id)).name).toBe(agent.name);
+    await expect(page.getByRole("textbox", { name: "الاسم", exact: true })).toHaveValue(dirtyName);
+    expect(appearanceWrites).toEqual([
+      { avatar: "face-wink", color: "#06B6D4" },
+      { avatar: "face-wink", color: "#06B6D4" },
+    ]);
+    await page.getByRole("button", { name: "حفظ", exact: true }).click();
+    await expect.poll(async () => (await readAgent(agent.id)).name).toBe(dirtyName);
+    expect((await readAgent(agent.id)).avatar).toBe("face-wink");
+    expect(appearanceWrites.at(-1)).not.toHaveProperty("avatar");
+    expect(appearanceWrites.at(-1)).not.toHaveProperty("color");
     await expect(page.getByText("تم الحفظ", { exact: true })).toBeVisible();
     await page.reload();
     await page.getByRole("button", { name: "تعديل الأفاتار", exact: true }).click();
@@ -198,7 +233,7 @@ test("Expo chat renders interactive idle capsules for saved shape profiles", asy
       "true",
     );
     await studio.getByTestId("avatar-face-face-happy").click();
-    await studio.getByRole("button", { name: "تم", exact: true }).click();
+    await studio.getByRole("button", { name: "حفظ", exact: true }).click();
     const createdByUi = page.waitForResponse(
       (response) =>
         response.url().endsWith("/api/agents") && response.request().method() === "POST",

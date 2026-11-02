@@ -348,9 +348,9 @@ for (const id of STATE_IDS) if (STATES[id].accent) SEMANTIC[id] = parseColor(STA
 
 /* ───────────────────────────── geometry of a segment ───────────────────────────── */
 const newSegs = () => Array.from({ length: N }, (_, i) => ({ i, cx: 200, cy: CY, L: 0.01, th: 90, k: 0, w: 0.01, o: 1, c: 0, ar: null }));
-const runState = (def, u, B, identity = "", face = "orb") => {
+const runState = (def, u, B, identity = "", face = "orb", reactionProgress = 1) => {
   for (const b of B) H(b);
-  if (def === STATES.waiting && resolveAvatarFace(face) !== "orb") facialExpression(face, u, B, avatarPersonality(identity));
+  if (def === STATES.waiting && resolveAvatarFace(face) !== "orb") facialExpression(face, u, B, avatarPersonality(identity), reactionProgress);
   else if (def === STATES.waiting && identity) personalizedWaiting(u, B, avatarPersonality(identity));
   else def.fn(u, B);
 };
@@ -382,10 +382,11 @@ function personalizedWaiting(u, B, profile) {
   }
 }
 /** All presets share anchors, optical corrections and stroke hierarchy; only expression topology varies. */
-function facialExpression(face, u, B, profile) {
+function facialExpression(face, u, B, profile, reactionProgress = 1) {
   const T = FACE_TOKENS, S = T.shape, P = T.spacing, O = T.optical, W = T.stroke;
   const phase = wrap(u + profile.phase), breath = Math.sin(TAU * phase) * T.motion.breathAmplitude;
-  const blink = bump(phase - T.motion.blinkPhase,T.motion.blinkHalfDuration), teal = [31,212,179];
+  const reaction = faceReaction(reactionProgress, face);
+  const blink = Math.max(bump(phase - T.motion.blinkPhase,T.motion.blinkHalfDuration), reaction.blink), teal = [31,212,179];
   const segment = (slot, geometry, width = W.secondary, accent = false) => {
     G(B[slot], ...geometry, width, 1, accent ? 1 : 0);
     if (accent) B[slot].ar = teal;
@@ -395,16 +396,17 @@ function facialExpression(face, u, B, profile) {
   const dot = (slot,x,y,accent = true) => segment(slot,[x,y,0.01,0,0],W.indicator,accent);
   const eye = (slot,x) => segment(slot,[x,P.eyeLine,(S.eyeHeight-W.primary)*(1-blink),90,0],W.primary*(1-(1-T.motion.blinkStrokeRatio)*blink));
   const curvedEye = (slot,x,sleepy = false,thoughtful = false) => {
-    const correction = O.eyeArcCorrection + (thoughtful ? O.thoughtfulEyeOffset : 0);
-    curve(slot,x,P.eyeLine+(sleepy?-correction:correction),S.eyeArcRadius,sleepy?90:270,S.eyeArcSpan,W.curvedEye);
+    const gentleBlink = 1 - reaction.blink * .12;
+    const correction = O.eyeArcCorrection * gentleBlink + (thoughtful ? O.thoughtfulEyeOffset : 0);
+    curve(slot,x,P.eyeLine+(sleepy?-correction:correction),S.eyeArcRadius * gentleBlink,sleepy?90:270,S.eyeArcSpan,W.curvedEye);
   };
   const smile = (slot,laugh = false) => {
-    const radius = laugh ? (S.mouthWidth*S.laughingMouthScale-W.secondary)/(2*Math.sin(S.mouthArcSpan*DEG/2)) : S.mouthRadius;
+    const radius = (laugh ? (S.mouthWidth*S.laughingMouthScale-W.secondary)/(2*Math.sin(S.mouthArcSpan*DEG/2)) : S.mouthRadius) * (1 + reaction.mouth * 0.035);
     const correction = radius*(1+Math.cos(S.mouthArcSpan*DEG/2))/2;
     curve(slot,0,P.mouthLine-correction+breath,radius,90,S.mouthArcSpan);
   };
   const flatMouth = (slot,offset = 0) => {
-    const half = (S.mouthWidth*0.72-W.secondary)/2;
+    const half = (S.mouthWidth*0.72-W.secondary)/2 * (1 + reaction.mouth * .04);
     stroke(slot,-half+offset,P.mouthLine+breath,half+offset,P.mouthLine+breath);
   };
   const wink = (slot) => {
@@ -414,7 +416,7 @@ function facialExpression(face, u, B, profile) {
   };
   const brows = (slot,worried = false) => {
     for (let side = -1; side <= 1; side += 2) {
-      const x = side*P.eyeHalfSpacing, y = P.browLine, rise = S.eyebrowRise*(worried?-1:1);
+      const x = side*P.eyeHalfSpacing, y = P.browLine, rise = S.eyebrowRise*(worried?1:-1);
       stroke(slot+(side===1?1:0),x-S.eyebrowLength/2,y-side*rise/2,
         x+S.eyebrowLength/2,y+side*rise/2,W.eyebrow);
     }
@@ -558,11 +560,11 @@ export function morphSegment(from, tgt, plan, i, t, out) {
 const tint = (s, acc) => { const a = s.ar || acc; return [lerp(EYE[0], a[0], s.c), lerp(EYE[1], a[1], s.c), lerp(EYE[2], a[2], s.c)]; };
 
 /** Pure sampler: the 4 shapes of `stateId` at loop phase u (0..1) — no DOM. */
-export function poseAt(stateId, u, accent = DEFAULT_ACCENT, identity = "", face = "orb") {
+export function poseAt(stateId, u, accent = DEFAULT_ACCENT, identity = "", face = "orb", reactionProgress = 1) {
   const def = STATES[stateId];
   if (!def) throw new Error("Unknown avatar state: " + stateId);
   const B = newSegs();
-  runState(def, wrap(u), B, identity, face);
+  runState(def, wrap(u), B, identity, face, reactionProgress);
   const acc = SEMANTIC[stateId] || parseColor(accent, parseColor(DEFAULT_ACCENT));
   return B.map((s) => { const c = tint(s, acc); return { cx: s.cx, cy: s.cy, L: s.L, th: s.th, k: s.k, w: s.w, o: s.o, r: c[0], g: c[1], b: c[2] }; });
 }
@@ -594,16 +596,49 @@ export function avatarPersonality(identity = "") {
   });
 }
 
-/** Agent-specific idle gaze and complete turns; every agent starts with its visor facing forward. */
-export function idleAvatarPose(seconds, identity = "") {
+/** Face temperament: rate, amplitude, vertical bias, reaction gaze X/Y, tilt, lift, scale, blink, mouth. */
+const FACE_BEHAVIOR = Object.freeze({
+  "face-smile":      [1, .8, 0, .10, 0, 2, 0, .01, .8, .3],
+  "face-thoughtful": [.65, .7, -.08, -.22, -.22, -1, 0, -.01, .35, -.2],
+  "face-happy":      [1.05, .8, -.02, .08, -.12, 3, -1, .02, .2, .6],
+  "face-wink":       [.9, .75, 0, .24, .03, -3, 0, .01, .9, .2],
+  "face-sleepy":     [.25, .3, .12, 0, .18, 1, 1, -.02, 1, -.4],
+  "face-surprised":  [.7, .6, -.02, 0, -.20, 0, -.7, -.025, .05, .9],
+  "face-angry":      [.6, .55, .02, -.16, .05, -2, 0, -.01, .7, -.6],
+  "face-playful":    [1.1, .9, 0, .3, -.06, 4, -.8, .025, .5, .8],
+  "face-excited":    [1.15, .85, -.03, -.12, -.16, -4, -1.2, .03, .3, 1],
+  "face-skeptical":  [.6, .8, -.03, -.30, -.03, -2.5, 0, -.005, .6, -.3],
+  "face-dreamy":     [.35, .45, -.06, .12, -.14, 2.5, -.7, .008, .95, .1],
+  "face-focused":    [.35, .35, 0, .02, -.08, 0, .4, -.008, .45, -.1],
+  "face-worried":    [.85, .6, .02, .20, .12, 1.5, .2, -.015, .65, -.8],
+  "face-laugh":      [1, .8, -.01, -.06, -.10, 3.5, -.9, .022, .4, .95],
+  "face-determined": [.45, .45, 0, -.08, .08, -1.5, .7, -.012, .55, -.5],
+});
+
+/** Shared calm reaction, applied to facial content only; endpoints are visually neutral. */
+export function faceReaction(progress, face = "orb", identity = "") {
+  const p = clamp(Number.isFinite(progress) ? progress : 1), profile = avatarPersonality(identity);
+  const active = p > 0 && p < 1, pulse = active ? Math.sin(Math.PI * p) ** 2 : 0;
+  const values = FACE_BEHAVIOR[resolveAvatarFace(face)];
+  if (!values) return { gazeX: 0, gazeY: 0, yaw: TAU * inOut(p) * profile.direction,
+    scale: 1, offsetY: 0, tilt: 0, blink: 0, mouth: 0 };
+  return { gazeX: values[3] * pulse * profile.direction, gazeY: values[4] * pulse,
+    yaw: 0, tilt: values[5] * pulse * profile.direction, offsetY: values[6] * pulse,
+    scale: 1 + values[7] * pulse, blink: values[8] * pulse, mouth: values[9] * pulse };
+}
+
+/** Individual idle motion respects the selected expression as well as the bot identity. */
+export function idleAvatarPose(seconds, identity = "", face = "orb") {
   const time = Number.isFinite(seconds) ? Math.max(0, seconds) : 0;
-  const profile = avatarPersonality(identity), cycle = time % profile.cycleSeconds;
+  const profile = avatarPersonality(identity), values = FACE_BEHAVIOR[resolveAvatarFace(face)];
+  const rate = values ? values[0] : 1, amplitude = values ? values[1] : 1;
+  const cycle = time % profile.cycleSeconds;
   const start = profile.cycleSeconds - profile.spinSeconds, spin = clamp((cycle - start) / profile.spinSeconds);
-  const focus = 1 - Math.sin(Math.PI * spin), phase = profile.phase * TAU;
+  const focus = values ? 1 : 1 - Math.sin(Math.PI * spin), phase = profile.phase * TAU;
   return {
-    gazeX: Math.sin(time * TAU * profile.gazeXFrequency + phase) * profile.gazeXAmplitude * focus * profile.direction,
-    gazeY: Math.sin(time * TAU * profile.gazeYFrequency + phase * 0.7) * profile.gazeYAmplitude * focus,
-    yaw: cycle < start ? 0 : TAU * inOut(spin) * profile.direction,
+    gazeX: Math.sin(time * TAU * profile.gazeXFrequency * rate + phase) * profile.gazeXAmplitude * focus * profile.direction * amplitude,
+    gazeY: Math.sin(time * TAU * profile.gazeYFrequency * rate + phase * .7) * profile.gazeYAmplitude * focus * amplitude + (values ? values[2] : 0),
+    yaw: values || cycle < start ? 0 : TAU * inOut(spin) * profile.direction,
   };
 }
 
@@ -740,7 +775,7 @@ class Avatar {
     if (!preserveMotion) { this.idleTime = 0; this.spinTime = null; this.yaw = 0; }
     this.fl0 = this.fl; this.flT = this.def.fluid === undefined ? 1 : this.def.fluid;
     this.u = this.reduced ? this.def.poster : preserveMotion ? this.u : 0;
-    runState(this.def, this.u, this.tgt, this.identity, this.face);
+    runState(this.def, this.u, this.tgt, this.identity, this.face, this.spinTime === null ? 1 : this.spinTime / this.personality.spinSeconds);
     if (instant || this.reduced) { this.snap = null; this.bt = MORPH_SECONDS; this.plan = ID_PLAN(); this.fl = this.flT; }
     else {
       this.snap = this.shown.map((s) => Object.assign({}, s));
@@ -751,7 +786,7 @@ class Avatar {
     this._refresh(true);
   }
   _compose() {
-    runState(this.def, this.u, this.tgt, this.identity, this.face);
+    runState(this.def, this.u, this.tgt, this.identity, this.face, this.spinTime === null ? 1 : this.spinTime / this.personality.spinSeconds);
     const acc = SEMANTIC[this.id] || this.accent, morphing = this.snap && this.bt < MORPH_SECONDS;
     for (let i = 0; i < N; i++) {
       const o = this.shown[i], t = this.tgt[this.plan.perm[i]];
@@ -764,7 +799,8 @@ class Avatar {
     this._paint();
   }
   _paint() {
-    const gx = this.g.x, gy = this.g.y;
+    const reaction = this.id === "waiting" && this.spinTime !== null ? faceReaction(this.spinTime / this.personality.spinSeconds,this.face,this.identity) : faceReaction(1,"face-smile");
+    const gx = clamp(this.g.x + reaction.gazeX,-1,1), gy = clamp(this.g.y + reaction.gazeY,-1,1);
     if (this.turnG) {
       const turn = avatarTurn(this.id === "waiting" ? this.yaw : 0);
       const transform = "translate(" + fmt(200 + turn.tx) + " " + CY + ") scale(" + fmt(turn.scaleX) + " 1) translate(-200 " + -CY + ")";
@@ -795,7 +831,7 @@ class Avatar {
       if (c.o !== op) { c.o = op; el.style.opacity = op; }
     }
     if (this.faceG) { const ft = fmtT(faceTransform(gx, gy, this.pk)); if (this.cg.f !== ft) { this.cg.f = ft; this.faceG.setAttribute("transform", ft); } }
-    if (this.barsG) { const bt = "translate(" + fmt(gx * 6) + " " + fmt(gy * 4) + ")"; if (this.cg.b !== bt) { this.cg.b = bt; this.barsG.setAttribute("transform", bt); } }
+    if (this.barsG) { const bt = "translate(" + fmt(gx * 6) + " " + fmt(gy * 4 + reaction.offsetY) + ") translate(200 " + CY + ") rotate(" + fmt(reaction.tilt) + ") scale(" + fmt(reaction.scale) + ") translate(-200 " + -CY + ")"; if (this.cg.b !== bt) { this.cg.b = bt; this.barsG.setAttribute("transform", bt); } }
     if (this.glossG) { const gt = "translate(" + fmt(-gx * 12 - this.pk * 4) + " " + fmt(-gy * 9) + ")"; if (this.cg.g !== gt) { this.cg.g = gt; this.glossG.setAttribute("transform", gt); } }
   }
   _pointerNear() {
@@ -813,7 +849,7 @@ class Avatar {
       const r = this.rect, span = Math.max(r.width * 1.1, 120);
       tx = clamp((ptr.x - (r.left + r.width / 2)) / span, -1, 1); ty = clamp((ptr.y - (r.top + r.height / 2)) / span, -1, 1) * 0.8;
     } else if (this.id === "waiting") {
-      const idle = idleAvatarPose(this.idleTime, this.identity);
+      const idle = idleAvatarPose(this.idleTime, this.identity, this.face);
       tx = idle.gazeX; ty = idle.gazeY;
     } else {
       const t = now / 1000 + this.seed;
@@ -831,9 +867,9 @@ class Avatar {
         this.idleTime += dt * this.speed;
         if (this.spinTime !== null) {
           this.spinTime += dt * this.speed;
-          this.yaw = TAU * inOut(clamp(this.spinTime / this.personality.spinSeconds)) * this.personality.direction;
+          this.yaw = faceReaction(this.spinTime / this.personality.spinSeconds,this.face,this.identity).yaw;
           if (this.spinTime >= this.personality.spinSeconds) { this.spinTime = null; this.idleTime = 0; this.yaw = 0; }
-        } else this.yaw = idleAvatarPose(this.idleTime, this.identity).yaw;
+        } else this.yaw = idleAvatarPose(this.idleTime, this.identity, this.face).yaw;
       }
       this._gaze(dt);
     }

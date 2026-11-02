@@ -1,8 +1,8 @@
 import { t } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { GroupAvatar } from "@lonora/ui-web";
-import { Plus, Search, X } from "lucide-react";
-import { useState } from "react";
+import { Plus } from "lucide-react";
+import { useEffect, useRef } from "react";
 import { AgentAvatar } from "../../components/ai/AgentAvatar";
 import { PersonalAgentBadge } from "../../components/ai/PersonalAgentBadge";
 import type { Agent, Resource } from "../../lib/api";
@@ -29,6 +29,9 @@ export function ConversationInbox({
   onOpen,
   onCreate,
   onRetry,
+  query,
+  searching,
+  onQueryChange,
 }: {
   agents: Agent[];
   groups: Resource[];
@@ -39,10 +42,15 @@ export function ConversationInbox({
   onOpen: (path: string) => void;
   onCreate: () => void;
   onRetry: () => void;
+  query: string;
+  searching: boolean;
+  onQueryChange: (query: string) => void;
 }) {
   const { i18n } = useLingui();
-  const [query, setQuery] = useState("");
-  const [searching, setSearching] = useState(false);
+  const searchInput = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (searching) searchInput.current?.focus();
+  }, [searching]);
   const byEntity = new Map(
     entries.map((entry) => [
       entry.agent_id ? `agent:${entry.agent_id}` : `group:${entry.group_id}`,
@@ -71,40 +79,15 @@ export function ConversationInbox({
       aria-label={t`Conversations`}
       data-testid="conversation-inbox"
     >
-      <div className="tpl-inbox-heading">
-        <h1>
-          <Trans>Conversations</Trans>
-        </h1>
-        <div className="tpl-toolbar">
-          <button
-            type="button"
-            className="tpl-icon-button"
-            aria-label={t`Search conversations`}
-            aria-expanded={searching}
-            onClick={() => {
-              setSearching(!searching);
-              setQuery("");
-            }}
-          >
-            {searching ? <X /> : <Search />}
-          </button>
-          <button
-            type="button"
-            className="tpl-icon-button"
-            aria-label={t`Create conversation`}
-            onClick={onCreate}
-          >
-            <Plus />
-          </button>
-        </div>
-      </div>
       {searching && (
         <input
+          id="inbox-search"
           className="tpl-inbox-search"
+          ref={searchInput}
           aria-label={t`Search conversations`}
           placeholder={t`Search conversations`}
           value={query}
-          onChange={(event) => setQuery(event.target.value)}
+          onChange={(event) => onQueryChange(event.target.value)}
         />
       )}
       {error != null && (

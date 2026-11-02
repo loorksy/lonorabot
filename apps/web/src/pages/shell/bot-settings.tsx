@@ -59,8 +59,6 @@ export function AgentSettings({
             name: name.trim(),
             title: title.trim(),
             description: description.trim(),
-            avatar,
-            color,
             instructions,
             paused,
           });
@@ -79,6 +77,10 @@ export function AgentSettings({
         avatar={avatar}
         color={color}
         disabled={saving}
+        onSave={async (face, value) => {
+          await api.patch(`/agents/${agent.id}`, { avatar: face, color: value });
+          refresh();
+        }}
         onChange={(face, value) => {
           setAvatar(face);
           setColor(value);

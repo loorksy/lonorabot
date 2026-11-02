@@ -8,6 +8,7 @@ import {
   avatarTurn,
   FACE_TOKENS,
   FACIAL_GEOMETRY,
+  faceReaction,
   GEOMETRY,
   GLYPH_SCALE,
   idleAvatarPose,
@@ -395,4 +396,41 @@ test("every face-to-face transition remains inside the actual curved display bef
         }
       }
     }
+});
+
+test("angry brows point inward down and worried brows lift inward", () => {
+  const angry = poseAt("waiting", 0.2, undefined, "", "face-angry");
+  const worried = poseAt("waiting", 0.2, undefined, "", "face-worried");
+  const a = segmentPoints(angry[2], 2),
+    w = segmentPoints(worried[2], 2);
+  assert.ok(a[0][1] < a[a.length - 1][1]);
+  assert.ok(w[0][1] > w[w.length - 1][1]);
+});
+
+test("each face owns a different calm gesture, with neutral endpoints and stable reduced motion", () => {
+  const gestures = new Set();
+  for (const { id } of AVATAR_FACES) {
+    const gesture = faceReaction(0.42, id, "same-agent");
+    assert.ok(Object.values(gesture).every(Number.isFinite));
+    gestures.add(JSON.stringify(gesture));
+    if (id !== "orb") {
+      assert.equal(gesture.yaw, 0);
+      assert.deepEqual(faceReaction(0, id), faceReaction(1, id));
+      assert.notDeepEqual(idleAvatarPose(2, "same-agent", id), idleAvatarPose(2, "same-agent"));
+      assert.notDeepEqual(
+        poseAt("waiting", 0.2, undefined, "", id, 0.42),
+        poseAt("waiting", 0.2, undefined, "", id, 1),
+      );
+    }
+    const motion = new AvatarMotion("waiting", "same-agent", id);
+    motion.react();
+    const still = motion.frame(0, true);
+    assert.deepEqual(motion.frame(0.1, true), still);
+    for (const state of STATE_IDS.filter((state) => state !== "waiting"))
+      assert.deepEqual(
+        poseAt(state, 0.2, undefined, "", id, 0.42),
+        poseAt(state, 0.2, undefined, "", id),
+      );
+  }
+  assert.equal(gestures.size, AVATAR_FACES.length);
 });

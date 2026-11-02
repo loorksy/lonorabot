@@ -8,9 +8,8 @@ export const agents = {
     api.post<Thread>(`/agents/${encodeURIComponent(id)}/conversation`, {}),
   update: (
     id: string,
-    body: Pick<
-      Agent,
-      "name" | "title" | "description" | "avatar" | "color" | "instructions" | "paused"
+    body: Partial<
+      Pick<Agent, "name" | "title" | "description" | "avatar" | "color" | "instructions" | "paused">
     > & {
       scope_mode?: "flexible";
       trading_account_id?: string | null;

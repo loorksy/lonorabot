@@ -30,6 +30,7 @@ export default function BotSettings() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [avatarSaving, setAvatarSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   useEffect(() => {
     if (!owner || !botId) return;
@@ -66,21 +67,19 @@ export default function BotSettings() {
     };
   }, [botId, owner, errorText, t]);
   const save = async () => {
-    if (!agent || busy || confirmDelete) return;
+    if (!agent || busy || avatarSaving || confirmDelete) return;
     setBusy(true);
     setError(null);
     setSaved(false);
     try {
       setAgent(
-        await agents.update(agent.id, {
+        await api.patch<Agent>(`/agents/${encodeURIComponent(agent.id)}`, {
           ...(!agent.parent_id && agent.role !== "personal" && agent.role !== "delegated"
             ? marketScopeChange(mode, pair, agent.scope_revision ?? 0, agent)
             : {}),
           name: agent.name.trim(),
           title: agent.title ?? "",
           description: agent.description ?? "",
-          avatar: agent.avatar,
-          color: agent.color,
           instructions: agent.instructions,
           paused: agent.paused,
         }),
@@ -107,12 +106,13 @@ export default function BotSettings() {
       <SheetHeader
         title={t("agentSettings")}
         onClose={() => {
-          if (!busy) router.back();
+          if (!busy && !avatarSaving) router.back();
         }}
         action={t("save")}
         onAction={() => void save()}
         disabled={
           busy ||
+          avatarSaving ||
           confirmDelete ||
           !agent?.name.trim() ||
           (mode === "market" && (!pair.trading_account_id || !pair.trading_symbol))
@@ -129,9 +129,19 @@ export default function BotSettings() {
             name={agent.name}
             color={agent.color}
             avatar={agent.avatar}
-            onChange={(avatar, color) => {
-              setAgent({ ...agent, avatar, color });
-              setSaved(false);
+            disabled={busy}
+            onBusyChange={setAvatarSaving}
+            onChange={(avatar, color) =>
+              setAgent((current) => (current ? { ...current, avatar, color } : current))
+            }
+            onSave={async (avatar, color) => {
+              const updated = await api.patch<Agent>(`/agents/${encodeURIComponent(agent.id)}`, {
+                avatar,
+                color,
+              });
+              setAgent((current) =>
+                current ? { ...current, avatar: updated.avatar, color: updated.color } : current,
+              );
             }}
           />
           <View

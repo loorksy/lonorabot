@@ -215,6 +215,8 @@ function WorkspaceShell({ onLogout }: { onLogout: () => void }) {
   const [inbox, setInbox] = useState<InboxEntry[]>([]);
   const [inboxLoading, setInboxLoading] = useState(true);
   const [inboxError, setInboxError] = useState<unknown>();
+  const [inboxSearching, setInboxSearching] = useState(false);
+  const [inboxQuery, setInboxQuery] = useState("");
   const [activityMode, setActivityMode] = useState(false);
   const [groupsLoading, setGroupsLoading] = useState(true);
   const [drawer, setDrawer] = useState(false);
@@ -235,7 +237,14 @@ function WorkspaceShell({ onLogout }: { onLogout: () => void }) {
   const [globalSettings, setGlobalSettings] = useState<SettingsTab | null>(null);
   const [error, setError] = useState<unknown>();
   const segments = location.pathname.split("/").filter(Boolean);
+  const isInbox = segments.length === 1 && segments[0] === "app";
   const isGroup = segments[1] === "g";
+  useEffect(() => {
+    if (!isInbox) {
+      setInboxSearching(false);
+      setInboxQuery("");
+    }
+  }, [isInbox]);
   const agentId = segments.length === 2 && !surfaces.includes(segments[1]) ? segments[1] : "";
   const agent = agents.find((row) => row.id === agentId);
   const group = isGroup ? groups.find((row) => row.id === segments[2]) : undefined;
@@ -790,7 +799,32 @@ function WorkspaceShell({ onLogout }: { onLogout: () => void }) {
                 <ChartCandlestick />
               </button>
             )}
-            {!agent && !group && (
+            {isInbox && (
+              <>
+                <button
+                  type="button"
+                  className="tpl-icon-button"
+                  aria-label={t`Search conversations`}
+                  aria-expanded={inboxSearching}
+                  aria-controls="inbox-search"
+                  onClick={() => {
+                    setInboxSearching(!inboxSearching);
+                    setInboxQuery("");
+                  }}
+                >
+                  {inboxSearching ? <X /> : <SearchIcon />}
+                </button>
+                <button
+                  type="button"
+                  className="tpl-icon-button"
+                  aria-label={t`Create conversation`}
+                  onClick={() => setPicker(true)}
+                >
+                  <Plus />
+                </button>
+              </>
+            )}
+            {!agent && !group && !isInbox && (
               <button
                 type="button"
                 className="tpl-icon-button"
@@ -833,6 +867,9 @@ function WorkspaceShell({ onLogout }: { onLogout: () => void }) {
                   onOpen={open}
                   onCreate={() => setPicker(true)}
                   onRetry={refresh}
+                  query={inboxQuery}
+                  searching={inboxSearching}
+                  onQueryChange={setInboxQuery}
                 />
               }
             />

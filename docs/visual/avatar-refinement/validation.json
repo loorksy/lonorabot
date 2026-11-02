@@ -1,7 +1,7 @@
 {
   "sourceHashes": {
     "before": "733da6f754f1622c7738cfd272303c9d3bddcf94dbf081b43b8e8201cb5c240c",
-    "after": "cecae27ad0c439adace06a1c9778982b98b27039005cb177202459720cb456b8"
+    "after": "f16056b3e7ec105779d5ecb896dc38810aabd6c3064b366af135351edc764984"
   },
   "browser": "154.0.8037.57",
   "geometry": {
@@ -212,7 +212,7 @@
     },
     {
       "face": "face-angry",
-      "whitePixels": 342
+      "whitePixels": 345
     },
     {
       "face": "face-playful",
@@ -236,7 +236,7 @@
     },
     {
       "face": "face-worried",
-      "whitePixels": 368
+      "whitePixels": 365
     },
     {
       "face": "face-laugh",

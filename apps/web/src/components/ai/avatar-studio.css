@@ -238,3 +238,14 @@
 .avatar-studio-faces {
   padding: 0;
 }
+.avatar-studio-error {
+  margin: 0;
+  padding-block: 8px;
+  color: var(--destructive);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.avatar-studio-dialog button:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
