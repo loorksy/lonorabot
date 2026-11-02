@@ -9,7 +9,6 @@ import type { BrokerPair } from "../../components/trading/BrokerPairPicker";
 import type { Agent } from "../../lib/api";
 import { userError } from "../../lib/user_error";
 
-const colors = ["#ee8555", "#818cf8", "#4fb8a7", "#e2ba58", "#ce77ae", "#8a9eae"];
 export function AgentCreatePanel({
   create,
   onCreated,
@@ -35,7 +34,7 @@ export function AgentCreatePanel({
   const [name, setName] = useState("");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [color, setColor] = useState(colors[0]);
+  const color = "#eae3df";
   const avatar = "orb";
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>();
@@ -110,27 +109,6 @@ export function AgentCreatePanel({
         <div className="tpl-profile-preview">
           <AgentAvatar name={name || "L"} color={color} shape={avatar} />
         </div>
-        <fieldset className="tpl-colors">
-          <legend>
-            <Trans>Color</Trans>
-          </legend>
-          {colors.map((value) => (
-            <button
-              type="button"
-              key={value}
-              style={{ backgroundColor: value }}
-              aria-label={`${t`Color`} ${value}`}
-              aria-pressed={value === color}
-              onClick={() => setColor(value)}
-            />
-          ))}
-          <input
-            type="color"
-            aria-label={t`Custom color`}
-            value={color}
-            onChange={(event) => setColor(event.target.value)}
-          />
-        </fieldset>
       </details>
       {error != null && <p role="alert">{userError(error)}</p>}
       <button

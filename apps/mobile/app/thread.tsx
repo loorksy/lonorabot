@@ -671,7 +671,12 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
                 const active = [...runs]
                   .reverse()
                   .find((run) => activeStatuses.includes(run.status));
-                return active ? turnActivity(active, events).avatar : "waiting";
+                if (!active) return "waiting";
+                if (connection !== "connected") return "connecting";
+                return turnActivity(
+                  { ...active, stream: streamForRun(active, streams[active.id]) },
+                  events,
+                ).avatar;
               })()}
             />
           ) : group ? (

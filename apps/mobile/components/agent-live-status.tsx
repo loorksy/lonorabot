@@ -4,10 +4,11 @@ import { useCallback, useRef, useState } from "react";
 import { AppState, Pressable, Text, View } from "react-native";
 import { api } from "../lib/api";
 import { useSession } from "../lib/session";
+import { NativeSymbol } from "./native-symbol";
 import { Button, colors, ErrorNotice } from "./ui";
 
 export function AgentLiveStatus({ agentId }: { agentId: string }) {
-  const { t, errorText } = useSession();
+  const { t, errorText, rtl } = useSession();
   const [state, setState] = useState<AgentLiveState | null>(null);
   const [expanded, setExpanded] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -41,17 +42,45 @@ export function AgentLiveStatus({ agentId }: { agentId: string }) {
     }, [agentId]),
   );
   if (!state) return null;
+  const attention = state.state === "degraded" || state.state === "action_required";
+  const tint = attention
+    ? colors.warning
+    : state.state === "working"
+      ? colors.foreground
+      : colors.secondary;
   return (
     <View style={{ paddingHorizontal: 16, paddingBottom: 6 }} testID="agent-live-state">
       <Pressable
         accessibilityRole="button"
         accessibilityState={{ expanded }}
         onPress={() => setExpanded(!expanded)}
-        style={{ minHeight: 44, justifyContent: "center" }}
+        style={({ pressed }) => ({
+          minHeight: 44,
+          paddingHorizontal: 11,
+          paddingVertical: 7,
+          borderRadius: 12,
+          borderWidth: 1,
+          borderColor: attention ? `${tint}44` : colors.border,
+          backgroundColor: pressed ? colors.accent : colors.muted,
+          flexDirection: rtl ? "row-reverse" : "row",
+          alignItems: "center",
+          alignSelf: rtl ? "flex-end" : "flex-start",
+          gap: 8,
+          maxWidth: "100%",
+        })}
       >
-        <Text style={{ color: colors.secondary }}>
+        <View
+          accessible={false}
+          style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: tint }}
+        />
+        <Text
+          style={{ color: tint, fontSize: 12, flexShrink: 1, textAlign: rtl ? "right" : "left" }}
+        >
           {t("backgroundActivity")} · {t(`live_${state.state}`)}
         </Text>
+        <View style={{ transform: [{ rotate: expanded ? "90deg" : rtl ? "180deg" : "0deg" }] }}>
+          <NativeSymbol name="chevron" size={11} color={tint} />
+        </View>
       </Pressable>
       {expanded && (
         <View style={{ gap: 8, paddingVertical: 8 }}>

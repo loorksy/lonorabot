@@ -12,6 +12,7 @@ export { attachmentTooLarge, maxAttachmentBytes } from "./attachments";
 export * from "./avatar-geometry";
 export * from "./avatar-motion";
 export * from "./avatar-state";
+export * from "./cat-avatar";
 export {
   type MentionAddress,
   type MentionRange,

@@ -1,11 +1,13 @@
 import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
 import type { AgentLiveState } from "@lonora/contracts";
+import { ChevronDown } from "lucide-react";
 import { useEffect, useState } from "react";
 import { api } from "../../lib/api";
 import { goalStatusLabel } from "../../lib/goal-status";
 import { userError } from "../../lib/user_error";
 import { useClient } from "../../providers/ClientProvider";
+import "./agent-status.css";
 
 export function AgentLiveStatus({ agentId }: { agentId: string }) {
   const { revision } = useClient();
@@ -40,11 +42,15 @@ export function AgentLiveStatus({ agentId }: { agentId: string }) {
   };
   return (
     <details
-      className="template-run-status"
+      className="template-run-status lonora-background-status"
       data-testid="agent-live-state"
       data-state={state.state}
     >
-      <summary>{labels[state.state]}</summary>
+      <summary>
+        <i className="lonora-status-dot" aria-hidden="true" />
+        <span>{labels[state.state]}</span>
+        <ChevronDown size={14} className="lonora-status-expand" aria-hidden="true" />
+      </summary>
       {error != null && <p role="alert">{userError(error)}</p>}
       {(state.runtime_waits ?? []).map((wait) => (
         <p key={wait.run_id}>
