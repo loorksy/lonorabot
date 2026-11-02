@@ -106,6 +106,11 @@ export function poseAt(stateId: AvatarStateId, u: number, accent?: string): BarP
 /** Loop length in seconds. */
 export function loopSeconds(stateId: AvatarStateId, speed?: number): number;
 
+/** Lively waiting gaze plus an occasional complete turn. seconds counts visible active time. */
+export function idleAvatarPose(seconds: number): { gazeX: number; gazeY: number; yaw: number };
+/** Project a visor around the sphere; back-facing content is invisible and never mirrored. */
+export function avatarTurn(yaw: number): { tx: number; scaleX: number; opacity: number };
+
 /** The 3D transform of the face for a gaze (−1…1) and tap push (0…1). */
 export function faceTransform(
   gx?: number,

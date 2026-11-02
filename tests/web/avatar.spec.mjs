@@ -4,7 +4,7 @@ import { readFile } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
 import { brokerFixture } from "./broker-fixture.mjs";
 
-test("installed bot avatars use the supplied candles for old shape profiles", async ({
+test("idle avatars use smooth signal capsules for every saved shape profile", async ({
   page,
   context,
 }) => {
@@ -52,6 +52,21 @@ test("installed bot avatars use the supplied candles for old shape profiles", as
       await expect(glyph).toBeVisible();
       await expect(glyph.locator("[data-mta-bar]")).toHaveCount(8);
       await expect(glyph).toHaveAttribute("data-state", "waiting");
+      await expect
+        .poll(() =>
+          glyph
+            .locator("[data-mta-bar]")
+            .evaluateAll(
+              (paths) =>
+                paths.filter(
+                  (path) =>
+                    Number(getComputedStyle(path).opacity) > 0.5 &&
+                    Number(path.getAttribute("stroke-width")) > 1,
+                ).length,
+            ),
+        )
+        .toBe(4);
+      await expect(glyph.locator("[data-mta-turn]")).toHaveCount(1);
       const svg = glyph.locator("svg");
       await expect(svg).toHaveAttribute("viewBox", "22 22 356 356");
       const box = await svg.boundingBox();
@@ -128,6 +143,20 @@ test("liquid engine renders all states and releases shared animation/listeners",
   const before = await first.getAttribute("d");
   await expect.poll(() => first.getAttribute("d")).not.toBe(before);
   await page.screenshot({ path: ".runtime/liquid-avatar-gallery.png", fullPage: true });
+  const idle = page.locator('.mta-avatar[data-state="waiting"]');
+  await idle.scrollIntoViewIfNeeded();
+  const turn = idle.locator("[data-mta-turn]");
+  const face = idle.locator("[data-mta-face]");
+  const front = await face.getAttribute("transform");
+  await expect
+    .poll(() => face.getAttribute("transform"), { intervals: [30, 50, 75] })
+    .not.toBe(front);
+  // A tap starts a complete yaw turn: visor disappears behind the shell, then returns.
+  await idle.dispatchEvent("pointerdown", { pointerType: "mouse" });
+  await expect.poll(() => turn.getAttribute("opacity"), { intervals: [30, 50, 75] }).toBe("0");
+  await expect.poll(() => turn.getAttribute("opacity")).toBe("1");
+  await idle.scrollIntoViewIfNeeded();
+  await first.scrollIntoViewIfNeeded();
   await page.emulateMedia({ reducedMotion: "reduce" });
   const still = await first.getAttribute("d");
   await page.evaluate(() => new Promise((resolve) => setTimeout(resolve, 100)));

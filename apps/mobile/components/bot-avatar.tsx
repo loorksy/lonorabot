@@ -3,9 +3,11 @@ import {
   type AvatarStateId,
   avatarBarPath,
   avatarState,
+  avatarTurn,
   faceTransform,
   GEOMETRY,
   GLYPH_SCALE,
+  idleAvatarPose,
   resolveAvatarColor,
 } from "@lonora/core";
 import { memo, useEffect, useId, useRef, useState } from "react";
@@ -30,7 +32,7 @@ import Svg, {
 import { useSession } from "../lib/session";
 import { colors } from "./ui";
 
-/** Native SVG renderer of the supplied liquid-candle engine; no per-avatar WebView. */
+/** Native SVG renderer with shared signal geometry and interactive spherical idle motion. */
 export const BotAvatar = memo(function BotAvatar({
   color,
   size = 54,
@@ -55,8 +57,14 @@ export const BotAvatar = memo(function BotAvatar({
   const [bars, setBars] = useState(() => motion.current.frame(0));
   const reduced = useReducedMotion();
   const [poke, setPoke] = useState(0);
-  const [foreground, setForeground] = useState(AppState.currentState === "active");
-  const [gaze, setGaze] = useState(0);
+  const [foreground, setForeground] = useState(
+    AppState.currentState !== "background" && AppState.currentState !== "inactive",
+  );
+  const elapsed = useRef(0);
+  const idleEpoch = useRef(0);
+  const tapSpin = useRef<number | null>(null);
+  const pointer = useRef<{ x: number; y: number; until: number } | null>(null);
+  const [pose, setPose] = useState({ gazeX: 0, gazeY: 0, yaw: 0 });
   useEffect(() => {
     const listener = AppState.addEventListener("change", (next) =>
       setForeground(next === "active"),
@@ -65,36 +73,83 @@ export const BotAvatar = memo(function BotAvatar({
   }, []);
   useEffect(() => {
     motion.current.setState(visualState);
+    idleEpoch.current = elapsed.current;
+    tapSpin.current = null;
     setBars(motion.current.frame(0, reduced));
     if (reduced || !foreground) return;
     let frame = 0;
     let previous = 0;
-    // Small idle list/message avatars are posters. Active work and call states animate.
-    if (size < 64 && visualState === "waiting" && !poke) return;
     const draw = (now: number) => {
       if (!previous || now - previous >= 1000 / 30) {
-        setBars(motion.current.frame(previous ? (now - previous) / 1000 : 0));
-        setGaze(Math.sin(now / 2400) * 0.4);
+        const dt = previous ? Math.min((now - previous) / 1000, 0.1) : 0;
+        elapsed.current += dt;
+        setBars(motion.current.frame(dt));
+        const idle =
+          visualState === "waiting"
+            ? idleAvatarPose(elapsed.current - idleEpoch.current)
+            : { gazeX: Math.sin(now / 2400) * 0.4, gazeY: 0, yaw: 0 };
+        let yaw = idle.yaw;
+        if (visualState === "waiting" && tapSpin.current !== null) {
+          const progress = Math.min(1, (elapsed.current - tapSpin.current) / 1.2);
+          yaw = Math.PI * 2 * (progress * progress * (3 - 2 * progress));
+          if (progress >= 1) {
+            tapSpin.current = null;
+            // Start the next idle cycle facing forward after a manually requested turn.
+            idleEpoch.current = elapsed.current;
+          }
+        }
+        const target = pointer.current;
+        setPose({
+          gazeX: target && elapsed.current < target.until ? target.x : idle.gazeX,
+          gazeY: target && elapsed.current < target.until ? target.y : idle.gazeY,
+          yaw,
+        });
+        setPoke((value) => (value < 0.005 ? 0 : value * Math.exp(-dt * 12)));
         previous = now;
       }
       frame = requestAnimationFrame(draw);
     };
     frame = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(frame);
-  }, [visualState, reduced, foreground, size, poke]);
-  useEffect(() => {
-    if (!poke) return;
-    const timeout = setTimeout(() => setPoke(0), 220);
-    return () => clearTimeout(timeout);
-  }, [poke]);
+  }, [visualState, reduced, foreground]);
+  const aim = (event: {
+    nativeEvent: { locationX?: number; locationY?: number; offsetX?: number; offsetY?: number };
+  }) => {
+    if (reduced) return;
+    const { locationX, locationY, offsetX, offsetY } = event.nativeEvent;
+    const x = locationX ?? offsetX;
+    const y = locationY ?? offsetY;
+    if (typeof x === "number" && typeof y === "number") {
+      pointer.current = {
+        x: Math.max(-1, Math.min(1, (x / size - 0.5) * 2)),
+        y: Math.max(-0.8, Math.min(0.8, (y / size - 0.5) * 1.6)),
+        until: elapsed.current + 1.5,
+      };
+    }
+  };
+  const react = (event: Parameters<typeof aim>[0]) => {
+    if (reduced) return;
+    aim(event);
+    setPoke(0.8);
+    if (visualState === "waiting") tapSpin.current = elapsed.current;
+  };
   const face = GEOMETRY.face;
-  const look = faceTransform(reduced ? 0 : gaze, 0, reduced ? 0 : poke);
+  const look = faceTransform(
+    reduced ? 0 : pose.gazeX,
+    reduced ? 0 : pose.gazeY,
+    reduced ? 0 : poke,
+  );
+  const turn = avatarTurn(reduced || visualState !== "waiting" ? 0 : pose.yaw);
+  const turnTransform = `translate(${200 + turn.tx} 200.5) scale(${turn.scaleX} 1) translate(-200 -200.5)`;
   const transform = `translate(${200 + look.tx} ${200.5 + look.ty}) rotate(${look.rot}) skewY(${look.skew}) scale(${look.sx} ${look.sy}) translate(-200 -200.5)`;
   return (
     <View
       testID="trading-avatar"
       style={{ width: size, height: size }}
-      onTouchStart={reduced ? undefined : () => setPoke(0.8)}
+      onTouchStart={react}
+      onTouchMove={aim}
+      onPointerDown={react}
+      onPointerMove={aim}
     >
       <Svg
         width={size}
@@ -106,6 +161,9 @@ export const BotAvatar = memo(function BotAvatar({
         <Defs>
           <ClipPath id={`${id}clip`}>
             <Rect {...face} />
+          </ClipPath>
+          <ClipPath id={`${id}sphere`}>
+            <Circle cx={200} cy={200} r={177} />
           </ClipPath>
           <RadialGradient id={`${id}shade`} cx="34%" cy="27%" r="95%">
             <Stop offset="0" stopColor="#fff" stopOpacity={0.4} />
@@ -139,23 +197,27 @@ export const BotAvatar = memo(function BotAvatar({
         </Defs>
         <Circle cx={200} cy={200} r={177} fill={resolveAvatarColor(identity, color).hex} />
         <Circle cx={200} cy={200} r={177} fill={`url(#${id}shade)`} />
-        <G transform={transform}>
-          <Rect {...face} fill="#0d0d11" />
-          <G clipPath={`url(#${id}clip)`}>
-            <G filter={size >= 64 ? `url(#${id}goo)` : undefined}>
-              {bars.map((bar, i) => (
-                <Path
-                  // biome-ignore lint/suspicious/noArrayIndexKey: fixed particle slots never reorder.
-                  key={i}
-                  d={avatarBarPath(bar)}
-                  fill="none"
-                  stroke={`rgb(${Math.round(bar.r)},${Math.round(bar.g)},${Math.round(bar.b)})`}
-                  strokeWidth={Math.max(bar.w * GLYPH_SCALE, 0.01)}
-                  opacity={bar.o}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              ))}
+        <G clipPath={`url(#${id}sphere)`}>
+          <G id={`${id}turn`} transform={turnTransform} opacity={turn.opacity}>
+            <G transform={transform}>
+              <Rect {...face} fill="#0d0d11" />
+              <G clipPath={`url(#${id}clip)`}>
+                <G filter={size >= 64 ? `url(#${id}goo)` : undefined}>
+                  {bars.map((bar, i) => (
+                    <Path
+                      // biome-ignore lint/suspicious/noArrayIndexKey: fixed particle slots never reorder.
+                      key={i}
+                      d={avatarBarPath(bar)}
+                      fill="none"
+                      stroke={`rgb(${Math.round(bar.r)},${Math.round(bar.g)},${Math.round(bar.b)})`}
+                      strokeWidth={Math.max(bar.w * GLYPH_SCALE, 0.01)}
+                      opacity={bar.o}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  ))}
+                </G>
+              </G>
             </G>
           </G>
         </G>
