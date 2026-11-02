@@ -39,6 +39,18 @@ export const STATE_IDS = Object.freeze([
   "analyzing", "learning", "sleeping", "celebrating", "connecting",
 ]);
 
+export const AVATAR_FACES = Object.freeze([
+  ["orb", "Signals"], ["face-smile", "Smile"], ["face-thoughtful", "Thoughtful"],
+  ["face-happy", "Happy"], ["face-wink", "Wink"], ["face-sleepy", "Sleepy"],
+  ["face-surprised", "Surprised"], ["face-angry", "Angry"], ["face-playful", "Playful"],
+  ["face-excited", "Excited"], ["face-skeptical", "Skeptical"], ["face-dreamy", "Dreamy"],
+  ["face-focused", "Focused"], ["face-worried", "Worried"], ["face-laugh", "Laugh"],
+  ["face-determined", "Determined"],
+].map(([id, label]) => Object.freeze({ id, label })));
+const FACE_IDS = new Set(AVATAR_FACES.map(face => face.id));
+/** Existing shell identifiers retain the legacy signal face. */
+export function resolveAvatarFace(value) { return FACE_IDS.has(value) ? value : "orb"; }
+
 const BASE_SECONDS = 2.8;
 const MORPH_SECONDS = 0.95;   // shape → shape travel time
 const MORPH_DELAY = 0.07;     // stagger between signals
@@ -64,6 +76,64 @@ const lerpAng = (a, b, t) => a + ((((b - a + 540) % 360) + 360) % 360 - 180) * t
 
 export const GLYPH_SCALE = 1.1;                    // how large the glyph is drawn inside the visor
 const N = 8;                                       // particles that make up the one liquid mass
+
+/** One facial coordinate system, derived from the original visor and shortest idle capsule. */
+const facialUnit = GEOMETRY.barWidth;
+const facialCenter = { x: GEOMETRY.shell.cx, y: GEOMETRY.centerY };
+const eyeHalfSpacing = (GEOMETRY.barX[3] - GEOMETRY.barX[0]) * 0.35;
+const eyeLine = -GEOMETRY.face.height * 0.055;
+const primaryStroke = facialUnit * 0.68, secondaryStroke = facialUnit * 0.44;
+const browStroke = facialUnit * 0.32, accentStroke = facialUnit * 0.29;
+const eyeHeight = GEOMETRY.restHeights[0], eyeArcRadius = primaryStroke * 0.72;
+const eyeArcSpan = 140, mouthArcSpan = 110;
+const mouthWidth = facialUnit * 1.6;
+const eyeArcCorrection = eyeArcRadius * (1 + Math.cos(eyeArcSpan * DEG / 2)) / 2;
+const mouthRadius = (mouthWidth - secondaryStroke) / (2 * Math.sin(mouthArcSpan * DEG / 2));
+const mouthCorrection = mouthRadius * (1 + Math.cos(mouthArcSpan * DEG / 2)) / 2;
+const minimumSeparation = facialUnit * 0.2;
+const browLine = eyeLine - eyeHeight / 2 - minimumSeparation - browStroke;
+const mouthLine = GEOMETRY.face.height * 0.185;
+const expressionHalfWidth = GEOMETRY.face.width * 0.35 / GLYPH_SCALE;
+const expressionHalfHeight = GEOMETRY.face.height * 0.41 / GLYPH_SCALE;
+const frozenPoint = (x,y) => Object.freeze({ x,y });
+export const FACE_TOKENS = Object.freeze({
+  stroke: Object.freeze({ primary: primaryStroke, curvedEye: primaryStroke * 0.8,
+    secondary: secondaryStroke, eyebrow: browStroke, accent: accentStroke,
+    indicator: accentStroke * 1.08 }),
+  shape: Object.freeze({ eyeWidth: primaryStroke, eyeHeight, eyeArcRadius, eyeArcSpan,
+    eyebrowLength: facialUnit * 1.08, eyebrowRise: browStroke,
+    mouthWidth, mouthRadius, mouthArcSpan, laughingMouthScale: 1.12,
+    roundMouthRadius: secondaryStroke * 0.88, tongueWidth: primaryStroke * 0.75,
+    tongueLength: secondaryStroke * 0.25, winkHalfWidth: primaryStroke * 0.4,
+    winkHalfHeight: eyeHeight * 0.3, closedEyeLength: eyeHeight - primaryStroke,
+    accentLength: facialUnit * 0.42, accentRadius: facialUnit * 0.36,
+    questionRadius: facialUnit * 0.34, cornerRadius: secondaryStroke / 2 }),
+  spacing: Object.freeze({ eyeHalfSpacing, eyeLine, browLine, mouthLine,
+    minimumSeparation, accentPitch: facialUnit * 0.72, accentLine: -facialUnit * 1.52,
+    sideAccentX: eyeHalfSpacing + facialUnit * 0.7,
+    tongueLine: mouthLine + secondaryStroke * 0.9,
+    sideAccentLine: -facialUnit * 1.05 }),
+  optical: Object.freeze({ eyeArcCorrection, mouthCorrection,
+    openMouthOffset: secondaryStroke * 0.34, thoughtfulEyeOffset: facialUnit * 0.035,
+    focusedMouthOffset: facialUnit * 0.16 }),
+  motion: Object.freeze({ breathAmplitude: facialUnit * 0.025, blinkPhase: 0.82,
+    blinkHalfDuration: 0.035, blinkStrokeRatio: 0.65 }),
+  render: Object.freeze({ gooBlur: 0.5, glowBlur: 2, glowOpacity: 0.16 }),
+});
+export const FACIAL_GEOMETRY = Object.freeze({
+  viewBox: GEOMETRY.viewBox, outerShell: GEOMETRY.shell, faceDisplay: GEOMETRY.face,
+  horizontalCenter: facialCenter.x, verticalCenter: facialCenter.y,
+  eyeAnchors: Object.freeze({ left: frozenPoint(facialCenter.x-eyeHalfSpacing,facialCenter.y+eyeLine),
+    right: frozenPoint(facialCenter.x+eyeHalfSpacing,facialCenter.y+eyeLine) }),
+  eyebrowAnchors: Object.freeze({ left: frozenPoint(facialCenter.x-eyeHalfSpacing,facialCenter.y+browLine),
+    right: frozenPoint(facialCenter.x+eyeHalfSpacing,facialCenter.y+browLine) }),
+  mouthAnchor: frozenPoint(facialCenter.x,facialCenter.y+mouthLine),
+  expressionBounds: Object.freeze({ left: -expressionHalfWidth, right: expressionHalfWidth,
+    top: -expressionHalfHeight, bottom: expressionHalfHeight }),
+  facialSafeArea: Object.freeze({ x: facialCenter.x-expressionHalfWidth*GLYPH_SCALE,
+    y: facialCenter.y-expressionHalfHeight*GLYPH_SCALE,
+    width: expressionHalfWidth*GLYPH_SCALE*2, height: expressionHalfHeight*GLYPH_SCALE*2 }),
+});
 /* ───────────────────────────── segment model ─────────────────────────────
  * One signal = a stroked arc: centre (cx,cy) · length L (centre-line) · heading th°
  * at the middle (0 = right, 90 = down) · curvature k (1/radius, 0 = straight) ·
@@ -278,31 +348,32 @@ for (const id of STATE_IDS) if (STATES[id].accent) SEMANTIC[id] = parseColor(STA
 
 /* ───────────────────────────── geometry of a segment ───────────────────────────── */
 const newSegs = () => Array.from({ length: N }, (_, i) => ({ i, cx: 200, cy: CY, L: 0.01, th: 90, k: 0, w: 0.01, o: 1, c: 0, ar: null }));
-const runState = (def, u, B, identity = "") => {
+const runState = (def, u, B, identity = "", face = "orb") => {
   for (const b of B) H(b);
-  if (def === STATES.waiting && identity) personalizedWaiting(u, B, avatarPersonality(identity));
+  if (def === STATES.waiting && resolveAvatarFace(face) !== "orb") facialExpression(face, u, B, avatarPersonality(identity));
+  else if (def === STATES.waiting && identity) personalizedWaiting(u, B, avatarPersonality(identity));
   else def.fn(u, B);
 };
 
 /** Idle-only expressions keep the four capsules while changing their independent rhythm. */
 function personalizedWaiting(u, B, profile) {
   const time = wrap(u + profile.phase), direction = profile.direction;
-  const sway = 3 * Math.sin(TAU * time);
+  const sway = 1.5 * Math.sin(TAU * time);
   for (let i = 0; i < 4; i++) {
     const wave = Math.sin(TAU * (time - i * 0.17 * direction));
     let height = REST[i], lift = 0, dx = 0;
-    if (profile.pattern === 0) height += 7 * wave;
+    if (profile.pattern === 0) height += 3.5 * wave;
     else if (profile.pattern === 1) {
-      height *= 0.93 + 0.08 * Math.sin(TAU * time);
-      lift = 3 * (1 + Math.sin(TAU * (time + i * 0.2 * direction)));
+      height *= 0.96 + 0.04 * Math.sin(TAU * time);
+      lift = 1.5 * (1 + Math.sin(TAU * (time + i * 0.2 * direction)));
     } else if (profile.pattern === 2) {
-      height += 4 * wave;
-      dx = sway + 1.5 * Math.sin(TAU * (time - i * 0.1));
-      lift = 2.5 * Math.sin(TAU * (time + i * 0.15 * direction));
+      height += 2 * wave;
+      dx = sway + 0.75 * Math.sin(TAU * (time - i * 0.1));
+      lift = 1.25 * Math.sin(TAU * (time + i * 0.15 * direction));
     } else {
       const bounce = Math.max(0, Math.sin(TAU * (time - i * 0.16 * direction)));
-      height += 5 * bounce;
-      lift = 7 * bounce;
+      height += 2.5 * bounce;
+      lift = 3.5 * bounce;
       dx = sway * 0.5;
     }
     height = clamp(height, 30, 94);
@@ -310,6 +381,101 @@ function personalizedWaiting(u, B, profile) {
     if (i === 2) B[i].ar = [31, 212, 179];
   }
 }
+/** All presets share anchors, optical corrections and stroke hierarchy; only expression topology varies. */
+function facialExpression(face, u, B, profile) {
+  const T = FACE_TOKENS, S = T.shape, P = T.spacing, O = T.optical, W = T.stroke;
+  const phase = wrap(u + profile.phase), breath = Math.sin(TAU * phase) * T.motion.breathAmplitude;
+  const blink = bump(phase - T.motion.blinkPhase,T.motion.blinkHalfDuration), teal = [31,212,179];
+  const segment = (slot, geometry, width = W.secondary, accent = false) => {
+    G(B[slot], ...geometry, width, 1, accent ? 1 : 0);
+    if (accent) B[slot].ar = teal;
+  };
+  const stroke = (slot,x0,y0,x1,y1,width = W.secondary,accent = false) => segment(slot,line(x0,y0,x1,y1),width,accent);
+  const curve = (slot,x,y,radius,alpha,span,width = W.secondary,accent = false) => segment(slot,arc(x,y,radius,alpha,span),width,accent);
+  const dot = (slot,x,y,accent = true) => segment(slot,[x,y,0.01,0,0],W.indicator,accent);
+  const eye = (slot,x) => segment(slot,[x,P.eyeLine,(S.eyeHeight-W.primary)*(1-blink),90,0],W.primary*(1-(1-T.motion.blinkStrokeRatio)*blink));
+  const curvedEye = (slot,x,sleepy = false,thoughtful = false) => {
+    const correction = O.eyeArcCorrection + (thoughtful ? O.thoughtfulEyeOffset : 0);
+    curve(slot,x,P.eyeLine+(sleepy?-correction:correction),S.eyeArcRadius,sleepy?90:270,S.eyeArcSpan,W.curvedEye);
+  };
+  const smile = (slot,laugh = false) => {
+    const radius = laugh ? (S.mouthWidth*S.laughingMouthScale-W.secondary)/(2*Math.sin(S.mouthArcSpan*DEG/2)) : S.mouthRadius;
+    const correction = radius*(1+Math.cos(S.mouthArcSpan*DEG/2))/2;
+    curve(slot,0,P.mouthLine-correction+breath,radius,90,S.mouthArcSpan);
+  };
+  const flatMouth = (slot,offset = 0) => {
+    const half = (S.mouthWidth*0.72-W.secondary)/2;
+    stroke(slot,-half+offset,P.mouthLine+breath,half+offset,P.mouthLine+breath);
+  };
+  const wink = (slot) => {
+    const x = P.eyeHalfSpacing, y = P.eyeLine;
+    stroke(slot,x+S.winkHalfWidth,y-S.winkHalfHeight,x-S.winkHalfWidth,y,W.curvedEye);
+    stroke(slot+1,x-S.winkHalfWidth,y,x+S.winkHalfWidth,y+S.winkHalfHeight,W.curvedEye);
+  };
+  const brows = (slot,worried = false) => {
+    for (let side = -1; side <= 1; side += 2) {
+      const x = side*P.eyeHalfSpacing, y = P.browLine, rise = S.eyebrowRise*(worried?-1:1);
+      stroke(slot+(side===1?1:0),x-S.eyebrowLength/2,y-side*rise/2,
+        x+S.eyebrowLength/2,y+side*rise/2,W.eyebrow);
+    }
+  };
+  const cheekMarks = (slot,side) => {
+    const x = side*P.sideAccentX, y = P.sideAccentLine, reach = S.accentLength;
+    stroke(slot,x,y,x+side*reach*0.45,y-reach,W.accent,true);
+    stroke(slot+1,x-side*P.minimumSeparation,y-P.minimumSeparation,
+      x-side*P.minimumSeparation,y-P.minimumSeparation-reach,W.accent,true);
+  };
+  const x = P.eyeHalfSpacing;
+  switch(face) {
+    case "face-thoughtful":
+      curvedEye(0,-x,true,true);curvedEye(1,x,true,true);flatMouth(2);
+      dot(3,-P.accentPitch,P.accentLine);dot(4,0,P.accentLine);dot(5,P.accentPitch,P.accentLine);break;
+    case "face-happy":curvedEye(0,-x);curvedEye(1,x);smile(2);break;
+    case "face-wink":eye(0,-x);wink(1);smile(3);break;
+    case "face-sleepy": {
+      curvedEye(0,-x,true);curvedEye(1,x,true);flatMouth(2);
+      const cx = P.sideAccentX, cy = P.accentLine, half = S.accentRadius;
+      stroke(3,cx-half,cy-half,cx+half,cy-half,W.accent,true);
+      stroke(4,cx+half,cy-half,cx-half,cy+half,W.accent,true);
+      stroke(5,cx-half,cy+half,cx+half,cy+half,W.accent,true);break;
+    }
+    case "face-surprised":
+      eye(0,-x);eye(1,x);curve(2,0,P.mouthLine+O.openMouthOffset+breath,S.roundMouthRadius,0,360);
+      for (let i=-1;i<=1;i++) stroke(4+i,i*P.accentPitch,P.accentLine,
+        i*(P.accentPitch+P.minimumSeparation),P.accentLine-S.accentLength,W.accent,true);break;
+    case "face-angry":eye(0,-x);eye(1,x);brows(2);flatMouth(4);break;
+    case "face-playful":
+      curvedEye(0,-x);curvedEye(1,x);smile(2);
+      stroke(3,0,P.tongueLine-S.tongueLength/2,0,P.tongueLine+S.tongueLength/2,S.tongueWidth,true);break;
+    case "face-excited":eye(0,-x);wink(1);smile(3,true);cheekMarks(4,1);break;
+    case "face-skeptical": {
+      eye(0,-x);curvedEye(1,x);dot(2,0,P.mouthLine,false);
+      const cx = 0, cy = P.accentLine, r = S.questionRadius;
+      curve(3,cx,cy,r,285,245,W.accent,true);
+      stroke(4,cx+r*0.25,cy+r*0.85,cx-r*0.25,cy+r*1.5,W.accent,true);
+      dot(5,cx-r*0.25,cy+r*1.5+W.accent+P.minimumSeparation+(W.indicator-W.accent)/2);break;
+    }
+    case "face-dreamy": {
+      curvedEye(0,-x,true);curvedEye(1,x,true);smile(2);
+      const cx = P.sideAccentX, cy = P.accentLine, r = S.accentRadius;
+      stroke(3,cx,cy-r,cx,cy+r,W.accent,true);
+      stroke(4,cx-r,cy,cx+r,cy,W.accent,true);break;
+    }
+    case "face-focused":eye(0,-x);stroke(1,x-S.closedEyeLength/2,P.eyeLine,x+S.closedEyeLength/2,P.eyeLine,W.curvedEye);flatMouth(2,-O.focusedMouthOffset);break;
+    case "face-worried": {
+      eye(0,-x);eye(1,x);brows(2,true);
+      curve(4,0,P.mouthLine+O.mouthCorrection+breath,S.mouthRadius,270,S.mouthArcSpan);break;
+    }
+    case "face-laugh":curvedEye(0,-x);curvedEye(1,x);smile(2,true);cheekMarks(3,-1);cheekMarks(5,1);break;
+    case "face-determined": {
+      const half = S.closedEyeLength/2, rise = S.eyebrowRise/2;
+      stroke(0,-x-half,P.eyeLine-rise,-x+half,P.eyeLine+rise,W.primary);
+      stroke(1,x-half,P.eyeLine+rise,x+half,P.eyeLine-rise,W.primary);flatMouth(2);break;
+    }
+    default:eye(0,-x);eye(1,x);smile(2);break;
+  }
+}
+
 function pointAt(cx, cy, th, k, s) {
   const t = th * DEG;
   if (Math.abs(k) < 1e-5) return [cx + s * Math.cos(t), cy + s * Math.sin(t)];
@@ -392,11 +558,11 @@ export function morphSegment(from, tgt, plan, i, t, out) {
 const tint = (s, acc) => { const a = s.ar || acc; return [lerp(EYE[0], a[0], s.c), lerp(EYE[1], a[1], s.c), lerp(EYE[2], a[2], s.c)]; };
 
 /** Pure sampler: the 4 shapes of `stateId` at loop phase u (0..1) — no DOM. */
-export function poseAt(stateId, u, accent = DEFAULT_ACCENT, identity = "") {
+export function poseAt(stateId, u, accent = DEFAULT_ACCENT, identity = "", face = "orb") {
   const def = STATES[stateId];
   if (!def) throw new Error("Unknown avatar state: " + stateId);
   const B = newSegs();
-  runState(def, wrap(u), B, identity);
+  runState(def, wrap(u), B, identity, face);
   const acc = SEMANTIC[stateId] || parseColor(accent, parseColor(DEFAULT_ACCENT));
   return B.map((s) => { const c = tint(s, acc); return { cx: s.cx, cy: s.cy, L: s.L, th: s.th, k: s.k, w: s.w, o: s.o, r: c[0], g: c[1], b: c[2] }; });
 }
@@ -407,8 +573,8 @@ export const MORPH = Object.freeze({ seconds: MORPH_SECONDS, delay: MORPH_DELAY 
 /** Stable visual personality from the agent's ID, independent of its name or saved colour. */
 export function avatarPersonality(identity = "") {
   if (!identity) return Object.freeze({
-    phase: 0, direction: 1, tempo: 1, cycleSeconds: 7, spinSeconds: 1.2, pattern: 0,
-    gazeXFrequency: 0.58, gazeYFrequency: 0.31, gazeXAmplitude: 0.85, gazeYAmplitude: 0.22,
+    phase: 0, direction: 1, tempo: 0.5, cycleSeconds: 24, spinSeconds: 2.7, pattern: 0,
+    gazeXFrequency: 0.16, gazeYFrequency: 0.11, gazeXAmplitude: 0.42, gazeYAmplitude: 0.12,
   });
   let hash = 2166136261;
   for (let i = 0; i < identity.length; i++) hash = Math.imul(hash ^ identity.charCodeAt(i), 16777619) >>> 0;
@@ -421,10 +587,10 @@ export function avatarPersonality(identity = "") {
     return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
   };
   return Object.freeze({
-    phase: sample(), direction, tempo: 0.78 + sample() * 0.5,
-    cycleSeconds: 5.8 + sample() * 4.4, spinSeconds: 1.05 + sample() * 0.4, pattern,
-    gazeXFrequency: 0.38 + sample() * 0.46, gazeYFrequency: 0.2 + sample() * 0.25,
-    gazeXAmplitude: 0.55 + sample() * 0.35, gazeYAmplitude: 0.13 + sample() * 0.17,
+    phase: sample(), direction, tempo: 0.42 + sample() * 0.22,
+    cycleSeconds: 18 + sample() * 12, spinSeconds: 2.4 + sample() * 0.6, pattern,
+    gazeXFrequency: 0.12 + sample() * 0.12, gazeYFrequency: 0.08 + sample() * 0.09,
+    gazeXAmplitude: 0.28 + sample() * 0.2, gazeYAmplitude: 0.08 + sample() * 0.08,
   });
 }
 
@@ -467,18 +633,18 @@ export function markup(uid, quality = "full") {
   for (let i = 0; i < N; i++) bars += `<path class="mta-bar" data-mta-bar="${i}" d="${REST_PATHS[i]}" stroke-width="${REST_WIDTHS[i]}" fill="none" stroke-linecap="round" stroke-linejoin="round" style="stroke:${REST_STROKES[i]}"/>`;
   const pill = `x="${f.x}" y="${f.y}" width="${f.width}" height="${f.height}" rx="${f.rx}"`;
   const light = quality === "full"
-    ? `<feGaussianBlur in="g" stdDeviation="2.4" result="bump"/><feSpecularLighting in="bump" surfaceScale="6" specularConstant=".9" specularExponent="26" lighting-color="#fff" result="sp"><fePointLight x="150" y="105" z="95"/></feSpecularLighting><feComposite in="sp" in2="g" operator="in" result="sp2"/>`
+    ? `<feGaussianBlur in="g" stdDeviation="2.4" result="bump"/><feSpecularLighting data-mta-light in="bump" surfaceScale="6" specularConstant=".9" specularExponent="26" lighting-color="#fff" result="sp"><fePointLight x="150" y="105" z="95"/></feSpecularLighting><feComposite in="sp" in2="g" operator="in" result="sp2"/><feFlood flood-opacity="0" result="faceNoSpec"/>`
     : "";
-  const glow = quality === "flat" ? "" : `<feGaussianBlur in="g" stdDeviation="9" result="gl0"/><feColorMatrix in="gl0" type="matrix" values="1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 .5 0" result="gl"/>`;
-  const merge = `<feMerge>${quality === "flat" ? "" : '<feMergeNode in="gl"/>'}<feMergeNode in="g"/>${quality === "full" ? '<feMergeNode in="sp2"/>' : ""}</feMerge>`;
-  return `<svg class="mta-svg" viewBox="${GEOMETRY.viewBox}" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">` +
-    `<defs><clipPath id="${uid}-shellclip"><circle cx="200" cy="200" r="177"/></clipPath><clipPath id="${uid}-clip"><rect ${pill}/></clipPath>` +
+  const glow = quality === "flat" ? "" : `<feGaussianBlur data-mta-glow in="g" stdDeviation="9" result="gl0"/><feColorMatrix data-mta-glow-opacity in="gl0" type="matrix" values="1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 .5 0" result="gl"/>`;
+  const merge = `<feMerge>${quality === "flat" ? "" : '<feMergeNode in="gl"/>'}<feMergeNode in="g"/>${quality === "full" ? '<feMergeNode data-mta-specular-merge in="sp2"/>' : ""}</feMerge>`;
+  return `<svg class="mta-svg" viewBox="${GEOMETRY.viewBox}" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">` +
+    `<defs><clipPath id="${uid}-shellclip"><circle cx="${GEOMETRY.shell.cx}" cy="${GEOMETRY.shell.cy}" r="${GEOMETRY.shell.r}"/></clipPath><clipPath id="${uid}-clip"><rect ${pill}/></clipPath>` +
     `<radialGradient id="${uid}-shade" cx=".34" cy=".27" r=".95"><stop offset="0" stop-color="#fff" stop-opacity=".4"/><stop offset=".38" stop-color="#fff" stop-opacity="0"/><stop offset=".6" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".42"/></radialGradient>` +
     `<radialGradient id="${uid}-gloss" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#fff" stop-opacity=".5"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>` +
     `<filter id="${uid}-goo" filterUnits="userSpaceOnUse" x="${f.x}" y="${f.y}" width="${f.width}" height="${f.height}" color-interpolation-filters="sRGB">` +
     `<feGaussianBlur data-mta-goo in="SourceGraphic" stdDeviation="1.65" result="b"/><feColorMatrix in="b" type="matrix" values="1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 20 -9.5" result="g"/>` +
     glow + light + merge + `</filter></defs>` +
-    `<circle class="mta-shell" cx="200" cy="200" r="177"/><circle cx="200" cy="200" r="177" fill="url(#${uid}-shade)"/>` +
+    `<circle class="mta-shell" cx="${GEOMETRY.shell.cx}" cy="${GEOMETRY.shell.cy}" r="${GEOMETRY.shell.r}"/><circle cx="${GEOMETRY.shell.cx}" cy="${GEOMETRY.shell.cy}" r="${GEOMETRY.shell.r}" fill="url(#${uid}-shade)"/>` +
     `<g clip-path="url(#${uid}-shellclip)"><g data-mta-turn><g data-mta-face><rect class="mta-face" ${pill}/>` +
     `<g clip-path="url(#${uid}-clip)"><g data-mta-bars><g filter="url(#${uid}-goo)">${bars}</g></g></g></g></g></g>` +
     `<g data-mta-gloss><ellipse cx="150" cy="82" rx="86" ry="38" transform="rotate(-24 150 82)" fill="url(#${uid}-gloss)" opacity=".55"/></g></svg>`;
@@ -522,6 +688,8 @@ class Avatar {
     this.root = root;
     this.fallbackIdentity = "avatar-instance-" + ++avatarInstances;
     this.identity = o.identity || this.fallbackIdentity;
+    this.face = resolveAvatarFace(o.face);
+    this.root.setAttribute("data-face", this.face);
     this.personality = avatarPersonality(this.identity);
     const sorted = (sel, key) => Array.from(root.querySelectorAll(sel)).sort((a, b) => a.dataset[key] - b.dataset[key]);
     this.els = sorted("[data-mta-bar]", "mtaBar");
@@ -531,6 +699,10 @@ class Avatar {
     this.barsG = root.querySelector("[data-mta-bars]");
     this.glossG = root.querySelector("[data-mta-gloss]");
     this.gooEl = root.querySelector("[data-mta-goo]");
+    this.glowEl = root.querySelector("[data-mta-glow]");
+    this.glowOpacityEl = root.querySelector("[data-mta-glow-opacity]");
+    this.lightEl = root.querySelector("[data-mta-light]");
+    this.specularMergeEl = root.querySelector("[data-mta-specular-merge]");
     this.fl = this.fl0 = this.flT = 1;
     this.cache = this.els.map(() => ({})); this.cg = {};
     this.speed = clamp(Number.isFinite(o.speed) ? o.speed : 1, 0.25, 4);
@@ -562,13 +734,13 @@ class Avatar {
   }
   get reduced() { return !!(this.mq && this.mq.matches); }
 
-  _setState(id, instant) {
+  _setState(id, instant, preserveMotion = false) {
     if (!STATES[id]) return;
     this.id = id; this.def = STATES[id];
-    this.idleTime = 0; this.spinTime = null; this.yaw = 0;
+    if (!preserveMotion) { this.idleTime = 0; this.spinTime = null; this.yaw = 0; }
     this.fl0 = this.fl; this.flT = this.def.fluid === undefined ? 1 : this.def.fluid;
-    this.u = this.reduced ? this.def.poster : 0;
-    runState(this.def, this.u, this.tgt, this.identity);
+    this.u = this.reduced ? this.def.poster : preserveMotion ? this.u : 0;
+    runState(this.def, this.u, this.tgt, this.identity, this.face);
     if (instant || this.reduced) { this.snap = null; this.bt = MORPH_SECONDS; this.plan = ID_PLAN(); this.fl = this.flT; }
     else {
       this.snap = this.shown.map((s) => Object.assign({}, s));
@@ -579,7 +751,7 @@ class Avatar {
     this._refresh(true);
   }
   _compose() {
-    runState(this.def, this.u, this.tgt, this.identity);
+    runState(this.def, this.u, this.tgt, this.identity, this.face);
     const acc = SEMANTIC[this.id] || this.accent, morphing = this.snap && this.bt < MORPH_SECONDS;
     for (let i = 0; i < N; i++) {
       const o = this.shown[i], t = this.tgt[this.plan.perm[i]];
@@ -600,7 +772,16 @@ class Avatar {
       if (this.cg.opacity !== turn.opacity) { this.cg.opacity = turn.opacity; this.turnG.setAttribute("opacity", String(turn.opacity)); }
       this.turnG.setAttribute("data-yaw", String(fmt(this.id === "waiting" ? this.yaw : 0)));
     }
-    if (this.gooEl) { const sd = (1.2 + 3 * this.fl).toFixed(1); if (this.cg.sd !== sd) { this.cg.sd = sd; this.gooEl.setAttribute("stdDeviation", sd); } }
+    const facial = this.id === "waiting" && this.face !== "orb", render = FACE_TOKENS.render;
+    if (this.gooEl) { const sd = facial ? String(render.gooBlur) : (1.2 + 3 * this.fl).toFixed(1); if (this.cg.sd !== sd) { this.cg.sd = sd; this.gooEl.setAttribute("stdDeviation", sd); } }
+    if (this.cg.facialFilter !== facial) {
+      this.cg.facialFilter = facial;
+      if (this.glowEl) this.glowEl.setAttribute("stdDeviation", String(facial ? render.glowBlur : 9));
+      if (this.glowOpacityEl) this.glowOpacityEl.setAttribute("values", "1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 " + (facial ? render.glowOpacity : 0.5) + " 0");
+      if (this.lightEl) this.lightEl.setAttribute("specularConstant", facial ? "0" : ".9");
+      // Zero specular light still has opaque alpha; merge a transparent flood for facial content.
+      if (this.specularMergeEl) this.specularMergeEl.setAttribute("in", facial ? "faceNoSpec" : "sp2");
+    }
     for (let i = 0; i < N; i++) {
       const s = this.shown[i];
       const depth = (1 - gx * clamp((s.cx - 200) / 60, -1, 1) * 0.14) * GLYPH_SCALE;      // far side of the turn looks smaller
@@ -676,12 +857,18 @@ class Avatar {
     this.identity = next; this.personality = avatarPersonality(next); this.seed = this.personality.phase * 100;
     if (this.id === "waiting") this._setState(this.id, false);
   }
+  setFace(face) {
+    const next = resolveAvatarFace(face);
+    if (next === this.face) return;
+    this.face = next; this.root.setAttribute("data-face", next);
+    if (this.id === "waiting") this._setState(this.id, false, true);
+  }
   setState(id) { if (id !== this.id) this._setState(id, false); }
   setSpeed(v) { this.speed = clamp(Number.isFinite(v) ? v : 1, 0.25, 4); }
   setLook(m) { this.look = m || "pointer"; }
   setPaused(p) { this.paused = !!p; if (this.paused) { this.bt = MORPH_SECONDS; this._compose(); live.delete(this); } else this._refresh(); }
   setAccent(c) { this.accent = parseColor(c, parseColor(DEFAULT_ACCENT)); this._compose(); }
-  poke() { if (this.reduced || this.paused || document.hidden || this.destroyed) return; this.pk = 0; this.pv = 12; if (this.id === "waiting" && this.spinTime === null) { this.spinTime = 0; this.yaw = 0; } if (this.visible) wake(this); }
+  poke() { if (this.reduced || this.paused || document.hidden || this.destroyed) return; this.pk = 0; this.pv = 6; if (this.id === "waiting" && this.spinTime === null) { this.spinTime = 0; this.yaw = 0; } if (this.visible) wake(this); }
   seek(u, gx, gy) {
     this.bt = MORPH_SECONDS; this.u = wrap(u);
     if (gx !== undefined) { this.g.x = gx; this.g.vx = 0; }
@@ -709,7 +896,7 @@ class Avatar {
 export function mount(root, options = {}) {
   const a = new Avatar(root, options);
   return {
-    setIdentity: (identity) => a.setIdentity(identity), setState: (id) => a.setState(id), setSpeed: (v) => a.setSpeed(v), setPaused: (p) => a.setPaused(p),
+    setFace: (face) => a.setFace(face), setIdentity: (identity) => a.setIdentity(identity), setState: (id) => a.setState(id), setSpeed: (v) => a.setSpeed(v), setPaused: (p) => a.setPaused(p),
     setAccent: (c) => a.setAccent(c), setLook: (m) => a.setLook(m), poke: () => a.poke(),
     seek: (u, gx, gy) => a.seek(u, gx, gy), scrubMorph: (id, t) => a.scrubMorph(id, t), getState: () => a.id, destroy: () => a.destroy(),
   };

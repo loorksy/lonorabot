@@ -42,6 +42,7 @@ test("Expo chat renders interactive idle capsules for saved shape profiles", asy
   let agent;
   let secondAgent;
   let group;
+  let uiAgent;
   try {
     const created = await context.request.post("/api/agents", {
       headers,
@@ -137,8 +138,82 @@ test("Expo chat renders interactive idle capsules for saved shape profiles", asy
       )
       .toBe(true);
     await page.screenshot({ path: ".runtime/individual-avatar-mobile.png", fullPage: true });
+    // Studio drafts are local until Done, then the surrounding profile's Save persists them.
+    await page.goto(`/bot-settings?botId=${agent.id}`);
+    const editAvatar = page.getByRole("button", { name: "تعديل الأفاتار", exact: true });
+    await editAvatar.click();
+    const studio = page.getByTestId("avatar-studio");
+    await expect(studio).toBeVisible();
+    await expect(studio.getByTestId("avatar-face-face-wink")).toHaveAttribute(
+      "aria-checked",
+      "false",
+    );
+    await studio.getByTestId("avatar-face-face-wink").click();
+    await expect(studio.getByTestId("avatar-face-face-wink")).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    await studio.getByRole("button", { name: "إلغاء", exact: true }).click();
+    await editAvatar.click();
+    await expect(studio.getByTestId("avatar-face-face-wink")).toHaveAttribute(
+      "aria-checked",
+      "false",
+    );
+    await studio.getByTestId("avatar-face-face-wink").click();
+    await studio.getByRole("button", { name: "إعادة الضبط", exact: true }).click();
+    await expect(studio.getByTestId("avatar-face-orb")).toHaveAttribute("aria-checked", "true");
+    await studio.getByRole("button", { name: "إلغاء", exact: true }).click();
+    await editAvatar.click();
+    await studio.getByTestId("avatar-face-face-wink").click();
+    await studio.getByRole("radio", { name: /#06B6D4/i }).click();
+    await studio.getByRole("button", { name: "تم", exact: true }).click();
+    await expect(studio).not.toBeVisible();
+    const readAgent = async (id) => await (await context.request.get(`/api/agents/${id}`)).json();
+    expect((await readAgent(agent.id)).avatar).toBe("organic");
+    await page.getByRole("button", { name: "حفظ", exact: true }).click();
+    await expect.poll(async () => (await readAgent(agent.id)).avatar).toBe("face-wink");
+    await expect(page.getByText("تم الحفظ", { exact: true })).toBeVisible();
+    await page.reload();
+    await page.getByRole("button", { name: "تعديل الأفاتار", exact: true }).click();
+    await expect(studio.getByTestId("avatar-face-face-wink")).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    expect((await readAgent(agent.id)).color.toLowerCase()).toBe("#06b6d4");
+    await page.screenshot({
+      path: ".runtime/face-studio-native.png",
+      fullPage: true,
+      animations: "disabled",
+    });
+    await studio.getByRole("button", { name: "إلغاء", exact: true }).click();
+
+    // Creation exposes the same picker and saves the selected expression without a broker binding.
+    await page.goto("/new");
+    await page
+      .getByRole("textbox", { name: "الاسم", exact: true })
+      .fill(`Native face ${randomUUID()}`);
+    await page.getByRole("button", { name: "تعديل الأفاتار", exact: true }).click();
+    await expect(studio.getByTestId("avatar-face-face-smile")).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    await studio.getByTestId("avatar-face-face-happy").click();
+    await studio.getByRole("button", { name: "تم", exact: true }).click();
+    const createdByUi = page.waitForResponse(
+      (response) =>
+        response.url().endsWith("/api/agents") && response.request().method() === "POST",
+    );
+    await page.getByRole("button", { name: "إنشاء", exact: true }).click();
+    const uiResponse = await createdByUi;
+    expect(uiResponse.status()).toBe(201);
+    uiAgent = await uiResponse.json();
+    expect(uiAgent.avatar).toBe("face-happy");
+    await expect(page.getByTestId("trading-avatar").first()).toBeVisible();
+    expect((await readAgent(uiAgent.id)).avatar).toBe("face-happy");
+
     expect(errors).toEqual([]);
   } finally {
+    if (uiAgent) await context.request.delete(`/api/agents/${uiAgent.id}`, { headers });
     if (group) await context.request.delete(`/api/groups/${group.id}`, { headers });
     if (secondAgent) await context.request.delete(`/api/agents/${secondAgent.id}`, { headers });
     if (agent) await context.request.delete(`/api/agents/${agent.id}`, { headers });

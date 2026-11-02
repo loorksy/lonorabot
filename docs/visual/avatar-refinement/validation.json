@@ -1,0 +1,275 @@
+{
+  "sourceHashes": {
+    "before": "733da6f754f1622c7738cfd272303c9d3bddcf94dbf081b43b8e8201cb5c240c",
+    "after": "cecae27ad0c439adace06a1c9778982b98b27039005cb177202459720cb456b8"
+  },
+  "browser": "154.0.8037.57",
+  "geometry": {
+    "before": {
+      "viewBox": "22 22 356 356",
+      "shell": {
+        "cx": 200,
+        "cy": 200,
+        "r": 177
+      },
+      "face": {
+        "x": 78,
+        "y": 123,
+        "width": 244,
+        "height": 155,
+        "rx": 77.5
+      },
+      "barWidth": 26,
+      "barX": [
+        140,
+        180,
+        220,
+        260
+      ],
+      "centerY": 200.5,
+      "floorY": 241,
+      "restHeights": [
+        39,
+        60,
+        81,
+        49
+      ]
+    },
+    "after": {
+      "viewBox": "22 22 356 356",
+      "shell": {
+        "cx": 200,
+        "cy": 200,
+        "r": 177
+      },
+      "face": {
+        "x": 78,
+        "y": 123,
+        "width": 244,
+        "height": 155,
+        "rx": 77.5
+      },
+      "barWidth": 26,
+      "barX": [
+        140,
+        180,
+        220,
+        260
+      ],
+      "centerY": 200.5,
+      "floorY": 241,
+      "restHeights": [
+        39,
+        60,
+        81,
+        49
+      ]
+    },
+    "face": {
+      "viewBox": "22 22 356 356",
+      "outerShell": {
+        "cx": 200,
+        "cy": 200,
+        "r": 177
+      },
+      "faceDisplay": {
+        "x": 78,
+        "y": 123,
+        "width": 244,
+        "height": 155,
+        "rx": 77.5
+      },
+      "horizontalCenter": 200,
+      "verticalCenter": 200.5,
+      "eyeAnchors": {
+        "left": {
+          "x": 158,
+          "y": 191.975
+        },
+        "right": {
+          "x": 242,
+          "y": 191.975
+        }
+      },
+      "eyebrowAnchors": {
+        "left": {
+          "x": 158,
+          "y": 158.95499999999998
+        },
+        "right": {
+          "x": 242,
+          "y": 158.95499999999998
+        }
+      },
+      "mouthAnchor": {
+        "x": 200,
+        "y": 229.175
+      },
+      "expressionBounds": {
+        "left": -77.63636363636363,
+        "right": 77.63636363636363,
+        "top": -57.772727272727266,
+        "bottom": 57.772727272727266
+      },
+      "facialSafeArea": {
+        "x": 114.60000000000001,
+        "y": 136.95,
+        "width": 170.79999999999998,
+        "height": 127.1
+      }
+    },
+    "tokens": {
+      "stroke": {
+        "primary": 17.68,
+        "curvedEye": 14.144,
+        "secondary": 11.44,
+        "eyebrow": 8.32,
+        "accent": 7.539999999999999,
+        "indicator": 8.1432
+      },
+      "shape": {
+        "eyeWidth": 17.68,
+        "eyeHeight": 39,
+        "eyeArcRadius": 12.7296,
+        "eyeArcSpan": 140,
+        "eyebrowLength": 28.080000000000002,
+        "eyebrowRise": 8.32,
+        "mouthWidth": 41.6,
+        "mouthRadius": 18.409280798522758,
+        "mouthArcSpan": 110,
+        "laughingMouthScale": 1.12,
+        "roundMouthRadius": 10.0672,
+        "tongueWidth": 13.26,
+        "tongueLength": 2.86,
+        "winkHalfWidth": 7.072,
+        "winkHalfHeight": 11.7,
+        "closedEyeLength": 21.32,
+        "accentLength": 10.92,
+        "accentRadius": 9.36,
+        "questionRadius": 8.84,
+        "cornerRadius": 5.72
+      },
+      "spacing": {
+        "eyeHalfSpacing": 42,
+        "eyeLine": -8.525,
+        "browLine": -41.545,
+        "mouthLine": 28.675,
+        "minimumSeparation": 5.2,
+        "accentPitch": 18.72,
+        "accentLine": -39.52,
+        "sideAccentX": 60.2,
+        "tongueLine": 38.971000000000004,
+        "sideAccentLine": -27.3
+      },
+      "optical": {
+        "eyeArcCorrection": 8.541689808239218,
+        "mouthCorrection": 14.484205237362591,
+        "openMouthOffset": 3.8896,
+        "thoughtfulEyeOffset": 0.9100000000000001,
+        "focusedMouthOffset": 4.16
+      },
+      "motion": {
+        "breathAmplitude": 0.65,
+        "blinkPhase": 0.82,
+        "blinkHalfDuration": 0.035,
+        "blinkStrokeRatio": 0.65
+      },
+      "render": {
+        "gooBlur": 0.5,
+        "glowBlur": 2,
+        "glowOpacity": 0.16
+      }
+    }
+  },
+  "fullQualityWhitePixelCounts": [
+    {
+      "face": "orb",
+      "whitePixels": 543
+    },
+    {
+      "face": "face-smile",
+      "whitePixels": 276
+    },
+    {
+      "face": "face-thoughtful",
+      "whitePixels": 244
+    },
+    {
+      "face": "face-happy",
+      "whitePixels": 264
+    },
+    {
+      "face": "face-wink",
+      "whitePixels": 281
+    },
+    {
+      "face": "face-sleepy",
+      "whitePixels": 244
+    },
+    {
+      "face": "face-surprised",
+      "whitePixels": 309
+    },
+    {
+      "face": "face-angry",
+      "whitePixels": 342
+    },
+    {
+      "face": "face-playful",
+      "whitePixels": 252
+    },
+    {
+      "face": "face-excited",
+      "whitePixels": 291
+    },
+    {
+      "face": "face-skeptical",
+      "whitePixels": 200
+    },
+    {
+      "face": "face-dreamy",
+      "whitePixels": 268
+    },
+    {
+      "face": "face-focused",
+      "whitePixels": 215
+    },
+    {
+      "face": "face-worried",
+      "whitePixels": 368
+    },
+    {
+      "face": "face-laugh",
+      "whitePixels": 274
+    },
+    {
+      "face": "face-determined",
+      "whitePixels": 252
+    }
+  ],
+  "snapshots": [
+    "before-after-grid.png",
+    "alignment-guides.png",
+    "expressions-32px.png",
+    "expressions-40px.png",
+    "expressions-48px.png",
+    "expressions-64px.png",
+    "expressions-96px.png",
+    "expressions-128px.png",
+    "expressions-256px.png",
+    "preview-thumbnails.png",
+    "shell-colors.png",
+    "transition-mid-animation.png"
+  ],
+  "checks": {
+    "originalGeometryUnchanged": true,
+    "originalSignalRasterByteIdentical": true,
+    "immediateTransitionContinuous": true,
+    "transitionAnimated": true,
+    "shellDisplayStableDuringTransition": true,
+    "reducedMotionStill": true,
+    "finitePaths": true,
+    "fullQualityFacialWhitesVisible": true
+  },
+  "pageErrors": []
+}

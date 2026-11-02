@@ -21,7 +21,7 @@ export default function NewAgent() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [color, setColor] = useState("#8B5CF6");
-  const [avatar, setAvatar] = useState("orb");
+  const [avatar, setAvatar] = useState("face-smile");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   if (!ready) return <Loading />;

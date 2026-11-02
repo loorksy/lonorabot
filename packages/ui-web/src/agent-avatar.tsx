@@ -40,6 +40,7 @@ export const AgentAvatar = memo(function AgentAvatar({
     >
       <TradingAvatar
         identity={identity || name}
+        face={shape}
         state={state ?? avatarState({ working })}
         primaryColor={resolveAvatarColor(name, color).hex}
         size="100%"

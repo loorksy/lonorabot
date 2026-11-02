@@ -1,8 +1,17 @@
 import type { CSSProperties, HTMLAttributes } from "react";
-import { useEffect, useEffectEvent, useId, useRef } from "react";
+import { useEffect, useEffectEvent, useId, useRef, useState } from "react";
 import "./trading-avatar.css";
 import type { AvatarController, AvatarStateId } from "@lonora/core";
-import { GEOMETRY, mount, REST_PATHS, REST_STROKES, REST_WIDTHS, STATE_IDS } from "@lonora/core";
+import {
+  avatarBarPath,
+  FACE_TOKENS,
+  GEOMETRY,
+  GLYPH_SCALE,
+  mount,
+  poseAt,
+  resolveAvatarFace,
+  STATE_IDS,
+} from "@lonora/core";
 
 /** The 20 available states. The resting glyph is four rounded signal bars; in each state one liquid mass takes the shape of the job's icon. */
 export type TradingAvatarState = AvatarStateId;
@@ -12,6 +21,8 @@ export interface TradingAvatarProps extends Omit<HTMLAttributes<HTMLSpanElement>
   state?: TradingAvatarState;
   /** Stable bot ID determines its individual idle motion. */
   identity?: string;
+  /** Saved face expression, used while idle. */
+  face?: string;
   /** Diameter of the sphere, e.g. 72, "8rem", "100%". */
   size?: number | string;
   /** 1 = normal, 2 = twice as fast (clamped to 0.25 … 4). */
@@ -30,8 +41,8 @@ export interface TradingAvatarProps extends Omit<HTMLAttributes<HTMLSpanElement>
   label?: string;
 }
 
-const { face } = GEOMETRY;
-const pill = { x: face.x, y: face.y, width: face.width, height: face.height, rx: face.rx };
+const visor = GEOMETRY.face;
+const pill = { ...visor };
 const strokeProps = {
   fill: "none",
   strokeLinecap: "round" as const,
@@ -41,6 +52,7 @@ const strokeProps = {
 export function TradingAvatar({
   state = "waiting",
   identity,
+  face = "orb",
   size = 160,
   speed = 1,
   paused = false,
@@ -57,9 +69,11 @@ export function TradingAvatar({
   const uid = `mta${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
   const rootRef = useRef<HTMLSpanElement>(null);
   const ctl = useRef<AvatarController | null>(null);
+  const [initialBars] = useState(() => poseAt(state, 0, accentColor, identity || uid, face));
   const currentOptions = useEffectEvent(() => ({
     state,
     identity: identity || uid,
+    face,
     speed,
     paused,
     accent: accentColor,
@@ -76,13 +90,15 @@ export function TradingAvatar({
   }, [interactive]);
   useEffect(() => {
     ctl.current?.setIdentity(identity || uid);
+    ctl.current?.setFace(face);
     ctl.current?.setState(state);
     ctl.current?.setSpeed(speed);
     ctl.current?.setPaused(paused);
     ctl.current?.setAccent(accentColor);
     ctl.current?.setLook(look);
-  }, [state, identity, uid, speed, paused, accentColor, look]);
+  }, [state, identity, uid, face, speed, paused, accentColor, look]);
 
+  const facial = state === "waiting" && resolveAvatarFace(face) !== "orb";
   const dimension = typeof size === "number" ? `${size}px` : size;
   const cssVars = {
     "--mta-primary": primaryColor,
@@ -96,6 +112,7 @@ export function TradingAvatar({
       ref={rootRef}
       className={`mta-avatar ${className}`.trim()}
       data-avatar-identity={identity || uid}
+      data-face={face}
       data-state={state}
       data-paused={paused ? "true" : "false"}
       style={cssVars}
@@ -106,13 +123,14 @@ export function TradingAvatar({
       <svg
         className="mta-svg"
         viewBox={GEOMETRY.viewBox}
+        preserveAspectRatio="xMidYMid meet"
         xmlns="http://www.w3.org/2000/svg"
         aria-hidden="true"
         focusable="false"
       >
         <defs>
           <clipPath id={`${uid}-shellclip`}>
-            <circle cx="200" cy="200" r="177" />
+            <circle {...GEOMETRY.shell} />
           </clipPath>
           <clipPath id={`${uid}-clip`}>
             <rect {...pill} />
@@ -131,34 +149,48 @@ export function TradingAvatar({
           <filter
             id={`${uid}-goo`}
             filterUnits="userSpaceOnUse"
-            x={face.x}
-            y={face.y}
-            width={face.width}
-            height={face.height}
+            x={visor.x}
+            y={visor.y}
+            width={visor.width}
+            height={visor.height}
             colorInterpolationFilters="sRGB"
           >
-            <feGaussianBlur data-mta-goo="" in="SourceGraphic" stdDeviation="1.65" result="b" />
+            <feGaussianBlur
+              data-mta-goo=""
+              in="SourceGraphic"
+              stdDeviation={facial ? FACE_TOKENS.render.gooBlur : 1.65}
+              result="b"
+            />
             <feColorMatrix
               in="b"
               type="matrix"
               values="1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 20 -9.5"
               result="g"
             />
-            {quality !== "flat" && <feGaussianBlur in="g" stdDeviation="9" result="gl0" />}
+            {quality !== "flat" && (
+              <feGaussianBlur
+                data-mta-glow=""
+                in="g"
+                stdDeviation={facial ? FACE_TOKENS.render.glowBlur : 9}
+                result="gl0"
+              />
+            )}
             {quality !== "flat" && (
               <feColorMatrix
+                data-mta-glow-opacity=""
                 in="gl0"
                 type="matrix"
-                values="1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 .5 0"
+                values={`1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 ${facial ? FACE_TOKENS.render.glowOpacity : 0.5} 0`}
                 result="gl"
               />
             )}
             {quality === "full" && <feGaussianBlur in="g" stdDeviation="2.4" result="bump" />}
             {quality === "full" && (
               <feSpecularLighting
+                data-mta-light=""
                 in="bump"
                 surfaceScale="6"
-                specularConstant=".9"
+                specularConstant={facial ? 0 : 0.9}
                 specularExponent="26"
                 lightingColor="#fff"
                 result="sp"
@@ -167,15 +199,18 @@ export function TradingAvatar({
               </feSpecularLighting>
             )}
             {quality === "full" && <feComposite in="sp" in2="g" operator="in" result="sp2" />}
+            {quality === "full" && <feFlood floodOpacity="0" result="faceNoSpec" />}
             <feMerge>
               {quality !== "flat" && <feMergeNode in="gl" />}
               <feMergeNode in="g" />
-              {quality === "full" && <feMergeNode in="sp2" />}
+              {quality === "full" && (
+                <feMergeNode data-mta-specular-merge="" in={facial ? "faceNoSpec" : "sp2"} />
+              )}
             </feMerge>
           </filter>
         </defs>
-        <circle className="mta-shell" cx="200" cy="200" r="177" />
-        <circle cx="200" cy="200" r="177" fill={`url(#${uid}-shade)`} />
+        <circle className="mta-shell" {...GEOMETRY.shell} />
+        <circle {...GEOMETRY.shell} fill={`url(#${uid}-shade)`} />
         <g clipPath={`url(#${uid}-shellclip)`}>
           <g data-mta-turn>
             <g data-mta-face>
@@ -183,15 +218,15 @@ export function TradingAvatar({
               <g clipPath={`url(#${uid}-clip)`}>
                 <g data-mta-bars>
                   <g filter={`url(#${uid}-goo)`}>
-                    {REST_PATHS.map((d, i) => (
+                    {initialBars.map((bar, i) => (
                       <path
                         // biome-ignore lint/suspicious/noArrayIndexKey: fixed particle slots never reorder.
                         key={i}
                         className="mta-bar"
                         data-mta-bar={i}
-                        d={d}
-                        strokeWidth={REST_WIDTHS[i]}
-                        style={{ stroke: REST_STROKES[i] }}
+                        d={avatarBarPath(bar)}
+                        strokeWidth={Math.max(bar.w * GLYPH_SCALE, 0.01)}
+                        style={{ stroke: `rgb(${bar.r},${bar.g},${bar.b})`, opacity: bar.o }}
                         {...strokeProps}
                       />
                     ))}

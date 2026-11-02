@@ -8,6 +8,7 @@ import {
   morphSegment,
   planMorph,
   poseAt,
+  resolveAvatarFace,
   segmentPoints,
 } from "./trading-avatar-motion";
 
@@ -15,16 +16,18 @@ import {
 export class AvatarMotion {
   private state: AvatarStateId;
   private identity: string;
+  private face: string;
   private phase = 0;
   private elapsed = MORPH.seconds;
   private shown: BarPose[];
   private from: BarPose[] | null = null;
   private plan;
 
-  constructor(state: AvatarStateId = "waiting", identity = "") {
+  constructor(state: AvatarStateId = "waiting", identity = "", face = "orb") {
     this.state = state;
     this.identity = identity;
-    this.shown = poseAt(state, 0, undefined, identity);
+    this.face = resolveAvatarFace(face);
+    this.shown = poseAt(state, 0, undefined, identity, this.face);
     this.plan = planMorph(this.shown, this.shown);
   }
 
@@ -34,7 +37,23 @@ export class AvatarMotion {
     if (this.state !== "waiting") return;
     this.from = this.shown.map((bar) => ({ ...bar }));
     this.elapsed = 0;
-    this.plan = planMorph(this.from, poseAt(this.state, this.phase, undefined, identity));
+    this.plan = planMorph(
+      this.from,
+      poseAt(this.state, this.phase, undefined, identity, this.face),
+    );
+  }
+
+  setFace(face: string) {
+    const next = resolveAvatarFace(face);
+    if (next === this.face) return;
+    this.face = next;
+    if (this.state !== "waiting") return;
+    this.from = this.shown.map((bar) => ({ ...bar }));
+    this.elapsed = 0;
+    this.plan = planMorph(
+      this.from,
+      poseAt(this.state, this.phase, undefined, this.identity, next),
+    );
   }
 
   setState(state: AvatarStateId) {
@@ -43,7 +62,7 @@ export class AvatarMotion {
     this.state = state;
     this.phase = 0;
     this.elapsed = 0;
-    this.plan = planMorph(this.from, poseAt(state, 0, undefined, this.identity));
+    this.plan = planMorph(this.from, poseAt(state, 0, undefined, this.identity, this.face));
   }
 
   frame(seconds: number, reduced = false): BarPose[] {
@@ -51,7 +70,7 @@ export class AvatarMotion {
     const tempo = this.state === "waiting" ? avatarPersonality(this.identity).tempo : 1;
     this.phase = reduced ? 0.3 : (this.phase + (dt * tempo) / loopSeconds(this.state)) % 1;
     this.elapsed = reduced ? MORPH.seconds : this.elapsed + dt;
-    const target = poseAt(this.state, this.phase, undefined, this.identity);
+    const target = poseAt(this.state, this.phase, undefined, this.identity, this.face);
     for (let i = 0; i < this.shown.length; i++) {
       const bar = this.shown[i];
       const source = this.from?.[i] ?? null;

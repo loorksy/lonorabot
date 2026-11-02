@@ -3,13 +3,19 @@ import { test } from "node:test";
 import { AvatarMotion, avatarBarPath } from "../../packages/core/src/avatar-motion";
 import { avatarState } from "../../packages/core/src/avatar-state";
 import {
+  AVATAR_FACES,
   avatarPersonality,
   avatarTurn,
+  FACE_TOKENS,
+  FACIAL_GEOMETRY,
   GEOMETRY,
+  GLYPH_SCALE,
   idleAvatarPose,
   PARTICLES,
   poseAt,
+  resolveAvatarFace,
   STATE_IDS,
+  segmentPoints,
 } from "../../packages/core/src/trading-avatar-motion.js";
 
 test("all supplied states yield finite native and web geometry", () => {
@@ -80,12 +86,15 @@ test("waiting uses four bottom-aligned capsules with one teal highlight and no w
 });
 
 test("idle look scans both sides and makes a full turn without mirrored back-facing eyes", () => {
-  const samples = Array.from({ length: 701 }, (_, index) => idleAvatarPose(index / 100));
-  assert.ok(samples.some((pose) => pose.gazeX < -0.7));
-  assert.ok(samples.some((pose) => pose.gazeX > 0.7));
-  assert.equal(idleAvatarPose(5.8).yaw, 0);
-  assert.ok(idleAvatarPose(6.99).yaw > Math.PI * 1.99);
-  assert.equal(idleAvatarPose(7).yaw, 0);
+  const profile = avatarPersonality();
+  const samples = Array.from({ length: 1001 }, (_, index) =>
+    idleAvatarPose((index * profile.cycleSeconds) / 1000),
+  );
+  assert.ok(samples.some((pose) => pose.gazeX < -0.35));
+  assert.ok(samples.some((pose) => pose.gazeX > 0.35));
+  assert.equal(idleAvatarPose(profile.cycleSeconds - profile.spinSeconds).yaw, 0);
+  assert.ok(idleAvatarPose(profile.cycleSeconds - 0.001).yaw > Math.PI * 1.99);
+  assert.equal(idleAvatarPose(profile.cycleSeconds).yaw, 0);
   assert.deepEqual(avatarTurn(0), { tx: 0, scaleX: 1, opacity: 1 });
   assert.equal(avatarTurn(Math.PI).opacity, 0);
   assert.equal(avatarTurn(Math.PI / 2).opacity, 0);
@@ -173,4 +182,217 @@ test("every personalized inner expression stays continuous across its loop bound
       }
     }
   }
+});
+
+test("face catalog preserves legacy values and every selectable expression fits the persisted field", () => {
+  assert.equal(AVATAR_FACES.length, 16);
+  assert.equal(new Set(AVATAR_FACES.map((face) => face.id)).size, AVATAR_FACES.length);
+  for (const face of AVATAR_FACES) {
+    assert.ok(face.id.length <= 24);
+    assert.equal(resolveAvatarFace(face.id), face.id);
+  }
+  for (const legacy of [undefined, null, "organic", "diamond", "circle", "not-a-face"])
+    assert.equal(resolveAvatarFace(legacy), "orb");
+});
+
+test("selected faces are distinct white and teal geometry inside the visor, never activity replacements", () => {
+  const signatures = new Set();
+  for (const face of AVATAR_FACES) {
+    signatures.add(JSON.stringify(poseAt("waiting", 0.25, undefined, "face-owner", face.id)));
+    for (const phase of [0, 0.25, 0.53, 0.82, 0.99]) {
+      const bars = poseAt("waiting", phase, "#ff0000", "face-owner", face.id);
+      assert.equal(bars.length, PARTICLES);
+      const visible = bars.filter((bar) => bar.w > 1);
+      assert.ok(visible.length >= 3 && visible.length <= 8);
+      for (const bar of visible) {
+        assert.ok(Object.values(bar).every(Number.isFinite));
+        assert.ok(
+          [
+            [248, 248, 251],
+            [31, 212, 179],
+          ].some((color) =>
+            color.every((channel, index) => channel === [bar.r, bar.g, bar.b][index]),
+          ),
+        );
+        for (const [x, y] of segmentPoints(bar)) {
+          const px = 200 + (x - 200) * 1.1,
+            py = 200.5 + (y - 200.5) * 1.1;
+          const half = (bar.w * 1.1) / 2;
+          assert.ok(
+            px - half >= GEOMETRY.face.x && px + half <= GEOMETRY.face.x + GEOMETRY.face.width,
+            face.id,
+          );
+          assert.ok(
+            py - half >= GEOMETRY.face.y && py + half <= GEOMETRY.face.y + GEOMETRY.face.height,
+            face.id,
+          );
+        }
+      }
+    }
+    for (const state of STATE_IDS.filter((state) => state !== "waiting"))
+      assert.deepEqual(
+        poseAt(state, 0.37, undefined, "face-owner", face.id),
+        poseAt(state, 0.37, undefined, "face-owner"),
+      );
+  }
+  assert.equal(signatures.size, AVATAR_FACES.length);
+  assert.ok(poseAt("waiting", 0, undefined, "", "face-smile").some((bar) => bar.k !== 0));
+});
+
+test("native face changes morph from the displayed expression and reduced motion stays static", () => {
+  const sampler = new AvatarMotion("waiting", "owner", "face-smile");
+  const before = sampler.frame(0);
+  sampler.setFace("face-wink");
+  assert.deepEqual(sampler.frame(0), before);
+  for (let i = 0; i < 40; i++) sampler.frame(1 / 30);
+  assert.notDeepEqual(sampler.frame(0), before);
+  assert.deepEqual(sampler.frame(0, true), sampler.frame(0.1, true));
+  sampler.setState("writing");
+  for (let i = 0; i < 40; i++) sampler.frame(1 / 30);
+  const writing = sampler.frame(0);
+  sampler.setFace("face-happy");
+  assert.deepEqual(sampler.frame(0), writing);
+});
+
+test("idle personality is calm with rare slower full turns and bounded gentle gaze", () => {
+  for (const identity of ["", ...Array.from({ length: 40 }, (_, i) => `calm-${i}`)]) {
+    const profile = avatarPersonality(identity);
+    assert.ok(profile.cycleSeconds >= 18 && profile.cycleSeconds <= 30);
+    assert.ok(profile.spinSeconds >= 2.4 && profile.spinSeconds <= 3);
+    assert.ok(profile.tempo <= 0.65);
+    assert.ok(profile.gazeXFrequency <= 0.25 && profile.gazeYFrequency <= 0.18);
+    assert.ok(profile.gazeXAmplitude <= 0.5 && profile.gazeYAmplitude <= 0.17);
+  }
+});
+
+test("canonical facial geometry preserves the original shell, display and stroke hierarchy", () => {
+  assert.deepEqual(GEOMETRY.shell, { cx: 200, cy: 200, r: 177 });
+  assert.deepEqual(GEOMETRY.face, { x: 78, y: 123, width: 244, height: 155, rx: 77.5 });
+  assert.equal(FACIAL_GEOMETRY.outerShell, GEOMETRY.shell);
+  assert.equal(FACIAL_GEOMETRY.faceDisplay, GEOMETRY.face);
+  assert.equal(FACIAL_GEOMETRY.viewBox, GEOMETRY.viewBox);
+  const checkFrozen = (value: object) => {
+    assert.ok(Object.isFrozen(value));
+    for (const part of Object.values(value))
+      if (part && typeof part === "object") checkFrozen(part);
+  };
+  checkFrozen(FACE_TOKENS);
+  checkFrozen(FACIAL_GEOMETRY);
+  const { primary, curvedEye, secondary, eyebrow, accent } = FACE_TOKENS.stroke;
+  assert.ok(
+    primary > curvedEye && curvedEye > secondary && secondary > eyebrow && eyebrow >= accent,
+  );
+  assert.ok(
+    (accent * GLYPH_SCALE * 40) / 356 > 0.9,
+    "tertiary strokes remain near one physical CSS pixel at40px",
+  );
+  assert.ok(FACE_TOKENS.shape.laughingMouthScale <= 1.15);
+  assert.ok(
+    FACE_TOKENS.spacing.mouthLine - FACE_TOKENS.spacing.eyeLine > FACE_TOKENS.shape.eyeHeight * 0.9,
+  );
+});
+
+test("every facial preset stays inside its safe region and the curved visor at idle gaze extremes", () => {
+  const safe = FACIAL_GEOMETRY.facialSafeArea;
+  const { width, height, rx } = GEOMETRY.face;
+  const faces = AVATAR_FACES.filter((face) => face.id !== "orb");
+  const center = FACIAL_GEOMETRY;
+  for (const { id } of faces)
+    for (const identity of ["", "face-owner", "same-name-another-id"]) {
+      for (let tick = 0; tick <= 40; tick++) {
+        const bars = poseAt("waiting", tick / 40, undefined, identity, id);
+        for (const bar of bars.filter((bar) => bar.w > 1 && bar.o > 0.01)) {
+          for (const gx of [-0.5, 0, 0.5])
+            for (const gy of [-0.17, 0, 0.17]) {
+              const depth =
+                (1 - gx * Math.max(-1, Math.min(1, (bar.cx - 200) / 60)) * 0.14) * GLYPH_SCALE;
+              const shifted = {
+                ...bar,
+                cx:
+                  center.horizontalCenter +
+                  (bar.cx - center.horizontalCenter) * GLYPH_SCALE +
+                  gx * 6,
+                cy: center.verticalCenter + (bar.cy - center.verticalCenter) * GLYPH_SCALE + gy * 4,
+                L: bar.L * depth,
+                k: bar.k / depth,
+              };
+              const half = (bar.w * depth) / 2;
+              for (const [x, y] of segmentPoints(shifted, 40)) {
+                assert.ok(
+                  x - half >= safe.x && x + half <= safe.x + safe.width,
+                  `${id} horizontal safe area`,
+                );
+                assert.ok(
+                  y - half >= safe.y && y + half <= safe.y + safe.height,
+                  `${id} vertical safe area`,
+                );
+                const endDistance = Math.max(
+                  0,
+                  Math.abs(x - center.horizontalCenter) - (width - height) / 2,
+                );
+                assert.ok(
+                  Math.hypot(endDistance, y - center.verticalCenter) + half <= rx,
+                  `${id} curved visor containment`,
+                );
+              }
+            }
+        }
+      }
+    }
+});
+
+test("brows, eye centers and mouths stay optically aligned and separate", () => {
+  const T = FACE_TOKENS;
+  const at = (face: string) => poseAt("waiting", 0, undefined, "", face);
+  const vertical = at("face-smile");
+  assert.equal(vertical[0].cx, FACIAL_GEOMETRY.eyeAnchors.left.x);
+  assert.equal(vertical[1].cy, FACIAL_GEOMETRY.eyeAnchors.right.y);
+  for (const face of ["face-smile", "face-wink", "face-angry", "face-worried", "face-surprised"]) {
+    const bars = at(face);
+    assert.equal(bars[0].cy, FACIAL_GEOMETRY.eyeAnchors.left.y);
+    assert.equal(bars[0].w, T.stroke.primary);
+  }
+  const distance = (a: (typeof vertical)[number], b: (typeof vertical)[number]) =>
+    Math.min(
+      ...segmentPoints(a, 40).flatMap(([ax, ay]) =>
+        segmentPoints(b, 40).map(([bx, by]) => Math.hypot(ax - bx, ay - by)),
+      ),
+    ) -
+    (a.w + b.w) / 2;
+  for (const face of ["face-angry", "face-worried"]) {
+    const bars = at(face);
+    assert.ok(distance(bars[0], bars[2]) >= T.spacing.minimumSeparation - 0.1, face);
+    assert.ok(distance(bars[1], bars[3]) >= T.spacing.minimumSeparation - 0.1, face);
+  }
+  const surprised = at("face-surprised");
+  assert.ok(distance(surprised[0], surprised[2]) >= T.spacing.minimumSeparation);
+  const laugh = at("face-laugh"),
+    smile = at("face-smile"),
+    excited = at("face-excited");
+  assert.equal(laugh[2].w, smile[2].w);
+  assert.equal(excited[3].w, smile[2].w);
+  assert.ok(distance(laugh[0], laugh[2]) >= T.spacing.minimumSeparation);
+});
+
+test("every face-to-face transition remains inside the actual curved display before clipping", () => {
+  const { face } = GEOMETRY;
+  for (const from of AVATAR_FACES)
+    for (const to of AVATAR_FACES) {
+      const sampler = new AvatarMotion("waiting", "", from.id);
+      sampler.setFace(to.id);
+      for (let frame = 0; frame < 40; frame++) {
+        for (const bar of sampler.frame(1 / 30).filter((bar) => bar.w > 1 && bar.o > 0.01)) {
+          for (const [x, y] of segmentPoints(bar, 24)) {
+            const px = 200 + (x - 200) * GLYPH_SCALE,
+              py = 200.5 + (y - 200.5) * GLYPH_SCALE;
+            const half = (bar.w * GLYPH_SCALE) / 2;
+            const endDistance = Math.max(0, Math.abs(px - 200) - (face.width - face.height) / 2);
+            assert.ok(
+              Math.hypot(endDistance, py - 200.5) + half <= face.rx,
+              `${from.id}->${to.id} frame${frame} escaped the display`,
+            );
+          }
+        }
+      }
+    }
 });
