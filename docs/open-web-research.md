@@ -157,3 +157,33 @@ from Python documentation and the JavaScript quotation test site on the VPS.
 These checks are separate from the real-model acceptance journeys
 `web_research` and `web_browser` in `scripts/verify_agent_journeys.py`, which must
 be explicitly enabled with `--allow-live-model` after service configuration.
+
+## Deployed verification on 2026-11-03
+
+The private services were deployed and exercised through the installed gateway
+tools. Search returned eight real sources, including official Python
+documentation, in one measured 1.04-second request. The result correctly marked
+partial upstream-engine coverage. The anonymous browser rendered the JavaScript
+quotation page in one measured 2.72-second request; clicking its Next link and
+waiting for JavaScript returned the second page's actual quotations. A private
+URL was blocked. Container inspection confirmed no application credentials,
+application mounts, database network or published host port in the browser.
+These timings describe individual observations, not latency guarantees.
+
+The real configured GPT-5.1 model then completed both Arabic acceptance journeys
+through `execute_run`, ordinary progressive discovery and persisted tool/reply
+state:
+
+- `web_research`: used `web_search`, received eight SearXNG sources, read the
+  official Python page with `web_fetch`, and included that actual URL in its
+  persisted reply; one measured run took 11.15 seconds.
+- `web_browser`: used `web_browse`, read JavaScript-rendered content and identified
+  the first quotation's author with its actual source URL; one measured run took
+  8.06 seconds.
+
+An earlier general research request validly selected the browser directly for a
+known source. The search-specific acceptance request explicitly asks for search
+then source reading so the check verifies that path without imposing a fixed
+workflow on normal agent requests. Both successful runs removed their temporary
+diagnostic rows/files and exposed no financial or broker capability. Public
+health/readiness and unchanged Web assets were also verified after deployment.
