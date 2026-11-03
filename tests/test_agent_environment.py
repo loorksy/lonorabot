@@ -47,6 +47,8 @@ def test_only_server_declared_read_is_automatically_retried(code: str) -> None:
         ("trading_disabled", "health_blocked"),
         ("device_authorization_required", "authorization_required"),
         ("search_not_configured", "not_configured"),
+        ("research_provider_not_configured", "not_configured"),
+        ("browser_unconfigured", "not_configured"),
         ("unrecognized_domain_code", "terminal_domain_failure"),
     ],
 )

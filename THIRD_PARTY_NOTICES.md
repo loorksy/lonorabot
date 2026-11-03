@@ -61,6 +61,13 @@ Web dependency is no longer used.
 Voice uses browser WebRTC and the OpenAI GPT-Live API.
 Python dependencies retain their distributions' license notices.
 
+Optional public-web research runs SearXNG as an independent private service,
+using the upstream image pinned in infra/research/compose.research.yml.
+Source: https://github.com/searxng/searxng . SearXNG is licensed under AGPL-3.0;
+its source and license remain available from that upstream project and image.
+Browser research uses the existing Playwright (Apache-2.0) dependency and system
+Chromium, with their upstream license notices, through an isolated service.
+
 MetaApiCloud SDK 29.1.1: Copyright 2020-2023 MetaApi DMCC. All rights reserved.
 Service-use license: https://metaapi.cloud/terms . The adapter uses this SDK solely
 with the MetaApi.cloud API service; the SDK license is not Apache-2.0.

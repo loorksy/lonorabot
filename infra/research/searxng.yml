@@ -1,0 +1,16 @@
+# Private JSON search service. Never expose it as an unauthenticated public proxy.
+use_default_settings: true
+general:
+  instance_name: Lonora Research
+search:
+  safe_search: 1
+  formats:
+    - json
+server:
+  bind_address: 0.0.0.0
+  port: 8080
+  limiter: false
+  public_instance: false
+outgoing:
+  request_timeout: 8.0
+  max_request_timeout: 12.0

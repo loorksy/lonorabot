@@ -1,5 +1,6 @@
 from functools import lru_cache
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from lonora_contracts.mcp import McpToolDeclaration
 from pydantic import Field, SecretStr, field_validator
@@ -35,7 +36,35 @@ class Settings(BaseSettings):
     chart_browser_executable: Path | None = None
     chart_browser_sandbox: bool = True
     workspace_socket: Path | None = None
+    searxng_url: str | None = None
+    browser_url: str | None = None
     mcp_declarations: tuple[McpToolDeclaration, ...] = Field(default=(), max_length=128)
+
+    @field_validator("searxng_url", "browser_url")
+    @classmethod
+    def valid_research_endpoint(cls, value: str | None) -> str | None:
+        # These are trusted deployment endpoints, never owner/model tool inputs.
+        if value is None or not value.strip():
+            return None
+        if len(value) > 2048 or any(character.isspace() for character in value):
+            raise ValueError("research_endpoint_invalid")
+        parsed = urlsplit(value)
+        if (
+            parsed.scheme not in {"http", "https"}
+            or not parsed.hostname
+            or parsed.username
+            or parsed.password
+            or parsed.query
+            or parsed.fragment
+        ):
+            raise ValueError("research_endpoint_invalid")
+        try:
+            port = parsed.port
+        except ValueError:
+            raise ValueError("research_endpoint_invalid") from None
+        if port is not None and not 1 <= port <= 65535:
+            raise ValueError("research_endpoint_invalid")
+        return value.rstrip("/")
 
     @field_validator("mcp_declarations")
     @classmethod

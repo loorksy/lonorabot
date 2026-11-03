@@ -13,6 +13,7 @@ MODULES = (
     "workspace",
     "routine",
     "search",
+    "browser",
     "artifacts",
     "mcp",
     "subagent",

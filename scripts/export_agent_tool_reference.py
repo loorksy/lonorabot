@@ -28,6 +28,7 @@ MODULE_POLICY = {
     "tasks": "tasks",
     "runtime_control": "tasks",
     "search": "research",
+    "browser": "research",
     "mcp": "research",
     "artifacts": "files",
     "workspace": "files",

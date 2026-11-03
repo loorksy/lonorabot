@@ -188,6 +188,7 @@ def test_activation_rejects_replaced_or_removed_schema():
         ("buy sell positions", "trade_execute"),
         ("read market quotes", "market_quote"),
         ("read github repository", "web_fetch"),
+        ("search internet", "web_search"),
     ],
 )
 def test_real_catalog_discovers_supported_work_from_business_terms(query: str, expected: str):

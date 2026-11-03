@@ -34,6 +34,8 @@ class ToolContext:
     skill_access: SkillAccess | None = None
     workspace_access: WorkspaceAccess | None = None
     mcp_declarations: tuple[McpToolDeclaration, ...] = ()
+    searxng_url: str | None = None
+    browser_url: str | None = None
 
     @property
     def effect_key(self) -> str:

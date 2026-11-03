@@ -72,6 +72,8 @@ ALLOWED = frozenset(
         "wait_for_input",
         "skill_repository_inspect",
         "web_fetch",
+        "web_search",
+        "web_browse",
         "workspace_inspect",
         "workspace_read",
         "workspace_update",
@@ -81,6 +83,16 @@ ALLOWED = frozenset(
     }
 )
 JOURNEYS = {
+    "web_research": (
+        "ابحث في الإنترنت عن توثيق Python asyncio الرسمي، ثم اقرأ المصدر الرسمي "
+        "الذي وجدته واشرح بجملتين ما الذي تتيحه هذه المكتبة. أرفق رابط المصدر "
+        "واعتمد على النتائج الفعلية الآن، لا على معرفتك السابقة وحدها."
+    ),
+    "web_browser": (
+        "افتح هذا الرابط باستخدام متصفح المواقع واقرأ الاقتباسات بعد تحميل "
+        "JavaScript: https://quotes.toscrape.com/js/ . اذكر أول اقتباس واسم صاحبه "
+        "وأرفق رابط الصفحة. لا تسجل دخولًا ولا ترسل أي نموذج."
+    ),
     "repository": (
         "افحص هذا المستودع وقل لي ما الذي يقدمه للتداول وما أهم حدوده، "
         "اعتمد على قراءة فعلية لمحتواه ولا تثبّت أو تشغّل أي شيء منه: "
@@ -452,6 +464,8 @@ async def run_journey(
             router=cast(Any, acceptance_router),
             artifact_root=artifact_root,
             maximum_subagents=0,
+            searxng_url=settings.searxng_url,
+            browser_url=settings.browser_url,
             workspace_access=RunWorkspaceAccess(
                 WorkspaceClient(settings.workspace_socket) if settings.workspace_socket else None
             ),
@@ -495,6 +509,66 @@ async def run_journey(
                 .limit(1)
             )
             assert answer is not None and answer.content == row.result
+            if journey == "web_research":
+                searches = [
+                    value for value in observations.get("web_search", []) if value.get("sources")
+                ]
+                assert searches, "No real web search returned source results"
+                reads = [
+                    value
+                    for name in ("web_fetch", "web_browse")
+                    for value in observations.get(name, [])
+                    if value.get("untrusted_content")
+                ]
+                assert reads, "No discovered source was actually read"
+                discovered_urls = {
+                    source["url"] for value in searches for source in value["sources"]
+                }
+                assert any(value.get("source") in discovered_urls for value in reads), (
+                    "The read page was not a source returned by the actual search"
+                )
+                assert any(value.get("source", "") in answer.content for value in reads), (
+                    "Read source citation absent from final reply"
+                )
+                print(
+                    json.dumps(
+                        {
+                            "journey": journey,
+                            "provider": searches[0].get("provider"),
+                            "sources": len(searches[0]["sources"]),
+                            "read_sources": [value.get("source") for value in reads],
+                            "answer": answer.content,
+                        },
+                        ensure_ascii=False,
+                    ),
+                    flush=True,
+                )
+            elif journey == "web_browser":
+                pages = [
+                    value
+                    for value in observations.get("web_browse", [])
+                    if value.get("untrusted_content")
+                    and value.get("source", "").startswith("https://quotes.toscrape.com/js/")
+                ]
+                assert pages, "No actual JavaScript browser result was returned"
+                assert "Albert Einstein" in pages[0]["untrusted_content"], (
+                    "Dynamic quotation was not rendered"
+                )
+                assert pages[0]["source"] in answer.content, (
+                    "Browser source citation absent from final reply"
+                )
+                print(
+                    json.dumps(
+                        {
+                            "journey": journey,
+                            "title": pages[0].get("title"),
+                            "source": pages[0]["source"],
+                            "answer": answer.content,
+                        },
+                        ensure_ascii=False,
+                    ),
+                    flush=True,
+                )
             if journey in VISUAL_JOURNEYS:
                 if evidence_dir is not None:
                     write_visual_evidence(evidence_dir, journey, answer)
