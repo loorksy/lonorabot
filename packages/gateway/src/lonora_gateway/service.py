@@ -38,11 +38,15 @@ class Gateway:
         chart_visual: ChartVisualRuntime | None = None,
         workspace_socket: Path | None = None,
         mcp_declarations: tuple[McpToolDeclaration, ...] = (),
+        searxng_url: str | None = None,
+        browser_url: str | None = None,
     ):
         self.db, self.key, self.root = db, key, artifact_root
         self.chart_visual = chart_visual
         self.workspace_socket = workspace_socket
         self.mcp_declarations = mcp_declarations
+        self.searxng_url = searxng_url
+        self.browser_url = browser_url
         self.lease_seconds, self.maximum_subagents, self.poll_seconds = (
             lease_seconds,
             maximum_subagents,
@@ -70,6 +74,8 @@ class Gateway:
                 self.chart_visual,
                 self.workspace_socket,
                 self.mcp_declarations,
+                self.searxng_url,
+                self.browser_url,
             )
             if not claimed:
                 await asyncio.sleep(self.poll_seconds)
@@ -90,6 +96,8 @@ class Gateway:
                         chart_visual=self.chart_visual,
                         workspace_socket=self.workspace_socket,
                         mcp_declarations=self.mcp_declarations,
+                        searxng_url=self.searxng_url,
+                        browser_url=self.browser_url,
                     )
                 service = self.services[owner.id]
                 await reconcile_ambiguous(self.db, service.brokers)

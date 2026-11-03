@@ -25,6 +25,8 @@ class ApiRuntime:
                 self.settings.encryption_key.get_secret_value(),
                 workspace_socket=self.settings.workspace_socket,
                 mcp_declarations=self.settings.mcp_declarations,
+                searxng_url=self.settings.searxng_url,
+                browser_url=self.settings.browser_url,
                 chart_visual=ChartVisualRuntime(
                     self.settings.chart_renderer_url,
                     str(self.settings.chart_browser_executable)

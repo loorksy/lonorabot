@@ -29,6 +29,8 @@ class OwnerServices:
     chart_visual: ChartVisualRuntime | None = None
     workspace_socket: Path | None = None
     mcp_declarations: tuple[McpToolDeclaration, ...] = ()
+    searxng_url: str | None = None
+    browser_url: str | None = None
 
     @classmethod
     def create(
@@ -40,6 +42,8 @@ class OwnerServices:
         chart_visual: ChartVisualRuntime | None = None,
         workspace_socket: Path | None = None,
         mcp_declarations: tuple[McpToolDeclaration, ...] = (),
+        searxng_url: str | None = None,
+        browser_url: str | None = None,
     ) -> "OwnerServices":
         secrets = EncryptedSecretStore(db, key, owner_id)
         brokers = BrokerManager(db, secrets)
@@ -68,6 +72,8 @@ class OwnerServices:
             chart_visual,
             workspace_socket,
             mcp_declarations,
+            searxng_url,
+            browser_url,
         )
 
     def tool_context(
@@ -97,6 +103,8 @@ class OwnerServices:
                 WorkspaceClient(self.workspace_socket) if self.workspace_socket else None
             ),
             mcp_declarations=self.mcp_declarations,
+            searxng_url=self.searxng_url,
+            browser_url=self.browser_url,
         )
 
     async def close(self) -> None:

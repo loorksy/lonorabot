@@ -29,6 +29,8 @@ async def dispatch_one(
     chart_visual: ChartVisualRuntime | None = None,
     workspace_socket: Path | None = None,
     mcp_declarations: tuple[McpToolDeclaration, ...] = (),
+    searxng_url: str | None = None,
+    browser_url: str | None = None,
 ) -> bool:
     dispatch_started = perf_counter()
     async with db.sessions() as session, session.begin():
@@ -57,6 +59,8 @@ async def dispatch_one(
             chart_visual=chart_visual,
             workspace_socket=workspace_socket,
             mcp_declarations=mcp_declarations,
+            searxng_url=searxng_url,
+            browser_url=browser_url,
         )
         services[owner_id] = owner_services
     context = owner_services.tool_context(

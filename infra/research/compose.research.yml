@@ -1,0 +1,64 @@
+# Optional private research services. Use with the production Compose file.
+# Only the gateway joins this bridge; browser/search have no database network,
+# application secrets, application volumes, or published host ports.
+services:
+  gateway:
+    environment:
+      LONORA_SEARXNG_URL: http://searxng:8080
+      LONORA_BROWSER_URL: http://browser:8090
+    networks:
+      - default
+      - research
+    depends_on:
+      searxng: {condition: service_healthy}
+      browser: {condition: service_healthy}
+  searxng:
+    image: ghcr.io/searxng/searxng@sha256:892ed5710603e38f9dc201e6a0b2f3f14dbdb8108edcadac30e55b165c979fb7
+    restart: unless-stopped
+    user: searxng
+    entrypoint: [/bin/sh, -c]
+    command:
+      - export SEARXNG_SECRET="$$(python -c 'import secrets; print(secrets.token_hex(32))')"; exec /usr/local/searxng/.venv/bin/granian searx.webapp:app
+    volumes:
+      - ../research/searxng.yml:/etc/searxng/settings.yml:ro
+    environment:
+      SEARXNG_BIND_ADDRESS: 0.0.0.0:8080
+    networks: [research]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/healthz', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+      - /var/cache/searxng:size=64m,mode=1777
+    mem_limit: 512m
+    pids_limit: 128
+  browser:
+    image: ${LONORA_IMAGE:-ghcr.io/loorksy/lonorabot:main}
+    restart: unless-stopped
+    command: [python, -m, lonora_tools.browser_service]
+    environment:
+      BROWSER_EXECUTABLE: /usr/bin/chromium
+      # Container isolation, no host privileges, no app secrets or shared files.
+      BROWSER_SANDBOX: "false"
+      HOME: /tmp
+    networks: [research]
+    read_only: true
+    tmpfs:
+      - /tmp:size=256m,mode=1777
+    shm_size: 256m
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8090/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 1g
+    pids_limit: 256
+networks:
+  research:

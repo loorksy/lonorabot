@@ -16,6 +16,8 @@ def create_gateway(settings: Settings) -> tuple[Database, Gateway]:
         settings.worker_poll_seconds,
         workspace_socket=settings.workspace_socket,
         mcp_declarations=settings.mcp_declarations,
+        searxng_url=settings.searxng_url,
+        browser_url=settings.browser_url,
         chart_visual=ChartVisualRuntime(
             settings.chart_renderer_url,
             str(settings.chart_browser_executable) if settings.chart_browser_executable else None,

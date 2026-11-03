@@ -57,6 +57,7 @@ def classify(code: str, tool: Tool | None) -> dict[str, Any]:
     elif code.endswith("_unconfigured") or code in {
         "model_not_configured",
         "search_not_configured",
+        "research_provider_not_configured",
     }:
         category, action = "not_configured", "inspect_authorized_alternative"
     elif code.endswith("_not_found"):
