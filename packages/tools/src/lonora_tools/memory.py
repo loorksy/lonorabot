@@ -6,7 +6,7 @@ from lonora_memory.commit import atomic_commit
 from lonora_memory.profile import profile_documents
 from pydantic import Field
 
-from .base import Tool
+from .base import Tool, eager_for
 from .context import ToolContext
 
 
@@ -49,6 +49,7 @@ def tools() -> list[Tool]:
             Empty,
             read,
             True,
+            eager=eager_for("core"),
         ),
         Tool(
             "memory_write",
@@ -56,5 +57,6 @@ def tools() -> list[Tool]:
             MemoryWrite,
             write,
             replay_safe=True,
+            eager=eager_for("core"),
         ),
     ]

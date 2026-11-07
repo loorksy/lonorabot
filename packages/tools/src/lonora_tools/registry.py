@@ -1,20 +1,83 @@
+"""The one runtime tool registry: membership, exposure, discovery and dispatch.
+
+Exposure follows the stable-bridge design of Hermes Agent's Tool Search
+(``tools/tool_search.py`` and ``tools/tool_search_validation.py``, source
+https://github.com/NousResearch/hermes-agent at revision
+a9ff9799e273f525b82718cdc69fdec71b1dca5a): a Run receives a bounded eager
+working set as native schemas, frozen for the whole Run, and reaches every
+other capability through the stable ``tool_call`` bridge. Lonora resolves a
+bridge call into the real tool call before anything else observes it (see
+``resolve_call``), so receipts, guardrails, approvals and financial checks see
+exactly the call a direct invocation would produce. The argument
+normalization in ``resolve_call`` is adapted from Hermes'
+``normalize_tool_call_entries``; batches, connector routing and the separate
+describe bridge were not ported (``tool_environment`` returns schemas).
+
+MIT License
+
+Copyright (c) 2025 Nous Research
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+"""
+
 import asyncio
+import json
+import logging
+from collections.abc import Collection, Iterable, Mapping, Sequence
 from typing import Any, cast
 
 from lonora_adapter_kit.types import ToolCall, ToolDefinition
 from lonora_core.user_error import LonoraError
 from lonora_db.runs import require_lease
 
-from .base import Tool
+from .base import ExposureProfile, Tool, eager_for
 from .context import ToolContext
-from .environment import EnvironmentInput
+from .environment import BridgeInput, EnvironmentInput
 from .market_binding import guard_market_tool, prepare_market_arguments, scope_market_result
 from .schema import validate_arguments
-from .tool_discovery import search_definitions
+from .tool_discovery import MAX_SEARCH_RESULTS, search_definitions
+
+log = logging.getLogger("lonora.tools")
 
 MAX_CAPABILITY_INVENTORY_CHARS = 8000
+INSPECTOR = "tool_environment"
+BRIDGE = "tool_call"
+BRIDGE_TOOLS = frozenset({INSPECTOR, BRIDGE})
+# Native schema budgets in serialized ToolDefinition JSON characters. The eager
+# budget is enforced for every profile combination by the registry tests; the
+# promoted budget is enforced when a Run's exposure is chosen.
+EAGER_SCHEMA_BUDGET = 24000
+PROMOTED_SCHEMA_BUDGET = 5000
+MAX_PROMOTED_TOOLS = 6
+# Search results carry input schemas up to this many characters in total;
+# later results name their required fields and are inspected exactly.
+SEARCH_SCHEMA_BUDGET = 16000
+INVOCATION = (
+    "Call a tool marked invoke=direct by its own name. Call any other tool with tool_call "
+    '{"name": <exact name>, "arguments": {...matching its input_schema}}. Both paths run the '
+    "same validation, permission, approval, receipt and financial checks."
+)
+CORE = eager_for("core")
 
-DISCOVERY_BASE = frozenset({"tool_environment", "skills_list", "skill_view", "wait_for_input"})
+
+def schema_chars(tool: Tool) -> int:
+    return len(tool.definition().model_dump_json())
 
 
 class ToolRegistry:
@@ -32,15 +95,186 @@ class ToolRegistry:
             for tool in tools
         ):
             raise LonoraError("tool_effect_contract_invalid", 500)
-        if "tool_environment" in self.tools:
+        if BRIDGE_TOOLS & self.tools.keys():
             raise LonoraError("duplicate_tool_registration", 500)
-        self.tools["tool_environment"] = Tool(
-            "tool_environment",
-            "Discover available capabilities by query using concise English catalog terms, list bounded metadata, or inspect an exact tool_name. Search/inspection returns schemas callable next turn. Discovery grants no authority.",
+        self.tools[INSPECTOR] = Tool(
+            INSPECTOR,
+            "Discover capabilities by query using concise English catalog terms, list bounded "
+            "metadata, or inspect an exact tool_name for its input schema and current "
+            "availability. Call a discovered tool that is not in your native tool list through "
+            "tool_call. Discovery grants no authority.",
             EnvironmentInput,
             self.inspect_environment,
             True,
+            toolset="core",
+            eager=CORE,
         )
+        self.tools[BRIDGE] = Tool(
+            BRIDGE,
+            "Invoke any listed capability that is not in your native tool list by its exact "
+            "name, with arguments matching its input_schema from tool_environment. Native tools "
+            "are called directly. The call runs through the same validation, permission, "
+            "approval, receipt and financial checks as a direct call and grants no authority.",
+            BridgeInput,
+            self.unresolved_bridge,
+            True,
+            toolset="core",
+            eager=CORE,
+        )
+
+    def resolve_call(self, call: ToolCall) -> ToolCall:
+        """Unwrap a well-formed bridge call into the real call, keeping its id.
+
+        Every later boundary (planner, guardrails, inflight markers, receipts,
+        approvals, financial truth and reconciliation, policy chapters, the
+        persisted transcript) then sees the same call a direct invocation would
+        have produced. Anything that does not name a registered tool stays a
+        ``tool_call`` and fails in ``unresolved_bridge`` without any effect.
+        """
+        if call.name != BRIDGE or set(call.arguments) - {"name", "arguments"}:
+            return call
+        target, arguments = call.arguments.get("name"), call.arguments.get("arguments")
+        if isinstance(target, str):
+            target = target.strip()
+        if arguments is None or (isinstance(arguments, str) and not arguments.strip()):
+            arguments = {}
+        if isinstance(arguments, str):
+            try:
+                arguments = json.loads(arguments)
+            except ValueError:
+                return call
+        if (
+            not isinstance(target, str)
+            or target not in self.tools
+            or target in BRIDGE_TOOLS
+            or not isinstance(arguments, dict)
+        ):
+            return call
+        return ToolCall(id=call.id, name=target, arguments=cast(dict[str, Any], arguments))
+
+    def resolve_calls(self, calls: Sequence[ToolCall]) -> list[ToolCall]:
+        return [self.resolve_call(call) for call in calls]
+
+    async def unresolved_bridge(self, _: ToolContext, arguments: dict[str, Any]) -> dict[str, Any]:
+        """Only calls resolve_call could not unwrap reach this; it never dispatches."""
+        name = arguments["name"]
+        if name in BRIDGE_TOOLS:
+            raise LonoraError("tool_call_target_invalid", 400)
+        if name in self.tools:
+            # A known target that bypassed reply-intake resolution must not run
+            # here: that would skip the loop's per-call effect boundaries.
+            raise LonoraError("tool_call_unresolved", 409)
+        raise LonoraError("tool_call_target_unknown", 404)
+
+    async def availability(
+        self, context: ToolContext, tools: Iterable[Tool] | None = None
+    ) -> dict[str, str]:
+        """Codes for tools whose backend is not configured; presentation only.
+
+        A failing check never hides a capability: the handler stays authoritative.
+        """
+        unavailable: dict[str, str] = {}
+        for tool in self.tools.values() if tools is None else tools:
+            if tool.availability is None:
+                continue
+            try:
+                reason = await tool.availability(context)
+            except LonoraError as error:
+                if error.code == "stale_lease":
+                    raise
+                log.warning("tool_availability_check_failed name=%s code=%s", tool.name, error.code)
+                continue
+            except Exception as error:
+                log.warning(
+                    "tool_availability_check_failed name=%s type=%s",
+                    tool.name,
+                    type(error).__name__,
+                )
+                continue
+            if reason:
+                unavailable[tool.name] = reason
+        return unavailable
+
+    def eager_names(
+        self, profiles: Collection[ExposureProfile], read_only: bool = False
+    ) -> list[str]:
+        """The profiles' eager working set in deterministic registry order."""
+        return [
+            name
+            for name, tool in self.tools.items()
+            if tool.eager & set(profiles) and (not read_only or tool.read_only)
+        ]
+
+    def exposure(
+        self,
+        profiles: Collection[ExposureProfile],
+        *,
+        read_only: bool = False,
+        remembered: Sequence[str] = (),
+        unavailable: Mapping[str, str] | None = None,
+    ) -> tuple[list[str], list[str]]:
+        """Choose a Run's native tool names once: (native, promoted).
+
+        The eager set minus unavailable tools, plus remembered long-tail tools
+        in recency order within MAX_PROMOTED_TOOLS and PROMOTED_SCHEMA_BUDGET.
+        The bridge tools are always native.
+        """
+        missing = unavailable or {}
+        chosen = {
+            name
+            for name in self.eager_names(profiles, read_only)
+            if name in BRIDGE_TOOLS or name not in missing
+        } | BRIDGE_TOOLS
+        promoted: list[str] = []
+        used = 0
+        for name in remembered:
+            tool = self.tools.get(name)
+            if (
+                tool is None
+                or name in chosen
+                or name in missing
+                or (read_only and not tool.read_only)
+            ):
+                continue
+            if len(promoted) >= MAX_PROMOTED_TOOLS:
+                break
+            size = schema_chars(tool)
+            if used + size > PROMOTED_SCHEMA_BUDGET:
+                continue
+            promoted.append(name)
+            chosen.add(name)
+            used += size
+        return [name for name in self.tools if name in chosen], promoted
+
+    def native_definitions(
+        self, names: Collection[str], read_only: bool = False
+    ) -> list[ToolDefinition]:
+        """Native schemas for a frozen exposure, in registry order.
+
+        Names no longer registered or outside the current scope are dropped;
+        the bridge tools are always present.
+        """
+        return [
+            tool.definition()
+            for name, tool in self.tools.items()
+            if (name in names or name in BRIDGE_TOOLS) and (not read_only or tool.read_only)
+        ]
+
+    def describe(
+        self,
+        tool: Tool,
+        native: Collection[str],
+        unavailable: Mapping[str, str],
+        *,
+        schema: bool = True,
+    ) -> dict[str, Any]:
+        entry = tool.environment(schema=schema)
+        entry["invoke"] = "direct" if tool.name in native or tool.name in BRIDGE_TOOLS else BRIDGE
+        reason = unavailable.get(tool.name)
+        entry["available"] = reason is None
+        if reason is not None:
+            entry["unavailable_reason"] = reason
+        return entry
 
     async def inspect_environment(
         self, context: ToolContext, arguments: dict[str, Any]
@@ -50,28 +284,60 @@ class ToolRegistry:
             read_only = (
                 run.trigger == "subagent" or run.model_metadata.get("authority") == "observe_only"
             )
+            exposure: Any = run.execution_state.get("tool_exposure")
+        native: set[str] = set()
+        if isinstance(exposure, dict):
+            listed = cast(dict[str, Any], exposure).get("native")
+            if isinstance(listed, list):
+                native = {name for name in cast(list[Any], listed) if isinstance(name, str)}
         allowed = [tool for tool in self.tools.values() if not read_only or tool.read_only]
         name = arguments.get("tool_name")
         if name:
             tool = next((tool for tool in allowed if tool.name == name), None)
             if tool is None:
                 raise LonoraError("tool_not_allowed", 403)
-            return {"tool": tool.environment(), "execution_authorized": False}
+            unavailable = await self.availability(context, [tool])
+            return {
+                "tool": self.describe(tool, native, unavailable),
+                "invocation": INVOCATION,
+                "execution_authorized": False,
+            }
         offset, limit = arguments.get("offset", 0), arguments.get("limit", 20)
         if arguments.get("query"):
             names = search_definitions(
-                [tool.definition() for tool in allowed], arguments["query"], limit
+                [tool.definition() for tool in allowed],
+                arguments["query"],
+                min(limit, MAX_SEARCH_RESULTS),
             )
+            found = [self.tools[name] for name in names]
+            unavailable = await self.availability(context, found)
+            entries: list[dict[str, Any]] = []
+            budget = SEARCH_SCHEMA_BUDGET
+            for tool in found:
+                entry = self.describe(tool, native, unavailable, schema=False)
+                parameters = tool.definition().parameters
+                size = len(json.dumps(parameters, ensure_ascii=False))
+                if size <= budget:
+                    entry["input_schema"] = parameters
+                    budget -= size
+                else:
+                    entry["input_schema_omitted"] = True
+                    entry["required"] = parameters.get("required", [])
+                entries.append(entry)
             return {
-                "tools": [self.tools[name].environment() for name in names],
+                "tools": entries,
                 "total": len(names),
                 "next_offset": None,
+                "invocation": INVOCATION,
                 "execution_authorized": False,
             }
+        page = allowed[offset : offset + limit]
+        unavailable = await self.availability(context, page)
         return {
-            "tools": [tool.environment(schema=False) for tool in allowed[offset : offset + limit]],
+            "tools": [self.describe(tool, native, unavailable, schema=False) for tool in page],
             "total": len(allowed),
             "next_offset": offset + limit if offset + limit < len(allowed) else None,
+            "invocation": INVOCATION,
             "execution_authorized": False,
         }
 
@@ -84,33 +350,49 @@ class ToolRegistry:
         """Current permitted membership without generating native JSON schemas."""
         return {name for name, tool in self.tools.items() if not read_only or tool.read_only}
 
-    def capability_inventory(self, read_only: bool = False) -> str:
+    def capability_inventory(
+        self, read_only: bool = False, unavailable: Mapping[str, str] | None = None
+    ) -> str:
         """Bounded names from the current permitted registry, never a second catalog.
 
-        Native input schemas stay progressively loaded. This snapshot prevents a
-        compact initial schema surface from being mistaken for missing abilities.
-        Availability here means registered in scope, not configured or authorized.
+        Grouped by toolset. A Run computes ``unavailable`` once, so the text is
+        stable for the whole Run and keeps the reusable prompt prefix intact.
         """
         families: dict[str, list[str]] = {}
         for name, tool in sorted(self.tools.items()):
             if read_only and not tool.read_only:
                 continue
-            family = getattr(tool.handler, "__module__", "capabilities").rsplit(".", 1)[-1]
+            family = (
+                tool.toolset
+                or getattr(tool.handler, "__module__", "capabilities").rsplit(".", 1)[-1]
+            )
             families.setdefault(family, []).append(name)
         total = sum(len(names) for names in families.values())
         prefix = (
-            "Current capability inventory from the permitted live registry. The small initial "
-            "schema list is progressive discovery, not the full set of abilities. Inspect an "
-            "exact name with tool_environment to load its callable schema before use or before "
-            "claiming the ability is absent. Registered does not establish backend readiness, "
-            "account authority or permission; execution still validates all current boundaries. "
-            "Historical self-descriptions do not override this current inventory.\n"
+            "Current capability inventory from the permitted live registry. Your native tool "
+            "list is this Run's working set, not the full set of abilities. Call a native tool "
+            "by its own name. Call any other capability below with tool_call, using its exact "
+            "name and arguments; inspect it with tool_environment first when you do not know "
+            "its input schema, and before claiming an ability is absent. Registered does not "
+            "establish account authority or permission; execution still validates all current "
+            "boundaries. Historical self-descriptions do not override this current inventory.\n"
             "<available_capabilities>\n"
         )
+        missing = sorted(
+            (name, code)
+            for name, code in (unavailable or {}).items()
+            if name in self.tools and (not read_only or self.tools[name].read_only)
+        )
+        notice = ""
+        if missing:
+            notice = (
+                "unavailable_now (no configured backend in this Run; calls fail with the code): "
+                + ", ".join(f"{name}={code}" for name, code in missing)
+            )[:1200] + "\n"
         lines: list[str] = []
         shown = 0
         # Reserve enough space for a bounded count/footer even for a large registry.
-        budget = MAX_CAPABILITY_INVENTORY_CHARS - len(prefix) - 250
+        budget = MAX_CAPABILITY_INVENTORY_CHARS - len(prefix) - len(notice) - 250
         for family, names in sorted(families.items()):
             line = family + ": "
             included = 0
@@ -127,45 +409,14 @@ class ToolRegistry:
             if included < len(names):
                 break
         return (
-            prefix + "\n".join(lines) + f"\nListed {shown} of {total} permitted capabilities. "
+            prefix
+            + "\n".join(lines)
+            + "\n"
+            + notice
+            + f"Listed {shown} of {total} permitted capabilities. "
             "Use tool_environment without a query to paginate complete metadata if needed.\n"
             "</available_capabilities>"
         )
-
-    def discovery_definitions(
-        self, read_only: bool = False, discovered_names: set[str] | None = None
-    ) -> list[ToolDefinition]:
-        names = DISCOVERY_BASE | (discovered_names or set())
-        return [
-            tool.definition()
-            for name, tool in self.tools.items()
-            if name in names and (not read_only or tool.read_only)
-        ]
-
-    def discovered_names(self, result: dict[str, Any]) -> set[str]:
-        """Admit exact current schemas returned by a successful direct inspector call.
-
-        The ToolLoop owns that call provenance. Ordinary tool outputs must never
-        be passed here; metadata-only listings do not activate schemas.
-        """
-        if result.get("ok") is False:
-            return set()
-        candidates: list[Any] = [result["tool"]] if isinstance(result.get("tool"), dict) else []
-        if isinstance(result.get("tools"), list):
-            candidates.extend(result["tools"])
-        names: set[str] = set()
-        for candidate in candidates:
-            if not isinstance(candidate, dict):
-                continue
-            item = cast(dict[str, Any], candidate)
-            name = item.get("name")
-            if (
-                isinstance(name, str)
-                and name in self.tools
-                and item.get("input_schema") == self.tools[name].definition().parameters
-            ):
-                names.add(name)
-        return names
 
     async def execute(
         self, call: ToolCall, context: ToolContext, read_only: bool = False

@@ -21,19 +21,26 @@ The existing gateway creates an owner-scoped `ToolContext`. The configured
 `searxng_url` and `browser_url` reach that context through `OwnerServices`; owners
 cannot supply an arbitrary internal service endpoint as a tool argument.
 
-The model sees the current capability inventory and can load the exact operation
-schema with `tool_environment`. The ordinary tool loop executes the operation and
-returns its observation to the model. Research remains separate from trade
-execution, account authority and financial permissions.
+Agents without a bound market receive `web_search` and `web_fetch` as native
+schemas from their first model turn (the `research` exposure profile, see
+[tool execution](tool-execution-runtime.md#capability-exposure-and-discovery));
+any other agent calls them through the stable `tool_call` bridge after reading
+the exact schema with `tool_environment`. `web_search` without SearXNG and
+without an enabled Brave integration, and `web_browse` without a browser
+service, are marked unavailable in the capability inventory and in discovery
+results instead of being offered natively; a call still returns the handler's
+own `research_provider_not_configured` or `browser_unconfigured`. The ordinary
+tool loop executes the operation and returns its observation to the model.
+Research remains separate from trade execution, account authority and
+financial permissions.
 
 ```mermaid
 flowchart LR
     Owner[Owner request] --> Loop[Existing agent tool loop]
     Loop --> Model[Configured LLM]
-    Model --> Discovery[tool_environment]
-    Discovery --> Search[web_search]
-    Discovery --> Fetch[web_fetch]
-    Discovery --> Browse[web_browse]
+    Model --> Search[web_search]
+    Model --> Fetch[web_fetch]
+    Model -. tool_environment, then tool_call .-> Browse[web_browse]
     Search --> SearX[SearXNG service]
     Search -. without SearXNG .-> Brave[Enabled owner Brave integration]
     Fetch --> Public[Public HTTPS sources]
@@ -171,8 +178,8 @@ application mounts, database network or published host port in the browser.
 These timings describe individual observations, not latency guarantees.
 
 The real configured GPT-5.1 model then completed both Arabic acceptance journeys
-through `execute_run`, ordinary progressive discovery and persisted tool/reply
-state:
+through `execute_run`, the progressive discovery of that release and persisted
+tool/reply state:
 
 - `web_research`: used `web_search`, received eight SearXNG sources, read the
   official Python page with `web_fetch`, and included that actual URL in its

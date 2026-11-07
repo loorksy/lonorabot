@@ -7,7 +7,7 @@ from lonora_market.broker import broker_market
 from lonora_market.structure import analyze_structure
 from pydantic import Field
 
-from .base import Tool
+from .base import Tool, eager_for
 from .context import ToolContext
 from .symbols import canonical_broker_symbol
 
@@ -109,6 +109,7 @@ def tools() -> list[Tool]:
             QuoteInput,
             instrument,
             True,
+            eager=eager_for("market"),
         ),
         Tool(
             "market_instruments",
@@ -124,6 +125,7 @@ def tools() -> list[Tool]:
             quote,
             True,
             poller=True,
+            eager=eager_for("market"),
         ),
         Tool(
             "market_candles",
@@ -131,6 +133,7 @@ def tools() -> list[Tool]:
             CandlesInput,
             candles,
             True,
+            eager=eager_for("market"),
         ),
         Tool(
             "market_structure",
@@ -141,5 +144,6 @@ def tools() -> list[Tool]:
             StructureInput,
             structure,
             True,
+            eager=eager_for("market"),
         ),
     ]

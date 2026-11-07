@@ -23,7 +23,7 @@ from lonora_db.tasks import control_task, create_task, get_task, task_state
 from lonora_tools.base import Tool
 from lonora_tools.context import ToolContext
 from lonora_tools.loader import load_tools
-from lonora_tools.registry import ToolRegistry
+from lonora_tools.registry import BRIDGE_TOOLS, ToolRegistry
 
 
 class Probe(Contract):
@@ -91,7 +91,7 @@ async def main() -> None:
             return result
 
         registry = ToolRegistry(
-            [t for n, t in load_tools().tools.items() if n != "tool_environment"]
+            [t for n, t in load_tools().tools.items() if n not in BRIDGE_TOOLS]
             + [
                 Tool(
                     "continuation_probe",
@@ -115,9 +115,15 @@ async def main() -> None:
                     )
                 )
             if model_count == 2:
-                assert "continuation_probe" in {tool.name for tool in tools}
+                # Discovery leaves the Run's tools array frozen; the bridge
+                # resolves into the real receipt-backed call under this id.
+                assert "continuation_probe" not in {tool.name for tool in tools}
                 return response(
-                    ToolCall(id="stable-effect", name="continuation_probe", arguments={"value": 7})
+                    ToolCall(
+                        id="stable-effect",
+                        name="tool_call",
+                        arguments={"name": "continuation_probe", "arguments": {"value": 7}},
+                    )
                 )
             assert model_count == 3 and effect_count == 1
             assert any(

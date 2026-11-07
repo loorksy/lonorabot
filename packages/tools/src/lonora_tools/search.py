@@ -14,7 +14,7 @@ from lonora_security.network import validate_public_url
 from pydantic import Field
 from sqlalchemy import select
 
-from .base import Tool
+from .base import Tool, eager_for
 from .context import ToolContext
 
 
@@ -120,24 +120,35 @@ async def fetch(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             }
 
 
-async def web_search(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
-    if context.searxng_url:
-        return await searxng_search(context.searxng_url, args["query"])
+async def brave_configuration(context: ToolContext) -> dict[str, Any] | None:
     async with context.db.sessions() as session:
         rows = (
             await session.scalars(
                 select(IntegrationRow).where(IntegrationRow.owner_id == context.owner_id)
             )
         ).all()
-        config = next(
-            (
-                row.payload
-                for row in rows
-                if row.payload.get("type") == "brave_search" and row.payload.get("enabled")
-            ),
-            None,
-        )
-    if not config or not config.get("secret_id"):
+    config = next(
+        (
+            row.payload
+            for row in rows
+            if row.payload.get("type") == "brave_search" and row.payload.get("enabled")
+        ),
+        None,
+    )
+    return config if config and config.get("secret_id") else None
+
+
+async def search_available(context: ToolContext) -> str | None:
+    if context.searxng_url or await brave_configuration(context):
+        return None
+    return "research_provider_not_configured"
+
+
+async def web_search(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+    if context.searxng_url:
+        return await searxng_search(context.searxng_url, args["query"])
+    config = await brave_configuration(context)
+    if config is None:
         raise LonoraError("research_provider_not_configured", 409)
     key = await context.secrets.read(config["secret_id"])
     payload = await search_payload(
@@ -270,6 +281,7 @@ def tools() -> list[Tool]:
             SearchInput,
             search,
             True,
+            eager=eager_for("core"),
         ),
         Tool(
             "web_fetch",
@@ -277,6 +289,7 @@ def tools() -> list[Tool]:
             FetchInput,
             fetch,
             True,
+            eager=eager_for("research"),
         ),
         Tool(
             "web_search",
@@ -288,5 +301,7 @@ def tools() -> list[Tool]:
             SearchInput,
             web_search,
             True,
+            eager=eager_for("research"),
+            availability=search_available,
         ),
     ]

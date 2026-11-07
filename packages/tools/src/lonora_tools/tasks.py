@@ -7,7 +7,7 @@ from lonora_db.schema import TicketRow
 from lonora_db.tasks import control_task, create_task, get_task, snapshot
 from sqlalchemy import select
 
-from .base import Tool
+from .base import Tool, eager_for
 from .context import ToolContext
 
 
@@ -83,6 +83,7 @@ def tools() -> list[Tool]:
             TaskWait,
             wait,
             replay_safe=True,
+            eager=eager_for("task"),
         ),
         Tool(
             "task_step_update",
@@ -90,6 +91,7 @@ def tools() -> list[Tool]:
             TaskStepUpdate,
             step_update,
             replay_safe=True,
+            eager=eager_for("task"),
         ),
         Tool(
             "task_start",

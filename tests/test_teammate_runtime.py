@@ -278,9 +278,11 @@ async def test_all_actual_catalog_names_are_answered_unchanged_with_one_model_ca
     reply, _ = await model_runtime.model_turn(
         model_context(complete),
         [ModelMessage(role="user", content="طيب بدي منك قائمة جميع أدواتك")],
-        catalog.discovery_definitions(),
+        catalog.native_definitions(catalog.exposure(["core", "research"])[0]),
         Capability.CONVERSATION,
         capability_inventory=catalog.capability_inventory(),
+        resolve_calls=catalog.resolve_calls,
+        policy_tools=catalog.names(),
     )
     assert reply.text == answer
     assert complete.await_count == usage.await_count == 1

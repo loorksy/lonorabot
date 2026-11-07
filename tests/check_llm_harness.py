@@ -50,6 +50,11 @@ def call(identity: str, name: str, **arguments: Any) -> ToolCall:
     return ToolCall(id=identity, name=name, arguments=arguments)
 
 
+def bridged(identity: str, tool: str, **arguments: Any) -> ToolCall:
+    """A call through the stable tool_call bridge, as a model makes it."""
+    return ToolCall(id=identity, name="tool_call", arguments={"name": tool, "arguments": arguments})
+
+
 def inspect(identity: str, name: str) -> tuple[ModelReply, ModelSelection]:
     return response(call(identity, "tool_environment", tool_name=name))
 
@@ -137,6 +142,7 @@ async def seed_context(f: Fixture, thread: dict[str, Any], symbol: str) -> None:
 async def discovery_and_context(f: Fixture) -> None:
     account, symbol = await simulation(f)
     registry = load_tools()
+    offered: dict[int, set[str]] = {}
     for index, prompt in enumerate(
         (
             "راجع السوق الحالي وفق ما اتفقنا عليه",
@@ -167,13 +173,14 @@ async def discovery_and_context(f: Fixture) -> None:
             contents = "\n".join(message.content for message in messages)
             assert expected_prompt in contents and symbol in contents and "150 USD" in contents
             assert "اخترت الشراء" in contents
+            # One frozen tools array for the whole Run, worker replacement included.
+            assert names == offered.setdefault(variant_index, names)
             if phase == 0:
-                assert (
-                    "tool_environment" in names and "market_quote" not in names and len(names) <= 4
-                )
+                assert {"tool_environment", "tool_call"} <= names and "market_quote" not in names
                 phase += 1
                 return inspect("discover-quote", "market_quote")
-            assert "market_quote" in names
+            # Discovery returns the exact schema; it never changes the tools array.
+            assert "market_quote" not in names
             if phase == 1:
                 phase += 1
                 # Worker loss after discovery was durably observed, before the next request.
@@ -181,7 +188,10 @@ async def discovery_and_context(f: Fixture) -> None:
                     raise asyncio.CancelledError()
             if phase == 2:
                 phase += 1
-                return response(call("quote", "market_quote", account_id=account, symbol=symbol))
+                discovered = observation(messages, "discover-quote")
+                assert discovered["tool"]["invoke"] == "tool_call"
+                assert discovered["tool"]["input_schema"]["required"] == ["account_id", "symbol"]
+                return response(bridged("quote", "market_quote", account_id=account, symbol=symbol))
             assert observation(messages, "quote")["ok"]
             phase += 1
             return response(text="راجعت السعر الحالي مع الاحتفاظ بالسوق والمخاطرة اللذين حددتهما.")
@@ -213,6 +223,14 @@ async def discovery_and_context(f: Fixture) -> None:
                 if item["role"] == "tool" and item.get("tool_call_id") == "quote"
             ]
             assert len(calls) == 1 and phase == 4
+            # The bridged call is recorded as the real tool under the model's id.
+            proposed = [
+                call
+                for item in row.execution_state["messages"]
+                for call in item.get("tool_calls", [])
+                if call["id"] == "quote"
+            ]
+            assert [call["name"] for call in proposed] == ["market_quote"]
     print(
         "PASS Arabic/English/short follow-up context, progressive discovery and worker replacement"
     )
@@ -329,9 +347,10 @@ async def conditional_mission(f: Fixture, valid: bool) -> None:
             assert "market_decision_record" not in names
             return inspect("discover-decision", "market_decision_record")
         if phase == 2:
-            assert "market_decision_record" in names
+            # Discovery never changes the Run's frozen tools array.
+            assert "market_decision_record" not in names
             return response(
-                call(
+                bridged(
                     "conditional",
                     "market_decision_record",
                     **params,
@@ -351,7 +370,8 @@ async def conditional_mission(f: Fixture, valid: bool) -> None:
             )
         assert any("<runtime_wake>" in message.content for message in messages)
         if phase == 5:
-            assert "market_decision_record" in names and "task_wait" in names
+            # task_wait is native in Task Runs; other tools stay behind the bridge.
+            assert "task_wait" in names and "market_decision_record" not in names
             if not valid and not replayed_wait:
                 replayed_wait = True
                 phase -= 1
@@ -388,8 +408,10 @@ async def conditional_mission(f: Fixture, valid: bool) -> None:
                     call("continue-management", "task_wait", kind="timer", seconds=60),
                     text=result_update,
                 )
+            # The financial entry goes through the bridge: same grant, journal,
+            # broker verification and receipt path as a direct call.
             return response(
-                call(
+                bridged(
                     "entry",
                     "trade_execute",
                     account_id=account,

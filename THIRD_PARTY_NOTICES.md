@@ -14,9 +14,23 @@ c78ca093aa4b6759c055c3ed2bfbe7f741cf0292,
 tools/tool_search_catalog.py. Copyright (c) 2025 Nous Research, MIT.
 Adapted portions: BM25 corpus/scoring and bounded rare-term/coverage matching.
 Changes: Unicode normalization/tokenization, existing Lonora typed registry,
-native exact-name calls and current caller scope; no Hermes bridge, plugin
-runtime, English stemmer or new dependency. The full MIT permission/warranty
-notice is retained in lonora_tools/tool_discovery.py and ships in the wheel.
+native exact-name calls and current caller scope; no plugin runtime, English
+stemmer or new dependency. The full MIT permission/warranty notice is retained
+in lonora_tools/tool_discovery.py and ships in the wheel.
+
+Stable tool exposure adapts the Tool Search design of Hermes Agent at revision
+a9ff9799e273f525b82718cdc69fdec71b1dca5a: tools/tool_search.py (an eager core
+working set beside a stable bridge, so discovery never changes the tools array)
+and tools/tool_search_validation.py (normalize_tool_call_entries: single-shape
+name/arguments with JSON-string and empty arguments tolerated, bridge recursion
+refused). Changes: the eager set is declared as per-tool exposure profiles in
+Lonora's Tool metadata and frozen per Run in the fenced checkpoint; one
+tool_call bridge (no tool_search/tool_describe split, no batches, no connector
+routing) is resolved into the real call before every Lonora boundary observes
+it, so receipts, guardrails, approvals and financial checks are unchanged;
+used tools are remembered per agent in PostgreSQL. Copyright (c) 2025 Nous
+Research, MIT. The full permission/warranty notice is preserved in
+lonora_tools/registry.py and distributed in the Python wheel.
 
 Continuous-work stop gates also adapt Hermes Agent at that same pinned revision,
 agent/turn_stop_gates.py: the typed continue/stop verdict and bounded structural

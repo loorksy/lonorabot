@@ -83,6 +83,7 @@ from .stop_gates import reset_stop_gate, task_progress, task_stop_gate
 from .tasks import task_checkpoint
 from .tool_batch import Segment, gather_bounded, next_segment
 from .tool_dispatch import dispatch_call
+from .tool_exposure import ensure_exposure, inventory, native_definitions, remember_use
 from .tool_guardrails import (
     after_call,
     before_call,
@@ -497,18 +498,6 @@ async def execute_tool_loop(
         )
         task_run = bool(run.model_metadata.get("task_id"))
     messages, pending = restore_execution(state)
-    if "discovered_tool_names" not in state:
-        # Restore the presentation of previously used capabilities on legacy
-        # checkpoints. Discovery never changes the registry's authority checks.
-        state["discovered_tool_names"] = sorted(
-            {
-                call.name
-                for message in messages
-                for call in message.tool_calls
-                if call.name in registry.tools
-            }
-            | {call.name for call in pending if call.name in registry.tools}
-        )
     if messages and "instruction_skill_ids" not in state:
         # Legacy checkpoints have no binding between saved instructions and the
         # latest metadata selection. Conservatively check all retained versions.
@@ -522,6 +511,12 @@ async def execute_tool_loop(
     if not messages:
         messages = await build_context(context, registry)
         state["instruction_skill_ids"] = await selected_skill_ids(context)
+    # Chosen once per Run and frozen in the checkpoint: the native tools array
+    # is identical on every model turn, so discovery never invalidates the
+    # reusable prompt prefix. Exposure is presentation, never authority.
+    exposure = await ensure_exposure(
+        context, registry, state, messages, pending, read_only=read_only, task_run=task_run
+    )
     resumed = state.pop(ATTENTION_RESUMED, None)
     if isinstance(resumed, dict):
         # A Task control resumed work held for owner attention: that is owner
@@ -729,10 +724,6 @@ async def execute_tool_loop(
                         True,
                     )
                 state.pop("waiting_call_id", None)
-                if call.name == "tool_environment" and result.get("ok") is not False:
-                    state["discovered_tool_names"] = sorted(
-                        set(state["discovered_tool_names"]) | registry.discovered_names(result)
-                    )
                 viewed_ids = await admitted_view_ids(
                     context, registry, call, result, state["instruction_skill_ids"]
                 )
@@ -795,6 +786,7 @@ async def execute_tool_loop(
                         else None,
                     },
                 )
+                await remember_use(context, registry, exposure, call, result)
                 if result.get("_runtime_external_wait"):
                     await report_wait_superseded(context, superseded)
                     return external_wait_outcome(state)
@@ -868,11 +860,12 @@ async def execute_tool_loop(
         reply, selection = await model_turn(
             context,
             messages,
-            registry.discovery_definitions(
-                read_only, set(cast(list[str], state["discovered_tool_names"]))
-            ),
+            native_definitions(registry, exposure, read_only),
             turn_capability,
-            capability_inventory=registry.capability_inventory(read_only),
+            capability_inventory=inventory(registry, exposure, read_only),
+            # Bridge calls become the real calls before any boundary sees them.
+            resolve_calls=registry.resolve_calls,
+            policy_tools=registry.names(read_only),
         )
         if reply.rich_content is None:
             state.pop("rich_content", None)

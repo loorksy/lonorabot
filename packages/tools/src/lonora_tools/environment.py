@@ -19,6 +19,18 @@ class EnvironmentInput(Contract):
     limit: int = Field(default=20, ge=1, le=40)
 
 
+class BridgeInput(Contract):
+    name: str = Field(
+        min_length=1,
+        max_length=100,
+        description="Exact registered tool name from the capability inventory or tool_environment.",
+    )
+    arguments: dict[str, Any] = Field(
+        default_factory=dict[str, Any],
+        description="Arguments matching that tool's input_schema.",
+    )
+
+
 def recovery_metadata(read_only: bool, financial: bool) -> dict[str, Any]:
     return {
         "side_effect": "read_only" if read_only else "financial" if financial else "mutating",

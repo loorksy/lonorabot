@@ -34,6 +34,10 @@ class BrowseInput(Contract):
     actions: list[BrowseAction] = Field(default_factory=list[BrowseAction], max_length=8)
 
 
+async def browser_available(context: ToolContext) -> str | None:
+    return None if context.browser_url else "browser_unconfigured"
+
+
 async def browse(context: ToolContext, arguments: dict[str, Any]) -> dict[str, Any]:
     if not context.browser_url:
         raise LonoraError("browser_unconfigured", 409)
@@ -112,5 +116,6 @@ def tools() -> list[Tool]:
             # would burn read retries, so they stay serial.
             parallel_safe=False,
             timeout_seconds=60,
+            availability=browser_available,
         )
     ]

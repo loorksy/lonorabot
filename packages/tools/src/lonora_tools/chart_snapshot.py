@@ -13,7 +13,7 @@ from lonora_security.runtime_storage import confined_path
 from pydantic import Field, model_validator
 
 from .artifacts import store_artifact
-from .base import Tool
+from .base import Tool, eager_for
 from .context import ToolContext
 
 
@@ -209,5 +209,6 @@ def tools() -> list[Tool]:
             SnapshotInput,
             snapshot,
             replay_safe=True,
+            eager=eager_for("market"),
         )
     ]

@@ -37,7 +37,7 @@ from lonora_market.health import assess_account, assess_candles, assess_quote, t
 from lonora_market.relationships import relationship_usable
 from lonora_trading.decision_readiness import decision_readiness
 
-from .base import Tool
+from .base import Tool, eager_for
 from .context import ToolContext
 
 
@@ -286,6 +286,7 @@ def tools() -> list[Tool]:
             "Record your BUY, SELL or CONDITIONAL_ENTRY decision with current broker evidence and rationale; WAIT remains explicit abstention. Optional detector observations assist your analysis, never choose the side. Conditional entry stores your condition, invalidation and review instruction; create a durable Task watch/wait separately before claiming monitoring. Operational failures remain separate from your decision. This never authorizes or executes a trade.",
             DecisionRequest,
             record,
+            eager=eager_for("market"),
         ),
         Tool(
             "market_decision_history",
@@ -293,6 +294,7 @@ def tools() -> list[Tool]:
             DecisionHistory,
             history,
             True,
+            eager=eager_for("market"),
         ),
         Tool(
             "market_decision_compare",

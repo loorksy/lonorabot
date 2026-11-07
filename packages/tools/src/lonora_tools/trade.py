@@ -24,7 +24,7 @@ from lonora_trading.manual_activity import material_state
 from pydantic import Field
 from sqlalchemy import select
 
-from .base import Tool
+from .base import Tool, eager_for
 from .context import ToolContext
 from .symbols import canonical_broker_symbol
 
@@ -529,6 +529,7 @@ def tools() -> list[Tool]:
             financial=True,
             replay_safe=True,
             legacy_replay_safe=True,
+            eager=eager_for("market"),
         ),
         Tool(
             "trade_close_positions",

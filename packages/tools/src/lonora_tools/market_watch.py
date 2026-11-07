@@ -5,7 +5,7 @@ from lonora_db.market_watches import MarketWatchRepository
 from lonora_db.runs import require_lease
 from lonora_db.transactions import resource_data
 
-from .base import Tool
+from .base import Tool, eager_for
 from .context import ToolContext
 from .memory import Empty
 
@@ -51,6 +51,7 @@ def tools() -> list[Tool]:
             Watch,
             create,
             replay_safe=True,
+            eager=eager_for("market"),
         ),
         Tool(
             "watch_list",

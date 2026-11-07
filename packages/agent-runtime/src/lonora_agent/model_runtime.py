@@ -1,7 +1,8 @@
+from collections.abc import Callable, Collection, Sequence
 from time import monotonic
 from typing import Any
 
-from lonora_adapter_kit.types import ModelMessage, ModelReply, ToolDefinition
+from lonora_adapter_kit.types import ModelMessage, ModelReply, ToolCall, ToolDefinition
 from lonora_contracts.domain import new_id
 from lonora_contracts.model_routing import Capability, ModelSelection
 from lonora_core.public_reply import redact_private_reply
@@ -31,7 +32,14 @@ async def model_turn(
     capability: Capability,
     *,
     capability_inventory: str = "",
+    resolve_calls: Callable[[Sequence[ToolCall]], list[ToolCall]] | None = None,
+    policy_tools: Collection[str] | None = None,
 ) -> tuple[ModelReply, ModelSelection]:
+    """One model request. ``resolve_calls`` turns stable bridge calls into the
+    real calls before the financial-truth gates below and before the loop sees
+    them; ``policy_tools`` are the permitted names whose recent calls select
+    domain guidance (a bridged call need not be in the native ``tools``).
+    """
     preparation_started = monotonic()
     stage_started = preparation_started
     preparation_ms: dict[str, float] = {}
@@ -44,7 +52,7 @@ async def model_turn(
 
     await refresh_routing_context(context, messages)
     prepared("routing_context")
-    request_messages = apply_operating_policy(messages, tools)
+    request_messages = apply_operating_policy(messages, tools, available=policy_tools)
     if capability_inventory:
         # Fresh projection on every model turn, including restored checkpoints.
         # This is the actual permitted registry, not remembered self-description.
@@ -143,6 +151,8 @@ async def model_turn(
     # Providers cannot inject compiled display data. Only this request's output
     # can be compiled against its actual observations and owned resources.
     reply = reply.model_copy(update={"rich_content": None})
+    if resolve_calls is not None and reply.tool_calls:
+        reply = reply.model_copy(update={"tool_calls": resolve_calls(reply.tool_calls)})
     await save_usage(
         context.db,
         context.owner_id,

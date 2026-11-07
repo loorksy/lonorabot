@@ -34,7 +34,7 @@ from collections import Counter
 
 from lonora_adapter_kit.types import ToolDefinition
 
-MAX_SEARCH_RESULTS = 5
+MAX_SEARCH_RESULTS = 12
 
 
 def tokens(text: str) -> list[str]:

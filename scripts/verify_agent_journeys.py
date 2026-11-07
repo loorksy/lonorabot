@@ -17,7 +17,7 @@ import json
 import re
 import tempfile
 import time
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Collection, Mapping, Sequence
 from dataclasses import replace
 from datetime import timedelta
 from pathlib import Path
@@ -58,9 +58,10 @@ from lonora_providers.router import GlobalModelRouter
 from lonora_providers.routing_policy import read_policy
 from lonora_security.runtime_storage import confined_path
 from lonora_session.idempotency import stable_id
+from lonora_tools.base import ExposureProfile
 from lonora_tools.context import ToolContext
 from lonora_tools.loader import load_tools
-from lonora_tools.registry import ToolRegistry
+from lonora_tools.registry import BRIDGE, BRIDGE_TOOLS, ToolRegistry
 from sqlalchemy import delete, func, or_, select
 
 LEASE_SECONDS = 24 * 60 * 60
@@ -260,7 +261,7 @@ def assert_capability_explanation(answer: str, catalog: ToolRegistry) -> None:
     matched = sum(
         any(label.casefold() in answer.casefold() for label in group) for group in categories
     )
-    available = {tool.name for tool in catalog.discovery_definitions(discovered_names=set(ALLOWED))}
+    available = {tool.name for tool in catalog.native_definitions(set(ALLOWED))}
     mentioned = {
         name for name in available if re.search(r"(?<!\w)" + re.escape(name) + r"(?!\w)", answer)
     }
@@ -280,17 +281,31 @@ class AcceptanceRegistry(ToolRegistry):
     def __init__(self) -> None:
         full = load_tools()
         assert ALLOWED <= set(full.tools)
-        super().__init__([tool for name, tool in full.tools.items() if name != "tool_environment"])
+        super().__init__([tool for name, tool in full.tools.items() if name not in BRIDGE_TOOLS])
         self.catalog = ToolRegistry([full.tools[name] for name in sorted(ALLOWED)])
         assert not any(tool.financial for tool in self.catalog.tools.values())
 
-    def discovery_definitions(
-        self, read_only: bool = False, discovered_names: set[str] | None = None
-    ) -> list[ToolDefinition]:
-        return self.catalog.discovery_definitions(read_only, discovered_names)
+    def exposure(
+        self,
+        profiles: Collection[ExposureProfile],
+        *,
+        read_only: bool = False,
+        remembered: Sequence[str] = (),
+        unavailable: Mapping[str, str] | None = None,
+    ) -> tuple[list[str], list[str]]:
+        return self.catalog.exposure(
+            profiles, read_only=read_only, remembered=remembered, unavailable=unavailable
+        )
 
-    def capability_inventory(self, read_only: bool = False) -> str:
-        return self.catalog.capability_inventory(read_only)
+    def native_definitions(
+        self, names: Collection[str], read_only: bool = False
+    ) -> list[ToolDefinition]:
+        return self.catalog.native_definitions(names, read_only)
+
+    def capability_inventory(
+        self, read_only: bool = False, unavailable: Mapping[str, str] | None = None
+    ) -> str:
+        return self.catalog.capability_inventory(read_only, unavailable)
 
     async def inspect_environment(
         self, context: ToolContext, arguments: dict[str, Any]
@@ -300,7 +315,7 @@ class AcceptanceRegistry(ToolRegistry):
     async def execute(
         self, call: ToolCall, context: ToolContext, read_only: bool = False
     ) -> dict[str, Any]:
-        if call.name not in ALLOWED | {"tool_environment"}:
+        if call.name not in ALLOWED | BRIDGE_TOOLS:
             raise LonoraError("acceptance_tool_denied", 403)
         return await super().execute(call, context, read_only)
 
@@ -326,7 +341,12 @@ class AcceptanceRouter:
         reply, selection = await self.router.complete(
             capability, messages, tools, on_delta=on_delta, on_attempt=on_attempt
         )
-        if any(call.name not in ALLOWED | {"tool_environment"} for call in reply.tool_calls):
+        # A bridge call is judged by the tool it names, exactly as it will run.
+        if any(
+            (call.arguments.get("name") if call.name == BRIDGE else call.name)
+            not in ALLOWED | BRIDGE_TOOLS
+            for call in reply.tool_calls
+        ):
             raise LonoraError("acceptance_tool_denied", 403)
         return reply, selection
 
@@ -348,7 +368,7 @@ def observe_results(row: RunRow) -> dict[str, list[dict[str, Any]]]:
         call = calls.get(message.tool_call_id or "")
         if message.role != "tool" or call is None:
             continue
-        if call.name not in ALLOWED | {"tool_environment"}:
+        if call.name not in ALLOWED | BRIDGE_TOOLS:
             raise AssertionError("Model attempted a capability outside acceptance allowlist")
         try:
             result = json.loads(message.content)

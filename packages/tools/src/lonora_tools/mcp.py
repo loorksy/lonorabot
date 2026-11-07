@@ -112,6 +112,13 @@ async def read(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         await adapter.close()
 
 
+async def execution_declared(context: ToolContext) -> str | None:
+    """Execution needs at least one operator declaration for this owner."""
+    if any(item.owner_id == context.owner_id for item in context.mcp_declarations):
+        return None
+    return "mcp_tool_not_authorized"
+
+
 async def execute(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     config = await connection_config(context, args["connection_id"])
     declaration = declaration_for(
@@ -162,5 +169,6 @@ def tools() -> list[Tool]:
             McpExecute,
             execute,
             timeout_seconds=120,
+            availability=execution_declared,
         ),
     ]

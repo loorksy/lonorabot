@@ -16,7 +16,109 @@ boundaries.
 | `tool_guardrails.py` | Checkpointed loop guardrail controller |
 | `runtime_notices.py` | Placement and wording of runtime notices |
 | `stop_gates.py` | Bounded completion nudges for Task work |
-| `lonora_tools.base.Tool` | `parallel_safe`, `poller`, `timeout_seconds` contract flags |
+| `tool_exposure.py` | The Run's frozen native tool set, remembered tools |
+| `lonora_tools.registry` | Exposure, `tool_call` bridge, discovery, availability, dispatch |
+| `lonora_tools.base.Tool` | `parallel_safe`, `poller`, `timeout_seconds`, `toolset`, `eager`, `availability` |
+
+## Capability exposure and discovery
+
+The model decides which capability to use; exposure only decides which input
+schemas travel natively with each request. It never grants or removes
+authority: `ToolRegistry.execute` runs any registered tool the Run is
+permitted to call, whichever path the call took.
+
+**Eager working set as Tool metadata.** Every `Tool` declares a `toolset` (its
+capability family, which is also the operating-policy chapter that governs it;
+the loader fills it from the module) and the exposure profiles that receive it
+eagerly (`Tool.eager`). A Run's profiles come from its agent and kind:
+
+| Profile | Applies to | Eager tools |
+| --- | --- | --- |
+| `core` | every Run | `tool_environment`, `tool_call`, `skills_list`, `skill_view`, `wait_for_input`, `memory_read`, `memory_write`, `search_internal` |
+| `market` | agent bound to a broker account | `market_quote`, `market_candles`, `market_instrument`, `market_structure`, `account_read`, `chart_snapshot`, `market_decision_record`, `market_decision_history`, `watch_create`, `trade_execute` |
+| `research` | every other agent | `web_search`, `web_fetch`, `artifact_read` |
+| `task` | durable Task Runs | `task_wait`, `task_step_update` |
+
+Subagent and observe-only Runs keep only the read-only members. The eager set
+is at most `EAGER_SCHEMA_BUDGET` (24,000) characters of serialized schema for
+every profile combination (largest today: market Task Runs, about 23,200; a
+market conversation about 21,900; a general conversation about 7,200), against
+about 91,000 for the whole catalog. `tests/test_tool_discovery.py` enforces the
+budget, so adding an eager tool fails fast when it does not fit.
+
+**Remembered tools.** After a call to a tool outside the profile's eager set
+succeeds, the loop records it in `ln_agent_tool_usage` (migration 0034; per
+agent, the 16 most recent, with a use count; best effort, never retried, never
+part of the call's observation). When the agent's next Run starts, its most recent remembered
+tools are promoted into that Run's native set, at most `MAX_PROMOTED_TOOLS` (6)
+and `PROMOTED_SCHEMA_BUDGET` (5,000 characters); tools that are unavailable,
+out of scope or larger than the remaining budget are skipped. A follow-up turn
+therefore calls the long-tail tool it used last time directly. The native set
+is bounded by about 29,000 characters in the worst case.
+
+**Frozen per Run.** The set is chosen once, when the Run first enters the loop,
+and stored in the checkpoint as `tool_exposure` (`profiles`, `native`,
+`promoted`, `unavailable`). Every model turn of the Run, restarts and Task
+slices included, sends byte-identical tool definitions and the same capability
+inventory text, so the provider's reusable prompt prefix is not invalidated by
+discovery. A checkpoint written by an earlier release keeps every schema it had
+already shown (its `discovered_tool_names` and called tools) in its native set.
+
+**The `tool_call` bridge** (adapted from Hermes Agent `tools/tool_search.py`,
+MIT). Discovering a tool no longer adds it to the native array. The model reads
+the exact schema with `tool_environment` and calls
+`tool_call {"name": <exact name>, "arguments": {...}}`. `model_turn` resolves
+each well-formed bridge call into the real call, with the model's own call id,
+immediately after the provider returns and before anything else sees it: the
+financial-truth gates, the parallel planner, guardrails, inflight markers,
+receipts and reconciliation, approvals, the persisted transcript, policy
+chapter selection, progress events and task recovery all observe exactly the
+call a direct invocation would have produced. A financial tool reached through
+the bridge therefore passes every check a direct call passes, and an
+interrupted bridged mutation is `tool_execution_uncertain` like any other.
+Arguments given as a JSON string or omitted are normalized; anything that does
+not name one registered tool (unknown name, a bridge tool, unexpected keys,
+non-object arguments) stays a `tool_call` and fails in its handler with
+`tool_call_target_unknown`, `tool_call_target_invalid` or
+`tool_arguments_invalid` without dispatching anything.
+
+Why discovered schemas are not appended mid-Run: the tool definitions lead the
+cached prompt prefix, so each append invalidated the whole cache, policy
+prefix included, and cost an extra model round before the first use. Accuracy
+is preserved instead by returning the exact input schema in the discovery
+result (it stays in the transcript), validating the target's own Pydantic
+contract on execution with bounded, repairable issues, and promoting tools
+that were actually used into the next Run's native set.
+
+**Discovery.** `tool_environment` keeps the BM25 catalog search adapted from
+Hermes, now with up to 12 results (`MAX_SEARCH_RESULTS`). Results carry their
+input schemas up to 16,000 characters in total; later results list their
+required fields and are inspected with an exact `tool_name`. Every entry states
+`invoke` (`direct` for this Run's native tools, otherwise `tool_call`),
+`available` and, when unavailable, `unavailable_reason`.
+
+**Availability.** A Tool may declare an availability check. Checks are
+presentation only and fail open: an error never hides a capability, and the
+handler remains authoritative.
+
+| Tool | Unavailable when | Code |
+| --- | --- | --- |
+| `web_search` | no SearXNG URL and no enabled Brave integration with a secret | `research_provider_not_configured` |
+| `web_browse` | no browser service URL | `browser_unconfigured` |
+| `workspace_*` | no analytical workspace | `workspace_unconfigured` |
+| `workspace_execute`, `skill_package_validate` | no analysis host bridge | `workspace_execution_unconfigured` |
+| `mcp_execute` | no operator declaration for this owner | `mcp_tool_not_authorized` |
+
+Unavailable tools stay out of the native set, are listed under
+`unavailable_now` in the capability inventory and are marked in discovery
+results. The Run's availability snapshot is frozen with its exposure;
+`tool_environment` re-checks the tools it returns.
+
+**Registry facts outside the registry.** The policy routing map in
+`resources/system/manifest.json` is exported from `Tool.toolset`. The
+remaining name sets that cannot import the registry (`FINANCIAL_CALLS`,
+`FINANCIAL_REPLAY_TOOLS`, `CHECKPOINT_TOOLS`, skill `CAPABILITY_TOOLS`) are
+checked against registry metadata by `tests/test_capability_exposure.py`.
 
 ## Concurrent reads, serial effects
 
@@ -32,7 +134,8 @@ barrier executed alone: mutations, financial operations, waits
 shared browser service renders at most two pages at once for every Run and
 fails fast when busy) and unknown names.
 A later call never crosses an earlier barrier. `tool_environment` reports each
-tool's class as `batch_execution` (`parallel_read` or `serial`).
+tool's class as `batch_execution` (`parallel_read` or `serial`). Calls made
+through the `tool_call` bridge are planned by the tool they name.
 
 Results are observed, appended and checkpointed in the original call order,
 whatever order the handlers finish in. Owner steering is checked before every

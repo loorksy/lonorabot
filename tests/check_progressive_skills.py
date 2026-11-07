@@ -20,7 +20,7 @@ from lonora_core.user_error import LonoraError
 from lonora_db.schema import EffectReceiptRow, RunRow, SkillRow
 from lonora_tools.base import Tool
 from lonora_tools.loader import load_tools
-from lonora_tools.registry import ToolRegistry
+from lonora_tools.registry import BRIDGE_TOOLS, ToolRegistry
 from sqlalchemy import func, select
 
 
@@ -267,7 +267,7 @@ async def pending_effect_guard(
 
     registry = ToolRegistry(
         [
-            *[tool for tool in load_tools().tools.values() if tool.name != "tool_environment"],
+            *[tool for tool in load_tools().tools.values() if tool.name not in BRIDGE_TOOLS],
             Tool("script_effect", "Scripted nonfinancial effect", Contract, effect),
         ]
     )

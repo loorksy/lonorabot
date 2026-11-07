@@ -9,7 +9,7 @@ from lonora_trading.accounts import account_snapshot
 from pydantic import Field, model_validator
 from sqlalchemy import select
 
-from .base import Tool
+from .base import Tool, eager_for
 from .context import ToolContext
 from .market import AccountInput
 
@@ -134,5 +134,6 @@ def tools() -> list[Tool]:
             read,
             True,
             poller=True,
+            eager=eager_for("market"),
         ),
     ]
