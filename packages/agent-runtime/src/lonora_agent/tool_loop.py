@@ -415,7 +415,11 @@ async def finish_turn(
         )
         selection: ModelSelection | None
         try:
-            reply, selection = await model_turn(context, messages, [], turn_capability)
+            # No tools are offered, but a provider may still propose calls; the
+            # resolver lets the truth gates read a bridged financial proposal.
+            reply, selection = await model_turn(
+                context, messages, [], turn_capability, resolve_calls=registry.resolve_calls
+            )
         except LonoraError as error:
             if error.code in {"stale_lease", "skill_continuation_unavailable"}:
                 raise
@@ -786,7 +790,7 @@ async def execute_tool_loop(
                         else None,
                     },
                 )
-                await remember_use(context, registry, exposure, call, result)
+                await remember_use(context, registry, exposure, call, result, read_only=read_only)
                 if result.get("_runtime_external_wait"):
                     await report_wait_superseded(context, superseded)
                     return external_wait_outcome(state)

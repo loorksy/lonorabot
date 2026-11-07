@@ -21,11 +21,13 @@ The existing gateway creates an owner-scoped `ToolContext`. The configured
 `searxng_url` and `browser_url` reach that context through `OwnerServices`; owners
 cannot supply an arbitrary internal service endpoint as a tool argument.
 
-Agents without a bound market receive `web_search` and `web_fetch` as native
-schemas from their first model turn (the `research` exposure profile, see
+Agents without a bound market, other than the owner's Personal Agent, receive
+`web_search` and `web_fetch` as native schemas from their first model turn (the
+`research` exposure profile, see
 [tool execution](tool-execution-runtime.md#capability-exposure-and-discovery));
-any other agent calls them through the stable `tool_call` bridge after reading
-the exact schema with `tool_environment`. `web_search` without SearXNG and
+trading identities call them through the stable `tool_call` bridge after
+reading the exact schema with `tool_environment`, and a tool they used is
+promoted into their next Run's native set. `web_search` without SearXNG and
 without an enabled Brave integration, and `web_browse` without a browser
 service, are marked unavailable in the capability inventory and in discovery
 results instead of being offered natively; a call still returns the handler's

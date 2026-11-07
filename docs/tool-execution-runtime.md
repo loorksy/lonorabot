@@ -35,23 +35,27 @@ eagerly (`Tool.eager`). A Run's profiles come from its agent and kind:
 | Profile | Applies to | Eager tools |
 | --- | --- | --- |
 | `core` | every Run | `tool_environment`, `tool_call`, `skills_list`, `skill_view`, `wait_for_input`, `memory_read`, `memory_write`, `search_internal` |
-| `market` | agent bound to a broker account | `market_quote`, `market_candles`, `market_instrument`, `market_structure`, `account_read`, `chart_snapshot`, `market_decision_record`, `market_decision_history`, `watch_create`, `trade_execute` |
+| `market` | agent bound to a broker account, and the owner's Personal Agent (it reads every owned account and analyzes directly when no specialist exists) | `list_accounts`, `market_quote`, `market_candles`, `market_instrument`, `market_structure`, `account_read`, `chart_snapshot`, `market_decision_record`, `market_decision_history`, `watch_create`, `trade_execute` |
 | `research` | every other agent | `web_search`, `web_fetch`, `artifact_read` |
 | `task` | durable Task Runs | `task_wait`, `task_step_update` |
 
 Subagent and observe-only Runs keep only the read-only members. The eager set
 is at most `EAGER_SCHEMA_BUDGET` (24,000) characters of serialized schema for
-every profile combination (largest today: market Task Runs, about 23,200; a
-market conversation about 21,900; a general conversation about 7,200), against
+every profile combination (largest today: market Task Runs, about 23,600; a
+market conversation about 22,200; a general conversation about 7,200), against
 about 91,000 for the whole catalog. `tests/test_tool_discovery.py` enforces the
 budget, so adding an eager tool fails fast when it does not fit.
 
 **Remembered tools.** After a call to a tool outside the profile's eager set
 succeeds, the loop records it in `ln_agent_tool_usage` (migration 0034; per
 agent, the 16 most recent, with a use count; best effort, never retried, never
-part of the call's observation). When the agent's next Run starts, its most recent remembered
-tools are promoted into that Run's native set, at most `MAX_PROMOTED_TOOLS` (6)
-and `PROMOTED_SCHEMA_BUDGET` (5,000 characters); tools that are unavailable,
+part of the call's observation: a failed write, such as a deadlock or a deleted
+agent, is logged and the Run continues unchanged). Read-only Runs record
+nothing: a subagent Run carries its parent's agent id, and observe-only Runs are
+automated, so neither displaces the agent's own tools. When the agent's next
+Run starts, its most recent remembered tools are promoted into that Run's
+native set, at most `MAX_PROMOTED_TOOLS` (6) and `PROMOTED_SCHEMA_BUDGET`
+(5,000 characters); tools that are unavailable,
 out of scope or larger than the remaining budget are skipped. A follow-up turn
 therefore calls the long-tail tool it used last time directly. The native set
 is bounded by about 29,000 characters in the worst case.
@@ -62,7 +66,8 @@ and stored in the checkpoint as `tool_exposure` (`profiles`, `native`,
 slices included, sends byte-identical tool definitions and the same capability
 inventory text, so the provider's reusable prompt prefix is not invalidated by
 discovery. A checkpoint written by an earlier release keeps every schema it had
-already shown (its `discovered_tool_names` and called tools) in its native set.
+already shown (its `discovered_tool_names`, called and pending tools) in its
+native set; `discovered_tool_names` is then removed.
 
 **The `tool_call` bridge** (adapted from Hermes Agent `tools/tool_search.py`,
 MIT). Discovering a tool no longer adds it to the native array. The model reads
@@ -80,7 +85,14 @@ Arguments given as a JSON string or omitted are normalized; anything that does
 not name one registered tool (unknown name, a bridge tool, unexpected keys,
 non-object arguments) stays a `tool_call` and fails in its handler with
 `tool_call_target_unknown`, `tool_call_target_invalid` or
-`tool_arguments_invalid` without dispatching anything.
+`tool_arguments_invalid` without dispatching anything. The reply truth gates
+(no prose beside a proposed financial call; failure summaries beside
+`task_wait`) read every target a call proposes, through the bridge whether or
+not it resolved (`proposed_names`: flattened or unexpected keys, non-object
+arguments, a nested bridge, a `calls` batch, any letter case), and the
+tool-less limit report resolves its reply the same way. A malformed bridged
+trade therefore never publishes "done" in chat, in a `task_wait` update or as
+the final report.
 
 Why discovered schemas are not appended mid-Run: the tool definitions lead the
 cached prompt prefix, so each append invalidated the whole cache, policy
@@ -108,11 +120,16 @@ handler remains authoritative.
 | `workspace_*` | no analytical workspace | `workspace_unconfigured` |
 | `workspace_execute`, `skill_package_validate` | no analysis host bridge | `workspace_execution_unconfigured` |
 | `mcp_execute` | no operator declaration for this owner | `mcp_tool_not_authorized` |
+| `trade_execute`, `trade_close_positions`, `goal_step_execute` | live (not Shadow) Run of an agent whose current permission is analysis | `agent_analysis_only` |
 
 Unavailable tools stay out of the native set, are listed under
 `unavailable_now` in the capability inventory and are marked in discovery
 results. The Run's availability snapshot is frozen with its exposure;
-`tool_environment` re-checks the tools it returns.
+`tool_environment` re-checks the tools it returns. A check shared by several
+tools runs once per snapshot. The permission check is presentation only: every
+financial handler rechecks current permission before it prepares or sends, so
+an analysis-only agent is not offered a trade it cannot place, and a permission
+raised later in the Run still works through `tool_call`.
 
 **Registry facts outside the registry.** The policy routing map in
 `resources/system/manifest.json` is exported from `Tool.toolset`. The

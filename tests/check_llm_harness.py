@@ -344,13 +344,15 @@ async def conditional_mission(f: Fixture, valid: bool) -> None:
         phase += 1
         names = {tool.name for tool in tools}
         if phase == 1:
-            assert "market_decision_record" not in names
+            # The Personal Agent receives the market working set natively from
+            # its first turn; inspecting an exact schema is still allowed.
+            assert {"list_accounts", "market_quote", "market_decision_record"} <= names
             return inspect("discover-decision", "market_decision_record")
         if phase == 2:
             # Discovery never changes the Run's frozen tools array.
-            assert "market_decision_record" not in names
+            assert "market_decision_record" in names
             return response(
-                bridged(
+                call(
                     "conditional",
                     "market_decision_record",
                     **params,
@@ -370,8 +372,8 @@ async def conditional_mission(f: Fixture, valid: bool) -> None:
             )
         assert any("<runtime_wake>" in message.content for message in messages)
         if phase == 5:
-            # task_wait is native in Task Runs; other tools stay behind the bridge.
-            assert "task_wait" in names and "market_decision_record" not in names
+            # task_wait is native in Task Runs, beside the market working set.
+            assert {"task_wait", "market_decision_record"} <= names
             if not valid and not replayed_wait:
                 replayed_wait = True
                 phase -= 1
@@ -408,8 +410,10 @@ async def conditional_mission(f: Fixture, valid: bool) -> None:
                     call("continue-management", "task_wait", kind="timer", seconds=60),
                     text=result_update,
                 )
-            # The financial entry goes through the bridge: same grant, journal,
-            # broker verification and receipt path as a direct call.
+            # The active signed grant makes trading available natively. The entry
+            # still goes through the bridge: same grant, journal, broker
+            # verification and receipt path as a direct call.
+            assert "trade_execute" in names
             return response(
                 bridged(
                     "entry",

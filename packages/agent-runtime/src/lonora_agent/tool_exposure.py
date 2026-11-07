@@ -27,7 +27,12 @@ EXPOSURE_VERSION = 1
 
 
 def run_profiles(agent: AgentRow, task_run: bool) -> list[ExposureProfile]:
-    profiles: list[ExposureProfile] = ["core", "market" if agent.trading_account_id else "research"]
+    """``market`` for trading identities: an agent bound to a broker account, and
+    the owner's Personal Agent, which reads every owned account and analyzes
+    directly when no specialist exists. Other agents get ``research``.
+    """
+    trading = bool(agent.trading_account_id) or agent.role == "personal"
+    profiles: list[ExposureProfile] = ["core", "market" if trading else "research"]
     if task_run:
         profiles.append("task")
     return profiles
@@ -127,14 +132,19 @@ async def remember_use(
     exposure: dict[str, Any],
     call: ToolCall,
     result: dict[str, Any],
+    *,
+    read_only: bool,
 ) -> None:
     """Remember a successful long-tail tool for promotion into later Runs.
 
     Best effort and presentation only: a failure is logged, never retried and
-    never changes the call's observation.
+    never changes the call's observation. Read-only Runs (subagents share their
+    parent's agent id; observe-only Runs are automated) record nothing, so they
+    never displace the agent's own tools or change its next tools array.
     """
     if (
-        call.name not in registry.tools
+        read_only
+        or call.name not in registry.tools
         or call.name in BRIDGE_TOOLS
         or result.get("ok") is False
         or call.name in registry.eager_names(exposure_profiles(exposure))

@@ -126,6 +126,8 @@ def tools() -> list[Tool]:
             ListAccountsInput,
             list_accounts,
             True,
+            # Account-wide trading identities need connection ids before any read.
+            eager=eager_for("market"),
         ),
         Tool(
             "account_read",

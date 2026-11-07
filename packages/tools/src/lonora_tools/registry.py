@@ -11,7 +11,9 @@ bridge call into the real tool call before anything else observes it (see
 exactly the call a direct invocation would produce. The argument
 normalization in ``resolve_call`` is adapted from Hermes'
 ``normalize_tool_call_entries``; batches, connector routing and the separate
-describe bridge were not ported (``tool_environment`` returns schemas).
+describe bridge were not ported (``tool_environment`` returns schemas). A
+batch-shaped ``calls`` payload never dispatches; ``proposed_names`` only reads
+its target names for the reply truth gates.
 
 MIT License
 
@@ -46,7 +48,7 @@ from lonora_adapter_kit.types import ToolCall, ToolDefinition
 from lonora_core.user_error import LonoraError
 from lonora_db.runs import require_lease
 
-from .base import ExposureProfile, Tool, eager_for
+from .base import AvailabilityCheck, ExposureProfile, Tool, eager_for
 from .context import ToolContext
 from .environment import BridgeInput, EnvironmentInput
 from .market_binding import guard_market_tool, prepare_market_arguments, scope_market_result
@@ -78,6 +80,43 @@ CORE = eager_for("core")
 
 def schema_chars(tool: Tool) -> int:
     return len(tool.definition().model_dump_json())
+
+
+def proposed_names(call: ToolCall) -> set[str]:
+    """Every tool name a call proposes, read through the bridge resolved or not.
+
+    ``resolve_call`` leaves malformed bridge calls (flattened or unexpected keys,
+    non-object arguments, a nested bridge, a Hermes-style ``calls`` batch) as
+    ``tool_call``. They never dispatch, but prose beside them may still claim
+    their outcome, so the reply truth gates read the intended targets. Names are
+    case-folded. This grants nothing and runs nothing.
+    """
+    names = {call.name.strip().casefold()}
+
+    def visit(payload: Any, depth: int) -> None:
+        if isinstance(payload, str):
+            try:
+                payload = json.loads(payload)
+            except ValueError:
+                return
+        if depth > 4:
+            return
+        if isinstance(payload, list):
+            for item in cast(list[Any], payload)[:32]:
+                visit(item, depth + 1)
+        elif isinstance(payload, dict):
+            entry = cast(dict[str, Any], payload)
+            target = entry.get("name")
+            if isinstance(target, str):
+                names.add(target.strip().casefold())
+                if target.strip().casefold() == BRIDGE:
+                    visit(entry.get("arguments"), depth + 1)
+            if "calls" in entry:
+                visit(entry["calls"], depth + 1)
+
+    if call.name == BRIDGE:
+        visit(call.arguments, 0)
+    return names
 
 
 class ToolRegistry:
@@ -172,25 +211,32 @@ class ToolRegistry:
         """Codes for tools whose backend is not configured; presentation only.
 
         A failing check never hides a capability: the handler stays authoritative.
+        A check depends only on the context, so one shared by several tools runs
+        once per call.
         """
         unavailable: dict[str, str] = {}
+        checked: dict[AvailabilityCheck, str | None] = {}
         for tool in self.tools.values() if tools is None else tools:
-            if tool.availability is None:
+            check = tool.availability
+            if check is None:
                 continue
-            try:
-                reason = await tool.availability(context)
-            except LonoraError as error:
-                if error.code == "stale_lease":
-                    raise
-                log.warning("tool_availability_check_failed name=%s code=%s", tool.name, error.code)
-                continue
-            except Exception as error:
-                log.warning(
-                    "tool_availability_check_failed name=%s type=%s",
-                    tool.name,
-                    type(error).__name__,
-                )
-                continue
+            if check not in checked:
+                checked[check] = None
+                try:
+                    checked[check] = await check(context)
+                except LonoraError as error:
+                    if error.code == "stale_lease":
+                        raise
+                    log.warning(
+                        "tool_availability_check_failed name=%s code=%s", tool.name, error.code
+                    )
+                except Exception as error:
+                    log.warning(
+                        "tool_availability_check_failed name=%s type=%s",
+                        tool.name,
+                        type(error).__name__,
+                    )
+            reason = checked[check]
             if reason:
                 unavailable[tool.name] = reason
         return unavailable
@@ -386,7 +432,8 @@ class ToolRegistry:
         notice = ""
         if missing:
             notice = (
-                "unavailable_now (no configured backend in this Run; calls fail with the code): "
+                "unavailable_now (backend or permission missing when this Run started; calls "
+                "fail with the code unless that changed): "
                 + ", ".join(f"{name}={code}" for name, code in missing)
             )[:1200] + "\n"
         lines: list[str] = []

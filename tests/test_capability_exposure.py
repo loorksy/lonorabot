@@ -1,6 +1,8 @@
 """Stable bridge, frozen per-Run exposure, remembered tools, availability and shadow maps."""
 
 import json
+from collections.abc import Sequence
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, cast
@@ -11,20 +13,28 @@ from lonora_adapter_kit.types import ModelMessage, ModelReply, ToolCall
 from lonora_agent import model_runtime
 from lonora_agent.context.financial_result import FINANCIAL_CALLS
 from lonora_agent.executor import execute_run
+from lonora_agent.runtime_notices import limit_fallback
 from lonora_agent.skills.registry import CAPABILITY_TOOLS
 from lonora_agent.skills.system_policy import policy_bundle
+from lonora_agent.tool_exposure import remember_use, run_profiles
+from lonora_agent.tool_loop import execute_tool_loop
 from lonora_agent.workspace_access import RunWorkspaceAccess
+from lonora_contracts.agent_permissions import PermissionChange
 from lonora_contracts.mcp import McpToolDeclaration
 from lonora_contracts.model_routing import Capability, ModelSelection
 from lonora_core.user_error import LonoraError
-from lonora_db.schema import AgentRow
+from lonora_db.agent_permissions import change_permission
+from lonora_db.schema import AgentRow, EventRow, RunRow
 from lonora_db.task_recovery import CHECKPOINT_TOOLS, FINANCIAL_REPLAY_TOOLS
 from lonora_db.tool_usage import MAX_REMEMBERED_TOOLS, record_tool_use, remembered_tools
 from lonora_tools import search
 from lonora_tools.base import EXPOSURE_PROFILES, Tool, eager_for
 from lonora_tools.context import ToolContext
 from lonora_tools.loader import MODULES, load_tools
-from lonora_tools.registry import BRIDGE, BRIDGE_TOOLS, ToolRegistry
+from lonora_tools.registry import BRIDGE, BRIDGE_TOOLS, ToolRegistry, proposed_names
+from pydantic import BaseModel
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from test_task_runtime import task_db as task_db
 from test_tool_loop_execution import (
     Arguments,
@@ -107,27 +117,24 @@ def test_read_only_scope_applies_to_the_resolved_call_exactly_as_to_a_direct_one
     assert BRIDGE in catalog.names(read_only=True)
 
 
-@pytest.mark.asyncio
-async def test_model_turn_resolves_bridged_financial_calls_before_the_truth_gate(
-    monkeypatch: pytest.MonkeyPatch,
-):
-    catalog = load_tools()
+def offline_turns(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The real model_turn without routing context, image preparation or usage rows."""
     monkeypatch.setattr(model_runtime, "refresh_routing_context", AsyncMock())
 
     async def images(_: Any, messages: list[ModelMessage]) -> tuple[list[ModelMessage], Any]:
         return messages, {}
 
     monkeypatch.setattr(model_runtime, "prepare_image_observations", images)
-    monkeypatch.setattr(model_runtime, "progress", AsyncMock())
     monkeypatch.setattr(model_runtime, "save_usage", AsyncMock())
-    proposal = bridge("toolu_9", "trade_execute", {"action": "open", "side": "buy"})
-    complete = AsyncMock(
-        return_value=(
-            ModelReply(text="Done: bought gold.", tool_calls=[proposal]),
-            ModelSelection(provider="openai", model="offline"),
-        )
-    )
-    context = cast(
+
+
+def router(*replies: ModelReply) -> AsyncMock:
+    selection = ModelSelection(provider="openai", model="offline")
+    return AsyncMock(side_effect=[(reply, selection) for reply in replies])
+
+
+def detached(complete: AsyncMock) -> ToolContext:
+    return cast(
         ToolContext,
         SimpleNamespace(
             db=None,
@@ -138,8 +145,27 @@ async def test_model_turn_resolves_bridged_financial_calls_before_the_truth_gate
             router=SimpleNamespace(complete=complete),
         ),
     )
+
+
+def published_text(progress: AsyncMock) -> str:
+    return "".join(
+        str(call.args[2]["text"])
+        for call in progress.await_args_list
+        if call.args[1] == "run.delta"
+    )
+
+
+@pytest.mark.asyncio
+async def test_model_turn_resolves_bridged_financial_calls_before_the_truth_gate(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    catalog = load_tools()
+    offline_turns(monkeypatch)
+    monkeypatch.setattr(model_runtime, "progress", AsyncMock())
+    proposal = bridge("toolu_9", "trade_execute", {"action": "open", "side": "buy"})
+    complete = router(ModelReply(text="Done: bought gold.", tool_calls=[proposal]))
     reply, _ = await model_runtime.model_turn(
-        context,
+        detached(complete),
         [ModelMessage(role="user", content="Buy gold")],
         catalog.native_definitions(catalog.exposure(["core", "research"])[0]),
         Capability.CONVERSATION,
@@ -152,6 +178,88 @@ async def test_model_turn_resolves_bridged_financial_calls_before_the_truth_gate
     assert reply.text == ""
     assert complete.await_args is not None
     assert "trade_execute" not in {tool.name for tool in complete.await_args.args[2]}
+
+
+UNRESOLVED_FINANCIAL_PROPOSALS: dict[str, ToolCall] = {
+    # The common flattened slip: target arguments beside "name".
+    "flattened": bridge("p", "trade_execute", None, action="open", side="buy"),
+    "list_arguments": bridge("p", "trade_close_positions", ["account-1"]),
+    "unparseable_arguments": bridge("p", "trade_execute", "{action: open"),
+    "nested_bridge": bridge("p", BRIDGE, {"name": "goal_step_execute", "arguments": {}}),
+    "hermes_batch": ToolCall(
+        id="p",
+        name=BRIDGE,
+        arguments={"calls": json.dumps([{"name": "trade_execute", "arguments": {}}])},
+    ),
+    "letter_case": bridge("p", " Trade_Execute ", {"action": "open"}),
+}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("shape", sorted(UNRESOLVED_FINANCIAL_PROPOSALS))
+async def test_unresolved_bridged_financial_proposals_never_publish_premature_success(
+    monkeypatch: pytest.MonkeyPatch, shape: str
+):
+    catalog = load_tools()
+    proposal = UNRESOLVED_FINANCIAL_PROPOSALS[shape]
+    # resolve_call cannot unwrap it: it fails in its handler without dispatching.
+    assert catalog.resolve_call(proposal) == proposal
+    assert proposed_names(proposal) & FINANCIAL_CALLS
+    offline_turns(monkeypatch)
+    progress = AsyncMock()
+    monkeypatch.setattr(model_runtime, "progress", progress)
+    wait = ToolCall(id="w", name="task_wait", arguments={"kind": "timer", "seconds": 60})
+    reply, _ = await model_runtime.model_turn(
+        detached(router(ModelReply(text="Done: bought gold.", tool_calls=[proposal, wait]))),
+        [ModelMessage(role="user", content="Buy gold, then keep watching")],
+        catalog.native_definitions(catalog.exposure(["core", "research", "task"])[0]),
+        Capability.BACKGROUND,
+        resolve_calls=catalog.resolve_calls,
+        policy_tools=catalog.names(),
+    )
+    assert reply.tool_calls == [proposal, wait]
+    assert reply.text == "" and published_text(progress) == ""
+
+
+@pytest.mark.asyncio
+async def test_a_tool_less_turn_reads_bridged_financial_proposals_with_or_without_a_resolver(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    catalog = load_tools()
+    offline_turns(monkeypatch)
+    proposal = bridge("p", "trade_execute", {"action": "open", "side": "buy"})
+    for resolve in (None, catalog.resolve_calls):
+        progress = AsyncMock()
+        monkeypatch.setattr(model_runtime, "progress", progress)
+        reply, _ = await model_runtime.model_turn(
+            detached(router(ModelReply(text="Done: bought gold.", tool_calls=[proposal]))),
+            [ModelMessage(role="user", content="Buy gold")],
+            [],
+            Capability.CONVERSATION,
+            resolve_calls=resolve,
+        )
+        assert reply.text == "" and published_text(progress) == ""
+
+
+@pytest.mark.asyncio
+async def test_unresolved_nonfinancial_bridge_calls_keep_their_prose(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    catalog = load_tools()
+    offline_turns(monkeypatch)
+    progress = AsyncMock()
+    monkeypatch.setattr(model_runtime, "progress", progress)
+    lookup = bridge("q", "market_quote", None, symbol="XAUUSD")
+    reply, _ = await model_runtime.model_turn(
+        detached(router(ModelReply(text="Checking the latest quote.", tool_calls=[lookup]))),
+        [ModelMessage(role="user", content="Gold price?")],
+        [],
+        Capability.CONVERSATION,
+        resolve_calls=catalog.resolve_calls,
+    )
+    assert proposed_names(lookup) == {BRIDGE, "market_quote"}
+    assert reply.text == "Checking the latest quote."
+    assert published_text(progress) == reply.text
 
 
 # --------------------------------------------------------- tool loop path
@@ -276,19 +384,119 @@ async def test_an_interrupted_bridged_mutation_is_uncertain_and_never_resent(
     assert results(run)["toolu_m"]["code"] == "tool_execution_uncertain"
 
 
+class WaitInput(BaseModel):
+    kind: str = "timer"
+    seconds: int = 60
+
+
+def wait_stub() -> Tool:
+    async def wait(context: ToolContext, _: dict[str, Any]) -> dict[str, Any]:
+        return {"_runtime_external_wait": {"call_id": context.call_id, "kind": "timer"}}
+
+    return Tool("task_wait", "Wait", WaitInput, wait)
+
+
+def trade_fixture(executed: list[dict[str, Any]]) -> Tool:
+    async def trade(_: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+        executed.append(args)
+        return {"status": "confirmed"}
+
+    return Tool("trade_execute", "Trade", Arguments, trade, financial=True)
+
+
+async def published_deltas(context: ToolContext) -> str:
+    async with context.db.sessions() as session:
+        events = await session.scalars(
+            select(EventRow).where(
+                EventRow.run_id == context.lease.run_id, EventRow.kind == "run.delta"
+            )
+        )
+        return "".join(str(event.payload.get("text", "")) for event in events)
+
+
 @pytest.mark.asyncio
-async def test_market_agent_exposure_and_frozen_unavailable_backends(
+async def test_a_flattened_bridged_trade_beside_a_wait_publishes_no_success_narration(
     task_db: Fixture, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    db, _, agent_id, _ = task_db
+    executed: list[dict[str, Any]] = []
+    registry = ToolRegistry([trade_fixture(executed), wait_stub()])
+    offline_turns(monkeypatch)
+    flattened = bridge("toolu_t", "trade_execute", None, n=1)
+    wait = ToolCall(id="toolu_w", name="task_wait", arguments={"kind": "timer", "seconds": 60})
+    complete = router(ModelReply(text="Done: bought gold.", tool_calls=[flattened, wait]))
+    context = replace(
+        await conversation_run(task_db), router=cast(Any, SimpleNamespace(complete=complete))
+    )
+    # The real model_turn and loop: the wait takes its owner update from the
+    # assistant message that proposed it.
+    outcome = await execute_tool_loop(context, registry, 8)
+    run = await saved_run(context)
+    assert outcome.external_wait and outcome.text == ""
+    assert run.execution_state["environment"]["wait_update"] == {"call_id": "toolu_w", "text": ""}
+    assistant = [item for item in run.execution_state["messages"] if item["role"] == "assistant"]
+    assert assistant[-1]["content"] == ""
+    assert assistant[-1]["tool_calls"][0]["name"] == BRIDGE
+    # The malformed bridge call failed in its own handler; nothing executed.
+    assert results(run)["toolu_t"]["ok"] is False and executed == []
+    assert "Done" not in await published_deltas(context)
+
+
+@pytest.mark.asyncio
+async def test_the_tool_less_limit_report_never_publishes_a_bridged_trade_claim(
+    task_db: Fixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    executed: list[dict[str, Any]] = []
+    registry = ToolRegistry([trade_fixture(executed)])
+    resolved: list[list[str]] = []
+    resolve_calls = registry.resolve_calls
+
+    def spy(calls: Sequence[ToolCall]) -> list[ToolCall]:
+        result = resolve_calls(calls)
+        resolved.append([call.name for call in result])
+        return result
+
+    monkeypatch.setattr(registry, "resolve_calls", spy)
+    offline_turns(monkeypatch)
+    proposal = bridge("toolu_f", "trade_execute", {"n": 1})
+    complete = router(ModelReply(text="Done: bought gold.", tool_calls=[proposal]))
+    context = replace(
+        await conversation_run(task_db), router=cast(Any, SimpleNamespace(complete=complete))
+    )
+    # One round: the first turn is already the tool-less finish_turn report.
+    await execute_run(context, registry, 120, 1)
+    run = await saved_run(context)
+    assert run.status == "completed" and run.model_metadata["exit_reason"] == "tool_round_limit"
+    assert complete.await_args is not None and complete.await_args.args[2] == []
+    # The bridged proposal was resolved for the truth gate and never executed.
+    assert resolved == [["trade_execute"]] and executed == []
+    assert run.result == limit_fallback(False)
+    assert "Done" not in await published_deltas(context)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("role", "account", "symbol", "mode"),
+    [
+        ("specialist", "account-1", "XAUUSD", "live"),
+        # The owner's default Personal Agent reads every owned account.
+        ("personal", None, None, "live"),
+        ("specialist", "account-1", "XAUUSD", "shadow"),
+    ],
+)
+async def test_trading_identities_get_the_market_working_set(
+    task_db: Fixture,
+    monkeypatch: pytest.MonkeyPatch,
+    role: str,
+    account: str | None,
+    symbol: str | None,
+    mode: str,
+) -> None:
+    db, owner, agent_id, _ = task_db
     async with db.sessions() as session, session.begin():
         agent = await session.get(AgentRow, agent_id)
         assert agent
-        agent.role, agent.trading_account_id, agent.trading_symbol = (
-            "specialist",
-            "account-1",
-            "XAUUSD",
-        )
+        agent.role, agent.trading_account_id, agent.trading_symbol = role, account, symbol
+        agent.execution_mode = mode
     catalog = load_tools()
     model = BridgingScript(ModelReply(text="Watching."))
     monkeypatch.setattr("lonora_agent.tool_loop.model_turn", model)
@@ -297,7 +505,13 @@ async def test_market_agent_exposure_and_frozen_unavailable_backends(
     exposure = (await saved_run(context)).execution_state["tool_exposure"]
     assert exposure["profiles"] == ["core", "market"]
     offered = set(model.requests[0][1])
-    assert {"market_quote", "market_candles", "account_read", "trade_execute"} <= offered
+    assert {
+        "list_accounts",
+        "market_quote",
+        "market_candles",
+        "account_read",
+        "chart_snapshot",
+    } <= offered
     assert "web_search" not in offered and "goal_create" not in offered
     # No SearXNG, browser, workspace, executor or MCP declaration in this context.
     assert exposure["unavailable"]["web_browse"] == "browser_unconfigured"
@@ -305,6 +519,175 @@ async def test_market_agent_exposure_and_frozen_unavailable_backends(
     assert exposure["unavailable"]["mcp_execute"] == "mcp_tool_not_authorized"
     inventory = model.kwargs[0]["capability_inventory"]
     assert "web_browse=browser_unconfigured" in inventory
+    financial = {"trade_execute", "trade_close_positions", "goal_step_execute"}
+    if mode == "shadow":
+        # Shadow execution does not depend on the live permission level.
+        assert "trade_execute" in offered and not financial & exposure["unavailable"].keys()
+        return
+    # The per-agent permission defaults to analysis, which refuses every live
+    # mutation: the tools are named unavailable instead of offered natively.
+    assert "trade_execute" not in offered
+    assert {name: exposure["unavailable"][name] for name in financial} == dict.fromkeys(
+        financial, "agent_analysis_only"
+    )
+    assert "trade_execute=agent_analysis_only" in inventory
+    async with db.sessions() as session, session.begin():
+        await change_permission(
+            session, owner, agent_id, PermissionChange(level="supervised", expected_revision=0)
+        )
+    supervised = BridgingScript(ModelReply(text="Ready."))
+    monkeypatch.setattr("lonora_agent.tool_loop.model_turn", supervised)
+    second = await conversation_run(task_db)
+    await execute_run(second, catalog, 120, 8)
+    assert "trade_execute" in set(supervised.requests[0][1])
+    exposure = (await saved_run(second)).execution_state["tool_exposure"]
+    assert not financial & exposure["unavailable"].keys()
+
+
+def test_run_profiles_follow_the_agent_identity():
+    def agent(**fields: Any) -> AgentRow:
+        return AgentRow(owner_id="owner", name="Agent", **fields)
+
+    bound = agent(role="specialist", trading_account_id="account-1", trading_symbol="XAUUSD")
+    assert run_profiles(bound, False) == ["core", "market"]
+    assert run_profiles(bound, True) == ["core", "market", "task"]
+    assert run_profiles(agent(role="personal"), False) == ["core", "market"]
+    assert run_profiles(agent(role="general", scope_mode="flexible"), False) == [
+        "core",
+        "research",
+    ]
+    assert run_profiles(agent(role="delegated"), True) == ["core", "research", "task"]
+    assert run_profiles(agent(role="legacy"), False) == ["core", "research"]
+
+
+@pytest.mark.asyncio
+async def test_a_legacy_checkpoint_keeps_every_schema_it_already_showed(
+    task_db: Fixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def read(_: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+        return {"n": args["n"]}
+
+    registry = ToolRegistry(
+        [
+            Tool("fixture_read", "Read", Arguments, read, True, eager=eager_for("core")),
+            Tool("fixture_called", "Called", Arguments, read, True),
+            Tool("fixture_pending", "Pending", Arguments, read, True),
+            Tool("fixture_discovered", "Discovered", Arguments, read, True),
+            Tool("fixture_unseen", "Unseen", Arguments, read, True),
+        ]
+    )
+    called = ToolCall(id="toolu_c", name="fixture_called", arguments={"n": 1})
+    queued = ToolCall(id="toolu_p", name="fixture_pending", arguments={"n": 2})
+    # A checkpoint written by the previous release: no tool_exposure, the
+    # schemas it appended mid-Run in discovered_tool_names.
+    state = {
+        "messages": [
+            ModelMessage(role="user", content="Analyze gold").model_dump(mode="json"),
+            ModelMessage(role="assistant", content="", tool_calls=[called]).model_dump(mode="json"),
+            ModelMessage(
+                role="tool", tool_call_id="toolu_c", content=json.dumps({"ok": True, "n": 1})
+            ).model_dump(mode="json"),
+            ModelMessage(role="assistant", content="", tool_calls=[queued]).model_dump(mode="json"),
+        ],
+        "pending": [queued.model_dump(mode="json")],
+        "instruction_skill_ids": [],
+        "rounds": 2,
+        "environment": {"version": 1},
+        "discovered_tool_names": ["fixture_discovered", "retired_tool"],
+    }
+    context = await conversation_run(task_db, state)
+    model = BridgingScript(ModelReply(text="Compared."))
+    monkeypatch.setattr("lonora_agent.tool_loop.model_turn", model)
+    await execute_run(context, registry, 120, 8)
+    run = await saved_run(context)
+    assert run.status == "completed" and results(run)["toolu_p"] == {"ok": True, "n": 2}
+    saved = run.execution_state
+    assert "discovered_tool_names" not in saved
+    shown = BRIDGE_TOOLS | {"fixture_read", "fixture_called", "fixture_pending"}
+    shown |= {"fixture_discovered"}
+    assert saved["tool_exposure"]["native"] == [name for name in registry.tools if name in shown]
+    assert set(model.requests[0][1]) == shown
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "failure",
+    [
+        RuntimeError("deadlock detected"),
+        LonoraError("agent_not_found", 404),
+        IntegrityError("INSERT INTO ln_agent_tool_usage", {}, Exception("foreign key")),
+    ],
+)
+async def test_a_usage_recording_failure_never_changes_the_observation_or_outcome(
+    task_db: Fixture, monkeypatch: pytest.MonkeyPatch, failure: Exception
+) -> None:
+    writes: list[dict[str, Any]] = []
+    holder: list[ToolContext] = []
+    registry = fixture_registry(writes, [], holder)
+    record = AsyncMock(side_effect=failure)
+    monkeypatch.setattr("lonora_agent.tool_exposure.record_tool_use", record)
+    model = BridgingScript(
+        ModelReply(tool_calls=[bridge("toolu_w", "fixture_write", {"n": 3})]),
+        ModelReply(text="Saved."),
+    )
+    monkeypatch.setattr("lonora_agent.tool_loop.model_turn", model)
+    context = await conversation_run(task_db)
+    holder.append(context)
+    await execute_run(context, registry, 120, 8)
+    run = await saved_run(context)
+    assert record.await_count == 1 and record.await_args is not None
+    assert record.await_args.args[3] == "fixture_write"
+    assert run.status == "completed" and run.result == "Saved." and run.error_code is None
+    assert writes == [{"n": 3}] and results(run)["toolu_w"] == {"ok": True, "version": 3}
+
+
+@pytest.mark.asyncio
+async def test_read_only_runs_never_record_tool_usage_for_the_agent(
+    task_db: Fixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    db, owner, agent, _ = task_db
+
+    async def read(_: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+        return {"n": args["n"]}
+
+    registry = ToolRegistry(
+        [
+            Tool("fixture_read", "Read", Arguments, read, True, eager=eager_for("core")),
+            Tool("fixture_lookup", "Lookup", Arguments, read, True),
+        ]
+    )
+    model = BridgingScript(
+        ModelReply(tool_calls=[bridge("toolu_l", "fixture_lookup", {"n": 2})]),
+        ModelReply(text="Observed."),
+    )
+    monkeypatch.setattr("lonora_agent.tool_loop.model_turn", model)
+    context = await conversation_run(task_db)
+    async with db.sessions() as session, session.begin():
+        row = await session.get(RunRow, context.lease.run_id)
+        assert row
+        row.model_metadata = {**row.model_metadata, "authority": "observe_only"}
+    await execute_run(context, registry, 120, 8)
+    run = await saved_run(context)
+    assert results(run)["toolu_l"] == {"ok": True, "n": 2}
+    async with db.sessions() as session:
+        assert await remembered_tools(session, owner, agent) == []
+
+    # A subagent Run carries its parent's agent id: the same rule applies
+    # before any database access.
+    touched: list[str] = []
+
+    def sessions() -> Any:
+        touched.append("db")
+        raise RuntimeError("database unavailable")
+
+    probe = cast(ToolContext, SimpleNamespace(db=SimpleNamespace(sessions=sessions), owner_id="o"))
+    exposure = {"profiles": ["core", "research"]}
+    call = ToolCall(id="toolu_l", name="fixture_lookup", arguments={"n": 2})
+    await remember_use(probe, registry, exposure, call, {"ok": True}, read_only=True)
+    assert touched == []
+    # Outside read-only Runs a failing store is attempted once and swallowed.
+    await remember_use(probe, registry, exposure, call, {"ok": True}, read_only=False)
+    assert touched == ["db"]
 
 
 # ------------------------------------------------------------- usage LRU
@@ -403,6 +786,19 @@ async def test_availability_reflects_configured_backends_and_fails_open(
         [Tool("fixture_read", "Read", Arguments, AsyncMock(), True, availability=broken)]
     )
     assert await flaky.availability(bare) == {}
+
+    # A check shared by several tools depends only on the context: it runs once.
+    shared = AsyncMock(return_value="fixture_unconfigured")
+    family = ToolRegistry(
+        [
+            Tool("fixture_one", "One", Arguments, AsyncMock(), True, availability=shared),
+            Tool("fixture_two", "Two", Arguments, AsyncMock(), True, availability=shared),
+        ]
+    )
+    assert await family.availability(bare) == dict.fromkeys(
+        ["fixture_one", "fixture_two"], "fixture_unconfigured"
+    )
+    assert shared.await_count == 1
 
 
 # ------------------------------------------------------------ shadow maps

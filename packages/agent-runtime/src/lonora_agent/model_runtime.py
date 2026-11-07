@@ -9,6 +9,7 @@ from lonora_core.public_reply import redact_private_reply
 from lonora_llm_usage.models import UsageRecord
 from lonora_llm_usage.store import save_usage
 from lonora_tools.context import ToolContext
+from lonora_tools.registry import proposed_names
 
 from .context.financial_result import (
     FINANCIAL_CALLS,
@@ -168,7 +169,10 @@ async def model_turn(
     )
     public_ids = public_broker_ids(messages)
     unverified = unverified_financial_result(messages)
-    if any(call.name in FINANCIAL_CALLS for call in reply.tool_calls):
+    # The gates read every proposed target, including a bridge call that did
+    # not resolve (it fails without dispatching) and calls in a tool-less turn.
+    proposed = set[str]().union(*(proposed_names(call) for call in reply.tool_calls))
+    if proposed & FINANCIAL_CALLS:
         # Proposed mutations have no broker outcome yet. Keep their execution
         # once, but do not publish premature success beside the proposal.
         reply = reply.model_copy(update={"text": ""})
@@ -176,7 +180,7 @@ async def model_turn(
         # A wait may carry an owner update as well as tool calls. That prose
         # has the same independent-verification boundary as a final answer.
         reply = reply.model_copy(update={"text": unverified})
-    elif any(call.name == "task_wait" for call in reply.tool_calls):
+    elif "task_wait" in proposed:
         # Continuous work still reports real failures before suspending. Never
         # replace an uncertain result with a premature success or silent wait.
         result_summary = unsettled_wait_result(messages)

@@ -112,6 +112,7 @@ def test_eager_working_sets_are_data_from_tool_metadata():
     assert BRIDGE_TOOLS | {"skills_list", "skill_view", "wait_for_input"} <= core
     assert {"memory_read", "memory_write", "search_internal"} <= core
     assert {
+        "list_accounts",
         "market_quote",
         "market_candles",
         "market_instrument",
