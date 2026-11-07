@@ -61,6 +61,7 @@ from lonora_providers.context import ContextLimits, context_limits
 from lonora_tools.context import ToolContext
 from lonora_tools.tool_results import store_result
 
+from .context.financial_result import FINANCIAL_CALLS
 from .environment import bounded_result
 from .progress import progress
 from .skills.loader import load_prompt
@@ -116,6 +117,10 @@ IDENTITY_KEYS = frozenset(
     }
 )
 MAX_IDENTITIES = 24
+# Fencing failures end this worker's turn; every other compaction failure degrades.
+FENCE_CODES = frozenset({"stale_lease", "skill_continuation_unavailable"})
+# A pruned result carrying one of these records an external effect or proposal.
+EFFECT_IDENTITY_KEYS = ("operation_id", "broker_reference", "approval_id")
 
 
 @dataclass(frozen=True)
@@ -261,6 +266,22 @@ def prunable(message: ModelMessage) -> bool:
     return message.role == "tool" and len(message.content) > PRUNE_MIN_CHARS
 
 
+def _statuses(notice: dict[str, Any]) -> set[str]:
+    """Outcome statuses a bounded result keeps: top level, nested and per batch entry."""
+    found = {notice.get("status")}
+    nested = notice.get("result")
+    if isinstance(nested, dict):
+        found.add(cast(dict[str, Any], nested).get("status"))
+    rows = notice.get("results")
+    if isinstance(rows, list):
+        found.update(
+            cast(dict[str, Any], row).get("status")
+            for row in cast(list[Any], rows)
+            if isinstance(row, dict)
+        )
+    return {status for status in found if isinstance(status, str)}
+
+
 def placeholder(
     message: ModelMessage, call: ToolCall | None, ref: dict[str, Any] | None, observed: str | None
 ) -> str:
@@ -293,7 +314,27 @@ def placeholder(
         isinstance(notice.get("recovery"), dict)
         and cast(dict[str, Any], notice["recovery"]).get("category") == "ambiguous_mutation"
     )
-    if not ambiguous:
+    identities = cast(dict[str, Any], notice.get("identities", {}))
+    effect = (call is not None and call.name in FINANCIAL_CALLS) or any(
+        key in notice or key in identities for key in EFFECT_IDENTITY_KEYS
+    )
+    if ambiguous:
+        pass
+    elif effect:
+        # A pruned effect outcome is never an invitation to submit it again:
+        # the model reads the record (or the stored result) instead.
+        recovery: dict[str, Any] = {
+            "category": "context_pruned",
+            "next_action": "read_record_do_not_repeat",
+        }
+        if stored.get("result_ref"):
+            recovery["read_with"] = "artifact_read"
+        elif "operation_id" in notice or "operation_id" in identities:
+            recovery["read_with"] = "trade_record_read"
+        if "confirmed" in _statuses(notice):
+            recovery["effect_already_executed"] = True
+        notice["recovery"] = recovery
+    else:
         notice["recovery"] = {
             "category": "context_pruned",
             "next_action": "read_stored_result"
@@ -648,11 +689,23 @@ async def compact_context(
                 }
                 stored += 1
             except LonoraError as error:
-                if error.code in {"stale_lease", "skill_continuation_unavailable"}:
+                if error.code in FENCE_CODES:
                     raise
                 refs[identifier] = {
                     "result_persisted": False,
                     "result_storage_error": error.code,
+                }
+            except Exception as error:
+                # A full or unwritable artifact store (OSError) only costs the
+                # reread pointer; the placeholder still keeps every identity.
+                log.warning(
+                    "context_result_storage_failed name=%s type=%s",
+                    call.name,
+                    type(error).__name__,
+                )
+                refs[identifier] = {
+                    "result_persisted": False,
+                    "result_storage_error": "tool_result_storage_unavailable",
                 }
         record["prune_through"] = tail
         state[STATE_KEY] = record
@@ -700,10 +753,7 @@ async def compact_context(
                 SUMMARY_MAX_CHARS,
             )
         except Exception as error:
-            if isinstance(error, LonoraError) and error.code in {
-                "stale_lease",
-                "skill_continuation_unavailable",
-            }:
+            if isinstance(error, LonoraError) and error.code in FENCE_CODES:
                 raise
             log.warning(
                 "run_summary_unavailable code=%s",

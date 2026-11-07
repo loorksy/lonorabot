@@ -1,14 +1,18 @@
 """Global request-admission policy, never an Agent-specific model setting."""
 
-from pydantic import Field
+from typing import Any, cast
+
+from pydantic import Field, model_validator
 
 from .domain import Contract
+
+DEFAULT_MAXIMUM_INPUT_TOKENS = 64000
 
 
 class ModelContextPolicy(Contract):
     # Admitted input only when the selected model's context window is unknown.
     # A known window derives the budget: window - output reservation - safety.
-    maximum_input_tokens: int = Field(default=64000, ge=512, le=2_000_000)
+    maximum_input_tokens: int = Field(default=DEFAULT_MAXIMUM_INPUT_TOKENS, ge=512, le=2_000_000)
     output_tokens: int = Field(default=4096, ge=128, le=128000)
     # Minimum headroom; large windows reserve at least 2% of the window instead.
     safety_tokens: int = Field(default=1024, ge=128, le=32000)
@@ -17,3 +21,26 @@ class ModelContextPolicy(Contract):
     input_ceiling_tokens: int | None = Field(default=None, ge=512, le=10_000_000)
     # In-run compaction starts once a request would use this share of the budget.
     compaction_ratio: float = Field(default=0.75, ge=0.3, le=0.95)
+
+    @model_validator(mode="before")
+    @classmethod
+    def legacy_input_cap(cls, data: Any) -> Any:
+        """Keep an owner's pre-window cap: it used to bound every model.
+
+        A stored setting or request written before ``input_ceiling_tokens``
+        existed has no such key. A non-default ``maximum_input_tokens`` there was
+        the owner's cap for every model, so it becomes the ceiling instead of
+        silently applying only to unknown windows. Sending
+        ``input_ceiling_tokens: null`` explicitly opts out.
+        """
+        if not isinstance(data, dict):
+            return data
+        values = cast(dict[str, Any], data)
+        legacy = values.get("maximum_input_tokens")
+        if (
+            "input_ceiling_tokens" in values
+            or legacy is None
+            or legacy == DEFAULT_MAXIMUM_INPUT_TOKENS
+        ):
+            return values
+        return {**values, "input_ceiling_tokens": legacy}

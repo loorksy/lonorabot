@@ -239,8 +239,11 @@ async def test_actual_router_rebuilds_context_for_smaller_fallback(router_db: Da
     assert selected == backup and attempts == ["large", "small"]
     assert len(payloads[0]["messages"]) > len(payloads[1]["messages"])
     assert not any("<context_omitted>" in str(m["content"]) for m in payloads[0]["messages"])
-    assert payloads[1]["messages"][1]["content"].startswith("<context_omitted>")
-    assert payloads[1]["messages"][2]["content"] == "Current request: read market state only"
+    # Adjacent user turns (notice, then the request) reach the wire as one message.
+    notice, request = payloads[1]["messages"][1]["content"].split("\n\n", 1)
+    assert notice.startswith("<context_omitted>") and notice.endswith("</context_omitted>")
+    assert request == "Current request: read market state only"
+    assert payloads[1]["messages"][2]["role"] == "assistant"
     assert payloads[1]["messages"][-1]["tool_call_id"] == "financial-receipt"
     assert payloads[0]["max_completion_tokens"] == 4096
     assert payloads[1]["max_completion_tokens"] == 1500

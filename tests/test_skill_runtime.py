@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 from lonora_agent.context import builder
+from lonora_agent.context.run_evidence import RunEvidence
 from lonora_agent.skills.loader import load_constitution
 from lonora_agent.skills.registry import (
     SkillDefinition,
@@ -295,7 +296,6 @@ async def test_actual_context_builder_resolver_and_fenced_diagnostics(
         "read_memory_context",
         "scratchpad_context",
         "reply_context",
-        "goal_context",
         "decision_context",
         "operational_context",
         "routing_frame",
@@ -304,7 +304,8 @@ async def test_actual_context_builder_resolver_and_fenced_diagnostics(
     monkeypatch.setattr(builder, "wake_context", empty_context)
     monkeypatch.setattr(builder, "attachment_parts", AsyncMock(return_value=("", [])))
     monkeypatch.setattr(builder, "history_gap", AsyncMock(return_value=None))
-    monkeypatch.setattr(builder, "recent_tool_evidence", AsyncMock(return_value=""))
+    monkeypatch.setattr(builder, "goal_context_blocks", AsyncMock(return_value=("", "")))
+    monkeypatch.setattr(builder, "recent_tool_evidence", AsyncMock(return_value=RunEvidence()))
     monkeypatch.setattr(
         builder,
         "history_context",

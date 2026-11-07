@@ -2,29 +2,44 @@
 
 Provider catalogs are preferred (OpenRouter reports ``context_length``); the
 direct Anthropic, OpenAI, DeepSeek and Z.ai model listings do not. Values are
-deliberately conservative lower bounds for the family, so an estimate never
-admits more than the provider accepts: a too-small window only compacts earlier.
-GPT-5 lists its input limit, not the combined window.
+deliberately conservative for the family they name. A family key matches only
+at an id boundary (end of id, ``-``, ``:`` or ``@``), so ``gpt-4`` does not
+claim ``gpt-4.5-preview`` and ``glm-4.5`` does not claim the ``glm-4.5v``
+vision model; an id the table does not cover stays unknown and uses the
+policy's ``maximum_input_tokens``. A wrong entry still mis-sizes requests, so the
+table must follow provider documentation. GPT-5 lists its input limit, not the
+combined window.
 
 The longest-prefix family match follows Hermes Agent ``agent/model_metadata.py``
 (``DEFAULT_CONTEXT_LENGTHS`` with ``_longest_key_match``), source
 https://github.com/NousResearch/hermes-agent at revision
 a9ff9799e273f525b82718cdc69fdec71b1dca5a, MIT License, Copyright (c) 2025 Nous
-Research; see THIRD_PARTY_NOTICES.md. The table itself is Lonora's own.
+Research; see THIRD_PARTY_NOTICES.md. The boundary rule and the table itself
+are Lonora's own.
 """
 
-FAMILY_SOURCE = "lonora_model_family_table_v1"
+FAMILY_SOURCE = "lonora_model_family_table_v2"
+# What may follow a family key in a longer id: snapshot dates, tags, variants.
+_BOUNDARIES = frozenset("-:@")
 
 _FAMILIES: dict[str, int] = {
     "claude": 200_000,
     "claude-2": 100_000,
     "claude-instant": 100_000,
     "gpt-3.5-turbo": 16_385,
+    "gpt-3.5-turbo-instruct": 4_096,
     "gpt-4": 8_192,
+    "gpt-4-32k": 32_768,
+    # GPT-4 Turbo previews share the gpt-4 prefix but have 128k windows.
+    "gpt-4-0125-preview": 128_000,
+    "gpt-4-1106-preview": 128_000,
+    "gpt-4-vision-preview": 128_000,
     "gpt-4-turbo": 128_000,
     "gpt-4o": 128_000,
     "gpt-4.1": 1_000_000,
+    "gpt-4.5": 128_000,
     "gpt-5": 272_000,
+    "gpt-5-chat": 128_000,
     "o1": 200_000,
     "o1-mini": 128_000,
     "o1-preview": 128_000,
@@ -33,14 +48,20 @@ _FAMILIES: dict[str, int] = {
     "deepseek-chat": 128_000,
     "deepseek-reasoner": 128_000,
     "glm-4.5": 128_000,
+    "glm-4.5v": 64_000,
     "glm-4.6": 200_000,
+    "glm-4.6v": 128_000,
     "glm-4.7": 200_000,
     "glm-5": 200_000,
 }
 
 
+def _matches(name: str, key: str) -> bool:
+    return name == key or (name.startswith(key) and name[len(key)] in _BOUNDARIES)
+
+
 def family_window(model: str) -> int | None:
-    """Longest matching family prefix of the bare model id, or ``None``."""
+    """Longest family key matching the bare model id at a boundary, or ``None``."""
     name = model.strip().lower().rsplit("/", 1)[-1]
-    matches = [key for key in _FAMILIES if name.startswith(key)]
+    matches = [key for key in _FAMILIES if _matches(name, key)]
     return _FAMILIES[max(matches, key=len)] if matches else None

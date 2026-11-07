@@ -11,16 +11,21 @@ resolved model:
 
 - **Window.** The provider catalog's `context_window` wins. The direct Anthropic,
   OpenAI, DeepSeek and Z.ai listings do not report one, so a conservative family
-  table (`lonora_providers/model_windows.py`, longest prefix match) fills the gap.
-  Otherwise capacity is reported as `unknown` and the policy's
-  `maximum_input_tokens` (default 64,000) applies.
+  table (`lonora_providers/model_windows.py`) fills the gap. A key matches only at
+  an id boundary (end, `-`, `:` or `@`), longest key first: `gpt-4` covers
+  `gpt-4-0613` but not `gpt-4.5-preview` (its own 128k entry), and `glm-4.5` does
+  not claim the 64k `glm-4.5v`. Otherwise capacity is reported as `unknown` and
+  the policy's `maximum_input_tokens` (default 64,000) applies. A wrong table
+  entry still mis-sizes requests, so the table must follow provider docs.
 - **Admitted input** = window − output reservation − safety margin. The output
   reservation is `output_tokens` (default 4,096), at most a quarter of the window
   and at most the catalog's maximum output. The margin is `safety_tokens`
   (default 1,024) or 2% of the window, whichever is larger.
 - **Owner caps.** `input_ceiling_tokens` optionally caps admitted input for every
-  model (cost or latency control). `compaction_ratio` (default 0.75) sets when
-  in-run compaction starts.
+  model (cost or latency control). A setting written before that field existed
+  (no `input_ceiling_tokens` key) with a non-default `maximum_input_tokens` keeps
+  it as the ceiling, since it used to cap every model; an explicit `null` opts
+  out. `compaction_ratio` (default 0.75) sets when in-run compaction starts.
 - **Characters** are only a transport safety net: 6 characters per admitted
   token, never below the old 120,000. A 200k-token model is no longer held to
   a 120,000-character request.
@@ -34,7 +39,7 @@ notices the request carried.
 
 Estimates use the verified offline tokenizer cache when present (see
 `docs/lonora-specs/CONTEXT_BUDGETING.md`) and UTF-8 bytes otherwise. Bytes
-overestimate tokens, so a missing cache compacts earlier; it never admits more.
+overestimate tokens, so a missing cache compacts and sheds earlier.
 
 ## Admission degrades instead of failing
 
@@ -43,26 +48,38 @@ overestimate tokens, so a missing cache compacts earlier; it never admits more.
 1. First-party system messages and the owner's newest request (mandatory).
 2. The newest exchange, with oversized result bodies reduced to their effect
    identities in the working copy (never dropped, never split).
-3. Optional first-party guidance, each block whole: the domain policy chapters,
-   the capability inventory and the visual observation catalog (system role,
-   marked `runtime_context` in the request copy only). Server enforcement never
-   depends on them.
+3. Optional first-party blocks, each whole, in message order: the capability
+   inventory, goal details (`lonora_goal_details`: objectives, current-step
+   instructions, nearby step titles), recorded decisions and theses
+   (`lonora_recorded_decisions`), operational observations
+   (`lonora_operational_observations`), the domain policy chapters and the
+   visual observation catalog (system role, marked `runtime_context`). Server
+   enforcement never depends on them; each goal's core (identity, status, scope
+   limits, current step and the operation/broker IDs of nearby steps) stays in
+   the mandatory system text.
 4. The leading context-data message, shedding whole sections from the lowest
    priority up. An `omitted_sections` section names what was shed.
 5. Older history, newest first, as complete blocks.
 
 Each run of history left out is replaced in place by a `<context_omitted>`
-notice (message and tool-exchange counts) in the user role, and shed guidance is
-listed as `omitted_guidance`, so the model knows what it does not see.
-`context_limit_exceeded` now only happens when the mandatory first-party system
-text and the newest request alone do not fit, or the newest tool call cannot be
-represented.
+notice (message and tool-exchange counts) in the user role, and shed blocks are
+listed as `omitted_guidance` with the tools that reread them, so the model knows
+what it does not see. `context_limit_exceeded` now only happens when the
+mandatory first-party system text (policy, owner instructions, goal cores, the
+routing frame) and the newest request alone do not fit, or the newest tool call
+cannot be represented.
+
+OpenAI-compatible adapters join adjacent plain user turns (for example the
+context data and the owner's request) into one wire message, as the Anthropic
+adapter already merges same-role turns, because some endpoints reject
+successive user messages.
 
 ## Trust separation
 
 The system role carries only first-party policy, the owner's instructions,
-identity, the agent binding, server-derived records (operational failures,
-goals, decisions, the skill catalog, wake details) and the routing frame.
+identity, the agent binding, server-derived records (goals, and as optional
+blocks goal details, decisions and operational failures; the skill catalog,
+wake details) and the routing frame.
 
 Everything model-authored or untrusted travels in **one user-role context
 message** directly after the system messages, as labelled sections:
@@ -77,6 +94,7 @@ message** directly after the system messages, as labelled sections:
 | `memory` | agent_memory / mutable_untrusted | 80 |
 | `recent_tool_evidence` | earlier_runs / historical_observation | 55 |
 | `scratchpad` | agent_scratchpad / agent_authored | 50 |
+| `recent_external_evidence` | earlier_runs_retrieved / retrieved_untrusted | 45 |
 | `recalled_evidence` | memory_recall / retrieved_untrusted | 40 |
 
 Every body passes through `escape_context_text`
@@ -118,8 +136,14 @@ the UTF-8 byte estimate) cannot trigger a summary on every turn:
    "reconcile before any resend" recovery, and a `result_ref`. Full results of
    at least 1,500 characters are stored first in the existing tool-result
    artifact store, so the model can `artifact_read` them instead of calling the
-   tool again. A failed store is reported on the placeholder, never as a failed
-   effect. A pruned `skill_view` says `reload_with: skill_view`.
+   tool again. A failed store, including an operating-system error such as a
+   full disk, is reported on the placeholder (`result_storage_error`), never as
+   a failed effect. A pruned `skill_view` says `reload_with: skill_view`. A
+   pruned financial call, or any result carrying an `operation_id`,
+   `broker_reference` or `approval_id`, says `read_record_do_not_repeat` (with
+   `read_with: artifact_read` or `trade_record_read`, and
+   `effect_already_executed` when a confirmed outcome is recorded); only plain
+   reads say `repeat_read_if_needed`.
 2. **Summarize (only if the transcript is still above its low-water mark, 80%
    of its trigger).**
    The span between the context data and the protected tail is summarized by
@@ -131,7 +155,11 @@ the UTF-8 byte estimate) cannot trigger a summary on every turn:
    The record is checkpointed after every chunk, so a restart reuses it instead
    of paying again. If the summary model fails, a deterministic digest of the
    span (owner and agent excerpts, every tool call with outcome, identities and
-   time) is used instead. The Run never fails because of compaction.
+   time) is used instead. The Run never fails because of compaction:
+   `compact_for_turn` lets only fencing errors (`stale_lease`,
+   `skill_continuation_unavailable`) through; any other failure is logged and
+   the turn proceeds with the current persisted view, which admission then
+   degrades if needed.
 
 Boundaries are always complete blocks, so a tool call is never separated from
 its results. The owner's request at summary time stays verbatim in front of the
@@ -169,6 +197,11 @@ only its newest observation; entries that mention terms of the new request rank
 first. Each entry has the tool, arguments, `observed_at` (or the Run's last
 update, labelled `run_last_updated`), identities, any `result_ref` and a short
 preview. The section is labelled historical, not live market or broker truth.
+Results of tools that return third-party or stored content (`web_*`, `mcp_*`,
+`search_*`, `artifact_read`, `workspace_read`, `skill_repository_inspect`) go
+to a separate `recent_external_evidence` section (4,000 characters) labelled
+`retrieved_untrusted`, like recalled evidence, so page text that was a tool
+result in its own Run is never promoted to a more trusted label.
 
 ## The summary/window dark zone
 

@@ -51,6 +51,7 @@ from .cancellation import cancellation_checkpoint
 from .context.builder import build_context
 from .context.skills import assert_skill_authority, refresh_skill_context, selected_skill_ids
 from .context_engine import (
+    FENCE_CODES,
     compact_context,
     compacted_view,
     record_observed,
@@ -151,23 +152,32 @@ async def compact_for_turn(
     """Keep the next request under its model's window; return the request view.
 
     Compaction is persisted in the checkpoint before the request, so it is not
-    recomputed after a restart and canonical messages are never rewritten.
+    recomputed after a restart and canonical messages are never rewritten. It
+    never fails the turn: fencing errors propagate, anything else keeps the
+    current view and admission degrades the request instead.
     """
-    limits = await resolve_limits(context, capability)
 
     async def save() -> None:
         await persist(context, state, messages, pending)
 
-    await compact_context(
-        context,
-        state,
-        messages,
-        limits,
-        extra_tokens=request_overhead(
-            messages, tools, limits, inventory=inventory_text, available=policy_tools
-        ),
-        save=save,
-    )
+    try:
+        limits = await resolve_limits(context, capability)
+        await compact_context(
+            context,
+            state,
+            messages,
+            limits,
+            extra_tokens=request_overhead(
+                messages, tools, limits, inventory=inventory_text, available=policy_tools
+            ),
+            save=save,
+        )
+    except LonoraError as error:
+        if error.code in FENCE_CODES:
+            raise
+        log.warning("context_compaction_failed code=%s", error.code)
+    except Exception as error:
+        log.warning("context_compaction_failed type=%s", type(error).__name__)
     return lambda request: compacted_view(request, state)
 
 

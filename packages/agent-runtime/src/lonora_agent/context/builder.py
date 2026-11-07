@@ -25,7 +25,7 @@ from ..skills.loader import load_constitution, load_prompt
 from .attachments import attachment_parts
 from .decisions import decision_context
 from .environment import operational_context
-from .goals import goal_context
+from .goals import goal_context_blocks
 from .governance import govern_context
 from .history import history_context, history_gap
 from .memory import read_memory_context
@@ -37,6 +37,11 @@ from .skills import read_skill_context
 from .team import routing_frame
 
 log = logging.getLogger(__name__)
+
+
+def server_records(tag: str, text: str) -> str:
+    """Wrap an optional server-derived listing; its tag names it in an omission notice."""
+    return f"<{tag}>\n{text}\n</{tag}>" if text else ""
 
 
 async def build_context(
@@ -69,34 +74,45 @@ async def build_context(
         # The system role holds first-party policy, owner instructions, identity and
         # server-derived records only. Model-authored or untrusted material goes into
         # the labelled context data below, escaped by one shared helper.
+        observations = await timed(
+            "environment", operational_context(session, context.owner_id, agent.id, tools)
+        )
+        decisions = await timed(
+            "decisions", decision_context(session, context.owner_id, context.agent_id)
+        )
+        goal_core, goal_details = await timed(
+            "goals",
+            goal_context_blocks(
+                session,
+                context.owner_id,
+                context.agent_id,
+                await goal_read_thread(session, run)
+                if run.model_metadata.get("authority") == "observe_only"
+                else context.thread_id,
+                run.model_metadata.get("goal_id") or run.model_metadata.get("review_goal_id"),
+            ),
+        )
         blocks.extend(
             [
                 agent.instructions,
                 binding_context(agent),
-                await timed(
-                    "environment",
-                    operational_context(session, context.owner_id, agent.id, tools),
-                ),
                 skill_context.catalog,
                 wake_context(run),
-                await timed(
-                    "decisions", decision_context(session, context.owner_id, context.agent_id)
-                ),
-                await timed(
-                    "goals",
-                    goal_context(
-                        session,
-                        context.owner_id,
-                        context.agent_id,
-                        await goal_read_thread(session, run)
-                        if run.model_metadata.get("authority") == "observe_only"
-                        else context.thread_id,
-                        run.model_metadata.get("goal_id")
-                        or run.model_metadata.get("review_goal_id"),
-                    ),
-                ),
+                # Each goal's identity, limits and effect state stay mandatory.
+                goal_core,
             ]
         )
+        # Larger server-derived listings are optional: admission sheds them whole,
+        # in this order of priority and with a notice, before a request would fail.
+        records = [
+            block
+            for block in (
+                goal_details,
+                server_records("lonora_recorded_decisions", decisions),
+                server_records("lonora_operational_observations", observations),
+            )
+            if block
+        ]
         if thread.group_id:
             blocks.append(load_prompt("group_behavior"))
         if run.trigger == "subagent":
@@ -123,6 +139,10 @@ async def build_context(
         )
         messages = [
             ModelMessage(role="system", content="\n\n".join(block for block in blocks if block)),
+            *(
+                ModelMessage(role="system", context_origin="runtime_context", content=block)
+                for block in records
+            ),
             ModelMessage(
                 role="system",
                 content=await timed(
@@ -196,7 +216,19 @@ async def build_context(
                 100,
             ),
             ContextSection(
-                "recent_tool_evidence", "earlier_runs", "historical_observation", evidence, 55
+                "recent_tool_evidence",
+                "earlier_runs",
+                "historical_observation",
+                evidence.observations,
+                55,
+            ),
+            # Third-party content keeps the untrusted label it had as a tool result.
+            ContextSection(
+                "recent_external_evidence",
+                "earlier_runs_retrieved",
+                "retrieved_untrusted",
+                evidence.external,
+                45,
             ),
             ContextSection(
                 "recalled_evidence", "memory_recall", "retrieved_untrusted", semantic, 40
@@ -210,7 +242,13 @@ async def build_context(
         data = context_message(sections)
         if data is not None:
             # Directly after the system messages, before the transcript it informs.
-            messages.insert(2, data)
+            messages.insert(
+                next(
+                    (index for index, row in enumerate(messages) if row.role != "system"),
+                    len(messages),
+                ),
+                data,
+            )
         if images:
             target = next(
                 (message for message in reversed(messages) if is_owner_message(message)), None

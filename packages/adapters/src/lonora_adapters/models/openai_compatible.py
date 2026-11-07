@@ -32,6 +32,33 @@ def wire_message(message: ModelMessage) -> dict[str, Any]:
     return result
 
 
+def _parts(content: str | list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [{"type": "text", "text": content}] if isinstance(content, str) else content
+
+
+def wire_messages(messages: list[ModelMessage]) -> list[dict[str, Any]]:
+    """Wire messages with adjacent plain user turns coalesced into one.
+
+    Context data, a kept request with its compaction summary, or runtime notices
+    can put several user turns in a row. Some OpenAI-compatible endpoints reject
+    successive user messages, so they are joined in order, as
+    ``anthropic_messages`` merges same-role turns. Tool results, assistant turns
+    and system messages are forwarded unchanged.
+    """
+    result: list[dict[str, Any]] = []
+    for message in messages:
+        wired = wire_message(message)
+        previous = result[-1] if result else None
+        if previous is None or message.role != "user" or previous["role"] != "user":
+            result.append(wired)
+            continue
+        if isinstance(previous["content"], str) and isinstance(wired["content"], str):
+            previous["content"] = previous["content"] + "\n\n" + wired["content"]
+        else:
+            previous["content"] = _parts(previous["content"]) + _parts(wired["content"])
+    return result
+
+
 class OpenAICompatibleAdapter(BaseModelAdapter):
     provider: ProviderId
 
@@ -46,7 +73,7 @@ class OpenAICompatibleAdapter(BaseModelAdapter):
     ) -> ModelReply:
         payload: dict[str, Any] = {
             "model": model,
-            "messages": [wire_message(message) for message in messages],
+            "messages": wire_messages(messages),
             "stream": False,
         }
         if max_output_tokens is not None:
