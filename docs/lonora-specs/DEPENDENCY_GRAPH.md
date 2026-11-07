@@ -25,14 +25,14 @@ does not introduce a second Agent engine or require a desktop per Agent.
 Latest [27-item product clarification](AUTONOMOUS_TRADING_PRODUCT_REQUIREMENTS.md)
 reuses this graph: verified broker economics -> explicit full-management scope
 with optional owner-selected monetary limits -> one autonomous trading mission -> multi-position/partial-target management
--> validated strategy adaptation and peer evidence. Existing chart, Task, memory,
+-> outcome-based strategy adaptation and peer evidence. Existing chart, Task, memory,
 Skill and voice interfaces consume the same authority; no new parallel framework.
 
 Next evidence integration (2026-10-23): existing exact broker OHLC + shared health
 assessment + shared bar-close semantics -> causal confirmed swings -> alternative
 trendline observations -> existing owned chart annotations/inspection -> existing
 decision evidence. Separate work verifies all six existing candle definitions.
-Session/DST/broker-hours normalization and wider formation/strategy validation
+Session/DST/broker-hours normalization, wider formations and outcome-based strategy evaluation
 remain follow-up dependencies, not inferred capabilities of the swing analyzer.
 
 ## Active agent-first mandate (2026-10-21)
@@ -287,6 +287,9 @@ Existing broker history/specification -> typed scenario research -> chronologica
 validation/OOS/robustness -> immutable report artifact -> same Agent's historical
 context. Existing detector+health -> independent opinion/entry/execution projection.
 Neither report nor projection is execution permission.
+Superseded 2026-11-07: the scenario-research chain was removed because strategy
+backtesting is excluded by the owner mandate (section 5); the readiness projection
+remains. See [decision readiness](../decision-readiness.md#strategy-backtesting-is-excluded).
 
 Existing verified device assertion -> immutable account envelope -> existing
 account-serialized executor -> final snapshot/owner-change/scope/limits -> existing

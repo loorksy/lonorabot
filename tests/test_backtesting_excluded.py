@@ -3,29 +3,36 @@
 The SMA-cross research engine and its two Agent tools were removed. These checks keep
 it from returning through the live catalog, the operating policy or the market
 package, and prove that history written while it existed stays harmless: old tool
-calls are refused like any unknown tool, and saved report attachments remain
+calls get the same outcomes as any unknown tool, and saved report attachments remain
 ordinary, inert files.
 """
 
+import asyncio
 import importlib.util
 import json
 import os
 import re
+from dataclasses import replace
+from datetime import timedelta
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any, cast
+from unittest.mock import patch
 
 import pytest
-from lonora_adapter_kit.types import ModelMessage, ToolCall
+from lonora_adapter_kit.types import ModelMessage, ModelReply, ToolCall
 from lonora_agent.skills.loader import resources_root
 from lonora_agent.skills.system_policy import (
     DOMAIN_MARKER,
     apply_operating_policy,
     policy_bundle,
 )
+from lonora_contracts.domain import Contract
 from lonora_core.user_error import LonoraError
+from lonora_tools.base import Tool
 from lonora_tools.context import ToolContext
 from lonora_tools.loader import MODULES, load_tools
+from lonora_tools.registry import ToolRegistry
 
 REMOVED_TOOLS = ("market_strategy_research", "market_research_history")
 BACKTEST_TERMS = re.compile(
@@ -71,20 +78,42 @@ def test_operating_policy_states_the_exclusion_and_routes_no_backtest_tool():
         assert name not in manual
         assert name not in manifest["tool_policies"]
         assert name not in policy_bundle().tool_policies
-    intelligence = policy_bundle().sections["intelligence"]
+    sections = policy_bundle().sections
+    intelligence = sections["intelligence"]
     assert "Strategy backtesting is excluded from Lonora" in intelligence
     assert "never require one before creating or changing a strategy" in intelligence
-    assert "must not become a strategy backtest" in policy_bundle().sections["files"]
-    skills = resources_root() / "skills"
-    for path in skills.rglob("*"):
-        if path.is_file() and path.suffix in {".md", ".json"}:
-            assert not re.search(r"backtest|strategy_research", path.read_text(), re.I), path
+    # Legacy reports stay readable on request; only building, running or relying on one is out.
+    assert "Do not build or run a historical strategy simulation" in intelligence
+    assert "present an old one as validation or as a basis for authority" in intelligence
+    assert "Reading an old saved report on request remains allowed" in intelligence
+    assert "cite a historical strategy simulation" not in intelligence
+    assert "must not become a strategy backtest" in sections["files"]
+    # A backtest request usually starts with candles, which load only this chapter.
+    assert "do not turn them into a strategy backtest" in sections["market"]
+    assert manifest["tool_policies"]["market_candles"] == "market"
+    # Every remaining mention in the shipped manual is the exclusion itself.
+    for line in manual.splitlines():
+        if BACKTEST_TERMS.search(line):
+            assert "Lonora excludes" in line or "excluded from Lonora" in line, line
+    # No other shipped resource (skills, playbooks, constitution, prompts, bootstrap,
+    # references, schemas) may teach or mention backtesting at all.
+    manual_path = (resources_root() / "system/lonora.md").resolve()
+    scanned = 0
+    for path in resources_root().rglob("*"):
+        if not path.is_file() or path.resolve() == manual_path:
+            continue
+        scanned += 1
+        assert not BACKTEST_TERMS.search(path.read_text(errors="replace")), path
+    for folder in ("skills", "playbooks", "constitution", "prompts", "bootstrap"):
+        assert any((resources_root() / folder).rglob("*.md")), folder
+    assert scanned > 40
 
 
 @pytest.mark.asyncio
-async def test_a_checkpointed_call_to_a_removed_tool_is_refused_without_side_effects():
+async def test_the_registry_refuses_a_removed_tool_name_before_using_the_context():
+    # Registry level only: no handler, broker or file access, so the context is never
+    # used. The Run tool loop around it is covered by the PostgreSQL case below.
     registry = load_tools()
-    # Refused before any database, broker or file access: the context is never used.
     context = cast(ToolContext, object())
     for name in REMOVED_TOOLS:
         with pytest.raises(LonoraError) as error:
@@ -156,3 +185,97 @@ async def test_saved_research_report_attachments_stay_readable_and_inert():
     finally:
         fixture.settings.artifact_root = original_root
         await fixture.close()
+
+
+class _NoArguments(Contract):
+    pass
+
+
+@pytest.mark.asyncio
+async def test_a_run_checkpointed_across_the_removal_gets_unknown_tool_outcomes():
+    """A Run interrupted mid-tool-block by the upgrade, resumed on the new catalog.
+
+    The call that was in flight is reported as tool_execution_uncertain, like any
+    interrupted call to an unknown tool: the removed tools had no broker effect, but
+    the loop cannot know that and conservatively refuses to replay it. The call
+    that was still only pending reaches the registry and is refused as
+    tool_not_allowed. Neither removed handler runs after the resume.
+    """
+    if not os.environ.get("LONORA_DATABASE_URL"):
+        pytest.skip("Set an explicit disposable PostgreSQL *_test URL for integration checks.")
+    from check_streaming import Fixture
+    from lonora_agent.executor import execute_run
+    from lonora_contracts.domain import utcnow
+    from lonora_contracts.model_routing import ModelSelection
+    from lonora_contracts.runs import Lease
+    from lonora_db.runs import claim_next
+    from lonora_db.schema import RunRow
+
+    effects: list[str] = []
+
+    async def interrupted(_: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+        effects.append("market_strategy_research")
+        raise asyncio.CancelledError()  # The old worker stops here during the upgrade.
+
+    async def never_started(_: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+        effects.append("market_research_history")
+        return {}
+
+    # The previous release's catalog, with read-only stand-ins for the removed tools.
+    # ToolRegistry adds its own tool_environment, so the loaded one is left out.
+    previous_catalog = ToolRegistry(
+        [
+            *(tool for name, tool in load_tools().tools.items() if name != "tool_environment"),
+            Tool("market_strategy_research", "Removed stand-in", _NoArguments, interrupted, True),
+            Tool("market_research_history", "Removed stand-in", _NoArguments, never_started, True),
+        ]
+    )
+    calls = [
+        ToolCall(id="legacy-inflight", name="market_strategy_research", arguments={}),
+        ToolCall(id="legacy-pending", name="market_research_history", arguments={}),
+    ]
+    turns = 0
+    observed: dict[str, dict[str, Any]] = {}
+
+    async def model(_: Any, messages: list[ModelMessage], tools: Any, **kwargs: Any):
+        nonlocal turns
+        turns += 1
+        selection = ModelSelection(provider="openai", model="scripted-removed-tools")
+        if turns == 1:
+            return ModelReply(tool_calls=calls, text=""), selection
+        assert not {call.name for call in calls} & {tool.name for tool in tools}
+        for message in messages:
+            if message.role == "tool" and message.tool_call_id in {call.id for call in calls}:
+                observed[message.tool_call_id] = json.loads(message.content)
+        return ModelReply(tool_calls=[], text="Backtesting is excluded."), selection
+
+    fixture = await Fixture().open()
+    try:
+        agent = await fixture.agent("Removed tool resume")
+        thread = await fixture.conversation(agent)
+        context = await fixture.lease(await fixture.run(agent, thread))
+        with patch.object(context.router, "complete", model):
+            with pytest.raises(asyncio.CancelledError):
+                await execute_run(context, previous_catalog, 120, 5)
+            async with fixture.runtime.db.sessions() as session, session.begin():
+                row = await session.get(RunRow, context.lease.run_id, with_for_update=True)
+                assert row is not None
+                state = row.execution_state
+                assert state["environment"]["inflight"]["call_id"] == "legacy-inflight"
+                assert [call["id"] for call in state["pending"]] == [call.id for call in calls]
+                row.lease_expires_at = utcnow() - timedelta(seconds=1)
+            async with fixture.runtime.db.sessions() as session, session.begin():
+                claimed = await claim_next(session, "upgraded-worker", 120)
+                assert claimed is not None and claimed.id == context.lease.run_id
+                lease = Lease(run_id=claimed.id, owner="upgraded-worker", fence=claimed.lease_fence)
+            await execute_run(replace(context, lease=lease), load_tools(), 120, 5)
+    finally:
+        await fixture.close()
+
+    assert turns == 2
+    assert effects == ["market_strategy_research"]  # Only the old worker's attempt.
+    inflight, pending = observed["legacy-inflight"], observed["legacy-pending"]
+    assert inflight["ok"] is False and inflight["code"] == "tool_execution_uncertain"
+    assert inflight["recovery"]["safe_to_retry"] is False
+    assert pending["ok"] is False and pending["code"] == "tool_not_allowed"
+    assert pending["recovery"]["category"] == "permission_denied"

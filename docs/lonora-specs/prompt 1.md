@@ -1370,7 +1370,9 @@ The objective is not to maximize the number of features or files. The objective 
 > "Out-of-sample validation" in section 17 (lines 944-945); "Strategy and backtest history"
 > (line 1008); and the backtesting part of "strategy research" in Phase D (line 1144). Strategy
 > research, import, comparison, monitoring and improvement that remain in scope rely on market
-> evidence and real recorded outcomes, never on backtest results.
+> evidence and real recorded outcomes, never on backtest results. Likewise, "strategy
+> validation" in the parity capabilities (line 1203) and in the final report checklist (line
+> 1226) means evaluation from real recorded live or Shadow outcomes, not backtest validation.
 >
 > Historical market observations used to understand the market, and real recorded live or
 > Shadow outcomes, remain in scope. The original text above is unchanged; this note is appended

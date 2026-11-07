@@ -219,6 +219,7 @@ Use market_instrument for one contract; avoid loading every specification for a 
 Use market_instruments only when the requested comparison needs the broader catalog.
 Use market_quote for Bid, Ask and actual observation time.
 Use market_candles for broker OHLC history at a supported timeframe.
+Historical candles are market evidence; do not turn them into a strategy backtest, which Lonora excludes.
 A Personal Agent may inspect the owner-authorized accounts and symbols actually returned.
 A fixed-market agent must stay within its immutable account/symbol scope; flexible agents may inspect other owned markets.
 Never strip suffixes, substitute an exchange feed or assume one broker's instrument exists at another.
@@ -630,7 +631,7 @@ Use market_performance_read with the explicit requested live or shadow mode.
 Separate analysis quality, entry quality, management quality and execution quality.
 A small sample is insufficient for a reliable win-rate or general profitability claim.
 Do not cherry-pick one successful trade to claim a validated strategy.
-Strategy backtesting is excluded from Lonora by the owner. Do not build, run or cite a historical strategy simulation, and never require one before creating or changing a strategy or acting within granted authority; if asked, say so plainly. Historical market observations remain valid analysis evidence, and real recorded outcomes are the basis for learning.
+Strategy backtesting is excluded from Lonora by the owner. Do not build or run a historical strategy simulation, or present an old one as validation or as a basis for authority, and never require one before creating or changing a strategy or acting within granted authority; if asked to run one, say so plainly. Reading an old saved report on request remains allowed. Historical market observations remain valid analysis evidence, and real recorded outcomes are the basis for learning.
 A correct directional view can still have a poor entry or unacceptable execution.
 A positive return does not prove correctness or future performance.
 Do not alter safety rules or authorize higher risk based on a performance score.

@@ -41,12 +41,17 @@ their operating-policy lines and their tests were removed. No dependency was
 added for them, so none was removed, and no web or mobile UI existed.
 
 No backtest is a prerequisite for creating or changing a strategy or for agent
-autonomy. The operating policy tells the agent that backtesting is excluded, and
-that workspace analysis of historical market data must not turn into one.
-Historical market observations remain ordinary analysis evidence; see market
-structure, relationships and decision replay. Learning comes from real recorded
-outcomes. Decision replay, relationship evidence and Shadow trading are not
-backtesting and are unchanged.
+autonomy. Operating-policy chapters load only after a tool from their domain is
+called, and the always-loaded core policy is at its size limit, so the exclusion
+is stated in the chapters a backtest request most likely loads: broker market
+evidence (after a candle or quote read), files (workspace analysis of historical
+market data must not turn into one) and intelligence. The agent must
+not build or run a historical strategy simulation, or present an old one as
+validation or as a basis for authority; reading an old saved report on request
+is allowed. Historical market observations remain ordinary analysis evidence;
+see market structure, relationships and decision replay. Learning comes from
+real recorded outcomes. Decision replay, relationship evidence and Shadow
+trading are not backtesting and are unchanged.
 
 Data written while the engine existed is inert:
 
@@ -55,15 +60,28 @@ Data written while the engine existed is inert:
   their `state.research_result`, `research_scope`, `research_request_sha256` or
   `research_summary` keys any more. No migration rewrites or purges them, and the
   owner can delete them like any other attachment.
-- A checkpointed or replayed call to either removed tool name is refused with
-  `tool_not_allowed` before any database, broker or file access, like any unknown
-  tool. Old conversation history that contains such a call loads no policy
-  guidance for it.
+- A checkpointed call to either removed tool name gets the same outcome as a
+  call to any unknown tool. If it was still pending, the Run tool loop does its
+  usual checkpoint work (receipt lookup, Skill authority check, in-flight
+  marker), then the registry refuses it with `tool_not_allowed`; no handler,
+  broker or file access happens. If it was in flight when the upgrade
+  interrupted its Run, the resumed loop cannot tell what it did and reports
+  `tool_execution_uncertain`, recording the route as ambiguous
+  (`reconcile_before_any_resend`). That is the conservative default for every
+  interrupted unknown tool and is kept on purpose. Both removed tools had no
+  broker effect, so there is nothing to reconcile at the broker; at most the
+  interrupted call saved a report attachment, which is inert as described above.
+  Old conversation history that contains such a call loads no policy guidance
+  for it.
 
 `tests/test_backtesting_excluded.py` enforces all of this. It checks that the
-engine, the tools and any backtesting term are gone from the live catalog,
-manifest, policy and built-in skills. It also checks that old calls are refused
-and, against PostgreSQL, that a legacy report attachment stays readable and inert.
+engine, the tools and any backtesting term are gone from the live catalog and
+manifest, that the policy mentions backtesting only to exclude it, and that no
+other shipped resource (skills, playbooks, constitution, prompts, bootstrap)
+mentions it. It checks that the registry refuses the removed names and, against
+PostgreSQL, that a Run interrupted mid-tool-block by the upgrade gets exactly the
+two outcomes above when it resumes on the new catalog, and that a legacy report
+attachment stays readable and inert.
 
 ## Verification
 
