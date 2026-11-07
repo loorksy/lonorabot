@@ -1,9 +1,17 @@
+import re
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
-from typing import Any
+from typing import Any, cast
 
 from lonora_contracts.account import AccountState, Order, Position
-from lonora_contracts.market import Candle, Instrument, Quote
+from lonora_contracts.market import (
+    Candle,
+    Instrument,
+    Quote,
+    TradingHours,
+    TradingSessionWindow,
+    TradingWeekday,
+)
 
 
 def observed(value: Any) -> datetime:
@@ -123,4 +131,71 @@ def order(value: dict[str, Any]) -> Order:
         stop_loss=value.get("stopLoss"),
         take_profit=value.get("takeProfit"),
         operation_id=value.get("clientId"),
+    )
+
+
+WEEKDAYS: tuple[TradingWeekday, ...] = (
+    "MONDAY",
+    "TUESDAY",
+    "WEDNESDAY",
+    "THURSDAY",
+    "FRIDAY",
+    "SATURDAY",
+    "SUNDAY",
+)
+_SESSION_CLOCK = re.compile(r"^(\d{1,2})[:.](\d{2})(?:[:.](\d{2}))?(?:\.\d+)?$")
+
+
+def session_clock(value: Any, *, end: bool) -> str:
+    """MetaTrader session time (hh:mm:ss.SSS, sometimes dot-separated) as HH:MM:SS."""
+    match = _SESSION_CLOCK.match(value) if isinstance(value, str) else None
+    if match is None:
+        raise ValueError("broker_session_time_invalid")
+    hours, minutes, seconds = int(match[1]), int(match[2]), int(match[3] or 0)
+    if end and (hours, minutes, seconds) >= (23, 59, 59):
+        return "24:00:00"  # A day-end marker, not a one-second closure before midnight.
+    if hours > 23 or minutes > 59 or seconds > 59:
+        raise ValueError("broker_session_time_invalid")
+    return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+
+
+def broker_offset_minutes(price: dict[str, Any] | None) -> int | None:
+    """UTC offset of the broker server clock from one broker-timestamped quote."""
+    if not price or not isinstance(price.get("brokerTime"), str) or price.get("time") is None:
+        return None
+    try:
+        broker = datetime.fromisoformat(str(price["brokerTime"]).replace(" ", "T"))
+        utc = observed(price["time"]).astimezone(UTC).replace(tzinfo=None)
+    except ValueError:
+        return None
+    minutes = round((broker.replace(tzinfo=None) - utc).total_seconds() / 900) * 15
+    return minutes if abs(minutes) <= 840 else None
+
+
+def trading_hours(
+    specification: dict[str, Any], price: dict[str, Any] | None, *, observed_at: datetime
+) -> TradingHours:
+    sessions: dict[TradingWeekday, list[TradingSessionWindow]] = {}
+    raw: Any = specification.get("tradeSessions") or {}
+    days = cast(dict[str, Any], raw) if isinstance(raw, dict) else {}
+    for day in WEEKDAYS:
+        windows: Any = days.get(day) or []
+        items = cast(list[Any], windows) if isinstance(windows, list) else []
+        sessions[day] = [
+            TradingSessionWindow(
+                start=session_clock(item.get("from"), end=False),
+                end=session_clock(item.get("to"), end=True),
+            )
+            for item in (cast(dict[str, Any], value) for value in items if isinstance(value, dict))
+        ]
+    offset = broker_offset_minutes(price)
+    mode = specification.get("tradeMode")
+    return TradingHours(
+        symbol=specification["symbol"],
+        utc_offset_minutes=offset,
+        offset_source="quote_broker_time" if offset is not None else None,
+        trade_sessions=sessions,
+        trade_mode=mode if isinstance(mode, str) else None,
+        observed_at=observed_at,
+        source="metaapi",
     )

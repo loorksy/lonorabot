@@ -18,6 +18,7 @@ MODULES = (
     "mcp",
     "subagent",
     "market",
+    "market_analysis",
     "position_sizing",
     "market_watch",
     "trading_decision",

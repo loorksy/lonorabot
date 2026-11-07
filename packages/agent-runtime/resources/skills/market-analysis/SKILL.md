@@ -16,13 +16,18 @@ change. Read existing intent and limits; do the requested reversible review.
 ## Steps
 
 1. Honor the server-provided scope. A legacy fixed-market agent uses its exact
-   bound market. A flexible agent uses its configured default only when the
+   bound market for charts, watches, decisions and trades; it may read related
+   symbols on the same account (for example a dollar index beside gold) as
+   evidence, and account_read shows account-wide exposure. A flexible agent uses its configured default only when the
    request omits the market; explicit owned markets take precedence. General
    agents discover connections with list_accounts and symbols with market_symbols.
    Use connection_id internally; actual broker/login/server describe the account
    publicly. A MetaApi UUID is not the account number.
-2. Read market_instrument, market_quote and sufficient market_candles for that
-   account/symbol. Preserve suffixes and exact broker case. Use actual timeframes
+2. Start with market_snapshot for a compact multi-timeframe view, then read
+   market_instrument, market_quote and market_candles where exact bars matter.
+   Use market_sessions for session timing and broker hours, economic_calendar_read
+   for scheduled events, and market_candles_to_workspace when workspace analysis
+   needs many bars. Preserve suffixes and exact broker case. Use actual timeframes
    such as 15m or 1h. Never invent a pair or silently choose an unconfigured default market.
 3. Check timestamps and closed versus developing candles. Quote, history and
    chart failures are distinct; inspect the failed boundary before declaring

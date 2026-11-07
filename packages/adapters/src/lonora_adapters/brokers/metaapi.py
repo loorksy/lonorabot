@@ -12,7 +12,7 @@ from urllib.parse import urlparse
 
 import httpx
 from lonora_contracts.account import AccountState, Order, Position
-from lonora_contracts.market import Candle, Instrument, Quote
+from lonora_contracts.market import Candle, Instrument, Quote, TradingHours
 from lonora_contracts.trading import TradeRequest, TradeResult
 from lonora_core.chart_controller import validate_timeframe
 from lonora_core.error_logging import safe_exception_message
@@ -466,6 +466,28 @@ class MetaApiBroker:
                 dict(streamed)
                 if streamed
                 else await self.read_rpc("get_symbol_specification", symbol)
+            )
+            if result.symbol != symbol:
+                raise ValueError("broker_symbol_mismatch")
+            return result
+        except Exception as error:
+            raise self.diagnose(error, "instrument") from error
+
+    async def trading_hours(self, symbol: str) -> TradingHours:
+        """Broker trade sessions; prefers free synchronized state over paid RPC reads."""
+        try:
+            terminal = self.synchronized_terminal()
+            streamed = terminal.specification(symbol) if terminal is not None else None
+            specification = (
+                dict(streamed)
+                if streamed
+                else await self.read_rpc("get_symbol_specification", symbol)
+            )
+            price = terminal.price(symbol) if terminal is not None else None
+            if not price:
+                price = await self.read_rpc("get_symbol_price", symbol)
+            result = normalize.trading_hours(
+                dict(specification), dict(price) if price else None, observed_at=datetime.now(UTC)
             )
             if result.symbol != symbol:
                 raise ValueError("broker_symbol_mismatch")

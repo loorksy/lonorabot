@@ -153,12 +153,13 @@ async def main() -> None:
         )
         restored = await call("market_structure", {"timeframe": "1m"}, actor=bound_context)
         assert restored["symbol"] == symbols[0]
-        await denied(
+        # A related symbol on the bound account is readable evidence (readable scope).
+        related = await call(
             "market_structure",
             {"account_id": connection_id, "symbol": symbols[1], "timeframe": "1m"},
-            "agent_trading_symbol_mismatch",
             actor=bound_context,
         )
+        assert related["symbol"] == symbols[1] and related["execution_authorized"] is False
         await denied(
             "market_structure",
             {"account_id": connection_id, "symbol": "UNKNOWN.suffix", "timeframe": "1m"},
@@ -170,7 +171,7 @@ async def main() -> None:
             "unsupported_timeframe",
         )
         print(
-            "PASS immutable specialist defaults and scope denial; unknown symbol/timeframe remain precise errors"
+            "PASS immutable specialist defaults and related-symbol reads; unknown symbol/timeframe remain precise errors"
         )
 
         # A working quote must not turn a history failure into fabricated evidence.

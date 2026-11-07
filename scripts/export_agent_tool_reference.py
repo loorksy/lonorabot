@@ -33,6 +33,7 @@ MODULE_POLICY = {
     "artifacts": "files",
     "workspace": "files",
     "market": "market",
+    "market_analysis": "market",
     "position_sizing": "trading",
     "incoming_call": "voice",
     "market_watch": "market",

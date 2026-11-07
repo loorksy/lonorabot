@@ -3,6 +3,7 @@ from typing import Any, cast
 from lonora_core.user_error import LonoraError
 from lonora_db.agent_binding import (
     agent_binding,
+    assert_market_binding,
     assert_payload_binding,
     fixed_market,
     flexible_scope,
@@ -24,6 +25,24 @@ NONFINANCIAL_TRADE_TOOLS = frozenset(
         "trade_record_history",
         "trade_restriction_create",
         "trade_restriction_list",
+    }
+)
+
+
+# Readable scope of a fixed-market agent: read-only market evidence about any symbol on
+# its own bound account (e.g. DXY or an index beside gold). The account stays bound, and
+# every mutation path (charts, watches, goals, decisions, trades) keeps the bound symbol;
+# the executor independently re-checks the binding for every financial request.
+RELATED_READ_TOOLS = frozenset(
+    {
+        "market_quote",
+        "market_candles",
+        "market_instrument",
+        "market_structure",
+        "market_snapshot",
+        "market_sessions",
+        "market_candles_to_workspace",
+        "chart_indicator",
     }
 )
 
@@ -111,6 +130,9 @@ async def guard_market_tool(
         aligned = align_payload(agent, args)
         if isinstance(aligned, dict):
             args = cast(dict[str, Any], aligned)
+        if name in RELATED_READ_TOOLS:
+            assert_market_binding(agent, args.get("account_id") or None)
+            return args
         if name in {"watch_create", "trade_close_positions"} and not args.get("symbol"):
             args = {**args, "symbol": agent.trading_symbol}
         assert_payload_binding(agent, args)
@@ -135,6 +157,12 @@ async def guard_market_tool(
         return args
 
 
+EXECUTION_SCOPE_NOTE = (
+    "Other symbols on this account are readable evidence and account-wide exposure only; "
+    "charts, watches, goals, decisions and trades stay on the bound symbol."
+)
+
+
 def _kept(value: object, bound: str | None) -> bool:
     return same_binding(value, bound)
 
@@ -156,18 +184,13 @@ async def scope_market_result(
         if not fixed_market(agent):
             return result
         result = dict(result)
-        if name == "market_symbols":
-            result["symbols"] = [
-                symbol
-                for symbol in result.get("symbols", [])
-                if _kept(symbol, agent.trading_symbol)
-            ]
-        if name == "market_instruments":
-            result["instruments"] = [
-                item
-                for item in result.get("instruments", [])
-                if _kept(item.get("symbol"), agent.trading_symbol)
-            ]
+        if name in {"market_symbols", "market_instruments", "account_read"}:
+            # The bound account's catalog and exposure are readable; trading is not widened.
+            result["execution_scope"] = {
+                "account_id": agent.trading_account_id,
+                "symbol": agent.trading_symbol,
+                "note": EXECUTION_SCOPE_NOTE,
+            }
         if name == "chart_list":
             result["charts"] = [
                 item
@@ -178,9 +201,8 @@ async def scope_market_result(
         if name == "account_read":
             for key in ("positions", "orders"):
                 result[key] = [
-                    item
+                    {**item, "in_execution_scope": _kept(item.get("symbol"), agent.trading_symbol)}
                     for item in result.get(key, [])
-                    if _kept(item.get("symbol"), agent.trading_symbol)
                 ]
         if name == "account_history":
             result["history"] = [

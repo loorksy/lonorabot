@@ -47,6 +47,7 @@ CHECKS = (
     "check_market_health.py",
     "check_dynamic_watches.py",
     "check_market_structure.py",
+    "check_market_analysis.py",
     "check_execution_quality.py",
     "check_decision_readiness.py",
     "check_llm_harness.py",

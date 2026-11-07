@@ -3,6 +3,7 @@
 import asyncio
 import hashlib
 import re
+from collections.abc import Awaitable, Callable
 from typing import Any, Protocol
 
 from lonora_contracts.domain import utcnow
@@ -235,6 +236,67 @@ class RunWorkspaceAccess:
             row.revision += 1
             row.updated_at = utcnow()
             result = {"operation_id": context.resource_id, **manifest(row.revision, snapshot)}
+            session.add(
+                WorkspaceOperationRow(
+                    id=context.resource_id,
+                    agent_id=context.agent_id,
+                    run_id=context.lease.run_id,
+                    lease_fence=context.lease.fence,
+                    request_hash=digest,
+                    base_revision=revision,
+                    status="completed",
+                    result=result,
+                )
+            )
+            return result
+
+    async def write_generated(
+        self,
+        context: ToolContext,
+        revision: int,
+        path: str,
+        intent: dict[str, Any],
+        produce: Callable[[], Awaitable[tuple[bytes, dict[str, Any]]]],
+    ) -> dict[str, Any]:
+        """Write one server-produced file (e.g. broker candles) without model transfer.
+
+        The receipt identity is the request, not the bytes: a replay after an
+        interruption returns the original write even if the source data moved on.
+        No database lock is held while the producer reads the broker.
+        """
+        encode_snapshot({path: b""})
+        digest = request_hash(
+            {"kind": "workspace_generated_v1", "revision": revision, "path": path, **intent}
+        )
+        async with context.db.sessions() as session, session.begin():
+            await scoped_run(session, context, mutate=True)
+            prior = await receipt(session, context, digest)
+            if prior is not None:
+                return prior
+            current = await session.get(AnalyticalWorkspaceRow, context.agent_id)
+            if (current.revision if current else 0) != revision:
+                raise LonoraError("workspace_revision_conflict", 409)
+        body, summary = await produce()
+        async with context.db.sessions() as session, session.begin():
+            row = await locked_workspace(session, context)
+            prior = await receipt(session, context, digest)
+            if prior is not None:
+                return prior
+            require_revision(row, revision)
+            snapshot = read_snapshot(row.snapshot)
+            snapshot[path] = body
+            # Quotas (file size, total size, file count) are enforced here as for any write.
+            row.snapshot = encode_snapshot(snapshot)
+            row.revision += 1
+            row.updated_at = utcnow()
+            result = {
+                "operation_id": context.resource_id,
+                "revision": row.revision,
+                "path": path,
+                "size": len(body),
+                "sha256": hashlib.sha256(body).hexdigest(),
+                **summary,
+            }
             session.add(
                 WorkspaceOperationRow(
                     id=context.resource_id,

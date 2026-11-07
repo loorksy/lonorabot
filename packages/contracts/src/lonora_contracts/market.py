@@ -73,3 +73,38 @@ class CalendarEvent(Contract):
     actual: str | None = None
     forecast: str | None = None
     source: str
+
+
+TradingWeekday = Literal[
+    "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"
+]
+_CLOCK = r"([01]\d|2[0-3]):[0-5]\d:[0-5]\d"
+
+
+class TradingSessionWindow(Contract):
+    """One broker trade window on the broker server's wall clock; start inclusive.
+
+    An end at or before the start continues past midnight into the next day.
+    """
+
+    start: str = Field(pattern="^" + _CLOCK + "$")
+    end: str = Field(pattern="^(" + _CLOCK + "|24:00:00)$")
+
+
+class TradingHours(Contract):
+    """Broker-reported trade sessions for one exact symbol; never a market guess.
+
+    Sessions are on the broker server clock. `utc_offset_minutes` is only set when
+    the adapter measured it from a broker-timestamped observation.
+    """
+
+    symbol: str = Field(min_length=1, max_length=80)
+    clock: Literal["broker_server_time"] = "broker_server_time"
+    utc_offset_minutes: int | None = Field(default=None, ge=-840, le=840)
+    offset_source: str | None = Field(default=None, max_length=80)
+    trade_sessions: dict[TradingWeekday, list[TradingSessionWindow]] = Field(
+        default_factory=dict[TradingWeekday, list[TradingSessionWindow]]
+    )
+    trade_mode: str | None = Field(default=None, max_length=80)
+    observed_at: datetime
+    source: str = Field(min_length=1, max_length=80)
