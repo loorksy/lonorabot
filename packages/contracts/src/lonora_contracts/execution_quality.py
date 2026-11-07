@@ -10,6 +10,7 @@ from .account import AccountState, Order, Position
 from .domain import Contract
 from .market import Quote
 from .market_health import HealthSnapshot
+from .risk_limits import MonetaryRiskLimits
 
 
 class ExecutionPolicy(Contract):
@@ -20,6 +21,9 @@ class ExecutionPolicy(Contract):
     max_positions: int | None = Field(default=None, ge=0)
     max_pending_orders: int | None = Field(default=None, ge=0)
     max_symbol_direction_volume: Decimal | None = Field(default=None, gt=0)
+    # Owner monetary limits (risk at stop, daily loss, open risk, free margin); unset
+    # fields are not enforced and are surfaced to the owner and agent as not configured.
+    risk: MonetaryRiskLimits = Field(default_factory=MonetaryRiskLimits)
 
 
 class ExposureBucket(Contract):

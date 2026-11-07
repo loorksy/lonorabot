@@ -674,3 +674,49 @@ class ShadowTradeRow(ResourceRow):
     status: Mapped[str] = mapped_column(String(16), index=True)
     decision_id: Mapped[str | None] = mapped_column(String(36))
     thesis_id: Mapped[str | None] = mapped_column(String(36))
+
+
+class TradingRestrictionRow(Base):
+    """Owner restriction narrowing financial admission; enforced at the send boundary."""
+
+    __tablename__ = "ln_trading_restrictions"
+    __table_args__ = (
+        CheckConstraint(
+            "action_class IN ('no_new_entries','no_risk_increase','all_mutations')",
+            name="ln_trading_restriction_action_class",
+        ),
+        CheckConstraint(
+            "source IN ('owner_ui','owner_message','agent')", name="ln_trading_restriction_source"
+        ),
+        CheckConstraint("created_by IN ('owner','agent')", name="ln_trading_restriction_creator"),
+        CheckConstraint(
+            "valid_until IS NULL OR valid_until > valid_from",
+            name="ln_trading_restriction_window",
+        ),
+        Index("ln_trading_restriction_scope", "owner_id", "account_id", "revoked_at"),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    owner_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_owners.id", ondelete="CASCADE"), index=True
+    )
+    account_id: Mapped[str] = mapped_column(ForeignKey("ln_broker_sessions.id", ondelete="CASCADE"))
+    agent_id: Mapped[str | None] = mapped_column(ForeignKey("ln_agents.id", ondelete="CASCADE"))
+    symbol: Mapped[str | None] = mapped_column(String(80))
+    action_class: Mapped[str] = mapped_column(String(24))
+    valid_from: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    valid_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    source: Mapped[str] = mapped_column(String(16))
+    source_message_id: Mapped[str | None] = mapped_column(
+        ForeignKey("ln_messages.id", ondelete="SET NULL")
+    )
+    source_run_id: Mapped[str | None] = mapped_column(String(36))
+    reason: Mapped[str] = mapped_column(Text, default="")
+    created_by: Mapped[str] = mapped_column(String(8))
+    created_by_agent_id: Mapped[str | None] = mapped_column(
+        ForeignKey("ln_agents.id", ondelete="SET NULL")
+    )
+    applies_to_owner_manual: Mapped[bool] = mapped_column(default=False)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    revoked_reason: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

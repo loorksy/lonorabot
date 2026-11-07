@@ -69,6 +69,20 @@ widening protection — is risk-increasing.
   (also for decision readiness); a `disconnected` one blocks new risk on the account
   but still admits exits.
 
+## Owner restrictions and monetary limits at the send boundary
+
+After the execution-quality gate and global controls, `before_send` evaluates the
+owner's monetary limits (`ExecutionPolicy.risk`, `lonora_trading/risk_limits.py`) from
+fresh broker economics for any request that is not risk-reducing. Open risk counts
+`submitted` and `ambiguous` entries and confirmed entries awaiting verification whose
+ticket is not yet visible, so an unresolved operation can never free risk budget. The
+final transaction then checks owner restrictions (`lonora_trading/restrictions.py`)
+under a shared restriction lock before moving the row to `submitted`. Either block is
+recorded on the reserved row (`details.risk_assessment`, `details.admission_block`)
+and concluded as `failed` with `send_state: not_sent`; `persist_result` keeps both as
+server evidence. Neither ever blocks a risk-reducing request, except an explicit
+`all_mutations` restriction. See `account-authority.md` for the semantics.
+
 ## Observe-only recovery
 
 `reconcile_ambiguous` (gateway maintenance loop, every 10 s, bounded and rotating)

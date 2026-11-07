@@ -91,6 +91,10 @@ def record_excerpt(row: TradingJournalRow, *, symbol: str | None = None) -> dict
             "prior_receipt",
             "resolution",
             "conclusion",
+            # Boundary decisions: the monetary limit evaluation and, for a blocked
+            # request, the restriction or limit that stopped it before the broker.
+            "risk_assessment",
+            "admission_block",
         )
         if key in details
     }
@@ -116,6 +120,16 @@ def record_excerpt(row: TradingJournalRow, *, symbol: str | None = None) -> dict
                         if item["symbol"] == symbol
                     ]
                 observed["projection_scope"] = {"symbol": symbol}
+        assessment = result["details"].get("risk_assessment")
+        if isinstance(assessment, dict):
+            # Account totals stay; itemized tickets of other markets do not.
+            risk = cast(dict[str, Any], assessment)
+            risk["items"] = [
+                item
+                for item in cast(list[dict[str, Any]], risk.get("items", []))
+                if item.get("symbol") == symbol
+            ]
+            risk["projection_scope"] = {"symbol": symbol}
     return {
         "operation_id": row.operation_id,
         "account_id": row.account_id,

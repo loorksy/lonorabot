@@ -30,6 +30,7 @@ MODULES = (
     "chart_snapshot",
     "account",
     "trade",
+    "restrictions",
     "trading_goal",
     "super_bot",
     "runtime_control",

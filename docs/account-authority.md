@@ -69,17 +69,18 @@ Provisional voice input and its descendants cannot spend standing authority;
 exact immutable approve/reject confirmation remains available through the existing
 financial approval path. Read-only voice work is unaffected.
 
-## Limits and accounting still under development
+## Grant limits and accounting
 
-Broker contracts now retain optional sourced tick economics and contract metadata.
-The read-only [market-entry sizing estimate](broker-position-sizing.md) uses exact
-account money units and an explicit stop; it grants no permission. Signed per-trade
-monetary ceilings and daily monetary loss enforcement are **not implemented** by
-this delegation. Such envelope fields remain rejected, not silently interpreted
-as protection. Volume limits, an equity floor and a
-required stop cannot guarantee a maximum loss. The Web and Mobile review both
-state this limitation before signing. No authorization was activated on a
-production account while implementing or testing this capability.
+Broker contracts retain optional sourced tick economics and contract metadata. The
+read-only [market-entry sizing estimate](broker-position-sizing.md) uses exact account
+money units and an explicit stop; it grants no permission. Signed per-trade monetary
+ceilings and daily monetary loss fields are **not part of the signed envelope**: such
+envelope fields remain rejected, not silently interpreted as protection. Monetary
+limits are instead owner policy enforced at the execution boundary for every path (see
+"Monetary risk limits" below). Volume limits, an equity floor and a required stop
+cannot guarantee a maximum loss. The Web and Mobile review both state this limitation
+before signing. No authorization was activated on a production account while
+implementing or testing this capability.
 
 The compact Web/Mobile bot settings reuse existing account/market selectors and
 passkey enrollment/signing. The advanced bounded form requires explicit limits;
@@ -100,24 +101,114 @@ flow with a virtual WebAuthn authenticator and EN/AR layouts. Shared client test
 reject optimistic activation, wrong returned scope/limits, cancelled proof and
 expired signing. Native hardware verification remains separate.
 
-## Remaining monetary foundations
+## Owner restrictions
 
-A future signed monetary limit must identify the exact broker account currency
-and a precise estimated-loss basis. It must reuse the same Decimal tick-loss
-calculation and existing final serialized preflight, with fresh source economics
-immediately before mutation. A read-only sizing result cannot create that limit.
-Pending-entry price changes can increase modeled risk even when the stop remains
-unchanged. Closing, cancelling and protective risk reduction must remain possible
-when an existing position exceeds a new ceiling; manual-position permission and
-owner intervention still win. Estimated stop fills cannot guarantee maximum loss.
+A restriction (`ln_trading_restrictions`, migration 0034) narrows what the single
+execution boundary admits; it never grants anything. It names one owned account,
+optionally one agent (otherwise every agent) and one exact broker symbol (otherwise
+every symbol), an action class, `valid_from`/`valid_until` (open-ended when unset),
+its source (`owner_ui`, `owner_message` with the owner's message id, or `agent`),
+reason, creator and `revoked_at`:
 
-Daily enforcement additionally needs complete account-wide history coverage,
-synchronization/pagination evidence, actual deal costs and cash-flow semantics,
-explicit day boundaries and any opening-equity baseline required by the chosen
-policy. A bounded list of 1,000 recent deals or current floating profit cannot
-prove a daily-loss budget. These remain implementation dependencies, rather than
-missing credentials or an assumed property of the current volume grant.
+- `no_new_entries`: no market or pending entry and no pending-entry edit
+  (`modify_order`). Managing, closing and cancelling continue. This is "keep
+  watching gold, but stop opening new positions today".
+- `no_risk_increase`: only risk-reducing requests (`admission.risk_reducing` against
+  the fresh broker target): closes, cancellations, tighter or added stops.
+- `all_mutations`: no broker mutation in the scope, reduce-only included.
 
+Restrictions govern agent-originated operations: every leased path (signed account
+grant, exact approval, Goal step). Owner-manual operations through `POST
+/trading/execute` are exempt unless the owner sets `applies_to_owner_manual`; agents
+cannot set it. Shadow execution never reaches a broker and is unaffected.
+
+The decisive check runs in the executor's `before_send` callback, under the per-account
+send lock, in the same transaction that moves the reserved journal row to `submitted`.
+It holds a transaction-scoped shared advisory lock that restriction creation takes
+exclusively, so an operation either committed its send authorization before the
+restriction existed (it is then an already submitted operation, reported separately and
+never reversed) or it sees the restriction. Approved or queued work is therefore decided
+when it is sent, not when it was queued. A fail-fast copy of the check runs before the
+reservation. A blocked send is journaled as `failed` with `send_state: not_sent` and
+`details.admission_block.restriction`.
+
+Expiry needs no scheduler: every read compares `valid_from`/`valid_until` with the
+current time. Restrictions are listed as `scheduled`, `active`, `expired` or `revoked`
+with `ended_at`; creation and revocation emit durable `trading.restriction_created` and
+`trading.restriction_revoked` events for "what happened" summaries.
+
+Agents use `trade_restriction_create` (narrowing only, no financial authority needed,
+idempotent on crash replay, records the owner's message when the run answers one) and
+`trade_restriction_list`. The current restrictions that apply to an agent are rendered
+in its per-turn financial permission frame. A market-bound specialist records and sees
+restrictions on its own account and market only; the Personal Agent and flexible agents
+can scope one to any owned account and symbol. No agent tool lifts a restriction. The owner
+lists, creates and lifts them through `GET/POST /trading/restrictions` and `POST
+/trading/restrictions/{id}/revoke` (owner session with CSRF, or bearer token). There is
+no Web or Mobile control for restrictions yet; the API is the owner surface.
+
+## Monetary risk limits
+
+`ExecutionPolicy.risk` (`PUT /trading/accounts/{id}/execution-policy`, owner only)
+holds optional limits in the broker account currency, which the owner names in
+`risk.currency`; a policy whose currency differs from the account blocks new risk
+instead of converting. Unset means not enforced; no money amount is chosen for the
+owner. The agent sees configured and unset limits in its permission frame and through
+`trade_restriction_list`; the owner reads the current book against them with `GET
+/trading/accounts/{id}/risk-status`.
+
+- `max_trade_risk` / `max_trade_risk_equity_percent`: modeled loss at the stop-loss of
+  a new entry, a pending-entry edit or a risk-increasing position edit. A stop-loss is
+  required while a per-trade limit is set. The stricter of amount and percent of
+  current equity applies.
+- `max_open_risk` / `max_open_risk_equity_percent`: modeled loss at the stops across
+  open positions (from the current closing price), pending orders (from their price),
+  `submitted`/`ambiguous` entries and confirmed entries still awaiting state
+  verification whose ticket is not yet visible, plus the request itself. An unresolved
+  stop or pending-order edit counts as the worse of current and requested state.
+  Anything without a stop makes open risk unbounded, which blocks new risk.
+- `max_daily_loss`: broker-reported realized trading P&L (profit, commission and swap
+  of every deal except balance, credit and bonus cash flows) since local midnight in
+  `trading_day_timezone`, plus the current floating profit of open positions. Reaching
+  the limit blocks new risk. A full history page (1,000 deals) or unreadable history
+  blocks rather than counting as zero loss.
+- `min_free_margin`: new entries need at least this current free margin (the new
+  order's own margin is not modeled).
+
+Risk at a stop reuses the sizing arithmetic (`broker-position-sizing.md`): whole ticks
+between reference price and stop rounded up, times the broker's per-lot loss tick value,
+times volume. Limits apply to every admission path, owner-manual included, like the rest
+of `ExecutionPolicy`. They are evaluated in `before_send` under the account send lock
+with fresh broker economics; the evaluation is stored as `details.risk_assessment` on
+admitted and blocked operations. Risk-reducing requests are never blocked by a limit,
+so closing, cancelling and tightening remain possible when a position exceeds a newly
+set ceiling. Estimates exclude gaps, slippage, future commission, swap and new-order
+margin: a stop-loss limit is not a guaranteed maximum loss. Limits are owner policy,
+not part of the signed grant envelope; signed monetary envelope fields remain rejected.
+
+## Verification of restrictions and limits
+
+`tests/test_trading_restrictions.py` covers action classes, scope and owner exemption,
+expiry, permission-frame rendering, per-trade risk from stop distance and tick value,
+open risk with pending and unresolved operations, daily loss and history coverage,
+free margin and currency mismatch. `tests/check_trading_restrictions.py` (disposable
+PostgreSQL, simulation broker, real owner API and approval path) covers the agent tool
+sourcing the owner's message, a restriction created while approved work waits for the
+send lock and enforced at the send boundary, reduce-only under restriction, owner-flagged restrictions and owner-only
+lifting, expiry, every monetary limit, and an operation interrupted after submission
+that stays traceable and is recovered without resend while the restriction blocks new
+orders.
+
+## Remaining monetary limitations
+
+Daily loss is what broker history reports at the decision: a deal the broker has not yet
+synchronized is not counted, so a position closed by its stop moments earlier can
+briefly drop out of both floating and realized P&L. Positions carried over from an
+earlier day count with their full current floating P&L (no opening-equity baseline is
+recorded), which over-counts a loss that began earlier and lets an earlier floating gain
+offset today's losses. Open risk values every symbol with its current quote's loss tick
+value; a stale quote outside market hours is used as reported. Estimated stop fills
+cannot guarantee a maximum loss, and the new order's own margin is not modeled.
 
 ## New acceptance
 

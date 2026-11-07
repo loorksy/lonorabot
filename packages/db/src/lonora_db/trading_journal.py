@@ -14,6 +14,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .schema import TradingJournalRow
 
+# Facts the execution boundary recorded itself: never replaced by a broker receipt.
+# execution_evidence: planned/before-send snapshots; risk_assessment: the monetary limit
+# evaluation that admitted the send; admission_block: the boundary decision that stopped it.
+SERVER_EVIDENCE = ("execution_evidence", "risk_assessment", "admission_block")
+
 
 async def reserve_operation(
     session: AsyncSession,
@@ -99,12 +104,13 @@ async def persist_result(
     quality = row.result.get("details", {}).get("execution_quality")
     if isinstance(quality, dict):
         validated.details = {**validated.details, "execution_quality": quality}
-    evidence = row.result.get("details", {}).get("execution_evidence")
-    if isinstance(evidence, dict):
-        validated.details = {**validated.details, "execution_evidence": evidence}
-    else:
-        # An adapter response cannot invent server-captured historical evidence.
-        validated.details.pop("execution_evidence", None)
+    for key in SERVER_EVIDENCE:
+        evidence = row.result.get("details", {}).get(key)
+        if isinstance(evidence, dict):
+            validated.details = {**validated.details, key: evidence}
+        else:
+            # An adapter response cannot invent server-captured historical evidence.
+            validated.details.pop(key, None)
     if status == "resolved":
         # Settling uncertainty without the outcome keeps what was known before it.
         validated.details = {**validated.details, "prior_receipt": previous}

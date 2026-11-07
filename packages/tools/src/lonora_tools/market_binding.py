@@ -16,6 +16,16 @@ from pydantic import BaseModel
 from .context import ToolContext
 
 MARKET_TOOLS = ("market_", "chart_", "watch_", "trade_", "goal_", "account_")
+# Reading records and narrowing admission need no financial authority: any agent may
+# record an owner's restriction, and none can lift one.
+NONFINANCIAL_TRADE_TOOLS = frozenset(
+    {
+        "trade_record_read",
+        "trade_record_history",
+        "trade_restriction_create",
+        "trade_restriction_list",
+    }
+)
 
 
 def market_tool(name: str) -> bool:
@@ -80,7 +90,7 @@ async def guard_market_tool(
         agent = await agent_binding(session, context.owner_id, context.agent_id)
         if (
             name.startswith("trade_")
-            and name not in {"trade_record_read", "trade_record_history"}
+            and name not in NONFINANCIAL_TRADE_TOOLS
             and agent.execution_mode != "shadow"
         ) or (
             name.startswith("goal_") and name not in {"goal_read", "goal_list", "goal_decisions"}

@@ -46,6 +46,7 @@ MODULE_POLICY = {
     "chart_snapshot": "charts",
     "account": "account",
     "trade": "trading",
+    "restrictions": "trading",
     "trading_goal": "goals",
     "super_bot": "goals",
     "registry": "core",

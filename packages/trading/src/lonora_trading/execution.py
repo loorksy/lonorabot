@@ -6,6 +6,7 @@ from lonora_adapters.brokers.base import BrokerManager
 from lonora_contracts.broker import BrokerConnection
 from lonora_contracts.domain import utcnow
 from lonora_contracts.execution_quality import ExecutionQuality, ExecutionSnapshot
+from lonora_contracts.risk_limits import RiskAssessment
 from lonora_contracts.runs import Lease
 from lonora_contracts.shadow import ExecutionMode
 from lonora_contracts.tasks import TaskState
@@ -26,6 +27,7 @@ from lonora_db.schema import RunRow, TicketRow, TradingJournalRow
 from lonora_db.super_bot import authority_lock
 from lonora_db.trade_approvals import require_approved_target_current
 from lonora_db.trading_journal import persist_result, reserve_operation
+from lonora_db.trading_restrictions import restriction_lock
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -42,6 +44,8 @@ from .manual_activity import material_state
 from .operation_events import operation_event
 from .preflight import preflight
 from .reconciliation import send_lock_key
+from .restrictions import AdmissionBlocked, require_unrestricted
+from .risk_limits import assess_risk, risk_operations
 from .verification import verify_effect
 
 BROKER_OUTCOMES = frozenset({"confirmed", "failed", "ambiguous"})
@@ -230,6 +234,15 @@ class ExecutionService:
                 recovery=connection.state.get("broker_recovery"),
                 send_locked=False,
             )
+            # Fail fast on an owner restriction; the decisive check repeats at the send
+            # boundary, so a restriction created while this request waits still applies.
+            await require_unrestricted(
+                session,
+                owner_id,
+                request,
+                agent_id=leased_run.agent_id if leased_run else None,
+                reducing=planned_reducing,
+            )
             journal, fresh = await reserve_operation(
                 session,
                 owner_id,
@@ -279,9 +292,35 @@ class ExecutionService:
                 },
             ).model_dump(mode="json")
 
+        # Restrictions govern agent-originated operations; None is the owner's manual path.
+        restricted_agent = leased_run.agent_id if leased_run else None
         send_authorized = False
         quality: ExecutionQuality | None = None
         before_snapshot: ExecutionSnapshot | None = None
+
+        async def record_block(
+            evidence: dict[str, Any], *, before_send: dict[str, Any] | None = None
+        ) -> None:
+            # A blocked decision is a historical fact: persist why before returning.
+            async with self.db.sessions() as session, session.begin():
+                if lease:
+                    await require_lease(session, lease, lock=True)
+                row = await session.get(
+                    TradingJournalRow, request.operation_id, with_for_update=True
+                )
+                if row is not None and row.status == "reserved":
+                    details = row.result.get("details", {})
+                    row.result = {
+                        **row.result,
+                        "details": {
+                            **details,
+                            **evidence,
+                            "execution_evidence": {
+                                **details.get("execution_evidence", {}),
+                                **({"before_send": before_send} if before_send else {}),
+                            },
+                        },
+                    }
 
         async def before_send() -> None:
             nonlocal send_authorized, quality, before_snapshot
@@ -300,27 +339,11 @@ class ExecutionService:
                 snapshot, request, mode="live", phase="before_send", goal=goal, policy=policy
             )
             if quality.state != "executable":
-                # A blocked decision is also a historical fact. Persist the actual
-                # failed gate before returning; no broker mutation is authorized.
-                async with self.db.sessions() as session, session.begin():
-                    if lease:
-                        await require_lease(session, lease, lock=True)
-                    row = await session.get(
-                        TradingJournalRow, request.operation_id, with_for_update=True
-                    )
-                    if row is not None and row.status == "reserved":
-                        details = row.result.get("details", {})
-                        row.result = {
-                            **row.result,
-                            "details": {
-                                **details,
-                                "execution_quality": quality.model_dump(mode="json"),
-                                "execution_evidence": {
-                                    **details.get("execution_evidence", {}),
-                                    "before_send": observed,
-                                },
-                            },
-                        }
+                # Persist the actual failed gate; no broker mutation is authorized.
+                await record_block(
+                    {"execution_quality": quality.model_dump(mode="json")},
+                    before_send=observed,
+                )
                 raise LonoraError(quality.reasons[0], 409)
             goal_evidence = (
                 await fresh_goal_evidence(
@@ -335,6 +358,50 @@ class ExecutionService:
                 else None
             )
             require_trading(await read_controls(self.db), risk_reducing=reducing)
+            # Owner monetary limits, from fresh broker economics under this account's send
+            # lock. Risk-reducing requests are never blocked by a limit.
+            risk = None
+            if not reducing and policy.risk.configured:
+                async with self.db.sessions() as session:
+                    operations = await risk_operations(
+                        session, owner_id, request.account_id, exclude=request.operation_id
+                    )
+                risk = await assess_risk(
+                    broker,
+                    request,
+                    snapshot,
+                    policy.risk,
+                    reducing=reducing,
+                    operations=operations,
+                )
+                if risk.state == "blocked":
+                    await record_block(
+                        {
+                            "risk_assessment": risk.model_dump(mode="json"),
+                            "admission_block": {
+                                "code": risk.reasons[0],
+                                "reasons": risk.reasons,
+                            },
+                        },
+                        before_send=observed,
+                    )
+                    raise LonoraError(risk.reasons[0], 409)
+            try:
+                await final_admission(snapshot, reducing, observed, goal_evidence, risk, quality)
+            except AdmissionBlocked as blocked:
+                await record_block({"admission_block": blocked.evidence}, before_send=observed)
+                raise
+            send_authorized = True
+
+        async def final_admission(
+            snapshot: ExecutionSnapshot,
+            reducing: bool,
+            observed: dict[str, Any],
+            goal_evidence: dict[str, Any] | None,
+            risk: RiskAssessment | None,
+            quality: ExecutionQuality,
+        ) -> None:
+            """The decisive checks and the reserved -> submitted transition, in one commit."""
             async with self.db.sessions() as session, session.begin():
                 if lease:
                     # Match owner downgrade/signature lock ordering: authority
@@ -399,6 +466,13 @@ class ExecutionService:
                             snapshot,
                             expected_target,
                         )
+                # Owner restrictions: held shared against concurrent creation, so this
+                # operation either commits its send authorization before a restriction
+                # exists or sees it here. Queued work is decided now, not when queued.
+                await restriction_lock(session, owner_id, request.account_id, shared=True)
+                await require_unrestricted(
+                    session, owner_id, request, agent_id=restricted_agent, reducing=reducing
+                )
                 from .opportunities import require_entry_thesis
 
                 await require_entry_thesis(session, owner_id, request)
@@ -433,10 +507,10 @@ class ExecutionService:
                             **row.result.get("details", {}).get("execution_evidence", {}),
                             "before_send": observed,
                         },
+                        **({"risk_assessment": risk.model_dump(mode="json")} if risk else {}),
                     },
                 }
                 await operation_event(session, row)
-            send_authorized = True
 
         def outcome_of(error: BaseException) -> TradeResult:
             # The adapter's before_send callback is the mutation boundary: it persists send
