@@ -90,8 +90,9 @@ def descriptor(window: int | None, model: str = "fixture-model") -> ModelDescrip
     ("window", "output", "safety", "admitted"),
     [
         (6000, 1500, 1024, 3476),
-        (200_000, 4096, 4000, 191_904),
-        (1_000_000, 4096, 20_000, 975_904),
+        # No documented maximum for the fixture model: the unknown-model output cap.
+        (200_000, 8192, 4000, 187_808),
+        (1_000_000, 8192, 20_000, 971_808),
     ],
 )
 def test_budget_is_window_minus_output_reservation_and_safety(
@@ -159,7 +160,7 @@ async def test_router_reports_limits_of_its_primary_model(router_db: Database) -
         Capability.CONVERSATION
     )
     assert derived.window == 400_000
-    assert derived.input_tokens == 400_000 - 4096 - 8000
+    assert derived.input_tokens == 400_000 - 8192 - 8000
 
 
 # --- 2. Trust separation: one escaping helper, shedding by priority -----------------
@@ -497,7 +498,7 @@ class SummaryRouter:
         self.fail = fail
         self.calls: list[list[ModelMessage]] = []
 
-    async def context_limits(self, capability: Capability) -> ContextLimits:
+    async def context_limits(self, capability: Capability, **_: Any) -> ContextLimits:
         return self.summarizer if capability == Capability.BACKGROUND else self.budget
 
     async def complete(
@@ -1064,7 +1065,7 @@ def test_legacy_maximum_input_tokens_keeps_capping_every_model() -> None:
         {"maximum_input_tokens": 20_000, "input_ceiling_tokens": None}
     )
     assert opted_out.input_ceiling_tokens is None
-    assert context_limits(descriptor(200_000), opted_out).input_tokens == 191_904
+    assert context_limits(descriptor(200_000), opted_out).input_tokens == 187_808
     assert context_limits(None, opted_out).input_tokens == 20_000
 
 

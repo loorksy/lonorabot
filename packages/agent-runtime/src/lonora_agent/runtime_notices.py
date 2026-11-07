@@ -152,6 +152,12 @@ _ATTENTION_CAUSE = {
         "progress; nothing further was executed after that point.",
         "توقفت هذه المهمة قبل اكتمالها لأن استدعاء أداة تكرر دون تقدّم، ولم يُنفَّذ أي إجراء بعد ذلك.",
     ),
+    "model_unavailable": (
+        "This task is on hold because every configured model has been unavailable for a while, "
+        "despite repeated retries; its progress is saved and nothing was repeated.",
+        "هذه المهمة معلّقة لأن كل النماذج المهيأة غير متاحة منذ مدة رغم المحاولات المتكررة؛ "
+        "تقدّمها محفوظ ولم يُكرَّر أي إجراء.",
+    ),
 }
 
 

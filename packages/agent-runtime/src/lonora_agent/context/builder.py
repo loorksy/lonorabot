@@ -261,6 +261,7 @@ async def build_context(
         limits = await resolve_limits(
             context,
             Capability.BACKGROUND if run.trigger in WORK_TRIGGERS else Capability.CONVERSATION,
+            for_agent=True,
         )
         prepared = govern_context(messages, limits.transport_chars)
         stages["governance"] = round((perf_counter() - begin) * 1000, 2)

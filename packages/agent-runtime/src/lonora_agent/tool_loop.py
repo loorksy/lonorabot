@@ -67,6 +67,16 @@ from .environment import (
     retry_pending,
     schedule_retry,
 )
+from .model_recovery import (
+    ATTENTION_REASON,
+    CONVERSATION,
+    RETRY_REASON,
+    WORK,
+    input_scale,
+    plan_failure,
+    record_success,
+    reset_streak,
+)
 from .model_runtime import model_turn
 from .progress import progress
 from .recovery import restore_execution
@@ -161,7 +171,9 @@ async def compact_for_turn(
         await persist(context, state, messages, pending)
 
     try:
-        limits = await resolve_limits(context, capability)
+        limits = await resolve_limits(
+            context, capability, for_agent=True, input_scale=input_scale(state)
+        )
         await compact_context(
             context,
             state,
@@ -584,6 +596,7 @@ async def execute_tool_loop(
         # input, so it starts a new review epoch, and at a limit a new budget.
         reset_stop_gate(state)
         reset_guardrails(state)
+        reset_streak(state)
         if state.get("limit_exit") or int(state.get("rounds", 0)) >= slice_limit(
             state, maximum_rounds
         ):
@@ -932,17 +945,53 @@ async def execute_tool_loop(
             inventory_text=inventory_text,
             policy_tools=policy_tools,
         )
-        reply, selection = await model_turn(
-            context,
-            messages,
-            native,
-            turn_capability,
-            capability_inventory=inventory_text,
-            # Bridge calls become the real calls before any boundary sees them.
-            resolve_calls=registry.resolve_calls,
-            policy_tools=policy_tools,
-            context_view=view,
-        )
+        try:
+            reply, selection = await model_turn(
+                context,
+                messages,
+                native,
+                turn_capability,
+                capability_inventory=inventory_text,
+                # Bridge calls become the real calls before any boundary sees them.
+                resolve_calls=registry.resolve_calls,
+                policy_tools=policy_tools,
+                context_view=view,
+                input_scale=input_scale(state),
+            )
+        except LonoraError as error:
+            if error.code in FENCE_CODES:
+                raise
+            # Every candidate failed. Nothing ran for this turn and nothing is
+            # repeated: retry the same checkpoint later or tell the owner.
+            profile = WORK if task_run or run.trigger in WORK_TRIGGERS else CONVERSATION
+            decision = plan_failure(state, error, profile)
+            if decision.kind == "compact":
+                log.warning("model_context_overflow input_scale=%s", input_scale(state))
+                await persist(context, state, messages, pending)
+                continue
+            if decision.kind == "retry" and decision.not_before is not None:
+                environment_state(state)["retry"] = {
+                    "not_before": decision.not_before.isoformat(),
+                    "reason_code": RETRY_REASON,
+                    "code": error.code,
+                    "attempt": decision.failures,
+                }
+                await persist(context, state, messages, pending)
+                log.warning(
+                    "model_turn_retry_scheduled code=%s attempt=%s",
+                    error.code,
+                    decision.failures,
+                )
+                raise ToolRetryScheduled() from None
+            if decision.kind == "escalate":
+                await persist(context, state, messages, pending)
+                if task_run:
+                    # The Task waits for its owner, resumable from this checkpoint.
+                    return await request_owner_attention(
+                        context, state, messages, ATTENTION_REASON, ""
+                    )
+            raise
+        record_success(state)
         if reply.rich_content is None:
             state.pop("rich_content", None)
         else:

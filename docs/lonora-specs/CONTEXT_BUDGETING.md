@@ -26,7 +26,7 @@ Default policy:
 ```json
 {
   "maximum_input_tokens": 64000,
-  "output_tokens": 4096,
+  "output_tokens": 16384,
   "safety_tokens": 1024,
   "image_tokens": 8192,
   "input_ceiling_tokens": null,
@@ -34,7 +34,7 @@ Default policy:
 }
 ```
 
-These are admission-policy values, not claims about a model's capacity. The admitted input is derived from the resolved model's context window: window minus the output reservation minus a safety margin (`safety_tokens` or 2% of the window, whichever is larger). The catalog window wins; for providers whose model listing has none, a conservative family table (`lonora_providers/model_windows.py`, matched only at an id boundary such as `-`, `:` or `@`) applies. Only when neither knows the model does `maximum_input_tokens` apply, and diagnostics report unknown capacity. `input_ceiling_tokens` optionally caps admitted input for every model; `compaction_ratio` sets when in-run compaction starts. Compatibility: a stored setting or request without an `input_ceiling_tokens` key (written before it existed) whose `maximum_input_tokens` differs from the 64000 default keeps that value as the ceiling for every model, because that is what it meant before window-derived budgets. Send `"input_ceiling_tokens": null` explicitly to remove the cap. Catalog-provided maximum output lowers the output request. Characters are only a transport safety net sized from the admitted tokens (6 per token, at least 120000); the former fixed 120000-character cap no longer limits large-window models. See `docs/context-engine.md` for compaction, trust separation and omission notices.
+These are admission-policy values, not claims about a model's capacity. The admitted input is derived from the resolved model's context window: window minus the output reservation minus a safety margin (`safety_tokens` or 2% of the window, whichever is larger). The catalog window wins; for providers whose model listing has none, a conservative family table (`lonora_providers/model_windows.py`, matched only at an id boundary such as `-`, `:` or `@`) applies. Only when neither knows the model does `maximum_input_tokens` apply, and diagnostics report unknown capacity. `input_ceiling_tokens` optionally caps admitted input for every model; `compaction_ratio` sets when in-run compaction starts. Compatibility: a stored setting or request without an `input_ceiling_tokens` key (written before it existed) whose `maximum_input_tokens` differs from the 64000 default keeps that value as the ceiling for every model, because that is what it meant before window-derived budgets. Send `"input_ceiling_tokens": null` explicitly to remove the cap. The output request is `output_tokens` bounded by the model's documented maximum (catalog first, then the family output table in `model_windows.py`, 8192 when unknown) and a quarter of the window; a provider that rejects the budget states its limit, which the router uses for one retry and remembers (`docs/provider-resilience.md`). Characters are only a transport safety net sized from the admitted tokens (6 per token, at least 120000); the former fixed 120000-character cap no longer limits large-window models. See `docs/context-engine.md` for compaction, trust separation and omission notices.
 
 ## Behavior and limitations
 

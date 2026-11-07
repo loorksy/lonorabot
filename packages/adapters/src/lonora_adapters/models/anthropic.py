@@ -6,9 +6,14 @@ import httpx
 from lonora_adapter_kit.types import ModelMessage, ModelReply, ToolCall, ToolDefinition
 from lonora_contracts.model_catalog import ModelDescriptor
 from lonora_contracts.usage import TokenUsage
-from lonora_core.user_error import LonoraError
 
-from .base import BaseModelAdapter
+from .base import (
+    BaseModelAdapter,
+    interrupted_stream,
+    invalid_response,
+    stopped_reply,
+    stream_error,
+)
 
 
 def anthropic_messages(messages: list[ModelMessage]) -> tuple[str, list[dict[str, Any]]]:
@@ -120,6 +125,11 @@ class AnthropicAdapter(BaseModelAdapter):
         try:
             blocks = value["content"]
             text = "\n".join(block["text"] for block in blocks if block.get("type") == "text")
+            stop = stopped_reply(
+                value.get("stop_reason"),
+                text,
+                any(block.get("type") == "tool_use" for block in blocks),
+            )
             calls = [
                 ToolCall(id=block["id"], name=block["name"], arguments=block["input"])
                 for block in blocks
@@ -136,13 +146,10 @@ class AnthropicAdapter(BaseModelAdapter):
                     output_tokens=usage.get("output_tokens", 0),
                     cached_tokens=usage.get("cache_read_input_tokens", 0),
                 ),
-                provider_metadata={
-                    "response_id": value.get("id"),
-                    "stop_reason": value.get("stop_reason"),
-                },
+                provider_metadata={"response_id": value.get("id"), **stop},
             )
         except (KeyError, TypeError, ValueError):
-            raise LonoraError("model_response_invalid", 502) from None
+            raise invalid_response() from None
 
     async def discover(self) -> list[ModelDescriptor]:
         descriptors: list[ModelDescriptor] = []
@@ -150,11 +157,18 @@ class AnthropicAdapter(BaseModelAdapter):
         for _ in range(10):
             value = await self.request("GET", "/models", headers=self.headers(), params=params)
             for item in value.get("data", []):
+                window = item.get("max_input_tokens")
+                output = item.get("max_tokens")
                 descriptors.append(
                     ModelDescriptor(
                         id=item["id"],
                         provider="anthropic",
                         name=item.get("display_name", item["id"]),
+                        # The Models API reports the window and output cap.
+                        context_window=window if isinstance(window, int) and window > 0 else None,
+                        maximum_output_tokens=output
+                        if isinstance(output, int) and output > 0
+                        else None,
                         source=self.base_url + "/models",
                     )
                 )
@@ -170,6 +184,7 @@ class AnthropicAdapter(BaseModelAdapter):
         blocks: dict[int, dict[str, Any]] = {}
         usage: dict[str, Any] = {}
         response_id: str | None = None
+        stop_reason: Any = None
         ended = False
         try:
             async for value in self.stream_request(
@@ -177,7 +192,7 @@ class AnthropicAdapter(BaseModelAdapter):
             ):
                 kind = value.get("type")
                 if kind == "error":
-                    raise LonoraError("model_request_rejected", 502)
+                    raise stream_error(value)
                 if kind == "message_start":
                     usage.update(value["message"].get("usage", {}))
                     response_id = value["message"].get("id")
@@ -202,8 +217,18 @@ class AnthropicAdapter(BaseModelAdapter):
                             raise ValueError()
                 elif kind == "message_delta":
                     usage.update(value.get("usage", {}))
+                    delta_stop = value.get("delta", {}).get("stop_reason")
+                    if delta_stop:
+                        stop_reason = delta_stop
                 elif kind == "message_stop":
                     ended = True
+            if not ended:
+                raise interrupted_stream()
+            stop = stopped_reply(
+                stop_reason,
+                text,
+                any(block.get("type") == "tool_use" for block in blocks.values()),
+            )
             calls = [
                 ToolCall(
                     id=block["id"],
@@ -215,7 +240,7 @@ class AnthropicAdapter(BaseModelAdapter):
                 for block in blocks.values()
                 if block.get("type") == "tool_use"
             ]
-            if not ended or (not text and not calls):
+            if not text and not calls:
                 raise ValueError()
             return ModelReply(
                 text=text,
@@ -225,7 +250,7 @@ class AnthropicAdapter(BaseModelAdapter):
                     output_tokens=usage.get("output_tokens", 0),
                     cached_tokens=usage.get("cache_read_input_tokens", 0),
                 ),
-                provider_metadata={"response_id": response_id},
+                provider_metadata={"response_id": response_id, **stop},
             )
         except (KeyError, TypeError, ValueError):
-            raise LonoraError("model_response_invalid", 502) from None
+            raise invalid_response() from None

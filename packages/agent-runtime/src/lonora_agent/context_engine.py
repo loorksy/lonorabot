@@ -140,11 +140,32 @@ def default_limits() -> ContextLimits:
     return context_limits(None, ModelContextPolicy())
 
 
-async def resolve_limits(context: ToolContext, capability: Capability) -> ContextLimits:
+async def resolve_limits(
+    context: ToolContext,
+    capability: Capability,
+    *,
+    for_agent: bool = False,
+    input_scale: float = 1.0,
+) -> ContextLimits:
+    """Limits of the model the request will try first.
+
+    ``for_agent`` plans against the Agent's own model preference (its turns);
+    the summarizer leaves it off and uses the global background route.
+    """
     resolver: Any = getattr(context.router, "context_limits", None)
     if resolver is None:
         return default_limits()
     try:
+        if for_agent:
+            return cast(
+                ContextLimits,
+                await resolver(
+                    capability,
+                    owner_id=context.owner_id,
+                    agent_id=context.agent_id,
+                    input_scale=input_scale,
+                ),
+            )
         return cast(ContextLimits, await resolver(capability))
     except LonoraError as error:
         # Routing errors surface from the actual request; planning just uses defaults.

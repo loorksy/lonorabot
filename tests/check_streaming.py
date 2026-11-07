@@ -178,6 +178,7 @@ class ScriptedRouter:
         *,
         on_delta: Callable[[str], Awaitable[None]] | None = None,
         on_attempt: Callable[[ModelSelection], Awaitable[None]] | None = None,
+        **_: Any,
     ) -> tuple[ModelReply, ModelSelection]:
         selection = ModelSelection(provider="openai", model="scripted-streaming-fixture")
         if on_attempt:

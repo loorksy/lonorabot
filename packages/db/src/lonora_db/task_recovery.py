@@ -15,12 +15,11 @@ from .events import emit
 from .schema import RunRow, ThreadRow, TicketRow, TradingJournalRow
 from .tasks import get_task, save_task, task_state
 
-TRANSIENT_CODES = TRANSIENT_READ_CODES | frozenset(
-    {
-        "model_provider_unavailable",
-        "model_endpoint_unavailable",
-        "model_rate_limited",
-    }
+# A failed model request has no external effect: once every executed call has
+# its result, retrying the same checkpoint repeats nothing.
+MODEL_TRANSIENT_CODES = frozenset({"model_provider_unavailable", "model_rate_limited"})
+TRANSIENT_CODES = (
+    TRANSIENT_READ_CODES | MODEL_TRANSIENT_CODES | frozenset({"model_endpoint_unavailable"})
 )
 PLAN_CODES = frozenset(
     {
@@ -37,6 +36,9 @@ OWNER_CODES = frozenset(
         "skill_continuation_unavailable",
         "model_not_configured",
         "model_credentials_rejected",
+        "model_billing_exhausted",
+        "model_content_blocked",
+        "model_output_truncated",
         "model_response_invalid",
         "broker_unconfigured",
     }
@@ -123,6 +125,11 @@ async def record_failure(session: AsyncSession, run: RunRow, read_only_names: se
             and remaining
             and all(step.side_effect == "read_only" for step in remaining)
             and all(call.get("name") in read_only_names | CHECKPOINT_TOOLS for call in calls)
+        ) or (
+            # A provider outage must not end continuous monitoring: no call is
+            # unresolved (checked above), so the retry resumes after them.
+            code in MODEL_TRANSIENT_CODES
+            and (state.completion_mode == "continuous" or state.retry_policy.mode == "automatic")
         ):
             recovery = "automatic"
     failure = TaskFailure(

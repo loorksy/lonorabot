@@ -7,13 +7,19 @@ from pydantic import Field, model_validator
 from .domain import Contract
 
 DEFAULT_MAXIMUM_INPUT_TOKENS = 64000
+DEFAULT_OUTPUT_TOKENS = 16384
+# Output requested from a model whose maximum neither its catalog nor the family
+# table reports; a provider that rejects it states its limit and is retried.
+UNKNOWN_OUTPUT_TOKENS = 8192
 
 
 class ModelContextPolicy(Contract):
     # Admitted input only when the selected model's context window is unknown.
     # A known window derives the budget: window - output reservation - safety.
     maximum_input_tokens: int = Field(default=DEFAULT_MAXIMUM_INPUT_TOKENS, ge=512, le=2_000_000)
-    output_tokens: int = Field(default=4096, ge=128, le=128000)
+    # Requested output budget, bounded per model by its documented maximum and a
+    # quarter of its window; an unknown model gets at most UNKNOWN_OUTPUT_TOKENS.
+    output_tokens: int = Field(default=DEFAULT_OUTPUT_TOKENS, ge=128, le=128000)
     # Minimum headroom; large windows reserve at least 2% of the window instead.
     safety_tokens: int = Field(default=1024, ge=128, le=32000)
     image_tokens: int = Field(default=8192, ge=256, le=262144)

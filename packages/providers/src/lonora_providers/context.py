@@ -9,10 +9,14 @@ from lonora_adapter_kit.context import govern_context, token_estimate, transport
 from lonora_adapter_kit.tokenization import text_counter
 from lonora_adapter_kit.types import ModelMessage, ToolDefinition
 from lonora_contracts.model_catalog import ModelDescriptor
-from lonora_contracts.model_context import ModelContextPolicy
+from lonora_contracts.model_context import UNKNOWN_OUTPUT_TOKENS, ModelContextPolicy
 from lonora_core.user_error import LonoraError
 
-from .model_windows import FAMILY_SOURCE, family_window
+from .model_windows import FAMILY_SOURCE, family_output, family_window
+
+# Admission never shrinks below this share of the derived input budget, however
+# often a provider rejects a request as too long.
+MINIMUM_INPUT_SCALE = 0.3
 
 log = logging.getLogger(__name__)
 
@@ -33,18 +37,30 @@ class ContextLimits:
     count: Callable[[str], int]
 
 
+def output_ceiling(descriptor: ModelDescriptor | None, model: str = "") -> int | None:
+    """The model's documented maximum output: catalog first, then family table."""
+    if descriptor and descriptor.maximum_output_tokens:
+        return descriptor.maximum_output_tokens
+    return family_output(model or (descriptor.id if descriptor else ""))
+
+
 def context_limits(
     descriptor: ModelDescriptor | None,
     policy: ModelContextPolicy,
     *,
     provider: str = "openai",
     model: str = "",
+    input_scale: float = 1.0,
 ) -> ContextLimits:
     """Window minus output reservation and safety margin; unknown stays explicit.
 
     The catalog window wins; a conservative family table fills the gap for
     providers whose model listing has none; otherwise the policy's
-    ``maximum_input_tokens`` applies and capacity is reported as unknown.
+    ``maximum_input_tokens`` applies and capacity is reported as unknown. The
+    output reservation is the policy's budget bounded by the model's documented
+    maximum (``UNKNOWN_OUTPUT_TOKENS`` when none is known) and a quarter of the
+    window. ``input_scale`` below 1 tightens admission after a provider proved
+    an estimate too optimistic by rejecting a request as too long.
     """
     estimator, count = text_counter(provider, model)
     window = descriptor.context_window if descriptor else None
@@ -53,12 +69,14 @@ def context_limits(
         window = family_window(model or (descriptor.id if descriptor else ""))
         source = FAMILY_SOURCE if window else "unknown"
     output = min(policy.output_tokens, max(1, window // 4)) if window else policy.output_tokens
-    if descriptor and descriptor.maximum_output_tokens:
-        output = min(output, descriptor.maximum_output_tokens)
+    output = min(output, output_ceiling(descriptor, model) or UNKNOWN_OUTPUT_TOKENS)
     safety = max(policy.safety_tokens, window // 50) if window else policy.safety_tokens
     input_tokens = window - output - safety if window else policy.maximum_input_tokens
     if policy.input_ceiling_tokens is not None:
         input_tokens = min(input_tokens, policy.input_ceiling_tokens)
+    scale = min(1.0, max(MINIMUM_INPUT_SCALE, input_scale))
+    if scale < 1.0:
+        input_tokens = int(input_tokens * scale)
     return ContextLimits(
         window=window,
         capacity_source=source,
@@ -88,8 +106,11 @@ def prepare_context(
     *,
     provider: str = "openai",
     model: str = "",
+    input_scale: float = 1.0,
 ) -> PreparedContext:
-    limits = context_limits(descriptor, policy, provider=provider, model=model)
+    limits = context_limits(
+        descriptor, policy, provider=provider, model=model, input_scale=input_scale
+    )
     count = limits.count
     # Tool framing differs by provider; this bound includes both schema bytes and framing.
     schema_chars = sum(len(tool.model_dump_json()) for tool in tools)
@@ -133,6 +154,7 @@ def prepare_context(
             "image_allowance": policy.image_tokens,
             "reserved_output_tokens": limits.output_tokens,
             "safety_tokens": limits.safety_tokens,
+            "input_scale": min(1.0, max(MINIMUM_INPUT_SCALE, input_scale)),
             "original_messages": len(messages),
             "retained_messages": len(prepared),
             "omission_notices": sum(

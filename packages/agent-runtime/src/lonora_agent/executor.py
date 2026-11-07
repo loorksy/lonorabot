@@ -25,6 +25,7 @@ from sqlalchemy import select
 
 from .collaboration.outcome_return import return_outcome
 from .environment import ToolRetryScheduled
+from .model_recovery import RETRY_REASON
 from .tasks import TaskSuspended
 from .tool_loop import execute_tool_loop
 
@@ -204,6 +205,21 @@ async def execute_run(
             row.status = "queued"
             row.lease_expires_at = None
             row.updated_at = utcnow()
+            retry = row.execution_state["environment"]["retry"]
+            if retry.get("reason_code") == RETRY_REASON:
+                # The failed model turn left no reply: withdraw its preview so
+                # clients do not show a partial answer during the backoff.
+                snapshot = settle_stream(row, "discarded", text="")
+                if snapshot:
+                    emit(
+                        session,
+                        context.owner_id,
+                        "run.reply_committed",
+                        thread_id=context.thread_id,
+                        agent_id=context.agent_id,
+                        run_id=row.id,
+                        payload=stream_identity(snapshot),
+                    )
             emit(
                 session,
                 context.owner_id,
@@ -212,10 +228,9 @@ async def execute_run(
                 agent_id=context.agent_id,
                 run_id=row.id,
                 payload={
-                    "reason_code": row.execution_state["environment"]["retry"].get(
-                        "reason_code", "tool_read_recovery"
-                    ),
-                    "retry_at": row.execution_state["environment"]["retry"]["not_before"],
+                    "reason_code": retry.get("reason_code", "tool_read_recovery"),
+                    "retry_at": retry["not_before"],
+                    **({"code": retry["code"]} if isinstance(retry.get("code"), str) else {}),
                 },
             )
     except TaskSuspended:

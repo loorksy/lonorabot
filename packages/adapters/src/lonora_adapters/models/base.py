@@ -3,7 +3,56 @@ from collections.abc import AsyncIterator
 from typing import Any, cast
 
 import httpx
-from lonora_core.user_error import LonoraError
+from lonora_adapter_kit.model_errors import (
+    REFUSAL_STOPS,
+    TRUNCATION_STOPS,
+    FailureReason,
+    ModelProviderError,
+    classify_failure,
+    response_failure,
+)
+
+# Error bodies are small; never buffer an unbounded one to classify it.
+ERROR_BODY_LIMIT = 65536
+
+
+def transport_failure(error: httpx.HTTPError) -> ModelProviderError:
+    reason = (
+        FailureReason.TIMEOUT
+        if isinstance(error, httpx.TimeoutException)
+        else FailureReason.CONNECTION
+    )
+    return ModelProviderError(reason, provider_type=type(error).__name__)
+
+
+def invalid_response() -> ModelProviderError:
+    return ModelProviderError(FailureReason.INVALID_RESPONSE)
+
+
+def interrupted_stream() -> ModelProviderError:
+    """The stream closed before the provider's end-of-message marker."""
+    return ModelProviderError(FailureReason.CONNECTION, provider_type="stream_incomplete")
+
+
+def stream_error(value: dict[str, Any]) -> ModelProviderError:
+    """An error event inside an otherwise successful stream."""
+    return classify_failure(None, value)
+
+
+def stopped_reply(stop_reason: Any, text: str, has_calls: bool) -> dict[str, Any]:
+    """Apply the provider's stop reason before any tool input is trusted.
+
+    A refusal withholds the answer. A reply cut off at the output budget never
+    yields tool calls, whose input may be incomplete; the router retries with
+    a larger budget instead. A cut-off text answer is kept and flagged.
+    """
+    if stop_reason in REFUSAL_STOPS:
+        raise ModelProviderError(FailureReason.CONTENT_POLICY, provider_type=str(stop_reason))
+    if stop_reason in TRUNCATION_STOPS:
+        if has_calls or not text:
+            raise ModelProviderError(FailureReason.TRUNCATED, provider_type=str(stop_reason))
+        return {"stop_reason": stop_reason, "output_truncated": True}
+    return {"stop_reason": stop_reason}
 
 
 class BaseModelAdapter:
@@ -21,23 +70,19 @@ class BaseModelAdapter:
             response = await self.client.request(
                 method, self.base_url + path, headers=headers, **kwargs
             )
-        except httpx.HTTPError:
-            raise LonoraError("model_provider_unavailable", 502) from None
-        if response.status_code in {401, 403}:
-            raise LonoraError("model_credentials_rejected", 502)
-        if response.status_code == 429:
-            raise LonoraError("model_rate_limited", 429)
-        if response.status_code == 404:
-            raise LonoraError("model_endpoint_unavailable", 502)
-        if response.is_error:
-            raise LonoraError("model_request_rejected", 502)
+        except httpx.HTTPError as error:
+            raise transport_failure(error) from None
+        if not 200 <= response.status_code < 300:
+            raise response_failure(
+                response.status_code, response.content[:ERROR_BODY_LIMIT], response.headers
+            )
         try:
             value = response.json()
             if not isinstance(value, dict):
                 raise ValueError()
             return cast(dict[str, Any], value)
         except ValueError:
-            raise LonoraError("model_response_invalid", 502) from None
+            raise invalid_response() from None
 
     async def close(self) -> None:
         if self.owns_client:
@@ -51,15 +96,18 @@ class BaseModelAdapter:
             async with self.client.stream(
                 "POST", self.base_url + path, headers=request_headers, json=payload
             ) as response:
-                if response.status_code in {401, 403}:
-                    raise LonoraError("model_credentials_rejected", 502)
-                if response.status_code == 429:
-                    raise LonoraError("model_rate_limited", 429)
-                if response.is_error:
-                    raise LonoraError("model_request_rejected", 502)
+                if not 200 <= response.status_code < 300:
+                    body = b""
+                    async for chunk in response.aiter_bytes():
+                        body += chunk
+                        if len(body) >= ERROR_BODY_LIMIT:
+                            break
+                    raise response_failure(
+                        response.status_code, body[:ERROR_BODY_LIMIT], response.headers
+                    )
                 async for line in response.aiter_lines():
                     if len(line) > 1_000_000:
-                        raise LonoraError("model_response_invalid", 502)
+                        raise invalid_response()
                     if not line.startswith("data:"):
                         continue
                     data = line[5:].strip()
@@ -67,9 +115,9 @@ class BaseModelAdapter:
                         break
                     value: Any = json.loads(data)
                     if not isinstance(value, dict):
-                        raise LonoraError("model_response_invalid", 502)
+                        raise invalid_response()
                     yield cast(dict[str, Any], value)
-        except httpx.HTTPError:
-            raise LonoraError("model_provider_unavailable", 502) from None
+        except httpx.HTTPError as error:
+            raise transport_failure(error) from None
         except (ValueError, TypeError):
-            raise LonoraError("model_response_invalid", 502) from None
+            raise invalid_response() from None

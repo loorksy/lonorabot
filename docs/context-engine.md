@@ -18,9 +18,14 @@ resolved model:
   the policy's `maximum_input_tokens` (default 64,000) applies. A wrong table
   entry still mis-sizes requests, so the table must follow provider docs.
 - **Admitted input** = window − output reservation − safety margin. The output
-  reservation is `output_tokens` (default 4,096), at most a quarter of the window
-  and at most the catalog's maximum output. The margin is `safety_tokens`
-  (default 1,024) or 2% of the window, whichever is larger.
+  reservation is `output_tokens` (default 16,384), at most a quarter of the
+  window and at most the model's documented maximum output (the catalog's, else
+  the family output table; 8,192 when neither knows the model). The margin is
+  `safety_tokens` (default 1,024) or 2% of the window, whichever is larger.
+- **Provider-proven overflow.** When a provider still rejects a request as too
+  long, the Run's admission scale (`state["model_recovery"]["input_scale"]`)
+  shrinks the admitted input by 0.7 per rejection (floor 0.3), and the turn is
+  compacted and retried; see `docs/provider-resilience.md`.
 - **Owner caps.** `input_ceiling_tokens` optionally caps admitted input for every
   model (cost or latency control). A setting written before that field existed
   (no `input_ceiling_tokens` key) with a non-default `maximum_input_tokens` keeps
@@ -31,7 +36,7 @@ resolved model:
   a 120,000-character request.
 
 `GlobalModelRouter.context_limits(capability)` reports the limits of the model
-the router tries first. Every attempt, fallbacks included, is still admitted
+the router tries first (the Agent's own preferred model when it has one). Every attempt, fallbacks included, is still admitted
 separately against its own window, so a smaller fallback model gets a request
 rebuilt for its size. Diagnostics on each usage row record the estimator, the
 capacity source, the admitted limit, the transport limit and how many omission
@@ -219,8 +224,9 @@ also keeps unresolved operations and promises to the owner.
   An older release rejects them as `run_checkpoint_invalid` (fails closed; it
   never replays an effect). Older checkpoints load unchanged; a refresh after
   steering moves their skill bodies out of the system message.
-- Estimates remain estimates. Provider context-overflow errors are not yet
-  mapped to compress-and-retry.
+- Estimates remain estimates. A provider context-overflow error tightens the
+  Run's admission and compacts before one bounded retry
+  (`docs/provider-resilience.md`).
 - The family window table must be kept current as providers change models.
 - The checkpoint itself still grows with the full transcript; only requests are
   bounded.

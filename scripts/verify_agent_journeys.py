@@ -336,10 +336,11 @@ class AcceptanceRouter:
         *,
         on_delta: Callable[[str], Awaitable[None]] | None = None,
         on_attempt: Callable[[ModelSelection], Awaitable[None]] | None = None,
+        **routing: Any,
     ) -> tuple[ModelReply, ModelSelection]:
         self.model_calls += 1
         reply, selection = await self.router.complete(
-            capability, messages, tools, on_delta=on_delta, on_attempt=on_attempt
+            capability, messages, tools, on_delta=on_delta, on_attempt=on_attempt, **routing
         )
         # A bridge call is judged by the tool it names, exactly as it will run.
         if any(

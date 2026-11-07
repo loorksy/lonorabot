@@ -308,6 +308,16 @@ before it, it never becomes the owner-request anchor, and the financial-truth
 scanners do not treat it as a new owner request. An empty provider turn is not
 kept as an empty assistant message.
 
+## Model provider failures
+
+A model turn whose every candidate failed does not fail the Run at once. A
+transient failure schedules the same checkpoint again through the read-retry
+worker release (`environment.retry.reason_code = "model_provider_retry"`) with
+a growing backoff; a provider-proven context overflow tightens admission and
+compacts before one bounded retry. After a failure streak the owner is told:
+Task work waits for owner attention, other Runs fail with the provider code.
+Nothing executed is repeated. See `docs/provider-resilience.md`.
+
 ## Context compaction
 
 Long Runs stay within their model's window through a persisted compaction view

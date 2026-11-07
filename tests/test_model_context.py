@@ -245,7 +245,8 @@ async def test_actual_router_rebuilds_context_for_smaller_fallback(router_db: Da
     assert request == "Current request: read market state only"
     assert payloads[1]["messages"][2]["role"] == "assistant"
     assert payloads[1]["messages"][-1]["tool_call_id"] == "financial-receipt"
-    assert payloads[0]["max_completion_tokens"] == 4096
+    # No documented maximum for "large": the unknown-model output cap applies.
+    assert payloads[0]["max_completion_tokens"] == 8192
     assert payloads[1]["max_completion_tokens"] == 1500
     budget = reply.provider_metadata["context_budget"]
     assert budget["context_window"] == 6000

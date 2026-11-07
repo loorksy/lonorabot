@@ -81,6 +81,23 @@ window table is Lonora's own and conservative. Copyright (c) 2025 Nous Research,
 MIT. The full permission/warranty notice is preserved in
 lonora_agent/context_engine.py and distributed in the Python wheel.
 
+Provider failure recovery adapts Hermes Agent,
+https://github.com/NousResearch/hermes-agent, revision
+a9ff9799e273f525b82718cdc69fdec71b1dca5a: agent/error_classifier.py
+(FailoverReason taxonomy and the ordered provider-type, HTTP-status and
+message classification with retry/fallback/compress hints),
+agent/fallback_cooldown.py (benching a failing provider until its declared
+reset, otherwise with exponential backoff) and agent/retry_utils.py
+(Retry-After parsing and decorrelated jittered backoff). Changes: a reduced
+reason set and pattern tables of Lonora's own, stable owner-visible error
+codes, an output-limit reason carrying the stated maximum, a process-local
+bench keyed by model or credential fingerprint, and Run-level backoff on the
+fenced checkpoint that never repeats an executed or uncertain effect; no
+credential pools, provider profiles or plugin hooks were ported. Copyright (c)
+2025 Nous Research, MIT. The full permission/warranty notice is preserved in
+lonora_adapter_kit/model_errors.py and lonora_providers/resilience.py and
+distributed in the Python wheel.
+
 Source: https://github.com/elie222/rakazo
 Revision: 2d666c4e98db201c1f7988e09e76a52db20cea69
 Copyright 2026 Rakazo contributors. Apache License 2.0, included in LICENSE.

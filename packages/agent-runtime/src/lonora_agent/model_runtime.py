@@ -36,6 +36,7 @@ async def model_turn(
     resolve_calls: Callable[[Sequence[ToolCall]], list[ToolCall]] | None = None,
     policy_tools: Collection[str] | None = None,
     context_view: Callable[[list[ModelMessage]], list[ModelMessage]] | None = None,
+    input_scale: float = 1.0,
 ) -> tuple[ModelReply, ModelSelection]:
     """One model request. ``resolve_calls`` turns stable bridge calls into the
     real calls before the financial-truth gates below and before the loop sees
@@ -43,6 +44,8 @@ async def model_turn(
     domain guidance (a bridged call need not be in the native ``tools``).
     ``context_view`` projects the persisted in-run compaction onto the request
     only; every gate below still reads the complete canonical ``messages``.
+    The router tries this Agent's own model preference first; ``input_scale``
+    is the Run's admission scale after a provider-proven context overflow.
     """
     preparation_started = monotonic()
     stage_started = preparation_started
@@ -156,7 +159,14 @@ async def model_turn(
 
     try:
         reply, selection = await context.router.complete(
-            capability, request_messages, tools, on_delta=delta, on_attempt=attempt
+            capability,
+            request_messages,
+            tools,
+            on_delta=delta,
+            on_attempt=attempt,
+            owner_id=context.owner_id,
+            agent_id=context.agent_id,
+            input_scale=input_scale,
         )
         provider_total_ms = round((monotonic() - request_started) * 1000, 2)
         await publication.finish()

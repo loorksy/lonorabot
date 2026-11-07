@@ -27,6 +27,7 @@ MODULES = {
     "trading_decision": "intelligence",
     "relationships": "intelligence",
     "opportunity": "intelligence",
+    "consult": "intelligence",
     "shadow": "intelligence",
     "chart": "charts",
     "chart_state": "charts",
