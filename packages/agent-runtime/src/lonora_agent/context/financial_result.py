@@ -77,7 +77,8 @@ def unverified_financial_result(messages: list[ModelMessage]) -> str | None:
     # The latest owner message begins a new request, so an old unverified result
     # cannot replace an unrelated answer on a subsequent turn.
     for message in reversed(messages):
-        if message.role == "user":
+        # Runtime notices and observations are not a new owner request.
+        if message.role == "user" and message.context_origin == "conversation":
             break
         if message.role != "tool" or message.tool_call_id not in names:
             continue
@@ -110,7 +111,7 @@ def unverified_financial_result(messages: list[ModelMessage]) -> str | None:
         if pending:
             arabic = True
             for owner in reversed(messages):
-                if owner.role != "user":
+                if owner.role != "user" or owner.context_origin != "conversation":
                     continue
                 if re.search(r"[\u0620-\u064a]", owner.content):
                     break
@@ -140,7 +141,7 @@ def unsettled_wait_result(messages: list[ModelMessage]) -> str | None:
     }
     arabic = True
     for owner in reversed(messages):
-        if owner.role != "user":
+        if owner.role != "user" or owner.context_origin != "conversation":
             continue
         if re.search(r"[\u0620-\u064a]", owner.content):
             break
@@ -153,7 +154,8 @@ def unsettled_wait_result(messages: list[ModelMessage]) -> str | None:
         else "The request outcome could not be confirmed. I will check the broker account before any resend."
     )
     for message in reversed(messages):
-        if message.role == "user":
+        # Runtime notices and observations are not a new owner request.
+        if message.role == "user" and message.context_origin == "conversation":
             break
         if message.role != "tool" or message.tool_call_id not in names:
             continue

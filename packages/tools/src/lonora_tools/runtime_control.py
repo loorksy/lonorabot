@@ -187,6 +187,7 @@ def tools() -> list[Tool]:
             Empty,
             status,
             True,
+            poller=True,
         ),
         Tool(
             "wait_for_input",
@@ -200,5 +201,6 @@ def tools() -> list[Tool]:
             Empty,
             silence,
             True,
+            parallel_safe=False,
         ),
     ]

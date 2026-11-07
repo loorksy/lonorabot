@@ -20,6 +20,18 @@ from pydantic import ValidationError
         ("collaboration.completed", {}, "important_change", "collaboration_completed"),
         ("task.retry_scheduled", {}, "silent", "internal_update"),
         ("task.failed", {"recovery": "owner"}, "action_required", "task_review"),
+        (
+            "task.attention_required",
+            {"id": "task", "version": 4, "reason": "task_steps_incomplete"},
+            "action_required",
+            "task_review",
+        ),
+        (
+            "task.updated",
+            {"status": "waiting", "waiting_reason": "owner_attention"},
+            "silent",
+            "internal_update",
+        ),
         ("task.updated", {"status": "completed"}, "informational", "task_completed"),
         ("broker.recovered", {}, "silent", "broker_recovered"),
         (

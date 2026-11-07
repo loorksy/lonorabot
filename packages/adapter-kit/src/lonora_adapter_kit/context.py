@@ -45,12 +45,14 @@ def context_blocks(history: list[ModelMessage]) -> list[list[ModelMessage]]:
                 pending.remove(result.tool_call_id)
                 block.append(result)
                 index += 1
-            while index < len(history) and history[index].context_origin == "tool_observation":
-                observation = history[index]
-                if observation.role != "user" or observation.tool_calls or observation.tool_call_id:
-                    raise LonoraError("invalid_tool_exchange", 500)
-                block.append(observation)
-                index += 1
+        # Runtime observations and notices stay bound to the complete block that
+        # precedes them, so they are never retained, dropped or anchored alone.
+        while index < len(history) and history[index].context_origin == "tool_observation":
+            observation = history[index]
+            if observation.role != "user" or observation.tool_calls or observation.tool_call_id:
+                raise LonoraError("invalid_tool_exchange", 500)
+            block.append(observation)
+            index += 1
         blocks.append(block)
     return blocks
 

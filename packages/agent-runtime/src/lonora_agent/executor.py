@@ -17,6 +17,7 @@ from lonora_db.runs import (
 from lonora_db.schema import MessageRow, SteeringRow, TradeApprovalRow
 from lonora_db.streaming import settle_stream, stream_identity
 from lonora_db.task_wait_settlement import settle_task_wait
+from lonora_db.tasks import request_task_attention
 from lonora_logging.context import run_id as diagnostic_run_id
 from lonora_tools.context import ToolContext
 from lonora_tools.registry import ToolRegistry
@@ -176,6 +177,11 @@ async def execute_run(
                             run_id=row.id,
                             payload=message_data(message),
                         )
+                    attention = outcome.metadata.get("owner_attention")
+                    if isinstance(attention, str) and attention:
+                        # Unfinished Task work waits for its owner, resumable
+                        # from the same checkpoint, instead of failing the Run.
+                        await request_task_attention(session, row, attention)
                     row.status = "waiting_input"
                     row.lease_expires_at = None
                     emit(

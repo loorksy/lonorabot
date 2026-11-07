@@ -107,5 +107,6 @@ def tools() -> list[Tool]:
             BrowseInput,
             browse,
             True,
+            timeout_seconds=60,
         )
     ]

@@ -181,12 +181,16 @@ async def main() -> None:
             "PASS same Task/Run continues exact last-round calls across worker replacement; receipt-backed effect survives crash exactly once"
         )
 
-        ctx, _ = await task_context(f, "Finite unfinished work")
+        ctx, identifier = await task_context(f, "Finite unfinished work")
         turns = 0
+        offered: list[int] = []
+        effects_before = effect_count
 
         async def endless(_: Any, messages: Any, tools: Any, **kwargs: Any):
             nonlocal turns
             turns += 1
+            offered.append(len(tools))
+            # A misbehaving provider may still propose a call after the limit.
             return response(
                 ToolCall(
                     id="bounded-" + str(turns),
@@ -204,12 +208,27 @@ async def main() -> None:
                     if index + 1 < MAXIMUM_SLICES:
                         assert row.status == "queued"
                     else:
-                        assert row.status == "failed" and row.error_code == "tool_round_limit"
+                        # The exhausted budget no longer fails the Run: one
+                        # tool-less report is held for the owner instead.
+                        assert row.status == "waiting_input" and row.error_code is None
                         assert row.execution_state["task_continuation"]["slice"] == MAXIMUM_SLICES
-                        assert row.execution_state["pending"][0]["id"] == "bounded-4"
+                        assert row.execution_state["exit_reason"] == "tool_round_limit"
+                        assert row.execution_state["pending"] == []
+                        closed = next(
+                            item
+                            for item in row.execution_state["messages"]
+                            if item.get("tool_call_id") == "bounded-4"
+                        )
+                        assert '"tool_call_not_executed"' in closed["content"]
+                        task = await session.get(TicketRow, identifier)
+                        assert task and task_state(task).status == "waiting"
+                        assert task_state(task).waiting_reason == "owner_attention"
                 if index + 1 < MAXIMUM_SLICES:
                     ctx = await reclaim(f, ctx)
-        assert turns == MAXIMUM_SLICES
+        # Exactly one extra model call, offered no tools. Each earlier slice ran
+        # its carried call once; the last proposal and the report's call never ran.
+        assert turns == MAXIMUM_SLICES + 1 and offered[-1] == 0 and min(offered[:-1]) > 0
+        assert effect_count == effects_before + MAXIMUM_SLICES - 1
         print(
             "PASS total model budget stays finite across slices; unfinished work is never reported complete"
         )

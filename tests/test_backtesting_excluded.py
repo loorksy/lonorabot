@@ -226,8 +226,23 @@ async def test_a_run_checkpointed_across_the_removal_gets_unknown_tool_outcomes(
     previous_catalog = ToolRegistry(
         [
             *(tool for name, tool in load_tools().tools.items() if name != "tool_environment"),
-            Tool("market_strategy_research", "Removed stand-in", _NoArguments, interrupted, True),
-            Tool("market_research_history", "Removed stand-in", _NoArguments, never_started, True),
+            # The previous release executed every call serially (single inflight slot).
+            Tool(
+                "market_strategy_research",
+                "Removed stand-in",
+                _NoArguments,
+                interrupted,
+                True,
+                parallel_safe=False,
+            ),
+            Tool(
+                "market_research_history",
+                "Removed stand-in",
+                _NoArguments,
+                never_started,
+                True,
+                parallel_safe=False,
+            ),
         ]
     )
     calls = [

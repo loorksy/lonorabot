@@ -1,3 +1,4 @@
+import asyncio
 from typing import Any, cast
 
 from lonora_adapter_kit.types import ToolCall, ToolDefinition
@@ -21,7 +22,15 @@ class ToolRegistry:
         self.tools = {tool.name: tool for tool in tools}
         if len(self.tools) != len(tools):
             raise LonoraError("duplicate_tool_registration", 500)
-        if any(tool.financial and tool.read_only for tool in tools):
+        if any(
+            (tool.financial and tool.read_only)
+            # A financial deadline would cancel after send and create ambiguity.
+            or (tool.financial and tool.timeout_seconds is not None)
+            or (tool.timeout_seconds is not None and not 0 < tool.timeout_seconds <= 600)
+            # Pollers are repeated observations; a repeated effect is never one.
+            or (tool.poller and not tool.read_only)
+            for tool in tools
+        ):
             raise LonoraError("tool_effect_contract_invalid", 500)
         if "tool_environment" in self.tools:
             raise LonoraError("duplicate_tool_registration", 500)
@@ -175,6 +184,15 @@ class ToolRegistry:
                 # The financial implementation checks current permission before
                 # preparing a new action. Keep completed receipt retrieval
                 # possible after downgrade; the executor rechecks before send.
+        timeout = tool.dispatch_timeout()
+        if timeout is None:
+            return await self.dispatch(tool, call, context)
+        # TimeoutError keeps the loop's existing classification: an observation
+        # for a read, tool_execution_uncertain for an interrupted mutation.
+        async with asyncio.timeout(timeout):
+            return await self.dispatch(tool, call, context)
+
+    async def dispatch(self, tool: Tool, call: ToolCall, context: ToolContext) -> dict[str, Any]:
         arguments = await prepare_market_arguments(
             context, call.name, dict(call.arguments), tool.input_type
         )

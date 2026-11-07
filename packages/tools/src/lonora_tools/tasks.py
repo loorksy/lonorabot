@@ -104,6 +104,7 @@ def tools() -> list[Tool]:
             TaskInspect,
             inspect,
             True,
+            poller=True,
         ),
         Tool(
             "task_control",

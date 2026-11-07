@@ -99,6 +99,7 @@ def tools() -> list[Tool]:
             Empty,
             status,
             True,
+            poller=True,
         ),
         Tool(
             "super_bot_stop",

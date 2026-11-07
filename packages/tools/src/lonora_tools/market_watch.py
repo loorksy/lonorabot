@@ -52,5 +52,12 @@ def tools() -> list[Tool]:
             create,
             replay_safe=True,
         ),
-        Tool("watch_list", "Read this agent's durable market watches.", Empty, read, True),
+        Tool(
+            "watch_list",
+            "Read this agent's durable market watches.",
+            Empty,
+            read,
+            True,
+            poller=True,
+        ),
     ]

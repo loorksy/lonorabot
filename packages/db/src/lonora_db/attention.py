@@ -79,10 +79,17 @@ async def mandatory_current(session: AsyncSession, row: AttentionRow) -> bool:
         )
     if row.code == "task_review":
         task = await session.get(TicketRow, row.parameters.get("task_id", ""))
+        state: dict[str, Any] = task.state.get("task", {}) if task is not None else {}
         return (
             task is not None
             and task.owner_id == row.owner_id
-            and task.state.get("task", {}).get("status") == "failed"
+            and (
+                state.get("status") == "failed"
+                or (
+                    state.get("status") == "waiting"
+                    and state.get("waiting_reason") == "owner_attention"
+                )
+            )
         )
     return False
 

@@ -16,6 +16,9 @@ from .schema import BoardRow, EventRow, RunRow, TicketRow, TradeApprovalRow
 from .threads import create_thread
 from .transactions import owned_agent, owned_thread
 
+# Unfinished work handed to its owner instead of failing the Run.
+OWNER_ATTENTION = "owner_attention"
+
 
 async def get_task(
     session: AsyncSession, owner_id: str, task_id: str, *, lock: bool = False
@@ -62,7 +65,12 @@ def save_task(session: AsyncSession, row: TicketRow, state: TaskState) -> None:
         "task.updated",
         agent_id=row.agent_id,
         thread_id=state.origin_thread_id,
-        payload={"id": row.id, "version": row.version, "status": state.status},
+        payload={
+            "id": row.id,
+            "version": row.version,
+            "status": state.status,
+            "waiting_reason": state.waiting_reason,
+        },
     )
 
 
@@ -291,7 +299,13 @@ async def snapshot(session: AsyncSession, row: TicketRow) -> dict[str, Any]:
         "status": status,
         "work_thread_id": row.thread_id,
         "phase": phase,
-        "waiting_reason": ("approval" if approval_pending else "user_input")
+        "waiting_reason": (
+            "approval"
+            if approval_pending
+            else OWNER_ATTENTION
+            if state.waiting_reason == OWNER_ATTENTION
+            else "user_input"
+        )
         if active and active.status == "waiting_input"
         else state.waiting_reason,
         "active_tools": [tool["name"] for tool in pending_tools.values() if tool["active"]]
@@ -490,6 +504,9 @@ async def checkpoint_task(session: AsyncSession, lease: Lease) -> bool:
         return True
     changed = state.status != "running"
     state.status, state.phase = "running", "executing"
+    if state.waiting_reason == OWNER_ATTENTION:
+        # The owner's reply resumed the same checkpoint.
+        state.waiting_reason = None
     if changed:
         save_task(session, row, state)
     else:
@@ -568,6 +585,46 @@ async def update_task_step(
     step.state, step.evidence_call_ids = request.state, request.evidence_call_ids
     save_task(session, row, state)
     return row
+
+
+async def request_task_attention(session: AsyncSession, run: RunRow, reason: str) -> None:
+    """Keep unfinished work resumable and visible instead of failing its Run.
+
+    The loop hands the owner its best held answer as a pending question; this
+    projects that wait on the Task without completing or failing it. The Run's
+    checkpoint is unchanged, so the owner's reply resumes the same work.
+    """
+    identifier = run.model_metadata.get("task_id")
+    if not identifier:
+        return
+    row = await session.get(TicketRow, identifier, with_for_update=True)
+    if (
+        row is None
+        or row.agent_id != run.agent_id
+        or row.thread_id != run.thread_id
+        or not row.state.get("task")
+    ):
+        raise LonoraError("task_run_mismatch", 409)
+    state = task_state(row)
+    if state.status in {"paused", "completed", "failed", "cancelled"} or state.control_requested:
+        return
+    if (state.status, state.phase, state.waiting_reason) == (
+        "waiting",
+        "needs_attention",
+        OWNER_ATTENTION,
+    ):
+        return
+    state.status, state.phase, state.waiting_reason = "waiting", "needs_attention", OWNER_ATTENTION
+    save_task(session, row, state)
+    emit(
+        session,
+        row.owner_id,
+        "task.attention_required",
+        agent_id=row.agent_id,
+        thread_id=state.origin_thread_id,
+        run_id=run.id,
+        payload={"id": row.id, "version": row.version, "reason": reason},
+    )
 
 
 async def require_completed_task_steps(session: AsyncSession, run: RunRow) -> None:

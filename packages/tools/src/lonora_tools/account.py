@@ -109,6 +109,7 @@ def tools() -> list[Tool]:
             ActivityInput,
             activity,
             True,
+            poller=True,
         ),
         Tool(
             "account_history",
@@ -132,5 +133,6 @@ def tools() -> list[Tool]:
             AccountInput,
             read,
             True,
+            poller=True,
         ),
     ]

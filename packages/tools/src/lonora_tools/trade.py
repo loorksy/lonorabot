@@ -512,6 +512,7 @@ def tools() -> list[Tool]:
             TradeRecordReference,
             read_record,
             True,
+            poller=True,
         ),
         Tool(
             "trade_execute",

@@ -21,7 +21,7 @@ trade confirmation, journal/reconciliation and Web/Mobile result presentation.
 | Domain | Authoritative implementation |
 | --- | --- |
 | Persistent identity and scope | `lonora_db.agents`, `agent_binding`, `agent_directory` |
-| Context, work and steering | `lonora_agent.context`, `tool_loop`, `lonora_db.tasks`, `task_wait` |
+| Context, work and steering | `lonora_agent.context`, `tool_loop` ([tool execution](tool-execution-runtime.md)), `lonora_db.tasks`, `task_wait` |
 | Market, watches and charts | `lonora_tools.market`, `market_watch`, `chart_state`, `chart_snapshot`; `lonora_market`, `lonora_charts` |
 | Broker identity/history | `lonora_tools.account`, `lonora_adapters.brokers.metaapi` |
 | Financial commands and consent | `lonora_tools.trade`, `trading_goal`, `lonora_trading.execution`, `lonora_db.trade_approvals` |
