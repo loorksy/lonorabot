@@ -56,9 +56,18 @@ def classify(code: str, tool: Tool | None) -> dict[str, Any]:
     elif code in {
         "tool_not_allowed",
         "agent_market_binding_mismatch",
+        "agent_trading_account_mismatch",
+        "agent_trading_symbol_mismatch",
         "financial_authority_required",
+        # An owner restriction: never route around it through another symbol or account.
+        "trading_restriction_active",
+        "restriction_all_mutations_requires_owner_message",
     }:
         category, action = "permission_denied", "respect_scope"
+    elif code.startswith("risk_"):
+        # details.risk_assessment holds the limit and modeled risk: resize to fit, protect
+        # or reduce exposure, or wait for the owner; never repeat the same request.
+        category, action = "risk_limit_blocked", "inspect_risk_assessment"
     elif code.endswith("_unconfigured") or code in {
         "model_not_configured",
         "search_not_configured",

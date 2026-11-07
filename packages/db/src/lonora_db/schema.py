@@ -702,6 +702,8 @@ class TradingRestrictionRow(Base):
     account_id: Mapped[str] = mapped_column(ForeignKey("ln_broker_sessions.id", ondelete="CASCADE"))
     agent_id: Mapped[str | None] = mapped_column(ForeignKey("ln_agents.id", ondelete="CASCADE"))
     symbol: Mapped[str | None] = mapped_column(String(80))
+    # False when the broker catalog could not be read and the symbol was kept as given.
+    symbol_verified: Mapped[bool] = mapped_column(default=True)
     action_class: Mapped[str] = mapped_column(String(24))
     valid_from: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     valid_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

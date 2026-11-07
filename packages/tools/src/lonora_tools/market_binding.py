@@ -60,6 +60,8 @@ def fill_bound_fields(agent: AgentRow, args: dict[str, Any], fields: set[str]) -
         agent.trading_symbol
         and "symbol" in fields
         and not filled.get("symbol")
+        # An explicit every-symbol scope (trade_restriction_create) is not a missing symbol.
+        and not filled.get("all_symbols")
         and (not flexible_scope(agent) or filled.get("account_id") == agent.trading_account_id)
     ):
         filled["symbol"] = agent.trading_symbol

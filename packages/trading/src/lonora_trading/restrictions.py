@@ -12,10 +12,12 @@ optional agent/symbol scope, one action class:
 
 Restrictions govern agent-originated operations (every leased path: account grant,
 exact approval, Goal step). Owner-manual operations are exempt unless the owner flagged
-the restriction ``applies_to_owner_manual``. Shadow execution never reaches a broker
-and is not affected. The final decision is made inside the executor's before-send
-callback, under the account send lock and the restriction lock, so queued work and
-every admission path are covered; an operation already sent is never reversed.
+an all-agent restriction ``applies_to_owner_manual``; a restriction scoped to one agent
+never binds the owner (creation rejects the combination, and matching ignores it).
+Shadow execution never reaches a broker and is not affected. The final decision is made
+inside the executor's before-send callback, under the account send lock and the
+restriction lock, so queued work and every admission path are covered; an operation
+already sent is never reversed.
 """
 
 from datetime import datetime
@@ -56,7 +58,8 @@ def applies(row: TradingRestrictionRow, request: TradeRequest, *, agent_id: str 
     if row.symbol is not None and row.symbol.casefold() != request.symbol.casefold():
         return False
     if agent_id is None:
-        return row.applies_to_owner_manual
+        # Only an all-agent restriction the owner flagged binds the owner's own trades.
+        return row.agent_id is None and bool(row.applies_to_owner_manual)
     return row.agent_id is None or row.agent_id == agent_id
 
 

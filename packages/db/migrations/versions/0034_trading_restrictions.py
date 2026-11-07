@@ -27,6 +27,9 @@ def upgrade() -> None:
         ),
         sa.Column("agent_id", sa.String(36), sa.ForeignKey("ln_agents.id", ondelete="CASCADE")),
         sa.Column("symbol", sa.String(80)),
+        # False only when the broker catalog could not be read and the symbol was kept as
+        # given; a readable catalog must list the symbol for a restriction to be created.
+        sa.Column("symbol_verified", sa.Boolean(), nullable=False, server_default=sa.true()),
         sa.Column("action_class", sa.String(24), nullable=False),
         sa.Column("valid_from", sa.DateTime(timezone=True), nullable=False),
         sa.Column("valid_until", sa.DateTime(timezone=True)),

@@ -32,6 +32,7 @@ from lonora_db.schema import (
     TradingJournalRow,
     TradingRestrictionRow,
 )
+from lonora_tools.context import ToolContext
 from lonora_tools.loader import load_tools
 from lonora_trading.controls import read_controls, save_controls
 from lonora_trading.reconciliation import reconcile_ambiguous
@@ -286,6 +287,140 @@ async def main() -> None:
         assert listed["monetary_risk_limits"][0]["configured"] is False
         print(
             "PASS the agent persists 'stop opening new positions today' with scope, expiry and the owner's message as source; replay is idempotent and the permission frame shows it"
+        )
+
+        # 1b. Scope and provenance rules for agent-created restrictions.
+        async def restrict(arguments: dict[str, Any], ctx: ToolContext) -> dict[str, Any]:
+            call = ToolCall(
+                id="restrict-" + uuid4().hex, name="trade_restriction_create", arguments=arguments
+            )
+            return await registry.execute(call, ctx)
+
+        async def refused(arguments: dict[str, Any], code: str, ctx: ToolContext) -> None:
+            try:
+                await restrict(arguments, ctx)
+            except LonoraError as error:
+                assert error.code == code, (error.code, code)
+            else:
+                raise AssertionError("Expected " + code)
+
+        async def owner_lifts(identifier: str) -> None:
+            await fixture.request(
+                "POST", f"/trading/restrictions/{identifier}/revoke", {"reason": "fixture"}
+            )
+
+        stop_gold = {"action_class": "no_new_entries", "reason": "Owner: stop gold today"}
+        # A readable catalog must list the symbol: a suffix-less spelling never matches.
+        await refused(
+            {**stop_gold, "account_id": account, "symbol": "XAUUSD"}, "symbol_not_found", context
+        )
+        misspelled = await fixture.client.post(
+            "/api/trading/restrictions",
+            json={**stop_gold, "account_id": account, "symbol": "XAUUSD"},
+        )
+        assert misspelled.status_code == 404 and misspelled.json()["code"] == "symbol_not_found"
+        # The owner flag binds the owner's own trades; one agent's scope never does.
+        scoped_owner = await fixture.client.post(
+            "/api/trading/restrictions",
+            json={
+                "account_id": account,
+                "agent_id": agent["id"],
+                "symbol": GOLD,
+                "action_class": "all_mutations",
+                "applies_to_owner_manual": True,
+            },
+        )
+        assert scoped_owner.status_code == 422, scoped_owner.text
+        # Answering the owner's message, an agent may freeze every agent's activity.
+        hands_off = await restrict(
+            {
+                "account_id": account,
+                "symbol": EURO,
+                "all_agents": True,
+                "action_class": "all_mutations",
+                "reason": "Owner: hands off the euro book",
+            },
+            context,
+        )
+        assert hands_off["restriction"]["source"] == "owner_message"
+        await owner_lifts(hands_off["restriction"]["id"])
+        # A flexible general agent whose home market is gold, woken without an owner message.
+        flexible = await fixture.request(
+            "POST",
+            "/agents",
+            {
+                "name": "Flexible " + uuid4().hex[:6],
+                "scope_mode": "flexible",
+                "trading_account_id": account,
+                "trading_symbol": GOLD,
+            },
+        )
+        fixture.agents.append(flexible["id"])
+        flexible_context = await fixture.lease(
+            await fixture.run(flexible, await fixture.conversation(flexible))
+        )
+        home = (await restrict(stop_gold, flexible_context))["restriction"]
+        assert home["account_id"] == account and home["symbol"] == GOLD, home
+        assert home["source"] == "agent" and home["symbol_verified"] is True
+        whole = (
+            await restrict(
+                {
+                    "all_symbols": True,
+                    "action_class": "no_new_entries",
+                    "reason": "Owner: stop opening new positions on this account today",
+                },
+                flexible_context,
+            )
+        )["restriction"]
+        assert whole["account_id"] == account and whole["symbol"] is None, whole
+        assert whole["all_symbols"] is True and whole["agent_id"] == flexible["id"]
+        await refused(
+            {**stop_gold, "all_symbols": True, "symbol": EURO},
+            "tool_arguments_invalid",
+            flexible_context,
+        )
+        # all_mutations also blocks exits: another agent's or every agent's only on the
+        # owner's word, while freezing itself stays the agent's own choice.
+        await refused(
+            {"all_agents": True, "action_class": "all_mutations", "reason": "Freeze everyone"},
+            "restriction_all_mutations_requires_owner_message",
+            flexible_context,
+        )
+        await refused(
+            {"agent_id": agent["id"], "action_class": "all_mutations", "reason": "Freeze it"},
+            "restriction_all_mutations_requires_owner_message",
+            flexible_context,
+        )
+        itself = (
+            await restrict(
+                {"action_class": "all_mutations", "reason": "Pausing myself"}, flexible_context
+            )
+        )["restriction"]
+        assert itself["agent_id"] == flexible["id"] and itself["source"] == "agent"
+        # A market-bound specialist cannot reach beyond its own market.
+        specialist = await fixture.request(
+            "POST",
+            "/agents",
+            {
+                "name": "Gold specialist " + uuid4().hex[:6],
+                "scope_mode": "fixed_market",
+                "trading_account_id": account,
+                "trading_symbol": GOLD,
+            },
+        )
+        fixture.agents.append(specialist["id"])
+        specialist_context = await fixture.lease(
+            await fixture.run(specialist, await fixture.conversation(specialist))
+        )
+        await refused(
+            {**stop_gold, "all_symbols": True}, "agent_trading_symbol_mismatch", specialist_context
+        )
+        own_market = (await restrict(stop_gold, specialist_context))["restriction"]
+        assert own_market["symbol"] == GOLD and own_market["agent_id"] == specialist["id"]
+        for item in (home, whole, itself, own_market):
+            await owner_lifts(item["id"])
+        print(
+            "PASS a mis-spelled symbol is refused while the catalog is readable, the owner flag needs an all-agent scope, a flexible agent with a home market can restrict every symbol, and only the owner's message lets an agent freeze other agents"
         )
 
         # 2. Enforcement on the agent path; reduce-only and other markets stay admissible.

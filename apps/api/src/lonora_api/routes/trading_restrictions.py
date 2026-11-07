@@ -16,6 +16,7 @@ from lonora_db.trading_restrictions import (
     restriction_data,
     revoke_restriction,
 )
+from lonora_tools.symbols import restriction_symbol
 
 from ..middleware.auth import require_owner, runtime
 
@@ -44,15 +45,14 @@ async def create(
 ) -> dict[str, Any]:
     rt = runtime(request)
     symbol = body.symbol
+    verified = True
     if symbol is not None:
-        from lonora_tools.symbols import canonical_broker_symbol
-
         try:
             broker = await rt.services(owner.id).brokers.get(owner.id, body.account_id)
         except Exception:
-            broker = None  # Matching is case-insensitive; an exact spelling is best effort.
-        if broker is not None:
-            symbol = await canonical_broker_symbol(broker, symbol)
+            broker = None  # Narrowing never waits for the broker; the record says unverified.
+        # A readable catalog must list the symbol, or the restriction would never match.
+        symbol, verified = await restriction_symbol(broker, symbol)
     async with rt.db.sessions() as session, session.begin():
         row = await create_restriction(
             session,
@@ -60,6 +60,7 @@ async def create(
             account_id=body.account_id,
             agent_id=body.agent_id,
             symbol=symbol,
+            symbol_verified=verified,
             action_class=body.action_class,
             valid_from=body.valid_from,
             valid_until=body.valid_until,

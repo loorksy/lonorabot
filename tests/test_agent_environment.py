@@ -49,12 +49,42 @@ def test_only_server_declared_read_is_automatically_retried(code: str) -> None:
         ("search_not_configured", "not_configured"),
         ("research_provider_not_configured", "not_configured"),
         ("browser_unconfigured", "not_configured"),
+        ("trading_restriction_active", "permission_denied"),
+        ("agent_trading_symbol_mismatch", "permission_denied"),
+        ("risk_trade_limit", "risk_limit_blocked"),
         ("unrecognized_domain_code", "terminal_domain_failure"),
     ],
 )
 def test_recovery_contract_preserves_stable_categories(code: str, category: str) -> None:
     metadata = classify(code, Tool("read", "Test", Contract, handler, True))
     assert ToolRecovery.model_validate(metadata).category == category
+    assert not metadata["safe_to_retry"]
+
+
+@pytest.mark.parametrize(
+    "code,category,action",
+    [
+        # An owner restriction is a scope: never an invitation to try another route.
+        ("trading_restriction_active", "permission_denied", "respect_scope"),
+        ("restriction_all_mutations_requires_owner_message", "permission_denied", "respect_scope"),
+        # A monetary limit points at its evidence: resize within it or wait for the owner.
+        ("risk_trade_limit", "risk_limit_blocked", "inspect_risk_assessment"),
+        ("risk_stop_loss_required", "risk_limit_blocked", "inspect_risk_assessment"),
+        ("risk_open_limit", "risk_limit_blocked", "inspect_risk_assessment"),
+        ("risk_open_unbounded", "risk_limit_blocked", "inspect_risk_assessment"),
+        ("risk_daily_loss_limit", "risk_limit_blocked", "inspect_risk_assessment"),
+        ("risk_free_margin_floor", "risk_limit_blocked", "inspect_risk_assessment"),
+        ("risk_limit_currency_mismatch", "risk_limit_blocked", "inspect_risk_assessment"),
+        ("risk_economics_unavailable", "risk_limit_blocked", "inspect_risk_assessment"),
+        ("risk_daily_history_incomplete", "risk_limit_blocked", "inspect_risk_assessment"),
+    ],
+)
+def test_owner_restrictions_and_risk_limits_never_suggest_an_alternate_route(
+    code: str, category: str, action: str
+) -> None:
+    tool = Tool("trade_execute", "Test", Contract, handler, financial=True)
+    metadata = classify(code, tool)
+    assert (metadata["category"], metadata["next_action"]) == (category, action)
     assert not metadata["safe_to_retry"]
 
 

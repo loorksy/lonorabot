@@ -3,10 +3,16 @@
 import json
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from types import SimpleNamespace
 from typing import Any
+from unittest.mock import AsyncMock
 
 import pytest
-from lonora_agent.context.permissions import permission_guidance, risk_limit_frame
+from lonora_agent.context.permissions import (
+    permission_guidance,
+    restriction_frame,
+    risk_limit_frame,
+)
 from lonora_contracts.account import AccountState, Order, Position
 from lonora_contracts.execution_quality import ExecutionPolicy, ExecutionSnapshot
 from lonora_contracts.market import Instrument, Quote
@@ -18,6 +24,8 @@ from lonora_db.schema import AgentRow, TradingJournalRow, TradingRestrictionRow
 from lonora_db.trading_journal import SERVER_EVIDENCE
 from lonora_db.trading_restrictions import relevant_to, restriction_data, restriction_state
 from lonora_tools.loader import load_tools
+from lonora_tools.market_binding import fill_bound_fields
+from lonora_tools.symbols import restriction_symbol
 from lonora_trading.admission import risk_reducing
 from lonora_trading.journal import record_excerpt
 from lonora_trading.restrictions import applies, prohibits
@@ -287,6 +295,89 @@ def test_market_bound_agents_see_only_restrictions_on_their_market() -> None:
     assert not relevant_to(restriction(symbol=EURO), gold_agent)
     assert not relevant_to(restriction(account_id="other"), gold_agent)
     assert relevant_to(restriction(symbol=EURO), personal)
+
+
+def test_owner_manual_flag_binds_the_owner_only_on_all_agent_restrictions() -> None:
+    entry = trade("close_position", position_id="p1")
+    # "The gold agent may not trade gold" never blocks the owner's own gold trades.
+    scoped = restriction(agent_id="gold-agent", applies_to_owner_manual=True)
+    assert applies(scoped, entry, agent_id="gold-agent")
+    assert not applies(scoped, entry, agent_id=None)
+    assert applies(restriction(applies_to_owner_manual=True), entry, agent_id=None)
+    with pytest.raises(ValidationError, match="restriction_owner_manual_agent_conflict"):
+        TradingRestrictionCreate.model_validate(
+            {
+                "account_id": "acct",
+                "agent_id": "gold-agent",
+                "symbol": GOLD,
+                "action_class": "all_mutations",
+                "applies_to_owner_manual": True,
+            }
+        )
+    TradingRestrictionCreate.model_validate(
+        {"account_id": "acct", "action_class": "all_mutations", "applies_to_owner_manual": True}
+    )
+
+
+def test_agent_with_a_home_market_can_restrict_every_symbol_on_its_account() -> None:
+    fields = set(AgentRestrictionRequest.model_fields)
+    flexible = AgentRow(
+        id="general",
+        owner_id="owner",
+        name="General",
+        role="general",
+        scope_mode="flexible",
+        trading_account_id="acct",
+        trading_symbol="XAUUSDm",
+    )
+    request = {"action_class": "no_new_entries", "reason": "Owner: stop new positions today"}
+    # Like every market tool, an omitted symbol on the home account is the home market.
+    assert fill_bound_fields(flexible, request, fields) == {
+        **request,
+        "account_id": "acct",
+        "symbol": "XAUUSDm",
+    }
+    # all_symbols is an explicit scope, not a missing symbol.
+    everything = fill_bound_fields(flexible, {**request, "all_symbols": True}, fields)
+    assert "symbol" not in everything and everything["account_id"] == "acct"
+    parsed = AgentRestrictionRequest.model_validate(everything)
+    assert parsed.all_symbols and parsed.symbol is None
+    # Another account has no home market to fill in.
+    other = fill_bound_fields(flexible, {**request, "account_id": "other"}, fields)
+    assert "symbol" not in other
+    with pytest.raises(ValidationError, match="restriction_symbol_scope_conflict"):
+        AgentRestrictionRequest.model_validate(
+            {**request, "all_symbols": True, "symbol": "EURUSDm"}
+        )
+    # A stored every-symbol restriction matches every market on the account.
+    row = restriction(agent_id="general", symbol=None)
+    assert applies(row, trade("buy", "EURUSDm", volume="0.1"), agent_id="general")
+    assert applies(row, trade("buy", "XAUUSDm", volume="0.1"), agent_id="general")
+
+
+@pytest.mark.asyncio
+async def test_restriction_symbol_must_exist_in_a_readable_broker_catalog() -> None:
+    catalog = SimpleNamespace(symbols=AsyncMock(return_value=["XAUUSDm", "EURUSDm"]))
+    assert await restriction_symbol(catalog, "xauusdm") == ("XAUUSDm", True)
+    # A suffix-less or mis-spelled symbol would never match a trade: refuse it.
+    for wrong in ("XAUUSD", "GOLD", "XAUUSDm.r"):
+        with pytest.raises(LonoraError, match="symbol_not_found"):
+            await restriction_symbol(catalog, wrong)
+    ambiguous = SimpleNamespace(symbols=AsyncMock(return_value=["XAUUSDm", "xauusdm"]))
+    with pytest.raises(LonoraError, match="symbol_ambiguous"):
+        await restriction_symbol(ambiguous, "XAUUSDM")
+    # Only an unreadable catalog keeps the spelling as given, marked unverified.
+    failing = SimpleNamespace(symbols=AsyncMock(side_effect=TimeoutError("broker down")))
+    assert await restriction_symbol(failing, "XAUUSD") == ("XAUUSD", False)
+    assert await restriction_symbol(None, "XAUUSD") == ("XAUUSD", False)
+    empty = SimpleNamespace(symbols=AsyncMock(return_value=[]))
+    assert await restriction_symbol(empty, "XAUUSD") == ("XAUUSD", False)
+    unverified = restriction_data(restriction(symbol="XAUUSD", symbol_verified=False), NOW)
+    assert unverified["symbol_verified"] is False
+    assert restriction_frame(unverified, "agent")["symbol_verified"] is False
+    verified = restriction_data(restriction(symbol=GOLD, symbol_verified=True), NOW)
+    assert verified["symbol_verified"] is True
+    assert "symbol_verified" not in restriction_frame(verified, "agent")
 
 
 def test_restrictions_expire_by_time_without_a_scheduler() -> None:
@@ -573,6 +664,43 @@ async def test_daily_loss_counts_realized_today_plus_floating_and_blocks_new_ris
     assert deal_pnl({"type": "DEAL_TYPE_CREDIT", "profit": "-1"}) == 0
     with pytest.raises(LonoraError, match="risk_daily_history_invalid"):
         deal_pnl({"profit": "not-a-number"})
+
+
+@pytest.mark.asyncio
+async def test_non_trading_credits_never_offset_a_trading_loss() -> None:
+    # Trade deals count in full, gains included.
+    assert deal_pnl({"type": "DEAL_TYPE_BUY", "profit": "40", "commission": "-2"}) == 38
+    assert deal_pnl({"type": "DEAL_TYPE_SELL", "profit": "-10", "swap": "-1"}) == -11
+    # Cash flows are not P&L in either direction.
+    for kind in ("DEAL_TYPE_BALANCE", "DEAL_TYPE_CREDIT", "DEAL_TYPE_BONUS"):
+        assert deal_pnl({"type": kind, "profit": "500"}) == 0
+        assert deal_pnl({"type": kind, "profit": "-500"}) == 0
+    # Every other adjustment counts only against the limit.
+    for kind in (
+        "DEAL_TYPE_CORRECTION",
+        "DEAL_TYPE_INTEREST",
+        "DEAL_DIVIDEND",
+        "DEAL_DIVIDEND_FRANKED",
+        "DEAL_TYPE_CHARGE",
+        "DEAL_TAX",
+        "DEAL_TYPE_COMMISSION_DAILY",
+        "DEAL_TYPE_BUY_CANCELED",
+        "",
+    ):
+        assert deal_pnl({"type": kind, "profit": "100"}) == 0, kind
+        assert deal_pnl({"type": kind, "profit": "-7"}) == -7, kind
+    assert deal_pnl({"profit": "25"}) == 0  # Missing type: never a gain.
+    limits = MonetaryRiskLimits(currency="USD", max_daily_loss=Decimal(100))
+    today = NOW.replace(hour=9).isoformat()
+    deals = [
+        {"time": today, "type": "DEAL_TYPE_SELL", "profit": "-150"},
+        {"time": today, "type": "DEAL_TYPE_CORRECTION", "profit": "100"},
+        {"time": today, "type": "DEAL_TYPE_INTEREST", "profit": "5"},
+        {"time": today, "type": "DEAL_TYPE_CHARGE", "profit": "-4"},
+    ]
+    blocked = await assess(trade("buy", volume="0.1"), snapshot(), limits, reader=Reader(deals))
+    assert blocked.reasons == ["risk_daily_loss_limit"]
+    assert blocked.daily is not None and blocked.daily.loss == 154
 
 
 def test_trading_day_starts_at_local_midnight_and_excludes_yesterday() -> None:

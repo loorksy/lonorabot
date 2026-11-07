@@ -40,11 +40,15 @@ class TradingRestrictionCreate(Contract):
     valid_from: AwareDatetime | None = None
     valid_until: AwareDatetime | None = None
     reason: str = Field(default="", max_length=1000)
-    # Owner-manual operations are exempt unless the owner explicitly includes them.
+    # Owner-manual operations are exempt unless the owner explicitly includes them. The
+    # flag binds the owner's own trades, so it is only valid on an all-agent restriction:
+    # a restriction scoped to one agent never restricts the owner.
     applies_to_owner_manual: bool = False
 
     @model_validator(mode="after")
     def window(self) -> "TradingRestrictionCreate":
+        if self.applies_to_owner_manual and self.agent_id is not None:
+            raise ValueError("restriction_owner_manual_agent_conflict")
         _window(self.valid_from, self.valid_until)
         self.reason = self.reason.strip()
         return self
@@ -55,6 +59,9 @@ class AgentRestrictionRequest(Contract):
 
     account_id: str | None = Field(default=None, min_length=1, max_length=36)
     symbol: str | None = Field(default=None, min_length=1, max_length=80)
+    # Every symbol on the account. Without it, an agent with a home market on that account
+    # has its home symbol filled in, like every other market tool.
+    all_symbols: bool = False
     agent_id: str | None = Field(default=None, min_length=1, max_length=36)
     all_agents: bool = False
     action_class: RestrictionActionClass
@@ -66,6 +73,8 @@ class AgentRestrictionRequest(Contract):
     def scope(self) -> "AgentRestrictionRequest":
         if self.all_agents and self.agent_id is not None:
             raise ValueError("restriction_agent_scope_conflict")
+        if self.all_symbols and self.symbol is not None:
+            raise ValueError("restriction_symbol_scope_conflict")
         _window(self.valid_from, self.valid_until)
         self.reason = self.reason.strip()
         if not self.reason:

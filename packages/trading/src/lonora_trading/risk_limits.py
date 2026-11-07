@@ -18,10 +18,14 @@ operations whose effect may not be visible in broker state yet: ``submitted`` an
 their resulting ticket is already in the snapshot. An unresolved stop or pending-order
 edit counts as the worse of the current and the requested state.
 
-Daily loss is broker-reported realized trading P&L (profit, commission and swap of every
-deal except balance, credit and bonus cash flows) since local midnight in the owner's
-trading-day time zone, plus the current floating profit of open positions. Incomplete
-or unreadable history blocks new risk rather than being treated as zero loss.
+Daily loss is broker-reported realized P&L since local midnight in the owner's
+trading-day time zone, plus the current floating profit of open positions. Deals count
+conservatively (``deal_pnl``): trade deals (``DEAL_TYPE_BUY``/``DEAL_TYPE_SELL``) with
+their profit, commission and swap; balance, credit and bonus cash flows not at all; and
+every other deal type (correction, charge, commission, interest, dividend, tax, a
+cancelled deal, an unknown or missing type) only when its total is negative, so a
+non-trading credit never offsets a trading loss. Incomplete or unreadable history
+blocks new risk rather than being treated as zero loss.
 """
 
 import asyncio
@@ -47,7 +51,9 @@ from .exposure import ENTRY_ACTIONS, direction
 
 HISTORY_LIMIT = 1000
 ECONOMICS_TIMEOUT_SECONDS = 20
-CASH_FLOW_DEALS = ("BALANCE", "CREDIT", "BONUS")
+# Deal types by their ``DEAL_TYPE_`` suffix (MetaTrader/MetaApi names).
+TRADE_DEALS = frozenset({"BUY", "SELL"})
+CASH_FLOW_DEALS = frozenset({"BALANCE", "CREDIT", "BONUS"})
 MODIFICATIONS = frozenset({"modify_position", "modify_order"})
 # Actions whose result is itself a trade with a stop: the per-trade ceiling applies.
 TRADE_LIMIT_ACTIONS = ENTRY_ACTIONS | MODIFICATIONS
@@ -295,9 +301,10 @@ async def read_economics(
 
 
 def deal_pnl(deal: dict[str, Any]) -> Decimal:
-    kind = str(deal.get("type") or "").upper()
-    if any(word in kind for word in CASH_FLOW_DEALS):
-        return Decimal(0)
+    """A deal's contribution to today's P&L; only trade deals may add a gain."""
+    kind = str(deal.get("type") or "").strip().upper().removeprefix("DEAL_TYPE_")
+    if kind in CASH_FLOW_DEALS:
+        return Decimal(0)  # Deposits, withdrawals and broker credit are not trading P&L.
     total = Decimal(0)
     for key in ("profit", "commission", "swap"):
         raw = deal.get(key)
@@ -310,7 +317,8 @@ def deal_pnl(deal: dict[str, Any]) -> Decimal:
         if not value.is_finite():
             raise LonoraError("risk_daily_history_invalid", 409)
         total += value
-    return total
+    # A non-trading adjustment counts against the limit, never for it.
+    return total if kind in TRADE_DEALS else min(total, Decimal(0))
 
 
 def trading_day_start(now: datetime, timezone: str) -> datetime:

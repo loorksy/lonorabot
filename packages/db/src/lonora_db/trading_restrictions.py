@@ -76,6 +76,9 @@ def restriction_data(row: TradingRestrictionRow, now: datetime | None = None) ->
         "all_agents": row.agent_id is None,
         "symbol": row.symbol,
         "all_symbols": row.symbol is None,
+        # False: the broker catalog could not be read when it was created, so the symbol
+        # is stored as given and matches only that spelling (ignoring case).
+        "symbol_verified": row.symbol is None or row.symbol_verified is not False,
         "action_class": row.action_class,
         "state": state,
         "valid_from": row.valid_from.isoformat(),
@@ -106,6 +109,7 @@ async def create_restriction(
     created_by_agent_id: str | None,
     agent_id: str | None = None,
     symbol: str | None = None,
+    symbol_verified: bool = True,
     valid_from: datetime | None = None,
     valid_until: datetime | None = None,
     reason: str = "",
@@ -126,6 +130,9 @@ async def create_restriction(
     if created_by_agent_id is not None and applies_to_owner_manual:
         # An agent narrows agent activity; only the owner can restrict the owner.
         raise LonoraError("restriction_owner_manual_owner_only", 403)
+    if applies_to_owner_manual and agent_id is not None:
+        # The owner flag binds the owner's own trades; one agent's scope never does.
+        raise LonoraError("restriction_owner_manual_agent_conflict", 422)
     await BrokerSessionRepository().get(session, owner_id, account_id)
     if agent_id is not None:
         await owned_agent(session, owner_id, agent_id)
@@ -142,6 +149,7 @@ async def create_restriction(
         account_id=account_id,
         agent_id=agent_id,
         symbol=symbol,
+        symbol_verified=symbol is None or symbol_verified,
         action_class=action_class,
         valid_from=start,
         valid_until=valid_until,

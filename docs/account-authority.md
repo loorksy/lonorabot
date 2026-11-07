@@ -108,7 +108,16 @@ execution boundary admits; it never grants anything. It names one owned account,
 optionally one agent (otherwise every agent) and one exact broker symbol (otherwise
 every symbol), an action class, `valid_from`/`valid_until` (open-ended when unset),
 its source (`owner_ui`, `owner_message` with the owner's message id, or `agent`),
-reason, creator and `revoked_at`:
+reason, creator and `revoked_at`.
+
+The symbol is stored in the broker's spelling. When the broker's symbol catalog can be
+read it must list the symbol (a case-only difference is resolved), otherwise creation
+fails with `symbol_not_found` or `symbol_ambiguous` so the agent or owner corrects it: a
+restriction on a spelling the broker does not use would never match a trade. Only when
+the catalog cannot be read (broker unavailable, failed or empty listing) is the symbol
+kept as given and recorded with `symbol_verified: false`, visible in listings and the
+permission frame, because recording an owner's narrowing must not wait for the broker.
+Matching ignores letter case only. The action classes:
 
 - `no_new_entries`: no market or pending entry and no pending-entry edit
   (`modify_order`). Managing, closing and cancelling continue. This is "keep
@@ -119,8 +128,11 @@ reason, creator and `revoked_at`:
 
 Restrictions govern agent-originated operations: every leased path (signed account
 grant, exact approval, Goal step). Owner-manual operations through `POST
-/trading/execute` are exempt unless the owner sets `applies_to_owner_manual`; agents
-cannot set it. Shadow execution never reaches a broker and is unaffected.
+/trading/execute` are exempt unless the owner sets `applies_to_owner_manual` on an
+all-agent restriction; agents cannot set it. The flag binds the owner's own trades, so
+it is rejected together with `agent_id` (a restriction scoped to one agent never
+restricts the owner), and matching applies it only to all-agent restrictions. Shadow
+execution never reaches a broker and is unaffected.
 
 The decisive check runs in the executor's `before_send` callback, under the per-account
 send lock, in the same transaction that moves the reserved journal row to `submitted`.
@@ -141,8 +153,26 @@ Agents use `trade_restriction_create` (narrowing only, no financial authority ne
 idempotent on crash replay, records the owner's message when the run answers one) and
 `trade_restriction_list`. The current restrictions that apply to an agent are rendered
 in its per-turn financial permission frame. A market-bound specialist records and sees
-restrictions on its own account and market only; the Personal Agent and flexible agents
-can scope one to any owned account and symbol. No agent tool lifts a restriction. The owner
+restrictions on its own account and market only (`all_symbols` is refused with
+`agent_trading_symbol_mismatch`). The Personal Agent and flexible agents can scope one
+to any owned account and symbol. Like every market tool, an omitted symbol is filled
+with the agent's home symbol when the restriction is on its home account; such an agent
+passes `all_symbols: true` for every symbol on that account (rejected together with
+`symbol`).
+
+`all_mutations` also blocks risk-reducing exits (closes, cancellations, tighter stops
+and Goal protective steps). An agent may therefore impose it on another agent or on all
+agents only in a run that answers the owner's message (source `owner_message`);
+otherwise creation fails with `restriction_all_mutations_requires_owner_message`, and on
+its own initiative an agent may freeze only itself. `no_new_entries` and
+`no_risk_increase` keep exits admissible and any agent may record them for any agent in
+its scope.
+
+Blocked operations carry tool recovery metadata that matches the boundary:
+`trading_restriction_active` is `permission_denied` / `respect_scope` (never route around
+it through another symbol or account), and every `risk_*` code is `risk_limit_blocked` /
+`inspect_risk_assessment` (resize or protect to fit the limit, reduce exposure, or wait
+for the owner). No agent tool lifts a restriction. The owner
 lists, creates and lifts them through `GET/POST /trading/restrictions` and `POST
 /trading/restrictions/{id}/revoke` (owner session with CSRF, or bearer token). There is
 no Web or Mobile control for restrictions yet; the API is the owner surface.
@@ -167,11 +197,15 @@ owner. The agent sees configured and unset limits in its permission frame and th
   verification whose ticket is not yet visible, plus the request itself. An unresolved
   stop or pending-order edit counts as the worse of current and requested state.
   Anything without a stop makes open risk unbounded, which blocks new risk.
-- `max_daily_loss`: broker-reported realized trading P&L (profit, commission and swap
-  of every deal except balance, credit and bonus cash flows) since local midnight in
-  `trading_day_timezone`, plus the current floating profit of open positions. Reaching
-  the limit blocks new risk. A full history page (1,000 deals) or unreadable history
-  blocks rather than counting as zero loss.
+- `max_daily_loss`: broker-reported realized P&L since local midnight in
+  `trading_day_timezone`, plus the current floating profit of open positions. Deals
+  count conservatively: trade deals (`DEAL_TYPE_BUY`, `DEAL_TYPE_SELL`) with profit,
+  commission and swap; balance, credit and bonus cash flows not at all; every other
+  type (correction, charge, commission-only, interest, dividend, tax, cancelled deals
+  and unknown or missing types) only when its total is negative, so a non-trading
+  credit never offsets a trading loss. Reaching the limit blocks new risk. A full
+  history page (1,000 deals) or unreadable history blocks rather than counting as zero
+  loss.
 - `min_free_margin`: new entries need at least this current free margin (the new
   order's own margin is not modeled).
 
@@ -188,13 +222,17 @@ not part of the signed grant envelope; signed monetary envelope fields remain re
 
 ## Verification of restrictions and limits
 
-`tests/test_trading_restrictions.py` covers action classes, scope and owner exemption,
-expiry, permission-frame rendering, per-trade risk from stop distance and tick value,
-open risk with pending and unresolved operations, daily loss and history coverage,
-free margin and currency mismatch. `tests/check_trading_restrictions.py` (disposable
+`tests/test_trading_restrictions.py` covers action classes, scope and owner exemption
+(including the owner flag on agent-scoped restrictions), expiry, symbol verification,
+the home-symbol default and `all_symbols`, permission-frame rendering, recovery
+classification, per-trade risk from stop distance and tick value, open risk with
+pending and unresolved operations, daily loss with conservative deal types and history
+coverage, free margin and currency mismatch. `tests/check_trading_restrictions.py` (disposable
 PostgreSQL, simulation broker, real owner API and approval path) covers the agent tool
-sourcing the owner's message, a restriction created while approved work waits for the
-send lock and enforced at the send boundary, reduce-only under restriction, owner-flagged restrictions and owner-only
+sourcing the owner's message, a mis-spelled symbol refused while the catalog is
+readable, a flexible agent with a home market recording an every-symbol restriction,
+an agent-initiated `all_mutations` restriction on other agents refused, a restriction
+created while approved work waits for the send lock and enforced at the send boundary, reduce-only under restriction, owner-flagged restrictions and owner-only
 lifting, expiry, every monetary limit, and an operation interrupted after submission
 that stays traceable and is recovered without resend while the restriction blocks new
 orders.

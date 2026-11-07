@@ -39,6 +39,8 @@ def restriction_frame(row: dict[str, Any], agent_id: str) -> dict[str, Any]:
         "valid_until": row["valid_until"],
         "source": row["source"],
         "reason": row["reason"],
+        # Only shown when the broker catalog could not confirm the stored spelling.
+        **({} if row.get("symbol_verified", True) else {"symbol_verified": False}),
     }
 
 

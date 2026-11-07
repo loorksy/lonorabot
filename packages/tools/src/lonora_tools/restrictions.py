@@ -4,6 +4,11 @@ Creating a restriction can only remove admissible actions, so it needs no financ
 authority. When the run was started by the owner's message, the restriction records
 that message as its source. Revocation is an owner-session action (API), deliberately
 absent here.
+
+One narrowing is not left to an agent's own initiative: ``all_mutations`` also blocks
+risk-reducing exits (closes, cancellations, tighter stops), so an agent may impose it on
+another agent or on all agents only when the run answers the owner's message. On its
+own initiative an agent may freeze only itself.
 """
 
 from typing import Any
@@ -11,9 +16,9 @@ from typing import Any
 from lonora_contracts.trading import UNRESOLVED_STATUSES
 from lonora_contracts.trading_restrictions import AgentRestrictionRequest, RestrictionListQuery
 from lonora_core.user_error import LonoraError
-from lonora_db.agent_binding import agent_binding
+from lonora_db.agent_binding import agent_binding, fixed_market
 from lonora_db.runs import require_lease
-from lonora_db.schema import MessageRow, RunRow, TradingJournalRow
+from lonora_db.schema import MessageRow, RunRow, TradingJournalRow, TradingRestrictionRow
 from lonora_db.trading_restrictions import (
     create_restriction,
     list_restrictions,
@@ -26,7 +31,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .base import Tool
 from .context import ToolContext
-from .symbols import canonical_broker_symbol
+from .symbols import restriction_symbol
 
 # Runs started by the owner's own message in a conversation or group.
 OWNER_TRIGGERS = frozenset({"user", "group"})
@@ -52,26 +57,41 @@ async def create(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     params = AgentRestrictionRequest.model_validate(args)
     async with context.db.sessions() as session:
         agent = await agent_binding(session, context.owner_id, context.agent_id)
+        # A crash-replayed call returns the restriction it already created, unchanged.
+        replayed = await session.get(TradingRestrictionRow, context.resource_id) is not None
     account_id = params.account_id or agent.trading_account_id
     if account_id is None:
         raise LonoraError("restriction_account_required", 422)
-    symbol = params.symbol
-    if symbol is not None:
+    if params.all_symbols and fixed_market(agent):
+        # A market-bound agent's scope is its own market; every symbol exceeds it.
+        raise LonoraError("agent_trading_symbol_mismatch", 409)
+    symbol = None if params.all_symbols else params.symbol
+    verified = True
+    if symbol is not None and not replayed:
         try:
             broker = await context.brokers.get(context.owner_id, account_id)
         except Exception:
             broker = None  # Narrowing must never depend on broker availability.
-        if broker is not None:
-            symbol = await canonical_broker_symbol(broker, symbol)
+        symbol, verified = await restriction_symbol(broker, symbol)
+    scoped_agent = None if params.all_agents else params.agent_id or context.agent_id
     async with context.db.sessions() as session, session.begin():
         run = await require_lease(session, context.lease, lock=True)
         message_id = await owner_message_id(session, run)
+        if (
+            not replayed
+            and params.action_class == "all_mutations"
+            and scoped_agent != context.agent_id
+            and message_id is None
+        ):
+            # Freezing other agents also blocks their protective exits: the owner asks.
+            raise LonoraError("restriction_all_mutations_requires_owner_message", 403)
         row = await create_restriction(
             session,
             context.owner_id,
             account_id=account_id,
-            agent_id=None if params.all_agents else params.agent_id or context.agent_id,
+            agent_id=scoped_agent,
             symbol=symbol,
+            symbol_verified=verified,
             action_class=params.action_class,
             valid_from=params.valid_from,
             valid_until=params.valid_until,
@@ -80,12 +100,11 @@ async def create(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             source_message_id=message_id,
             source_run_id=run.id,
             created_by_agent_id=context.agent_id,
-            # A crash-replayed call returns the same restriction instead of a second one.
             restriction_id=context.resource_id,
         )
         query = select(TradingJournalRow).where(
             TradingJournalRow.owner_id == context.owner_id,
-            TradingJournalRow.account_id == account_id,
+            TradingJournalRow.account_id == row.account_id,
             TradingJournalRow.execution_mode == "live",
             TradingJournalRow.status.in_(sorted(UNRESOLVED_STATUSES)),
         )
@@ -158,9 +177,11 @@ def tools() -> list[Tool]:
             "operation in scope, including work already queued: no_new_entries (no new market "
             "or pending entries or pending-entry edits; managing, closing and cancelling stay "
             "allowed), no_risk_increase (only closes, cancellations and tighter stops) or "
-            "all_mutations (no broker changes). Scope: account (default your bound account), "
-            "optional exact symbol (a market-bound agent's own market by default), yourself by "
-            "default, another agent_id or all_agents. Set "
+            "all_mutations (no broker changes, exits included; for another agent or all "
+            "agents only when the owner's message asked). Scope: account (default your bound "
+            "account); symbol (the broker must list it; your home market by default on your "
+            "home account) or all_symbols for every symbol on the account (not for a "
+            "market-bound agent); yourself by default, another agent_id or all_agents. Set "
             "valid_until for a time-limited instruction such as 'today' (end of the owner's "
             "day, timezone-aware); omit it only for an open-ended one. It only narrows: watches "
             "and analysis continue, existing positions and pending orders are not changed, and "
