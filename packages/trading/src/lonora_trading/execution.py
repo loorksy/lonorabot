@@ -41,6 +41,7 @@ from .journal import execution_evidence
 from .manual_activity import material_state
 from .operation_events import operation_event
 from .preflight import preflight
+from .reconciliation import send_lock_key
 from .verification import verify_effect
 
 BROKER_OUTCOMES = frozenset({"confirmed", "failed", "ambiguous"})
@@ -227,6 +228,7 @@ class ExecutionService:
                 request,
                 reducing=planned_reducing,
                 recovery=connection.state.get("broker_recovery"),
+                send_locked=False,
             )
             journal, fresh = await reserve_operation(
                 session,
@@ -351,13 +353,15 @@ class ExecutionService:
                 if connection.version != connection_version:
                     raise LonoraError("broker_connection_changed", 409)
                 # Under the account send lock every other reservation is provably
-                # unsent; only submitted/ambiguous operations on this market block.
+                # unsent and every other submitted operation has lost its sender:
+                # submitted and ambiguous operations on this market block new risk.
                 await require_operation_scope(
                     session,
                     owner_id,
                     request,
                     reducing=reducing,
                     recovery=connection.state.get("broker_recovery"),
+                    send_locked=True,
                 )
                 if lease:
                     await require_lease(session, lease, lock=True)
@@ -434,7 +438,61 @@ class ExecutionService:
                 await operation_event(session, row)
             send_authorized = True
 
+        def outcome_of(error: BaseException) -> TradeResult:
+            # The adapter's before_send callback is the mutation boundary: it persists send
+            # authorization before the adapter may send. Any failure or interruption before
+            # it returned is known not sent; after it, transport, SDK and cancellation
+            # failures are not evidence of non-execution and stay uncertain.
+            if isinstance(error, LonoraError):
+                return (
+                    TradeResult(
+                        operation_id=request.operation_id, status="ambiguous", code=error.code
+                    )
+                    if send_authorized
+                    else not_sent(request, error.code)
+                )
+            if send_authorized:
+                return TradeResult(
+                    operation_id=request.operation_id,
+                    status="ambiguous",
+                    code="broker_result_ambiguous",
+                )
+            return not_sent(
+                request,
+                "operation_interrupted_before_send"
+                if isinstance(error, asyncio.CancelledError)
+                else "broker_unavailable_before_send",
+            )
+
+        async def conclude(outcome: TradeResult) -> TradeResult:
+            outcome.details = {
+                **outcome.details,
+                "execution_quality": actual_execution(request, outcome, quality),
+            }
+            async with self.db.sessions() as session, session.begin():
+                row = await session.get(
+                    TradingJournalRow, request.operation_id, with_for_update=True
+                )
+                if row is not None and row.status not in TERMINAL_STATUSES:
+                    row.result = {
+                        **row.result,
+                        "details": {
+                            **row.result.get("details", {}),
+                            "execution_quality": outcome.details["execution_quality"],
+                        },
+                    }
+                changed = await persist_result(
+                    session, request.operation_id, outcome.status, outcome.model_dump(mode="json")
+                )
+                row = await session.get(TradingJournalRow, request.operation_id)
+                assert row is not None
+                if changed:
+                    await operation_event(session, row)
+                return receipt(row)
+
         cancelled = False
+        result: TradeResult | None = None
+        final: TradeResult | None = None
         try:
             # A dedicated account advisory lock serializes different operation
             # IDs across workers, without blocking owner control/config changes.
@@ -442,120 +500,91 @@ class ExecutionService:
             async with self.db.sessions() as account_lock, account_lock.begin():
                 await account_lock.execute(
                     text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"),
-                    {"key": f"execution:{owner_id}:{request.account_id}"},
+                    {"key": send_lock_key(owner_id, request.account_id)},
                 )
-                result = await broker.execute(request, before_send)
-                if result.operation_id == request.operation_id and send_authorized:
-                    if result.status == "confirmed":
-                        # Persist the real acknowledgment before another external
-                        # read. A crash during verification must not erase it or
-                        # reopen permission to send the mutation again.
-                        result.details = {
-                            **result.details,
-                            "execution_quality": actual_execution(request, result, quality),
-                        }
-                        async with self.db.sessions() as saved, saved.begin():
-                            if await persist_result(
-                                saved,
-                                request.operation_id,
-                                result.status,
-                                result.model_dump(mode="json"),
-                            ):
-                                acknowledged = await saved.get(
-                                    TradingJournalRow, request.operation_id
-                                )
-                                assert acknowledged is not None
-                                await operation_event(saved, acknowledged)
-                        verification = await verify_effect(broker, request, result, before_snapshot)
-                        async with self.db.sessions() as saved, saved.begin():
-                            journal = await saved.get(
-                                TradingJournalRow, request.operation_id, with_for_update=True
+                try:
+                    result = await broker.execute(request, before_send)
+                    if result.operation_id == request.operation_id and send_authorized:
+                        if result.status == "confirmed":
+                            # Persist the real acknowledgment before another external
+                            # read. A crash during verification must not erase it or
+                            # reopen permission to send the mutation again.
+                            result.details = {
+                                **result.details,
+                                "execution_quality": actual_execution(request, result, quality),
+                            }
+                            async with self.db.sessions() as saved, saved.begin():
+                                if await persist_result(
+                                    saved,
+                                    request.operation_id,
+                                    result.status,
+                                    result.model_dump(mode="json"),
+                                ):
+                                    acknowledged = await saved.get(
+                                        TradingJournalRow, request.operation_id
+                                    )
+                                    assert acknowledged is not None
+                                    await operation_event(saved, acknowledged)
+                            verification = await verify_effect(
+                                broker, request, result, before_snapshot
                             )
-                            if (
-                                journal
-                                and journal.status == "confirmed"
-                                and journal.result.get("broker_id") == result.broker_id
-                            ):
-                                journal.result = {
-                                    **journal.result,
-                                    "details": {
-                                        **journal.result.get("details", {}),
-                                        "verification": verification,
-                                    },
-                                }
-                                journal.updated_at = utcnow()
-                                # A pending verification is rechecked by the
-                                # reconciliation loop (recheck_verifications) until
-                                # verified or unverified; the owner sees it waiting.
-                                await operation_event(saved, journal)
-                        result.details = {
-                            **result.details,
-                            "verification": verification,
-                        }
-            if (
-                result.operation_id != request.operation_id
-                or not send_authorized
-                # An adapter reports a broker outcome; lifecycle states are the journal's.
-                or result.status not in BROKER_OUTCOMES
-            ):
-                result = TradeResult(
-                    operation_id=request.operation_id,
-                    status="ambiguous",
-                    code="broker_result_mismatch",
-                )
-        # The adapter's before_send callback is the mutation boundary: it persists send
-        # authorization before the adapter may send. Any failure or interruption before
-        # it returned is known not sent; after it, transport, SDK and cancellation
-        # failures are not evidence of non-execution and stay uncertain.
-        except asyncio.CancelledError:
+                            async with self.db.sessions() as saved, saved.begin():
+                                journal = await saved.get(
+                                    TradingJournalRow, request.operation_id, with_for_update=True
+                                )
+                                if (
+                                    journal
+                                    and journal.status == "confirmed"
+                                    and journal.result.get("broker_id") == result.broker_id
+                                ):
+                                    journal.result = {
+                                        **journal.result,
+                                        "details": {
+                                            **journal.result.get("details", {}),
+                                            "verification": verification,
+                                        },
+                                    }
+                                    journal.updated_at = utcnow()
+                                    # A pending verification is rechecked by the
+                                    # reconciliation loop (recheck_verifications) until
+                                    # verified or unverified; the owner sees it waiting.
+                                    await operation_event(saved, journal)
+                            result.details = {
+                                **result.details,
+                                "verification": verification,
+                            }
+                    if (
+                        result.operation_id != request.operation_id
+                        or not send_authorized
+                        # An adapter reports a broker outcome; lifecycle states are the
+                        # journal's.
+                        or result.status not in BROKER_OUTCOMES
+                    ):
+                        result = TradeResult(
+                            operation_id=request.operation_id,
+                            status="ambiguous",
+                            code="broker_result_mismatch",
+                        )
+                except asyncio.CancelledError as error:
+                    cancelled = True
+                    result = outcome_of(error)
+                except Exception as error:
+                    result = outcome_of(error)
+                # Persist the final outcome while this account's send lock is still held.
+                # Under the lock, any other operation of this account still "submitted"
+                # has provably lost its sender: admission and recovery rely on that, and
+                # a sibling waiting for the lock sees this outcome, not a stale row.
+                final = await conclude(result)
+        except asyncio.CancelledError as error:
+            # Interrupted while waiting for the lock, or while concluding under it.
             cancelled = True
-            result = (
-                TradeResult(
-                    operation_id=request.operation_id,
-                    status="ambiguous",
-                    code="broker_result_ambiguous",
-                )
-                if send_authorized
-                else not_sent(request, "operation_interrupted_before_send")
-            )
-        except LonoraError as error:
-            result = (
-                TradeResult(operation_id=request.operation_id, status="ambiguous", code=error.code)
-                if send_authorized
-                else not_sent(request, error.code)
-            )
-        except Exception:
-            result = (
-                TradeResult(
-                    operation_id=request.operation_id,
-                    status="ambiguous",
-                    code="broker_result_ambiguous",
-                )
-                if send_authorized
-                else not_sent(request, "broker_unavailable_before_send")
-            )
-        result.details = {
-            **result.details,
-            "execution_quality": actual_execution(request, result, quality),
-        }
-        async with self.db.sessions() as session, session.begin():
-            row = await session.get(TradingJournalRow, request.operation_id, with_for_update=True)
-            if row is not None and row.status not in TERMINAL_STATUSES:
-                row.result = {
-                    **row.result,
-                    "details": {
-                        **row.result.get("details", {}),
-                        "execution_quality": result.details["execution_quality"],
-                    },
-                }
-            changed = await persist_result(
-                session, request.operation_id, result.status, result.model_dump(mode="json")
-            )
-            row = await session.get(TradingJournalRow, request.operation_id)
-            assert row is not None
-            if changed:
-                await operation_event(session, row)
-            result = receipt(row)
+            result = outcome_of(error) if result is None else result
+        except Exception as error:
+            result = outcome_of(error) if result is None else result
+        if final is None:
+            assert result is not None
+            final = await conclude(result)
+        result = final
         if request.thesis_id:
             from .opportunities import sync_opportunity_execution
 

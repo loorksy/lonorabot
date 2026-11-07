@@ -19,6 +19,9 @@ AMBIGUOUS = frozenset(
 )
 # Financial statuses whose outcome is not yet known (lonora_contracts.trading lifecycle).
 IN_FLIGHT = frozenset({"ambiguous", "submitted", "reserved"})
+# Settled without broker confirmation (owner attestation or a vanished/changed target):
+# terminal, so never retried or resent, but not evidence that the requested effect holds.
+SETTLED_UNCONFIRMED = "resolved"
 
 
 class ToolRetryScheduled(Exception):
@@ -126,6 +129,11 @@ def observe(
     failed = (
         result.get("ok") is False or uncertain or result.get("status") in {"failed", "rejected"}
     )
+    unconfirmed = not failed and (
+        result.get("status") == SETTLED_UNCONFIRMED
+        or nested.get("status") == SETTLED_UNCONFIRMED
+        or any(item.get("status") == SETTLED_UNCONFIRMED for item in outcomes)
+    )
     failures = int(previous.get("failures", 0)) + 1 if failed else 0
     record = {
         "tool": call.name,
@@ -133,7 +141,7 @@ def observe(
         "origin_call_id": previous.get("origin_call_id", call.id)
         if previous.get("ambiguous")
         else call.id,
-        "code": code if failed else None,
+        "code": code if failed else "operation_resolved_unconfirmed" if unconfirmed else None,
         "failures": failures,
         "ambiguous": uncertain or bool(previous.get("ambiguous")),
         "receipt_replay": previous.get("receipt_replay", False)
@@ -163,6 +171,11 @@ def observe(
             recovery["next_action"] = "alternate_route_or_wait"
             recovery["retry_exhausted"] = True
         result["recovery"] = recovery
+    elif unconfirmed:
+        # Not a success to build on: read the account again before any next decision.
+        result["recovery"] = ToolRecovery(
+            category="stale_state", next_action="reload_authoritative_state"
+        ).model_dump(mode="json")
     return record
 
 

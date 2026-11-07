@@ -26,8 +26,13 @@ An unresolved live operation (``submitted`` or ``ambiguous``: possibly sent, out
 established) blocks new risk-increasing requests on the same account and symbol, or on the
 same position/order ticket, never the whole account, and never a risk-reducing request.
 A ``reserved`` operation does not block: under the serialized account send lock it has
-provably not crossed the send boundary. A disconnected broker observation blocks new risk
-on the account; a ``degraded`` one is decided by the scoped journal check instead.
+provably not crossed the send boundary. The executor persists every final outcome before
+it releases that lock, so under the lock another ``submitted`` operation has lost its
+sender and blocks; before the lock is taken a ``submitted`` sibling may still be in flight
+and about to settle, so only ``ambiguous`` operations reject a request that early (the
+locked check at the send boundary repeats with both). A disconnected broker observation
+blocks new risk on the account; a ``degraded`` one is decided by the scoped journal check
+instead.
 """
 
 from typing import Any
@@ -46,6 +51,8 @@ REDUCING_ACTIONS = frozenset({"close_position", "cancel_order", "modify_position
 # Recovery observations that do not by themselves prevent new risk. "degraded" lists
 # unresolved operations, whose market scope the journal check decides directly.
 ADMISSIBLE_RECOVERY = frozenset({"connected", "degraded"})
+# Without the account send lock a "submitted" sibling may still be in flight.
+LOCK_FREE_BLOCKING = frozenset({"ambiguous"})
 
 
 def may_reduce_risk(request: TradeRequest) -> bool:
@@ -93,6 +100,8 @@ async def unresolved_conflict(
     session: AsyncSession,
     owner_id: str,
     request: TradeRequest,
+    *,
+    statuses: frozenset[str] = UNRESOLVED_STATUSES,
 ) -> str | None:
     """The oldest unresolved live operation sharing this request's symbol or ticket."""
     return await unresolved_in_scope(
@@ -103,6 +112,7 @@ async def unresolved_conflict(
         position_id=request.position_id,
         order_id=request.order_id,
         exclude=request.operation_id,
+        statuses=statuses,
     )
 
 
@@ -115,6 +125,7 @@ async def unresolved_in_scope(
     position_id: str | None = None,
     order_id: str | None = None,
     exclude: str | None = None,
+    statuses: frozenset[str] = UNRESOLVED_STATUSES,
 ) -> str | None:
     scope = [TradingJournalRow.request["symbol"].as_string() == symbol]
     if position_id:
@@ -125,7 +136,7 @@ async def unresolved_in_scope(
         TradingJournalRow.owner_id == owner_id,
         TradingJournalRow.account_id == account_id,
         TradingJournalRow.execution_mode == "live",
-        TradingJournalRow.status.in_(sorted(UNRESOLVED_STATUSES)),
+        TradingJournalRow.status.in_(sorted(statuses)),
         or_(*scope),
     )
     if exclude:
@@ -162,11 +173,17 @@ async def require_operation_scope(
     *,
     reducing: bool,
     recovery: dict[str, Any] | None,
+    send_locked: bool,
 ) -> None:
-    """Reject new risk while relevant broker state is unknown; always admit exits."""
+    """Reject new risk while relevant broker state is unknown; always admit exits.
+
+    ``send_locked``: the caller holds this account's send lock, so a ``submitted``
+    sibling has no live sender and is as unresolved as an ``ambiguous`` one.
+    """
     if reducing:
         return
     if recovery and recovery.get("status") not in ADMISSIBLE_RECOVERY:
         raise LonoraError("broker_reconciliation_required", 409)
-    if await unresolved_conflict(session, owner_id, request):
+    statuses = UNRESOLVED_STATUSES if send_locked else LOCK_FREE_BLOCKING
+    if await unresolved_conflict(session, owner_id, request, statuses=statuses):
         raise LonoraError("broker_reconciliation_required", 409)

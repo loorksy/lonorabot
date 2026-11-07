@@ -7,7 +7,7 @@ from lonora_contracts.trading import TradeRequest
 from lonora_contracts.trading_goal import GoalExecution
 from lonora_db.schema import TradingJournalRow
 
-from .operation_events import lifecycle
+from .operation_events import lifecycle, send_state
 
 
 def journal_data(row: TradingJournalRow) -> dict[str, Any]:
@@ -85,9 +85,26 @@ def record_excerpt(row: TradingJournalRow, *, symbol: str | None = None) -> dict
             "virtual_status",
             "fill_model",
             "monetary_pnl",
+            # Lifecycle facts: a not_sent failure never reached the broker, a resolved
+            # operation was settled without broker confirmation (by whom and how).
+            "send_state",
+            "prior_receipt",
+            "resolution",
+            "conclusion",
         )
         if key in details
     }
+    resolution = result["details"].get("resolution")
+    if isinstance(resolution, dict):
+        attestation = cast(dict[str, Any], resolution)
+        actor = attestation.get("actor")
+        if isinstance(actor, dict):
+            # The owner's session reference is an authentication detail, not evidence.
+            attestation["actor"] = {
+                key: value
+                for key, value in cast(dict[str, Any], actor).items()
+                if key != "session_ref"
+            }
     if symbol:
         for observed in result["details"].get("execution_evidence", {}).values():
             snapshot = observed.get("snapshot")
@@ -108,5 +125,6 @@ def record_excerpt(row: TradingJournalRow, *, symbol: str | None = None) -> dict
         "submitted_at": row.submitted_at.isoformat() if row.submitted_at else None,
         "recorded_at": row.updated_at.isoformat(),
         "historical_evidence_available": bool(details.get("execution_evidence")),
+        "send_state": send_state(row),
         "execution_authorized": False,
     }

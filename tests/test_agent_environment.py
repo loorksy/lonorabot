@@ -120,3 +120,26 @@ def test_later_ambiguous_operation_does_not_reconcile_an_older_success() -> None
     observe(state, later, tool, {"ok": True, "status": "ambiguous"})
     blocked = blocked_route(state, later)
     assert blocked and blocked["origin_call_id"] == "new-uncertain-operation"
+
+
+def test_resolved_financial_outcome_is_settled_but_never_reported_as_confirmed() -> None:
+    state: dict[str, Any] = {}
+    tool = Tool("financial", "Test receipt", Contract, handler, financial=True, replay_safe=True)
+    call = ToolCall(id="lost-response", name="financial", arguments={"volume": 1})
+    observe(state, call, tool, {"ok": True, "status": "ambiguous"})
+    resolved: dict[str, Any] = {"ok": True, "status": "resolved", "code": "owner_attested_executed"}
+    record = observe(state, call, tool, resolved)
+    assert resolved["recovery"]["category"] == "stale_state"
+    assert resolved["recovery"]["next_action"] == "reload_authoritative_state"
+    assert not resolved["recovery"]["safe_to_retry"]
+    assert record["failures"] == 0 and record["code"] == "operation_resolved_unconfirmed"
+    assert state["environment"]["phase"] == "working"
+    # The route keeps replaying the same durable operation; a new call ID never mints one.
+    blocked = blocked_route(state, call.model_copy(update={"id": "new-call"}))
+    assert blocked and blocked["origin_call_id"] == "lost-response"
+    batch: dict[str, Any] = {
+        "ok": True,
+        "results": [{"status": "confirmed"}, {"status": "resolved", "code": "target_closed"}],
+    }
+    observe(state, ToolCall(id="batch", name="financial", arguments={}), tool, batch)
+    assert batch["recovery"]["next_action"] == "reload_authoritative_state"

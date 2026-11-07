@@ -1,7 +1,6 @@
 """Reconciliation-first account observations in the existing Gateway and broker ledger."""
 
 import asyncio
-from datetime import timedelta
 
 from lonora_adapters.brokers.base import BrokerManager
 from lonora_contracts.broker_activity import BrokerRecoverySnapshot
@@ -21,7 +20,7 @@ from lonora_session.idempotency import stable_id
 from sqlalchemy import select, text
 
 from .manual_activity import detect_activity
-from .reconciliation import observe_operation, sender_alive, settle
+from .reconciliation import observe_operation, send_lock_key, settle
 
 
 async def reconcile_broker_account(
@@ -38,7 +37,7 @@ async def reconcile_broker_account(
     async with db.sessions() as gate, gate.begin():
         acquired = await gate.scalar(
             text("SELECT pg_try_advisory_xact_lock(hashtextextended(:key, 0))"),
-            {"key": f"execution:{owner_id}:{account_id}"},
+            {"key": send_lock_key(owner_id, account_id)},
         )
         if not acquired:
             return None
@@ -78,17 +77,10 @@ async def reconcile_broker_account(
                 unresolved: list[str] = []
                 for entry in entries:
                     # Under this same account send lock a reservation has provably not
-                    # been sent; reconcile_ambiguous releases an abandoned one.
+                    # been sent (reconcile_ambiguous releases an abandoned one), and a
+                    # submitted operation has lost its sender: the executor persists
+                    # every outcome before releasing the lock. Both are only observed.
                     if entry.status not in UNRESOLVED_STATUSES:
-                        continue
-                    if (
-                        entry.status == "submitted"
-                        and entry.submitted_at
-                        and entry.submitted_at > now - timedelta(seconds=60)
-                    ):
-                        # A live fenced sender is persisting this operation's outcome.
-                        if not await sender_alive(db, entry, now):
-                            unresolved.append(entry.operation_id)
                         continue
                     receipt = await observe_operation(broker, entry, (positions, orders, read_at))
                     if receipt is not None:

@@ -12,7 +12,7 @@ from lonora_contracts.domain import utcnow
 from lonora_contracts.trading import TradeRequest, TradeResult, TradingControl
 from lonora_core.user_error import LonoraError
 from lonora_db.broker_sessions import BrokerSessionRepository
-from lonora_db.schema import EventRow, TradingAccountRow, TradingJournalRow
+from lonora_db.schema import EventRow, TradeApprovalRow, TradingAccountRow, TradingJournalRow
 from lonora_session.idempotency import request_hash
 from lonora_tools.loader import load_tools
 from lonora_trading.controls import read_controls, save_controls
@@ -26,7 +26,8 @@ async def main() -> None:
     connection_id: str | None = None
     operations: list[str] = []
     try:
-        agent = await fixture.agent("Pending order fixture")
+        # Supervised: the fenced agent path sends only exact owner-approved operations.
+        agent = await fixture.agent("Pending order fixture", supervised=True)
         thread = await fixture.conversation(agent)
         context = await fixture.lease(await fixture.run(agent, thread))
         connection = await fixture.request(
@@ -118,6 +119,25 @@ async def main() -> None:
         await save_controls(fixture.runtime.db, TradingControl(enabled=True))
         service = fixture.runtime.services(fixture.owner).trading
 
+        async def approve(request: TradeRequest) -> None:
+            # The exact stored owner approval the executor rechecks under the lease fence
+            # (require_operation_permission); the card UI flow is check_trade_approvals.
+            async with fixture.runtime.db.sessions() as session, session.begin():
+                session.add(
+                    TradeApprovalRow(
+                        id=str(uuid4()),
+                        owner_id=fixture.owner,
+                        run_id=context.lease.run_id,
+                        thread_id=thread["id"],
+                        agent_id=agent["id"],
+                        call_id="pending-fixture-call-" + request.operation_id,
+                        broker_snapshot={},
+                        requests=[request.model_dump(mode="json")],
+                        status="approved",
+                        results=[],
+                    )
+                )
+
         async def trade(action: str, **fields: Any) -> tuple[TradeRequest, TradeResult]:
             operation = "pending-fixture-" + uuid4().hex
             operations.append(operation)
@@ -130,10 +150,8 @@ async def main() -> None:
                     **fields,
                 }
             )
-            # Owner admission path: new agents are analysis-only by design, and agent
-            # approval/grant admission is covered by check_trade_approvals and
-            # check_unified_permissions. This fixture exercises pending-order mechanics.
-            return request, await service.execute(fixture.owner, request)
+            await approve(request)
+            return request, await service.execute(fixture.owner, request, context.lease)
 
         requests: list[tuple[TradeRequest, TradeResult]] = []
         for action, price in (
@@ -157,10 +175,26 @@ async def main() -> None:
             "buy_stop",
             "sell_stop",
         }
-        replay = await service.execute(fixture.owner, requests[0][0])
+        replay = await service.execute(fixture.owner, requests[0][0], context.lease)
         assert replay.broker_id == requests[0][1].broker_id and len(await broker.orders()) == 4
+        unapproved = TradeRequest(
+            account_id=connection_id,
+            operation_id="pending-fixture-" + uuid4().hex,
+            action="buy_limit",
+            symbol="XAUUSD.a",
+            volume=Decimal("0.1"),
+            price=Decimal(99),
+        )
+        operations.append(unapproved.operation_id)
+        try:
+            await service.execute(fixture.owner, unapproved, context.lease)
+        except LonoraError as error:
+            assert error.code == "trade_approval_required", error.code
+        else:
+            raise AssertionError("Unapproved supervised pending order was sent")
+        assert len(await broker.orders()) == 4
         print(
-            "PASS all four native pending types persist through the durable execution journal and replay creates no duplicate order"
+            "PASS all four native pending types persist through the fenced execution journal and replay creates no duplicate order"
         )
 
         ticket = requests[0][1].broker_id
@@ -197,8 +231,9 @@ async def main() -> None:
             volume=Decimal("0.1"),
             price=Decimal(103),
         )
+        await approve(bad)
         try:
-            await service.execute(fixture.owner, bad)
+            await service.execute(fixture.owner, bad, context.lease)
         except LonoraError as error:
             assert error.code == "pending_price_wrong_side"
         else:

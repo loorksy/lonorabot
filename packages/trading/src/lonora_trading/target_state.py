@@ -6,22 +6,40 @@ the requested change holds. Creates and partial closes change exposure increment
 are never inferred this way; their uncertainty stays explicit until correlated broker
 evidence or an owner attestation settles it.
 
-Outcomes, all against a fresh broker read and only after the adapter's own correlated
+Three facts are compared: the request, the target as the send boundary observed it
+(``before``, server-captured evidence) and the target now. Only these conclusions are
+drawn, all against a fresh broker read and only after the adapter's own correlated
 reconciliation was inconclusive:
 
-- modify_position / modify_order, target present: every requested field equals the
-  observed value -> ``confirmed`` (``target_state_matches``); otherwise, once the settle
-  window after submission has passed -> ``failed`` (``target_state_not_reached``: the
-  requested change is not in effect at the broker).
-- modify_position / modify_order, target gone -> ``resolved`` (the position was closed or
-  the order is no longer pending; the change can no longer affect the account).
-- cancel_order, order still pending after the settle window -> ``failed``
-  (``target_state_not_reached``); order gone with no fill evidence after the settle
-  window -> ``confirmed`` (``order_no_longer_pending``); fully filled before the cancel ->
-  ``failed`` (``order_filled_before_cancel``); a partial fill stays uncertain.
-- close_position in full: position gone -> ``confirmed`` (``position_no_longer_open``);
-  still open after the settle window -> ``failed`` (``target_state_not_reached``).
-  A partial close whose position is gone -> ``resolved``; otherwise it stays uncertain.
+- ``confirmed`` means the *requested end state holds* at the broker
+  (``details.conclusion == "requested_end_state_observed"``). It does not claim that this
+  operation's own request, rather than another change, produced it.
+- ``failed`` (``target_state_not_reached``) is concluded only after the settle window and
+  only when every requested field (or the volume, for a close) still equals the
+  before-send target: nothing changed, so the requested change did not take effect.
+- ``resolved`` settles the uncertainty without an outcome claim: the target is gone
+  (``target_closed`` / ``target_no_longer_pending``), or after the settle window it
+  differs from both the request and the before-send state (``target_changed``: a partial
+  fill, a later admitted change or a manual edit superseded it). Either way the current
+  state is observed and this operation can no longer change it.
+
+Per action:
+
+- modify_position / modify_order: requested fields observed -> ``confirmed``
+  (``target_state_matches``); unchanged since before send -> ``failed``; changed
+  otherwise -> ``resolved`` (``target_changed``); target gone -> ``resolved``.
+- cancel_order: order gone with no fill evidence after the settle window -> ``confirmed``
+  (``order_no_longer_pending``); still pending after the settle window -> ``failed``
+  (a cancel cannot partly apply); fully filled before the cancel -> ``failed``
+  (``order_filled_before_cancel``); a partial fill stays uncertain.
+- close_position: position gone -> ``resolved`` (``target_closed``), because a stop,
+  take-profit, manual or other close leaves the same state and a close receipt would
+  imply this operation's exit price. A full close whose position still has its
+  before-send volume after the settle window -> ``failed``; a different volume ->
+  ``resolved`` (``target_changed``). A partial close with its position still open stays
+  uncertain.
+- Without before-send evidence nothing proves the target unchanged: no ``failed`` and no
+  ``target_changed`` conclusion is drawn.
 """
 
 from datetime import datetime, timedelta
@@ -63,6 +81,19 @@ def _decimal(value: Any) -> Decimal | None:
         return None
 
 
+def _same_target(
+    before: Position | Order | None, target: Position | Order
+) -> Position | Order | None:
+    """The before-send observation of this very target, if the evidence holds one."""
+    if (
+        before is None
+        or before.id != target.id
+        or isinstance(before, Position) != isinstance(target, Position)
+    ):
+        return None
+    return before
+
+
 def _receipt(
     operation_id: str,
     status: str,
@@ -85,14 +116,52 @@ def _receipt(
     )
 
 
-def _resolved(operation_id: str, basis: str, observed_at: datetime) -> TradeResult:
+def _matched(operation_id: str, code: str, observed_at: datetime, **evidence: Any) -> TradeResult:
+    return _receipt(
+        operation_id,
+        "confirmed",
+        code,
+        observed_at,
+        conclusion="requested_end_state_observed",
+        **evidence,
+    )
+
+
+def _not_reached(
+    operation_id: str, observed_at: datetime, target: Position | Order, before: Position | Order
+) -> TradeResult:
+    return _receipt(
+        operation_id,
+        "failed",
+        "target_state_not_reached",
+        observed_at,
+        conclusion="before_send_state_unchanged",
+        observed_target=target.model_dump(mode="json"),
+        before_send_target=before.model_dump(mode="json"),
+    )
+
+
+def _resolved(
+    operation_id: str,
+    basis: str,
+    observed_at: datetime,
+    *,
+    target: Position | Order | None = None,
+    before: Position | Order | None = None,
+) -> TradeResult:
     # The target can no longer be affected; whether this operation applied is not known.
+    evidence: dict[str, Any] = {}
+    if target is not None:
+        evidence["observed_target"] = target.model_dump(mode="json")
+    if before is not None:
+        evidence["before_send_target"] = before.model_dump(mode="json")
     return _receipt(
         operation_id,
         "resolved",
         basis,
         observed_at,
         resolution={"source": "broker_state", "basis": basis},
+        **evidence,
     )
 
 
@@ -114,28 +183,27 @@ def target_state_receipt(
     if request.action == "close_position":
         position = next((p for p in positions if p.id == request.position_id), None)
         if position is None:
-            if request.volume is None:
-                return _receipt(operation_id, "confirmed", "position_no_longer_open", observed_at)
             return _resolved(operation_id, "target_closed", observed_at)
-        if request.volume is None and settled:
-            return _receipt(
-                operation_id,
-                "failed",
-                "target_state_not_reached",
-                observed_at,
-                observed_target=position.model_dump(mode="json"),
-            )
-        return None
+        prior = _same_target(before, position)
+        if request.volume is not None or not settled or prior is None:
+            return None
+        if position.volume == prior.volume:
+            return _not_reached(operation_id, observed_at, position, prior)
+        # Part of the position was closed (possibly by this request) or it was changed.
+        return _resolved(operation_id, "target_changed", observed_at, target=position, before=prior)
     if request.action == "cancel_order":
         order = next((o for o in orders if o.id == request.order_id), None)
         if order is not None:
             if not settled:
                 return None
+            # A cancel removes the whole order or nothing: an order still pending after
+            # the settle window means this cancel did not take effect.
             return _receipt(
                 operation_id,
                 "failed",
                 "target_state_not_reached",
                 observed_at,
+                conclusion="order_still_pending",
                 observed_target=order.model_dump(mode="json"),
             )
         if deals is None:
@@ -162,7 +230,7 @@ def target_state_receipt(
             return None  # A partial fill and cancel interplay needs richer evidence.
         if not settled:
             return None
-        return _receipt(operation_id, "confirmed", "order_no_longer_pending", observed_at)
+        return _matched(operation_id, "order_no_longer_pending", observed_at)
     target: Position | Order | None = (
         next((p for p in positions if p.id == request.position_id), None)
         if request.action == "modify_position"
@@ -177,21 +245,20 @@ def target_state_receipt(
     if target.symbol != request.symbol:
         return None
     wanted = _wanted(request)
+    if not wanted:
+        return None
     observed = {name: _observed(target, name) for name in wanted}
-    if wanted and all(observed[name] == value for name, value in wanted.items()):
-        return _receipt(
+    if all(observed[name] == value for name, value in wanted.items()):
+        return _matched(
             operation_id,
-            "confirmed",
             "target_state_matches",
             observed_at,
             observed_target=target.model_dump(mode="json"),
         )
-    if not settled:
+    prior = _same_target(before, target)
+    if not settled or prior is None:
         return None
-    return _receipt(
-        operation_id,
-        "failed",
-        "target_state_not_reached",
-        observed_at,
-        observed_target=target.model_dump(mode="json"),
-    )
+    if all(observed[name] == _observed(prior, name) for name in wanted):
+        return _not_reached(operation_id, observed_at, target, prior)
+    # Neither requested nor the pre-send state: superseded by another change.
+    return _resolved(operation_id, "target_changed", observed_at, target=target, before=prior)

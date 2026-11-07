@@ -3,16 +3,21 @@
 import asyncio
 from datetime import timedelta
 from typing import Any
+from unittest.mock import patch
 from uuid import uuid4
 
 from check_streaming import Fixture
 from lonora_adapter_kit.types import ToolCall
 from lonora_agent.context.decisions import decision_context
 from lonora_contracts.domain import utcnow
-from lonora_db.schema import RunRow
+from lonora_db.schema import RunRow, TradingAccountRow, TradingJournalRow
 from lonora_db.trading_opportunities import owned_opportunity
 from lonora_tools.loader import load_tools
-from lonora_trading.opportunities import refresh_opportunity
+from lonora_trading.opportunities import (
+    maintenance_opportunities,
+    refresh_opportunity,
+    sync_opportunity_execution,
+)
 from sqlalchemy import select
 
 
@@ -261,6 +266,170 @@ async def main() -> None:
         assert finished["status"] == "completed"
         print(
             "PASS same approval/journal/adapter path verifies entry and full exit, repeats return one receipt, and thesis cannot duplicate a financial entry"
+        )
+
+        async def refresh_market() -> None:
+            # Fresh fixture evidence for the follow-up theses; no live market involved.
+            current = utcnow()
+            async with f.runtime.db.sessions() as session, session.begin():
+                row = await session.get(TradingAccountRow, account, with_for_update=True)
+                assert row is not None
+                payload = dict(row.payload)
+                payload["quotes"] = {
+                    s: {**quote, "observed_at": current.isoformat()}
+                    for s, quote in payload["quotes"].items()
+                }
+                payload["candles"] = {
+                    key: [
+                        {**candle, "time": (current - timedelta(seconds=60)).isoformat()}
+                        for candle in candles
+                    ]
+                    for key, candles in payload["candles"].items()
+                }
+                row.payload = payload
+
+        async def fresh_thesis(setup: str) -> dict[str, Any]:
+            await refresh_market()
+            record = await decision(symbols[0], "BUY")
+            row = await call(
+                "market_opportunity_create",
+                {
+                    "account_id": account,
+                    "symbol": symbols[0],
+                    "timeframe": "1m",
+                    "setup_key": setup,
+                    "definition": {
+                        "direction": "BUY",
+                        "rationale": "Observed evidence",
+                        "entry_condition": "Recorded fresh confirmation",
+                        "invalidation_condition": "Contradicting recorded evidence",
+                        "strategy_version": "fixture-v1",
+                        "expires_at": (utcnow() + timedelta(hours=1)).isoformat(),
+                    },
+                    "supporting_decision_ids": [record["id"]],
+                },
+            )
+            return await call(
+                "market_opportunity_update",
+                {
+                    "opportunity_id": row["id"],
+                    "expected_version": row["version"],
+                    "status": "confirmed",
+                    "reason_code": "fresh_fixture_confirmation",
+                    "supporting_decision_ids": [record["id"]],
+                },
+            )
+
+        real_execute = broker.execute
+
+        async def lose_before_effect(request: Any, before_send: Any = None) -> Any:
+            assert before_send
+            await before_send()
+            raise TimeoutError("scripted response loss before the simulated effect")
+
+        async def lose_after_effect(*args: Any, **kwargs: Any) -> Any:
+            await real_execute(*args, **kwargs)
+            raise TimeoutError("scripted response loss after the simulated effect")
+
+        async def entry(
+            thesis: dict[str, Any], key: str, lose: Any = None, volume: str = "0.1"
+        ) -> dict[str, Any]:
+            await refresh_market()
+            entry_args = {
+                "account_id": account,
+                "symbol": symbols[0],
+                "action": "buy",
+                "volume": volume,
+                "thesis_id": thesis["id"],
+            }
+            card = await call("trade_execute", entry_args, key)
+            await f.request(
+                "POST",
+                "/trading/approvals/" + card["approval_id"] + "/decision",
+                {"decision": "approve"},
+            )
+            if lose is None:
+                return (await call("trade_execute", entry_args, key))["results"][0]
+            with patch.object(broker, "execute", side_effect=lose):
+                return (await call("trade_execute", entry_args, key))["results"][0]
+
+        async def thesis_state(thesis: dict[str, Any]) -> dict[str, Any]:
+            return await f.request("GET", "/trading/opportunities/" + thesis["id"])
+
+        statement = {"statement": "Checked the broker terminal history for this request."}
+        unsent = await fresh_thesis("fixture-lost-entry-not-executed")
+        lost = await entry(unsent, "lost-entry-not-executed", lose_before_effect)
+        assert lost["status"] == "ambiguous", lost
+        assert (await thesis_state(unsent))["state"]["pending_entry_operation_id"] == (
+            lost["operation_id"]
+        )
+        await f.request(
+            "POST",
+            f"/trading/journal/{lost['operation_id']}/resolve",
+            {"outcome": "not_executed", **statement},
+        )
+        released = await thesis_state(unsent)
+        assert released["status"] == "confirmed", released
+        assert released["state"]["pending_entry_operation_id"] is None
+        assert not released["state"].get("entry_operation_id")
+        # Identical parameters in this Run replay the same resolved operation; a fresh
+        # entry is a different request.
+        retried = await entry(unsent, "lost-entry-retry", volume="0.2")
+        assert retried["status"] == "confirmed", retried
+        assert (await thesis_state(unsent))["status"] == "acted_on"
+
+        executed = await fresh_thesis("fixture-lost-entry-executed")
+        lost = await entry(executed, "lost-entry-executed", lose_after_effect)
+        assert lost["status"] == "ambiguous", lost
+        await f.request(
+            "POST",
+            f"/trading/journal/{lost['operation_id']}/resolve",
+            {"outcome": "executed", **statement},
+        )
+        attested = await thesis_state(executed)
+        assert attested["status"] == "acted_on", attested
+        assert attested["state"]["entry_operation_id"] == lost["operation_id"]
+        assert attested["state"]["pending_entry_operation_id"] is None
+        assert attested["state"]["reason_code"] == "thesis_entry_attested"
+        again = await entry(executed, "lost-entry-second", volume="0.3")
+        # An acted-on thesis no longer admits entries (status check precedes the link).
+        assert again["status"] == "failed" and again["details"]["send_state"] == "not_sent", again
+        assert again["code"] in {"thesis_not_confirmed", "thesis_already_acted_on"}, again
+        assert await maintenance_opportunities(f.runtime.db, f.owner) >= 0
+        # A broker-state resolution never says who closed the position, but the thesis
+        # position is observed closed: the thesis completes.
+        position_id = (await thesis_state(unsent))["state"]["entry_position_id"]
+        assert position_id
+        operation_id = "thesis-observed-close-" + uuid4().hex
+        observed_closed = TradingJournalRow(
+            operation_id=operation_id,
+            owner_id=f.owner,
+            account_id=account,
+            request_hash="explicit-fixture",
+            request={
+                "account_id": account,
+                "operation_id": operation_id,
+                "action": "close_position",
+                "symbol": symbols[0],
+                "position_id": position_id,
+                "thesis_id": unsent["id"],
+            },
+            execution_mode="live",
+            status="resolved",
+            result={
+                "operation_id": operation_id,
+                "status": "resolved",
+                "code": "target_closed",
+                "details": {"resolution": {"source": "broker_state", "basis": "target_closed"}},
+            },
+        )
+        async with f.runtime.db.sessions() as session, session.begin():
+            await sync_opportunity_execution(session, observed_closed)
+        completed = await thesis_state(unsent)
+        assert completed["status"] == "completed", completed
+        assert completed["state"]["reason_code"] == "thesis_position_no_longer_open"
+        print(
+            "PASS an owner attestation settles a thesis entry link: not_executed releases it for a fresh entry, executed acts on it and blocks a duplicate; an observed-closed position completes its thesis"
         )
     finally:
         await f.request("PUT", "/trading/controls", {"enabled": False, "emergency_stop": False})

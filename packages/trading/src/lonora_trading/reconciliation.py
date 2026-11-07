@@ -9,7 +9,10 @@ explicitly uncertain:
 - A ``submitted`` row whose sender is gone, or an ``ambiguous`` row, is observed through
   the adapter's correlated reconciliation (exact operation identity) and, for set-type
   management actions, by comparing the broker target with the requested change
-  (``target_state``). Inconclusive evidence keeps or makes it ``ambiguous``.
+  (``target_state``). The sender is proven gone when the account send lock is free while
+  the row is still ``submitted`` (the executor persists every outcome under that lock).
+  Inconclusive *or unavailable* evidence makes it ``ambiguous``, so an operation whose
+  broker can no longer be observed is still settled by an owner attestation.
 - A ``confirmed`` row whose resulting state was not yet verified is re-read until it is
   ``verified`` or the verification window ends as ``unverified``.
 """
@@ -32,7 +35,7 @@ from lonora_db.trading_journal import (
     persist_result,
     release_reservation,
 )
-from sqlalchemy import ColumnElement, and_, or_, select
+from sqlalchemy import ColumnElement, and_, or_, select, text
 
 from .operation_events import operation_event, send_state
 from .target_state import TARGET_STATE_ACTIONS, target_state_receipt
@@ -47,6 +50,30 @@ SUBMISSION_GRACE = timedelta(seconds=60)
 # acknowledged but unverified; it is never resent or reinterpreted as failure.
 VERIFICATION_WINDOW = timedelta(minutes=15)
 VERIFICATION_INTERVAL = timedelta(seconds=30)
+
+
+def send_lock_key(owner_id: str, account_id: str) -> str:
+    """The advisory lock the executor holds from its send boundary to its final outcome."""
+    return f"execution:{owner_id}:{account_id}"
+
+
+async def sender_gone(db: Database, row: TradingJournalRow) -> bool:
+    """Proof that a ``submitted`` row's sender stopped, leased or not.
+
+    The executor takes the account send lock before its send boundary and persists the
+    final outcome before releasing it. A row still ``submitted`` while that lock can be
+    taken therefore has no sender left. A busy lock (this or another operation of the
+    account is in flight) proves nothing; the row is observed again on a later pass.
+    """
+    async with db.sessions() as session, session.begin():
+        acquired = await session.scalar(
+            text("SELECT pg_try_advisory_xact_lock(hashtextextended(:key, 0))"),
+            {"key": send_lock_key(row.owner_id, row.account_id)},
+        )
+        if not acquired:
+            return False
+        current = await session.get(TradingJournalRow, row.operation_id)
+        return current is not None and current.status == "submitted"
 
 
 def observation_due(now: datetime) -> ColumnElement[bool]:
@@ -230,10 +257,19 @@ async def reconcile_ambiguous(db: Database, brokers: BrokerManager) -> int:
                 continue
             if alive:
                 continue
+            if row.status == "submitted" and not await sender_gone(db, row):
+                continue
             # Reconciliation observes evidence only. Never resubmit an uncertain request,
             # including a persisted submission left behind by a terminated process.
-            broker = await brokers.get(row.owner_id, row.account_id)
-            receipt = await observe_operation(broker, row)
+            receipt: TradeResult | None = None
+            try:
+                broker = await brokers.get(row.owner_id, row.account_id)
+                receipt = await observe_operation(broker, row)
+            except Exception:
+                # An unreachable broker, a history limit or a malformed receipt is not
+                # evidence either way. The operation stays uncertain, but an abandoned
+                # submission still becomes ambiguous below, where the owner can settle it.
+                receipt = None
             if receipt is not None:
                 changed = await settle(db, row.operation_id, receipt)
             elif row.status == "submitted":

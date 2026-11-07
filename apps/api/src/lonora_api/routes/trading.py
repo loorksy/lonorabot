@@ -12,6 +12,7 @@ from lonora_contracts.trading import (
     TradeResult,
     TradingControl,
 )
+from lonora_core.user_error import LonoraError
 from lonora_db.broker_sessions import BrokerSessionRepository
 from lonora_db.trading_journal import journal_entries, resolve_operation
 from lonora_db.transactions import resource_data
@@ -20,6 +21,7 @@ from lonora_trading.connections import connect_account
 from lonora_trading.controls import read_controls, save_controls
 from lonora_trading.journal import journal_data
 from lonora_trading.operation_events import resolution_event
+from lonora_trading.opportunities import sync_opportunity_execution
 from lonora_trading.simulation import import_simulation
 
 from ..middleware.auth import require_owner, runtime
@@ -149,6 +151,13 @@ async def resolve(
             },
         )
         await resolution_event(session, row)
+        if row.request.get("thesis_id"):
+            # Release or settle the thesis link now, not on the next maintenance pass.
+            try:
+                await sync_opportunity_execution(session, row)
+            except LonoraError as error:
+                if error.code != "opportunity_not_found":
+                    raise
         return journal_data(row)
 
 

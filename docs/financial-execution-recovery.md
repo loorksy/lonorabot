@@ -18,7 +18,7 @@ records, what blocks what, and how uncertainty is settled without ever resending
 | `confirmed` | The broker acknowledged it, or broker evidence later established it. |
 | `failed` | Known outcome: broker rejection, a pre-send block, never sent (`details.send_state == "not_sent"`), or the requested target state is observed not to hold. |
 | `ambiguous` | Possibly sent, outcome unknown. Never resent automatically. |
-| `resolved` | Uncertainty settled without establishing the operation's own outcome: an owner attestation, or broker state showing the target no longer exists. Never broker confirmation. |
+| `resolved` | Uncertainty settled without establishing the operation's own outcome: an owner attestation, or broker state showing the target no longer exists or was changed by something else. Never broker confirmation. |
 
 The executor reserves the row as `reserved`, and `before_send` moves it to
 `submitted` under the journal row lock in the same transaction that records send
@@ -26,6 +26,12 @@ authorization. Any failure before `before_send` returns is persisted as
 `failed` with `send_state: "not_sent"`; any failure after it stays `ambiguous`.
 `persist_result` never regresses `confirmed`, `failed` or `resolved`, and keeps the
 server-captured execution record, quality and evidence.
+
+The executor holds the per-account send lock from before `before_send` until the
+final outcome (confirmed, failed or ambiguous, including cancellation) is persisted.
+Two facts follow and are relied on: under the lock, any *other* `submitted` row of
+the account has lost its sender; and a sibling operation waiting for the lock sees
+the previous operation's real outcome, never a stale `submitted` row.
 
 `journal_data` (GET `/trading/journal`) adds the derived `send_state`
 (`not_sent | sent | unknown`), `verification_status`,
@@ -54,7 +60,11 @@ widening protection — is risk-increasing.
 - An unresolved operation (`submitted` or `ambiguous`) blocks new risk-increasing
   requests on the same account and symbol, or the same position/order ticket, for
   every admission path including the owner API. It never blocks a risk-reducing
-  request. A `reserved` row never blocks.
+  request. A `reserved` row never blocks. The final check runs inside `before_send`,
+  under the send lock, against both statuses. The earlier reservation-phase check
+  runs before the lock is taken, where a `submitted` sibling may still be in flight
+  and about to settle, so it rejects only on `ambiguous` operations; a request
+  admitted there waits for the lock and is re-checked.
 - A `degraded` broker observation blocks only markets with unresolved operations
   (also for decision readiness); a `disconnected` one blocks new risk on the account
   but still admits exits.
@@ -62,27 +72,50 @@ widening protection — is risk-increasing.
 ## Observe-only recovery
 
 `reconcile_ambiguous` (gateway maintenance loop, every 10 s, bounded and rotating)
-and `reconcile_broker_account` share `observe_operation` and never send:
+and `reconcile_broker_account` share `observe_operation` and never send.
+`reconcile_broker_account` observes while holding the account send lock, so every
+`submitted` row it sees has lost its sender; rows it cannot settle mark the account
+`degraded` for their market.
 
 1. An abandoned `reserved` row (lease gone, or 5 minutes without a lease) is released
    to `failed` / `operation_not_sent` without any broker call. The release and the
    reserved→submitted transition share the row lock, so a late sender stops at
    `before_send`.
-2. A `submitted` row whose sender is gone, or an `ambiguous` row, is first observed
-   through the adapter's correlated reconciliation (operation identity / MetaApi
-   `clientId`).
+2. A `submitted` row is only observed once its sender is proven gone: its lease (if
+   any) is no longer live and the account send lock can be taken
+   (`pg_try_advisory_xact_lock`) while the row is still `submitted`. A busy lock
+   proves nothing and the row waits for a later pass. An `ambiguous` row is observed
+   directly. Observation starts with the adapter's correlated reconciliation
+   (operation identity / MetaApi `clientId`).
 3. If that is inconclusive, set-type management actions are compared with the broker
    target (`lonora_trading/target_state.py`). Repeating these cannot add exposure,
-   so the target is evidence. After a two-minute settle window: modify whose fields
-   all match → `confirmed`; mismatch → `failed` (`target_state_not_reached`); target
-   gone → `resolved` (`target_closed` / `target_no_longer_pending`). Cancel: order
-   still pending → `failed`; gone without fill evidence → `confirmed`
-   (`order_no_longer_pending`); fully filled first → `failed`
-   (`order_filled_before_cancel`); partial fill stays uncertain. A full close whose
-   position is gone → `confirmed` (`position_no_longer_open`). Creates and partial
-   closes are never inferred from state.
-4. Still inconclusive: a `submitted` row becomes `ambiguous`
-   (`execution_interrupted_after_send`).
+   so the target is evidence. Three facts are compared: the request, the target as
+   `before_send` observed it (server-captured evidence) and the target now.
+   - `confirmed` from target state means only that the *requested end state holds*
+     (`details.conclusion: "requested_end_state_observed"`), not that this request
+     produced it: modify whose requested fields all match (`target_state_matches`);
+     cancel whose order is gone without fill evidence after the settle window
+     (`order_no_longer_pending`).
+   - `failed` (`target_state_not_reached`) only after the two-minute settle window
+     and only when the requested fields (or, for a full close, the volume) still equal
+     the before-send target (`conclusion: "before_send_state_unchanged"`), or when a
+     cancelled order is still pending (a cancel cannot partly apply). A fully filled
+     order before its cancel → `failed` (`order_filled_before_cancel`).
+   - `resolved` when the target is gone (`target_closed` /
+     `target_no_longer_pending`) or, after the settle window, differs from both the
+     request and the before-send state (`target_changed`: a partial fill of a close,
+     a later admitted change such as a trailing stop, or a manual edit). A full close
+     whose position is gone is `resolved` (`target_closed`), not `confirmed`: a stop,
+     take-profit, manual or other close leaves the same state, and a close receipt
+     would imply this operation's exit.
+   - Without before-send evidence no `failed` or `target_changed` conclusion is drawn.
+     Creates and partial closes are never inferred from state; a partial fill of a
+     cancelled order stays uncertain.
+4. Still inconclusive, or the broker cannot be observed at all (unreachable, MetaApi
+   `broker_history_limit`, a malformed receipt): a `submitted` row whose sender is
+   gone becomes `ambiguous` (`execution_interrupted_after_send`), so the owner can
+   settle it with an attestation. Unavailable evidence is never treated as either
+   outcome.
 
 `recheck_verifications` re-reads `confirmed` rows whose resulting state is still
 `pending` every 30 s until `verified`, or `unverified` after 15 minutes. The broker
@@ -102,6 +135,25 @@ event records the audit fact. In-progress operations return `operation_in_progre
 and settled ones `operation_already_settled`. The Web journal offers this form for
 ambiguous entries. A resolved Goal step stays blocked for an explicit owner decision.
 
+Consumers of `resolved`:
+
+- Opportunity theses (`sync_opportunity_execution`, run by the executor, by this
+  route and by the maintenance loop) read the outcome from the attestation: `executed`
+  acts on the thesis as a confirmed entry would; `not_executed` releases the pending
+  link so the thesis can be acted on again; an entry of `unknown` outcome still acts
+  on the thesis so it can never authorize a second entry. A management operation of
+  unknown outcome (owner `unknown` or any broker-state resolution) releases its
+  pending link; when it is a broker-state `target_closed` on the thesis entry
+  position, the position is observed closed and the thesis completes
+  (`thesis_position_no_longer_open`).
+- The agent's historical trade record (`record_excerpt`) keeps `send_state`,
+  `prior_receipt`, `resolution` (without the owner's session reference) and the
+  target-state `conclusion`, so an agent can tell a never-sent failure from a broker
+  rejection and see how an operation was settled.
+- The runtime's tool observation treats `resolved` as settled (never retried, the
+  route keeps replaying the same operation) but not as success: it attaches the
+  recovery hint `reload_authoritative_state`.
+
 ## Sequences
 
 Both the standing-authority and approval paths stop a batch after the first result
@@ -111,13 +163,22 @@ that is not `confirmed`; the remaining requests are reported as `failed` with
 ## Verification
 
 - `tests/test_financial_admission.py`: risk-reducing classification, global controls,
-  target-state rules, send state and batch halting.
+  target-state rules (including a partly executed full close and a superseded
+  modify), send state, batch halting, the agent history view and thesis outcomes.
 - `tests/check_execution_recovery.py` (disposable PostgreSQL, simulation broker,
   real child processes): crash before send, interruption after submission before
   acknowledgement (Owner addendum §6 step 7: blocked new risk, traceable operation,
   no resend), scoped blocking versus reduce-only admission under Emergency Stop,
   Trading OFF, degraded and disconnected recovery, owner attestation through the API,
-  modify/cancel target-state reconciliation, verification recheck and the approval
-  batch stop.
+  a crashed submission whose broker observation keeps failing (held send lock, then
+  ambiguous and owner-resolvable), a sibling that waits for a definitive rejection
+  under the send lock, modify/cancel target-state reconciliation, verification
+  recheck, the approval batch stop, and approved agent cards that close, cancel and
+  tighten under Emergency Stop and Trading OFF while entries stay blocked.
+- `tests/check_account_authority.py`: a signed-grant agent closes, cancels and
+  tightens under Trading OFF and Emergency Stop; entries and wider stops stay blocked.
+- `tests/check_opportunity_runtime.py`: owner attestations settle a thesis entry
+  link (`not_executed` releases it, `executed` acts on it), and an observed-closed
+  entry position completes its thesis.
 - `tests/check_trading.py`: concurrency, lost responses, cancellation, legacy rows and
   observer fencing.

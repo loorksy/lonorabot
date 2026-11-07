@@ -12,7 +12,9 @@ import os
 import sys
 from collections.abc import Awaitable, Callable
 from datetime import timedelta
+from decimal import Decimal
 from typing import Any, cast
+from unittest.mock import patch
 from uuid import uuid4
 
 from check_streaming import Fixture
@@ -29,8 +31,12 @@ from lonora_tools.loader import load_tools
 from lonora_trading.broker_recovery import reconcile_broker_account
 from lonora_trading.controls import read_controls, save_controls
 from lonora_trading.execution import ExecutionService
-from lonora_trading.reconciliation import recheck_verifications, reconcile_ambiguous
-from sqlalchemy import delete, select
+from lonora_trading.reconciliation import (
+    recheck_verifications,
+    reconcile_ambiguous,
+    send_lock_key,
+)
+from sqlalchemy import delete, select, text
 
 GOLD, EURO, POUND = "XAUUSD.r", "EURUSD.r", "GBPUSD.r"
 
@@ -75,6 +81,9 @@ class LossyBroker(SimulationBroker):
         self.reconciled: list[str] = []
         self.waiting = asyncio.Event()
         self.release: asyncio.Event | None = None
+        # Operation -> gate: cross the send boundary, wait, then report a broker rejection.
+        self.reject_after_boundary: dict[str, asyncio.Event] = {}
+        self.boundary = asyncio.Event()
 
     async def execute(
         self, request: TradeRequest, before_send: Callable[[], Awaitable[None]] | None = None
@@ -87,6 +96,15 @@ class LossyBroker(SimulationBroker):
             await before_send()
             self.sent.append(request.operation_id)
             raise TimeoutError("explicit response loss before the simulated effect")
+        if request.operation_id in self.reject_after_boundary:
+            assert before_send is not None
+            await before_send()
+            self.sent.append(request.operation_id)
+            self.boundary.set()
+            await self.reject_after_boundary[request.operation_id].wait()
+            return TradeResult(
+                operation_id=request.operation_id, status="failed", code="market_closed"
+            )
         result = await super().execute(request, before_send)
         self.sent.append(request.operation_id)
         if request.operation_id in self.lose_after_effect or (
@@ -109,6 +127,29 @@ class LossyBroker(SimulationBroker):
                 operation_id=operation_id, status="ambiguous", code="mutation_evidence_required"
             )
         return await super().reconcile(operation_id, request, submitted_at=submitted_at)
+
+
+class UnobservableBroker(SimulationBroker):
+    """Correlated history and account reads keep failing (e.g. MetaApi broker_history_limit)."""
+
+    def __init__(self, db: Database, owner_id: str, connection_id: str):
+        super().__init__(db, owner_id, connection_id)
+        self.reconciled: list[str] = []
+
+    async def reconcile(
+        self,
+        operation_id: str,
+        request: TradeRequest | None = None,
+        *,
+        submitted_at: Any = None,
+    ) -> TradeResult:
+        self.reconciled.append(operation_id)
+        raise LonoraError("broker_history_limit", 409)
+
+    async def execute(
+        self, request: TradeRequest, before_send: Callable[[], Awaitable[None]] | None = None
+    ) -> TradeResult:
+        raise AssertionError("Recovery must never send")
 
 
 def instrument(symbol: str) -> dict[str, Any]:
@@ -435,6 +476,93 @@ async def main() -> None:
             "PASS owner attestation is session-authenticated, audited and terminal, retains the original evidence, and clears the market block"
         )
 
+        # 4b. A submission whose broker evidence stays unavailable is still owner-resolvable.
+        async def stale_attempt(operation_id: str) -> None:
+            async with db.sessions() as session, session.begin():
+                row = await session.get(TradingJournalRow, operation_id, with_for_update=True)
+                assert row is not None
+                row.updated_at = utcnow() - timedelta(minutes=2)
+
+        await refresh()
+        unobservable = trade("buy", EURO, volume="0.1", stop_loss="95")
+        assert await child("after-boundary", unobservable) == 24
+        await backdate(unobservable.operation_id, timedelta(minutes=30), attempt=True)
+        # While the account send lock is held a sender may still be inside its send:
+        # nothing is concluded, leased or not.
+        async with db.sessions() as holder, holder.begin():
+            await holder.execute(
+                text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"),
+                {"key": send_lock_key(fixture.owner, account)},
+            )
+            await reconcile_ambiguous(db, services.brokers)
+            assert (await journal(unobservable.operation_id)).status == "submitted"
+        blind = UnobservableBroker(db, fixture.owner, account)
+        services.brokers.connections[account] = (cached[0], blind)
+        for _ in range(3):
+            await stale_attempt(unobservable.operation_id)
+            await reconcile_ambiguous(db, services.brokers)
+        row = await journal(unobservable.operation_id)
+        assert row.status == "ambiguous", row.status
+        assert row.result["code"] == "execution_interrupted_after_send"
+        assert unobservable.operation_id in blind.reconciled
+        services.brokers.connections[account] = cached
+        assert unobservable.operation_id not in await operations_at_broker()
+        await blocked(
+            trade("buy", EURO, volume="0.1", stop_loss="95"), "broker_reconciliation_required"
+        )
+        resolved = await fixture.request(
+            "POST",
+            f"/trading/journal/{unobservable.operation_id}/resolve",
+            {
+                "outcome": "not_executed",
+                "statement": "Broker history unavailable; terminal shows none.",
+            },
+        )
+        assert resolved["status"] == "resolved"
+        assert (await run(trade("buy", EURO, volume="0.1", stop_loss="95"))).status == "confirmed"
+        print(
+            "PASS a crashed submission whose broker observation keeps failing becomes ambiguous once its send lock is free, so the owner can resolve it and unblock its market"
+        )
+
+        # 4c. Final outcomes are persisted under the account send lock: a sibling on the same
+        # market waits for a definitive rejection and proceeds, instead of a spurious block.
+        services.brokers.connections[account] = (cached[0], lossy)
+        gate = asyncio.Event()
+        rejected = trade("buy", POUND, volume="0.1", stop_loss="95")
+        sibling = trade("buy", POUND, volume="0.1", stop_loss="95")
+        lossy.reject_after_boundary[rejected.operation_id] = gate
+        await refresh()
+        first = asyncio.create_task(service.execute(fixture.owner, rejected))
+        await asyncio.wait_for(lossy.boundary.wait(), 10)
+        assert (await journal(rejected.operation_id)).status == "submitted"
+        second = asyncio.create_task(service.execute(fixture.owner, sibling))
+        waiting: TradingJournalRow | None = None
+        for _ in range(200):
+            async with db.sessions() as session:
+                waiting = await session.get(TradingJournalRow, sibling.operation_id)
+            if waiting is not None:
+                break
+            await asyncio.sleep(0.05)
+        # Admitted while the sibling is only in flight; now waiting for the send lock.
+        assert waiting is not None and waiting.status == "reserved" and not second.done()
+
+        async def slow_persist(session: Any, operation_id: str, *args: Any) -> bool:
+            if operation_id == rejected.operation_id:
+                await asyncio.sleep(1)  # Widen the window between broker reply and journal.
+            return await persist_result(session, operation_id, *args)
+
+        with patch("lonora_trading.execution.persist_result", slow_persist):
+            gate.set()
+            first_result = await asyncio.wait_for(first, 30)
+        assert first_result.status == "failed" and first_result.code == "market_closed"
+        second_result = await asyncio.wait_for(second, 30)
+        assert second_result.status == "confirmed", second_result
+        assert lossy.sent.count(rejected.operation_id) == 1
+        services.brokers.connections[account] = cached
+        print(
+            "PASS a definitive rejection is persisted under the account send lock, so a sibling on the same market proceeds instead of failing broker_reconciliation_required"
+        )
+
         # 5. Modify/cancel conclude from the broker target, never by resending.
         services.brokers.connections[account] = (cached[0], lossy)
         tighter = trade("modify_position", position_id=opened["p2"], stop_loss="98")
@@ -543,6 +671,80 @@ async def main() -> None:
         services.brokers.connections[account] = cached
         print(
             "PASS an approved batch stops after an uncertain result and reports the rest as never sent"
+        )
+
+        # 8. Approved cards (the supervised agent path) under Emergency Stop and Trading OFF:
+        # exits stay admissible on the still-uncertain GOLD market, new risk never is.
+        async def approved(arguments: dict[str, Any]) -> dict[str, Any]:
+            call = ToolCall(
+                id="card-" + uuid4().hex,
+                name="trade_execute",
+                arguments={"account_id": account, **arguments},
+            )
+            proposal = await registry.execute(call, context)
+            assert proposal["_runtime_wait"], proposal
+            await fixture.request(
+                "POST",
+                f"/trading/approvals/{proposal['approval_id']}/decision",
+                {"decision": "approve"},
+            )
+            await refresh()
+            outcome = await registry.execute(call, context)
+            operations.extend(item["operation_id"] for item in outcome["results"])
+            return outcome
+
+        assert (await journal(results[0]["operation_id"])).status == "ambiguous"
+        resting = await run(trade("buy_limit", POUND, volume="0.2", price="99"))
+        assert resting.status == "confirmed" and resting.broker_id
+        await refresh()
+        held = sorted(
+            (p for p in await broker.positions() if p.symbol == GOLD and p.stop_loss),
+            key=lambda p: p.id,
+        )
+        assert len(held) >= 2
+        stops = [p.stop_loss or Decimal(0) for p in held]
+        await save_controls(db, TradingControl(emergency_stop=True))
+        tightened = await approved(
+            {
+                "action": "modify_position",
+                "symbol": GOLD,
+                "position_id": held[0].id,
+                "stop_loss": str(stops[0] + Decimal("0.5")),
+            }
+        )
+        assert tightened["status"] == "confirmed", tightened
+        assert tightened["details"]["execution"]["risk_reducing"] is True
+        assert tightened["details"]["execution"]["run_id"] == context.lease.run_id
+        entry = await approved(
+            {"action": "buy", "symbol": EURO, "volume": "0.1", "stop_loss": "95"}
+        )
+        assert entry["status"] == "failed" and entry["code"] == "emergency_stop", entry
+        widened = await approved(
+            {
+                "action": "modify_position",
+                "symbol": GOLD,
+                "position_id": held[1].id,
+                "stop_loss": str(stops[1] - Decimal("1")),
+            }
+        )
+        assert widened["status"] == "failed" and widened["code"] == "emergency_stop", widened
+        await save_controls(db, TradingControl(enabled=False))
+        closed = await approved(
+            {"action": "close_position", "symbol": GOLD, "position_id": held[1].id}
+        )
+        assert closed["status"] == "confirmed", closed
+        assert not any(p.id == held[1].id for p in await broker.positions())
+        cancelled = await approved(
+            {"action": "cancel_order", "symbol": POUND, "order_id": resting.broker_id}
+        )
+        assert cancelled["status"] == "confirmed", cancelled
+        entry = await approved(
+            {"action": "buy_limit", "symbol": POUND, "volume": "0.1", "price": "99"}
+        )
+        assert entry["status"] == "failed" and entry["code"] == "trading_disabled", entry
+        await save_controls(db, TradingControl(enabled=True))
+        print(
+            "PASS approved agent cards close, cancel and tighten under Emergency Stop and Trading OFF on an uncertain market, while entries and wider stops stay blocked"
         )
     finally:
         await save_controls(db, original_controls)
