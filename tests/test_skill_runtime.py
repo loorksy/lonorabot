@@ -270,7 +270,7 @@ async def test_actual_context_builder_resolver_and_fenced_diagnostics(
         summary_seq=0,
     )
     run = SimpleNamespace(
-        trigger="user", input_seq=1, prompt="", model_metadata={"provider": "keep"}
+        id="run", trigger="user", input_seq=1, prompt="", model_metadata={"provider": "keep"}
     )
     session = FakeSession(agent, thread)
     context: Any = SimpleNamespace(
@@ -302,7 +302,9 @@ async def test_actual_context_builder_resolver_and_fenced_diagnostics(
     ):
         monkeypatch.setattr(builder, name, AsyncMock(return_value=""))
     monkeypatch.setattr(builder, "wake_context", empty_context)
-    monkeypatch.setattr(builder, "attachment_context", AsyncMock(return_value=("", [])))
+    monkeypatch.setattr(builder, "attachment_parts", AsyncMock(return_value=("", [])))
+    monkeypatch.setattr(builder, "history_gap", AsyncMock(return_value=None))
+    monkeypatch.setattr(builder, "recent_tool_evidence", AsyncMock(return_value=""))
     monkeypatch.setattr(
         builder,
         "history_context",
@@ -408,7 +410,15 @@ async def test_postgres_builder_checkpoint_and_lease_recovery(
         await refresh_skill_context(
             context, load_tools(), messages, retained_ids=["market-analysis"]
         )
-        assert '<skill id="market-analysis"' in messages[0].content
+        # The catalog stays first-party system text; the procedure body is labelled
+        # context data with its truthful provenance, never in the system role.
+        assert '<skill id="market-analysis"' not in messages[0].content
+        assert "market-analysis (their procedures are in the labelled context data" in (
+            messages[0].content
+        )
+        data = next(m for m in messages if m.context_origin == "runtime_context")
+        assert data.role == "user"
+        assert 'source="skill:market-analysis" trust="bundled_first_party"' in data.content
         async with fixture.runtime.db.sessions() as session, session.begin():
             stored = await session.get(RunRow, run["id"], with_for_update=True)
             assert stored is not None

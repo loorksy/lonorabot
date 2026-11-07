@@ -307,3 +307,11 @@ trailing `user` message with `context_origin="tool_observation"` and a
 before it, it never becomes the owner-request anchor, and the financial-truth
 scanners do not treat it as a new owner request. An empty provider turn is not
 kept as an empty assistant message.
+
+## Context compaction
+
+Long Runs stay within their model's window through a persisted compaction view
+that never rewrites the checkpoint: old tool results are pruned to their effect
+identities and a stored-result reference, and only then is the middle
+summarized. The routing frame re-reads unresolved operations, approvals and
+watches from the database every turn. See `docs/context-engine.md`.

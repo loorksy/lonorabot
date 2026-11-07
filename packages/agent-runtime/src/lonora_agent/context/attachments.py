@@ -1,6 +1,7 @@
 import base64
 from pathlib import Path
 
+from lonora_adapter_kit.context_sections import escape_context_text
 from lonora_db.schema import ArtifactRow, MessageRow
 from lonora_security.runtime_storage import confined_path
 from sqlalchemy import select
@@ -10,6 +11,20 @@ from sqlalchemy.ext.asyncio import AsyncSession
 async def attachment_context(
     session: AsyncSession, owner_id: str, thread_id: str, input_seq: int, root: Path
 ) -> tuple[str, list[str]]:
+    """Attachment text wrapped and escaped for an owner message (steering)."""
+    notes, images = await attachment_parts(session, owner_id, thread_id, input_seq, root)
+    return (
+        "<untrusted_attachments>\n" + escape_context_text(notes) + "\n</untrusted_attachments>"
+        if notes
+        else "",
+        images,
+    )
+
+
+async def attachment_parts(
+    session: AsyncSession, owner_id: str, thread_id: str, input_seq: int, root: Path
+) -> tuple[str, list[str]]:
+    """Raw attachment names and text, plus image payloads, for one input message."""
     message = await session.scalar(
         select(MessageRow).where(MessageRow.thread_id == thread_id, MessageRow.seq == input_seq)
     )
@@ -36,6 +51,4 @@ async def attachment_context(
             )
         elif media.startswith("text/") or media == "application/json":
             notes.append(path.read_text(errors="replace")[:24000])
-    return "<untrusted_attachments>\n" + "\n".join(
-        notes
-    ) + "\n</untrusted_attachments>" if notes else "", images
+    return "\n".join(notes), images

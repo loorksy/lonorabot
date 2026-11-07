@@ -4,6 +4,7 @@ from lonora_adapter_kit.types import ModelMessage
 from lonora_core.user_error import LonoraError
 from lonora_db.agent_directory import agent_directory
 from lonora_db.agent_state import agent_live_state
+from lonora_db.operational_state import protected_operational_state
 from lonora_db.runs import require_lease
 from lonora_db.schema import AgentRow, GroupRow, RunRow, ThreadRow
 from lonora_tools.context import ToolContext
@@ -70,6 +71,7 @@ async def routing_frame(
         {"id": agent.id, "name": agent.name, "title": agent.title, "description": agent.description}
     )
     live = await agent_live_state(session, owner_id, agent_id)
+    protected = await protected_operational_state(session, owner_id, agent_id)
     return (
         ROUTING_FRAME_PREFIX
         + "This is the current routing snapshot. It supersedes older agent names, "
@@ -82,6 +84,16 @@ async def routing_frame(
         + "</live_agent_state>\nUse task_inspect or runtime_status for fresh details before claiming current progress. "
         "For substantial work use task_start so this conversation stays available. Status questions do not imply cancellation."
         + "\n"
+        + (
+            "Protected operational state, re-read from server records on every turn. It "
+            "supersedes any summary, recalled evidence or earlier message: reconcile an "
+            "unresolved operation before any resend, and a pending approval has not executed."
+            "\n<protected_operational_state>"
+            + encode_metadata(protected)
+            + "</protected_operational_state>\n"
+            if protected
+            else ""
+        )
         + await team_context(session, owner_id, agent_id)
         + "\n"
         + await group_context(session, thread.group_id, agent_id)

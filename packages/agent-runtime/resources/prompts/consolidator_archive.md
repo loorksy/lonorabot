@@ -17,6 +17,9 @@ Always retain a compact working-state handoff:
 - current status
 - completed results that constrain later work
 - unresolved blockers
+- unresolved external operations, approvals, waits and watches with their exact
+  identifiers and last observed status (the server re-reads their live state)
+- follow-ups or reports promised to the owner
 - next action
 - exact identifiers needed for that action
 

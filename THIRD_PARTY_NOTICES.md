@@ -62,6 +62,25 @@ Copyright (c) 2025 Nous Research, MIT. The full permission/warranty notice is
 preserved in lonora_agent/tool_batch.py, lonora_agent/tool_guardrails.py and
 lonora_agent/tool_loop.py and distributed in the Python wheel.
 
+In-run context compaction adapts Hermes Agent,
+https://github.com/NousResearch/hermes-agent, revision
+a9ff9799e273f525b82718cdc69fdec71b1dca5a: agent/context_compressor.py with
+agent/context_compressor_prune.py and agent/context_compressor_summary.py
+(deterministic pruning of old tool results outside a protected tail before any
+model call, then a structured, iteratively updated summary of the middle that
+never separates a tool call from its results, with a deterministic fallback),
+and agent/model_metadata.py (_longest_key_match over a model-family context
+window table). Changes: compaction is a view persisted in Lonora's fenced Run
+checkpoint and applied per request, so canonical messages, receipts, recovery
+and financial truth gates keep the complete record; placeholders keep effect
+identities and reference the existing tool-result artifact store; the summary
+uses Lonora-specific sections (open operations and commitments, evidence with
+timestamps), runs through the global model router and is never trusted for
+operational state, which is re-read from the database every turn; the family
+window table is Lonora's own and conservative. Copyright (c) 2025 Nous Research,
+MIT. The full permission/warranty notice is preserved in
+lonora_agent/context_engine.py and distributed in the Python wheel.
+
 Source: https://github.com/elie222/rakazo
 Revision: 2d666c4e98db201c1f7988e09e76a52db20cea69
 Copyright 2026 Rakazo contributors. Apache License 2.0, included in LICENSE.

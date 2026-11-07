@@ -14,7 +14,9 @@ class ToolCall(Contract):
 class ModelMessage(Contract):
     role: Literal["system", "user", "assistant", "tool"]
     # Runtime-only provenance; provider adapters serialize their explicit wire fields.
-    context_origin: Literal["conversation", "tool_observation"] = "conversation"
+    # ``runtime_context`` is labelled context data or a runtime marker in the
+    # user role: never an owner request and never bound to a tool exchange.
+    context_origin: Literal["conversation", "tool_observation", "runtime_context"] = "conversation"
     content: str
     # Validated display data survives checkpoints; providers serialize explicit wire fields.
     rich_content: dict[str, Any] | None = None

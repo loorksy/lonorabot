@@ -78,7 +78,12 @@ def test_latest_instruction_and_exchange_survive_and_originals_are_immutable(old
     original = [m.model_dump() for m in messages]
     result = prepare_context(messages, [], descriptor(5000), ModelContextPolicy())
     context_blocks([m for m in result.messages if m.role != "system"])
-    assert result.messages[1].content == "Latest steering: inspect only; do not trade."
+    # Older history is left out with an explicit notice in its place, never silently.
+    notice = result.messages[1]
+    assert notice.context_origin == "runtime_context"
+    body = notice.content.removeprefix("<context_omitted>").removesuffix("</context_omitted>")
+    assert json.loads(body)["omitted_messages"] == 2
+    assert result.messages[2].content == "Latest steering: inspect only; do not trade."
     observation = json.loads(result.messages[-1].content)
     assert observation["result_omitted"]
     assert observation["ok"] and observation["operation_id"] == "op-42"
@@ -186,7 +191,9 @@ async def test_actual_router_rebuilds_context_for_smaller_fallback(router_db: Da
             "catalog:openai": {
                 "models": [
                     descriptor(w).model_copy(update={"id": m}).model_dump()
-                    for m, w in [("large", 40000), ("small", 6000)]
+                    # Sized so the outcome holds with the tokenizer cache and with the
+                    # UTF-8 byte fallback: the long history fits only the large window.
+                    for m, w in [("large", 100000), ("small", 6000)]
                 ]
             },
         },
@@ -231,7 +238,9 @@ async def test_actual_router_rebuilds_context_for_smaller_fallback(router_db: Da
     )
     assert selected == backup and attempts == ["large", "small"]
     assert len(payloads[0]["messages"]) > len(payloads[1]["messages"])
-    assert payloads[1]["messages"][1]["content"] == "Current request: read market state only"
+    assert not any("<context_omitted>" in str(m["content"]) for m in payloads[0]["messages"])
+    assert payloads[1]["messages"][1]["content"].startswith("<context_omitted>")
+    assert payloads[1]["messages"][2]["content"] == "Current request: read market state only"
     assert payloads[1]["messages"][-1]["tool_call_id"] == "financial-receipt"
     assert payloads[0]["max_completion_tokens"] == 4096
     assert payloads[1]["max_completion_tokens"] == 1500

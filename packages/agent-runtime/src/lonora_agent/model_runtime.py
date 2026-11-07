@@ -35,11 +35,14 @@ async def model_turn(
     capability_inventory: str = "",
     resolve_calls: Callable[[Sequence[ToolCall]], list[ToolCall]] | None = None,
     policy_tools: Collection[str] | None = None,
+    context_view: Callable[[list[ModelMessage]], list[ModelMessage]] | None = None,
 ) -> tuple[ModelReply, ModelSelection]:
     """One model request. ``resolve_calls`` turns stable bridge calls into the
     real calls before the financial-truth gates below and before the loop sees
     them; ``policy_tools`` are the permitted names whose recent calls select
     domain guidance (a bridged call need not be in the native ``tools``).
+    ``context_view`` projects the persisted in-run compaction onto the request
+    only; every gate below still reads the complete canonical ``messages``.
     """
     preparation_started = monotonic()
     stage_started = preparation_started
@@ -57,10 +60,21 @@ async def model_turn(
     if capability_inventory:
         # Fresh projection on every model turn, including restored checkpoints.
         # This is the actual permitted registry, not remembered self-description.
-        request_messages.insert(1, ModelMessage(role="system", content=capability_inventory))
+        # Optional first-party guidance: admission sheds it before failing a request.
+        request_messages.insert(
+            1,
+            ModelMessage(
+                role="system", context_origin="runtime_context", content=capability_inventory
+            ),
+        )
     observations = visual_observation_catalog(messages)
     if observations:
-        request_messages.append(ModelMessage(role="system", content=observations))
+        request_messages.append(
+            ModelMessage(role="system", context_origin="runtime_context", content=observations)
+        )
+    if context_view is not None:
+        # Pruned results and summarized spans are omitted before images resolve.
+        request_messages = context_view(request_messages)
     prepared("policy_and_observation_catalog")
     request_messages, image_diagnostics = await prepare_image_observations(
         context, request_messages

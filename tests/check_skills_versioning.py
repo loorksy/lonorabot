@@ -58,9 +58,9 @@ async def main() -> None:
         async with f.runtime.db.sessions() as session:
             stored_agent = await session.get(AgentRow, agent["id"])
             assert stored_agent is not None
-            safe_block = await read_skill_context(
-                session, forged_context, stored_agent, load_tools()
-            )
+            safe_block = (
+                await read_skill_context(session, forged_context, stored_agent, load_tools())
+            ).text
         assert builtin.content in safe_block and "FORGED BUNDLED INSTRUCTIONS" not in safe_block
         name = "versioned-" + uuid4().hex[:12]
         owner_payload: dict[str, Any] = {
@@ -125,7 +125,7 @@ async def main() -> None:
             async with f.runtime.db.sessions() as session:
                 stored_agent = await session.get(AgentRow, agent["id"])
                 assert stored_agent is not None
-                block = await read_skill_context(session, context, stored_agent, registry)
+                block = (await read_skill_context(session, context, stored_agent, registry)).text
             async with f.runtime.db.sessions() as session:
                 run = await session.get(RunRow, context.lease.run_id)
                 assert run is not None

@@ -32,11 +32,11 @@ SOFTWARE.
 
 import json
 import logging
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Collection
 from dataclasses import dataclass
 from typing import Any, cast
 
-from lonora_adapter_kit.types import ModelMessage, ModelReply, ToolCall
+from lonora_adapter_kit.types import ModelMessage, ModelReply, ToolCall, ToolDefinition
 from lonora_contracts.model_routing import Capability, ModelSelection
 from lonora_contracts.runs import WORK_TRIGGERS
 from lonora_core.run_state import is_conversational
@@ -50,6 +50,13 @@ from lonora_tools.tool_results import store_result
 from .cancellation import cancellation_checkpoint
 from .context.builder import build_context
 from .context.skills import assert_skill_authority, refresh_skill_context, selected_skill_ids
+from .context_engine import (
+    compact_context,
+    compacted_view,
+    record_observed,
+    request_overhead,
+    resolve_limits,
+)
 from .continuation import MAXIMUM_SLICES, schedule_task_continuation, slice_limit
 from .environment import (
     ToolRetryScheduled,
@@ -128,6 +135,40 @@ async def persist(
     state["pending"] = [call.model_dump(mode="json") for call in pending]
     async with context.db.sessions() as session, session.begin():
         await checkpoint(session, context.lease, state)
+
+
+async def compact_for_turn(
+    context: ToolContext,
+    state: dict[str, Any],
+    messages: list[ModelMessage],
+    pending: list[ToolCall],
+    capability: Capability,
+    tools: list[ToolDefinition],
+    *,
+    inventory_text: str = "",
+    policy_tools: Collection[str] | None = None,
+) -> Callable[[list[ModelMessage]], list[ModelMessage]]:
+    """Keep the next request under its model's window; return the request view.
+
+    Compaction is persisted in the checkpoint before the request, so it is not
+    recomputed after a restart and canonical messages are never rewritten.
+    """
+    limits = await resolve_limits(context, capability)
+
+    async def save() -> None:
+        await persist(context, state, messages, pending)
+
+    await compact_context(
+        context,
+        state,
+        messages,
+        limits,
+        extra_tokens=request_overhead(
+            messages, tools, limits, inventory=inventory_text, available=policy_tools
+        ),
+        save=save,
+    )
+    return lambda request: compacted_view(request, state)
 
 
 def rich_metadata(state: dict[str, Any]) -> dict[str, Any]:
@@ -415,10 +456,16 @@ async def finish_turn(
         )
         selection: ModelSelection | None
         try:
+            view = await compact_for_turn(context, state, messages, pending, turn_capability, [])
             # No tools are offered, but a provider may still propose calls; the
             # resolver lets the truth gates read a bridged financial proposal.
             reply, selection = await model_turn(
-                context, messages, [], turn_capability, resolve_calls=registry.resolve_calls
+                context,
+                messages,
+                [],
+                turn_capability,
+                resolve_calls=registry.resolve_calls,
+                context_view=view,
             )
         except LonoraError as error:
             if error.code in {"stale_lease", "skill_continuation_unavailable"}:
@@ -761,6 +808,7 @@ async def execute_tool_loop(
                         summary["result_storage_error"] = "tool_result_storage_unavailable"
                     content = json.dumps(summary, ensure_ascii=False)
                 messages.append(ModelMessage(role="tool", content=content, tool_call_id=call.id))
+                record_observed(state, call.id)
                 pending = pending[1:]
                 superseded: list[ToolCall] = []
                 if result.get("_runtime_external_wait"):
@@ -861,15 +909,29 @@ async def execute_tool_loop(
         turn_capability = (
             Capability.VISION if any(message.images for message in messages) else capability
         )
+        native = native_definitions(registry, exposure, read_only)
+        inventory_text = inventory(registry, exposure, read_only)
+        policy_tools = registry.names(read_only)
+        view = await compact_for_turn(
+            context,
+            state,
+            messages,
+            pending,
+            turn_capability,
+            native,
+            inventory_text=inventory_text,
+            policy_tools=policy_tools,
+        )
         reply, selection = await model_turn(
             context,
             messages,
-            native_definitions(registry, exposure, read_only),
+            native,
             turn_capability,
-            capability_inventory=inventory(registry, exposure, read_only),
+            capability_inventory=inventory_text,
             # Bridge calls become the real calls before any boundary sees them.
             resolve_calls=registry.resolve_calls,
-            policy_tools=registry.names(read_only),
+            policy_tools=policy_tools,
+            context_view=view,
         )
         if reply.rich_content is None:
             state.pop("rich_content", None)

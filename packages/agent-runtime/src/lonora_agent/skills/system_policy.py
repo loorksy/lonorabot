@@ -168,6 +168,9 @@ def apply_operating_policy(
             index,
             ModelMessage(
                 role="system",
+                # Optional guidance for the operations in use: admission may shed it
+                # (and says so) rather than fail; server enforcement never depends on it.
+                context_origin="runtime_context",
                 content=DOMAIN_MARKER
                 + "\n"
                 + "\n\n".join(chapters)

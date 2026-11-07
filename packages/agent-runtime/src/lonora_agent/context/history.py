@@ -1,12 +1,82 @@
 import json
+from dataclasses import dataclass
+from datetime import datetime
 from typing import Any, cast
 
 from lonora_adapter_kit.types import ModelMessage
 from lonora_db.schema import AgentRow, MessageRow, RunRow
 from lonora_tools.runtime_control import WaitInput
 from pydantic import ValidationError
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+HISTORY_WINDOW = 100
+
+
+@dataclass(frozen=True)
+class HistoryGap:
+    """Unsummarized messages older than the loaded window (the summary lags behind)."""
+
+    first_seq: int
+    last_seq: int
+    count: int
+    first_at: datetime | None
+    last_at: datetime | None
+
+    def notice(self) -> str:
+        span = (
+            f" from {self.first_at.isoformat()} to {self.last_at.isoformat()}"
+            if self.first_at and self.last_at
+            else ""
+        )
+        return (
+            f"{self.count} earlier messages of this conversation (sequence {self.first_seq} to "
+            f"{self.last_seq}{span}) are not shown and not yet covered by the conversation "
+            "summary, because background summarization has not reached them. Recalled evidence "
+            "below may quote relevant ones; do not assume they contain nothing, and ask or search "
+            "before relying on what they might have said."
+        )
+
+
+async def history_gap(
+    session: AsyncSession, thread_id: str, input_seq: int, summary_seq: int = 0
+) -> HistoryGap | None:
+    """Messages after the summary cursor that the newest-window load cannot include."""
+    window = (
+        select(MessageRow.seq)
+        .where(
+            MessageRow.thread_id == thread_id,
+            MessageRow.seq <= input_seq,
+            MessageRow.seq > summary_seq,
+            MessageRow.role.in_(["user", "assistant"]),
+        )
+        .order_by(MessageRow.seq.desc())
+        .offset(HISTORY_WINDOW - 1)
+        .limit(1)
+    )
+    oldest_loaded = await session.scalar(window)
+    if oldest_loaded is None:
+        return None
+    row = (
+        await session.execute(
+            select(
+                func.count(),
+                func.min(MessageRow.seq),
+                func.max(MessageRow.seq),
+                func.min(MessageRow.created_at),
+                func.max(MessageRow.created_at),
+            ).where(
+                MessageRow.thread_id == thread_id,
+                MessageRow.seq > summary_seq,
+                MessageRow.seq < oldest_loaded,
+                MessageRow.role.in_(["user", "assistant"]),
+            )
+        )
+    ).one()
+    count, first, last, first_at, last_at = row
+    if not count:
+        return None
+    return HistoryGap(int(first), int(last), int(count), first_at, last_at)
 
 
 async def history_context(
@@ -26,7 +96,7 @@ async def history_context(
                 MessageRow.role.in_(["user", "assistant"]),
             )
             .order_by(MessageRow.seq.desc())
-            .limit(100)
+            .limit(HISTORY_WINDOW)
         )
     ).all()
     # Published messages store question text; the existing Run stores its exact

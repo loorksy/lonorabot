@@ -11,7 +11,7 @@ from lonora_core.user_error import LonoraError
 from lonora_db.client import Database
 from lonora_db.transactions import SettingsRepository
 
-from .context import prepare_context
+from .context import ContextLimits, context_limits, prepare_context
 from .credentials import ProviderCredentials
 from .fallback import may_fallback
 from .registry import model_adapter
@@ -26,6 +26,29 @@ class GlobalModelRouter:
         factory: Callable[[str, str], ModelAdapter] = model_adapter,
     ):
         self.db, self.credentials, self.factory = db, credentials, factory
+
+    async def context_limits(self, capability: Capability) -> ContextLimits:
+        """Admission limits of the model ``complete`` tries first for ``capability``.
+
+        Runtime compaction plans against these; every attempt, fallbacks included,
+        is still admitted separately against its own window.
+        """
+        choice = select_model(await read_policy(self.db), capability)
+        async with self.db.sessions() as session:
+            settings = SettingsRepository()
+            policy = ModelContextPolicy.model_validate(await settings.get(session, "model_context"))
+            payload = await settings.get(session, "catalog:" + choice.provider)
+        descriptor = next(
+            (
+                item
+                for item in (
+                    ModelDescriptor.model_validate(raw) for raw in payload.get("models", [])
+                )
+                if item.id == choice.model and item.provider == choice.provider
+            ),
+            None,
+        )
+        return context_limits(descriptor, policy, provider=choice.provider, model=choice.model)
 
     async def complete(
         self,

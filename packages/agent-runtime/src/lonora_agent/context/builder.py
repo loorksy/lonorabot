@@ -3,7 +3,10 @@ import logging
 from collections.abc import Awaitable
 from time import perf_counter
 
+from lonora_adapter_kit.context_sections import ContextSection, context_message
 from lonora_adapter_kit.types import ModelMessage
+from lonora_contracts.model_routing import Capability
+from lonora_contracts.runs import WORK_TRIGGERS
 from lonora_core.user_error import LonoraError
 from lonora_db.agent_binding import binding_context
 from lonora_db.runs import require_lease
@@ -15,17 +18,20 @@ from lonora_tools.context import ToolContext
 from lonora_tools.loader import load_tools
 from lonora_tools.registry import ToolRegistry
 
+from ..context_engine import resolve_limits
 from ..progress import progress
+from ..runtime_notices import is_owner_message
 from ..skills.loader import load_constitution, load_prompt
-from .attachments import attachment_context
+from .attachments import attachment_parts
 from .decisions import decision_context
 from .environment import operational_context
 from .goals import goal_context
 from .governance import govern_context
-from .history import history_context
+from .history import history_context, history_gap
 from .memory import read_memory_context
 from .reply import reply_context
 from .routine import wake_context
+from .run_evidence import recent_tool_evidence
 from .scratchpad import scratchpad_context
 from .skills import read_skill_context
 from .team import routing_frame
@@ -58,22 +64,20 @@ async def build_context(
         begin = perf_counter()
         blocks = load_constitution()
         stages["constitution"] = round((perf_counter() - begin) * 1000, 2)
+        tools = registry or load_tools()
+        skill_context = await timed("skills", read_skill_context(session, context, agent, tools))
+        # The system role holds first-party policy, owner instructions, identity and
+        # server-derived records only. Model-authored or untrusted material goes into
+        # the labelled context data below, escaped by one shared helper.
         blocks.extend(
             [
                 agent.instructions,
                 binding_context(agent),
-                await timed("memory", read_memory_context(session, agent.id)),
-                await timed("scratchpad", scratchpad_context(session, agent.id)),
                 await timed(
                     "environment",
-                    operational_context(
-                        session, context.owner_id, agent.id, registry or load_tools()
-                    ),
+                    operational_context(session, context.owner_id, agent.id, tools),
                 ),
-                await timed(
-                    "skills", read_skill_context(session, context, agent, registry or load_tools())
-                ),
-                await timed("reply", reply_context(session, thread.id, run.input_seq)),
+                skill_context.catalog,
                 wake_context(run),
                 await timed(
                     "decisions", decision_context(session, context.owner_id, context.agent_id)
@@ -105,16 +109,18 @@ async def build_context(
                 "financial authorization. Exact financial confirmation follows the ordinary "
                 "server approval policy. Keep this guidance private.</voice_observation>"
             )
-        if thread.context_summary:
-            blocks.append("<history_summary>" + thread.context_summary + "</history_summary>")
+        memory = await timed("memory", read_memory_context(session, agent.id))
+        scratchpad = await timed("scratchpad", scratchpad_context(session, agent.id))
+        quoted = await timed("reply", reply_context(session, thread.id, run.input_seq))
         attachments, images = await timed(
             "attachments",
-            attachment_context(
+            attachment_parts(
                 session, context.owner_id, thread.id, run.input_seq, context.artifact_root
             ),
         )
-        if attachments:
-            blocks.append(attachments)
+        gap = await timed(
+            "history_gap", history_gap(session, thread.id, run.input_seq, thread.summary_seq)
+        )
         messages = [
             ModelMessage(role="system", content="\n\n".join(block for block in blocks if block)),
             ModelMessage(
@@ -144,6 +150,7 @@ async def build_context(
         query = explicit_prompt or next(
             (message.content for message in reversed(messages) if message.role == "user"), ""
         )
+        semantic = ""
         if query:
             semantic = await timed(
                 "recall",
@@ -154,7 +161,12 @@ async def build_context(
                     agent.id,
                     query,
                     conversation_scope=ConversationRecallScope(
-                        thread.id, run.input_seq, thread.summary_seq, include_neighbor=True
+                        thread.id,
+                        run.input_seq,
+                        gap.last_seq if gap else thread.summary_seq,
+                        include_neighbor=True,
+                        # Unsummarized messages beyond the window stay reachable.
+                        unloaded_through=gap.last_seq if gap else None,
                     )
                     if thread.agent_id == agent.id
                     and not thread.group_id
@@ -162,16 +174,57 @@ async def build_context(
                     else None,
                 ),
             )
-            if semantic:
-                messages[0].content += "\n\n" + semantic
+        evidence = await timed(
+            "run_evidence",
+            recent_tool_evidence(session, agent.id, thread.id, run.id, query),
+        )
+        sections = [
+            *([memory] if memory else []),
+            *skill_context.sections,
+            ContextSection(
+                "history_summary",
+                "conversation_summary",
+                "model_summary",
+                thread.context_summary,
+                85,
+            ),
+            ContextSection(
+                "history_gap",
+                "lonora_runtime",
+                "first_party_runtime",
+                gap.notice() if gap else "",
+                100,
+            ),
+            ContextSection(
+                "recent_tool_evidence", "earlier_runs", "historical_observation", evidence, 55
+            ),
+            ContextSection(
+                "recalled_evidence", "memory_recall", "retrieved_untrusted", semantic, 40
+            ),
+            ContextSection("scratchpad", "agent_scratchpad", "agent_authored", scratchpad, 50),
+            ContextSection("quoted_reply", "conversation_quote", "conversation_quote", quoted, 95),
+            ContextSection(
+                "attachments", "owner_attachments", "owner_supplied_untrusted", attachments, 92
+            ),
+        ]
+        data = context_message(sections)
+        if data is not None:
+            # Directly after the system messages, before the transcript it informs.
+            messages.insert(2, data)
         if images:
             target = next(
-                (message for message in reversed(messages) if message.role == "user"), None
+                (message for message in reversed(messages) if is_owner_message(message)), None
             )
             if target:
                 target.images = images
         begin = perf_counter()
-        prepared = govern_context(messages)
+        # Protocol validation plus the transport guard of the model this Run uses;
+        # each request is admitted again against its own window by the router.
+        limits = await resolve_limits(
+            context,
+            Capability.BACKGROUND if run.trigger in WORK_TRIGGERS else Capability.CONVERSATION,
+        )
+        prepared = govern_context(messages, limits.transport_chars)
         stages["governance"] = round((perf_counter() - begin) * 1000, 2)
     duration = round((perf_counter() - started) * 1000, 2)
     log.info(
