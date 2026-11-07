@@ -53,7 +53,6 @@ CHECKS = (
     "check_continuous_task_runtime.py",
     "check_task_wait_settlement.py",
     "check_task_continuation.py",
-    "check_strategy_research.py",
     "check_account_authority.py",
     "check_full_account_management.py",
     "check_unified_permissions.py",

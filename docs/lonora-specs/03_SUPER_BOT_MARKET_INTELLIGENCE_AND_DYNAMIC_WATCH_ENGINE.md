@@ -3883,3 +3883,19 @@ The Agent never grants authority to itself.
 Maximum simplicity for the owner.
 
 Maximum strictness behind the interface.
+
+---
+
+> **Superseded: backtesting is excluded by the owner mandate (editorial note, 2026-11-07).**
+> The owner's current mandate (section 5, "Explicit Exclusion: Backtesting") excludes strategy
+> backtesting from Lonora: no historical strategy backtesting engine, workflow, interface or
+> dependency, and no backtest as a prerequisite for strategy creation, modification or agent
+> autonomy. Lonora's bounded SMA-cross research engine was removed accordingly.
+>
+> Line 365 ("Do not use fake win-rate percentages unless backed by actual replay/backtesting
+> evidence") now reads without backtesting: a win rate needs actual recorded live or Shadow
+> outcomes, and backtesting evidence is never a source.
+>
+> Historical market observations used to understand the market, and real recorded live or
+> Shadow outcomes, remain in scope. The original text above is unchanged; this note is appended
+> so existing line references stay valid. See [decision readiness](../decision-readiness.md#strategy-backtesting-is-excluded).

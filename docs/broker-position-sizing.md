@@ -34,7 +34,7 @@ The result includes exact account/currency/symbol, tick basis, source timestamps
 instrument, entry, stop, volume and estimated loss. It explicitly grants no
 execution authority. It excludes gaps, slippage, commission, swap and margin
 validation: it is not a guaranteed maximum loss. Current quote economics are not
-historical backtest costs or a valuation of the entire portfolio.
+historical execution costs or a valuation of the entire portfolio.
 
 The existing immutable proposal, approval or signed authority, final preflight,
 controls, journal and independent broker verification still govern every actual

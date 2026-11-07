@@ -1,5 +1,19 @@
 # Progress
 
+## Strategy backtesting removed — 2026-11-07
+
+The owner mandate (section 5) excludes strategy backtesting. The SMA-cross
+research engine (`lonora_market.research`), the `market_strategy_research` and
+`market_research_history` tools, their operating-policy lines, unit test and
+PostgreSQL check were removed, and the manifest was regenerated. The policy now
+states the exclusion. Decision readiness, replay, relationships and Shadow
+trading are unchanged. Saved report attachments stay ordinary, inert files, and
+checkpointed calls to the removed names are refused as unknown tools. The
+affected specifications carry appended supersession notes; matrix row M-R is
+SUPERSEDED. The earlier entry below about historical SMA research describes
+removed behaviour. Evidence: `tests/test_backtesting_excluded.py`; see
+[decision readiness](../decision-readiness.md#strategy-backtesting-is-excluded).
+
 ## Immediate chat delivery and event-query latency — 2026-10-25
 
 Production diagnosis separated three problems: accepted messages were hidden

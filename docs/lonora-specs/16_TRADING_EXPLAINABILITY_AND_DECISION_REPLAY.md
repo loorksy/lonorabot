@@ -220,3 +220,20 @@ Cover:
 ## Definition of done
 
 Any important trading recommendation, WAIT, thesis change, execution block, management action, or exit can be replayed later from durable evidence with a clear timeline and provenance, without hindsight leakage or fabricated reasoning.
+
+---
+
+> **Superseded: backtesting is excluded by the owner mandate (editorial note, 2026-11-07).**
+> The owner's current mandate (section 5, "Explicit Exclusion: Backtesting") excludes strategy
+> backtesting from Lonora: no historical strategy backtesting engine, workflow, interface or
+> dependency, and no backtest as a prerequisite for strategy creation, modification or agent
+> autonomy. Lonora's bounded SMA-cross research engine was removed accordingly.
+>
+> In "Replay vs backtest" (lines 156-163), Decision Replay is unchanged and still must not mix
+> hindsight into the original evidence set. The sentence "Historical strategy
+> replay/backtesting may use later data separately" is superseded: Lonora has no strategy
+> backtesting.
+>
+> Historical market observations used to understand the market, and real recorded live or
+> Shadow outcomes, remain in scope. The original text above is unchanged; this note is appended
+> so existing line references stay valid. See [decision readiness](../decision-readiness.md#strategy-backtesting-is-excluded).

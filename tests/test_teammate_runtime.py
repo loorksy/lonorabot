@@ -262,7 +262,10 @@ async def test_all_actual_catalog_names_are_answered_unchanged_with_one_model_ca
     published, usage = model_boundary
     catalog = load_tools()
     names = sorted(catalog.tools)
-    assert len(names) == 106
+    # The complete live catalog, pinned to the generated policy manifest instead of a
+    # hand-maintained count that goes stale whenever a tool is added or removed.
+    manifest = json.loads((resources_root() / "system/manifest.json").read_text())
+    assert names == sorted(manifest["tool_policies"]) and len(names) > 100
     answer = "هذه أدواتي المتاحة: " + ", ".join(names) + "."
     complete = AsyncMock(
         return_value=(ModelReply(text=answer), ModelSelection(provider="openai", model="offline"))

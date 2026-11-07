@@ -1978,3 +1978,18 @@ Preserve the existing Agent as the single reasoning and presentation authority.
 Implement working code, run the tests, verify the real application, and report actual outcomes.
 
 Do not stop at analysis. Do not repeat the previous incomplete implementation. Deliver a functioning, professional, production-quality Lonora conversation experience.
+
+---
+
+> **Superseded: backtesting is excluded by the owner mandate (editorial note, 2026-11-07).**
+> The owner's current mandate (section 5, "Explicit Exclusion: Backtesting") excludes strategy
+> backtesting from Lonora: no historical strategy backtesting engine, workflow, interface or
+> dependency, and no backtest as a prerequisite for strategy creation, modification or agent
+> autonomy. Lonora's bounded SMA-cross research engine was removed accordingly.
+>
+> "Backtest performance" in the list of observed values (line 1426) is no longer a
+> requirement: there is no backtest performance to display.
+>
+> Historical market observations used to understand the market, and real recorded live or
+> Shadow outcomes, remain in scope. The original text above is unchanged; this note is appended
+> so existing line references stay valid. See [decision readiness](../decision-readiness.md#strategy-backtesting-is-excluded).
