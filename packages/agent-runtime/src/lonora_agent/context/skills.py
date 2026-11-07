@@ -221,7 +221,14 @@ async def refresh_skill_context(
         agent = await session.get(AgentRow, context.agent_id)
         if agent is None:
             raise LonoraError("context_identity_missing", 404)
-        task_text = next((item.content for item in reversed(messages) if item.role == "user"), None)
+        task_text = next(
+            (
+                item.content
+                for item in reversed(messages)
+                if item.role == "user" and item.context_origin == "conversation"
+            ),
+            None,
+        )
         block = await read_skill_context(session, context, agent, registry, task_text, retained_ids)
     for message in messages:
         if message.role == "system" and "<skill_runtime>" in message.content:

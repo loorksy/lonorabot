@@ -252,7 +252,13 @@ async def candidate(
                 ):
                     raise LonoraError("attention_superseded_state", 409)
                 agent_id, thread_id = resource.agent_id, state["origin_thread_id"]
-                if classification.code == "task_review" and state["status"] != "failed":
+                if classification.code == "task_review" and not (
+                    state["status"] == "failed"
+                    or (
+                        state["status"] == "waiting"
+                        and state.get("waiting_reason") == "owner_attention"
+                    )
+                ):
                     raise LonoraError("attention_superseded_state", 409)
                 if classification.code == "task_completed" and state["status"] != "completed":
                     raise LonoraError("attention_superseded_state", 409)

@@ -2,6 +2,7 @@
 
 import json
 from contextlib import asynccontextmanager
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, cast
 from unittest.mock import AsyncMock
@@ -262,7 +263,14 @@ async def test_all_actual_catalog_names_are_answered_unchanged_with_one_model_ca
     published, usage = model_boundary
     catalog = load_tools()
     names = sorted(catalog.tools)
-    assert len(names) == 106
+    # The exported manifest is the reviewed registration list (export --check);
+    # a hard-coded count went stale when a tool was added.
+    manifest = json.loads(
+        (
+            Path(__file__).parents[1] / "packages/agent-runtime/resources/system/manifest.json"
+        ).read_text()
+    )
+    assert names == sorted(manifest["tool_policies"]) and len(names) >= 100
     answer = "هذه أدواتي المتاحة: " + ", ".join(names) + "."
     complete = AsyncMock(
         return_value=(ModelReply(text=answer), ModelSelection(provider="openai", model="offline"))

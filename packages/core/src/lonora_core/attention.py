@@ -22,6 +22,7 @@ ATTENTION_KINDS = frozenset(
         "collaboration.updated",
         "collaboration.completed",
         "task.failed",
+        "task.attention_required",
         "task.retry_scheduled",
         "task.updated",
         "super_bot.updated",
@@ -96,6 +97,9 @@ def classify_attention(kind: str, payload: dict[str, Any]) -> AttentionClassific
             else "important_change",
             "task_review",
         )
+    elif kind == "task.attention_required":
+        # Unfinished work waits for the owner's direction instead of failing.
+        result.importance, result.code = "action_required", "task_review"
     elif kind == "task.updated" and payload.get("status") == "completed":
         result.importance, result.code = "informational", "task_completed"
     result.transition = transition

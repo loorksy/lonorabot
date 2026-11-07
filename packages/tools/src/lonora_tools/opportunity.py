@@ -173,6 +173,7 @@ def tools() -> list[Tool]:
             OpportunityReference,
             read,
             True,
+            poller=True,
         ),
         Tool(
             "market_opportunity_update",

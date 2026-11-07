@@ -51,6 +51,7 @@ def tools() -> list[Tool]:
             InspectInput,
             inspect,
             True,
+            poller=True,
         ),
         Tool(
             "child_agent_create",

@@ -152,6 +152,7 @@ def tools() -> list[Tool]:
             SkillsListInput,
             catalog,
             read_only=True,
+            parallel_safe=False,
         ),
         Tool(
             "skill_view",
@@ -160,6 +161,7 @@ def tools() -> list[Tool]:
             view,
             read_only=True,
             replay_safe=True,
+            parallel_safe=False,
         ),
         Tool(
             "skill_repository_inspect",
@@ -168,5 +170,6 @@ def tools() -> list[Tool]:
             inspect_repository,
             read_only=True,
             replay_safe=True,
+            parallel_safe=False,
         ),
     ]

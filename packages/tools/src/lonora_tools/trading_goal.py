@@ -494,6 +494,7 @@ def tools() -> list[Tool]:
             GoalReference,
             read_goal,
             True,
+            poller=True,
         ),
         Tool(
             "goal_decisions",

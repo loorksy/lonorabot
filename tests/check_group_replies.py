@@ -10,6 +10,7 @@ from check_streaming import Fixture
 from lonora_adapter_kit.types import ModelMessage, ModelReply, ToolCall
 from lonora_agent.context.group import group_context
 from lonora_agent.executor import execute_run
+from lonora_agent.runtime_notices import is_runtime_notice
 from lonora_contracts.model_routing import ModelSelection
 from lonora_db.schema import AgentRow, MessageRow, RunRow
 from lonora_tools.registry import ToolRegistry
@@ -106,9 +107,15 @@ async def checks() -> None:
             [ModelReply(), ModelReply(text="Actual response after empty completion")]
         )
         assert result["result"] == "Actual response after empty completion"
-        assert [m.content for m in result["seen"][1] if m.role == "user"] == [
-            "Explicit scripted fixture request"
-        ]
+        # The empty-answer nudge is a trailing runtime notice, never owner text
+        # and never a mid-conversation system message hoisted above history.
+        assert [
+            m.content
+            for m in result["seen"][1]
+            if m.role == "user" and m.context_origin == "conversation"
+        ] == ["Explicit scripted fixture request"]
+        assert is_runtime_notice(result["seen"][1][-1])
+        assert "No answer was provided" in result["seen"][1][-1].content
 
         result = await execute(
             [silence, ModelReply(text="Returned teammate result relayed")], "follow_up"

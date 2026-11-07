@@ -28,6 +28,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any, cast
 
@@ -39,32 +40,72 @@ from lonora_tools.context import ToolContext
 
 MAXIMUM_STOP_NUDGES = 2
 _STATE_KEY = "continuous_stop_gate"
+_COMPLETION_KEY = "task_completion_gate"
+
+CONTINUOUS_NUDGE = (
+    "This responsibility is continuous. A text answer does not complete it or save "
+    "monitoring. Continue useful authorized work, or use task_wait with a real owned "
+    "watch, verified broker-recovery source, or a deliberate review timer. Discover "
+    "the capability through tool_environment if needed. Put any concise owner update "
+    "in the same assistant message as task_wait; only a successful saved wait can "
+    "support a promise to follow up. Use wait_for_input only for genuinely missing "
+    "owner information or authority. Do not invent activity, ask routine trading "
+    "questions, or poll the model continuously. The owner can pause or stop this work."
+)
 
 
 @dataclass(frozen=True)
 class StopGateVerdict:
     continue_turn: bool
     nudge: str | None = None
+    # Set once the bounded nudges are spent: the held answer then goes to the
+    # owner as a resumable attention request instead of failing the Run.
+    exhausted: str | None = None
 
 
 def reset_stop_gate(state: dict[str, Any]) -> None:
     """Only real external wake/owner input starts another bounded review epoch."""
     state.pop(_STATE_KEY, None)
+    state.pop(_COMPLETION_KEY, None)
 
 
-def apply_stop_gates(state: dict[str, Any], *, continuous: bool) -> StopGateVerdict:
-    """A model's finish reason cannot terminate an ongoing responsibility.
+def _steps_nudge(steps: Sequence[tuple[str, str]]) -> str:
+    listed = "; ".join(f"{identifier}: {title}" for identifier, title in steps[:12])
+    more = f" (+{len(steps) - 12} more)" if len(steps) > 12 else ""
+    return (
+        "This task is not complete: these declared steps are not completed yet: "
+        + listed
+        + more
+        + ". A final answer cannot complete the task. Continue the remaining authorized "
+        "work and record each finished step with task_step_update citing the successful "
+        "tool call that proves it. If a step is genuinely blocked, explain the blocker or "
+        "ask the owner with wait_for_input. Never mark or describe unfinished work as done."
+    )
+
+
+def apply_stop_gates(
+    state: dict[str, Any],
+    *,
+    continuous: bool,
+    incomplete_steps: Sequence[tuple[str, str]] = (),
+) -> StopGateVerdict:
+    """A model's finish reason cannot terminate an ongoing or unfinished responsibility.
 
     The counter lives in the existing checkpoint, so process restarts and new
     compute slices cannot buy unlimited final-answer retries. No text classifier
     decides whether monitoring exists: the successful wait path settles it.
+    Finite work with declared unfinished steps gets the same bounded review.
     """
-    if not continuous:
+    if continuous:
+        key, code, nudge = _STATE_KEY, "task_wait_required", CONTINUOUS_NUDGE
+    elif incomplete_steps:
+        key, code, nudge = _COMPLETION_KEY, "task_steps_incomplete", _steps_nudge(incomplete_steps)
+    else:
         return StopGateVerdict(continue_turn=False)
     revision = state.get("task_plan_revision", 0)
     if type(revision) is not int or revision < 0:
         raise LonoraError("task_stop_gate_state_invalid", 409)
-    saved = state.setdefault(_STATE_KEY, {"version": 1, "attempts": 0, "plan_revision": revision})
+    saved = state.setdefault(key, {"version": 1, "attempts": 0, "plan_revision": revision})
     if not isinstance(saved, dict):
         raise LonoraError("task_stop_gate_state_invalid", 409)
     value = cast(dict[str, Any], saved)
@@ -83,21 +124,9 @@ def apply_stop_gates(state: dict[str, Any], *, continuous: bool) -> StopGateVerd
         # the model. Resuming unchanged work cannot manufacture this boundary.
         value["plan_revision"], attempts = revision, 0
     if attempts >= MAXIMUM_STOP_NUDGES:
-        raise LonoraError("task_wait_required", 409)
+        return StopGateVerdict(continue_turn=False, exhausted=code)
     value["attempts"] = attempts + 1
-    return StopGateVerdict(
-        continue_turn=True,
-        nudge=(
-            "This responsibility is continuous. A text answer does not complete it or save "
-            "monitoring. Continue useful authorized work, or use task_wait with a real owned "
-            "watch, verified broker-recovery source, or a deliberate review timer. Discover "
-            "the capability through tool_environment if needed. Put any concise owner update "
-            "in the same assistant message as task_wait; only a successful saved wait can "
-            "support a promise to follow up. Use wait_for_input only for genuinely missing "
-            "owner information or authority. Do not invent activity, ask routine trading "
-            "questions, or poll the model continuously. The owner can pause or stop this work."
-        ),
-    )
+    return StopGateVerdict(continue_turn=True, nudge=nudge)
 
 
 async def task_stop_gate(context: ToolContext, state: dict[str, Any]) -> StopGateVerdict:
@@ -117,5 +146,11 @@ async def task_stop_gate(context: ToolContext, state: dict[str, Any]) -> StopGat
             or not row.state.get("task")
         ):
             raise LonoraError("task_run_mismatch", 409)
-        continuous = is_continuous_task(task_state(row), run)
-    return apply_stop_gates(state, continuous=continuous)
+        task = task_state(row)
+        continuous = is_continuous_task(task, run)
+        incomplete = [
+            (step.id, step.title)
+            for step in task.steps
+            if step.state not in {"completed", "skipped"}
+        ]
+    return apply_stop_gates(state, continuous=continuous, incomplete_steps=incomplete)

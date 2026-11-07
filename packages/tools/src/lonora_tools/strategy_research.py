@@ -177,6 +177,7 @@ def tools() -> list[Tool]:
             ResearchInput,
             run_research,
             True,
+            timeout_seconds=120,
         ),
         Tool(
             "market_research_history",

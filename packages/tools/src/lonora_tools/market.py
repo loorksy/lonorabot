@@ -123,6 +123,7 @@ def tools() -> list[Tool]:
             QuoteInput,
             quote,
             True,
+            poller=True,
         ),
         Tool(
             "market_candles",

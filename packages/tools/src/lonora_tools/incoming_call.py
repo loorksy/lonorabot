@@ -56,6 +56,7 @@ def tools() -> list[Tool]:
             Empty,
             read,
             read_only=True,
+            poller=True,
         ),
         Tool(
             "owner_call_request",
