@@ -2,6 +2,7 @@ import {
   type AccountSummary,
   api,
   type Journal,
+  type OperationResolution,
   type Payload,
   type Resource,
   type Trade,
@@ -16,3 +17,5 @@ export const setControls = (controls: TradingControls) =>
   api.put<TradingControls>("/trading/controls", controls);
 export const executeTrade = (trade: Trade) => api.post<Payload>("/trading/execute", trade);
 export const readJournal = () => api.get<Journal[]>("/trading/journal");
+export const resolveOperation = (operationId: string, resolution: OperationResolution) =>
+  api.post<Journal>(`/trading/journal/${encodeURIComponent(operationId)}/resolve`, resolution);

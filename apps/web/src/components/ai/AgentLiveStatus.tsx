@@ -156,8 +156,8 @@ export function AgentLiveStatus({ agentId }: { agentId: string }) {
         <p key={`${health.account_id}:${health.symbol ?? index}`}>
           {health.reason_code === "broker_reconciliation_pending" ? (
             <Trans>
-              Broker verification pending. Market data may remain available; trading is blocked
-              until verification finishes.
+              Broker verification pending. Market data remains available; new orders on the affected
+              market are blocked until verification finishes, and closing remains available.
             </Trans>
           ) : health.kind === "broker" || !health.symbol ? (
             <Trans>Broker connection requires attention</Trans>

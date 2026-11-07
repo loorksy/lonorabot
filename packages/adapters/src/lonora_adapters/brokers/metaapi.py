@@ -361,7 +361,12 @@ class MetaApiBroker:
         async def create() -> Any:
             try:
                 account = await self.resolve_account()
-                state = getattr(account, "state", None)
+                try:
+                    state = getattr(account, "state", None)
+                except (KeyError, AttributeError):
+                    # The SDK model reads its raw payload; a missing field is unknown
+                    # state, not a failed connection (as for login/server metadata).
+                    state = None
                 if isinstance(state, str) and state != "DEPLOYED":
                     # Do not silently redeploy an owner-stopped provider account.
                     # Refresh metadata later rather than waiting for impossible

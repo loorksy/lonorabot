@@ -2,6 +2,7 @@ import { Trans } from "@lingui/react/macro";
 import type { TradeApproval as Approval } from "@lonora/contracts";
 import { useEffect, useRef, useState } from "react";
 import { api } from "../../lib/api";
+import { operationStatusLabel } from "../../lib/operation-status";
 import { userError } from "../../lib/user_error";
 import { useClient } from "../../providers/ClientProvider";
 
@@ -203,17 +204,7 @@ export function TradeApprovalCard({
       )}
       {row.results.map((result) => (
         <div key={result.operation_id} data-trade-result={result.status}>
-          <p>
-            {result.status === "confirmed" ? (
-              <Trans>Confirmed</Trans>
-            ) : result.status === "ambiguous" ? (
-              <Trans>Awaiting reconciliation</Trans>
-            ) : result.status === "failed" ? (
-              <Trans>Failed</Trans>
-            ) : (
-              <Trans>Submitted</Trans>
-            )}
-          </p>
+          <p>{operationStatusLabel(result.status, result.details)}</p>
           {result.broker_id && (
             <p>
               <Trans>Broker ticket</Trans>: <bdi>{result.broker_id}</bdi>

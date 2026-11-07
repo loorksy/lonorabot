@@ -130,7 +130,10 @@ async def main() -> None:
                     **fields,
                 }
             )
-            return request, await service.execute(fixture.owner, request, context.lease)
+            # Owner admission path: new agents are analysis-only by design, and agent
+            # approval/grant admission is covered by check_trade_approvals and
+            # check_unified_permissions. This fixture exercises pending-order mechanics.
+            return request, await service.execute(fixture.owner, request)
 
         requests: list[tuple[TradeRequest, TradeResult]] = []
         for action, price in (
@@ -154,10 +157,10 @@ async def main() -> None:
             "buy_stop",
             "sell_stop",
         }
-        replay = await service.execute(fixture.owner, requests[0][0], context.lease)
+        replay = await service.execute(fixture.owner, requests[0][0])
         assert replay.broker_id == requests[0][1].broker_id and len(await broker.orders()) == 4
         print(
-            "PASS all four native pending types persist through the fenced execution journal and replay creates no duplicate order"
+            "PASS all four native pending types persist through the durable execution journal and replay creates no duplicate order"
         )
 
         ticket = requests[0][1].broker_id
@@ -195,7 +198,7 @@ async def main() -> None:
             price=Decimal(103),
         )
         try:
-            await service.execute(fixture.owner, bad, context.lease)
+            await service.execute(fixture.owner, bad)
         except LonoraError as error:
             assert error.code == "pending_price_wrong_side"
         else:
@@ -272,26 +275,34 @@ async def main() -> None:
             "PASS ordinary buy/sell require fresh exact broker quotes and valid protection; native trade denial blocks while stale quotes/delisted specifications do not block exact-ticket cancellation"
         )
 
-        async with fixture.runtime.db.sessions() as session, session.begin():
-            row = await BrokerSessionRepository().get(session, fixture.owner, connection_id)
-            await BrokerSessionRepository().update(
-                session,
-                fixture.owner,
-                connection_id,
-                {**row.payload, "enabled": False},
-                row.version,
+        async def edit(**changes: Any) -> dict[str, Any]:
+            async with fixture.runtime.db.sessions() as session, session.begin():
+                row = await BrokerSessionRepository().get(session, fixture.owner, connection_id)
+                await BrokerSessionRepository().update(
+                    session,
+                    fixture.owner,
+                    connection_id,
+                    {**row.payload, **changes},
+                    row.version,
+                )
+            directory = await registry.execute(
+                ToolCall(id="changed-directory-" + uuid4().hex, name="list_accounts", arguments={}),
+                context,
+                read_only=True,
             )
-        directory = await registry.execute(
-            ToolCall(id="changed-directory", name="list_accounts", arguments={}),
-            context,
-            read_only=True,
-        )
-        entry = next(
-            item for item in directory["accounts"] if item["connection_id"] == connection_id
-        )
-        assert entry["broker_identity"] is None and entry["enabled"] is False
+            return next(
+                item for item in directory["accounts"] if item["connection_id"] == connection_id
+            )
+
+        # Disabling keeps the same broker credentials, so the verified identity carries to
+        # the new configuration version; changing the provider account invalidates it.
+        entry = await edit(enabled=False)
+        assert entry["enabled"] is False and entry["broker_identity"]["login"] == "24680"
+        assert entry["broker_identity"]["connection_version"] == 2
+        entry = await edit(account_id="opaque-adapter-fixture-" + uuid4().hex)
+        assert entry["broker_identity"] is None
         print(
-            "PASS connection edits invalidate old native identity rather than presenting stale labels as current"
+            "PASS credential-preserving edits keep verified native identity; credential edits invalidate it rather than presenting stale labels as current"
         )
     finally:
         await save_controls(fixture.runtime.db, original_controls)

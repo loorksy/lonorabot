@@ -7,6 +7,8 @@ from lonora_contracts.trading import TradeRequest
 from lonora_contracts.trading_goal import GoalExecution
 from lonora_db.schema import TradingJournalRow
 
+from .operation_events import lifecycle
+
 
 def journal_data(row: TradingJournalRow) -> dict[str, Any]:
     execution = row.result.get("details", {}).get("execution", {})
@@ -25,6 +27,7 @@ def journal_data(row: TradingJournalRow) -> dict[str, Any]:
         "result": row.result,
         "submitted_at": row.submitted_at.isoformat() if row.submitted_at else None,
         "updated_at": row.updated_at.isoformat(),
+        **lifecycle(row),
     }
 
 

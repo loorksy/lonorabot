@@ -1,0 +1,172 @@
+"""Scoped admission at the financial boundary: which uncertainty blocks which action.
+
+A request is *risk-reducing* only when, against the fresh broker target read at the
+boundary (never the model's or caller's description), it can only shrink the account's
+gross exposure or bound its loss:
+
+- ``close_position`` of an existing open position on the same symbol, in full or for at
+  most its current volume. Closing one leg of a hedge reduces gross exposure even though
+  it can raise net directional exposure; flattening a hedged book requires it.
+- ``cancel_order`` of an existing pending order on the same symbol (removes exposure the
+  order could create).
+- ``modify_position`` that only moves the stop-loss strictly toward the market — higher
+  for a buy, lower for a sell — or adds a stop-loss to an unprotected position, while the
+  take-profit is unchanged and nothing is cleared.
+
+Everything else is *risk-increasing* for admission: every entry (market or pending), any
+pending-order edit, take-profit changes, removing protection, widening or keeping a stop,
+and any request whose target is missing or does not match.
+
+Global Trading OFF and Emergency Stop stop new risk, not exits: a risk-reducing request
+stays admissible on every admission path. This relaxes no authorization — each path has
+already passed owner identity, an exact owner approval or a matching signed account grant
+— and the before-send preflight, lease fence and broker checks still run.
+
+An unresolved live operation (``submitted`` or ``ambiguous``: possibly sent, outcome not
+established) blocks new risk-increasing requests on the same account and symbol, or on the
+same position/order ticket, never the whole account, and never a risk-reducing request.
+A ``reserved`` operation does not block: under the serialized account send lock it has
+provably not crossed the send boundary. A disconnected broker observation blocks new risk
+on the account; a ``degraded`` one is decided by the scoped journal check instead.
+"""
+
+from typing import Any
+
+from lonora_contracts.account import Order, Position
+from lonora_contracts.trading import UNRESOLVED_STATUSES, TradeRequest
+from lonora_core.user_error import LonoraError
+from lonora_db.schema import TradingJournalRow
+from sqlalchemy import or_, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from .exposure import direction
+
+# Actions that can be risk-reducing for some broker target; anything else never is.
+REDUCING_ACTIONS = frozenset({"close_position", "cancel_order", "modify_position"})
+# Recovery observations that do not by themselves prevent new risk. "degraded" lists
+# unresolved operations, whose market scope the journal check decides directly.
+ADMISSIBLE_RECOVERY = frozenset({"connected", "degraded"})
+
+
+def may_reduce_risk(request: TradeRequest) -> bool:
+    """Cheap pre-read test; the decision itself needs the current broker target."""
+    return request.action in REDUCING_ACTIONS
+
+
+def risk_reducing(request: TradeRequest, target: Position | Order | None) -> bool:
+    if request.action == "close_position":
+        return (
+            isinstance(target, Position)
+            and target.id == request.position_id
+            and target.symbol == request.symbol
+            and target.volume > 0
+            and (request.volume is None or request.volume <= target.volume)
+        )
+    if request.action == "cancel_order":
+        return (
+            isinstance(target, Order)
+            and target.id == request.order_id
+            and target.symbol == request.symbol
+        )
+    if (
+        request.action != "modify_position"
+        or not isinstance(target, Position)
+        or target.id != request.position_id
+        or target.symbol != request.symbol
+    ):
+        return False
+    if request.clear_stop_loss or request.clear_take_profit or request.stop_loss is None:
+        return False
+    if request.take_profit is not None and request.take_profit != target.take_profit:
+        return False
+    side = direction(target.side)
+    if side == "unknown":
+        return False
+    if not target.stop_loss:
+        return True  # Bounding an unprotected position's loss.
+    if side == "buy":
+        return request.stop_loss > target.stop_loss
+    return request.stop_loss < target.stop_loss
+
+
+async def unresolved_conflict(
+    session: AsyncSession,
+    owner_id: str,
+    request: TradeRequest,
+) -> str | None:
+    """The oldest unresolved live operation sharing this request's symbol or ticket."""
+    return await unresolved_in_scope(
+        session,
+        owner_id,
+        request.account_id,
+        request.symbol,
+        position_id=request.position_id,
+        order_id=request.order_id,
+        exclude=request.operation_id,
+    )
+
+
+async def unresolved_in_scope(
+    session: AsyncSession,
+    owner_id: str,
+    account_id: str,
+    symbol: str,
+    *,
+    position_id: str | None = None,
+    order_id: str | None = None,
+    exclude: str | None = None,
+) -> str | None:
+    scope = [TradingJournalRow.request["symbol"].as_string() == symbol]
+    if position_id:
+        scope.append(TradingJournalRow.request["position_id"].as_string() == position_id)
+    if order_id:
+        scope.append(TradingJournalRow.request["order_id"].as_string() == order_id)
+    query = select(TradingJournalRow.operation_id).where(
+        TradingJournalRow.owner_id == owner_id,
+        TradingJournalRow.account_id == account_id,
+        TradingJournalRow.execution_mode == "live",
+        TradingJournalRow.status.in_(sorted(UNRESOLVED_STATUSES)),
+        or_(*scope),
+    )
+    if exclude:
+        query = query.where(TradingJournalRow.operation_id != exclude)
+    return await session.scalar(
+        query.order_by(TradingJournalRow.submitted_at, TradingJournalRow.operation_id).limit(1)
+    )
+
+
+async def entry_recovery_status(
+    session: AsyncSession,
+    owner_id: str,
+    account_id: str,
+    symbol: str,
+    recovery: dict[str, Any] | None,
+) -> str | None:
+    """The recovery status as it applies to new risk on one market.
+
+    A degraded account observation only blocks the markets that hold unresolved
+    operations; elsewhere new risk is evaluated as on a reconciled account.
+    """
+    status = recovery.get("status") if recovery else None
+    if status == "degraded" and not await unresolved_in_scope(
+        session, owner_id, account_id, symbol
+    ):
+        return "connected"
+    return status if isinstance(status, str) else None
+
+
+async def require_operation_scope(
+    session: AsyncSession,
+    owner_id: str,
+    request: TradeRequest,
+    *,
+    reducing: bool,
+    recovery: dict[str, Any] | None,
+) -> None:
+    """Reject new risk while relevant broker state is unknown; always admit exits."""
+    if reducing:
+        return
+    if recovery and recovery.get("status") not in ADMISSIBLE_RECOVERY:
+        raise LonoraError("broker_reconciliation_required", 409)
+    if await unresolved_conflict(session, owner_id, request):
+        raise LonoraError("broker_reconciliation_required", 409)

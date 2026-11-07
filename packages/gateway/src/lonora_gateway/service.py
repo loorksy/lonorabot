@@ -9,7 +9,7 @@ from lonora_contracts.mcp import McpToolDeclaration
 from lonora_db.client import Database
 from lonora_db.owner import get_owner
 from lonora_tools.loader import load_tools
-from lonora_trading.reconciliation import reconcile_ambiguous
+from lonora_trading.reconciliation import recheck_verifications, reconcile_ambiguous
 
 from .connection_manager import close_connections, maintain_voice
 from .event_dispatch import dispatch_channels
@@ -101,6 +101,7 @@ class Gateway:
                     )
                 service = self.services[owner.id]
                 await reconcile_ambiguous(self.db, service.brokers)
+                await recheck_verifications(self.db, service.brokers)
                 from lonora_trading.broker_recovery import maintenance_account_recovery
 
                 await maintenance_account_recovery(self.db, service.brokers, owner.id)

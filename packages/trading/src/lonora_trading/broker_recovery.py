@@ -6,22 +6,22 @@ from datetime import timedelta
 from lonora_adapters.brokers.base import BrokerManager
 from lonora_contracts.broker_activity import BrokerRecoverySnapshot
 from lonora_contracts.domain import ThreadCreate, utcnow
-from lonora_contracts.runs import Lease, RunRequest
-from lonora_contracts.trading import TradeRequest
+from lonora_contracts.runs import RunRequest
+from lonora_contracts.trading import UNRESOLVED_STATUSES
 from lonora_core.user_error import LonoraError
 from lonora_db.broker_sessions import BrokerSessionRepository
 from lonora_db.client import Database
 from lonora_db.events import emit
 from lonora_db.personal_agent import ensure_personal_agent
 from lonora_db.runs import create_run
-from lonora_db.schema import BrokerSessionRow, EffectReceiptRow, RunRow, TradingJournalRow
+from lonora_db.schema import BrokerSessionRow, EffectReceiptRow, TradingJournalRow
 from lonora_db.threads import conversation_thread, create_thread
-from lonora_db.trading_journal import persist_result
 from lonora_market.health import assess_account, require_healthy
 from lonora_session.idempotency import stable_id
 from sqlalchemy import select, text
 
 from .manual_activity import detect_activity
+from .reconciliation import observe_operation, sender_alive, settle
 
 
 async def reconcile_broker_account(
@@ -58,6 +58,7 @@ async def reconcile_broker_account(
                         account, account_id=account_id, now=utcnow(), maximum_age_seconds=60
                     )
                 )
+                read_at = utcnow()
                 positions, orders = await broker.positions(), await broker.orders()
                 if len(positions) > 1000 or len(orders) > 1000:
                     raise LonoraError("broker_snapshot_limit", 409)
@@ -76,48 +77,22 @@ async def reconcile_broker_account(
                     )
                 unresolved: list[str] = []
                 for entry in entries:
-                    if entry.status not in {"ambiguous", "submitted"}:
+                    # Under this same account send lock a reservation has provably not
+                    # been sent; reconcile_ambiguous releases an abandoned one.
+                    if entry.status not in UNRESOLVED_STATUSES:
                         continue
                     if (
                         entry.status == "submitted"
                         and entry.submitted_at
                         and entry.submitted_at > now - timedelta(seconds=60)
                     ):
-                        # A live fenced sender waiting for this account lock has not
-                        # submitted yet. Do not make its own reservation degrade it.
-                        raw_lease = entry.result.get("details", {}).get("lease")
-                        lease = Lease.model_validate(raw_lease) if raw_lease else None
-                        active = None
-                        if lease:
-                            async with db.sessions() as session:
-                                active = await session.get(RunRow, lease.run_id)
-                        if not (
-                            active
-                            and lease
-                            and active.status in {"leased", "running"}
-                            and active.lease_owner == lease.owner
-                            and active.lease_fence == lease.fence
-                            and active.lease_expires_at
-                            and active.lease_expires_at > now
-                        ):
+                        # A live fenced sender is persisting this operation's outcome.
+                        if not await sender_alive(db, entry, now):
                             unresolved.append(entry.operation_id)
                         continue
-                    receipt = await broker.reconcile(
-                        entry.operation_id,
-                        TradeRequest.model_validate(entry.request),
-                        submitted_at=entry.submitted_at,
-                    )
-                    if receipt.operation_id == entry.operation_id and receipt.status in {
-                        "confirmed",
-                        "failed",
-                    }:
-                        async with db.sessions() as session, session.begin():
-                            await persist_result(
-                                session,
-                                entry.operation_id,
-                                receipt.status,
-                                receipt.model_dump(mode="json"),
-                            )
+                    receipt = await observe_operation(broker, entry, (positions, orders, read_at))
+                    if receipt is not None:
+                        await settle(db, entry.operation_id, receipt)
                         entry.status, entry.result = receipt.status, receipt.model_dump(mode="json")
                     else:
                         unresolved.append(entry.operation_id)

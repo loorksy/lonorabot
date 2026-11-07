@@ -19,6 +19,10 @@ msgstr "A different answer was already recorded."
 #~ msgid "A new teammate"
 #~ msgstr "A new teammate"
 
+#: src/lib/user_error.ts:136
+msgid "A previous operation on this market still needs broker verification, so this new order was not sent. Closing positions, cancelling pending orders and tightening stops remain available."
+msgstr "A previous operation on this market still needs broker verification, so this new order was not sent. Closing positions, cancelling pending orders and tightening stops remain available."
+
 #: src/pages/shell/chat-context.tsx:841
 #~ msgid "A workspace that remembers"
 #~ msgstr "A workspace that remembers"
@@ -44,8 +48,8 @@ msgid "Account number"
 msgstr "Account number"
 
 #: src/components/trading/Positions.tsx:60
-#: src/components/trading/TradeActionCard.tsx:79
-#: src/components/trading/TradeApprovals.tsx:109
+#: src/components/trading/TradeActionCard.tsx:81
+#: src/components/trading/TradeApprovals.tsx:110
 msgid "Action"
 msgstr "Action"
 
@@ -242,11 +246,11 @@ msgstr "Appearance"
 msgid "Appearance and workspace"
 msgstr "Appearance and workspace"
 
-#: src/components/trading/TradeApprovals.tsx:185
+#: src/components/trading/TradeApprovals.tsx:186
 msgid "Approve"
 msgstr "Approve"
 
-#: src/components/trading/TradeApprovals.tsx:198
+#: src/components/trading/TradeApprovals.tsx:199
 msgid "Approved — awaiting broker result"
 msgstr "Approved — awaiting broker result"
 
@@ -306,14 +310,18 @@ msgstr "Available"
 msgid "Avatar Studio"
 msgstr "Avatar Studio"
 
-#: src/components/trading/TradeApprovals.tsx:210
-#: src/components/trading/TradingJournal.tsx:24
+#: src/lib/operation-status.ts:19
+#: src/lib/operation-status.ts:21
+msgid "Awaiting broker confirmation"
+msgstr "Awaiting broker confirmation"
+
+#: src/lib/operation-status.ts:31
 msgid "Awaiting reconciliation"
 msgstr "Awaiting reconciliation"
 
 #: src/components/trading/TradeActionCard.tsx:161
-msgid "Awaiting reconciliation. This operation will not be sent again."
-msgstr "Awaiting reconciliation. This operation will not be sent again."
+#~ msgid "Awaiting reconciliation. This operation will not be sent again."
+#~ msgstr "Awaiting reconciliation. This operation will not be sent again."
 
 #: src/pages/Artifacts.tsx:263
 msgid "Back to artifacts"
@@ -404,11 +412,15 @@ msgstr "Broker account"
 msgid "Broker account changed"
 msgstr "Broker account changed"
 
-#: src/lib/user_error.ts:138
+#: src/lib/user_error.ts:142
 msgid "Broker account not found."
 msgstr "Broker account not found."
 
-#: src/lib/user_error.ts:150
+#: src/lib/operation-status.ts:22
+msgid "Broker acknowledged — resulting state unverified"
+msgstr "Broker acknowledged — resulting state unverified"
+
+#: src/lib/user_error.ts:154
 msgid "Broker authentication was rejected."
 msgstr "Broker authentication was rejected."
 
@@ -416,7 +428,7 @@ msgstr "Broker authentication was rejected."
 msgid "Broker candles are unavailable for this symbol and timeframe."
 msgstr "Broker candles are unavailable for this symbol and timeframe."
 
-#: src/lib/user_error.ts:163
+#: src/lib/user_error.ts:167
 msgid "Broker candles contain invalid or mismatched data."
 msgstr "Broker candles contain invalid or mismatched data."
 
@@ -432,16 +444,20 @@ msgstr "Broker connection recovered"
 msgid "Broker connection requires attention"
 msgstr "Broker connection requires attention"
 
-#: src/lib/user_error.ts:144
+#: src/lib/user_error.ts:148
 msgid "Broker data does not match the selected account. Nothing was sent."
 msgstr "Broker data does not match the selected account. Nothing was sent."
 
-#: src/lib/user_error.ts:178
+#: src/lib/user_error.ts:182
 msgid "Broker deal history is unavailable for this time range."
 msgstr "Broker deal history is unavailable for this time range."
 
+#: src/components/trading/TradingJournal.tsx:64
+msgid "Broker reference (optional)"
+msgstr "Broker reference (optional)"
+
 #: src/components/goals/TradingGoals.tsx:70
-#: src/components/trading/TradeApprovals.tsx:200
+#: src/components/trading/TradeApprovals.tsx:201
 msgid "Broker result"
 msgstr "Broker result"
 
@@ -453,15 +469,19 @@ msgstr "Broker server"
 msgid "Broker symbol"
 msgstr "Broker symbol"
 
-#: src/components/trading/TradeApprovals.tsx:173
-#: src/components/trading/TradeApprovals.tsx:219
+#: src/components/trading/TradeApprovals.tsx:174
+#: src/components/trading/TradeApprovals.tsx:210
 msgid "Broker ticket"
 msgstr "Broker ticket"
 
 #: src/components/ai/AgentLiveStatus.tsx:158
 #: src/lib/user_error.ts:136
-msgid "Broker verification pending. Market data may remain available; trading is blocked until verification finishes."
-msgstr "Broker verification pending. Market data may remain available; trading is blocked until verification finishes."
+#~ msgid "Broker verification pending. Market data may remain available; trading is blocked until verification finishes."
+#~ msgstr "Broker verification pending. Market data may remain available; trading is blocked until verification finishes."
+
+#: src/components/ai/AgentLiveStatus.tsx:158
+msgid "Broker verification pending. Market data remains available; new orders on the affected market are blocked until verification finishes, and closing remains available."
+msgstr "Broker verification pending. Market data remains available; new orders on the affected market are blocked until verification finishes, and closing remains available."
 
 #: src/components/skills/shared.ts:21
 msgid "Built in"
@@ -475,11 +495,11 @@ msgstr "Built-in override rejected"
 msgid "Buy"
 msgstr "Buy"
 
-#: src/components/trading/TradeActionCard.tsx:92
+#: src/components/trading/TradeActionCard.tsx:94
 msgid "Buy limit"
 msgstr "Buy limit"
 
-#: src/components/trading/TradeActionCard.tsx:98
+#: src/components/trading/TradeActionCard.tsx:100
 msgid "Buy stop"
 msgstr "Buy stop"
 
@@ -529,8 +549,8 @@ msgstr "Cancel order"
 #: src/components/ai/TurnActivity.tsx:99
 #: src/components/ToolActivityDisclosure.tsx:23
 #: src/components/trading/SuperBotCards.tsx:159
-#: src/components/trading/TradeApprovals.tsx:194
-#: src/lib/goal-status.ts:42
+#: src/components/trading/TradeApprovals.tsx:195
+#: src/lib/goal-status.ts:44
 #: src/pages/ActivityList.tsx:122
 #: src/pages/Board.tsx:24
 #: src/pages/shell/message-cards.tsx:274
@@ -572,11 +592,11 @@ msgstr "Chart could not be displayed."
 msgid "Charts"
 msgstr "Charts"
 
-#: src/components/trading/TradeActionCard.tsx:153
+#: src/components/trading/TradeActionCard.tsx:155
 msgid "Check existing operation"
 msgstr "Check existing operation"
 
-#: src/lib/user_error.ts:184
+#: src/lib/user_error.ts:188
 msgid "Check the required fields and try again."
 msgstr "Check the required fields and try again."
 
@@ -624,7 +644,7 @@ msgid "Choose an available answer."
 msgstr "Choose an available answer."
 
 #: src/components/market/SymbolSearch.tsx:21
-#: src/components/trading/TradeActionCard.tsx:69
+#: src/components/trading/TradeActionCard.tsx:71
 msgid "Choose an instrument"
 msgstr "Choose an instrument"
 
@@ -739,8 +759,7 @@ msgstr "Configure an OpenAI credential with GPT-Live API access"
 msgid "Confirm account password"
 msgstr "Confirm account password"
 
-#: src/components/trading/TradeApprovals.tsx:208
-#: src/components/trading/TradingJournal.tsx:20
+#: src/lib/operation-status.ts:23
 msgid "Confirmed"
 msgstr "Confirmed"
 
@@ -1047,7 +1066,7 @@ msgstr "Download this file to view it"
 msgid "Dreamy"
 msgstr "Dreamy"
 
-#: src/components/trading/TradingJournal.tsx:7
+#: src/components/trading/TradingJournal.tsx:90
 msgid "Durable trading journal"
 msgstr "Durable trading journal"
 
@@ -1138,7 +1157,7 @@ msgid "Every · minutes"
 msgstr "Every · minutes"
 
 #: src/components/market/SymbolSearch.tsx:17
-#: src/components/trading/TradeActionCard.tsx:61
+#: src/components/trading/TradeActionCard.tsx:63
 msgid "Exact broker symbol"
 msgstr "Exact broker symbol"
 
@@ -1146,7 +1165,7 @@ msgstr "Exact broker symbol"
 msgid "Excited"
 msgstr "Excited"
 
-#: src/components/trading/TradeActionCard.tsx:153
+#: src/components/trading/TradeActionCard.tsx:155
 msgid "Execute"
 msgstr "Execute"
 
@@ -1194,9 +1213,8 @@ msgstr "Face"
 #: src/components/ai/TurnActivity.tsx:37
 #: src/components/ai/TurnActivity.tsx:97
 #: src/components/ToolActivityDisclosure.tsx:25
-#: src/components/trading/TradeApprovals.tsx:212
-#: src/components/trading/TradingJournal.tsx:22
 #: src/lib/goal-status.ts:38
+#: src/lib/operation-status.ts:25
 #: src/pages/ActivityList.tsx:121
 #: src/pages/Board.tsx:28
 #: src/pages/shell/message-cards.tsx:276
@@ -1319,11 +1337,11 @@ msgstr "Groups"
 msgid "Happy"
 msgstr "Happy"
 
-#: src/lib/user_error.ts:152
+#: src/lib/user_error.ts:156
 msgid "Historical broker candles timed out. Retry the chart refresh."
 msgstr "Historical broker candles timed out. Retry the chart refresh."
 
-#: src/lib/user_error.ts:156
+#: src/lib/user_error.ts:160
 msgid "Historical market data is blocked by the data provider's billing. Fund the provider account, then retry. Live prices may remain available."
 msgstr "Historical market data is blocked by the data provider's billing. Fund the provider account, then retry. Live prices may remain available."
 
@@ -1335,7 +1353,7 @@ msgstr "Idle"
 msgid "Image attachment"
 msgstr "Image attachment"
 
-#: src/lib/user_error.ts:182
+#: src/lib/user_error.ts:186
 msgid "Import a market snapshot before using the demo account."
 msgstr "Import a market snapshot before using the demo account."
 
@@ -1402,6 +1420,14 @@ msgstr "Interval"
 #: src/components/SandboxedHtmlViewer.tsx:6
 msgid "Isolated document preview"
 msgstr "Isolated document preview"
+
+#: src/components/trading/TradingJournal.tsx:49
+msgid "It was executed"
+msgstr "It was executed"
+
+#: src/components/trading/TradingJournal.tsx:50
+msgid "It was not executed"
+msgstr "It was not executed"
 
 #: src/pages/shell/chat-context.tsx:1160
 msgid "Jump to latest"
@@ -1564,7 +1590,7 @@ msgstr "Market"
 msgid "Market and charts"
 msgstr "Market and charts"
 
-#: src/components/trading/TradeActionCard.tsx:86
+#: src/components/trading/TradeActionCard.tsx:88
 msgid "Market buy"
 msgstr "Market buy"
 
@@ -1572,7 +1598,7 @@ msgstr "Market buy"
 msgid "Market data unavailable"
 msgstr "Market data unavailable"
 
-#: src/components/trading/TradeActionCard.tsx:89
+#: src/components/trading/TradeActionCard.tsx:91
 msgid "Market sell"
 msgstr "Market sell"
 
@@ -1727,7 +1753,7 @@ msgstr "No agents match"
 msgid "No artifacts found."
 msgstr "No artifacts found."
 
-#: src/lib/user_error.ts:160
+#: src/lib/user_error.ts:164
 msgid "No candle history was found for this symbol and timeframe."
 msgstr "No candle history was found for this symbol and timeframe."
 
@@ -1763,7 +1789,7 @@ msgstr "No new notifications"
 msgid "No open positions"
 msgstr "No open positions"
 
-#: src/components/trading/TradingJournal.tsx:11
+#: src/components/trading/TradingJournal.tsx:94
 msgid "No operations yet"
 msgstr "No operations yet"
 
@@ -1803,6 +1829,10 @@ msgstr "No tickets yet"
 #: src/components/goals/TradingGoals.tsx:186
 msgid "No trading goals yet."
 msgstr "No trading goals yet."
+
+#: src/lib/operation-status.ts:25
+msgid "Not sent"
+msgstr "Not sent"
 
 #: src/components/charts/ChartAnnotations.tsx:70
 msgid "Note"
@@ -1882,25 +1912,29 @@ msgid "Operation"
 msgstr "Operation"
 
 #: src/components/trading/TradeActionCard.tsx:159
-msgid "Operation confirmed"
-msgstr "Operation confirmed"
+#~ msgid "Operation confirmed"
+#~ msgstr "Operation confirmed"
 
 #: src/components/trading/TradeActionCard.tsx:163
-msgid "Operation failed"
-msgstr "Operation failed"
+#~ msgid "Operation failed"
+#~ msgstr "Operation failed"
 
 #: src/pages/shell/bot-panel.tsx:98
 #: src/pages/shell/bot-settings.tsx:115
 #~ msgid "Orb"
 #~ msgstr "Orb"
 
-#: src/components/trading/TradeActionCard.tsx:120
+#: src/components/trading/TradeActionCard.tsx:122
 msgid "Order price"
 msgstr "Order price"
 
 #: src/pages/shell/bot-settings.tsx:124
 #~ msgid "Organic"
 #~ msgstr "Organic"
+
+#: src/lib/operation-status.ts:27
+msgid "Outcome uncertain — it will not be sent again"
+msgstr "Outcome uncertain — it will not be sent again"
 
 #: src/pages/UsageSettingsPanel.tsx:30
 msgid "Output"
@@ -1941,7 +1975,7 @@ msgstr "Pause agent and scheduled work"
 #: src/components/ai/AgentLiveStatus.tsx:41
 #: src/components/ai/AgentLiveStatus.tsx:106
 #: src/components/trading/SuperBotCards.tsx:160
-#: src/lib/goal-status.ts:40
+#: src/lib/goal-status.ts:42
 #: src/pages/Board.tsx:26
 #: src/pages/Routines.tsx:83
 #: src/pages/Shell.tsx:766
@@ -1954,7 +1988,7 @@ msgstr "Paused"
 msgid "PDF preview"
 msgstr "PDF preview"
 
-#: src/lib/goal-status.ts:44
+#: src/lib/goal-status.ts:46
 msgid "Pending"
 msgstr "Pending"
 
@@ -2014,6 +2048,10 @@ msgstr "Positions"
 msgid "Preparing"
 msgstr "Preparing"
 
+#: src/lib/operation-status.ts:17
+msgid "Preparing — not sent"
+msgstr "Preparing — not sent"
+
 #: src/components/ArtifactFileCard.tsx:60
 msgid "Preview"
 msgstr "Preview"
@@ -2028,7 +2066,7 @@ msgstr "Previous"
 
 #: src/components/charts/ChartAnnotations.tsx:23
 #: src/components/market/MarketWatch.tsx:102
-#: src/components/trading/TradeApprovals.tsx:133
+#: src/components/trading/TradeApprovals.tsx:134
 msgid "Price"
 msgstr "Price"
 
@@ -2141,6 +2179,10 @@ msgstr "Reconnecting to live updates"
 msgid "Record a fresh market decision before virtual entry."
 msgstr "Record a fresh market decision before virtual entry."
 
+#: src/components/trading/TradingJournal.tsx:73
+msgid "Record resolution"
+msgstr "Record resolution"
+
 #: src/components/charts/ChartToolbar.tsx:48
 msgid "Refresh chart"
 msgstr "Refresh chart"
@@ -2166,12 +2208,12 @@ msgid "Regression"
 msgstr "Regression"
 
 #: src/components/trading/SuperBotCards.tsx:178
-#: src/components/trading/TradeApprovals.tsx:188
+#: src/components/trading/TradeApprovals.tsx:189
 msgid "Reject"
 msgstr "Reject"
 
 #: src/components/trading/SuperBotCards.tsx:158
-#: src/components/trading/TradeApprovals.tsx:196
+#: src/components/trading/TradeApprovals.tsx:197
 msgid "Rejected"
 msgstr "Rejected"
 
@@ -2191,11 +2233,11 @@ msgstr "Remove {name}"
 msgid "Remove reply"
 msgstr "Remove reply"
 
-#: src/components/trading/TradeApprovals.tsx:152
+#: src/components/trading/TradeApprovals.tsx:153
 msgid "Remove stop loss"
 msgstr "Remove stop loss"
 
-#: src/components/trading/TradeApprovals.tsx:157
+#: src/components/trading/TradeApprovals.tsx:158
 msgid "Remove take profit"
 msgstr "Remove take profit"
 
@@ -2244,6 +2286,18 @@ msgstr "Resize chart"
 #: src/pages/ResizableSidePanel.tsx:182
 msgid "Resize panel"
 msgstr "Resize panel"
+
+#: src/lib/operation-status.ts:29
+msgid "Resolved — target no longer exists"
+msgstr "Resolved — target no longer exists"
+
+#: src/lib/operation-status.ts:29
+msgid "Resolved by owner"
+msgstr "Resolved by owner"
+
+#: src/lib/goal-status.ts:40
+msgid "Resolved without broker confirmation"
+msgstr "Resolved without broker confirmation"
 
 #: src/components/ai/AgentLiveStatus.tsx:149
 #: src/components/goals/TradingGoals.tsx:313
@@ -2481,11 +2535,11 @@ msgstr "Secure device authentication is unavailable on this device."
 msgid "Sell"
 msgstr "Sell"
 
-#: src/components/trading/TradeActionCard.tsx:95
+#: src/components/trading/TradeActionCard.tsx:97
 msgid "Sell limit"
 msgstr "Sell limit"
 
-#: src/components/trading/TradeActionCard.tsx:101
+#: src/components/trading/TradeActionCard.tsx:103
 msgid "Sell stop"
 msgstr "Sell stop"
 
@@ -2544,7 +2598,7 @@ msgstr "Shadow observations"
 #: src/components/trading/ExecutionModeSettings.tsx:68
 #: src/components/trading/SuperBotCards.tsx:239
 #: src/components/trading/SuperBotCards.tsx:362
-#: src/components/trading/TradeApprovals.tsx:103
+#: src/components/trading/TradeApprovals.tsx:104
 msgid "Shadow trading — virtual orders only"
 msgstr "Shadow trading — virtual orders only"
 
@@ -2695,6 +2749,10 @@ msgstr "Start a conversation"
 msgid "Status"
 msgstr "Status"
 
+#: src/components/trading/TradingJournal.tsx:51
+msgid "Still unknown"
+msgstr "Still unknown"
+
 #: src/pages/ActivityList.tsx:271
 #: src/pages/shell/chat-context.tsx:863
 #: src/pages/shell/chat-context.tsx:864
@@ -2703,11 +2761,11 @@ msgstr "Stop"
 
 #: src/components/goals/TradingGoals.tsx:233
 #: src/components/trading/SuperBotCards.tsx:333
-#: src/components/trading/TradeApprovals.tsx:143
+#: src/components/trading/TradeApprovals.tsx:144
 msgid "Stop loss"
 msgstr "Stop loss"
 
-#: src/components/trading/TradeActionCard.tsx:132
+#: src/components/trading/TradeActionCard.tsx:134
 msgid "Stop loss · optional"
 msgstr "Stop loss · optional"
 
@@ -2720,8 +2778,8 @@ msgid "Stopped"
 msgstr "Stopped"
 
 #: src/components/trading/TradeApprovals.tsx:214
-msgid "Submitted"
-msgstr "Submitted"
+#~ msgid "Submitted"
+#~ msgstr "Submitted"
 
 #: src/components/ai/AgentLiveStatus.tsx:84
 #: src/components/trading/SuperBotCards.tsx:212
@@ -2773,17 +2831,17 @@ msgid "Switch agent"
 msgstr "Switch agent"
 
 #: src/components/trading/Positions.tsx:45
-#: src/components/trading/TradeApprovals.tsx:115
+#: src/components/trading/TradeApprovals.tsx:116
 msgid "Symbol"
 msgstr "Symbol"
 
 #: src/components/goals/TradingGoals.tsx:234
 #: src/components/trading/SuperBotCards.tsx:334
-#: src/components/trading/TradeApprovals.tsx:163
+#: src/components/trading/TradeApprovals.tsx:164
 msgid "Take profit"
 msgstr "Take profit"
 
-#: src/components/trading/TradeActionCard.tsx:142
+#: src/components/trading/TradeActionCard.tsx:144
 msgid "Take profit · optional"
 msgstr "Take profit · optional"
 
@@ -2822,51 +2880,55 @@ msgstr "Task when triggered"
 msgid "Temporary delegated tasks"
 msgstr "Temporary delegated tasks"
 
-#: src/lib/user_error.ts:165
+#: src/lib/user_error.ts:169
 msgid "That chart timeframe is not supported by this broker."
 msgstr "That chart timeframe is not supported by this broker."
 
-#: src/lib/user_error.ts:203
+#: src/lib/user_error.ts:207
 msgid "The agent reached the step limit for this run. Send another message to continue."
 msgstr "The agent reached the step limit for this run. Send another message to continue."
 
-#: src/lib/user_error.ts:142
+#: src/lib/user_error.ts:146
 msgid "The broker account could not be verified. Check its connection details and try again."
 msgstr "The broker account could not be verified. Check its connection details and try again."
 
-#: src/lib/user_error.ts:148
+#: src/lib/user_error.ts:152
 msgid "The broker account is not ready at the connection provider. Check its status, then retry."
 msgstr "The broker account is not ready at the connection provider. Check its status, then retry."
 
-#: src/lib/user_error.ts:174
+#: src/lib/user_error.ts:178
 msgid "The broker connection changed. Reload it before continuing."
 msgstr "The broker connection changed. Reload it before continuing."
 
-#: src/lib/user_error.ts:146
+#: src/lib/user_error.ts:150
 msgid "The broker connection is stopped at the connection provider. Start it there, then retry."
 msgstr "The broker connection is stopped at the connection provider. Start it there, then retry."
 
-#: src/lib/user_error.ts:180
+#: src/lib/user_error.ts:184
 msgid "The broker connection is unavailable."
 msgstr "The broker connection is unavailable."
 
-#: src/lib/user_error.ts:158
+#: src/components/trading/TradingJournal.tsx:37
+msgid "The broker could not establish this operation's outcome. Record what you verified at the broker. This settles the block on this market; it is not broker confirmation and nothing is sent again."
+msgstr "The broker could not establish this operation's outcome. Record what you verified at the broker. This settles the block on this market; it is not broker confirmation and nothing is sent again."
+
+#: src/lib/user_error.ts:162
 msgid "The broker market-data service is rate limited."
 msgstr "The broker market-data service is rate limited."
 
-#: src/lib/user_error.ts:176
+#: src/lib/user_error.ts:180
 msgid "The broker mutation is uncertain. Execution remains blocked until its result can be verified."
 msgstr "The broker mutation is uncertain. Execution remains blocked until its result can be verified."
 
-#: src/lib/user_error.ts:167
+#: src/lib/user_error.ts:171
 msgid "The broker quote is unavailable for this exact symbol."
 msgstr "The broker quote is unavailable for this exact symbol."
 
-#: src/lib/user_error.ts:154
+#: src/lib/user_error.ts:158
 msgid "The broker rejected this timeframe or candle request."
 msgstr "The broker rejected this timeframe or candle request."
 
-#: src/lib/user_error.ts:169
+#: src/lib/user_error.ts:173
 msgid "The broker specifications are unavailable for this exact symbol."
 msgstr "The broker specifications are unavailable for this exact symbol."
 
@@ -2894,7 +2956,7 @@ msgstr "The file preview could not be displayed"
 msgid "The full response will appear when complete."
 msgstr "The full response will appear when complete."
 
-#: src/lib/user_error.ts:199
+#: src/lib/user_error.ts:203
 msgid "The model could not summarize this conversation. Retry or choose another global model."
 msgstr "The model could not summarize this conversation. Retry or choose another global model."
 
@@ -2910,7 +2972,7 @@ msgstr "The page could not be displayed"
 msgid "The provider rejected this API key."
 msgstr "The provider rejected this API key."
 
-#: src/lib/user_error.ts:205
+#: src/lib/user_error.ts:209
 msgid "The request could not be completed. Try again."
 msgstr "The request could not be completed. Try again."
 
@@ -2965,19 +3027,19 @@ msgstr "This authorization request expired or changed. Review a new request."
 msgid "This broker account does not permit trading. Check its trading permissions."
 msgstr "This broker account does not permit trading. Check its trading permissions."
 
-#: src/lib/user_error.ts:140
+#: src/lib/user_error.ts:144
 msgid "This broker account is already connected. Use the existing connection."
 msgstr "This broker account is already connected. Use the existing connection."
 
-#: src/lib/user_error.ts:171
+#: src/lib/user_error.ts:175
 msgid "This broker connection is disabled."
 msgstr "This broker connection is disabled."
 
-#: src/lib/user_error.ts:201
+#: src/lib/user_error.ts:205
 msgid "This conversation could not be resumed. Start a new conversation."
 msgstr "This conversation could not be resumed. Start a new conversation."
 
-#: src/lib/user_error.ts:197
+#: src/lib/user_error.ts:201
 msgid "This conversation is too large to process. Shorten instructions, use fewer attachments, or start a new conversation."
 msgstr "This conversation is too large to process. Shorten instructions, use fewer attachments, or start a new conversation."
 
@@ -3000,6 +3062,18 @@ msgstr "This item changed. Reload it before saving."
 #: src/pages/Artifacts.tsx:241
 msgid "This month"
 msgstr "This month"
+
+#: src/lib/user_error.ts:140
+msgid "This operation already has a settled outcome. Reload the journal."
+msgstr "This operation already has a settled outcome. Reload the journal."
+
+#: src/lib/user_error.ts:138
+msgid "This operation is still in progress. Wait for its broker result before resolving it."
+msgstr "This operation is still in progress. Wait for its broker result before resolving it."
+
+#: src/components/trading/TradeActionCard.tsx:164
+msgid "This operation will not be sent again."
+msgstr "This operation will not be sent again."
 
 #: src/pages/Shell.tsx:117
 msgid "This page is unavailable"
@@ -3025,7 +3099,7 @@ msgstr "This procedure requires a validated version before it can be enabled or 
 msgid "This question is no longer waiting for an answer."
 msgstr "This question is no longer waiting for an answer."
 
-#: src/lib/user_error.ts:188
+#: src/lib/user_error.ts:192
 msgid "This run was recovered by another worker."
 msgstr "This run was recovered by another worker."
 
@@ -3033,11 +3107,11 @@ msgstr "This run was recovered by another worker."
 msgid "This skill is no longer in the current catalog. Reload the list."
 msgstr "This skill is no longer in the current catalog. Reload the list."
 
-#: src/lib/user_error.ts:193
+#: src/lib/user_error.ts:197
 msgid "This task cannot resume in its current state. Review its plan or retry limit."
 msgstr "This task cannot resume in its current state. Review its plan or retry limit."
 
-#: src/lib/user_error.ts:190
+#: src/lib/user_error.ts:194
 msgid "This task is waiting for an uncertain external operation to be reconciled."
 msgstr "This task is waiting for an uncertain external operation to be reconciled."
 
@@ -3095,7 +3169,7 @@ msgstr "Today"
 msgid "Token usage"
 msgstr "Token usage"
 
-#: src/lib/user_error.ts:186
+#: src/lib/user_error.ts:190
 msgid "Too many attempts. Wait a minute and retry."
 msgstr "Too many attempts. Wait a minute and retry."
 
@@ -3103,7 +3177,7 @@ msgstr "Too many attempts. Wait a minute and retry."
 msgid "Tool activity"
 msgstr "Tool activity"
 
-#: src/components/trading/TradeActionCard.tsx:57
+#: src/components/trading/TradeActionCard.tsx:59
 msgid "Trade action"
 msgstr "Trade action"
 
@@ -3146,7 +3220,7 @@ msgstr "Trading ON"
 msgid "Trading pair"
 msgstr "Trading pair"
 
-#: src/components/trading/TradeApprovals.tsx:99
+#: src/components/trading/TradeApprovals.tsx:100
 msgid "Trading request"
 msgstr "Trading request"
 
@@ -3255,8 +3329,8 @@ msgstr "Voice settings"
 
 #: src/components/market/MarketWatch.tsx:186
 #: src/components/trading/Positions.tsx:51
-#: src/components/trading/TradeActionCard.tsx:106
-#: src/components/trading/TradeApprovals.tsx:123
+#: src/components/trading/TradeActionCard.tsx:108
+#: src/components/trading/TradeApprovals.tsx:124
 msgid "Volume"
 msgstr "Volume"
 
@@ -3320,6 +3394,10 @@ msgstr "Watch confirmed — review current evidence"
 msgid "Watch source"
 msgstr "Watch source"
 
+#: src/components/trading/TradingJournal.tsx:44
+msgid "What happened at the broker"
+msgstr "What happened at the broker"
+
 #: src/pages/shell/bot-settings.tsx:141
 msgid "What should this agent know about its work?"
 msgstr "What should this agent know about its work?"
@@ -3382,6 +3460,10 @@ msgstr "Your Lonora workspace"
 #: src/pages/shell/bot-settings.tsx:184
 msgid "Your Personal Agent cannot be deleted."
 msgstr "Your Personal Agent cannot be deleted."
+
+#: src/components/trading/TradingJournal.tsx:55
+msgid "Your statement"
+msgstr "Your statement"
 
 #: src/pages/shell/conversation-inbox.tsx:163
 msgid "Your team starts here"

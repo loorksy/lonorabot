@@ -9,7 +9,12 @@ from lonora_contracts.execution_quality import ExecutionQuality, ExecutionSnapsh
 from lonora_contracts.runs import Lease
 from lonora_contracts.shadow import ExecutionMode
 from lonora_contracts.tasks import TaskState
-from lonora_contracts.trading import TradeRequest, TradeResult
+from lonora_contracts.trading import (
+    IN_PROGRESS_STATUSES,
+    TERMINAL_STATUSES,
+    TradeRequest,
+    TradeResult,
+)
 from lonora_contracts.trading_goal import GoalExecution
 from lonora_core.trading_control import require_trading
 from lonora_core.user_error import LonoraError
@@ -24,7 +29,8 @@ from lonora_db.trading_journal import persist_result, reserve_operation
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .account_authority import require_account_execution
+from .account_authority import management_target, require_account_execution
+from .admission import may_reduce_risk, require_operation_scope, risk_reducing
 from .agent_permission import require_operation_permission
 from .controls import read_controls
 from .execution_quality import actual_execution, evaluate_execution, execution_policy
@@ -33,12 +39,25 @@ from .goals_market import fresh_goal_evidence
 from .idempotency import trade_fingerprint
 from .journal import execution_evidence
 from .manual_activity import material_state
+from .operation_events import operation_event
 from .preflight import preflight
 from .verification import verify_effect
 
+BROKER_OUTCOMES = frozenset({"confirmed", "failed", "ambiguous"})
+
+
+def not_sent(request: TradeRequest, code: str) -> TradeResult:
+    """A known outcome: the persisted send boundary was never crossed."""
+    return TradeResult(
+        operation_id=request.operation_id,
+        status="failed",
+        code=code,
+        details={"send_state": "not_sent"},
+    )
+
 
 def receipt(row: TradingJournalRow) -> TradeResult:
-    if row.result and row.status != "submitted":
+    if row.result and row.status not in IN_PROGRESS_STATUSES:
         return TradeResult.model_validate(row.result)
     return TradeResult(
         operation_id=row.operation_id, status="ambiguous", code="operation_in_progress"
@@ -163,9 +182,15 @@ class ExecutionService:
             connection_version = connection.version
         if authorization:
             await authorization()
-        require_trading(await read_controls(self.db))
+        controls = await read_controls(self.db)
+        if not may_reduce_risk(request):
+            require_trading(controls)
         broker = await self.brokers.get(owner_id, request.account_id)
         planned_snapshot = await preflight(broker, request)
+        # Global OFF/Emergency Stop and unresolved operations stop new risk, not exits.
+        # The final decision is repeated against a fresh target inside before_send.
+        planned_reducing = risk_reducing(request, management_target(planned_snapshot, request))
+        require_trading(controls, risk_reducing=planned_reducing)
         async with self.db.sessions() as session, session.begin():
             if lease:
                 origin = await require_lease(session, lease)
@@ -196,6 +221,13 @@ class ExecutionService:
                 )
             if goal:
                 await guard_goal_execution(session, owner_id, goal, request, lease)
+            await require_operation_scope(
+                session,
+                owner_id,
+                request,
+                reducing=planned_reducing,
+                recovery=connection.state.get("broker_recovery"),
+            )
             journal, fresh = await reserve_operation(
                 session,
                 owner_id,
@@ -206,11 +238,13 @@ class ExecutionService:
             )
             if not fresh:
                 return receipt(journal)
-            journal.status = "submitted"
+            # Reserved is durable identity only. The send boundary below atomically
+            # moves it to submitted; recovery proves an abandoned reservation unsent.
+            journal.status = "reserved"
             journal.submitted_at = utcnow()
             journal.result = TradeResult(
                 operation_id=request.operation_id,
-                status="submitted",
+                status="reserved",
                 code="operation_in_progress",
                 details={
                     "lease": lease.model_dump() if lease else None,
@@ -255,6 +289,7 @@ class ExecutionService:
                 await authorization()
             snapshot = await preflight(broker, request)
             before_snapshot = snapshot
+            reducing = risk_reducing(request, management_target(snapshot, request))
             policy = await execution_policy(self.db, owner_id, request.account_id)
             quality = evaluate_execution(
                 request, snapshot, policy, planned_quote=planned_snapshot.quote
@@ -271,7 +306,7 @@ class ExecutionService:
                     row = await session.get(
                         TradingJournalRow, request.operation_id, with_for_update=True
                     )
-                    if row is not None and row.status == "submitted":
+                    if row is not None and row.status == "reserved":
                         details = row.result.get("details", {})
                         row.result = {
                             **row.result,
@@ -297,7 +332,7 @@ class ExecutionService:
                 if goal
                 else None
             )
-            require_trading(await read_controls(self.db))
+            require_trading(await read_controls(self.db), risk_reducing=reducing)
             async with self.db.sessions() as session, session.begin():
                 if lease:
                     # Match owner downgrade/signature lock ordering: authority
@@ -315,9 +350,15 @@ class ExecutionService:
                     raise LonoraError("broker_disabled", 409)
                 if connection.version != connection_version:
                     raise LonoraError("broker_connection_changed", 409)
-                recovery = connection.state.get("broker_recovery")
-                if recovery and recovery.get("status") != "connected":
-                    raise LonoraError("broker_reconciliation_required", 409)
+                # Under the account send lock every other reservation is provably
+                # unsent; only submitted/ambiguous operations on this market block.
+                await require_operation_scope(
+                    session,
+                    owner_id,
+                    request,
+                    reducing=reducing,
+                    recovery=connection.state.get("broker_recovery"),
+                )
                 if lease:
                     await require_lease(session, lease, lock=True)
                     await require_goal_lineage(session, lease, goal, owner_id, request)
@@ -361,11 +402,17 @@ class ExecutionService:
                     await guard_goal_execution(
                         session, owner_id, goal, request, lease, goal_evidence
                     )
-                row = await session.get(TradingJournalRow, request.operation_id)
-                if row is None or row.status != "submitted":
-                    raise LonoraError("operation_not_submitted", 409)
+                row = await session.get(
+                    TradingJournalRow, request.operation_id, with_for_update=True
+                )
+                if row is None or row.status != "reserved":
+                    # Recovery already proved this abandoned reservation unsent.
+                    raise LonoraError("operation_reservation_released", 409)
+                row.status = "submitted"
+                row.submitted_at = row.updated_at = utcnow()
                 row.result = {
                     **row.result,
+                    "status": "submitted",
                     "details": {
                         **row.result.get("details", {}),
                         # Durable conservative budget consumption: the final
@@ -375,6 +422,7 @@ class ExecutionService:
                         "execution": {
                             **row.result.get("details", {}).get("execution", {}),
                             "send_authorized": True,
+                            "risk_reducing": reducing,
                         },
                         "execution_quality": quality.model_dump(mode="json"),
                         "execution_evidence": {
@@ -383,6 +431,7 @@ class ExecutionService:
                         },
                     },
                 }
+                await operation_event(session, row)
             send_authorized = True
 
         cancelled = False
@@ -406,12 +455,17 @@ class ExecutionService:
                             "execution_quality": actual_execution(request, result, quality),
                         }
                         async with self.db.sessions() as saved, saved.begin():
-                            await persist_result(
+                            if await persist_result(
                                 saved,
                                 request.operation_id,
                                 result.status,
                                 result.model_dump(mode="json"),
-                            )
+                            ):
+                                acknowledged = await saved.get(
+                                    TradingJournalRow, request.operation_id
+                                )
+                                assert acknowledged is not None
+                                await operation_event(saved, acknowledged)
                         verification = await verify_effect(broker, request, result, before_snapshot)
                         async with self.db.sessions() as saved, saved.begin():
                             journal = await saved.get(
@@ -430,37 +484,55 @@ class ExecutionService:
                                     },
                                 }
                                 journal.updated_at = utcnow()
+                                # A pending verification is rechecked by the
+                                # reconciliation loop (recheck_verifications) until
+                                # verified or unverified; the owner sees it waiting.
+                                await operation_event(saved, journal)
                         result.details = {
                             **result.details,
                             "verification": verification,
                         }
-            if result.operation_id != request.operation_id or not send_authorized:
+            if (
+                result.operation_id != request.operation_id
+                or not send_authorized
+                # An adapter reports a broker outcome; lifecycle states are the journal's.
+                or result.status not in BROKER_OUTCOMES
+            ):
                 result = TradeResult(
                     operation_id=request.operation_id,
                     status="ambiguous",
                     code="broker_result_mismatch",
                 )
+        # The adapter's before_send callback is the mutation boundary: it persists send
+        # authorization before the adapter may send. Any failure or interruption before
+        # it returned is known not sent; after it, transport, SDK and cancellation
+        # failures are not evidence of non-execution and stay uncertain.
         except asyncio.CancelledError:
             cancelled = True
-            result = TradeResult(
-                operation_id=request.operation_id,
-                status="ambiguous",
-                code="broker_result_ambiguous",
+            result = (
+                TradeResult(
+                    operation_id=request.operation_id,
+                    status="ambiguous",
+                    code="broker_result_ambiguous",
+                )
+                if send_authorized
+                else not_sent(request, "operation_interrupted_before_send")
             )
         except LonoraError as error:
-            result = TradeResult(
-                operation_id=request.operation_id,
-                # The adapter's before_send callback is the mutation boundary.
-                # A failure before it authorizes submission is known not sent.
-                status="ambiguous" if send_authorized else "failed",
-                code=error.code,
+            result = (
+                TradeResult(operation_id=request.operation_id, status="ambiguous", code=error.code)
+                if send_authorized
+                else not_sent(request, error.code)
             )
         except Exception:
-            # Transport or SDK failures are not evidence of non-execution.
-            result = TradeResult(
-                operation_id=request.operation_id,
-                status="ambiguous",
-                code="broker_result_ambiguous",
+            result = (
+                TradeResult(
+                    operation_id=request.operation_id,
+                    status="ambiguous",
+                    code="broker_result_ambiguous",
+                )
+                if send_authorized
+                else not_sent(request, "broker_unavailable_before_send")
             )
         result.details = {
             **result.details,
@@ -468,7 +540,7 @@ class ExecutionService:
         }
         async with self.db.sessions() as session, session.begin():
             row = await session.get(TradingJournalRow, request.operation_id, with_for_update=True)
-            if row is not None and row.status not in {"confirmed", "failed"}:
+            if row is not None and row.status not in TERMINAL_STATUSES:
                 row.result = {
                     **row.result,
                     "details": {
@@ -476,11 +548,13 @@ class ExecutionService:
                         "execution_quality": result.details["execution_quality"],
                     },
                 }
-            await persist_result(
+            changed = await persist_result(
                 session, request.operation_id, result.status, result.model_dump(mode="json")
             )
             row = await session.get(TradingJournalRow, request.operation_id)
             assert row is not None
+            if changed:
+                await operation_event(session, row)
             result = receipt(row)
         if request.thesis_id:
             from .opportunities import sync_opportunity_execution

@@ -119,19 +119,9 @@ async def require_account_execution(
     )
     if envelope.maximum_actions is not None and (count or 0) >= envelope.maximum_actions:
         raise LonoraError("account_authority_action_limit", 409)
-    unresolved = await session.scalar(
-        select(TradingJournalRow.operation_id)
-        .where(
-            TradingJournalRow.owner_id == owner_id,
-            TradingJournalRow.account_id == request.account_id,
-            TradingJournalRow.execution_mode == "live",
-            TradingJournalRow.operation_id != request.operation_id,
-            TradingJournalRow.status.in_(["submitted", "ambiguous"]),
-        )
-        .limit(1)
-    )
-    if unresolved:
-        raise LonoraError("broker_reconciliation_required", 409)
+    # Unresolved operations are scoped by the executor for every admission path
+    # (lonora_trading.admission): they block new risk on the same market or ticket
+    # and never trap an exit. A grant cannot widen that block's exceptions.
     if (
         request.volume is not None
         and envelope.maximum_order_volume is not None

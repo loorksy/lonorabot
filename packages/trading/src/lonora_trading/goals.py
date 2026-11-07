@@ -8,7 +8,12 @@ from lonora_adapters.brokers.base import BrokerManager
 from lonora_contracts.account import Order, Position
 from lonora_contracts.domain import utcnow
 from lonora_contracts.runs import Lease, RunRequest
-from lonora_contracts.trading import TradeRequest, TradeResult
+from lonora_contracts.trading import (
+    IN_PROGRESS_STATUSES,
+    TERMINAL_STATUSES,
+    TradeRequest,
+    TradeResult,
+)
 from lonora_contracts.trading_goal import GoalExecution
 from lonora_core.user_error import LonoraError
 from lonora_db.agent_permissions import effective_permission
@@ -186,7 +191,7 @@ async def sync_goal_decision(db: Database, operation_id: str, *, settle: bool = 
         journal = await session.get(TradingJournalRow, operation_id)
         if goal is None or decision is None or journal is None:
             return False
-        if journal.status == "submitted" and not settle and decision.run_id:
+        if journal.status in IN_PROGRESS_STATUSES and not settle and decision.run_id:
             run = await session.get(RunRow, decision.run_id)
             if (
                 run is not None
@@ -198,7 +203,10 @@ async def sync_goal_decision(db: Database, operation_id: str, *, settle: bool = 
         result = journal.result or TradeResult(
             operation_id=operation_id, status="ambiguous", code="operation_in_progress"
         ).model_dump(mode="json")
-        status = journal.status if journal.status in {"confirmed", "failed"} else "ambiguous"
+        # A resolution (owner attestation or a vanished target) settles uncertainty but is
+        # not broker confirmation: the Goal stays blocked for an explicit owner decision,
+        # never an automatic retry.
+        status = journal.status if journal.status in TERMINAL_STATUSES else "ambiguous"
         if decision.status == status and decision.result == result:
             return False
         decision.status, decision.result, decision.updated_at = status, result, utcnow()
@@ -212,7 +220,11 @@ async def sync_goal_decision(db: Database, operation_id: str, *, settle: bool = 
         if status != "confirmed" and state["status"] not in {"paused", "cancelled"}:
             state["status"] = "blocked"
             state["code"] = (
-                "goal_reconciliation_required" if status == "ambiguous" else "goal_trade_failed"
+                "goal_reconciliation_required"
+                if status == "ambiguous"
+                else "goal_trade_resolved_without_confirmation"
+                if status == "resolved"
+                else "goal_trade_failed"
             )
         elif status == "confirmed" and state["status"] == "blocked":
             state["status"] = "active"

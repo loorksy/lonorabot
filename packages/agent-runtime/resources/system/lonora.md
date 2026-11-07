@@ -352,6 +352,8 @@ For invalid volume, market closed, invalid stops, insufficient funds or other br
 Translate technical diagnostics into the owner's language without stack traces or hidden identifiers.
 A server-side block before sending is not a broker rejection.
 For broker_reconciliation_required, explain that a previous operation still needs broker verification and the new request was not sent.
+An unresolved operation blocks new risk only on its market or ticket; Trading OFF and Emergency Stop also stop only new risk. Closing a position, cancelling a pending order or tightening a stop-loss stays admissible within current permission.
+Only the owner can attest an outcome that broker evidence cannot establish; a not_sent failure never reached the broker.
 Do not claim a market order is absent after only checking current positions.
 An old market order may have executed and closed, or a pending order may have filled/cancelled.
 For timeout/ambiguous outcomes, read the journal and broker history; do not resubmit.

@@ -95,9 +95,50 @@ class TradeRequest(Contract):
         return self
 
 
+# Durable operation lifecycle, distinct from any one broker's vocabulary:
+# reserved   identity journaled; the send boundary was provably not crossed. Only the
+#            executor's send boundary moves it to submitted, under the journal row lock.
+# submitted  the send boundary authorized the broker mutation; it may have been sent.
+# confirmed  the broker acknowledged it, or broker evidence later established it.
+# failed     a known outcome: rejected by the broker, blocked before sending, never sent
+#            (details.send_state == "not_sent"), or the requested target state is
+#            observed not to hold.
+# ambiguous  possibly sent, outcome not established; never resent automatically.
+# resolved   the uncertainty is settled without establishing the operation's own outcome:
+#            the owner recorded an audited attestation, or broker state shows the target
+#            no longer exists, so the operation can no longer affect the account. It is
+#            never broker confirmation; the earlier receipt and evidence are retained.
+OperationStatus = Literal["reserved", "submitted", "confirmed", "failed", "ambiguous", "resolved"]
+IN_PROGRESS_STATUSES = frozenset({"reserved", "submitted"})
+# Possibly sent and not settled: these block new risk on the same market or ticket.
+UNRESOLVED_STATUSES = frozenset({"submitted", "ambiguous"})
+TERMINAL_STATUSES = frozenset({"confirmed", "failed", "resolved"})
+
+
 class TradeResult(Contract):
     operation_id: str
-    status: Literal["confirmed", "failed", "ambiguous", "submitted"]
+    status: OperationStatus
     broker_id: str | None = None
     code: str | None = None
     details: dict[str, Any] = Field(default_factory=dict[str, Any])
+
+
+class OperationResolution(Contract):
+    """Owner attestation for an operation whose outcome broker evidence cannot establish.
+
+    ``outcome`` is the owner's statement of fact (for example after checking the broker
+    terminal), recorded with the actor and time. It settles the block; it never becomes
+    broker confirmation and never triggers a resend.
+    """
+
+    outcome: Literal["executed", "not_executed", "unknown"]
+    statement: str = Field(min_length=1, max_length=2000)
+    broker_reference: str | None = Field(default=None, max_length=200)
+
+    @model_validator(mode="after")
+    def substantive(self) -> "OperationResolution":
+        self.statement = self.statement.strip()
+        self.broker_reference = (self.broker_reference or "").strip() or None
+        if not self.statement:
+            raise ValueError("resolution_statement_required")
+        return self

@@ -17,6 +17,8 @@ from lonora_tools.base import Tool
 AMBIGUOUS = frozenset(
     {"broker_result_ambiguous", "operation_ambiguous", "tool_execution_uncertain"}
 )
+# Financial statuses whose outcome is not yet known (lonora_contracts.trading lifecycle).
+IN_FLIGHT = frozenset({"ambiguous", "submitted", "reserved"})
 
 
 class ToolRetryScheduled(Exception):
@@ -114,12 +116,11 @@ def observe(
         else []
     )
     uncertain = (
-        result.get("status") in {"ambiguous", "submitted"}
-        or nested.get("status") in {"ambiguous", "submitted"}
+        result.get("status") in IN_FLIGHT
+        or nested.get("status") in IN_FLIGHT
         or code in AMBIGUOUS
         or any(
-            item.get("status") in {"ambiguous", "submitted"} or item.get("code") in AMBIGUOUS
-            for item in outcomes
+            item.get("status") in IN_FLIGHT or item.get("code") in AMBIGUOUS for item in outcomes
         )
     )
     failed = (

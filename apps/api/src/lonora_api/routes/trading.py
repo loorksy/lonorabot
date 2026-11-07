@@ -5,14 +5,21 @@ from lonora_adapters.storage.secret_store import EncryptedSecretStore
 from lonora_auth.identity import OwnerIdentity
 from lonora_contracts.broker import BrokerConnection
 from lonora_contracts.domain import Contract
-from lonora_contracts.trading import TradeRequest, TradeResult, TradingControl
+from lonora_contracts.trading import (
+    TERMINAL_STATUSES,
+    OperationResolution,
+    TradeRequest,
+    TradeResult,
+    TradingControl,
+)
 from lonora_db.broker_sessions import BrokerSessionRepository
-from lonora_db.trading_journal import journal_entries
+from lonora_db.trading_journal import journal_entries, resolve_operation
 from lonora_db.transactions import resource_data
 from lonora_trading.accounts import account_snapshot
 from lonora_trading.connections import connect_account
 from lonora_trading.controls import read_controls, save_controls
 from lonora_trading.journal import journal_data
+from lonora_trading.operation_events import resolution_event
 from lonora_trading.simulation import import_simulation
 
 from ..middleware.auth import require_owner, runtime
@@ -116,6 +123,35 @@ async def journal(
         return [journal_data(row) for row in await journal_entries(session, owner.id, account_id)]
 
 
+@router.post("/journal/{operation_id}/resolve")
+async def resolve(
+    request: Request,
+    operation_id: str,
+    body: OperationResolution,
+    owner: OwnerIdentity = Depends(require_owner),
+) -> dict[str, Any]:
+    """Owner attestation for an uncertain operation; it clears the block, never resends.
+
+    The authenticated owner session (cookie with CSRF, or bearer token) is the actor. The
+    original receipt and evidence stay on the row and the attestation is a durable event.
+    """
+    async with runtime(request).db.sessions() as session, session.begin():
+        row = await resolve_operation(
+            session,
+            owner.id,
+            operation_id,
+            body,
+            {
+                "kind": "owner",
+                "owner_id": owner.id,
+                "authentication": "owner_session",
+                "session_ref": owner.token_hash[:16],
+            },
+        )
+        await resolution_event(session, row)
+        return journal_data(row)
+
+
 class ApprovalDecision(Contract):
     decision: Literal["approve", "reject"]
 
@@ -157,7 +193,7 @@ async def approvals(
                         journal.result
                         if journal
                         and journal.owner_id == owner.id
-                        and journal.status in {"confirmed", "failed"}
+                        and journal.status in TERMINAL_STATUSES
                         else result
                     )
                 card["results"] = resolved

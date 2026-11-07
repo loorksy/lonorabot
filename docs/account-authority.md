@@ -56,9 +56,11 @@ Each execution revalidates signature state, expiry, device, ownership, current
 broker snapshot and envelope limits inside the existing serialized financial
 boundary. Global Trading ON/OFF, Emergency Stop, risk/preflight, execution quality,
 manual intervention, idempotency, durable journal and reconciliation still apply.
-Submitted, ambiguous, confirmed and broker-rejected submitted attempts consume
-the lifetime budget. Known pre-submission failures do not. Unresolved account
-mutations block another autonomous operation; they never produce a blind resend.
+Submitted, ambiguous, confirmed, owner-resolved and broker-rejected submitted
+attempts consume the lifetime budget. Known pre-submission failures and released
+reservations do not. An unresolved operation blocks new risk on its market or
+ticket for every admission path, and risk-reducing actions stay admissible within
+the grant (see `financial-execution-recovery.md`); nothing produces a blind resend.
 
 Management requires a fresh material target snapshot and rejects owner changes
 between observation and submission. Manual-origin positions need explicit signed

@@ -35,6 +35,7 @@ from lonora_db.trading_decisions import (
 from lonora_db.transactions import SettingsRepository
 from lonora_market.health import assess_account, assess_candles, assess_quote, timeframe_age_seconds
 from lonora_market.relationships import relationship_usable
+from lonora_trading.admission import entry_recovery_status
 from lonora_trading.decision_readiness import decision_readiness
 
 from .base import Tool
@@ -171,7 +172,9 @@ async def record(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             evidence,
             controls=controls,
             broker_enabled=config.enabled,
-            broker_recovery_status=recovery.get("status") if recovery else None,
+            broker_recovery_status=await entry_recovery_status(
+                session, context.owner_id, params.account_id, params.symbol, recovery
+            ),
             connection_changed=current_connection.version != connection_version,
         )
     decision = TradingDecision(

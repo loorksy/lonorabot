@@ -28,7 +28,8 @@ def _known_change(
     target = current or previous
     assert target is not None
     for entry in entries:
-        if entry.status not in {"confirmed", "submitted", "ambiguous"}:
+        # A reservation never reached the broker; a resolved operation may have.
+        if entry.status not in {"confirmed", "submitted", "ambiguous", "resolved"}:
             continue
         request = entry.request
         result = entry.result
