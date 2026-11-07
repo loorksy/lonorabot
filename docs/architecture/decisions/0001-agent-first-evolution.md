@@ -35,7 +35,8 @@ Keep account ownership, server-verified device grants, exact broker scope, globa
 - The compact policy removes the 60 authored dialogue examples and duplicated schemas for 90 tools. The existing provider schema path, domain guidance, cache boundary, and resumed-checkpoint refresh remain in use.
 - The voice change is a mitigation, not the final protocol redesign: an offset is not a finalized-turn marker, and the current completion predicate remains an open item. Provider documentation: <https://developers.openai.com/api/docs/guides/live-delegation>.
 - A resource-bounded analytical container substrate is verified locally (31 offline cases and 14 actual Docker checks), including disabled networking, clean environment, actual cgroups, snapshots, descendant cleanup and cancellation. The next increment adds four ordinary tools, Agent-owned durable PostgreSQL files/receipts and a bounded Unix host bridge with fenced publication and startup recovery. Exact saved report/raster exports now reuse owned artifacts and the existing vision/attachment lifecycle. It is not activated in production; see [execution boundary](../../analytical-workspace.md).
-- The universal executable Skill importer, dependency manager, general strategy backtesting, and native push-initiated calls remain unverified or missing.
+- The universal executable Skill importer, dependency manager, and native push-initiated calls remain unverified or missing.
+- Superseded (2026-11-07): strategy backtesting is excluded by the owner mandate (section 5). The bounded SMA-cross research engine and its tools were removed rather than generalized; see [decision readiness](../../decision-readiness.md#strategy-backtesting-is-excluded).
 - This decision record is not a claim that the full mandate is complete.
 
 

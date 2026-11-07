@@ -222,7 +222,7 @@ layouts and interactions were implemented directly in the existing applications.
 | Modified | [tests/check_relationships.py](../tests/check_relationships.py) |
 | Modified | [tests/check_skill_packages.py](../tests/check_skill_packages.py) |
 | Modified | [tests/check_skill_repository.py](../tests/check_skill_repository.py) |
-| Modified | [tests/check_strategy_research.py](../tests/check_strategy_research.py) |
+| Modified | `tests/check_strategy_research.py` (later removed: strategy backtesting is excluded by the owner mandate; see [decision readiness](decision-readiness.md#strategy-backtesting-is-excluded)) |
 | Modified | [tests/check_streaming.py](../tests/check_streaming.py) |
 | Modified | [tests/check_task_environment_wait.py](../tests/check_task_environment_wait.py) |
 | Modified | [tests/check_trade_approvals.py](../tests/check_trade_approvals.py) |

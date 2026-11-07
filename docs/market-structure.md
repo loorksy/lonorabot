@@ -31,4 +31,4 @@ sessions or holidays. These limitations remain visible in its result.
 The bounded history and output counts limit computation/context, not trading
 authority. Decimal prices are preserved. The same calculation supports forex,
 metals, indices and crypto without pair-specific rules or suffix removal. It is
-not a backtest, profitability proof, full formation catalog or financial approval.
+not a profitability proof, full formation catalog or financial approval.

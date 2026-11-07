@@ -83,7 +83,7 @@ upgrade an existing grant, or remove executor checks to simulate the new mode.
 | 3 | Create work from observed market movement | Existing Tasks, Watches and Gateway wakes; verify meaningful event-to-task creation, deduplication and continuation |
 | 4 | Recommend trades when justified | Existing separate market assessment/entry/execution readiness; verify recommendations use current evidence and clear invalidation |
 | 5 | Follow multiple positions concurrently | Existing account/position reads and scoped work; test shared exposure, independent monitoring and serialized conflicting mutations |
-| 6 | Discover a rule-based trading approach | Existing workspace, reusable procedures and bounded research; arbitrary strategy validation and promotion remain incomplete |
+| 6 | Discover a rule-based trading approach | Existing workspace and reusable procedures; discovery relies on market evidence and real recorded live or Shadow outcomes, with no backtest validation (owner mandate section 5); outcome-based evaluation and adaptation remain incomplete |
 | 7 | Identify swing highs and lows | Strict confirmed closed-bar swings implemented with explicit windows/tie policy and availability times; all21 timeframes/four asset classes verified (M-D3) |
 | 8 | Compare trend lines and evolving formations | Alternative same-side pivot lines, anchors, touches and closed-price breaks verified through existing chart drawings; wider evolving formations remain open |
 | 9 | Draw on the live chart | Existing attributed drawings, chart state and artifacts; verify drawings against actual chart state and visual observation |
@@ -184,3 +184,23 @@ See [implementation matrix](IMPLEMENTATION_MATRIX.md) for the current scoped
 evidence. Full 27-item acceptance is open. Existing MetaApi service billing and
 undeployed accounts remain external production prerequisites, not evidence that
 the analytical or execution features are complete.
+
+---
+
+> **Superseded: backtesting is excluded by the owner mandate (editorial note, 2026-11-07).**
+> The owner's current mandate (section 5, "Explicit Exclusion: Backtesting") excludes strategy
+> backtesting from Lonora: no historical strategy backtesting engine, workflow, interface or
+> dependency, and no backtest as a prerequisite for strategy creation, modification or agent
+> autonomy. Lonora's bounded SMA-cross research engine was removed accordingly.
+>
+> Row 6 of the behavior mapping (line 86) listed "bounded research" as an existing foundation
+> and "arbitrary strategy validation and promotion" as remaining work. That research was the
+> removed SMA-cross historical engine, so the row was corrected in place: discovering a
+> rule-based approach relies on market evidence and real recorded live or Shadow outcomes, with
+> no backtest validation. "Validated strategy research" among the requirements that remain open
+> (lines 170-171) is no longer a requirement in its backtest sense: strategy research and
+> adaptation that remain in scope are judged by real recorded outcomes, never by backtest results.
+>
+> Historical market observations used to understand the market, and real recorded live or
+> Shadow outcomes, remain in scope. The original text above is unchanged apart from row 6; this
+> note is appended so existing line references stay valid. See [decision readiness](../decision-readiness.md#strategy-backtesting-is-excluded).

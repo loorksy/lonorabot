@@ -34,7 +34,6 @@ MODULE_POLICY = {
     "workspace": "files",
     "market": "market",
     "position_sizing": "trading",
-    "strategy_research": "intelligence",
     "incoming_call": "voice",
     "market_watch": "market",
     "trading_decision": "intelligence",
