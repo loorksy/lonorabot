@@ -1,3 +1,35 @@
+"""The durable agent tool loop: execution, checkpoints, steering, waits and limits.
+
+The final tool-less report at a limit (``finish_turn``) adapts the
+iteration-budget grace call of Hermes Agent
+``agent/chat_completion_helpers.py::handle_max_iterations``, source
+https://github.com/NousResearch/hermes-agent at revision
+a9ff9799e273f525b82718cdc69fdec71b1dca5a. Lonora checkpoints the report before
+returning it, so a restart commits the same text instead of calling again.
+
+MIT License
+
+Copyright (c) 2025 Nous Research
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+"""
+
 import json
 import logging
 from collections.abc import Awaitable, Callable
@@ -34,18 +66,20 @@ from .runtime_notices import (
     NO_ANSWER,
     append_notice,
     attach_notice,
-    attention_fallback,
+    attention_message,
+    attention_notice,
     budget_warning,
     finish_instruction,
     is_owner_message,
     limit_fallback,
     notice_message,
     prefers_arabic,
+    resumed_notice,
 )
 from .skills.access import admitted_view_ids
 from .skills.snapshot import read_snapshot
 from .steering import merge_steering, owner_steering_pending
-from .stop_gates import reset_stop_gate, task_stop_gate
+from .stop_gates import reset_stop_gate, task_progress, task_stop_gate
 from .tasks import task_checkpoint
 from .tool_batch import Segment, gather_bounded, next_segment
 from .tool_dispatch import dispatch_call
@@ -67,9 +101,11 @@ from .tool_intent import (
 
 log = logging.getLogger("lonora.tool_loop")
 
-# Model rounds with tools left before the final limit at which the model is told.
+# Executable model rounds left before the final limit at which the model is told.
 BUDGET_WARNING_ROUNDS = 2
 OWNER_ATTENTION = "owner_attention"
+# Set by Task controls when the owner resumes or revises work held for attention.
+ATTENTION_RESUMED = "owner_attention_resumed"
 
 
 @dataclass
@@ -189,12 +225,18 @@ async def request_owner_attention(
 
     The Run is not failed and the Task is not completed: the checkpoint stays
     intact and the owner's reply continues it. Prose already passed the model
-    runtime's financial-truth gate, so no unverified effect becomes success.
+    runtime's financial-truth gate, so no unverified effect becomes success,
+    and the runtime's own account of what is unfinished leads the message so a
+    held answer claiming completion is never the owner's only report.
     """
-    held = text.strip() or attention_fallback(prefers_arabic(messages))
+    arabic = prefers_arabic(messages)
+    completion = await task_progress(context)
+    notice = attention_notice(
+        reason, arabic, [title for _, title in completion.incomplete] if completion else ()
+    )
     question: dict[str, Any] = {
         "id": "attention-" + str(len(messages)),
-        "question": held,
+        "question": attention_message(notice, text, arabic),
         "choices": [],
         "kind": OWNER_ATTENTION,
         "reason": reason,
@@ -342,10 +384,9 @@ async def finish_turn(
 ) -> LoopOutcome:
     """One final tool-less model call instead of failing the Run at a limit.
 
-    Adapted from Hermes Agent's iteration-budget grace call
-    (``agent/chat_completion_helpers.py::handle_max_iterations``; MIT, Copyright
-    (c) 2025 Nous Research). The reply is checkpointed before it is returned,
-    so a restart commits the same text instead of making another model call.
+    Adapted from Hermes Agent's iteration-budget grace call (see the module
+    notice). The reply is checkpointed before it is returned, so a restart
+    commits the same text instead of making another model call.
     """
     saved = state.get("limit_exit")
     if isinstance(saved, dict) and isinstance(cast(dict[str, Any], saved).get("text"), str):
@@ -411,13 +452,26 @@ async def finish_turn(
         state["limit_exit"] = {"reason": reason, "text": text}
         await persist(context, state, messages, pending)
     if task_run:
-        # Never mark unfinished Task work completed; the owner decides next.
         question = state.get("pending_input_request")
         if isinstance(question, dict) and cast(dict[str, Any], question).get("kind") == (
             OWNER_ATTENTION
         ):
             return attention_outcome(state, cast(dict[str, Any], question))
-        return await request_owner_attention(context, state, messages, reason, text)
+        completion = await task_progress(context)
+        if completion is None or not completion.contract_satisfied():
+            # Never mark unfinished Task work completed; the owner decides next.
+            return await request_owner_attention(context, state, messages, reason, text)
+        # Every declared step is recorded complete with evidence, so the report
+        # completes the Task; complete_run still enforces that contract.
+        return LoopOutcome(
+            text,
+            {
+                **state.get("selection", {}),
+                **rich_metadata(state),
+                "exit_reason": reason,
+                "reply_outcome": "answered",
+            },
+        )
     return LoopOutcome(
         text,
         {
@@ -468,6 +522,23 @@ async def execute_tool_loop(
     if not messages:
         messages = await build_context(context, registry)
         state["instruction_skill_ids"] = await selected_skill_ids(context)
+    resumed = state.pop(ATTENTION_RESUMED, None)
+    if isinstance(resumed, dict):
+        # A Task control resumed work held for owner attention: that is owner
+        # input, so it starts a new review epoch, and at a limit a new budget.
+        reset_stop_gate(state)
+        reset_guardrails(state)
+        if state.get("limit_exit") or int(state.get("rounds", 0)) >= slice_limit(
+            state, maximum_rounds
+        ):
+            start_budget_epoch(state)
+        state.pop("exit_reason", None)
+        append_notice(
+            messages,
+            "owner_resumed",
+            resumed_notice(str(cast(dict[str, Any], resumed).get("action") or "")),
+        )
+        await persist(context, state, messages, pending)
     question = state.get("pending_input_request")
     if isinstance(question, dict):
         question = cast(dict[str, Any], question)
@@ -639,11 +710,9 @@ async def execute_tool_loop(
                     schedule_retry(state, call, record["failures"])
                     await persist(context, state, messages, pending)
                     raise ToolRetryScheduled()
-                if (
-                    not guarded
-                    and not result.get("_runtime_retry")
-                    and state.get("waiting_call_id") != call.id
-                ):
+                if not guarded and not result.get("_runtime_retry"):
+                    # An approval wait is not an execution yet; the approved
+                    # dispatch of the same call is, and is counted exactly once.
                     decision = after_call(state, call, tool, result, failed=record["failures"] > 0)
                     if decision.action in {"warn", "halt"}:
                         attach_notice(result, "tool_guardrail", decision.message)
@@ -774,10 +843,25 @@ async def execute_tool_loop(
         # Only the last slice ends the Run; earlier Task slices continue later.
         per_slice = int(cast(dict[str, Any], state["task_continuation"])["rounds_per_slice"])
         final_limit = per_slice * MAXIMUM_SLICES if task_run else limit
-        remaining = final_limit - int(state.get("rounds", 0))
-        if 0 < remaining <= BUDGET_WARNING_ROUNDS and state.get("budget_warned") != remaining:
-            append_notice(messages, "budget", budget_warning(remaining))
-            state["budget_warned"] = remaining
+        # Calls proposed in a turn execute only when another round follows it,
+        # so count the turns, this one included, whose calls can still run.
+        executable = final_limit - int(state.get("rounds", 0)) - 1
+        if executable <= 0:
+            # Offering tools now would waste the turn on calls that never run:
+            # the last budgeted turn is the final tool-less report instead.
+            return await finish_turn(
+                context,
+                registry,
+                state,
+                messages,
+                pending,
+                capability,
+                reason="tool_round_limit",
+                task_run=task_run,
+            )
+        if executable <= BUDGET_WARNING_ROUNDS and state.get("budget_warned") != executable:
+            append_notice(messages, "budget", budget_warning(executable))
+            state["budget_warned"] = executable
         turn_capability = (
             Capability.VISION if any(message.images for message in messages) else capability
         )

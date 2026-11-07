@@ -26,6 +26,28 @@ and market-wake recovery; no English intent classifier or separate Hermes engine
 Copyright (c) 2025 Nous Research, MIT. The full permission/warranty notice is
 preserved in lonora_agent/stop_gates.py and distributed in the Python wheel.
 
+The agent tool-execution core adapts Hermes Agent,
+https://github.com/NousResearch/hermes-agent, revision
+a9ff9799e273f525b82718cdc69fdec71b1dca5a. Adapted portions:
+agent/tool_dispatch_helpers.py (_plan_tool_batch_segments) and
+agent/tool_executor.py (execute_tool_calls_segmented): ordered parallel/serial
+segments of one tool-call block with bounded concurrency; agent/tool_guardrails.py
+(ToolCallGuardrailController): exact-argument failure streaks, same-tool failure
+counts, identical no-progress results, identical-call streaks and short call
+cycles with warn/block/halt decisions; agent/chat_completion_helpers.py
+(handle_max_iterations): one final tool-less report at the iteration limit.
+Changes: admission to a parallel segment comes only from Lonora's server Tool
+registry (read-only, non-financial, parallel_safe) with per-call durable intent
+markers and checkpoint-ordered results; the guardrail state is pure JSON in the
+fenced Run checkpoint, pollers are flagged by the registry, and an added
+identical-effect streak ignores results so repeated financial effects stay
+bounded; the final report is checkpointed before it is committed, financial
+truth rules still apply, and unfinished Task work goes to owner attention. No
+path scoping, terminal heuristics, plugin runtime or new dependency was ported.
+Copyright (c) 2025 Nous Research, MIT. The full permission/warranty notice is
+preserved in lonora_agent/tool_batch.py, lonora_agent/tool_guardrails.py and
+lonora_agent/tool_loop.py and distributed in the Python wheel.
+
 Source: https://github.com/elie222/rakazo
 Revision: 2d666c4e98db201c1f7988e09e76a52db20cea69
 Copyright 2026 Rakazo contributors. Apache License 2.0, included in LICENSE.

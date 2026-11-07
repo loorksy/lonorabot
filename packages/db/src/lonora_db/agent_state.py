@@ -21,8 +21,13 @@ from .schema import (
     TradeApprovalRow,
     TradingGoalRow,
 )
-from .tasks import snapshot
+from .tasks import OWNER_ATTENTION, snapshot
 from .transactions import owned_agent
+
+
+def attention(task: dict[str, Any]) -> bool:
+    """Unfinished Task work held for its owner's direction."""
+    return task["status"] == "waiting" and task["waiting_reason"] == OWNER_ATTENTION
 
 
 async def agent_live_state(session: AsyncSession, owner_id: str, agent_id: str) -> AgentLiveState:
@@ -338,6 +343,7 @@ async def agent_live_state(session: AsyncSession, owner_id: str, agent_id: str) 
             and task["status"] == "failed"
             for task in tasks
         )
+        or any(attention(task) for task in tasks)
         else "working"
         if any(
             run.status in {"leased", "running", "queued"} and run.id not in waiting_runs
@@ -377,6 +383,8 @@ async def agent_live_state(session: AsyncSession, owner_id: str, agent_id: str) 
         if any(item["review_status"] == "failed" for item in authority_summaries)
         else "goal_requires_review"
         if any(item["goal_status"] == "blocked" for item in authority_summaries)
+        else "task_attention_required"
+        if any(attention(task) for task in tasks)
         else "task_recovery_required"
         if state == "action_required"
         else "retry_backoff"

@@ -28,7 +28,9 @@ together with `asyncio.gather` under a semaphore of four
 (`MAXIMUM_PARALLEL_TOOLS`); a lone read stays serial. Every other call is a
 barrier executed alone: mutations, financial operations, waits
 (`wait_for_input`, `task_wait`), `group_silence`, the skill instruction tools
-(they change the instruction authority used by later calls) and unknown names.
+(they change the instruction authority used by later calls), `web_browse` (the
+shared browser service renders at most two pages at once for every Run and
+fails fast when busy) and unknown names.
 A later call never crosses an earlier barrier. `tool_environment` reports each
 tool's class as `batch_execution` (`parallel_read` or `serial`).
 
@@ -88,8 +90,19 @@ input and external wakes start a new epoch.
 | Same call, same arguments, failing | 2nd failure | route exhaustion (existing, 3 failures) |
 | Same tool failing with any arguments | 3rd failure | halt at 8 |
 | Identical read returning an identical result | 2nd repeat | block at 5, halt after 2 ignored blocks |
-| Identical consecutive call and result (any non-poller tool) | 3rd | halt at 5 |
+| Identical consecutive read and result (non-poller) | 3rd | halt at 5 |
+| Identical effect: a mutating or financial call with identical arguments, whatever it returned | 2nd | the 6th is blocked before its handler runs; halt on the next repeat |
 | Identical A/B… cycle of 2–4 calls | 3 laps | halt at 5 laps |
+
+The identical-effect streak ignores results on purpose: every financial result
+carries a fresh operation identity, so only the arguments show that the same
+effect is being requested again (for example a provider that duplicates one
+`trade_execute` call in a block). Observations between the repeats do not
+break the streak; a different effect does. The previous release failed the
+Run on the 6th identical success, after that effect had run; now at most five
+identical effects execute per review epoch and the 6th is a synthetic
+`guardrail_blocked` observation. An approval wait is not an execution; the
+approved dispatch of the same call counts once.
 
 A warning is attached to that tool result as a `runtime_notice`. A block
 returns a synthetic `{"ok": false, "code": "guardrail_blocked", "executed":
@@ -102,11 +115,18 @@ counters, because the next retry is a new experiment.
 
 ## Graceful limits
 
-When the round budget is exhausted, Task Runs first take another continuation
-slice as before. When no slice remains, or a guardrail halts, the loop closes
-unexecuted proposals as `tool_call_not_executed` (cancelling any linked
-approval), adds a final runtime notice and makes one tool-less model call (the
-Hermes grace call). The model is told to report only verified results, name
+The round budget counts model turns. Calls proposed in a turn execute only
+when another round follows it, so the budget warnings count the turns, the
+current one included, whose tool calls will still run ("2 model rounds whose
+tool calls will execute remain", then "the last model round whose tool calls
+will execute"). The last budgeted turn of the final slice is never offered
+tools: it is the final report described below, so no proposal is wasted.
+
+When the round budget of an earlier slice is exhausted, Task Runs take another
+continuation slice as before and run the carried calls there. When no slice
+remains, or a guardrail halts, the loop closes any unexecuted proposals as
+`tool_call_not_executed` (cancelling any linked approval), adds a final
+runtime notice and makes one tool-less model call (the Hermes grace call). The model is told to report only verified results, name
 unresolved or unverified operations without calling them successful, and give
 next steps. The financial-truth rewrite in `model_runtime` still applies, and
 any call the provider proposes anyway is ignored. If the model is unavailable
@@ -135,11 +155,26 @@ Run:
 - the Task becomes `waiting` with `waiting_reason: owner_attention` and phase
   `needs_attention`, and `task.attention_required` raises an action-required
   `task_review` attention item;
-- the owner's reply resumes the same checkpoint; pause, revise and cancel work
-  as for any waiting Task.
+- the message starts with the runtime's own account of what is unfinished, in
+  the owner's language (the declared steps not completed yet, that no
+  monitoring wait was saved, or that the work stopped at a limit or a
+  repeating loop), followed by the held answer as the latest report, so a held
+  answer that claims completion is never the owner's only report;
+- the attention item carries `task_id` and the Task's `work_thread_id`, and
+  agent live state reports `action_required` with
+  `task_attention_required`;
+- the owner's reply in the work thread resumes the same checkpoint. The Task
+  controls work too: the snapshot offers `can_resume`, and `resume` or `revise`
+  cancels the unanswered question and requeues the same Run; the loop then
+  starts a new review epoch (a new budget when the limit was reached) and tells
+  the model in a runtime notice that the owner resumed or revised the work.
+  Pause and cancel work as for any waiting Task.
 
-`complete_run` still refuses incomplete steps and unsaved continuous work, so
-unfinished work is never marked completed.
+At a limit or a guardrail halt, a finite Task whose declared steps are all
+recorded complete with evidence completes with the final report instead;
+work without declared steps has nothing that proves completion and goes to
+owner attention. `complete_run` still refuses incomplete steps and unsaved
+continuous work, so unfinished work is never marked completed.
 
 ## Runtime notices
 

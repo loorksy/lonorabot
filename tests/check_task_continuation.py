@@ -190,7 +190,7 @@ async def main() -> None:
             nonlocal turns
             turns += 1
             offered.append(len(tools))
-            # A misbehaving provider may still propose a call after the limit.
+            # A misbehaving provider may propose a call even when offered none.
             return response(
                 ToolCall(
                     id="bounded-" + str(turns),
@@ -214,20 +214,20 @@ async def main() -> None:
                         assert row.execution_state["task_continuation"]["slice"] == MAXIMUM_SLICES
                         assert row.execution_state["exit_reason"] == "tool_round_limit"
                         assert row.execution_state["pending"] == []
-                        closed = next(
-                            item
+                        # The report turn's ignored proposal never joins the transcript.
+                        assert not any(
+                            call.get("id") == "bounded-4"
                             for item in row.execution_state["messages"]
-                            if item.get("tool_call_id") == "bounded-4"
+                            for call in item.get("tool_calls", [])
                         )
-                        assert '"tool_call_not_executed"' in closed["content"]
                         task = await session.get(TicketRow, identifier)
                         assert task and task_state(task).status == "waiting"
                         assert task_state(task).waiting_reason == "owner_attention"
                 if index + 1 < MAXIMUM_SLICES:
                     ctx = await reclaim(f, ctx)
-        # Exactly one extra model call, offered no tools. Each earlier slice ran
-        # its carried call once; the last proposal and the report's call never ran.
-        assert turns == MAXIMUM_SLICES + 1 and offered[-1] == 0 and min(offered[:-1]) > 0
+        # The total model budget is unchanged: the last budgeted turn is the
+        # tool-less report. Every turn offered tools ran its call exactly once.
+        assert turns == MAXIMUM_SLICES and offered[-1] == 0 and min(offered[:-1]) > 0
         assert effect_count == effects_before + MAXIMUM_SLICES - 1
         print(
             "PASS total model budget stays finite across slices; unfinished work is never reported complete"

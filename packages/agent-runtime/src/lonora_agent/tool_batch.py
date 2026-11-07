@@ -2,8 +2,9 @@
 
 Adapted from Hermes Agent ``agent/tool_dispatch_helpers.py``
 (``_plan_tool_batch_segments``) and ``agent/tool_executor.py``
-(``execute_tool_calls_segmented``). Source: NousResearch/hermes-agent, MIT
-License, Copyright (c) 2025 Nous Research. Lonora admits a call to a parallel
+(``execute_tool_calls_segmented``), source
+https://github.com/NousResearch/hermes-agent at revision
+a9ff9799e273f525b82718cdc69fdec71b1dca5a. Lonora admits a call to a parallel
 segment from the server Tool registry only (read-only, non-financial and
 ``parallel_safe``); path scoping and terminal heuristics were not ported.
 
@@ -11,6 +12,28 @@ Call order is preserved exactly: a later call never crosses an earlier barrier,
 so results, checkpoints and effect boundaries match fully serial execution.
 Every mutating, financial, waiting or unknown call is a barrier executed alone
 with the existing checkpoint-before-effect semantics.
+
+MIT License
+
+Copyright (c) 2025 Nous Research
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 """
 
 import asyncio

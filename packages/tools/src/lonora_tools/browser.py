@@ -107,6 +107,10 @@ def tools() -> list[Tool]:
             BrowseInput,
             browse,
             True,
+            # The browser service renders at most two pages at once for every
+            # Run and fails fast when busy; overlapping browses from one block
+            # would burn read retries, so they stay serial.
+            parallel_safe=False,
             timeout_seconds=60,
         )
     ]

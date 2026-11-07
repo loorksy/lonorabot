@@ -404,7 +404,10 @@ async def test_repeating_tool_loop_halts_with_a_graceful_tool_less_reply(
 async def test_round_limit_commits_a_final_report_instead_of_failing(
     task_db: Fixture, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    async def read(_: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+    executed: list[str] = []
+
+    async def read(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+        executed.append(context.call_id)
         return {"n": args["n"]}
 
     registry = ToolRegistry([Tool("fixture_read", "Read", Arguments, read, True)])
@@ -415,18 +418,23 @@ async def test_round_limit_commits_a_final_report_instead_of_failing(
         ModelReply(text="Verified: two reads. Unresolved: none. Next: compare sessions."),
     )
     monkeypatch.setattr("lonora_agent.tool_loop.model_turn", model)
-    await execute_run(context, registry, 120, 2)
+    await execute_run(context, registry, 120, 3)
     run = await saved_run(context)
     assert run.status == "completed" and run.error_code is None
     assert run.model_metadata["exit_reason"] == "tool_round_limit"
     assert run.result and run.result.startswith("Verified: two reads.")
-    assert results(run)["t2"]["code"] == "tool_call_not_executed"
+    # Every round the model was offered tools in ran its calls; the third and
+    # last budgeted turn is the tool-less report, not a wasted tool turn.
+    assert executed == ["t1", "t2"] and len(model.requests) == 3
+    assert not any(item.get("code") == "tool_call_not_executed" for item in results(run).values())
     # Budget warnings were delivered at the tail, never as mid-run system text.
-    first_request, _ = model.requests[0]
-    assert is_runtime_notice(first_request[-1]) and "2 model rounds" in first_request[-1].content
-    second_request, _ = model.requests[1]
-    assert second_request[-1].role == "tool"
-    assert "1 model round" in json.loads(second_request[-1].content)["runtime_notice"][0]["message"]
+    first_request, first_tools = model.requests[0]
+    assert first_tools and is_runtime_notice(first_request[-1])
+    assert "2 model rounds whose tool calls will execute" in first_request[-1].content
+    second_request, second_tools = model.requests[1]
+    assert second_tools and second_request[-1].role == "tool"
+    warning = json.loads(second_request[-1].content)["runtime_notice"][0]["message"]
+    assert warning.startswith("This is the last model round in this run whose tool calls")
     final_request, tools = model.requests[2]
     assert tools == [] and is_runtime_notice(final_request[-1])
     assert "tool-round limit" in final_request[-1].content
@@ -473,13 +481,18 @@ async def task_run(fixture: Fixture, request: TaskCreate) -> tuple[ToolContext, 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    ("request_body", "reason"),
+    ("request_body", "reason", "truth"),
     [
         (
             TaskCreate(title="Verify gold", steps=[TaskStep(id="verify", title="Verify quote")]),
             "task_steps_incomplete",
+            "This task is not finished. Steps not completed yet: Verify quote.",
         ),
-        (TaskCreate(title="Watch gold", completion_mode="continuous"), "task_wait_required"),
+        (
+            TaskCreate(title="Watch gold", completion_mode="continuous"),
+            "task_wait_required",
+            "This continuous task is not being monitored: no monitoring wait",
+        ),
     ],
 )
 async def test_unfinished_task_gets_bounded_nudges_then_owner_attention_not_failure(
@@ -487,6 +500,7 @@ async def test_unfinished_task_gets_bounded_nudges_then_owner_attention_not_fail
     monkeypatch: pytest.MonkeyPatch,
     request_body: TaskCreate,
     reason: str,
+    truth: str,
 ) -> None:
     db, owner, _, _ = task_db
     context, task_id = await task_run(task_db, request_body)
@@ -501,7 +515,9 @@ async def test_unfinished_task_gets_bounded_nudges_then_owner_attention_not_fail
         assert is_runtime_notice(request[-1])
     assert no_mid_run_system(run)
     question = run.execution_state["input_requests"][-1]
-    assert question["status"] == "pending" and question["question"].startswith("I looked")
+    # The runtime's known truth leads; the held completion claim is only a report.
+    assert question["status"] == "pending" and question["question"].startswith(truth)
+    assert question["question"].endswith("Latest report: I looked at gold and it is done.")
     async with db.sessions() as session:
         task = await get_task(session, owner, task_id)
         projected = await snapshot(session, task)
@@ -518,13 +534,14 @@ async def test_unfinished_task_gets_bounded_nudges_then_owner_attention_not_fail
     classification, _, origin, parameters, _ = await candidate(db, cast(Any, None), events[0])
     assert (classification.importance, classification.code) == ("action_required", "task_review")
     assert parameters["task_id"] == task_id and origin == task_db[3]
+    assert parameters["work_thread_id"] == run.thread_id
     async with db.sessions() as session:
         posted = await session.scalar(
             select(MessageRow).where(
                 MessageRow.thread_id == run.thread_id, MessageRow.role == "assistant"
             )
         )
-        assert posted and posted.content.startswith("I looked")
+        assert posted and posted.content.startswith(truth)
 
     # The owner's reply resumes the SAME checkpoint with a fresh review epoch.
     async with db.sessions() as session, session.begin():
@@ -606,8 +623,228 @@ async def test_unavailable_model_at_the_limit_still_ends_gracefully(
     registry = ToolRegistry([Tool("fixture_read", "Read", Arguments, read, True)])
     context = await conversation_run(task_db)
     monkeypatch.setattr("lonora_agent.tool_loop.model_turn", model)
-    await execute_run(context, registry, 120, 1)
+    await execute_run(context, registry, 120, 2)
     run = await saved_run(context)
+    assert results(run)["only"] == {"ok": True, "n": 1}
     assert turns == 2 and run.status == "completed" and run.error_code is None
     assert run.result and run.result.startswith("I stopped before finishing")
     assert run.model_metadata["exit_reason"] == "tool_round_limit"
+
+
+@pytest.mark.asyncio
+async def test_identical_trades_in_one_block_execute_at_most_five_times(
+    task_db: Fixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    executed: list[str] = []
+
+    async def trade(context: ToolContext, _: dict[str, Any]) -> dict[str, Any]:
+        executed.append(context.call_id)
+        # A real broker result always carries a fresh operation identity.
+        return {"status": "confirmed", "operation_id": "op-" + context.call_id}
+
+    registry = ToolRegistry([Tool("fixture_trade", "Trade", Arguments, trade, financial=True)])
+    # A provider that duplicates one call eight times in a single assistant block.
+    block = calls(*((f"buy-{index}", "fixture_trade", 1) for index in range(8)))
+    context = await conversation_run(task_db, seeded(block))
+    model = Script(ModelReply(text="Five buys were confirmed; I stopped repeating it."))
+    monkeypatch.setattr("lonora_agent.tool_loop.model_turn", model)
+    await execute_run(context, registry, 120, 8)
+    run = await saved_run(context)
+    assert executed == [f"buy-{index}" for index in range(5)]
+    assert run.status == "completed" and run.error_code is None
+    assert run.model_metadata["exit_reason"] == "guardrail_halt"
+    observed = results(run)
+    assert observed["buy-1"]["runtime_notice"][0]["kind"] == "tool_guardrail"
+    blocked, halted = observed["buy-5"], observed["buy-6"]
+    assert blocked["code"] == "guardrail_blocked" and blocked["executed"] is False
+    assert blocked["guardrail"]["code"] == "identical_effect_block"
+    assert halted["executed"] is False and halted["guardrail"]["code"] == "identical_effect_halt"
+    assert observed["buy-7"]["code"] == "tool_call_not_executed"
+    final_request, tools = model.requests[-1]
+    assert tools == [] and "repeating tool loop" in final_request[-1].content
+
+
+@pytest.mark.asyncio
+async def test_an_approved_dispatch_counts_once_toward_the_effect_streak(
+    task_db: Fixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from lonora_agent.environment import route_key
+
+    async def write(_: ToolContext, __: dict[str, Any]) -> dict[str, Any]:
+        return {"version": 2}
+
+    block = calls(("approved", "fixture_write", 1))
+    # The first dispatch waited for approval; this dispatch is the execution.
+    state = seeded(block) | {"waiting_call_id": "approved"}
+    registry = ToolRegistry([Tool("fixture_write", "Write", Arguments, write)])
+    context = await conversation_run(task_db, state)
+    monkeypatch.setattr("lonora_agent.tool_loop.model_turn", Script(ModelReply(text="Saved.")))
+    await execute_run(context, registry, 120, 8)
+    run = await saved_run(context)
+    assert run.status == "completed"
+    assert run.execution_state["tool_guardrails"]["effect_streak"] == [route_key(block[0]), 1, 0]
+
+
+async def task_run_with(
+    fixture: Fixture, request: TaskCreate, **checkpoint: Any
+) -> tuple[ToolContext, str]:
+    context, task_id = await task_run(fixture, request)
+    async with context.db.sessions() as session, session.begin():
+        run = await session.get(RunRow, context.lease.run_id)
+        assert run
+        run.execution_state = {**run.execution_state, **checkpoint}
+    return context, task_id
+
+
+@pytest.mark.asyncio
+async def test_final_task_turn_completes_when_the_last_executed_round_records_the_last_step(
+    task_db: Fixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from lonora_tools.tasks import tools as task_tools
+
+    db, owner, _, _ = task_db
+
+    async def quote(_: ToolContext, __: dict[str, Any]) -> dict[str, Any]:
+        return {"bid": 2301.5}
+
+    registry = ToolRegistry(
+        [
+            Tool("fixture_quote", "Quote", Arguments, quote, True),
+            *(item for item in task_tools() if item.name == "task_step_update"),
+        ]
+    )
+    # The final slice of the pinned Task budget: one executable round remains.
+    context, task_id = await task_run_with(
+        task_db,
+        TaskCreate(title="Verify gold", steps=[TaskStep(id="verify", title="Verify quote")]),
+        rounds=2,
+        task_continuation={"version": 1, "slice": 4, "rounds_per_slice": 1},
+    )
+    step = ToolCall(
+        id="step",
+        name="task_step_update",
+        arguments={
+            "step_id": "verify",
+            "plan_revision": 1,
+            "state": "completed",
+            "evidence_call_ids": ["quote"],
+        },
+    )
+    model = Script(
+        ModelReply(tool_calls=[*calls(("quote", "fixture_quote", 1)), step]),
+        ModelReply(text="Verified the gold quote at 2301.5; the task is complete."),
+    )
+    monkeypatch.setattr("lonora_agent.tool_loop.model_turn", model)
+    await execute_run(context, registry, 120, 1)
+    run = await saved_run(context)
+    observed = results(run)
+    assert observed["quote"]["ok"] and observed["step"]["ok"]
+    first, offered = model.requests[0]
+    assert offered and "This is the last model round" in first[-1].content
+    final, tools = model.requests[1]
+    assert tools == [] and len(model.requests) == 2
+    assert is_runtime_notice(final[-1]) and "tool-round limit" in final[-1].content
+    # Every declared step is recorded complete with evidence: the Task completes.
+    assert run.status == "completed" and run.result and run.result.startswith("Verified")
+    assert run.model_metadata["exit_reason"] == "tool_round_limit"
+    async with db.sessions() as session:
+        task = await get_task(session, owner, task_id)
+        assert task.state["task"]["status"] == "completed"
+
+
+async def held_for_attention(task_db: Fixture, monkeypatch: pytest.MonkeyPatch) -> tuple[str, str]:
+    context, task_id = await task_run(
+        task_db,
+        TaskCreate(title="Verify gold", steps=[TaskStep(id="verify", title="Verify quote")]),
+    )
+    monkeypatch.setattr(
+        "lonora_agent.tool_loop.model_turn", Script(ModelReply(text="Gold looks fine."))
+    )
+    await execute_run(context, ToolRegistry([]), 120, 8)
+    run = await saved_run(context)
+    assert run.status == "waiting_input"
+    return run.id, task_id
+
+
+async def reclaim(task_db: Fixture, run_id: str, worker: str) -> ToolContext:
+    db, _, _, _ = task_db
+    async with db.sessions() as session, session.begin():
+        claimed = await claim_next(session, worker, 120, "work")
+        assert claimed and claimed.id == run_id
+        claimed.status = "running"
+        lease = Lease(run_id=claimed.id, owner=worker, fence=claimed.lease_fence)
+        thread = claimed.thread_id
+    return context_for(task_db, lease, thread)
+
+
+@pytest.mark.asyncio
+async def test_owner_attention_task_resumes_and_revises_through_task_controls(
+    task_db: Fixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from lonora_contracts.tasks import TaskControl
+    from lonora_db.agent_state import agent_live_state
+    from lonora_db.tasks import control_task
+
+    db, owner, agent, _ = task_db
+    run_id, task_id = await held_for_attention(task_db, monkeypatch)
+    async with db.sessions() as session:
+        task = await get_task(session, owner, task_id)
+        projected = await snapshot(session, task)
+        assert projected["can_resume"] is True and projected["waiting_reason"] == "owner_attention"
+        live = await agent_live_state(session, owner, agent)
+        assert (live.state, live.reason_code) == ("action_required", "task_attention_required")
+
+    async with db.sessions() as session, session.begin():
+        task = await get_task(session, owner, task_id)
+        await control_task(
+            session,
+            owner,
+            TaskControl(task_id=task_id, action="resume", expected_version=task.version),
+        )
+    async with db.sessions() as session:
+        run = await session.get(RunRow, run_id)
+        task = await get_task(session, owner, task_id)
+        assert run and run.status == "queued"
+        assert "pending_input_request" not in run.execution_state
+        assert run.execution_state["input_requests"][-1]["status"] == "cancelled"
+        assert task.state["task"]["status"] == "queued"
+        assert task.state["task"]["waiting_reason"] is None
+
+    # The resumed Run continues its checkpoint with a new review epoch.
+    resumed = Script(ModelReply(text="Still checking gold."))
+    monkeypatch.setattr("lonora_agent.tool_loop.model_turn", resumed)
+    await execute_run(await reclaim(task_db, run_id, "resume-writer"), ToolRegistry([]), 120, 8)
+    first, _ = resumed.requests[0]
+    assert is_runtime_notice(first[-1]) and "owner_resumed" in first[-1].content
+    # Fresh nudges: two completion checks before the owner is asked again.
+    assert len(resumed.requests) == 3
+    async with db.sessions() as session:
+        run = await session.get(RunRow, run_id)
+        task = await get_task(session, owner, task_id)
+        assert run and run.status == "waiting_input"
+        assert "owner_attention_resumed" not in run.execution_state
+        assert task.state["task"]["waiting_reason"] == "owner_attention"
+
+    async with db.sessions() as session, session.begin():
+        task = await get_task(session, owner, task_id)
+        await control_task(
+            session,
+            owner,
+            TaskControl(
+                task_id=task_id,
+                action="revise",
+                expected_version=task.version,
+                instruction="Use the spot quote only.",
+            ),
+        )
+    async with db.sessions() as session:
+        run = await session.get(RunRow, run_id)
+        task = await get_task(session, owner, task_id)
+        assert run and run.status == "queued" and task.state["task"]["status"] == "queued"
+        assert task.state["task"]["plan_revision"] == 2
+    revised = Script(ModelReply(text="Checking the spot quote."))
+    monkeypatch.setattr("lonora_agent.tool_loop.model_turn", revised)
+    await execute_run(await reclaim(task_db, run_id, "revise-writer"), ToolRegistry([]), 120, 8)
+    first, _ = revised.requests[0]
+    assert any("<task_plan_revision>" in item.content for item in first)
+    assert any(is_runtime_notice(item) and "revised it" in item.content for item in first)

@@ -2,17 +2,42 @@
 
 Adapted from Hermes Agent ``agent/tool_guardrails.py``
 (``ToolCallGuardrailController``: exact-args failure streaks, same-tool failure
-counts, identical no-progress results and short identical call cycles).
-Source: NousResearch/hermes-agent, MIT License, Copyright (c) 2025 Nous
-Research. Lonora keeps the controller pure and JSON-serializable so a restart
-or a new compute slice cannot buy a fresh loop budget, and classifies tools from
-the server registry (``read_only``/``poller``), never from model declarations.
+counts, identical no-progress results and short identical call cycles), source
+https://github.com/NousResearch/hermes-agent at revision
+a9ff9799e273f525b82718cdc69fdec71b1dca5a. Lonora keeps the controller pure and
+JSON-serializable so a restart or a new compute slice cannot buy a fresh loop
+budget, classifies tools from the server registry (``read_only``/``poller``),
+never from model declarations, and adds an identical-effect streak that ignores
+results: a financial result always carries a fresh operation identity, so only
+the arguments can show that the same effect is being repeated.
 
 Decisions never raise: ``warn`` guidance is attached to the tool result,
 ``block`` replaces an execution with a synthetic observation and ``halt`` asks
 the loop for its graceful finish. Effect boundaries stay with the executor;
 exact failing financial or ambiguous routes are still refused by the existing
 environment route record before this controller is consulted.
+
+MIT License
+
+Copyright (c) 2025 Nous Research
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 """
 
 import hashlib
@@ -37,6 +62,13 @@ NO_PROGRESS_BLOCK_AFTER = 5
 NO_PROGRESS_HALT_AFTER = NO_PROGRESS_BLOCK_AFTER + 2
 IDENTICAL_CALL_NOTICE_AFTER = 3
 IDENTICAL_CALL_HALT_AFTER = 5
+# Identical effects (non-read-only calls with identical arguments), whatever
+# they returned. The previous release failed the Run on the 6th identical
+# success, after that effect had already run; now the 6th never executes.
+IDENTICAL_EFFECT_WARN_AFTER = 2
+IDENTICAL_EFFECT_BLOCK_AFTER = 5
+# A second refused repeat means the model is not changing strategy.
+IDENTICAL_EFFECT_HALT_AFTER_REFUSALS = 2
 MAXIMUM_CYCLE_PERIOD = 4
 HISTORY_LIMIT = 32
 
@@ -82,6 +114,20 @@ _MESSAGES = {
         "The same cycle of {period} calls (ending with {tool}) repeated {count} times with "
         "identical arguments and results."
     ),
+    "identical_effect_warning": (
+        "{tool} has now run {count} times in a row with identical arguments. Each call is a "
+        "separate effect, not a retry: check the earlier results and do not repeat it unless "
+        "another identical effect is really intended."
+    ),
+    "identical_effect_block": (
+        "{tool} was not executed: it already ran {count} times in a row with identical "
+        "arguments in this run, and this call changed nothing. Use the earlier results, change "
+        "the request, or report to the owner."
+    ),
+    "identical_effect_halt": (
+        "{tool} kept being requested with identical arguments after it was refused for "
+        "repeating the same effect {count} times."
+    ),
 }
 _SEVERITY = {"allow": 0, "warn": 1, "block": 2, "halt": 3}
 
@@ -117,6 +163,7 @@ def fresh_state() -> dict[str, Any]:
         "tool_failures": {},
         "no_progress": {},
         "history": [],
+        "effect_streak": None,
         "halt": None,
     }
 
@@ -133,7 +180,26 @@ def guardrail_state(state: dict[str, Any]) -> dict[str, Any]:
     if not _valid(saved):
         saved = fresh_state()
         state[STATE_KEY] = saved
-    return cast(dict[str, Any], saved)
+    value = cast(dict[str, Any], saved)
+    streak = value.get("effect_streak")
+    # Absent in checkpoints written before the identical-effect streak.
+    value["effect_streak"] = streak if _valid_streak(streak) else None
+    return value
+
+
+def _valid_streak(streak: Any) -> bool:
+    if streak is None:
+        return True
+    if not isinstance(streak, list) or len(cast(list[Any], streak)) != 3:
+        return False
+    signature, executed, refused = cast(list[Any], streak)
+    return (
+        isinstance(signature, str)
+        and type(executed) is int
+        and executed >= 1
+        and type(refused) is int
+        and refused >= 0
+    )
 
 
 def _valid(saved: Any) -> bool:
@@ -165,8 +231,34 @@ def _idempotent(tool: Tool | None) -> bool:
     return bool(tool and tool.read_only and not tool.poller)
 
 
+def _effect(tool: Tool | None) -> bool:
+    return bool(tool and not tool.read_only and not tool.poller)
+
+
+def _repeated_effect(guard: dict[str, Any], call: ToolCall) -> GuardrailDecision:
+    """Refuse an effect that already ran too often with identical arguments.
+
+    The handler does not run, so nothing new is sent; financial reconciliation
+    of an earlier operation keeps its own receipt and route-record paths.
+    """
+    streak = guard.get("effect_streak")
+    if not isinstance(streak, list):
+        return ALLOW
+    signature, executed, refused = cast(list[Any], streak)
+    if signature != route_key(call) or executed < IDENTICAL_EFFECT_BLOCK_AFTER:
+        return ALLOW
+    guard["effect_streak"] = [signature, executed, refused + 1]
+    if refused + 1 >= IDENTICAL_EFFECT_HALT_AFTER_REFUSALS:
+        decision = _decision("halt", "identical_effect_halt", call.name, executed)
+        guard["halt"] = decision.metadata() | {"message": decision.message}
+        return decision
+    return _decision("block", "identical_effect_block", call.name, executed)
+
+
 def before_call(state: dict[str, Any], call: ToolCall, tool: Tool | None) -> GuardrailDecision:
-    """Refuse an unchanged read that already proved to make no progress."""
+    """Refuse an unchanged read without progress or an effect repeated too often."""
+    if _effect(tool):
+        return _repeated_effect(guardrail_state(state), call)
     if not _idempotent(tool):
         return ALLOW
     guard = guardrail_state(state)
@@ -241,10 +333,26 @@ def after_call(
             no_progress[signature] = [digest, repeat]
             if repeat >= NO_PROGRESS_WARN_AFTER:
                 decision = _decision("warn", "idempotent_no_progress_warning", call.name, repeat)
+    if _effect(tool):
+        # Results are ignored: a new operation or version identity in every
+        # result must not hide that the same effect keeps being requested.
+        # Observations between the repeats do not make them different effects.
+        previous = guard.get("effect_streak")
+        executed = (
+            int(cast(list[Any], previous)[1]) + 1
+            if isinstance(previous, list) and cast(list[Any], previous)[0] == signature
+            else 1
+        )
+        guard["effect_streak"] = [signature, executed, 0]
+        if executed >= IDENTICAL_EFFECT_WARN_AFTER:
+            decision = _stronger(
+                decision, _decision("warn", "identical_effect_warning", call.name, executed)
+            )
     history: list[Any] = guard["history"]
     history.append([signature, digest, bool(tool and tool.poller)])
     del history[:-HISTORY_LIMIT]
-    if not (tool and tool.poller):
+    if not (tool and tool.poller) and not _effect(tool):
+        # Consecutive identical effects are bounded by the effect streak above.
         streak = _streak(history)
         if streak >= IDENTICAL_CALL_HALT_AFTER:
             decision = _stronger(

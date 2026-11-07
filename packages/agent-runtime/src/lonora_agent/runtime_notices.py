@@ -10,6 +10,7 @@ exchange during context governance and is never mistaken for an owner request.
 
 import json
 import re
+from collections.abc import Sequence
 from typing import Any, cast
 
 from lonora_adapter_kit.types import ModelMessage
@@ -90,11 +91,18 @@ NO_ANSWER = (
 )
 
 
-def budget_warning(remaining: int) -> str:
-    rounds = "1 model round" if remaining == 1 else f"{remaining} model rounds"
+def budget_warning(executable: int) -> str:
+    """``executable`` counts model rounds, this one included, whose tool calls still run."""
+    if executable == 1:
+        lead = "This is the last model round in this run whose tool calls will execute."
+    else:
+        lead = (
+            f"{executable} model rounds whose tool calls will execute remain in this run, "
+            "including this one."
+        )
     return (
-        f"{rounds} with tools remain in this run. Prioritize the steps that matter most; "
-        "after that no further tool calls will execute and you will be asked for a final report."
+        lead + " Prioritize the steps that matter most; after that no further tool calls will "
+        "execute and you will be asked for a final report."
     )
 
 
@@ -123,9 +131,68 @@ def limit_fallback(arabic: bool) -> str:
     )
 
 
-def attention_fallback(arabic: bool) -> str:
-    return (
-        "لم أتمكن من إنهاء هذه المهمة بمفردي، وأحتاج توجيهك قبل المتابعة."
+_ATTENTION_CAUSE = {
+    "task_steps_incomplete": (
+        "This task is not finished.",
+        "هذه المهمة لم تكتمل بعد.",
+    ),
+    "task_wait_required": (
+        "This continuous task is not being monitored: no monitoring wait or review timer was "
+        "saved, so nothing will follow up automatically.",
+        "هذه المهمة المستمرة غير مراقَبة: لم يُحفظ أي انتظار مراقبة أو مؤقت مراجعة، "
+        "لذلك لن تحدث أي متابعة تلقائية.",
+    ),
+    "tool_round_limit": (
+        "This task stopped before finishing because this run reached its work limit; nothing "
+        "further was executed after that point.",
+        "توقفت هذه المهمة قبل اكتمالها لأن هذه الجولة بلغت حدّ العمل، ولم يُنفَّذ أي إجراء بعد ذلك.",
+    ),
+    "guardrail_halt": (
+        "This task stopped before finishing because a tool call kept being repeated without "
+        "progress; nothing further was executed after that point.",
+        "توقفت هذه المهمة قبل اكتمالها لأن استدعاء أداة تكرر دون تقدّم، ولم يُنفَّذ أي إجراء بعد ذلك.",
+    ),
+}
+
+
+def attention_notice(reason: str, arabic: bool, incomplete: Sequence[str] = ()) -> str:
+    """Deterministic truth about unfinished Task work, in the owner's language.
+
+    It leads the owner-attention message so a held answer that claims progress
+    can never be the only account of work that the runtime knows is unfinished.
+    """
+    cause = _ATTENTION_CAUSE.get(reason, ("This task is not finished.", "هذه المهمة لم تكتمل بعد."))
+    parts = [cause[1] if arabic else cause[0]]
+    if incomplete:
+        listed = ("، " if arabic else "; ").join(incomplete[:12])
+        more = len(incomplete) - 12
+        if more > 0:
+            listed += f" (+{more})"
+        parts.append(
+            "الخطوات غير المكتملة: " + listed + "."
+            if arabic
+            else "Steps not completed yet: " + listed + "."
+        )
+    parts.append(
+        "أحتاج توجيهك قبل المتابعة: ردّ هنا، أو عدّل المهمة أو استأنفها أو أوقفها مؤقتًا أو ألغها."
         if arabic
-        else "I could not finish this task on my own and need your direction before continuing."
+        else "I need your direction before continuing: reply here, or revise, resume, pause or "
+        "cancel the task."
+    )
+    return " ".join(parts)
+
+
+def attention_message(notice: str, held: str, arabic: bool) -> str:
+    held = held.strip()
+    if not held or held == notice:
+        return notice
+    return notice + "\n\n" + ("آخر تقرير: " if arabic else "Latest report: ") + held
+
+
+def resumed_notice(action: str) -> str:
+    chosen = "revised" if action == "revise" else "resumed"
+    return (
+        f"The owner reviewed this unfinished task and {chosen} it. Continue the remaining "
+        "authorized work from the current state: check the task plan and the earlier tool "
+        "results first, and do not repeat effects that already happened."
     )

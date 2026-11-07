@@ -244,6 +244,9 @@ async def candidate(
             if resource and resource.owner_id == event.owner_id and resource.state.get("task"):
                 state = resource.state["task"]
                 parameters["task_id"] = resource.id
+                # The Task's own work thread holds its questions and reports; the
+                # item itself still opens the owner's conversation with the agent.
+                parameters["work_thread_id"] = resource.thread_id
                 if event.payload.get("version") and event.payload["version"] != resource.version:
                     raise LonoraError("attention_superseded_state", 409)
                 failure: dict[str, Any] = state.get("failure") or {}
