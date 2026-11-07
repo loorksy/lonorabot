@@ -21,7 +21,7 @@ from lonora_contracts.domain import utcnow
 from lonora_contracts.market import CalendarEvent
 from lonora_contracts.trading import TradeRequest
 from lonora_core.user_error import LonoraError
-from lonora_db.schema import RunRow, TradingAccountRow, TradingJournalRow
+from lonora_db.schema import BrokerSessionRow, RunRow, TradingAccountRow, TradingJournalRow
 from lonora_tools.context import ToolContext
 from lonora_tools.loader import load_tools
 from sqlalchemy import func, select
@@ -387,6 +387,29 @@ async def main() -> None:
             assert DOLLAR in str(value), name
         sessions = await call("market_sessions", {}, actor=specialist)
         assert sessions["broker_trading_hours"]["symbol"] == GOLD
+
+        async def set_enabled(enabled: bool) -> None:
+            async with fixture.runtime.db.sessions() as session, session.begin():
+                row = await session.get(BrokerSessionRow, primary, with_for_update=True)
+                assert row is not None
+                row.payload = {**row.payload, "enabled": enabled}
+                row.version += 1
+
+        # The bound default call names the account and symbol; a disabled broker leaves
+        # only the broker hours unknown, never the IANA session clock.
+        await set_enabled(False)
+        try:
+            offline = await call("market_sessions", {}, actor=specialist)
+        finally:
+            await set_enabled(True)
+        assert len(offline["sessions"]) == 4
+        assert offline["fx_market"]["state"] in {"open", "closed"}
+        assert offline["broker_trading_hours"] == {
+            "symbol": GOLD,
+            "state": "unknown",
+            "reason": "broker_disabled",
+        }
+        await denied("market_sessions", {"symbol": "NOPE.x"}, "symbol_not_found", actor=specialist)
         exported = await call(
             "market_candles_to_workspace",
             {"symbol": DOLLAR, "timeframe": "1h", "revision": 0},

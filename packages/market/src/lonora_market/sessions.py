@@ -233,6 +233,11 @@ def _broker_intervals(hours: TradingHours, broker_today: date, offset: timedelta
     return _merge(intervals)
 
 
+def _horizon_end(broker_today: date, offset: timedelta) -> datetime:
+    """Where `_broker_intervals` stops: an interval ending here may continue beyond it."""
+    return datetime.combine(_days(broker_today)[-1] + timedelta(days=1), time(0), UTC) - offset
+
+
 def _compact_windows(windows: list[TradingSessionWindow]) -> str:
     return ", ".join(window.start[:5] + "-" + window.end[:5] for window in windows) or "none"
 
@@ -266,18 +271,28 @@ def broker_trading_state(hours: TradingHours, now: datetime) -> dict[str, Any]:
     offset = timedelta(minutes=hours.utc_offset_minutes)
     broker_now = now + offset
     intervals = _broker_intervals(hours, broker_now.date(), offset)
-    state = _state(intervals, now)
+    state = {
+        key: value
+        for key, value in _state(intervals, now).items()
+        if key in {"active", "closes_at", "minutes_to_close", "next_opens_at", "minutes_to_open"}
+    }
+    current = next((item for item in intervals if item[0] <= now < item[1]), None)
+    if current is not None and current[1] >= _horizon_end(broker_now.date(), offset):
+        # The merged session runs past the evaluated horizon (more than a full week
+        # ahead), so the reported week has no gap: that edge is not a close.
+        state |= {
+            "closes_at": None,
+            "minutes_to_close": None,
+            "continuous": True,
+            "reason": "no_close_within_horizon",
+        }
     weekday = WEEKDAYS[broker_now.weekday()]
     return {
         **result,
-        "state": "open" if state["active"] else "closed",
+        "state": "open" if state.pop("active") else "closed",
         "broker_local_time": broker_now.strftime("%a %H:%M"),
         "today_sessions_broker_clock": _compact_windows(hours.trade_sessions.get(weekday, [])),
-        **{
-            key: value
-            for key, value in state.items()
-            if key in {"closes_at", "minutes_to_close", "next_opens_at", "minutes_to_open"}
-        },
+        **state,
         "limitations": [
             "The broker clock offset was measured now; a broker DST change inside the horizon is not modelled."
         ],

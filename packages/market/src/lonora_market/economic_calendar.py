@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from collections.abc import Callable
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any, Protocol
@@ -8,6 +9,8 @@ from lonora_core.user_error import LonoraError
 
 if TYPE_CHECKING:
     from lonora_db.client import Database
+
+logger = logging.getLogger(__name__)
 
 
 class CalendarSource(Protocol):
@@ -73,6 +76,13 @@ async def read_calendar(
             return error.code
         except TimeoutError:
             return "calendar_source_timeout"
+        except ValueError:  # Undecodable or malformed source data.
+            return "calendar_response_invalid"
+        except Exception as error:
+            # One source never hides another's events. Exception text can carry the
+            # configured URL (often with a token), so only the type is logged.
+            logger.warning("calendar_source_failed type=%s", type(error).__name__)
+            return "calendar_source_failed"
 
     results = await asyncio.gather(*(fetch(str(row.payload["url"])) for row in configured))
     sources: list[dict[str, Any]] = []

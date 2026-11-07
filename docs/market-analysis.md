@@ -75,8 +75,17 @@ UTC offset from a broker-timestamped quote (`brokerTime` against `time`, rounded
 simulation broker returns sessions only when the imported snapshot has a
 `trading_hours` entry. When the adapter has no such capability, the symbol has no
 reported sessions, or the server offset cannot be measured, the state is `unknown`
-with a reason; it is never guessed. `SYMBOL_TRADE_MODE_DISABLED` and `CLOSEONLY` are
-surfaced as a trade restriction.
+with a reason; it is never guessed. The session clock never depends on the broker: a
+disabled, unreachable or failing broker connection, an unreadable symbol catalog or a
+timeout also leaves only `broker_trading_hours` unknown with the error code as reason
+(an unexpected exception is `broker_hours_failed`, logged by type only). Only an
+unknown or ambiguous symbol (`symbol_not_found`, `symbol_ambiguous`) fails the call,
+so the model can correct it. Sessions are evaluated over a horizon of more than a
+week; when the active session runs past it (an instrument trading 24/7, such as
+crypto CFDs on many MT5 brokers) the reported week has no gap, so `closes_at` and
+`minutes_to_close` are `null` with `continuous: true` and reason
+`no_close_within_horizon` rather than an invented close at the horizon edge.
+`SYMBOL_TRADE_MODE_DISABLED` and `CLOSEONLY` are surfaced as a trade restriction.
 
 ## economic_calendar_read
 
@@ -87,8 +96,14 @@ window of `hours_back` / `hours_ahead`. Events are time-ordered and carry
 `minutes_from_now`, a status (`upcoming`, `released`, `due_without_actual`) and the
 `integration_id` that a calendar watch can reference. With no configured source the
 result is `configured: false` with `economic_calendar_not_configured`. A failing source
-is reported per source without its URL. Events whose timestamps carry no time zone are
-rejected and counted rather than guessed.
+is reported per source as `unavailable` with a reason and without its URL, while the
+other sources' events are still returned: the adapter turns transport failures into
+`calendar_source_unavailable`, timeouts into `calendar_source_timeout` and a non-JSON
+body, a non-list payload or a malformed event into `calendar_response_invalid`; any
+other exception from a source is `calendar_source_failed` and is logged by type only,
+because exception text can carry the configured URL. Calendar watches and the owner
+calendar route get the same codes from the adapter. Events whose timestamps carry no
+time zone are rejected and counted rather than guessed.
 
 ## market_candles_to_workspace
 
@@ -135,7 +150,13 @@ restrictions and risk limits are untouched.
   US and UK clock changes, the spring-forward weekend, Sydney's April change and
   clipping to the FX week, Friday close and Sunday open boundaries in EST and EDT,
   broker hours on a GMT+2 server clock (rollover, weekend, overnight and 24-hour
-  windows, unknown offset, close-only) and MetaApi specification normalization.
+  windows, unknown offset, close-only), a 24/7 instrument with no invented close,
+  MetaApi specification normalization, and the tool keeping its session clock when
+  the broker is disabled, unreachable, times out or raises (symbol errors still fail).
+- `tests/test_economic_calendar_read.py`: per-source isolation of raw transport,
+  decode and unexpected errors from injected sources, and the real adapter (mock HTTP
+  transport) mapping connection refused, read timeout, HTML, non-list, malformed-event
+  and HTTP 503 responses to codes beside a healthy source's events.
 - `tests/test_market_snapshot.py`: forming-bar exclusion and the read cutoff, swing
   structure labels, mid-rank volatility regime, unavailable/invalid/stale/future
   inputs, level distances, quote fallback, CSV encoding and calendar filtering.
@@ -144,7 +165,9 @@ restrictions and risk limits are untouched.
   conflict, path rejection, file-count quota, observe-only refusal, and a bound gold
   agent reading a related symbol and account-wide exposure while trades, closes,
   watches, charts, sizing and central execution stay refused for that symbol with no
-  journal row created.
+  journal row created; the bound agent's default `market_sessions` call still returns
+  the clock with broker hours `unknown` / `broker_disabled` while its broker is
+  disabled.
 - `tests/check_agent_binding.py`, `tests/check_market_structure.py` and
   `tests/check_flexible_agents.py` were updated from "cross-symbol reads are refused" to
   "related reads on the bound account are allowed; cross-account reads and every

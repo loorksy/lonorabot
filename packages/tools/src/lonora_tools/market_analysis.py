@@ -1,6 +1,7 @@
 """Read-side market evidence for the model's own analysis; never signals or orders."""
 
 import asyncio
+import logging
 import re
 from datetime import datetime, timedelta
 from typing import Any
@@ -27,6 +28,10 @@ from .workspace import access
 
 READ_TIMEOUT_SECONDS = 20
 DEFAULT_TIMEFRAMES = ["15m", "1h", "4h", "1d"]
+# Errors the model corrects by changing its arguments.
+SYMBOL_ARGUMENT_ERRORS = frozenset({"symbol_not_found", "symbol_ambiguous"})
+
+logger = logging.getLogger(__name__)
 
 
 def _aware(value: datetime | None) -> bool:
@@ -189,21 +194,41 @@ async def sessions(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]
             "reason": "no_instrument_requested",
         }
         return result
-    broker = await context.brokers.get(context.owner_id, params.account_id)
-    symbol = await canonical_broker_symbol(broker, params.symbol, require_exists=True)
-    hours: dict[str, Any]
-    if not isinstance(broker, TradingHoursReader):
-        hours = {"symbol": symbol, "state": "unknown", "reason": "broker_hours_not_exposed"}
-    else:
-        try:
-            async with asyncio.timeout(READ_TIMEOUT_SECONDS):
-                hours = broker_trading_state(await broker.trading_hours(symbol), at)
-        except LonoraError as error:
-            hours = {"symbol": symbol, "state": "unknown", "reason": error.code}
-        except TimeoutError:
-            hours = {"symbol": symbol, "state": "unknown", "reason": "broker_hours_timeout"}
-    result["broker_trading_hours"] = hours
+    result["broker_trading_hours"] = await _broker_hours(
+        context, params.account_id, params.symbol, at
+    )
     return result
+
+
+async def _broker_hours(
+    context: ToolContext, account_id: str, requested: str, at: datetime
+) -> dict[str, Any]:
+    """Broker hours, or unknown with a reason: the session clock never needs the broker.
+
+    Only a symbol the model can correct is an error; an unreachable, disabled or
+    failing broker (exactly when the clock matters most) leaves the hours unknown.
+    """
+    symbol = requested
+    try:
+        async with asyncio.timeout(READ_TIMEOUT_SECONDS):
+            broker = await context.brokers.get(context.owner_id, account_id)
+            symbol = await canonical_broker_symbol(broker, requested, require_exists=True)
+            if not isinstance(broker, TradingHoursReader):
+                return {"symbol": symbol, "state": "unknown", "reason": "broker_hours_not_exposed"}
+            return broker_trading_state(await broker.trading_hours(symbol), at)
+    except LonoraError as error:
+        if error.code in SYMBOL_ARGUMENT_ERRORS:
+            raise
+        reason = error.code
+    except TimeoutError:
+        reason = "broker_hours_timeout"
+    except ConnectionError:
+        reason = "broker_connection_failure"
+    except Exception as error:
+        # Broker SDK exception text can carry credentials; only the type is logged.
+        logger.warning("market_sessions_broker_hours_failed type=%s", type(error).__name__)
+        reason = "broker_hours_failed"
+    return {"symbol": symbol, "state": "unknown", "reason": reason}
 
 
 async def calendar(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:

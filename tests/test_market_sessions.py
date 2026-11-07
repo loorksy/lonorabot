@@ -1,13 +1,16 @@
 """Session clock across DST boundaries and broker trading hours; pure, no broker or DB."""
 
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from types import SimpleNamespace
+from typing import Any, cast
 
 import pytest
 from lonora_adapters.brokers.normalize import broker_offset_minutes, trading_hours
 from lonora_contracts.market import TradingHours, TradingSessionWindow
 from lonora_core.user_error import LonoraError
-from lonora_market.sessions import broker_trading_state, session_clock
+from lonora_market.sessions import WEEKDAYS, broker_trading_state, session_clock
+from lonora_tools.context import ToolContext
+from lonora_tools.market_analysis import sessions
 
 
 def at(value: str) -> datetime:
@@ -198,3 +201,127 @@ def test_metaapi_specification_normalization() -> None:
 def test_far_horizon_is_bounded() -> None:
     result = session_clock(at("2026-12-24T12:00") + timedelta(minutes=1))
     assert all(item["active"] or item["next_opens_at"] is not None for item in result["sessions"])
+
+
+def test_continuous_instrument_has_no_invented_close() -> None:
+    always = hours({day: [("00:00:00", "24:00:00")] for day in WEEKDAYS}, 120)  # 24/7 crypto
+    for moment in ("2026-11-07T12:00", "2026-11-08T23:59", "2026-11-11T00:00"):
+        state = broker_trading_state(always, at(moment))
+        assert state["state"] == "open", moment
+        assert state["closes_at"] is None and state["minutes_to_close"] is None, moment
+        assert state["continuous"] is True and state["reason"] == "no_close_within_horizon"
+    # One weekly gap, however short, is a real close inside the horizon.
+    gap = hours(
+        {day: [("00:00:00", "24:00:00")] for day in WEEKDAYS}
+        | {"SATURDAY": [("00:00:00", "23:00:00")]},
+        120,
+    )
+    state = broker_trading_state(gap, at("2026-11-04T12:00"))
+    assert state["closes_at"] == at("2026-11-07T21:00").isoformat()
+    assert "continuous" not in state and "reason" not in state
+    weekdays = hours(
+        {day: [("00:00:00", "24:00:00")] for day in WEEKDAYS[:5]}, 120
+    )  # Monday 00:00 to Friday 24:00 on the broker clock.
+    state = broker_trading_state(weekdays, at("2026-11-04T12:00"))
+    assert state["closes_at"] == at("2026-11-06T22:00").isoformat()
+    assert "continuous" not in state
+
+
+class CatalogBroker:
+    """A broker without the TradingHoursReader capability."""
+
+    def __init__(self, names: list[str] | BaseException):
+        self.names = names
+
+    async def symbols(self) -> list[str]:
+        if isinstance(self.names, BaseException):
+            raise self.names
+        return self.names
+
+
+class HoursBroker(CatalogBroker):
+    def __init__(self, names: list[str], reported: TradingHours | BaseException):
+        super().__init__(names)
+        self.reported = reported
+
+    async def trading_hours(self, symbol: str) -> TradingHours:
+        if isinstance(self.reported, BaseException):
+            raise self.reported
+        return self.reported
+
+
+class Brokers:
+    def __init__(self, broker: object):
+        self.broker = broker
+
+    async def get(self, owner_id: str, account_id: str) -> object:
+        if isinstance(self.broker, BaseException):
+            raise self.broker
+        return self.broker
+
+
+def tool_context(broker: object) -> ToolContext:
+    return cast(ToolContext, SimpleNamespace(owner_id="owner", brokers=Brokers(broker)))
+
+
+# A fixed-market agent's call always names its account and symbol, so these are what a
+# disabled, unreachable or failing broker turns the default market_sessions call into.
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("broker", "symbol", "reason"),
+    [
+        (LonoraError("broker_disabled", 409), "xauusd.r", "broker_disabled"),
+        (
+            LonoraError("broker_connection_unavailable", 503),
+            "xauusd.r",
+            "broker_connection_unavailable",
+        ),
+        (
+            CatalogBroker(LonoraError("broker_symbols_unavailable", 503)),
+            "xauusd.r",
+            "broker_symbols_unavailable",
+        ),
+        (CatalogBroker(ConnectionResetError()), "xauusd.r", "broker_connection_failure"),
+        (CatalogBroker(KeyError("state")), "xauusd.r", "broker_hours_failed"),
+        (HoursBroker(["XAUUSD.r"], TimeoutError()), "XAUUSD.r", "broker_hours_timeout"),
+        (
+            HoursBroker(["XAUUSD.r"], LonoraError("broker_trading_hours_unavailable", 404)),
+            "XAUUSD.r",
+            "broker_trading_hours_unavailable",
+        ),
+        (CatalogBroker(["XAUUSD.r"]), "XAUUSD.r", "broker_hours_not_exposed"),
+    ],
+)
+async def test_broker_failure_keeps_the_session_clock(
+    broker: object, symbol: str, reason: str
+) -> None:
+    result = await sessions(tool_context(broker), {"account_id": "acc", "symbol": "xauusd.r"})
+    assert len(result["sessions"]) == 4 and result["fx_market"]["state"] in {"open", "closed"}
+    assert result["broker_trading_hours"] == {
+        "symbol": symbol,
+        "state": "unknown",
+        "reason": reason,
+    }
+
+
+@pytest.mark.asyncio
+async def test_broker_hours_reported_and_wrong_symbol_still_corrected() -> None:
+    gold = hours(WEEKDAY_SESSIONS, 120)
+    wednesday = datetime.now(UTC).replace(hour=12, minute=0, second=0, microsecond=0)
+    while wednesday.weekday() != 2:  # The tool accepts instants within 31 days of now.
+        wednesday += timedelta(days=1)
+    reported = await sessions(
+        tool_context(HoursBroker(["XAUUSD.r"], gold)),
+        {"account_id": "acc", "symbol": "xauusd.r", "at": wednesday.isoformat()},
+    )
+    assert reported["broker_trading_hours"]["state"] == "open"
+    assert reported["broker_trading_hours"]["symbol"] == "XAUUSD.r"
+    for names, code in (
+        (["EURUSD"], "symbol_not_found"),
+        (["XAUUSD.r", "xauusd.R"], "symbol_ambiguous"),
+    ):
+        with pytest.raises(LonoraError) as error:
+            await sessions(
+                tool_context(CatalogBroker(names)), {"account_id": "acc", "symbol": "XAUUSD.R"}
+            )
+        assert error.value.code == code
