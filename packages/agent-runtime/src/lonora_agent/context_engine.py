@@ -64,6 +64,7 @@ from lonora_tools.tool_results import store_result
 from .context.financial_result import FINANCIAL_CALLS
 from .environment import bounded_result
 from .progress import progress
+from .runtime_notices import PEER_PREFIX
 from .skills.loader import load_prompt
 from .skills.system_policy import apply_operating_policy
 
@@ -450,14 +451,40 @@ def _block_spans(history: Sequence[ModelMessage]) -> list[tuple[int, int]]:
     return spans
 
 
-def _anchor(history: Sequence[ModelMessage]) -> int | None:
+def speaker(message: ModelMessage, *, delegated: bool = False) -> str:
+    """Who wrote a message, for summarizer input and digests; never over-attributes.
+
+    Only an owner-authored conversation turn is "owner". Another Agent's message in a
+    shared thread is "peer_agent", and in a delegated Run (a subagent's task, a peer
+    request) the conversation input was written by the requesting Agent's model.
+    """
+    if message.role != "user":
+        return message.role
+    if message.context_origin != "conversation":
+        return "runtime"
+    if message.content.startswith(PEER_PREFIX):
+        return "peer_agent"
+    return "requesting_agent" if delegated else "owner"
+
+
+def _anchor(history: Sequence[ModelMessage], *, delegated: bool = False) -> int | None:
+    """The latest owner request, kept verbatim across a summary; never a peer's text."""
     return next(
         (
             index
             for index in range(len(history) - 1, -1, -1)
-            if history[index].role == "user" and history[index].context_origin == "conversation"
+            if history[index].role == "user"
+            and history[index].context_origin == "conversation"
+            and speaker(history[index], delegated=delegated) != "peer_agent"
         ),
         None,
+    )
+
+
+def _attribute(value: str) -> str:
+    """A value inside a single-quoted pseudo-attribute: markup and quotes are inert."""
+    return (
+        escape_context_text(value).replace("'", "&#39;").replace('"', "&quot;").replace("\n", " ")
     )
 
 
@@ -525,7 +552,13 @@ def request_overhead(
     )
 
 
-def _excerpt(message: ModelMessage, calls: dict[str, ToolCall], observed: dict[str, str]) -> str:
+def _excerpt(
+    message: ModelMessage,
+    calls: dict[str, ToolCall],
+    observed: dict[str, str],
+    *,
+    delegated: bool = False,
+) -> str:
     if message.role == "tool":
         call = calls.get(message.tool_call_id or "")
         body = message.content
@@ -534,17 +567,14 @@ def _excerpt(message: ModelMessage, calls: dict[str, ToolCall], observed: dict[s
                 body[:SUMMARY_EXCERPT_CHARS]
                 + f"…[{len(message.content) - SUMMARY_EXCERPT_CHARS} more chars]"
             )
+        # A provider-emitted tool name is model-controlled text: never markup.
         return (
-            f"<tool_result tool='{call.name if call else ''}' "
-            f"observed_at='{observed.get(message.tool_call_id or '', 'unknown')}'>\n"
+            f"<tool_result tool='{_attribute(call.name if call else '')}' "
+            f"observed_at='{_attribute(observed.get(message.tool_call_id or '', 'unknown'))}'>\n"
             + escape_context_text(body)
             + "\n</tool_result>"
         )
-    label = (
-        "owner"
-        if message.role == "user" and message.context_origin == "conversation"
-        else ("runtime" if message.role == "user" else message.role)
-    )
+    label = speaker(message, delegated=delegated)
     text = message.content
     if message.tool_calls:
         text += "\n" + "\n".join(
@@ -558,6 +588,8 @@ def deterministic_summary(
     history: Sequence[ModelMessage],
     calls: dict[str, ToolCall],
     observed: dict[str, str],
+    *,
+    delegated: bool = False,
 ) -> str:
     """The summary when no model can write one: an exact, bounded activity digest."""
     lines: list[str] = []
@@ -580,13 +612,12 @@ def deterministic_summary(
                 + f" at {observed.get(message.tool_call_id or '', 'unknown time')}"
             )
         elif message.content.strip():
-            who = (
-                "Owner"
-                if message.role == "user" and message.context_origin == "conversation"
-                else "Runtime"
-                if message.role == "user"
-                else "Agent"
-            )
+            who = {
+                "owner": "Owner",
+                "peer_agent": "Peer agent",
+                "requesting_agent": "Requesting agent",
+                "runtime": "Runtime",
+            }.get(speaker(message, delegated=delegated), "Agent")
             text = " ".join(message.content.split())
             lines.append(f"- {who}: " + (text[:300] + "…" if len(text) > 300 else text))
     body = "\n".join(lines)
@@ -642,6 +673,12 @@ async def _summarize(
     if len(text) > SUMMARY_MAX_CHARS:
         text = text[: SUMMARY_MAX_CHARS - 40] + "\n…[summary truncated]"
     return text, selection.model
+
+
+# Runs whose conversation input another Agent's model wrote, not the owner.
+DELEGATED_TRIGGERS = frozenset({"subagent", "peer"})
+# Set by the tool loop from the Run's trigger on every entry.
+DELEGATED_KEY = "delegated_input"
 
 
 async def compact_context(
@@ -742,7 +779,8 @@ async def compact_context(
         await _report(context, record, result)
         return result
     summarizer = await resolve_limits(context, Capability.BACKGROUND)
-    anchor = _anchor(history)
+    delegated = bool(state.get(DELEGATED_KEY))
+    anchor = _anchor(history, delegated=delegated)
     summarized = 0
     kind = "model"
     while candidates:
@@ -756,7 +794,10 @@ async def compact_context(
         chunk: list[tuple[int, int]] = []
         size = 0
         for span in candidates:
-            text = "\n".join(_excerpt(row, calls, observed) for row in history[span[0] : span[1]])
+            text = "\n".join(
+                _excerpt(row, calls, observed, delegated=delegated)
+                for row in history[span[0] : span[1]]
+            )
             cost = summarizer.count(text)
             if chunk and size + cost > chunk_tokens:
                 break
@@ -770,7 +811,7 @@ async def compact_context(
             text, _ = await _summarize(
                 context,
                 previous,
-                "\n".join(_excerpt(row, calls, observed) for row in rows),
+                "\n".join(_excerpt(row, calls, observed, delegated=delegated) for row in rows),
                 SUMMARY_MAX_CHARS,
             )
         except Exception as error:
@@ -783,7 +824,7 @@ async def compact_context(
             # Degrade, never fail: summarize everything left deterministically.
             through = candidates[-1][1] if candidates else through
             rows = history[chunk[0][0] : through]
-            text = deterministic_summary(previous, rows, calls, observed)
+            text = deterministic_summary(previous, rows, calls, observed, delegated=delegated)
             candidates = []
             kind = "deterministic"
         summarized += len(rows)

@@ -39,9 +39,17 @@ def is_runtime_notice(message: ModelMessage) -> bool:
     )
 
 
+# history_context prefixes another Agent's message in a shared thread with this.
+PEER_PREFIX = "[Peer "
+
+
 def is_owner_message(message: ModelMessage) -> bool:
-    """User-role conversation input, excluding runtime notices and observations."""
-    return message.role == "user" and message.context_origin == "conversation"
+    """User-role conversation input, excluding runtime notices, observations and peers."""
+    return (
+        message.role == "user"
+        and message.context_origin == "conversation"
+        and not message.content.startswith(PEER_PREFIX)
+    )
 
 
 def attach_notice(result: dict[str, Any], kind: str, text: str) -> None:

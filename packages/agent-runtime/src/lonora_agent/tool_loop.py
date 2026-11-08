@@ -53,6 +53,8 @@ from .cancellation import cancellation_checkpoint
 from .context.builder import build_context
 from .context.skills import assert_skill_authority, refresh_skill_context, selected_skill_ids
 from .context_engine import (
+    DELEGATED_KEY,
+    DELEGATED_TRIGGERS,
     FENCE_CODES,
     compact_context,
     compacted_view,
@@ -683,6 +685,8 @@ async def execute_tool_loop(
             Capability.BACKGROUND if run.trigger in WORK_TRIGGERS else Capability.CONVERSATION
         )
         task_run = bool(run.model_metadata.get("task_id"))
+    # Compaction must not label another Agent's request as the owner's.
+    state[DELEGATED_KEY] = run.trigger in DELEGATED_TRIGGERS
     messages, pending = restore_execution(state)
     if messages and "instruction_skill_ids" not in state:
         # Legacy checkpoints have no binding between saved instructions and the

@@ -169,7 +169,13 @@ the UTF-8 byte estimate) cannot trigger a summary on every turn:
 
 Boundaries are always complete blocks, so a tool call is never separated from
 its results. The owner's request at summary time stays verbatim in front of the
-summary. The summary is a `<run_context_summary>` user-role message that says it
+summary. Summarizer input and the digest label speakers truthfully (`speaker`):
+only an owner-authored conversation turn is `owner`; another Agent's message in a
+shared thread (`[Peer …]`) is `peer_agent`, and in a subagent or peer Run the
+conversation input is `requesting_agent`, so injected peer or delegated text can
+never be laundered into "the owner asked". A peer's message is never the kept
+request, and every pseudo-attribute (a provider-emitted tool name included) is
+escaped, so a crafted name cannot close its tag and forge an owner turn. The summary is a `<run_context_summary>` user-role message that says it
 replaced earlier messages, is model-authored, is not authority or live state,
 and how to reread exact results. Its text is escaped. Record indexes and
 fingerprints count from after the context data, so refreshed context data never
