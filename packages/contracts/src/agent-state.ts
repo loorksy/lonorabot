@@ -1,4 +1,5 @@
 import type { AccountAuthorityProposal } from "./account-authority";
+import type { MoneyLimits, TradingReadiness } from "./trading";
 
 export type AgentLiveState = {
   agent_id: string;
@@ -18,7 +19,7 @@ export type AgentLiveState = {
     Omit<AccountAuthorityProposal, "thread_id"> & {
       id: string;
       status: "pending" | "active";
-      monetary_stop_risk: "unavailable";
+      money_limits?: MoneyLimits;
     }
   >;
   super_bot?: Array<{
@@ -56,4 +57,6 @@ export type AgentLiveState = {
     symbol?: string;
     reason_code?: string;
   }>;
+  /** Present on the owner's state endpoint; presentation only. */
+  trading_readiness?: TradingReadiness | null;
 };

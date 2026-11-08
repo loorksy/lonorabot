@@ -222,6 +222,11 @@ class ResourceRepository:
         await session.delete(row)
 
 
+def execution_policy_key(owner_id: str, account_id: str) -> str:
+    """Settings key of an account's execution policy and owner money limits."""
+    return f"execution_policy:{owner_id}:{account_id}"
+
+
 class SettingsRepository:
     async def get(self, session: AsyncSession, key: str) -> dict[str, Any]:
         row = await session.get(SettingRow, key)

@@ -97,13 +97,10 @@ class SuperBotRequestRow(Base):
     owner_id: Mapped[str] = mapped_column(
         ForeignKey("ln_owners.id", ondelete="CASCADE"), index=True
     )
-    agent_id: Mapped[str] = mapped_column(
-        ForeignKey("ln_agents.id", ondelete="CASCADE"), index=True
-    )
-    thread_id: Mapped[str] = mapped_column(ForeignKey("ln_threads.id", ondelete="CASCADE"))
-    goal_id: Mapped[str] = mapped_column(
-        ForeignKey("ln_trading_goals.id", ondelete="CASCADE"), index=True
-    )
+    # Durable record: the agent and goal ids are kept as values, never cascaded away.
+    agent_id: Mapped[str] = mapped_column(String(36), index=True)
+    thread_id: Mapped[str | None] = mapped_column(ForeignKey("ln_threads.id", ondelete="SET NULL"))
+    goal_id: Mapped[str] = mapped_column(String(36), index=True)
     mode: Mapped[str] = mapped_column(String(16))
     status: Mapped[str] = mapped_column(String(16), default="pending")
     envelope: Mapped[dict[str, Any]] = mapped_column(JSON)
@@ -137,13 +134,10 @@ class AccountAuthorityRow(Base):
     owner_id: Mapped[str] = mapped_column(
         ForeignKey("ln_owners.id", ondelete="CASCADE"), index=True
     )
-    agent_id: Mapped[str] = mapped_column(
-        ForeignKey("ln_agents.id", ondelete="CASCADE"), index=True
-    )
-    thread_id: Mapped[str] = mapped_column(ForeignKey("ln_threads.id", ondelete="CASCADE"))
-    account_id: Mapped[str] = mapped_column(
-        ForeignKey("ln_broker_sessions.id", ondelete="CASCADE"), index=True
-    )
+    # Durable record: the agent and account ids are kept as values, never cascaded away.
+    agent_id: Mapped[str] = mapped_column(String(36), index=True)
+    thread_id: Mapped[str | None] = mapped_column(ForeignKey("ln_threads.id", ondelete="SET NULL"))
+    account_id: Mapped[str] = mapped_column(String(36), index=True)
     status: Mapped[str] = mapped_column(String(16), default="pending", server_default="pending")
     envelope: Mapped[dict[str, Any]] = mapped_column(JSON)
     envelope_hash: Mapped[str] = mapped_column(String(64))
@@ -277,6 +271,8 @@ class RunRow(Base):
     lease_owner: Mapped[str | None] = mapped_column(String(120))
     lease_fence: Mapped[int] = mapped_column(Integer, default=0)
     lease_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Crash recoveries since the last clean claim; the watchdog quarantines a run past the cap.
+    recovery_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     execution_state: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     model_metadata: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     error_code: Mapped[str | None] = mapped_column(String(80))
@@ -418,6 +414,24 @@ class GatewayRow(Base):
     id: Mapped[str] = mapped_column(String(120), primary_key=True)
     state: Mapped[str] = mapped_column(String(24))
     heartbeat_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    # Per-step liveness written by the heartbeat step; readiness needs every critical step live.
+    liveness: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, server_default="{}")
+
+
+class ItemFailureRow(Base):
+    """One maintenance item that failed: it backs off, then is quarantined; others keep running."""
+
+    __tablename__ = "ln_item_failures"
+    __table_args__ = (Index("ln_item_failure_due", "kind", "next_attempt_at"),)
+    kind: Mapped[str] = mapped_column(String(40), primary_key=True)
+    item_id: Mapped[str] = mapped_column(String(160), primary_key=True)
+    owner_id: Mapped[str | None] = mapped_column(ForeignKey("ln_owners.id", ondelete="CASCADE"))
+    failures: Mapped[int] = mapped_column(Integer, default=1)
+    code: Mapped[str] = mapped_column(String(120))
+    first_failed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    last_failed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    next_attempt_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    quarantined_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class EffectReceiptRow(Base):
@@ -613,15 +627,17 @@ class MarketSnapshotRow(Base):
 
 class TradingGoalRow(ResourceRow):
     __tablename__ = "ln_trading_goals"
+    # Durable record: deleting the agent or conversation never deletes a goal's history.
+    agent_id: Mapped[str | None] = mapped_column(String(36))
+    thread_id: Mapped[str | None] = mapped_column(ForeignKey("ln_threads.id", ondelete="SET NULL"))
 
 
 class GoalDecisionRow(Base):
     __tablename__ = "ln_goal_decisions"
     __table_args__ = (UniqueConstraint("goal_id", "step_id", "attempt", name="goal_step_attempt"),)
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
-    goal_id: Mapped[str] = mapped_column(
-        ForeignKey("ln_trading_goals.id", ondelete="CASCADE"), index=True
-    )
+    # Durable record: the goal id is kept as a value, never cascaded away.
+    goal_id: Mapped[str] = mapped_column(String(36), index=True)
     owner_id: Mapped[str] = mapped_column(ForeignKey("ln_owners.id", ondelete="CASCADE"))
     step_id: Mapped[str] = mapped_column(String(64))
     attempt: Mapped[int] = mapped_column(Integer, default=1)
@@ -643,11 +659,15 @@ class TradeApprovalRow(Base):
     owner_id: Mapped[str] = mapped_column(
         ForeignKey("ln_owners.id", ondelete="CASCADE"), index=True
     )
-    run_id: Mapped[str] = mapped_column(ForeignKey("ln_runs.id", ondelete="CASCADE"), index=True)
-    thread_id: Mapped[str] = mapped_column(
-        ForeignKey("ln_threads.id", ondelete="CASCADE"), index=True
+    # Durable record: the owner's decision and broker snapshot survive the Run, the
+    # conversation and the agent; the agent id is kept as a value.
+    run_id: Mapped[str | None] = mapped_column(
+        ForeignKey("ln_runs.id", ondelete="SET NULL"), index=True
     )
-    agent_id: Mapped[str] = mapped_column(ForeignKey("ln_agents.id", ondelete="CASCADE"))
+    thread_id: Mapped[str | None] = mapped_column(
+        ForeignKey("ln_threads.id", ondelete="SET NULL"), index=True
+    )
+    agent_id: Mapped[str] = mapped_column(String(36))
     call_id: Mapped[str] = mapped_column(String(120))
     requests: Mapped[list[dict[str, Any]]] = mapped_column(JSON)
     status: Mapped[str] = mapped_column(String(24), default="pending")
@@ -714,8 +734,10 @@ class TradingRestrictionRow(Base):
     owner_id: Mapped[str] = mapped_column(
         ForeignKey("ln_owners.id", ondelete="CASCADE"), index=True
     )
-    account_id: Mapped[str] = mapped_column(ForeignKey("ln_broker_sessions.id", ondelete="CASCADE"))
-    agent_id: Mapped[str | None] = mapped_column(ForeignKey("ln_agents.id", ondelete="CASCADE"))
+    # Durable brake record: ids are kept as values. NULL agent means "every agent", so a
+    # deleted agent must never turn its restriction into an account-wide one.
+    account_id: Mapped[str] = mapped_column(String(36))
+    agent_id: Mapped[str | None] = mapped_column(String(36))
     symbol: Mapped[str | None] = mapped_column(String(80))
     # False when the broker catalog could not be read and the symbol was kept as given.
     symbol_verified: Mapped[bool] = mapped_column(default=True)
@@ -735,5 +757,60 @@ class TradingRestrictionRow(Base):
     applies_to_owner_manual: Mapped[bool] = mapped_column(default=False)
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     revoked_reason: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class OwnerActionRow(Base):
+    """One owner-only action offered as a card in the conversation; single use, expiring.
+
+    The payload is the exact, server-validated effect the card performs and is hashed:
+    a confirmation runs it through the existing owner function, never anything else, and
+    a card cannot be replayed once it is no longer pending. Title and facts shown to the
+    owner are derived from the records it names, never from model text.
+    """
+
+    __tablename__ = "ln_owner_actions"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('pending','confirmed','cancelled','expired','superseded')",
+            name="ln_owner_action_status",
+        ),
+        CheckConstraint("source IN ('agent','system')", name="ln_owner_action_source"),
+        Index("ln_owner_action_owner_status", "owner_id", "status"),
+        Index("ln_owner_action_thread", "thread_id", "created_at"),
+        Index("ln_owner_action_subject", "owner_id", "kind", "subject"),
+        # One live card per agent and exact effect: a repeated proposal returns it.
+        Index(
+            "ln_owner_action_pending_effect",
+            "agent_id",
+            "kind",
+            "payload_hash",
+            unique=True,
+            postgresql_where=text("status = 'pending'"),
+            sqlite_where=text("status = 'pending'"),
+        ),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    owner_id: Mapped[str] = mapped_column(ForeignKey("ln_owners.id", ondelete="CASCADE"))
+    # Durable record: the agent and run ids are kept as values, never cascaded away.
+    agent_id: Mapped[str] = mapped_column(String(36))
+    thread_id: Mapped[str | None] = mapped_column(ForeignKey("ln_threads.id", ondelete="SET NULL"))
+    run_id: Mapped[str | None] = mapped_column(String(36))
+    # agent: proposed by an agent's tool call; system: raised from a runtime event.
+    source: Mapped[str] = mapped_column(String(8))
+    kind: Mapped[str] = mapped_column(String(32))
+    # The record the card acts on ("trading", "restriction:<id>", "operation:<id>", ...).
+    subject: Mapped[str] = mapped_column(String(160))
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON)
+    payload_hash: Mapped[str] = mapped_column(String(64))
+    status: Mapped[str] = mapped_column(String(16), default="pending")
+    status_reason: Mapped[str | None] = mapped_column(String(64))
+    result: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    timeline_seq: Mapped[int | None] = mapped_column(Integer)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # tap (one owner tap), passkey (owner tap plus a verified device assertion).
+    decided_via: Mapped[str | None] = mapped_column(String(16))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

@@ -297,8 +297,8 @@ export function TradingGoals({ agentId }: { agentId: string }) {
               <SuperBotCards agentId={agentId} goalId={goal.id} />
               <p className="muted">
                 <Trans>
-                  Global Trading and Emergency Stop still govern every financial operation. Pausing
-                  a goal does not close existing broker positions.
+                  Stop new trading, your pauses and the account's money limits still apply to every
+                  order. Pausing a goal does not close existing broker positions.
                 </Trans>
               </p>
               <div className="row">

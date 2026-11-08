@@ -33,6 +33,7 @@ CHECKS = (
     "check_workspace_runtime.py",
     "check_workspace_artifacts.py",
     "check_workspace_migrations.py",
+    "check_durable_records.py",
     "check_knowledge_retrieval.py",
     "check_conversation_recall.py",
     "check_tool_result_storage.py",

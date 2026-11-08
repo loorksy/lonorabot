@@ -52,9 +52,8 @@ function ResolveOperation({ entry, onResolved }: { entry: Journal; onResolved: (
         </select>
       </label>
       <label>
-        <Trans>Your statement</Trans>
+        <Trans>Your statement (optional)</Trans>
         <textarea
-          required
           maxLength={2000}
           value={statement}
           onChange={(event) => setStatement(event.target.value)}
@@ -69,7 +68,7 @@ function ResolveOperation({ entry, onResolved }: { entry: Journal; onResolved: (
           onChange={(event) => setReference(event.target.value)}
         />
       </label>
-      <button type="submit" disabled={busy || !statement.trim()}>
+      <button type="submit" disabled={busy}>
         <Trans>Record resolution</Trans>
       </button>
       {error != null && <p role="alert">{userError(error)}</p>}

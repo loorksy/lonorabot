@@ -13,11 +13,19 @@ from lonora_contracts.trading import TradingControl
 from lonora_core.attention import ATTENTION_KINDS, classify_attention
 from lonora_core.market_watch import condition_met
 from lonora_core.user_error import LonoraError
-from lonora_db.attention import attention_data, decide_attention, policy, set_cursor
+from lonora_db.attention import (
+    attention_data,
+    decide_attention,
+    policy,
+    raise_system_attention,
+    set_cursor,
+)
 from lonora_db.client import Database
 from lonora_db.events import PUBLIC_CURSOR, emit, publish_committed
+from lonora_db.item_failures import ItemGuard, blocked, due_retries
 from lonora_db.personal_agent import ensure_personal_agent
 from lonora_db.schema import (
+    AgentRow,
     AttentionRow,
     BrokerSessionRow,
     CollaborationSessionRow,
@@ -31,13 +39,18 @@ from lonora_db.schema import (
     TicketRow,
     TradeApprovalRow,
     TradingGoalRow,
+    TradingJournalRow,
     TradingOpportunityRow,
+    TradingRestrictionRow,
 )
 from lonora_db.threads import conversation_thread
 from lonora_db.transactions import SettingsRepository, owned_agent
 from lonora_market.watchers import observe
 from lonora_trading.opportunities import evidence_state
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from .owner_cards import CARD_EVENTS, follow_event
 
 
 async def validate_watch(db: Database, brokers: BrokerManager, row: MarketWatchRow) -> datetime:
@@ -153,6 +166,27 @@ async def candidate(
                     approval_id=resource.id,
                     symbol=resource.requests[0].get("symbol") if resource.requests else None,
                 )
+        elif event.kind == "trading.operation_updated":
+            resource = await session.get(TradingJournalRow, identifier)
+            if resource and resource.owner_id == event.owner_id:
+                # An older transition never withdraws or repeats a newer one, and a
+                # virtual (shadow) operation never reaches a broker to be uncertain about.
+                if resource.status != event.payload.get("status"):
+                    raise LonoraError("attention_superseded_state", 409)
+                if resource.execution_mode != "live":
+                    raise LonoraError("attention_source_unavailable", 404)
+                agent = await session.get(AgentRow, event.agent_id) if event.agent_id else None
+                if agent is None or agent.owner_id != event.owner_id:
+                    # The owner's own order, or its agent is gone: Lonora's conversation.
+                    agent_id, thread_id = personal.id, None
+                parameters.update(
+                    operation_id=resource.operation_id,
+                    account_id=resource.account_id,
+                    symbol=resource.request.get("symbol"),
+                )
+                scope = "operation:" + resource.operation_id
+        elif event.kind.startswith("trading.restriction_"):
+            resource = await session.get(TradingRestrictionRow, identifier)
         elif event.kind.startswith("watch."):
             resource = await session.get(MarketWatchRow, identifier)
             if resource and resource.owner_id == event.owner_id:
@@ -325,6 +359,118 @@ async def candidate(
     return classification, agent_id, thread_id, parameters, scope
 
 
+async def project_event(
+    db: Database, brokers: BrokerManager, owner_id: str, event: EventRow
+) -> None:
+    async with db.sessions() as session:
+        if await session.get(
+            EffectReceiptRow, "attention-source:" + owner_id + ":" + str(event.cursor)
+        ):
+            return
+    if event.kind in CARD_EVENTS:
+        # Owner action cards first: a failure retries this event before its notification.
+        async with db.sessions() as session, session.begin():
+            await follow_event(session, event)
+    suppression: str | None = None
+    try:
+        classification, agent_id, thread_id, parameters, scope = await candidate(db, brokers, event)
+    except (LonoraError, TimeoutError) as error:
+        suppression = (
+            error.code if isinstance(error, LonoraError) else "attention_revalidation_timeout"
+        )
+        classification = classify_attention(event.kind, event.payload)
+        async with db.sessions() as session, session.begin():
+            personal = await ensure_personal_agent(session, owner_id)
+            thread = await conversation_thread(session, owner_id, personal.id)
+            agent_id, thread_id, parameters, scope = (
+                personal.id,
+                thread.id,
+                {},
+                "suppressed:" + classification.resource_id,
+            )
+    async with db.sessions() as session, session.begin():
+        await decide_attention(
+            session,
+            event,
+            classification,
+            agent_id=agent_id,
+            thread_id=thread_id,
+            parameters=parameters,
+            coalesce_scope=scope,
+            suppression_code=suppression,
+        )
+    if classification.importance in {"critical", "action_required"}:
+        await ready_attention(db, brokers, owner_id)
+
+
+URGENT = frozenset({"critical", "action_required"})
+
+
+async def quarantine_event(session: AsyncSession, item_id: str) -> bool:
+    """Quarantine: an event that keeps failing is recorded as decided and never re-read.
+
+    A critical or action-required event still reaches the owner under its own code
+    (without the details its failed projection would have added): a projection bug
+    must never cost the owner an Emergency Stop or approval alert.
+    """
+    event = await session.get(EventRow, int(item_id))
+    if event is None:
+        return True
+    key = "attention-source:" + event.owner_id + ":" + str(event.cursor)
+    classification = classify_attention(event.kind, event.payload)
+    if classification.importance in URGENT:
+        await raise_system_attention(
+            session,
+            event.owner_id,
+            classification.code,
+            "event:" + str(event.cursor),
+            {"reason_code": "attention_projection_failed"},
+            agent_id=event.agent_id,
+            thread_id=event.thread_id,
+            importance=classification.importance,
+        )
+    if await session.get(EffectReceiptRow, key) is None:
+        session.add(
+            EffectReceiptRow(
+                key=key,
+                result={
+                    "source_event": event.cursor,
+                    "status": "suppressed",
+                    "reason_code": "attention_projection_failed",
+                },
+            )
+        )
+    return True
+
+
+async def suppress_item(session: AsyncSession, item_id: str) -> bool:
+    """Quarantine: a notification that cannot be readied is not retried forever.
+
+    A critical or action-required one is delivered as it is rather than lost; any
+    other is suppressed.
+    """
+    row = await session.get(AttentionRow, item_id, with_for_update=True)
+    if row is not None and row.status == "pending":
+        urgent = row.importance in URGENT
+        row.status, row.version, row.updated_at = (
+            "ready" if urgent else "suppressed",
+            row.version + 1,
+            utcnow(),
+        )
+        if not urgent:
+            row.parameters = {**row.parameters, "suppression_code": "attention_projection_failed"}
+        for kind in ("attention.updated", "attention.ready") if urgent else ("attention.updated",):
+            emit(
+                session,
+                row.owner_id,
+                kind,
+                agent_id=row.agent_id,
+                thread_id=row.thread_id,
+                payload=attention_data(row),
+            )
+    return True
+
+
 async def attention_tick(db: Database, brokers: BrokerManager, owner_id: str) -> int:
     async with db.sessions() as session:
         await publish_committed(session)
@@ -352,49 +498,54 @@ async def attention_tick(db: Database, brokers: BrokerManager, owner_id: str) ->
             else 1
         )
     )
-    for event in events:
-        async with db.sessions() as session:
-            if await session.get(
-                EffectReceiptRow, "attention-source:" + owner_id + ":" + str(event.cursor)
-            ):
+    # Each event is isolated: one that raises or hangs past its own time limit is
+    # recorded in the failure ledger and retried there, so the cursor still advances past
+    # it and later events (critical broker alerts included) are never stuck behind it.
+    guard = ItemGuard(db, "attention_event", quarantine=quarantine_event)
+    await guard.prepare(str(event.cursor) for event in events)
+    order = sorted(int(event.payload[PUBLIC_CURSOR]) for event in events)
+    handled: set[int] = set()
+    written = cursor
+
+    async def advance(position: int) -> None:
+        # Per event, over the handled prefix only (critical events are handled first),
+        # so even a cancelled iteration keeps every event it already decided.
+        nonlocal written
+        handled.add(position)
+        target = written
+        for value in order:
+            if value <= written:
                 continue
-        suppression: str | None = None
-        try:
-            classification, agent_id, thread_id, parameters, scope = await candidate(
-                db, brokers, event
-            )
-        except (LonoraError, TimeoutError) as error:
-            suppression = (
-                error.code if isinstance(error, LonoraError) else "attention_revalidation_timeout"
-            )
-            classification = classify_attention(event.kind, event.payload)
+            if value not in handled:
+                break
+            target = value
+        if target > written:
             async with db.sessions() as session, session.begin():
-                personal = await ensure_personal_agent(session, owner_id)
-                thread = await conversation_thread(session, owner_id, personal.id)
-                agent_id, thread_id, parameters, scope = (
-                    personal.id,
-                    thread.id,
-                    {},
-                    "suppressed:" + classification.resource_id,
-                )
-        async with db.sessions() as session, session.begin():
-            await decide_attention(
-                session,
-                event,
-                classification,
-                agent_id=agent_id,
-                thread_id=thread_id,
-                parameters=parameters,
-                coalesce_scope=scope,
-                suppression_code=suppression,
-            )
-        if classification.importance in {"critical", "action_required"}:
-            await ready_attention(db, brokers, owner_id)
-    if events:
-        async with db.sessions() as session, session.begin():
-            await set_cursor(
-                session, owner_id, max(int(event.payload[PUBLIC_CURSOR]) for event in events)
-            )
+                await set_cursor(session, owner_id, target)
+            written = target
+
+    for event in events:
+        if str(event.cursor) not in guard.failing:
+
+            async def project(event: EventRow = event) -> None:
+                await project_event(db, brokers, owner_id, event)
+
+            await guard.run(str(event.cursor), owner_id, project)
+        await advance(int(event.payload[PUBLIC_CURSOR]))
+    async with db.sessions() as session:
+        retries = [
+            event
+            for failure in await due_retries(session, "attention_event", owner_id)
+            if (event := await session.get(EventRow, int(failure.item_id))) is not None
+        ]
+    retry = ItemGuard(db, "attention_event", quarantine=quarantine_event)
+    await retry.prepare(str(event.cursor) for event in retries)
+    for event in retries:
+
+        async def again(event: EventRow = event) -> None:
+            await project_event(db, brokers, owner_id, event)
+
+        await retry.run(str(event.cursor), owner_id, again)
     return await ready_attention(db, brokers, owner_id)
 
 
@@ -407,63 +558,77 @@ async def ready_attention(db: Database, brokers: BrokerManager, owner_id: str) -
                     AttentionRow.owner_id == owner_id,
                     AttentionRow.status == "pending",
                     AttentionRow.due_at <= utcnow(),
+                    ~blocked("attention_item", AttentionRow.id),
                 )
                 .order_by(AttentionRow.due_at)
                 .limit(50)
             )
         )
+    guard = ItemGuard(db, "attention_item", quarantine=suppress_item)
+    await guard.prepare(row.id for row in rows)
     count = 0
     for original in rows:
-        suppression = None
-        async with db.sessions() as session:
-            settings = await policy(session, owner_id)
-        if original.importance == "opportunity" and not settings.opportunities:
-            suppression = "owner_opportunity_preference"
-        if original.importance == "informational" and not settings.informational:
-            suppression = "owner_informational_preference"
-        if original.importance == "opportunity" and suppression is None:
-            async with db.sessions() as session:
-                source = await session.get(EventRow, original.source_events[-1])
-            if source:
-                try:
-                    await candidate(db, brokers, source)
-                except (LonoraError, TimeoutError) as error:
-                    suppression = (
-                        error.code
-                        if isinstance(error, LonoraError)
-                        else "attention_revalidation_timeout"
-                    )
-            else:
-                suppression = "attention_source_unavailable"
-        async with db.sessions() as session, session.begin():
-            row = await session.get(
-                AttentionRow, original.id, with_for_update=True, populate_existing=True
-            )
-            if row is None or row.status != "pending" or row.version != original.version:
-                continue
-            row.status, row.version, row.updated_at = (
-                "suppressed" if suppression else "ready",
-                row.version + 1,
-                utcnow(),
-            )
-            if suppression:
-                row.parameters = {**row.parameters, "suppression_code": suppression}
-            emit(
-                session,
-                owner_id,
-                "attention.updated",
-                agent_id=row.agent_id,
-                thread_id=row.thread_id,
-                payload=attention_data(row),
-            )
-            if not suppression:
-                emit(
-                    session,
-                    owner_id,
-                    "attention.ready",
-                    agent_id=row.agent_id,
-                    thread_id=row.thread_id,
-                    payload=attention_data(row),
-                )
-                count += 1
+
+        async def ready(original: AttentionRow = original) -> bool:
+            return await ready_one(db, brokers, owner_id, original)
+
+        count += int(bool(await guard.run(original.id, owner_id, ready)))
     return count
+
+
+async def ready_one(
+    db: Database, brokers: BrokerManager, owner_id: str, original: AttentionRow
+) -> bool:
+    suppression = None
+    async with db.sessions() as session:
+        settings = await policy(session, owner_id)
+    if original.importance == "opportunity" and not settings.opportunities:
+        suppression = "owner_opportunity_preference"
+    if original.importance == "informational" and not settings.informational:
+        suppression = "owner_informational_preference"
+    if original.importance == "opportunity" and suppression is None:
+        async with db.sessions() as session:
+            source = await session.get(EventRow, original.source_events[-1])
+        if source:
+            try:
+                await candidate(db, brokers, source)
+            except (LonoraError, TimeoutError) as error:
+                suppression = (
+                    error.code
+                    if isinstance(error, LonoraError)
+                    else "attention_revalidation_timeout"
+                )
+        else:
+            suppression = "attention_source_unavailable"
+    async with db.sessions() as session, session.begin():
+        row = await session.get(
+            AttentionRow, original.id, with_for_update=True, populate_existing=True
+        )
+        if row is None or row.status != "pending" or row.version != original.version:
+            return False
+        row.status, row.version, row.updated_at = (
+            "suppressed" if suppression else "ready",
+            row.version + 1,
+            utcnow(),
+        )
+        if suppression:
+            row.parameters = {**row.parameters, "suppression_code": suppression}
+        emit(
+            session,
+            owner_id,
+            "attention.updated",
+            agent_id=row.agent_id,
+            thread_id=row.thread_id,
+            payload=attention_data(row),
+        )
+        if suppression:
+            return False
+        emit(
+            session,
+            owner_id,
+            "attention.ready",
+            agent_id=row.agent_id,
+            thread_id=row.thread_id,
+            payload=attention_data(row),
+        )
+        return True

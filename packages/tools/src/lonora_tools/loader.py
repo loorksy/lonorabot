@@ -37,6 +37,7 @@ MODULES = {
     "account": "account",
     "trade": "trading",
     "restrictions": "trading",
+    "owner_actions": "trading",
     "trading_goal": "goals",
     "super_bot": "goals",
     "runtime_control": "tasks",

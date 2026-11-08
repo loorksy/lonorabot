@@ -57,7 +57,8 @@ fresh broker target read at the boundary:
 Everything else — entries, pending-order edits, take-profit changes, removing or
 widening protection — is risk-increasing.
 
-- Trading OFF and Emergency Stop reject risk-increasing requests only. A
+- Stop new trading (Trading OFF or the legacy Emergency Stop flag, one brake in the
+  clients, see `trading-safety.md`) rejects risk-increasing requests only. A
   risk-reducing request stays admissible on every path; this relaxes no
   authorization (owner session, exact approval or matching signed grant still apply,
   and the lease, preflight and broker checks still run).
@@ -92,8 +93,10 @@ server evidence. Neither ever blocks a risk-reducing request, except an explicit
 
 ## Observe-only recovery
 
-`reconcile_ambiguous` (gateway maintenance loop, every 10 s, bounded and rotating)
-and `reconcile_broker_account` share `observe_operation` and never send.
+`reconcile_ambiguous` (the gateway's own `reconcile` step, every 10 s, bounded and
+rotating, with a 30 s timeout per broker observation; see `docs/gateway-reliability.md`)
+and `reconcile_broker_account` share `observe_operation` and never send. No other
+maintenance step can delay or stop it.
 `reconcile_broker_account` observes while holding the account send lock, so every
 `submitted` row it sees has lost its sender; rows it cannot settle mark the account
 `degraded` for their market.
@@ -146,7 +149,10 @@ receipt is never changed.
 
 `POST /trading/journal/{operation_id}/resolve` with
 `{"outcome": "executed" | "not_executed" | "unknown", "statement": "...", "broker_reference": "..."}`
-records an attestation for an `ambiguous` live operation. It requires the
+records an attestation for an `ambiguous` live operation. The statement and reference
+are optional; without a statement the record reads "Owner attested; not broker
+confirmation." The conversation's resolve card (`docs/owner-actions.md`) runs the same
+attestation. It requires the
 authenticated owner session (cookie with CSRF, or bearer token); the passkey device
 proof is not required because the action authorizes no broker mutation. The row
 becomes `resolved` with `details.resolution` (source `owner`, outcome, statement,
@@ -159,7 +165,7 @@ ambiguous entries. A resolved Goal step stays blocked for an explicit owner deci
 Consumers of `resolved`:
 
 - Opportunity theses (`sync_opportunity_execution`, run by the executor, by this
-  route and by the maintenance loop) read the outcome from the attestation: `executed`
+  route and by the gateway maintenance steps) read the outcome from the attestation: `executed`
   acts on the thesis as a confirmed entry would; `not_executed` releases the pending
   link so the thesis can be acted on again; an entry of `unknown` outcome still acts
   on the thesis so it can never authorize a second entry. A management operation of
@@ -215,3 +221,18 @@ Today every other caller (`trade_execute`, Goal steps) submits a single request.
   entry position completes its thesis.
 - `tests/check_trading.py`: concurrency, lost responses, cancellation, legacy rows and
   observer fencing.
+
+## Durable records and deletes
+
+Journal rows, approvals, grants, restrictions, goal decisions and Super Bot requests
+survive the agent, conversation, Run, goal or broker connection they name (migration
+`0036_durable_records`). A delete of an agent, a conversation or a broker connection is
+refused with `delete_blocked_unresolved_operation` while an operation it touches has no
+confirmed broker outcome. Otherwise the delete settles what depended on the parent: a
+grant signed in a deleted conversation is revoked visibly, its Super Bot requests are
+stopped, its goals cancelled with `goal_origin_deleted` and its waiting owner action
+cards superseded, so no record keeps reading active while it can no longer run. A live
+operation still uncertain after fifteen minutes raises one `operation_unresolved`
+attention item from the watchdog, in the conversation of the agent that placed it,
+unless its resolve card already asks the owner; it is never resent. See
+`docs/gateway-reliability.md`.

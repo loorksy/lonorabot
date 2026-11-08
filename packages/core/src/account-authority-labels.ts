@@ -16,9 +16,9 @@ export const accountAuthorityLabels = {
     pending: "Waiting for your signature",
     revoked: "Revoked",
     expired: "Expired",
-    hint: "Authorize this agent once within exact limits. Trading controls and Emergency Stop still apply to every order.",
+    hint: "Authorize this agent once within exact limits. Stop new trading, your pauses and the account's money limits still apply to every order.",
     limitsUnavailable:
-      "These limits control volume, equity and activity. Monetary loss ceilings and daily loss budgets are not implemented; these limits cannot guarantee a maximum loss.",
+      "These limits control volume, equity and activity. Money limits (daily loss, risk per trade at the stop, total open risk, free-margin floor) are set on the account and checked before every order.",
     create: "Review new permission",
     review: "Review and sign",
     revoke: "Stop management",
@@ -74,9 +74,9 @@ export const accountAuthorityLabels = {
     pending: "بانتظار توقيعك",
     revoked: "ملغى",
     expired: "منتهي",
-    hint: "فوّض هذا الوكيل مرة واحدة ضمن حدود واضحة. تبقى ضوابط التداول والإيقاف الطارئ نافذة على كل أمر.",
+    hint: "فوّض هذا الوكيل مرة واحدة ضمن حدود واضحة. يبقى إيقاف الصفقات الجديدة وإيقافاتك والحدود المالية للحساب نافذة على كل أمر.",
     limitsUnavailable:
-      "تضبط هذه الحدود الحجم والسيولة والنشاط. حد الخسارة النقدية للصفقة وحد الخسارة اليومية غير مطبّقين، وهذه الحدود لا تضمن حداً أقصى للخسارة.",
+      "تضبط هذه الحدود الحجم والسيولة والنشاط. الحدود المالية (الخسارة اليومية، والمخاطرة لكل صفقة عند الوقف، وإجمالي المخاطرة المفتوحة، والحد الأدنى للهامش الحر) تُحدد على الحساب وتُفحص قبل كل أمر.",
     create: "مراجعة تفويض جديد",
     review: "مراجعة وتوقيع",
     revoke: "إيقاف الإدارة",

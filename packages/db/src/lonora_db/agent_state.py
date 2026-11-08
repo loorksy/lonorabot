@@ -23,6 +23,7 @@ from .schema import (
     TradingGoalRow,
 )
 from .tasks import OWNER_ATTENTION, snapshot
+from .trading_readiness import account_money_limits, trading_readiness
 from .transactions import owned_agent
 
 
@@ -31,7 +32,14 @@ def attention(task: dict[str, Any]) -> bool:
     return task["status"] == "waiting" and task["waiting_reason"] == OWNER_ATTENTION
 
 
-async def agent_live_state(session: AsyncSession, owner_id: str, agent_id: str) -> AgentLiveState:
+async def agent_live_state(
+    session: AsyncSession, owner_id: str, agent_id: str, *, readiness: bool = False
+) -> AgentLiveState:
+    """``readiness`` adds the owner-facing trading readiness (presentation only).
+
+    The model's routing frame leaves it out: its permission frame re-reads the same
+    records every turn, so the agent never sees the same facts twice.
+    """
     agent = await owned_agent(session, owner_id, agent_id)
     runs = list(
         await session.scalars(
@@ -247,7 +255,17 @@ async def agent_live_state(session: AsyncSession, owner_id: str, agent_id: str) 
                 "maximum_actions": envelope.get("maximum_actions"),
                 "minimum_equity": envelope.get("minimum_equity"),
                 "allow_manual_positions": bool(envelope.get("allow_manual_positions")),
-                "monetary_stop_risk": "unavailable",
+                # The owner's view adds the account's money limits; the agent reads
+                # them in its permission frame instead of twice per turn.
+                **(
+                    {
+                        "money_limits": await account_money_limits(
+                            session, owner_id, account_grant.account_id
+                        )
+                    }
+                    if readiness
+                    else {}
+                ),
             }
         )
         if len(account_authorities) == 3:
@@ -429,4 +447,5 @@ async def agent_live_state(session: AsyncSession, owner_id: str, agent_id: str) 
             for row in sessions
         ],
         health=health[:6],
+        trading_readiness=await trading_readiness(session, owner_id, agent) if readiness else None,
     )

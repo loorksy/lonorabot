@@ -12,16 +12,15 @@ from lonora_contracts.trading import (
     TradeResult,
     TradingControl,
 )
-from lonora_core.user_error import LonoraError
 from lonora_db.broker_sessions import BrokerSessionRepository
-from lonora_db.trading_journal import journal_entries, resolve_operation
+from lonora_db.obligations import prepare_delete
+from lonora_db.trading_journal import journal_entries
 from lonora_db.transactions import resource_data
 from lonora_trading.accounts import account_snapshot
 from lonora_trading.connections import connect_account
 from lonora_trading.controls import read_controls, save_controls
 from lonora_trading.journal import journal_data
-from lonora_trading.operation_events import resolution_event
-from lonora_trading.opportunities import sync_opportunity_execution
+from lonora_trading.owner_controls import attest_operation
 from lonora_trading.simulation import import_simulation
 
 from ..middleware.auth import require_owner, runtime
@@ -83,6 +82,9 @@ async def disconnect(
 ) -> dict[str, bool]:
     rt = runtime(request)
     async with rt.db.sessions() as session, session.begin():
+        # Refused while an operation on this account is uncertain; grants on it are
+        # revoked first, and its journal, grants and restrictions outlive it.
+        await prepare_delete(session, owner.id, account_id=connection_id)
         await BrokerSessionRepository().delete(session, owner.id, connection_id)
     prior = rt.services(owner.id).brokers.connections.pop(connection_id, None)
     if prior:
@@ -138,7 +140,7 @@ async def resolve(
     original receipt and evidence stay on the row and the attestation is a durable event.
     """
     async with runtime(request).db.sessions() as session, session.begin():
-        row = await resolve_operation(
+        row = await attest_operation(
             session,
             owner.id,
             operation_id,
@@ -150,14 +152,6 @@ async def resolve(
                 "session_ref": owner.token_hash[:16],
             },
         )
-        await resolution_event(session, row)
-        if row.request.get("thesis_id"):
-            # Release or settle the thesis link now, not on the next maintenance pass.
-            try:
-                await sync_opportunity_execution(session, row)
-            except LonoraError as error:
-                if error.code != "opportunity_not_found":
-                    raise
         return journal_data(row)
 
 

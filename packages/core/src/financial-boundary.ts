@@ -18,6 +18,15 @@ const HISTORY: Text = {
 };
 
 const messages: Readonly<Record<string, Text>> = {
+  // One brake: Trading OFF and the legacy Emergency Stop are both "Stop new trading".
+  trading_disabled: {
+    en: `New trading is stopped for every agent and your manual orders, so this was not sent. ${EXITS_EN} Tap Resume trading when you want trading to continue.`,
+    ar: `التداول الجديد متوقف لكل الوكلاء ولأوامرك اليدوية، لذلك لم يُرسل هذا الطلب. ${EXITS_AR} اضغط «استئناف التداول» متى أردت متابعة التداول.`,
+  },
+  emergency_stop: {
+    en: `New trading is stopped for every agent and your manual orders, so this was not sent. ${EXITS_EN} Tap Resume trading when you want trading to continue.`,
+    ar: `التداول الجديد متوقف لكل الوكلاء ولأوامرك اليدوية، لذلك لم يُرسل هذا الطلب. ${EXITS_AR} اضغط «استئناف التداول» متى أردت متابعة التداول.`,
+  },
   trading_restriction_active: {
     en: "A trading pause on this account or market blocks this request, so it was not sent. Only you can lift the pause.",
     ar: "يمنع إيقافٌ للتداول على هذا الحساب أو السوق هذا الطلب، لذلك لم يُرسل. أنت وحدك من يمكنه رفع الإيقاف.",
@@ -108,6 +117,10 @@ const messages: Readonly<Record<string, Text>> = {
   restriction_account_required: {
     en: "Choose the account for this pause.",
     ar: "اختر الحساب لهذا الإيقاف.",
+  },
+  delete_blocked_unresolved_operation: {
+    en: "This can’t be deleted yet: a trade linked to it still has no confirmed broker result. Settle that operation first; nothing was deleted.",
+    ar: "لا يمكن الحذف الآن: صفقة مرتبطة به ما زالت بلا نتيجة مؤكدة من الوسيط. احسم تلك العملية أولًا؛ لم يُحذف شيء.",
   },
 };
 

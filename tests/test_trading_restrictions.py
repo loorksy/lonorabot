@@ -8,11 +8,7 @@ from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
-from lonora_agent.context.permissions import (
-    permission_guidance,
-    restriction_frame,
-    risk_limit_frame,
-)
+from lonora_agent.context.permissions import permission_guidance, restriction_frame
 from lonora_contracts.account import AccountState, Order, Position
 from lonora_contracts.execution_quality import ExecutionPolicy, ExecutionSnapshot
 from lonora_contracts.market import Instrument, Quote
@@ -22,6 +18,7 @@ from lonora_contracts.trading_restrictions import AgentRestrictionRequest, Tradi
 from lonora_core.user_error import LonoraError
 from lonora_db.schema import AgentRow, TradingJournalRow, TradingRestrictionRow
 from lonora_db.trading_journal import SERVER_EVIDENCE
+from lonora_db.trading_readiness import risk_limit_frame
 from lonora_db.trading_restrictions import relevant_to, restriction_data, restriction_state
 from lonora_tools.loader import load_tools
 from lonora_tools.market_binding import fill_bound_fields

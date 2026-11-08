@@ -139,3 +139,93 @@ export type TradeApproval = {
   }[];
   created_at: string;
 };
+/** Owner money limits of one account (lonora_db.trading_readiness.risk_limit_frame). */
+export type MoneyLimitName =
+  | "max_trade_risk"
+  | "max_trade_risk_equity_percent"
+  | "max_daily_loss"
+  | "max_open_risk"
+  | "max_open_risk_equity_percent"
+  | "min_free_margin";
+export type MoneyLimits = {
+  account_id: string;
+  /** False: no money limit is set on this account, so none is enforced. */
+  configured: boolean;
+  currency: string | null;
+  limits: Partial<Record<MoneyLimitName, string>>;
+  not_configured: MoneyLimitName[];
+  trading_day_timezone?: string;
+};
+export type RestrictionActionClass = "no_new_entries" | "no_risk_increase" | "all_mutations";
+/** Stop new trading / Resume, for every agent and the owner's manual orders. */
+export type GlobalTrading = {
+  state: "running" | "stopped";
+  since: string | null;
+  changed_by: "owner" | "default";
+};
+export type TradingReadinessState =
+  | "no_trading"
+  | "agent_paused"
+  | "stopped"
+  | "paused"
+  | "uncertain"
+  | "ask_me"
+  | "on_its_own";
+/**
+ * Presentation only: can this agent trade now, and what stops it. Built on the server
+ * from the records the executor reads; never consulted for enforcement.
+ */
+export type TradingReadiness = {
+  presentation_only: true;
+  observed_at: string;
+  state: TradingReadinessState;
+  params: {
+    since?: string | null;
+    action_class?: RestrictionActionClass;
+    valid_until?: string | null;
+    symbol?: string | null;
+    /** The account of the strongest pause; the line names it when there are several. */
+    account_id?: string;
+    count?: number;
+    symbol_scope?: "selected" | "account";
+    symbols?: string[];
+    grant_count?: number;
+    money_limit_set?: boolean;
+  };
+  level: "analysis" | "supervised" | "autonomous";
+  grants: Array<{
+    account_id: string;
+    symbol_scope: "selected" | "account";
+    symbols: string[];
+    actions: string[];
+    allow_manual_positions: boolean;
+    valid_until: string | null;
+  }>;
+  global_trading: GlobalTrading;
+  restrictions: Array<{
+    id: string;
+    account_id: string;
+    symbol: string | null;
+    action_class: RestrictionActionClass;
+    state: "active" | "scheduled";
+    applies_to: "all_agents" | "this_agent";
+    includes_owner_manual: boolean;
+    valid_from: string;
+    valid_until: string | null;
+    source: "owner_ui" | "owner_message" | "agent";
+    created_by_agent_id: string | null;
+  }>;
+  money_limits: MoneyLimits[];
+  unresolved_operations: Array<{
+    operation_id: string;
+    account_id: string;
+    symbol: string;
+    action: string;
+    status: "submitted" | "ambiguous";
+    submitted_at: string | null;
+    this_agent: boolean;
+    blocks: "new_risk_on_this_symbol_or_ticket";
+  }>;
+  unresolved_count: number;
+  exits_allowed: boolean;
+};

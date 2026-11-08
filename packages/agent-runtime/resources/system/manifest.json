@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "manual_sha256": "c87e63e9f7d9943fbceba85a0273aab200998881071b8324662273e3cbffa5ab",
+  "manual_sha256": "9105945b532dce807e8c39b67b00fa88a2d738a63a44d3d7273f003eae25974c",
   "bootstrap_sha256": {
     "AGENTS.md": "e49bf686b452d5a1102586f7120509166697304688c6d4c65ab37c781e25d686",
     "MEMORY.md": "3d1a19663897e1e37d9e37c835318ecb9b23a0a984d89f9e0ed630d34a807302",
@@ -91,6 +91,7 @@
     "trade_close_positions": "trading",
     "trade_restriction_create": "trading",
     "trade_restriction_list": "trading",
+    "owner_action_propose": "trading",
     "goal_create": "goals",
     "goal_list": "goals",
     "goal_read": "goals",

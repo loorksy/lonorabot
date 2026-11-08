@@ -1,15 +1,23 @@
 import { i18n } from "@lingui/core";
 import { t } from "@lingui/core/macro";
-import { agentPermissionError, errorCode, financialBoundaryError } from "@lonora/core";
+import {
+  agentPermissionError,
+  errorCode,
+  financialBoundaryError,
+  ownerActionError,
+} from "@lonora/core";
 import { isRequestCancelled } from "./api";
 export function userError(error: unknown) {
   if (isRequestCancelled(error)) return "";
   const code = errorCode(error);
   const permissionMessage = agentPermissionError(code, i18n.locale);
   if (permissionMessage) return permissionMessage;
-  // Restrictions, money limits and boundary blocks: why nothing was sent, shared text.
+  // Stop new trading, restrictions, money limits and boundary blocks: why nothing was
+  // sent, in text shared with Mobile (@lonora/core).
   const boundaryMessage = financialBoundaryError(code, i18n.locale);
   if (boundaryMessage) return boundaryMessage;
+  const cardMessage = ownerActionError(code, i18n.locale);
+  if (cardMessage) return cardMessage;
   switch (code) {
     case "agent_scope_change_forbidden":
       return t`This agent’s market scope cannot be changed.`;
@@ -99,10 +107,6 @@ export function userError(error: unknown) {
       return t`The model provider rejected this request.`;
     case "model_response_invalid":
       return t`The model provider returned an unreadable response. Try again.`;
-    case "trading_disabled":
-      return t`Trading is off.`;
-    case "emergency_stop":
-      return t`Emergency stop is active.`;
     case "broker_trading_not_allowed":
       return t`This broker account does not permit trading. Check its trading permissions.`;
     case "goal_autonomy_required":
@@ -119,6 +123,8 @@ export function userError(error: unknown) {
     case "goal_not_active":
     case "goal_terminal":
       return t`This goal is paused, cancelled or completed. Reload its current state.`;
+    case "goal_origin_deleted":
+      return t`This goal stopped because its conversation or agent was deleted. Its history is kept.`;
     case "goal_condition_unmet":
     case "goal_condition_stale":
       return t`The current market no longer confirms this goal's condition. No trade was sent.`;

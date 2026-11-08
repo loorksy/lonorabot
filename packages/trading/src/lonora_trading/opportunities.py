@@ -339,10 +339,12 @@ async def sync_opportunity_execution(session: AsyncSession, journal: TradingJour
 
 
 async def maintenance_opportunities(db: Database, owner_id: str) -> int:
-    async with db.sessions() as session, session.begin():
-        rows = list(
+    from lonora_db.item_failures import ItemGuard, blocked
+
+    async with db.sessions() as session:
+        identifiers = list(
             await session.scalars(
-                select(TradingOpportunityRow)
+                select(TradingOpportunityRow.id)
                 .where(
                     TradingOpportunityRow.owner_id == owner_id,
                     or_(
@@ -356,24 +358,44 @@ async def maintenance_opportunities(db: Database, owner_id: str) -> int:
                         .as_string()
                         .is_not(None),
                     ),
+                    ~blocked("opportunity", TradingOpportunityRow.id),
                 )
                 .order_by(TradingOpportunityRow.updated_at)
                 .limit(100)
-                .with_for_update(skip_locked=True)
             )
         )
-        for row in rows:
-            for key in ("pending_entry_operation_id", "pending_management_operation_id"):
-                operation_id = row.state.get(key)
-                if operation_id:
-                    journal = await session.get(TradingJournalRow, operation_id)
-                    if journal:
-                        await sync_opportunity_execution(session, journal)
-            await refresh_opportunity(session, row)
-            row.updated_at = (
-                utcnow()
-            )  # Fair bounded polling; not a new evidence timestamp or event.
-        return len(rows)
+    # Each opportunity refreshes in its own transaction. One that may track a pending
+    # operation backs off when it fails, but is never quarantined.
+    guard = ItemGuard(db, "opportunity", quarantine_after=None)
+    await guard.prepare(identifiers)
+    refreshed = 0
+    for identifier in identifiers:
+
+        async def refresh(identifier: str = identifier) -> bool:
+            async with db.sessions() as session, session.begin():
+                return await maintain_opportunity(session, identifier)
+
+        refreshed += int(bool(await guard.run(identifier, owner_id, refresh)))
+    return refreshed
+
+
+async def maintain_opportunity(session: AsyncSession, identifier: str) -> bool:
+    row = await session.scalar(
+        select(TradingOpportunityRow)
+        .where(TradingOpportunityRow.id == identifier)
+        .with_for_update(skip_locked=True)
+    )
+    if row is None:
+        return False
+    for key in ("pending_entry_operation_id", "pending_management_operation_id"):
+        operation_id = row.state.get(key)
+        if operation_id:
+            journal = await session.get(TradingJournalRow, operation_id)
+            if journal:
+                await sync_opportunity_execution(session, journal)
+    await refresh_opportunity(session, row)
+    row.updated_at = utcnow()  # Fair bounded polling; not a new evidence timestamp or event.
+    return True
 
 
 async def wake_opportunity(session: AsyncSession, row: TradingOpportunityRow) -> None:

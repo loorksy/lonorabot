@@ -73,9 +73,15 @@ export function Trading() {
             <Positions
               accountId={id}
               positions={trading.account?.positions ?? []}
+              journal={trading.journal}
               onChange={refresh}
             />
-            <Orders accountId={id} orders={trading.account?.orders ?? []} onChange={refresh} />
+            <Orders
+              accountId={id}
+              orders={trading.account?.orders ?? []}
+              journal={trading.journal}
+              onChange={refresh}
+            />
           </div>
           <TradeActionCard
             key={id}

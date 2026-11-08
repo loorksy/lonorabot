@@ -64,6 +64,23 @@ def update_goal_state(session: AsyncSession, row: TradingGoalRow, state: dict[st
     )
 
 
+TERMINAL_GOAL_STATUSES = frozenset({"cancelled", "completed"})
+
+
+def settle_orphaned_goal(session: AsyncSession, row: TradingGoalRow) -> bool:
+    """A goal whose conversation or agent is deleted stops once and stays as history.
+
+    It can no longer wake, review its target or trade, so it is cancelled with a clear
+    code instead of waiting forever. Its decisions and journal links are kept.
+    """
+    if row.state.get("status") in TERMINAL_GOAL_STATUSES:
+        return False
+    state = copy.deepcopy(row.state)
+    state.update(status="cancelled", code="goal_origin_deleted", autonomous=False)
+    update_goal_state(session, row, state)
+    return True
+
+
 async def create_goal(
     session: AsyncSession,
     owner_id: str,

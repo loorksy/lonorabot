@@ -9,6 +9,7 @@ from lonora_db.agent_super_bot import active_super_bot_agents
 from lonora_db.agents import agent_data, create_agent, list_agents, update_agent
 from lonora_db.broker_sessions import BrokerSessionRepository
 from lonora_db.events import emit
+from lonora_db.obligations import prepare_delete
 from lonora_db.skill_controls import delete_skill_controls
 from lonora_db.super_bot import authority_lock
 from lonora_db.threads import conversation_thread, thread_data
@@ -116,9 +117,13 @@ async def delete(
     request: Request, agent_id: str, owner: OwnerIdentity = Depends(require_owner)
 ) -> dict[str, bool]:
     async with runtime(request).db.sessions() as session, session.begin():
+        await authority_lock(session, agent_id)
         agent = await owned_agent(session, owner.id, agent_id, lock=True)
         if agent.role == "personal":
             raise LonoraError("personal_agent_cannot_delete", 409)
+        # Refused while its trade is uncertain; its grants and approvals are narrowed
+        # first, and its financial records outlive it.
+        await prepare_delete(session, owner.id, agent_id=agent_id)
         await delete_skill_controls(session, owner.id, agent_id)
         await session.delete(agent)
     return {"deleted": True}

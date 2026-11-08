@@ -172,7 +172,10 @@ async def main() -> None:
         proposal = await propose()
         assert proposal["status"] == "pending"
         assert (await propose())["id"] == proposal["id"]
-        assert proposal["monetary_stop_risk"] == "unavailable"
+        # The grant summary reports the account's T3 money limits; none is set here.
+        assert "monetary_stop_risk" not in proposal
+        assert proposal["money_limits"]["configured"] is False
+        assert proposal["money_limits"]["limits"] == {}
         before = await broker.snapshot()
         pending = await operation(volume="0.1", stop_loss="90")
         assert pending["_runtime_wait"] and await broker.snapshot() == before
@@ -567,6 +570,41 @@ async def main() -> None:
             "device_challenge_expired_or_used",
         )
         print("PASS persisted envelope tampering and expired challenges cannot activate authority")
+
+        # Deleting the agent while its trade is uncertain is refused; the owner settles
+        # it first (an attestation, never a resend), and the fixture cleanup then deletes.
+        blocked = await f.client.delete("/api/agents/" + agent["id"])
+        assert blocked.status_code == 409
+        assert blocked.json()["code"] == "delete_blocked_unresolved_operation"
+        settled = await f.request(
+            "POST",
+            f"/trading/journal/{ambiguous['operation_id']}/resolve",
+            {"outcome": "executed", "statement": "Checked the broker terminal: it executed."},
+        )
+        assert settled["status"] == "resolved", settled
+        print("PASS an agent with an uncertain trade cannot be deleted until the owner settles it")
+
+        # Deleting the conversation a grant was signed in revokes that grant visibly:
+        # its record, the permission frame and the trade path agree.
+        # A distinct scope: the identical request still names the tampered pending one.
+        doomed = await activate(maximum_actions=50)
+        assert doomed["status"] == "active" and doomed["thread_id"] == thread["id"]
+        removed = await f.client.delete("/api/threads/" + thread["id"])
+        assert removed.status_code == 200, removed.text
+        listed = cast(
+            list[dict[str, Any]],
+            await f.request("GET", f"/agents/{agent['id']}/account-authorities"),
+        )
+        assert next(item for item in listed if item["id"] == doomed["id"])["status"] == "revoked"
+        frame = await f.request("GET", f"/agents/{agent['id']}/permissions")
+        assert frame["status"] == "autonomous_stopped", frame
+        assert frame["effective_level"] != "autonomous" and not frame["active_authorities"]
+        context = await f.lease(await f.run(agent, await f.conversation(agent)))
+        after_delete = await operation(volume="0.1", stop_loss="90")
+        assert after_delete["_runtime_wait"], after_delete
+        print(
+            "PASS deleting a grant's conversation revokes it: records, permission frame and trades agree"
+        )
     finally:
         await save_controls(f.runtime.db, controls)
         await f.close()

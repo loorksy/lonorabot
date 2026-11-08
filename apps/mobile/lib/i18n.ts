@@ -335,7 +335,7 @@ export const labels = {
     "نبّهني بالفرص المؤكدة",
     "Notify me about confirmed opportunities",
   ],
-  attentionEmergency: ["الإيقاف الطارئ مفعّل", "Emergency Stop is active"],
+  attentionEmergency: ["التداول الجديد متوقف", "New trading stopped"],
   attentionApproval: ["بانتظار الموافقة", "Waiting for approval"],
   attentionRequestUpdated: ["تم تحديث الطلب", "Request updated"],
   attentionBrokerDegraded: ["اتصال الوسيط يحتاج مراجعة", "Broker connection needs review"],
@@ -355,6 +355,23 @@ export const labels = {
     "Task is retrying through a model outage",
   ],
   attentionUpdated: ["تم تحديث النشاط", "Activity updated"],
+  attentionItemQuarantined: [
+    "أُوقف عنصر في الخلفية بعد أخطاء متكررة؛ يستمر كل ما عداه في العمل",
+    "A background item was paused after repeated errors; everything else keeps running",
+  ],
+  attentionRunQuarantined: [
+    "توقف عمل بعد انقطاعات متكررة",
+    "Work stopped after repeated interruptions",
+  ],
+  attentionOperationUnresolved: [
+    "صفقة ما زالت بلا نتيجة مؤكدة من الوسيط",
+    "A trade still has no confirmed broker result",
+  ],
+  attentionOperationUncertain: [
+    "الوسيط لم يؤكد صفقة — أخبر لونورا هل نُفذت",
+    "The broker did not confirm a trade — tell Lonora whether it executed",
+  ],
+  attentionGatewayDegraded: ["خدمة الخلفية متأخرة", "Background service is running late"],
   retryScheduled: ["إعادة المحاولة مجدولة", "Retry scheduled"],
   modelRetryScheduled: [
     "مزود النموذج غير متاح — إعادة المحاولة مجدولة",

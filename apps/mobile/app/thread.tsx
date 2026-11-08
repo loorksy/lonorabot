@@ -5,6 +5,7 @@ import type {
   Group,
   InputAnswer,
   Message,
+  OwnerAction,
   Run,
   Thread,
   TradeApproval,
@@ -16,6 +17,7 @@ import {
   conversationTimeline,
   type LiveReplyStream,
   type MentionAddress,
+  mergeOwnerAction,
   needsTimeSeparator,
   projectRunEvents,
   seedStream,
@@ -44,6 +46,8 @@ import { ConversationQuestion } from "../components/conversation-question";
 import { GroupAvatar } from "../components/group-avatar";
 import { MessageBubble } from "../components/message-bubble";
 import { NativeSymbol } from "../components/native-symbol";
+import { OwnerActionCard } from "../components/owner-action-card";
+import { SafetyPill } from "../components/safety-pill";
 import { SuperBotCard, useSuperBotRequests } from "../components/super-bot-cards";
 import { ThreadComposer } from "../components/thread-composer";
 import { ThreadHeader } from "../components/thread-header";
@@ -51,6 +55,7 @@ import { TimeSeparator } from "../components/time-separator";
 import { TradeApprovalCard } from "../components/trade-approval";
 import { TurnActivity } from "../components/turn-activity";
 import { Button, colors, ErrorNotice, Loading, Screen } from "../components/ui";
+import { useAgentLiveState } from "../lib/agent-live-state";
 import { ApiError, api, upload } from "../lib/api";
 import {
   type ComposerDraft,
@@ -104,6 +109,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
   const [collaborationActive, setCollaborationActive] = useState(false);
   const [collaborationSessionId, setCollaborationSessionId] = useState<string>();
   const [approvals, setApprovals] = useState<TradeApproval[]>([]);
+  const [ownerActions, setOwnerActions] = useState<OwnerAction[]>([]);
   const [runs, setRuns] = useState<Run[]>([]);
   const [draft, setDraft] = useState("");
   const [reply, setReply] = useState<Message | null>(null);
@@ -123,6 +129,8 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
   const permissionAgent = useRef(thread?.agent_id);
   permissionAgent.current = thread?.agent_id;
   const superBot = useSuperBotRequests(thread?.agent_id ?? undefined, id, stateRevision);
+  // One live-state read for the header's safety pill and the background-activity strip.
+  const liveState = useAgentLiveState(thread?.agent_id ?? undefined);
   const [events, setEvents] = useState<Event[]>([]);
   const [streams, setStreams] = useState<Record<string, LiveReplyStream>>({});
   const [connection, setConnection] = useState<EventConnection>("connecting");
@@ -190,7 +198,8 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
             `/threads/${encodeURIComponent(id)}/collaboration`,
           ),
           api.get<Agent[]>("/agents"),
-        ]).then(([nextFiles, nextApprovals, collaboration, refreshedAgents]) => {
+          api.get<OwnerAction[]>(`/owner-actions?thread_id=${encodeURIComponent(id)}`),
+        ]).then(([nextFiles, nextApprovals, collaboration, refreshedAgents, nextCards]) => {
           if (
             !stillLive() ||
             !conversationCache.current(scope) ||
@@ -210,6 +219,12 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
             ),
           );
           setFiles(nextFiles);
+          setOwnerActions((old) =>
+            nextCards.map((row) => {
+              const previous = old.find((item) => item.id === row.id);
+              return previous ? mergeOwnerAction(previous, row) : row;
+            }),
+          );
           setApprovals((old) =>
             nextApprovals.map((row) => {
               const previous = old.find((item) => item.id === row.id);
@@ -248,6 +263,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     setMessages(cached?.messages ?? []);
     setRuns(cached?.runs ?? []);
     setApprovals(cached?.approvals ?? []);
+    setOwnerActions([]);
     setCollaborationActive(cached?.collaborationActive ?? false);
     setCollaborationSessionId(cached?.collaborationSessionId);
     const savedDraft = composerDraft(outboxKey);
@@ -659,6 +675,15 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
         }}
         onActions={() => setActionsVisible(true)}
         onCall={agent && thread ? () => void voice.start(agent, thread.id) : undefined}
+        safety={
+          agent ? (
+            <SafetyPill
+              readiness={liveState.state?.trading_readiness ?? null}
+              agents={agents}
+              onChanged={liveState.refresh}
+            />
+          ) : undefined
+        }
         avatar={
           agent ? (
             <BotAvatar
@@ -771,7 +796,13 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
             ) : null}
           </View>
         ))}
-      {thread?.agent_id && <AgentLiveStatus agentId={thread.agent_id} />}
+      {thread?.agent_id && (
+        <AgentLiveStatus
+          state={liveState.state}
+          error={liveState.error}
+          refresh={liveState.refresh}
+        />
+      )}
       <KeyboardAvoidingView
         testID="thread-keyboard-layout-native"
         style={{ flex: 1, minHeight: 0 }}
@@ -789,6 +820,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
                 visibleMessages,
                 approvals.filter((row) => row.thread_id === id),
                 superBot.rows,
+                ownerActions.filter((row) => row.thread_id === id),
               ).reverse()}
               keyExtractor={(item) => item.id}
               maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
@@ -827,6 +859,19 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
               renderItem={({ item }) => {
                 if (item.kind === "super_bot")
                   return <SuperBotCard row={item.request} onChange={superBot.update} />;
+                if (item.kind === "owner_action")
+                  return (
+                    <OwnerActionCard
+                      row={item.action}
+                      onChange={(updated) =>
+                        setOwnerActions((old) =>
+                          old.map((row) =>
+                            row.id === updated.id ? mergeOwnerAction(row, updated) : row,
+                          ),
+                        )
+                      }
+                    />
+                  );
                 if (item.kind === "approval")
                   return (
                     <TradeApprovalCard

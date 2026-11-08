@@ -80,7 +80,8 @@ async def routing_frame(
         + "Your current identity: "
         + identity
         + "\n<live_agent_state>"
-        + encode_metadata(live.model_dump(mode="json"))
+        # Readiness is the owner's presentation; the permission frame below carries it.
+        + encode_metadata(live.model_dump(mode="json", exclude={"trading_readiness"}))
         + "</live_agent_state>\nUse task_inspect or runtime_status for fresh details before claiming current progress. "
         "For substantial work use task_start so this conversation stays available. Status questions do not imply cancellation."
         + "\n"

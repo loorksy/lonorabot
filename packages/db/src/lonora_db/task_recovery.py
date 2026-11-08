@@ -43,6 +43,8 @@ OWNER_CODES = frozenset(
         "model_output_truncated",
         "model_response_invalid",
         "broker_unconfigured",
+        # The watchdog stopped a Run that kept crashing its worker.
+        "run_recovery_limit",
     }
 )
 FINANCIAL_REPLAY_TOOLS = frozenset({"trade_execute", "trade_close_positions", "goal_step_execute"})
@@ -278,7 +280,58 @@ async def resume_failure(
     return row
 
 
+async def hold_for_owner(session: AsyncSession, task_id: str) -> bool:
+    """Quarantine: a Task whose automatic retry keeps failing waits for its owner."""
+    row = await session.get(TicketRow, task_id, with_for_update=True)
+    if row is None or not row.state.get("task"):
+        return True
+    state = task_state(row)
+    if state.status in {"completed", "cancelled"}:
+        return True
+    if state.failure:
+        state.failure.recovery, state.failure.next_retry_at = "owner", None
+    state.status, state.phase, state.waiting_reason = "failed", "failed", None
+    save_task(session, row, state)
+    emit(
+        session,
+        row.owner_id,
+        "task.failed",
+        agent_id=row.agent_id,
+        thread_id=state.origin_thread_id,
+        run_id=state.failure.run_id if state.failure else None,
+        payload={
+            "id": row.id,
+            "code": state.failure.code if state.failure else "task_retry_quarantined",
+            "recovery": "owner",
+            "attempt": state.failure.attempt if state.failure else state.attempt,
+            "next_retry_at": None,
+        },
+    )
+    return True
+
+
+async def retry_one(session: AsyncSession, owner_id: str, task_id: str) -> bool:
+    try:
+        return await resume_failure(session, owner_id, task_id, automatic=True) is not None
+    except LonoraError as error:
+        if error.code != "task_reconciliation_required":
+            if error.code in {"task_not_found", "task_retry_limit"}:
+                return False
+            raise
+    # Reconciliation is never retried automatically; the Task waits for evidence.
+    row = await get_task(session, owner_id, task_id, lock=True)
+    state = task_state(row)
+    if state.failure:
+        state.failure.recovery, state.failure.next_retry_at = "reconcile", None
+        state.failure.reconciliation = "financial"
+        state.status, state.phase, state.waiting_reason = "failed", "failed", None
+        save_task(session, row, state)
+    return False
+
+
 async def retry_due_tasks(db: Database) -> int:
+    from .item_failures import ItemGuard, blocked
+
     async with db.sessions() as session:
         rows = list(
             await session.execute(
@@ -288,27 +341,21 @@ async def retry_due_tasks(db: Database) -> int:
                     TicketRow.state["task"]["failure"]["recovery"].as_string() == "automatic",
                     TicketRow.state["task"]["failure"]["next_retry_at"].as_string()
                     <= utcnow().isoformat(),
+                    ~blocked("task_retry", TicketRow.id),
                 )
                 .order_by(TicketRow.updated_at)
                 .limit(50)
             )
         )
+    # A failed retry is quarantined as a Task failure; task.failed already reaches the owner.
+    guard = ItemGuard(db, "task_retry", quarantine=hold_for_owner, notify_when_inert=False)
+    await guard.prepare(task_id for task_id, _ in rows)
     changed = 0
     for task_id, owner_id in rows:
-        async with db.sessions() as session, session.begin():
-            try:
-                changed += int(
-                    await resume_failure(session, owner_id, task_id, automatic=True) is not None
-                )
-            except LonoraError as error:
-                if error.code == "task_reconciliation_required":
-                    row = await get_task(session, owner_id, task_id, lock=True)
-                    state = task_state(row)
-                    if state.failure:
-                        state.failure.recovery, state.failure.next_retry_at = "reconcile", None
-                        state.failure.reconciliation = "financial"
-                        state.status, state.phase, state.waiting_reason = "failed", "failed", None
-                        save_task(session, row, state)
-                elif error.code not in {"task_not_found", "task_retry_limit"}:
-                    raise
+
+        async def retry(task_id: str = task_id, owner_id: str = owner_id) -> bool:
+            async with db.sessions() as session, session.begin():
+                return await retry_one(session, owner_id, task_id)
+
+        changed += int(bool(await guard.run(task_id, owner_id, retry)))
     return changed

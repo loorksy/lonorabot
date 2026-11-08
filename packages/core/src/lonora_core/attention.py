@@ -1,6 +1,6 @@
 """Structured event classification; never match human text or invent a market signal."""
 
-from typing import Any
+from typing import Any, cast
 
 from lonora_contracts.attention import AttentionClassification
 
@@ -8,6 +8,11 @@ ATTENTION_KINDS = frozenset(
     {
         "trading.controls_updated",
         "trading.approval.updated",
+        # Owner action cards follow these (lonora_gateway.owner_cards); an operation that
+        # becomes ambiguous is also the owner's "operation_uncertain" item.
+        "trading.operation_updated",
+        "trading.restriction_created",
+        "trading.restriction_revoked",
         "broker.degraded",
         "broker.recovered",
         "broker.external_activity",
@@ -43,6 +48,13 @@ def classify_attention(kind: str, payload: dict[str, Any]) -> AttentionClassific
         or payload.get("state")
         or kind
     )
+    if kind == "trading.operation_updated":
+        resource = str(payload.get("operation_id") or resource)
+    elif kind.startswith("trading.restriction_"):
+        restriction: Any = payload.get("restriction")
+        if isinstance(restriction, dict):
+            identifier = cast(dict[str, Any], restriction).get("id")
+            resource = str(identifier or resource)
     if kind in {"watch.suspended_health", "watch.resumed_health"}:
         transition = str(payload.get("health", {}).get("observed_at") or transition)
     result = AttentionClassification(
@@ -57,6 +69,10 @@ def classify_attention(kind: str, payload: dict[str, Any]) -> AttentionClassific
         transition = str(payload.get("status")) + ":" + str(payload.get("mode"))
     elif kind == "trading.controls_updated" and payload.get("emergency_stop") is True:
         result.importance, result.code = "critical", "emergency_stop"
+    elif kind == "trading.operation_updated" and payload.get("status") == "ambiguous":
+        # One item per operation: later ambiguous rewrites of the row are the same fact.
+        result.importance, result.code = "action_required", "operation_uncertain"
+        transition = "ambiguous"
     elif kind == "trading.approval.updated":
         result.importance, result.code = (
             ("action_required", "approval_required")

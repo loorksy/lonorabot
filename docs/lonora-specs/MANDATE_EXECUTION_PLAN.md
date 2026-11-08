@@ -26,8 +26,8 @@ These were verified by reading the code and are kept as the foundation:
 | An unresolvable uncertain operation freezes the whole account, including closes and stop-loss moves | `trading/execution.py`, `broker_recovery.py`, `brokers/metaapi.py` | 1 (T2) |
 | A model-independent 120k-char ceiling silently drops evidence mid-run; there is no in-run compaction | `adapter-kit/context.py` | 1 (E3) |
 | Backtesting engine shipped as an agent tool, which the mandate excludes | `market/research.py`, `tools/strategy_research.py` | 1 (T1) |
-| One failing scheduler step halts all maintenance, including broker reconciliation | `gateway/service.py` maintenance loop | 2 |
-| Financial and authority records are hard-deleted by FK cascades from ordinary deletes | `db/schema.py` | 2 |
+| One failing scheduler step halts all maintenance, including broker reconciliation | `gateway/service.py` maintenance loop | 1.5 (W15-0) |
+| Financial and authority records are hard-deleted by FK cascades from ordinary deletes | `db/schema.py` | 1.5 (W15-0) |
 | No off-app delivery to the owner (no push, no telephony) | gateway, voice | 3 |
 | Mobile has no trading controls, positions or emergency stop | `apps/mobile` | 3 |
 | The default update deploys a stale image that cannot start on the current schema | `infra/compose/deploy-main.sh` | 4 |
@@ -295,14 +295,19 @@ The owner asked, on 2026-11-08, for a simple experience without contradictions a
    - Each gateway maintenance step runs in its own supervised task with per-item fault isolation and its own liveness record. One bad routine, watch or attention event can no longer halt broker reconciliation.
    - A minimal LLM-independent watchdog detects stalled loops, runs recovered too many times and aging unresolved operations, and raises owner attention.
    - Financial and authority records (journal, approvals, grants, restrictions, decisions) are no longer cascade-deleted by ordinary deletes.
+   - Delivered on branch `w15-a1` (migrations `0036_durable_records` and `0037_gateway_reliability`); the design is in `docs/gateway-reliability.md`.
+   - Review fixes: a delete settles the grants, Super Bot requests and goals of the deleted conversation or agent instead of leaving them active but unusable; every maintenance item has its own time limit and the attention cursor advances per event; watchdog items open the originating agent; failed worker polls no longer count as liveness; ended "running late" items are withdrawn after a restart; quarantine notices coalesce per kind and never cost a critical alert. Deferred: an owner-recoverable failure for a quarantined Task wait or outcome return (they stay in the ledger quarantine, with the owner notice).
 2. **W15-1 Safety truth and one brake.**
    - A one-line trading readiness for every agent, shown in the permission frame and in a header safety pill on web and mobile.
    - One "Stop new trading / Resume" control.
    - Owner close and cancel buttons keep one operation id until the outcome settles.
    - Owner text in Arabic and English for every boundary code.
+   - Delivered on branch `w15-a1` (no migration); the design is in `docs/trading-safety.md`. The readiness block is presentation only and never read by enforcement. Stop sends the former Emergency Stop flag and Resume clears both flags in one call; the API contract is unchanged. Grant summaries now report the account's money limits instead of `monetary_stop_risk: "unavailable"`. Restrictions are listed read-only in the safety sheet; lifting from a card is W15-2.
+   - Review fixes: a held close or cancel identity is released as soon as its journal row settles (confirmed, failed or resolved), so a position the owner attested as not closed can be closed again; the stopped line says exits are frozen too while a freeze is in force; the line counts only pauses and uncertain operations on the accounts the agent acts on and names the account when there are several; both sheets name the agent that set a pause and offer Start trading before the first start; Mobile reads the agent's live state once per refresh for the pill and the activity strip.
 3. **W15-2 Owner action cards in chat.**
    - Durable, server-validated, single-use cards for resuming trading, lifting a pause, resolving an uncertain operation and setting money limits. Later slices add grants, agent creation, supervision, trusted sources and credentials.
    - Widening needs the passkey. Narrowing is one tap.
+   - Delivered on branch `w15-a1` (migration `0038_owner_actions`; the W15-0 head was `0037_gateway_reliability`); the design is in `docs/owner-actions.md`. Agents propose cards with `owner_action_propose`; the gateway raises Lift and resolve cards from restriction and uncertain-operation events, and an uncertain operation is the owner's `operation_uncertain` item. The owner's decision route re-validates, is idempotent and runs the existing owner functions; raising or removing a money limit needs a passkey assertion bound to the card. The resolve statement is now optional. The header safety sheet lifts a pause in one tap on Web and Mobile. The raw execution-policy route still accepts any change from an owner session (follow-up). Review fixes: a limits card shows every field it changes (currency and trading day too), the confirmation line says what still holds new risk (Stop, other pauses, another uncertain trade), "Unknown" says it releases the hold, agents propose Resume or Lift only when the owner asks, deletes supersede their cards, and an uncertain trade alerts the owner once.
 4. **W15-3 One-sentence delegation and a monotonic ladder** (corrections 5–7, D1).
    - No trading / Ask me / On its own.
    - Grant cards are built from a stored draft and include the D1 defaults: a daily-loss limit suggested at 3% of equity, and the owner's manual positions excluded.

@@ -349,3 +349,56 @@ async def finish_activation(
 
     await acknowledge_activation(session, row)
     return row
+
+
+async def begin_bound_assertion(
+    session: AsyncSession,
+    owner: OwnerIdentity,
+    kind: str,
+    request_id: str,
+    binding: str,
+    origin: str,
+) -> dict[str, Any]:
+    """Authentication options for one exact record: the challenge carries its hash."""
+    rp = relying_party(origin)
+    known = await devices(session, owner.id)
+    if not known:
+        raise LonoraError("device_registration_required", 409)
+    challenge = await new_challenge(session, owner, kind, binding, request_id=request_id)
+    options = generate_authentication_options(
+        rp_id=rp,
+        challenge=base64url_to_bytes(challenge.challenge),
+        timeout=120000,
+        allow_credentials=[
+            PublicKeyCredentialDescriptor(id=base64url_to_bytes(item.credential_id))
+            for item in known
+        ],
+        user_verification=UserVerificationRequirement.REQUIRED,
+    )
+    return {"challenge_id": challenge.id, "publicKey": json.loads(options_to_json(options))}
+
+
+async def verify_bound_assertion(
+    session: AsyncSession,
+    owner: OwnerIdentity,
+    body: DeviceProof,
+    kind: str,
+    request_id: str,
+    binding: str,
+    origin: str,
+    native_origins: list[str] | None = None,
+) -> DeviceCredentialRow:
+    """Verify a user-verified assertion for exactly this record and use its challenge.
+
+    The challenge must have been issued to this session for this record and hash; a
+    used, expired or differently bound challenge never authorizes anything.
+    """
+    credential_size(body)
+    challenge = await pending_challenge(session, owner, body.challenge_id, kind)
+    if challenge.request_id != request_id or challenge.binding_hash != binding:
+        raise LonoraError("device_proof_invalid", 403)
+    device, sign_count = await verified_device_assertion(
+        session, owner.id, body, challenge, origin, native_origins
+    )
+    device.sign_count, challenge.status = sign_count, "used"
+    return device

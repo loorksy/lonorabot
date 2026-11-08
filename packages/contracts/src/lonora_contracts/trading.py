@@ -123,6 +123,10 @@ class TradeResult(Contract):
     details: dict[str, Any] = Field(default_factory=dict[str, Any])
 
 
+# Recorded when the owner settles an operation without writing a note.
+OWNER_ATTESTATION = "Owner attested; not broker confirmation."
+
+
 class OperationResolution(Contract):
     """Owner attestation for an operation whose outcome broker evidence cannot establish.
 
@@ -132,13 +136,12 @@ class OperationResolution(Contract):
     """
 
     outcome: Literal["executed", "not_executed", "unknown"]
-    statement: str = Field(min_length=1, max_length=2000)
+    # Optional: without a note the record states that it is the owner's attestation.
+    statement: str = Field(default="", max_length=2000)
     broker_reference: str | None = Field(default=None, max_length=200)
 
     @model_validator(mode="after")
     def substantive(self) -> "OperationResolution":
-        self.statement = self.statement.strip()
+        self.statement = self.statement.strip() or OWNER_ATTESTATION
         self.broker_reference = (self.broker_reference or "").strip() or None
-        if not self.statement:
-            raise ValueError("resolution_statement_required")
         return self

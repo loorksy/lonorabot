@@ -161,13 +161,17 @@ export function AgentPermissions({
         };
         setDraft(bindDraft(binding, next.customization ?? defaults(binding)));
       }
-      setReview((current) =>
-        current
+      setReview((current) => {
+        const row = current
           ? next.pending_authority?.id === current.id
             ? next.pending_authority
-            : (next.active_authorities.find((row) => row.id === current.id) ?? null)
-          : null,
-      );
+            : (next.active_authorities.find((item) => item.id === current.id) ?? null)
+          : null;
+        // The permission state omits the account's money limits; keep the reviewed ones.
+        return row && current
+          ? { ...row, money_limits: row.money_limits ?? current.money_limits }
+          : row;
+      });
     },
     [alive, boundAccount, boundSymbol, scopeMode],
   );
@@ -756,6 +760,7 @@ export function AgentPermissions({
                   text={text}
                   labels={labels}
                   locale={locale}
+                  moneyLimits={review.money_limits}
                   exact
                 />
                 <button

@@ -1,47 +1,27 @@
 import type { AgentLiveState } from "@lonora/contracts";
-import { useFocusEffect } from "expo-router";
-import { useCallback, useRef, useState } from "react";
-import { AppState, Pressable, Text, View } from "react-native";
+import { useState } from "react";
+import { Pressable, Text, View } from "react-native";
 import { api } from "../lib/api";
 import { useSession } from "../lib/session";
 import { NativeSymbol } from "./native-symbol";
 import { Button, colors, ErrorNotice } from "./ui";
 
-export function AgentLiveStatus({ agentId }: { agentId: string }) {
+/** The thread's background-activity strip; the screen polls the live state once for it
+ * and the header's safety pill (``useAgentLiveState``). */
+export function AgentLiveStatus({
+  state,
+  error: readError,
+  refresh,
+}: {
+  state: AgentLiveState | null;
+  error: unknown;
+  refresh: () => Promise<void>;
+}) {
   const { t, errorText, rtl } = useSession();
-  const [state, setState] = useState<AgentLiveState | null>(null);
   const [expanded, setExpanded] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const reportError = useRef(errorText);
-  reportError.current = errorText;
-  useFocusEffect(
-    useCallback(() => {
-      let live = true;
-      let timer: ReturnType<typeof setTimeout>;
-      const refresh = async () => {
-        try {
-          if (AppState.currentState === "active") {
-            const next = await api.get<AgentLiveState>(
-              `/agents/${encodeURIComponent(agentId)}/state`,
-            );
-            if (live) {
-              setState(next);
-              setError(null);
-            }
-          }
-        } catch (caught) {
-          if (live) setError(reportError.current(caught));
-        }
-        if (live) timer = setTimeout(() => void refresh(), 15000);
-      };
-      void refresh();
-      return () => {
-        live = false;
-        clearTimeout(timer);
-      };
-    }, [agentId]),
-  );
+  const [actionError, setActionError] = useState<string | null>(null);
   if (!state) return null;
+  const error = actionError ?? (readError ? errorText(readError) : null);
   const attention = state.state === "degraded" || state.state === "action_required";
   const tint = attention
     ? colors.warning
@@ -164,11 +144,11 @@ export function AgentLiveStatus({ agentId }: { agentId: string }) {
                             action,
                             expected_version: task.version,
                           })
-                          .then(() =>
-                            api.get<AgentLiveState>(`/agents/${encodeURIComponent(agentId)}/state`),
-                          )
-                          .then(setState)
-                          .catch((caught) => setError(errorText(caught)));
+                          .then(() => {
+                            setActionError(null);
+                            return refresh();
+                          })
+                          .catch((caught) => setActionError(errorText(caught)));
                       }}
                     />
                   ),

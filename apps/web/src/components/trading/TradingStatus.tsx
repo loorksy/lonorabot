@@ -1,23 +1,31 @@
-import { Trans } from "@lingui/react/macro";
+import { i18n } from "@lingui/core";
+import { tradingSafetyText } from "@lonora/core";
 import { useEffect, useState } from "react";
 import type { TradingControls } from "../../lib/api";
-import { readControls, setControls } from "../../lib/trading";
+import { readControls, resumeTrading, stopNewTrading, tradingStopped } from "../../lib/trading";
 import { userError } from "../../lib/user_error";
 import { useClient } from "../../providers/ClientProvider";
+
+/**
+ * One brake: "Stop new trading" stops new risk for every agent and the owner's manual
+ * orders; exits stay allowed. Resume is one tap and widens no authority.
+ */
 export function TradingStatus() {
   const { revision, refresh } = useClient();
   const [control, setControl] = useState<TradingControls>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>();
+  const text = tradingSafetyText(i18n.locale);
   useEffect(() => {
     // The durable revision (or explicit refresh tick) invalidates this fetched state.
     void revision;
     void readControls().then(setControl).catch(setError);
   }, [revision]);
-  async function change(next: TradingControls) {
+  async function change(next: () => Promise<TradingControls>) {
     setBusy(true);
     try {
-      setControl(await setControls(next));
+      setControl(await next());
+      setError(undefined);
       refresh();
     } catch (e) {
       setError(e);
@@ -25,46 +33,38 @@ export function TradingStatus() {
       setBusy(false);
     }
   }
+  const stopped = control ? tradingStopped(control) : null;
   return (
-    <section className="card trading-control">
+    <section className="card trading-control" data-testid="trading-control">
       <div>
-        <h2>
-          <Trans>Trading control</Trans>
-        </h2>
-        <p role="status">
-          {control?.emergency_stop ? (
-            <Trans>Emergency stop active</Trans>
-          ) : control?.enabled ? (
-            <Trans>Trading ON</Trans>
-          ) : (
-            <Trans>Trading OFF</Trans>
-          )}
+        <h2>{text.title}</h2>
+        <p
+          role="status"
+          data-trading-state={stopped == null ? "" : stopped ? "stopped" : "running"}
+        >
+          {stopped == null ? text.loading : stopped ? text.stopped : text.running}
         </p>
+        <p className="muted">{stopped ? text.resumeHint : text.stopHint}</p>
       </div>
       <div className="actions">
-        <button
-          type="button"
-          disabled={busy || !control || control.emergency_stop}
-          className={control?.enabled ? "" : "primary"}
-          onClick={() => void change({ enabled: !control?.enabled, emergency_stop: false })}
-        >
-          {control?.enabled ? <Trans>Turn trading OFF</Trans> : <Trans>Turn trading ON</Trans>}
-        </button>
-        <button
-          type="button"
-          className="danger"
-          disabled={busy}
-          onClick={() => void change({ enabled: false, emergency_stop: true })}
-        >
-          <Trans>Emergency Stop</Trans>
-        </button>
-        {control?.emergency_stop && (
+        {stopped === false && (
           <button
             type="button"
+            className="danger"
             disabled={busy}
-            onClick={() => void change({ enabled: false, emergency_stop: false })}
+            onClick={() => void change(stopNewTrading)}
           >
-            <Trans>Reset emergency stop</Trans>
+            {text.stop}
+          </button>
+        )}
+        {stopped && (
+          <button
+            type="button"
+            className="primary"
+            disabled={busy}
+            onClick={() => void change(resumeTrading)}
+          >
+            {text.resume}
           </button>
         )}
       </div>

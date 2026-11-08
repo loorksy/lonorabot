@@ -69,6 +69,7 @@ test("boundary blocks explain why nothing was sent, in both languages, never a r
     "restriction_valid_until_required",
     "restriction_window_too_long",
     "restriction_account_required",
+    "delete_blocked_unresolved_operation",
   ];
   for (const code of codes) {
     const en = financialBoundaryError(code, "en");

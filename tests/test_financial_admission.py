@@ -8,6 +8,7 @@ import pytest
 from lonora_contracts.account import Order, Position
 from lonora_contracts.domain import utcnow
 from lonora_contracts.trading import (
+    OWNER_ATTESTATION,
     TERMINAL_STATUSES,
     UNRESOLVED_STATUSES,
     OperationResolution,
@@ -353,13 +354,14 @@ def test_only_full_closes_of_distinct_positions_form_an_independent_batch() -> N
     )
 
 
-def test_owner_resolution_requires_a_substantive_statement() -> None:
+def test_owner_resolution_statement_is_optional_and_never_claims_broker_evidence() -> None:
     resolution = OperationResolution(
         outcome="not_executed", statement="  Checked MT5: no order  ", broker_reference=" "
     )
     assert resolution.statement == "Checked MT5: no order" and resolution.broker_reference is None
-    with pytest.raises(ValidationError):
-        OperationResolution(outcome="executed", statement="   ")
+    # Without a note the record still says whose statement it is and what it is not.
+    assert OperationResolution(outcome="executed", statement="   ").statement == (OWNER_ATTESTATION)
+    assert OperationResolution(outcome="unknown").statement == OWNER_ATTESTATION
     with pytest.raises(ValidationError):
         OperationResolution.model_validate({"outcome": "confirmed", "statement": "x"})
 

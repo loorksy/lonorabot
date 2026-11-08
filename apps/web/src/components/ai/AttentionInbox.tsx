@@ -44,7 +44,7 @@ export function AttentionInbox({
   }, [compact]);
   const labels = {
     watch_condition_met: t`Watch condition changed`,
-    emergency_stop: t`Emergency Stop is active`,
+    emergency_stop: t`New trading stopped`,
     approval_required: t`Waiting for approval`,
     approval_resolved: t`Request updated`,
     broker_degraded: t`Broker connection needs review`,
@@ -60,6 +60,11 @@ export function AttentionInbox({
     super_bot_changed: t`Super Bot authority updated`,
     task_completed: t`Task completed`,
     internal_update: t`Activity updated`,
+    maintenance_item_quarantined: t`A background item was paused after repeated errors; everything else keeps running`,
+    run_quarantined: t`Work stopped after repeated interruptions`,
+    operation_unresolved: t`A trade still has no confirmed broker result`,
+    operation_uncertain: t`The broker did not confirm a trade — tell Lonora whether it executed`,
+    gateway_degraded: t`Background service is running late`,
   };
   if (compact && !items.length) return null;
   return (

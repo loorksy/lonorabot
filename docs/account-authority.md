@@ -78,8 +78,10 @@ ceilings and daily monetary loss fields are **not part of the signed envelope**:
 envelope fields remain rejected, not silently interpreted as protection. Monetary
 limits are instead owner policy enforced at the execution boundary for every path (see
 "Monetary risk limits" below). Volume limits, an equity floor and a required stop
-cannot guarantee a maximum loss. The Web and Mobile review both state this limitation
-before signing. No authorization was activated on a production account while
+cannot guarantee a maximum loss. Grant summaries from the owner routes and the live
+Agent projection carry the account's `money_limits` (configured limits, or none), and
+the Web and Mobile review show them, or "No money limit set", before signing (see
+`trading-safety.md`). No authorization was activated on a production account while
 implementing or testing this capability.
 
 The compact Web/Mobile bot settings reuse existing account/market selectors and
@@ -188,8 +190,10 @@ it through another symbol or account), and every `risk_*` code is `risk_limit_bl
 `inspect_risk_assessment` (resize or protect to fit the limit, reduce exposure, or wait
 for the owner). No agent tool lifts a restriction. The owner
 lists, creates and lifts them through `GET/POST /trading/restrictions` and `POST
-/trading/restrictions/{id}/revoke` (owner session with CSRF, or bearer token). There is
-no Web or Mobile control for restrictions yet; the API is the owner surface.
+/trading/restrictions/{id}/revoke` (owner session with CSRF, or bearer token). The Web
+and Mobile header safety sheet lists the restrictions that apply to an agent with a
+one-tap Lift (`trading-safety.md`), and every new restriction raises a Lift card in the
+conversation (`owner-actions.md`); both use the owner's revoke.
 
 ## Monetary risk limits
 
@@ -199,7 +203,8 @@ holds optional limits in the broker account currency, which the owner names in
 instead of converting. Unset means not enforced; no money amount is chosen for the
 owner. The agent sees configured and unset limits in its permission frame and through
 `trade_restriction_list`; the owner reads the current book against them with `GET
-/trading/accounts/{id}/risk-status`.
+/trading/accounts/{id}/risk-status`. The conversation's money-limit card changes the same
+policy; raising or removing a limit there needs the owner's passkey (`owner-actions.md`).
 
 - `max_trade_risk` / `max_trade_risk_equity_percent`: modeled loss at the stop-loss of
   a new entry, a pending-entry edit or a risk-increasing position edit. A stop-loss is
