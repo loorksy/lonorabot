@@ -10,6 +10,7 @@ import { Text, View } from "react-native";
 import { api } from "../lib/api";
 import type { Label } from "../lib/i18n";
 import { useSession } from "../lib/session";
+import { textDirection } from "../lib/text-direction";
 import { SettingsGroup, SettingsSwitch } from "./settings-group";
 import { Button, colors, ErrorNotice } from "./ui";
 
@@ -36,7 +37,24 @@ const labels: Record<AttentionCode, Label> = {
   operation_unresolved: "attentionOperationUnresolved",
   operation_uncertain: "attentionOperationUncertain",
   gateway_degraded: "attentionGatewayDegraded",
+  agent_notification: "attentionAgentAlert",
 };
+// An agent's summary reads in its own direction, like the web's dir="auto".
+function SummaryText({ text, rtl, color }: { text: string; rtl: boolean; color: string }) {
+  const direction = textDirection(text, rtl ? "rtl" : "ltr");
+  return (
+    <Text
+      testID="attention-summary"
+      style={{
+        color,
+        textAlign: direction === "rtl" ? "right" : "left",
+        writingDirection: direction,
+      }}
+    >
+      {text}
+    </Text>
+  );
+}
 export function AttentionInbox({
   items,
   agents,
@@ -131,6 +149,9 @@ export function AttentionInbox({
           <Text style={{ color: colors.secondary, textAlign: rtl ? "right" : "left" }}>
             {agents.find((agent) => agent.id === item.agent_id)?.name}
           </Text>
+          {item.code === "agent_notification" && item.parameters.summary ? (
+            <SummaryText text={item.parameters.summary} rtl={rtl} color={colors.foreground} />
+          ) : null}
           {item.parameters.symbol && (
             <Text style={{ color: colors.foreground, writingDirection: "ltr" }}>
               {item.parameters.symbol}

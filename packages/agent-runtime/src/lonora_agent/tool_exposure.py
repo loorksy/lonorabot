@@ -17,7 +17,7 @@ from lonora_core.user_error import LonoraError
 from lonora_db.agent_binding import agent_binding
 from lonora_db.schema import AgentRow
 from lonora_db.tool_usage import record_tool_use, remembered_tools
-from lonora_tools.base import EXPOSURE_PROFILES, ExposureProfile
+from lonora_tools.base import EXPOSURE_PROFILES, ExposureProfile, ToolScope
 from lonora_tools.context import ToolContext
 from lonora_tools.registry import BRIDGE_TOOLS, ToolRegistry
 
@@ -72,7 +72,7 @@ async def ensure_exposure(
     messages: list[ModelMessage],
     pending: list[ToolCall],
     *,
-    read_only: bool,
+    scope: ToolScope,
     task_run: bool,
 ) -> dict[str, Any]:
     """Return this Run's frozen exposure, choosing it on the Run's first entry."""
@@ -85,13 +85,13 @@ async def ensure_exposure(
     profiles = run_profiles(agent, task_run)
     unavailable = await registry.availability(context)
     native, promoted = registry.exposure(
-        profiles, read_only=read_only, remembered=remembered, unavailable=unavailable
+        profiles, scope=scope, remembered=remembered, unavailable=unavailable
     )
     # A checkpoint from an earlier release keeps every schema it already showed.
     kept = {
         name
         for name in legacy_names(state, messages, pending)
-        if name in registry.tools and (not read_only or registry.tools[name].read_only)
+        if name in registry.tools and registry.tools[name].permitted(scope)
     }
     chosen = set(native) | kept
     exposure = {
@@ -107,14 +107,14 @@ async def ensure_exposure(
 
 
 def native_definitions(
-    registry: ToolRegistry, exposure: dict[str, Any], read_only: bool
+    registry: ToolRegistry, exposure: dict[str, Any], scope: ToolScope
 ) -> list[ToolDefinition]:
-    return registry.native_definitions(set(cast(list[str], exposure["native"])), read_only)
+    return registry.native_definitions(set(cast(list[str], exposure["native"])), scope)
 
 
-def inventory(registry: ToolRegistry, exposure: dict[str, Any], read_only: bool) -> str:
+def inventory(registry: ToolRegistry, exposure: dict[str, Any], scope: ToolScope) -> str:
     return registry.capability_inventory(
-        read_only, cast(dict[str, str], exposure.get("unavailable", {}))
+        scope, cast(dict[str, str], exposure.get("unavailable", {}))
     )
 
 
@@ -133,17 +133,17 @@ async def remember_use(
     call: ToolCall,
     result: dict[str, Any],
     *,
-    read_only: bool,
+    scope: ToolScope,
 ) -> None:
     """Remember a successful long-tail tool for promotion into later Runs.
 
     Best effort and presentation only: a failure is logged, never retried and
-    never changes the call's observation. Read-only Runs (subagents share their
-    parent's agent id; observe-only Runs are automated) record nothing, so they
+    never changes the call's observation. Narrowed Runs (helpers share their
+    parent's agent id; observe-only wakes are automated) record nothing, so they
     never displace the agent's own tools or change its next tools array.
     """
     if (
-        read_only
+        scope != "full"
         or call.name not in registry.tools
         or call.name in BRIDGE_TOOLS
         or result.get("ok") is False

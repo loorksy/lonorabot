@@ -45,6 +45,7 @@ from lonora_db.runs import checkpoint, require_lease
 from lonora_db.schema import RunRow
 from lonora_db.tasks import report_task_degraded
 from lonora_session.idempotency import request_hash
+from lonora_tools.base import ToolScope, run_scope
 from lonora_tools.context import ToolContext
 from lonora_tools.registry import ToolRegistry
 from lonora_tools.tool_results import store_result
@@ -469,7 +470,7 @@ async def execute_segment(
     messages: list[ModelMessage],
     pending: list[ToolCall],
     segment: Segment,
-    read_only: bool,
+    scope: ToolScope,
 ) -> list[dict[str, Any]]:
     """Run one segment; results come back in the original call order."""
     environment = environment_state(state)
@@ -499,7 +500,7 @@ async def execute_segment(
                 registry,
                 state,
                 call,
-                read_only,
+                scope,
                 interrupted=call.id in interrupted,
                 before_effect=before_effect,
             )
@@ -536,7 +537,7 @@ async def execute_segment(
                 registry,
                 state,
                 call,
-                read_only,
+                scope,
                 interrupted=call.id in interrupted,
                 before_effect=None,
             )
@@ -678,9 +679,7 @@ async def execute_tool_loop(
     async with context.db.sessions() as session:
         run = await require_lease(session, context.lease)
         state: dict[str, Any] = dict(run.execution_state)
-        read_only = (
-            run.trigger == "subagent" or run.model_metadata.get("authority") == "observe_only"
-        )
+        scope = run_scope(run.trigger, run.model_metadata)
         capability = (
             Capability.BACKGROUND if run.trigger in WORK_TRIGGERS else Capability.CONVERSATION
         )
@@ -705,7 +704,7 @@ async def execute_tool_loop(
     # is identical on every model turn, so discovery never invalidates the
     # reusable prompt prefix. Exposure is presentation, never authority.
     exposure = await ensure_exposure(
-        context, registry, state, messages, pending, read_only=read_only, task_run=task_run
+        context, registry, state, messages, pending, scope=scope, task_run=task_run
     )
     resumed = state.pop(ATTENTION_RESUMED, None)
     if isinstance(resumed, dict):
@@ -854,7 +853,7 @@ async def execute_tool_loop(
                 raise ToolRetryScheduled()
             segment = next_segment(pending, registry.tools)
             results = await execute_segment(
-                context, registry, state, messages, pending, segment, read_only
+                context, registry, state, messages, pending, segment, scope
             )
             for index, (call, result) in enumerate(zip(segment.calls, results, strict=True)):
                 tool = registry.tools.get(call.name)
@@ -974,7 +973,7 @@ async def execute_tool_loop(
                         else None,
                     },
                 )
-                await remember_use(context, registry, exposure, call, result, read_only=read_only)
+                await remember_use(context, registry, exposure, call, result, scope=scope)
                 if result.get("_runtime_external_wait"):
                     await report_wait_superseded(context, superseded)
                     return external_wait_outcome(state)
@@ -1045,9 +1044,9 @@ async def execute_tool_loop(
         turn_capability = (
             Capability.VISION if any(message.images for message in messages) else capability
         )
-        native = native_definitions(registry, exposure, read_only)
-        inventory_text = inventory(registry, exposure, read_only)
-        policy_tools = registry.names(read_only)
+        native = native_definitions(registry, exposure, scope)
+        inventory_text = inventory(registry, exposure, scope)
+        policy_tools = registry.names(scope)
         view = await compact_for_turn(
             context,
             state,

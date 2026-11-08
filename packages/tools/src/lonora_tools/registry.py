@@ -48,7 +48,7 @@ from lonora_adapter_kit.types import ToolCall, ToolDefinition
 from lonora_core.user_error import LonoraError
 from lonora_db.runs import require_lease
 
-from .base import AvailabilityCheck, ExposureProfile, Tool, eager_for
+from .base import AvailabilityCheck, ExposureProfile, Tool, ToolScope, eager_for, run_scope
 from .context import ToolContext
 from .environment import BridgeInput, EnvironmentInput
 from .market_binding import guard_market_tool, prepare_market_arguments, scope_market_result
@@ -247,20 +247,20 @@ class ToolRegistry:
         return unavailable
 
     def eager_names(
-        self, profiles: Collection[ExposureProfile], read_only: bool = False
+        self, profiles: Collection[ExposureProfile], scope: ToolScope = "full"
     ) -> list[str]:
         """The profiles' eager working set in deterministic registry order."""
         return [
             name
             for name, tool in self.tools.items()
-            if tool.eager & set(profiles) and (not read_only or tool.read_only)
+            if tool.eager & set(profiles) and tool.permitted(scope)
         ]
 
     def exposure(
         self,
         profiles: Collection[ExposureProfile],
         *,
-        read_only: bool = False,
+        scope: ToolScope = "full",
         remembered: Sequence[str] = (),
         unavailable: Mapping[str, str] | None = None,
     ) -> tuple[list[str], list[str]]:
@@ -273,19 +273,14 @@ class ToolRegistry:
         missing = unavailable or {}
         chosen = {
             name
-            for name in self.eager_names(profiles, read_only)
+            for name in self.eager_names(profiles, scope)
             if name in BRIDGE_TOOLS or name not in missing
         } | BRIDGE_TOOLS
         promoted: list[str] = []
         used = 0
         for name in remembered:
             tool = self.tools.get(name)
-            if (
-                tool is None
-                or name in chosen
-                or name in missing
-                or (read_only and not tool.read_only)
-            ):
+            if tool is None or name in chosen or name in missing or not tool.permitted(scope):
                 continue
             if len(promoted) >= MAX_PROMOTED_TOOLS:
                 break
@@ -298,7 +293,7 @@ class ToolRegistry:
         return [name for name in self.tools if name in chosen], promoted
 
     def native_definitions(
-        self, names: Collection[str], read_only: bool = False
+        self, names: Collection[str], scope: ToolScope = "full"
     ) -> list[ToolDefinition]:
         """Native schemas for a frozen exposure, in registry order.
 
@@ -308,7 +303,7 @@ class ToolRegistry:
         return [
             tool.definition()
             for name, tool in self.tools.items()
-            if (name in names or name in BRIDGE_TOOLS) and (not read_only or tool.read_only)
+            if (name in names or name in BRIDGE_TOOLS) and tool.permitted(scope)
         ]
 
     def describe(
@@ -332,16 +327,14 @@ class ToolRegistry:
     ) -> dict[str, Any]:
         async with context.db.sessions() as session:
             run = await require_lease(session, context.lease)
-            read_only = (
-                run.trigger == "subagent" or run.model_metadata.get("authority") == "observe_only"
-            )
+            scope = run_scope(run.trigger, run.model_metadata)
             exposure: Any = run.execution_state.get("tool_exposure")
         native: set[str] = set()
         if isinstance(exposure, dict):
             listed = cast(dict[str, Any], exposure).get("native")
             if isinstance(listed, list):
                 native = {name for name in cast(list[Any], listed) if isinstance(name, str)}
-        allowed = [tool for tool in self.tools.values() if not read_only or tool.read_only]
+        allowed = [tool for tool in self.tools.values() if tool.permitted(scope)]
         name = arguments.get("tool_name")
         if name:
             tool = next((tool for tool in allowed if tool.name == name), None)
@@ -392,17 +385,15 @@ class ToolRegistry:
             "execution_authorized": False,
         }
 
-    def definitions(self, read_only: bool = False) -> list[ToolDefinition]:
-        return [
-            tool.definition() for tool in self.tools.values() if not read_only or tool.read_only
-        ]
+    def definitions(self, scope: ToolScope = "full") -> list[ToolDefinition]:
+        return [tool.definition() for tool in self.tools.values() if tool.permitted(scope)]
 
-    def names(self, read_only: bool = False) -> set[str]:
+    def names(self, scope: ToolScope = "full") -> set[str]:
         """Current permitted membership without generating native JSON schemas."""
-        return {name for name, tool in self.tools.items() if not read_only or tool.read_only}
+        return {name for name, tool in self.tools.items() if tool.permitted(scope)}
 
     def capability_inventory(
-        self, read_only: bool = False, unavailable: Mapping[str, str] | None = None
+        self, scope: ToolScope = "full", unavailable: Mapping[str, str] | None = None
     ) -> str:
         """Bounded names from the current permitted registry, never a second catalog.
 
@@ -411,7 +402,7 @@ class ToolRegistry:
         """
         families: dict[str, list[str]] = {}
         for name, tool in sorted(self.tools.items()):
-            if read_only and not tool.read_only:
+            if not tool.permitted(scope):
                 continue
             family = (
                 tool.toolset
@@ -432,7 +423,7 @@ class ToolRegistry:
         missing = sorted(
             (name, code)
             for name, code in (unavailable or {}).items()
-            if name in self.tools and (not read_only or self.tools[name].read_only)
+            if name in self.tools and self.tools[name].permitted(scope)
         )
         notice = ""
         if missing:
@@ -471,18 +462,20 @@ class ToolRegistry:
         )
 
     async def execute(
-        self, call: ToolCall, context: ToolContext, read_only: bool = False
+        self, call: ToolCall, context: ToolContext, scope: ToolScope = "full"
     ) -> dict[str, Any]:
         tool = self.tools.get(call.name)
-        if tool is None or (read_only and not tool.read_only):
+        if tool is None:
+            raise LonoraError("tool_not_allowed", 403)
+        if tool.financial and scope != "full":
+            raise LonoraError("observe_only_execution_forbidden", 403)
+        if not tool.permitted(scope):
             raise LonoraError("tool_not_allowed", 403)
         async with context.db.sessions() as session:
             run = await require_lease(session, context.lease)
             if tool.financial:
-                if (
-                    run.trigger == "subagent"
-                    or run.model_metadata.get("authority") == "observe_only"
-                ):
+                # The Run row, not the caller's scope, is authoritative.
+                if run_scope(run.trigger, run.model_metadata) != "full":
                     raise LonoraError("observe_only_execution_forbidden", 403)
                 # The financial implementation checks current permission before
                 # preparing a new action. Keep completed receipt retrieval
@@ -500,6 +493,6 @@ class ToolRegistry:
             context, call.name, dict(call.arguments), tool.input_type
         )
         arguments = validate_arguments(tool.input_type, arguments)
-        arguments = await guard_market_tool(context, call.name, arguments)
+        arguments = await guard_market_tool(context, call.name, arguments, read=tool.read_only)
         result = await tool.handler(context.for_call(call.id), arguments)
-        return await scope_market_result(context, call.name, result)
+        return await scope_market_result(context, call.name, result, arguments)

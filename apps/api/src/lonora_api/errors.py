@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
+from lonora_contracts.incoming_calls import policy_error_code
 from lonora_core.user_error import LonoraError
 from pydantic import ValidationError
 from sqlalchemy.exc import IntegrityError
@@ -17,9 +18,11 @@ def install_errors(app: FastAPI) -> None:
 
     @app.exception_handler(RequestValidationError)
     async def invalid_request(request: Request, error: RequestValidationError) -> JSONResponse:
+        # A reach-me check the owner can act on keeps its own code (choose a device,
+        # complete quiet hours) so both clients can say what to fix.
         return JSONResponse(
             {
-                "code": "invalid_request",
+                "code": policy_error_code(error.errors()),
                 "fields": [
                     {"path": [str(value) for value in item["loc"]], "code": item["type"]}
                     for item in error.errors()

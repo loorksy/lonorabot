@@ -115,8 +115,8 @@ def test_read_only_scope_applies_to_the_resolved_call_exactly_as_to_a_direct_one
     catalog = load_tools()
     resolved = catalog.resolve_call(bridge("x", "trade_execute", {}))
     assert resolved.name == "trade_execute"
-    assert "trade_execute" not in catalog.names(read_only=True)
-    assert BRIDGE in catalog.names(read_only=True)
+    assert "trade_execute" not in catalog.names(scope="helper")
+    assert BRIDGE in catalog.names(scope="helper")
 
 
 def offline_turns(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -784,10 +784,10 @@ async def test_read_only_runs_never_record_tool_usage_for_the_agent(
     probe = cast(ToolContext, SimpleNamespace(db=SimpleNamespace(sessions=sessions), owner_id="o"))
     exposure = {"profiles": ["core", "research"]}
     call = ToolCall(id="toolu_l", name="fixture_lookup", arguments={"n": 2})
-    await remember_use(probe, registry, exposure, call, {"ok": True}, read_only=True)
+    await remember_use(probe, registry, exposure, call, {"ok": True}, scope="helper")
     assert touched == []
     # Outside read-only Runs a failing store is attempted once and swallowed.
-    await remember_use(probe, registry, exposure, call, {"ok": True}, read_only=False)
+    await remember_use(probe, registry, exposure, call, {"ok": True}, scope="full")
     assert touched == ["db"]
 
 

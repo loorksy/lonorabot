@@ -11,7 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .events import emit
-from .runs import create_run, require_lease
+from .runs import create_run, inherited_authority, require_lease
 from .schema import BoardRow, EventRow, RunRow, TicketRow, TradeApprovalRow
 from .threads import create_thread
 from .transactions import owned_agent, owned_thread
@@ -144,6 +144,8 @@ async def create_task(
     origin_thread_id: str,
     request: TaskCreate,
     task_id: str | None = None,
+    *,
+    starter: RunRow | None = None,
 ) -> TicketRow:
     await owned_agent(session, owner_id, agent_id)
     origin = await owned_thread(session, owner_id, origin_thread_id)
@@ -208,6 +210,7 @@ async def create_task(
                 "task_id": row.id,
                 "origin_thread_id": origin_thread_id,
                 "lane": "work",
+                **inherited_authority(starter),
             },
         ),
     )

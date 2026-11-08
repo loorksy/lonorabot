@@ -176,7 +176,11 @@ async def main() -> None:
                     )
                 )
             )
-            assert len(wakes) == 1 and wakes[0].model_metadata["authority"] == "observe_only"
+            # The opportunity is the Agent's own work: one wake, with its normal authority,
+            # in its work lane, reporting back to its conversation.
+            assert len(wakes) == 1 and "authority" not in wakes[0].model_metadata
+            assert wakes[0].agent_id == agent["id"] and wakes[0].trigger == "watch"
+            assert wakes[0].model_metadata["origin_thread_id"] == thread["id"]
             assert wakes[0].thread_id != thread["id"]
             seed = await decision_context(session, f.owner, agent["id"])
             assert created[0]["id"] in seed and len(seed) < 6500

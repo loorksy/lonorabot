@@ -40,6 +40,7 @@ SKIPPED_TOOLS = frozenset(
         "runtime_status",
         "memory_read",
         "memory_write",
+        "owner_preferences_update",
         "scratchpad_write",
     }
 )

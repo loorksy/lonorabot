@@ -90,7 +90,7 @@ def test_explicit_and_trigger_modes() -> None:
 
 
 def test_missing_tools_and_subagent_cannot_load_financial_skill() -> None:
-    read_only = {tool.name for tool in load_tools().definitions(read_only=True)}
+    read_only = load_tools().names("helper")
     result = select_skill_context(
         [],
         SkillSignals(
@@ -271,7 +271,12 @@ async def test_actual_context_builder_resolver_and_fenced_diagnostics(
         summary_seq=0,
     )
     run = SimpleNamespace(
-        id="run", trigger="user", input_seq=1, prompt="", model_metadata={"provider": "keep"}
+        id="run",
+        thread_id="thread",
+        trigger="user",
+        input_seq=1,
+        prompt="",
+        model_metadata={"provider": "keep"},
     )
     session = FakeSession(agent, thread)
     context: Any = SimpleNamespace(

@@ -14,14 +14,14 @@ from lonora_core.attention import ATTENTION_KINDS, classify_attention
 from lonora_core.market_watch import condition_met
 from lonora_core.user_error import LonoraError
 from lonora_db.attention import (
-    attention_data,
     decide_attention,
     policy,
+    publish_ready,
     raise_system_attention,
     set_cursor,
 )
 from lonora_db.client import Database
-from lonora_db.events import PUBLIC_CURSOR, emit, publish_committed
+from lonora_db.events import PUBLIC_CURSOR, publish_committed
 from lonora_db.item_failures import ItemGuard, blocked, due_retries
 from lonora_db.personal_agent import ensure_personal_agent
 from lonora_db.schema import (
@@ -121,7 +121,15 @@ async def candidate(
         agent_id, thread_id = event.agent_id or personal.id, event.thread_id
         identifier = classification.resource_id
         resource: Any = None
-        if event.kind.startswith("broker.") or event.kind == "trading.controls_updated":
+        responsible = (
+            event.kind == "broker.external_activity"
+            and bool(event.payload.get("agent_id"))
+            and event.agent_id == event.payload.get("agent_id")
+        )
+        if responsible:
+            # Activity on an Agent's own positions reaches the owner in that Agent's chat.
+            agent_id = str(event.agent_id)
+        elif event.kind.startswith("broker.") or event.kind == "trading.controls_updated":
             agent_id, thread_id = personal.id, None
         if event.kind == "trading.controls_updated":
             current = TradingControl.model_validate(
@@ -452,22 +460,7 @@ async def suppress_item(session: AsyncSession, item_id: str) -> bool:
     row = await session.get(AttentionRow, item_id, with_for_update=True)
     if row is not None and row.status == "pending":
         urgent = row.importance in URGENT
-        row.status, row.version, row.updated_at = (
-            "ready" if urgent else "suppressed",
-            row.version + 1,
-            utcnow(),
-        )
-        if not urgent:
-            row.parameters = {**row.parameters, "suppression_code": "attention_projection_failed"}
-        for kind in ("attention.updated", "attention.ready") if urgent else ("attention.updated",):
-            emit(
-                session,
-                row.owner_id,
-                kind,
-                agent_id=row.agent_id,
-                thread_id=row.thread_id,
-                payload=attention_data(row),
-            )
+        publish_ready(session, row, None if urgent else "attention_projection_failed")
     return True
 
 
@@ -606,29 +599,4 @@ async def ready_one(
         )
         if row is None or row.status != "pending" or row.version != original.version:
             return False
-        row.status, row.version, row.updated_at = (
-            "suppressed" if suppression else "ready",
-            row.version + 1,
-            utcnow(),
-        )
-        if suppression:
-            row.parameters = {**row.parameters, "suppression_code": suppression}
-        emit(
-            session,
-            owner_id,
-            "attention.updated",
-            agent_id=row.agent_id,
-            thread_id=row.thread_id,
-            payload=attention_data(row),
-        )
-        if suppression:
-            return False
-        emit(
-            session,
-            owner_id,
-            "attention.ready",
-            agent_id=row.agent_id,
-            thread_id=row.thread_id,
-            payload=attention_data(row),
-        )
-        return True
+        return publish_ready(session, row, suppression)

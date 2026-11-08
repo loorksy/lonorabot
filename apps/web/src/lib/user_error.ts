@@ -5,6 +5,7 @@ import {
   errorCode,
   financialBoundaryError,
   ownerActionError,
+  ownerProfileError,
 } from "@lonora/core";
 import { isRequestCancelled } from "./api";
 export function userError(error: unknown) {
@@ -18,6 +19,8 @@ export function userError(error: unknown) {
   if (boundaryMessage) return boundaryMessage;
   const cardMessage = ownerActionError(code, i18n.locale);
   if (cardMessage) return cardMessage;
+  const profileMessage = ownerProfileError(code, i18n.locale);
+  if (profileMessage) return profileMessage;
   switch (code) {
     case "agent_scope_change_forbidden":
       return t`This agent’s market scope cannot be changed.`;

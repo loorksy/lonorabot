@@ -10,7 +10,7 @@ from lonora_contracts.opportunity import (
     OpportunityVersion,
 )
 from lonora_core.user_error import LonoraError
-from lonora_db.agent_binding import agent_binding, assert_market_binding
+from lonora_db.agent_binding import agent_binding
 from lonora_db.runs import require_lease
 from lonora_db.schema import EffectReceiptRow, TradingOpportunityRow
 from lonora_db.trading_opportunities import (
@@ -43,9 +43,8 @@ async def create(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
 
 async def read(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     async with context.db.sessions() as session, session.begin():
-        agent = await agent_binding(session, context.owner_id, context.agent_id)
+        await agent_binding(session, context.owner_id, context.agent_id)
         row = await owned_opportunity(session, context.owner_id, args["opportunity_id"], lock=True)
-        assert_market_binding(agent, row.account_id, row.symbol)
         await refresh_opportunity(session, row)
         history = await opportunity_history(session, context.owner_id, row.id)
         return {
@@ -102,27 +101,21 @@ async def list_opportunities(context: ToolContext, args: dict[str, Any]) -> dict
     params = OpportunityList.model_validate(args)
     async with context.db.sessions() as session:
         agent = await agent_binding(session, context.owner_id, context.agent_id)
-        assert_market_binding(agent, params.account_id, params.symbol)
         query = select(TradingOpportunityRow).where(
             TradingOpportunityRow.owner_id == context.owner_id,
             TradingOpportunityRow.agent_id == context.agent_id,
         )
-        if params.account_id or agent.trading_account_id:
-            query = query.where(
-                TradingOpportunityRow.account_id == (params.account_id or agent.trading_account_id)
-            )
-        if params.symbol or agent.trading_symbol:
-            query = query.where(
-                TradingOpportunityRow.symbol
-                == (
-                    params.symbol
-                    or (
-                        agent.trading_symbol
-                        if not params.account_id or params.account_id == agent.trading_account_id
-                        else None
-                    )
-                )
-            )
+        # The focus account and symbol are defaults for an unscoped list, never a fence.
+        account_id = params.account_id or agent.trading_account_id
+        symbol = params.symbol or (
+            agent.trading_symbol
+            if not params.account_id or params.account_id == agent.trading_account_id
+            else None
+        )
+        if account_id:
+            query = query.where(TradingOpportunityRow.account_id == account_id)
+        if symbol:
+            query = query.where(TradingOpportunityRow.symbol == symbol)
         rows = await session.scalars(
             query.order_by(TradingOpportunityRow.updated_at.desc()).limit(params.limit)
         )
@@ -131,9 +124,8 @@ async def list_opportunities(context: ToolContext, args: dict[str, Any]) -> dict
 
 async def historical_version(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     async with context.db.sessions() as session:
-        agent = await agent_binding(session, context.owner_id, context.agent_id)
+        await agent_binding(session, context.owner_id, context.agent_id)
         row = await owned_opportunity(session, context.owner_id, args["opportunity_id"])
-        assert_market_binding(agent, row.account_id, row.symbol)
         from lonora_db.schema import EventRow
 
         version = await session.scalar(

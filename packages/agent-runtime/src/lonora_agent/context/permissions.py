@@ -8,6 +8,7 @@ from lonora_db.agent_permissions import permission_state
 from lonora_db.schema import RunRow
 from lonora_db.trading_readiness import account_money_limits, global_trading
 from lonora_db.trading_restrictions import list_restrictions, relevant_to, restriction_data
+from lonora_tools.base import run_scope
 from lonora_trading.account_authority import provisional_voice
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -175,10 +176,8 @@ async def permission_context(
     session: AsyncSession, owner_id: str, agent_id: str, run: RunRow | None = None
 ) -> str:
     state = await permission_state(session, owner_id, agent_id)
-    observe_only = bool(
-        run is not None
-        and (run.trigger == "subagent" or run.model_metadata.get("authority") == "observe_only")
-    )
+    # Observe-only wakes and helpers keep every non-financial ability.
+    observe_only = run is not None and run_scope(run.trigger, run.model_metadata) != "full"
     provisional = (
         await provisional_voice(session, run) if run is not None and not observe_only else False
     )

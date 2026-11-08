@@ -9,6 +9,7 @@ import httpx
 from lonora_contracts.domain import Contract
 from lonora_core.user_error import LonoraError
 from lonora_db.client import Database
+from lonora_db.memory import memory_view
 from lonora_db.schema import AgentRow, IntegrationRow, MemoryRow, MessageRow, ThreadRow
 from lonora_memory.sessions import HISTORY_AUTHORITY, HISTORY_NOTE, history_scope
 from lonora_security.network import validate_public_url
@@ -121,6 +122,8 @@ async def agent_search(db: Database, owner_id: str, agent_id: str, query: str) -
                 MemoryRow.content.icontains(query, autoescape=True),
             )
         )
+        # The Agent's own view: a retired USER.md section kept in the row is not read.
+        view = memory_view(memory.content) if memory else ""
         return {
             "authority": HISTORY_AUTHORITY,
             "notice": HISTORY_NOTE,
@@ -136,8 +139,8 @@ async def agent_search(db: Database, owner_id: str, agent_id: str, query: str) -
                 }
                 for m in messages
             ],
-            "memory": [{"agent_id": memory.agent_id, "content": memory.content[:1600]}]
-            if memory
+            "memory": [{"agent_id": agent_id, "content": view[:1600]}]
+            if memory and query.casefold() in view.casefold()
             else [],
         }
 

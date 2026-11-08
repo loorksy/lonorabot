@@ -2,12 +2,17 @@
 
 from datetime import datetime
 from decimal import Decimal
-from typing import Any
+from typing import Any, cast
 from uuid import NAMESPACE_URL, uuid5
 
 from lonora_contracts.account import Order, Position
 from lonora_contracts.broker_activity import BrokerActivity, BrokerRecoverySnapshot
 from lonora_db.schema import TradingJournalRow
+
+from .exposure import ENTRY_ACTIONS
+
+# A reservation never reached the broker; every other of these may have.
+SENT_STATUSES = frozenset({"confirmed", "submitted", "ambiguous", "resolved"})
 
 
 def material_state(value: Position | Order) -> dict[str, Any]:
@@ -84,6 +89,55 @@ def _known_change(
     return False
 
 
+def journal_agent(entry: TradingJournalRow) -> str | None:
+    """The Agent whose fenced Run sent this operation; None for the owner's own order.
+
+    The executor writes this attribution from the leased Run, never from broker data,
+    and the journal keeps it through every later receipt.
+    """
+    details: Any = (entry.result or {}).get("details")
+    execution: Any = (
+        cast(dict[str, Any], details).get("execution") if isinstance(details, dict) else None
+    )
+    agent: Any = (
+        cast(dict[str, Any], execution).get("agent_id") if isinstance(execution, dict) else None
+    )
+    return agent if isinstance(agent, str) and agent else None
+
+
+def attributed_agent(
+    previous: Position | Order | None,
+    current: Position | Order | None,
+    entries: list[TradingJournalRow],
+) -> str | None:
+    """The Agent the journal shows opened this ticket, else the latest one that managed it.
+
+    ``entries`` are newest first. A ticket the journal does not connect to any Agent
+    (the owner's manual activity, inside or outside Lonora) is unattributed.
+    """
+    target = current or previous
+    assert target is not None
+    key = "position_id" if isinstance(target, Position) else "order_id"
+    manager: str | None = None
+    for entry in entries:
+        if entry.status not in SENT_STATUSES or entry.request.get("symbol") != target.symbol:
+            continue
+        agent = journal_agent(entry)
+        result = entry.result
+        details = result.get("details", {})
+        if entry.request.get("action") in ENTRY_ACTIONS and (
+            target.operation_id == entry.operation_id
+            or target.id
+            in {result.get("broker_id"), details.get("position_id"), details.get("order_id")}
+        ):
+            if agent:
+                return agent
+            continue
+        if manager is None and agent and entry.request.get(key) == target.id:
+            manager = agent
+    return manager
+
+
 def detect_activity(
     account_id: str,
     previous: BrokerRecoverySnapshot | None,
@@ -147,6 +201,7 @@ def detect_activity(
                         "observed_at": now,
                         "previous": left,
                         "current": right,
+                        "agent_id": attributed_agent(left, right, entries),
                     }
                 )
             )

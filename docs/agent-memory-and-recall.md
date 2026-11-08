@@ -13,6 +13,7 @@ An Agent's history scope is derived on the server from the calling Run, never
 from tool arguments (`lonora_memory/sessions.py`, `HistoryScope`):
 
 - its own memory document (`ln_memory` row of that Agent);
+- the owner profile, which every Agent reads (below), not a peer's memory;
 - threads whose `agent_id` is the Agent: its conversation, Task work threads
   and the threads of its subagents, because a subagent Run carries its
   parent's Agent id and therefore has exactly the parent's scope;
@@ -41,10 +42,120 @@ through `tool_call`. The owner API `GET /api/search` keeps its owner-wide search
 (`internal_search`): the owner can read everything they own, but that function is
 never exposed to an Agent.
 
+## One owner profile, shared by every Agent
+
+What the owner says about himself (language, reply length, tone, how to reach
+him, quiet hours, standing rules) is stored once, in the owner profile, and every
+Agent reads it (`ln_owner_profile`, `lonora_db/owner_profile.py`). Each Agent's
+own document keeps only its private views:
+
+| View | Where | Who writes it | How a Run sees it |
+| --- | --- | --- | --- |
+| `USER.md` | `ln_owner_profile.content`, one per owner | the owner (Knowledge, About you) or any Agent from the owner's message | `owner_preferences` context section, every Run of every Agent |
+| `MEMORY.md` (and older unsectioned text) | the Agent's `ln_memory` row | the Agent or the owner | `memory` context section, that Agent only |
+| `OPERATING.md` | the Agent's `ln_memory` row | the Agent (its own working method) or the owner | `operating_notes` context section, that Agent only |
+
+The structured part of the profile is the reply language
+(`ln_owner_profile.reply_language`: Arabic, English, or none = the language of
+the owner's latest message) and the reach-me preference. The reach-me preference
+is the existing incoming-call policy record with a `channel` (activity only,
+notify, message or call; see `docs/incoming-attention.md`), so the call gate and
+the profile can never disagree.
+
+**Reading.** `memory_read` returns the Agent's own view (`MEMORY.md` and
+`OPERATING.md`) with its `version`, and `owner_profile` with its
+`profile_version` and structured preferences. The context builder
+(`lonora_agent/context/memory.py`) puts three labelled sections in the user-role
+context message, never the system role: `owner_preferences` (trust
+`owner_attributed`, priority 90), `operating_notes` (trust `agent_authored`,
+priority 82) and `memory` (priority 80). The owner preferences rank below the
+system policy and the owner's own messages and above retrieved content; none of
+the three grants tools, permissions or financial authority. Every body is JSON
+escaped like `profile_context`. The profile is capped at 8,000 characters
+(`OWNER_PROFILE_CHAR_LIMIT`); if a merged profile is longer, its newest lines are
+injected with a note asking the Agent to summarize it. Conversation locale for
+server-rendered cards (`conversation_locale`) uses the profile's reply language
+first. Voice context carries the same profile and reach-me preference.
+
+**Writing.** `memory_write` operations with `section: "USER.md"` change the owner
+profile; `MEMORY.md` and `OPERATING.md` operations change the Agent's own
+document. One batch may touch both; it commits in one transaction under one
+receipt and lease fence, all or nothing. `version` is the Agent's own revision and
+`profile_version` (optional, 0 = current) the profile's; operations are
+content-addressed, so they are checked against whatever is stored when the write
+holds the document's lock. Every write reads the row again under that lock
+(`populate_existing`), never an earlier read, so two Agents answering one group
+message, or an Agent and the owner saving in Knowledge, both keep their lines and
+get distinct versions; a stale explicit version is `version_conflict`. A profile
+write needs a Run that answers the owner's message (`owner_message_id`, the same
+rule restrictions use): a wake, peer or task Run gets
+`owner_profile_requires_owner_message` and nothing is saved, so text an Agent
+read elsewhere can never become an owner preference. `owner_preferences_update`
+(long-tail, reached through `tool_call`) sets the reach-me channel, reply
+language, quiet hours and timezone under the same rule. A whole-document write
+replaces only the Agent's own document and may not contain a `# USER.md` heading
+(`memory_user_section_moved`); the owner API refuses one too.
+
+**Authority statements.** `OPERATING.md` and the owner profile are followed as
+guidance, so a write that adds an authority statement to them is refused whole
+(`memory_authority_claim_refused`, `lonora_memory/guard.py`): phrases that skip
+or bypass approval, claim authorization to trade, say the owner approved, ignore
+or override limits, policies, pauses or instructions, or claim full or unlimited
+authority, in English and Arabic. A statement that is already present (an owner
+edit) does not block unrelated edits. `MEMORY.md` keeps its earlier contract: it
+is untrusted data. This is defence in depth only; the executor never reads memory
+and authority comes from the signed grant alone.
+
+**Legacy `# USER.md` sections.** Migration `0039_owner_profile_memory_revisions`
+merges every Agent's `# USER.md` section into the profile, oldest change first,
+keeping each distinct line once (exact, trimmed) under a
+`<!-- Merged from <agent name> -->` comment. Agent rows are not modified. The
+merge writes only when the resulting content hash differs, so running it again
+changes nothing; the downgrade drops the two tables and leaves Agent rows as they
+are. At runtime the retired section is no longer read from an Agent row: it is
+hidden from `memory_read`, the context, recall, `search_internal` and the owner's
+memory editor. It stays in the row: every write (operations, a whole document, the
+owner's edit, an undo) changes only the Agent's view and keeps the section's lines
+after it (`lonora_db.memory.split_legacy` / `with_legacy`), the size limit applies
+to the view, and revisions record the view on both sides, so the history shows only
+what the change did. A downgrade therefore still finds every earlier preference line.
+
+## Revisions and undo
+
+Every commit to the owner profile, the structured preferences or an Agent's
+memory stores one `ln_memory_revisions` row: the text before and after, the
+author (`owner`, `agent` with its Agent id, or `system` for the merge), the owner
+message an Agent answered, the Run and the kind of change. The newest 100 are kept
+per document. The owner API lists them with a bounded line diff (or, for
+preferences, plain field changes without device identifiers):
+
+- `GET /api/owner/profile`, `PUT /api/owner/profile` (`content`, `version`),
+  `PUT /api/owner/preferences` (`reply_language`, `reach_me`),
+  `GET /api/owner/profile/revisions`;
+- `GET /api/agents/{id}/memory/revisions`;
+- `POST /api/memory/revisions/{id}/revert` (optional `version`): undoes that one
+  change as a new owner commit, so nothing is rewritten in place and every later
+  change stays. For text (`undo_change`) the lines that change added are removed and
+  the lines it removed come back where they were; undoing the newest change gives
+  back the exact earlier text. If a later change rewrote the very lines the change
+  wrote, nothing is saved and the answer is `memory_revert_conflict` (409): undo the
+  later change first or edit the text. For preferences only the settings that
+  change touched go back (undoing an Agent's "reply in Arabic" leaves a later "message
+  me instead of calling" as it is). The document is locked before anything is read.
+
+The Web Knowledge page opens on **About you**: the profile text, the reach-me and
+reply-language editor (the same preference Mobile edits in Voice settings) and the
+change history with *Undo this change*. Each form keeps its own unsaved edits, so
+saving reach-me never discards typed profile text (or the reverse), and the text
+form keeps the version its edit started from. The memory tab of each Agent shows
+its own history the same way. Labels and error texts come from one table in
+`@lonora/core` (`owner-profile.ts`) in Arabic and English, read by both Web
+(`userError`) and Mobile (`errorText`).
+
 ## session_search
 
-A read-only core tool (`lonora_tools/session_search.py`), so subagents and
-observe-only Runs have it too. Its shape follows the arguments, adapted from
+A read-only core tool (`lonora_tools/session_search.py`), so helpers and
+observe-only wakes have it too. Its shape follows the arguments, adapted from
 Hermes Agent `tools/session_search_tool.py` (MIT, see `THIRD_PARTY_NOTICES.md`):
 
 | Arguments | Shape | Returns |
@@ -203,6 +314,28 @@ resumed Run is not refused. No label grants tools or financial authority.
 
 ## Verification
 
+`tests/test_owner_profile.py` covers the views (the retired section is hidden and
+operating notes stay apart), profile operations, the authority guard on English
+and Arabic statements and benign methods, the reach-me channel contract, plain
+preference changes, the capped profile under admission and the migration merge.
+On PostgreSQL it proves that a preference the Personal Agent records from the
+owner's message reaches another Agent's context with its attribution, that every
+commit keeps a revision and undoing the newest change restores the exact text, that
+undoing an older text or preference change keeps every later one (and a rewritten
+line is `memory_revert_conflict`), that a Run without an owner message cannot write
+the profile, and that reach-me set from chat decides whether a call can ring. Three
+races hold a lock in one transaction while another writer waits: two overlapping
+`USER.md` adds both survive with distinct versions, an undo racing an Agent commit
+is `version_conflict` and loses nothing, and `owner_preferences_update` during an
+owner save keeps both. Agent, whole-document and owner writes keep a legacy section
+in the row while the history shows only the change. `tests/check_owner_profile.py`
+runs on a fresh database: the migration is lossless (every legacy line kept, Agent
+rows byte-identical) and idempotent across a re-run and a downgrade/upgrade, an
+Agent's write after the upgrade still leaves every legacy line for a downgrade, a
+preference reaches the gold Agent through a real Run, and "send me a message instead
+of calling" makes the next qualifying event ring nothing and write exactly one
+message.
+
 `tests/test_memory_privacy.py` covers the edit semantics, the overflow and
 freeing batch, the input shapes, and on PostgreSQL: three Agents with private
 conversations, a shared and a private group and decisions (`search_internal`,
@@ -228,7 +361,15 @@ surface and pre-upgrade receipts.
 - The GIN full-text index (and, for common words, a stored `tsvector` column)
   above; until then the whole-history statement degrades to the recent window
   beyond a few hundred thousand scoped messages.
-- Earlier memory revisions are still not stored, so an edit cannot be reverted
-  from the server (mandate §11 "reversible"); a revision table is the next step.
 - Automatic per-turn recall still covers only the current thread; other threads
   are reached through `session_search`.
+- Mobile edits the reach-me preference and reply language (Voice settings); the
+  profile text and its change history are edited on the Web Knowledge page.
+- Reach-me delivery is in-app only until off-app delivery (Wave 3). Until the
+  `owner_notify` tool (W15-7) lets an Agent raise an inbox alert, `notify` behaves
+  like `message` plus the alerts Lonora already raises, and its label says exactly
+  that.
+- The shared Arabic and English label table covers the profile, reach-me, language
+  and history words only. Status-line, ladder (No trading / Ask me / On its own) and
+  brake ("Stop new trading") words belong to W15-1, W15-3 and W15-9, which rename
+  them on Web and Mobile; they are not duplicated here.

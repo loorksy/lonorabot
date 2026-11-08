@@ -143,14 +143,22 @@ async def main() -> None:
         assert chart
         fixed_thread = await f.conversation(fixed)
         fixed_context = await f.lease(await f.run(fixed, fixed_thread))
-        # A legacy fixed-market agent may read a related symbol on its own account, but
-        # not another account, and persistent chart work stays on its bound pair.
+        # A legacy fixed-market agent reads every owned account and symbol; persistent
+        # chart work, like every mutation, stays on its bound pair.
         related = await call(
             "market_quote", {"account_id": first, "symbol": "XAUUSDm"}, fixed_context
         )
         assert related["symbol"] == "XAUUSDm"
+        other = await call(
+            "market_quote", {"account_id": second, "symbol": "XAUUSDm"}, fixed_context
+        )
+        assert other["symbol"] == "XAUUSDm"
         for name, args, code in (
-            ("market_quote", {"account_id": second, "symbol": "XAUUSDm"}, "account"),
+            (
+                "chart_open",
+                {"account_id": second, "symbol": "XAUUSDm", "timeframe": "1h"},
+                "account",
+            ),
             ("chart_open", {"account_id": first, "symbol": "XAUUSDm", "timeframe": "1h"}, "symbol"),
         ):
             try:

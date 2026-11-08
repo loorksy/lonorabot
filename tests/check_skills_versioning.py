@@ -170,7 +170,7 @@ async def main() -> None:
                 session,
                 second.lease,
                 "model_provider_unavailable",
-                read_only_names={tool.name for tool in registry.definitions(read_only=True)},
+                read_only_names={tool.name for tool in registry.definitions(scope="helper")},
             )
             row = await get_task(session, f.owner, task["id"], lock=True)
             state = task_state(row)

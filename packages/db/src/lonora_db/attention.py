@@ -3,15 +3,20 @@
 from datetime import timedelta
 from typing import Any
 
-from lonora_contracts.attention import AttentionClassification, AttentionPolicy
+from lonora_contracts.attention import (
+    AttentionClassification,
+    AttentionPolicy,
+    OwnerNotifyRequest,
+)
 from lonora_contracts.domain import utcnow
 from lonora_contracts.trading import IN_PROGRESS_STATUSES, UNRESOLVED_STATUSES
 from lonora_core.user_error import LonoraError
 from lonora_session.idempotency import request_hash, stable_id
-from sqlalchemy import select, text
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .events import emit
+from .owner_profile import reach_me_policy
 from .schema import (
     AttentionRow,
     BrokerSessionRow,
@@ -304,6 +309,156 @@ async def decide_attention(
         payload=attention_data(row),
     )
     return row
+
+
+def publish_ready(session: AsyncSession, row: AttentionRow, suppression: str | None) -> bool:
+    """Settle a due pending item as ready, or suppressed with its reason; True when ready."""
+    row.status, row.version, row.updated_at = (
+        "suppressed" if suppression else "ready",
+        row.version + 1,
+        utcnow(),
+    )
+    if suppression:
+        row.parameters = {**row.parameters, "suppression_code": suppression}
+    emit(
+        session,
+        row.owner_id,
+        "attention.updated",
+        agent_id=row.agent_id,
+        thread_id=row.thread_id,
+        payload=attention_data(row),
+    )
+    if suppression:
+        return False
+    emit(
+        session,
+        row.owner_id,
+        "attention.ready",
+        agent_id=row.agent_id,
+        thread_id=row.thread_id,
+        payload=attention_data(row),
+    )
+    return True
+
+
+# An Agent's own notifications per rolling hour; a dedupe key notifies once.
+NOTIFY_LIMIT_PER_HOUR = 6
+MAX_NOTIFY_LIFETIME = timedelta(days=31)
+NOTIFY_DELIVERY = "in_app"
+NOTIFY_EVENT = "agent.owner_notify"
+
+
+async def notify_owner(
+    session: AsyncSession,
+    owner_id: str,
+    agent_id: str,
+    thread_id: str,
+    request: OwnerNotifyRequest,
+    *,
+    run_id: str | None = None,
+) -> dict[str, Any]:
+    """An Agent-raised owner attention item under the owner's reach-me rules.
+
+    One item per Agent and dedupe key, at most NOTIFY_LIMIT_PER_HOUR per Agent. Quiet
+    hours hold everything but critical items until they end. Under reach-me "activity
+    only" a non-critical alert raises no item (``activity_only``): the Agent says it in
+    its reply, which reaches its conversation and the Activity list. Delivery is in the
+    app until off-app delivery exists. The item grants nothing.
+    """
+    now = utcnow()
+    if request.expires_at is not None and not now < request.expires_at <= now + (
+        MAX_NOTIFY_LIFETIME
+    ):
+        raise LonoraError("owner_notify_expiry_invalid", 422)
+    if session.get_bind().dialect.name == "postgresql":
+        await session.execute(
+            text("SELECT pg_advisory_xact_lock(hashtextextended(:key,0))"),
+            {"key": "attention:" + owner_id},
+        )
+    receipt_key = "owner-notify:" + request_hash(
+        {"owner_id": owner_id, "agent_id": agent_id, "dedupe_key": request.dedupe_key}
+    )
+    prior = await session.get(EffectReceiptRow, receipt_key)
+    if prior is not None:
+        item = await session.get(AttentionRow, prior.result.get("attention_id") or "")
+        return {
+            **prior.result,
+            "deduplicated": True,
+            **({"attention": attention_data(item)} if item else {}),
+        }
+    # Every alert counts, also one kept in activity only or held for quiet hours.
+    recent = await session.scalar(
+        select(func.count())
+        .select_from(EventRow)
+        .where(
+            EventRow.owner_id == owner_id,
+            EventRow.agent_id == agent_id,
+            EventRow.kind == NOTIFY_EVENT,
+            EventRow.created_at > now - timedelta(hours=1),
+        )
+    )
+    if (recent or 0) >= NOTIFY_LIMIT_PER_HOUR:
+        raise LonoraError("owner_notify_rate_limited", 429)
+    reach = await reach_me_policy(session, owner_id)
+    critical = request.importance == "critical"
+    held_until = None if critical else reach.quiet_until(now)
+    parameters: dict[str, Any] = {
+        "execution_authorized": False,
+        "summary": request.summary,
+        "evidence_refs": request.evidence_refs,
+        "dedupe_key": request.dedupe_key,
+        "delivery": NOTIFY_DELIVERY,
+        **({"valid_until": request.expires_at.isoformat()} if request.expires_at else {}),
+    }
+    event = EventRow(
+        owner_id=owner_id,
+        kind=NOTIFY_EVENT,
+        agent_id=agent_id,
+        thread_id=thread_id,
+        run_id=run_id,
+        payload={"importance": request.importance, **parameters},
+    )
+    session.add(event)
+    await session.flush()
+    row = await decide_attention(
+        session,
+        event,
+        AttentionClassification(
+            importance=request.importance,
+            code="agent_notification",
+            resource_id=request.dedupe_key,
+            transition=request.dedupe_key,
+        ),
+        agent_id=agent_id,
+        thread_id=thread_id,
+        parameters=parameters,
+        coalesce_scope="notify:" + request.dedupe_key,
+        suppression_code="owner_reach_me_activity"
+        if reach.channel == "activity" and not critical
+        else None,
+    )
+    if row is None:
+        status = (
+            "activity_only"
+            if reach.channel == "activity" and not critical
+            else "not_shown_owner_preference"
+        )
+    elif held_until is not None:
+        row.due_at = held_until
+        status = "held_for_quiet_hours"
+    elif request.importance in {"critical", "action_required"}:
+        publish_ready(session, row, None)
+        status = "ready"
+    else:
+        status = "pending"
+    result: dict[str, Any] = {
+        "status": status,
+        "attention_id": row.id if row else None,
+        "delivery": NOTIFY_DELIVERY,
+        **({"held_until": held_until.isoformat()} if row and held_until else {}),
+    }
+    session.add(EffectReceiptRow(key=receipt_key, result=result))
+    return {**result, **({"attention": attention_data(row)} if row else {})}
 
 
 async def acknowledge(session: AsyncSession, owner_id: str, identifier: str) -> AttentionRow:

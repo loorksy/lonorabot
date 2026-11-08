@@ -32,6 +32,11 @@ DOCUMENT = (
     "Legacy fact one.\n\n# USER.md\n- Prefers Arabic replies\n- Concise\n\n"
     "# MEMORY.md\n- XAUUSD spreads widen at rollover\n"
 )
+# A stored Agent row from before the owner profile: its USER.md section is retired.
+DB_DOCUMENT = (
+    "Legacy fact one.\n\n# USER.md\n- Prefers Arabic replies\n\n# OPERATING.md\n- Concise\n\n"
+    "# MEMORY.md\n- XAUUSD spreads widen at rollover\n"
+)
 
 
 # --- Granular memory edits (pure) ---------------------------------------------------
@@ -327,7 +332,7 @@ def texts(result: dict[str, Any]) -> str:
 
 async def search(registry: Any, context: Any, call_id: str, **arguments: Any) -> dict[str, Any]:
     return await registry.execute(
-        ToolCall(id=call_id, name="session_search", arguments=arguments), context, read_only=True
+        ToolCall(id=call_id, name="session_search", arguments=arguments), context, scope="helper"
     )
 
 
@@ -452,7 +457,7 @@ async def test_subagent_searches_with_its_parent_agents_scope():
         literal = await registry.execute(
             ToolCall(id="c2", name="search_internal", arguments={"query": "subscope"}),
             child_context,
-            read_only=True,
+            scope="helper",
         )
         assert "other" not in texts(literal["messages"]) and literal["memory"] == []
     finally:
@@ -504,7 +509,7 @@ async def test_subagent_inspect_reads_only_own_and_delegated_runs():
             return await registry.execute(
                 ToolCall(id=call_id, name="subagent_inspect", arguments={"run_id": run_id}),
                 as_context,
-                read_only=True,
+                scope="helper",
             )
 
         child = await registry.execute(
@@ -666,11 +671,11 @@ async def test_memory_operations_commit_atomically_with_receipts_and_overflow_pr
     try:
         agent = await fixture.agent("Memory editor")
         thread = await fixture.conversation(agent)
-        await set_memory(fixture, agent["id"], DOCUMENT)
+        await set_memory(fixture, agent["id"], DB_DOCUMENT)
         registry = load_tools()
         context = await fixture.lease(await fixture.run(agent, thread))
         operations = [
-            {"action": "add", "section": "USER.md", "content": "- Timezone Asia/Riyadh"},
+            {"action": "add", "section": "OPERATING.md", "content": "- Check the H4 trend first"},
             {"action": "patch", "old_text": "Concise", "content": "Very concise"},
         ]
         call = ToolCall(
@@ -682,9 +687,13 @@ async def test_memory_operations_commit_atomically_with_receipts_and_overflow_pr
         # Crash replay of the same call returns its receipt instead of applying twice.
         assert await registry.execute(call, context) == saved
         current = await registry.execute(
-            ToolCall(id="m2", name="memory_read", arguments={}), context, read_only=True
+            ToolCall(id="m2", name="memory_read", arguments={}), context, scope="helper"
         )
-        assert current["version"] == 2 and current["content"].count("Timezone") == 1
+        assert current["version"] == 2 and current["content"].count("H4 trend") == 1
+        # The retired owner section is not part of the Agent's view; it stays in the
+        # row, unread, so a downgrade still finds it.
+        assert "Prefers Arabic" not in current["content"]
+        assert current["document_sections"] == ["memory/MEMORY.md", "OPERATING.md"]
 
         # A batch that changes nothing keeps the revision and records no update.
         duplicate = ToolCall(
@@ -693,7 +702,7 @@ async def test_memory_operations_commit_atomically_with_receipts_and_overflow_pr
             arguments={
                 "version": 2,
                 "operations": [
-                    {"action": "add", "section": "USER.md", "content": "- Very concise"}
+                    {"action": "add", "section": "OPERATING.md", "content": "- Very concise"}
                 ],
             },
         )
@@ -734,6 +743,7 @@ async def test_memory_operations_commit_atomically_with_receipts_and_overflow_pr
             "code": "version_conflict",
             "version": 2,
             "chars": saved["chars"],
+            "profile_version": 1,
         }
         overflow = await registry.execute(
             ToolCall(

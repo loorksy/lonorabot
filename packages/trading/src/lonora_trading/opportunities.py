@@ -399,7 +399,11 @@ async def maintain_opportunity(session: AsyncSession, identifier: str) -> bool:
 
 
 async def wake_opportunity(session: AsyncSession, row: TradingOpportunityRow) -> None:
-    """Meaningful durable transition only; reuse work lane, receipts and same Agent."""
+    """Meaningful durable transition only; reuse work lane, receipts and same Agent.
+
+    The opportunity is the Agent's own work, so the wake carries its normal authority:
+    its grant, the account limits and pauses still decide at the executor.
+    """
     agent = await session.get(AgentRow, row.agent_id)
     if agent is None or agent.paused or not row.thread_id:
         return
@@ -417,12 +421,11 @@ async def wake_opportunity(session: AsyncSession, row: TradingOpportunityRow) ->
             thread_id=work.id,
             agent_id=agent.id,
             trigger="watch",
-            prompt="Inspect the saved opportunity transition and its actual evidence, explain the material change and whether re-analysis is needed. This read-only wake grants no trading authority.",
+            prompt="Inspect the saved opportunity transition and its actual evidence, explain the material change and decide what to do next. Your normal authority applies; your grant, account limits and pauses decide at execution. Never resend an uncertain operation.",
             metadata={
                 "opportunity_id": row.id,
                 "opportunity_version": row.version,
                 "origin_thread_id": row.thread_id,
-                "authority": "observe_only",
                 "reason_code": row.state.get("reason_code"),
             },
         ),

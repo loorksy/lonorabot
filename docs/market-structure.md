@@ -2,7 +2,7 @@
 
 The existing market tools expose `market_structure`, a read-only measurement over
 the same account, exact broker symbol and candle history used by the Agent.
-Fixed-market agents may measure related symbols on their bound account
+Every agent may measure any symbol on any owned account
 ([readable scope](market-analysis.md#readable-and-executable-scope-of-fixed-market-agents)).
 The same strict swing rule feeds `market_snapshot`. The result uses the existing `Observation`
 contract and does not create another market runtime or grant execution authority.

@@ -113,7 +113,8 @@ tables; Run deletion removes its operation receipts. Ownership is derived from
 the existing Agent, avoiding a second owner or permission system.
 
 Every access checks the current owned Agent, Thread, Run and lease. Mutations also
-respect paused Agents and the existing subagent/observe-only restriction. Reads
+respect paused Agents. An observe-only wake has no financial effects, so it keeps
+workspace writes; a temporary helper (subagent) may only run `workspace_execute`. Reads
 name an exact revision. Writes atomically compare that revision, apply bounded
 UTF-8 replacements/deletions and store a receipt under the canonical call identity.
 Duplicate identical calls return that receipt; reusing an identity with changed

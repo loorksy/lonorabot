@@ -80,7 +80,7 @@ async def main() -> None:
                 id="read-account", name="account_read", arguments={"account_id": connection_id}
             ),
             context,
-            read_only=True,
+            scope="helper",
         )
         await registry.execute(
             ToolCall(
@@ -89,10 +89,10 @@ async def main() -> None:
                 arguments={"account_id": connection_id},
             ),
             context,
-            read_only=True,
+            scope="helper",
         )
         directory = await registry.execute(
-            ToolCall(id="directory", name="list_accounts", arguments={}), context, read_only=True
+            ToolCall(id="directory", name="list_accounts", arguments={}), context, scope="helper"
         )
         entry = next(
             item for item in directory["accounts"] if item["connection_id"] == connection_id
@@ -323,7 +323,7 @@ async def main() -> None:
             directory = await registry.execute(
                 ToolCall(id="changed-directory-" + uuid4().hex, name="list_accounts", arguments={}),
                 context,
-                read_only=True,
+                scope="helper",
             )
             return next(
                 item for item in directory["accounts"] if item["connection_id"] == connection_id

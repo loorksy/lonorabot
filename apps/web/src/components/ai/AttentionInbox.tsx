@@ -65,6 +65,7 @@ export function AttentionInbox({
     operation_unresolved: t`A trade still has no confirmed broker result`,
     operation_uncertain: t`The broker did not confirm a trade — tell Lonora whether it executed`,
     gateway_degraded: t`Background service is running late`,
+    agent_notification: t`Your agent alerted you`,
   };
   if (compact && !items.length) return null;
   return (
@@ -114,6 +115,11 @@ export function AttentionInbox({
           <div>
             <p>{labels[item.code]}</p>
             <p dir="auto">{agents.find((agent) => agent.id === item.agent_id)?.name}</p>
+            {item.code === "agent_notification" && item.parameters.summary && (
+              <p dir="auto" data-testid="attention-summary">
+                {item.parameters.summary}
+              </p>
+            )}
             {item.parameters.symbol && <bdi>{item.parameters.symbol}</bdi>}
           </div>
           <Link

@@ -60,6 +60,9 @@ def bars(symbol: str, frame: str, base: Decimal, tick: Decimal, count: int) -> l
     return result
 
 
+BINDING_CODES = {"agent_trading_account_mismatch", "agent_trading_symbol_mismatch"}
+
+
 async def main() -> None:
     fixture = await Fixture().open()
     connections: list[str] = []
@@ -141,7 +144,7 @@ async def main() -> None:
             tool = registry.tools[name]
             assert tool.read_only is read_only and not tool.financial, name
         assert registry.tools["market_candles_to_workspace"].replay_safe
-        read_only_names = {item.name for item in registry.definitions(read_only=True)}
+        read_only_names = {item.name for item in registry.definitions(scope="helper")}
         assert {"market_snapshot", "market_sessions", "economic_calendar_read"} <= read_only_names
         assert "market_candles_to_workspace" not in read_only_names
 
@@ -341,16 +344,17 @@ async def main() -> None:
             await registry.execute(
                 ToolCall(id=uuid4().hex, name="market_candles_to_workspace", arguments=request),
                 context,
-                read_only=True,
+                scope="helper",
             )
         except LonoraError as error:
             assert error.code == "tool_not_allowed"
         else:
-            raise AssertionError("Observe-only run wrote into a workspace")
+            raise AssertionError("A helper run wrote into a workspace")
+        # The handler refuses a helper's write too, whatever scope the caller passed.
         async with fixture.runtime.db.sessions() as session, session.begin():
             run = await session.get(RunRow, context.lease.run_id, with_for_update=True)
             assert run is not None
-            run.model_metadata = {**run.model_metadata, "authority": "observe_only"}
+            run.trigger = "subagent"
         await denied(
             "market_candles_to_workspace",
             {**request, "revision": 3, "path": "data/observe.csv"},
@@ -426,19 +430,16 @@ async def main() -> None:
         catalog = await call("market_symbols", {}, actor=specialist)
         assert set(catalog["symbols"]) == {GOLD, DOLLAR, EURO}
         assert catalog["execution_scope"]["symbol"] == GOLD
-        await denied(
-            "market_quote",
-            {"account_id": secondary, "symbol": DOLLAR},
-            "agent_trading_account_mismatch",
-            actor=specialist,
-        )
-        await denied(
-            "market_snapshot",
-            {"account_id": secondary, "symbol": GOLD},
-            "agent_trading_account_mismatch",
-            actor=specialist,
-        )
-        print("PASS fixed-market agent reads related symbols on its bound account only")
+        # Reading is open: another owned account is readable too.
+        for name, args in (
+            ("market_quote", {"account_id": secondary, "symbol": DOLLAR}),
+            ("market_snapshot", {"account_id": secondary, "symbol": GOLD}),
+        ):
+            try:
+                await call(name, args, actor=specialist)
+            except LonoraError as error:
+                assert error.code not in BINDING_CODES, (name, error.code)
+        print("PASS fixed-market agent reads related symbols and every owned account")
 
         async with fixture.runtime.db.sessions() as session, session.begin():
             row = await session.get(TradingAccountRow, primary, with_for_update=True)
@@ -496,7 +497,16 @@ async def main() -> None:
                 },
             ),
             ("chart_open", {"symbol": DOLLAR, "timeframe": "1h"}),
-            (
+        ):
+            try:
+                await call(name, args, actor=specialist)
+            except LonoraError as error:
+                assert error.code == "agent_trading_symbol_mismatch", (name, error.code)
+            else:
+                raise AssertionError(name + " acted on a related, read-only symbol")
+        # A sizing estimate is a read: open for the related symbol, and it executes nothing.
+        try:
+            await call(
                 "market_position_size",
                 {
                     "symbol": DOLLAR,
@@ -505,14 +515,10 @@ async def main() -> None:
                     "currency": "USD",
                     "stop_loss": "103",
                 },
-            ),
-        ):
-            try:
-                await call(name, args, actor=specialist)
-            except LonoraError as error:
-                assert error.code == "agent_trading_symbol_mismatch", (name, error.code)
-            else:
-                raise AssertionError(name + " acted on a related, read-only symbol")
+                actor=specialist,
+            )
+        except LonoraError as error:
+            assert error.code not in BINDING_CODES, error.code
         closed = await call("trade_close_positions", {}, actor=specialist)
         cards = cast(
             list[dict[str, Any]],

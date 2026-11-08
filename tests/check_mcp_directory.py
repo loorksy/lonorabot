@@ -72,7 +72,7 @@ async def main() -> None:
         context = await fixture.lease(await fixture.run(agent, thread))
         registry = load_tools()
         empty = await registry.execute(
-            ToolCall(id="none", name="mcp_connections", arguments={}), context, True
+            ToolCall(id="none", name="mcp_connections", arguments={}), context, "helper"
         )
         assert empty["connections"] == []
         try:
@@ -83,7 +83,7 @@ async def main() -> None:
                     arguments={"connection_id": "missing-connection"},
                 ),
                 context,
-                True,
+                "helper",
             )
         except LonoraError as error:
             assert error.code == "mcp_not_found"
@@ -104,7 +104,7 @@ async def main() -> None:
         )
         connection_id = created["id"]
         listed = await registry.execute(
-            ToolCall(id="list", name="mcp_connections", arguments={}), context, True
+            ToolCall(id="list", name="mcp_connections", arguments={}), context, "helper"
         )
         row = next(item for item in listed["connections"] if item["connection_id"] == connection_id)
         assert (
@@ -120,7 +120,7 @@ async def main() -> None:
                     id="disabled", name="mcp_tools", arguments={"connection_id": connection_id}
                 ),
                 context,
-                True,
+                "helper",
             )
         except LonoraError as error:
             assert error.code == "mcp_disabled"
@@ -130,7 +130,7 @@ async def main() -> None:
             await registry.execute(
                 ToolCall(id="search", name="web_search", arguments={"query": "fixture"}),
                 context,
-                True,
+                "helper",
             )
         except LonoraError as error:
             assert error.code == "research_provider_not_configured"
@@ -196,7 +196,7 @@ async def main() -> None:
                     arguments={"connection_id": connection_id},
                 ),
                 approved,
-                read_only=True,
+                scope="helper",
             )
             assert found["tools"][0]["execution_allowed"] is True
             assert found["tools"][1]["execution_allowed"] is False
@@ -229,7 +229,7 @@ async def main() -> None:
                         },
                     ),
                     approved,
-                    read_only=True,
+                    scope="helper",
                 )
             except LonoraError as error:
                 assert error.code == "tool_not_allowed"

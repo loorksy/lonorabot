@@ -272,9 +272,25 @@ async def test_builder_keeps_untrusted_material_out_of_the_system_role(
         builder,
         "read_memory_context",
         AsyncMock(
-            return_value=ContextSection(
-                "memory", "agent_memory", "mutable_untrusted", "Memory " + hostile, 80
-            )
+            return_value=[
+                ContextSection(
+                    "owner_preferences",
+                    "owner_profile",
+                    "owner_attributed",
+                    "Profile " + hostile,
+                    90,
+                ),
+                ContextSection(
+                    "operating_notes",
+                    "agent_operating_notes",
+                    "agent_authored",
+                    "Notes " + hostile,
+                    82,
+                ),
+                ContextSection(
+                    "memory", "agent_memory", "mutable_untrusted", "Memory " + hostile, 80
+                ),
+            ]
         ),
     )
     monkeypatch.setattr(builder, "scratchpad_context", AsyncMock(return_value="Note " + hostile))
@@ -309,8 +325,11 @@ async def test_builder_keeps_untrusted_material_out_of_the_system_role(
     data = messages[3]
     assert is_context_message(data) and data.role == "user"
     assert hostile not in data.content
-    assert data.content.count(escape_context_text(hostile)) == 8
+    assert data.content.count(escape_context_text(hostile)) == 10
+    # The shared owner preferences come first, then the Agent's own notes and memory.
     assert context_section_names(data) == [
+        "owner_preferences",
+        "operating_notes",
         "memory",
         "history_summary",
         "history_gap",
@@ -351,6 +370,7 @@ class SimpleThread:
 
 class SimpleRun:
     id = "run"
+    thread_id = "thread"
     trigger = "user"
     input_seq = 120
     prompt = ""
@@ -1343,7 +1363,7 @@ def test_every_catalog_tool_is_classified_for_earlier_run_evidence() -> None:
         "market_relationship_read", "market_relationship_record", "market_sessions",
         "market_shadow_execute", "market_shadow_read", "market_snapshot", "market_structure",
         "market_symbols", "owner_action_propose", "owner_attention_list", "owner_call_request",
-        "peer_send",
+        "owner_notify", "peer_send",
         "routine_create", "routine_list", "routine_toggle", "scratchpad_read",
         "skill_package_control", "skill_package_create", "skill_package_import",
         "skill_package_validate", "subagent_spawn", "super_bot_propose", "super_bot_status",

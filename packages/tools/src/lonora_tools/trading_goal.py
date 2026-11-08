@@ -79,16 +79,16 @@ async def create(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
 async def read(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     await recover_goals(context.db)
     async with context.db.sessions() as session:
-        from lonora_db.trading_goals import goal_read_thread
+        from lonora_db.trading_goals import goal_read_threads
 
-        source_thread = await goal_read_thread(session, await require_lease(session, context.lease))
+        threads = await goal_read_threads(session, await require_lease(session, context.lease))
         rows = list(
             await session.scalars(
                 select(TradingGoalRow)
                 .where(
                     TradingGoalRow.owner_id == context.owner_id,
                     TradingGoalRow.agent_id == context.agent_id,
-                    TradingGoalRow.thread_id == source_thread,
+                    TradingGoalRow.thread_id.in_(threads),
                 )
                 .order_by(TradingGoalRow.created_at.desc())
                 .limit(31)
@@ -121,11 +121,11 @@ async def read(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
 async def read_goal(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     await recover_goals(context.db)
     async with context.db.sessions() as session:
-        from lonora_db.trading_goals import goal_read_thread
+        from lonora_db.trading_goals import goal_read_threads
 
-        source_thread = await goal_read_thread(session, await require_lease(session, context.lease))
+        threads = await goal_read_threads(session, await require_lease(session, context.lease))
         goal = await owned_goal(session, context.owner_id, args["goal_id"])
-        if goal.agent_id != context.agent_id or goal.thread_id != source_thread:
+        if goal.agent_id != context.agent_id or goal.thread_id not in threads:
             raise LonoraError("goal_run_mismatch", 409)
         step = planned_step(goal, args.get("step_id"))
         return {
@@ -152,11 +152,11 @@ async def read_goal(context: ToolContext, args: dict[str, Any]) -> dict[str, Any
 async def read_decisions(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     await recover_goals(context.db)
     async with context.db.sessions() as session:
-        from lonora_db.trading_goals import goal_read_thread
+        from lonora_db.trading_goals import goal_read_threads
 
-        source_thread = await goal_read_thread(session, await require_lease(session, context.lease))
+        threads = await goal_read_threads(session, await require_lease(session, context.lease))
         goal = await owned_goal(session, context.owner_id, args["goal_id"])
-        if goal.agent_id != context.agent_id or goal.thread_id != source_thread:
+        if goal.agent_id != context.agent_id or goal.thread_id not in threads:
             raise LonoraError("goal_run_mismatch", 409)
         step = planned_step(goal, args.get("step_id"))
         rows = list(

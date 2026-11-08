@@ -17,7 +17,7 @@ from lonora_db.schema import (
     ThreadRow,
     TicketRow,
 )
-from lonora_db.trading_goals import goal_read_thread
+from lonora_db.trading_goals import goal_read_threads
 from sqlalchemy import String, exists, literal, or_, select
 from sqlalchemy import cast as sql_cast
 
@@ -179,7 +179,7 @@ async def return_outcome(db: Database, run_id: str) -> None:
                     origin.agent_id == child.agent_id
                     or (
                         child.trigger == "activation"
-                        and await goal_read_thread(session, child) == origin.id
+                        and origin.id in await goal_read_threads(session, child)
                     )
                 )
             ):

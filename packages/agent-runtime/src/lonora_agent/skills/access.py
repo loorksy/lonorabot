@@ -13,6 +13,7 @@ from lonora_core.user_error import LonoraError
 from lonora_db.runs import require_lease
 from lonora_db.schema import AgentRow, EffectReceiptRow, RunRow, SkillRow, ThreadRow
 from lonora_session.idempotency import request_hash
+from lonora_tools.base import run_scope
 from lonora_tools.context import ToolContext
 from lonora_tools.registry import ToolRegistry
 from sqlalchemy import select
@@ -74,15 +75,11 @@ async def catalog_state(
     skills, rejected = await effective_skill_registry(
         session, context, registry, rows, run.model_metadata
     )
-    read_only = run.trigger == "subagent" or run.model_metadata.get("authority") == "observe_only"
+    scope = run_scope(run.trigger, run.model_metadata)
     return (
         skills,
         rejected,
-        SkillSignals(
-            trigger="",
-            read_only=read_only,
-            available_tools=frozenset(item.name for item in registry.definitions(read_only)),
-        ),
+        SkillSignals(trigger="", scope=scope, available_tools=frozenset(registry.names(scope))),
     )
 
 

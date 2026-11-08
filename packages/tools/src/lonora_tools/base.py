@@ -1,4 +1,4 @@
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
@@ -27,6 +27,28 @@ EXPOSURE_PROFILES: tuple[ExposureProfile, ...] = ("core", "market", "research", 
 
 def eager_for(*profiles: ExposureProfile) -> frozenset[ExposureProfile]:
     return frozenset(profiles)
+
+
+# Which registered tools a Run may use. "full" is an ordinary Run. An
+# "observe_only" wake (server-authored, about events it did not cause) has no
+# financial effects: it keeps memory, watches, routines, peers, owner
+# notifications and artifacts. The executor refuses broker mutations from it,
+# from its helpers and peer runs (lineage) and from the Tasks and tickets it
+# starts (they inherit the narrowing). Watches, routines and Goals it sets up
+# are the Agent's own later work and fire with the Agent's normal authority,
+# still under its signed grant and limits. A "helper" is a temporary subagent:
+# reads plus sandbox computation and reports, never memory writes, new agents,
+# peer messages or financial tools.
+ToolScope = Literal["full", "observe_only", "helper"]
+HELPER_EFFECTS = frozenset({"workspace_execute", "artifact_create"})
+
+
+def run_scope(trigger: str, metadata: Mapping[str, Any]) -> ToolScope:
+    if trigger == "subagent":
+        return "helper"
+    if metadata.get("authority") == "observe_only":
+        return "observe_only"
+    return "full"
 
 
 # Returns None when the backend a tool needs is configured, otherwise the code
@@ -59,6 +81,13 @@ class Tool:
     # Profiles whose Runs receive this schema natively from the first turn.
     eager: frozenset[ExposureProfile] = field(default_factory=frozenset[ExposureProfile])
     availability: AvailabilityCheck | None = None
+
+    def permitted(self, scope: ToolScope) -> bool:
+        if scope == "full":
+            return True
+        if self.financial:
+            return False
+        return scope == "observe_only" or self.read_only or self.name in HELPER_EFFECTS
 
     def dispatch_timeout(self) -> float | None:
         if self.financial:

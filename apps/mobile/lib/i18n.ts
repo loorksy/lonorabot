@@ -372,6 +372,7 @@ export const labels = {
     "The broker did not confirm a trade — tell Lonora whether it executed",
   ],
   attentionGatewayDegraded: ["خدمة الخلفية متأخرة", "Background service is running late"],
+  attentionAgentAlert: ["نبّهك وكيلك", "Your agent alerted you"],
   retryScheduled: ["إعادة المحاولة مجدولة", "Retry scheduled"],
   modelRetryScheduled: [
     "مزود النموذج غير متاح — إعادة المحاولة مجدولة",

@@ -116,8 +116,8 @@ Columns: `time, close_time, open, high, low, close, volume, closed`, with exact
 broker decimals. The default path is `market/<symbol>_<timeframe>.csv`.
 
 `RunWorkspaceAccess.write_generated` performs the write with the existing workspace
-rules: the current owned Agent, Thread, Run and lease fence; paused Agents, subagent
-and observe-only runs refused; path validation; per-file, total-size and file-count
+rules: the current owned Agent, Thread, Run and lease fence; paused Agents and
+helper (subagent) runs refused; path validation; per-file, total-size and file-count
 quotas; optimistic revision. No database lock is held while the broker is read. The
 receipt identity is the request (account, symbol, timeframe, window, path and base
 revision), not the bytes, so a replay of an interrupted call returns the original
@@ -125,25 +125,32 @@ write even if new bars have arrived since.
 
 ## Readable and executable scope of fixed-market agents
 
-Mandate section 4 separates the default instrument, readable instrument scope and
-executable scope. A fixed-market (bound) agent may now read related symbols on its
-own bound account, for example a dollar index beside gold, with `market_quote`,
-`market_candles`, `market_instrument`, `market_structure`, `chart_indicator`,
-`market_snapshot`, `market_sessions` and `market_candles_to_workspace`
-(`RELATED_READ_TOOLS` in `lonora_tools/market_binding.py`). `market_symbols` and
-`market_instruments` list the bound account's full catalog, and `account_read` shows
-every position and order on the account with `in_execution_scope` per item and an
-`execution_scope` note, so the agent can monitor account-wide exposure.
+Mandate section 4 separates the default instrument (focus), readable scope and
+executable scope; correction 1 opens reading. A fixed-market (bound) agent reads every
+owned account and symbol like any other agent: every read-only tool in the registry
+(`guard_market_tool(..., read=tool.read_only)` in `lonora_tools/market_binding.py`),
+plus `market_candles_to_workspace`, which copies market reads into the agent's own
+workspace. `list_accounts`, `account_read`, `account_history` and `account_activity`
+are no longer filtered to the bound account or symbol; trade records, decision
+history, opportunity reads, shadow reads, performance reads, position sizing and
+relationship reads drop their binding checks. `list_accounts` marks each account and
+`account_read` each position and order with `in_execution_scope`, and the catalog and
+account reads carry an `execution_scope` note, so the agent still sees what it may
+execute. Omitted arguments default to the focus account and symbol, but the focus
+symbol is never copied onto another explicitly named account (`fill_bound_fields`),
+so `trade_record_history(account_id=<other>)` returns that account's records for every
+symbol, as for flexible agents. `BINDING_POLICY` reads: focus pair; reading is open;
+executing follows your grant.
 
-Nothing else changed. The account stays bound for every tool. Charts, watches
-(including watches on a foreign position ticket), goals, decisions, opportunities,
-relationship records, position sizing, shadow execution and every `trade_` tool keep
-the bound symbol through the unchanged guard and their own handler checks. The
-financial executor independently asserts the binding of every leased request, and
-preflight requires a position's or order's symbol to equal the request's symbol, so
-seeing another symbol's ticket cannot widen execution. `account_history` and
-`account_activity` remain filtered to the bound symbol. Signed grants, approvals,
-restrictions and risk limits are untouched.
+Mutations keep the binding (`agent_trading_account_mismatch` and
+`agent_trading_symbol_mismatch` now come only from mutation paths). Charts, watches
+(including watches on a foreign position ticket), goals, decisions, opportunity
+records, relationship records, shadow execution and every financial `trade_` tool
+keep the bound account and symbol through the guard and their own handler checks.
+The financial executor independently asserts the binding of every leased request,
+and preflight requires a position's or order's symbol to equal the request's symbol,
+so reading another account or symbol cannot widen execution. Signed grants,
+approvals, restrictions and risk limits are untouched.
 
 ## Verification
 
@@ -172,7 +179,10 @@ restrictions and risk limits are untouched.
 - `tests/check_agent_binding.py`, `tests/check_market_structure.py` and
   `tests/check_flexible_agents.py` were updated from "cross-symbol reads are refused" to
   "related reads on the bound account are allowed; cross-account reads and every
-  mutation remain refused".
+  mutation remain refused", and in Wave 1.5 (W15-7) to "every owned account and symbol
+  is readable; every mutation stays on the pair" (`tests/check_agent_binding.py`,
+  `tests/check_market_analysis.py`, `tests/check_position_sizing.py`,
+  `tests/check_decision_replay.py`, `tests/test_proactive_wakes.py`).
 
 ## Limitations
 

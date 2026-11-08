@@ -21,13 +21,25 @@ from .context import ToolContext
 
 
 async def check_scope(
-    context: ToolContext, account_id: str, symbols: list[str], *, require_connection: bool = True
+    context: ToolContext,
+    account_id: str,
+    symbols: list[str],
+    *,
+    require_connection: bool = True,
+    record: bool = True,
 ) -> None:
+    """A fixed-market Agent records evidence on its own market; reading it is open."""
     async with context.db.sessions() as session:
         await require_lease(session, context.lease)
         agent = await agent_binding(session, context.owner_id, context.agent_id)
-        assert_market_binding(agent, account_id)
-        if fixed_market(agent) and agent.trading_symbol and agent.trading_symbol not in symbols:
+        if record:
+            assert_market_binding(agent, account_id)
+        if (
+            record
+            and fixed_market(agent)
+            and agent.trading_symbol
+            and agent.trading_symbol not in symbols
+        ):
             raise LonoraError("agent_trading_symbol_mismatch", 409)
         if require_connection:
             await BrokerSessionRepository().get(session, context.owner_id, account_id)
@@ -85,7 +97,9 @@ async def read(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     params = RelationshipReference.model_validate(args)
     async with context.db.sessions() as session:
         value = await read_relationship(session, context.owner_id, params.relationship_id)
-    await check_scope(context, value.account_id, value.symbols, require_connection=False)
+    await check_scope(
+        context, value.account_id, value.symbols, require_connection=False, record=False
+    )
     return relationship_summary(value)
 
 

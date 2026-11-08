@@ -72,7 +72,7 @@ non-execution of hooks, immutable revisions and tool-effect contracts.
 workspace and catalog lifecycle. Supplying `LONORA_SKILL_TEST_IMAGE` as a full
 local image ID selects real networkless containers rather than the offline fake.
 The real-container check covers import/validation/activation/view, immutable
-updates, replay, rollback, ownership, observe-only denial, revocation/relabel
+updates, replay, rollback, ownership, helper (subagent) denial, revocation/relabel
 denial, removal, stale leases, missing dependencies and self-modifying source.
 Financial journal and approval counts remain unchanged.
 

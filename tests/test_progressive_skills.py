@@ -121,10 +121,8 @@ def test_observe_only_access_filters_financial_procedures() -> None:
             rejected,
             SkillSignals(
                 trigger="",
-                read_only=True,
-                available_tools=frozenset(
-                    tool.name for tool in load_tools().definitions(read_only=True)
-                ),
+                scope="observe_only",
+                available_tools=frozenset(load_tools().names("observe_only")),
             ),
             (),
             "financial",
