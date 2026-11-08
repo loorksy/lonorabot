@@ -860,24 +860,28 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
                   return (
                     <OwnerActionCard
                       row={item.action}
-                      onChange={(updated) =>
+                      onChange={(updated) => {
                         setOwnerActions((old) =>
                           old.map((row) =>
                             row.id === updated.id ? mergeOwnerAction(row, updated) : row,
                           ),
-                        )
-                      }
+                        );
+                        // A decided card changes what the header pill says (a lifted pause,
+                        // Resume, a signed grant): read it now, not at the next poll.
+                        void liveState.refresh();
+                      }}
                     />
                   );
                 if (item.kind === "approval")
                   return (
                     <TradeApprovalCard
                       row={item.approval}
-                      onChange={(updated) =>
+                      onChange={(updated) => {
                         setApprovals((old) =>
                           old.map((row) => (row.id === updated.id ? updated : row)),
-                        )
-                      }
+                        );
+                        void liveState.refresh();
+                      }}
                     />
                   );
                 const message = item.message;
