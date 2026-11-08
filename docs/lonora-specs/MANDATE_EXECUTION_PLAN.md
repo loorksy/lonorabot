@@ -321,12 +321,14 @@ The owner asked, on 2026-11-08, for a simple experience without contradictions a
    - A shared owner profile with attributed revisions and revert.
    - Self-edited operating notes.
    - Reach-me preferences settable from chat.
+   - Delivered on branch `w15-b1` (migration `0038_owner_profile_memory_revisions` there, renumbered `0039_owner_profile_memory_revisions` at integration); the design is in `docs/agent-memory-and-recall.md` and `docs/incoming-attention.md`. One owner profile (`ln_owner_profile`) is the single USER.md every agent reads as an owner-attributed `owner_preferences` context section; `memory_write` on USER.md changes it only from a Run that answers the owner's message. `OPERATING.md` holds each agent's own working method. `ln_memory_revisions` records every commit of the profile, the preferences and each agent's memory with its author, and the owner can undo one change. Reach-me (activity, notify, message, call) and the reply language are set from chat with `owner_preferences_update`. Writes that add an authority statement to the profile or the operating notes are refused. Review fixes: locked re-reads are fresh so concurrent writers keep both changes, undo takes back exactly one change, an agent's write keeps its retired USER.md lines, each form keeps its unsaved edits, and reach-me validator codes have shared owner text.
 7. **W15-6 Lonora sees everything** (corrections 1, 3, 15). Supervision grants, with the Personal Assistant supervising every agent by default (visible and revocable), and `agent_inspect` and `agent_control` tools. Peers stay private from each other.
 8. **W15-7 Proactive wakes that can act; reading without walls** (correction 25).
    - Observe-only means no financial effects.
    - Broker events wake the agent that owns the position.
    - Every agent reads every owned account.
    - An `owner_notify` tool.
+   - Delivered on branch `w15-b1` (no migration); the design is in `docs/proactive-wakes.md`. One tool scope per Run (`full`, `observe_only`, `helper`) drives exposure, discovery, skills and execution: observe-only wakes keep every non-financial tool, helpers keep reads plus workspace computation and reports, and a financial tool outside a full Run fails `observe_only_execution_forbidden` before any work. Reconciliation attributes an external broker change to the agent whose journaled operation opened or last managed the ticket and wakes that agent once, with its normal authority, reporting to its conversation; the owner's own activity, and activity of a paused or missing agent, wakes the Personal Agent observe-only. Opportunity wakes carry normal authority. Read-only tools are open across every owned account and symbol, and mutations keep the binding. `owner_notify` raises an owner attention item under dedupe, an hourly rate, quiet hours and reach-me. Review fixes: Tasks and tickets started from an observe-only wake inherit the narrowing, work-lane wakes read the Goals of their conversation, fixed-market reads of another account come back whole, and an identical Goal watch is deduplicated.
 9. **W15-8 Capabilities you can see** (corrections 21, 22, D3).
    - One trusted-sources list. Trusted MCP servers are usable without environment declarations.
    - RSS/news feeds.
@@ -341,6 +343,68 @@ The owner asked, on 2026-11-08, for a simple experience without contradictions a
 12. **W15-ACC Acceptance.** Scripted Arabic owner journeys check the confirmation counts in `VISION.md`, using the simulation broker and a scripted provider, plus the full local verification list.
 
 Moved to Wave 2: the optional signed emergency reduction rule (D2), together with the Responsibility record, the wake primitive and the full watchdog.
+
+### Wave 1.5 phase 1 status
+
+Recorded 2026-11-08. Phase 1 delivered W15-0, W15-1 and W15-2 on track A (`w15-a1`) and W15-5 and W15-7 on track B (`w15-b1`). Each slice was implemented, reviewed adversarially and fixed after review on its own branch. The tracks were then merged into `ccr-9c66a289-3283wb` with `--no-ff` merge commits, track A first (`ecb3b1e`, no conflicts), then track B (`6ea283f`). The branch is not merged into `main` yet. GitHub CI is still dark, so everything was verified locally only, and nothing ran against a real broker account, a real model provider or a real device.
+
+Points where the tracks met:
+
+- **Migrations.** Both tracks added a `0038`. `0038_owner_actions` keeps it. The profile migration becomes `0039_owner_profile_memory_revisions`, with `down_revision = 0038_owner_actions`, so there is one head; its check now downgrades to its own predecessor. No deployed database has run any of them. Track B's `migrations/env.py` widens the Alembic version column to 128 characters, which these long revision ids need.
+- **Attention.** The codes are the union of track A's `maintenance_item_quarantined`, `run_quarantined`, `operation_unresolved`, `operation_uncertain` and `gateway_degraded` and track B's `agent_notification`, with Arabic and English labels on Web and Mobile. The gateway keeps track A's per-item `ItemGuard` loop and readies items through track B's shared `publish_ready`.
+- **Tools and scopes.** The three new tools, `owner_action_propose`, `owner_notify` and `owner_preferences_update`, are long-tail, so the eager and promoted schema budgets are unchanged (25,700 and 4,100). None is financial: observe-only wakes keep them, and helpers do not.
+- **Policy and texts.** `manifest.json` was regenerated from the merged `lonora.md`. The trading chapter is 4,649 and the memory chapter 4,655 characters of their 4,666 budget, and the core is 14,877 of 16,000. The web catalogs were merged by msgid and re-extracted: 795 messages, 0 missing Arabic. Web and Mobile error text looks up the owner-action table, then the owner-profile table; the two code sets do not overlap.
+
+Per slice:
+
+- **W15-0 Reliability first.**
+  - Delivered: supervised gateway steps with per-item isolation and liveness, a model-free watchdog, run recovery quarantine, `/ready` from real liveness, and durable financial and authority records with guarded deletes.
+  - Verified: `tests/test_gateway_reliability.py` (23 tests) and `check_durable_records` (migration round trip, the three delete routes, `/ready`), together with the merged-tree runs below.
+  - Limitations:
+    - A quarantined Task wait or outcome return has no owner-recoverable failure yet.
+    - After five whole-process crashes in a row, runs that were running alongside the crashing one are quarantined too.
+    - A run held over an uncertain operation keeps its stale status until the operation settles.
+    - The watchdog runs inside the gateway, with no external healthcheck.
+- **W15-1 Safety truth and one brake.**
+  - Delivered: a presentation-only readiness block, `global_trading` in the permission frame, one Stop new trading / Resume control, the header safety pill on Web and Mobile, held operation ids for the owner's close and cancel, and owner text for every boundary code.
+  - Verified: `tests/test_trading_readiness.py`, `tests/web/trading-readiness.test.ts`, `tests/web/held-operation.test.ts`, Playwright `safety-truth` (web) and `safety-pill` (mobile, Arabic and English).
+  - Limitations: the model-facing policy still says "Emergency Stop" in a few places, which W15-9 renames.
+- **W15-2 Owner action cards in chat.**
+  - Delivered: durable, single-use cards for resume, lift, resolve and money limits; the `owner_action_propose` tool; cards raised by the gateway; and a passkey bound to the card for any widening.
+  - Verified: `tests/test_owner_actions.py`, `check_owner_actions`, `tests/web/owner-actions.test.ts`, Playwright `owner-actions` (web and mobile).
+  - Limitations:
+    - The raw `PUT /trading/accounts/{id}/execution-policy` route still accepts a widening from an owner session without a passkey. No client calls it.
+    - Grant, agent-creation, supervision, trusted-source and credential cards come in later slices.
+- **W15-5 One owner profile, revertible memory.**
+  - Delivered: the shared owner profile, attributed revisions with per-change undo, operating notes, and reach-me and reply language set from chat.
+  - Verified: `tests/test_owner_profile.py`, including the PostgreSQL race tests; `check_owner_profile` (lossless, idempotent upgrade, an agent's write, downgrade and re-upgrade); `tests/web/owner-profile.test.ts`; Playwright `owner-profile` (web) and `reach-me` (mobile).
+  - Limitations:
+    - Delivery is in the app only until Wave 3.
+    - Mobile edits only reach-me and the reply language; the profile text and its history are on the Web.
+    - The "Notify me" hint still describes the time before `owner_notify` (agents write in the conversation, Lonora's alerts reach the inbox). It should now also say that agents can raise inbox alerts themselves; to be corrected in phase 2.
+- **W15-7 Proactive wakes that can act; reading without walls.**
+  - Delivered: run scopes (full, observe-only, helper), broker events that wake the attributed agent with its normal authority, opportunity wakes with normal authority, open reads across owned accounts, and `owner_notify`.
+  - Verified: `tests/test_proactive_wakes.py`, the updated binding, decision, opportunity and recovery checks, `tests/mobile/text-direction.test.ts`, Playwright `agent-alert` (web and mobile).
+  - Limitations:
+    - Attribution reads the newest 1,000 journal rows of the account.
+    - A paused agent's activity wakes the Personal Agent, and the paused agent is not woken when it resumes.
+    - Agent alerts reach the owner in the app only until Wave 3.
+    - The Personal Agent cannot yet read other agents' work; that is W15-6.
+
+Verification on the merged tree (`6ea283f`), each database step on its own fresh PostgreSQL 16 database:
+
+| Check | Result |
+| --- | --- |
+| `ruff check .`, `ruff format --check .`, strict `pyright` | Pass. 0 errors. |
+| `validate_resources`, `export_agent_tool_reference.py --check`, `export_native_visual_reference.py --check`, `check_policy_distribution.py` | Pass. |
+| `pnpm lint`, `pnpm check` (7 TS packages), `pnpm build`; `pnpm --filter @lonora/web i18n` | Pass. Arabic: 795 of 795 translated. `AGENTS.md` unchanged. |
+| `tsx --test` web and mobile | 153 and 55 passed. |
+| Alembic: upgrade head, downgrade to `0035_agent_tool_usage`, upgrade head | Pass. One head, `0039_owner_profile_memory_revisions`. |
+| `pytest tests` (fresh `lonora_main_test`) | 1927 passed, 5 skipped (APK), 0 failed. The baseline was 1802. |
+| All 108 `tests/check_*.py` | 99 pass, with 397 PASS lines. The 9 failures are the known harness and environment cases. Five are Playwright stdin helpers when run alone: `check_chart_browser`, `check_group_ux`, `check_question_browser`, `check_rakazo_ui` and `check_task_browser`. Four need an administrator-reviewed analysis image and a Docker daemon: `check_analytical_workspace`, `check_analytics_profile`, `check_public_skill_package` and `check_workspace_container_runtime`. New and passing: `check_durable_records`, `check_owner_actions`, `check_owner_profile` and `check_agent_alert_browser`. |
+| `pytest tests/test_task_runtime.py` (`LONORA_TASK_TEST_DATABASE_URL`) | 11 passed. |
+| CI "authenticated durable runtime" and "persistent context, steering and concurrency" steps, re-extracted from `ci.yml` and run in order on one database, as in CI | Pass. 22 of 22 with the real tokenizer. |
+| Playwright `test:web` / `test:mobile` (system Chrome, each suite on its own fresh `*_ci` database) | Web: 96 passed, 10 failed. Nine are the baseline failures: `agent-permissions:380`, `goals:14`, `group-status:14`, `inbox:120`, `skills-management:121` and `visual-response:64` in all four locale and theme variants. The tenth, `avatar:110`, is the known reduced-motion timing flake; the integration changed no avatar code, and it passed when rerun alone on a fresh database. Mobile: 48 passed, 5 failed, exactly the baseline: `attention:4`, `chat-reliability:85`, `skills-management:67` (en and ar) and `workspace:7`. The new specs pass, among them `attention`, `safety-truth`, `owner-actions`, `owner-profile` and `agent-alert` on Web and `safety-pill`, `owner-actions`, `reach-me` and `agent-alert` on Mobile. No failure is new. |
 
 ## Wave 2 — durable responsibilities and the always-on gateway
 

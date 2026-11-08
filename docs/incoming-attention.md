@@ -27,8 +27,8 @@ of the owner profile every Agent reads (`docs/agent-memory-and-recall.md`). Its
 report in their replies, which reach their conversation and the Activity list),
 `notify` (the inbox; see below), `message` (a message in the Agent's conversation) or
 `call` (an incoming invitation). The channel governs how Agents reach the owner
-(`owner_notify`, `owner_call_request`); Lonora's own alerts (approvals, Emergency
-Stop, broker health, Task review) follow the notification settings, whatever the
+(`owner_notify`, `owner_call_request`); Lonora's own alerts (approvals, Stop new
+trading, broker health, Task review) follow the notification settings, whatever the
 channel, so a safety alert is never hidden by a reach-me choice. `enabled` is derived: invitations are possible exactly
 when the channel is `call`, so the two can never disagree. A stored policy or a
 client from before the channel existed keeps its meaning (`enabled` true reads as
