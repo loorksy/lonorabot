@@ -110,7 +110,9 @@ def test_eager_working_sets_are_data_from_tool_metadata():
     research = set(catalog.eager_names(["core", "research"]))
     core = set(catalog.eager_names(["core"]))
     assert BRIDGE_TOOLS | {"skills_list", "skill_view", "wait_for_input"} <= core
-    assert {"memory_read", "memory_write", "search_internal"} <= core
+    assert {"memory_read", "memory_write", "session_search"} <= core
+    # The literal search stays reachable through tool_call; session_search replaces it.
+    assert "search_internal" not in core and "search_internal" in catalog.tools
     assert {
         "list_accounts",
         "market_quote",

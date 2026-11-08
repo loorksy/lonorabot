@@ -10,6 +10,7 @@ from lonora_contracts.domain import Contract
 from lonora_core.user_error import LonoraError
 from lonora_db.client import Database
 from lonora_db.schema import AgentRow, IntegrationRow, MemoryRow, MessageRow, ThreadRow
+from lonora_memory.sessions import HISTORY_AUTHORITY, HISTORY_NOTE, history_scope
 from lonora_security.network import validate_public_url
 from pydantic import Field
 from sqlalchemy import select
@@ -46,6 +47,8 @@ class TextParser(HTMLParser):
 
 
 async def internal_search(db: Database, owner_id: str, query: str) -> dict[str, Any]:
+    """Owner-wide literal search for the owner API. Never expose it to an Agent:
+    it reads every Agent's memory and every owned thread."""
     async with db.sessions() as session:
         agents = (
             await session.scalars(
@@ -89,8 +92,58 @@ async def internal_search(db: Database, owner_id: str, query: str) -> dict[str, 
         }
 
 
+async def agent_search(db: Database, owner_id: str, agent_id: str, query: str) -> dict[str, Any]:
+    """Literal search limited to this Agent's own memory and the threads it takes
+    part in (its own and its subagents' threads, and groups it is a member of)."""
+    async with db.sessions() as session:
+        scope = await history_scope(session, owner_id, agent_id)
+        agents = (
+            await session.scalars(
+                select(AgentRow)
+                .where(
+                    AgentRow.owner_id == owner_id, AgentRow.name.icontains(query, autoescape=True)
+                )
+                .limit(20)
+            )
+        ).all()
+        messages = (
+            await session.scalars(
+                select(MessageRow)
+                .join(ThreadRow, ThreadRow.id == MessageRow.thread_id)
+                .where(scope.threads(), MessageRow.content.icontains(query, autoescape=True))
+                .order_by(MessageRow.created_at.desc())
+                .limit(30)
+            )
+        ).all()
+        memory = await session.scalar(
+            select(MemoryRow).where(
+                MemoryRow.agent_id == agent_id,
+                MemoryRow.content.icontains(query, autoescape=True),
+            )
+        )
+        return {
+            "authority": HISTORY_AUTHORITY,
+            "notice": HISTORY_NOTE,
+            "agents": [{"id": a.id, "name": a.name} for a in agents],
+            "messages": [
+                {
+                    "id": m.id,
+                    "thread_id": m.thread_id,
+                    "seq": m.seq,
+                    "role": m.role,
+                    "created_at": m.created_at.isoformat(),
+                    "content": m.content[:1600],
+                }
+                for m in messages
+            ],
+            "memory": [{"agent_id": memory.agent_id, "content": memory.content[:1600]}]
+            if memory
+            else [],
+        }
+
+
 async def search(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
-    return await internal_search(context.db, context.owner_id, args["query"])
+    return await agent_search(context.db, context.owner_id, context.agent_id, args["query"])
 
 
 async def fetch(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
@@ -275,13 +328,13 @@ def tools() -> list[Tool]:
     return [
         Tool(
             "search_internal",
-            "Search durable conversations, agent names and memory for a literal text "
-            "substring. An empty result means no text match, not that the team is empty. "
-            "Use list_agents to discover colleagues.",
+            "Find a literal text substring in agent names, this Agent's own memory and the "
+            "conversations it takes part in. Prefer session_search for ranked history with "
+            "sequence numbers. An empty result means no text match, not that the team is "
+            "empty. Use list_agents to discover colleagues.",
             SearchInput,
             search,
             True,
-            eager=eager_for("core"),
         ),
         Tool(
             "web_fetch",

@@ -81,7 +81,7 @@ async def main() -> None:
                 "/api/skills", json={"agent_id": agent["id"], "payload": forged}
             )
             assert response.status_code == 422
-        # External/installed remain descriptive origins for owner-supplied instructions.
+        # External/installed are descriptive origins, labelled as such to the model.
         # They cannot claim bundled provenance or introduce unknown tools/capabilities.
         external = {
             **owner_payload,
@@ -135,7 +135,7 @@ async def main() -> None:
         block, metadata = await read(first)
         assert "Version one:" in block
         assert metadata["skill_selection"]["skill_sources"][name] == "external"
-        assert metadata["skill_selection"]["skill_provenance"][name] == "owner_supplied"
+        assert metadata["skill_selection"]["skill_provenance"][name] == "external"
         original_snapshot = metadata["skill_snapshot"]
         updated = {
             **external,

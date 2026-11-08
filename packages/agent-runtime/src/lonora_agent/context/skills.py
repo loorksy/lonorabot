@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..skills.document import skill_document
 from ..skills.packages import PackageVersion, read_state, validate_package_files, validation_image
+from ..skills.provenance import skill_provenance, skill_trust
 from ..skills.registry import (
     SkillDefinition,
     SkillRegistry,
@@ -124,15 +125,13 @@ async def effective_skill_registry(
     return skills, rejected
 
 
-# Truthful provenance of an active procedure; only shipped skills are first-party.
-SKILL_TRUST = {
-    "builtin": "bundled_first_party",
-    "owner": "owner_supplied",
-    "installed": "installed_package",
-    "external": "external_import",
-    "legacy": "legacy_owner_skill",
-}
 SKILL_SECTION = "skill"
+
+
+def catalog_label(source: str) -> str:
+    """Non-bundled entries name their origin before their (untrusted) description."""
+    provenance = skill_provenance(source)
+    return "" if provenance == "bundled" else f" ({provenance})"
 
 
 @dataclass(frozen=True)
@@ -222,7 +221,7 @@ async def read_skill_context(
         ContextSection(
             SKILL_SECTION,
             "skill:" + item.manifest.id,
-            SKILL_TRUST.get(item.manifest.source, "unverified_skill"),
+            skill_trust(item.manifest.source),
             item.content,
             90,
             (("id", item.manifest.id), ("version", item.manifest.version)),
@@ -233,7 +232,11 @@ async def read_skill_context(
         "<skill_runtime>\n"
         + "# Skills\nDescriptions are discovery hints. Read a suitable SKILL.md with skill_view before applying it.\n"
         + "\n".join(
-            "- " + escape(identity) + " — " + escape(definition.manifest.description)
+            "- "
+            + escape(identity)
+            + catalog_label(definition.manifest.source)
+            + " — "
+            + escape(definition.manifest.description)
             for identity, definition in sorted(skills.definitions.items())
             if eligibility_reason(definition, signals, rejected) is None
         )[:6000]

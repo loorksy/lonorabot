@@ -94,7 +94,7 @@ message** directly after the system messages, as labelled sections:
 | `history_gap` | lonora_runtime / first_party_runtime | 100 |
 | `quoted_reply` | conversation_quote | 95 |
 | `attachments` | owner_attachments / owner_supplied_untrusted | 92 |
-| `skill` (one per active procedure) | skill:&lt;id&gt; / bundled_first_party, owner_supplied, installed_package, external_import | 90 |
+| `skill` (one per active procedure) | skill:&lt;id&gt; / bundled_first_party, owner_supplied, legacy_owner_skill, agent_authored, external_import | 90 |
 | `history_summary` | conversation_summary / model_summary | 85 |
 | `memory` | agent_memory / mutable_untrusted | 80 |
 | `recent_tool_evidence` | earlier_runs / historical_observation | 55 |
@@ -107,7 +107,8 @@ Every body passes through `escape_context_text`
 section or the wrapper. That also makes the format parseable, which is what lets
 admission shed sections by priority. The skill catalog stays in the system role
 and names the active procedures; their bodies are context data with their real
-provenance (an external import is no longer presented as owner-supplied). When
+provenance (an external import or an Agent-authored package is never presented
+as owner-supplied; see `docs/agent-memory-and-recall.md`). When
 owner steering changes the active skills, `refresh_skill_context` swaps the
 skill sections in place. Attachment text appended to an owner steering message
 uses the same escaping helper.

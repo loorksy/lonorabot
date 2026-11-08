@@ -63,8 +63,10 @@ BRIDGE = "tool_call"
 BRIDGE_TOOLS = frozenset({INSPECTOR, BRIDGE})
 # Native schema budgets in serialized ToolDefinition JSON characters. The eager
 # budget is enforced for every profile combination by the registry tests; the
-# promoted budget is enforced when a Run's exposure is chosen.
-EAGER_SCHEMA_BUDGET = 24000
+# promoted budget is enforced when a Run's exposure is chosen. The core set
+# carries ranked history recall and granular memory edits: one avoided
+# whole-document memory rewrite saves more than the schema characters they add.
+EAGER_SCHEMA_BUDGET = 24800
 PROMOTED_SCHEMA_BUDGET = 5000
 MAX_PROMOTED_TOOLS = 6
 # Search results carry input schemas up to this many characters in total;

@@ -11,6 +11,7 @@ MODULES = {
     "agents": "collaboration",
     "message": "collaboration",
     "memory": "memory",
+    "session_search": "memory",
     "scratchpad": "memory",
     "skills": "memory",
     "workspace": "files",

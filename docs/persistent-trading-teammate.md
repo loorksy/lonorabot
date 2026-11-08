@@ -29,7 +29,9 @@ messages remain history, scratchpad remains operational state, and existing
 compaction creates a replacement checkpoint using SNIP and retention tags.
 Compaction does not invent owner facts, rewrite financial authority, install
 procedures or run an unrestricted Dream process. Memory writes retain the same
-revision, owner, lease and effect identity checks as before.
+revision, owner, lease and effect identity checks as before; they can also be
+granular add/patch/remove batches, and recall of earlier work is scoped to the
+Agent's own threads (`docs/agent-memory-and-recall.md`).
 
 ## Description-first procedures
 

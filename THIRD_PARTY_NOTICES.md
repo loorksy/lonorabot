@@ -98,6 +98,23 @@ credential pools, provider profiles or plugin hooks were ported. Copyright (c)
 lonora_adapter_kit/model_errors.py and lonora_providers/resilience.py and
 distributed in the Python wheel.
 
+Granular memory edits and session recall adapt Hermes Agent,
+https://github.com/NousResearch/hermes-agent, revision
+a9ff9799e273f525b82718cdc69fdec71b1dca5a: tools/memory_tool.py and
+tools/memory_tool_store.py (add/patch/remove operation batches applied
+atomically with the size limit checked on the final result, an overflow that
+reports the shortfall, overlapping-span uniqueness and closest-entry hints) and
+tools/session_search_tool.py (discovery, scroll around a hit, bounded read and
+recent-session browse over actual stored messages without a model call).
+Changes: Lonora keeps one versioned Markdown memory document with its USER.md /
+MEMORY.md views, lease fence, optimistic revision and effect receipts; recall
+uses PostgreSQL full-text search with a literal identifier match, scoped to the
+calling Agent's own threads, member groups and decisions; no SQLite/FTS5 store,
+threat scanner, approval staging or lineage walk was ported. Copyright (c) 2025
+Nous Research, MIT. The full permission/warranty notice is preserved in
+lonora_memory/edits.py and lonora_memory/sessions.py and distributed in the
+Python wheel.
+
 Source: https://github.com/elie222/rakazo
 Revision: 2d666c4e98db201c1f7988e09e76a52db20cea69
 Copyright 2026 Rakazo contributors. Apache License 2.0, included in LICENSE.

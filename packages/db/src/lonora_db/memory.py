@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from typing import Any
 
 from lonora_contracts.domain import utcnow
@@ -52,6 +53,23 @@ async def memory_provenance(session: AsyncSession, agent_id: str, version: int) 
     }
 
 
+MEMORY_CHAR_LIMIT = 30000
+# Applies granular operations to the locked current content. It returns the
+# new content and result details, or raises before anything is written.
+MemoryTransform = Callable[[str, int], tuple[str, dict[str, Any]]]
+
+
+def memory_summary(row: MemoryRow) -> dict[str, Any]:
+    """Revision metadata without echoing the whole document back to the model."""
+    return {
+        "agent_id": row.agent_id,
+        "version": row.version,
+        "updated_at": row.updated_at.isoformat(),
+        "chars": len(row.content),
+        "limit": MEMORY_CHAR_LIMIT,
+    }
+
+
 async def commit_memory(
     session: AsyncSession,
     owner_id: str,
@@ -60,6 +78,8 @@ async def commit_memory(
     expected_version: int,
     effect_key: str | None = None,
     source_run_id: str | None = None,
+    *,
+    transform: MemoryTransform | None = None,
 ) -> dict[str, Any]:
     await owned_agent(session, owner_id, agent_id, lock=True)
     if effect_key:
@@ -71,12 +91,17 @@ async def commit_memory(
         raise LonoraError("memory_not_found", 404)
     if row.version != expected_version:
         raise LonoraError("version_conflict", 409)
-    if len(content) > 30000:
+    details: dict[str, Any] = {}
+    if transform is not None:
+        content, details = transform(row.content, row.version)
+    if len(content) > MEMORY_CHAR_LIMIT:
         raise LonoraError("memory_too_large", 413)
     row.content = content
     row.version += 1
     row.updated_at = utcnow()
-    result = memory_data(row)
+    # A whole-document write keeps returning the document it saved; granular
+    # edits return the new revision and size, so nothing large travels back.
+    result = memory_data(row) if transform is None else {**memory_summary(row), **details}
     if effect_key:
         session.add(EffectReceiptRow(key=effect_key, result=result))
     emit(
@@ -88,6 +113,7 @@ async def commit_memory(
         payload={
             "version": row.version,
             "source": "agent_authored" if source_run_id else "owner_provided",
+            "change": "operations" if transform is not None else "document",
         },
     )
     return result

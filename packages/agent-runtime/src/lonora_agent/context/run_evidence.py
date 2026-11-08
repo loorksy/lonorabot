@@ -45,7 +45,13 @@ SKIPPED_TOOLS = frozenset(
 EFFECT_TOOLS = frozenset({"trade_execute", "trade_close_positions", "goal_step_execute"})
 # Tools whose results carry text written by third parties or stored files.
 EXTERNAL_TOOLS = frozenset(
-    {"artifact_read", "workspace_read", "skill_repository_inspect", "search_internal"}
+    {
+        "artifact_read",
+        "workspace_read",
+        "skill_repository_inspect",
+        "search_internal",
+        "session_search",
+    }
 )
 EXTERNAL_PREFIXES = ("web_", "mcp_", "search_")
 EVIDENCE_NOTE = (

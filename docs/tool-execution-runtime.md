@@ -34,17 +34,20 @@ eagerly (`Tool.eager`). A Run's profiles come from its agent and kind:
 
 | Profile | Applies to | Eager tools |
 | --- | --- | --- |
-| `core` | every Run | `tool_environment`, `tool_call`, `skills_list`, `skill_view`, `wait_for_input`, `memory_read`, `memory_write`, `search_internal` |
+| `core` | every Run | `tool_environment`, `tool_call`, `skills_list`, `skill_view`, `wait_for_input`, `memory_read`, `memory_write`, `session_search` |
 | `market` | agent bound to a broker account, and the owner's Personal Agent (it reads every owned account and analyzes directly when no specialist exists) | `list_accounts`, `market_quote`, `market_candles`, `market_instrument`, `market_structure`, `account_read`, `chart_snapshot`, `market_decision_record`, `market_decision_history`, `watch_create`, `trade_execute` |
 | `research` | every other agent | `web_search`, `web_fetch`, `artifact_read` |
 | `task` | durable Task Runs | `task_wait`, `task_step_update` |
 
 Subagent and observe-only Runs keep only the read-only members. The eager set
-is at most `EAGER_SCHEMA_BUDGET` (24,000) characters of serialized schema for
-every profile combination (largest today: market Task Runs, about 23,600; a
-market conversation about 22,200; a general conversation about 7,200), against
-about 91,000 for the whole catalog. `tests/test_tool_discovery.py` enforces the
-budget, so adding an eager tool fails fast when it does not fit.
+is at most `EAGER_SCHEMA_BUDGET` (24,800) characters of serialized schema for
+every profile combination (largest today: market Task Runs, about 24,500; a
+market conversation about 23,200; a general conversation about 8,200), against
+about 94,000 for the whole catalog. `tests/test_tool_discovery.py` enforces the
+budget, so adding an eager tool fails fast when it does not fit. The budget rose
+from 24,000 when the core set gained ranked history recall (`session_search`)
+and granular memory operations (see `docs/agent-memory-and-recall.md`); the
+literal `search_internal` left the core set.
 
 **Remembered tools.** After a call to a tool outside the profile's eager set
 succeeds, the loop records it in `ln_agent_tool_usage` (migration 0034; per
@@ -58,7 +61,7 @@ native set, at most `MAX_PROMOTED_TOOLS` (6) and `PROMOTED_SCHEMA_BUDGET`
 (5,000 characters); tools that are unavailable,
 out of scope or larger than the remaining budget are skipped. A follow-up turn
 therefore calls the long-tail tool it used last time directly. The native set
-is bounded by about 29,000 characters in the worst case.
+is bounded by about 29,800 characters in the worst case.
 
 **Frozen per Run.** The set is chosen once, when the Run first enters the loop,
 and stored in the checkpoint as `tool_exposure` (`profiles`, `native`,
