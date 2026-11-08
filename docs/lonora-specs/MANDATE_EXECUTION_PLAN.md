@@ -287,6 +287,56 @@ Playwright, compared with the integration run on the same suites:
   - Web and Expo rendering of the new journal states and restriction codes.
   - Push or off-app delivery, which arrives in Wave 3.
 
+## Wave 1.5 — simplicity and access
+
+The owner asked, on 2026-11-08, for a simple experience without contradictions and an agent with access to everything. The design is in `VISION.md`, and the binding amendments are in `MANDATE_CORRECTIONS.md`. Wave 1.5 builds on Wave 1. It adds no new engine and no second authority path, and every widening still goes through the passkey and the single executor. Several gaps from the Wave 1 review that are listed under Wave 2 below move into this wave.
+
+1. **W15-0 Reliability first** (correction 13, owner "failure-free").
+   - Each gateway maintenance step runs in its own supervised task with per-item fault isolation and its own liveness record. One bad routine, watch or attention event can no longer halt broker reconciliation.
+   - A minimal LLM-independent watchdog detects stalled loops, runs recovered too many times and aging unresolved operations, and raises owner attention.
+   - Financial and authority records (journal, approvals, grants, restrictions, decisions) are no longer cascade-deleted by ordinary deletes.
+2. **W15-1 Safety truth and one brake.**
+   - A one-line trading readiness for every agent, shown in the permission frame and in a header safety pill on web and mobile.
+   - One "Stop new trading / Resume" control.
+   - Owner close and cancel buttons keep one operation id until the outcome settles.
+   - Owner text in Arabic and English for every boundary code.
+3. **W15-2 Owner action cards in chat.**
+   - Durable, server-validated, single-use cards for resuming trading, lifting a pause, resolving an uncertain operation and setting money limits. Later slices add grants, agent creation, supervision, trusted sources and credentials.
+   - Widening needs the passkey. Narrowing is one tap.
+4. **W15-3 One-sentence delegation and a monotonic ladder** (corrections 5–7, D1).
+   - No trading / Ask me / On its own.
+   - Grant cards are built from a stored draft and include the D1 defaults: a daily-loss limit suggested at 3% of equity, and the owner's manual positions excluded.
+   - Under *On its own*, an out-of-grant trade becomes an approval card.
+   - The Personal Assistant defaults to *Ask me*.
+5. **W15-4 Create and steer agents from chat** (corrections 17, 23, 24).
+   - An `agent_create` tool with templates.
+   - Watch cancel, pause and update tools.
+   - A real status line in place of "Waiting".
+6. **W15-5 One owner profile, revertible memory** (corrections 18, 19).
+   - A shared owner profile with attributed revisions and revert.
+   - Self-edited operating notes.
+   - Reach-me preferences settable from chat.
+7. **W15-6 Lonora sees everything** (corrections 1, 3, 15). Supervision grants, with the Personal Assistant supervising every agent by default (visible and revocable), and `agent_inspect` and `agent_control` tools. Peers stay private from each other.
+8. **W15-7 Proactive wakes that can act; reading without walls** (correction 25).
+   - Observe-only means no financial effects.
+   - Broker events wake the agent that owns the position.
+   - Every agent reads every owned account.
+   - An `owner_notify` tool.
+9. **W15-8 Capabilities you can see** (corrections 21, 22, D3).
+   - One trusted-sources list. Trusted MCP servers are usable without environment declarations.
+   - RSS/news feeds.
+   - Secure credential cards.
+   - A Capabilities view.
+10. **W15-9 One vocabulary.**
+    - Retire Super Bot and per-goal autonomy.
+    - Rename Emergency Stop to "Stop new trading".
+    - No raw ids or JSON in normal views.
+    - The same labels on web and mobile.
+11. **W15-10 Choose a model from chat** (D4): a per-agent model card, an agent-requested switch within the allowed list, and a usage view per agent. No spend cap.
+12. **W15-ACC Acceptance.** Scripted Arabic owner journeys check the confirmation counts in `VISION.md`, using the simulation broker and a scripted provider, plus the full local verification list.
+
+Moved to Wave 2: the optional signed emergency reduction rule (D2), together with the Responsibility record, the wake primitive and the full watchdog.
+
 ## Wave 2 — durable responsibilities and the always-on gateway
 
 - A `Responsibility` record that owns tasks, wakes, watches, grants, restrictions, communication preference and expiry. It answers "what is active" and "what happened while I was away".
@@ -307,7 +357,7 @@ Gaps from the review of the integrated Wave 1 branch. They are planned here and 
   - Add a watchdog that does not depend on an LLM. It watches for missed wakes, stalled runs, a lost broker connection, ambiguous operations that keep aging, and risk-limit breaches.
   - Protect `ln_trading_journal`, restrictions, approvals and authority rows from ordinary deletes with `ON DELETE RESTRICT` or soft delete, and add a migration test. T2 and T3 depend on their evidence and attestations.
 - **Re-baseline on the owner's 2026-11-08 corrections.**
-  - Commit `MANDATE_CORRECTIONS.md` (D1–D4, corrections 1–31) and the new `VISION.md` into `docs/lonora-specs/`. The new VISION points to that path. Today both exist only outside the repository, and the repository `VISION.md` is the old text.
+  - Done: `docs/lonora-specs/MANDATE_CORRECTIONS.md` (D1–D4, corrections 1–31) and the rewritten root `VISION.md` are committed.
   - Re-check every Wave 2–4 item against each correction. Drop the spend-cap follow-up (D4) in favour of a usage view per agent.
 - **One ladder per agent: No trading / Ask me / On its own** (corrections 5–7).
   - When the signed grant does not cover a trade from an autonomous agent, create the existing approval card with the same operation id, instead of refusing with `account_authority_scope_mismatch`.
