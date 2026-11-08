@@ -110,7 +110,9 @@ def permission_guidance(
         # Owner monetary limits per account; not_configured limits are not enforced.
         "monetary_risk_limits": risk_limits or [],
         # Stop new trading / Resume, for every agent and the owner's manual orders.
-        "global_trading": {key: (trading or {}).get(key) for key in ("state", "since")},
+        "global_trading": {
+            key: (trading or {}).get(key) for key in ("state", "since", "changed_by")
+        },
     }
     encoded = (
         json.dumps(snapshot, ensure_ascii=False).replace("<", "\\u003c").replace(">", "\\u003e")
@@ -160,9 +162,12 @@ def permission_guidance(
         + " A pending review, customization draft, chat agreement, task delegation or "
         "running global_trading grants no authority. global_trading, binding, preflight, "
         "manual intervention and reconciliation remain authoritative. While global_trading "
-        "is stopped, new risk is blocked for every agent and exits stay allowed: attempt no "
-        "entry and say so in one line; it is the owner's brake, so propose a Resume card "
-        "only when the owner asks to resume. "
+        "is stopped, new risk is blocked for every agent and exits stay allowed. When the "
+        "owner stopped it (changed_by owner) it is the owner's brake: attempt no entry, say "
+        "so in one line, and propose a Resume card only when the owner asks to resume. When "
+        "it was never started (changed_by default), an entry the owner asks for returns "
+        "trading_not_started with a one-tap Start trading card already shown: say so in one "
+        "line and ask again after the owner taps it. "
         "A profit target is an objective, never a guarantee or reason to force a trade. "
         "The LLM chooses the useful next action; no fixed keyword or workflow decides it. "
         "Claim execution only after broker confirmation and independent state verification. "

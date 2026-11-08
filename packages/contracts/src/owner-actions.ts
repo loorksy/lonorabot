@@ -234,6 +234,8 @@ export type OwnerAction = {
     restored?: number;
     /** A grant card resumed new trading (true); supervision_paused: what was resumed. */
     resumed?: boolean | "agent" | "task" | "routine" | "watch";
+    /** resume_trading: new trading had never been started, so the card started it. */
+    started?: boolean;
     tier?: EffectTier;
     tools?: number;
     /** trust_source on an MCP server: how many trusted tools may change something. */

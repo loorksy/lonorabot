@@ -103,3 +103,62 @@ async def test_stop_and_pauses_refuse_new_entries_before_any_approval_card() -> 
         await save_controls(fixture.runtime.db, original)
         await retire(fixture, connection)
         await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_a_first_trade_on_a_fresh_install_raises_the_start_trading_card() -> None:
+    """Trading starts stopped by default, not by the owner's Stop: the first entry an
+    agent is asked for is not sent and not asked as an approval, but the one-tap Start
+    trading card appears in the conversation at once (once per request)."""
+    database()
+    from check_streaming import Fixture
+    from lonora_db.schema import OwnerActionRow, SettingRow, TradeApprovalRow
+    from lonora_trading.controls import read_controls, save_controls
+    from sqlalchemy import func, select
+
+    fixture = await Fixture().open()
+    original = await read_controls(fixture.runtime.db)
+    connection = ""
+    try:
+        connection = await simulation(fixture, [])
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            # A fresh install: no stored control at all.
+            stored = await session.get(SettingRow, "trading_control")
+            if stored is not None:
+                await session.delete(stored)
+        agent = await fixture.agent("First run", supervised=True)
+        context = await fixture.lease(await fixture.run(agent, await fixture.conversation(agent)))
+        entry = {
+            "action": "buy",
+            "account_id": connection,
+            "symbol": "XAUUSD",
+            "volume": "0.1",
+            "stop_loss": "95",
+        }
+        first = await call(context, "trade_execute", **entry)
+        assert first["code"] == "trading_not_started", first
+        assert first["owner_action"]["kind"] == "resume_trading", first
+        again = await call(context, "trade_execute", **entry)
+        assert again["owner_action"]["id"] == first["owner_action"]["id"], again
+        async with fixture.runtime.db.sessions() as session:
+            approvals = await session.scalar(
+                select(func.count())
+                .select_from(TradeApprovalRow)
+                .where(TradeApprovalRow.run_id == context.lease.run_id)
+            )
+            card = await session.get(OwnerActionRow, first["owner_action"]["id"])
+        assert approvals == 0 and card is not None and card.status == "pending"
+        # One tap starts trading; the same entry is then asked as Ask me promises.
+        decided = await fixture.request(
+            "POST", f"/owner-actions/{card.id}/decision", {"decision": "confirm"}
+        )
+        assert decided["result"]["started"] is True, decided
+        asked = await call(context, "trade_execute", **entry)
+        assert asked.get("_runtime_wait") and asked.get("approval_id"), asked
+        # After the owner's own Stop it stays the owner's brake: the refusal, no card.
+        await save_controls(fixture.runtime.db, TradingControl(enabled=False))
+        assert await refused(context, **{**entry, "volume": "0.2"}) == "trading_disabled"
+    finally:
+        await save_controls(fixture.runtime.db, original)
+        await retire(fixture, connection)
+        await fixture.close()

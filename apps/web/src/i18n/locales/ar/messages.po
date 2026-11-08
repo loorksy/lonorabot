@@ -1165,7 +1165,7 @@ msgstr "Enter للإرسال · Shift+Enter لسطر جديد"
 #: src/components/market/MarketWatch.tsx:191
 #: src/components/trading/AccountSummary.tsx:48
 msgid "Equity"
-msgstr "قيمة الحساب"
+msgstr "حقوق الملكية"
 
 #: src/components/market/MarketWatch.tsx:241
 msgid "Event is due"

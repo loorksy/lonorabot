@@ -159,12 +159,12 @@ const moneyLimitNames: Readonly<Record<MoneyLimitName, Text>> = {
   max_trade_risk: { en: "Risk per trade", ar: "المخاطرة لكل صفقة" },
   max_trade_risk_equity_percent: {
     en: "Risk per trade, % of equity",
-    ar: "المخاطرة لكل صفقة، ٪ من السيولة",
+    ar: "المخاطرة لكل صفقة، ٪ من حقوق الملكية",
   },
   max_open_risk: { en: "Total open risk", ar: "إجمالي المخاطرة المفتوحة" },
   max_open_risk_equity_percent: {
     en: "Total open risk, % of equity",
-    ar: "إجمالي المخاطرة المفتوحة، ٪ من السيولة",
+    ar: "إجمالي المخاطرة المفتوحة، ٪ من حقوق الملكية",
   },
   min_free_margin: { en: "Free-margin floor", ar: "الحد الأدنى للهامش الحر" },
 };

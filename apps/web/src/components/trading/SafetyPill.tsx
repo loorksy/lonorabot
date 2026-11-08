@@ -2,6 +2,7 @@ import { i18n } from "@lingui/core";
 import type { TradingReadiness } from "@lonora/contracts";
 import {
   isolate,
+  listSeparator,
   moneyLimitsLine,
   pauseClassLabel,
   readinessTime,
@@ -141,7 +142,7 @@ export function SafetyPill({ agentId, agents }: { agentId: string; agents: Agent
                 {accountName(grant.account_id) && <> · {accountName(grant.account_id)}</>} ·{" "}
                 {grant.symbol_scope === "account"
                   ? text.allPairs
-                  : grant.symbols.map(isolate).join(", ")}{" "}
+                  : grant.symbols.map(isolate).join(listSeparator(locale))}{" "}
                 ·{" "}
                 {grant.valid_until
                   ? `${text.until} ${readinessTime(grant.valid_until, locale)}`

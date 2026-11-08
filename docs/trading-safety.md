@@ -42,11 +42,21 @@ approval card. While Stop new trading or a pause holds new risk, a card for a ne
 could only fail after the owner's tap. `trade_execute` therefore checks the brakes before
 it raises a card (`refuse_braked_entries` in `lonora_tools.trade`) and returns the
 boundary's own code instead (`trading_disabled`, `emergency_stop`,
-`trading_restriction_active`), so the agent tells the owner what is holding it and offers
-the Resume or Lift card. Only actions that can never reduce risk are checked there
-(`admission.may_reduce_risk`): a close, a cancel or a stop change is still asked and is
-decided by the executor against the fresh broker target. The executor repeats every
-check at the moment of sending; this only refuses earlier.
+`trading_restriction_active`), so the agent tells the owner in one line what is holding
+it; the owner's own brake is lifted by the owner (the agent proposes the Resume or Lift
+card only when the owner asks). An entry, and a stop moved further away, counts as new
+risk on the broker's current facts (`new_risk_requests`); a close, a cancel or a
+tightening is still asked and is decided by the executor against the fresh broker
+target. The executor repeats every check at the moment of sending; this only refuses
+earlier.
+
+On a fresh install (trading never started, `changed_by: "default"`) the first entry an
+agent is asked for is not a bare refusal: `trade_execute` raises the one-tap
+`resume_trading` card itself, shown as **Start trading** (the same words as the safety
+sheet, "New trading has not been started yet"), and returns `trading_not_started` with
+the card. One tap starts trading and its line says "Trading started."; the agent then
+asks for the trade as usual. The permission frame's `global_trading` carries
+`changed_by`, so the agent can tell a never-started install from the owner's own Stop.
 
 ## Trading readiness (presentation only)
 

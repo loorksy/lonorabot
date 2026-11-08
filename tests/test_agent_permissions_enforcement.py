@@ -283,6 +283,8 @@ async def test_resumed_context_reads_current_permission_every_time(monkeypatch: 
     assert context_snapshot(first)["global_trading"] == {
         "state": "running",
         "since": "2026-11-08T08:00:00+00:00",
+        # Who stopped it: the owner's brake, or a never-started install (default).
+        "changed_by": "owner",
     }
     assert context_snapshot(resumed)["global_trading"]["state"] == "stopped"
     assert "While global_trading is stopped" in resumed and "attempt no entry" in resumed

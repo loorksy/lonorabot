@@ -66,6 +66,7 @@ from lonora_db.owner_actions import (
     daily_loss_change,
     global_trading,
     grant_conflicts,
+    grant_facts,
     grant_proposal,
     live_status,
     lock_owner_actions,
@@ -324,8 +325,13 @@ async def decide(
     via = "tap"
     result: dict[str, Any] = {}
     if row.kind == "resume_trading":
+        first = (await global_trading(session))["changed_by"] == "default"
         controls = await apply_controls(session, TradingControl.model_validate(row.payload))
-        result = {"global_trading": "running" if controls.enabled else "stopped"}
+        result = {
+            "global_trading": "running" if controls.enabled else "stopped",
+            # Trading had never been started: the card said Start, its line says so too.
+            "started": first,
+        }
     elif row.kind == "lift_restriction":
         await revoke_restriction(
             session, owner.id, row.payload["restriction_id"], "Lifted by the owner from a card"
@@ -495,6 +501,9 @@ async def confirm_grant(
     identifier = row.result.get("authority_id")
     if not isinstance(identifier, str):
         raise LonoraError("owner_action_challenge_required", 409)
+    # What the owner signs, read before the grant replaces the agent's current one: the
+    # settled card keeps showing exactly this, with the choices applied below.
+    signed = await grant_facts(session, row, {})
     authority = await finish_activation(
         session, owner, body.proof, rt.settings.allowed_origin, native_origins(rt.settings)
     )
@@ -529,7 +538,30 @@ async def confirm_grant(
         daily = str(change.max_daily_loss)
     elif policy.risk.max_daily_loss is not None:
         kept = str(policy.risk.max_daily_loss)
+    after = await account_policy(session, owner.id, draft.account_id)
+    signed["money"] = {
+        "limits": risk_limit_frame(draft.account_id, after),
+        "daily_loss": {
+            # The limit in force once signed: applied, kept, or none by the owner's choice.
+            "current": None
+            if after.risk.max_daily_loss is None
+            else str(after.risk.max_daily_loss),
+            "proposed": None,
+            "currency": after.risk.currency,
+            "basis": None,
+            "percent": None,
+            "requested_above": None,
+        },
+    }
+    signed["grant"] = {
+        **signed["grant"],
+        "allow_manual_positions": bool(row.result.get("allow_manual_positions")),
+    }
+    signed["global_trading"] = await global_trading(session)
+    # Decided now: the stopped agents are named in the result, the rest stay as they were.
+    signed["conflicts"] = []
     return {
+        "signed_facts": signed,
         "authority_id": authority.id,
         "allow_manual_positions": row.result.get("allow_manual_positions"),
         "resumed": resumed,

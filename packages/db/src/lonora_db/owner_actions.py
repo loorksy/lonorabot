@@ -707,7 +707,16 @@ async def grant_facts(
 ) -> dict[str, Any]:
     """What the owner signs, read now: the agent, account, markets, actions, duration,
     their own positions, the account's money limits and daily loss line, Stop new
-    trading, other agents already trading that market and the grant it replaces."""
+    trading, other agents already trading that market and the grant it replaces.
+
+    Once signed the card shows what was signed, as stored at that moment
+    (``signed_facts``): later limits or grants never rewrite it, it never names the
+    grant it created as the one it replaced, and the daily loss line is the limit the
+    owner's choice left in force (applied, kept or none)."""
+    signed = row.result.get("signed_facts")
+    if row.status != "pending" and isinstance(signed, dict):
+        facts.update(cast(dict[str, Any], signed))
+        return facts
     owner_id = row.owner_id
     draft = GrantDraft.model_validate(row.payload)
     conflicts = await grant_conflicts(session, owner_id, draft)

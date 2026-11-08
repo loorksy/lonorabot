@@ -116,17 +116,20 @@ async def checks() -> None:
             {"level": "supervised", "expected_revision": permission["revision"]},
         )
         entry = {"account_id": account, "symbol": symbols[0], "action": "buy", "volume": "0.1"}
-        # New trading has not been started: the entry is refused before any approval card
-        # (the owner is never asked to approve what Stop new trading would refuse).
+        # New trading has not been started: the entry is not sent and no approval is asked
+        # (the owner is never asked to approve what Stop new trading would refuse); the
+        # owner gets the one-tap Start trading card instead. After the owner's own Stop
+        # it is the owner's brake: the refusal, no card.
         await f.request("PUT", "/trading/controls", {"enabled": False, "emergency_stop": False})
         try:
-            await registry.execute(
+            first = await registry.execute(
                 ToolCall(id=uuid4().hex, name="trade_execute", arguments=entry), context
             )
         except LonoraError as error:
             assert error.code == "trading_disabled", error.code
         else:
-            raise AssertionError("an approval card was raised while trading is stopped")
+            assert first["code"] == "trading_not_started", first
+            assert first["owner_action"]["kind"] == "resume_trading", first
         async with f.runtime.db.sessions() as session:
             assert not list(
                 await session.scalars(

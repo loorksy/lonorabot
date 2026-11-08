@@ -209,3 +209,22 @@ test("a colleague's result is shown without its machine wrapper", () => {
   assert.deepEqual(peerOutcome(wrapped), { body: "Gold held 2410.", status: "completed" });
   assert.deepEqual(peerOutcome("Plain reply"), { body: "Plain reply" });
 });
+
+test("Arabic owner text names equity with one term", () => {
+  // «حقوق الملكية» everywhere; «السيولة» (liquidity) and «قيمة الحساب» (account value)
+  // named the same figure on the grant card, the pill and the account summary.
+  const sources = [
+    "packages/core/src/owner-actions.ts",
+    "packages/core/src/trading-readiness.ts",
+    "packages/core/src/agent-status.ts",
+    "packages/core/src/account-authority-labels.ts",
+    "apps/web/src/components/permissions/permission-labels.ts",
+    "apps/web/src/i18n/locales/ar/messages.po",
+    "apps/mobile/lib/i18n.ts",
+  ].map(read);
+  for (const text of sources) {
+    assert.ok(!text.includes("السيولة"), "liquidity used for equity");
+    assert.ok(!/msgid "Equity"\nmsgstr "(?!حقوق الملكية)/.test(text), "Equity translated twice");
+  }
+  assert.ok(sources.some((text) => text.includes("حقوق الملكية")));
+});

@@ -203,6 +203,41 @@ async def new_risk_requests(
     return result
 
 
+async def start_trading_card(context: ToolContext) -> dict[str, Any]:
+    """New trading was never started on this install (not the owner's Stop): nothing is
+    sent and no approval is asked, but the owner gets the one-tap Start trading card in
+    the conversation at once, instead of a bare refusal to find the safety sheet for."""
+    from lonora_contracts.owner_actions import OwnerActionProposal
+    from lonora_db.owner_actions import live_status, propose
+
+    async with context.db.sessions() as session, session.begin():
+        # The order every card takes them in: the owner's cards, then the Run.
+        run = await require_lease(session, context.lease)
+        card, created = await propose(
+            session,
+            context.owner_id,
+            OwnerActionProposal(kind="resume_trading"),
+            card_id=context.resource_id,
+            agent_id=context.agent_id,
+            thread_id=run.model_metadata.get("origin_thread_id") or context.thread_id,
+            run_id=run.id,
+        )
+        await require_lease(session, context.lease, lock=True)
+        return {
+            "status": "failed",
+            "code": "trading_not_started",
+            "details": {"send_state": "not_sent"},
+            "owner_action": {
+                "id": card.id,
+                "kind": card.kind,
+                "status": live_status(card),
+                "already_shown": not created,
+            },
+            "recovery": "Say in one line that trading has not been started and that the "
+            "owner's one tap on the card starts it; ask again after the tap.",
+        }
+
+
 async def refuse_braked_entries(
     session: AsyncSession, context: ToolContext, requests: list[TradeRequest]
 ) -> None:
@@ -339,6 +374,13 @@ async def approved_execution(
         if mode == "live" and not gate_only and previous is None
         else []
     )
+    if adding:
+        async with context.db.sessions() as reader:
+            # No stored control: trading was never started on this install (it starts
+            # stopped), unlike the owner's own Stop.
+            never_started = await reader.get(SettingRow, "trading_control") is None
+        if never_started:
+            return await start_trading_card(context)
     async with context.db.sessions() as session, session.begin():
         current = await require_lease(session, context.lease)
         if current.agent_id != context.agent_id:

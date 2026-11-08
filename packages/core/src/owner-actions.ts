@@ -44,6 +44,12 @@ export const ownerActionLabels = {
     resumeHint:
       "Resuming widens no authority: each agent still trades only within its level, grants and your limits.",
     resume: "Resume trading",
+    startTitle: "Start trading",
+    startStopped: "New trading has not been started yet",
+    startHint:
+      "Starting widens no authority: every agent stays within its level, its grant and your limits, and exits are always allowed.",
+    start: "Start trading",
+    started: "Trading started.",
     notNow: "Not now",
     pausedEntries: "New entries paused",
     pausedRisk: "Only exits allowed",
@@ -157,6 +163,8 @@ export const ownerActionLabels = {
       "Every agent can see and use everything you have connected to Lonora, but it places real trades only inside the grant you signed for it with your passkey and within your account limits. Anything that needs you arrives as a one-tap card in the chat, you can stop anything with one tap, and no agent, skill or plugin can ever widen your money authority.",
     authorize: "Authorize with passkey",
     signed: "Signed. It trades on its own inside this grant.",
+    signedStopped:
+      "Signed. New trading is still stopped, so it trades on its own inside this grant once you resume.",
     alreadySigned: "This is already signed. Nothing changed.",
     createTitle: "Create an agent?",
     createHint: "It starts with no money authority. Nothing is created until you tap.",
@@ -278,6 +286,12 @@ export const ownerActionLabels = {
     resumeStopped: "التداول الجديد متوقف",
     resumeHint: "الاستئناف لا يوسّع أي صلاحية: يبقى كل وكيل ضمن مستواه وتفويضه وحدودك.",
     resume: "استئناف التداول",
+    startTitle: "بدء التداول",
+    startStopped: "لم يبدأ التداول الجديد بعد",
+    startHint:
+      "البدء لا يوسّع أي صلاحية: يبقى كل وكيل ضمن مستواه وتفويضه وحدودك، والخروج متاح دائمًا.",
+    start: "بدء التداول",
+    started: "بدأ التداول.",
     notNow: "ليس الآن",
     pausedEntries: "الصفقات الجديدة متوقفة",
     pausedRisk: "الخروج فقط مسموح",
@@ -354,7 +368,7 @@ export const ownerActionLabels = {
     ownIncluded: "يشمل المراكز التي فتحتها بنفسك",
     includeOwn: "اشمل المراكز التي فتحتها بنفسي",
     dailyLoss: "حد الخسارة اليومية",
-    ofEquity: "من السيولة",
+    ofEquity: "من حقوق الملكية",
     suggested: "مقترح",
     accountLimits: "الحدود المالية للحساب",
     noMoneyLimitChoice: "بلا حد مالي، بقرار مني",
@@ -373,7 +387,7 @@ export const ownerActionLabels = {
     capPositions: "حد الصفقات {value}",
     capPendingOrders: "حد الأوامر المعلّقة {value}",
     capActions: "حد التنفيذات {value}",
-    capEquity: "حد السيولة {value}",
+    capEquity: "حد حقوق الملكية {value}",
     boundedRule: "وقف خسارة لكل دخول دون توسيعه",
     noCaps: "دون حدود للحجم أو الصفقات أو النشاط",
     noBoundedRule: "دون شرط وقف الخسارة",
@@ -388,6 +402,8 @@ export const ownerActionLabels = {
       "كل وكيل يرى ويستخدم كل ما وصلته بلونورا، لكنه لا ينفّذ صفقة حقيقية إلا ضمن التفويض الذي وقّعته له بمفتاح المرور وضمن حدود حسابك؛ وما يحتاجك يصلك كبطاقة في المحادثة بلمسة واحدة، وتستطيع إيقاف أي شيء بلمسة، ولا يستطيع أي وكيل أو مهارة أو إضافة توسيع صلاحياتك المالية.",
     authorize: "التفويض بمفتاح المرور",
     signed: "وُقّع. يتداول بنفسه ضمن هذا التفويض.",
+    signedStopped:
+      "وُقّع. التداول الجديد ما زال متوقفًا، فيتداول بنفسه ضمن هذا التفويض بعد أن تستأنف.",
     alreadySigned: "هذا موقّع بالفعل. لم يتغير شيء.",
     createTitle: "إنشاء وكيل؟",
     createHint: "يبدأ دون أي صلاحية مالية. لا يُنشأ شيء حتى تلمس.",
@@ -584,9 +600,13 @@ function settledLine(card: OwnerAction, text: OwnerActionText, lang: Language): 
     switch (card.kind) {
       case "grant_authority": {
         const stopped = card.result.stopped_agents ?? [];
+        // The card shows what was signed; while Stop new trading holds, it waits for Resume.
+        const stoppedStill =
+          card.facts.global_trading?.state === "stopped" && card.result.resumed !== true;
+        const signed = stoppedStill ? text.signedStopped : text.signed;
         return stopped.length
-          ? `${text.signed} ${fill(text.stoppedOthers, { agents: stopped.map(isolate).join(listSeparator(lang)) })}`
-          : text.signed;
+          ? `${signed} ${fill(text.stoppedOthers, { agents: stopped.map(isolate).join(listSeparator(lang)) })}`
+          : signed;
       }
       case "create_agent":
         return text.createdLine;
@@ -601,7 +621,7 @@ function settledLine(card: OwnerAction, text: OwnerActionText, lang: Language): 
       case "supervision_paused":
         return text.resumedWork;
       case "resume_trading":
-        return text.resumed;
+        return card.result.started === true ? text.started : text.resumed;
       case "lift_restriction":
         return text.lifted;
       case "set_account_limits":
@@ -1216,14 +1236,19 @@ export function ownerActionCard(
     }
     case "resume_trading": {
       const trading = facts.global_trading;
+      // Never started on this install: the card says Start, as the safety sheet does.
+      const start = trading?.changed_by === "default";
+      if (start) title = text.startTitle;
       if (trading?.state === "stopped")
         lines.push(
-          trading.since
-            ? `${text.resumeStopped} · ${tradingSafetyLabels[lang].since} ${readinessTime(trading.since, locale, now)}`
-            : text.resumeStopped,
+          start
+            ? text.startStopped
+            : trading.since
+              ? `${text.resumeStopped} · ${tradingSafetyLabels[lang].since} ${readinessTime(trading.since, locale, now)}`
+              : text.resumeStopped,
         );
-      hint = text.resumeHint;
-      buttons = pair(text.resume, text.notNow);
+      hint = start ? text.startHint : text.resumeHint;
+      buttons = pair(start ? text.start : text.resume, text.notNow);
       break;
     }
     case "lift_restriction": {

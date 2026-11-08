@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import type { Message, OwnerAction } from "../../packages/contracts/src/index";
 import { conversationTimeline } from "../../packages/core/src/conversation-timeline";
+import { financialBoundaryError } from "../../packages/core/src/financial-boundary";
 import {
   mergeOwnerAction,
   ownerActionCard,
@@ -445,7 +446,7 @@ test("a grant card shows exactly what is signed, with the D1 defaults, in both l
   const ar = ownerActionCard(grantCard(), "ar", now);
   assert.equal(ar.title, "دع ⁨Gold agent⁩ يتداول بنفسه");
   assert.ok(ar.lines.includes("الأسواق: ⁨XAUUSD⁩"));
-  assert.ok(ar.lines.includes("حد الخسارة اليومية: ⁨200.00 USD⁩ (⁨2%⁩ من السيولة)"));
+  assert.ok(ar.lines.includes("حد الخسارة اليومية: ⁨200.00 USD⁩ (⁨2%⁩ من حقوق الملكية)"));
   // A deliberate choice, not "optional".
   assert.equal(
     ar.options.find((option) => option.key === "no_money_limit")?.label,
@@ -524,9 +525,16 @@ test("a grant card's switches map to the signed challenge and the decision", () 
     stop_authorities: ["other-grant"],
   });
   assert.deepEqual(ownerActionChoices(base, { resume: true }), { challenge: {}, decision: {} });
-  const settled = ownerActionCard({ ...card, status: "confirmed" }, "en", now);
+  const settled = ownerActionCard(
+    { ...card, status: "confirmed", result: { resumed: true } },
+    "en",
+    now,
+  );
   assert.deepEqual(settled.options, []);
   assert.equal(settled.outcome, "Signed. It trades on its own inside this grant.");
+  // Signed without Resume while new trading is stopped: the line says it waits for Resume.
+  const waiting = ownerActionCard({ ...card, status: "confirmed", result: {} }, "en", now);
+  assert.equal(waiting.outcome, ownerActionLabels.en.signedStopped);
   const covered = ownerActionCard(
     { ...card, status: "expired", status_reason: "grant_already_active" },
     "ar",
@@ -592,7 +600,7 @@ test("an existing daily loss limit is kept unless the owner asks for less, in on
     "Keep my current limit",
   );
   const ar = ownerActionCard(lowered, "ar", now);
-  assert.ok(ar.lines.includes("حد الخسارة اليومية: ⁨500⁩ ← ⁨300.00 USD⁩ (⁨3%⁩ من السيولة)"));
+  assert.ok(ar.lines.includes("حد الخسارة اليومية: ⁨500⁩ ← ⁨300.00 USD⁩ (⁨3%⁩ من حقوق الملكية)"));
   assert.equal(ar.options.find((option) => option.key === "keep_limit")?.label, "أبقِ حدي الحالي");
   assert.equal(ownerActionChoices(lowered, { keep_limit: true }).decision.money_limit, "none");
   assert.equal(ownerActionChoices(lowered, {}).decision.money_limit, "apply");
@@ -707,7 +715,7 @@ test("a settled grant card names the agents it stopped and states the owner's ow
     {
       ...grantCard(),
       status: "confirmed",
-      result: { stopped_agents: ["Silver agent", "Copper agent"] },
+      result: { stopped_agents: ["Silver agent", "Copper agent"], resumed: true },
     },
     "en",
     now,
@@ -727,4 +735,32 @@ test("a settled grant card names the agents it stopped and states the owner's ow
     now,
   );
   assert.match(ar.outcome ?? "", /⁨Silver agent⁩، ⁨Copper agent⁩/);
+});
+
+test("on a never-started install the resume card is Start trading, and says so when settled", () => {
+  const first: OwnerAction = {
+    ...base,
+    facts: {
+      several_accounts: false,
+      global_trading: { state: "stopped", since: null, changed_by: "default" },
+    },
+  };
+  for (const locale of ["en", "ar"] as const) {
+    const text = ownerActionLabels[locale];
+    const spec = ownerActionCard(first, locale, now);
+    assert.equal(spec.title, text.startTitle);
+    assert.equal(spec.buttons[0]?.label, text.start);
+    assert.ok(spec.lines.includes(text.startStopped), spec.lines.join("|"));
+    assert.equal(spec.hint, text.startHint);
+    const done = ownerActionCard(
+      { ...first, status: "confirmed", result: { started: true } },
+      locale,
+      now,
+    );
+    assert.equal(done.outcome, text.started);
+  }
+  // After the owner's own Stop it stays Resume.
+  assert.equal(ownerActionCard(base, "en", now).buttons[0]?.label, ownerActionLabels.en.resume);
+  assert.ok(financialBoundaryError("trading_not_started", "en")?.includes("Start trading"));
+  assert.ok(financialBoundaryError("trading_not_started", "ar")?.includes("بدء التداول"));
 });
