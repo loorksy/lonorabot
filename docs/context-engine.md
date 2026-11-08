@@ -86,6 +86,16 @@ identity, the agent binding, server-derived records (goals, and as optional
 blocks goal details, decisions and operational failures; the skill catalog,
 wake details) and the routing frame.
 
+Two refinements keep model-written text out of it. `wake_context` keeps a Run's
+prompt in the system role only for server-authored wakes (`goal`, `broker_event`,
+`follow_up`, `activation`); for every other trigger (a subagent's task written by
+its parent model, a peer request, a Task or ticket title, a routine or watch prompt
+an agent saved, an owner prompt) it names the trigger only, and the prompt arrives
+as the user-role turn. The permission frame shows restrictions as structured fields;
+an agent-written restriction reason never enters it. One exception remains: goal
+detail records (an agent's objective and step text) are still a system-role block,
+JSON-escaped and labelled as untrusted records.
+
 Everything model-authored or untrusted travels in **one user-role context
 message** directly after the system messages, as labelled sections:
 
