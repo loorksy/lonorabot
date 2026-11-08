@@ -150,7 +150,7 @@ msgstr "Advisory"
 #: src/pages/shell/message-cards.tsx:256
 #: src/pages/shell/message-cards.tsx:261
 #: src/pages/shell/message-cards.tsx:264
-#: src/pages/shell/message-cards.tsx:329
+#: src/pages/shell/message-cards.tsx:331
 #: src/pages/shell/sidebar-activity.tsx:103
 msgid "Agent"
 msgstr "Agent"
@@ -2122,7 +2122,7 @@ msgstr "Question closed"
 #: src/components/ai/primitives.tsx:81
 #: src/components/ai/TurnActivity.tsx:26
 #: src/pages/ActivityList.tsx:111
-#: src/pages/shell/message-cards.tsx:280
+#: src/pages/shell/message-cards.tsx:282
 #: src/pages/shell/sidebar-activity.tsx:64
 msgid "Queued"
 msgstr "Queued"
@@ -2781,6 +2781,10 @@ msgstr "Stop Super Bot"
 msgid "Stopped"
 msgstr "Stopped"
 
+#: src/pages/shell/message-cards.tsx:280
+msgid "Stopped at its work limit"
+msgstr "Stopped at its work limit"
+
 #: src/components/trading/TradeApprovals.tsx:214
 #~ msgid "Submitted"
 #~ msgstr "Submitted"
@@ -2960,7 +2964,7 @@ msgstr "The existing fixed market stays unchanged until you choose a new scope."
 msgid "The file preview could not be displayed"
 msgstr "The file preview could not be displayed"
 
-#: src/pages/shell/message-cards.tsx:359
+#: src/pages/shell/message-cards.tsx:361
 msgid "The full response will appear when complete."
 msgstr "The full response will appear when complete."
 
@@ -3020,7 +3024,7 @@ msgstr "The selected model is not available from this provider. Choose another m
 msgid "The setup code is incorrect."
 msgstr "The setup code is incorrect."
 
-#: src/pages/shell/message-cards.tsx:291
+#: src/pages/shell/message-cards.tsx:293
 msgid "The task resumed from its saved state after reconnection."
 msgstr "The task resumed from its saved state after reconnection."
 

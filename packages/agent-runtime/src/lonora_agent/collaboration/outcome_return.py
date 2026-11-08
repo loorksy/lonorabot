@@ -6,7 +6,7 @@ from lonora_db.client import Database
 from lonora_db.events import emit
 from lonora_db.messages import message_data
 from lonora_db.rich_response import validated_rich_content
-from lonora_db.runs import create_run
+from lonora_db.runs import create_run, outcome_status
 from lonora_db.schema import (
     EffectReceiptRow,
     MessageRow,
@@ -47,6 +47,9 @@ async def return_outcome(db: Database, run_id: str) -> None:
         if child is None or child.status not in {"completed", "failed", "cancelled"}:
             return
         rich_content = validated_rich_content(child.model_metadata.get("rich_content"))
+        # A Run stopped at its work limit completed with a report, but its work did not:
+        # every consumer below reads "limited", never "completed".
+        status = outcome_status(child)
         receipt = outcome_receipt(run_id, child.lease_fence)
         if await session.get(EffectReceiptRow, receipt):
             return
@@ -62,7 +65,7 @@ async def return_outcome(db: Database, run_id: str) -> None:
             if row and row.agent_id == child.agent_id and row.thread_id == child.thread_id:
                 state = CollaborationState.model_validate(row.state)
                 if (
-                    child.status == "completed"
+                    status == "completed"
                     and state.status not in {"completed", "cancelled"}
                     and state.rounds
                     and state.rounds[-1].id == child.model_metadata.get("collaboration_round_id")
@@ -95,9 +98,17 @@ async def return_outcome(db: Database, run_id: str) -> None:
                 if not ticket.state.get("task"):
                     ticket.payload = {
                         **ticket.payload,
-                        "status": "done" if child.status == "completed" else child.status,
+                        # Unfinished work waits to be started again; it is never done.
+                        "status": {"completed": "done", "limited": "waiting"}.get(
+                            status, child.status
+                        ),
                     }
-                ticket.state = {**ticket.state, "result": child.result}
+                ticket_state = {
+                    key: value for key, value in ticket.state.items() if key != "exit_reason"
+                }
+                if status == "limited":
+                    ticket_state["exit_reason"] = child.model_metadata.get("exit_reason")
+                ticket.state = {**ticket_state, "result": child.result}
                 ticket.version += 1
                 if ticket.state.get("task"):
                     from typing import Literal
@@ -202,7 +213,7 @@ async def return_outcome(db: Database, run_id: str) -> None:
                     payload=message_data(final),
                 )
         if parent and thread:
-            outcome = f"<peer_outcome run_id='{child.id}' status='{child.status}'>\n{child.result or child.error_code or child.status}\n</peer_outcome>"
+            outcome = f"<peer_outcome run_id='{child.id}' status='{status}'>\n{child.result or child.error_code or status}\n</peer_outcome>"
             message = MessageRow(
                 thread_id=thread.id,
                 agent_id=child.agent_id,
@@ -272,7 +283,7 @@ async def return_outcome(db: Database, run_id: str) -> None:
                 identifiers.append(returned_message.id)
             peer.payload = {
                 **peer.payload,
-                "status": child.status,
+                "status": status,
                 "result": child.result or "",
                 "error_code": child.error_code,
                 "source_outcome_message_id": returned_message.id if returned_message else None,

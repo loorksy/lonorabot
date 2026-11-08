@@ -269,7 +269,15 @@ for this call, a short deterministic notice in the owner's language is used
 instead of failing the Run. The reply is checkpointed as
 `limit_exit` before it is returned, so a restart commits the same text without
 another model call. It is committed with `exit_reason` (`tool_round_limit` or
-`guardrail_halt`) in the Run metadata.
+`guardrail_halt`) and `reply_outcome: "limited"` in the Run metadata.
+
+Outside a Task the Run is then `completed` so the owner sees the report, but its
+work is not: every outcome consumer reads `lonora_db.runs.outcome_status`, which is
+`limited` for such a Run. A legacy ticket goes to `waiting` (with the report and
+its `exit_reason`) and can be started again, never to `done`; a delegating parent
+or peer receives `<peer_outcome status='limited'>`; a collaboration participant is
+recorded as failed with the exit reason, and a limited synthesis never completes
+the collaboration.
 
 Owner input that arrives at a limit is a new request: it supersedes unexecuted
 proposals and starts one new bounded budget (`rounds` returns to zero and the

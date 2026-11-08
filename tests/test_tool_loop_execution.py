@@ -12,19 +12,22 @@ from typing import Any, cast
 
 import pytest
 from lonora_adapter_kit.types import ModelMessage, ModelReply, ToolCall
+from lonora_agent.automation.background import start_ticket
 from lonora_agent.environment import ToolRetryScheduled
 from lonora_agent.executor import execute_run
 from lonora_agent.runtime_notices import NO_ANSWER, is_runtime_notice
 from lonora_agent.tool_loop import execute_tool_loop
 from lonora_contracts.domain import MessageCreate
 from lonora_contracts.model_routing import ModelSelection
-from lonora_contracts.runs import Lease
+from lonora_contracts.runs import Lease, RunRequest
 from lonora_contracts.tasks import TaskCreate, TaskStep
+from lonora_db.boards import BoardRepository
 from lonora_db.client import Database
 from lonora_db.messages import history, send_message
-from lonora_db.runs import claim_next
-from lonora_db.schema import EventRow, MessageRow, RunRow
+from lonora_db.runs import claim_next, create_run, outcome_status
+from lonora_db.schema import EventRow, MessageRow, RunRow, TicketRow
 from lonora_db.tasks import create_task, get_task, snapshot
+from lonora_db.tickets import TicketRepository
 from lonora_gateway.attention import candidate
 from lonora_tools.base import Tool
 from lonora_tools.context import ToolContext
@@ -442,6 +445,80 @@ async def test_round_limit_commits_a_final_report_instead_of_failing(
     async with context.db.sessions() as session:
         rows = await history(session, task_db[1], task_db[3])
         assert rows[-1].content == run.result
+
+
+@pytest.mark.asyncio
+async def test_limited_ticket_and_peer_work_is_never_projected_as_completed(
+    task_db: Fixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A work-limit report completes the Run, but its consumers read "limited"."""
+    db, owner, agent, thread = task_db
+
+    async def read(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+        return {"n": args["n"], "partial": True}
+
+    registry = ToolRegistry([Tool("fixture_read", "Read", Arguments, read, True)])
+    async with db.sessions() as session, session.begin():
+        board = await BoardRepository().create(session, owner, {"title": "Work"}, agent_id=agent)
+        ticket = await TicketRepository().create(
+            session,
+            owner,
+            {"board_id": board.id, "title": "Reconcile all 40 accounts", "description": ""},
+            agent_id=agent,
+        )
+        ticket_id = ticket.id
+    started = await start_ticket(db, owner, ticket_id)
+    async with db.sessions() as session, session.begin():
+        parent = await create_run(
+            session,
+            owner,
+            RunRequest(thread_id=thread, agent_id=agent, trigger="user", prompt="Delegate"),
+        )
+        parent.status = "running"
+        child = await session.get(RunRow, started["id"])
+        assert child is not None
+        child.parent_run_id = parent.id
+        await session.flush()
+        run = await claim_next(session, "ticket-writer", 120, "work")
+        assert run and run.id == started["id"]
+        run.status = "running"
+        run.execution_state = {
+            "messages": [
+                ModelMessage(role="user", content="Reconcile all 40 accounts").model_dump(
+                    mode="json"
+                )
+            ],
+            "instruction_skill_ids": [],
+        }
+        lease = Lease(run_id=run.id, owner="ticket-writer", fence=run.lease_fence)
+        ticket_thread = run.thread_id
+    model = Script(
+        *(ModelReply(tool_calls=calls((f"r{n}", "fixture_read", n))) for n in range(3)),
+        ModelReply(text="I reconciled 3 of 40 accounts before stopping."),
+    )
+    monkeypatch.setattr("lonora_agent.tool_loop.model_turn", model)
+    context = context_for(task_db, lease, ticket_thread)
+    await execute_run(context, registry, 120, 4)
+    run = await saved_run(context)
+    # The owner-visible report is committed and the Run itself ends gracefully.
+    assert run.status == "completed", (run.status, run.error_code)
+    assert run.model_metadata["reply_outcome"] == "limited"
+    assert outcome_status(run) == "limited"
+    async with db.sessions() as session:
+        row = await session.get(TicketRow, ticket_id)
+        assert row is not None
+        # Unfinished ticket work waits to be started again; it is never "done".
+        assert row.payload["status"] == "waiting"
+        assert row.state["exit_reason"] == "tool_round_limit"
+        assert row.state["result"] == "I reconciled 3 of 40 accounts before stopping."
+        returned = await session.scalar(
+            select(MessageRow).where(
+                MessageRow.thread_id == thread, MessageRow.content.like("<peer_outcome%")
+            )
+        )
+        assert returned is not None and "status='limited'" in returned.content
+    # Starting the ticket again is possible: it is not left "working".
+    assert (await start_ticket(db, owner, ticket_id))["trigger"] == "tickets"
 
 
 @pytest.mark.asyncio

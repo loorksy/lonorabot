@@ -276,6 +276,8 @@ export function PeerMessageCard({
             <Trans>Failed</Trans>
           ) : status === "completed" ? (
             <Trans>Completed</Trans>
+          ) : status === "limited" ? (
+            <Trans>Stopped at its work limit</Trans>
           ) : (
             <Trans>Queued</Trans>
           )}

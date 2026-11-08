@@ -20,6 +20,18 @@ def aware(value: datetime) -> datetime:
     return value if value.tzinfo else value.replace(tzinfo=UTC)
 
 
+def outcome_status(row: RunRow) -> str:
+    """The Run's outcome as projected to tickets, parents, peers and collaborations.
+
+    A Run that stopped at its work limit (tool rounds, identical-effect halt) completes
+    with an honest report so the owner sees it, but its work is unfinished: consumers
+    read it as ``limited``, never as ``completed``.
+    """
+    if row.status == "completed" and row.model_metadata.get("reply_outcome") == "limited":
+        return "limited"
+    return row.status
+
+
 def run_data(row: RunRow) -> dict[str, Any]:
     questions: list[dict[str, Any]] = []
     for raw in cast(list[Any], row.execution_state.get("input_requests", []))[-20:]:
