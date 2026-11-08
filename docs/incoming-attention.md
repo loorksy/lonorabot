@@ -19,6 +19,28 @@ Owner-wide voice admission separately prevents concurrent paid calls with distin
 client receipts. Same-receipt reconnect remains available. An abandoned unanswered
 allocation can expire; a known remote session must close before replacement.
 
+## Reach-me preference
+
+The incoming-call policy record is the owner's single reach-me preference, part
+of the owner profile every Agent reads (`docs/agent-memory-and-recall.md`). Its
+`channel` is one of `activity` (keep it in Activity, no interruption), `notify`
+(an attention item), `message` (a message in the Agent's conversation) or `call`
+(an incoming invitation). `enabled` is derived: invitations are possible exactly
+when the channel is `call`, so the two can never disagree. A stored policy or a
+client from before the channel existed keeps its meaning (`enabled` true reads as
+`call`); a request that states both and contradicts itself is refused
+(`incoming_call_channel_conflict`).
+
+The owner sets it in Web Knowledge (About you) or Mobile Voice settings
+(`PUT /api/owner/preferences`), or in chat: "Send me a message instead of
+calling" makes the Agent call `owner_preferences_update`, which needs a Run that
+answers the owner's message and records a revertible, attributed revision. Choosing
+`call` from chat uses the selected enrolled device, otherwise the most recently
+enrolled one, and turns on calls when the owner's decision is needed. While the
+channel is not `call`, `owner_call_request` returns `owner_prefers_other_channel`
+with the channel to use and creates no invitation; the device choice is kept for
+a later "call me". Delivery is in-app only: none of this proves a device rang.
+
 ## Delivery boundary
 
 Foreground Mobile presentation is implemented. The optional provider protocol
@@ -72,7 +94,9 @@ acceptance; deterministic recovery is not a claim of model-quality verification.
 
 ## Verification
 
-`check_incoming_calls.py` covers disposable PostgreSQL concurrency, restart,
+`check_owner_profile.py` proves that "send me a message instead of calling",
+said in chat, makes the next qualifying event ring nothing and produce exactly one
+message. `check_incoming_calls.py` covers disposable PostgreSQL concurrency, restart,
 provider lost acknowledgement without blind retry, a committed pre-IO fence,
 concurrent dispatch, cancellation/restart, provider acknowledgement versus device
 presentation, legacy state recovery, ownership, current policy, quiet hours,

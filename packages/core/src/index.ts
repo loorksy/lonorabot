@@ -32,6 +32,21 @@ export {
   operationStatusKey,
   operationStatusText,
 } from "./financial-boundary";
+export {
+  type OwnerProfileLabel,
+  ownerProfileError,
+  ownerProfileLabel,
+  ownerProfileLabelKeys,
+  preferenceFieldLabel,
+  preferenceValueText,
+  type ReachMe,
+  type ReplyLanguage,
+  reachMeChannels,
+  reachMeHint,
+  reachMeLabel,
+  replyLanguageLabel,
+  replyLanguages,
+} from "./owner-profile";
 export { ReadRequestGate } from "./read-request-gate";
 export {
   accumulateStream,

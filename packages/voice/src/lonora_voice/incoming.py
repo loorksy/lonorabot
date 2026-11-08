@@ -15,10 +15,16 @@ from lonora_core.user_error import LonoraError
 from lonora_db.attention import mandatory_current
 from lonora_db.client import Database
 from lonora_db.events import emit
-from lonora_db.schema import AttentionRow, DeviceCredentialRow, VoiceSessionRow
-from lonora_db.transactions import SettingsRepository, owned_agent, owned_thread
+from lonora_db.owner_profile import (
+    reach_me_lock,
+    reach_me_policy,
+    save_owner_preferences,
+    verified_device,
+)
+from lonora_db.schema import AttentionRow, VoiceSessionRow
+from lonora_db.transactions import owned_agent, owned_thread
 from lonora_session.idempotency import stable_id
-from sqlalchemy import and_, or_, select, text
+from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 MODE = "incoming_request"
@@ -59,32 +65,17 @@ def call_data(row: VoiceSessionRow) -> dict[str, Any]:
 
 
 async def owner_lock(session: AsyncSession, owner_id: str) -> None:
-    if session.get_bind().dialect.name == "postgresql":
-        await session.execute(
-            text("SELECT pg_advisory_xact_lock(hashtextextended(:key,0))"),
-            {"key": "incoming-call:" + owner_id},
-        )
+    await reach_me_lock(session, owner_id)
 
 
 async def preferences(session: AsyncSession, owner_id: str) -> IncomingCallPolicy:
-    return IncomingCallPolicy.model_validate(
-        await SettingsRepository().get(session, "incoming-call-policy:" + owner_id)
-    )
-
-
-async def verified_device(session: AsyncSession, owner_id: str, device_id: str) -> None:
-    device = await session.get(DeviceCredentialRow, device_id)
-    if device is None or device.owner_id != owner_id or device.revoked:
-        raise LonoraError("incoming_call_device_unavailable", 403)
+    """The owner's reach-me preference; it rings only when its channel is ``call``."""
+    return await reach_me_policy(session, owner_id)
 
 
 async def set_preferences(session: AsyncSession, owner_id: str, policy: IncomingCallPolicy) -> None:
-    await owner_lock(session, owner_id)
-    if policy.enabled:
-        await verified_device(session, owner_id, policy.device_id or "")
-    await SettingsRepository().put(
-        session, "incoming-call-policy:" + owner_id, policy.model_dump(mode="json")
-    )
+    """The owner's own change, kept as a revertible revision of the owner profile."""
+    await save_owner_preferences(session, owner_id, policy=policy, author="owner")
 
 
 def changed(session: AsyncSession, row: VoiceSessionRow, status: str) -> None:

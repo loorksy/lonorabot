@@ -8,8 +8,18 @@ from pydantic import Field, field_validator, model_validator
 
 from .domain import Contract
 
+# How the owner wants to be reached about something that needs him (the reach-me
+# preference of the owner profile). Delivery is in-app until off-app delivery exists:
+# activity = keep it in Activity only; notify = an attention item; message = a message
+# in the agent's conversation; call = an incoming conversation invitation.
+ReachMe = Literal["activity", "notify", "message", "call"]
+REACH_ME_CHANNELS: tuple[ReachMe, ...] = ("activity", "notify", "message", "call")
+
 
 class IncomingCallPolicy(Contract):
+    """The owner's reach-me preference; invitations ring only when it is ``call``."""
+
+    channel: ReachMe = "message"
     enabled: bool = False
     device_id: str | None = None
     opportunities: bool = False
@@ -32,6 +42,14 @@ class IncomingCallPolicy(Contract):
 
     @model_validator(mode="after")
     def complete_policy(self) -> "IncomingCallPolicy":
+        # One preference, never two that disagree: incoming calls are enabled exactly
+        # when the owner chose to be called. A stored policy or client from before the
+        # channel existed states only ``enabled``.
+        if "channel" not in self.model_fields_set:
+            self.channel = "call" if self.enabled else "message"
+        elif "enabled" in self.model_fields_set and self.enabled != (self.channel == "call"):
+            raise ValueError("incoming_call_channel_conflict")
+        self.enabled = self.channel == "call"
         if self.enabled and not self.device_id:
             raise ValueError("incoming_call_device_required")
         if (self.quiet_start_hour is None) != (self.quiet_end_hour is None):

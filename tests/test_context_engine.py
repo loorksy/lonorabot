@@ -272,9 +272,25 @@ async def test_builder_keeps_untrusted_material_out_of_the_system_role(
         builder,
         "read_memory_context",
         AsyncMock(
-            return_value=ContextSection(
-                "memory", "agent_memory", "mutable_untrusted", "Memory " + hostile, 80
-            )
+            return_value=[
+                ContextSection(
+                    "owner_preferences",
+                    "owner_profile",
+                    "owner_attributed",
+                    "Profile " + hostile,
+                    90,
+                ),
+                ContextSection(
+                    "operating_notes",
+                    "agent_operating_notes",
+                    "agent_authored",
+                    "Notes " + hostile,
+                    82,
+                ),
+                ContextSection(
+                    "memory", "agent_memory", "mutable_untrusted", "Memory " + hostile, 80
+                ),
+            ]
         ),
     )
     monkeypatch.setattr(builder, "scratchpad_context", AsyncMock(return_value="Note " + hostile))
@@ -309,8 +325,11 @@ async def test_builder_keeps_untrusted_material_out_of_the_system_role(
     data = messages[3]
     assert is_context_message(data) and data.role == "user"
     assert hostile not in data.content
-    assert data.content.count(escape_context_text(hostile)) == 8
+    assert data.content.count(escape_context_text(hostile)) == 10
+    # The shared owner preferences come first, then the Agent's own notes and memory.
     assert context_section_names(data) == [
+        "owner_preferences",
+        "operating_notes",
         "memory",
         "history_summary",
         "history_gap",

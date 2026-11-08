@@ -347,6 +347,63 @@ class MemoryRow(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class OwnerProfileRow(Base):
+    """The one owner profile (USER.md) every agent reads; owner-attributed, never authority."""
+
+    __tablename__ = "ln_owner_profile"
+    __table_args__ = (
+        CheckConstraint(
+            "reply_language IS NULL OR reply_language IN ('ar','en')",
+            name="ln_owner_profile_reply_language",
+        ),
+    )
+    owner_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_owners.id", ondelete="CASCADE"), primary_key=True
+    )
+    content: Mapped[str] = mapped_column(Text, default="")
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    # None follows the language of the owner's latest message.
+    reply_language: Mapped[str | None] = mapped_column(String(8))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class MemoryRevisionRow(Base):
+    """One commit's prior and resulting text and its author; revert restores the prior text."""
+
+    __tablename__ = "ln_memory_revisions"
+    __table_args__ = (
+        CheckConstraint(
+            "document IN ('owner_profile','owner_preferences','agent_memory')",
+            name="ln_memory_revision_document",
+        ),
+        CheckConstraint(
+            "(document = 'agent_memory') = (agent_id IS NOT NULL)",
+            name="ln_memory_revision_agent",
+        ),
+        CheckConstraint("author IN ('owner','agent','system')", name="ln_memory_revision_author"),
+        Index("ix_ln_memory_revisions_document", "owner_id", "document", "agent_id", "created_at"),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    owner_id: Mapped[str] = mapped_column(ForeignKey("ln_owners.id", ondelete="CASCADE"))
+    document: Mapped[str] = mapped_column(String(24))
+    agent_id: Mapped[str | None] = mapped_column(ForeignKey("ln_agents.id", ondelete="CASCADE"))
+    version: Mapped[int] = mapped_column(Integer)
+    previous_content: Mapped[str] = mapped_column(Text, default="")
+    content: Mapped[str] = mapped_column(Text, default="")
+    author: Mapped[str] = mapped_column(String(8))
+    author_agent_id: Mapped[str | None] = mapped_column(
+        ForeignKey("ln_agents.id", ondelete="SET NULL")
+    )
+    source_message_id: Mapped[str | None] = mapped_column(
+        ForeignKey("ln_messages.id", ondelete="SET NULL")
+    )
+    source_run_id: Mapped[str | None] = mapped_column(String(36))
+    # operations | document | revert | merge | preferences
+    change: Mapped[str] = mapped_column(String(16))
+    reverted_revision_id: Mapped[str | None] = mapped_column(String(36))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class RoutineRow(Base):
     goal_id: Mapped[str | None] = mapped_column(
         ForeignKey("ln_trading_goals.id", ondelete="CASCADE")

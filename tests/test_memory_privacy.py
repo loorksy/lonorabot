@@ -32,6 +32,11 @@ DOCUMENT = (
     "Legacy fact one.\n\n# USER.md\n- Prefers Arabic replies\n- Concise\n\n"
     "# MEMORY.md\n- XAUUSD spreads widen at rollover\n"
 )
+# A stored Agent row from before the owner profile: its USER.md section is retired.
+DB_DOCUMENT = (
+    "Legacy fact one.\n\n# USER.md\n- Prefers Arabic replies\n\n# OPERATING.md\n- Concise\n\n"
+    "# MEMORY.md\n- XAUUSD spreads widen at rollover\n"
+)
 
 
 # --- Granular memory edits (pure) ---------------------------------------------------
@@ -666,11 +671,11 @@ async def test_memory_operations_commit_atomically_with_receipts_and_overflow_pr
     try:
         agent = await fixture.agent("Memory editor")
         thread = await fixture.conversation(agent)
-        await set_memory(fixture, agent["id"], DOCUMENT)
+        await set_memory(fixture, agent["id"], DB_DOCUMENT)
         registry = load_tools()
         context = await fixture.lease(await fixture.run(agent, thread))
         operations = [
-            {"action": "add", "section": "USER.md", "content": "- Timezone Asia/Riyadh"},
+            {"action": "add", "section": "OPERATING.md", "content": "- Check the H4 trend first"},
             {"action": "patch", "old_text": "Concise", "content": "Very concise"},
         ]
         call = ToolCall(
@@ -684,7 +689,11 @@ async def test_memory_operations_commit_atomically_with_receipts_and_overflow_pr
         current = await registry.execute(
             ToolCall(id="m2", name="memory_read", arguments={}), context, read_only=True
         )
-        assert current["version"] == 2 and current["content"].count("Timezone") == 1
+        assert current["version"] == 2 and current["content"].count("H4 trend") == 1
+        # The retired owner section is not part of the Agent's view and left the row
+        # with this change; the revision keeps the prior text.
+        assert "Prefers Arabic" not in current["content"]
+        assert current["document_sections"] == ["memory/MEMORY.md", "OPERATING.md"]
 
         # A batch that changes nothing keeps the revision and records no update.
         duplicate = ToolCall(
@@ -693,7 +702,7 @@ async def test_memory_operations_commit_atomically_with_receipts_and_overflow_pr
             arguments={
                 "version": 2,
                 "operations": [
-                    {"action": "add", "section": "USER.md", "content": "- Very concise"}
+                    {"action": "add", "section": "OPERATING.md", "content": "- Very concise"}
                 ],
             },
         )
@@ -734,6 +743,7 @@ async def test_memory_operations_commit_atomically_with_receipts_and_overflow_pr
             "code": "version_conflict",
             "version": 2,
             "chars": saved["chars"],
+            "profile_version": 1,
         }
         overflow = await registry.execute(
             ToolCall(

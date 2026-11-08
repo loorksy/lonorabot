@@ -125,7 +125,7 @@ async def build_context(
                 "financial authorization. Exact financial confirmation follows the ordinary "
                 "server approval policy. Keep this guidance private.</voice_observation>"
             )
-        memory = await timed("memory", read_memory_context(session, agent.id))
+        memory = await timed("memory", read_memory_context(session, context.owner_id, agent.id))
         scratchpad = await timed("scratchpad", scratchpad_context(session, agent.id))
         quoted = await timed("reply", reply_context(session, thread.id, run.input_seq))
         attachments, images = await timed(
@@ -199,7 +199,8 @@ async def build_context(
             recent_tool_evidence(session, agent.id, thread.id, run.id, query),
         )
         sections = [
-            *([memory] if memory else []),
+            # Owner preferences, the Agent's operating notes, then its memory.
+            *memory,
             *skill_context.sections,
             ContextSection(
                 "history_summary",

@@ -7,6 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .events import emit
+from .memory_revisions import record_revision
 from .schema import AgentRow, EffectReceiptRow, EventRow, MemoryRow
 from .transactions import owned_agent
 
@@ -70,6 +71,10 @@ def memory_summary(row: MemoryRow) -> dict[str, Any]:
     }
 
 
+# Checks a whole-document write against the locked current text before it is saved.
+MemoryValidator = Callable[[str, str], None]
+
+
 async def commit_memory(
     session: AsyncSession,
     owner_id: str,
@@ -80,7 +85,13 @@ async def commit_memory(
     source_run_id: str | None = None,
     *,
     transform: MemoryTransform | None = None,
+    validate: MemoryValidator | None = None,
+    source_message_id: str | None = None,
+    change: str | None = None,
+    reverted_revision_id: str | None = None,
 ) -> dict[str, Any]:
+    """One attributed revision: an Agent's own write when ``source_run_id`` is set,
+    otherwise the owner's. The prior text is kept so the owner can revert it."""
     await owned_agent(session, owner_id, agent_id, lock=True)
     if effect_key:
         receipt = await session.get(EffectReceiptRow, effect_key)
@@ -101,11 +112,30 @@ async def commit_memory(
             if effect_key:
                 session.add(EffectReceiptRow(key=effect_key, result=result))
             return result
+    elif validate is not None:
+        validate(row.content, content)
     if len(content) > MEMORY_CHAR_LIMIT:
         raise LonoraError("memory_too_large", 413)
+    previous = row.content
     row.content = content
     row.version += 1
     row.updated_at = utcnow()
+    kind = change or ("operations" if transform is not None else "document")
+    await record_revision(
+        session,
+        owner_id,
+        document="agent_memory",
+        agent_id=agent_id,
+        version=row.version,
+        previous_content=previous,
+        content=content,
+        author="agent" if source_run_id else "owner",
+        change=kind,
+        author_agent_id=agent_id if source_run_id else None,
+        source_message_id=source_message_id,
+        source_run_id=source_run_id,
+        reverted_revision_id=reverted_revision_id,
+    )
     # A whole-document write keeps returning the document it saved; granular
     # edits return the new revision and size, so nothing large travels back.
     result = (
@@ -124,7 +154,7 @@ async def commit_memory(
         payload={
             "version": row.version,
             "source": "agent_authored" if source_run_id else "owner_provided",
-            "change": "operations" if transform is not None else "document",
+            "change": kind,
         },
     )
     return result

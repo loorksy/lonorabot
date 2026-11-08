@@ -34,22 +34,27 @@ SOFTWARE.
 """
 
 import re
+from collections import Counter
 from dataclasses import dataclass
 from typing import Any, Literal
 
 from lonora_core.user_error import LonoraError
 from lonora_db.memory import MEMORY_CHAR_LIMIT
 
+from .guard import AUTHORITY_RECOVERY, authority_claims
 from .markdown_memory import normalize_memory
+from .profile import VIEW_HEADING, operating_notes
 
 MAX_HINT_LINES = 3
 HINT_LINE_CHARS = 200
 # The same explicit view headings profile_documents() recognizes.
-HEADING = re.compile(r"(?m)^# (USER\.md|(?:memory/)?MEMORY\.md)[ \t]*\n")
+HEADING = VIEW_HEADING
 LIST_ITEM = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s")
 MARKDOWN_HEADING = re.compile(r"^#{1,6}\s")
 
-MemorySection = Literal["USER.md", "MEMORY.md"]
+# USER.md names the shared owner profile; MEMORY.md and OPERATING.md are views of
+# the Agent's own document.
+MemorySection = Literal["USER.md", "MEMORY.md", "OPERATING.md"]
 MemoryAction = Literal["add", "patch", "remove"]
 
 
@@ -76,32 +81,46 @@ class MemoryEditError(LonoraError):
 class MemoryOverflow(LonoraError):
     """The batch result exceeds the document limit; nothing was applied."""
 
-    def __init__(self, version: int, current_chars: int, resulting_chars: int):
+    def __init__(
+        self,
+        version: int,
+        current_chars: int,
+        resulting_chars: int,
+        limit: int = MEMORY_CHAR_LIMIT,
+        document: str = "memory",
+    ):
         super().__init__("memory_too_large", 413)
         self.version = version
         self.current_chars = current_chars
         self.resulting_chars = resulting_chars
+        self.limit = limit
+        self.document = document
 
     def result(self) -> dict[str, Any]:
-        shortfall = self.resulting_chars - MEMORY_CHAR_LIMIT
+        shortfall = self.resulting_chars - self.limit
         return {
             "ok": False,
             "code": self.code,
+            "document": self.document,
             "version": self.version,
             "current_chars": self.current_chars,
             "resulting_chars": self.resulting_chars,
-            "limit": MEMORY_CHAR_LIMIT,
+            "limit": self.limit,
             "shortfall": shortfall,
             "recovery": (
-                f"Nothing was saved. Retry as one operations batch that also removes or "
-                f"shortens at least {shortfall} characters of stale or duplicate memory; the "
-                "limit applies only to the batch result."
+                f"Nothing was saved. Retry as one operations batch that also removes, "
+                f"shortens or summarizes at least {shortfall} characters of stale or duplicate "
+                "text in that document; the limit applies only to the batch result."
             ),
         }
 
 
 def section_name(raw: str) -> MemorySection:
-    return "USER.md" if raw == "USER.md" else "MEMORY.md"
+    if raw == "USER.md":
+        return "USER.md"
+    if raw == "OPERATING.md":
+        return "OPERATING.md"
+    return "MEMORY.md"
 
 
 def headings(document: str) -> list[MemorySection]:
@@ -219,8 +238,14 @@ def _line_span(document: str, start: int, old_text: str) -> tuple[int, int]:
     return line_start, len(document) if newline < 0 else newline + 1
 
 
-def apply_edit(document: str, edit: MemoryEdit, index: int = 0) -> tuple[str, dict[str, Any]]:
-    """One operation on a normalized document -> (normalized result, outcome)."""
+def apply_edit(
+    document: str, edit: MemoryEdit, index: int = 0, *, profile: bool = False
+) -> tuple[str, dict[str, Any]]:
+    """One operation on a normalized document -> (normalized result, outcome).
+
+    ``profile`` edits the owner profile: one plain document without view headings,
+    where an add appends at the end.
+    """
     outcome: dict[str, Any] = {"action": edit.action}
     if edit.action == "add":
         outcome["section"] = edit.section
@@ -229,8 +254,13 @@ def apply_edit(document: str, edit: MemoryEdit, index: int = 0) -> tuple[str, di
             raise MemoryEditError("memory_edit_content_required", index)
         if HEADING.search(entry + "\n"):
             # An entry may not open another view: text bound for MEMORY.md could
-            # otherwise start a USER.md section of owner preferences.
+            # otherwise start a section of operating notes.
             raise MemoryEditError("memory_edit_heading_protected", index)
+        if profile:
+            if (duplicate := existing_entry(document, entry)) is not None:
+                return document, {**outcome, "changed": False, "duplicate_of": duplicate}
+            result = normalize_memory(_insert(document, entry, ""))
+            return result, {**outcome, "changed": result != document}
         for name, body in _views(document):
             if name == edit.section or (edit.section == "MEMORY.md" and name is None):
                 if (duplicate := existing_entry(body, entry)) is not None:
@@ -250,7 +280,7 @@ def apply_edit(document: str, edit: MemoryEdit, index: int = 0) -> tuple[str, di
         result = re.sub(r"\n{3,}", "\n\n", document[:line_start] + document[line_stop:])
     result = normalize_memory(result)
     if headings(result) != headings(document):
-        # View headings separate owner preferences from knowledge; only a whole
+        # View headings separate knowledge from operating notes; only a whole
         # document write may restructure them.
         raise MemoryEditError("memory_edit_heading_protected", index)
     return result, {**outcome, "changed": result != document}
@@ -267,21 +297,55 @@ def _views(document: str) -> list[tuple[MemorySection | None, str]]:
     return views
 
 
+def guarded_text(document: str, *, profile: bool) -> str:
+    """The part of a document that later Runs follow as guidance."""
+    return document if profile else operating_notes(document)
+
+
+def new_authority_claim(before: str, after: str, *, profile: bool) -> str | None:
+    """An authority statement ``after`` adds to guided text; one already there is not new."""
+    added = Counter(authority_claims(guarded_text(after, profile=profile)))
+    added.subtract(Counter(authority_claims(guarded_text(before, profile=profile))))
+    return next((claim for claim, count in added.items() if count > 0), None)
+
+
+def authority_refusal(index: int, claim: str) -> "MemoryEditError":
+    return MemoryEditError(
+        "memory_authority_claim_refused", index, statement=claim, recovery=AUTHORITY_RECOVERY
+    )
+
+
 def apply_edits(
-    document: str, edits: list[MemoryEdit], version: int
+    document: str,
+    edits: list[MemoryEdit],
+    version: int,
+    *,
+    profile: bool = False,
+    limit: int = MEMORY_CHAR_LIMIT,
 ) -> tuple[str, list[dict[str, Any]]]:
     """All operations or none; the limit is checked on the final document only.
 
     A batch that changes nothing returns the stored document itself, so the
     caller keeps the current revision instead of committing an identical one.
+    An operation that adds an authority statement to operating notes (or to the
+    owner profile) rejects the whole batch.
     """
-    current = normalize_memory(document)
+    original = normalize_memory(document)
+    current = original
     applied: list[dict[str, Any]] = []
     for index, edit in enumerate(edits):
-        current, outcome = apply_edit(current, edit, index)
+        current, outcome = apply_edit(current, edit, index, profile=profile)
+        if claim := new_authority_claim(original, current, profile=profile):
+            raise authority_refusal(index, claim)
         applied.append(outcome)
-    if current == normalize_memory(document):
+    if current == original:
         return document, applied
-    if len(current) > MEMORY_CHAR_LIMIT:
-        raise MemoryOverflow(version, len(document), len(current))
+    if len(current) > limit:
+        raise MemoryOverflow(
+            version,
+            len(document),
+            len(current),
+            limit,
+            "owner_profile" if profile else "memory",
+        )
     return current, applied

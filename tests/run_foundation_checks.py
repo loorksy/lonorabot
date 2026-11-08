@@ -80,6 +80,7 @@ CHECKS = (
     "check_incoming_calls.py",
     "check_runtime_collaboration.py",
     "check_memory_provenance.py",
+    "check_owner_profile.py",
     "check_goal_call_identity.py",
 )
 

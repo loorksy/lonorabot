@@ -1,6 +1,11 @@
 import { i18n } from "@lingui/core";
 import { t } from "@lingui/core/macro";
-import { agentPermissionError, errorCode, financialBoundaryError } from "@lonora/core";
+import {
+  agentPermissionError,
+  errorCode,
+  financialBoundaryError,
+  ownerProfileError,
+} from "@lonora/core";
 import { isRequestCancelled } from "./api";
 export function userError(error: unknown) {
   if (isRequestCancelled(error)) return "";
@@ -10,6 +15,8 @@ export function userError(error: unknown) {
   // Restrictions, money limits and boundary blocks: why nothing was sent, shared text.
   const boundaryMessage = financialBoundaryError(code, i18n.locale);
   if (boundaryMessage) return boundaryMessage;
+  const profileMessage = ownerProfileError(code, i18n.locale);
+  if (profileMessage) return profileMessage;
   switch (code) {
     case "agent_scope_change_forbidden":
       return t`This agent’s market scope cannot be changed.`;
