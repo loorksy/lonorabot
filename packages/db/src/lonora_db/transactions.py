@@ -223,12 +223,18 @@ class ResourceRepository:
 
 
 class SettingsRepository:
-    async def get(self, session: AsyncSession, key: str) -> dict[str, Any]:
-        row = await session.get(SettingRow, key)
+    async def get(self, session: AsyncSession, key: str, *, fresh: bool = False) -> dict[str, Any]:
+        # fresh: read the stored row even if this session loaded it earlier, as a read
+        # under a lock must.
+        row = await (
+            session.get(SettingRow, key, populate_existing=True)
+            if fresh
+            else session.get(SettingRow, key)
+        )
         return row.payload if row else {}
 
     async def put(self, session: AsyncSession, key: str, payload: dict[str, Any]) -> None:
-        row = await session.get(SettingRow, key, with_for_update=True)
+        row = await session.get(SettingRow, key, with_for_update=True, populate_existing=True)
         if row is None:
             session.add(SettingRow(key=key, payload=payload))
         else:

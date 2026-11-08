@@ -18,6 +18,7 @@ from lonora_db.owner_profile import (
     enrolled_devices,
     owner_preferences,
     owner_profile_data,
+    reach_me_lock,
     reach_me_policy,
     read_owner_profile,
     save_owner_preferences,
@@ -71,10 +72,10 @@ async def read(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     async with context.db.sessions() as session:
         row = await read_memory(session, context.owner_id, context.agent_id)
         shared = owner_profile_data(await read_owner_profile(session, context.owner_id))
-        view = agent_memory_view(row.content)
+        own = memory_data(row)
+        view = own["content"]
         return {
-            **memory_data(row),
-            "content": view,
+            **own,
             "document_sections": [
                 name for name in profile_documents(view) if name != LEGACY_USER_VIEW
             ],
@@ -200,7 +201,10 @@ async def update_preferences(context: ToolContext, args: dict[str, Any]) -> dict
         message_id = await owner_message_id(session, run)
         if message_id is None:
             return {**OWNER_MESSAGE_REQUIRED, "code": "owner_preferences_require_owner_message"}
-        policy = await reach_me_policy(session, context.owner_id)
+        # Lock before reading, so the change applies to the settings as they are now and
+        # an owner save or another Agent's change that landed meanwhile is kept.
+        await reach_me_lock(session, context.owner_id)
+        policy = await reach_me_policy(session, context.owner_id, fresh=True)
         changes: dict[str, Any] = {}
         if params.reach_me is not None:
             changes["channel"] = params.reach_me

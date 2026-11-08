@@ -4,17 +4,17 @@ An Agent's memory row holds its private knowledge (``# MEMORY.md``, plus older
 unsectioned text) and its operating notes (``# OPERATING.md``). What the owner says
 about himself lives in the one owner profile every Agent reads (``ln_owner_profile``).
 A ``# USER.md`` section that earlier releases kept inside an Agent row was merged
-into that profile by migration 0038; it is no longer read from the row.
+into that profile by migration 0038; it stays in the row but is no longer read from it.
 """
 
 import json
-import re
 
-# Explicit view headings only; never infer a preference from financial prose.
-VIEW_HEADING = re.compile(r"(?m)^# (USER\.md|OPERATING\.md|(?:memory/)?MEMORY\.md)[ \t]*\n")
+# Explicit view headings only (the stored row format); never infer a preference from
+# financial prose.
+from lonora_db.memory import LEGACY_USER_VIEW, VIEW_HEADING, memory_view
+
 MEMORY_VIEW = "memory/MEMORY.md"
 OPERATING_VIEW = "OPERATING.md"
-LEGACY_USER_VIEW = "USER.md"
 
 
 def view_name(heading: str) -> str:
@@ -40,16 +40,7 @@ def profile_documents(content: str) -> dict[str, str]:
 
 def agent_memory_view(content: str) -> str:
     """The Agent's own document without retired ``# USER.md`` sections."""
-    matches = list(VIEW_HEADING.finditer(content))
-    if not any(match[1] == LEGACY_USER_VIEW for match in matches):
-        return content
-    kept = [content[: matches[0].start()]]
-    for position, match in enumerate(matches):
-        end = matches[position + 1].start() if position + 1 < len(matches) else len(content)
-        if match[1] != LEGACY_USER_VIEW:
-            kept.append(content[match.start() : end])
-    view = re.sub(r"\n{3,}", "\n\n", "".join(kept)).strip()
-    return view + "\n" if view else ""
+    return memory_view(content)
 
 
 def escaped_json(value: object) -> str:

@@ -1,7 +1,8 @@
 """Incoming conversation invitations never carry execution authority."""
 
+from collections.abc import Iterable, Mapping
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import Field, field_validator, model_validator
@@ -10,10 +11,30 @@ from .domain import Contract
 
 # How the owner wants to be reached about something that needs him (the reach-me
 # preference of the owner profile). Delivery is in-app until off-app delivery exists:
-# activity = keep it in Activity only; notify = an attention item; message = a message
+# activity = keep it in Activity only; notify = the inbox (Agents raise their own alerts
+# once owner_notify exists; until then they message); message = a message
 # in the agent's conversation; call = an incoming conversation invitation.
 ReachMe = Literal["activity", "notify", "message", "call"]
 REACH_ME_CHANNELS: tuple[ReachMe, ...] = ("activity", "notify", "message", "call")
+# Codes of IncomingCallPolicy's checks that tell the owner what to fix; the API returns
+# them as the error code instead of a generic invalid_request.
+POLICY_ERROR_CODES = frozenset(
+    {
+        "incoming_call_channel_conflict",
+        "incoming_call_device_required",
+        "incoming_call_quiet_hours_incomplete",
+        "invalid_timezone",
+    }
+)
+
+
+def policy_error_code(errors: Iterable[Mapping[str, Any]]) -> str:
+    """The first owner-actionable policy code among validation errors, else invalid_request."""
+    for item in errors:
+        cause = str(item.get("ctx", {}).get("error", ""))
+        if item.get("type") == "value_error" and cause in POLICY_ERROR_CODES:
+            return cause
+    return "invalid_request"
 
 
 class IncomingCallPolicy(Contract):

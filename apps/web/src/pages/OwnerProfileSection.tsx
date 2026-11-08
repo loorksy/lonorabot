@@ -40,6 +40,8 @@ type OwnerProfile = {
   limit: number;
 };
 
+type Form = "profile" | "reach";
+
 function hour(value: string): number | null {
   const parsed = Number.parseInt(value, 10);
   return value.trim() && Number.isInteger(parsed) && parsed >= 0 && parsed <= 23 ? parsed : null;
@@ -53,25 +55,31 @@ export function OwnerProfileSection() {
   const { revision, refresh } = useClient();
   const [profile, setProfile] = useState<OwnerProfile | null>(null);
   const [content, setContent] = useState("");
+  const [textVersion, setTextVersion] = useState<number | null>(null);
   const [reach, setReach] = useState<ReachPolicy | null>(null);
   const [language, setLanguage] = useState<ReplyLanguage>("auto");
   const [quietStart, setQuietStart] = useState("");
   const [quietEnd, setQuietEnd] = useState("");
   const [error, setError] = useState<unknown>();
   const [busy, setBusy] = useState(false);
-  const [saved, setSaved] = useState<"profile" | "reach" | null>(null);
-  const dirty = useRef(false);
-  const apply = useCallback((value: OwnerProfile, reset: boolean) => {
-    // An unsaved edit keeps the version it started from, so saving over a newer
-    // change (an agent's, or another device's) is refused instead of lost.
-    if (!reset && dirty.current) return;
+  const [saved, setSaved] = useState<Form | null>(null);
+  // Each form keeps its own unsaved edits: saving one never discards the other's.
+  const dirty = useRef<Record<Form, boolean>>({ profile: false, reach: false });
+  const apply = useCallback((value: OwnerProfile, savedForm?: Form) => {
+    if (savedForm) dirty.current[savedForm] = false;
     setProfile(value);
-    setContent(value.content);
-    setReach(value.reach_me);
-    setLanguage(value.reply_language ?? "auto");
-    setQuietStart(value.reach_me.quiet_start_hour?.toString() ?? "");
-    setQuietEnd(value.reach_me.quiet_end_hour?.toString() ?? "");
-    dirty.current = false;
+    // An unsaved text edit keeps the version it started from, so saving over a newer
+    // change (an agent's, or another device's) is refused instead of lost.
+    if (!dirty.current.profile) {
+      setContent(value.content);
+      setTextVersion(value.version);
+    }
+    if (!dirty.current.reach) {
+      setReach(value.reach_me);
+      setLanguage(value.reply_language ?? "auto");
+      setQuietStart(value.reach_me.quiet_start_hour?.toString() ?? "");
+      setQuietEnd(value.reach_me.quiet_end_hour?.toString() ?? "");
+    }
   }, []);
   useEffect(() => {
     void revision;
@@ -80,7 +88,7 @@ export function OwnerProfileSection() {
       .get<OwnerProfile>("/owner/profile")
       .then((value) => {
         if (live) {
-          apply(value, false);
+          apply(value);
           setError(undefined);
         }
       })
@@ -91,16 +99,16 @@ export function OwnerProfileSection() {
       live = false;
     };
   }, [revision, apply]);
-  const edit = () => {
-    dirty.current = true;
+  const edit = (form: Form) => {
+    dirty.current[form] = true;
     setSaved(null);
   };
-  const run = async (kind: "profile" | "reach", action: () => Promise<OwnerProfile>) => {
+  const run = async (kind: Form, action: () => Promise<OwnerProfile>) => {
     setBusy(true);
     setError(undefined);
     setSaved(null);
     try {
-      apply(await action(), true);
+      apply(await action(), kind);
       setSaved(kind);
     } catch (cause) {
       setError(cause);
@@ -120,7 +128,7 @@ export function OwnerProfileSection() {
             <button
               type="button"
               onClick={() => {
-                dirty.current = false;
+                dirty.current = { profile: false, reach: false };
                 setError(undefined);
                 refresh();
               }}
@@ -132,9 +140,9 @@ export function OwnerProfileSection() {
         <form
           onSubmit={(event) => {
             event.preventDefault();
-            if (!profile || busy) return;
+            if (!profile || textVersion === null || busy) return;
             void run("profile", () =>
-              api.put<OwnerProfile>("/owner/profile", { content, version: profile.version }),
+              api.put<OwnerProfile>("/owner/profile", { content, version: textVersion }),
             );
           }}
         >
@@ -147,7 +155,7 @@ export function OwnerProfileSection() {
               value={content}
               disabled={!profile || busy}
               onChange={(event) => {
-                edit();
+                edit("profile");
                 setContent(event.target.value);
               }}
             />
@@ -201,7 +209,7 @@ export function OwnerProfileSection() {
                   checked={reach.channel === channel}
                   disabled={busy || (channel === "call" && devices.length === 0)}
                   onChange={() => {
-                    edit();
+                    edit("reach");
                     // Choosing calls means being called when a decision is needed.
                     setReach({
                       ...reach,
@@ -225,7 +233,7 @@ export function OwnerProfileSection() {
                 <select
                   value={reach.device_id ?? devices[0]?.id ?? ""}
                   onChange={(event) => {
-                    edit();
+                    edit("reach");
                     setReach({ ...reach, device_id: event.target.value });
                   }}
                 >
@@ -241,7 +249,7 @@ export function OwnerProfileSection() {
                   type="checkbox"
                   checked={reach.action_required}
                   onChange={(event) => {
-                    edit();
+                    edit("reach");
                     setReach({ ...reach, action_required: event.target.checked });
                   }}
                 />
@@ -252,7 +260,7 @@ export function OwnerProfileSection() {
                   type="checkbox"
                   checked={reach.opportunities}
                   onChange={(event) => {
-                    edit();
+                    edit("reach");
                     setReach({ ...reach, opportunities: event.target.checked });
                   }}
                 />
@@ -268,7 +276,7 @@ export function OwnerProfileSection() {
                 inputMode="numeric"
                 value={quietStart}
                 onChange={(event) => {
-                  edit();
+                  edit("reach");
                   setQuietStart(event.target.value);
                 }}
               />
@@ -279,7 +287,7 @@ export function OwnerProfileSection() {
                 inputMode="numeric"
                 value={quietEnd}
                 onChange={(event) => {
-                  edit();
+                  edit("reach");
                   setQuietEnd(event.target.value);
                 }}
               />
@@ -290,7 +298,7 @@ export function OwnerProfileSection() {
             <select
               value={language}
               onChange={(event) => {
-                edit();
+                edit("reach");
                 setLanguage(event.target.value as ReplyLanguage);
               }}
             >
@@ -314,8 +322,9 @@ export function OwnerProfileSection() {
         url="/owner/profile/revisions"
         revision={revision}
         version={(document) => (document === "owner_profile" ? profile?.version : undefined)}
-        onRestored={() => {
-          dirty.current = false;
+        onRestored={(document) => {
+          // An undo replaces what that form shows; the other form keeps its edits.
+          dirty.current[document === "owner_preferences" ? "reach" : "profile"] = false;
           refresh();
         }}
       />

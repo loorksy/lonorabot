@@ -22,7 +22,6 @@ from lonora_db.schema import MemoryRevisionRow
 from lonora_db.transactions import SettingsRepository, owned_agent
 from lonora_memory.commit import has_user_section
 from lonora_memory.markdown_memory import normalize_memory
-from lonora_memory.profile import agent_memory_view
 from lonora_memory.semantic import index_note
 from pydantic import Field
 
@@ -53,18 +52,14 @@ class RevisionRevert(Contract):
 router = APIRouter()
 
 
-def owner_memory_data(data: dict[str, Any]) -> dict[str, Any]:
-    # Owner preferences live in the owner profile. A retired USER.md section of an
-    # Agent row was merged there and leaves the row with its next change.
-    return {**data, "content": agent_memory_view(data["content"])}
-
-
 @router.get("/agents/{agent_id}/memory")
 async def read(
     request: Request, agent_id: str, owner: OwnerIdentity = Depends(require_owner)
 ) -> dict[str, Any]:
+    # The Agent's own view. Owner preferences live in the owner profile; a retired
+    # USER.md section of the row was merged there and is kept in the row unread.
     async with runtime(request).db.sessions() as session:
-        return owner_memory_data(memory_data(await read_memory(session, owner.id, agent_id)))
+        return memory_data(await read_memory(session, owner.id, agent_id))
 
 
 @router.put("/agents/{agent_id}/memory")
@@ -168,14 +163,11 @@ async def revert(
     body: RevisionRevert,
     owner: OwnerIdentity = Depends(require_owner),
 ) -> dict[str, Any]:
-    """Restore the text before one change, as a new change attributed to the owner."""
+    """Undo one change, as a new change attributed to the owner; later changes stay."""
     async with runtime(request).db.sessions() as session, session.begin():
         revision = await session.get(MemoryRevisionRow, revision_id)
         result = await revert_revision(session, owner.id, revision_id, body.version)
-        document = revision.document if revision else None
-        if document == "agent_memory" and "content" in result:
-            result = owner_memory_data(result)
-        return {"document": document, "result": result}
+        return {"document": revision.document if revision else None, "result": result}
 
 
 class SemanticConfig(Contract):

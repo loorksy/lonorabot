@@ -1,3 +1,4 @@
+import re
 from collections.abc import Callable
 from typing import Any
 
@@ -20,10 +21,49 @@ async def read_memory(session: AsyncSession, owner_id: str, agent_id: str) -> Me
     return row
 
 
+# The explicit view headings of an Agent's memory row; lonora_memory.profile reads the
+# views. A ``# USER.md`` section from before the shared owner profile (migration 0038
+# merged it there) stays in the row line for line but is no longer part of the Agent's
+# view: every write keeps it, so a downgrade finds the owner's earlier preferences.
+VIEW_HEADING = re.compile(r"(?m)^# (USER\.md|OPERATING\.md|(?:memory/)?MEMORY\.md)[ \t]*\n")
+LEGACY_USER_VIEW = "USER.md"
+
+
+def split_legacy(content: str) -> tuple[str, str]:
+    """(The Agent's own view, its retired ``# USER.md`` sections with their headings)."""
+    matches = list(VIEW_HEADING.finditer(content))
+    if not any(match[1] == LEGACY_USER_VIEW for match in matches):
+        return content, ""
+    kept = [content[: matches[0].start()]]
+    legacy: list[str] = []
+    for position, match in enumerate(matches):
+        end = matches[position + 1].start() if position + 1 < len(matches) else len(content)
+        part = content[match.start() : end]
+        if match[1] == LEGACY_USER_VIEW:
+            legacy.append(part.strip())
+        else:
+            kept.append(part)
+    view = re.sub(r"\n{3,}", "\n\n", "".join(kept)).strip()
+    return (view + "\n" if view else ""), "\n\n".join(legacy) + "\n"
+
+
+def memory_view(content: str) -> str:
+    """What the Agent and the owner read and edit: the row without retired sections."""
+    return split_legacy(content)[0]
+
+
+def with_legacy(view: str, legacy: str) -> str:
+    """The row to store: the new view, then the retired sections, unchanged."""
+    if not legacy:
+        return view
+    head = view.rstrip("\n")
+    return (head + "\n\n" if head.strip() else "") + legacy
+
+
 def memory_data(row: MemoryRow) -> dict[str, Any]:
     return {
         "agent_id": row.agent_id,
-        "content": row.content,
+        "content": memory_view(row.content),
         "version": row.version,
         "updated_at": row.updated_at.isoformat(),
     }
@@ -66,7 +106,7 @@ def memory_summary(row: MemoryRow) -> dict[str, Any]:
         "agent_id": row.agent_id,
         "version": row.version,
         "updated_at": row.updated_at.isoformat(),
-        "chars": len(row.content),
+        "chars": len(memory_view(row.content)),
         "limit": MEMORY_CHAR_LIMIT,
     }
 
@@ -80,7 +120,7 @@ async def commit_memory(
     owner_id: str,
     agent_id: str,
     content: str,
-    expected_version: int,
+    expected_version: int | None,
     effect_key: str | None = None,
     source_run_id: str | None = None,
     *,
@@ -91,21 +131,28 @@ async def commit_memory(
     reverted_revision_id: str | None = None,
 ) -> dict[str, Any]:
     """One attributed revision: an Agent's own write when ``source_run_id`` is set,
-    otherwise the owner's. The prior text is kept so the owner can revert it."""
+    otherwise the owner's. The prior text is kept so the owner can revert it.
+
+    ``expected_version`` None applies to the revision found under the lock (content-
+    addressed operations, a revert). ``content``, the transform and the validator all
+    see the Agent's view; retired sections of the row are kept as they are.
+    """
     await owned_agent(session, owner_id, agent_id, lock=True)
     if effect_key:
         receipt = await session.get(EffectReceiptRow, effect_key)
         if receipt:
             return receipt.result
-    row = await session.get(MemoryRow, agent_id, with_for_update=True)
+    # populate_existing: a row read earlier in this session must not hide a newer commit.
+    row = await session.get(MemoryRow, agent_id, with_for_update=True, populate_existing=True)
     if row is None:
         raise LonoraError("memory_not_found", 404)
-    if row.version != expected_version:
+    if expected_version is not None and row.version != expected_version:
         raise LonoraError("version_conflict", 409)
+    previous, legacy = split_legacy(row.content)
     details: dict[str, Any] = {}
     if transform is not None:
-        content, details = transform(row.content, row.version)
-        if content == row.content:
+        content, details = transform(previous, row.version)
+        if content == previous:
             # Nothing changed (a duplicate add, an identical patch): keep the
             # revision, emit no memory.updated, and say so instead of claiming a save.
             result = {**memory_summary(row), "changed": False, **details}
@@ -113,11 +160,10 @@ async def commit_memory(
                 session.add(EffectReceiptRow(key=effect_key, result=result))
             return result
     elif validate is not None:
-        validate(row.content, content)
+        validate(previous, content)
     if len(content) > MEMORY_CHAR_LIMIT:
         raise LonoraError("memory_too_large", 413)
-    previous = row.content
-    row.content = content
+    row.content = with_legacy(content, legacy)
     row.version += 1
     row.updated_at = utcnow()
     kind = change or ("operations" if transform is not None else "document")
@@ -127,8 +173,9 @@ async def commit_memory(
         document="agent_memory",
         agent_id=agent_id,
         version=row.version,
+        # Both sides as the owner reads them, so the history shows only this change.
         previous_content=previous,
-        content=content,
+        content=memory_view(row.content),
         author="agent" if source_run_id else "owner",
         change=kind,
         author_agent_id=agent_id if source_run_id else None,

@@ -69,8 +69,12 @@ async def owner_lock(session: AsyncSession, owner_id: str) -> None:
 
 
 async def preferences(session: AsyncSession, owner_id: str) -> IncomingCallPolicy:
-    """The owner's reach-me preference; it rings only when its channel is ``call``."""
-    return await reach_me_policy(session, owner_id)
+    """The owner's reach-me preference; it rings only when its channel is ``call``.
+
+    Read afresh: the call gate reads it under owner_lock, and a copy this session
+    loaded earlier must not ring against a newer "message me instead".
+    """
+    return await reach_me_policy(session, owner_id, fresh=True)
 
 
 async def set_preferences(session: AsyncSession, owner_id: str, policy: IncomingCallPolicy) -> None:

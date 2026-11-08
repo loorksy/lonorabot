@@ -4,6 +4,8 @@ Runs on a fresh migrated PostgreSQL database (LONORA_DATABASE_URL):
 
 1. Migration 0038 merges every Agent's legacy USER.md section into the owner profile
    without losing a line or touching an Agent row, and running it again changes nothing.
+   An Agent's write after the upgrade keeps the retired section in its row, so a
+   downgrade still finds every earlier preference line.
 2. A preference the Personal Agent records from the owner's message reaches another
    Agent's next model request through a real Run.
 3. "Send me a message instead of calling", said in chat, changes the channel of the
@@ -78,7 +80,7 @@ def digest(rows: list[tuple[str, str]]) -> str:
     return hashlib.sha256(json.dumps(sorted(rows), ensure_ascii=False).encode()).hexdigest()
 
 
-async def migration_is_lossless_and_idempotent(url: str, owner: str, agents: list[str]) -> None:
+async def migration_is_lossless_and_idempotent(url: str, owner: str, agents: list[str]) -> str:
     engine = create_async_engine(url)
     module = migration()
     try:
@@ -150,8 +152,72 @@ async def migration_is_lossless_and_idempotent(url: str, owner: str, agents: lis
             "PASS migration 0038 merges every legacy USER.md line once with provenance, "
             "leaves Agent rows byte-identical and is idempotent across re-runs"
         )
+        return profiles[0]
     finally:
         await engine.dispose()
+
+
+async def agent_write_keeps_legacy_lines_through_downgrade(
+    fixture: Fixture, gold: str, merged: str
+) -> None:
+    module = migration()
+    async with fixture.runtime.db.sessions() as session:
+        row = await session.get(MemoryRow, gold)
+        assert row is not None
+        version, legacy = row.version, module.user_section(row.content)
+    assert "Message me instead of calling" in legacy
+    # A real Run of that Agent changes its memory after the upgrade.
+    context = await owner_run(fixture, {"id": gold}, "Remember that gold gaps on Mondays")
+    seen = await run_script(
+        context,
+        [
+            ToolCall(
+                id="gold-note",
+                name="memory_write",
+                arguments={
+                    "version": version,
+                    "operations": [{"action": "add", "content": "- Gold gaps on Mondays"}],
+                },
+            ),
+            "Noted.",
+        ],
+    )
+    assert result_of(seen[-1], "gold-note")["changed"] is True
+    revisions = await listing(fixture, f"/agents/{gold}/memory/revisions")
+    assert revisions[0]["changes"] == [{"change": "added", "text": "- Gold gaps on Mondays"}]
+    url = fixture.settings.database_url
+    await fixture.runtime.db.close()
+    engine = create_async_engine(url)
+    try:
+        await alembic("downgrade", "0035_agent_tool_usage")
+        async with engine.connect() as connection:
+            content = str(
+                (
+                    await connection.execute(
+                        text("SELECT content FROM ln_memory WHERE agent_id = :id"), {"id": gold}
+                    )
+                ).scalar_one()
+            )
+        # The pre-0038 runtime reads its USER.md section again, line for line.
+        assert module.user_section(content) == legacy, content
+        assert "- Gold gaps on Mondays" in content
+        await alembic("upgrade", "head")
+        async with engine.connect() as connection:
+            profile = str(
+                (
+                    await connection.execute(
+                        text("SELECT content FROM ln_owner_profile WHERE owner_id = :o"),
+                        {"o": fixture.owner},
+                    )
+                ).scalar_one()
+            )
+        assert profile == merged, profile
+    finally:
+        await engine.dispose()
+    print(
+        "PASS an Agent's write after the upgrade keeps its retired USER.md lines; a downgrade "
+        "finds every one and the re-upgrade merges the same profile"
+    )
 
 
 def scripted(script: list[Any], seen: list[list[ModelMessage]]) -> Any:
@@ -401,9 +467,14 @@ async def main() -> None:
                 )
         url = fixture.settings.database_url
         await fixture.runtime.db.close()
-        await migration_is_lossless_and_idempotent(
+        merged = await migration_is_lossless_and_idempotent(
             url, fixture.owner, [lonora["id"], gold["id"], silver["id"]]
         )
+    finally:
+        await fixture.close(cleanup=False)
+    fixture = await Fixture().open()
+    try:
+        await agent_write_keeps_legacy_lines_through_downgrade(fixture, gold["id"], merged)
     finally:
         await fixture.close(cleanup=False)
     fixture = await Fixture().open()

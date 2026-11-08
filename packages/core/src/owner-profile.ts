@@ -25,9 +25,10 @@ const channelHints: Readonly<Record<ReachMe, Text>> = {
     en: "Agents keep it in Activity and do not interrupt you.",
     ar: "يسجّل الوكلاء ذلك في النشاط ولا يقاطعونك.",
   },
+  // Agents cannot raise inbox alerts of their own yet; the hint promises only what happens.
   notify: {
-    en: "Agents add an alert to your inbox in Lonora.",
-    ar: "يضيف الوكلاء تنبيهًا إلى صندوقك في لونورا.",
+    en: "Agents write to you in their conversation, and alerts Lonora raises stay in your inbox.",
+    ar: "يكتب لك الوكلاء في محادثتهم، وتبقى التنبيهات التي يرفعها لونورا في صندوقك.",
   },
   message: {
     en: "Agents write to you in their conversation.",
@@ -48,8 +49,8 @@ const languages: Readonly<Record<ReplyLanguage, Text>> = {
 const labels = {
   title: { en: "About you", ar: "عنك" },
   shared: {
-    en: "Every agent reads this profile. Each change keeps who made it, and you can restore the text from before any change.",
-    ar: "يقرأ كل وكيل هذا الملف. يُحفظ مع كل تغيير من أجراه، ويمكنك استعادة النص كما كان قبل أي تغيير.",
+    en: "Every agent reads this profile. Each change keeps who made it, and you can undo any change; later changes stay.",
+    ar: "يقرأ كل وكيل هذا الملف. يُحفظ مع كل تغيير من أجراه، ويمكنك التراجع عن أي تغيير مع بقاء التغييرات اللاحقة.",
   },
   profile: { en: "What agents know about you", ar: "ما يعرفه الوكلاء عنك" },
   reachMe: { en: "How to reach you", ar: "كيف نتواصل معك" },
@@ -72,17 +73,20 @@ const labels = {
   saved: { en: "Saved", ar: "تم الحفظ" },
   history: { en: "Changes", ar: "التغييرات" },
   noHistory: { en: "No changes yet.", ar: "لا توجد تغييرات بعد." },
-  restore: { en: "Restore the text before this change", ar: "استعد النص كما كان قبل هذا التغيير" },
+  restore: { en: "Undo this change", ar: "تراجع عن هذا التغيير" },
   restoreSettings: {
-    en: "Restore the settings before this change",
-    ar: "استعد الإعدادات كما كانت قبل هذا التغيير",
+    en: "Undo this change to your settings",
+    ar: "تراجع عن هذا التغيير في إعداداتك",
   },
-  restored: { en: "Restored", ar: "تمت الاستعادة" },
+  restored: {
+    en: "Undone. Later changes were kept.",
+    ar: "تم التراجع، وبقيت التغييرات اللاحقة.",
+  },
   byOwner: { en: "You", ar: "أنت" },
   bySystem: { en: "Lonora, when profiles were merged", ar: "لونورا، عند دمج الملفات" },
   removedAgent: { en: "A removed agent", ar: "وكيل محذوف" },
   fromYourMessage: { en: "from your message", ar: "من رسالتك" },
-  restoredChange: { en: "restored an earlier version", ar: "استعاد نسخة سابقة" },
+  restoredChange: { en: "undid an earlier change", ar: "تراجع عن تغيير سابق" },
   added: { en: "Added", ar: "أُضيف" },
   removed: { en: "Removed", ar: "حُذف" },
   more: { en: "More lines changed", ar: "تغيّرت أسطر أخرى" },
@@ -131,6 +135,14 @@ const errors: Readonly<Record<string, Text>> = {
   incoming_call_quiet_hours_incomplete: {
     en: "Set both the start and the end of quiet hours, or clear both.",
     ar: "حدّد بداية أوقات الهدوء ونهايتها معًا، أو امسحهما معًا.",
+  },
+  invalid_timezone: {
+    en: "Choose a valid time zone, such as Asia/Riyadh.",
+    ar: "اختر منطقة زمنية صحيحة، مثل Asia/Riyadh.",
+  },
+  memory_revert_conflict: {
+    en: "A later change edited the same lines, so nothing was undone. Undo that later change first, or edit the text directly.",
+    ar: "عدّل تغيير لاحق الأسطر نفسها، فلم يُتراجع عن شيء. تراجع عن ذلك التغيير اللاحق أولًا، أو عدّل النص مباشرة.",
   },
 };
 

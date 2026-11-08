@@ -18,7 +18,7 @@ export type MemoryRevision = {
   changes_truncated: boolean;
 };
 
-/** Attributed changes with a one-tap restore of the text before each change. */
+/** Attributed changes, each with a one-tap undo of that change alone; later ones stay. */
 export function MemoryRevisions({
   url,
   revision,
@@ -28,7 +28,7 @@ export function MemoryRevisions({
   url: string;
   revision: number;
   version: (document: MemoryRevision["document"]) => number | undefined;
-  onRestored: () => void;
+  onRestored: (document: MemoryRevision["document"]) => void;
 }) {
   const { i18n } = useLingui();
   const locale = i18n.locale;
@@ -117,7 +117,7 @@ export function MemoryRevisions({
                       version: version(row.document) ?? null,
                     });
                     setRestored(row.id);
-                    onRestored();
+                    onRestored(row.document);
                   } catch (cause) {
                     setError(cause);
                   } finally {

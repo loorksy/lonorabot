@@ -82,7 +82,11 @@ profile; `MEMORY.md` and `OPERATING.md` operations change the Agent's own
 document. One batch may touch both; it commits in one transaction under one
 receipt and lease fence, all or nothing. `version` is the Agent's own revision and
 `profile_version` (optional, 0 = current) the profile's; operations are
-content-addressed, so they are checked against whatever is stored. A profile
+content-addressed, so they are checked against whatever is stored when the write
+holds the document's lock. Every write reads the row again under that lock
+(`populate_existing`), never an earlier read, so two Agents answering one group
+message, or an Agent and the owner saving in Knowledge, both keep their lines and
+get distinct versions; a stale explicit version is `version_conflict`. A profile
 write needs a Run that answers the owner's message (`owner_message_id`, the same
 rule restrictions use): a wake, peer or task Run gets
 `owner_profile_requires_owner_message` and nothing is saved, so text an Agent
@@ -109,10 +113,14 @@ keeping each distinct line once (exact, trimmed) under a
 merge writes only when the resulting content hash differs, so running it again
 changes nothing; the downgrade drops the two tables and leaves Agent rows as they
 are. At runtime the retired section is no longer read from an Agent row: it is
-hidden from `memory_read`, the context, recall and the owner's memory editor, and
-it leaves the row with that Agent's next change (the revision keeps it).
+hidden from `memory_read`, the context, recall, `search_internal` and the owner's
+memory editor. It stays in the row: every write (operations, a whole document, the
+owner's edit, an undo) changes only the Agent's view and keeps the section's lines
+after it (`lonora_db.memory.split_legacy` / `with_legacy`), the size limit applies
+to the view, and revisions record the view on both sides, so the history shows only
+what the change did. A downgrade therefore still finds every earlier preference line.
 
-## Revisions and revert
+## Revisions and undo
 
 Every commit to the owner profile, the structured preferences or an Agent's
 memory stores one `ln_memory_revisions` row: the text before and after, the
@@ -125,15 +133,24 @@ preferences, plain field changes without device identifiers):
   `PUT /api/owner/preferences` (`reply_language`, `reach_me`),
   `GET /api/owner/profile/revisions`;
 - `GET /api/agents/{id}/memory/revisions`;
-- `POST /api/memory/revisions/{id}/revert` (optional `version`): restores the text
-  before that change as a new owner commit, so nothing is rewritten in place and
-  later changes stay listed.
+- `POST /api/memory/revisions/{id}/revert` (optional `version`): undoes that one
+  change as a new owner commit, so nothing is rewritten in place and every later
+  change stays. For text (`undo_change`) the lines that change added are removed and
+  the lines it removed come back where they were; undoing the newest change gives
+  back the exact earlier text. If a later change rewrote the very lines the change
+  wrote, nothing is saved and the answer is `memory_revert_conflict` (409): undo the
+  later change first or edit the text. For preferences only the settings that
+  change touched go back (undoing an Agent's "reply in Arabic" leaves a later "message
+  me instead of calling" as it is). The document is locked before anything is read.
 
 The Web Knowledge page opens on **About you**: the profile text, the reach-me and
 reply-language editor (the same preference Mobile edits in Voice settings) and the
-change history with *Restore the text before this change*. The memory tab of each
-Agent shows its own history the same way. Labels come from one table in
-`@lonora/core` (`owner-profile.ts`) in Arabic and English.
+change history with *Undo this change*. Each form keeps its own unsaved edits, so
+saving reach-me never discards typed profile text (or the reverse), and the text
+form keeps the version its edit started from. The memory tab of each Agent shows
+its own history the same way. Labels and error texts come from one table in
+`@lonora/core` (`owner-profile.ts`) in Arabic and English, read by both Web
+(`userError`) and Mobile (`errorText`).
 
 ## session_search
 
@@ -303,13 +320,21 @@ and Arabic statements and benign methods, the reach-me channel contract, plain
 preference changes, the capped profile under admission and the migration merge.
 On PostgreSQL it proves that a preference the Personal Agent records from the
 owner's message reaches another Agent's context with its attribution, that every
-commit keeps a revision and revert restores the exact text, that a Run without an
-owner message cannot write the profile, and that reach-me set from chat decides
-whether a call can ring. `tests/check_owner_profile.py` runs on a fresh database:
-the migration is lossless (every legacy line kept, Agent rows byte-identical) and
-idempotent across a re-run and a downgrade/upgrade, a preference reaches the gold
-Agent through a real Run, and "send me a message instead of calling" makes the next
-qualifying event ring nothing and write exactly one message.
+commit keeps a revision and undoing the newest change restores the exact text, that
+undoing an older text or preference change keeps every later one (and a rewritten
+line is `memory_revert_conflict`), that a Run without an owner message cannot write
+the profile, and that reach-me set from chat decides whether a call can ring. Three
+races hold a lock in one transaction while another writer waits: two overlapping
+`USER.md` adds both survive with distinct versions, an undo racing an Agent commit
+is `version_conflict` and loses nothing, and `owner_preferences_update` during an
+owner save keeps both. Agent, whole-document and owner writes keep a legacy section
+in the row while the history shows only the change. `tests/check_owner_profile.py`
+runs on a fresh database: the migration is lossless (every legacy line kept, Agent
+rows byte-identical) and idempotent across a re-run and a downgrade/upgrade, an
+Agent's write after the upgrade still leaves every legacy line for a downgrade, a
+preference reaches the gold Agent through a real Run, and "send me a message instead
+of calling" makes the next qualifying event ring nothing and write exactly one
+message.
 
 `tests/test_memory_privacy.py` covers the edit semantics, the overflow and
 freeing batch, the input shapes, and on PostgreSQL: three Agents with private
@@ -340,5 +365,11 @@ surface and pre-upgrade receipts.
   are reached through `session_search`.
 - Mobile edits the reach-me preference and reply language (Voice settings); the
   profile text and its change history are edited on the Web Knowledge page.
-- Reach-me delivery is in-app only until off-app delivery (Wave 3); `notify`
-  relies on attention items until an `owner_notify` tool exists.
+- Reach-me delivery is in-app only until off-app delivery (Wave 3). Until the
+  `owner_notify` tool (W15-7) lets an Agent raise an inbox alert, `notify` behaves
+  like `message` plus the alerts Lonora already raises, and its label says exactly
+  that.
+- The shared Arabic and English label table covers the profile, reach-me, language
+  and history words only. Status-line, ladder (No trading / Ask me / On its own) and
+  brake ("Stop new trading") words belong to W15-1, W15-3 and W15-9, which rename
+  them on Web and Mobile; they are not duplicated here.

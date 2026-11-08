@@ -13,18 +13,20 @@ from collections.abc import Callable
 from typing import Any, Literal
 
 from lonora_contracts.domain import utcnow
-from lonora_contracts.incoming_calls import IncomingCallPolicy
+from lonora_contracts.incoming_calls import IncomingCallPolicy, policy_error_code
 from lonora_core.user_error import LonoraError
+from pydantic import ValidationError
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .events import emit
-from .memory import commit_memory, read_memory
-from .memory_revisions import Author, record_revision
+from .memory import commit_memory, memory_data, memory_view
+from .memory_revisions import Author, record_revision, undo_change
 from .schema import (
     DeviceCredentialRow,
     EffectReceiptRow,
     MemoryRevisionRow,
+    MemoryRow,
     OwnerProfileRow,
     OwnerRow,
 )
@@ -52,15 +54,19 @@ async def read_owner_profile(session: AsyncSession, owner_id: str) -> OwnerProfi
 
 
 async def locked_owner_profile(session: AsyncSession, owner_id: str) -> OwnerProfileRow:
-    """The owner's profile row under a lock, created on first write."""
-    row = await session.get(OwnerProfileRow, owner_id, with_for_update=True)
+    """The owner's profile row under a lock, created on first write.
+
+    populate_existing: a row this session read earlier must not hide a commit that
+    landed while it waited for the lock, or that commit would be overwritten.
+    """
+    row = await session.get(OwnerProfileRow, owner_id, with_for_update=True, populate_existing=True)
     if row is not None:
         return row
     # Lock the owner first so two first writes cannot both insert.
     owner = await session.scalar(select(OwnerRow).where(OwnerRow.id == owner_id).with_for_update())
     if owner is None:
         raise LonoraError("owner_not_found", 404)
-    row = await session.get(OwnerProfileRow, owner_id, with_for_update=True)
+    row = await session.get(OwnerProfileRow, owner_id, with_for_update=True, populate_existing=True)
     if row is None:
         row = OwnerProfileRow(owner_id=owner_id, content="", version=1, updated_at=utcnow())
         session.add(row)
@@ -83,7 +89,7 @@ async def commit_owner_profile(
     session: AsyncSession,
     owner_id: str,
     content: str,
-    expected_version: int,
+    expected_version: int | None,
     *,
     author: Author,
     author_agent_id: str | None = None,
@@ -99,7 +105,8 @@ async def commit_owner_profile(
         if receipt:
             return receipt.result
     row = await locked_owner_profile(session, owner_id)
-    if row.version != expected_version:
+    # None: content-addressed operations or an undo, checked against the locked text.
+    if expected_version is not None and row.version != expected_version:
         raise LonoraError("version_conflict", 409)
     details: dict[str, Any] = {}
     if transform is not None:
@@ -161,9 +168,13 @@ async def reach_me_lock(session: AsyncSession, owner_id: str) -> None:
         )
 
 
-async def reach_me_policy(session: AsyncSession, owner_id: str) -> IncomingCallPolicy:
+async def reach_me_policy(
+    session: AsyncSession, owner_id: str, *, fresh: bool = False
+) -> IncomingCallPolicy:
+    """The stored preference; ``fresh`` after reach_me_lock reads the current one even if
+    this session loaded the row before the lock."""
     return IncomingCallPolicy.model_validate(
-        await SettingsRepository().get(session, REACH_ME_KEY + owner_id)
+        await SettingsRepository().get(session, REACH_ME_KEY + owner_id, fresh=fresh)
     )
 
 
@@ -235,7 +246,7 @@ async def save_owner_preferences(
 ) -> dict[str, Any]:
     """Save the reach-me preference and/or reply language as one attributed change."""
     await reach_me_lock(session, owner_id)
-    current = await reach_me_policy(session, owner_id)
+    current = await reach_me_policy(session, owner_id, fresh=True)
     row = await locked_owner_profile(session, owner_id)
     before = preferences_snapshot(current, row.reply_language)
     target = policy or current
@@ -304,7 +315,51 @@ async def owner_preferences(session: AsyncSession, owner_id: str) -> dict[str, A
     )
 
 
-# --- Revert ---------------------------------------------------------------------------
+# --- Undo -----------------------------------------------------------------------------
+
+
+def _undo_text(before: str, after: str) -> ProfileTransform:
+    def undo(current: str, _version: int) -> tuple[str, dict[str, Any]]:
+        content = undo_change(before, after, current)
+        if content is None:
+            raise LonoraError("memory_revert_conflict", 409)
+        return content, {}
+
+    return undo
+
+
+def undone_preferences(
+    revision: MemoryRevisionRow, current: IncomingCallPolicy
+) -> tuple[IncomingCallPolicy | None, ReplyLanguage | None | Literal["keep"]]:
+    """Only the settings that one change touched, set back onto the current ones."""
+    try:
+        old: dict[str, Any] = json.loads(revision.previous_content)
+        new: dict[str, Any] = json.loads(revision.content)
+    except ValueError:
+        raise LonoraError("memory_revision_invalid", 409) from None
+    old_policy: dict[str, Any] = old.get("reach_me") or {}
+    new_policy: dict[str, Any] = new.get("reach_me") or {}
+    # enabled follows the channel; it is derived again from the restored channel.
+    changed = {
+        key: value
+        for key, value in old_policy.items()
+        if key != "enabled"
+        and key in IncomingCallPolicy.model_fields
+        and value != new_policy.get(key)
+    }
+    policy = None
+    if changed:
+        try:
+            policy = IncomingCallPolicy.model_validate(
+                {**current.model_dump(mode="json", exclude={"enabled"}), **changed}
+            )
+        except ValidationError as error:
+            raise LonoraError(policy_error_code(error.errors()), 409) from None
+    previous_language = old.get("reply_language")
+    restored_language: ReplyLanguage | None | Literal["keep"] = "keep"
+    if previous_language != new.get("reply_language"):
+        restored_language = previous_language if previous_language in ("ar", "en") else None
+    return policy, restored_language
 
 
 async def revert_revision(
@@ -313,45 +368,56 @@ async def revert_revision(
     revision_id: str,
     expected_version: int | None = None,
 ) -> dict[str, Any]:
-    """Restore the text before a change as a new owner commit; later changes stay listed."""
+    """Undo one change as a new owner commit; later changes stay as they are.
+
+    Text: the lines that change added go and the lines it removed come back
+    (``undo_change``); if a later change edited the same lines nothing is saved and
+    the result is ``memory_revert_conflict``. Preferences: only the settings that
+    change touched go back. Everything is read under the document's lock first.
+    """
     revision = await session.get(MemoryRevisionRow, revision_id)
     if revision is None or revision.owner_id != owner_id:
         raise LonoraError("memory_revision_not_found", 404)
     if revision.document == "agent_memory":
-        current = await read_memory(session, owner_id, revision.agent_id or "")
-        version = current.version if expected_version is None else expected_version
-        return await commit_memory(
+        agent_id = revision.agent_id or ""
+        result = await commit_memory(
             session,
             owner_id,
-            revision.agent_id or "",
-            revision.previous_content,
-            version,
+            agent_id,
+            "",
+            expected_version,
+            transform=_undo_text(
+                memory_view(revision.previous_content), memory_view(revision.content)
+            ),
             change="revert",
             reverted_revision_id=revision.id,
         )
+        memory = await session.get(MemoryRow, agent_id)
+        if memory is None:
+            raise LonoraError("memory_not_found", 404)
+        return {**memory_data(memory), "changed": result["changed"]}
     if revision.document == "owner_profile":
-        current_profile = await locked_owner_profile(session, owner_id)
-        version = current_profile.version if expected_version is None else expected_version
-        return await commit_owner_profile(
+        result = await commit_owner_profile(
             session,
             owner_id,
-            revision.previous_content,
-            version,
+            "",
+            expected_version,
             author="owner",
+            transform=_undo_text(revision.previous_content, revision.content),
             change="revert",
             reverted_revision_id=revision.id,
         )
-    try:
-        previous: dict[str, Any] = json.loads(revision.previous_content)
-        policy = IncomingCallPolicy.model_validate(previous.get("reach_me", {}))
-    except ValueError:
-        raise LonoraError("memory_revision_invalid", 409) from None
-    language = previous.get("reply_language")
+        profile = await read_owner_profile(session, owner_id)
+        return {**owner_profile_data(profile), "changed": result["changed"]}
+    # The lock save_owner_preferences takes, first, so the current settings are final.
+    await reach_me_lock(session, owner_id)
+    current = await reach_me_policy(session, owner_id, fresh=True)
+    policy, language = undone_preferences(revision, current)
     return await save_owner_preferences(
         session,
         owner_id,
         policy=policy,
-        reply_language=language if language in ("ar", "en") else None,
+        reply_language=language,
         author="owner",
         reverted_revision_id=revision.id,
     )

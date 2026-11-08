@@ -4,7 +4,7 @@ from typing import Any
 
 from lonora_contracts.incoming_calls import IncomingCallRequest
 from lonora_db.attention import attention_data
-from lonora_db.owner_profile import reach_me_policy
+from lonora_db.owner_profile import reach_me_lock, reach_me_policy
 from lonora_db.runs import require_lease
 from lonora_db.schema import AttentionRow
 from lonora_voice.incoming import call_data, request_call
@@ -27,7 +27,9 @@ REACH_ME_RECOVERY = {
 async def request(context: ToolContext, arguments: dict[str, Any]) -> dict[str, Any]:
     async with context.db.sessions() as session, session.begin():
         await require_lease(session, context.lease, lock=True)
-        channel = (await reach_me_policy(session, context.owner_id)).channel
+        # The lock a reach-me change takes: the channel read here is the current one.
+        await reach_me_lock(session, context.owner_id)
+        channel = (await reach_me_policy(session, context.owner_id, fresh=True)).channel
         if channel != "call":
             # The owner's reach-me preference decides the channel, not the Agent.
             return {

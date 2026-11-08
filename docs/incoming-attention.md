@@ -24,12 +24,18 @@ allocation can expire; a known remote session must close before replacement.
 The incoming-call policy record is the owner's single reach-me preference, part
 of the owner profile every Agent reads (`docs/agent-memory-and-recall.md`). Its
 `channel` is one of `activity` (keep it in Activity, no interruption), `notify`
-(an attention item), `message` (a message in the Agent's conversation) or `call`
+(the inbox; see below), `message` (a message in the Agent's conversation) or `call`
 (an incoming invitation). `enabled` is derived: invitations are possible exactly
 when the channel is `call`, so the two can never disagree. A stored policy or a
 client from before the channel existed keeps its meaning (`enabled` true reads as
 `call`); a request that states both and contradicts itself is refused
-(`incoming_call_channel_conflict`).
+(`incoming_call_channel_conflict`). These checks keep their own code in the API
+response (`incoming_call_channel_conflict`, `incoming_call_device_required`,
+`incoming_call_quiet_hours_incomplete`, `invalid_timezone`) instead of a generic
+`invalid_request`, and Web and Mobile show the same Arabic or English text for each.
+`notify` currently means a message in the conversation while the alerts Lonora
+raises stay in the inbox; Agents raise their own alerts only once `owner_notify`
+exists.
 
 The owner sets it in Web Knowledge (About you) or Mobile Voice settings
 (`PUT /api/owner/preferences`), or in chat: "Send me a message instead of
@@ -38,7 +44,9 @@ answers the owner's message and records a revertible, attributed revision. Choos
 `call` from chat uses the selected enrolled device, otherwise the most recently
 enrolled one, and turns on calls when the owner's decision is needed. While the
 channel is not `call`, `owner_call_request` returns `owner_prefers_other_channel`
-with the channel to use and creates no invitation; the device choice is kept for
+with the channel to use and creates no invitation (it and the call gate read the
+channel afresh under the same owner lock a change takes, so a call never rings
+against a newer "message me instead"); the device choice is kept for
 a later "call me". Delivery is in-app only: none of this proves a device rang.
 
 ## Delivery boundary

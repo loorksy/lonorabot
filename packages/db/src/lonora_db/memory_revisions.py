@@ -1,11 +1,13 @@
 """Attributed revisions of the owner profile, owner preferences and each Agent's memory.
 
 Every commit records the text before and after it, who made it (the owner, an Agent
-or the system) and the owner message an Agent answered. The owner reverts a change by
-restoring its prior text as a new, attributed commit; nothing is rewritten in place.
+or the system) and the owner message an Agent answered. The owner undoes one change as
+a new, attributed commit that takes back only that change; later changes stay and
+nothing is rewritten in place.
 """
 
 import difflib
+import re
 from typing import Any, Literal
 
 from sqlalchemy import delete, func, select
@@ -110,6 +112,57 @@ async def list_revisions(
             ).limit(max(1, min(limit, 50)))
         )
     )
+
+
+def undo_change(before: str, after: str, current: str) -> str | None:
+    """Take back one change (``before`` -> ``after``) from ``current``, keeping the rest.
+
+    The lines the change added are removed and the lines it removed come back where
+    they were; anything a later change wrote stays. None means a later change edited
+    the very lines this change wrote, so undoing it would overwrite that later change.
+    """
+    if current == after:
+        return before
+    base, target, ours = after.splitlines(), before.splitlines(), current.splitlines()
+    # Where each line of the changed text is now if no later change touched it, and
+    # which lines a later change removed outright (rather than rewrote).
+    where: dict[int, int] = {}
+    removed: set[int] = set()
+    later = difflib.SequenceMatcher(None, base, ours, autojunk=False).get_opcodes()
+    for tag, start, stop, low, _ in later:
+        for offset in range(stop - start):
+            if tag == "equal":
+                where[start + offset] = low + offset
+            elif tag == "delete":
+                removed.add(start + offset)
+    edits: list[tuple[int, int, list[str]]] = []
+    hunks = difflib.SequenceMatcher(None, base, target, autojunk=False).get_opcodes()
+    for tag, start, stop, low, high in hunks:
+        if tag == "equal":
+            continue
+        if start < stop:
+            spots = [where.get(index) for index in range(start, stop)]
+            if tag == "delete" and all(index in removed for index in range(start, stop)):
+                continue  # A later change already removed what this change added.
+            first = spots[0]
+            if first is None or spots != list(range(first, first + len(spots))):
+                return None
+            begin, end = first, first + len(spots)
+        elif start > 0 and start - 1 in where:
+            begin = end = where[start - 1] + 1
+        elif start in where:
+            begin = end = where[start]
+        else:
+            begin = end = 0 if start == 0 else len(ours)
+        # A line a later change already brought back is not added twice.
+        elsewhere = {line.strip() for line in ours[:begin] + ours[end:] if line.strip()}
+        restored = [line for line in target[low:high] if line.strip() not in elsewhere]
+        edits.append((begin, end, restored))
+    lines = list(ours)
+    for begin, end, restored in reversed(edits):
+        lines[begin:end] = restored
+    text = re.sub(r"\n{3,}", "\n\n", "\n".join(lines)).strip()
+    return text + "\n" if text else ""
 
 
 def text_changes(before: str, after: str) -> tuple[list[dict[str, str]], bool]:

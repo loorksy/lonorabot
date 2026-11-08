@@ -5,7 +5,7 @@ from lonora_db.client import Database
 from lonora_db.memory import MEMORY_CHAR_LIMIT, commit_memory
 from lonora_db.owner_profile import OWNER_PROFILE_CHAR_LIMIT, commit_owner_profile
 from lonora_db.runs import require_lease
-from lonora_db.schema import EffectReceiptRow, MemoryRow, OwnerProfileRow
+from lonora_db.schema import EffectReceiptRow
 
 from .edits import (
     HEADING,
@@ -16,7 +16,7 @@ from .edits import (
     new_authority_claim,
 )
 from .markdown_memory import normalize_memory
-from .profile import LEGACY_USER_VIEW, agent_memory_view
+from .profile import LEGACY_USER_VIEW
 
 
 class UserSectionMoved(MemoryEditError):
@@ -102,21 +102,19 @@ async def atomic_edit(
     """Apply a batch of operations to the locked current revisions, or nothing.
 
     Operations on section USER.md change the shared owner profile; the others change
-    this Agent's own document. Both commit in one transaction under the same receipt
-    and lease fence; MemoryEditError and MemoryOverflow roll everything back. Without
-    a version an operations batch applies to the current revision: operations are
-    content-addressed, so they are checked against whatever is stored.
+    this Agent's own document (its view; retired sections of the row are kept). Both
+    commit in one transaction under the same receipt and lease fence; MemoryEditError
+    and MemoryOverflow roll everything back. Without a version an operations batch
+    applies to the revision found under the lock: operations are content-addressed, so
+    they are checked against whatever is stored, never against an earlier read.
     """
     own = [(index, edit) for index, edit in enumerate(edits) if edit.section != "USER.md"]
     shared = [(index, edit) for index, edit in enumerate(edits) if edit.section == "USER.md"]
     run_id = lease.run_id if lease else None
 
     def own_transform(current: str, current_version: int) -> tuple[str, dict[str, Any]]:
-        # Retired owner sections in this Agent's row are not part of its view; they
-        # leave the row with its next change and stay in that change's revision.
-        view = agent_memory_view(current)
-        content, applied = _apply(view, own, current_version, profile=False)
-        return (current if content == view else content), {"applied": applied}
+        content, applied = _apply(current, own, current_version, profile=False)
+        return content, {"applied": applied}
 
     def shared_transform(current: str, current_version: int) -> tuple[str, dict[str, Any]]:
         content, applied = _apply(current, shared, current_version, profile=True)
@@ -131,9 +129,6 @@ async def atomic_edit(
                 return receipt.result
         results: dict[str, dict[str, Any]] = {}
         if shared:
-            if profile_version is None:
-                stored = await session.get(OwnerProfileRow, owner_id)
-                profile_version = stored.version if stored else 1
             results["owner_profile"] = await commit_owner_profile(
                 session,
                 owner_id,
@@ -146,9 +141,6 @@ async def atomic_edit(
                 transform=shared_transform,
             )
         if own or not shared:
-            if version is None:
-                stored_memory = await session.get(MemoryRow, agent_id)
-                version = stored_memory.version if stored_memory else 1
             results["memory"] = await commit_memory(
                 session,
                 owner_id,

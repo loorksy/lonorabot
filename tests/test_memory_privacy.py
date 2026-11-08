@@ -690,8 +690,8 @@ async def test_memory_operations_commit_atomically_with_receipts_and_overflow_pr
             ToolCall(id="m2", name="memory_read", arguments={}), context, read_only=True
         )
         assert current["version"] == 2 and current["content"].count("H4 trend") == 1
-        # The retired owner section is not part of the Agent's view and left the row
-        # with this change; the revision keeps the prior text.
+        # The retired owner section is not part of the Agent's view; it stays in the
+        # row, unread, so a downgrade still finds it.
         assert "Prefers Arabic" not in current["content"]
         assert current["document_sections"] == ["memory/MEMORY.md", "OPERATING.md"]
 

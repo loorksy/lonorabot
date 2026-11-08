@@ -55,7 +55,7 @@ async function openProfile(page, agent) {
   return panel;
 }
 
-test("the owner profile is edited, attributed, restored and its reach-me saved", async ({
+test("the owner profile is edited, attributed, undone and its reach-me saved", async ({
   page,
   context,
   owner,
@@ -78,8 +78,8 @@ test("the owner profile is edited, attributed, restored and its reach-me saved",
   const change = history.locator("li", { hasText: preference }).first();
   await expect(change).toContainText("You");
   await expect(change).toContainText("Added:");
-  await change.getByRole("button", { name: "Restore the text before this change" }).click();
-  await expect(history.getByRole("status")).toHaveText("Restored");
+  await change.getByRole("button", { name: "Undo this change" }).click();
+  await expect(history.getByRole("status")).toHaveText("Undone. Later changes were kept.");
   await expect(text).toHaveValue("");
   const restored = await (await context.request.get("/api/owner/profile")).json();
   expect(restored.content).toBe("");
@@ -98,6 +98,34 @@ test("the owner profile is edited, attributed, restored and its reach-me saved",
   await expect(history.locator("li", { hasText: "How to reach you" }).first()).toContainText(
     "Message me → Activity only",
   );
+});
+
+test("saving one About-you form keeps the other form's unsaved edits", async ({
+  page,
+  context,
+  owner,
+}) => {
+  await context.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
+  const panel = await openProfile(page, owner.agent);
+  const profile = panel.getByRole("region", { name: "About you" });
+  const text = profile.getByLabel("What agents know about you");
+  const typed = `- Typed, not saved yet ${randomUUID().slice(0, 8)}`;
+  await text.fill(typed);
+  // Saving reach-me does not discard the typed profile text, and vice versa.
+  const reach = panel.getByRole("form", { name: "How to reach you" });
+  await reach.getByRole("radio", { name: /Activity only/ }).check();
+  await reach.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(reach.getByRole("status")).toHaveText("Saved");
+  await expect(text).toHaveValue(typed);
+  await reach.getByRole("radio", { name: /Message me/ }).check();
+  await profile.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(profile.getByRole("status")).toHaveText("Saved");
+  await expect(reach.getByRole("radio", { name: /Message me/ })).toBeChecked();
+  const saved = await (await context.request.get("/api/owner/profile")).json();
+  expect(saved.content).toBe(`${typed}\n`);
+  expect(saved.reach_me.channel).toBe("activity");
+  // The notify choice promises only what happens today.
+  await expect(reach.getByText("alerts Lonora raises stay in your inbox")).toBeVisible();
 });
 
 test("the profile reads right to left in Arabic with shared labels", async ({
