@@ -230,8 +230,9 @@ survive the agent, conversation, Run, goal or broker connection they name (migra
 refused with `delete_blocked_unresolved_operation` while an operation it touches has no
 confirmed broker outcome. Otherwise the delete settles what depended on the parent: a
 grant signed in a deleted conversation is revoked visibly, its Super Bot requests are
-stopped and its goals cancelled with `goal_origin_deleted`, so no record keeps reading
-active while it can no longer run. A live operation still uncertain after fifteen
-minutes raises one `operation_unresolved` attention item from the watchdog, in the
-conversation of the agent that placed it; it is never resent. See
+stopped, its goals cancelled with `goal_origin_deleted` and its waiting owner action
+cards superseded, so no record keeps reading active while it can no longer run. A live
+operation still uncertain after fifteen minutes raises one `operation_unresolved`
+attention item from the watchdog, in the conversation of the agent that placed it,
+unless its resolve card already asks the owner; it is never resent. See
 `docs/gateway-reliability.md`.

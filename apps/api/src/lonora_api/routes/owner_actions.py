@@ -25,6 +25,7 @@ from lonora_db.owner_actions import (
     confirm_in_thread,
     live_status,
     lock_owner_actions,
+    owned_account,
     owned_card,
     owner_action_data,
     proposed_limits,
@@ -136,6 +137,10 @@ async def decide(
         await settle(session, row, "cancelled", None, via="tap")
         return
     try:
+        if row.kind == "set_account_limits":
+            # The account lock the settings route takes before it reads: the change is
+            # judged against, and merged into, the limits as they are now.
+            await owned_account(session, owner.id, row.payload["account_id"], lock=True)
         reason = await stale_reason(session, owner.id, row.kind, row.payload)
     except LonoraError as error:
         reason = error.code

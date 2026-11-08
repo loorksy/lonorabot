@@ -270,6 +270,10 @@ async def test_resumed_context_reads_current_permission_every_time(monkeypatch: 
     }
     assert context_snapshot(resumed)["global_trading"]["state"] == "stopped"
     assert "While global_trading is stopped" in resumed and "attempt no entry" in resumed
+    # Stop is the owner's brake: no agent pushes a Resume card unless the owner asks.
+    assert "propose a Resume card only when the owner asks to resume" in resumed
+    assert "offer the owner a Resume card" not in resumed
+    assert "when the owner asks for one, propose the matching owner action card" in resumed
 
 
 def test_provisional_voice_context_preserves_scope_and_extra_approval_boundary():

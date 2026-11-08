@@ -2,8 +2,8 @@
 
 The records themselves survive the delete (see migration 0036). Before the delete,
 authority and work that depended on the deleted parent are settled explicitly: open
-approvals cancelled, grants revoked, Super Bot requests stopped and goals cancelled with
-``goal_origin_deleted``. Narrowing never needs the owner's passkey, and nothing is left
+approvals cancelled, grants revoked, Super Bot requests stopped, goals cancelled with
+``goal_origin_deleted`` and waiting owner action cards superseded. Narrowing never needs the owner's passkey, and nothing is left
 looking active while it can no longer run. A delete is refused while an operation it
 touches still has no confirmed broker outcome, because that obligation must be settled,
 not forgotten.
@@ -107,6 +107,7 @@ async def prepare_delete(
 ) -> None:
     """Refuse while an obligation is unsettled; otherwise settle what depended on it."""
     from .account_authority import changed, revoke
+    from .owner_actions import settle_for_delete
     from .super_bot import stop_request
     from .trade_approvals import approval_event
     from .trading_goals import settle_orphaned_goal
@@ -115,6 +116,10 @@ async def prepare_delete(
         session, owner_id, agent_id=agent_id, thread_id=thread_id, account_id=account_id
     ):
         raise LonoraError("delete_blocked_unresolved_operation", 409)
+    # Owner action cards it raised, shown in it or about it no longer apply.
+    await settle_for_delete(
+        session, owner_id, agent_id=agent_id, thread_id=thread_id, account_id=account_id
+    )
     for approval in await approvals(
         session, owner_id, agent_id=agent_id, thread_id=thread_id, account_id=account_id
     ):

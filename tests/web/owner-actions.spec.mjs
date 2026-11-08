@@ -139,6 +139,7 @@ const copy = {
     resumed: "Trading resumed.",
     resolveTitle: "The broker did not confirm this trade",
     notExecuted: "It did not execute",
+    unknown: "Unknown: release the hold",
     recorded: "Recorded: it did not execute (your statement, not broker confirmation).",
     lift: "Lift pause",
   },
@@ -148,6 +149,7 @@ const copy = {
     resumed: "استؤنف التداول.",
     resolveTitle: "الوسيط لم يؤكد هذه الصفقة",
     notExecuted: "لم تُنفذ",
+    unknown: "غير معروفة — ارفع التعليق",
     recorded: "سُجّل: لم تُنفذ (تصريحك، لا تأكيد من الوسيط).",
     lift: "رفع الإيقاف",
   },
@@ -229,6 +231,8 @@ for (const locale of ["en", "ar"])
       const card = page.locator(`[data-owner-action="${seeded.id}"]`);
       await expect(card.locator("strong")).toHaveText(text.resolveTitle);
       await expect(card.locator("[data-owner-action-button]")).toHaveCount(3);
+      // "Unknown" says that it releases the hold; it never reads as "wait".
+      await expect(card.locator('[data-owner-action-button="unknown"]')).toHaveText(text.unknown);
       await expect(card.getByText(state.data.symbol)).toBeVisible();
       if (locale === "ar")
         await card.screenshot({ path: test.info().outputPath("owner-action-resolve-ar.png") });

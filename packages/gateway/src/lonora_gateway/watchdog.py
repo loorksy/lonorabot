@@ -20,6 +20,7 @@ from lonora_db.attention import (
 )
 from lonora_db.client import Database
 from lonora_db.item_failures import blocked, failure_code
+from lonora_db.owner_actions import awaiting_owner_answer
 from lonora_db.runs import MAX_RUN_RECOVERIES, aware, quarantine_run
 from lonora_db.schema import (
     AgentRow,
@@ -310,6 +311,8 @@ class Watchdog:
         raised = 0
         for row in rows:
             async with self.db.sessions() as session, session.begin():
+                if await awaiting_owner_answer(session, row.owner_id, row.operation_id):
+                    continue  # Its resolve card or uncertain-trade alert already asks.
                 agent_id, thread_id = await operation_origin(session, row)
                 raised += int(
                     await raise_system_attention(

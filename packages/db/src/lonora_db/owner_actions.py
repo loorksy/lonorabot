@@ -20,16 +20,17 @@ from lonora_contracts.domain import utcnow
 from lonora_contracts.execution_quality import ExecutionPolicy
 from lonora_contracts.owner_actions import OwnerActionProposal
 from lonora_contracts.risk_limits import MonetaryRiskLimits
-from lonora_contracts.trading import TradingControl
+from lonora_contracts.trading import UNRESOLVED_STATUSES, TradingControl
 from lonora_core.user_error import LonoraError
 from lonora_session.idempotency import request_hash, stable_id
 from pydantic import ValidationError
-from sqlalchemy import func, select, text
+from sqlalchemy import ColumnElement, func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .events import emit
 from .schema import (
     AgentRow,
+    AttentionRow,
     BrokerSessionRow,
     OwnerActionRow,
     ThreadRow,
@@ -56,6 +57,9 @@ UPPER_LIMITS = (
     "max_open_risk",
     "max_open_risk_equity_percent",
 )
+# Every field a limits card can change, in the order its lines show them. A card shows a
+# line for each one that differs, so it never signs an effect the owner did not see.
+LIMIT_CHANGE_NAMES = ("currency", *RISK_LIMIT_NAMES, "trading_day_timezone")
 
 
 def payload_hash(kind: str, payload: dict[str, Any]) -> str:
@@ -110,8 +114,12 @@ async def account_policy(session: AsyncSession, owner_id: str, account_id: str) 
     )
 
 
-async def owned_account(session: AsyncSession, owner_id: str, account_id: str) -> BrokerSessionRow:
-    row = await session.get(BrokerSessionRow, account_id)
+async def owned_account(
+    session: AsyncSession, owner_id: str, account_id: str, *, lock: bool = False
+) -> BrokerSessionRow:
+    row = await session.get(
+        BrokerSessionRow, account_id, with_for_update=lock, populate_existing=lock
+    )
     if row is None or row.owner_id != owner_id:
         raise LonoraError("broker_session_not_found", 404)
     return row
@@ -278,23 +286,32 @@ async def card_facts(
     account_id = payload["account_id"]
     facts["account"] = account_facts(await session.get(BrokerSessionRow, account_id), account_id)
     current = (await account_policy(session, owner_id, account_id)).risk
+    facts["current"] = risk_limit_frame(account_id, ExecutionPolicy(risk=current))
     try:
         proposed = proposed_limits(current, payload)
     except LonoraError:
-        facts["current"] = risk_limit_frame(account_id, ExecutionPolicy(risk=current))
-        return facts, True
-    facts["current"] = risk_limit_frame(account_id, ExecutionPolicy(risk=current))
+        # The limits changed since the card was raised and its change no longer fits
+        # them: confirming only settles it, so no passkey ceremony is asked for.
+        facts["no_longer_applies"] = True
+        return facts, False
     facts["proposed"] = risk_limit_frame(account_id, ExecutionPolicy(risk=proposed))
-    facts["changes"] = [
+    facts["changes"] = limit_changes(current, proposed)
+    return facts, widens(current, proposed)
+
+
+def limit_changes(
+    current: MonetaryRiskLimits, proposed: MonetaryRiskLimits
+) -> list[dict[str, Any]]:
+    """One line per changed field: limits, their currency and the trading-day zone."""
+    return [
         {
             "name": name,
             "from": None if getattr(current, name) is None else str(getattr(current, name)),
             "to": None if getattr(proposed, name) is None else str(getattr(proposed, name)),
         }
-        for name in RISK_LIMIT_NAMES
+        for name in LIMIT_CHANGE_NAMES
         if getattr(current, name) != getattr(proposed, name)
     ]
-    return facts, widens(current, proposed)
 
 
 async def owner_action_data(
@@ -629,11 +646,105 @@ def confirmation_code(row: OwnerActionRow) -> str:
     return "owner_action_" + row.kind
 
 
-async def confirm_in_thread(session: AsyncSession, row: OwnerActionRow) -> None:
-    """One server-written line in the card's conversation saying what changed.
+def _same_symbol(left: str | None, right: str | None) -> bool:
+    return left is None or right is None or left.casefold() == right.casefold()
 
-    The text is fixed per effect and outcome, in the conversation's language; posting is
-    idempotent per card, and a card whose conversation is gone posts nothing.
+
+async def still_holding(session: AsyncSession, row: OwnerActionRow) -> list[str]:
+    """What still holds new risk where a lift or an answer just released it, read after
+    the effect: Stop new trading, another pause in force over the same market and agents,
+    or another trade there without a confirmed broker outcome. One fixed clause each."""
+    if row.kind not in {"lift_restriction", "resolve_operation"}:
+        return []
+    agent: str | None = None
+    lifted_id = answered_id = ""
+    tickets: list[str] = []
+    if row.kind == "lift_restriction":
+        lifted = await session.get(TradingRestrictionRow, row.payload["restriction_id"])
+        if lifted is None:
+            return []
+        account, symbol, agent, lifted_id = (
+            lifted.account_id,
+            lifted.symbol,
+            lifted.agent_id,
+            lifted.id,
+        )
+    else:
+        operation = await session.get(TradingJournalRow, row.payload["operation_id"])
+        if operation is None:
+            return []
+        account, answered_id = operation.account_id, operation.operation_id
+        symbol = cast(str | None, operation.request.get("symbol"))
+        tickets = [
+            str(operation.request[key])
+            for key in ("position_id", "order_id")
+            if operation.request.get(key)
+        ]
+    notes: list[str] = []
+    if (await global_trading(session))["state"] == "stopped":
+        notes.append("owner_action_still_stopped")
+    now = utcnow()
+    pauses = await session.scalars(
+        select(TradingRestrictionRow).where(
+            TradingRestrictionRow.owner_id == row.owner_id,
+            TradingRestrictionRow.account_id == account,
+            TradingRestrictionRow.revoked_at.is_(None),
+            TradingRestrictionRow.valid_from <= now,
+            TradingRestrictionRow.id != lifted_id,
+        )
+    )
+    if any(
+        (pause.valid_until is None or pause.valid_until > now)
+        and _same_symbol(pause.symbol, symbol)
+        and (pause.agent_id is None or agent is None or pause.agent_id == agent)
+        for pause in pauses
+    ):
+        notes.append("owner_action_still_paused")
+    scope: list[ColumnElement[bool]] = []
+    if symbol is not None:
+        scope.append(func.lower(TradingJournalRow.request["symbol"].as_string()) == symbol.lower())
+    scope.extend(
+        TradingJournalRow.request[key].as_string() == ticket
+        for key in ("position_id", "order_id")
+        for ticket in tickets
+    )
+    unresolved = select(TradingJournalRow.operation_id).where(
+        TradingJournalRow.owner_id == row.owner_id,
+        TradingJournalRow.account_id == account,
+        TradingJournalRow.execution_mode == "live",
+        TradingJournalRow.status.in_(sorted(UNRESOLVED_STATUSES)),
+        TradingJournalRow.operation_id != answered_id,
+    )
+    if scope:
+        unresolved = unresolved.where(or_(*scope))
+    if await session.scalar(unresolved.limit(1)) is not None:
+        notes.append("owner_action_still_unresolved")
+    if row.kind == "lift_restriction" and not notes:
+        notes.append("owner_action_admitted_again")
+    return notes
+
+
+async def confirmation_agent(session: AsyncSession, row: OwnerActionRow) -> str | None:
+    """Who speaks the confirmation: the card's agent while it exists (held against a
+    concurrent delete), otherwise Lonora."""
+    present = await session.scalar(
+        select(AgentRow.id)
+        .where(AgentRow.id == row.agent_id, AgentRow.owner_id == row.owner_id)
+        .with_for_update(key_share=True)
+    )
+    if present is not None:
+        return present
+    return await session.scalar(
+        select(AgentRow.id).where(AgentRow.owner_id == row.owner_id, AgentRow.role == "personal")
+    )
+
+
+async def confirm_in_thread(session: AsyncSession, row: OwnerActionRow) -> None:
+    """One server-written line in the card's conversation saying what changed, and what
+    still holds new risk there (``still_holding``), read after the effect.
+
+    The clauses are fixed texts in the conversation's language; posting is idempotent
+    per card, and a card whose conversation is gone posts nothing.
     """
     from lonora_bus.attention import attention_text
 
@@ -646,15 +757,22 @@ async def confirm_in_thread(session: AsyncSession, row: OwnerActionRow) -> None:
     key = "owner-action-ack:" + row.id
     if await session.get(EffectReceiptRow, key):
         return
-    thread = await owned_thread(session, row.owner_id, row.thread_id, lock=True)
+    # The agent before its conversation: the order a delete of that agent locks them in.
+    speaker = await confirmation_agent(session, row)
+    thread = await session.get(
+        ThreadRow, row.thread_id, with_for_update=True, populate_existing=True
+    )
+    if thread is None or thread.owner_id != row.owner_id:
+        return  # Deleted while the owner tapped: the effect stands, nothing to post in.
     locale = await conversation_locale(session, row.owner_id, thread.id)
+    codes = [confirmation_code(row), *await still_holding(session, row)]
     message = MessageRow(
         id=stable_id(row.id, "owner-action-ack"),
         thread_id=thread.id,
-        agent_id=row.agent_id,
+        agent_id=speaker,
         seq=thread.next_seq,
         role="assistant",
-        content=attention_text(confirmation_code(row), locale),
+        content=" ".join(attention_text(code, locale) for code in codes),
     )
     thread.next_seq += 1
     session.add(message)
@@ -665,6 +783,90 @@ async def confirm_in_thread(session: AsyncSession, row: OwnerActionRow) -> None:
         row.owner_id,
         "message.created",
         thread_id=thread.id,
-        agent_id=row.agent_id,
+        agent_id=message.agent_id,
         payload=message_data(message),
     )
+
+
+async def awaiting_owner_answer(session: AsyncSession, owner_id: str, operation_id: str) -> bool:
+    """The owner already has this uncertain operation in front of them: its resolve card
+    waits for an answer, or its "operation_uncertain" item is still open. A later aging
+    alert for the same operation would only repeat that fact."""
+    card = await session.scalar(
+        select(OwnerActionRow.id)
+        .where(
+            OwnerActionRow.owner_id == owner_id,
+            OwnerActionRow.kind == "resolve_operation",
+            OwnerActionRow.subject == "operation:" + operation_id,
+            OwnerActionRow.status == "pending",
+            OwnerActionRow.expires_at > utcnow(),
+        )
+        .limit(1)
+    )
+    if card is not None:
+        return True
+    item = await session.scalar(
+        select(AttentionRow.id)
+        .where(
+            AttentionRow.owner_id == owner_id,
+            AttentionRow.code == "operation_uncertain",
+            AttentionRow.status.in_(["pending", "ready"]),
+            AttentionRow.parameters["operation_id"].as_string() == operation_id,
+        )
+        .limit(1)
+    )
+    return item is not None
+
+
+async def card_account(session: AsyncSession, row: OwnerActionRow) -> str | None:
+    if row.kind == "set_account_limits":
+        return cast(str, row.payload["account_id"])
+    if row.kind == "lift_restriction":
+        restriction = await session.get(TradingRestrictionRow, row.payload["restriction_id"])
+        return restriction.account_id if restriction else None
+    if row.kind == "resolve_operation":
+        operation = await session.get(TradingJournalRow, row.payload["operation_id"])
+        return operation.account_id if operation else None
+    return None
+
+
+async def settle_for_delete(
+    session: AsyncSession,
+    owner_id: str,
+    *,
+    agent_id: str | None = None,
+    thread_id: str | None = None,
+    account_id: str | None = None,
+) -> None:
+    """Pending cards of a deleted agent or conversation, or about a deleted account, no
+    longer apply: they are superseded with the reason, never left waiting to expire.
+
+    A card the owner is deciding at this moment is skipped (its decision finishes on its
+    own and posts nothing in a conversation that is gone), so the delete never waits on
+    or deadlocks with a tap.
+    """
+    query = select(OwnerActionRow).where(
+        OwnerActionRow.owner_id == owner_id, OwnerActionRow.status == "pending"
+    )
+    if agent_id is not None:
+        query = query.where(OwnerActionRow.agent_id == agent_id)
+    if thread_id is not None:
+        query = query.where(OwnerActionRow.thread_id == thread_id)
+    rows = list(
+        await session.scalars(
+            query.order_by(OwnerActionRow.created_at, OwnerActionRow.id).with_for_update(
+                skip_locked=True
+            )
+        )
+    )
+    reason = (
+        "agent_deleted"
+        if agent_id is not None
+        else "conversation_deleted"
+        if thread_id is not None
+        else "account_deleted"
+    )
+    for row in rows:
+        if account_id is not None and await card_account(session, row) != account_id:
+            continue
+        await settle(session, row, "superseded", reason)

@@ -8,6 +8,8 @@ export type OwnerActionKind =
   | "set_account_limits";
 export type OwnerActionStatus = "pending" | "confirmed" | "cancelled" | "expired" | "superseded";
 export type AttestedOutcome = "executed" | "not_executed" | "unknown";
+/** A limits card shows one line per changed field: a limit, its currency or the day's zone. */
+export type OwnerActionLimitField = MoneyLimitName | "currency" | "trading_day_timezone";
 /** The broker identity the owner recognizes; label is null when it is not verified. */
 export type OwnerActionAccount = { id: string; label: string | null; provider: string | null };
 /**
@@ -55,7 +57,9 @@ export type OwnerAction = {
     blocks?: "new_risk_on_this_symbol_or_ticket";
     current?: MoneyLimits;
     proposed?: MoneyLimits;
-    changes?: Array<{ name: MoneyLimitName; from: string | null; to: string | null }>;
+    changes?: Array<{ name: OwnerActionLimitField; from: string | null; to: string | null }>;
+    /** The account's limits changed since the card was raised and its change no longer fits. */
+    no_longer_applies?: boolean;
   };
   /** Confirming needs the owner's passkey: it raises or removes a money limit. */
   requires_passkey: boolean;

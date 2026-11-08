@@ -132,8 +132,21 @@ test("every pending card has its one-tap buttons in both languages", () => {
   assert.equal(ar.title, "الوسيط لم يؤكد هذه الصفقة");
   assert.deepEqual(
     ar.buttons.map((button) => button.label),
-    ["نُفذت", "لم تُنفذ", "لا أعرف بعد"],
+    ["نُفذت", "لم تُنفذ", "غير معروفة — ارفع التعليق"],
   );
+  // "Unknown" settles the card and releases the hold: the label and hint say so, so it
+  // is never mistaken for "wait".
+  assert.equal(en.buttons[2]?.label, "Unknown: release the hold");
+  assert.match(en.hint ?? "", /any answer, Unknown included, releases this trade's hold/);
+  assert.match(ar.hint ?? "", /وأي إجابة، ومنها «غير معروفة»، ترفع تعليق هذه الصفقة/);
+  for (const locale of ["en", "ar"]) {
+    const settled = ownerActionCard(
+      { ...resolve, status: "confirmed", result: { outcome: "unknown" } },
+      locale,
+      now,
+    );
+    assert.match(settled.outcome ?? "", /no longer holds new risk|لم تعد تعلّق المخاطرة الجديدة/);
+  }
 });
 
 test("a lift card names scope and source from facts, with tickers isolated in Arabic", () => {
@@ -174,6 +187,61 @@ test("raising a money limit asks for the passkey; lowering one is one tap", () =
   assert.equal(
     ownerActionCard(limits(true), "ar", now).lines[0],
     "الخسارة اليومية: ⁨300 USD⁩ ← ⁨900 USD⁩",
+  );
+});
+
+test("a limits card shows a moved trading day and currency, in both languages", () => {
+  const moved = (locale: string, extra: OwnerAction["facts"]["changes"] = []) =>
+    ownerActionCard(
+      {
+        ...limits(true),
+        facts: {
+          ...limits(true).facts,
+          changes: [
+            ...extra,
+            { name: "trading_day_timezone", from: "UTC", to: "Pacific/Kiritimati" },
+          ],
+        },
+      },
+      locale,
+      now,
+    );
+  const en = moved("en");
+  assert.deepEqual(en.lines, ["Trading day starts at midnight in: ⁨UTC⁩ → ⁨Pacific/Kiritimati⁩"]);
+  assert.equal(en.passkey, true);
+  assert.equal(en.hint, "This can allow more risk, so it needs your passkey.");
+  assert.deepEqual(moved("ar").lines, [
+    "يبدأ يوم التداول عند منتصف الليل بتوقيت: ⁨UTC⁩ ← ⁨Pacific/Kiritimati⁩",
+  ]);
+  // A lower limit bundled with a moved day shows both lines, never only the reduction.
+  const bundled = moved("en", [{ name: "max_daily_loss", from: "300", to: "290" }]);
+  assert.deepEqual(bundled.lines, [
+    "Daily loss: ⁨300 USD⁩ → ⁨290 USD⁩",
+    "Trading day starts at midnight in: ⁨UTC⁩ → ⁨Pacific/Kiritimati⁩",
+  ]);
+  const currency = ownerActionCard(
+    {
+      ...limits(true),
+      facts: { ...limits(true).facts, changes: [{ name: "currency", from: "USD", to: "EUR" }] },
+    },
+    "ar",
+    now,
+  );
+  assert.deepEqual(currency.lines, ["العملة: ⁨USD⁩ ← ⁨EUR⁩"]);
+  // Limits that moved on since the card was raised: it can only be dismissed.
+  const stale = ownerActionCard(
+    {
+      ...limits(false),
+      facts: { ...limits(false).facts, changes: undefined, no_longer_applies: true },
+    },
+    "en",
+    now,
+  );
+  assert.equal(stale.passkey, false);
+  assert.equal(stale.hint, ownerActionLabels.en.noLongerApplies);
+  assert.deepEqual(
+    stale.buttons.map((button) => button.decision),
+    ["cancel"],
   );
 });
 
@@ -260,7 +328,11 @@ test("Web and Mobile render the same shared spec and never show agent text", () 
     assert.match(source, /ownerActionCard\(row, locale\)/, path);
     assert.match(source, /\/owner-actions\/\$\{row\.id\}\/decision/, path);
     assert.doesNotMatch(source, /\.reason\b/, path);
+    // A device registered from a card is named like every other enrollment.
+    assert.match(source, /name: text\.deviceName/, path);
   }
+  assert.equal(ownerActionLabels.en.deviceName, "My device");
+  assert.equal(ownerActionLabels.ar.deviceName, "جهازي");
   assert.deepEqual(
     Object.keys(ownerActionLabels.en).sort(),
     Object.keys(ownerActionLabels.ar).sort(),

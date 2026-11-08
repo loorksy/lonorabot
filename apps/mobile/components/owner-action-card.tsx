@@ -78,7 +78,7 @@ export function OwnerActionCard({
       setPassword("");
       const challenge = await api.post<DeviceChallenge>("/auth/devices/enrollment", {
         password: secret,
-        name: text.registerDevice,
+        name: text.deviceName,
       });
       await api.post("/auth/devices/enrollment/verify", await deviceProof(challenge, true));
       setEnroll(false);

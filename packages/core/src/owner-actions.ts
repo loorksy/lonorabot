@@ -8,9 +8,9 @@
  */
 import type {
   AttestedOutcome,
-  MoneyLimitName,
   OwnerAction,
   OwnerActionAccount,
+  OwnerActionLimitField,
 } from "@lonora/contracts";
 import { accountAuthorityLabels } from "./account-authority-labels";
 import {
@@ -54,19 +54,21 @@ export const ownerActionLabels = {
     anAgent: "an agent",
     resolveTitle: "The broker did not confirm this trade",
     resolveHint:
-      "It will not be sent again. New risk on this market is held until you answer; exits still work.",
+      "It will not be sent again. New risk on this market is held until you answer; any answer, Unknown included, releases this trade's hold. Exits still work.",
     resolveRecord: "Your answer is recorded as your statement, not as broker confirmation.",
     executed: "It executed",
     notExecuted: "It did not execute",
-    unknown: "Still unknown",
+    unknown: "Unknown: release the hold",
     note: "Note (optional)",
     brokerReference: "Broker ticket (optional)",
     byYou: "your order",
     by: "by",
     at: "at",
     limitsTitle: "Change money limits",
-    limitsOneTap: "Lowering or adding a limit takes one tap.",
-    limitsPasskey: "This raises or removes a limit, so it needs your passkey.",
+    limitsOneTap: "This allows no more risk, so it takes one tap.",
+    limitsPasskey: "This can allow more risk, so it needs your passkey.",
+    currency: "Currency",
+    tradingDay: "Trading day starts at midnight in",
     notSet: "not set",
     removed: "removed",
     apply: "Apply",
@@ -79,7 +81,8 @@ export const ownerActionLabels = {
     lifted: "Pause lifted.",
     recordedExecuted: "Recorded: it executed (your statement, not broker confirmation).",
     recordedNotExecuted: "Recorded: it did not execute (your statement, not broker confirmation).",
-    recordedUnknown: "Recorded: the outcome stays unknown. It will not be resent.",
+    recordedUnknown:
+      "Recorded: the outcome stays unknown. It will not be resent and no longer holds new risk on this market.",
     limitsSaved: "Money limits updated.",
     cancelled: "Dismissed. Nothing changed.",
     expired: "This card expired. Nothing changed.",
@@ -92,6 +95,7 @@ export const ownerActionLabels = {
     passkeyUnsupported:
       "Passkey signing is unavailable here. Open Lonora in a supported browser or the app.",
     registerDevice: "Register this device first",
+    deviceName: accountAuthorityLabels.en.device,
     password: "Account password",
   },
   ar: {
@@ -118,19 +122,22 @@ export const ownerActionLabels = {
     setByAgent: "وضعه",
     anAgent: "وكيل",
     resolveTitle: "الوسيط لم يؤكد هذه الصفقة",
-    resolveHint: "لن تُرسل مجددًا. المخاطرة الجديدة على هذا السوق معلّقة حتى تجيب؛ يبقى الخروج متاحًا.",
+    resolveHint:
+      "لن تُرسل مجددًا. المخاطرة الجديدة على هذا السوق معلّقة حتى تجيب، وأي إجابة، ومنها «غير معروفة»، ترفع تعليق هذه الصفقة؛ يبقى الخروج متاحًا.",
     resolveRecord: "تُسجَّل إجابتك كتصريح منك، لا كتأكيد من الوسيط.",
     executed: "نُفذت",
     notExecuted: "لم تُنفذ",
-    unknown: "لا أعرف بعد",
+    unknown: "غير معروفة — ارفع التعليق",
     note: "ملاحظة (اختيارية)",
     brokerReference: "رقم التذكرة لدى الوسيط (اختياري)",
     byYou: "أمرك",
     by: "من",
     at: "في",
     limitsTitle: "تغيير الحدود المالية",
-    limitsOneTap: "خفض حد أو إضافته يتم بلمسة واحدة.",
-    limitsPasskey: "هذا يرفع حدًا أو يزيله، لذا يحتاج مفتاح المرور.",
+    limitsOneTap: "هذا لا يسمح بمخاطرة أكبر، لذا يتم بلمسة واحدة.",
+    limitsPasskey: "قد يسمح هذا بمخاطرة أكبر، لذا يحتاج مفتاح المرور.",
+    currency: "العملة",
+    tradingDay: "يبدأ يوم التداول عند منتصف الليل بتوقيت",
     notSet: "غير محدد",
     removed: "يُزال",
     apply: "تطبيق",
@@ -143,7 +150,8 @@ export const ownerActionLabels = {
     lifted: "رُفع الإيقاف.",
     recordedExecuted: "سُجّل: نُفذت (تصريحك، لا تأكيد من الوسيط).",
     recordedNotExecuted: "سُجّل: لم تُنفذ (تصريحك، لا تأكيد من الوسيط).",
-    recordedUnknown: "سُجّل: تبقى النتيجة غير معروفة. لن تُعاد إرسالها.",
+    recordedUnknown:
+      "سُجّل: تبقى النتيجة غير معروفة. لن يُعاد إرسالها، ولم تعد تعلّق المخاطرة الجديدة على هذا السوق.",
     limitsSaved: "حُدّثت الحدود المالية.",
     cancelled: "تم التجاهل. لم يتغير شيء.",
     expired: "انتهت صلاحية هذه البطاقة. لم يتغير شيء.",
@@ -155,6 +163,7 @@ export const ownerActionLabels = {
     noLongerApplies: "لم يعد هذا ساريًا. لم يتغير شيء.",
     passkeyUnsupported: "توقيع مفتاح المرور غير متاح هنا. افتح لونورا بمتصفح مدعوم أو التطبيق.",
     registerDevice: "سجّل هذا الجهاز أولًا",
+    deviceName: accountAuthorityLabels.ar.device,
     password: "كلمة مرور الحساب",
   },
 } as const satisfies Record<Language, Record<string, string>>;
@@ -237,11 +246,18 @@ function settledLine(card: OwnerAction, text: OwnerActionText): string | null {
   }
 }
 
-function limitValue(name: MoneyLimitName, value: string | null, currency: string | null) {
+function limitValue(name: OwnerActionLimitField, value: string | null, currency: string | null) {
   if (value == null) return null;
+  if (name === "currency" || name === "trading_day_timezone") return isolate(value);
   return isolate(
     name.endsWith("_percent") ? `${value}%` : currency ? `${value} ${currency}` : value,
   );
+}
+
+function limitFieldLabel(name: OwnerActionLimitField, locale: string, text: OwnerActionText) {
+  if (name === "currency") return text.currency;
+  if (name === "trading_day_timezone") return text.tradingDay;
+  return moneyLimitLabel(name, locale);
 }
 
 /** The whole card for one locale: title, fact lines, hint, buttons and settled line. */
@@ -361,16 +377,23 @@ export function ownerActionCard(
     case "set_account_limits": {
       title = text.limitsTitle;
       const currency = facts.proposed?.currency ?? facts.current?.currency ?? null;
+      // Every field the card would change has a line, its currency and day included.
       for (const change of facts.changes ?? []) {
         const from =
           limitValue(change.name, change.from, facts.current?.currency ?? null) ?? text.notSet;
         const to = limitValue(change.name, change.to, currency) ?? text.removed;
         // The arrow points along the reading direction: right to left in Arabic.
         lines.push(
-          `${moneyLimitLabel(change.name, locale)}: ${from} ${lang === "ar" ? "←" : "→"} ${to}`,
+          `${limitFieldLabel(change.name, locale, text)}: ${from} ${lang === "ar" ? "←" : "→"} ${to}`,
         );
       }
       if (account) lines.push(`${text.account}: ${account}`);
+      if (facts.no_longer_applies) {
+        // The limits moved on since the card was raised: it can only be dismissed.
+        hint = text.noLongerApplies;
+        buttons = [{ key: "cancel", label: text.cancel, decision: "cancel", primary: false }];
+        break;
+      }
       hint = card.requires_passkey ? text.limitsPasskey : text.limitsOneTap;
       buttons = pair(card.requires_passkey ? text.applyPasskey : text.apply, text.cancel);
       break;

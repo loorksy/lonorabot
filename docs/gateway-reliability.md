@@ -112,7 +112,10 @@ from the others.
   scheduler step already reported it.
 - **Aging operations.** A live operation still `reserved`, `submitted` or `ambiguous`
   fifteen minutes after it was submitted raises exactly one `operation_unresolved`
-  item ("A trade still has no confirmed broker result"). It is never resent.
+  item ("A trade still has no confirmed broker result"). It is never resent. An
+  ambiguous operation whose resolve card still waits for the owner's answer, or whose
+  `operation_uncertain` item is still open, raises none: the owner is asked once
+  (`docs/owner-actions.md`).
 
 These items are written straight to `ready` (`raise_system_attention`), so they do not
 depend on the attention loop being healthy. Each names and opens the agent and
@@ -181,7 +184,10 @@ passkey, so nothing is left looking active while it can no longer run:
 - Super Bot requests of the agent or conversation are stopped (`stop_request`, which
   also clears the goal's autonomy);
 - goals of the agent or conversation are cancelled with `goal_origin_deleted` ("This
-  goal stopped because its conversation or agent was deleted. Its history is kept.").
+  goal stopped because its conversation or agent was deleted. Its history is kept.");
+- pending owner action cards the agent raised, the conversation shows or that act on
+  the account are superseded (`agent_deleted`, `conversation_deleted`,
+  `account_deleted`).
 
 Goals orphaned before this rule are settled the same way, once, by the `goals` step;
 a goal without its conversation or agent is never retried through the failure ledger.

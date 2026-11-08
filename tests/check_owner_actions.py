@@ -263,6 +263,9 @@ async def main() -> None:
         async with db.sessions() as session:
             row = await session.get(TradingRestrictionRow, restriction)
             assert row is not None and row.revoked_at is not None
+        # Stop new trading is still on: the line says so instead of "trades are admitted".
+        line = (await acknowledgements(thread["id"]))[-1]
+        assert line == "Pause lifted. New trading is still stopped; resume it when you want.", line
         print("PASS a restriction raises a Lift card in its conversation; one tap lifts it")
 
         # 4. Lifting an already-ended restriction leaves the card expired with a reason; a
@@ -392,6 +395,27 @@ async def main() -> None:
         )
         assert status in {403, 409}  # A used challenge never authorizes again.
         status, _ = await decide(removal["owner_action"]["id"], {"decision": "cancel"})
+        assert status == 200
+        # Moving the trading day of a set daily-loss limit is shown on the card and signed.
+        moved = await propose(
+            {
+                "kind": "set_account_limits",
+                "account_id": account,
+                "set_limits": {"max_daily_loss": "890"},
+                "trading_day_timezone": "Pacific/Kiritimati",
+            }
+        )
+        assert moved["passkey_required"] is True
+        shown = next(
+            row for row in await cards_in(thread["id"]) if row["id"] == moved["owner_action"]["id"]
+        )
+        assert shown["facts"]["changes"] == [
+            {"name": "max_daily_loss", "from": "900", "to": "890"},
+            {"name": "trading_day_timezone", "from": "UTC", "to": "Pacific/Kiritimati"},
+        ], shown["facts"]["changes"]
+        status, refused = await decide(moved["owner_action"]["id"], {"decision": "confirm"})
+        assert status == 403 and refused["code"] == "owner_action_passkey_required"
+        status, _ = await decide(moved["owner_action"]["id"], {"decision": "cancel"})
         assert status == 200
         print("PASS lowering a limit is one tap; raising or removing one needs a bound passkey")
 

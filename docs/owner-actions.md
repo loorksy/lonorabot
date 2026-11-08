@@ -53,7 +53,14 @@ card past `expires_at` reads as expired and is settled as expired when next touc
 - **Cards follow their record.** A lifted or ended restriction, a settled operation and
   resumed trading supersede the pending cards about them. Confirming a card supersedes
   any other pending card with the same exact effect. A settled operation also withdraws
-  its `operation_uncertain` item.
+  its `operation_uncertain` item. While its resolve card waits for an answer (or its
+  `operation_uncertain` item is still open), the watchdog's later `operation_unresolved`
+  alert for the same operation is not raised: the owner is asked once.
+- **A delete settles them.** Deleting an agent, a conversation or a broker connection
+  (`prepare_delete`) supersedes the pending cards that agent raised, that conversation
+  shows, or that act on that account (`agent_deleted`, `conversation_deleted`,
+  `account_deleted`). A card the owner is tapping at that moment is skipped rather than
+  waited on; its decision finishes on its own.
 
 ## What the owner sees
 
@@ -67,18 +74,35 @@ the operation's action, volume, symbol, time and agent, and the account's curren
 proposed limits. No ids, codes or JSON are shown; the account is named only when the
 owner has several.
 
+A limits card shows one line for every field its change touches
+(`LIMIT_CHANGE_NAMES`): each limit, the currency ("Currency: USD → EUR") and the
+trading day ("Trading day starts at midnight in: UTC → Asia/Riyadh"). A passkey never
+signs an effect the owner did not see, such as a moved daily-loss window bundled with a
+lower limit. If the account's limits changed so the card's change no longer fits them,
+the card says "This no longer applies" and can only be dismissed; no passkey is asked.
+
 | Card | Buttons | Needs |
 | --- | --- | --- |
 | Resume trading | Resume trading / Not now | one tap |
 | New entries paused (Only exits allowed, Trading frozen) | Lift pause / Keep it | one tap |
-| The broker did not confirm this trade | It executed / It did not execute / Still unknown, optional note and broker ticket | one tap |
-| Change money limits | Apply (or Confirm with passkey) / Cancel | one tap to lower or add; passkey to raise or remove |
+| The broker did not confirm this trade | It executed / It did not execute / Unknown: release the hold, optional note and broker ticket | one tap |
+| Change money limits | Apply (or Confirm with passkey) / Cancel | one tap when it allows no more risk; passkey otherwise |
+
+Any answer on a resolve card, "Unknown" included, settles the operation and releases
+the hold it puts on its market; the hint and the settled line say so. An owner who is
+not sure yet leaves the card unanswered, and the hold stays.
 
 A settled card shows one line instead of buttons ("Trading resumed.", "This pause
 already ended. Nothing changed."). After a confirmation the server also writes one
-fixed line into the conversation, in the conversation's language
-(`attention_messages.json`, `owner_action_*`), so the agent sees what changed on its
-next run.
+line into the conversation, in the conversation's language, so the agent sees what
+changed on its next run. It is built from fixed texts (`attention_messages.json`,
+`owner_action_*`) chosen from the state after the effect (`still_holding`): after a lift
+or an answer it adds what still holds new risk there — "New trading is still stopped",
+"Other pauses still apply there" (a pause in force over the same market and agents),
+"A trade without a confirmed broker result still holds new risk there" — and only when
+nothing does, "New trades are admitted again within each agent's level and your
+limits". It never contradicts the header's safety line. A card whose agent was deleted
+is confirmed in Lonora's name.
 
 ## The decision
 
@@ -99,7 +123,9 @@ require the owner's session; no tool reaches them. A decision:
      one the statement reads "Owner attested via chat card; not broker confirmation."
      It emits `trading.operation_resolved`, clears the scoped block and never resends.
    - Limits: `store_execution_policy` with the card's exact changes applied to the
-     account's current limits (other limits stay as they are). A limit amount in a
+     account's current limits (other limits stay as they are). The account row is locked
+     before the limits are read, the lock the policy route takes too, so the change is
+     judged against and merged into the limits as they are now. A limit amount in a
      currency the account does not report is refused first, as on the policy route.
 
 Raising or removing a money limit, lowering or removing the free-margin floor,
@@ -116,17 +142,19 @@ and resuming take one tap and no passkey.
 
 The permission frame says only the owner lifts a restriction, resumes trading, attests an
 uncertain outcome or changes a limit, and that the agent proposes the matching card
-(`owner_action_propose`); while trading is stopped it offers a Resume card. A grant is
-still signed in the permission selector until W15-3 adds the grant card.
+(`owner_action_propose`) when the owner asks for one. While trading is stopped the agent
+attempts no entry and says so in one line; Stop is the owner's brake, so it proposes a
+Resume card only when the owner asks to resume (the tool description says the same). A
+grant is still signed in the permission selector until W15-3 adds the grant card.
 
 ## Known limits
 
 - The owner's raw `PUT /trading/accounts/{id}/execution-policy` is unchanged: an owner
-  session may still raise a limit there without a passkey. The card path is the one the
-  agent and the clients use.
+  session may still raise a limit there without a passkey. No Web or Mobile screen calls
+  it; the card path is the one the agent and the clients use. Requiring a bound device
+  proof on that route when the change widens is a follow-up.
 - A runtime card is raised by the gateway's attention projection, so it appears when the
   gateway runs (within a tick); the API alone never raises one.
-- Cards in a deleted conversation stay in the record with no conversation and expire.
 
 ## Verification
 
@@ -138,11 +166,16 @@ still signed in the permission selector until W15-3 adds the grant card.
   or removing one needs a bound passkey; an uncertain trade raises `operation_uncertain`
   and a resolve card whose answer emits `trading.operation_resolved`, clears the hold and
   sends nothing; an agent's uncertain operation lands in that agent's conversation; the
-  cap, expiry and crash replay.
-- `tests/test_owner_actions.py`: classification, the widening matrix, proposal fields,
-  no tool importing a decision, runtime-card idempotency and expiry.
+  cap, expiry and crash replay; the lift line while trading is stopped; a moved trading
+  day shown on the card and refused without the passkey.
+- `tests/test_owner_actions.py`: classification, the widening matrix with a visible line
+  for every differing field, proposal fields, no tool importing a decision, runtime-card
+  idempotency and expiry, the confirmation line per post-decision state in English and
+  Arabic, delete settlement and the fallback speaker, and the single uncertain-trade
+  alert.
 - `tests/web/owner-actions.test.ts` (tsx): the shared spec in both languages, Arabic
-  arrows and isolation, settled lines, timeline anchoring, Web/Mobile parity.
+  arrows and isolation, currency and trading-day lines, the Unknown label and hint,
+  settled lines, timeline anchoring, Web/Mobile parity.
 - Playwright `tests/web/owner-actions.spec.mjs` and `tests/mobile/owner-actions.spec.mjs`:
   render and tap in Arabic and English (RTL button order), the resolve answer in the
   journal, and Lift from the header safety sheet.

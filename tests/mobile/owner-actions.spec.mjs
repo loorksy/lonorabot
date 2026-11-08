@@ -58,6 +58,7 @@ const copy = {
     resumed: "استؤنف التداول.",
     resolveTitle: "الوسيط لم يؤكد هذه الصفقة",
     executed: "نُفذت",
+    unknown: "غير معروفة — ارفع التعليق",
     recorded: "سُجّل: نُفذت (تصريحك، لا تأكيد من الوسيط).",
     lift: "رفع الإيقاف",
     noPauses: "لا توجد إيقافات",
@@ -67,6 +68,7 @@ const copy = {
     resumed: "Trading resumed.",
     resolveTitle: "The broker did not confirm this trade",
     executed: "It executed",
+    unknown: "Unknown: release the hold",
     recorded: "Recorded: it executed (your statement, not broker confirmation).",
     lift: "Lift pause",
     noPauses: "No pauses",
@@ -128,6 +130,9 @@ for (const locale of ["ar", "en"])
       const resolveCard = page.getByTestId(`owner-action-${uncertain.id}`);
       await expect(resolveCard.getByText(text.resolveTitle, { exact: true })).toBeVisible();
       await expect(resolveCard.getByText(data.symbol, { exact: false }).first()).toBeVisible();
+      await expect(
+        resolveCard.getByRole("button", { name: text.unknown, exact: true }),
+      ).toBeVisible();
       if (locale === "ar")
         await resolveCard.screenshot({
           path: test.info().outputPath("owner-action-resolve-native-ar.png"),
