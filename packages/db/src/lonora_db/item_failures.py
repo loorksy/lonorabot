@@ -17,6 +17,7 @@ from typing import Any
 from lonora_contracts.domain import utcnow
 from lonora_core.user_error import LonoraError
 from sqlalchemy import ColumnElement, delete, exists, or_, select
+from sqlalchemy.dialects import postgresql, sqlite
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .client import Database
@@ -146,18 +147,33 @@ class ItemGuard:
         log.warning("maintenance_item_failed kind=%s code=%s", self.kind, code)
         now = utcnow()
         async with self.db.sessions() as session, session.begin():
-            row = await session.get(ItemFailureRow, (self.kind, item_id), with_for_update=True)
-            if row is None:
-                row = ItemFailureRow(
+            # INSERT arbitrates a first failure seen by two gateways at once (a rolling
+            # restart overlap); locking a missing row does not, and a duplicate insert
+            # would escape ``run``, which never raises for an item.
+            dialect = postgresql if session.get_bind().dialect.name == "postgresql" else sqlite
+            await session.execute(
+                dialect.insert(ItemFailureRow)
+                .values(
                     kind=self.kind,
                     item_id=item_id,
                     owner_id=owner_id,
                     failures=0,
                     code=code,
                     first_failed_at=now,
+                    last_failed_at=now,
                     next_attempt_at=now,
                 )
-                session.add(row)
+                .on_conflict_do_nothing(
+                    index_elements=[ItemFailureRow.kind, ItemFailureRow.item_id]
+                )
+            )
+            row = await session.get(
+                ItemFailureRow,
+                (self.kind, item_id),
+                with_for_update=True,
+                populate_existing=True,
+            )
+            assert row is not None
             row.failures += 1
             row.code, row.last_failed_at = code, now
             row.next_attempt_at = now + backoff(row.failures)

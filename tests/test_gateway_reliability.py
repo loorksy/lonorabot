@@ -850,6 +850,33 @@ async def test_an_item_guard_never_quarantines_financial_kinds(task_db: Fixture)
     assert not await system_items(db, owner, "maintenance_item_quarantined")
 
 
+@pytest.mark.asyncio
+async def test_two_gateways_recording_one_items_first_failure_both_count(
+    task_db: Fixture,
+) -> None:
+    # A rolling restart overlaps two gateways on the same poison item: neither may
+    # escape ``run`` with a duplicate-key error, and both failures count once each.
+    db, owner, *_ = task_db
+
+    async def broken() -> None:
+        raise ValueError("poison")
+
+    # Two pooled connections, so neither first failure waits for a new one to open.
+    async with db.engine.connect(), db.engine.connect():
+        pass
+    results = await asyncio.gather(
+        *(ItemGuard(db, "routine").run("race-item", owner, broken) for _ in range(2)),
+        return_exceptions=True,
+    )
+    assert results == [None, None], results
+    recorded = await failure(db, "routine", "race-item")
+    assert recorded and recorded.code == "unexpected_value_error"
+    # The row lock counts both on PostgreSQL; the shared in-memory sqlite connection
+    # has no row locks, so there only the missing duplicate-key error is the contract.
+    if POSTGRES:
+        assert recorded.failures == 2, recorded.failures
+
+
 def waiting_goal_state(request_id: str | None = None) -> dict[str, Any]:
     # A goal saved before Super Bot was retired may still carry its old request id.
     return {
