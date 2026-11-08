@@ -85,14 +85,18 @@ for (const locale of ["en", "ar"]) {
       await expect(model).toContainText("GPT Default UI");
       await model.getByLabel(locale === "ar" ? "ثابت" : "Fixed").check();
       await model.locator("select").selectOption("anthropic:claude-sonnet-ui");
-      await model.getByRole("button", { name: locale === "ar" ? "حفظ" : "Save" }).click();
+      await model
+        .getByRole("button", { name: locale === "ar" ? "حفظ النموذج" : "Save model", exact: true })
+        .click();
       await expect(model).toHaveAttribute("data-agent-model-mode", "fixed");
       const fixed = await (await context.request.get(`/api/agents/${agent.id}/model`)).json();
       expect(fixed.mode).toBe("fixed");
       expect(fixed.chosen_by).toBe("owner");
       expect(fixed.preference.primary.model).toBe("claude-sonnet-ui");
       await model.getByLabel(locale === "ar" ? "تلقائي" : "Automatic").check();
-      await model.getByRole("button", { name: locale === "ar" ? "حفظ" : "Save" }).click();
+      await model
+        .getByRole("button", { name: locale === "ar" ? "حفظ النموذج" : "Save model", exact: true })
+        .click();
       await expect(model).toHaveAttribute("data-agent-model-mode", "automatic");
       if (locale === "ar") await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
     } finally {
