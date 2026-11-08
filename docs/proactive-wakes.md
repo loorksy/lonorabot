@@ -118,7 +118,10 @@ reader recorded it). Agents' private memory stays private.
 ## Agents alert the owner
 
 `owner_notify` creates an owner attention item under the reach-me rules (dedupe, a
-rate limit, quiet hours, "activity only"), and `owner_call_request` can target it.
+rate limit, quiet hours, "activity only"), and `owner_call_request` can target it. An
+agent-declared critical alert passes quiet hours and "activity only"; beyond
+`CRITICAL_LIMIT_PER_HOUR` (6) critical alerts per owner and rolling hour, across every
+agent, a critical alert counts as an important change.
 Delivery is in-app only until Wave 3. See
 [incoming-attention.md](incoming-attention.md#agent-alerts-owner_notify).
 

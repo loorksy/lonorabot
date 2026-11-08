@@ -926,6 +926,16 @@ async def test_owner_notify_follows_dedupe_quiet_hours_rate_and_reach_me():
     fixture = await Fixture().open()
     device = "device-" + uuid4().hex[:12]
     try:
+        from lonora_db.attention import NOTIFY_EVENT
+        from lonora_db.schema import EventRow
+
+        # The owner-wide critical cap counts this shared owner's earlier test alerts.
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            await session.execute(
+                delete(EventRow).where(
+                    EventRow.owner_id == fixture.owner, EventRow.kind == NOTIFY_EVENT
+                )
+            )
         agent = await fixture.agent("Notifier")
         context, origin = await wake_run(fixture, agent, observe_only=True)
         await reach_me(fixture, channel="message")
@@ -1034,4 +1044,71 @@ async def test_owner_notify_follows_dedupe_quiet_hours_rate_and_reach_me():
             row = await session.get(DeviceCredentialRow, device)
             if row is not None:
                 await session.delete(row)
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_agent_declared_critical_alerts_are_capped_per_owner():
+    database()
+    from datetime import timedelta
+
+    from check_streaming import Fixture
+    from lonora_contracts.attention import OwnerNotifyRequest
+    from lonora_contracts.domain import utcnow
+    from lonora_db.attention import CRITICAL_LIMIT_PER_HOUR, NOTIFY_EVENT, notify_owner
+    from lonora_db.schema import AttentionRow, EventRow
+    from sqlalchemy import delete, func, select
+
+    fixture = await Fixture().open()
+    agents: list[str] = []
+    try:
+        async with fixture.runtime.db.sessions() as session:
+            earlier = int(
+                await session.scalar(
+                    select(func.count())
+                    .select_from(EventRow)
+                    .where(
+                        EventRow.owner_id == fixture.owner,
+                        EventRow.kind == NOTIFY_EVENT,
+                        EventRow.created_at > utcnow() - timedelta(hours=1),
+                        EventRow.payload["importance"].as_string() == "critical",
+                    )
+                )
+                or 0
+            )
+        allowed = max(CRITICAL_LIMIT_PER_HOUR - earlier, 0)
+        results = []
+        for index in range(allowed + 2):
+            # One alert per agent: the per-agent rate never decides here.
+            agent = await fixture.agent("Alert " + str(index))
+            agents.append(agent["id"])
+            thread = await fixture.conversation(agent)
+            async with fixture.runtime.db.sessions() as session, session.begin():
+                results.append(
+                    await notify_owner(
+                        session,
+                        fixture.owner,
+                        agent["id"],
+                        thread["id"],
+                        OwnerNotifyRequest(
+                            importance="critical",
+                            summary="Gold broke the level, act now " + str(index),
+                            dedupe_key="critical-" + uuid4().hex,
+                        ),
+                    )
+                )
+        async with fixture.runtime.db.sessions() as session:
+            importances = [
+                (await session.get(AttentionRow, item["attention_id"])).importance  # type: ignore[union-attr]
+                for item in results
+                if item.get("attention_id")
+            ]
+        assert importances[:allowed] == ["critical"] * allowed, importances
+        assert importances[allowed:] == ["important_change"] * 2, importances
+    finally:
+        # Other tests share this owner: their critical alerts must not meet this cap.
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            await session.execute(
+                delete(EventRow).where(EventRow.kind == NOTIFY_EVENT, EventRow.agent_id.in_(agents))
+            )
         await fixture.close()

@@ -332,6 +332,10 @@ def publish_ready(session: AsyncSession, row: AttentionRow, suppression: str | N
 
 # An Agent's own notifications per rolling hour; a dedupe key notifies once.
 NOTIFY_LIMIT_PER_HOUR = 6
+# Agent-declared critical alerts per owner and rolling hour, across every agent. A
+# critical alert passes quiet hours and activity-only; beyond this it is an important
+# change, so injected text in many wakes cannot ring the owner without end.
+CRITICAL_LIMIT_PER_HOUR = 6
 MAX_NOTIFY_LIFETIME = timedelta(days=31)
 NOTIFY_DELIVERY = "in_app"
 NOTIFY_EVENT = "agent.owner_notify"
@@ -349,7 +353,9 @@ async def notify_owner(
     """An Agent-raised owner attention item under the owner's reach-me rules.
 
     One item per Agent and dedupe key, at most NOTIFY_LIMIT_PER_HOUR per Agent. Quiet
-    hours hold everything but critical items until they end. Under reach-me "activity
+    hours hold everything but critical items until they end; beyond
+    CRITICAL_LIMIT_PER_HOUR critical alerts per owner, a critical one counts as an
+    important change. Under reach-me "activity
     only" a non-critical alert raises no item (``activity_only``): the Agent says it in
     its reply, which reaches its conversation and the Activity list. Delivery is in the
     app until off-app delivery exists. The item grants nothing.
@@ -390,6 +396,20 @@ async def notify_owner(
         raise LonoraError("owner_notify_rate_limited", 429)
     reach = await reach_me_policy(session, owner_id)
     critical = request.importance == "critical"
+    if critical:
+        criticals = await session.scalar(
+            select(func.count())
+            .select_from(EventRow)
+            .where(
+                EventRow.owner_id == owner_id,
+                EventRow.kind == NOTIFY_EVENT,
+                EventRow.created_at > now - timedelta(hours=1),
+                EventRow.payload["importance"].as_string() == "critical",
+            )
+        )
+        if (criticals or 0) >= CRITICAL_LIMIT_PER_HOUR:
+            request = request.model_copy(update={"importance": "important_change"})
+            critical = False
     held_until = None if critical else reach.quiet_until(now)
     parameters: dict[str, Any] = {
         "execution_authorized": False,
