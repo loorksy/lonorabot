@@ -11,6 +11,7 @@ from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .agent_binding import fixed_market
+from .market_watches import watch_active
 from .schema import (
     AccountAuthorityRow,
     BrokerSessionRow,
@@ -25,6 +26,28 @@ from .schema import (
 from .tasks import OWNER_ATTENTION, snapshot
 from .trading_readiness import account_money_limits, trading_readiness
 from .transactions import owned_agent
+
+MAXIMUM_WATCH_SUMMARIES = 6
+
+
+def watch_summary(row: MarketWatchRow) -> dict[str, Any]:
+    """What the status line and the watch list show: the condition, never the prompt."""
+    payload = row.payload
+    return {
+        "id": row.id,
+        "kind": payload.get("kind", "price"),
+        "account_id": payload.get("account_id") or None,
+        "symbol": payload.get("symbol") or None,
+        "condition": payload.get("condition"),
+        "level": str(payload["level"]) if payload.get("level") is not None else None,
+        "indicator": payload.get("indicator") if payload.get("kind") == "indicator" else None,
+        "timeframe": payload.get("timeframe")
+        if payload.get("kind") in {"indicator", "dynamic"}
+        else None,
+        "metric": payload.get("metric") if payload.get("kind") in {"account", "position"} else None,
+        "expires_at": payload.get("expires_at"),
+        "lifecycle": row.state.get("lifecycle", "pending"),
+    }
 
 
 def attention(task: dict[str, Any]) -> bool:
@@ -113,18 +136,22 @@ async def agent_live_state(
         )
         or 0
     )
-    watches = int(
-        await session.scalar(
-            select(func.count())
-            .select_from(MarketWatchRow)
+    # Watching right now: enabled, not expired and not past its expiry.
+    watch_rows = [
+        row
+        for row in await session.scalars(
+            select(MarketWatchRow)
             .where(
                 MarketWatchRow.owner_id == owner_id,
                 MarketWatchRow.agent_id == agent.id,
                 MarketWatchRow.payload["enabled"].as_boolean().is_(True),
             )
+            .order_by(MarketWatchRow.created_at.desc(), MarketWatchRow.id)
+            .limit(200)
         )
-        or 0
-    )
+        if watch_active(row)
+    ]
+    watches = len(watch_rows)
     sessions = list(
         await session.scalars(
             select(CollaborationSessionRow)
@@ -435,6 +462,7 @@ async def agent_live_state(
         ],
         pending_approval_count=approvals,
         watch_count=watches,
+        watches=[watch_summary(row) for row in watch_rows[:MAXIMUM_WATCH_SUMMARIES]],
         pending_authorization_count=pending_authorizations,
         super_bot=authority_summaries,
         account_authorities=account_authorities,

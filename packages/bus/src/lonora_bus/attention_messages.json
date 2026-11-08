@@ -26,7 +26,10 @@
     "owner_action_admitted_again": "تُقبل الصفقات الجديدة مجددًا ضمن مستوى كل وكيل وحدودك.",
     "owner_action_still_stopped": "ما زال التداول الجديد متوقفًا؛ تستأنفه حين تريد.",
     "owner_action_still_paused": "ما زالت إيقافات أخرى سارية هناك.",
-    "owner_action_still_unresolved": "ما زالت صفقة بلا نتيجة مؤكدة من الوسيط تعلّق المخاطرة الجديدة هناك."
+    "owner_action_still_unresolved": "ما زالت صفقة بلا نتيجة مؤكدة من الوسيط تعلّق المخاطرة الجديدة هناك.",
+    "owner_action_create_agent": "أُنشئ الوكيل. لا يملك أي صلاحية مالية، ولا يمنحه إياها إلا تفويض توقّعه.",
+    "owner_action_undo_deleted": "تم التراجع: أُزيل الوكيل.",
+    "owner_action_undo_paused": "تم التراجع: أُوقف الوكيل مؤقتًا. كان قد بدأ العمل، وبقي ما أنجزه."
   },
   "en": {
     "super_bot_authorization": "A Super Bot request needs your review and device authorization in the conversation. No execution authority has been granted yet.",
@@ -55,6 +58,9 @@
     "owner_action_admitted_again": "New trades are admitted again within each agent's level and your limits.",
     "owner_action_still_stopped": "New trading is still stopped; resume it when you want.",
     "owner_action_still_paused": "Other pauses still apply there.",
-    "owner_action_still_unresolved": "A trade without a confirmed broker result still holds new risk there."
+    "owner_action_still_unresolved": "A trade without a confirmed broker result still holds new risk there.",
+    "owner_action_create_agent": "Agent created. It has no money authority; only a grant you sign can give it one.",
+    "owner_action_undo_deleted": "Undone: the agent was removed.",
+    "owner_action_undo_paused": "Undone: the agent was paused. It had already started work, which is kept."
   }
 }

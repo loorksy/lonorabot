@@ -64,7 +64,11 @@ async def main() -> None:
             "scope",
             "trading_account_id",
             "trading_symbol",
+            "template",
+            "reports_to",
         }
+        # An agent from before creation provenance has no template and no peer links.
+        assert rows[peer["id"]]["template"] is None and rows[peer["id"]]["reports_to"] == []
         assert rows[peer["id"]]["role"] == "legacy"
         assert rows[peer["id"]]["scope"]["visibility"] == "legacy"
         assert rows[peer["id"]]["title"] == "Market research"

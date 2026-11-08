@@ -1347,7 +1347,7 @@ def test_every_catalog_tool_is_classified_for_earlier_run_evidence() -> None:
     # Server, broker and the agent's own state: first-party observations. A new
     # tool must be placed here or classified as external in run_evidence.
     first_party = {
-        "account_activity", "account_history", "account_read", "artifact_create",
+        "account_activity", "account_history", "account_read", "agent_create", "artifact_create",
         "board_create", "board_list", "chart_add_indicator", "chart_annotate",
         "chart_indicator", "chart_inspect", "chart_list", "chart_open",
         "chart_read_indicator", "chart_remove_indicator", "chart_set_symbol",
@@ -1369,7 +1369,8 @@ def test_every_catalog_tool_is_classified_for_earlier_run_evidence() -> None:
         "skill_package_validate", "subagent_spawn", "super_bot_propose", "super_bot_status",
         "super_bot_stop", "task_control", "task_inspect", "task_start", "task_step_update",
         "ticket_create", "ticket_start", "trade_record_history", "trade_record_read",
-        "trade_restriction_create", "trade_restriction_list", "watch_create", "watch_list",
+        "trade_restriction_create", "trade_restriction_list", "watch_cancel", "watch_create",
+        "watch_list", "watch_pause", "watch_resume", "watch_update",
         "workspace_export", "workspace_update",
     }  # fmt: skip
     for name in sorted(tool.name for tool in load_tools().definitions()):

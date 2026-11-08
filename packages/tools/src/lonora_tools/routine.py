@@ -2,6 +2,7 @@ from typing import Any
 
 from lonora_contracts.domain import Contract
 from lonora_contracts.routines import RoutineCreate
+from lonora_core.user_error import LonoraError
 from lonora_db.routines import create_routine, owned_routine, routine_data
 from lonora_db.runs import locked_run_thread, require_lease
 from lonora_db.schema import RoutineRow
@@ -46,6 +47,9 @@ async def toggle(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     async with context.db.sessions() as session, session.begin():
         await require_lease(session, context.lease, lock=True)
         row = await owned_routine(session, context.owner_id, args["routine_id"])
+        if row.agent_id != context.agent_id:
+            # Another agent's routine reads as not found: steer only your own schedules.
+            raise LonoraError("routine_not_found", 404)
         row.enabled = args["enabled"]
         return routine_data(row)
 
@@ -59,5 +63,5 @@ def tools() -> list[Tool]:
             create,
         ),
         Tool("routine_list", "Read scheduled work for this agent.", Empty, read, True),
-        Tool("routine_toggle", "Pause or resume a routine.", RoutineToggle, toggle),
+        Tool("routine_toggle", "Pause or resume one of your own routines.", RoutineToggle, toggle),
     ]

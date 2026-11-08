@@ -8,6 +8,7 @@ from hashlib import sha256
 from typing import Any
 
 from lonora_contracts.agent_permissions import (
+    LowerPermissionLevel,
     PermissionChange,
     PermissionCustomizationChange,
     PermissionLevel,
@@ -65,6 +66,14 @@ async def _write(session: AsyncSession, record: PermissionRecord) -> None:
         agent_id=record.agent_id,
         payload={"agent_id": record.agent_id, "revision": record.revision},
     )
+
+
+async def initial_permission(
+    session: AsyncSession, owner_id: str, agent_id: str, level: LowerPermissionLevel
+) -> None:
+    """A new agent's stored ladder level ("Ask me" or "No trading"); never a grant."""
+    current = await permission_record(session, owner_id, agent_id)
+    await _write(session, current.model_copy(update={"fallback_level": level}))
 
 
 async def bump_permission(session: AsyncSession, owner_id: str, agent_id: str) -> None:

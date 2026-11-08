@@ -1,4 +1,5 @@
 import type { AgentLiveState } from "@lonora/contracts";
+import { agentStatusLine, agentStatusText, watchCondition, watchUntil } from "@lonora/core";
 import { useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { api } from "../lib/api";
@@ -17,7 +18,7 @@ export function AgentLiveStatus({
   error: unknown;
   refresh: () => Promise<void>;
 }) {
-  const { t, errorText, rtl } = useSession();
+  const { t, errorText, rtl, locale } = useSession();
   const [expanded, setExpanded] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   if (!state) return null;
@@ -56,7 +57,7 @@ export function AgentLiveStatus({
         <Text
           style={{ color: tint, fontSize: 12, flexShrink: 1, textAlign: rtl ? "right" : "left" }}
         >
-          {t("backgroundActivity")} · {t(`live_${state.state}`)}
+          {t("backgroundActivity")} · {agentStatusLine(state, locale)}
         </Text>
         <View style={{ transform: [{ rotate: expanded ? "90deg" : rtl ? "180deg" : "0deg" }] }}>
           <NativeSymbol name="chevron" size={11} color={tint} />
@@ -78,11 +79,44 @@ export function AgentLiveStatus({
           {state.pending_approval_count > 0 && (
             <Text style={{ color: colors.foreground }}>{t("live_action_required")}</Text>
           )}
-          {state.watch_count > 0 && (
-            <Text style={{ color: colors.foreground }}>
-              {t("activeWatches")}: {state.watch_count}
-            </Text>
-          )}
+          {(state.watches ?? []).map((watch) => (
+            <View
+              key={watch.id}
+              testID={`agent-watch-${watch.id}`}
+              style={{
+                flexDirection: rtl ? "row-reverse" : "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 8,
+              }}
+            >
+              <Text
+                style={{
+                  color: colors.foreground,
+                  flexShrink: 1,
+                  textAlign: rtl ? "right" : "left",
+                  writingDirection: rtl ? "rtl" : "ltr",
+                }}
+              >
+                {watchCondition(watch, locale)} · {watchUntil(watch, locale)}
+              </Text>
+              <Button
+                label={agentStatusText(locale).cancel}
+                secondary
+                onPress={() => {
+                  void api
+                    .post(`/watches/${encodeURIComponent(watch.id)}/control`, {
+                      action: "cancel",
+                    })
+                    .then(() => {
+                      setActionError(null);
+                      return refresh();
+                    })
+                    .catch((caught) => setActionError(errorText(caught)));
+                }}
+              />
+            </View>
+          ))}
           {(state.pending_authorization_count ?? 0) > 0 && (
             <Text style={{ color: colors.foreground }}>{t("devicePending")}</Text>
           )}

@@ -8,6 +8,15 @@ export {
   hasFixedMarket,
   marketScopeChange,
 } from "./agent-scope";
+export {
+  type AgentStatusText,
+  agentStatusLabels,
+  agentStatusLine,
+  agentStatusText,
+  liveAvatarState,
+  watchCondition,
+  watchUntil,
+} from "./agent-status";
 export { attachmentTooLarge, maxAttachmentBytes } from "./attachments";
 export * from "./avatar-geometry";
 export * from "./avatar-motion";

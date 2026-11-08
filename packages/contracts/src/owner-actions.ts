@@ -5,7 +5,22 @@ export type OwnerActionKind =
   | "resume_trading"
   | "lift_restriction"
   | "resolve_operation"
-  | "set_account_limits";
+  | "set_account_limits"
+  | "create_agent"
+  | "agent_created";
+/** Agent templates (lonora_contracts.agent_creation); none carries money authority. */
+export type AgentTemplate = "trading" | "general" | "research" | "supervisor";
+/** A creation card's agent, read on the server; the responsibility text is never shown. */
+export type OwnerActionAgent = {
+  exists: boolean;
+  name: string | null;
+  template?: AgentTemplate | null;
+  symbol?: string | null;
+  level?: "analysis" | "supervised" | "autonomous";
+  paused?: boolean;
+  report_to?: string[];
+  model?: string | null;
+};
 export type OwnerActionStatus = "pending" | "confirmed" | "cancelled" | "expired" | "superseded";
 export type AttestedOutcome = "executed" | "not_executed" | "unknown";
 /** A limits card shows one line per changed field: a limit, its currency or the day's zone. */
@@ -60,10 +75,21 @@ export type OwnerAction = {
     changes?: Array<{ name: OwnerActionLimitField; from: string | null; to: string | null }>;
     /** The account's limits changed since the card was raised and its change no longer fits. */
     no_longer_applies?: boolean;
+    /** create_agent / agent_created: the agent the card creates or created. */
+    agent?: OwnerActionAgent;
+    /** agent_created: what Undo does now (remove an untouched agent, else pause it). */
+    undo?: "delete" | "pause";
   };
   /** Confirming needs the owner's passkey: it raises or removes a money limit. */
   requires_passkey: boolean;
-  result: { outcome?: AttestedOutcome; global_trading?: string; limits?: MoneyLimits };
+  result: {
+    outcome?: AttestedOutcome;
+    global_trading?: string;
+    limits?: MoneyLimits;
+    agent_id?: string;
+    agent_name?: string;
+    undo?: "deleted" | "paused";
+  };
   expires_at: string;
   decided_at: string | null;
   decided_via: "tap" | "passkey" | null;

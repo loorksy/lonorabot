@@ -5,9 +5,12 @@ confirmation re-validates the card against current state (a stale card is settle
 expired with its reason), is idempotent per card, and then runs the existing owner
 function for its effect: Stop/Resume (``apply_controls``), lifting a restriction
 (``revoke_restriction``), the owner attestation of an uncertain operation
-(``attest_operation``) or the account's execution policy (``store_execution_policy``).
+(``attest_operation``), the account's execution policy (``store_execution_policy``),
+creating an agent (the creation service; never a grant) or undoing a creation (the
+owner's delete for an agent that has done nothing yet, otherwise a pause).
 Raising or removing a money limit also needs a verified passkey assertion bound to the
-card's payload hash; lowering a limit, lifting a pause and resuming are one tap.
+card's payload hash; lowering a limit, lifting a pause, resuming, creating an agent and
+Undo are one tap.
 """
 
 from typing import Any
@@ -19,6 +22,7 @@ from lonora_contracts.domain import utcnow
 from lonora_contracts.owner_actions import CARD_ATTESTATION, OwnerActionDecision
 from lonora_contracts.trading import OperationResolution, TradingControl
 from lonora_core.user_error import LonoraError
+from lonora_db.agent_creation import delete_agent, pause_agent, undo_plan
 from lonora_db.owner_actions import (
     account_policy,
     card_facts,
@@ -29,17 +33,19 @@ from lonora_db.owner_actions import (
     owned_card,
     owner_action_data,
     proposed_limits,
+    raise_created_card,
     settle,
     stale_reason,
     supersede_subject,
     thread_cards,
     widens,
 )
-from lonora_db.schema import OwnerActionRow
+from lonora_db.schema import AgentRow, OwnerActionRow
 from lonora_db.super_bot import authority_lock
 from lonora_db.trading_readiness import risk_limit_frame
 from lonora_db.trading_restrictions import revoke_restriction
-from lonora_db.transactions import owned_thread
+from lonora_db.transactions import owned_agent, owned_thread
+from lonora_session.idempotency import stable_id
 from lonora_trading.controls import apply_controls
 from lonora_trading.owner_controls import (
     attest_operation,
@@ -178,6 +184,11 @@ async def decide(
             },
         )
         result = {"outcome": body.outcome}
+    elif row.kind == "create_agent":
+        created = await create_agent_from_card(session, owner, row)
+        result = {"agent_id": created.id, "agent_name": created.name}
+    elif row.kind == "agent_created":
+        result = await undo_creation(session, owner, row)
     else:
         account_id = row.payload["account_id"]
         policy = await account_policy(session, owner.id, account_id)
@@ -201,7 +212,18 @@ async def decide(
             session, owner.id, account_id, policy.model_copy(update={"risk": proposed})
         )
         result = {"limits": risk_limit_frame(account_id, stored)}
-    await settle(session, row, "confirmed", None, via=via, result=result)
+    await settle(session, row, "confirmed", None, via=via, result={**row.result, **result})
+    if row.kind == "create_agent":
+        created_agent = await session.get(AgentRow, result["agent_id"])
+        if created_agent is not None:
+            await raise_created_card(
+                session,
+                owner.id,
+                created_agent,
+                agent_id=row.agent_id,
+                thread_id=row.thread_id,
+                run_id=row.run_id,
+            )
     await supersede_subject(
         session,
         owner.id,
@@ -212,3 +234,40 @@ async def decide(
         effect=row.payload_hash,
     )
     await confirm_in_thread(session, row)
+
+
+async def create_agent_from_card(
+    session: AsyncSession, owner: OwnerIdentity, row: OwnerActionRow
+) -> AgentRow:
+    """The owner's tap creates the agent the card names, once (its id comes from the card)."""
+    from lonora_agent.collaboration.agent_create import create_from_spec
+
+    created, _ = await create_from_spec(
+        session,
+        owner.id,
+        row.payload["spec"],
+        agent_id=stable_id(row.id, "created-agent"),
+        created_via="owner_card",
+        created_by_agent_id=row.agent_id,
+        source_message_id=None,
+        run_id=row.run_id,
+        card_id=row.id,
+    )
+    return created
+
+
+async def undo_creation(
+    session: AsyncSession, owner: OwnerIdentity, row: OwnerActionRow
+) -> dict[str, Any]:
+    """Undo: remove an agent that has done nothing yet, pause one that has."""
+    agent_id = row.payload["agent_id"]
+    # Lock it first: a run or watch that starts now waits on this lock, so the plan below
+    # never deletes work begun meanwhile.
+    await authority_lock(session, agent_id)
+    agent = await owned_agent(session, owner.id, agent_id, lock=True)
+    name = agent.name
+    if await undo_plan(session, owner.id, agent_id) == "delete":
+        await delete_agent(session, owner.id, agent_id, keep_card=row.id)
+        return {"undo": "deleted", "agent_name": name}
+    await pause_agent(session, owner.id, agent_id)
+    return {"undo": "paused", "agent_name": name}

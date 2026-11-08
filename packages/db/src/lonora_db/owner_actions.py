@@ -47,6 +47,9 @@ LIFETIME = {
     "lift_restriction": timedelta(days=31),
     "resolve_operation": timedelta(days=7),
     "set_account_limits": timedelta(hours=24),
+    # An agent's proposal to create an agent, and the Undo card after a creation.
+    "create_agent": timedelta(hours=24),
+    "agent_created": timedelta(days=7),
 }
 # Pending cards one agent may have proposed at once; runtime cards do not count.
 MAXIMUM_PENDING_PER_AGENT = 5
@@ -178,7 +181,28 @@ async def stale_reason(
         await owned_account(session, owner_id, payload["account_id"])
         current = (await account_policy(session, owner_id, payload["account_id"])).risk
         return "limits_already_set" if proposed_limits(current, payload) == current else None
+    if kind == "create_agent":
+        from .agent_creation import check_creation
+
+        try:
+            await check_creation(session, owner_id, payload["spec"])
+        except LonoraError as error:
+            return CREATION_STALE.get(error.code, "agent_creation_unavailable")
+        return None
+    if kind == "agent_created":
+        agent = await session.get(AgentRow, payload["agent_id"])
+        return "agent_already_removed" if agent is None or agent.owner_id != owner_id else None
     raise LonoraError("owner_action_kind_unsupported", 422)
+
+
+# Why a creation card no longer applies, by the refusal its re-check raised.
+CREATION_STALE = {
+    "agent_limit_reached": "agent_limit_reached",
+    "agent_not_found": "agent_report_to_missing",
+    "agent_report_to_invalid": "agent_report_to_missing",
+    "broker_sessions_not_found": "broker_connection_changed",
+    "broker_connection_changed": "broker_connection_changed",
+}
 
 
 def proposal_payload(proposal: OwnerActionProposal) -> tuple[str, dict[str, Any]]:
@@ -283,6 +307,8 @@ async def card_facts(
         }
         facts["blocks"] = "new_risk_on_this_symbol_or_ticket"
         return facts, False
+    if row.kind in {"create_agent", "agent_created"}:
+        return await creation_facts(session, row, facts), False
     account_id = payload["account_id"]
     facts["account"] = account_facts(await session.get(BrokerSessionRow, account_id), account_id)
     current = (await account_policy(session, owner_id, account_id)).risk
@@ -297,6 +323,65 @@ async def card_facts(
     facts["proposed"] = risk_limit_frame(account_id, ExecutionPolicy(risk=proposed))
     facts["changes"] = limit_changes(current, proposed)
     return facts, widens(current, proposed)
+
+
+async def creation_facts(
+    session: AsyncSession, row: OwnerActionRow, facts: dict[str, Any]
+) -> dict[str, Any]:
+    """What a creation card shows: the agent's name, template, focus pair and ladder,
+    and whom it reports to. The responsibility text (model prose) is never shown."""
+    from lonora_contracts.agent_creation import TEMPLATE_LEVEL
+
+    from .agent_creation import agent_origin, report_targets, undo_plan
+    from .agent_permissions import effective_permission
+
+    owner_id = row.owner_id
+    if row.kind == "create_agent":
+        spec = row.payload["spec"]
+        report_to = [str(item) for item in spec.get("report_to", [])]
+        names = await agent_names(session, owner_id, set(report_to))
+        account_id = spec.get("account_id")
+        if account_id:
+            facts["account"] = account_facts(
+                await session.get(BrokerSessionRow, account_id), account_id
+            )
+        model = spec.get("model")
+        facts["agent"] = {
+            "exists": False,
+            "name": spec["name"],
+            "template": spec["template"],
+            "symbol": spec.get("symbol"),
+            "level": TEMPLATE_LEVEL[spec["template"]],
+            "paused": False,
+            "report_to": [names[item] for item in report_to if item in names],
+            "model": cast(dict[str, Any], model).get("model") if isinstance(model, dict) else None,
+        }
+        return facts
+    agent_id = row.payload["agent_id"]
+    agent = await session.get(AgentRow, agent_id)
+    if agent is None or agent.owner_id != owner_id:
+        facts["agent"] = {"exists": False, "name": row.result.get("agent_name")}
+        return facts
+    origin = await agent_origin(session, owner_id, agent_id)
+    report_to = report_targets(origin)
+    names = await agent_names(session, owner_id, set(report_to))
+    if agent.trading_account_id:
+        facts["account"] = account_facts(
+            await session.get(BrokerSessionRow, agent.trading_account_id),
+            agent.trading_account_id,
+        )
+    facts["agent"] = {
+        "exists": True,
+        "name": agent.name,
+        "template": origin.get("template"),
+        "symbol": agent.trading_symbol,
+        "level": await effective_permission(session, owner_id, agent_id),
+        "paused": agent.paused,
+        "report_to": [names[item] for item in report_to if item in names],
+        "model": None,
+    }
+    facts["undo"] = await undo_plan(session, owner_id, agent_id)
+    return facts
 
 
 def limit_changes(
@@ -536,12 +621,37 @@ async def propose(
             raise LonoraError("owner_action_not_found", 404)
         return existing, False
     subject, payload = proposal_payload(proposal)
-    reason = await stale_reason(session, owner_id, proposal.kind, payload)
+    return await propose_effect(
+        session,
+        owner_id,
+        proposal.kind,
+        subject,
+        payload,
+        card_id=card_id,
+        agent_id=agent_id,
+        thread_id=thread_id,
+        run_id=run_id,
+    )
+
+
+async def propose_effect(
+    session: AsyncSession,
+    owner_id: str,
+    kind: str,
+    subject: str,
+    payload: dict[str, Any],
+    *,
+    card_id: str,
+    agent_id: str,
+    thread_id: str | None,
+    run_id: str | None,
+) -> tuple[OwnerActionRow, bool]:
+    """An agent's card for one validated effect: deduplicated per agent, capped. The
+    caller holds the owner-actions lock and has checked the card id is new."""
+    reason = await stale_reason(session, owner_id, kind, payload)
     if reason is not None:
         raise LonoraError("owner_action_not_needed_" + reason, 409)
-    current = await pending_effect(
-        session, agent_id, proposal.kind, payload_hash(proposal.kind, payload)
-    )
+    current = await pending_effect(session, agent_id, kind, payload_hash(kind, payload))
     if current is not None:
         if current.thread_id is not None and current.expires_at > utcnow():
             return current, False
@@ -574,11 +684,75 @@ async def propose(
         thread=thread,
         run_id=run_id,
         source="agent",
-        kind=proposal.kind,
+        kind=kind,
         subject=subject,
         payload=payload,
     )
     return row, True
+
+
+async def propose_creation(
+    session: AsyncSession,
+    owner_id: str,
+    spec: dict[str, Any],
+    *,
+    card_id: str,
+    agent_id: str,
+    thread_id: str | None,
+    run_id: str | None,
+) -> tuple[OwnerActionRow, bool]:
+    """A creation card when no owner message asked for the agent: the owner's tap
+    creates it. A repeated proposal of the same agent returns the card shown."""
+    await lock_owner_actions(session, owner_id)
+    existing = await session.get(OwnerActionRow, card_id)
+    if existing is not None:
+        if existing.owner_id != owner_id or existing.agent_id != agent_id:
+            raise LonoraError("owner_action_not_found", 404)
+        return existing, False
+    return await propose_effect(
+        session,
+        owner_id,
+        "create_agent",
+        "agent-create",
+        {"spec": spec},
+        card_id=card_id,
+        agent_id=agent_id,
+        thread_id=thread_id,
+        run_id=run_id,
+    )
+
+
+async def raise_created_card(
+    session: AsyncSession,
+    owner_id: str,
+    created_agent: AgentRow,
+    *,
+    agent_id: str,
+    thread_id: str | None,
+    run_id: str | None,
+) -> OwnerActionRow:
+    """The one-line result card of a creation, with Undo; one per created agent."""
+    await lock_owner_actions(session, owner_id)
+    subject = "agent:" + created_agent.id
+    card_id = stable_id(owner_id, "owner-action:agent_created:" + subject)
+    existing = await session.get(OwnerActionRow, card_id)
+    if existing is not None:
+        return existing
+    thread = await card_thread(session, owner_id, agent_id, thread_id)
+    row = await create_card(
+        session,
+        owner_id,
+        card_id=card_id,
+        agent_id=agent_id,
+        thread=thread,
+        run_id=run_id,
+        source="system",
+        kind="agent_created",
+        subject=subject,
+        payload={"agent_id": created_agent.id},
+    )
+    row.result = {"agent_name": created_agent.name}
+    return row
 
 
 async def raise_system_card(
@@ -643,6 +817,8 @@ async def thread_cards(
 def confirmation_code(row: OwnerActionRow) -> str:
     if row.kind == "resolve_operation":
         return "owner_action_resolve_" + str(row.result.get("outcome", "unknown"))
+    if row.kind == "agent_created":
+        return "owner_action_undo_" + str(row.result.get("undo", "paused"))
     return "owner_action_" + row.kind
 
 
@@ -821,6 +997,8 @@ async def awaiting_owner_answer(session: AsyncSession, owner_id: str, operation_
 async def card_account(session: AsyncSession, row: OwnerActionRow) -> str | None:
     if row.kind == "set_account_limits":
         return cast(str, row.payload["account_id"])
+    if row.kind == "create_agent":
+        return cast(str | None, row.payload["spec"].get("account_id"))
     if row.kind == "lift_restriction":
         restriction = await session.get(TradingRestrictionRow, row.payload["restriction_id"])
         return restriction.account_id if restriction else None

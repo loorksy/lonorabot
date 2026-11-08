@@ -56,7 +56,8 @@ def tools() -> list[Tool]:
         ),
         Tool(
             "child_agent_create",
-            "Create a persistent child agent with its own identity, thread and memory.",
+            "Compatibility only: a child identity under your own scope with its own thread "
+            "and memory. For a persistent agent the owner asks for, use agent_create.",
             ChildInput,
             child,
         ),

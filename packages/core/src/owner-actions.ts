@@ -97,6 +97,33 @@ export const ownerActionLabels = {
     registerDevice: "Register this device first",
     deviceName: accountAuthorityLabels.en.device,
     password: "Account password",
+    createTitle: "Create an agent?",
+    createHint: "It starts with no money authority. Nothing is created until you tap.",
+    create: "Create agent",
+    createdTitle: "Agent created",
+    undo: "Undo",
+    undoDeleteHint: "Undo removes it: it has not started any work yet.",
+    undoPauseHint: "Undo pauses it: it already started work, which is kept.",
+    askHint: "No money authority: every trade waits for your tap.",
+    noTradeHint: "It does not trade.",
+    templateTrading: "Trading agent",
+    templateGeneral: "General agent",
+    templateResearch: "Research agent",
+    templateSupervisor: "Supervisor",
+    agent: "Agent",
+    focusPair: "Focus pair",
+    on: "on",
+    reportsTo: "Reports to",
+    model: "Model",
+    paused: "Paused",
+    createdLine: "Agent created.",
+    undoneDeleted: "Undone: the agent was removed.",
+    undonePaused: "Undone: the agent was paused; its work is kept.",
+    kept: "Kept.",
+    agentRemoved: "This agent was already removed.",
+    agentLimit: "You already have the most active agents allowed. Nothing changed.",
+    reportToMissing: "An agent it reports to no longer exists. Nothing changed.",
+    connectionChanged: "The broker account changed. Nothing changed.",
   },
   ar: {
     resumeTitle: "استئناف التداول",
@@ -165,6 +192,33 @@ export const ownerActionLabels = {
     registerDevice: "سجّل هذا الجهاز أولًا",
     deviceName: accountAuthorityLabels.ar.device,
     password: "كلمة مرور الحساب",
+    createTitle: "إنشاء وكيل؟",
+    createHint: "يبدأ دون أي صلاحية مالية. لا يُنشأ شيء حتى تلمس.",
+    create: "إنشاء الوكيل",
+    createdTitle: "أُنشئ وكيل",
+    undo: "تراجع",
+    undoDeleteHint: "التراجع يزيله: لم يبدأ أي عمل بعد.",
+    undoPauseHint: "التراجع يوقفه مؤقتًا: بدأ العمل، وسيبقى ما أنجزه.",
+    askHint: "لا يملك صلاحية مالية: كل صفقة تنتظر لمستك.",
+    noTradeHint: "لا يتداول.",
+    templateTrading: "وكيل تداول",
+    templateGeneral: "وكيل عام",
+    templateResearch: "وكيل أبحاث",
+    templateSupervisor: "وكيل إشراف",
+    agent: "وكيل",
+    focusPair: "زوج التركيز",
+    on: "على",
+    reportsTo: "يبلغ",
+    model: "النموذج",
+    paused: "متوقف",
+    createdLine: "أُنشئ الوكيل.",
+    undoneDeleted: "تم التراجع: أُزيل الوكيل.",
+    undonePaused: "تم التراجع: أُوقف الوكيل مؤقتًا، وبقي ما أنجزه.",
+    kept: "أُبقي الوكيل.",
+    agentRemoved: "أُزيل هذا الوكيل مسبقًا.",
+    agentLimit: "لديك أكبر عدد مسموح من الوكلاء النشطين. لم يتغير شيء.",
+    reportToMissing: "وكيل يبلغه هذا الوكيل لم يعد موجودًا. لم يتغير شيء.",
+    connectionChanged: "تغيّر حساب الوسيط. لم يتغير شيء.",
   },
 } as const satisfies Record<Language, Record<string, string>>;
 export type OwnerActionText = (typeof ownerActionLabels)[Language];
@@ -211,9 +265,14 @@ function actionLabel(action: string | null, lang: Language): string {
 
 function settledLine(card: OwnerAction, text: OwnerActionText): string | null {
   if (card.status === "pending") return null;
-  if (card.status === "cancelled") return text.cancelled;
+  if (card.status === "cancelled")
+    return card.kind === "agent_created" ? text.kept : text.cancelled;
   if (card.status === "confirmed") {
     switch (card.kind) {
+      case "create_agent":
+        return text.createdLine;
+      case "agent_created":
+        return card.result.undo === "deleted" ? text.undoneDeleted : text.undonePaused;
       case "resume_trading":
         return text.resumed;
       case "lift_restriction":
@@ -239,6 +298,14 @@ function settledLine(card: OwnerAction, text: OwnerActionText): string | null {
       return text.alreadySet;
     case "done_by_another_card":
       return text.doneElsewhere;
+    case "agent_already_removed":
+      return text.agentRemoved;
+    case "agent_limit_reached":
+      return text.agentLimit;
+    case "agent_report_to_missing":
+      return text.reportToMissing;
+    case "broker_connection_changed":
+      return text.connectionChanged;
     case "expired":
       return text.expired;
     default:
@@ -258,6 +325,42 @@ function limitFieldLabel(name: OwnerActionLimitField, locale: string, text: Owne
   if (name === "currency") return text.currency;
   if (name === "trading_day_timezone") return text.tradingDay;
   return moneyLimitLabel(name, locale);
+}
+
+const TEMPLATE_LABEL = {
+  trading: "templateTrading",
+  general: "templateGeneral",
+  research: "templateResearch",
+  supervisor: "templateSupervisor",
+} as const;
+
+/** A creation card's lines: name and template, focus pair, ladder, links and model. */
+function agentLines(
+  card: OwnerAction,
+  account: string | null,
+  lang: Language,
+  text: OwnerActionText,
+): string[] {
+  const agent = card.facts.agent;
+  if (!agent) return [];
+  const lines: string[] = [];
+  // Each line starts with a word in the owner's language, so a name or ticker at the
+  // start never turns an Arabic line left to right.
+  const name = agent.name ? isolate(agent.name) : "";
+  const template = agent.template ? text[TEMPLATE_LABEL[agent.template]] : text.agent;
+  lines.push([template, name, agent.paused ? text.paused : null].filter(Boolean).join(" · "));
+  if (agent.symbol)
+    lines.push(
+      `${text.focusPair}: ${isolate(agent.symbol)}${account ? ` ${text.on} ${account}` : ""}`,
+    );
+  if (agent.level)
+    lines.push(`${tradingSafetyLabels[lang].level}: ${tradingSafetyLabels[lang][agent.level]}`);
+  if (agent.report_to?.length)
+    lines.push(
+      `${text.reportsTo}: ${agent.report_to.map(isolate).join(lang === "ar" ? "، " : ", ")}`,
+    );
+  if (agent.model) lines.push(`${text.model}: ${isolate(agent.model)}`);
+  return lines;
 }
 
 /** The whole card for one locale: title, fact lines, hint, buttons and settled line. */
@@ -371,6 +474,32 @@ export function ownerActionCard(
           outcome: "unknown",
           primary: false,
         },
+      ];
+      break;
+    }
+    case "create_agent": {
+      title = text.createTitle;
+      lines.push(...agentLines(card, account, lang, text));
+      hint = text.createHint;
+      buttons = pair(text.create, text.notNow);
+      break;
+    }
+    case "agent_created": {
+      title = text.createdTitle;
+      const agent = facts.agent;
+      lines.push(...agentLines(card, account, lang, text));
+      if (!agent?.exists) {
+        // Removed elsewhere: the card can only be dismissed.
+        hint = text.agentRemoved;
+        buttons = [{ key: "cancel", label: text.keep, decision: "cancel", primary: false }];
+        break;
+      }
+      hint = `${agent.level === "analysis" ? text.noTradeHint : text.askHint} ${
+        facts.undo === "delete" ? text.undoDeleteHint : text.undoPauseHint
+      }`;
+      buttons = [
+        { key: "confirm", label: text.undo, decision: "confirm", primary: false },
+        { key: "cancel", label: text.keep, decision: "cancel", primary: false },
       ];
       break;
     }

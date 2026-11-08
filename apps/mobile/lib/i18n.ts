@@ -757,7 +757,6 @@ export const labels = {
     "Broker verification pending. Market data remains available; new orders on the affected market are blocked until verification finishes, and closing remains available.",
   ],
   live_paused: ["متوقف مؤقتًا", "Paused"],
-  activeWatches: ["المراقبات النشطة", "Active watches"],
 } as const;
 export type Label = keyof typeof labels;
 export function translate(locale: Locale, key: Label): string {

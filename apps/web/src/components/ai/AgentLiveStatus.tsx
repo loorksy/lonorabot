@@ -1,45 +1,22 @@
+import { i18n } from "@lingui/core";
 import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
-import type { AgentLiveState } from "@lonora/contracts";
+import { agentStatusLine, agentStatusText, watchCondition, watchUntil } from "@lonora/core";
 import { ChevronDown } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useAgentLiveState } from "../../lib/agent-live-state";
 import { api } from "../../lib/api";
 import { goalStatusLabel } from "../../lib/goal-status";
 import { userError } from "../../lib/user_error";
-import { useClient } from "../../providers/ClientProvider";
 import "./agent-status.css";
 
 export function AgentLiveStatus({ agentId }: { agentId: string }) {
-  const { revision } = useClient();
-  const [state, setState] = useState<AgentLiveState | null>(null);
-  const [error, setError] = useState<unknown>();
-  useEffect(() => {
-    void revision;
-    let live = true;
-    void api
-      .get<AgentLiveState>(`/agents/${encodeURIComponent(agentId)}/state`)
-      .then((next) => {
-        if (live) {
-          setState(next);
-          setError(undefined);
-        }
-      })
-      .catch((caught: unknown) => {
-        if (live) setError(caught);
-      });
-    return () => {
-      live = false;
-    };
-  }, [agentId, revision]);
-  if (!state || state.agent_id !== agentId) return null;
-  const labels = {
-    idle: t`Idle`,
-    working: t`Working`,
-    waiting: t`Waiting`,
-    action_required: t`Action required`,
-    degraded: t`Service needs attention`,
-    paused: t`Paused`,
-  };
+  const { state, error: readError, reload } = useAgentLiveState(agentId);
+  const [actionError, setActionError] = useState<unknown>();
+  const error = actionError ?? readError;
+  if (!state) return null;
+  const locale = i18n.locale;
+  const status = agentStatusText(locale);
   return (
     <details
       className="template-run-status lonora-background-status"
@@ -48,7 +25,9 @@ export function AgentLiveStatus({ agentId }: { agentId: string }) {
     >
       <summary>
         <i className="lonora-status-dot" aria-hidden="true" />
-        <span>{labels[state.state]}</span>
+        <span dir="auto" data-testid="agent-status-line">
+          {agentStatusLine(state, locale)}
+        </span>
         <ChevronDown size={14} className="lonora-status-expand" aria-hidden="true" />
       </summary>
       {error != null && <p role="alert">{userError(error)}</p>}
@@ -72,10 +51,30 @@ export function AgentLiveStatus({ agentId }: { agentId: string }) {
           <Trans>Waiting for approval</Trans>
         </p>
       )}
-      {state.watch_count > 0 && (
-        <p>
-          <Trans>Active watches</Trans>: {state.watch_count}
-        </p>
+      {(state.watches ?? []).length > 0 && (
+        <ul className="lonora-watch-list" aria-label={status.watches}>
+          {(state.watches ?? []).map((watch) => (
+            <li key={watch.id} data-watch={watch.id}>
+              <span>
+                {watchCondition(watch, locale)} · {watchUntil(watch, locale)}
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  void api
+                    .post(`/watches/${encodeURIComponent(watch.id)}/control`, { action: "cancel" })
+                    .then(() => {
+                      setActionError(undefined);
+                      return reload();
+                    })
+                    .catch(setActionError);
+                }}
+              >
+                {status.cancel}
+              </button>
+            </li>
+          ))}
+        </ul>
       )}
       {(state.pending_authorization_count ?? 0) > 0 && (
         <p>
@@ -143,11 +142,11 @@ export function AgentLiveStatus({ agentId }: { agentId: string }) {
                         action,
                         expected_version: task.version,
                       })
-                      .then(() =>
-                        api.get<AgentLiveState>(`/agents/${encodeURIComponent(agentId)}/state`),
-                      )
-                      .then(setState)
-                      .catch(setError);
+                      .then(() => {
+                        setActionError(undefined);
+                        return reload();
+                      })
+                      .catch(setActionError);
                   }}
                 >
                   {action === "pause" ? t`Pause` : action === "resume" ? t`Resume` : t`Cancel`}

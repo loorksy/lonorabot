@@ -3,8 +3,9 @@
 Wave 1.5 slice W15-2. Every owner-only action has a one-tap card inside the
 conversation, identical on Web and Mobile. Resuming trading, lifting a pause, settling
 an uncertain trade and changing money limits never need a settings page or the API.
-Later slices add cards for grants (W15-3), agent creation and supervision (W15-4,
-W15-6), trusted sources and credentials (W15-8).
+W15-4 adds the agent creation and Undo cards (`docs/agents-from-chat.md`). Later slices
+add cards for grants (W15-3), supervision (W15-6), trusted sources and credentials
+(W15-8).
 
 A card is never a second authority path. It stores one exact effect, and the owner's
 tap runs the existing owner function for that effect, in the owner's session.
@@ -15,7 +16,7 @@ tap runs the existing owner function for that effect, in the owner's session.
 
 | Field | Meaning |
 | --- | --- |
-| `kind` | `resume_trading`, `lift_restriction`, `resolve_operation` or `set_account_limits` |
+| `kind` | `resume_trading`, `lift_restriction`, `resolve_operation`, `set_account_limits`, `create_agent` or `agent_created` |
 | `payload`, `payload_hash` | The exact, server-validated effect, and its hash. A passkey challenge is bound to the hash. |
 | `subject` | The record the card acts on: `trading`, `restriction:<id>`, `operation:<id>`, `account:<id>` |
 | `source` | `agent` (proposed through the tool) or `system` (raised from a runtime event) |
@@ -87,6 +88,8 @@ the card says "This no longer applies" and can only be dismissed; no passkey is 
 | New entries paused (Only exits allowed, Trading frozen) | Lift pause / Keep it | one tap |
 | The broker did not confirm this trade | It executed / It did not execute / Unknown: release the hold, optional note and broker ticket | one tap |
 | Change money limits | Apply (or Confirm with passkey) / Cancel | one tap when it allows no more risk; passkey otherwise |
+| Create an agent? (an agent proposed it without an owner message) | Create agent / Not now | one tap; the agent gets no money authority |
+| Agent created | Undo / Keep it | one tap; Undo removes an agent that has done nothing yet, otherwise pauses it |
 
 Any answer on a resolve card, "Unknown" included, settles the operation and releases
 the hold it puts on its market; the hint and the settled line say so. An owner who is

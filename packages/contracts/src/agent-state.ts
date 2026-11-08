@@ -1,6 +1,29 @@
 import type { AccountAuthorityProposal } from "./account-authority";
 import type { MoneyLimits, TradingReadiness } from "./trading";
 
+export type AgentWatchSummary = {
+  id: string;
+  kind: "price" | "indicator" | "position" | "account" | "calendar" | "dynamic";
+  account_id: string | null;
+  symbol: string | null;
+  condition:
+    | "above"
+    | "below"
+    | "cross_above"
+    | "cross_below"
+    | "changed"
+    | "closed"
+    | "opened"
+    | "due"
+    | null;
+  level: string | null;
+  indicator: string | null;
+  timeframe: string | null;
+  metric: string | null;
+  expires_at: string | null;
+  lifecycle: string;
+};
+
 export type AgentLiveState = {
   agent_id: string;
   observed_at: string;
@@ -14,6 +37,8 @@ export type AgentLiveState = {
   }>;
   pending_approval_count: number;
   watch_count: number;
+  /** Active watches, newest first: what is watched and until when, never the prompt. */
+  watches?: AgentWatchSummary[];
   pending_authorization_count?: number;
   account_authorities?: Array<
     Omit<AccountAuthorityProposal, "thread_id"> & {
