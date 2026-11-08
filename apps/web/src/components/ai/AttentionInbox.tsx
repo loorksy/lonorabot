@@ -63,6 +63,7 @@ export function AttentionInbox({
     maintenance_item_quarantined: t`A background item was paused after repeated errors; everything else keeps running`,
     run_quarantined: t`Work stopped after repeated interruptions`,
     operation_unresolved: t`A trade still has no confirmed broker result`,
+    operation_uncertain: t`The broker did not confirm a trade — tell Lonora whether it executed`,
     gateway_degraded: t`Background service is running late`,
   };
   if (compact && !items.length) return null;

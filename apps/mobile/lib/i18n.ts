@@ -367,6 +367,10 @@ export const labels = {
     "صفقة ما زالت بلا نتيجة مؤكدة من الوسيط",
     "A trade still has no confirmed broker result",
   ],
+  attentionOperationUncertain: [
+    "الوسيط لم يؤكد صفقة — أخبر لونورا هل نُفذت",
+    "The broker did not confirm a trade — tell Lonora whether it executed",
+  ],
   attentionGatewayDegraded: ["خدمة الخلفية متأخرة", "Background service is running late"],
   retryScheduled: ["إعادة المحاولة مجدولة", "Retry scheduled"],
   modelRetryScheduled: [

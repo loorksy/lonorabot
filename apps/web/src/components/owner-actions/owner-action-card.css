@@ -1,0 +1,32 @@
+/* An owner action card in the conversation: server facts and one tap. */
+.lonora-owner-action {
+  display: grid;
+  gap: 6px;
+  border-inline-start: 3px solid var(--warning);
+}
+.lonora-owner-action[data-owner-action-status="confirmed"] {
+  border-inline-start-color: var(--success);
+}
+.lonora-owner-action[data-owner-action-status="cancelled"],
+.lonora-owner-action[data-owner-action-status="expired"],
+.lonora-owner-action[data-owner-action-status="superseded"] {
+  border-inline-start-color: var(--border);
+}
+.lonora-owner-action p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.lonora-owner-action .actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.lonora-owner-action-notes {
+  display: grid;
+  gap: 6px;
+}
+.lonora-owner-action-notes label {
+  display: grid;
+  gap: 2px;
+  font-size: 12px;
+}

@@ -60,6 +60,7 @@ ROUTES = (
     "opportunities",
     "execution_policy",
     "trading_restrictions",
+    "owner_actions",
     "tasks",
     "collaboration",
     "watches",

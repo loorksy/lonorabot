@@ -88,10 +88,15 @@ export function SafetyPill({
   const body = { color: colors.foreground, fontSize: 14, textAlign: align } as const;
   const muted = { ...body, color: colors.secondary, fontSize: 13 } as const;
   const heading = { ...body, fontWeight: "600", fontSize: 15 } as const;
-  const change = async (controls: TradingControls) => {
+  const change = async (controls: TradingControls | { lift: string }) => {
     setBusy(true);
     try {
-      await api.put<TradingControls>("/trading/controls", controls);
+      if ("lift" in controls)
+        // Lifting a pause: one tap, owner session only (no agent can lift one).
+        await api.post(`/trading/restrictions/${encodeURIComponent(controls.lift)}/revoke`, {
+          reason: "",
+        });
+      else await api.put<TradingControls>("/trading/controls", controls);
       setError(null);
       await onChanged();
     } catch (caught) {
@@ -217,27 +222,35 @@ export function SafetyPill({
               <Text style={heading}>{text.pauses}</Text>
               {readiness.restrictions.length ? (
                 readiness.restrictions.map((item) => (
-                  <Text key={item.id} style={body}>
-                    {[
-                      accountName(item.account_id),
-                      pauseClassLabel(item.action_class, locale),
-                      item.symbol ? isolate(item.symbol) : text.allPairs,
-                      item.applies_to === "all_agents" ? text.allAgents : text.thisAgent,
-                      item.includes_owner_manual ? text.includesManual : null,
-                      item.source === "owner_ui"
-                        ? text.setByYou
-                        : item.source === "owner_message"
-                          ? text.fromYourMessage
-                          : agentName(item.created_by_agent_id),
-                      item.state === "scheduled"
-                        ? `${text.starts} ${readinessTime(item.valid_from, locale)}`
-                        : item.valid_until
-                          ? `${text.until} ${readinessTime(item.valid_until, locale)}`
-                          : text.noEnd,
-                    ]
-                      .filter(Boolean)
-                      .join(" · ")}
-                  </Text>
+                  <View key={item.id} style={{ gap: 6 }}>
+                    <Text style={body}>
+                      {[
+                        accountName(item.account_id),
+                        pauseClassLabel(item.action_class, locale),
+                        item.symbol ? isolate(item.symbol) : text.allPairs,
+                        item.applies_to === "all_agents" ? text.allAgents : text.thisAgent,
+                        item.includes_owner_manual ? text.includesManual : null,
+                        item.source === "owner_ui"
+                          ? text.setByYou
+                          : item.source === "owner_message"
+                            ? text.fromYourMessage
+                            : agentName(item.created_by_agent_id),
+                        item.state === "scheduled"
+                          ? `${text.starts} ${readinessTime(item.valid_from, locale)}`
+                          : item.valid_until
+                            ? `${text.until} ${readinessTime(item.valid_until, locale)}`
+                            : text.noEnd,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </Text>
+                    <Button
+                      label={text.lift}
+                      secondary
+                      disabled={busy}
+                      onPress={() => void change({ lift: item.id })}
+                    />
+                  </View>
                 ))
               ) : (
                 <Text style={muted}>{text.noPauses}</Text>

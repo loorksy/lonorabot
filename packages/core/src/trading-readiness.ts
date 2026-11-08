@@ -59,6 +59,7 @@ export const tradingSafetyLabels = {
     fromYourMessage: "Recorded from your message",
     setByAgent: "Set by an agent",
     onlyYouLift: "Only you can lift a pause.",
+    lift: "Lift pause",
     starts: "starts",
     noEnd: "no end time",
     moneyLimits: "Money limits",
@@ -104,6 +105,7 @@ export const tradingSafetyLabels = {
     fromYourMessage: "سُجّل من رسالتك",
     setByAgent: "وضعه وكيل",
     onlyYouLift: "أنت وحدك من يرفع الإيقاف.",
+    lift: "رفع الإيقاف",
     starts: "يبدأ",
     noEnd: "دون وقت انتهاء",
     moneyLimits: "الحدود المالية",
@@ -159,6 +161,10 @@ const moneyLimitNames: Readonly<Record<MoneyLimitName, Text>> = {
   },
   min_free_margin: { en: "Free-margin floor", ar: "الحد الأدنى للهامش الحر" },
 };
+
+export function moneyLimitLabel(name: MoneyLimitName, locale: string): string {
+  return moneyLimitNames[name][language(locale)];
+}
 
 export function pauseClassLabel(value: RestrictionActionClass, locale: string): string {
   return pauseClass[value][language(locale)];

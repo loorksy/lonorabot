@@ -81,8 +81,9 @@ until you stop it · No money limit set".
 
 Every agent thread header shows the line as a pill (Web `SafetyPill`, Mobile
 `components/safety-pill.tsx` under the thread title). Tapping it opens a sheet with:
-Stop new trading / Resume, the ladder level and signed grants, active pauses (read only
-until owner action cards arrive in W15-2; only the owner lifts one), money limits per
+Stop new trading / Resume, the ladder level and signed grants, active pauses (each with
+a one-tap **Lift pause** for the owner, `POST /trading/restrictions/{id}/revoke`; no agent
+can lift one), money limits per
 account ("No money limit set" when none) and operations awaiting broker confirmation
 (never resent; new risk on that market is held, exits stay allowed). No ids, codes or
 JSON are shown; account names appear only when several accounts are involved, and then

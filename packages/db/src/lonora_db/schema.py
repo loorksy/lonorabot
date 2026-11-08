@@ -759,3 +759,58 @@ class TradingRestrictionRow(Base):
     revoked_reason: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class OwnerActionRow(Base):
+    """One owner-only action offered as a card in the conversation; single use, expiring.
+
+    The payload is the exact, server-validated effect the card performs and is hashed:
+    a confirmation runs it through the existing owner function, never anything else, and
+    a card cannot be replayed once it is no longer pending. Title and facts shown to the
+    owner are derived from the records it names, never from model text.
+    """
+
+    __tablename__ = "ln_owner_actions"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('pending','confirmed','cancelled','expired','superseded')",
+            name="ln_owner_action_status",
+        ),
+        CheckConstraint("source IN ('agent','system')", name="ln_owner_action_source"),
+        Index("ln_owner_action_owner_status", "owner_id", "status"),
+        Index("ln_owner_action_thread", "thread_id", "created_at"),
+        Index("ln_owner_action_subject", "owner_id", "kind", "subject"),
+        # One live card per agent and exact effect: a repeated proposal returns it.
+        Index(
+            "ln_owner_action_pending_effect",
+            "agent_id",
+            "kind",
+            "payload_hash",
+            unique=True,
+            postgresql_where=text("status = 'pending'"),
+            sqlite_where=text("status = 'pending'"),
+        ),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    owner_id: Mapped[str] = mapped_column(ForeignKey("ln_owners.id", ondelete="CASCADE"))
+    # Durable record: the agent and run ids are kept as values, never cascaded away.
+    agent_id: Mapped[str] = mapped_column(String(36))
+    thread_id: Mapped[str | None] = mapped_column(ForeignKey("ln_threads.id", ondelete="SET NULL"))
+    run_id: Mapped[str | None] = mapped_column(String(36))
+    # agent: proposed by an agent's tool call; system: raised from a runtime event.
+    source: Mapped[str] = mapped_column(String(8))
+    kind: Mapped[str] = mapped_column(String(32))
+    # The record the card acts on ("trading", "restriction:<id>", "operation:<id>", ...).
+    subject: Mapped[str] = mapped_column(String(160))
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON)
+    payload_hash: Mapped[str] = mapped_column(String(64))
+    status: Mapped[str] = mapped_column(String(16), default="pending")
+    status_reason: Mapped[str | None] = mapped_column(String(64))
+    result: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    timeline_seq: Mapped[int | None] = mapped_column(Integer)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # tap (one owner tap), passkey (owner tap plus a verified device assertion).
+    decided_via: Mapped[str | None] = mapped_column(String(16))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

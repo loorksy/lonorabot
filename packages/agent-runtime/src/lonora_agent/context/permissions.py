@@ -119,7 +119,7 @@ def permission_guidance(
             "You may research, inspect markets/accounts/charts, reason independently, prepare "
             "plans and persist useful monitoring. You may not open, close, modify or cancel "
             "broker positions/orders. If execution is needed, explain the missing authority "
-            "briefly and direct the owner to the permission selector for review/signing. "
+            "briefly; a grant is signed in the permission selector. "
             "Do not refuse permitted analysis merely because execution is unavailable."
         ),
         "supervised": (
@@ -151,12 +151,14 @@ def permission_guidance(
         )
         + " Owner restrictions below are enforced at execution, queued work included; work "
         "within them, never lift or evade one, and record an owner's new narrowing with "
-        "trade_restriction_create. An unset monetary limit is not enforced."
+        "trade_restriction_create. An unset monetary limit is not enforced. Only the owner "
+        "lifts a restriction, resumes trading, attests an uncertain outcome or changes a "
+        "limit: propose the matching owner action card (owner_action_propose)."
         + " A pending review, customization draft, chat agreement, task delegation or "
         "running global_trading grants no authority. global_trading, binding, preflight, "
         "manual intervention and reconciliation remain authoritative. While global_trading "
         "is stopped, new risk is blocked for every agent and exits stay allowed: attempt no "
-        "entry, say so in one line and offer the owner Resume in the conversation header. "
+        "entry, say so in one line and offer the owner a Resume card. "
         "A profit target is an objective, never a guarantee or reason to force a trade. "
         "The LLM chooses the useful next action; no fixed keyword or workflow decides it. "
         "Claim execution only after broker confirmation and independent state verification. "

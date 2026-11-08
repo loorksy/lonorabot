@@ -1,5 +1,5 @@
 import type { Owner } from "@lonora/contracts";
-import { agentPermissionError, financialBoundaryError } from "@lonora/core";
+import { agentPermissionError, financialBoundaryError, ownerActionError } from "@lonora/core";
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useState } from "react";
 import { AppState, Platform } from "react-native";
 import {
@@ -158,6 +158,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       if (permissionMessage) return permissionMessage;
       const boundaryMessage = financialBoundaryError(error.code, locale);
       if (boundaryMessage) return boundaryMessage;
+      const cardMessage = ownerActionError(error.code, locale);
+      if (cardMessage) return cardMessage;
       return Object.hasOwn(labels, error.code)
         ? translate(locale, error.code as Label)
         : t("request_failed");

@@ -149,7 +149,10 @@ receipt is never changed.
 
 `POST /trading/journal/{operation_id}/resolve` with
 `{"outcome": "executed" | "not_executed" | "unknown", "statement": "...", "broker_reference": "..."}`
-records an attestation for an `ambiguous` live operation. It requires the
+records an attestation for an `ambiguous` live operation. The statement and reference
+are optional; without a statement the record reads "Owner attested; not broker
+confirmation." The conversation's resolve card (`docs/owner-actions.md`) runs the same
+attestation. It requires the
 authenticated owner session (cookie with CSRF, or bearer token); the passkey device
 proof is not required because the action authorizes no broker mutation. The row
 becomes `resolved` with `details.resolution` (source `owner`, outcome, statement,

@@ -191,9 +191,9 @@ it through another symbol or account), and every `risk_*` code is `risk_limit_bl
 for the owner). No agent tool lifts a restriction. The owner
 lists, creates and lifts them through `GET/POST /trading/restrictions` and `POST
 /trading/restrictions/{id}/revoke` (owner session with CSRF, or bearer token). The Web
-and Mobile header safety sheet lists the restrictions that apply to an agent, read only
-(`trading-safety.md`); lifting one from a card arrives with owner action cards (W15-2),
-until then the API is the owner's lift surface.
+and Mobile header safety sheet lists the restrictions that apply to an agent with a
+one-tap Lift (`trading-safety.md`), and every new restriction raises a Lift card in the
+conversation (`owner-actions.md`); both use the owner's revoke.
 
 ## Monetary risk limits
 
@@ -203,7 +203,8 @@ holds optional limits in the broker account currency, which the owner names in
 instead of converting. Unset means not enforced; no money amount is chosen for the
 owner. The agent sees configured and unset limits in its permission frame and through
 `trade_restriction_list`; the owner reads the current book against them with `GET
-/trading/accounts/{id}/risk-status`.
+/trading/accounts/{id}/risk-status`. The conversation's money-limit card changes the same
+policy; raising or removing a limit there needs the owner's passkey (`owner-actions.md`).
 
 - `max_trade_risk` / `max_trade_risk_equity_percent`: modeled loss at the stop-loss of
   a new entry, a pending-entry edit or a risk-increasing position edit. A stop-loss is

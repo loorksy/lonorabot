@@ -58,6 +58,13 @@ async def policy(session: AsyncSession, owner_id: str) -> AttentionPolicy:
 
 
 async def mandatory_current(session: AsyncSession, row: AttentionRow) -> bool:
+    if row.code == "operation_uncertain":
+        journal = await session.get(TradingJournalRow, row.parameters.get("operation_id", ""))
+        return (
+            journal is not None
+            and journal.owner_id == row.owner_id
+            and journal.status == "ambiguous"
+        )
     if row.code == "operation_unresolved":
         journal = await session.get(TradingJournalRow, row.parameters.get("operation_id", ""))
         return (

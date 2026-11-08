@@ -307,6 +307,7 @@ The owner asked, on 2026-11-08, for a simple experience without contradictions a
 3. **W15-2 Owner action cards in chat.**
    - Durable, server-validated, single-use cards for resuming trading, lifting a pause, resolving an uncertain operation and setting money limits. Later slices add grants, agent creation, supervision, trusted sources and credentials.
    - Widening needs the passkey. Narrowing is one tap.
+   - Delivered on branch `w15-a1` (migration `0038_owner_actions`; the W15-0 head was `0037_gateway_reliability`); the design is in `docs/owner-actions.md`. Agents propose cards with `owner_action_propose`; the gateway raises Lift and resolve cards from restriction and uncertain-operation events, and an uncertain operation is the owner's `operation_uncertain` item. The owner's decision route re-validates, is idempotent and runs the existing owner functions; raising or removing a money limit needs a passkey assertion bound to the card. The resolve statement is now optional. The header safety sheet lifts a pause in one tap on Web and Mobile. The raw execution-policy route still accepts any change from an owner session (follow-up).
 4. **W15-3 One-sentence delegation and a monotonic ladder** (corrections 5–7, D1).
    - No trading / Ask me / On its own.
    - Grant cards are built from a stored draft and include the D1 defaults: a daily-loss limit suggested at 3% of equity, and the owner's manual positions excluded.

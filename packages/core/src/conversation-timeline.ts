@@ -1,15 +1,17 @@
-import type { Message, SuperBotRequest, TradeApproval } from "@lonora/contracts";
+import type { Message, OwnerAction, SuperBotRequest, TradeApproval } from "@lonora/contracts";
 
 export type ConversationItem =
   | { kind: "message"; id: string; seq: number; message: Message }
   | { kind: "approval"; id: string; seq: number; approval: TradeApproval }
-  | { kind: "super_bot"; id: string; seq: number; request: SuperBotRequest };
+  | { kind: "super_bot"; id: string; seq: number; request: SuperBotRequest }
+  | { kind: "owner_action"; id: string; seq: number; action: OwnerAction };
 
 /** Server sequence anchors win over fetch timing and mutable approval status. */
 export function conversationTimeline(
   messages: Message[],
   approvals: TradeApproval[],
   superBotRequests: SuperBotRequest[] = [],
+  ownerActions: OwnerAction[] = [],
 ): ConversationItem[] {
   const ordered = [...new Map(messages.map((message) => [message.id, message])).values()].sort(
     (a, b) => a.seq - b.seq,
@@ -38,13 +40,24 @@ export function conversationTimeline(
       (ordered.at(-1)?.seq ?? 0) + 1;
     rows.push({ kind: "super_bot", id: `super_bot:${request.id}`, seq, request });
   }
-  const order = { approval: 0, super_bot: 1, message: 2 };
+  for (const action of new Map(ownerActions.map((row) => [row.id, row])).values()) {
+    // Anchored like an approval: after everything that existed when it was raised.
+    const seq =
+      action.timeline_seq ??
+      ordered.find((message) => Date.parse(message.created_at) >= Date.parse(action.created_at))
+        ?.seq ??
+      (ordered.at(-1)?.seq ?? 0) + 1;
+    rows.push({ kind: "owner_action", id: `owner_action:${action.id}`, seq, action });
+  }
+  const order = { approval: 0, super_bot: 1, owner_action: 2, message: 3 };
   const time = (item: ConversationItem) =>
     item.kind === "approval"
       ? item.approval.created_at
       : item.kind === "super_bot"
         ? (item.request.created_at ?? item.request.expires_at)
-        : item.message.created_at;
+        : item.kind === "owner_action"
+          ? item.action.created_at
+          : item.message.created_at;
   return rows.sort(
     (a, b) =>
       a.seq - b.seq ||

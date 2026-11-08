@@ -22,7 +22,7 @@ import { useEffect, useState } from "react";
 import { type Agent, api, type Resource } from "../../lib/api";
 import { brokerIdentityLabel } from "../../lib/broker-identity";
 import { operationStatusLabel } from "../../lib/operation-status";
-import { readConnections, resumeTrading, stopNewTrading } from "../../lib/trading";
+import { liftRestriction, readConnections, resumeTrading, stopNewTrading } from "../../lib/trading";
 import { userError } from "../../lib/user_error";
 import { useClient } from "../../providers/ClientProvider";
 import "./safety-pill.css";
@@ -184,7 +184,15 @@ export function SafetyPill({ agentId, agents }: { agentId: string; agents: Agent
                       ? `${text.starts} ${readinessTime(item.valid_from, locale)}`
                       : item.valid_until
                         ? `${text.until} ${readinessTime(item.valid_until, locale)}`
-                        : text.noEnd}
+                        : text.noEnd}{" "}
+                    <button
+                      type="button"
+                      data-lift-restriction={item.id}
+                      disabled={busy}
+                      onClick={() => void change(() => liftRestriction(item.id))}
+                    >
+                      {text.lift}
+                    </button>
                   </p>
                 ))}
                 <p className="muted">{text.onlyYouLift}</p>

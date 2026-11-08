@@ -15,7 +15,14 @@
     "maintenance_item_quarantined": "أوقفت لونورا عنصرًا في الخلفية بعد أخطاء متكررة. يستمر كل ما عداه في العمل.",
     "run_quarantined": "توقف عمل بعد انقطاعات متكررة. افتح المحادثة لمراجعته.",
     "operation_unresolved": "صفقة ما زالت بلا نتيجة مؤكدة من الوسيط. لن تُعاد إرسالها؛ افتح المحادثة لمراجعتها.",
-    "gateway_degraded": "خدمة الخلفية في لونورا متأخرة. ستستمر في المحاولة وتبلغك عند الحاجة."
+    "gateway_degraded": "خدمة الخلفية في لونورا متأخرة. ستستمر في المحاولة وتبلغك عند الحاجة.",
+    "operation_uncertain": "صفقة بلا نتيجة مؤكدة من الوسيط. لن تُعاد إرسالها، والمخاطرة الجديدة على ذلك السوق معلّقة؛ أخبر لونورا في المحادثة هل نُفذت.",
+    "owner_action_resume_trading": "استؤنف التداول. يبقى كل وكيل ضمن مستواه وتفويضه وحدودك.",
+    "owner_action_lift_restriction": "رُفع الإيقاف. تُقبل الصفقات الجديدة مجددًا ضمن مستوى كل وكيل وحدودك.",
+    "owner_action_resolve_executed": "سُجّل: قلتَ إنها نُفذت. هذا تصريحك وليس تأكيدًا من الوسيط؛ لم تعد المخاطرة الجديدة على ذلك السوق معلّقة.",
+    "owner_action_resolve_not_executed": "سُجّل: قلتَ إنها لم تُنفذ. هذا تصريحك وليس تأكيدًا من الوسيط؛ لم تعد المخاطرة الجديدة على ذلك السوق معلّقة.",
+    "owner_action_resolve_unknown": "سُجّل: تبقى النتيجة غير معروفة. لن تُعاد إرسالها؛ لم تعد المخاطرة الجديدة على ذلك السوق معلّقة.",
+    "owner_action_set_account_limits": "حُدّثت الحدود المالية لهذا الحساب، وتُطبَّق على كل صفقة جديدة."
   },
   "en": {
     "super_bot_authorization": "A Super Bot request needs your review and device authorization in the conversation. No execution authority has been granted yet.",
@@ -33,6 +40,13 @@
     "maintenance_item_quarantined": "Lonora paused a background item after repeated errors. Everything else keeps running.",
     "run_quarantined": "Work stopped after repeated interruptions. Open the conversation to review it.",
     "operation_unresolved": "A trade still has no confirmed broker result. It will not be resent; open the conversation to review it.",
-    "gateway_degraded": "Lonora's background service is running late. It keeps retrying and will tell you if you are needed."
+    "gateway_degraded": "Lonora's background service is running late. It keeps retrying and will tell you if you are needed.",
+    "operation_uncertain": "A trade has no confirmed broker result. It will not be resent and new risk on that market is held; tell Lonora in the conversation whether it executed.",
+    "owner_action_resume_trading": "Trading resumed. Each agent still trades only within its level, grants and your limits.",
+    "owner_action_lift_restriction": "Pause lifted. New trades are admitted again within each agent's level and your limits.",
+    "owner_action_resolve_executed": "Recorded: you said it executed. This is your statement, not broker confirmation; new risk on that market is no longer held.",
+    "owner_action_resolve_not_executed": "Recorded: you said it did not execute. This is your statement, not broker confirmation; new risk on that market is no longer held.",
+    "owner_action_resolve_unknown": "Recorded: the outcome stays unknown. It will not be resent; new risk on that market is no longer held.",
+    "owner_action_set_account_limits": "Money limits updated for this account. They apply to every new trade."
   }
 }

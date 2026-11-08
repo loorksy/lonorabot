@@ -25,6 +25,7 @@ from lonora_db.events import PUBLIC_CURSOR, emit, publish_committed
 from lonora_db.item_failures import ItemGuard, blocked, due_retries
 from lonora_db.personal_agent import ensure_personal_agent
 from lonora_db.schema import (
+    AgentRow,
     AttentionRow,
     BrokerSessionRow,
     CollaborationSessionRow,
@@ -38,7 +39,9 @@ from lonora_db.schema import (
     TicketRow,
     TradeApprovalRow,
     TradingGoalRow,
+    TradingJournalRow,
     TradingOpportunityRow,
+    TradingRestrictionRow,
 )
 from lonora_db.threads import conversation_thread
 from lonora_db.transactions import SettingsRepository, owned_agent
@@ -46,6 +49,8 @@ from lonora_market.watchers import observe
 from lonora_trading.opportunities import evidence_state
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from .owner_cards import CARD_EVENTS, follow_event
 
 
 async def validate_watch(db: Database, brokers: BrokerManager, row: MarketWatchRow) -> datetime:
@@ -161,6 +166,27 @@ async def candidate(
                     approval_id=resource.id,
                     symbol=resource.requests[0].get("symbol") if resource.requests else None,
                 )
+        elif event.kind == "trading.operation_updated":
+            resource = await session.get(TradingJournalRow, identifier)
+            if resource and resource.owner_id == event.owner_id:
+                # An older transition never withdraws or repeats a newer one, and a
+                # virtual (shadow) operation never reaches a broker to be uncertain about.
+                if resource.status != event.payload.get("status"):
+                    raise LonoraError("attention_superseded_state", 409)
+                if resource.execution_mode != "live":
+                    raise LonoraError("attention_source_unavailable", 404)
+                agent = await session.get(AgentRow, event.agent_id) if event.agent_id else None
+                if agent is None or agent.owner_id != event.owner_id:
+                    # The owner's own order, or its agent is gone: Lonora's conversation.
+                    agent_id, thread_id = personal.id, None
+                parameters.update(
+                    operation_id=resource.operation_id,
+                    account_id=resource.account_id,
+                    symbol=resource.request.get("symbol"),
+                )
+                scope = "operation:" + resource.operation_id
+        elif event.kind.startswith("trading.restriction_"):
+            resource = await session.get(TradingRestrictionRow, identifier)
         elif event.kind.startswith("watch."):
             resource = await session.get(MarketWatchRow, identifier)
             if resource and resource.owner_id == event.owner_id:
@@ -341,6 +367,10 @@ async def project_event(
             EffectReceiptRow, "attention-source:" + owner_id + ":" + str(event.cursor)
         ):
             return
+    if event.kind in CARD_EVENTS:
+        # Owner action cards first: a failure retries this event before its notification.
+        async with db.sessions() as session, session.begin():
+            await follow_event(session, event)
     suppression: str | None = None
     try:
         classification, agent_id, thread_id, parameters, scope = await candidate(db, brokers, event)

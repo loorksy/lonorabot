@@ -5,12 +5,10 @@ from lonora_auth.identity import OwnerIdentity
 from lonora_contracts.domain import utcnow
 from lonora_contracts.execution_quality import ExecutionPolicy, ExecutionSnapshot, ExposureSnapshot
 from lonora_contracts.risk_limits import RiskAssessment
-from lonora_core.user_error import LonoraError
 from lonora_db.broker_sessions import BrokerSessionRepository
-from lonora_db.events import emit
-from lonora_db.transactions import SettingsRepository
-from lonora_trading.execution_quality import execution_policy, policy_key
+from lonora_trading.execution_quality import execution_policy
 from lonora_trading.exposure import account_exposure
+from lonora_trading.owner_controls import require_account_currency, store_execution_policy
 from lonora_trading.risk_limits import assess_risk, risk_operations
 
 from ..middleware.auth import require_owner, runtime
@@ -36,35 +34,11 @@ async def write_policy(
     owner: OwnerIdentity = Depends(require_owner),
 ) -> ExecutionPolicy:
     rt = runtime(request)
-    db = rt.db
-    if body.risk.currency is not None:
-        # Amounts are never converted: reject a currency the account does not report.
-        # An unreachable broker does not block saving; enforcement checks it again.
-        try:
-            broker = await rt.services(owner.id).brokers.get(owner.id, account_id)
-            currency = (await broker.account()).currency
-        except Exception:
-            currency = None
-        if currency is not None and currency != body.risk.currency:
-            raise LonoraError("risk_limit_currency_mismatch", 409)
-    async with db.sessions() as session, session.begin():
-        await BrokerSessionRepository().get(session, owner.id, account_id, lock=True)
-        key = policy_key(owner.id, account_id)
-        previous = ExecutionPolicy.model_validate(await SettingsRepository().get(session, key))
-        await SettingsRepository().put(session, key, body.model_dump(mode="json"))
-        if previous != body:
-            # Durable owner configuration fact for later "what changed" summaries.
-            emit(
-                session,
-                owner.id,
-                "trading.execution_policy_updated",
-                payload={
-                    "account_id": account_id,
-                    "risk": body.risk.model_dump(mode="json"),
-                    "risk_limits_configured": body.risk.configured,
-                    "transition_id": utcnow().isoformat(),
-                },
-            )
+    await require_account_currency(
+        rt.services(owner.id).brokers, owner.id, account_id, body.risk.currency
+    )
+    async with rt.db.sessions() as session, session.begin():
+        await store_execution_policy(session, owner.id, account_id, body)
     return body
 
 
