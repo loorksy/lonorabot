@@ -1,15 +1,49 @@
+"""The durable agent tool loop: execution, checkpoints, steering, waits and limits.
+
+The final tool-less report at a limit (``finish_turn``) adapts the
+iteration-budget grace call of Hermes Agent
+``agent/chat_completion_helpers.py::handle_max_iterations``, source
+https://github.com/NousResearch/hermes-agent at revision
+a9ff9799e273f525b82718cdc69fdec71b1dca5a. Lonora checkpoints the report before
+returning it, so a restart commits the same text instead of calling again.
+
+MIT License
+
+Copyright (c) 2025 Nous Research
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+"""
+
 import json
 import logging
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Collection
 from dataclasses import dataclass
 from typing import Any, cast
 
-from lonora_adapter_kit.types import ModelMessage, ModelReply, ToolCall
+from lonora_adapter_kit.types import ModelMessage, ModelReply, ToolCall, ToolDefinition
 from lonora_contracts.model_routing import Capability, ModelSelection
 from lonora_contracts.runs import WORK_TRIGGERS
 from lonora_core.run_state import is_conversational
 from lonora_core.user_error import LonoraError
 from lonora_db.runs import checkpoint, require_lease
+from lonora_db.schema import RunRow
+from lonora_db.tasks import report_task_degraded
 from lonora_session.idempotency import request_hash
 from lonora_tools.context import ToolContext
 from lonora_tools.registry import ToolRegistry
@@ -18,6 +52,14 @@ from lonora_tools.tool_results import store_result
 from .cancellation import cancellation_checkpoint
 from .context.builder import build_context
 from .context.skills import assert_skill_authority, refresh_skill_context, selected_skill_ids
+from .context_engine import (
+    FENCE_CODES,
+    compact_context,
+    compacted_view,
+    record_observed,
+    request_overhead,
+    resolve_limits,
+)
 from .continuation import MAXIMUM_SLICES, schedule_task_continuation, slice_limit
 from .environment import (
     ToolRetryScheduled,
@@ -27,6 +69,19 @@ from .environment import (
     retry_pending,
     schedule_retry,
 )
+from .model_recovery import (
+    ATTENTION_REASON,
+    CONTINUOUS,
+    CONVERSATION,
+    RETRY_REASON,
+    STATE_KEY,
+    WORK,
+    BackoffProfile,
+    input_scale,
+    plan_failure,
+    record_success,
+    reset_streak,
+)
 from .model_runtime import model_turn
 from .progress import progress
 from .recovery import restore_execution
@@ -34,21 +89,24 @@ from .runtime_notices import (
     NO_ANSWER,
     append_notice,
     attach_notice,
-    attention_fallback,
+    attention_message,
+    attention_notice,
     budget_warning,
     finish_instruction,
     is_owner_message,
     limit_fallback,
     notice_message,
     prefers_arabic,
+    resumed_notice,
 )
 from .skills.access import admitted_view_ids
 from .skills.snapshot import read_snapshot
 from .steering import merge_steering, owner_steering_pending
-from .stop_gates import reset_stop_gate, task_stop_gate
+from .stop_gates import reset_stop_gate, task_progress, task_stop_gate
 from .tasks import task_checkpoint
 from .tool_batch import Segment, gather_bounded, next_segment
 from .tool_dispatch import dispatch_call
+from .tool_exposure import ensure_exposure, inventory, native_definitions, remember_use
 from .tool_guardrails import (
     after_call,
     before_call,
@@ -67,9 +125,11 @@ from .tool_intent import (
 
 log = logging.getLogger("lonora.tool_loop")
 
-# Model rounds with tools left before the final limit at which the model is told.
+# Executable model rounds left before the final limit at which the model is told.
 BUDGET_WARNING_ROUNDS = 2
 OWNER_ATTENTION = "owner_attention"
+# Set by Task controls when the owner resumes or revises work held for attention.
+ATTENTION_RESUMED = "owner_attention_resumed"
 
 
 @dataclass
@@ -91,6 +151,51 @@ async def persist(
     state["pending"] = [call.model_dump(mode="json") for call in pending]
     async with context.db.sessions() as session, session.begin():
         await checkpoint(session, context.lease, state)
+
+
+async def compact_for_turn(
+    context: ToolContext,
+    state: dict[str, Any],
+    messages: list[ModelMessage],
+    pending: list[ToolCall],
+    capability: Capability,
+    tools: list[ToolDefinition],
+    *,
+    inventory_text: str = "",
+    policy_tools: Collection[str] | None = None,
+) -> Callable[[list[ModelMessage]], list[ModelMessage]]:
+    """Keep the next request under its model's window; return the request view.
+
+    Compaction is persisted in the checkpoint before the request, so it is not
+    recomputed after a restart and canonical messages are never rewritten. It
+    never fails the turn: fencing errors propagate, anything else keeps the
+    current view and admission degrades the request instead.
+    """
+
+    async def save() -> None:
+        await persist(context, state, messages, pending)
+
+    try:
+        limits = await resolve_limits(
+            context, capability, for_agent=True, input_scale=input_scale(state)
+        )
+        await compact_context(
+            context,
+            state,
+            messages,
+            limits,
+            extra_tokens=request_overhead(
+                messages, tools, limits, inventory=inventory_text, available=policy_tools
+            ),
+            save=save,
+        )
+    except LonoraError as error:
+        if error.code in FENCE_CODES:
+            raise
+        log.warning("context_compaction_failed code=%s", error.code)
+    except Exception as error:
+        log.warning("context_compaction_failed type=%s", type(error).__name__)
+    return lambda request: compacted_view(request, state)
 
 
 def rich_metadata(state: dict[str, Any]) -> dict[str, Any]:
@@ -178,6 +283,36 @@ def latest_answer(messages: list[ModelMessage]) -> str:
     return ""
 
 
+# Subagents delegate at most two levels deep; a few extra hops guard bad data.
+_MAXIMUM_DELEGATION_HOPS = 4
+
+
+async def recovery_profile(context: ToolContext, task_run: bool) -> BackoffProfile:
+    """How long this Run may back off: whoever waits on it decides.
+
+    Continuous Task work keeps monitoring through an outage; finite Task and
+    background work outlast ordinary outages; a conversation (and a subagent
+    it delegated, which the conversation waits on) fails honestly within
+    about a minute.
+    """
+    if task_run:
+        progress = await task_progress(context)
+        return CONTINUOUS if progress is not None and progress.continuous else WORK
+    async with context.db.sessions() as session:
+        run = await require_lease(session, context.lease)
+        trigger, parent_id = run.trigger, run.parent_run_id
+        for _ in range(_MAXIMUM_DELEGATION_HOPS):
+            if trigger != "subagent" or parent_id is None:
+                break
+            parent = await session.get(RunRow, parent_id)
+            if parent is None:
+                break
+            if parent.model_metadata.get("task_id"):
+                return WORK
+            trigger, parent_id = parent.trigger, parent.parent_run_id
+    return WORK if trigger in WORK_TRIGGERS else CONVERSATION
+
+
 async def request_owner_attention(
     context: ToolContext,
     state: dict[str, Any],
@@ -189,12 +324,18 @@ async def request_owner_attention(
 
     The Run is not failed and the Task is not completed: the checkpoint stays
     intact and the owner's reply continues it. Prose already passed the model
-    runtime's financial-truth gate, so no unverified effect becomes success.
+    runtime's financial-truth gate, so no unverified effect becomes success,
+    and the runtime's own account of what is unfinished leads the message so a
+    held answer claiming completion is never the owner's only report.
     """
-    held = text.strip() or attention_fallback(prefers_arabic(messages))
+    arabic = prefers_arabic(messages)
+    completion = await task_progress(context)
+    notice = attention_notice(
+        reason, arabic, [title for _, title in completion.incomplete] if completion else ()
+    )
     question: dict[str, Any] = {
         "id": "attention-" + str(len(messages)),
-        "question": held,
+        "question": attention_message(notice, text, arabic),
         "choices": [],
         "kind": OWNER_ATTENTION,
         "reason": reason,
@@ -342,10 +483,9 @@ async def finish_turn(
 ) -> LoopOutcome:
     """One final tool-less model call instead of failing the Run at a limit.
 
-    Adapted from Hermes Agent's iteration-budget grace call
-    (``agent/chat_completion_helpers.py::handle_max_iterations``; MIT, Copyright
-    (c) 2025 Nous Research). The reply is checkpointed before it is returned,
-    so a restart commits the same text instead of making another model call.
+    Adapted from Hermes Agent's iteration-budget grace call (see the module
+    notice). The reply is checkpointed before it is returned, so a restart
+    commits the same text instead of making another model call.
     """
     saved = state.get("limit_exit")
     if isinstance(saved, dict) and isinstance(cast(dict[str, Any], saved).get("text"), str):
@@ -373,7 +513,17 @@ async def finish_turn(
         )
         selection: ModelSelection | None
         try:
-            reply, selection = await model_turn(context, messages, [], turn_capability)
+            view = await compact_for_turn(context, state, messages, pending, turn_capability, [])
+            # No tools are offered, but a provider may still propose calls; the
+            # resolver lets the truth gates read a bridged financial proposal.
+            reply, selection = await model_turn(
+                context,
+                messages,
+                [],
+                turn_capability,
+                resolve_calls=registry.resolve_calls,
+                context_view=view,
+            )
         except LonoraError as error:
             if error.code in {"stale_lease", "skill_continuation_unavailable"}:
                 raise
@@ -411,13 +561,26 @@ async def finish_turn(
         state["limit_exit"] = {"reason": reason, "text": text}
         await persist(context, state, messages, pending)
     if task_run:
-        # Never mark unfinished Task work completed; the owner decides next.
         question = state.get("pending_input_request")
         if isinstance(question, dict) and cast(dict[str, Any], question).get("kind") == (
             OWNER_ATTENTION
         ):
             return attention_outcome(state, cast(dict[str, Any], question))
-        return await request_owner_attention(context, state, messages, reason, text)
+        completion = await task_progress(context)
+        if completion is None or not completion.contract_satisfied():
+            # Never mark unfinished Task work completed; the owner decides next.
+            return await request_owner_attention(context, state, messages, reason, text)
+        # Every declared step is recorded complete with evidence, so the report
+        # completes the Task; complete_run still enforces that contract.
+        return LoopOutcome(
+            text,
+            {
+                **state.get("selection", {}),
+                **rich_metadata(state),
+                "exit_reason": reason,
+                "reply_outcome": "answered",
+            },
+        )
     return LoopOutcome(
         text,
         {
@@ -443,18 +606,6 @@ async def execute_tool_loop(
         )
         task_run = bool(run.model_metadata.get("task_id"))
     messages, pending = restore_execution(state)
-    if "discovered_tool_names" not in state:
-        # Restore the presentation of previously used capabilities on legacy
-        # checkpoints. Discovery never changes the registry's authority checks.
-        state["discovered_tool_names"] = sorted(
-            {
-                call.name
-                for message in messages
-                for call in message.tool_calls
-                if call.name in registry.tools
-            }
-            | {call.name for call in pending if call.name in registry.tools}
-        )
     if messages and "instruction_skill_ids" not in state:
         # Legacy checkpoints have no binding between saved instructions and the
         # latest metadata selection. Conservatively check all retained versions.
@@ -468,6 +619,30 @@ async def execute_tool_loop(
     if not messages:
         messages = await build_context(context, registry)
         state["instruction_skill_ids"] = await selected_skill_ids(context)
+    # Chosen once per Run and frozen in the checkpoint: the native tools array
+    # is identical on every model turn, so discovery never invalidates the
+    # reusable prompt prefix. Exposure is presentation, never authority.
+    exposure = await ensure_exposure(
+        context, registry, state, messages, pending, read_only=read_only, task_run=task_run
+    )
+    resumed = state.pop(ATTENTION_RESUMED, None)
+    if isinstance(resumed, dict):
+        # A Task control resumed work held for owner attention: that is owner
+        # input, so it starts a new review epoch, and at a limit a new budget.
+        reset_stop_gate(state)
+        reset_guardrails(state)
+        reset_streak(state)
+        if state.get("limit_exit") or int(state.get("rounds", 0)) >= slice_limit(
+            state, maximum_rounds
+        ):
+            start_budget_epoch(state)
+        state.pop("exit_reason", None)
+        append_notice(
+            messages,
+            "owner_resumed",
+            resumed_notice(str(cast(dict[str, Any], resumed).get("action") or "")),
+        )
+        await persist(context, state, messages, pending)
     question = state.get("pending_input_request")
     if isinstance(question, dict):
         question = cast(dict[str, Any], question)
@@ -639,11 +814,9 @@ async def execute_tool_loop(
                     schedule_retry(state, call, record["failures"])
                     await persist(context, state, messages, pending)
                     raise ToolRetryScheduled()
-                if (
-                    not guarded
-                    and not result.get("_runtime_retry")
-                    and state.get("waiting_call_id") != call.id
-                ):
+                if not guarded and not result.get("_runtime_retry"):
+                    # An approval wait is not an execution yet; the approved
+                    # dispatch of the same call is, and is counted exactly once.
                     decision = after_call(state, call, tool, result, failed=record["failures"] > 0)
                     if decision.action in {"warn", "halt"}:
                         attach_notice(result, "tool_guardrail", decision.message)
@@ -660,10 +833,6 @@ async def execute_tool_loop(
                         True,
                     )
                 state.pop("waiting_call_id", None)
-                if call.name == "tool_environment" and result.get("ok") is not False:
-                    state["discovered_tool_names"] = sorted(
-                        set(state["discovered_tool_names"]) | registry.discovered_names(result)
-                    )
                 viewed_ids = await admitted_view_ids(
                     context, registry, call, result, state["instruction_skill_ids"]
                 )
@@ -697,6 +866,7 @@ async def execute_tool_loop(
                         summary["result_storage_error"] = "tool_result_storage_unavailable"
                     content = json.dumps(summary, ensure_ascii=False)
                 messages.append(ModelMessage(role="tool", content=content, tool_call_id=call.id))
+                record_observed(state, call.id)
                 pending = pending[1:]
                 superseded: list[ToolCall] = []
                 if result.get("_runtime_external_wait"):
@@ -726,6 +896,7 @@ async def execute_tool_loop(
                         else None,
                     },
                 )
+                await remember_use(context, registry, exposure, call, result, read_only=read_only)
                 if result.get("_runtime_external_wait"):
                     await report_wait_superseded(context, superseded)
                     return external_wait_outcome(state)
@@ -774,22 +945,99 @@ async def execute_tool_loop(
         # Only the last slice ends the Run; earlier Task slices continue later.
         per_slice = int(cast(dict[str, Any], state["task_continuation"])["rounds_per_slice"])
         final_limit = per_slice * MAXIMUM_SLICES if task_run else limit
-        remaining = final_limit - int(state.get("rounds", 0))
-        if 0 < remaining <= BUDGET_WARNING_ROUNDS and state.get("budget_warned") != remaining:
-            append_notice(messages, "budget", budget_warning(remaining))
-            state["budget_warned"] = remaining
+        # Calls proposed in a turn execute only when another round follows it,
+        # so count the turns, this one included, whose calls can still run.
+        executable = final_limit - int(state.get("rounds", 0)) - 1
+        if executable <= 0:
+            # Offering tools now would waste the turn on calls that never run:
+            # the last budgeted turn is the final tool-less report instead.
+            return await finish_turn(
+                context,
+                registry,
+                state,
+                messages,
+                pending,
+                capability,
+                reason="tool_round_limit",
+                task_run=task_run,
+            )
+        if executable <= BUDGET_WARNING_ROUNDS and state.get("budget_warned") != executable:
+            append_notice(messages, "budget", budget_warning(executable))
+            state["budget_warned"] = executable
         turn_capability = (
             Capability.VISION if any(message.images for message in messages) else capability
         )
-        reply, selection = await model_turn(
+        native = native_definitions(registry, exposure, read_only)
+        inventory_text = inventory(registry, exposure, read_only)
+        policy_tools = registry.names(read_only)
+        view = await compact_for_turn(
             context,
+            state,
             messages,
-            registry.discovery_definitions(
-                read_only, set(cast(list[str], state["discovered_tool_names"]))
-            ),
+            pending,
             turn_capability,
-            capability_inventory=registry.capability_inventory(read_only),
+            native,
+            inventory_text=inventory_text,
+            policy_tools=policy_tools,
         )
+        try:
+            reply, selection = await model_turn(
+                context,
+                messages,
+                native,
+                turn_capability,
+                capability_inventory=inventory_text,
+                # Bridge calls become the real calls before any boundary sees them.
+                resolve_calls=registry.resolve_calls,
+                policy_tools=policy_tools,
+                context_view=view,
+                input_scale=input_scale(state),
+            )
+        except LonoraError as error:
+            if error.code in FENCE_CODES:
+                raise
+            # Every candidate failed. Nothing ran for this turn and nothing is
+            # repeated: retry the same checkpoint later or tell the owner.
+            profile = await recovery_profile(context, task_run)
+            decision = plan_failure(state, error, profile)
+            if decision.kind == "compact":
+                log.warning("model_context_overflow input_scale=%s", input_scale(state))
+                await persist(context, state, messages, pending)
+                continue
+            if decision.kind == "retry" and decision.not_before is not None:
+                environment_state(state)["retry"] = {
+                    "not_before": decision.not_before.isoformat(),
+                    "reason_code": RETRY_REASON,
+                    "code": error.code,
+                    "attempt": decision.failures,
+                }
+                await persist(context, state, messages, pending)
+                if decision.notify:
+                    # Monitoring continues; the owner hears of the outage once.
+                    async with context.db.sessions() as session, session.begin():
+                        await report_task_degraded(
+                            session,
+                            await require_lease(session, context.lease),
+                            ATTENTION_REASON,
+                            error.code,
+                            cast(dict[str, Any], state[STATE_KEY]).get("first_failed_at"),
+                        )
+                log.warning(
+                    "model_turn_retry_scheduled code=%s attempt=%s notify=%s",
+                    error.code,
+                    decision.failures,
+                    decision.notify,
+                )
+                raise ToolRetryScheduled() from None
+            if decision.kind == "escalate":
+                await persist(context, state, messages, pending)
+                if task_run:
+                    # The Task waits for its owner, resumable from this checkpoint.
+                    return await request_owner_attention(
+                        context, state, messages, ATTENTION_REASON, ""
+                    )
+            raise
+        record_success(state)
         if reply.rich_content is None:
             state.pop("rich_content", None)
         else:

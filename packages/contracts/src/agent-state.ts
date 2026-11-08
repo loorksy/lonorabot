@@ -8,7 +8,7 @@ export type AgentLiveState = {
   reason_code: string | null;
   runtime_waits?: Array<{
     run_id: string;
-    kind: "read_retry" | "watch" | "broker_recovery" | "timer";
+    kind: "read_retry" | "model_retry" | "watch" | "broker_recovery" | "timer";
     retry_at: string | null;
   }>;
   pending_approval_count: number;

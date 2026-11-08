@@ -10,8 +10,8 @@ user-facing replies and labels. English examples do not require an English reply
 
 ## Steps
 
-1. Search owned knowledge with search_internal before asking for material already
-   available. Retrieve narrowly and preserve attribution.
+1. Search this Agent's own history with session_search before asking for material
+   already available. Retrieve narrowly and preserve attribution.
 2. Choose web_search to discover public sources, web_fetch for lightweight public
    HTTPS text, and web_browse when a page requires JavaScript or public page
    controls. Search uses the operator's self-hosted SearXNG service when available;

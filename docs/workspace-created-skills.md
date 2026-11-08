@@ -13,7 +13,9 @@ copying into `skills/<id>/<version>/`. The existing utility scanner, disabled
 installation, graph validation, immutable versions, leases, receipts, rollback,
 disable/remove and revocations are reused. New procedures start disabled.
 
-Provenance distinguishes `github` from `workspace`. Existing Git sources keep
+Provenance distinguishes `github` from `workspace`. The model sees a workspace
+package labelled `agent_authored` and a public import labelled `external`, never
+as owner-supplied (`docs/agent-memory-and-recall.md`). Existing Git sources keep
 their genuine repository, full commit and archive digest. Local provenance stores
 the actual Agent, Run, original revision, source directory and canonical selected
 snapshot digest. Local code never receives a fabricated Git commit. A bounded

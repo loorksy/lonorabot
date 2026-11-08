@@ -219,7 +219,12 @@ async def main() -> None:
             nonlocal phase
             phase += 1
             if phase == 1:
-                assert "recorded_decisions" in messages[0].content
+                # Recorded decisions are an optional server-record system block.
+                assert any(
+                    "recorded_decisions" in message.content
+                    for message in messages
+                    if message.role == "system"
+                )
                 reply = ModelReply(
                     tool_calls=[
                         ToolCall(

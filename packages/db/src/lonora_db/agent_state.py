@@ -4,6 +4,7 @@ from typing import Any
 
 from lonora_contracts.agent_state import AgentLiveState
 from lonora_contracts.domain import utcnow
+from lonora_core.runtime_failure import MODEL_RETRY_REASON
 from lonora_core.user_error import LonoraError
 from lonora_session.idempotency import stable_id
 from sqlalchemy import and_, func, or_, select
@@ -21,8 +22,13 @@ from .schema import (
     TradeApprovalRow,
     TradingGoalRow,
 )
-from .tasks import snapshot
+from .tasks import OWNER_ATTENTION, snapshot
 from .transactions import owned_agent
+
+
+def attention(task: dict[str, Any]) -> bool:
+    """Unfinished Task work held for its owner's direction."""
+    return task["status"] == "waiting" and task["waiting_reason"] == OWNER_ATTENTION
 
 
 async def agent_live_state(session: AsyncSession, owner_id: str, agent_id: str) -> AgentLiveState:
@@ -306,9 +312,9 @@ async def agent_live_state(session: AsyncSession, owner_id: str, agent_id: str) 
         environment = run.execution_state.get("environment", {})
         retry, wait = environment.get("retry"), environment.get("wait")
         if run.status == "queued" and retry:
-            runtime_waits.append(
-                {"run_id": run.id, "kind": "read_retry", "retry_at": retry["not_before"]}
-            )
+            # A model outage backoff is not a tool read retry; clients say which.
+            kind = "model_retry" if retry.get("reason_code") == MODEL_RETRY_REASON else "read_retry"
+            runtime_waits.append({"run_id": run.id, "kind": kind, "retry_at": retry["not_before"]})
         elif (
             run.status == "waiting_takeover"
             and wait
@@ -338,6 +344,7 @@ async def agent_live_state(session: AsyncSession, owner_id: str, agent_id: str) 
             and task["status"] == "failed"
             for task in tasks
         )
+        or any(attention(task) for task in tasks)
         else "working"
         if any(
             run.status in {"leased", "running", "queued"} and run.id not in waiting_runs
@@ -357,7 +364,7 @@ async def agent_live_state(session: AsyncSession, owner_id: str, agent_id: str) 
         )
         if state == "working"
         else "recovering"
-        if runtime_waits and runtime_waits[0]["kind"] == "read_retry"
+        if runtime_waits and runtime_waits[0]["kind"] in {"read_retry", "model_retry"}
         else str(tasks[0]["phase"])
         if tasks and state == "waiting"
         else "monitoring"
@@ -377,8 +384,12 @@ async def agent_live_state(session: AsyncSession, owner_id: str, agent_id: str) 
         if any(item["review_status"] == "failed" for item in authority_summaries)
         else "goal_requires_review"
         if any(item["goal_status"] == "blocked" for item in authority_summaries)
+        else "task_attention_required"
+        if any(attention(task) for task in tasks)
         else "task_recovery_required"
         if state == "action_required"
+        else MODEL_RETRY_REASON
+        if any(item["kind"] == "model_retry" for item in runtime_waits)
         else "retry_backoff"
         if any(task["waiting_reason"] == "retry_backoff" for task in tasks)
         or any(item["kind"] == "read_retry" for item in runtime_waits)

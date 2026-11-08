@@ -111,6 +111,8 @@ def test_actual_catalog_never_parallelizes_effects_waits_or_instruction_authorit
         "skills_list",
         "subagent_spawn",
         "memory_write",
+        # The shared browser service fails fast above two pages at once.
+        "web_browse",
     ):
         assert name not in parallel, name
     assert all(
@@ -290,17 +292,56 @@ def test_identical_reads_warn_block_then_halt_while_pollers_are_exempt() -> None
     assert guardrails.before_call(poller, call("status"), TOOLS["status"]).action == "allow"
 
 
-def test_identical_mutation_streak_and_short_cycles_end_gracefully() -> None:
+def test_identical_effects_are_bounded_whatever_they_return() -> None:
     state: dict[str, Any] = {}
-    codes = [succeeding(state, "mutate", {"ok": True, "same": True}).code for _ in range(5)]
-    assert codes == [
-        "allow",
-        "allow",
-        "identical_call_warning",
-        "identical_call_warning",
-        "identical_call_halt",
-    ]
+    trade, buy = TOOLS["trade"], call("trade", side="buy", symbol="XAUUSD", volume=0.01)
+    codes: list[str] = []
+    for index in range(guardrails.IDENTICAL_EFFECT_BLOCK_AFTER):
+        assert guardrails.before_call(state, buy, trade).action == "allow"
+        # Every financial result carries a new operation identity.
+        result = {"ok": True, "status": "confirmed", "operation_id": f"op-{index}"}
+        codes.append(guardrails.after_call(state, buy, trade, result, failed=False).code)
+        if index == 2:
+            # An observation between repeats does not make them different effects.
+            succeeding(state, "read_a", {"ok": True, "price": index}, q=index)
+    assert codes == ["allow"] + ["identical_effect_warning"] * 4
+    assert guardrails.halt_reason(state) is None
+    # The 6th identical effect is refused before its handler can run.
+    restored = json.loads(json.dumps(state))
+    refusal = guardrails.before_call(restored, buy, trade)
+    assert (refusal.action, refusal.code, refusal.count) == ("block", "identical_effect_block", 5)
+    synthetic = guardrails.blocked_result(refusal)
+    assert synthetic["executed"] is False and synthetic["code"] == "guardrail_blocked"
+    halted = guardrails.before_call(restored, buy, trade)
+    assert (halted.action, halted.code) == ("halt", "identical_effect_halt")
+    assert guardrails.halt_reason(restored)
 
+    # A different effect starts a new streak; real owner input resets it all.
+    other: dict[str, Any] = {}
+    sell = call("trade", side="sell", symbol="XAUUSD", volume=0.01)
+    for index in range(guardrails.IDENTICAL_EFFECT_BLOCK_AFTER):
+        guardrails.after_call(other, buy, trade, {"ok": True, "n": index}, failed=False)
+    assert guardrails.after_call(other, sell, trade, {"ok": True}, failed=False).action == "allow"
+    assert guardrails.before_call(other, buy, trade).action == "allow"
+    for _ in range(guardrails.IDENTICAL_EFFECT_BLOCK_AFTER):
+        guardrails.after_call(other, buy, trade, {"ok": True}, failed=False)
+    guardrails.reset_guardrails(other)
+    assert guardrails.before_call(other, buy, trade).action == "allow"
+
+    # Identical non-financial mutations with identical results use the same bound.
+    same: dict[str, Any] = {}
+    codes = [succeeding(same, "mutate", {"ok": True, "same": True}).code for _ in range(5)]
+    assert codes == ["allow"] + ["identical_effect_warning"] * 4
+    assert guardrails.before_call(same, call("mutate"), TOOLS["mutate"]).action == "block"
+
+    # Checkpoints written before the effect streak existed keep loading.
+    legacy = {"tool_guardrails": guardrails.fresh_state()}
+    del legacy["tool_guardrails"]["effect_streak"]
+    assert guardrails.before_call(legacy, buy, trade).action == "allow"
+    assert legacy["tool_guardrails"]["effect_streak"] is None
+
+
+def test_short_identical_cycles_end_gracefully() -> None:
     cycle: dict[str, Any] = {}
     decisions: list[guardrails.GuardrailDecision] = []
     for _ in range(guardrails.IDENTICAL_CALL_HALT_AFTER):
@@ -378,3 +419,19 @@ def test_runtime_notice_cannot_hide_an_unverified_financial_result() -> None:
     assert unverified_financial_result(messages) == expected
     messages.append(ModelMessage(role="user", content="And what about silver today?"))
     assert unverified_financial_result(messages) is None
+
+
+def test_owner_attention_notice_states_the_known_truth_in_the_owner_language() -> None:
+    from lonora_agent.runtime_notices import attention_message, attention_notice
+
+    english = attention_notice("task_steps_incomplete", False, ["Verify quote", "Report"])
+    assert english.startswith("This task is not finished. Steps not completed yet: Verify quote;")
+    message = attention_message(english, "Everything is done.", False)
+    assert message.startswith(english) and message.endswith("Latest report: Everything is done.")
+    assert attention_message(english, "  ", False) == english
+    arabic = attention_notice("task_wait_required", True)
+    assert arabic.startswith("هذه المهمة المستمرة غير مراقَبة")
+    assert "آخر تقرير: تم" in attention_message(arabic, "تم", True)
+    limited = attention_notice("tool_round_limit", False, [f"step {n}" for n in range(14)])
+    assert "work limit" in limited and "(+2)" in limited
+    assert attention_notice("guardrail_halt", False).startswith("This task stopped before")

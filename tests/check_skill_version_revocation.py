@@ -67,7 +67,8 @@ async def main() -> None:
             async with ctx.db.sessions() as session:
                 actual = await session.get(AgentRow, ctx.agent_id)
                 assert actual is not None
-                return await read_skill_context(session, ctx, actual, registry)
+                # Catalog and pinned procedure bodies (now labelled context data).
+                return (await read_skill_context(session, ctx, actual, registry)).text
 
         original = await read(context)
         assert "Pinned approved version one" in original
@@ -282,8 +283,11 @@ async def main() -> None:
             }
 
         async def complete_new(*args: Any, **kwargs: Any) -> tuple[ModelReply, ModelSelection]:
-            assert "Approved new version two" in args[1][0].content
-            assert "Unused revoked old instructions" not in args[1][0].content
+            # Procedure bodies are labelled context data next to the system prompt.
+            rendered = "\n".join(message.content for message in args[1])
+            assert "Approved new version two" in rendered
+            assert "Approved new version two" not in args[1][0].content
+            assert "Unused revoked old instructions" not in rendered
             return ModelReply(text="Completed with unrevoked instructions"), ModelSelection(
                 provider="openai", model="scripted"
             )

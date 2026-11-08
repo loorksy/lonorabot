@@ -7,6 +7,7 @@ only recent operation chapters enter a working request. Nothing grants authority
 import hashlib
 import json
 import re
+from collections.abc import Collection
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -115,15 +116,20 @@ def validate_system_policy(known_tools: set[str]) -> None:
 
 
 def apply_operating_policy(
-    messages: list[ModelMessage], tools: list[ToolDefinition]
+    messages: list[ModelMessage],
+    tools: list[ToolDefinition],
+    *,
+    available: Collection[str] | None = None,
 ) -> list[ModelMessage]:
     """Fresh request projection only; canonical history/checkpoints stay unchanged.
 
     Actual tool-call names select chapters. No owner-text matching, hidden intent
     classifier or extra paid model call. Complete exchanges remain indivisible.
+    ``available`` names every tool still permitted in this Run, including those
+    reached through the tool_call bridge; without it the native ``tools`` decide.
     """
     bundle = policy_bundle()
-    allowed = {tool.name for tool in tools}
+    allowed = set(available) if available is not None else {tool.name for tool in tools}
     domains: list[str] = []
     for message in reversed(messages[-16:]):
         if message.role != "assistant":
@@ -162,6 +168,9 @@ def apply_operating_policy(
             index,
             ModelMessage(
                 role="system",
+                # Optional guidance for the operations in use: admission may shed it
+                # (and says so) rather than fail; server enforcement never depends on it.
+                context_origin="runtime_context",
                 content=DOMAIN_MARKER
                 + "\n"
                 + "\n\n".join(chapters)

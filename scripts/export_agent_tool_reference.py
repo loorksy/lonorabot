@@ -7,6 +7,7 @@ Use --check in CI. This requires no network or database.
 import argparse
 import hashlib
 import json
+import re
 from pathlib import Path
 
 from lonora_tools.loader import load_tools
@@ -16,42 +17,6 @@ MANUAL = ROOT / "packages/agent-runtime/resources/system/lonora.md"
 MANIFEST = MANUAL.with_name("manifest.json")
 EXAMPLES_SECTION = "## Behavioral examples"
 TOOL_REFERENCE_MARKER = "<!-- tool-reference:generated -->"
-MODULE_POLICY = {
-    "agents": "collaboration",
-    "message": "collaboration",
-    "subagent": "collaboration",
-    "collaboration": "collaboration",
-    "memory": "memory",
-    "scratchpad": "memory",
-    "skills": "memory",
-    "routine": "tasks",
-    "tasks": "tasks",
-    "runtime_control": "tasks",
-    "search": "research",
-    "browser": "research",
-    "mcp": "research",
-    "artifacts": "files",
-    "workspace": "files",
-    "market": "market",
-    "market_analysis": "market",
-    "position_sizing": "trading",
-    "incoming_call": "voice",
-    "market_watch": "market",
-    "trading_decision": "intelligence",
-    "relationships": "intelligence",
-    "opportunity": "intelligence",
-    "shadow": "intelligence",
-    "chart": "charts",
-    "chart_state": "charts",
-    "chart_indicator": "charts",
-    "chart_snapshot": "charts",
-    "account": "account",
-    "trade": "trading",
-    "restrictions": "trading",
-    "trading_goal": "goals",
-    "super_bot": "goals",
-    "registry": "core",
-}
 
 
 def export() -> tuple[str, str]:
@@ -60,10 +25,12 @@ def export() -> tuple[str, str]:
         MANUAL.read_text().split(EXAMPLES_SECTION)[0].split(TOOL_REFERENCE_MARKER)[0].rstrip()
         + "\n"
     )
-    mapping: dict[str, str] = {}
-    for name, tool in registry.tools.items():
-        module = tool.handler.__module__.rsplit(".", 1)[-1]
-        mapping[name] = MODULE_POLICY[module]
+    # Each tool's policy chapter is its toolset, declared in Tool metadata.
+    mapping = {name: tool.toolset for name, tool in registry.tools.items()}
+    chapters = set(re.findall(r"<!-- policy:([a-z_]+) -->", text))
+    unknown = sorted(name for name, chapter in mapping.items() if chapter not in chapters)
+    if unknown:
+        raise SystemExit("Tools without a policy chapter toolset: " + ", ".join(unknown))
     manifest = (
         json.dumps(
             {

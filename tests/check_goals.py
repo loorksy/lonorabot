@@ -1098,11 +1098,16 @@ async def checks() -> None:
                         ]
                     )
                 if adapter_rounds == 2:
-                    assert any(tool.name == "goal_create" for tool in tools)
+                    # Discovery never changes the Run's frozen tools array; the
+                    # stable bridge resolves into the real goal_create call.
+                    assert not any(tool.name == "goal_create" for tool in tools)
+                    assert any(tool.name == "tool_call" for tool in tools)
                     return ModelReply(
                         tool_calls=[
                             ToolCall(
-                                id="gateway-goal-create", name="goal_create", arguments=proposal
+                                id="gateway-goal-create",
+                                name="tool_call",
+                                arguments={"name": "goal_create", "arguments": proposal},
                             )
                         ]
                     )
@@ -1128,13 +1133,16 @@ async def checks() -> None:
                         ]
                     )
                 if adapter_rounds == 4:
-                    assert any(tool.name == "goal_read" for tool in tools)
+                    assert not any(tool.name == "goal_read" for tool in tools)
                     return ModelReply(
                         tool_calls=[
                             ToolCall(
                                 id="gateway-goal-read",
-                                name="goal_read",
-                                arguments={"goal_id": gateway_goal},
+                                name="tool_call",
+                                arguments={
+                                    "name": "goal_read",
+                                    "arguments": {"goal_id": gateway_goal},
+                                },
                             )
                         ]
                     )

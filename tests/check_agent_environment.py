@@ -20,7 +20,7 @@ from lonora_db.schema import AgentRow, RunRow
 from lonora_tools.base import Tool
 from lonora_tools.context import ToolContext
 from lonora_tools.loader import load_tools
-from lonora_tools.registry import ToolRegistry
+from lonora_tools.registry import BRIDGE_TOOLS, ToolRegistry
 from pydantic import Field
 
 
@@ -36,7 +36,7 @@ def reply(call: ToolCall | None = None) -> tuple[ModelReply, ModelSelection]:
 
 def registry_with(tools: list[Tool]) -> ToolRegistry:
     return ToolRegistry(
-        [tool for name, tool in load_tools().tools.items() if name != "tool_environment"] + tools
+        [tool for name, tool in load_tools().tools.items() if name not in BRIDGE_TOOLS] + tools
     )
 
 

@@ -47,7 +47,8 @@ def tools() -> list[Tool]:
         ),
         Tool(
             "subagent_inspect",
-            "Inspect an owned delegated run's state and outcome.",
+            "Inspect the state and outcome of a run this Agent delegated: its subagents, and "
+            "peer or collaboration requests it sent. Other Agents' runs are run_not_found.",
             InspectInput,
             inspect,
             True,

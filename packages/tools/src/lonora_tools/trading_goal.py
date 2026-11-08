@@ -42,6 +42,7 @@ from sqlalchemy import select
 from .base import Tool
 from .context import ToolContext
 from .memory import Empty
+from .trade import trading_permission_available
 
 
 class GoalProposal(GoalCreate):
@@ -528,6 +529,8 @@ def tools() -> list[Tool]:
             execute,
             financial=True,
             replay_safe=True,
+            # A live Agent's Goals are live: analysis permission refuses each step.
+            availability=trading_permission_available,
         ),
         Tool(
             "goal_control",

@@ -18,6 +18,44 @@ from .transactions import owned_agent, owned_thread
 
 # Unfinished work handed to its owner instead of failing the Run.
 OWNER_ATTENTION = "owner_attention"
+# Read by the agent loop: a Task control resumed work held for owner attention.
+ATTENTION_RESUMED = "owner_attention_resumed"
+
+
+def attention_question(run: RunRow) -> dict[str, Any] | None:
+    """The pending owner-attention question that holds this Run, if any."""
+    question = run.execution_state.get("pending_input_request")
+    if not isinstance(question, dict):
+        return None
+    value = cast(dict[str, Any], question)
+    return value if value.get("kind") == OWNER_ATTENTION else None
+
+
+def release_attention(run: RunRow, action: str) -> bool:
+    """Requeue a Run held for owner attention, keeping its checkpoint.
+
+    The unanswered question is cancelled as for any superseded question, and the
+    loop starts a new review epoch (a new budget at a limit) on its next claim.
+    """
+    question = attention_question(run)
+    if question is None or run.status not in {"waiting_input", "waiting_takeover"}:
+        return False
+    history = [
+        {**item, "status": "cancelled"}
+        if item.get("id") == question.get("id") and item.get("status") == "pending"
+        else item
+        for item in run.execution_state.get("input_requests", [])
+    ]
+    state: dict[str, Any] = {
+        **run.execution_state,
+        "input_requests": history,
+        ATTENTION_RESUMED: {"action": action, "question_id": question.get("id")},
+    }
+    state.pop("pending_input_request", None)
+    run.execution_state = state
+    run.status = "queued"
+    run.lease_expires_at = None
+    return True
 
 
 async def get_task(
@@ -321,7 +359,14 @@ async def snapshot(session: AsyncSession, row: TicketRow) -> dict[str, Any]:
             for run in runs
         ],
         "can_pause": status in {"queued", "running", "waiting"},
-        "can_resume": status == "paused" or (status == "failed" and recoverable_failure),
+        "can_resume": status == "paused"
+        or (status == "failed" and recoverable_failure)
+        or (
+            status == "waiting"
+            and active is not None
+            and active.status == "waiting_input"
+            and attention_question(active) is not None
+        ),
         "can_cancel": status not in {"completed", "cancelled"},
     }
 
@@ -414,14 +459,22 @@ async def control_task(
     } or state.status in {"completed", "failed", "cancelled"}:
         raise LonoraError("task_terminal", 409)
     if request.action == "resume":
-        if state.status != "paused" or run.status != "waiting_takeover":
+        attention = run.status == "waiting_input" and attention_question(run) is not None
+        if not attention and (state.status != "paused" or run.status != "waiting_takeover"):
             raise LonoraError("task_cannot_resume", 409)
-        run.status = "queued"
+        # A Task paused while held for attention resumes the work, not the question.
+        if not release_attention(run, "resume"):
+            run.status = "queued"
         state.status, state.phase, state.control_requested = "queued", "queued", None
+        if state.waiting_reason == OWNER_ATTENTION:
+            state.waiting_reason = None
     elif request.action == "revise":
         revise_task(state, request)
         environment = dict(run.execution_state.get("environment", {}))
-        if environment.get("wait"):
+        if run.status == "waiting_input" and release_attention(run, "revise"):
+            # The revised plan reaches the model at its next task checkpoint.
+            state.status, state.phase, state.waiting_reason = "queued", "queued", None
+        elif environment.get("wait"):
             environment.pop("wait", None)
             environment["phase"] = "revalidating"
             run.execution_state = {**run.execution_state, "environment": environment}
@@ -626,6 +679,47 @@ async def request_task_attention(session: AsyncSession, run: RunRow, reason: str
         thread_id=state.origin_thread_id,
         run_id=run.id,
         payload={"id": row.id, "version": row.version, "reason": reason},
+    )
+
+
+async def report_task_degraded(
+    session: AsyncSession, run: RunRow, reason: str, code: str, since: str | None
+) -> None:
+    """Tell the owner that continuous work is retrying through an outage.
+
+    Nothing about the Task changes: it is not held and its Run keeps retrying
+    the same checkpoint. One notification per outage (``since`` is when the
+    failure streak began); the attention projection drops it once the work has
+    recovered or stopped.
+    """
+    identifier = run.model_metadata.get("task_id")
+    if not identifier:
+        return
+    row = await session.get(TicketRow, identifier)
+    if (
+        row is None
+        or row.agent_id != run.agent_id
+        or row.thread_id != run.thread_id
+        or not row.state.get("task")
+    ):
+        return
+    state = task_state(row)
+    if state.status in {"paused", "completed", "failed", "cancelled"} or state.control_requested:
+        return
+    emit(
+        session,
+        row.owner_id,
+        "task.degraded",
+        agent_id=row.agent_id,
+        thread_id=state.origin_thread_id,
+        run_id=run.id,
+        payload={
+            "id": row.id,
+            "run_id": run.id,
+            "reason": reason,
+            "code": code,
+            "transition_id": since or code,
+        },
     )
 
 

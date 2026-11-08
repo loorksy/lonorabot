@@ -24,7 +24,7 @@ from lonora_trading.manual_activity import material_state
 from pydantic import Field
 from sqlalchemy import select
 
-from .base import Tool
+from .base import Tool, eager_for
 from .context import ToolContext
 from .symbols import canonical_broker_symbol
 
@@ -32,6 +32,23 @@ from .symbols import canonical_broker_symbol
 class ClosePositions(Contract):
     account_id: str
     symbol: str | None = None
+
+
+async def trading_permission_available(context: ToolContext) -> str | None:
+    """Presentation only: live financial tools of an analysis-only Agent.
+
+    Every financial handler rechecks current permission before it prepares or
+    sends anything, so this grants and removes nothing; a permission raised
+    later in the Run still works through tool_call. Shadow execution does not
+    depend on the live permission level and stays available.
+    """
+    async with context.db.sessions() as session:
+        agent = await agent_binding(session, context.owner_id, context.agent_id)
+        run = await require_lease(session, context.lease)
+        if agent.execution_mode == "shadow" or run.model_metadata.get("execution_mode") == "shadow":
+            return None
+        level = await effective_permission(session, context.owner_id, context.agent_id)
+    return "agent_analysis_only" if level == "analysis" else None
 
 
 async def management_snapshot(context: ToolContext, requests: list[TradeRequest]) -> dict[str, Any]:
@@ -555,6 +572,8 @@ def tools() -> list[Tool]:
             financial=True,
             replay_safe=True,
             legacy_replay_safe=True,
+            eager=eager_for("market"),
+            availability=trading_permission_available,
         ),
         Tool(
             "trade_close_positions",
@@ -568,5 +587,6 @@ def tools() -> list[Tool]:
             financial=True,
             replay_safe=True,
             legacy_replay_safe=True,
+            availability=trading_permission_available,
         ),
     ]

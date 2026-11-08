@@ -24,6 +24,7 @@ from lonora_db.schema import (
     EffectReceiptRow,
     EventRow,
     MarketWatchRow,
+    RunRow,
     SettingRow,
     SuperBotRequestRow,
     ThreadRow,
@@ -244,6 +245,9 @@ async def candidate(
             if resource and resource.owner_id == event.owner_id and resource.state.get("task"):
                 state = resource.state["task"]
                 parameters["task_id"] = resource.id
+                # The Task's own work thread holds its questions and reports; the
+                # item itself still opens the owner's conversation with the agent.
+                parameters["work_thread_id"] = resource.thread_id
                 if event.payload.get("version") and event.payload["version"] != resource.version:
                     raise LonoraError("attention_superseded_state", 409)
                 failure: dict[str, Any] = state.get("failure") or {}
@@ -262,6 +266,19 @@ async def candidate(
                     raise LonoraError("attention_superseded_state", 409)
                 if classification.code == "task_completed" and state["status"] != "completed":
                     raise LonoraError("attention_superseded_state", 409)
+                if classification.code == "task_degraded":
+                    # Only while the same Run is still retrying through the outage.
+                    run = await session.get(RunRow, str(event.payload.get("run_id") or ""))
+                    recovery: dict[str, Any] = (
+                        run.execution_state.get("model_recovery") or {} if run else {}
+                    )
+                    if (
+                        state["status"] in {"paused", "completed", "failed", "cancelled"}
+                        or run is None
+                        or run.id != resource.payload.get("run_id")
+                        or not recovery.get("failures")
+                    ):
+                        raise LonoraError("attention_superseded_state", 409)
         elif event.kind == "goals.updated":
             resource = await session.get(TradingGoalRow, identifier)
             if resource and resource.owner_id == event.owner_id:

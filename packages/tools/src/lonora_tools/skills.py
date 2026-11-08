@@ -5,8 +5,9 @@ from lonora_contracts.skills import SkillId, SkillVersion
 from lonora_core.user_error import LonoraError
 from pydantic import Field
 
-from .base import Tool
+from .base import Tool, eager_for
 from .context import ToolContext
+from .workspace import execution_available
 
 
 class SkillsListInput(Contract):
@@ -138,6 +139,7 @@ def tools() -> list[Tool]:
             SkillPackageValidateInput,
             validate_package,
             replay_safe=True,
+            availability=execution_available,
         ),
         Tool(
             "skill_package_control",
@@ -153,6 +155,7 @@ def tools() -> list[Tool]:
             catalog,
             read_only=True,
             parallel_safe=False,
+            eager=eager_for("core"),
         ),
         Tool(
             "skill_view",
@@ -162,6 +165,7 @@ def tools() -> list[Tool]:
             read_only=True,
             replay_safe=True,
             parallel_safe=False,
+            eager=eager_for("core"),
         ),
         Tool(
             "skill_repository_inspect",

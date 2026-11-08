@@ -16,4 +16,5 @@ async def scratchpad_context(session: AsyncSession, agent_id: str) -> str:
         str(row.payload.get("title", "")) + ": " + str(row.payload.get("content", ""))
         for row in rows
     )
-    return "<scratchpad>\n" + notes[:16000] + "\n</scratchpad>" if notes else ""
+    # Raw notes: the builder labels and escapes them as agent-authored context data.
+    return notes[:16000]

@@ -55,6 +55,7 @@ export function AttentionInbox({
     goal_changed: t`Trading goal updated`,
     collaboration_completed: t`Collaboration result is ready`,
     task_review: t`Task needs review`,
+    task_degraded: t`Task is retrying through a model outage`,
     super_bot_authorization: t`Super Bot needs device authorization`,
     super_bot_changed: t`Super Bot authority updated`,
     task_completed: t`Task completed`,

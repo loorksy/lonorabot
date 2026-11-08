@@ -39,15 +39,18 @@ trade confirmation, journal/reconciliation and Web/Mobile result presentation.
 2. `build_context()` retains the existing scoped memory, procedure snapshots,
    bounded history, binding, task/goal evidence and routing context.
 3. `model_turn()` projects at most three domain chapters selected by actual
-   recent tool calls that are still available. It does not classify owner text
-   by keywords or add a model call to choose instructions.
+   recent tool calls that are still permitted, including calls made through
+   the `tool_call` bridge (they are recorded under the real tool name). It
+   does not classify owner text by keywords or add a model call to choose
+   instructions.
 4. The working projection leaves canonical history/checkpoints unchanged and
    preserves complete tool request/result exchanges. A resumed legacy execution
    also receives the mandatory core before the next model request.
 5. The mandatory core is capped at 16,000 characters and domain guidance at
    14,000 characters. The complete manual and an additional schema copy are not
    inserted into each turn; exposed schemas come from the live registry through
-   the normal model tool-definition channel. Existing provider context budgeting remains authoritative;
+   the normal model tool-definition channel, as a per-Run frozen working set
+   ([capability exposure](tool-execution-runtime.md#capability-exposure-and-discovery)). Existing provider context budgeting remains authoritative;
    no mandatory financial law is silently dropped to fit a small model.
 6. Realtime voice loads a short policy from the same manual alongside existing
    voice authority/delegation rules. The existing 7,500-byte voice-context cap
@@ -73,8 +76,10 @@ free-text answer; it cannot replace the real financial confirmation controls.
 ## Contract maintenance
 
 Run `.venv/bin/python scripts/export_agent_tool_reference.py` after changing a
-registered tool or its routing domain. The exporter verifies that every live
-tool maps to a policy chapter and updates the manual and manifest hashes. The
+registered tool or its routing domain. A tool's routing domain is its
+`Tool.toolset` (the loader's per-module default unless the tool declares one);
+the exporter verifies that every live tool's toolset is a policy chapter and
+updates the manual and manifest hashes. The
 tool's actual description and JSON schema remain in the runtime registry. The
 exporter never calls a broker or database.
 

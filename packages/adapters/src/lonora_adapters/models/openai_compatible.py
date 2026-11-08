@@ -6,9 +6,14 @@ from lonora_adapter_kit.types import ModelMessage, ModelReply, ToolCall, ToolDef
 from lonora_contracts.model_catalog import ModelDescriptor
 from lonora_contracts.model_routing import ProviderId
 from lonora_contracts.usage import TokenUsage
-from lonora_core.user_error import LonoraError
 
-from .base import BaseModelAdapter
+from .base import (
+    BaseModelAdapter,
+    interrupted_stream,
+    invalid_response,
+    stopped_reply,
+    stream_error,
+)
 
 
 def wire_message(message: ModelMessage) -> dict[str, Any]:
@@ -32,6 +37,33 @@ def wire_message(message: ModelMessage) -> dict[str, Any]:
     return result
 
 
+def _parts(content: str | list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [{"type": "text", "text": content}] if isinstance(content, str) else content
+
+
+def wire_messages(messages: list[ModelMessage]) -> list[dict[str, Any]]:
+    """Wire messages with adjacent plain user turns coalesced into one.
+
+    Context data, a kept request with its compaction summary, or runtime notices
+    can put several user turns in a row. Some OpenAI-compatible endpoints reject
+    successive user messages, so they are joined in order, as
+    ``anthropic_messages`` merges same-role turns. Tool results, assistant turns
+    and system messages are forwarded unchanged.
+    """
+    result: list[dict[str, Any]] = []
+    for message in messages:
+        wired = wire_message(message)
+        previous = result[-1] if result else None
+        if previous is None or message.role != "user" or previous["role"] != "user":
+            result.append(wired)
+            continue
+        if isinstance(previous["content"], str) and isinstance(wired["content"], str):
+            previous["content"] = previous["content"] + "\n\n" + wired["content"]
+        else:
+            previous["content"] = _parts(previous["content"]) + _parts(wired["content"])
+    return result
+
+
 class OpenAICompatibleAdapter(BaseModelAdapter):
     provider: ProviderId
 
@@ -46,7 +78,7 @@ class OpenAICompatibleAdapter(BaseModelAdapter):
     ) -> ModelReply:
         payload: dict[str, Any] = {
             "model": model,
-            "messages": [wire_message(message) for message in messages],
+            "messages": wire_messages(messages),
             "stream": False,
         }
         if max_output_tokens is not None:
@@ -59,20 +91,27 @@ class OpenAICompatibleAdapter(BaseModelAdapter):
         if on_delta:
             return await self.stream_complete(payload, on_delta)
         value = await self.request("POST", "/chat/completions", json=payload)
+        if value.get("error"):
+            # Some compatible gateways answer 200 with an error object.
+            raise stream_error(value)
         try:
             choice = value["choices"][0]
             message = choice["message"]
+            text = message.get("content") or ""
+            if not isinstance(text, str):
+                raise ValueError()
+            raw_calls: list[Any] = message.get("tool_calls") or []
+            stop = stopped_reply(choice.get("finish_reason"), text, bool(raw_calls))
             calls = [
                 ToolCall(
                     id=call["id"],
                     name=call["function"]["name"],
                     arguments=json.loads(call["function"]["arguments"]),
                 )
-                for call in message.get("tool_calls", [])
+                for call in raw_calls
             ]
             usage = value.get("usage", {})
-            text = message.get("content") or ""
-            if not isinstance(text, str) or (not text and not calls):
+            if not text and not calls:
                 raise ValueError()
             return ModelReply(
                 text=text,
@@ -84,11 +123,12 @@ class OpenAICompatibleAdapter(BaseModelAdapter):
                 ),
                 provider_metadata={
                     "response_id": value.get("id"),
-                    "finish_reason": choice.get("finish_reason"),
+                    "finish_reason": stop.pop("stop_reason"),
+                    **stop,
                 },
             )
         except (KeyError, IndexError, ValueError, TypeError):
-            raise LonoraError("model_response_invalid", 502) from None
+            raise invalid_response() from None
 
     async def discover(self) -> list[ModelDescriptor]:
         value = await self.request("GET", "/models")
@@ -145,7 +185,7 @@ class OpenAICompatibleAdapter(BaseModelAdapter):
         try:
             async for value in self.stream_request("/chat/completions", payload):
                 if value.get("error"):
-                    raise LonoraError("model_request_rejected", 502)
+                    raise stream_error(value)
                 if value.get("id"):
                     metadata["response_id"] = value["id"]
                 if value.get("usage"):
@@ -171,7 +211,11 @@ class OpenAICompatibleAdapter(BaseModelAdapter):
                         call["arguments"] += function.get("arguments", "")
                         if len(call["arguments"]) > 120000 or len(calls) > 32:
                             raise ValueError()
-            if not ended or (not text and not calls):
+            if not ended:
+                raise interrupted_stream()
+            stop = stopped_reply(metadata.get("finish_reason"), text, bool(calls))
+            stop.pop("stop_reason")
+            if not text and not calls:
                 raise ValueError()
             return ModelReply(
                 text=text,
@@ -186,7 +230,7 @@ class OpenAICompatibleAdapter(BaseModelAdapter):
                     output_tokens=usage.get("completion_tokens", 0),
                     cached_tokens=usage.get("prompt_tokens_details", {}).get("cached_tokens", 0),
                 ),
-                provider_metadata=metadata,
+                provider_metadata={**metadata, **stop},
             )
         except (KeyError, TypeError, ValueError):
-            raise LonoraError("model_response_invalid", 502) from None
+            raise invalid_response() from None

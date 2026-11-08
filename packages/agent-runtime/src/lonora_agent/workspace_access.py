@@ -128,6 +128,11 @@ class RunWorkspaceAccess:
     def __init__(self, executor: WorkspaceExecutor | None = None) -> None:
         self.executor = executor
 
+    @property
+    def execution_configured(self) -> bool:
+        """Capability availability only; every operation still checks itself."""
+        return self.executor is not None
+
     async def profile(self, context: ToolContext) -> str:
         async with context.db.sessions() as session, session.begin():
             await scoped_run(session, context)

@@ -202,6 +202,7 @@ jobs:
           from lonora_tools.base import Tool
           from lonora_tools.loader import load_tools
           from lonora_tools.registry import ToolRegistry
+          from lonora_agent.skills.registry import built_in_skills
           from sqlalchemy import select
 
           PASSED = []
@@ -555,6 +556,23 @@ jobs:
                   class EmptyArguments(Contract):
                       pass
 
+                  # Built-in Skills name the tools they need; a fixture registry without
+                  # those names fails context build with skill_tool_unknown before any
+                  # provider call. Never-executed name stubs keep the fixtures minimal.
+                  async def skill_tool_stub(context, arguments):
+                      raise AssertionError("skill tool name stub executed")
+
+                  skill_tool_stubs = [
+                      Tool(name, "Skill tool name stub", EmptyArguments, skill_tool_stub, True)
+                      for name in sorted(
+                          {
+                              tool
+                              for skill in built_in_skills().values()
+                              for tool in skill.manifest.required_tools
+                          }
+                      )
+                  ]
+
                   executions = []
 
                   async def read(context, arguments):
@@ -563,6 +581,7 @@ jobs:
 
                   registry = ToolRegistry(
                       [Tool("fixture_read", "Explicit read fixture", EmptyArguments, read, True)]
+                      + skill_tool_stubs
                   )
                   context = await new_context(["original tool request"])
                   fixture = ScriptedModelAdapter(
@@ -718,6 +737,7 @@ jobs:
 
                   registry = ToolRegistry(
                       [Tool("fixture_wait", "Explicit waiting fixture", EmptyArguments, waiting)]
+                      + skill_tool_stubs
                   )
                   fixture = ScriptedModelAdapter(
                       [

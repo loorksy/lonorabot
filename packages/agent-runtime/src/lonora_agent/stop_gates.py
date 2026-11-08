@@ -129,13 +129,30 @@ def apply_stop_gates(
     return StopGateVerdict(continue_turn=True, nudge=nudge)
 
 
-async def task_stop_gate(context: ToolContext, state: dict[str, Any]) -> StopGateVerdict:
+@dataclass(frozen=True)
+class TaskProgress:
+    """Server-owned completion facts of the Task bound to this Run."""
+
+    continuous: bool
+    declared_steps: int
+    incomplete: tuple[tuple[str, str], ...]
+
+    def contract_satisfied(self) -> bool:
+        """Finite work whose declared steps were all recorded complete with evidence.
+
+        Work without declared steps has nothing that proves completion at a
+        limit, so it is never treated as finished there.
+        """
+        return not self.continuous and self.declared_steps > 0 and not self.incomplete
+
+
+async def task_progress(context: ToolContext) -> TaskProgress | None:
     """Resolve the existing Task identity; metadata alone grants no authority."""
     async with context.db.sessions() as session:
         run = await require_lease(session, context.lease)
         identifier = run.model_metadata.get("task_id")
         if not identifier:
-            return StopGateVerdict(continue_turn=False)
+            return None
         row = await session.get(TicketRow, identifier)
         if (
             row is None
@@ -147,10 +164,21 @@ async def task_stop_gate(context: ToolContext, state: dict[str, Any]) -> StopGat
         ):
             raise LonoraError("task_run_mismatch", 409)
         task = task_state(row)
-        continuous = is_continuous_task(task, run)
-        incomplete = [
-            (step.id, step.title)
-            for step in task.steps
-            if step.state not in {"completed", "skipped"}
-        ]
-    return apply_stop_gates(state, continuous=continuous, incomplete_steps=incomplete)
+        return TaskProgress(
+            continuous=is_continuous_task(task, run),
+            declared_steps=len(task.steps),
+            incomplete=tuple(
+                (step.id, step.title)
+                for step in task.steps
+                if step.state not in {"completed", "skipped"}
+            ),
+        )
+
+
+async def task_stop_gate(context: ToolContext, state: dict[str, Any]) -> StopGateVerdict:
+    progress = await task_progress(context)
+    if progress is None:
+        return StopGateVerdict(continue_turn=False)
+    return apply_stop_gates(
+        state, continuous=progress.continuous, incomplete_steps=progress.incomplete
+    )

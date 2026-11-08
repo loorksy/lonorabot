@@ -18,6 +18,7 @@ export type AttentionCode =
   | "goal_changed"
   | "collaboration_completed"
   | "task_review"
+  | "task_degraded"
   | "task_completed"
   | "internal_update"
   | "super_bot_authorization"
