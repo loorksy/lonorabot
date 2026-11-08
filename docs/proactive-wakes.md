@@ -90,6 +90,11 @@ executing. Changing a Goal still requires the Goal's own thread.
   and a Goal's plan version, `MarketWatchRepository.stored_payload`); a changed
   condition, or a Goal plan that moved on, disables the old one
   (`state.code = "watch_replaced"`) and creates the new one. A per-Agent and key advisory lock serializes concurrent wakes.
+- Without a `dedupe_key`, a request identical to a live watch of the same Agent, in the
+  same conversation or Task (the same stored payload), returns that watch
+  (`deduplicated: true`) instead of adding a second one: a model that asks again after
+  a worker restart, or a later wake that re-arms what is armed, keeps one watch. A
+  changed condition, or a watch that was cancelled or has fired, is a new watch.
 - `owner_notify` keeps one alert per Agent and `dedupe_key`.
 
 ## Reading without walls

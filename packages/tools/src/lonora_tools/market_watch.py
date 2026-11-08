@@ -1,3 +1,5 @@
+import hashlib
+import json
 from decimal import Decimal
 from typing import Any
 
@@ -10,7 +12,7 @@ from lonora_db.market_watches import (
     update_watch,
 )
 from lonora_db.runs import require_lease
-from lonora_db.schema import EventRow, MarketWatchRow
+from lonora_db.schema import EventRow, MarketWatchRow, RunRow
 from lonora_db.threads import report_thread
 from lonora_db.transactions import resource_data
 from pydantic import AwareDatetime, Field
@@ -46,13 +48,59 @@ async def keyed_watch(
     )
 
 
+async def identical_watch(
+    session: AsyncSession, context: ToolContext, run: RunRow, thread_id: str, args: dict[str, Any]
+) -> MarketWatchRow | None:
+    """This Agent's live watch with exactly this condition, in the same conversation or
+    Task: a repeated identical request (a model that asks again after a worker restart or
+    a later wake re-arming what is already armed) keeps the one watch, never adds one."""
+    stored = await MarketWatchRepository().stored_payload(
+        session, context.owner_id, context.agent_id, args
+    )
+    if session.get_bind().dialect.name == "postgresql":
+        digest = hashlib.sha256(
+            json.dumps(stored, sort_keys=True, default=str).encode()
+        ).hexdigest()
+        await session.execute(
+            text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"),
+            {"key": "watch-identical:" + context.agent_id + ":" + digest},
+        )
+    task_id = run.model_metadata.get("task_id")
+    for row in await session.scalars(
+        select(MarketWatchRow)
+        .where(
+            MarketWatchRow.owner_id == context.owner_id,
+            MarketWatchRow.agent_id == context.agent_id,
+            MarketWatchRow.thread_id == thread_id,
+            MarketWatchRow.payload["enabled"].as_boolean().is_(True),
+        )
+        .order_by(MarketWatchRow.created_at.desc())
+        .limit(50)
+        .with_for_update()
+    ):
+        if row.payload == stored and row.state.get("task_id") == task_id:
+            return row
+    return None
+
+
 async def create(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     async with context.db.sessions() as session, session.begin():
         run = await require_lease(session, context.lease, lock=True)
         row = await session.get(MarketWatchRepository.row_type, context.resource_id)
         if row is not None:
             return resource_data(row)
+        # A wake's watch belongs to the Agent's conversation, like one set up in chat;
+        # a Task's watch stays with the Task's own work.
+        thread_id = (
+            context.thread_id
+            if run.model_metadata.get("task_id")
+            else await report_thread(session, run)
+        )
         key = args.get("dedupe_key")
+        if not isinstance(key, str):
+            same = await identical_watch(session, context, run, thread_id, args)
+            if same is not None:
+                return {**resource_data(same), "deduplicated": True}
         existing = await keyed_watch(session, context, key) if isinstance(key, str) else None
         if existing is not None:
             # Compare what would be stored, server-filled fields included.
@@ -74,16 +122,12 @@ async def create(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
                     payload={"id": existing.id, "version": existing.version},
                 )
             )
-        # A wake's watch belongs to the Agent's conversation, like one set up in chat;
-        # a Task's watch stays with the Task's own work.
         row = await MarketWatchRepository().create(
             session,
             context.owner_id,
             args,
             agent_id=context.agent_id,
-            thread_id=context.thread_id
-            if run.model_metadata.get("task_id")
-            else await report_thread(session, run),
+            thread_id=thread_id,
             resource_id=context.resource_id,
         )
         if run.model_metadata.get("task_id"):

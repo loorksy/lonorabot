@@ -507,6 +507,58 @@ async def test_re_arming_an_identical_goal_watch_keeps_it():
 
 
 @pytest.mark.asyncio
+async def test_an_identical_watch_request_without_a_key_keeps_the_one_live_watch():
+    """A model that asks again for the same watch (after a worker restart, or a later wake
+    re-arming it) gets the live watch back; a changed condition or a cancelled watch is a
+    new one, and another agent's identical watch is its own."""
+    database()
+    from check_streaming import Fixture
+    from lonora_db.schema import MarketWatchRow
+    from sqlalchemy import func, select
+
+    fixture = await Fixture().open()
+    connection = ""
+    try:
+        connection = await simulation(fixture)
+        agent = await fixture.agent("Watcher")
+        other = await fixture.agent("Other watcher")
+        chat = await fixture.lease(await fixture.run(agent, await fixture.conversation(agent)))
+        watch = {
+            "account_id": connection,
+            "symbol": "XAUUSD",
+            "kind": "price",
+            "condition": "above",
+            "level": "110",
+            "prompt": "Gold above 110",
+            "expires_at": (utcnow() + timedelta(hours=4)).isoformat(),
+        }
+        first = await call(chat, "watch_create", **watch)
+        again = await call(chat, "watch_create", **watch)
+        assert again["id"] == first["id"] and again["deduplicated"] is True
+        moved = await call(chat, "watch_create", **{**watch, "level": "120"})
+        assert moved["id"] != first["id"] and "deduplicated" not in moved
+        theirs = await fixture.lease(await fixture.run(other, await fixture.conversation(other)))
+        separate = await call(theirs, "watch_create", **watch)
+        assert separate["id"] != first["id"]
+        await call(chat, "watch_cancel", watch_id=first["id"])
+        rearmed = await call(chat, "watch_create", **watch)
+        assert rearmed["id"] != first["id"] and "deduplicated" not in rearmed
+        async with fixture.runtime.db.sessions() as session:
+            live = await session.scalar(
+                select(func.count())
+                .select_from(MarketWatchRow)
+                .where(
+                    MarketWatchRow.agent_id == agent["id"],
+                    MarketWatchRow.payload["enabled"].as_boolean().is_(True),
+                )
+            )
+        assert live == 2, live  # The re-armed watch and the moved one; never a duplicate.
+    finally:
+        await retire(fixture, connection)
+        await fixture.close()
+
+
+@pytest.mark.asyncio
 async def test_every_work_lane_wake_reads_the_goals_of_its_conversation():
     database()
     from check_streaming import Fixture
