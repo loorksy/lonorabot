@@ -8,7 +8,8 @@ pinned at the read tier (declared tools are read-only). Such an ``operator`` ent
 declaration made visible: it authorizes a tool only while that declaration stands, and
 becomes the owner's own trust once the owner reviews it. Owners or connections that no
 longer exist are skipped, and a source already listed is not added again, so running it
-again adds nothing. The downgrade drops the table.
+again adds nothing. The downgrade drops the table, and refuses while a source the owner
+added or removed would be lost with it.
 """
 
 import json
@@ -178,6 +179,16 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    # A source the owner (or an agent within it) added or removed exists nowhere else:
+    # dropping it would silently trust github.com again after the owner removed it, and
+    # forget the MCP servers and feed sites the owner reviewed. Refuse, like 0036.
+    if op.get_bind().scalar(
+        sa.text(
+            "SELECT count(*) FROM ln_trusted_sources "
+            "WHERE added_via NOT IN ('default', 'operator') OR revoked_at IS NOT NULL"
+        )
+    ):
+        raise RuntimeError("Cannot downgrade while the owner's trusted sources exist")
     op.drop_index("ln_trusted_source_active", table_name="ln_trusted_sources")
     op.drop_index("ln_trusted_source_owner_kind", table_name="ln_trusted_sources")
     op.drop_table("ln_trusted_sources")

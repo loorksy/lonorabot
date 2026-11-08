@@ -38,6 +38,9 @@ shows the row as waiting for the owner's review; once the owner reviews the serv
 card or **Review and trust**) the row becomes the owner's own (`owner_card` or
 `owner_ui`) and no longer depends on the declaration. An owner created later gets
 `github.com` the first time the list is read. Running the seed again adds nothing.
+The downgrade refuses while a source the owner (or an agent within the owner's
+choices) added or removed exists, so a removed `github.com` never comes back trusted
+on the re-upgrade; a refused downgrade changes nothing.
 
 ## MCP servers
 

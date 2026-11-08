@@ -122,8 +122,17 @@ merges every Agent's `# USER.md` section into the profile, oldest change first,
 keeping each distinct line once (exact, trimmed) under a
 `<!-- Merged from <agent name> -->` comment. Agent rows are not modified. The
 merge writes only when the resulting content hash differs, so running it again
-changes nothing; the downgrade drops the two tables and leaves Agent rows as they
-are. At runtime the retired section is no longer read from an Agent row: it is
+changes nothing. The merge never pushes the profile past its 8,000-character
+limit: whole Agent blocks join it oldest first while they fit, and each block that
+does not fit is routed (never dropped) into that Agent's own `# OPERATING.md` notes
+under "Owner preferences kept here (the shared profile was full)", once. The owner
+can still save an over-limit profile (an older merge) shorter; nothing is saved
+longer than the limit (`owner_profile_too_large`, 413). The downgrade first writes
+every profile line the Agent rows do not already hold (the owner's edits and Agents'
+writes since the upgrade) as a `# USER.md` section of the Personal Agent's document
+(else the owner's oldest Agent), where the earlier runtime reads it and a re-upgrade
+merges it back; then it drops the two tables (the revision history goes with
+them). At runtime the retired section is no longer read from an Agent row: it is
 hidden from `memory_read`, the context, recall, `search_internal` and the owner's
 memory editor. It stays in the row: every write (operations, a whole document, the
 owner's edit, an undo) changes only the Agent's view and keeps the section's lines
@@ -345,7 +354,9 @@ rows byte-identical) and idempotent across a re-run and a downgrade/upgrade, an
 Agent's write after the upgrade still leaves every legacy line for a downgrade, a
 preference reaches the gold Agent through a real Run, and "send me a message instead
 of calling" makes the next qualifying event ring nothing and write exactly one
-message.
+message. `tests/check_lossless_downgrades.py` keeps a line the owner wrote after the
+upgrade across a downgrade below 0039 and the re-upgrade, and routes a merge past the
+limit into the Agents' own notes once.
 
 `tests/test_memory_privacy.py` covers the edit semantics, the overflow and
 freeing batch, the input shapes, and on PostgreSQL: three Agents with private

@@ -34,7 +34,10 @@ class MemoryUpdate(Contract):
 
 
 class OwnerProfileUpdate(Contract):
-    content: str = Field(max_length=OWNER_PROFILE_CHAR_LIMIT)
+    # Bounded for transport only: the limit itself is the profile's own rule
+    # (``owner_profile_too_large`` with owner text), which lets an over-limit legacy
+    # profile be saved shorter.
+    content: str = Field(max_length=4 * OWNER_PROFILE_CHAR_LIMIT)
     version: int = Field(ge=1)
 
 

@@ -3,7 +3,8 @@
 The data step gives each owner's Personal Agent a ``default`` grant over every other
 agent of that owner, so Lonora reads and steers every agent from the start; the owner
 revokes any grant with one tap. Seeding skips pairs that already have an active grant,
-so running it again adds nothing. The downgrade drops both tables.
+so running it again adds nothing. The downgrade drops both tables, and refuses while a
+grant the owner set or revoked, or a live pause, would be lost with them.
 """
 
 import uuid
@@ -176,6 +177,19 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    connection = op.get_bind()
+    # A grant the owner set or revoked, or a pause in force, exists nowhere else: dropping
+    # it would silently restore a revoked default on re-upgrade (Lonora reading an agent
+    # the owner took it away from) or resume paused work. Refuse, like 0036.
+    if connection.scalar(
+        sa.text(
+            "SELECT count(*) FROM ln_supervision_grants "
+            "WHERE created_via <> 'default' OR revoked_at IS NOT NULL"
+        )
+    ) or connection.scalar(
+        sa.text("SELECT count(*) FROM ln_supervision_holds WHERE released_at IS NULL")
+    ):
+        raise RuntimeError("Cannot downgrade while the owner's supervision choices exist")
     op.drop_index("ln_supervision_hold_live_target", table_name="ln_supervision_holds")
     op.drop_index("ln_supervision_hold_holder", table_name="ln_supervision_holds")
     op.drop_index("ln_supervision_hold_agent", table_name="ln_supervision_holds")

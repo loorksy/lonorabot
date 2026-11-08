@@ -4,8 +4,10 @@ The data step merges each agent's legacy ``# USER.md`` section into the owner pr
 oldest change first, keeping each distinct line once under a provenance comment that
 names its source agent. Agent rows keep their text; the runtime no longer reads
 USER.md from them. The merge is keyed on the resulting content hash, so running it
-again changes nothing. The downgrade drops the new tables and leaves agent rows as
-they are.
+again changes nothing. The downgrade first keeps every profile line the agent rows do
+not already hold (the owner's edits since the upgrade) as a ``# USER.md`` section of the
+Personal Agent's document, where the earlier runtime reads it and the re-upgrade merges
+it from; then it drops the new tables (the revision history goes with them).
 """
 
 import hashlib
@@ -40,6 +42,11 @@ def user_section(content: str) -> str:
 def provenance(name: str) -> str:
     safe = re.sub(r"\s+", " ", name.replace("--", "-").replace(">", "")).strip() or "an agent"
     return f"<!-- Merged from {safe[:80]} -->"
+
+
+# The owner profile's limit (lonora_db.owner_profile.OWNER_PROFILE_CHAR_LIMIT), frozen here.
+PROFILE_LIMIT = 8000
+OVERFLOW_HEADING = "## Owner preferences kept here (the shared profile was full)"
 
 
 def merge_profile(existing: str, sources: list[tuple[str, str]]) -> str:
@@ -82,6 +89,8 @@ def merge_owner(connection: Any, owner_id: str, now: datetime) -> bool:
     ).first()
     existing = str(profile[0]) if profile else ""
     merged = merge_profile(existing, sources)
+    if len(merged) > PROFILE_LIMIT:
+        merged = keep_overflow(connection, owner_id, existing, sources, now)
     if content_hash(merged) == content_hash(existing):
         return False
     version = (int(profile[1]) + 1) if profile else 1
@@ -117,6 +126,40 @@ def merge_owner(connection: Any, owner_id: str, now: datetime) -> bool:
         },
     )
     return True
+
+
+def keep_overflow(
+    connection: Any, owner_id: str, existing: str, sources: list[tuple[str, str]], now: datetime
+) -> str:
+    """A merge past the profile's limit: whole agent blocks join the shared profile, oldest
+    first, while they fit; each block that does not fit is routed, not dropped, into that
+    agent's own operating notes (``# OPERATING.md``), which only it reads, under a heading
+    that says why. Rules are never deleted (correction 16)."""
+    kept: list[tuple[str, str]] = []
+    for name, body in sources:
+        if len(merge_profile(existing, [*kept, (name, body)])) <= PROFILE_LIMIT:
+            kept.append((name, body))
+            continue
+        rows = connection.execute(
+            sa.text(
+                "SELECT m.agent_id, m.content FROM ln_memory m JOIN ln_agents a "
+                "ON a.id = m.agent_id WHERE a.owner_id = :owner AND a.name = :name"
+            ),
+            {"owner": owner_id, "name": name},
+        ).all()
+        for agent_id, content in rows:
+            text = str(content)
+            if user_section(text) != body or OVERFLOW_HEADING in text:
+                continue
+            note = f"# OPERATING.md\n{OVERFLOW_HEADING}\n{body.strip()}\n"
+            connection.execute(
+                sa.text(
+                    "UPDATE ln_memory SET content = :content, version = version + 1, "
+                    "updated_at = :now WHERE agent_id = :agent"
+                ),
+                {"agent": agent_id, "content": text.rstrip() + "\n\n" + note, "now": now},
+            )
+    return merge_profile(existing, kept)
 
 
 def merge_legacy_user_sections(connection: Any) -> int:
@@ -192,7 +235,79 @@ def upgrade() -> None:
     merge_legacy_user_sections(op.get_bind())
 
 
+def restore_legacy_profiles(connection: Any) -> int:
+    """Keep every profile line the agent rows do not already hold: the owner's own edits
+    and agents' writes since the upgrade exist only in the profile. They are appended as
+    a ``# USER.md`` section of the Personal Agent's document (else the owner's oldest
+    agent), where the earlier runtime reads owner preferences and the re-upgrade merges
+    them from. A profile the agent rows already rebuild changes no row. An owner with
+    lines to keep and no agent to hold them stops the downgrade."""
+    now = datetime.now(UTC)
+    restored = 0
+    for owner_id, content in connection.execute(
+        sa.text("SELECT owner_id, content FROM ln_owner_profile WHERE content <> ''")
+    ).all():
+        rows = connection.execute(
+            sa.text(
+                "SELECT m.content FROM ln_memory m JOIN ln_agents a ON a.id = m.agent_id "
+                "WHERE a.owner_id = :owner"
+            ),
+            {"owner": owner_id},
+        ).scalars()
+        known = {
+            line.strip()
+            for document in rows
+            for line in user_section(str(document)).splitlines()
+            if line.strip()
+        }
+        missing = [
+            line.rstrip()
+            for line in str(content).splitlines()
+            if line.strip() and not line.startswith("<!--") and line.strip() not in known
+        ]
+        if not missing:
+            continue
+        holder = connection.execute(
+            sa.text(
+                "SELECT id FROM ln_agents WHERE owner_id = :owner "
+                "ORDER BY (role = 'personal') DESC, created_at, id LIMIT 1"
+            ),
+            {"owner": owner_id},
+        ).scalar()
+        if holder is None:
+            raise RuntimeError("Cannot downgrade: an owner profile has no agent to keep it")
+        section = "# USER.md\n" + "\n".join(missing) + "\n"
+        row = connection.execute(
+            sa.text("SELECT content FROM ln_memory WHERE agent_id = :agent"),
+            {"agent": holder},
+        ).first()
+        if row is None:
+            connection.execute(
+                sa.text(
+                    "INSERT INTO ln_memory (agent_id, content, version, updated_at) "
+                    "VALUES (:agent, :content, 1, :now)"
+                ),
+                {"agent": holder, "content": section, "now": now},
+            )
+        else:
+            current = str(row[0]).rstrip()
+            connection.execute(
+                sa.text(
+                    "UPDATE ln_memory SET content = :content, version = version + 1, "
+                    "updated_at = :now WHERE agent_id = :agent"
+                ),
+                {
+                    "agent": holder,
+                    "content": (current + "\n\n" if current else "") + section,
+                    "now": now,
+                },
+            )
+        restored += 1
+    return restored
+
+
 def downgrade() -> None:
+    restore_legacy_profiles(op.get_bind())
     op.drop_index("ix_ln_memory_revisions_document", table_name="ln_memory_revisions")
     op.drop_table("ln_memory_revisions")
     op.drop_table("ln_owner_profile")

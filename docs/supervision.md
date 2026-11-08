@@ -129,6 +129,12 @@ Holds (`ln_supervision_holds`) record each pause a supervisor sets:
   card (`holder_agent_id` becomes null, `ON DELETE SET NULL`), so the work stays paused,
   its card keeps offering Resume, and the paused agent cannot lift it. Nothing resumes
   without the owner.
+- **Downgrades keep the owner's choices.** The downgrade of `0043_owner_held_pauses`
+  refuses while the owner holds a live pause (a holder-less hold has no place in the
+  earlier schema), and the downgrade of `0041_supervision_grants` refuses while a grant
+  the owner set (not `default`) or revoked, or any live hold, exists: dropping them
+  would bring a revoked default back on the re-upgrade (Lonora reading an agent the
+  owner took away from it) or resume paused work. A refused downgrade changes nothing.
 - **The owner's pause is the owner's.** The owner pausing work a supervisor holds (the
   agent's switch, the routine's switch, the watch list's Pause or Cancel, the Task's
   Pause, an Undo) keeps the hold and makes it the owner's (`source='owner'`, the

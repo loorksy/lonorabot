@@ -116,7 +116,9 @@ async def commit_owner_profile(
             if effect_key:
                 session.add(EffectReceiptRow(key=effect_key, result=result))
             return result
-    if len(content) > OWNER_PROFILE_CHAR_LIMIT:
+    if len(content) > OWNER_PROFILE_CHAR_LIMIT and len(content) >= len(row.content):
+        # A profile already over the limit (a legacy merge) may still be saved shorter,
+        # so the owner can consolidate it; nothing may grow past the limit.
         raise LonoraError("owner_profile_too_large", 413)
     previous = row.content
     row.content = content
