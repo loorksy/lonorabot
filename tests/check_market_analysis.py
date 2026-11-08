@@ -24,6 +24,7 @@ from lonora_core.user_error import LonoraError
 from lonora_db.schema import BrokerSessionRow, RunRow, TradingAccountRow, TradingJournalRow
 from lonora_tools.context import ToolContext
 from lonora_tools.loader import load_tools
+from lonora_tools.market_analysis import calendar_available
 from sqlalchemy import func, select
 
 GOLD, DOLLAR, EURO = "XAUUSD.r", "USDX.cash", "EURUSDm"
@@ -234,6 +235,11 @@ async def main() -> None:
         empty = await call("economic_calendar_read", {})
         assert empty["configured"] is False and empty["events"] == []
         assert empty["reason"] == "economic_calendar_not_configured"
+        # Exposure reports the same state: unavailable (so not native) until configured.
+        unavailable = await registry.availability(
+            context, [registry.tools["economic_calendar_read"]]
+        )
+        assert unavailable == {"economic_calendar_read": "economic_calendar_not_configured"}
         source = await fixture.request(
             "POST",
             "/integrations",
@@ -246,6 +252,7 @@ async def main() -> None:
                 }
             },
         )
+        assert await calendar_available(context) is None
         events = [
             CalendarEvent(
                 id="cpi",

@@ -35,19 +35,31 @@ eagerly (`Tool.eager`). A Run's profiles come from its agent and kind:
 | Profile | Applies to | Eager tools |
 | --- | --- | --- |
 | `core` | every Run | `tool_environment`, `tool_call`, `skills_list`, `skill_view`, `wait_for_input`, `memory_read`, `memory_write`, `session_search` |
-| `market` | agent bound to a broker account, and the owner's Personal Agent (it reads every owned account and analyzes directly when no specialist exists) | `list_accounts`, `market_quote`, `market_candles`, `market_instrument`, `market_structure`, `account_read`, `chart_snapshot`, `market_decision_record`, `market_decision_history`, `watch_create`, `trade_execute` |
-| `research` | every other agent | `web_search`, `web_fetch`, `artifact_read` |
+| `market` | agent bound to a broker account, and the owner's Personal Agent (it reads every owned account and analyzes directly when no specialist exists) | `list_accounts`, `market_quote`, `market_candles`, `market_instrument`, `market_snapshot`, `market_sessions`, `account_read`, `chart_snapshot`, `market_decision_record`, `market_decision_history`, `watch_create`, `trade_execute` |
+| `research` | every other agent | `web_search`, `web_fetch`, `artifact_read`, `economic_calendar_read` (only when the owner configured a calendar source) |
 | `task` | durable Task Runs | `task_wait`, `task_step_update` |
 
 Subagent and observe-only Runs keep only the read-only members. The eager set
-is at most `EAGER_SCHEMA_BUDGET` (24,800) characters of serialized schema for
-every profile combination (largest today: market Task Runs, about 24,500; a
-market conversation about 23,200; a general conversation about 8,200), against
-about 94,000 for the whole catalog. `tests/test_tool_discovery.py` enforces the
+is at most `EAGER_SCHEMA_BUDGET` (25,700) characters of serialized schema for
+every profile combination (largest today: market Task Runs, about 25,500; a
+market conversation about 24,100; a general conversation about 9,100), against
+about 97,500 for the whole catalog. `tests/test_tool_discovery.py` enforces the
 budget, so adding an eager tool fails fast when it does not fit. The budget rose
-from 24,000 when the core set gained ranked history recall (`session_search`)
-and granular memory operations (see `docs/agent-memory-and-recall.md`); the
-literal `search_internal` left the core set.
+from 24,000 to 24,800 when the core set gained ranked history recall
+(`session_search`) and granular memory operations (see
+`docs/agent-memory-and-recall.md`); the literal `search_internal` left the core
+set. It rose to 25,700 when the market set gained `market_snapshot` (one call
+replaces a quote read plus a candle read per timeframe for a first look at a
+market) and the DST-correct `market_sessions` clock, while `market_structure`
+left it: the snapshot reports swing structure per timeframe with the same rule,
+and exact anchors and lines are a follow-up through `tool_call` (and a remembered
+tool once used). `PROMOTED_SCHEMA_BUDGET` gave up the same 900 characters, so
+the worst-case native set is unchanged. Owner restrictions and monetary limits
+are shown in the permission frame on every turn, so `trade_restriction_create`
+and `trade_restriction_list` stay long-tail. A tool whose backend is not
+configured reports it through `availability`: `economic_calendar_read` without
+an enabled calendar integration, `market_candles_to_workspace` without workspace
+access.
 
 **Remembered tools.** After a call to a tool outside the profile's eager set
 succeeds, the loop records it in `ln_agent_tool_usage` (migration 0035; per
@@ -58,7 +70,7 @@ nothing: a subagent Run carries its parent's agent id, and observe-only Runs are
 automated, so neither displaces the agent's own tools. When the agent's next
 Run starts, its most recent remembered tools are promoted into that Run's
 native set, at most `MAX_PROMOTED_TOOLS` (6) and `PROMOTED_SCHEMA_BUDGET`
-(5,000 characters); tools that are unavailable,
+(4,100 characters); tools that are unavailable,
 out of scope or larger than the remaining budget are skipped. A follow-up turn
 therefore calls the long-tail tool it used last time directly. The native set
 is bounded by about 29,800 characters in the worst case.

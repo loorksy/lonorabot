@@ -66,8 +66,11 @@ BRIDGE_TOOLS = frozenset({INSPECTOR, BRIDGE})
 # promoted budget is enforced when a Run's exposure is chosen. The core set
 # carries ranked history recall and granular memory edits: one avoided
 # whole-document memory rewrite saves more than the schema characters they add.
-EAGER_SCHEMA_BUDGET = 24800
-PROMOTED_SCHEMA_BUDGET = 5000
+# The market set carries the multi-timeframe snapshot and the session clock; the
+# promoted budget gave up the same 900 characters (it still holds six typical
+# long-tail schemas), so the worst-case native set stays at 29,800 characters.
+EAGER_SCHEMA_BUDGET = 25700
+PROMOTED_SCHEMA_BUDGET = 4100
 MAX_PROMOTED_TOOLS = 6
 # Search results carry input schemas up to this many characters in total;
 # later results name their required fields and are inspected exactly.

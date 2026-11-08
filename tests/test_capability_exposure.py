@@ -27,7 +27,7 @@ from lonora_db.agent_permissions import change_permission
 from lonora_db.schema import AgentRow, EventRow, RunRow
 from lonora_db.task_recovery import CHECKPOINT_TOOLS, FINANCIAL_REPLAY_TOOLS
 from lonora_db.tool_usage import MAX_REMEMBERED_TOOLS, record_tool_use, remembered_tools
-from lonora_tools import search
+from lonora_tools import market_analysis, search
 from lonora_tools.base import EXPOSURE_PROFILES, Tool, eager_for
 from lonora_tools.context import ToolContext
 from lonora_tools.loader import MODULES, load_tools
@@ -719,10 +719,12 @@ async def test_availability_reflects_configured_backends_and_fails_open(
 ):
     catalog = load_tools()
     monkeypatch.setattr(search, "brave_configuration", AsyncMock(return_value=None))
+    monkeypatch.setattr(market_analysis, "configured_sources", AsyncMock(return_value=[]))
     bare = cast(
         ToolContext,
         SimpleNamespace(
             owner_id="owner",
+            db=None,
             searxng_url=None,
             browser_url=None,
             workspace_access=None,
@@ -738,12 +740,15 @@ async def test_availability_reflects_configured_backends_and_fails_open(
         "workspace_update": "workspace_unconfigured",
         "workspace_execute": "workspace_unconfigured",
         "skill_package_validate": "workspace_unconfigured",
+        "market_candles_to_workspace": "workspace_unconfigured",
         "mcp_execute": "mcp_tool_not_authorized",
+        "economic_calendar_read": "economic_calendar_not_configured",
     }
     files_only = cast(
         ToolContext,
         SimpleNamespace(
             owner_id="owner",
+            db=None,
             searxng_url="http://searxng.internal",
             browser_url="http://browser.internal",
             workspace_access=RunWorkspaceAccess(None),
@@ -754,6 +759,7 @@ async def test_availability_reflects_configured_backends_and_fails_open(
         "workspace_execute": "workspace_execution_unconfigured",
         "skill_package_validate": "workspace_execution_unconfigured",
         "mcp_execute": "mcp_tool_not_authorized",
+        "economic_calendar_read": "economic_calendar_not_configured",
     }
     declaration = McpToolDeclaration.model_validate(
         {
@@ -770,6 +776,7 @@ async def test_availability_reflects_configured_backends_and_fails_open(
         ToolContext,
         SimpleNamespace(
             owner_id="owner",
+            db=None,
             searxng_url=None,
             browser_url="http://browser.internal",
             workspace_access=RunWorkspaceAccess(cast(Any, object())),
@@ -777,6 +784,7 @@ async def test_availability_reflects_configured_backends_and_fails_open(
         ),
     )
     monkeypatch.setattr(search, "brave_configuration", AsyncMock(return_value={"secret_id": "s"}))
+    monkeypatch.setattr(market_analysis, "configured_sources", AsyncMock(return_value=[object()]))
     assert await catalog.availability(configured) == {}
 
     async def broken(_: ToolContext) -> str | None:

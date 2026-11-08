@@ -118,14 +118,22 @@ def test_eager_working_sets_are_data_from_tool_metadata():
         "market_quote",
         "market_candles",
         "market_instrument",
-        "market_structure",
+        "market_snapshot",
+        "market_sessions",
         "account_read",
         "chart_snapshot",
         "market_decision_record",
         "market_decision_history",
         "watch_create",
     } <= market
+    # Exact swing anchors and lines are a follow-up to the snapshot's structure.
+    assert "market_structure" not in market and "market_structure" in catalog.tools
     assert {"web_search", "web_fetch"} <= research and not {"web_search", "web_fetch"} & market
+    # Calendar evidence is native for research Agents only when a source exists.
+    assert "economic_calendar_read" in research - market
+    assert catalog.tools["economic_calendar_read"].availability is not None
+    # Owner restrictions are shown in the permission frame; their tools are long-tail.
+    assert not {"trade_restriction_create", "trade_restriction_list"} & (market | research)
     assert not {"market_quote", "trade_execute"} & research
     assert {"task_wait", "task_step_update"} <= set(catalog.eager_names(["core", "task"]))
     assert "task_wait" not in market | research

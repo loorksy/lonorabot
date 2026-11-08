@@ -9,6 +9,7 @@ from lonora_core.user_error import LonoraError
 
 if TYPE_CHECKING:
     from lonora_db.client import Database
+    from lonora_db.schema import IntegrationRow
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +38,28 @@ def _default_source(url: str) -> CalendarSource:
     return EconomicCalendarAdapter(url)
 
 
+async def configured_sources(db: "Database", owner_id: str) -> list["IntegrationRow"]:
+    """The owner's enabled economic calendar integrations that have a source URL."""
+    from lonora_db.schema import IntegrationRow
+    from sqlalchemy import select
+
+    async with db.sessions() as session:
+        rows = (
+            await session.scalars(
+                select(IntegrationRow)
+                .where(IntegrationRow.owner_id == owner_id)
+                .order_by(IntegrationRow.id)
+            )
+        ).all()
+    return [
+        row
+        for row in rows
+        if row.payload.get("type") == "economic_calendar"
+        and row.payload.get("enabled")
+        and row.payload.get("url")
+    ]
+
+
 async def read_calendar(
     db: "Database",
     owner_id: str,
@@ -49,24 +72,7 @@ async def read_calendar(
     Returns public source status (never the configured URL) and events tagged
     with the integration ID that a calendar watch can reference.
     """
-    from lonora_db.schema import IntegrationRow
-    from sqlalchemy import select
-
-    async with db.sessions() as session:
-        rows = (
-            await session.scalars(
-                select(IntegrationRow)
-                .where(IntegrationRow.owner_id == owner_id)
-                .order_by(IntegrationRow.id)
-            )
-        ).all()
-    configured = [
-        row
-        for row in rows
-        if row.payload.get("type") == "economic_calendar"
-        and row.payload.get("enabled")
-        and row.payload.get("url")
-    ]
+    configured = await configured_sources(db, owner_id)
 
     async def fetch(url: str) -> list[CalendarEvent] | str:
         try:

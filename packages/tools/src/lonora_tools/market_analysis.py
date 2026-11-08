@@ -13,18 +13,18 @@ from lonora_core.chart_controller import validate_timeframe
 from lonora_core.user_error import LonoraError
 from lonora_market.broker import broker_market
 from lonora_market.candles import CSV_COLUMNS, candles_csv
-from lonora_market.economic_calendar import read_calendar, select_events
+from lonora_market.economic_calendar import configured_sources, read_calendar, select_events
 from lonora_market.health import assess_candles, timeframe_age_seconds
 from lonora_market.sessions import broker_trading_state, session_clock
 from lonora_market.snapshot import TimeframeInput, market_snapshot
 from lonora_market.watch_lifecycle import candle_close_time
 from pydantic import Field, model_validator
 
-from .base import Tool
+from .base import Tool, eager_for
 from .context import ToolContext
 from .market import CandlesInput, QuoteInput
 from .symbols import canonical_broker_symbol
-from .workspace import access
+from .workspace import access, workspace_available
 
 READ_TIMEOUT_SECONDS = 20
 DEFAULT_TIMEFRAMES = ["15m", "1h", "4h", "1d"]
@@ -231,6 +231,13 @@ async def _broker_hours(
     return {"symbol": symbol, "state": "unknown", "reason": reason}
 
 
+async def calendar_available(context: ToolContext) -> str | None:
+    """Presentation only: the handler still answers configured=false on its own."""
+    if await configured_sources(context.db, context.owner_id):
+        return None
+    return "economic_calendar_not_configured"
+
+
 async def calendar(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     params = CalendarReadInput.model_validate(args)
     sources, events = await read_calendar(context.db, context.owner_id)
@@ -358,6 +365,9 @@ def tools() -> list[Tool]:
             SnapshotInput,
             snapshot,
             True,
+            # One call replaces a quote read plus a candle read per timeframe for
+            # the first look at a market, so it travels natively with trading Runs.
+            eager=eager_for("market"),
         ),
         Tool(
             "market_sessions",
@@ -368,6 +378,9 @@ def tools() -> list[Tool]:
             SessionsInput,
             sessions,
             True,
+            # Session-scoped work ("during today's London session") needs the
+            # DST-correct clock rather than hours recomputed by the model.
+            eager=eager_for("market"),
         ),
         Tool(
             "economic_calendar_read",
@@ -377,6 +390,10 @@ def tools() -> list[Tool]:
             CalendarReadInput,
             calendar,
             True,
+            # Research Agents (news and event monitoring) receive it natively, but
+            # only when the owner configured a calendar source.
+            eager=eager_for("research"),
+            availability=calendar_available,
         ),
         Tool(
             "market_candles_to_workspace",
@@ -387,5 +404,6 @@ def tools() -> list[Tool]:
             CandlesWorkspaceInput,
             candles_to_workspace,
             replay_safe=True,
+            availability=workspace_available,
         ),
     ]

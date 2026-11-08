@@ -144,6 +144,8 @@ def tools() -> list[Tool]:
             StructureInput,
             structure,
             True,
-            eager=eager_for("market"),
+            # Not eager: market_snapshot reports swing structure per timeframe with
+            # the same rule; exact anchors and lines are a follow-up via tool_call,
+            # and a structure user gets it promoted as a remembered tool.
         ),
     ]
