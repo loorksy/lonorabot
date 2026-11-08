@@ -34,7 +34,6 @@ def strip_bidi_controls(text: str) -> str:
     return BIDI_CONTROLS.sub("", text)
 
 
-
 class AgentCreateInput(Contract):
     """The agent_create tool input. The server resolves the market, the account and the
     ladder; nothing here grants authority."""

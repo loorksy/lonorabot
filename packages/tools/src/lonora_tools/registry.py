@@ -69,6 +69,8 @@ def returns_external_content(name: str) -> bool:
     from lonora_agent.context.run_evidence import is_external
 
     return is_external(name)
+
+
 BRIDGE_TOOLS = frozenset({INSPECTOR, BRIDGE})
 # Native schema budgets in serialized ToolDefinition JSON characters. The eager
 # budget is enforced for every profile combination by the registry tests; the
