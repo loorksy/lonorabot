@@ -485,7 +485,7 @@ Journeys exercised (owner confirmations: what the vision's "when Lonora asks" ru
 
 | Journey | Where | Confirmations | Evidence |
 | --- | --- | --- | --- |
-| J1 «أنشئ وكيل ذهب يدير صفقاتي على حسابي بنفسه، وخسارة يومية قصوى 2%» | check; Web; Mobile (cards only) | 1 | One owner sentence creates the gold agent (XAUUSD from the only account's catalog, no question, *Ask me*, no grant) and one grant card: gold only, every action, until stopped, own positions excluded, 2% of equity = 200.00 USD, "Resume trading too". One passkey tap (the device enrolls inline the first time) signs it, resumes trading and sets the daily loss limit; Lonora confirms in Arabic; one management Task starts. The pill reads «يتداول باستقلال · XAUUSD · حتى توقفه · الخسارة اليومية 200.00 USD» (Web, after fixes 1 and 5). The agent then buys on its own with no tap. |
+| J1 «أنشئ وكيل ذهب يدير صفقاتي على حسابي بنفسه، وخسارة يومية قصوى 2%» | check; Web; Mobile (cards only) | 1 | One owner sentence creates the gold agent (XAUUSD from the only account's catalog, no question, *Ask me*, no grant) and one grant card: gold only, every action, until stopped, own positions excluded, 2% of equity = 200.00 USD, "Resume trading too". One passkey tap signs it (on a device with no passkey yet: Authorize, then Register with the password, and the second system prompt follows at once; corrected after the review, `3f09972`), resumes trading and sets the daily loss limit; Lonora confirms in Arabic; one management Task starts. The pill reads «يتداول باستقلال · XAUUSD · حتى توقفه · الخسارة اليومية 200.00 USD» (Web, after fixes 1 and 5). The agent then buys on its own with no tap. |
 | J2 «خلي لونورا تدير كل أزواجي بنفسها» | check | 2 (one per account; two accounts) | One grant card per account, all pairs preselected, the account's own 200 limit kept on the first and the 3% suggestion (300.00) on the second, the gold agent named on the first ("keep both"). After signing, Lonora trades without a tap; a stop-loss hit on its position wakes Lonora once with its normal authority (not observe-only), and a second reconciliation wakes nobody. |
 | J3 «أوقف فتح صفقات جديدة اليوم، وكمّل مراقبة الذهب», later «رجّع التداول» | check; Web; Mobile | 1 | One restriction (all agents, until the end of the day, recorded from the owner's message); the watch keeps running; one Lift card with no model; every agent's pill says the same pause and end time; a new entry is refused with `trading_restriction_active` before any approval card (fix 3); «رجّع التداول» offers the same card, never a second; one tap lifts it and Lonora confirms in Arabic. Web and Mobile pills follow the tap (Mobile after fix 4). |
 | J3b the same on two accounts | check | 2 (journey list assumes one account) | A restriction is per account, so a pause "on all my accounts" is one Lift card per account. |
@@ -540,6 +540,68 @@ Verification on the final code tree (`b7fb36d`; the documentation commit that fo
 | `pytest tests/test_task_runtime.py` (`LONORA_TASK_TEST_DATABASE_URL`, fresh `*_test`) | 11 passed. |
 | CI "authenticated durable runtime" and "persistent context, steering and concurrency" steps, re-extracted from `ci.yml` and run in order on one database, as in CI | Pass. 1 and 22 PASS lines. |
 | Playwright `test:web` / `test:mobile` (system Chrome, each suite on its own fresh `*_ci` database) | Web: 109 passed, 9 failed. Seven are the phase 2 baseline (`agent-permissions:391`, `group-status:14`, `skills-management:121`, `visual-response:64` in all four variants); `avatar:110` is the known reduced-motion timing flake and passed alone on a fresh database; `inbox:120` failed in the phase 1 baseline too, passed in phase 2 and passed alone here. The new `simple-lonora` passes. In the first full run (`2726073`) `agent-permissions:257` (desktop EN dark) failed once; it passed alone and in this run. Mobile: 55 passed, 5 failed, exactly the baseline (`attention:4`, `chat-reliability:85`, `skills-management:67` in English and Arabic, `workspace:7`); the new `simple-lonora` passes. No failure is new. |
+
+### Review of Wave 1.5 (2026-11-08)
+
+Four reviewers (financial, security, experience, durability) reviewed the branch after the acceptance record (`e4b9e68`) and reported 27 findings. Each one was checked against the code, and every high finding was reproduced (the reviewers' scripts, then a regression test) before it was fixed. Every fix has its own test. No finding was rejected as not real; three low findings and parts of two others are deferred below with the reason. The fixes add one migration, `0043_owner_held_pauses` (`down_revision = 0042_trusted_sources`), which is now the single head.
+
+- **Financial.**
+  - Fixed (high, D1): a position the owner opened from Lonora's own Trading page counted as Lonora-opened, so a default grant that excludes the owner's own positions let an agent clear its stop and close it without a card. Only an entry an agent's leased Run sent is Lonora-opened now (`9b65a04`).
+  - Fixed (high): an agent could undo the owner's own pause or cancel of its watches, routines and Tasks in any wake. Such a pause is now a hold of its own (`source='owner'`, no holder), and only the owner's Resume lifts it (`157a5ac`).
+  - Fixed (high): the MCP money classifier let broker actions through (`open_long`, `mt5_execute`, `close_ticket`, `modify_sl`). It now also blocks broker platforms and trading terms, a trading term next to an acting verb, a broker named in the description, and order- or position-shaped input schemas. A server that offers any blocked tool can only be trusted to read, and the owner route refuses the write tier (`trusted_source_write_blocked`). The card and Capabilities copy says what is enforced (`3b777c4`).
+  - Fixed (medium): raising or removing an execution cap the executor enforces (positions, pending orders, volume per symbol and direction, spread, entry drift, quote and account freshness) now needs the passkey ceremony, like a money limit. Adding or lowering a cap stays one request (`df2f9b3`).
+  - Fixed (medium): the monotonic ladder is complete. A request that breaks any grant term (caps, equity floor, bounded stop rules, action budget), not only account, market or action, becomes an approval card instead of a refusal. The trade tool and Goal steps run the executor's own grant check read-only on the broker's current facts (`grant_covers`). Brakes are classified on the same facts before any card (`9b65a04`).
+  - Fixed (low): a follow-up or synthesis Run after a peer's answer keeps the requester's observe-only narrowing (`625eb56`).
+- **Security.**
+  - Fixed (high): the "Run answers the owner's message" proxy no longer stands for the owner once the Run has read content someone else wrote. That covers a tool on the context engine's untrusted list (web, search, feeds, MCP, peers' memory, files, another model), recorded once per Run, and another agent's message in the thread. Supervision, agent creation and control, the owner profile and reach-me then fall back to the owner's card. Oversight for the calling agent itself, or over Lonora, is always a card the owner taps, also through `agent_create(supervises=...)` (`77aa171`).
+  - Fixed (high): a created agent's responsibility is, while it is still the creating agent's text, a labelled `agent_authored` context section, never system-role instructions. `report_to` notes quote names as data (`77aa171`).
+  - Fixed (medium): `agent_control` needs a supervision grant. On the owner's message only Lonora acts without one (`77aa171`), and the owner's own pauses are holds (`157a5ac`).
+  - Fixed (medium): the memory guard refuses standing instructions to send memory, notes, the profile or secrets elsewhere, to fetch an address built from data, or naming `peer_send`. A tainted Run cannot write the profile or reach-me (`77aa171`).
+  - Fixed (low): agent-declared critical alerts are capped at six per owner and rolling hour across every agent. Beyond that they count as an important change (`8ac467c`). Agent names and responsibilities lose Unicode direction controls, and `isolate()`/`isolated()` drop them before wrapping (`77aa171`).
+- **Experience.**
+  - Fixed (high): a signed grant card shows what was signed (`signed_facts`), not live state. It no longer shows a declined daily loss limit or names itself as the grant it replaces. While Stop still holds, it says the agent trades on its own once the owner resumes (`78a27de`).
+  - Fixed (high): on a fresh install, an agent's first entry raises the one-tap Start trading card itself (`trading_not_started`) instead of a bare refusal. The permission frame tells a never-started install from the owner's own Stop, which stays the owner's brake (`78a27de`).
+  - Fixed in part (medium): the status line counts the agent's pending decision cards (not Undo notices) and its own unsettled live operations. It reads "Waiting for you", "Awaiting broker confirmation" or "Uncertain" in Arabic and English, like the pill (`04bf977`).
+  - Fixed (medium): registering a device continues straight into the card's passkey prompt on Web and Mobile, so a first grant is Authorize, then Register with the password, and the second system prompt follows at once. The Web specs count the registration tap separately. The J1 record above is corrected (`3f09972`).
+  - Fixed (medium): Arabic names equity with one term, «حقوق الملكية», on the grant card, the pill, limits and the Web catalog. A vocabulary test keeps it that way (`78a27de`).
+  - Fixed (low): with grants on several accounts the pill reads "Trades on its own on 2 accounts". When the owner has several accounts, it names the granted account the way the sheet does (`64c13b3`).
+- **Durability.**
+  - Fixed (high): deleting a supervisor dropped its holds (`ON DELETE CASCADE`) while the work stayed paused. Its live holds now become the owner's first, and the holder column is `ON DELETE SET NULL` (`157a5ac`, migration `0043`, whose downgrade refuses while a holder-less pause is live).
+  - Fixed (medium): the `0041` and `0042` downgrades refuse while a grant the owner set or revoked, a live hold, or a source the owner added or removed exists. Before, a re-upgrade silently restored a revoked default (Lonora reading an agent again, all of GitHub trusted again). A refused downgrade changes nothing (`d4380ed`).
+  - Fixed (medium): the `0039` downgrade writes every profile line the agent rows do not already hold back as a `# USER.md` section of the Personal Agent's document, and the re-upgrade merges it again. The revision history still goes with the tables (`d4380ed`).
+  - Fixed (medium): the `0039` merge never pushes the profile past its 8,000-character limit. Whole agent blocks join oldest first while they fit; the rest is routed, never dropped, into that agent's own operating notes, once. An over-limit profile can be saved shorter (`d4380ed`).
+  - Fixed (low): two gateways recording one item's first failure no longer raise a duplicate-key error out of `ItemGuard.run` (`2df05a2`).
+
+Deferred, with the reason:
+
+- **Telegram sender (security, low).** Inbound Telegram updates are still gated by chat id only, so in a group chat the owner allowed, any member's message is an owner message. Checking `message.from.id` needs an owner-configured Telegram user id: a new setting with Web and Mobile copy. Giving channel messages their own trigger changes what the owner can do from Telegram. Both belong with the channel work in Wave 3. Until then the external-content taint applies to these Runs like any other, and allowing a group chat stays the owner's choice.
+- **Decision cards in the attention inbox (experience, part of a medium).** The status line now waits for cards, but a decision card raised in a background wake still shows up only in its conversation. Projecting decision kinds into attention items, and withdrawing them when the card settles, is listed for Wave 3 with the inbox work.
+- **Compact Undo notices (experience, low).** `agent_created`, `supervision_created` and `agent_model_changed` still render as button cards. A one-line confirmation with an inline Undo is a shared card-spec change on both clients, listed for Wave 3.
+- **Undo of profile and memory changes on Mobile (experience, low).** Per-change Undo of the owner profile and memory is still on Web only (`MemoryRevisions.tsx`). The Mobile revisions list is listed for Wave 3.
+- **Residuals of fixed findings.**
+  - A created agent's responsibility can still appear, JSON-escaped, as the agent's description in the server-listed agent directory. That is data the server lists, not an instruction block.
+  - A whole-agent pause of an agent with money standing still follows the owner's untainted message when Lonora or a supervisor carries it, because the owner asked in their own words (the W15-6 rule).
+  - `grant_covers` checks a batch against one broker snapshot taken before the send. If the state changes before the send, the executor's check under the account lock refuses instead of asking: it fails closed, never wider.
+- D2 (the signed emergency reduction rule) stays in Wave 2, as decided.
+
+Verification on the final code tree (`2c5092c`; the documentation commit that follows changes nothing else), each database step on its own fresh PostgreSQL 16 database. The first sweep at `d4380ed` found four integration defects, each fixed in its own commit and run again:
+
+- Strict pyright, which `scripts/build.sh` runs over the tests too, found 24 type errors in three review-fix tests (`2387836`).
+- `pnpm check` found the readiness params declaring `account_id` twice, and Biome warned about a non-null assertion in a test (`d41aa5d`).
+- `pytest tests` failed `test_approval_brakes` on a fresh database. Saving the stopped default on a never-started install stores nothing, so the case got the Start trading card instead of the owner's Stop (`9e1cd30`).
+- Playwright Mobile `capabilities:178` (en and ar) still expected the write tier for a server that offers a blocked money tool (`2c5092c`).
+
+| Check | Result |
+| --- | --- |
+| `bash scripts/build.sh`: `ruff check .`, `ruff format --check .`, strict `pyright`, `validate_resources`, `export_agent_tool_reference.py --check`, `export_native_visual_reference.py --check`, `check_policy_distribution.py`, `pnpm lint`, `pnpm check`, `pnpm build` (with `env -u AI_AGENT -u CLAUDECODE`) | Pass at `9e1cd30`, and `pnpm lint` again at `2c5092c` (that commit changes one spec only). Pyright 0 errors. `AGENTS.md` unchanged. |
+| `pnpm --filter @lonora/web i18n` | Pass. Arabic: 812 of 812 translated, 0 missing. |
+| `tsx --test` web and mobile | 191 and 51 passed. |
+| Alembic: upgrade head, downgrade to `0035_agent_tool_usage`, upgrade head | Pass. One head, `0043_owner_held_pauses`. |
+| `pytest tests` (fresh `lonora_main_test`) | 2041 passed, 5 skipped (APK), 0 failed. The acceptance record had 2015. |
+| All 116 `tests/check_*.py`, each on its own fresh database | 107 pass, among them the new `check_grant_coverage` and `check_lossless_downgrades`. The 9 failures are the known harness and environment cases. Five are the Playwright stdin helpers when run alone (`check_chart_browser`, `check_group_ux`, `check_question_browser`, `check_rakazo_ui`, `check_task_browser`). Four need an administrator-reviewed analysis image and a Docker daemon (`check_analytical_workspace`, `check_analytics_profile`, `check_public_skill_package`, `check_workspace_container_runtime`). The lanes started at `d4380ed`; the later commits change tests and TypeScript only, not the Python packages these checks run. |
+| `pytest tests/test_task_runtime.py` (`LONORA_TASK_TEST_DATABASE_URL`, fresh `*_test`) | 11 passed. |
+| CI "authenticated durable runtime" and "persistent context, steering and concurrency" steps, re-extracted from `ci.yml` (unchanged since the last extraction) and run in order on one database, as in CI | Pass. 1 and 22 PASS lines. |
+| Playwright `test:web` / `test:mobile` (system Chrome, each suite on its own fresh `*_ci` database) | Web: 111 passed, 7 failed, exactly the phase 2 baseline (`agent-permissions:391`, `group-status:14`, `skills-management:121`, `visual-response:64` in all four variants). `avatar:110` and `inbox:120` pass, and so do `owner-actions` and `simple-lonora` with the counted registration tap. Mobile, after `2c5092c`: 55 passed, 5 failed, exactly the baseline (`attention:4`, `chat-reliability:85`, `skills-management:67` in English and Arabic, `workspace:7`). No failure is new. |
 
 ## Wave 2 — durable responsibilities and the always-on gateway
 
@@ -605,6 +667,11 @@ Gaps from the review of the integrated Wave 1 branch. They are planned here and 
     - A status line built from risk status.
   - Feed `trading.restriction_*` and `operation_resolved` into attention and into the "what happened" builder.
   - The owner-notify tool is the `contact_owner` tool above.
+- **Deferred from the Wave 1.5 review.**
+  - Check the Telegram sender (`message.from.id`) against a Telegram user id the owner configures, not only the chat id, and give channel-delivered messages their own trigger, so a group member never speaks for the owner.
+  - Project decision cards (grant, trust, credential, create agent, supervise, model, limits; not Undo notices) into attention items, and withdraw them when the card settles.
+  - Undo-only kinds (`agent_created`, `supervision_created`, `agent_model_changed`) as a compact one-line confirmation with an inline Undo, through the shared card spec.
+  - The owner profile and memory revisions with per-change Undo on Mobile.
 
 ## Wave 4 — installation, releases and updates
 
