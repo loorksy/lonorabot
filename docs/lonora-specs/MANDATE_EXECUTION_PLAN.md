@@ -190,6 +190,35 @@ Four reviewers (financial, engine, security, mandate) reviewed the integrated br
   - Fixed (low): `docs/context-engine.md` now matches the code (`cf72884`).
   - The gap findings are planned for future waves and are listed under Waves 2–4 below.
 
+### Verification after the review fixes
+
+These checks were re-run at `eb76b7d`, and every step used PostgreSQL 16 with its own fresh database. The container now has a tiktoken cache in `/tmp/data-gym-cache`. Both encodings match the upstream SHA-256 values, so the tokenizer-dependent tests ran with the real tokenizer for the first time.
+
+| Check | Result |
+| --- | --- |
+| `ruff check .`, `ruff format --check .`, strict `pyright` | Pass. 0 errors. |
+| `validate_resources`, `export_agent_tool_reference.py --check`, `export_native_visual_reference.py --check`, `check_policy_distribution.py` | Pass. |
+| `pnpm lint`, `pnpm check` (7 TS packages), `pnpm build`; `pnpm --filter @lonora/web i18n` | Pass. Arabic: 782 of 782 entries translated, 0 missing. `AGENTS.md` unchanged. |
+| Alembic: upgrade head, downgrade to `0033_flexible_agent_scope`, upgrade head | Pass. One head, `0035_agent_tool_usage`. |
+| `pytest tests` (fresh `lonora_main_test`) | 1802 passed, 5 skipped, 0 failed. Both tokenizer tests in `test_model_context.py` pass with the real cache. |
+| All 104 `tests/check_*.py`, each on its own fresh migrated database | 95 pass, with 379 PASS lines. The same 9 harness and environment cases fail as before. Five are Playwright stdin helpers: `check_chart_browser`, `check_group_ux`, `check_question_browser`, `check_rakazo_ui` and `check_task_browser`. Four need an administrator-reviewed analysis image ID and a Docker daemon, and the Docker socket is absent here: `check_analytical_workspace`, `check_analytics_profile`, `check_public_skill_package` and `check_workspace_container_runtime`. `check_goals` passes. |
+| `pytest tests/test_task_runtime.py` (`LONORA_TASK_TEST_DATABASE_URL`) | 11 passed. |
+| `tsx --test`: web, including the new `financial-boundary.test.ts`, and mobile | 18 and 25 passed. |
+| CI "authenticated durable runtime" step | Pass. |
+| CI "persistent context, steering and concurrency" step, re-extracted from `ci.yml` | 22 of 22 pass with the real tokenizer, after the stale assertion fix in `eb76b7d`. |
+| Playwright `pnpm test:web` / `pnpm test:mobile` (system Chrome, each suite on its own fresh `*_ci` database) | Web: 82 passed, 9 failed. Mobile: 41 passed, 5 failed. No failure is new; see below. |
+
+The "persistent context, steering and concurrency" step needs a note:
+
+- Before `eb76b7d`, this step failed at check 20 on `7da46c0` and on this branch alike, with the real tokenizer and with an approximate chars/4 tokenizer. The check expected the reads to start in call order, but E1 runs reads concurrently. It also compared the request with the fixed 120,000-character bound, but E3 budgets by the resolved window.
+- In the failing case the request was about 41k of 64k input tokens and within the 384,000-character transport bound.
+- An earlier local extraction of this step predated `e7480c5`, so the step was re-extracted from `ci.yml` before it was run.
+
+Playwright, compared with the integration run on the same suites:
+
+- **Web.** The 9 failures are among the 10 recorded at integration: `agent-permissions:380`, `goals:14`, `group-status:14`, `inbox:120`, `skills-management:121`, and `visual-response:64` in all four locale and theme variants. `avatar:110`, which failed then, now passes. `streaming:127`, which renders peer requests and their returned results, passes.
+- **Mobile.** The 5 failures are the same as before: `attention:4`, `chat-reliability:85`, `skills-management:67` (en and ar) and `workspace:7`.
+
 ### Known limitations and follow-ups
 
 - **T2.**
@@ -235,7 +264,7 @@ Four reviewers (financial, engine, security, mandate) reviewed the integrated br
   - The owner memory API does not take operation batches.
   - Without an index, `session_search` discovery took about 0.85 s at 50k scoped messages and about 4.3 s at 300k, where it falls back to the 5,000 newest messages. With the documented GIN expression index, selective queries took 10–70 ms. These numbers come from one synthetic bench and depend on hardware. The index itself is a Wave 2 migration.
 - **Verification.**
-  - The tokenizer-dependent checks need `scripts/cache_model_tokenizers.py`, which cannot run here.
+  - The tokenizer-dependent checks need the tiktoken cache that `scripts/cache_model_tokenizers.py` writes. A hash-verified cache was present for the post-review run; CI must provide it too.
   - The 9 harness and image checks need Playwright and Docker with the analysis image.
   - The full `run_foundation_checks.py --isolated-databases` and CI as a whole must run again once runner capacity is back.
 
