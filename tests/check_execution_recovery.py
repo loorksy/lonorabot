@@ -3,8 +3,9 @@
 Exercises crash-before-send recovery, interruption after submission (Owner addendum §6
 step 7), scoped blocking against reduce-only admission under Emergency Stop, Trading OFF
 and degraded/disconnected recovery, owner attestation through the authenticated API,
-target-state reconciliation of modify/cancel operations, verification rechecks and the
-approval batch stop. No live broker, MetaApi key or real order is involved.
+target-state reconciliation of modify/cancel operations, verification rechecks and an
+approved close-all whose exits never wait on one another. No live broker, MetaApi key or
+real order is involved.
 """
 
 import asyncio
@@ -630,55 +631,95 @@ async def main() -> None:
             "PASS pending broker-state verification is rechecked until verified, or ends unverified after the window without changing the confirmed receipt"
         )
 
-        # 7. The approval path stops a batch after a non-confirmed result.
+        # 7. An approved close-all is a batch of independent exits: a close that fails,
+        # is blocked or stays uncertain never holds back the other approved closes.
         agent = await fixture.agent("Recovery batch", supervised=True)
         thread = await fixture.conversation(agent)
         context = await fixture.lease(await fixture.run(agent, thread))
         registry = load_tools()
-        await refresh()
-        gold = sorted(p.id for p in await broker.positions() if p.symbol == GOLD)
-        assert len(gold) >= 3
-        # Proposed through the tool_call bridge, as a model without the native schema
-        # would: resolution yields the exact direct call, so the approval card, its
-        # call identity and the batch stop below are the same as for a direct call.
-        identity = "batch-" + uuid4().hex
-        arguments = {"account_id": account, "symbol": GOLD}
-        call = registry.resolve_call(
-            ToolCall(
-                id=identity,
-                name="tool_call",
-                arguments={"name": "trade_close_positions", "arguments": arguments},
+
+        async def approve_close_all(identity: str) -> tuple[ToolCall, list[str]]:
+            await refresh()
+            frozen = sorted(p.id for p in await broker.positions() if p.symbol == GOLD)
+            assert len(frozen) >= 3
+            # Proposed through the tool_call bridge, as a model without the native schema
+            # would: resolution yields the exact direct call, so the approval card and its
+            # call identity are the same as for a direct call.
+            arguments = {"account_id": account, "symbol": GOLD}
+            call = registry.resolve_call(
+                ToolCall(
+                    id=identity,
+                    name="tool_call",
+                    arguments={"name": "trade_close_positions", "arguments": arguments},
+                )
             )
+            assert call == ToolCall(id=identity, name="trade_close_positions", arguments=arguments)
+            proposal = await registry.execute(call, context)
+            assert proposal["_runtime_wait"], proposal
+            return call, frozen
+
+        async def decide(call: ToolCall) -> None:
+            proposal = await registry.execute(call, context)
+            await fixture.request(
+                "POST",
+                f"/trading/approvals/{proposal['approval_id']}/decision",
+                {"decision": "approve"},
+            )
+
+        # 7a. Under Emergency Stop the first reviewed position is stopped out before the
+        # approved card runs: that close fails on the changed target, the others are sent.
+        call, gold = await approve_close_all("batch-stopped-" + uuid4().hex)
+        await decide(call)
+        await save_controls(db, TradingControl(emergency_stop=True))
+        stopped_out = await run(trade("close_position", position_id=gold[0]))
+        assert stopped_out.status == "confirmed", stopped_out
+        sent_before = len(lossy.sent)
+        await refresh()
+        results = (await registry.execute(call, context))["results"]
+        operations.extend(item["operation_id"] for item in results)
+        assert len(results) == len(gold)
+        assert results[0]["status"] == "failed" and results[0]["code"] in {
+            "trade_approval_broker_state_changed",
+            "position_not_found",
+        }, results[0]
+        assert all(item["status"] == "confirmed" for item in results[1:]), results
+        assert len(lossy.sent) == sent_before + len(gold) - 1
+        assert not any(p.symbol == GOLD for p in await broker.positions())
+        await save_controls(db, TradingControl(enabled=True))
+        print(
+            "PASS an approved close-all under Emergency Stop still sends every other exit after one reviewed position was stopped out"
         )
-        assert call == ToolCall(id=identity, name="trade_close_positions", arguments=arguments)
-        proposal = await registry.execute(call, context)
-        await fixture.request(
-            "POST",
-            f"/trading/approvals/{proposal['approval_id']}/decision",
-            {"decision": "approve"},
-        )
+
+        # 7b. The first close's response is lost: it stays uncertain and is never resent,
+        # yet every other reviewed close is sent. Positions opened after the review are
+        # never silently added to the approved set.
+        for volume in ("0.3", "0.4", "0.5"):
+            assert (await run(trade("buy", volume=volume, stop_loss="95"))).status == "confirmed"
+        call, gold = await approve_close_all("batch-lost-" + uuid4().hex)
+        later = []
+        for volume in ("0.6", "0.7"):
+            result = await run(trade("buy", volume=volume, stop_loss="95"))
+            assert result.status == "confirmed" and result.broker_id, result
+            later.append(result.broker_id)
+        await decide(call)
         lossy.lose_next_close = True
         sent_before = len(lossy.sent)
         await refresh()
         outcome = await registry.execute(call, context)
         results = outcome["results"]
         operations.extend(item["operation_id"] for item in results)
-        assert len(results) == len(gold) and results[0]["status"] == "ambiguous"
-        assert all(
-            item["status"] == "failed"
-            and item["code"] == "batch_halted_after_unconfirmed_result"
-            and item["details"]["send_state"] == "not_sent"
-            for item in results[1:]
-        )
-        assert len(lossy.sent) == sent_before + 1
+        assert len(results) == len(gold) and results[0]["status"] == "ambiguous", results
+        assert all(item["status"] == "confirmed" for item in results[1:]), results
+        assert len(lossy.sent) == sent_before + len(gold)
+        assert lossy.sent[sent_before:].count(results[0]["operation_id"]) == 1
         remaining = sorted(p.id for p in await broker.positions() if p.symbol == GOLD)
-        assert remaining == gold[1:]
-        for item in results[1:]:
-            async with db.sessions() as session:
-                assert await session.get(TradingJournalRow, item["operation_id"]) is None
+        assert remaining == sorted(later), (remaining, later)
+        # The identical call replays the completed approval and sends nothing again.
+        assert (await registry.execute(call, context))["results"] == results
+        assert len(lossy.sent) == sent_before + len(gold)
         services.brokers.connections[account] = cached
         print(
-            "PASS an approved batch (proposed through the tool_call bridge) stops after an uncertain result and reports the rest as never sent"
+            "PASS an approved close-all (proposed through the tool_call bridge) sends every reviewed close after an uncertain one, never resends it and never extends the reviewed set"
         )
 
         # 8. Approved cards (the supervised agent path) under Emergency Stop and Trading OFF:

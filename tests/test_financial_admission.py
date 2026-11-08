@@ -18,7 +18,7 @@ from lonora_contracts.trading import (
 from lonora_core.trading_control import require_trading
 from lonora_core.user_error import LonoraError
 from lonora_db.schema import TradingJournalRow
-from lonora_tools.trade import halted_receipts
+from lonora_tools.trade import halted_receipts, independent_exits
 from lonora_trading.admission import may_reduce_risk, risk_reducing
 from lonora_trading.journal import record_excerpt
 from lonora_trading.operation_events import awaiting_broker_confirmation, send_state
@@ -293,6 +293,28 @@ def test_halted_batch_reports_remaining_operations_as_never_sent() -> None:
     assert {item["status"] for item in halted} == {"failed"}
     assert all(
         item["details"] == {"send_state": "not_sent", "halted_after": "op-1"} for item in halted
+    )
+
+
+def test_only_full_closes_of_distinct_positions_form_an_independent_batch() -> None:
+    closes = [
+        request("close_position", operation_id="op-1", position_id="p1"),
+        request("close_position", operation_id="op-2", position_id="p2"),
+    ]
+    assert independent_exits(closes)
+    assert independent_exits(closes[:1])
+    # A partial close, a repeated ticket or any other action is a dependent sequence.
+    assert not independent_exits(
+        [*closes, request("close_position", operation_id="op-3", position_id="p1")]
+    )
+    assert not independent_exits(
+        [closes[0], request("close_position", operation_id="op-3", position_id="p3", volume=1)]
+    )
+    assert not independent_exits(
+        [closes[0], request("cancel_order", operation_id="op-3", order_id="o1")]
+    )
+    assert not independent_exits(
+        [closes[0], request("buy", operation_id="op-3", volume=1, stop_loss=1990)]
     )
 
 

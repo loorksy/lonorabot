@@ -170,15 +170,26 @@ Consumers of `resolved`:
 
 ## Sequences
 
-Both the standing-authority and approval paths stop a batch after the first result
-that is not `confirmed`; the remaining requests are reported as `failed` with
-`batch_halted_after_unconfirmed_result` and `send_state: "not_sent"`.
+A batch of full closes of distinct positions (`trade_close_positions`, an approved
+close-all) is a set of independent exits: no close depends on another, each one is
+admitted again against its own fresh broker target under the send lock, and admission
+never blocks a risk-reducing exit. Both the standing-authority and approval paths
+therefore send every close of such a batch, whatever the result of the others: a close
+whose reviewed position was stopped out or changed fails on its own, a close blocked by
+a restriction is reported on its own, and a lost response leaves only that close
+`ambiguous`. Calling the identical close-all again replays the completed approval.
+
+Any other multi-request batch is treated as a dependent sequence: both paths stop after
+the first result that is not `confirmed`, and the remaining requests are reported as
+`failed` with `batch_halted_after_unconfirmed_result` and `send_state: "not_sent"`.
+Today every other caller (`trade_execute`, Goal steps) submits a single request.
 
 ## Verification
 
 - `tests/test_financial_admission.py`: risk-reducing classification, global controls,
   target-state rules (including a partly executed full close and a superseded
-  modify), send state, batch halting, the agent history view and thesis outcomes.
+  modify), send state, batch halting and independent close-all batches, the agent
+  history view and thesis outcomes.
 - `tests/check_execution_recovery.py` (disposable PostgreSQL, simulation broker,
   real child processes): crash before send, interruption after submission before
   acknowledgement (Owner addendum §6 step 7: blocked new risk, traceable operation,
@@ -187,7 +198,8 @@ that is not `confirmed`; the remaining requests are reported as `failed` with
   a crashed submission whose broker observation keeps failing (held send lock, then
   ambiguous and owner-resolvable), a sibling that waits for a definitive rejection
   under the send lock, modify/cancel target-state reconciliation, verification
-  recheck, the approval batch stop, and approved agent cards that close, cancel and
+  recheck, an approved close-all that keeps sending its other exits after a stopped-out
+  position and after a lost response, and approved agent cards that close, cancel and
   tighten under Emergency Stop and Trading OFF while entries stay blocked.
 - `tests/check_account_authority.py`: a signed-grant agent closes, cancels and
   tightens under Trading OFF and Emergency Stop; entries and wider stops stay blocked.

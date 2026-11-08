@@ -77,11 +77,29 @@ async def management_snapshot(context: ToolContext, requests: list[TradeRequest]
     return result
 
 
+def independent_exits(requests: list[TradeRequest]) -> bool:
+    """Whether a batch is only full closes of distinct positions.
+
+    No such close depends on another: each one is admitted again against its own fresh
+    broker target under the send lock, and admission never blocks a risk-reducing exit.
+    A failed, blocked or uncertain close must therefore never hold back the other
+    approved exits (for example a close-all during an Emergency Stop).
+    """
+    positions = [request.position_id for request in requests]
+    return all(
+        request.action == "close_position"
+        and request.volume is None
+        and request.position_id is not None
+        for request in requests
+    ) and len(set(positions)) == len(positions)
+
+
 def halted_receipts(remaining: list[TradeRequest], after: TradeResult) -> list[dict[str, Any]]:
     """Known not-sent receipts for the rest of a batch stopped by an unsettled result.
 
-    A sequence never continues after an operation that is not confirmed: the remaining
-    operations may depend on it, so they are reported as never reaching the broker.
+    A dependent sequence never continues after an operation that is not confirmed: the
+    remaining operations may depend on it, so they are reported as never reaching the
+    broker. Independent exits (see ``independent_exits``) never stop.
     """
     return [
         TradeResult(
@@ -216,6 +234,7 @@ async def approved_execution(
             return {"approved": True, "approval_id": row.id}
 
     results: list[dict[str, Any]] = []
+    independent = independent_exits(frozen)
     for index, request in enumerate(frozen):
 
         async def authorize(request: TradeRequest = request) -> None:
@@ -262,10 +281,10 @@ async def approved_execution(
                 operation_id=request.operation_id, status="failed", code=error.code
             )
         results.append(result.model_dump(mode="json"))
-        stop = result.status != "confirmed"
+        stop = result.status != "confirmed" and not independent
         if stop:
-            # Same rule as standing authority: never advance an approved sequence past
-            # an uncertain, failed or blocked operation.
+            # Same rule as standing authority: never advance a dependent approved
+            # sequence past an uncertain, failed or blocked operation.
             results.extend(halted_receipts(frozen[index + 1 :], result))
         async with context.db.sessions() as session, session.begin():
             await require_lease(session, context.lease, lock=True)
@@ -300,6 +319,7 @@ async def account_authorized_execution(
     """Standing authority uses the same executor, journal and independent verification."""
     expected = await management_snapshot(context, requests)
     results: list[dict[str, Any]] = []
+    independent = independent_exits(requests)
     for index, (request, identifier) in enumerate(zip(requests, grants, strict=True)):
         assert identifier is not None
 
@@ -328,8 +348,8 @@ async def account_authorized_execution(
                 operation_id=request.operation_id, status="failed", code=error.code
             )
         results.append(result.model_dump(mode="json"))
-        if result.status != "confirmed":
-            # Never advance a batch after uncertain/blocked financial state.
+        if result.status != "confirmed" and not independent:
+            # Never advance a dependent batch after uncertain/blocked financial state.
             results.extend(halted_receipts(requests[index + 1 :], result))
             break
     return {
@@ -580,8 +600,9 @@ def tools() -> list[Tool]:
             "Close currently open broker positions, or only an exact symbol, within an active signed "
             "account grant without per-order confirmation. Otherwise propose the current ticket set "
             "using the real Approve and Reject controls; approval freezes that reviewed set. "
-            "Each ticket has an independent durable receipt. Never silently extend a reviewed operation "
-            "to later positions. Stop after an uncertain result and reconcile before retrying.",
+            "Each ticket has an independent durable receipt, and a failed or uncertain close never "
+            "holds back the other tickets. Never silently extend a reviewed operation to later "
+            "positions. Reconcile an uncertain ticket before retrying it.",
             ClosePositions,
             close_positions,
             financial=True,
