@@ -6,7 +6,6 @@ from lonora_contracts.shadow import ExecutionMode
 from lonora_contracts.trading import TradeRequest, TradeResult, TradingControl
 from lonora_core.trading_control import require_trading
 from lonora_core.user_error import LonoraError
-from lonora_db.account_authority import require_authority
 from lonora_db.agent_binding import (
     agent_binding,
     require_financial_agent,
@@ -26,11 +25,12 @@ from lonora_db.trade_approvals import approval_event
 from lonora_db.transactions import owned_thread
 from lonora_session.idempotency import request_hash, stable_id
 from lonora_trading.account_authority import (
+    authority_snapshot,
     available_authority,
-    covering_authority,
+    grant_covers,
     provisional_voice,
 )
-from lonora_trading.admission import may_reduce_risk
+from lonora_trading.admission import may_reduce_risk, risk_reducing
 from lonora_trading.idempotency import trade_fingerprint
 from lonora_trading.journal import record_excerpt
 from lonora_trading.manual_activity import material_state
@@ -166,6 +166,43 @@ async def owner_spoke_since(session: AsyncSession, row: TradeApprovalRow) -> boo
     ) is not None
 
 
+async def new_risk_requests(
+    context: ToolContext, requests: list[TradeRequest]
+) -> list[TradeRequest]:
+    """The requests that add risk on the broker's current facts.
+
+    Entries always do. A close, cancel or stop change is classified the way the executor
+    classifies it (``risk_reducing``) against the ticket the broker shows now, so a stop
+    moved further away counts as new risk. A ticket the broker no longer shows is left
+    to the executor, which refuses it with its own code.
+    """
+    result = [request for request in requests if not may_reduce_risk(request)]
+    managing = [request for request in requests if may_reduce_risk(request)]
+    if not managing:
+        return result
+    facts: dict[str, tuple[list[Position], list[Order]]] = {}
+    for account_id in sorted({request.account_id for request in managing}):
+        broker = await context.brokers.get(context.owner_id, account_id)
+        orders = (
+            await broker.orders()
+            if any(r.order_id for r in managing if r.account_id == account_id)
+            else []
+        )
+        facts[account_id] = (await broker.positions(), orders)
+    for request in managing:
+        positions, orders = facts[request.account_id]
+        target: Position | Order | None = (
+            next((item for item in positions if item.id == request.position_id), None)
+            if request.position_id
+            else next((item for item in orders if item.id == request.order_id), None)
+            if request.order_id
+            else None
+        )
+        if target is not None and not risk_reducing(request, target, positions=positions):
+            result.append(request)
+    return result
+
+
 async def refuse_braked_entries(
     session: AsyncSession, context: ToolContext, requests: list[TradeRequest]
 ) -> None:
@@ -174,12 +211,13 @@ async def refuse_braked_entries(
     Stop new trading and a pause (``no_new_entries`` and stronger) hold every entry, so an
     approval card for one could only fail after the owner's tap. The boundary's own codes
     (``trading_disabled``, ``emergency_stop``, ``trading_restriction_active``) come back
-    instead, and the agent offers the owner's Resume or Lift card. Only actions that can
-    never reduce risk are checked here (``may_reduce_risk``); a close, cancel or stop
-    change is still asked and decided by the executor against the fresh broker target,
-    which repeats every check at the moment of sending. This only refuses earlier.
+    instead, and the agent offers the owner's Resume or Lift card. ``requests`` are the
+    ones that add risk on the broker's current facts (``new_risk_requests``); a close,
+    cancel or tightening is still asked and decided by the executor against the fresh
+    broker target, which repeats every check at the moment of sending. This only
+    refuses earlier.
     """
-    entries = [request for request in requests if not may_reduce_risk(request)]
+    entries = requests
     if not entries:
         return
     stored = await session.get(SettingRow, "trading_control", populate_existing=True)
@@ -262,11 +300,13 @@ async def approved_execution(
         )
     if grants and all(grants) and not provisional:
         grants = await covering_grants(context, origin, authority_requests, grants)
-    if not all(grants):
+    if not all(grants) or provisional:
         # The ladder is monotonic: a trade no active grant covers asks the owner with an
-        # approval card, exactly like "Ask me", instead of being refused.
+        # approval card, exactly like "Ask me", instead of being refused. Provisional
+        # speech never spends standing authority: the owner's exact approval is the only
+        # authority its operations are sent under.
         grants = []
-    if grants and not provisional:
+    if grants:
         return await account_authorized_execution(context, authority_requests, grants)
     if mode == "shadow" and previous is None:
         from lonora_trading.shadow import ShadowReadView
@@ -294,6 +334,11 @@ async def approved_execution(
                 initial_snapshot[key] = material_state(target) if target else None
     else:
         initial_snapshot = await management_snapshot(context, requests) if previous is None else {}
+    adding = (
+        await new_risk_requests(context, requests)
+        if mode == "live" and not gate_only and previous is None
+        else []
+    )
     async with context.db.sessions() as session, session.begin():
         current = await require_lease(session, context.lease)
         if current.agent_id != context.agent_id:
@@ -313,7 +358,7 @@ async def approved_execution(
                 approval_id = row.id
         if row is None:
             if mode == "live" and not gate_only:
-                await refuse_braked_entries(session, context, requests)
+                await refuse_braked_entries(session, context, adding)
             row = TradeApprovalRow(
                 id=approval_id,
                 owner_id=context.owner_id,
@@ -441,29 +486,28 @@ async def covering_grants(
     requests: list[TradeRequest],
     grants: list[str | None],
 ) -> list[str | None]:
-    """Drop a grant that does not cover the ticket it would manage (the owner's own
-    position under a grant that excludes them); that request then asks the owner."""
-    excluded: set[str] = set()
-    async with context.db.sessions() as session:
-        for request, identifier in zip(requests, grants, strict=True):
-            if identifier and (request.position_id or request.order_id):
-                _, envelope = await require_authority(
-                    session, context.owner_id, context.agent_id, identifier
-                )
-                if not envelope.allow_manual_positions:
-                    excluded.add(target_key(request))
-    if not excluded:
-        return grants
-    targets = await management_targets(
-        context, [request for request in requests if target_key(request) in excluded]
-    )
+    """Drop a grant whose own terms refuse its request (``grant_covers``): a cap, the
+    equity floor, the bounded stop rules, the owner's own position under a grant that
+    excludes them. That request then asks the owner instead of being refused."""
+    snapshots = {
+        account_id: await authority_snapshot(
+            await context.brokers.get(context.owner_id, account_id), account_id
+        )
+        for account_id in sorted({request.account_id for request in requests})
+    }
     async with context.db.sessions() as session:
         return [
-            await covering_authority(
-                session, context.owner_id, origin, request, targets.get(target_key(request))
+            identifier
+            if identifier
+            and await grant_covers(
+                session,
+                context.owner_id,
+                origin,
+                request,
+                identifier,
+                snapshots[request.account_id],
             )
-            if identifier and target_key(request) in excluded
-            else identifier
+            else None
             for request, identifier in zip(requests, grants, strict=True)
         ]
 

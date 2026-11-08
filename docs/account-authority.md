@@ -30,13 +30,29 @@ Arabic (`tradingSafetyLabels` in `packages/core`): No trading (`analysis`), Ask 
 (`supervised`), On its own (`autonomous`, an active signed grant). The ladder is
 monotonic:
 
-- Under On its own, a trade no active grant covers (another market or action, or
-  a ticket the owner opened when the grant excludes those) becomes an approval
-  card exactly as under Ask me, never `account_authority_scope_mismatch`. The
-  tool decides before anything is sent (`covering_grants`); the executor admits an
-  operation without a grant only with the owner's approval of that exact
-  operation (`require_operation_permission`). A grant's management Task is held
-  to its own grant; outside it, it asks too. The same exact request repeated in
+- Under On its own, a trade no active grant covers becomes an approval card
+  exactly as under Ask me, never a refusal. "Covers" means every term of the
+  signed grant: its account, markets and actions, and also its order, symbol,
+  position and pending caps, its equity floor, the bounded stop-loss and
+  protection rules, its action budget and the owner's own positions. The tool
+  runs the executor's own grant check read-only against the broker's current
+  account, positions and orders before anything is asked or sent
+  (`grant_covers`, `GRANT_TERM_REFUSALS`); a Goal step uses the same check
+  (`covering_authority`). The executor admits an operation without a grant only
+  with the owner's approval of that exact operation
+  (`require_operation_permission`), and repeats the grant check at send for every
+  operation sent under one. A grant's management Task is held to its own grant;
+  outside it, it asks too. Provisional speech never spends a grant: its
+  operations are sent under the owner's exact approval only.
+- The owner's own positions are the tickets the journal does not connect to an
+  agent's entry: a position opened outside Lonora, and also one the owner opened
+  from Lonora's own Trading page (`POST /trading/execute`, journaled with no
+  agent). `lonora_opened` counts only an entry an agent's leased Run sent
+  (`journal_agent`), the same rule broker wakes use (`attributed_agent`).
+- A request that adds risk on the broker's current facts (an entry, or a stop
+  moved further away) is refused with the brake's own code before any card while
+  Stop new trading or a pause holds it (`new_risk_requests`,
+  `refuse_braked_entries`). The same exact request repeated in
   another call of the same Run answers from the card already raised for it
   (`reviewed_approval`, newest first): it waits on that card while it is pending,
   uses the owner's approval when it is approved or its operation reached the

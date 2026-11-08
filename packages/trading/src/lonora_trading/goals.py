@@ -33,7 +33,7 @@ from lonora_session.idempotency import stable_id
 from sqlalchemy import exists, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .account_authority import available_authority, provisional_voice
+from .account_authority import authority_snapshot, covering_authority, provisional_voice
 from .goals_market import fresh_goal_evidence
 from .goals_targets import resolve_trade
 from .idempotency import trade_fingerprint
@@ -412,9 +412,19 @@ async def execute_goal_step(
     if goal_mode(goal) == "live":
         async with db.sessions() as session:
             current = await require_lease(session, lease)
-            if await effective_permission(session, owner_id, current.agent_id) == "autonomous":
-                account_authority_id = await available_authority(
-                    session, owner_id, current, request
+            autonomous = (
+                await effective_permission(session, owner_id, current.agent_id) == "autonomous"
+            )
+        if autonomous and not level_asks:
+            # Every term of the grant decides, the owner's own ticket included: a step the
+            # grant does not fully cover asks the owner instead of failing at the executor.
+            facts = await authority_snapshot(
+                await brokers.get(owner_id, request.account_id), request.account_id
+            )
+            async with db.sessions() as session:
+                current = await require_lease(session, lease)
+                account_authority_id = await covering_authority(
+                    session, owner_id, current, request, facts
                 )
     # The ladder is monotonic: under "On its own" a step no active grant covers asks the
     # owner with an approval card, exactly like "Ask me", instead of being refused.

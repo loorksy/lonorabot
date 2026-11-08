@@ -290,9 +290,16 @@ async def main() -> None:
         assert autonomous["status"] == "confirmed", autonomous
         assert autonomous["authorization"] == "account_authority", autonomous
         assert len(await broker.positions()) == positions_before_autonomy + 1
+        # Over the signed cap the agent asks the owner instead of being refused (the
+        # ladder is monotonic); nothing reaches the broker before a tap.
         excessive = await execute(call(volume="0.4", stop_loss="91"))
-        assert excessive.get("code") == "account_authority_volume_limit", excessive
+        assert excessive.get("_runtime_wait") and excessive.get("approval_id"), excessive
         assert len(await broker.positions()) == positions_before_autonomy + 1
+        await f.request(
+            "POST",
+            f"/trading/approvals/{excessive['approval_id']}/decision",
+            {"decision": "reject"},
+        )
         delegated_run = await f.request(
             "POST",
             "/runs",

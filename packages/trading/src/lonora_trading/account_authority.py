@@ -3,6 +3,7 @@
 from decimal import Decimal
 from typing import Any
 
+from lonora_adapter_kit.broker import BrokerStateReader
 from lonora_contracts.account import Order, Position
 from lonora_contracts.domain import utcnow
 from lonora_contracts.execution_quality import ExecutionSnapshot
@@ -15,7 +16,27 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .exposure import ENTRY_ACTIONS
-from .manual_activity import material_state
+from .manual_activity import journal_agent, material_state
+
+# The executor's refusals for a request outside a signed grant's own terms. Each one means
+# the grant does not cover the request, so under "On its own" it asks the owner with an
+# approval card instead (the ladder is monotonic; correction 6).
+GRANT_TERM_REFUSALS = frozenset(
+    {
+        "account_authority_scope_mismatch",
+        "account_authority_action_forbidden",
+        "account_authority_action_limit",
+        "account_authority_volume_limit",
+        "account_authority_stop_loss_required",
+        "account_authority_equity_floor",
+        "account_authority_position_limit",
+        "account_authority_pending_limit",
+        "account_authority_symbol_volume_limit",
+        "account_authority_manual_permission_required",
+        "account_authority_protection_removal_forbidden",
+        "account_authority_protection_expansion_forbidden",
+    }
+)
 
 
 async def provisional_voice(session: AsyncSession, run: RunRow) -> bool:
@@ -81,11 +102,14 @@ async def available_authority(
 async def lonora_opened(
     session: AsyncSession, owner_id: str, request: TradeRequest, target: Position | Order
 ) -> bool:
-    """Whether the journal attributes this ticket to a Lonora entry (not the owner's own).
+    """Whether the journal attributes this ticket to an agent's entry (not the owner's own).
 
-    Attribute by the existing journal and broker identity, never ticket format. Bounded
-    history is not proof of external ownership; default to requiring explicit manual
-    permission whenever a matching origin is unavailable.
+    Attribute by the existing journal and broker identity, never ticket format. Only an
+    entry an Agent's leased Run sent counts (``journal_agent``, the same rule the broker
+    wakes use): the owner's own order from Lonora's Trading page is journaled too, with no
+    agent, and stays the owner's own position. Bounded history is not proof of external
+    ownership; default to requiring explicit manual permission whenever a matching origin
+    is unavailable.
     """
     entries = await session.scalars(
         select(TradingJournalRow)
@@ -108,8 +132,59 @@ async def lonora_opened(
             entry.operation_id,
             broker_operation_tag(entry.operation_id),
         } or target.id in {details.get(kind), safe_id}:
-            return True
+            return journal_agent(entry) is not None
     return False
+
+
+async def authority_snapshot(broker: BrokerStateReader, account_id: str) -> ExecutionSnapshot:
+    """The broker facts a grant's terms are checked against before anything is asked."""
+    account = await broker.account()
+    if account.id != account_id:
+        raise LonoraError("broker_account_mismatch", 409)
+    return ExecutionSnapshot(
+        account=account,
+        positions=await broker.positions(),
+        orders=await broker.orders(),
+        observed_at=utcnow(),
+    )
+
+
+async def grant_covers(
+    session: AsyncSession,
+    owner_id: str,
+    run: RunRow,
+    request: TradeRequest,
+    identifier: str,
+    snapshot: ExecutionSnapshot,
+) -> bool:
+    """Whether every term of this signed grant admits the request on these broker facts.
+
+    The executor's own check (``require_account_execution``) runs here read-only, before
+    anything is asked or sent: volume, position, pending and symbol caps, the equity
+    floor, the bounded stop-loss and protection rules, the action budget and the owner's
+    own positions. A request a term refuses is not covered, so the caller asks the owner
+    for exact approval instead of sending it under the grant to be refused. The executor
+    repeats the same check at send.
+    """
+    target = management_target(snapshot, request)
+    if (request.position_id or request.order_id) and target is None:
+        # A ticket the broker no longer shows: the executor refuses it with its own code.
+        return True
+    try:
+        await require_account_execution(
+            session,
+            owner_id,
+            run,
+            request,
+            identifier,
+            snapshot,
+            material_state(target) if target is not None else None,
+        )
+    except LonoraError as error:
+        if error.code in GRANT_TERM_REFUSALS:
+            return False
+        raise
+    return True
 
 
 async def covering_authority(
@@ -117,15 +192,16 @@ async def covering_authority(
     owner_id: str,
     run: RunRow,
     request: TradeRequest,
-    target: Position | Order | None,
+    snapshot: ExecutionSnapshot,
 ) -> str | None:
-    """``available_authority`` that also covers the ticket it manages: a grant that
-    excludes the owner's own positions does not cover one, so the owner approves it."""
+    """``available_authority`` whose every term admits the request (``grant_covers``).
+
+    None never refuses the trade: the owner approves it with an approval card instead.
+    """
     identifier = await available_authority(session, owner_id, run, request)
-    if identifier is None or target is None or not (request.position_id or request.order_id):
-        return identifier
-    _, envelope = await require_authority(session, owner_id, run.agent_id, identifier)
-    if envelope.allow_manual_positions or await lonora_opened(session, owner_id, request, target):
+    if identifier is None:
+        return None
+    if await grant_covers(session, owner_id, run, request, identifier, snapshot):
         return identifier
     return None
 

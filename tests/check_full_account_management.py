@@ -250,8 +250,14 @@ async def main():
             assert error.code == "account_authority_unavailable"
         else:
             raise AssertionError("old management task spent replacement authority")
-        rejected = await trade(volume="0.3")
-        assert rejected["code"] == "account_authority_volume_limit", rejected
+        # Over the signed cap the agent asks the owner (correction 6); nothing is sent.
+        before = await broker.snapshot()
+        over = await trade(volume="0.3")
+        assert over.get("_runtime_wait") and over.get("approval_id"), over
+        assert await broker.snapshot() == before
+        await f.request(
+            "POST", f"/trading/approvals/{over['approval_id']}/decision", {"decision": "reject"}
+        )
         current = (await f.client.get(f"/api/agents/{agent['id']}/account-authorities")).json()
         assert next(r for r in current if r["id"] == grant["id"])["status"] == "revoked"
         await f.request("POST", f"/account-authorities/{limited['id']}/revoke", {})
