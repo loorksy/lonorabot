@@ -697,7 +697,7 @@ async def main() -> None:
         for volume in ("0.3", "0.4", "0.5"):
             assert (await run(trade("buy", volume=volume, stop_loss="95"))).status == "confirmed"
         call, gold = await approve_close_all("batch-lost-" + uuid4().hex)
-        later = []
+        later: list[str] = []
         for volume in ("0.6", "0.7"):
             result = await run(trade("buy", volume=volume, stop_loss="95"))
             assert result.status == "confirmed" and result.broker_id, result

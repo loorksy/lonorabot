@@ -353,7 +353,8 @@ def test_reconciling_an_ambiguous_trade_is_never_counted_as_a_repeated_effect() 
     for index in range(2, 8):
         repeat = call("trade", f"t{index}", side="buy", symbol="XAUUSD", volume=0.01)
         assert guardrails.reconciles(state, repeat, trade)
-        assert blocked_route(state, repeat)["origin_call_id"] == "t1"
+        route = blocked_route(state, repeat)
+        assert route is not None and route["origin_call_id"] == "t1"
         assert guardrails.before_call(state, repeat, trade).action == "allow", index
         # Dispatch reconciled the SAME operation through the blocked route.
         reconciled = {**sent, "_runtime_reconciled": "t1"}
@@ -365,6 +366,7 @@ def test_reconciling_an_ambiguous_trade_is_never_counted_as_a_repeated_effect() 
     assert guardrails.halt_reason(state) is None
     assert guardrails.guardrail_state(state)["effect_streak"][1] == 1
     # The same-tool failure bound still ends an endless reconciliation loop.
+    decision = guardrails.ALLOW
     for index in range(8, 12):
         repeat = call("trade", f"t{index}", side="buy", symbol="XAUUSD", volume=0.01)
         reconciled = {**sent, "_runtime_reconciled": "t1"}

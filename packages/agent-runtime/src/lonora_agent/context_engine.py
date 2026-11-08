@@ -467,7 +467,7 @@ def speaker(message: ModelMessage, *, delegated: bool = False) -> str:
     return "requesting_agent" if delegated else "owner"
 
 
-def _anchor(history: Sequence[ModelMessage], *, delegated: bool = False) -> int | None:
+def request_anchor(history: Sequence[ModelMessage], *, delegated: bool = False) -> int | None:
     """The latest owner request, kept verbatim across a summary; never a peer's text."""
     return next(
         (
@@ -552,7 +552,7 @@ def request_overhead(
     )
 
 
-def _excerpt(
+def summary_excerpt(
     message: ModelMessage,
     calls: dict[str, ToolCall],
     observed: dict[str, str],
@@ -780,7 +780,7 @@ async def compact_context(
         return result
     summarizer = await resolve_limits(context, Capability.BACKGROUND)
     delegated = bool(state.get(DELEGATED_KEY))
-    anchor = _anchor(history, delegated=delegated)
+    anchor = request_anchor(history, delegated=delegated)
     summarized = 0
     kind = "model"
     while candidates:
@@ -795,7 +795,7 @@ async def compact_context(
         size = 0
         for span in candidates:
             text = "\n".join(
-                _excerpt(row, calls, observed, delegated=delegated)
+                summary_excerpt(row, calls, observed, delegated=delegated)
                 for row in history[span[0] : span[1]]
             )
             cost = summarizer.count(text)
@@ -811,7 +811,9 @@ async def compact_context(
             text, _ = await _summarize(
                 context,
                 previous,
-                "\n".join(_excerpt(row, calls, observed, delegated=delegated) for row in rows),
+                "\n".join(
+                    summary_excerpt(row, calls, observed, delegated=delegated) for row in rows
+                ),
                 SUMMARY_MAX_CHARS,
             )
         except Exception as error:
