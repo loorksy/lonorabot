@@ -652,8 +652,30 @@ async def main() -> None:
         assert Decimal(stored_policy["risk"]["max_daily_loss"]) == 500
         status, _ = await raw("POST", path + "/verify", {"policy": higher, "proof": proof})
         assert status in {403, 409}  # A used challenge never authorizes again.
+        # The executor's execution caps are limits too: adding one is one request, and
+        # raising or removing one needs the passkey like a money limit.
+        capped = {**higher, "max_positions": 1, "max_symbol_direction_volume": "0.1"}
+        assert (await fixture.request("PUT", path, capped))["max_positions"] == 1
+        for widened in (
+            higher,
+            {**capped, "max_positions": 3},
+            {**capped, "max_symbol_direction_volume": None},
+        ):
+            status, refused = await raw("PUT", path, widened)
+            assert status == 403 and refused["code"] == "execution_policy_passkey_required", (
+                widened,
+                refused,
+            )
+        stored = await fixture.request("GET", path)
+        assert stored["max_positions"] == 1 and stored["max_symbol_direction_volume"] == "0.1"
+        signed = await fixture.request("POST", path + "/challenge", higher)
+        proof = device.assertion(signed, fixture.settings.allowed_origin)
+        removed = await fixture.request(
+            "POST", path + "/verify", {"policy": higher, "proof": proof}
+        )
+        assert removed["max_positions"] is None
         print(
-            "PASS lowering a limit through the policy route is one request; raising one needs a passkey bound to that exact policy"
+            "PASS lowering a limit or adding a cap through the policy route is one request; raising or removing one needs a passkey bound to that exact policy"
         )
 
         # 9. The migration writes an explicit level for every agent without one: Lonora

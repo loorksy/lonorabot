@@ -254,9 +254,13 @@ the next reply and that memory, tasks, grants and open trades stay as they are.
 ## The raw execution-policy route
 
 `PUT /trading/accounts/{id}/execution-policy` still accepts any change that allows no
-more risk (adding or lowering a limit, the execution-quality settings) in one owner
-request. A change that `widens` the money limits is refused with
-`execution_policy_passkey_required` (403); the owner signs it with
+more risk (adding or lowering a money limit or an execution cap, a tighter freshness
+bound) in one owner request. A change that `policy_widens` is refused with
+`execution_policy_passkey_required` (403): raising or removing a money limit
+(`widens`), raising or removing an execution cap the executor enforces
+(`max_positions`, `max_pending_orders`, `max_symbol_direction_volume`, `max_spread`,
+`max_entry_drift_stop_fraction`), or accepting an older quote or account state
+(`quote_max_age_seconds`, `account_max_age_seconds`). The owner signs it with
 `POST …/execution-policy/challenge` (the exact policy, bound to
 `hash(account, policy)`) and `POST …/execution-policy/verify` with
 `{policy, proof}`, which stores exactly the signed policy. A proof for a different

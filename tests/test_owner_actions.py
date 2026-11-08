@@ -13,6 +13,7 @@ from typing import Any
 
 import pytest
 from lonora_contracts.domain import utcnow
+from lonora_contracts.execution_quality import ExecutionPolicy
 from lonora_contracts.owner_actions import OwnerActionProposal
 from lonora_contracts.risk_limits import MonetaryRiskLimits
 from lonora_core.attention import ATTENTION_KINDS, classify_attention
@@ -25,6 +26,7 @@ from lonora_db.owner_actions import (
     create_card,
     limit_changes,
     owner_action_data,
+    policy_widens,
     propose,
     proposed_limits,
     raise_system_card,
@@ -118,6 +120,36 @@ def test_raising_or_removing_any_money_limit_widens(
         if getattr(before, name) != getattr(after, name)
     }
     assert {change["name"] for change in limit_changes(before, after)} == differing
+
+
+@pytest.mark.parametrize(
+    ("current", "proposed", "widening"),
+    [
+        ({"max_positions": 3}, {"max_positions": 2}, False),
+        ({"max_positions": 3}, {"max_positions": 5}, True),
+        ({"max_positions": 3}, {}, True),
+        ({}, {"max_pending_orders": 1}, False),
+        ({"max_pending_orders": 1}, {}, True),
+        ({"max_symbol_direction_volume": "0.1"}, {"max_symbol_direction_volume": "0.5"}, True),
+        ({"max_spread": "2"}, {"max_spread": "1"}, False),
+        ({"max_spread": "2"}, {}, True),
+        ({"max_entry_drift_stop_fraction": "0.2"}, {}, True),
+        ({"quote_max_age_seconds": 20}, {"quote_max_age_seconds": 60}, True),
+        ({"account_max_age_seconds": 60}, {"account_max_age_seconds": 30}, False),
+        ({"risk": {"currency": "USD", "max_daily_loss": "100"}}, {}, True),
+        ({}, {"max_positions": 2, "risk": {"currency": "USD", "max_daily_loss": "100"}}, False),
+    ],
+)
+def test_raising_or_removing_an_execution_cap_widens_the_policy(
+    current: dict[str, Any], proposed: dict[str, Any], widening: bool
+) -> None:
+    """The caps the executor enforces next to the money limits need the passkey too."""
+    assert (
+        policy_widens(
+            ExecutionPolicy.model_validate(current), ExecutionPolicy.model_validate(proposed)
+        )
+        is widening
+    )
 
 
 def test_a_limits_card_can_show_every_field_it_can_change() -> None:

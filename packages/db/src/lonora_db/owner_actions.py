@@ -148,6 +148,32 @@ def widens(current: MonetaryRiskLimits, proposed: MonetaryRiskLimits) -> bool:
     )
 
 
+# Execution caps the executor enforces next to the money limits: raising or removing one
+# admits more risk too (exposure and execution-quality gates).
+POLICY_CEILINGS = (
+    "max_spread",
+    "max_entry_drift_stop_fraction",
+    "max_positions",
+    "max_pending_orders",
+    "max_symbol_direction_volume",
+)
+# Freshness bounds: a larger age accepts staler quotes and account state.
+POLICY_AGES = ("quote_max_age_seconds", "account_max_age_seconds")
+
+
+def policy_widens(current: ExecutionPolicy, proposed: ExecutionPolicy) -> bool:
+    """Whether a new execution policy admits more risk anywhere: a money limit
+    (``widens``), an execution cap raised or removed, or an older quote or account
+    accepted."""
+    if widens(current.risk, proposed.risk):
+        return True
+    for name in POLICY_CEILINGS:
+        old, new = getattr(current, name), getattr(proposed, name)
+        if old is not None and (new is None or new > old):
+            return True
+    return any(getattr(proposed, name) > getattr(current, name) for name in POLICY_AGES)
+
+
 async def account_policy(session: AsyncSession, owner_id: str, account_id: str) -> ExecutionPolicy:
     return ExecutionPolicy.model_validate(
         await SettingsRepository().get(session, execution_policy_key(owner_id, account_id))

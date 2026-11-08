@@ -1,9 +1,10 @@
 """Owner-authenticated policy configuration; never accepted from a model/tool call.
 
-Lowering or adding a money limit is one owner request. Raising or removing one (or
-anything else ``widens`` counts as admitting more risk) needs the owner's passkey: the
-challenge binds the exact new policy, and ``/verify`` stores exactly that policy once the
-assertion is verified, the same ceremony as a limits card in the conversation.
+Lowering or adding a money limit or an execution cap is one owner request. Raising or
+removing one (anything ``policy_widens`` counts as admitting more risk) needs the
+owner's passkey: the challenge binds the exact new policy, and ``/verify`` stores exactly
+that policy once the assertion is verified, the same ceremony as a limits card in the
+conversation.
 """
 
 from typing import Any
@@ -18,7 +19,7 @@ from lonora_contracts.risk_limits import RiskAssessment
 from lonora_core.user_error import LonoraError
 from lonora_db.authority_lock import authority_lock
 from lonora_db.broker_sessions import BrokerSessionRepository
-from lonora_db.owner_actions import account_policy, widens
+from lonora_db.owner_actions import account_policy, policy_widens
 from lonora_session.idempotency import request_hash
 from lonora_trading.execution_quality import execution_policy
 from lonora_trading.exposure import account_exposure
@@ -47,12 +48,14 @@ def policy_binding(account_id: str, policy: ExecutionPolicy) -> str:
 async def widening(
     session: AsyncSession, owner_id: str, account_id: str, policy: ExecutionPolicy
 ) -> bool:
-    """Whether the new policy admits more money risk than the account's current one.
+    """Whether the new policy admits more risk than the account's current one: a money
+    limit, an execution cap (positions, pending orders, volume per symbol and direction,
+    spread, entry drift) raised or removed, or an older quote or account accepted.
 
     Read under the account lock the store takes, so the judgement matches what it replaces.
     """
     await BrokerSessionRepository().get(session, owner_id, account_id, lock=True)
-    return widens((await account_policy(session, owner_id, account_id)).risk, policy.risk)
+    return policy_widens(await account_policy(session, owner_id, account_id), policy)
 
 
 router = APIRouter(prefix="/trading/accounts/{account_id}")
@@ -81,7 +84,7 @@ async def write_policy(
     )
     async with rt.db.sessions() as session, session.begin():
         if await widening(session, owner.id, account_id, body):
-            # Raising or removing a money limit widens what may be lost: passkey only.
+            # Raising or removing a limit or cap widens what may be lost: passkey only.
             raise LonoraError("execution_policy_passkey_required", 403)
         await store_execution_policy(session, owner.id, account_id, body)
     return body
