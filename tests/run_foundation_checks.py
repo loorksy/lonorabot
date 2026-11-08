@@ -85,6 +85,7 @@ CHECKS = (
     "check_grant_card.py",
     "check_goal_call_identity.py",
     "check_agent_model_choice.py",
+    "check_simple_lonora.py",
 )
 
 
