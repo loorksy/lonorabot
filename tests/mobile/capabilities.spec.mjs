@@ -163,13 +163,13 @@ const review = {
   en: {
     review: "Review and trust",
     writes: "may change something (only with non-financial writes)",
-    trustRead: "Trust: read only",
+    trust: "Trust",
     trustWrite: "Trust: non-financial writes",
   },
   ar: {
     review: "مراجعة ووثوق",
     writes: "قد تغيّر شيئًا (مع الكتابة غير المالية فقط)",
-    trustRead: "ثقة: قراءة فقط",
+    trust: "ثقة",
     trustWrite: "ثقة: كتابة غير مالية",
   },
 };
@@ -235,12 +235,13 @@ for (const locale of ["ar", "en"])
       await expect(preview).toContainText("⁨search_posts⁩");
       await expect(preview).toContainText(`${text.writes}: ⁨post_note⁩`);
       await expect(preview).toContainText("⁨send_usdc⁩");
-      await expect(
-        preview.getByRole("button", { name: text.trustWrite, exact: true }),
-      ).toBeVisible();
+      // A server that offers a blocked money tool is trusted to read only: no write tier.
+      await expect(preview.getByRole("button", { name: text.trustWrite, exact: true })).toHaveCount(
+        0,
+      );
       if (locale === "ar")
         await page.screenshot({ path: test.info().outputPath("mcp-review-native-ar.png") });
-      await preview.getByRole("button", { name: text.trustRead, exact: true }).click();
+      await preview.getByRole("button", { name: text.trust, exact: true }).click();
       await expect(preview).toHaveCount(0);
       expect(trusted).toEqual([{ tier: "read", digest: "a".repeat(64) }]);
     } finally {
