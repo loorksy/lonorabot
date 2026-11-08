@@ -168,6 +168,22 @@ test("activity rows say what the agent does from registry metadata, never a raw 
     ["market_decision_record", "intelligence", "change", "Recording analysis", "يسجّل التحليل"],
     ["model_request", "intelligence", "change", "Changing its model", "يغيّر نموذجه"],
     ["model_list", "intelligence", "read", "Checking its models", "يراجع نماذجه"],
+    ["agent_create", "collaboration", "change", "Creating an agent", "ينشئ وكيلًا"],
+    ["agent_inspect", "collaboration", "read", "Reviewing an agent's work", "يراجع عمل وكيل"],
+    ["agent_control", "collaboration", "change", "Steering an agent's work", "يوجّه عمل وكيل"],
+    ["supervision_change", "collaboration", "change", "Setting supervision", "يضبط الإشراف"],
+    ["peer_send", "collaboration", "change", "Messaging agents", "يراسل الوكلاء"],
+    [
+      "news_feed_subscribe",
+      "research",
+      "change",
+      "Subscribing to a news feed",
+      "يشترك في موجز أخبار",
+    ],
+    ["news_feed_read", "research", "read", "Searching sources", "يبحث في المصادر"],
+    ["capabilities_list", "research", "read", "Checking capabilities", "يراجع القدرات"],
+    ["watch_cancel", "market", "change", "Updating a market watch", "يحدّث مراقبة للسوق"],
+    ["watch_create", "market", "change", "Setting a market watch", "يضبط مراقبة للسوق"],
     ["chart_set_timeframe", "charts", "change", "Working on a chart", "يعمل على رسم بياني"],
   ];
   for (const [name, toolset, effect, en, ar] of cases) {

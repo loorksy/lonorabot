@@ -279,6 +279,7 @@ const genericCall: Label = { en: "Using a tool", ar: "يستخدم أداة" };
 const SKILL_WORK: Label = { en: "Working on a skill", ar: "يعمل على مهارة" };
 const SKILL_READ: Label = { en: "Reviewing skills", ar: "يراجع المهارات" };
 const HELPER: Label = { en: "Starting a helper agent", ar: "يبدأ وكيلًا مساعدًا" };
+const WATCH_STEER: Label = { en: "Updating a market watch", ar: "يحدّث مراقبة للسوق" };
 /** The few tools whose family label would state the wrong action, by registry id. */
 const toolLabels: Readonly<Record<string, Label>> = {
   owner_call_request: { en: "Preparing a call", ar: "يجهّز اتصالًا" },
@@ -295,6 +296,16 @@ const toolLabels: Readonly<Record<string, Label>> = {
   model_request: { en: "Changing its model", ar: "يغيّر نموذجه" },
   model_list: { en: "Checking its models", ar: "يراجع نماذجه" },
   mcp_execute: { en: "Using a connected tool", ar: "يستخدم أداة متصلة" },
+  agent_create: { en: "Creating an agent", ar: "ينشئ وكيلًا" },
+  agent_inspect: { en: "Reviewing an agent's work", ar: "يراجع عمل وكيل" },
+  agent_control: { en: "Steering an agent's work", ar: "يوجّه عمل وكيل" },
+  supervision_change: { en: "Setting supervision", ar: "يضبط الإشراف" },
+  news_feed_subscribe: { en: "Subscribing to a news feed", ar: "يشترك في موجز أخبار" },
+  capabilities_list: { en: "Checking capabilities", ar: "يراجع القدرات" },
+  watch_cancel: WATCH_STEER,
+  watch_pause: WATCH_STEER,
+  watch_resume: WATCH_STEER,
+  watch_update: WATCH_STEER,
   child_agent_create: HELPER,
   subagent_spawn: HELPER,
   skill_package_control: SKILL_WORK,
