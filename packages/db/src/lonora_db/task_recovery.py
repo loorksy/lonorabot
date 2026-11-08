@@ -5,6 +5,7 @@ from typing import Any
 
 from lonora_contracts.domain import utcnow
 from lonora_contracts.tasks import TaskFailure, TaskRecovery
+from lonora_contracts.trading import IN_PROGRESS_STATUSES, UNRESOLVED_STATUSES
 from lonora_core.runtime_failure import TRANSIENT_READ_CODES
 from lonora_core.user_error import LonoraError
 from sqlalchemy import or_, select
@@ -75,7 +76,8 @@ async def unresolved_financial(session: AsyncSession, run_id: str) -> bool:
         await session.scalar(
             select(TradingJournalRow.operation_id)
             .where(
-                TradingJournalRow.status.in_(["reserved", "submitted", "ambiguous"]),
+                # Reserved, submitted or ambiguous: the outcome is not known yet.
+                TradingJournalRow.status.in_(sorted(IN_PROGRESS_STATUSES | UNRESOLVED_STATUSES)),
                 TradingJournalRow.execution_mode == "live",
                 or_(
                     TradingJournalRow.result["details"]["lease"]["run_id"].as_string() == run_id,

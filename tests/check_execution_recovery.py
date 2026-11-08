@@ -638,11 +638,19 @@ async def main() -> None:
         await refresh()
         gold = sorted(p.id for p in await broker.positions() if p.symbol == GOLD)
         assert len(gold) >= 3
-        call = ToolCall(
-            id="batch-" + uuid4().hex,
-            name="trade_close_positions",
-            arguments={"account_id": account, "symbol": GOLD},
+        # Proposed through the tool_call bridge, as a model without the native schema
+        # would: resolution yields the exact direct call, so the approval card, its
+        # call identity and the batch stop below are the same as for a direct call.
+        identity = "batch-" + uuid4().hex
+        arguments = {"account_id": account, "symbol": GOLD}
+        call = registry.resolve_call(
+            ToolCall(
+                id=identity,
+                name="tool_call",
+                arguments={"name": "trade_close_positions", "arguments": arguments},
+            )
         )
+        assert call == ToolCall(id=identity, name="trade_close_positions", arguments=arguments)
         proposal = await registry.execute(call, context)
         await fixture.request(
             "POST",
@@ -670,7 +678,7 @@ async def main() -> None:
                 assert await session.get(TradingJournalRow, item["operation_id"]) is None
         services.brokers.connections[account] = cached
         print(
-            "PASS an approved batch stops after an uncertain result and reports the rest as never sent"
+            "PASS an approved batch (proposed through the tool_call bridge) stops after an uncertain result and reports the rest as never sent"
         )
 
         # 8. Approved cards (the supervised agent path) under Emergency Stop and Trading OFF:

@@ -48,13 +48,15 @@ from lonora_db.agent_models import agent_model_record, change_agent_model
 from lonora_db.client import Database
 from lonora_db.messages import send_message
 from lonora_db.runs import claim_next
-from lonora_db.schema import EventRow, RunRow
+from lonora_db.schema import EventRow, RunRow, TradingJournalRow
 from lonora_db.tasks import get_task, task_state
 from lonora_providers.context import context_limits, prepare_context
 from lonora_providers.resilience import ProviderHealth
 from lonora_providers.router import GlobalModelRouter, boosted_output
+from lonora_tools.base import Tool
+from lonora_tools.context import ToolContext
 from lonora_tools.registry import ToolRegistry
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 from sqlalchemy import select
 from test_model_context import FixtureCredentials, settings
 from test_model_context import router_db as router_db
@@ -1325,6 +1327,92 @@ async def test_unresolved_financial_call_never_retries_a_model_outage_automatica
         failure = task_state(await get_task(session, owner, task_id)).failure
         assert isinstance(failure, TaskFailure)
         assert (failure.recovery, failure.next_retry_at) == ("owner", None)
+
+
+class TradeArguments(BaseModel):
+    n: int = 0
+
+
+@pytest.mark.asyncio
+async def test_a_model_outage_after_an_uncertain_trade_retries_the_checkpoint_never_the_trade(
+    task_db: Fixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Wave 1 integration: E4 run-level backoff resumes the same checkpoint, so an
+    executed financial call keeps its recorded (here uncertain) result and is
+    never dispatched again (T2: recovery only observes, it never resends)."""
+    sent: list[dict[str, Any]] = []
+
+    async def trade(_: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+        sent.append(args)
+        return {"status": "ambiguous", "operation_id": "op-uncertain", "code": "broker_timeout"}
+
+    registry = ToolRegistry([Tool("trade_execute", "Trade", TradeArguments, trade, financial=True)])
+    seen: list[list[ModelMessage]] = []
+    outcomes: list[ModelReply | LonoraError] = [
+        ModelReply(tool_calls=[ToolCall(id="entry", name="trade_execute", arguments={"n": 1})]),
+        ModelProviderError(FailureReason.OVERLOADED, retry_after=1.0),
+        ModelReply(text="The entry is unconfirmed; reconciling before anything else."),
+    ]
+
+    async def model(_: Any, messages: list[ModelMessage], *args: Any, **kwargs: Any):
+        seen.append(list(messages))
+        outcome = outcomes.pop(0)
+        if isinstance(outcome, LonoraError):
+            raise outcome
+        return outcome, PRIMARY
+
+    context = await conversation_run(task_db)
+    monkeypatch.setattr("lonora_agent.tool_loop.model_turn", model)
+    await execute_run(context, registry, 120, 8)
+    run = await saved_run(context)
+    assert run.status == "queued" and sent == [{"n": 1}]
+    lease = await reclaim(task_db, run.id, "conversation")
+    await execute_run(context_for(task_db, lease, run.thread_id), registry, 120, 8)
+    run = await saved_run(context)
+    assert run.status == "completed" and (run.result or "").startswith("The entry is unconfirmed")
+    # One send only; the retried turn sees the uncertain receipt instead of a resend.
+    assert sent == [{"n": 1}]
+    retried = [m for m in seen[-1] if m.role == "tool" and m.tool_call_id == "entry"]
+    assert retried and json.loads(retried[0].content)["status"] == "ambiguous"
+
+
+@pytest.mark.asyncio
+async def test_a_reserved_journal_operation_keeps_a_task_outage_with_the_owner(
+    task_db: Fixture,
+) -> None:
+    """T2's reserved state counts as unresolved for E4's automatic Task retry."""
+    from lonora_db.task_recovery import record_failure
+
+    db, owner, _, _ = task_db
+    context, task_id = await task_run(
+        task_db, TaskCreate(title="Watch gold", completion_mode="continuous")
+    )
+    async with db.sessions() as session, session.begin():
+        run = await session.get(RunRow, context.lease.run_id)
+        assert run
+        session.add(
+            TradingJournalRow(
+                operation_id="op-reserved",
+                owner_id=owner,
+                account_id="acct",
+                request_hash="h",
+                request={"symbol": "XAUUSD", "action": "buy"},
+                status="reserved",
+                result={"details": {"execution": {"run_id": run.id}}},
+            )
+        )
+        # Every recorded call has its result: only the journal knows the operation.
+        run.execution_state = {
+            **run.execution_state,
+            "messages": [{"role": "user", "content": "Watch gold"}],
+        }
+        run.error_code = "model_provider_unavailable"
+        await session.flush()
+        await record_failure(session, run, {"market_quote"})
+        failure = task_state(await get_task(session, owner, task_id)).failure
+        assert isinstance(failure, TaskFailure)
+        assert (failure.recovery, failure.reconciliation) == ("reconcile", "financial")
+        assert failure.next_retry_at is None
 
 
 @pytest.mark.asyncio

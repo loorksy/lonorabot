@@ -1,5 +1,6 @@
 """Stable bridge, frozen per-Run exposure, remembered tools, availability and shadow maps."""
 
+import asyncio
 import json
 from collections.abc import Sequence
 from dataclasses import replace
@@ -16,6 +17,7 @@ from lonora_agent.executor import execute_run
 from lonora_agent.runtime_notices import limit_fallback
 from lonora_agent.skills.registry import CAPABILITY_TOOLS
 from lonora_agent.skills.system_policy import policy_bundle
+from lonora_agent.tool_batch import plan_segments
 from lonora_agent.tool_exposure import remember_use, run_profiles
 from lonora_agent.tool_loop import execute_tool_loop
 from lonora_agent.workspace_access import RunWorkspaceAccess
@@ -382,6 +384,105 @@ async def test_an_interrupted_bridged_mutation_is_uncertain_and_never_resent(
     run = await saved_run(context)
     assert writes == []
     assert results(run)["toolu_m"]["code"] == "tool_execution_uncertain"
+
+
+def test_bridged_trading_calls_are_planned_exactly_like_direct_ones():
+    """Wave 1 integration: E2 bridge resolution happens before E1 planning.
+
+    Financial tools (T2 executor) and the T3 restriction writer stay serial
+    barriers whether the model called them natively or through tool_call; the
+    T4 evidence reads still form a parallel segment.
+    """
+    catalog = load_tools()
+    account = {"account_id": "acct", "symbol": "XAUUSD"}
+    trade = {"account_id": "acct", "symbol": "XAUUSD", "action": "buy", "volume": "0.1"}
+    restriction = {"action_class": "no_new_entries", "reason": "Owner asked to pause"}
+    block = [
+        ToolCall(id="quote", name="market_quote", arguments=account),
+        bridge("entry", "trade_execute", trade),
+        bridge("snapshot", "market_snapshot", account),
+        ToolCall(id="sessions", name="market_sessions", arguments={}),
+        bridge("pause", "trade_restriction_create", restriction),
+        bridge("flatten", "trade_close_positions", account),
+        bridge("limits", "trade_restriction_list", {}),
+        ToolCall(id="calendar", name="economic_calendar_read", arguments={}),
+    ]
+    resolved = catalog.resolve_calls(block)
+    assert [call.id for call in resolved] == [call.id for call in block]
+    assert BRIDGE not in {call.name for call in resolved}
+    direct = [ToolCall(id=call.id, name=call.name, arguments=call.arguments) for call in resolved]
+    planned = plan_segments(resolved, catalog.tools)
+    assert planned == plan_segments(direct, catalog.tools)
+    assert [(segment.kind, [call.id for call in segment.calls]) for segment in planned] == [
+        ("serial", ["quote"]),
+        ("serial", ["entry"]),
+        ("parallel", ["snapshot", "sessions"]),
+        ("serial", ["pause"]),
+        ("serial", ["flatten"]),
+        ("parallel", ["limits", "calendar"]),
+    ]
+    for name in ("trade_execute", "trade_close_positions"):
+        tool = catalog.tools[name]
+        assert tool.financial and not tool.runs_in_parallel() and tool.dispatch_timeout() is None
+    writer = catalog.tools["trade_restriction_create"]
+    assert not writer.read_only and not writer.financial and not writer.runs_in_parallel()
+
+
+@pytest.mark.asyncio
+async def test_a_bridged_financial_call_is_a_single_inflight_barrier_between_parallel_reads(
+    task_db: Fixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    log: list[str] = []
+    holder: list[ToolContext] = []
+    marker: dict[str, Any] = {}
+
+    async def read(_: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+        log.append(f"start:{args['n']}")
+        await asyncio.sleep(0.03)
+        log.append(f"end:{args['n']}")
+        return {"n": args["n"]}
+
+    async def trade(_: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+        log.append("start:trade")
+        environment = (await saved_run(holder[0])).execution_state["environment"]
+        marker.update(single=environment["inflight"], all=environment["inflight_calls"])
+        log.append("end:trade")
+        return {"status": "ambiguous", "operation_id": "op-1"}
+
+    registry = ToolRegistry(
+        [
+            Tool("fixture_read", "Read", Arguments, read, True, eager=eager_for("core")),
+            Tool("trade_execute", "Trade", Arguments, trade, financial=True),
+        ]
+    )
+    model = BridgingScript(
+        ModelReply(
+            tool_calls=[
+                ToolCall(id="a", name="fixture_read", arguments={"n": 1}),
+                ToolCall(id="b", name="fixture_read", arguments={"n": 2}),
+                bridge("t", "trade_execute", {"n": 0}),
+                ToolCall(id="c", name="fixture_read", arguments={"n": 3}),
+                ToolCall(id="d", name="fixture_read", arguments={"n": 4}),
+            ]
+        ),
+        ModelReply(text="The entry is unconfirmed; I will reconcile before anything else."),
+    )
+    context = await conversation_run(task_db)
+    holder.append(context)
+    monkeypatch.setattr("lonora_agent.tool_loop.model_turn", model)
+    await execute_run(context, registry, 120, 8)
+    run = await saved_run(context)
+    assert run.status == "completed"
+    position = {entry: index for index, entry in enumerate(log)}
+    assert position["start:trade"] > max(position["end:1"], position["end:2"])
+    assert min(position["start:3"], position["start:4"]) > position["end:trade"]
+    assert max(position["start:1"], position["start:2"]) < min(position["end:1"], position["end:2"])
+    # The financial call ran alone, under its own intent marker and the model's id.
+    assert marker["single"]["call_id"] == "t"
+    assert [entry["call_id"] for entry in marker["all"]] == ["t"]
+    assistant = [item for item in run.execution_state["messages"] if item["role"] == "assistant"]
+    assert [call["name"] for call in assistant[0]["tool_calls"]].count("trade_execute") == 1
+    assert results(run)["t"]["status"] == "ambiguous"
 
 
 class WaitInput(BaseModel):
