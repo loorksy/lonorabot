@@ -8,6 +8,7 @@ from lonora_agent.workspace_access import RunWorkspaceAccess
 from lonora_agent.workspace_client import WorkspaceClient
 from lonora_charts.visual import ChartVisualRuntime
 from lonora_contracts.mcp import McpToolDeclaration
+from lonora_contracts.model_routing import ModelSelection
 from lonora_contracts.runs import Lease
 from lonora_db.client import Database
 from lonora_market.runtime import MarketRuntime
@@ -84,6 +85,7 @@ class OwnerServices:
         root: Path,
         depth: int = 0,
         maximum_subagents: int = 4,
+        run_model: ModelSelection | None = None,
     ) -> ToolContext:
         return ToolContext(
             self.db,
@@ -105,6 +107,7 @@ class OwnerServices:
             mcp_declarations=self.mcp_declarations,
             searxng_url=self.searxng_url,
             browser_url=self.browser_url,
+            run_model=run_model,
         )
 
     async def close(self) -> None:

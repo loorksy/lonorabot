@@ -2,7 +2,8 @@ from fastapi import APIRouter, Depends, Request
 from lonora_auth.identity import OwnerIdentity
 from lonora_contracts.model_backups import ModelBackups
 from lonora_contracts.model_context import ModelContextPolicy
-from lonora_contracts.model_routing import RoutingPolicy
+from lonora_contracts.model_routing import AllowedModels, RoutingPolicy
+from lonora_db.agent_models import added_models, routed_models, save_added_models
 from lonora_db.transactions import SettingsRepository
 from lonora_providers.routing_policy import read_policy, save_policy
 
@@ -50,3 +51,31 @@ async def write_context(
     async with runtime(request).db.sessions() as session, session.begin():
         await SettingsRepository().put(session, "model_context", body.model_dump(mode="json"))
     return body
+
+
+async def allowed_view(request: Request) -> dict[str, object]:
+    async with runtime(request).db.sessions() as session:
+        routed = await routed_models(session)
+        added = (await added_models(session)).added
+    return {
+        # The global text routes and backups: always allowed, changed above.
+        "routed": [item.model_dump(mode="json") for item in routed],
+        # The owner's additions: agents may choose these on their own too.
+        "added": [item.model_dump(mode="json") for item in added],
+    }
+
+
+@router.get("/allowed")
+async def read_allowed(
+    request: Request, owner: OwnerIdentity = Depends(require_owner)
+) -> dict[str, object]:
+    return await allowed_view(request)
+
+
+@router.put("/allowed")
+async def write_allowed(
+    request: Request, body: AllowedModels, owner: OwnerIdentity = Depends(require_owner)
+) -> dict[str, object]:
+    async with runtime(request).db.sessions() as session, session.begin():
+        await save_added_models(session, body)
+    return await allowed_view(request)

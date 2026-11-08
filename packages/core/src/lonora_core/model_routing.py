@@ -1,4 +1,9 @@
-from lonora_contracts.model_routing import Capability, ModelSelection, RoutingPolicy
+from lonora_contracts.model_routing import (
+    TEXT_CAPABILITIES,
+    Capability,
+    ModelSelection,
+    RoutingPolicy,
+)
 
 from .user_error import LonoraError
 
@@ -16,3 +21,16 @@ def select_model(policy: RoutingPolicy, capability: Capability) -> ModelSelectio
     if selected is None:
         raise LonoraError("model_not_configured", 409)
     return selected
+
+
+def text_routes(policy: RoutingPolicy) -> list[ModelSelection]:
+    """The owner's global models for text work, in capability order, de-duplicated."""
+    chosen: list[ModelSelection] = []
+    for capability in TEXT_CAPABILITIES:
+        try:
+            selection = select_model(policy, capability)
+        except LonoraError:
+            continue
+        if selection not in chosen:
+            chosen.append(selection)
+    return chosen

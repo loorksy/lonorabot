@@ -4,7 +4,8 @@ Wave 1.5 slices W15-2 and W15-3. Every owner-only action has a one-tap card insi
 conversation, identical on Web and Mobile. Resuming trading, lifting a pause, settling
 an uncertain trade, changing money limits and signing a trading grant never need a
 settings page or the API. Later slices add cards for agent creation and supervision
-(W15-4, W15-6), trusted sources and credentials (W15-8).
+(W15-4, W15-6), trusted sources and credentials (W15-8), and an agent's model (W15-10,
+`docs/provider-resilience.md`).
 
 A card is never a second authority path. It stores one exact effect, and the owner's
 tap runs the existing owner function for that effect, in the owner's session.
@@ -215,6 +216,27 @@ an approval card, and what else changed (the daily loss limit set, no limit by c
 the current limit kept by choice, the other agent or agents stopped on this account,
 Resume), or that new trading is still stopped. The settled card names the agents it
 stopped. A card for an agent that is deleted is superseded with it.
+
+## Model cards (W15-10)
+
+Two kinds no agent can propose with `owner_action_propose`; only `model_request` raises
+them, from server-checked state (`lonora_db.model_cards`). Neither touches money: both are
+one tap, never a passkey.
+
+| Card | Raised when | Buttons | Confirming |
+| --- | --- | --- | --- |
+| `agent_model` "Change the model of {agent}?" | The agent asked for a model outside the owner's allowed list, for itself while the owner fixed its model, or (Lonora) for another agent, in a run that answers no owner message | Use it (Let Lonora choose) / Not now | `apply_agent_model` in the owner's name; a model outside the list also joins the allowed list (the card says so) |
+| `agent_model_changed` "{agent} switched its model" | A switch applied (the agent's own, or one the owner asked for in chat) | Undo / Keep | Restores the choice before the switch, only while the record's revision is still the one the card reports |
+
+The payload is the agent, the mode and model (or none: the owner's default), and for
+Undo the record revision and the choice before it; the subject is `agent-model:<agent>`.
+Facts are the agent's name, the catalog names of the models (never ids) and the owner's
+default model. Lifetimes: 24 hours for a request, 7 days for Undo. A newer switch
+supersedes the older Undo card (`model_changed_again`); the owner's own choice in
+settings or on a card supersedes both kinds for that agent (`owner_changed_model`); a
+request the record already matches settles as `model_already_set`. A deleted agent's
+model cards are superseded with it. The confirmation line says the model answers from
+the next reply and that memory, tasks, grants and open trades stay as they are.
 
 ## The raw execution-policy route
 

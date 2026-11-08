@@ -1,5 +1,17 @@
 export * from "./account-authority";
 export { accountAuthorityLabels } from "./account-authority-labels";
+export {
+  type AgentModelText,
+  agentModelLabels,
+  agentModelLines,
+  agentModelText,
+  type ModelCardSpec,
+  modelCard,
+  modelChoiceLine,
+  modelName,
+  tokenCount,
+  usageLine,
+} from "./agent-model";
 export * from "./agent-permission";
 export { agentPermissionError } from "./agent-permission-errors";
 export {

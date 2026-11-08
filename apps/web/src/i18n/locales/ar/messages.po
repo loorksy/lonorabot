@@ -97,7 +97,7 @@ msgstr "تم تحديث النشاط"
 msgid "Add"
 msgstr "إضافة"
 
-#: src/pages/ModelSettingsOverlay.tsx:73
+#: src/pages/ModelSettingsOverlay.tsx:74
 msgid "Add a provider credential"
 msgstr "أضف مفتاح المزود"
 
@@ -134,7 +134,7 @@ msgstr "إضافة خط"
 msgid "Add owner instructions"
 msgstr "إضافة تعليمات خاصة"
 
-#: src/pages/shell/bot-settings.tsx:133
+#: src/pages/shell/bot-settings.tsx:135
 msgid "Advanced"
 msgstr "إعدادات متقدمة"
 
@@ -239,7 +239,7 @@ msgstr "غاضب"
 msgid "Answered"
 msgstr "تمت الإجابة"
 
-#: src/pages/ModelSettingsOverlay.tsx:77
+#: src/pages/ModelSettingsOverlay.tsx:78
 msgid "API key"
 msgstr "مفتاح API"
 
@@ -514,7 +514,7 @@ msgstr "شراء عند الاختراق"
 msgid "bytes"
 msgstr "بايت"
 
-#: src/pages/UsageSettingsPanel.tsx:36
+#: src/pages/UsageSettingsPanel.tsx:43
 msgid "Cached"
 msgstr "من الذاكرة المؤقتة"
 
@@ -537,7 +537,7 @@ msgstr "مكالمة مع {name}"
 #: src/components/skills/SkillCard.tsx:133
 #: src/components/skills/SkillEditor.tsx:141
 #: src/pages/Board.tsx:547
-#: src/pages/shell/bot-settings.tsx:208
+#: src/pages/shell/bot-settings.tsx:210
 msgid "Cancel"
 msgstr "إلغاء"
 
@@ -559,7 +559,7 @@ msgstr "إلغاء الأمر"
 msgid "Cancelled"
 msgstr "ملغى"
 
-#: src/pages/ModelSettingsOverlay.tsx:120
+#: src/pages/ModelSettingsOverlay.tsx:122
 msgid "Capabilities unverified"
 msgstr "القدرات غير مؤكدة"
 
@@ -691,7 +691,7 @@ msgstr "اختر زوج التداول"
 #: src/pages/Board.tsx:508
 #: src/pages/RoutineEditor.tsx:103
 #: src/pages/Shell.tsx:697
-#: src/pages/shell/bot-settings.tsx:165
+#: src/pages/shell/bot-settings.tsx:167
 msgid "Close"
 msgstr "إغلاق"
 
@@ -924,7 +924,7 @@ msgstr "إنشاء مراقبة"
 msgid "Create workspace"
 msgstr "إنشاء مساحة العمل"
 
-#: src/pages/ModelSettingsOverlay.tsx:71
+#: src/pages/ModelSettingsOverlay.tsx:72
 msgid "Credential configured"
 msgstr "تم إعداد مفتاح الوصول"
 
@@ -975,12 +975,12 @@ msgstr "مهمة مفوّضة"
 msgid "Delete"
 msgstr "حذف"
 
-#: src/pages/shell/bot-settings.tsx:187
-#: src/pages/shell/bot-settings.tsx:237
+#: src/pages/shell/bot-settings.tsx:189
+#: src/pages/shell/bot-settings.tsx:239
 msgid "Delete agent"
 msgstr "حذف المساعد"
 
-#: src/pages/shell/bot-settings.tsx:196
+#: src/pages/shell/bot-settings.tsx:198
 msgid "Delete agent permanently?"
 msgstr "حذف المساعد نهائيًا؟"
 
@@ -988,7 +988,7 @@ msgstr "حذف المساعد نهائيًا؟"
 msgid "Delete owner instructions"
 msgstr "حذف التعليمات الخاصة"
 
-#: src/pages/shell/bot-settings.tsx:226
+#: src/pages/shell/bot-settings.tsx:228
 msgid "Delete permanently"
 msgstr "حذف نهائي"
 
@@ -1011,7 +1011,7 @@ msgstr "صف دور هذا الوكيل"
 #: src/pages/Board.tsx:361
 #: src/pages/Board.tsx:363
 #: src/pages/shell/bot-panel.tsx:95
-#: src/pages/shell/bot-settings.tsx:123
+#: src/pages/shell/bot-settings.tsx:125
 msgid "Description"
 msgstr "الوصف"
 
@@ -1045,7 +1045,7 @@ msgstr "معطلة"
 msgid "Disconnect account"
 msgstr "فصل الحساب"
 
-#: src/pages/ModelSettingsOverlay.tsx:109
+#: src/pages/ModelSettingsOverlay.tsx:111
 msgid "Discovered models"
 msgstr "النماذج المكتشفة"
 
@@ -1382,7 +1382,7 @@ msgstr "المؤشرات"
 msgid "Indicators and drawings"
 msgstr "المؤشرات والرسومات"
 
-#: src/pages/UsageSettingsPanel.tsx:24
+#: src/pages/UsageSettingsPanel.tsx:31
 msgid "Input"
 msgstr "الإدخال"
 
@@ -1397,7 +1397,7 @@ msgid "Instruction version"
 msgstr "إصدار التعليمات"
 
 #: src/pages/shell/bot-panel.tsx:105
-#: src/pages/shell/bot-settings.tsx:137
+#: src/pages/shell/bot-settings.tsx:139
 msgid "Instructions"
 msgstr "التعليمات"
 
@@ -1723,7 +1723,7 @@ msgstr "كتم الميكروفون"
 #: src/components/integrations/IntegrationSetup.tsx:75
 #: src/pages/McpServersOverlay.tsx:52
 #: src/pages/shell/bot-panel.tsx:76
-#: src/pages/shell/bot-settings.tsx:110
+#: src/pages/shell/bot-settings.tsx:112
 msgid "Name"
 msgstr "الاسم"
 
@@ -1946,7 +1946,7 @@ msgstr "سعر الأمر"
 #~ msgid "Outcome uncertain — it will not be sent again"
 #~ msgstr "النتيجة غير مؤكدة — لن تُرسل مجددًا"
 
-#: src/pages/UsageSettingsPanel.tsx:30
+#: src/pages/UsageSettingsPanel.tsx:37
 msgid "Output"
 msgstr "الإخراج"
 
@@ -1982,7 +1982,7 @@ msgstr "كلمة المرور · 12 حرفًا على الأقل"
 msgid "Pause"
 msgstr "إيقاف مؤقت"
 
-#: src/pages/shell/bot-settings.tsx:154
+#: src/pages/shell/bot-settings.tsx:156
 msgid "Pause agent and scheduled work"
 msgstr "إيقاف الوكيل ومهامه المجدولة مؤقتًا"
 
@@ -2014,11 +2014,11 @@ msgid "Period"
 msgstr "الفترة"
 
 #. placeholder {0}: agent.name
-#: src/pages/shell/bot-settings.tsx:199
+#: src/pages/shell/bot-settings.tsx:201
 msgid "Permanently delete {0}? This cannot be undone."
 msgstr "هل تريد حذف {0} نهائيًا؟ لا يمكن التراجع عن هذا الإجراء."
 
-#: src/pages/shell/bot-settings.tsx:158
+#: src/pages/shell/bot-settings.tsx:160
 msgid "Persistent child agent"
 msgstr "وكيل ابن دائم"
 
@@ -2113,12 +2113,12 @@ msgstr "الهوية"
 msgid "Profit"
 msgstr "الربح"
 
-#: src/pages/ModelSettingsOverlay.tsx:56
-#: src/pages/ModelSettingsOverlay.tsx:58
+#: src/pages/ModelSettingsOverlay.tsx:57
+#: src/pages/ModelSettingsOverlay.tsx:59
 msgid "Provider"
 msgstr "المزود"
 
-#: src/pages/ModelSettingsOverlay.tsx:53
+#: src/pages/ModelSettingsOverlay.tsx:54
 msgid "Providers and official catalog"
 msgstr "المزودون والكتالوج الرسمي"
 
@@ -2416,11 +2416,11 @@ msgstr "التنفيذ بأسعار مأخوذة دوريًا افتراضي. ا
 #: src/pages/KnowledgeSection.tsx:187
 #: src/pages/RoutineEditor.tsx:100
 #: src/pages/ScratchpadSection.tsx:195
-#: src/pages/shell/bot-settings.tsx:179
+#: src/pages/shell/bot-settings.tsx:181
 msgid "Save"
 msgstr "حفظ"
 
-#: src/pages/ModelSettingsOverlay.tsx:90
+#: src/pages/ModelSettingsOverlay.tsx:91
 msgid "Save and discover models"
 msgstr "حفظ واكتشاف النماذج"
 
@@ -2976,7 +2976,7 @@ msgstr "رفض الوسيط هذا الفريم أو طلب الشموع."
 msgid "The broker specifications are unavailable for this exact symbol."
 msgstr "مواصفات الوسيط غير متاحة لهذا الرمز المحدد."
 
-#: src/pages/ModelSettingsOverlay.tsx:93
+#: src/pages/ModelSettingsOverlay.tsx:94
 msgid "The catalog is read from the provider. Unknown capabilities are shown as unverified."
 msgstr "يُقرأ الكتالوج من المزود. تظهر القدرات غير المعروفة على أنها غير مؤكدة."
 
@@ -3250,7 +3250,7 @@ msgstr "المنطقة الزمنية"
 #: src/pages/ScratchpadSection.tsx:69
 #: src/pages/ScratchpadSection.tsx:160
 #: src/pages/shell/bot-panel.tsx:86
-#: src/pages/shell/bot-settings.tsx:119
+#: src/pages/shell/bot-settings.tsx:121
 msgid "Title"
 msgstr "العنوان"
 
@@ -3275,7 +3275,7 @@ msgstr "اليوم"
 
 #: src/pages/settings-sidebar.tsx:24
 #: src/pages/Shell.tsx:665
-#: src/pages/UsageSettingsPanel.tsx:18
+#: src/pages/UsageSettingsPanel.tsx:25
 msgid "Token usage"
 msgstr "استهلاك الرموز"
 
@@ -3335,7 +3335,7 @@ msgstr "أهداف التداول"
 #~ msgid "Trading ON"
 #~ msgstr "التداول مفعّل"
 
-#: src/pages/shell/bot-settings.tsx:95
+#: src/pages/shell/bot-settings.tsx:96
 msgid "Trading pair"
 msgstr "زوج التداول"
 
@@ -3401,7 +3401,7 @@ msgstr "جارٍ الرفع…"
 msgid "Use the configured secure website for device authentication."
 msgstr "استخدم الموقع الآمن المعتمد لمصادقة الجهاز."
 
-#: src/pages/ModelSettingsOverlay.tsx:118
+#: src/pages/ModelSettingsOverlay.tsx:120
 msgid "Verified metadata"
 msgstr "بيانات مؤكدة"
 
@@ -3511,7 +3511,7 @@ msgstr "مصدر المراقبة"
 msgid "What happened at the broker"
 msgstr "ما الذي حدث لدى الوسيط"
 
-#: src/pages/shell/bot-settings.tsx:141
+#: src/pages/shell/bot-settings.tsx:143
 msgid "What should this agent know about its work?"
 msgstr "ما الذي يجب أن يعرفه هذا الوكيل عن عمله؟"
 
@@ -3580,7 +3580,7 @@ msgid "Your model provider account is out of credits or over its spending limit.
 msgstr "نفد رصيد حساب مزود النموذج أو تجاوز حد الإنفاق. أضف رصيدًا أو اختر مزودًا آخر."
 
 #: src/lib/user_error.ts:54
-#: src/pages/shell/bot-settings.tsx:184
+#: src/pages/shell/bot-settings.tsx:186
 msgid "Your Personal Agent cannot be deleted."
 msgstr "لا يمكن حذف مساعدك الشخصي."
 

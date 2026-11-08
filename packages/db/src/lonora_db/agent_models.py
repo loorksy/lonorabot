@@ -1,25 +1,40 @@
-"""One owner-chosen model preference per Agent, stored without a schema change.
+"""One model choice per Agent, and the owner's allowed models, stored without a schema change.
 
-Like the per-Agent approval preference, the record lives in ``ln_settings``
-under an owner-scoped key. It only orders the model candidates the router
-tries; it never grants authority or changes what the Agent may do.
+Like the per-Agent approval preference, the record lives in ``ln_settings`` under an
+owner-scoped key. It only orders the model candidates the router tries; it never grants
+authority or changes what the Agent may do, and changing it never repeats a tool call,
+a trade or any other effect: the next model turn simply asks another model.
+
+An Agent is *Automatic* (Lonora chooses: the owner's default model, and the Agent may
+switch itself among the allowed models) or *Fixed* (the owner chose one model; only the
+owner changes it). The allowed models are the owner's global text routes and backups
+plus the models the owner added (``model_allowed``).
 """
 
 from hashlib import sha256
+from typing import Any, Literal, cast
 
 from lonora_contracts.domain import utcnow
 from lonora_contracts.model_routing import (
+    MAXIMUM_ADDED_MODELS,
     AgentModelChange,
     AgentModelPreference,
     AgentModelRecord,
+    AgentModelState,
+    AllowedModels,
+    ModelSelection,
+    RoutingPolicy,
 )
+from lonora_core.model_routing import text_routes
 from lonora_core.user_error import LonoraError
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .events import emit
 from .schema import SettingRow
-from .transactions import owned_agent
+from .transactions import SettingsRepository, owned_agent
+
+ALLOWED_KEY = "model_allowed"
 
 
 def agent_model_key(owner_id: str, agent_id: str) -> str:
@@ -51,30 +66,104 @@ async def agent_model_record(
 
 async def agent_model_preference(
     session: AsyncSession, owner_id: str, agent_id: str
-) -> AgentModelPreference | None:
+) -> AgentModelRecord | None:
     """The router's read: an unreadable record degrades to the global routes."""
     try:
-        record = await stored_agent_model(session, owner_id, agent_id)
+        return await stored_agent_model(session, owner_id, agent_id)
     except LonoraError:
         return None
-    preference = record.preference
-    return preference if preference.primary or preference.fallbacks else None
 
 
-async def change_agent_model(
-    session: AsyncSession, owner_id: str, agent_id: str, change: AgentModelChange
-) -> AgentModelRecord:
+async def added_models(session: AsyncSession) -> AllowedModels:
+    try:
+        return AllowedModels.model_validate(await SettingsRepository().get(session, ALLOWED_KEY))
+    except ValidationError:
+        return AllowedModels()
+
+
+async def routed_models(session: AsyncSession) -> list[ModelSelection]:
+    """The owner's global text routes, then the global backups."""
+    settings = SettingsRepository()
+    try:
+        routing = RoutingPolicy.model_validate(await settings.get(session, "model_routing"))
+    except ValidationError:
+        routing = RoutingPolicy()
+    chosen = text_routes(routing)
+    for item in (await settings.get(session, "model_backups")).get("choices", []):
+        try:
+            selection = ModelSelection.model_validate(item)
+        except ValidationError:
+            continue
+        if selection not in chosen:
+            chosen.append(selection)
+    return chosen
+
+
+async def allowed_models(session: AsyncSession) -> list[ModelSelection]:
+    """Every model an Agent may choose on its own: routes, backups, the owner's additions."""
+    chosen = await routed_models(session)
+    for selection in (await added_models(session)).added:
+        if selection not in chosen:
+            chosen.append(selection)
+    return chosen
+
+
+async def save_added_models(session: AsyncSession, value: AllowedModels) -> AllowedModels:
+    await SettingsRepository().put(session, ALLOWED_KEY, value.model_dump(mode="json"))
+    return value
+
+
+async def allow_model(session: AsyncSession, selection: ModelSelection) -> bool:
+    """Add one model to the owner's additions (an owner card's confirmation)."""
+    if selection in await allowed_models(session):
+        return False
+    current = await added_models(session)
+    if len(current.added) >= MAXIMUM_ADDED_MODELS:
+        raise LonoraError("allowed_models_full", 409)
+    await save_added_models(session, AllowedModels(added=[*current.added, selection]))
+    return True
+
+
+def same_choice(record: AgentModelRecord, state: AgentModelState) -> bool:
+    return record.mode == state.mode and record.preference == state.preference
+
+
+async def apply_agent_model(
+    session: AsyncSession,
+    owner_id: str,
+    agent_id: str,
+    state: AgentModelState,
+    *,
+    chosen_by: Literal["owner", "agent"],
+    by_agent_id: str | None = None,
+    run_id: str | None = None,
+    expected_revision: int | None = None,
+    via: str = "owner_settings",
+    source_message_id: str | None = None,
+) -> tuple[AgentModelRecord, bool]:
+    """Store one Agent's model choice; returns the record and whether it changed.
+
+    The same choice again changes nothing (no revision, no event), so a replayed or
+    repeated request is harmless. The choice it replaces is kept for Undo.
+    """
     await owned_agent(session, owner_id, agent_id, lock=True)
     key = agent_model_key(owner_id, agent_id)
     row = await session.get(SettingRow, key, with_for_update=True, populate_existing=True)
     current = await stored_agent_model(session, owner_id, agent_id)
-    if change.expected_revision is not None and change.expected_revision != current.revision:
+    if expected_revision is not None and expected_revision != current.revision:
         raise LonoraError("version_conflict", 409)
+    if same_choice(current, state):
+        return current, False
     record = AgentModelRecord(
         owner_id=owner_id,
         agent_id=agent_id,
         revision=current.revision + 1,
-        preference=AgentModelPreference(primary=change.primary, fallbacks=change.fallbacks),
+        mode=state.mode,
+        preference=state.preference,
+        chosen_by=chosen_by,
+        chosen_by_agent_id=by_agent_id,
+        previous=current.state(),
+        changed_at=utcnow(),
     )
     payload = record.model_dump(mode="json")
     if row is None:
@@ -83,11 +172,59 @@ async def change_agent_model(
         row.payload = payload
         row.updated_at = utcnow()
     await session.flush()
+    primary = state.preference.primary
     emit(
         session,
         owner_id,
         "agent.model.updated",
         agent_id=agent_id,
-        payload={"agent_id": agent_id, "revision": record.revision},
+        run_id=run_id,
+        payload={
+            "agent_id": agent_id,
+            "revision": record.revision,
+            "mode": record.mode,
+            "chosen_by": chosen_by,
+            "by_agent_id": by_agent_id,
+            "via": via,
+            # The owner's message an agent's switch answered, when it answered one.
+            "source_message_id": source_message_id,
+            "provider": primary.provider if primary else None,
+            "model": primary.model if primary else None,
+        },
     )
+    return record, True
+
+
+async def change_agent_model(
+    session: AsyncSession, owner_id: str, agent_id: str, change: AgentModelChange
+) -> AgentModelRecord:
+    """The owner's choice from settings or the model card; it wins over any agent's."""
+    from .model_cards import supersede_agent_model_cards
+    from .owner_actions import lock_owner_actions
+
+    # Cards before the agent: the order a card decision takes them in.
+    await lock_owner_actions(session, owner_id)
+    state = AgentModelState(
+        mode=change.mode,
+        preference=AgentModelPreference(primary=change.primary, fallbacks=change.fallbacks),
+    )
+    record, _ = await apply_agent_model(
+        session,
+        owner_id,
+        agent_id,
+        state,
+        chosen_by="owner",
+        expected_revision=change.expected_revision,
+    )
+    await supersede_agent_model_cards(session, owner_id, agent_id, "owner_changed_model")
     return record
+
+
+async def catalog_has(session: AsyncSession, selection: ModelSelection) -> bool:
+    """Whether the provider's discovered catalog lists this model."""
+    catalog = await SettingsRepository().get(session, "catalog:" + selection.provider)
+    models = cast(list[Any], catalog.get("models", []))
+    return any(
+        isinstance(item, dict) and cast(dict[str, Any], item).get("id") == selection.model
+        for item in models
+    )

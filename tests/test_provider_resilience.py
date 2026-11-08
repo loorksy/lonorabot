@@ -37,6 +37,9 @@ from lonora_contracts.model_catalog import ModelDescriptor
 from lonora_contracts.model_routing import (
     AgentModelChange,
     AgentModelPreference,
+    AgentModelRecord,
+    AgentModelState,
+    AllowedModels,
     Capability,
     ModelSelection,
     RoutingPolicy,
@@ -44,7 +47,13 @@ from lonora_contracts.model_routing import (
 from lonora_contracts.runs import Lease
 from lonora_contracts.tasks import TaskCreate, TaskFailure, TaskRetryPolicy
 from lonora_core.user_error import LonoraError
-from lonora_db.agent_models import agent_model_record, change_agent_model
+from lonora_db.agent_models import (
+    agent_model_record,
+    allowed_models,
+    apply_agent_model,
+    change_agent_model,
+    save_added_models,
+)
 from lonora_db.client import Database
 from lonora_db.messages import send_message
 from lonora_db.runs import claim_next
@@ -951,6 +960,99 @@ async def test_agent_preference_orders_candidates_and_never_needs_a_migration(
     )
     vision = await router.route(Capability.VISION, owner_id=owner, agent_id=agent)
     assert vision.choices == [PRIMARY, own_backup, BACKUP]
+
+
+@pytest.mark.asyncio
+async def test_automatic_agents_fall_back_on_allowed_models_and_a_run_choice_leads(
+    task_db: Fixture,
+) -> None:
+    db, owner, agent, _ = task_db
+    extra = ModelSelection(provider="deepseek", model="allowed-extra")
+    chosen = ModelSelection(provider="zai", model="helper-choice")
+    await configure(db, BACKUP)
+    async with db.sessions() as session, session.begin():
+        await save_added_models(session, AllowedModels(added=[extra]))
+        assert await allowed_models(session) == [PRIMARY, BACKUP, extra]
+    router = Scripted().router(db)
+    # Automatic (no record yet): Lonora may fall back on every allowed model.
+    route = await router.route(Capability.CONVERSATION, owner_id=owner, agent_id=agent)
+    assert route.choices == [PRIMARY, BACKUP, extra]
+    led = await router.route(
+        Capability.CONVERSATION, owner_id=owner, agent_id=agent, run_choice=chosen
+    )
+    assert led.choices == [chosen, PRIMARY, BACKUP, extra]
+    # Requests without an agent keep the global routes only.
+    assert (await router.route(Capability.BACKGROUND)).choices == [PRIMARY, BACKUP]
+    async with db.sessions() as session, session.begin():
+        record = await change_agent_model(
+            session, owner, agent, AgentModelChange(mode="fixed", primary=extra)
+        )
+        assert record.mode == "fixed" and record.chosen_by == "owner"
+        # The same choice again changes nothing: no revision, no event.
+        same, changed = await apply_agent_model(
+            session, owner, agent, record.state(), chosen_by="agent"
+        )
+        assert not changed and same.revision == record.revision
+    fixed = await router.route(Capability.CONVERSATION, owner_id=owner, agent_id=agent)
+    # Fixed: the owner's model leads and only the owner's routes back it up.
+    assert fixed.choices == [extra, PRIMARY, BACKUP]
+
+
+@pytest.mark.asyncio
+async def test_a_helper_run_asks_its_chosen_model_first(monkeypatch: pytest.MonkeyPatch) -> None:
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    from lonora_agent import model_runtime
+
+    chosen = ModelSelection(provider="zai", model="helper-choice")
+    seen: dict[str, Any] = {}
+
+    async def complete(_capability: Any, _messages: Any, _tools: Any, **kwargs: Any):
+        seen.update(kwargs)
+        return ModelReply(text="ok"), chosen
+
+    async def images(_context: Any, messages: list[ModelMessage]) -> Any:
+        return messages, {}
+
+    monkeypatch.setattr(model_runtime, "refresh_routing_context", AsyncMock())
+    monkeypatch.setattr(model_runtime, "prepare_image_observations", images)
+    monkeypatch.setattr(model_runtime, "save_usage", AsyncMock())
+    monkeypatch.setattr(model_runtime, "progress", AsyncMock())
+    context = cast(
+        Any,
+        SimpleNamespace(
+            db=None,
+            owner_id="owner",
+            agent_id="agent",
+            thread_id="thread",
+            lease=SimpleNamespace(run_id="run"),
+            router=SimpleNamespace(complete=complete),
+            run_model=chosen,
+        ),
+    )
+    await model_runtime.model_turn(context, USER, [], Capability.CONVERSATION)
+    assert seen["run_choice"] == chosen and seen["agent_id"] == "agent"
+
+
+def test_model_choice_records_written_before_modes_read_as_the_owner_chose() -> None:
+    legacy: dict[str, Any] = {
+        "owner_id": "o",
+        "agent_id": "a",
+        "revision": 1,
+        "preference": {"primary": PRIMARY.model_dump(), "fallbacks": []},
+    }
+    assert AgentModelRecord.model_validate(legacy).mode == "fixed"
+    unset: dict[str, Any] = {**legacy, "preference": {"primary": None, "fallbacks": []}}
+    assert AgentModelRecord.model_validate(unset).mode == "automatic"
+    assert AgentModelChange.model_validate({"primary": PRIMARY.model_dump()}).mode == "fixed"
+    assert AgentModelChange.model_validate({"mode": "automatic"}).primary is None
+    with pytest.raises(ValidationError):
+        AgentModelChange(mode="fixed")
+    with pytest.raises(ValidationError):
+        AllowedModels(added=[PRIMARY, PRIMARY])
+    state = AgentModelState(mode="automatic", preference=AgentModelPreference(primary=BACKUP))
+    assert AgentModelState.model_validate(state.model_dump(mode="json")) == state
 
 
 # --- 6. Run-level backoff, escalation and compaction --------------------------------

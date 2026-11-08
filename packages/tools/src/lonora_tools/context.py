@@ -5,6 +5,7 @@ from lonora_adapter_kit.secrets import SecretStore
 from lonora_adapters.brokers.base import BrokerManager
 from lonora_charts.visual import ChartVisualRuntime
 from lonora_contracts.mcp import McpToolDeclaration
+from lonora_contracts.model_routing import ModelSelection
 from lonora_contracts.runs import Lease
 from lonora_db.client import Database
 from lonora_providers.router import GlobalModelRouter
@@ -36,6 +37,9 @@ class ToolContext:
     mcp_declarations: tuple[McpToolDeclaration, ...] = ()
     searxng_url: str | None = None
     browser_url: str | None = None
+    # The model this Run was started on (a subagent's chosen model); it leads the
+    # Agent's own model chain, which stays behind it as the fallback.
+    run_model: ModelSelection | None = None
 
     @property
     def effect_key(self) -> str:

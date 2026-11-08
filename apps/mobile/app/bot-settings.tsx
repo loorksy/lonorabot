@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 import { AccountAuthoritySettings } from "../components/account-authority-settings";
 import { AgentMarketPicker } from "../components/agent-market-picker";
+import { AgentModelSettings } from "../components/agent-model-settings";
 import { AvatarPicker } from "../components/avatar-picker";
 import { ExecutionModeSettings } from "../components/execution-mode-settings";
 import { PersonalAgentBadge } from "../components/personal-agent-badge";
@@ -175,6 +176,7 @@ export default function BotSettings() {
           )}
           <ExecutionModeSettings agent={agent} onChange={setAgent} />
           <AccountAuthoritySettings key={agent.id} agent={agent} />
+          <AgentModelSettings key={`model-${agent.id}`} agent={agent} />
           <Field
             label={t("title")}
             value={agent.title ?? ""}

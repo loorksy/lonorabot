@@ -5,7 +5,8 @@ confirmation re-validates the card against current state (a stale card is settle
 expired with its reason), is idempotent per card, and then runs the existing owner
 function for its effect: Stop/Resume (``apply_controls``), lifting a restriction
 (``revoke_restriction``), the owner attestation of an uncertain operation
-(``attest_operation``) or the account's execution policy (``store_execution_policy``).
+(``attest_operation``), the account's execution policy (``store_execution_policy``) or
+an agent's model choice (``apply_agent_model``, W15-10: using a model, or Undo).
 Raising or removing a money limit also needs a verified passkey assertion bound to the
 card's payload hash; lowering a limit, lifting a pause and resuming are one tap.
 
@@ -25,6 +26,7 @@ from lonora_auth.identity import OwnerIdentity
 from lonora_contracts.domain import utcnow
 from lonora_contracts.owner_actions import (
     CARD_ATTESTATION,
+    MODEL_CARD_KINDS,
     GrantDraft,
     OwnerActionChallenge,
     OwnerActionDecision,
@@ -33,6 +35,7 @@ from lonora_contracts.trading import OperationResolution, TradingControl
 from lonora_core.user_error import LonoraError
 from lonora_db.account_authority import owned_authority, propose, revoke
 from lonora_db.authority_lock import authority_lock
+from lonora_db.model_cards import confirm_model_card, supersede_agent_model_cards
 from lonora_db.owner_actions import (
     account_policy,
     agent_names,
@@ -257,6 +260,8 @@ async def decide(
             },
         )
         result = {"outcome": body.outcome}
+    elif row.kind in MODEL_CARD_KINDS:
+        result = await confirm_model_card(session, row)
     elif row.kind == "grant_authority":
         if body.proof is None:
             raise LonoraError("owner_action_passkey_required", 403)
@@ -295,6 +300,11 @@ async def decide(
         keep=row.id,
         effect=row.payload_hash,
     )
+    if row.kind in MODEL_CARD_KINDS:
+        # The owner chose this agent's model: other requests and Undo about it end.
+        await supersede_agent_model_cards(
+            session, owner.id, row.payload["agent_id"], "owner_changed_model", keep=row.id
+        )
     await confirm_in_thread(session, row)
 
 

@@ -51,10 +51,13 @@ is not enough.
 `GlobalModelRouter.complete` tries an ordered, de-duplicated chain of at most
 six candidates:
 
-1. the Agent's own primary model (owner-chosen, see below);
-2. the global route for the capability;
-3. the Agent's fallbacks;
-4. the global backups (`model_backups`).
+1. the model the Run was started on (a helper's chosen model, see below);
+2. the Agent's own primary model (the owner's Fixed choice, or the Agent's own in
+   Automatic);
+3. the global route for the capability;
+4. the Agent's fallbacks;
+5. the global backups (`model_backups`);
+6. for an Automatic Agent, the other models the owner allowed (`model_allowed`).
 
 Each candidate is admitted against its own window (unchanged from
 `docs/context-engine.md`). Per reason (`lonora_providers/resilience.py`):
@@ -162,25 +165,89 @@ Adapters read the stop reason before trusting any tool input:
   (`model_billing_exhausted`, `model_content_blocked`, `model_output_truncated`,
   `model_access_denied`, ...) in English and Arabic.
 
-## Per-Agent model preference
+## Choosing a model per agent (W15-10)
 
-`GET/PUT /api/agents/{agent_id}/model` stores
-`{primary, fallbacks (≤3), expected_revision}` for one Agent, owner-scoped, in
-`ln_settings` under `agent-model:<sha256(owner:agent)>`, the same storage
-pattern as the per-Agent approval preference, so no schema migration was
-needed. The preference only orders candidates; it never grants authority, and
-permissions, approvals and every execution boundary stay the Agent's. It
-applies to conversation, reasoning, research and background turns, and to
-vision unless the catalog verifies the model as text-only. In-run summaries
-keep the global background route. An unreadable record degrades to the global
-routes.
+The owner picks a model per agent, or lets Lonora choose, from chat or from the agent's
+settings, on Web and Mobile. Choosing a model never grants authority: permissions,
+approvals and every execution boundary stay the agent's whatever model answers. A switch
+changes only the agent's model record; tool results, memory, Tasks, grants, uncertain
+operations and the Run checkpoint are untouched, nothing is repeated, and the next model
+turn simply asks the new model (the router reads the record on every request).
+
+### The record
+
+`GET/PUT /api/agents/{agent_id}/model` stores one record per agent, owner-scoped, in
+`ln_settings` under `agent-model:<sha256(owner:agent)>` (no migration):
+
+| Field | Meaning |
+| --- | --- |
+| `mode` | `automatic`: Lonora chooses; the agent starts on the owner's default model and may switch itself among the allowed models. `fixed`: the owner chose one model; only the owner changes it. |
+| `preference` | `{primary, fallbacks (≤3)}`: in Automatic, the agent's own current choice (or none) |
+| `chosen_by`, `chosen_by_agent_id` | `owner` (settings or a card) or `agent` (`model_request`), and the agent that made a switch |
+| `previous` | The mode and models before the last change (what Undo restores) |
+| `revision`, `changed_at` | Optimistic concurrency (`expected_revision`) and when it changed |
+
+A record written before modes existed reads as Fixed when it has a primary (the owner
+chose it through the E4 API) and Automatic otherwise. The same choice again changes
+nothing (no revision, no event). Every change emits `agent.model.updated` with the mode,
+model, who chose it and how (`owner_settings`, `model_request`, `owner_card`,
+`owner_undo`). `GET …/model/summary` is what the model card shows: the record, the model
+answering now, the allowed models, the models a Fixed choice can pick (text models in the
+catalogs of providers with a key) and this agent's usage over 30 days.
+
+### The allowed list
+
+The models an agent may choose on its own are the owner's global text routes and backups
+plus the models the owner added (`model_allowed`, at most 20): `GET/PUT
+/api/settings/models/allowed` returns `{routed, added}`, and the Web Model settings lists
+them with Add and Remove. The routing chain, in order: the Run's own model (a helper's
+chosen model), the agent's primary, the global route, the agent's fallbacks, the global
+backups, then, for an Automatic agent only, the owner's added models. A Fixed agent never
+falls back on the additions; a request without an agent (an in-run summary) keeps the
+global routes.
+
+### `model_request`
+
+One tool (toolset `intelligence`, long-tail, replay-safe, not available to helpers):
+`model` (or none: back to the owner's default), `fixed` (only when the owner wants the
+model kept) and `agent_id` (Lonora only, for another agent).
+
+- **The owner asked in this turn** (a run that answers an owner message, the rule
+  `trade_restriction_create` uses): the choice applies at once; the event records the
+  owner's message it answered (`source_message_id`). The record says the agent set it
+  (`chosen_by: agent`), since the choice is the agent's reading of that message.
+- **The agent's own switch**: applies at once only to itself, while it is Automatic, to an
+  allowed model. A model outside the list, an agent the owner fixed, or another agent
+  raises an `agent_model` owner card instead (`docs/owner-actions.md`); nothing changes
+  until the tap, and a repeated request returns the card already shown.
+- A provider without a key is `model_provider_not_connected`; a model no connected
+  catalog lists is `model_not_in_catalog`; another agent's model from anyone but Lonora is
+  `model_request_agent_forbidden`. At most three switches apply per Run
+  (`model_switch_limit`).
+- Every switch that applies raises an `agent_model_changed` card with Undo in the
+  conversation; a newer switch replaces it.
+
+### Helpers and second opinions
+
+`subagent_spawn(task, model)` starts a temporary helper on one of the allowed models
+(otherwise `subagent_model_not_allowed`). The model is stored in the helper Run's
+metadata, reaches its `ToolContext.run_model` at dispatch, and leads the router chain,
+with the agent's own chain behind it. `consult_model` asks one of the agent's routed
+models or any allowed model other than the one answering. Both record usage as before.
+
+### Usage per agent (owner decision D4)
+
+There is no spending cap. `GET /api/usage/agents?days=30` sums the recorded requests per
+agent and per model (tokens in, out and cached, requests, last use); the Web usage
+settings list it per agent and each agent's model card shows its own line. Budget
+enforcement is not planned (D4).
 
 ## Second opinion: `consult_model`
 
 A read-only tool (intelligence chapter) that sends a bounded evidence pack the
 Agent writes (question ≤ 4,000 characters, evidence ≤ 24,000) to another
-configured model: one named by the Agent from its candidates, or the first
-candidate that is not the model it is using. The consulted model gets no
+allowed model: one named by the Agent from its candidates or the owner's allowed
+list, or the first candidate that is not the model it is using. The consulted model gets no
 tools, no conversation and no authority; markup in the pack is made inert.
 The critique (≤ 8,000 characters) returns as an advisory observation. At most
 three consultations per Run; usage is recorded with `purpose: consult_model`,
@@ -195,14 +262,17 @@ Nothing waits for agreement and nothing executes on its advice.
 - A `task_degraded` notification is in-app only (important changes are not
   sent to external channels) and offers no action beyond opening the Agent's
   conversation.
-- There is no UI yet for the per-Agent model preference (API only). Like the
-  per-Agent approval preference, its settings row is not removed when the
-  Agent is deleted (it is unreachable afterwards). A typed column on
+- Like the per-Agent approval preference, the model record is not removed when
+  the Agent is deleted (it is unreachable afterwards). A typed column on
   `ln_agents` would need a migration and is left as a follow-up.
+- The owner's chat request is the agent's reading of the owner's message, as for
+  other owner-asked effects; it is non-financial, visible and has Undo.
+- The Fixed picker lists every discovered model of a connected provider; catalogs
+  that do not report capabilities (OpenAI) include non-chat models.
 - Reasoning/thinking controls (effort, thinking budgets) are not configured
   per adapter.
-- Spend budgets per Agent or owner are still not enforced before a request;
-  `consult_model` is bounded per Run only.
+- There is no spend cap (owner decision D4); usage is shown per agent.
+  `consult_model` and `model_request` are bounded per Run only.
 - The output family table must follow provider documentation as models change.
 
 Attribution: the taxonomy and classification order adapt Hermes Agent

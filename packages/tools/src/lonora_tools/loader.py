@@ -29,6 +29,7 @@ MODULES = {
     "relationships": "intelligence",
     "opportunity": "intelligence",
     "consult": "intelligence",
+    "models": "intelligence",
     "shadow": "intelligence",
     "chart": "charts",
     "chart_state": "charts",

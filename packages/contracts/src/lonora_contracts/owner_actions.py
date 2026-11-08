@@ -16,6 +16,7 @@ from .account_authority import AuthorityAction
 from .devices import DeviceProof
 from .domain import Contract
 
+# Cards an agent proposes with owner_action_propose.
 OwnerActionKind = Literal[
     "resume_trading",
     "lift_restriction",
@@ -23,6 +24,10 @@ OwnerActionKind = Literal[
     "set_account_limits",
     "grant_authority",
 ]
+# Model cards (W15-10), raised only by model_request: "agent_model" asks the owner to
+# use a model for an agent; "agent_model_changed" offers Undo of a switch that applied.
+ModelCardKind = Literal["agent_model", "agent_model_changed"]
+MODEL_CARD_KINDS: tuple[ModelCardKind, ...] = ("agent_model", "agent_model_changed")
 GrantDuration = Literal["until_stopped", "12h", "24h", "7d"]
 OwnerActionStatus = Literal["pending", "confirmed", "cancelled", "expired", "superseded"]
 MoneyLimitName = Literal[

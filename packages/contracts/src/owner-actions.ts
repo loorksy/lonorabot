@@ -1,6 +1,7 @@
 import type { AuthorityAction } from "./account-authority";
 import type { AuthorityDuration } from "./agent-permissions";
 import type { DeviceProof } from "./devices";
+import type { AgentModelMode, ModelLabel } from "./models";
 import type { GlobalTrading, MoneyLimitName, MoneyLimits, RestrictionActionClass } from "./trading";
 
 export type OwnerActionKind =
@@ -8,7 +9,11 @@ export type OwnerActionKind =
   | "lift_restriction"
   | "resolve_operation"
   | "set_account_limits"
-  | "grant_authority";
+  | "grant_authority"
+  | "agent_model"
+  | "agent_model_changed";
+/** A model card's side of a choice: the mode and its model (null: the owner's default). */
+export type OwnerActionModelState = { mode: AgentModelMode; model: ModelLabel };
 export type OwnerActionStatus = "pending" | "confirmed" | "cancelled" | "expired" | "superseded";
 export type AttestedOutcome = "executed" | "not_executed" | "unknown";
 /** A limits card shows one line per changed field: a limit, its currency or the day's zone. */
@@ -115,6 +120,18 @@ export type OwnerAction = {
     replaces?: OwnerActionGrantTerms | null;
     /** The owner's first grant: the card shows the one rule. */
     first_grant?: boolean;
+    /** A model card (W15-10): which agent, the choice now and the one asked for or made. */
+    model?: {
+      agent_name: string | null;
+      default_model: ModelLabel;
+      current?: OwnerActionModelState;
+      requested?: OwnerActionModelState;
+      previous?: OwnerActionModelState;
+      /** Confirming adds the requested model to the models agents may choose. */
+      allow?: boolean;
+      /** Lonora asked on the owner's behalf for another agent. */
+      asked_by_agent_name?: string;
+    };
   };
   /** Confirming needs the owner's passkey: it raises or removes a money limit. */
   requires_passkey: boolean;
@@ -128,6 +145,8 @@ export type OwnerAction = {
     daily_loss_kept?: string | null;
     money_limit?: "apply" | "none";
     stopped_agents?: string[];
+    allowed_added?: boolean;
+    undone?: boolean;
   };
   expires_at: string;
   decided_at: string | null;
