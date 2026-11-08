@@ -17,9 +17,11 @@ from .schema import (
     BrokerSessionRow,
     CollaborationSessionRow,
     MarketWatchRow,
+    OwnerActionRow,
     RunRow,
     TicketRow,
     TradeApprovalRow,
+    TradingJournalRow,
 )
 from .tasks import OWNER_ATTENTION, snapshot
 from .trading_readiness import account_money_limits, trading_readiness
@@ -51,6 +53,23 @@ def watch_summary(row: MarketWatchRow) -> dict[str, Any]:
 def attention(task: dict[str, Any]) -> bool:
     """Unfinished Task work held for its owner's direction."""
     return task["status"] == "waiting" and task["waiting_reason"] == OWNER_ATTENTION
+
+
+# Owner action cards that wait for the owner's decision; Undo notices and the optional
+# Resume of a pause are not.
+DECISION_CARD_KINDS = frozenset(
+    {
+        "grant_authority",
+        "resume_trading",
+        "resolve_operation",
+        "set_account_limits",
+        "create_agent",
+        "supervise",
+        "trust_source",
+        "connect_credential",
+        "agent_model",
+    }
+)
 
 
 async def agent_live_state(
@@ -134,6 +153,37 @@ async def agent_live_state(
         )
         or 0
     )
+    # Cards in its conversation that wait for the owner's decision (an Undo notice or an
+    # optional Resume of a pause does not): the line says "Waiting for you" like the card.
+    owner_cards = int(
+        await session.scalar(
+            select(func.count())
+            .select_from(OwnerActionRow)
+            .where(
+                OwnerActionRow.owner_id == owner_id,
+                OwnerActionRow.agent_id == agent.id,
+                OwnerActionRow.status == "pending",
+                OwnerActionRow.kind.in_(sorted(DECISION_CARD_KINDS)),
+                OwnerActionRow.expires_at > utcnow(),
+            )
+        )
+        or 0
+    )
+    # Its own live operations the broker has not settled: the same fact the pill shows.
+    unsettled = {
+        str(status)
+        for status in await session.scalars(
+            select(TradingJournalRow.status)
+            .where(
+                TradingJournalRow.owner_id == owner_id,
+                TradingJournalRow.execution_mode == "live",
+                TradingJournalRow.status.in_(["submitted", "ambiguous"]),
+                TradingJournalRow.result["details"]["execution"]["agent_id"].as_string()
+                == agent.id,
+            )
+            .limit(10)
+        )
+    }
     # Watching right now: enabled, not expired and not past its expiry.
     watch_rows = [
         row
@@ -343,6 +393,8 @@ async def agent_live_state(
         else "action_required"
         if approvals
         or pending_authorizations
+        or owner_cards
+        or unsettled
         or any(
             task.get("failure")
             and task["failure"]["recovery"] in {"owner", "modify_plan"}
@@ -368,6 +420,10 @@ async def agent_live_state(
             else "queued"
         )
         if state == "working"
+        else "uncertain"
+        if state == "action_required" and "ambiguous" in unsettled
+        else "awaiting_broker"
+        if state == "action_required" and "submitted" in unsettled
         else "recovering"
         if runtime_waits and runtime_waits[0]["kind"] in {"read_retry", "model_retry"}
         else "monitoring"
@@ -383,8 +439,14 @@ async def agent_live_state(
         if health
         else "approval_required"
         if approvals
+        else "operation_uncertain"
+        if "ambiguous" in unsettled
+        else "awaiting_broker"
+        if "submitted" in unsettled
         else "device_authorization_required"
         if pending_authorizations
+        else "owner_card_required"
+        if owner_cards
         else "task_attention_required"
         if any(attention(task) for task in tasks)
         else "task_recovery_required"

@@ -22,6 +22,8 @@ export const agentStatusLabels = {
     working: "Working",
     waiting: "Waiting",
     action_required: "Waiting for you",
+    awaiting_broker: "Awaiting broker confirmation",
+    uncertain: "Uncertain: waiting for the broker or you",
     degraded: "Service needs attention",
     paused: "Paused",
     monitoring: "Monitoring",
@@ -54,6 +56,8 @@ export const agentStatusLabels = {
     working: "يعمل",
     waiting: "ينتظر",
     action_required: "بانتظارك",
+    awaiting_broker: "بانتظار تأكيد الوسيط",
+    uncertain: "غير مؤكد: بانتظار الوسيط أو قرارك",
     degraded: "الخدمة تحتاج إلى انتباه",
     paused: "متوقف",
     monitoring: "يراقب",
@@ -151,6 +155,9 @@ export function agentStatusLine(
   now: Date = new Date(),
 ): string {
   const text = agentStatusText(locale);
+  // An operation the broker has not settled says so, as the pill does.
+  if (state.phase === "uncertain") return text.uncertain;
+  if (state.phase === "awaiting_broker") return text.awaiting_broker;
   const watches = state.watches ?? [];
   if (state.phase !== "monitoring" || !watches.length) return text[state.state];
   const first = watches[0];

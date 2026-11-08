@@ -507,6 +507,59 @@ async def test_owner_grant_summary_reports_money_limits_once(task_db: Fixture) -
     assert "monetary_stop_risk" not in plain.account_authorities[0]
 
 
+@pytest.mark.asyncio
+async def test_the_status_line_waits_for_the_owner_or_the_broker_like_the_pill(
+    task_db: Fixture,
+) -> None:
+    """A decision card in the agent's conversation, or its own operation the broker has
+    not settled, is never "Idle": the line says what the card and the pill say."""
+    from lonora_db.schema import OwnerActionRow
+
+    db, owner, agent, thread = task_db
+    acct = await account(db, owner)
+    async with db.sessions() as session:
+        idle = await agent_live_state(session, owner, agent)
+    assert idle.state == "idle"
+    async with db.sessions() as session, session.begin():
+        session.add(
+            OwnerActionRow(
+                owner_id=owner,
+                agent_id=agent,
+                thread_id=thread,
+                timeline_seq=1,
+                source="agent",
+                kind="trust_source",
+                subject="probe",
+                payload={},
+                payload_hash="probe",
+                status="pending",
+                result={},
+                expires_at=utcnow() + timedelta(days=1),
+            )
+        )
+    async with db.sessions() as session:
+        waiting = await agent_live_state(session, owner, agent)
+    assert waiting.state == "action_required" and waiting.reason_code == "owner_card_required"
+    async with db.sessions() as session, session.begin():
+        session.add(
+            TradingJournalRow(
+                operation_id="op-mine-" + agent,
+                owner_id=owner,
+                account_id=acct,
+                request_hash="hash",
+                request={"symbol": "XAUUSD", "action": "buy", "volume": "0.1"},
+                status="ambiguous",
+                execution_mode="live",
+                result={"details": {"execution": {"agent_id": agent}}},
+                submitted_at=utcnow(),
+            )
+        )
+    async with db.sessions() as session:
+        uncertain = await agent_live_state(session, owner, agent)
+    assert uncertain.state == "action_required" and uncertain.phase == "uncertain"
+    assert uncertain.reason_code == "operation_uncertain"
+
+
 def test_readiness_is_presentation_only_and_never_read_by_enforcement() -> None:
     """The executor, admission and permission checks must never import the projection."""
     for package in ("trading", "tools"):
