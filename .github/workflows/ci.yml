@@ -655,12 +655,23 @@ jobs:
                   services.router.factory = lambda provider, key, fixture=fixture: fixture
                   await AgentRuntime(registry, 120, 24).execute(context)
                   request = fixture.requests[-1]
+                  # Reads run concurrently (E1), so either may start first; the next
+                  # provider call is bounded by the resolved window (E3), as above.
+                  limits = await services.router.context_limits(
+                      Capability.CONVERSATION, owner_id=owner, agent_id=context.agent_id
+                  )
+                  schemas = registry.definitions()
+                  tokens = sum(token_estimate(m, count=limits.count) for m in request) + sum(
+                      limits.count(t.model_dump_json()) + 64 for t in schemas
+                  )
                   check(
                       "multiple large tool outputs remain bounded before the next provider call",
-                      executions == ["one", "two"]
+                      sorted(executions) == ["one", "two"]
+                      and [m.tool_call_id for m in request if m.role == "tool"] == ["one", "two"]
                       and sum(message_size(m) for m in request)
-                      + sum(len(t.model_dump_json()) for t in registry.definitions())
-                      <= MAXIMUM_CONTEXT_CHARS,
+                      + sum(len(t.model_dump_json()) for t in schemas)
+                      <= limits.transport_chars
+                      and tokens <= limits.input_tokens,
                   )
 
                   context = await new_context(["first plain request"])
