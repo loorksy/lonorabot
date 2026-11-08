@@ -96,7 +96,7 @@ def test_every_request_keeps_mandatory_rules_before_owner_content():
     laws = load_constitution()
     assert laws[0].startswith(CORE_MARKER)
     for safety in [
-        "Emergency Stop",
+        "Stop new trading",
         "Ambiguous",
         "typed approval",
         "exact-symbol",

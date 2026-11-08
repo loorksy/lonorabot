@@ -1230,7 +1230,9 @@ def test_goal_core_keeps_identities_and_details_are_optional() -> None:
     )
     core, detail = split_summary(summary(row))
     assert core["id"] == "goal-1" and core["status"] == "active"
-    assert core["limits"]["symbol"] == "XAUUSD" and core["limits"]["maximum_volume"] == "0.2"
+    assert core["scope"] == {"account_id": "acct", "symbol": "XAUUSD"}
+    # A goal's size is plan data, never presented as a limit.
+    assert core["planned_volume"] == "0.2" and "limits" not in core
     assert core["current_step"]["id"] == "protect"
     assert core["current_step"]["state"]["status"] == "pending"
     assert core["steps"][0] == {
@@ -1362,12 +1364,13 @@ def test_every_catalog_tool_is_classified_for_earlier_run_evidence() -> None:
         "market_performance_read", "market_position_size", "market_quote",
         "market_relationship_read", "market_relationship_record", "market_sessions",
         "market_shadow_execute", "market_shadow_read", "market_snapshot", "market_structure",
-        "market_symbols", "owner_action_propose", "owner_attention_list", "owner_call_request",
+        "market_symbols", "model_list", "model_request", "owner_action_propose", "owner_attention_list",
+        "owner_call_request",
         "owner_notify", "peer_send",
         "routine_create", "routine_list", "routine_toggle", "scratchpad_read",
         "skill_package_control", "skill_package_create", "skill_package_import",
-        "skill_package_validate", "subagent_spawn", "super_bot_propose", "super_bot_status",
-        "super_bot_stop", "task_control", "task_inspect", "task_start", "task_step_update",
+        "skill_package_validate", "subagent_spawn", "task_control", "task_inspect",
+        "task_start", "task_step_update",
         "ticket_create", "ticket_start", "trade_record_history", "trade_record_read",
         "trade_restriction_create", "trade_restriction_list", "watch_create", "watch_list",
         "workspace_export", "workspace_update",

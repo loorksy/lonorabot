@@ -82,7 +82,9 @@ CHECKS = (
     "check_runtime_collaboration.py",
     "check_memory_provenance.py",
     "check_owner_profile.py",
+    "check_grant_card.py",
     "check_goal_call_identity.py",
+    "check_agent_model_choice.py",
 )
 
 

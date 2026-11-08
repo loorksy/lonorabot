@@ -50,17 +50,14 @@ def legacy_goal() -> TradingGoalRow:
 @pytest.mark.asyncio
 @pytest.mark.parametrize("trigger", ["user", "group", "goal", "watch", "routine", "task"])
 @pytest.mark.parametrize("level", ["analysis", "supervised", "autonomous"])
-async def test_live_goal_follows_current_permission_not_legacy_super_bot(
+async def test_live_goal_follows_current_permission_not_retired_goal_autonomy(
     monkeypatch: pytest.MonkeyPatch, trigger: str, level: str
 ):
+    """A Goal is a plan under the agent's level; its old autonomy flag means nothing."""
     session = AsyncMock()
     monkeypatch.setattr(goals, "require_goal_agent", AsyncMock())
     monkeypatch.setattr(goals, "effective_permission", AsyncMock(return_value=level))
     monkeypatch.setattr(goals, "provisional_voice", AsyncMock(return_value=False))
-    old_grant = AsyncMock(
-        side_effect=AssertionError("legacy Goal grant cannot authorize live trade")
-    )
-    monkeypatch.setattr(goals, "require_goal_authority", old_grant)
     if level == "analysis":
         with pytest.raises(LonoraError, match="agent_analysis_only"):
             await goals.goal_requires_approval(session, legacy_goal(), origin(trigger))
@@ -68,7 +65,20 @@ async def test_live_goal_follows_current_permission_not_legacy_super_bot(
         assert await goals.goal_requires_approval(session, legacy_goal(), origin(trigger)) == (
             level == "supervised"
         )
-    old_grant.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("trigger", ["user", "goal", "watch"])
+@pytest.mark.parametrize("level", ["analysis", "supervised", "autonomous"])
+async def test_shadow_goal_needs_neither_goal_autonomy_nor_approval(
+    monkeypatch: pytest.MonkeyPatch, trigger: str, level: str
+):
+    """Shadow never touches the broker: no approval, whatever the level or the trigger."""
+    monkeypatch.setattr(goals, "require_goal_agent", AsyncMock())
+    monkeypatch.setattr(goals, "effective_permission", AsyncMock(return_value=level))
+    shadow = legacy_goal()
+    shadow.state = {"execution_mode": "shadow", "steps": {}}
+    assert await goals.goal_requires_approval(AsyncMock(), shadow, origin(trigger)) is False
 
 
 @pytest.mark.asyncio
@@ -117,7 +127,8 @@ async def test_supervised_goal_accepts_exact_stored_operation(monkeypatch: pytes
         ("analysis", None, "agent_analysis_only"),
         ("analysis", "signed-old", "agent_analysis_only"),
         ("supervised", "signed-old", "trade_approval_required"),
-        ("autonomous", None, "account_authority_required"),
+        # The ladder is monotonic: "On its own" without a covering grant asks like Ask me.
+        ("autonomous", None, "trade_approval_required"),
     ],
 )
 async def test_executor_gate_rejects_authority_substitution(
@@ -125,7 +136,8 @@ async def test_executor_gate_rejects_authority_substitution(
 ):
     monkeypatch.setattr(agent_permission, "effective_permission", AsyncMock(return_value=level))
     session = AsyncMock()
-    session.scalars.return_value = [TradeApprovalRow(requests=[request().model_dump(mode="json")])]
+    approved = [] if level == "autonomous" else [request().model_dump(mode="json")]
+    session.scalars.return_value = [TradeApprovalRow(requests=approved)]
     with pytest.raises(LonoraError, match=code):
         await agent_permission.require_operation_permission(
             session, "owner", origin(), request(), grant
@@ -167,7 +179,11 @@ async def test_autonomous_provisional_speech_requires_approval_and_signed_scope(
     await agent_permission.require_operation_permission(
         session, "owner", origin(), request(), "grant"
     )
-    with pytest.raises(LonoraError, match="account_authority_required"):
+    # Outside every grant, the owner's exact approval admits the operation (monotonic
+    # ladder); without it nothing is sent.
+    await agent_permission.require_operation_permission(session, "owner", origin(), request(), None)
+    session.scalars.return_value = []
+    with pytest.raises(LonoraError, match="trade_approval_required"):
         await agent_permission.require_operation_permission(
             session, "owner", origin(), request(), None
         )

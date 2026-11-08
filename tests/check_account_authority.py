@@ -13,8 +13,8 @@ from lonora_adapter_kit.types import ToolCall
 from lonora_adapters.brokers.simulation import SimulationBroker
 from lonora_auth.account_authority import finish_activation
 from lonora_auth.sessions import read_session
+from lonora_contracts.devices import DeviceProof
 from lonora_contracts.domain import utcnow
-from lonora_contracts.super_bot import DeviceProof
 from lonora_contracts.trading import TradeResult, TradingControl
 from lonora_core.user_error import LonoraError
 from lonora_db.account_authority import authority_data, require_authority
@@ -177,7 +177,11 @@ async def main() -> None:
         assert proposal["money_limits"]["configured"] is False
         assert proposal["money_limits"]["limits"] == {}
         before = await broker.snapshot()
-        pending = await operation(volume="0.1", stop_loss="90")
+        # The trade the owner just refused, asked again in this Run, returns that refusal.
+        refused = await operation(volume="0.1", stop_loss="90")
+        assert refused["status"] == "rejected", refused
+        assert refused["approval_id"] == no_grant["approval_id"], refused
+        pending = await operation(volume="0.2", stop_loss="90")
         assert pending["_runtime_wait"] and await broker.snapshot() == before
         await f.request(
             "POST", f"/trading/approvals/{pending['approval_id']}/decision", {"decision": "reject"}
@@ -287,9 +291,16 @@ async def main() -> None:
             "PASS repeated signed account trades across exact forex/metal/index/crypto symbols; pending and management use one verified executor"
         )
 
-        denied_manual = await operation("close_position", position_id="manual-ticket")
-        assert denied_manual["code"] == "account_authority_manual_permission_required", (
-            denied_manual
+        # The grant excludes the owner's own position: closing it asks the owner with an
+        # approval card (the ladder is monotonic) and sends nothing before the tap.
+        before = await broker.snapshot()
+        asked_manual = await operation("close_position", position_id="manual-ticket")
+        assert asked_manual["_runtime_wait"], asked_manual
+        assert await broker.snapshot() == before
+        await f.request(
+            "POST",
+            f"/trading/approvals/{asked_manual['approval_id']}/decision",
+            {"decision": "reject"},
         )
         for params, code in (
             ({"volume": "0.6", "stop_loss": "90"}, "account_authority_volume_limit"),
@@ -301,14 +312,17 @@ async def main() -> None:
             "modify_position", position_id=opened["broker_id"], stop_loss="80"
         )
         assert widened["code"] == "account_authority_protection_expansion_forbidden", widened
-        print("PASS scope volume/protection/manual ownership limits remain server authoritative")
+        print(
+            "PASS scope volume/protection limits remain server authoritative; the owner's own position asks for approval"
+        )
 
         async with f.runtime.db.sessions() as session, session.begin():
             row = await session.get(RunRow, context.lease.run_id)
             assert row
             row.model_metadata = {**row.model_metadata, "voice_handoff": {"finalized": False}}
-        partial = await operation(volume="0.1", stop_loss="90")
-        assert partial["_runtime_wait"]
+        # Not the trade the owner refused above (that one returns the refusal).
+        partial = await operation(volume="0.3", stop_loss="90")
+        assert partial["_runtime_wait"], partial
         await f.request(
             "POST", f"/trading/approvals/{partial['approval_id']}/decision", {"decision": "reject"}
         )
@@ -545,8 +559,8 @@ async def main() -> None:
         assert revoked["status"] == "revoked"
         replay = await f.client.post("/api/account-authorities/verify", json=proof)
         assert replay.status_code == 403
-        needs_approval = await operation(volume="0.1", stop_loss="90")
-        assert needs_approval["_runtime_wait"]
+        needs_approval = await operation(volume="0.4", stop_loss="90")
+        assert needs_approval["_runtime_wait"], needs_approval
         print(
             "PASS revocation and lost-response proof replay cannot restore grant; absent authority returns to explicit approval"
         )

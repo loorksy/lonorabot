@@ -1,17 +1,24 @@
 import type { DeviceChallenge, OwnerAction, OwnerActionDecision } from "@lonora/contracts";
-import { type OwnerActionButton, ownerActionCard, ownerActionText } from "@lonora/core";
+import {
+  type OwnerActionButton,
+  ownerActionCard,
+  ownerActionChoices,
+  ownerActionText,
+} from "@lonora/core";
 import { useEffect, useRef, useState } from "react";
 import { Text, View } from "react-native";
 import { api } from "../lib/api";
 import { ApiError } from "../lib/api-error";
 import { deviceProof, deviceSupported } from "../lib/device-proof";
 import { useSession } from "../lib/session";
+import { SettingsSwitch } from "./settings-group";
 import { Button, colors, ErrorNotice, Field } from "./ui";
 
 /**
  * One owner action card, rendered from the same shared spec as Web: server facts in the
- * owner's language and one tap. Raising or removing a money limit asks for the passkey
- * (registering this device inline the first time); the owner-session route re-validates.
+ * owner's language and one tap. A grant card, or raising or removing a money limit, asks
+ * for the passkey (registering this device inline the first time); a grant card's
+ * switches go with that tap. The owner-session route re-validates.
  */
 export function OwnerActionCard({
   row,
@@ -29,6 +36,7 @@ export function OwnerActionCard({
   const [reference, setReference] = useState("");
   const [enroll, setEnroll] = useState(false);
   const [password, setPassword] = useState("");
+  const [chosen, setChosen] = useState<Record<string, boolean>>({});
   const [supported, setSupported] = useState<boolean | null>(null);
   const pending = useRef(false);
   const align = { textAlign: rtl ? ("right" as const) : ("left" as const) };
@@ -60,14 +68,21 @@ export function OwnerActionCard({
   }
   const decide = (button: OwnerActionButton) =>
     run(async () => {
-      const body: OwnerActionDecision = { decision: button.decision };
+      const choices = ownerActionChoices(row, chosen);
+      const body: OwnerActionDecision = {
+        decision: button.decision,
+        ...(button.decision === "confirm" ? choices.decision : {}),
+      };
       if (button.outcome) {
         body.outcome = button.outcome;
         if (note.trim()) body.note = note.trim();
         if (reference.trim()) body.broker_reference = reference.trim();
       }
       if (button.decision === "confirm" && spec.passkey) {
-        const challenge = await api.post<DeviceChallenge>(`/owner-actions/${row.id}/challenge`, {});
+        const challenge = await api.post<DeviceChallenge>(
+          `/owner-actions/${row.id}/challenge`,
+          choices.challenge,
+        );
         body.proof = await deviceProof(challenge);
       }
       onChange(await api.post<OwnerAction>(`/owner-actions/${row.id}/decision`, body));
@@ -104,6 +119,16 @@ export function OwnerActionCard({
         </Text>
       ))}
       {spec.hint ? <Text style={[{ color: colors.secondary }, align]}>{spec.hint}</Text> : null}
+      {spec.options.map((option) => (
+        <SettingsSwitch
+          key={option.key}
+          testID={`owner-action-option-${option.key.split(":")[0]}`}
+          label={option.label}
+          value={chosen[option.key] ?? option.initial}
+          disabled={busy}
+          onChange={(value) => setChosen((old) => ({ ...old, [option.key]: value }))}
+        />
+      ))}
       {spec.notes ? (
         <>
           <Field label={text.note} value={note} maxLength={2000} onChangeText={setNote} />

@@ -14,6 +14,7 @@ from lonora_adapter_kit.types import ModelMessage
 from lonora_contracts.domain import Contract
 from lonora_contracts.model_routing import Capability, ModelSelection
 from lonora_core.user_error import LonoraError
+from lonora_db.agent_models import allowed_models
 from lonora_db.runs import require_lease
 from lonora_db.schema import UsageRow
 from lonora_llm_usage.models import UsageRecord
@@ -54,7 +55,7 @@ class ConsultInput(Contract):
     )
     model: ModelSelection | None = Field(
         default=None,
-        description="An alternative configured model; omit to use the first configured model other than yours.",
+        description="One of the owner's allowed models other than yours; omit to use the first one.",
     )
 
 
@@ -103,6 +104,7 @@ async def consult(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         run = await require_lease(session, context.lease)
         state = dict(run.execution_state)
         recorded = await _recorded_consults(session, context.owner_id, run.id)
+        allowed = await allowed_models(session)
     used = max(_prior_consults(state, context.call_id), recorded)
     if used >= MAXIMUM_CONSULTS_PER_RUN:
         return {
@@ -117,7 +119,9 @@ async def consult(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     current = state.get("selection")
     current_model = cast(dict[str, Any], current) if isinstance(current, dict) else None
     routed = await route(Capability.REASONING, owner_id=context.owner_id, agent_id=context.agent_id)
-    alternatives = [item for item in routed.choices if not _same(item, current_model)]
+    # Your own chain first, then every other model the owner allowed.
+    candidates = [*routed.choices, *(item for item in allowed if item not in routed.choices)]
+    alternatives = [item for item in candidates if not _same(item, current_model)]
     configured = [item.model_dump(mode="json") for item in alternatives]
     if params.model is not None:
         if params.model not in alternatives:
@@ -186,8 +190,8 @@ def tools() -> list[Tool]:
     return [
         Tool(
             NAME,
-            "Ask another configured model for an independent critique of a draft decision or "
-            "analysis. Send a bounded evidence pack you choose; the other model has no tools, "
+            "Ask another of the owner's allowed models for an independent critique of a draft "
+            "decision or analysis. Send a bounded evidence pack you choose; the other model has no tools, "
             "context or authority and its answer is advisory only. Limited per run and costs a "
             "model request; use it when a second perspective is worth that.",
             ConsultInput,

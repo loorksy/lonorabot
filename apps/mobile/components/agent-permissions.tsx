@@ -17,8 +17,10 @@ import {
   customizedManagementProposal,
   emptyManagementCustomization,
   hasFixedMarket,
+  listSeparator,
   moneyLimitsLine,
   numericalAuthorityLimits,
+  showsTradingControl,
 } from "@lonora/core";
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -47,7 +49,14 @@ import { colors, ErrorNotice, Field } from "./ui";
 type Page = "select" | "editor" | "review";
 type Group = "scope" | "operations" | "limits" | "duration";
 type Signing = "preparing" | "confirming" | "verifying" | "activated" | "cancelled" | "failed";
-type Props = { agent: Agent; threadId?: string; revision?: number; settings?: boolean };
+type Props = {
+  agent: Agent;
+  threadId?: string;
+  revision?: number;
+  settings?: boolean;
+  /** A trade of this agent waits for the owner in this conversation. */
+  pendingTrade?: boolean;
+};
 const levels = ["analysis", "supervised", "autonomous"] as const;
 const permissionSymbols = {
   analysis: "eye",
@@ -65,7 +74,13 @@ export function AgentPermissions(props: Props) {
   return <PermissionControl key={`${server}:${owner.id}:${props.agent.id}`} {...props} />;
 }
 
-function PermissionControl({ agent, threadId, revision = 0, settings = false }: Props) {
+function PermissionControl({
+  agent,
+  threadId,
+  revision = 0,
+  settings = false,
+  pendingTrade = false,
+}: Props) {
   const { rtl, t, errorText } = useSession();
   const copy = permissionLabels[rtl ? "ar" : "en"];
   const authorityCopy = accountAuthorityLabels[rtl ? "ar" : "en"];
@@ -73,6 +88,8 @@ function PermissionControl({ agent, threadId, revision = 0, settings = false }: 
   const [open, setOpen] = useState(false);
   const [page, setPage] = useState<Page>("select");
   const [selected, setSelected] = useState<AgentPermissionLevel>("analysis");
+  // Moving down from a signed grant asks once: it revokes the grant (W15-3).
+  const [downgrade, setDowngrade] = useState<AgentPermissionLevel | null>(null);
   const [expanded, setExpanded] = useState<Group | null>(null);
   const [draft, setDraft] = useState<PermissionCustomization>(() => initialDraft(agent));
   const [review, setReview] = useState<AccountAuthority | null>(null);
@@ -414,7 +431,15 @@ function PermissionControl({ agent, threadId, revision = 0, settings = false }: 
       setEnroll(false);
     } else if (mounted.current) throw new ApiError("version_conflict", 409);
   };
-  const choose = (level: AgentPermissionLevel) => {
+  const choose = (level: AgentPermissionLevel, confirmed = false) => {
+    const signed = state?.active_authorities.some(
+      (row) => authorityStatus(row, clock) === "active",
+    );
+    if (level !== "autonomous" && !confirmed && signed) {
+      setDowngrade(level);
+      return;
+    }
+    setDowngrade(null);
     setSelected(level);
     setSigning(null);
     if (level === "autonomous") {
@@ -677,6 +702,29 @@ function PermissionControl({ agent, threadId, revision = 0, settings = false }: 
       )}
     </>
   );
+  if (
+    !settings &&
+    state &&
+    !open &&
+    !showsTradingControl({
+      role: agent.role,
+      trading_account_id: agent.trading_account_id,
+      level: state.effective_level,
+      grants: state.active_authorities.length + (state.pending_authority ? 1 : 0),
+      pendingTrade,
+    })
+  )
+    // An agent that cannot trade shows one quiet fact, not a control.
+    return (
+      <View
+        testID="permission-no-trading-native"
+        accessibilityLabel={copy.analysis}
+        style={{ flexDirection: rowDirection, alignItems: "center", gap: 4, flexShrink: 0 }}
+      >
+        <NativeSymbol name="eye" size={14} color={colors.secondary} />
+        <Text style={{ color: colors.secondary, fontSize: 11 }}>{copy.analysis}</Text>
+      </View>
+    );
   return (
     <>
       {settings ? (
@@ -831,6 +879,35 @@ function PermissionControl({ agent, threadId, revision = 0, settings = false }: 
                         </Pressable>
                       );
                     })}
+                {downgrade && (
+                  <View testID="permission-downgrade-native" style={{ gap: 8 }}>
+                    <Text accessibilityRole="alert" style={{ ...textStyle, color: colors.warning }}>
+                      {copy.downgrade.replace(
+                        "{account}",
+                        [
+                          ...new Set(
+                            (state?.active_authorities ?? [])
+                              .filter((row) => authorityStatus(row, clock) === "active")
+                              .map((row) => accountName(row.account_id)),
+                          ),
+                        ].join(listSeparator(rtl ? "ar" : "en")),
+                      )}
+                    </Text>
+                    {actionButton(
+                      copy.downgradeConfirm,
+                      () => choose(downgrade, true),
+                      "permission-downgrade-confirm-native",
+                      busy,
+                    )}
+                    {actionButton(
+                      copy.downgradeKeep,
+                      () => setDowngrade(null),
+                      "permission-downgrade-keep-native",
+                      busy,
+                      true,
+                    )}
+                  </View>
+                )}
                 {selected === "autonomous" &&
                   actionButton(
                     copy.advanced,
@@ -1330,7 +1407,8 @@ function initialDraft(agent: Agent): PermissionCustomization {
   return {
     ...emptyManagementCustomization(),
     account_id: personal ? "" : (agent.trading_account_id ?? ""),
-    symbol_scope: personal || agent.trading_symbol ? "selected" : "account",
+    // Lonora's review preselects all pairs on the account (W15-3); the owner picks it.
+    symbol_scope: !personal && agent.trading_symbol ? "selected" : "account",
     symbols: !personal && agent.trading_symbol ? [agent.trading_symbol] : [],
   };
 }

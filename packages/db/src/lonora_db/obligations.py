@@ -19,7 +19,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .schema import (
     AccountAuthorityRow,
     RunRow,
-    SuperBotRequestRow,
     TradeApprovalRow,
     TradingGoalRow,
     TradingJournalRow,
@@ -108,7 +107,6 @@ async def prepare_delete(
     """Refuse while an obligation is unsettled; otherwise settle what depended on it."""
     from .account_authority import changed, revoke
     from .owner_actions import settle_for_delete
-    from .super_bot import stop_request
     from .trade_approvals import approval_event
     from .trading_goals import settle_orphaned_goal
 
@@ -145,22 +143,12 @@ async def prepare_delete(
             changed(session, grant)
     if agent_id is None and thread_id is None:
         return
-    requests = select(SuperBotRequestRow).where(
-        SuperBotRequestRow.owner_id == owner_id,
-        SuperBotRequestRow.status.in_(["pending", "activated", "paused"]),
-    )
+    # A goal of a deleted conversation or agent stops and stays as history.
     goals = select(TradingGoalRow).where(TradingGoalRow.owner_id == owner_id)
     if agent_id is not None:
-        requests = requests.where(SuperBotRequestRow.agent_id == agent_id)
         goals = goals.where(TradingGoalRow.agent_id == agent_id)
     if thread_id is not None:
-        requests = requests.where(SuperBotRequestRow.thread_id == thread_id)
         goals = goals.where(TradingGoalRow.thread_id == thread_id)
-    for request in list(
-        await session.scalars(requests.order_by(SuperBotRequestRow.id).with_for_update())
-    ):
-        # stop_request also clears the goal's autonomy, so the history never claims it.
-        await stop_request(session, request, "cancelled")
     for goal in list(
         await session.scalars(
             goals.order_by(TradingGoalRow.id)

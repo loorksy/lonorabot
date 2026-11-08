@@ -34,7 +34,12 @@ async def main():
                 await session.flush()
                 fields['operation_id']=operation
             proposal=OwnerActionProposal(**fields)
-            if data['kind']=='resume_trading':
+            if data['kind']=='grant_authority':
+                from lonora_contracts.owner_actions import DailyLossDraft,GrantDraft
+                from lonora_db.owner_actions import ALL_ACTIONS
+                draft=GrantDraft(agent_id=data['agent'],account_id=data['account'],symbol_scope='selected',symbols=[data['symbol']],actions=list(ALL_ACTIONS),daily_loss=DailyLossDraft(amount='300.00',currency='USD',basis='suggested',percent='3',equity='10000'))
+                row,_=await propose(session,f.owner,proposal,card_id=str(uuid4()),agent_id=data['agent'],thread_id=data['thread'],run_id=None,grant=draft)
+            elif data['kind']=='resume_trading':
                 # As an agent proposes it when the owner asks to resume.
                 row,_=await propose(session,f.owner,proposal,card_id=str(uuid4()),agent_id=data['agent'],thread_id=data['thread'],run_id=None)
             else:
@@ -62,6 +67,10 @@ const copy = {
     recorded: "سُجّل: نُفذت (تصريحك، لا تأكيد من الوسيط).",
     lift: "رفع الإيقاف",
     noPauses: "لا توجد إيقافات",
+    grantTitle: "يتداول بنفسه",
+    authorize: "التفويض بمفتاح المرور",
+    notNow: "ليس الآن",
+    dismissed: "تم التجاهل. لم يتغير شيء.",
   },
   en: {
     resume: "Resume trading",
@@ -72,6 +81,10 @@ const copy = {
     recorded: "Recorded: it executed (your statement, not broker confirmation).",
     lift: "Lift pause",
     noPauses: "No pauses",
+    grantTitle: "trade on its own",
+    authorize: "Authorize with passkey",
+    notNow: "Not now",
+    dismissed: "Dismissed. Nothing changed.",
   },
 };
 
@@ -137,6 +150,32 @@ for (const locale of ["ar", "en"])
         await resolveCard.screenshot({
           path: test.info().outputPath("owner-action-resolve-native-ar.png"),
         });
+      // A grant card renders the same shared spec: what is signed, the owner's switches
+      // and one passkey tap; "Not now" changes nothing.
+      const grant = seedCard({
+        kind: "grant_authority",
+        account: data.account,
+        symbol: data.symbol,
+        agent: agent.id,
+        thread: thread.id,
+      });
+      await page.reload();
+      const grantCard = page.getByTestId(`owner-action-${grant.id}`);
+      await expect(grantCard.getByText(text.grantTitle, { exact: false }).first()).toBeVisible();
+      await expect(grantCard.getByText(data.symbol, { exact: false }).first()).toBeVisible();
+      for (const option of ["manual", "no_money_limit", "resume"])
+        await expect(grantCard.getByTestId(`owner-action-option-${option}`)).toBeVisible();
+      await expect(
+        grantCard.getByRole("button", { name: text.authorize, exact: true }),
+      ).toBeVisible();
+      if (locale === "ar")
+        await grantCard.screenshot({
+          path: test.info().outputPath("owner-action-grant-native-ar.png"),
+        });
+      await grantCard.getByRole("button", { name: text.notNow, exact: true }).click();
+      await expect(grantCard.getByText(text.dismissed, { exact: true })).toBeVisible();
+      const level = await (await context.request.get(`/api/agents/${agent.id}/permissions`)).json();
+      expect(level.effective_level).toBe("supervised");
       await resumeCard.getByRole("button", { name: text.resume, exact: true }).click();
       await expect(resumeCard.getByText(text.resumed, { exact: true })).toBeVisible();
       expect(await (await context.request.get("/api/trading/controls")).json()).toEqual({

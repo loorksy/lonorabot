@@ -13,7 +13,7 @@ import { ApiError, api } from "../lib/api";
 import { type VoiceFragment, VoiceJoin, voiceSnapshot } from "../lib/voice";
 import { useClient } from "../providers/ClientProvider";
 export type CallTarget = {
-  super_bot_active?: boolean;
+  trades_on_its_own?: boolean;
   agentId: string;
   threadId: string;
   name: string;
@@ -165,10 +165,13 @@ export function useVoiceController(ownerId: string) {
           if (currentAgent)
             setState((previous) =>
               previous.target?.agentId === currentAgent.id &&
-              previous.target.super_bot_active !== currentAgent.super_bot_active
+              previous.target.trades_on_its_own !== currentAgent.trades_on_its_own
                 ? {
                     ...previous,
-                    target: { ...previous.target, super_bot_active: currentAgent.super_bot_active },
+                    target: {
+                      ...previous.target,
+                      trades_on_its_own: currentAgent.trades_on_its_own,
+                    },
                   }
                 : previous,
             );
@@ -236,7 +239,7 @@ export function useVoiceController(ownerId: string) {
         name: agent.name,
         color: agent.color,
         avatar: agent.avatar,
-        super_bot_active: agent.super_bot_active,
+        trades_on_its_own: agent.trades_on_its_own,
       },
       busy: true,
     });
@@ -304,7 +307,7 @@ export function useVoiceController(ownerId: string) {
           name: agent.name,
           color: agent.color,
           avatar: agent.avatar,
-          super_bot_active: agent.super_bot_active,
+          trades_on_its_own: agent.trades_on_its_own,
         },
       }));
       await transport.connect(agent.id, thread.id);

@@ -61,7 +61,7 @@ class GoalToggle(GoalReference):
 
 async def create(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     body = GoalCreate.model_validate(
-        {**args, "agent_id": context.agent_id, "thread_id": context.thread_id, "autonomous": False}
+        {**args, "agent_id": context.agent_id, "thread_id": context.thread_id}
     )
     async with context.db.sessions() as session, session.begin():
         run, _ = await locked_run_thread(session, context.lease)
@@ -103,7 +103,6 @@ async def read(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
                     "agent_id": row.agent_id,
                     "thread_id": row.thread_id,
                     "status": row.state.get("status"),
-                    "autonomous": row.state.get("autonomous", False),
                     "execution_mode": row.state.get("execution_mode", "live"),
                     "current_step": row.state.get("current_step"),
                     "plan_version": row.state.get("plan_version", 1),
@@ -133,13 +132,12 @@ async def read_goal(context: ToolContext, args: dict[str, Any]) -> dict[str, Any
             "title": goal.payload["title"],
             "objective": goal.payload["objective"],
             "status": goal.state["status"],
-            "autonomous": goal.state.get("autonomous", False),
             "execution_mode": goal.state.get("execution_mode", "live"),
             "plan_version": goal.state.get("plan_version", 1),
-            "limits": {
-                key: goal.payload.get(key)
-                for key in ("account_id", "symbol", "maximum_volume", "max_trade_actions")
-            },
+            "scope": {key: goal.payload.get(key) for key in ("account_id", "symbol")},
+            # Plan data, not limits: only the grant, money limits and restrictions bind.
+            "planned_volume": goal.payload.get("maximum_volume"),
+            "planned_trade_actions": goal.payload.get("max_trade_actions"),
             "step": step.model_dump(mode="json"),
             "state": goal.state["steps"][step.id],
             "plan": [
@@ -524,7 +522,7 @@ def tools() -> list[Tool]:
         ),
         Tool(
             "goal_step_execute",
-            "Execute the exact current step in its frozen live/shadow Goal mode with fresh evidence. Live steps follow current Agent permission: analysis prohibits mutations, supervised needs exact approval, autonomous needs matching signed AccountAuthority. Global Trading ON is independently required; Shadow only mutates virtual state. Fixed step/attempt identity across runs; ambiguity blocks retries.",
+            "Execute the exact current step in its frozen live/shadow Goal mode with fresh evidence. Live steps follow the agent's current level: No trading prohibits mutations, Ask me waits for the owner's approval card, On its own sends inside a matching signed grant and asks with an approval card outside it. Stop new trading and pauses still apply; shadow steps only mutate virtual state and need no approval. Fixed step/attempt identity across runs; ambiguity blocks retries.",
             GoalStepNote,
             execute,
             financial=True,

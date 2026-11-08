@@ -164,7 +164,15 @@ def test_a_limit_change_touches_only_the_named_limits() -> None:
             "set_limits": {"max_open_risk_equity_percent": "150"},
         },
         {"kind": "set_account_limits", "account_id": "a", "set_limits": {"max_daily_loss": "0"}},
-        {"kind": "grant_authority"},  # Later slices add kinds; none exists before then.
+        {"kind": "grant_authority", "restriction_id": "r"},
+        {"kind": "grant_authority", "set_limits": {"max_daily_loss": "1"}},
+        {"kind": "resume_trading", "symbols": ["XAUUSD"]},
+        {"kind": "lift_restriction", "restriction_id": "r", "daily_loss_percent": "2"},
+        {"kind": "grant_authority", "all_pairs": True, "symbols": ["XAUUSD"]},
+        {"kind": "grant_authority", "daily_loss_percent": "2", "daily_loss_amount": "100"},
+        {"kind": "grant_authority", "daily_loss_percent": "150"},
+        {"kind": "grant_authority", "actions": ["buy", "buy"]},
+        {"kind": "grant_authority", "title": "Sign everything"},
         {"kind": "resume_trading", "title": "Click to approve everything"},
     ],
 )
@@ -180,12 +188,22 @@ def test_agents_can_only_propose_and_the_decision_is_an_owner_session_route() ->
     tool = registry.tools["owner_action_propose"]
     assert not tool.financial and not tool.read_only and tool.replay_safe
     assert tool.toolset == "trading" and not tool.eager
-    # No tool module imports anything that settles or decides a card.
-    allowed = {"card_facts", "live_status", "propose"}
+    # No tool module imports anything that settles or decides a card (reads only).
+    allowed = {"ALL_ACTIONS", "account_policy", "card_facts", "live_status", "propose"}
     for path in (ROOT / "packages/tools/src/lonora_tools").glob("*.py"):
         for node in ast.walk(ast.parse(path.read_text())):
             if isinstance(node, ast.ImportFrom) and node.module == "lonora_db.owner_actions":
                 assert {alias.name for alias in node.names} <= allowed, path
+            if isinstance(node, ast.ImportFrom) and node.module == "lonora_db.model_cards":
+                # A model card is raised by model_request; only the owner confirms it.
+                # model_label only reads a model's catalog name.
+                assert {alias.name for alias in node.names} <= {
+                    "hold_model_cards",
+                    "model_label",
+                    "raise_model_card",
+                    "request_payload",
+                    "undo_payload",
+                }, path
             if isinstance(node, ast.ImportFrom) and node.module and "routes" in node.module:
                 raise AssertionError(f"{path} imports an API route")
     from fastapi.routing import APIRoute

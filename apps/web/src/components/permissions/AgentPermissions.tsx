@@ -16,6 +16,8 @@ import {
   customizedManagementProposal,
   emptyManagementCustomization,
   hasFixedMarket,
+  listSeparator,
+  showsTradingControl,
   webDeviceProof,
   webDeviceSupported,
 } from "@lonora/core";
@@ -82,10 +84,13 @@ export function AgentPermissions({
   agent,
   threadId,
   surface = "settings",
+  pendingTrade = false,
 }: {
   agent: Agent;
   threadId: string;
   surface?: "composer" | "settings";
+  /** A trade of this agent waits for the owner in this conversation. */
+  pendingTrade?: boolean;
 }) {
   const { i18n } = useLingui();
   const locale = i18n.locale;
@@ -140,6 +145,8 @@ export function AgentPermissions({
   const [enroll, setEnroll] = useState(false);
   const [password, setPassword] = useState("");
   const [reload, setReload] = useState(0);
+  // Moving down from a signed grant asks once: it revokes the grant (W15-3).
+  const [downgrade, setDowngrade] = useState<AgentPermissionLevel | null>(null);
   const compact = useCompactSurface();
   const flowActive = flow !== null;
   const path = `/agents/${encodeURIComponent(agent.id)}/permissions`;
@@ -398,10 +405,18 @@ export function AgentPermissions({
     setEnroll(false);
     await fresh();
   };
-  const choose = (level: AgentPermissionLevel) => {
-    setPicker(false);
+  const signedAccounts = (state?.active_authorities ?? [])
+    .filter((row) => authorityStatus(row) === "active")
+    .map((row) => permissionAccountName(accounts, row.account_id, labels.account));
+  const choose = (level: AgentPermissionLevel, confirmed = false) => {
     setError(undefined);
     setPhase(null);
+    if (level !== "autonomous" && !confirmed && signedAccounts.length) {
+      setDowngrade(level);
+      return;
+    }
+    setDowngrade(null);
+    setPicker(false);
     if (level !== "autonomous") {
       void execute(async () => {
         const latest = await fresh();
@@ -532,6 +547,30 @@ export function AgentPermissions({
           {text.advanced}
         </button>
       )}
+      {downgrade && (
+        <div className="permission-downgrade" role="alert" data-testid="permission-downgrade">
+          <p dir="auto">
+            {text.downgrade.replace(
+              "{account}",
+              [...new Set(signedAccounts)].join(listSeparator(locale)),
+            )}
+          </p>
+          <div className="permission-downgrade-actions">
+            <button
+              type="button"
+              className="primary"
+              data-testid="permission-downgrade-confirm"
+              disabled={busy}
+              onClick={() => choose(downgrade, true)}
+            >
+              {text.downgradeConfirm}
+            </button>
+            <button type="button" disabled={busy} onClick={() => setDowngrade(null)}>
+              {text.downgradeKeep}
+            </button>
+          </div>
+        </div>
+      )}
       {surface === "composer" && inlineError}
       {statusText && <p className="permission-explanation">{statusText}</p>}
       <p className="permission-explanation">{text.stoppedHint}</p>
@@ -552,6 +591,29 @@ export function AgentPermissions({
       <ChevronDown className="permission-trigger-chevron" size={12} aria-hidden="true" />
     </>
   );
+  if (
+    surface === "composer" &&
+    state &&
+    !flow &&
+    !showsTradingControl({
+      role: agent.role,
+      trading_account_id: agent.trading_account_id,
+      level: state.effective_level,
+      grants: state.active_authorities.length + (state.pending_authority ? 1 : 0),
+      pendingTrade,
+    })
+  )
+    // An agent that cannot trade shows one quiet fact, not a control.
+    return (
+      <span
+        className="permission-no-trading"
+        data-testid="permission-no-trading"
+        dir={rtl ? "rtl" : "ltr"}
+      >
+        <Eye size={14} aria-hidden="true" />
+        {text.analysis}
+      </span>
+    );
   return (
     <div
       className={`agent-permissions${surface === "composer" ? " agent-permissions-composer" : ""}`}

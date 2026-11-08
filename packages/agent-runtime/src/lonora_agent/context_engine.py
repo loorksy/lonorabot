@@ -165,6 +165,7 @@ async def resolve_limits(
                     owner_id=context.owner_id,
                     agent_id=context.agent_id,
                     input_scale=input_scale,
+                    run_choice=getattr(context, "run_model", None),
                 ),
             )
         return cast(ContextLimits, await resolver(capability))

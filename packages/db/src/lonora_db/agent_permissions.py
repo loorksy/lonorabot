@@ -8,6 +8,7 @@ from hashlib import sha256
 from typing import Any
 
 from lonora_contracts.agent_permissions import (
+    LowerPermissionLevel,
     PermissionChange,
     PermissionCustomizationChange,
     PermissionLevel,
@@ -20,9 +21,9 @@ from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from .authority_lock import authority_lock
 from .events import emit
-from .schema import AccountAuthorityRow, SettingRow, SuperBotRequestRow
-from .super_bot import authority_lock, stop_request
+from .schema import AccountAuthorityRow, AgentRow, SettingRow
 from .transactions import owned_agent
 
 
@@ -30,22 +31,50 @@ def permission_key(owner_id: str, agent_id: str) -> str:
     return "agent-permission:" + sha256((owner_id + ":" + agent_id).encode()).hexdigest()
 
 
+def default_level(agent: AgentRow) -> LowerPermissionLevel:
+    """The level of an agent whose level the owner never set.
+
+    Lonora (the Personal Agent) and a root trading agent with a focus pair start at
+    "Ask me": every trade is an approval card, so this widens what they may propose,
+    never what they may execute. General, research and supervisor agents, children
+    and delegated helpers start at "No trading". Agents that existed before these
+    defaults carry an explicit stored level (migration 0040).
+    """
+    if agent.role == "personal" or (agent.role == "specialist" and agent.parent_id is None):
+        return "supervised"
+    return "analysis"
+
+
 async def permission_record(
     session: AsyncSession, owner_id: str, agent_id: str
 ) -> PermissionRecord:
-    await owned_agent(session, owner_id, agent_id)
+    agent = await owned_agent(session, owner_id, agent_id)
     row = await session.get(SettingRow, permission_key(owner_id, agent_id), populate_existing=True)
     try:
         value = (
             PermissionRecord.model_validate(row.payload)
             if row
-            else PermissionRecord(owner_id=owner_id, agent_id=agent_id)
+            else PermissionRecord(
+                owner_id=owner_id, agent_id=agent_id, fallback_level=default_level(agent)
+            )
         )
     except ValidationError:
         raise LonoraError("agent_permission_state_invalid", 409) from None
     if value.owner_id != owner_id or value.agent_id != agent_id:
         raise LonoraError("agent_permission_scope_mismatch", 409)
     return value
+
+
+async def pin_level(session: AsyncSession, owner_id: str, agent_id: str) -> None:
+    """Store the current default level explicitly, before a role change could move it."""
+    if await session.get(SettingRow, permission_key(owner_id, agent_id)) is None:
+        record = await permission_record(session, owner_id, agent_id)
+        session.add(
+            SettingRow(
+                key=permission_key(owner_id, agent_id), payload=record.model_dump(mode="json")
+            )
+        )
+        await session.flush()
 
 
 async def _write(session: AsyncSession, record: PermissionRecord) -> None:
@@ -191,21 +220,6 @@ async def change_permission(
         row.status = "revoked"
         await stop_management_task(session, row)
         changed(session, row)
-    # Remove only existing financial Goal delegation. Keep the analytical goal,
-    # watches and routines, and never send broker close/cancel operations here.
-    legacy = list(
-        await session.scalars(
-            select(SuperBotRequestRow)
-            .where(
-                SuperBotRequestRow.owner_id == owner_id,
-                SuperBotRequestRow.agent_id == agent_id,
-                SuperBotRequestRow.status.in_(["pending", "activated"]),
-            )
-            .order_by(SuperBotRequestRow.goal_id)
-        )
-    )
-    for row in legacy:
-        await stop_request(session, row, "disabled")
     await _write(
         session,
         record.model_copy(

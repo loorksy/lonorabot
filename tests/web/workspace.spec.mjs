@@ -611,7 +611,11 @@ test("financial approval buttons persist decisions and display broker receipts a
     ];
     await page.reload();
     await expect(card.locator("[data-trade-result='failed']")).toBeVisible();
-    await expect(card.getByText("TRADE_RETCODE_INVALID_VOLUME", { exact: true })).toBeVisible();
+    // A broker code reads as a sentence, never raw; the broker's own description stays.
+    await expect(
+      card.getByText("The request could not be completed. Try again.", { exact: true }),
+    ).toBeVisible();
+    await expect(card.getByText("TRADE_RETCODE_INVALID_VOLUME")).toHaveCount(0);
     await expect(card.getByText("Invalid volume", { exact: true })).toBeVisible();
   } finally {
     await context.request.delete(`/api/agents/${agent.id}`, { headers });

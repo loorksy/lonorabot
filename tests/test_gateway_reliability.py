@@ -851,10 +851,10 @@ async def test_an_item_guard_never_quarantines_financial_kinds(task_db: Fixture)
 
 
 def waiting_goal_state(request_id: str | None = None) -> dict[str, Any]:
+    # A goal saved before Super Bot was retired may still carry its old request id.
     return {
         "status": "waiting",
         "code": "goal_target_pending",
-        "autonomous": request_id is not None,
         **({"super_bot_request_id": request_id} if request_id else {}),
         "current_step": "entry",
         "steps": {"entry": {"status": "waiting"}},
@@ -862,7 +862,7 @@ def waiting_goal_state(request_id: str | None = None) -> dict[str, Any]:
 
 
 @pytest.mark.asyncio
-async def test_deleting_a_conversation_settles_its_grant_super_bot_request_and_goal(
+async def test_deleting_a_conversation_settles_its_grant_and_goal_and_keeps_retired_history(
     task_db: Fixture,
 ) -> None:
     db, owner, _, _ = task_db
@@ -879,7 +879,7 @@ async def test_deleting_a_conversation_settles_its_grant_super_bot_request_and_g
                 thread_id=ids["thread"],
                 goal_id=ids["goal"],
                 mode="autonomous",
-                status="activated",
+                status="retired",
                 envelope={"symbol": "XAUUSD"},
                 envelope_hash="hash",
                 expires_at=utcnow(),
@@ -904,9 +904,10 @@ async def test_deleting_a_conversation_settles_its_grant_super_bot_request_and_g
         assert frame["effective_level"] != "autonomous" and not frame["active_authorities"]
         request = await session.get(SuperBotRequestRow, "sb-live", populate_existing=True)
         goal = await session.get(TradingGoalRow, ids["goal"], populate_existing=True)
-    assert request and request.status == "cancelled"
+    # A retired Super Bot request is audit history only: nothing settles or reads it.
+    assert request and request.status == "retired"
     assert goal and goal.state["status"] == "cancelled"
-    assert goal.state["code"] == "goal_origin_deleted" and goal.state["autonomous"] is False
+    assert goal.state["code"] == "goal_origin_deleted"
     # Settled once: recovery never retries it through the failure ledger.
     assert await recover_goals(db) == 0
     assert await failure(db, "goal_target", ids["goal"]) is None

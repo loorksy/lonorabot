@@ -78,11 +78,18 @@ class DeviceChallengeRow(Base):
 
 
 class SuperBotRequestRow(Base):
+    """Retired goal-autonomy requests, kept only as audit history.
+
+    Nothing reads them for authority: a signed AccountAuthority is the only grant. Rows
+    that were pending or activated when the feature was retired have status 'retired'.
+    """
+
     __tablename__ = "ln_super_bot_requests"
     __table_args__ = (
         CheckConstraint("mode IN ('advisory','supervised','autonomous')", name="ln_super_bot_mode"),
         CheckConstraint(
-            "status IN ('pending','activated','rejected','expired','cancelled','paused','disabled')",
+            "status IN ('pending','activated','rejected','expired','cancelled','paused',"
+            "'disabled','retired')",
             name="ln_super_bot_status",
         ),
         Index(

@@ -1,10 +1,11 @@
 # Owner action cards
 
-Wave 1.5 slice W15-2. Every owner-only action has a one-tap card inside the
+Wave 1.5 slices W15-2 and W15-3. Every owner-only action has a one-tap card inside the
 conversation, identical on Web and Mobile. Resuming trading, lifting a pause, settling
-an uncertain trade and changing money limits never need a settings page or the API.
-Later slices add cards for grants (W15-3), agent creation and supervision (W15-4,
-W15-6), trusted sources and credentials (W15-8).
+an uncertain trade, changing money limits and signing a trading grant never need a
+settings page or the API. Later slices add cards for agent creation and supervision
+(W15-4, W15-6), trusted sources and credentials (W15-8), and an agent's model (W15-10,
+`docs/provider-resilience.md`).
 
 A card is never a second authority path. It stores one exact effect, and the owner's
 tap runs the existing owner function for that effect, in the owner's session.
@@ -15,9 +16,9 @@ tap runs the existing owner function for that effect, in the owner's session.
 
 | Field | Meaning |
 | --- | --- |
-| `kind` | `resume_trading`, `lift_restriction`, `resolve_operation` or `set_account_limits` |
+| `kind` | `resume_trading`, `lift_restriction`, `resolve_operation`, `set_account_limits` or `grant_authority` |
 | `payload`, `payload_hash` | The exact, server-validated effect, and its hash. A passkey challenge is bound to the hash. |
-| `subject` | The record the card acts on: `trading`, `restriction:<id>`, `operation:<id>`, `account:<id>` |
+| `subject` | The record the card acts on: `trading`, `restriction:<id>`, `operation:<id>`, `account:<id>`, `grant:<agent>:<account>` |
 | `source` | `agent` (proposed through the tool) or `system` (raised from a runtime event) |
 | `agent_id`, `thread_id`, `run_id` | Where it is shown and who raised it. Ids are kept as values; a deleted conversation sets `thread_id` to null. |
 | `status`, `status_reason` | `pending`, `confirmed`, `cancelled`, `expired` or `superseded`, with why |
@@ -25,8 +26,8 @@ tap runs the existing owner function for that effect, in the owner's session.
 | `expires_at`, `decided_at`, `decided_via` | Single use with expiry; `tap` or `passkey` |
 | `result` | What the confirmation did (the attested outcome, the stored limits) |
 
-Lifetimes: Resume and limit cards 24 hours, resolve cards 7 days, Lift cards 31 days
-and never longer than the restriction itself. Expiry needs no scheduler: a pending
+Lifetimes: Resume, limit and grant cards 24 hours, resolve cards 7 days, Lift cards 31
+days and never longer than the restriction itself. Expiry needs no scheduler: a pending
 card past `expires_at` reads as expired and is settled as expired when next touched.
 
 ## How cards appear
@@ -138,21 +139,134 @@ card or a used challenge is refused. The first time on a device, the card regist
 inline (account password, then the passkey). Lowering or adding a limit, lifting a pause
 and resuming take one tap and no passkey.
 
+## The grant card (W15-3)
+
+One sentence delegates trading: "let the gold agent trade my account on its own, 2%
+daily loss". The agent proposes `owner_action_propose(kind="grant_authority", …)` with
+only what the owner said; the tool resolves the rest on the server into a stored
+`GrantDraft` (`lonora_contracts.owner_actions`) and nothing grants anything yet:
+
+| Field | Default (owner decision D1) |
+| --- | --- |
+| `agent_id` | the proposing agent; only Lonora (the Personal Agent) proposes for another agent |
+| `account_id` | the only connected account, or the agent's focus account; with several, the agent asks one question (`owner_action_account_required`) |
+| markets | the owner's exact broker symbols; else all pairs for Lonora; else the agent's focus pair; else all pairs for a flexible agent |
+| `actions` | every action (full management) |
+| `duration` | until the owner stops it |
+| `allow_manual_positions` | false: positions the owner opened are excluded unless switched on |
+| `daily_loss` | the owner's amount or percentage; else, only when the account has no daily loss limit, a suggested 3% of current equity (rounded down to cents, in the account currency). An account that has its own limit keeps it: nothing is suggested over it |
+
+A card is raised only when authority is missing: a draft an active grant already covers
+(same or wider markets and actions, full management without numerical limits, a validity
+at least as long) is refused with `owner_action_not_needed_grant_already_active`. The
+card shows, from server facts: the agent, the account, the markets, the actions in plain
+words, until when, one daily loss line, the account's other money limits (or "No money
+limit set"), Stop new trading when it is in force, other agents already trading an
+overlapping market on that account on their own, the agent's own grant it replaces, and
+on the owner's first grant the one rule from `VISION.md`.
+
+The daily loss line is exactly what confirming does: the amount the card sets on an
+account without one ("Daily loss limit: 300.00 USD (suggested: 3% of equity)"), the
+owner's own lower amount from one to the other ("Daily loss limit: 500 → 300 USD"), or
+the account's current limit unchanged ("Daily loss limit: 500 USD"). When the owner asked
+for more than the current limit, the card keeps it and says that raising it needs a
+limits card with the passkey; the tool result tells the agent the same
+(`daily_loss_above_current_needs_limits_card`).
+
+The replaced grant is described in full in one line: its markets, actions, every
+numerical cap, the bounded protections (a stop loss on every entry, never loosened), its
+expiry and the owner's own positions, then the new grant's side of each one that changes
+("Replaces its current grant: all pairs · max 0.5 lots per order · max 3 positions →
+XAUUSD · no volume, position or activity caps"), so a tap never removes a cap the card
+did not show.
+
+Its switches are the owner's choices: include my own positions (signed: it is sent with
+the challenge and becomes part of the envelope; while the card waits the switch is the
+only place that states it, and a settled card shows it as a line), "No money limit (my
+choice)" ("No daily loss limit (my choice)" when other limits are set) where the card
+would set a first limit, "Keep my current limit" where it would lower one, Resume
+trading too (pre-checked only when trading was never started; after the owner's own
+Stop it waits for the owner), and per conflicting agent "Stop <agent> trading on its own
+on this account" (it revokes that agent's whole grant there, every market of it;
+otherwise both keep trading and the account's limits bind them together). Lists use the
+English comma in English and the Arabic comma in Arabic (`listSeparator`).
+
+Signing runs the existing account-authority ceremony from inside the card:
+
+1. `POST /owner-actions/{id}/challenge` takes the owner cards lock, the card, the
+   owner's devices lock and then the agent's (the same order as the decision), builds
+   the full-management `AccountAuthorityProposal` from the stored draft only
+   (`grant_proposal`: the agent's own conversation as its thread, the draft's markets,
+   actions and duration, no numerical limits), stores it with the existing `propose`
+   and returns `begin_activation` options bound to its envelope hash. For the same
+   choices the envelope is byte-identical to the permission composer's proposal. With no
+   enrolled device it answers `device_registration_required` and the card registers the
+   device inline, as every card does.
+2. `POST /owner-actions/{id}/decision` with the proof runs `finish_activation`; an
+   assertion for any other proposal is refused and the transaction rolls back. Then the
+   card's choices, none of which widens anything: revoke each chosen conflicting grant
+   (narrowing), Resume (widens no authority), and the daily loss limit, which the card
+   sets only when the account has none and lowers only to an amount the owner asked for
+   (`daily_loss_change`; it never raises one, never tightens the owner's own limit unasked
+   and never converts a currency).
+3. Dismissing a card revokes the pending proposal its challenge prepared.
+
+The confirmation line says it is signed, that anything outside the grant comes back as
+an approval card, and what else changed (the daily loss limit set, no limit by choice or
+the current limit kept by choice, the other agent or agents stopped on this account,
+Resume), or that new trading is still stopped. The settled card names the agents it
+stopped. A card for an agent that is deleted is superseded with it.
+
+## Model cards (W15-10)
+
+Two kinds no agent can propose with `owner_action_propose`; only `model_request` raises
+them, from server-checked state (`lonora_db.model_cards`). Neither touches money: both are
+one tap, never a passkey.
+
+| Card | Raised when | Buttons | Confirming |
+| --- | --- | --- | --- |
+| `agent_model` "Change the model of {agent}?" | The agent asked for a model outside the owner's allowed list (always, even when the owner named it), or for a change to an agent the owner fixed, to another agent (Lonora) or to its mode, that the owner's message in this run does not name | Use it (Let Lonora choose) / Not now | `apply_agent_model` in the owner's name; a model outside the list also joins the allowed list (the card says so) |
+| `agent_model_changed` "{agent} switched its model" | A switch applied (the agent's own within the list, or one the owner's message named) | Undo / Keep | Restores the choice before the switch, with who had made it, only while the record's revision is still the one the card reports |
+
+The payload is the agent, the mode and model (or none: the owner's default), and for
+Undo the record revision, the choice before it and who had made that choice; the subject
+is `agent-model:<agent>`. A request keeps the agent's mode unless it asks for another, so
+a Fixed agent's request is for another Fixed model. Facts are the agent's name, the
+catalog names of the models (never ids) and the owner's default model. Lifetimes: 24
+hours for a request, 7 days for Undo. A newer switch supersedes the older Undo card and
+the pending requests about that agent (`model_changed_again`); the owner's own change in
+settings or on a card supersedes both kinds for that agent (`owner_changed_model`; a
+choice that changes nothing ends no card); a request the record already matches settles
+as `model_already_set`. A deleted agent's
+model cards are superseded with it. The confirmation line says the model answers from
+the next reply and that memory, tasks, grants and open trades stay as they are.
+
+## The raw execution-policy route
+
+`PUT /trading/accounts/{id}/execution-policy` still accepts any change that allows no
+more risk (adding or lowering a limit, the execution-quality settings) in one owner
+request. A change that `widens` the money limits is refused with
+`execution_policy_passkey_required` (403); the owner signs it with
+`POST …/execution-policy/challenge` (the exact policy, bound to
+`hash(account, policy)`) and `POST …/execution-policy/verify` with
+`{policy, proof}`, which stores exactly the signed policy. A proof for a different
+policy, or a used challenge, is refused.
+
 ## Agent policy
 
 The permission frame says only the owner lifts a restriction, resumes trading, attests an
-uncertain outcome or changes a limit, and that the agent proposes the matching card
-(`owner_action_propose`) when the owner asks for one. While trading is stopped the agent
-attempts no entry and says so in one line; Stop is the owner's brake, so it proposes a
-Resume card only when the owner asks to resume (the tool description says the same). A
-grant is still signed in the permission selector until W15-3 adds the grant card.
+uncertain outcome, changes a limit or signs a grant, and that the agent proposes the
+matching card (`owner_action_propose`) when the owner asks for one, a grant only when no
+active scope covers it. While trading is stopped the agent attempts no entry and says so
+in one line; Stop is the owner's brake, so it proposes a Resume card only when the owner
+asks to resume (the tool description says the same).
 
 ## Known limits
 
-- The owner's raw `PUT /trading/accounts/{id}/execution-policy` is unchanged: an owner
-  session may still raise a limit there without a passkey. No Web or Mobile screen calls
-  it; the card path is the one the agent and the clients use. Requiring a bound device
-  proof on that route when the change widens is a follow-up.
+- A grant card signs one account at a time; several accounts take one card each (a
+  combined multi-account signature is Wave 2).
+- A grant card's daily loss limit never raises or removes an existing one; that stays a
+  limits card with the passkey, which the agent proposes separately.
 - A runtime card is raised by the gateway's attention projection, so it appears when the
   gateway runs (within a tick); the API alone never raises one.
 
@@ -179,3 +293,11 @@ grant is still signed in the permission selector until W15-3 adds the grant card
 - Playwright `tests/web/owner-actions.spec.mjs` and `tests/mobile/owner-actions.spec.mjs`:
   render and tap in Arabic and English (RTL button order), the resolve answer in the
   journal, and Lift from the header safety sheet.
+- Grant cards: `tests/check_grant_card.py` (PostgreSQL, simulation broker, scripted
+  authenticator) covers the resolved draft, the passkey and inline enrollment, the
+  composer-identical envelope, Resume and the daily loss limit on confirm, the conflict
+  note and stopping the other agent, no card for covered scope, Lonora's all-pairs
+  default, withdrawal on dismiss, and the execution-policy passkey;
+  `tests/test_grant_card.py` the pure rules; `tests/web/owner-actions.test.ts` the shared
+  spec and switches; Playwright signs a grant card with a virtual authenticator on Web
+  (Arabic and English, registering the device inline) and renders it on Mobile.

@@ -134,9 +134,12 @@ async def main():
             assert result["status"] == "confirmed", result
             assert result["details"]["verification"]["status"] == "verified", result
             assert result["details"]["verification"]["financial_retry_allowed"] is False
+            # A replay answers from the completed approval, with the single result's
+            # fields at the top level as on the first execution.
             assert await registry.execute(call, context) == {
                 "approval_id": approval,
                 "results": result["results"],
+                **(result["results"][0] if len(result["results"]) == 1 else {}),
             }
             return result
 
@@ -411,10 +414,10 @@ async def main():
         current_goal = await fixture.request("GET", "/trading/goals/" + goal["id"])
         assert (
             current_goal["state"]["status"] == "completed"
-            and not current_goal["state"]["autonomous"]
+            and "autonomous" not in current_goal["state"]
         )
         print(
-            "PASS foreground goal uses same immutable approval without enabling autonomous trading"
+            "PASS foreground goal uses same immutable approval; a goal carries no autonomy of its own"
         )
 
         # A later user message must prevent an approved but not-yet-sent command.

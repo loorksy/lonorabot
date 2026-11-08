@@ -44,8 +44,9 @@ async def model_turn(
     domain guidance (a bridged call need not be in the native ``tools``).
     ``context_view`` projects the persisted in-run compaction onto the request
     only; every gate below still reads the complete canonical ``messages``.
-    The router tries this Agent's own model preference first; ``input_scale``
-    is the Run's admission scale after a provider-proven context overflow.
+    The router tries the Run's chosen model, then this Agent's own model choice;
+    ``input_scale`` is the Run's admission scale after a provider-proven context
+    overflow.
     """
     preparation_started = monotonic()
     stage_started = preparation_started
@@ -167,6 +168,8 @@ async def model_turn(
             owner_id=context.owner_id,
             agent_id=context.agent_id,
             input_scale=input_scale,
+            # A subagent started on a chosen model asks it first.
+            run_choice=getattr(context, "run_model", None),
         )
         provider_total_ms = round((monotonic() - request_started) * 1000, 2)
         await publication.finish()

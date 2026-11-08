@@ -5,13 +5,13 @@ from lonora_auth.identity import OwnerIdentity
 from lonora_contracts.broker import BrokerConnection
 from lonora_contracts.domain import AgentCreate, AgentUpdate
 from lonora_core.user_error import LonoraError
-from lonora_db.agent_super_bot import active_super_bot_agents
+from lonora_db.agent_on_its_own import agents_on_their_own
 from lonora_db.agents import agent_data, create_agent, list_agents, update_agent
+from lonora_db.authority_lock import authority_lock
 from lonora_db.broker_sessions import BrokerSessionRepository
 from lonora_db.events import emit
 from lonora_db.obligations import prepare_delete
 from lonora_db.skill_controls import delete_skill_controls
-from lonora_db.super_bot import authority_lock
 from lonora_db.threads import conversation_thread, thread_data
 from lonora_db.transactions import owned_agent
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -50,8 +50,8 @@ async def agents(
 ) -> list[dict[str, Any]]:
     async with runtime(request).db.sessions() as session:
         rows = await list_agents(session, owner.id)
-        active = await active_super_bot_agents(session, owner.id)
-        return [agent_data(row, super_bot_active=row.id in active) for row in rows]
+        active = await agents_on_their_own(session, owner.id)
+        return [agent_data(row, trades_on_its_own=row.id in active) for row in rows]
 
 
 @router.post("", status_code=201)
@@ -76,8 +76,8 @@ async def read(
 ) -> dict[str, Any]:
     async with runtime(request).db.sessions() as session:
         row = await owned_agent(session, owner.id, agent_id)
-        active = await active_super_bot_agents(session, owner.id)
-        return agent_data(row, super_bot_active=agent_id in active)
+        active = await agents_on_their_own(session, owner.id)
+        return agent_data(row, trades_on_its_own=agent_id in active)
 
 
 @router.post("/{agent_id}/conversation")
@@ -106,8 +106,8 @@ async def configure(
         if version is not None and body.trading_account_id:
             await recheck_market(session, owner.id, body.trading_account_id, version)
         row = await update_agent(session, owner.id, agent_id, body)
-        active = await active_super_bot_agents(session, owner.id)
-        data = agent_data(row, super_bot_active=agent_id in active)
+        active = await agents_on_their_own(session, owner.id)
+        data = agent_data(row, trades_on_its_own=agent_id in active)
         emit(session, owner.id, "agent.updated", agent_id=agent_id, payload=data)
         return data
 

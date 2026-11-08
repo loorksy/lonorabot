@@ -33,15 +33,15 @@ async def require_operation_permission(
     level = await effective_permission(session, owner_id, run.agent_id)
     if level == "analysis":
         raise LonoraError("agent_analysis_only", 403)
-    if level == "autonomous":
-        if not account_authority_id:
-            raise LonoraError("account_authority_required", 403)
+    if account_authority_id:
+        if level != "autonomous":
+            raise LonoraError("trade_approval_required", 403)
         if not await provisional_voice(session, run):
             return
         # Provisional speech retains the existing exact-operation confirmation
         # boundary as well as the current signed account scope.
-    elif account_authority_id:
-        raise LonoraError("trade_approval_required", 403)
+    # Without a covering grant, "On its own" asks like "Ask me": the ladder is
+    # monotonic, so an out-of-grant trade needs the owner's exact approval.
     approvals = await session.scalars(
         select(TradeApprovalRow)
         .where(

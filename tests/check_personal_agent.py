@@ -106,7 +106,8 @@ async def checks() -> None:
         )
         assert set(symbols) <= set(actual["symbols"])
         permission = await f.request("GET", f"/agents/{personal_id}/permissions")
-        assert permission["effective_level"] == "analysis"
+        # Lonora starts at Ask me (W15-3): every trade is an approval card.
+        assert permission["effective_level"] == "supervised"
         await f.request(
             "PUT",
             f"/agents/{personal_id}/permissions",

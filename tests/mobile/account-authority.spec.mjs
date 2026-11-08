@@ -90,7 +90,8 @@ for (const locale of ["en", "ar"])
       const pending = await (
         await context.request.get(`/api/agents/${state.agent.id}/permissions`)
       ).json();
-      expect(pending.effective_level).toBe("analysis");
+      // A new trading agent starts at Ask me; a pending proposal grants nothing.
+      expect(pending.effective_level).toBe("supervised");
       expect(pending.pending_authority.id).toBe(state.row.id);
       await review.getByTestId("permission-cancel-native").click();
       await expect(page.getByTestId("permission-sheet-native")).toBeVisible();

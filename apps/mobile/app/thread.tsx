@@ -20,6 +20,7 @@ import {
   mergeOwnerAction,
   needsTimeSeparator,
   projectRunEvents,
+  runStatusText,
   seedStream,
   streamForRun,
   turnActivity,
@@ -48,7 +49,6 @@ import { MessageBubble } from "../components/message-bubble";
 import { NativeSymbol } from "../components/native-symbol";
 import { OwnerActionCard } from "../components/owner-action-card";
 import { SafetyPill } from "../components/safety-pill";
-import { SuperBotCard, useSuperBotRequests } from "../components/super-bot-cards";
 import { ThreadComposer } from "../components/thread-composer";
 import { ThreadHeader } from "../components/thread-header";
 import { TimeSeparator } from "../components/time-separator";
@@ -92,7 +92,7 @@ function mergeMessages(previous: Message[], incoming: Message[]): Message[] {
 export default function Conversation({ threadId }: { threadId?: string } = {}) {
   const params = useLocalSearchParams<{ id: string }>();
   const id = threadId ?? params.id;
-  const { ready, owner, server, rtl, t, errorText } = useSession();
+  const { ready, owner, server, rtl, locale, t, errorText } = useSession();
   const scope = useMemo(
     () => (owner ? conversationCache.activate(server, owner.id) : null),
     [server, owner],
@@ -124,11 +124,9 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
   const following = useRef(true);
   const [atEnd, setAtEnd] = useState(true);
   const [loaded, setLoaded] = useState(false);
-  const [stateRevision, setStateRevision] = useState(0);
   const [permissionRevision, setPermissionRevision] = useState(0);
   const permissionAgent = useRef(thread?.agent_id);
   permissionAgent.current = thread?.agent_id;
-  const superBot = useSuperBotRequests(thread?.agent_id ?? undefined, id, stateRevision);
   // One live-state read for the header's safety pill and the background-activity strip.
   const liveState = useAgentLiveState(thread?.agent_id ?? undefined);
   const [events, setEvents] = useState<Event[]>([]);
@@ -208,7 +206,6 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
           )
             return;
           setAgents(refreshedAgents);
-          setStateRevision((value) => value + 1);
           setCollaborationSessionId(collaboration?.id);
           setCollaborationActive(
             Boolean(
@@ -687,7 +684,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
         avatar={
           agent ? (
             <BotAvatar
-              superBot={agent.super_bot_active}
+              tradesOnItsOwn={agent.trades_on_its_own}
               identity={agent.id}
               color={agent.color}
               variant={agent.avatar}
@@ -746,7 +743,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
           },
         ]}
       />
-      <ErrorNotice text={error || superBot.error} />
+      <ErrorNotice text={error} />
       {runs
         .filter(
           (run) =>
@@ -773,7 +770,8 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
                 textAlign: rtl ? "right" : "left",
               }}
             >
-              {agents.find((value) => value.id === run.agent_id)?.name} · {t(run.status)}
+              {agents.find((value) => value.id === run.agent_id)?.name} ·{" "}
+              {runStatusText(run.status, locale)}
               {run.error_code ? ` · ${errorText(new ApiError(run.error_code, 0))}` : ""}
             </Text>
             {activeStatuses.includes(run.status) ||
@@ -819,7 +817,6 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
               data={conversationTimeline(
                 visibleMessages,
                 approvals.filter((row) => row.thread_id === id),
-                superBot.rows,
                 ownerActions.filter((row) => row.thread_id === id),
               ).reverse()}
               keyExtractor={(item) => item.id}
@@ -857,8 +854,6 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
                 </Text>
               }
               renderItem={({ item }) => {
-                if (item.kind === "super_bot")
-                  return <SuperBotCard row={item.request} onChange={superBot.update} />;
                 if (item.kind === "owner_action")
                   return (
                     <OwnerActionCard
@@ -1016,7 +1011,15 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
         <ThreadComposer
           permissionControl={
             agent && !thread?.group_id ? (
-              <AgentPermissions agent={agent} threadId={id} revision={permissionRevision} />
+              <AgentPermissions
+                agent={agent}
+                threadId={id}
+                revision={permissionRevision}
+                pendingTrade={approvals.some(
+                  (row) =>
+                    row.thread_id === id && row.agent_id === agent.id && row.status === "pending",
+                )}
+              />
             ) : undefined
           }
           draft={draft}

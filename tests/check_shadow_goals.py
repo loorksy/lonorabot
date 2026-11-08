@@ -7,7 +7,6 @@ from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
 from check_streaming import Fixture
-from device_fixture import Device
 from lonora_adapter_kit.types import ToolCall
 from lonora_contracts.account import Position
 from lonora_contracts.domain import utcnow
@@ -22,7 +21,6 @@ from lonora_db.schema import (
     TradingAccountRow,
     TradingJournalRow,
 )
-from lonora_db.trade_approvals import decide
 from lonora_market.watchers import check_watches
 from lonora_tools.loader import load_tools
 from lonora_trading.goals import recover_goals
@@ -126,7 +124,6 @@ async def main():
         registry = load_tools()
         broker = await context.brokers.get(f.owner, account)
         trap = AsyncMock(side_effect=AssertionError("Shadow Goal submitted a real broker mutation"))
-        device = await Device.enroll(f)
 
         async def tool(name: str, args: dict[str, Any], key: str | None = None) -> dict[str, Any]:
             return await registry.execute(
@@ -155,19 +152,10 @@ async def main():
                     "note": "Use actual recorded evidence and virtual state",
                 },
             )
+            # Shadow never touches the broker: a virtual step needs neither approval nor any
+            # goal autonomy, from a conversation or a background wake.
             result = await registry.execute(call, context)
-            if result.get("_runtime_wait"):
-                approval = (
-                    await f.client.get("/api/trading/approvals?thread_id=" + thread["id"])
-                ).json()
-                # Fixture helper's legacy return annotation is dict; the endpoint is a list.
-                assert any(
-                    row["id"] == result["approval_id"] and row["execution_mode"] == "shadow"
-                    for row in list(approval)
-                )
-                async with f.runtime.db.sessions() as session, session.begin():
-                    await decide(session, f.owner, result["approval_id"], "approve")
-                result = await registry.execute(call, context)
+            assert not result.get("_runtime_wait"), result
             assert (
                 result["result"]["status"] == "confirmed"
                 and result["result"]["details"]["mode"] == "shadow"
@@ -248,9 +236,7 @@ async def main():
                     ],
                 },
             )
-            assert (
-                goal["state"]["execution_mode"] == "shadow" and goal["state"]["autonomous"] is False
-            )
+            assert goal["state"]["execution_mode"] == "shadow" and "autonomous" not in goal["state"]
             await recorded(symbols[0], "BUY")
             try:
                 await tool("trade_execute", trade)
@@ -351,7 +337,6 @@ async def main():
                     "note": "Observed the actual virtual position",
                 },
             )
-            await device.authorize_goal_service(f, goal)
             await step(goal, "protect")
             partial = await step(goal, "partial", "fixed-partial")
             await step(goal, "exit")
@@ -533,7 +518,6 @@ async def main():
                 },
             )
             assert waiting["waiting"] and waiting["goal"]["state"]["status"] == "waiting"
-            await device.authorize_goal_service(f, fill_goal)
             async with f.runtime.db.sessions() as session, session.begin():
                 snapshot = await session.get(TradingAccountRow, account)
                 assert snapshot
@@ -598,10 +582,6 @@ async def main():
                     "note": "The virtual reader must not find a real broker ticket",
                 },
             )
-            pending = await registry.execute(call, context)
-            assert pending["_runtime_wait"]
-            async with f.runtime.db.sessions() as session, session.begin():
-                await decide(session, f.owner, pending["approval_id"], "approve")
             try:
                 await registry.execute(call, context)
             except LonoraError as error:
@@ -611,17 +591,12 @@ async def main():
             approvals = (
                 await f.client.get("/api/trading/approvals?thread_id=" + thread["id"])
             ).json()
-            failed_card = next(row for row in approvals if row["id"] == pending["approval_id"])
-            assert (
-                failed_card["status"] == "completed"
-                and failed_card["results"][0]["status"] == "failed"
-                and failed_card["results"][0]["code"] == "position_not_found"
-            )
+            assert not any(row["execution_mode"] == "shadow" for row in approvals), approvals
             async with f.runtime.db.sessions() as session, session.begin():
                 await complete_run(
                     session,
                     context.lease,
-                    "Real ticket rejected and failure reflected in approval card",
+                    "Real ticket rejected without asking the owner",
                     {},
                 )
             context = await f.lease(await f.run(agent, thread))
@@ -659,9 +634,6 @@ async def main():
                     "note": "One fenced virtual operation",
                 },
             )
-            pending = await registry.execute(call, context)
-            async with f.runtime.db.sessions() as session, session.begin():
-                await decide(session, f.owner, pending["approval_id"], "approve")
 
             async def steal_lease(*args: Any, **kwargs: Any):
                 observed = await actual_preflight(*args, **kwargs)
@@ -724,7 +696,6 @@ async def main():
                     ],
                 },
             )
-            await device.authorize_goal_service(f, paused_goal)
             await tool("goal_wait", {"goal_id": paused_goal["id"], "step_id": "wait"})
             await f.request(
                 "PUT", f"/agents/{agent['id']}/execution-mode", {"execution_mode": "live"}
@@ -732,12 +703,12 @@ async def main():
             saved = await f.request("GET", "/trading/goals/" + paused_goal["id"])
             assert (
                 saved["state"]["status"] == "paused"
-                and saved["state"]["autonomous"] is False
+                and "autonomous" not in saved["state"]
                 and saved["state"]["execution_mode"] == "shadow"
             )
             denied = await f.client.post(
                 f"/api/trading/goals/{paused_goal['id']}/control",
-                json={"version": saved["version"], "action": "resume", "autonomous": True},
+                json={"version": saved["version"], "action": "resume"},
             )
             assert denied.status_code == 403 and denied.json()["code"] == "execution_mode_changed"
             assert await check_watches(f.runtime.db, context.brokers) == 0
@@ -748,7 +719,7 @@ async def main():
             assert trap.await_count == 0
             assert (await f.request("GET", "/trading/controls"))["enabled"] is False
             print(
-                "PASS all four pending types across exact forex/metal/index/crypto symbols use virtual Goal targets, modifications and cancellation; approval cards label Shadow and live Trading stays OFF"
+                "PASS all four pending types across exact forex/metal/index/crypto symbols use virtual Goal targets, modifications and cancellation; no virtual step asks for approval or goal autonomy and live Trading stays OFF"
             )
     finally:
         await f.close()

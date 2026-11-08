@@ -1,5 +1,6 @@
 import { t } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
+import { peerOutcome } from "@lonora/core";
 import { GroupAvatar } from "@lonora/ui-web";
 import { Plus } from "lucide-react";
 import { useEffect, useRef } from "react";
@@ -113,8 +114,9 @@ export function ConversationInbox({
                 )
               : [];
           const at = new Date(time(row));
+          // A colleague's result is shown without its machine wrapper.
           const preview =
-            entry?.last_message?.content ||
+            (entry?.last_message?.content && peerOutcome(entry.last_message.content).body) ||
             (row.kind === "agent"
               ? row.value.title || row.value.description || (row.value.paused ? t`Paused` : "")
               : members.map((agent) => agent.name).join(" · "));

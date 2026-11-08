@@ -17,8 +17,43 @@ The Personal Agent may receive explicit `symbol_scope=account` for all exact
 broker instruments on that one account. Specialists retain their immutable
 selected symbol; account-wide scope is rejected for them. Actual instruments,
 lot steps, market prices and supported actions are checked at execution time.
-The simple review includes management of manually opened positions. Arbitrary
-code still cannot access broker credentials or bypass the typed executor.
+By owner decision D1 the simple review excludes positions the owner opened
+manually unless the owner switches them on; grants already signed keep exactly
+what they signed. Arbitrary code still cannot access broker credentials or
+bypass the typed executor. The same proposal is signed from a grant card in the
+conversation (`owner-actions.md`), built only from the card's stored draft.
+
+## The ladder: No trading / Ask me / On its own
+
+Each agent has one level, in the same words on Web and Mobile, in English and
+Arabic (`tradingSafetyLabels` in `packages/core`): No trading (`analysis`), Ask me
+(`supervised`), On its own (`autonomous`, an active signed grant). The ladder is
+monotonic:
+
+- Under On its own, a trade no active grant covers (another market or action, or
+  a ticket the owner opened when the grant excludes those) becomes an approval
+  card exactly as under Ask me, never `account_authority_scope_mismatch`. The
+  tool decides before anything is sent (`covering_grants`); the executor admits an
+  operation without a grant only with the owner's approval of that exact
+  operation (`require_operation_permission`). A grant's management Task is held
+  to its own grant; outside it, it asks too. The same exact request repeated in
+  another call of the same Run answers from the card already raised for it
+  (`reviewed_approval`, newest first): it waits on that card while it is pending,
+  uses the owner's approval when it is approved or its operation reached the
+  broker, and returns the owner's rejection until the owner writes again in that
+  conversation. A result that never reached the broker, or a rejection the owner
+  has spoken after, asks again.
+- Moving down revokes the agent's signed and pending grants, as before
+  (`change_permission`). The selector says so first, in one line: "This revokes
+  the signed grant for <account>; going back needs a new signature", with Revoke
+  and switch / Keep it.
+- Defaults: Lonora (the Personal Agent) and a root trading agent with a focus pair
+  start at Ask me; general, research and supervisor agents, bound children and
+  delegated helpers start at No trading (`default_level`). A level the owner set is
+  stored and kept; editing an agent's focus pair stores its current level first,
+  so the edit never moves it. Migration `0040_explicit_agent_permission_rows`
+  stores an explicit level for every agent that existed before: No trading, and
+  Ask me for the Personal Agent. Delegated helpers can still never trade.
 
 Activation atomically creates one existing durable Task and its work Run. Signed
 proof replay cannot create another kickoff. It inspects actual state and may
@@ -26,8 +61,31 @@ create/reuse watches, choose trades and manage positions without per-order
 approval. The task is bound to this exact grant; replacement or revocation cannot
 silently let stale kickoff work spend a newer grant. Revocation, replacement and
 device removal cancel the corresponding Task using the existing lifecycle. An activation is not an
-entry signal or proof a broker is ready. Global Trading ON/OFF and Emergency Stop
+entry signal or proof a broker is ready. Stop new trading and the owner's pauses
 remain authoritative and are never silently switched by activation.
+
+A grant is the only authority (W15-9). The former Super Bot requests and per-goal
+autonomy are retired: migration `0040_retire_super_bot_requests` marks pending and
+activated requests `retired` and keeps every row as audit history, and nothing
+reads them for authority. The readiness review and the confirmation line that
+followed a Super Bot activation are now keyed on grants:
+
+- A bounded grant (selected markets with explicit limits) gets one observe-only
+  readiness review Run in the work lane after it is signed (receipt
+  `activation-review:<grant id>`). A full-management grant gets none: its management
+  Task is its first work. Grants that were already active when the migration ran get
+  a skipped receipt, so no agent is woken for an old grant.
+- A grant signed from the trading-level controls (`POST /account-authorities/verify`)
+  writes one line in its conversation, in the conversation's language ("Trading on
+  its own is on ..."); a lost-response replay adds none. A grant signed from its chat
+  card is confirmed by the card itself. The review's own result stays quiet behind
+  that line. The review is observe-only and gates nothing, so a review that fails is
+  never retried and never puts the agent at "action required"; its status shows one
+  review-scoped line ("The readiness check after you signed did not finish; that check
+  sent nothing.") until a later Run of the agent completes (`review_status` then reads
+  `superseded`). The failed Run stays in Activity.
+- The avatar's "trades on its own" marker (`trades_on_its_own` on the agent) is shown
+  only while the agent is not paused and holds a grant in force.
 
 Full management leaves stop/target choices to the Agent, including changes to
 existing stops; broker validity and fresh target comparison still apply. Losing
@@ -54,7 +112,7 @@ itself authorize a symbol. Broker-discovered symbols are checked before proposal
 
 Each execution revalidates signature state, expiry, device, ownership, current
 broker snapshot and envelope limits inside the existing serialized financial
-boundary. Global Trading ON/OFF, Emergency Stop, risk/preflight, execution quality,
+boundary. Stop new trading, the owner's pauses, risk/preflight, execution quality,
 manual intervention, idempotency, durable journal and reconciliation still apply.
 Submitted, ambiguous, confirmed, owner-resolved and broker-rejected submitted
 attempts consume the lifetime budget. Known pre-submission failures and released
@@ -87,7 +145,8 @@ implementing or testing this capability.
 The compact Web/Mobile bot settings reuse existing account/market selectors and
 passkey enrollment/signing. The advanced bounded form requires explicit limits;
 the full-management review explicitly grants discretionary choices without
-product-set numerical quotas. No pair or permission is preselected for an unbound Personal Agent.
+product-set numerical quotas. The Personal Agent's review and grant card preselect
+all pairs on the account; no permission is ever preselected as signed.
 Current authoritative grant summaries enter the existing live Agent projection;
 the badge is presentation, never permission.
 
@@ -204,7 +263,9 @@ instead of converting. Unset means not enforced; no money amount is chosen for t
 owner. The agent sees configured and unset limits in its permission frame and through
 `trade_restriction_list`; the owner reads the current book against them with `GET
 /trading/accounts/{id}/risk-status`. The conversation's money-limit card changes the same
-policy; raising or removing a limit there needs the owner's passkey (`owner-actions.md`).
+policy; raising or removing a limit there needs the owner's passkey (`owner-actions.md`),
+and so does a widening through the policy route itself (`…/execution-policy/challenge`
+and `…/verify`); adding or lowering a limit stays one request.
 
 - `max_trade_risk` / `max_trade_risk_equity_percent`: modeled loss at the stop-loss of
   a new entry, a pending-entry edit or a risk-increasing position edit. A stop-loss is
@@ -274,7 +335,7 @@ null legacy limits, exact symbols and optional limits. The signed simulation
 fixture `check_full_account_management.py` exercises the actual owner API,
 WebAuthn, durable kickoff Task/Run, repeat signatures, grant replacement, stale
 work, four symbol classes, market/pending orders, manual position management,
-partial close, discretionary stops, broker constraints, Emergency Stop and
+partial close, discretionary stops, broker constraints, Stop new trading and
 revocation. The older authority fixture signs the genuinely original v1 envelope
 shape so migration cannot reinterpret its absent fields. Browser checks exercise
 actual EN/AR owner surfaces, full and bounded signatures, and unchanged global

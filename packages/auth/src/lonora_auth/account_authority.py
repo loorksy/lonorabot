@@ -5,8 +5,8 @@ from typing import Any
 
 from lonora_bus.attention import attention_text
 from lonora_contracts.account_authority import AccountAuthorityEnvelope
+from lonora_contracts.devices import DeviceProof
 from lonora_contracts.domain import utcnow
-from lonora_contracts.super_bot import DeviceProof
 from lonora_contracts.tasks import TaskCreate
 from lonora_core.user_error import LonoraError
 from lonora_db.account_authority import (
@@ -16,9 +16,9 @@ from lonora_db.account_authority import (
     stop_management_task,
     validate_scope,
 )
+from lonora_db.authority_lock import authority_lock
 from lonora_db.conversation_locale import conversation_locale
 from lonora_db.schema import AccountAuthorityRow, RunRow
-from lonora_db.super_bot import authority_lock
 from lonora_db.tasks import create_task
 from lonora_session.idempotency import request_hash, stable_id
 from pydantic import ValidationError

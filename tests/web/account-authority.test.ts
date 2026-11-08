@@ -133,7 +133,7 @@ test("full management is an explicit proposal without default quotas, markets or
   assert.equal(full.maximum_order_volume, null);
   assert.equal(full.maximum_actions, null);
   assert.equal(full.valid_until, null);
-  assert.equal(full.allow_manual_positions, true);
+  assert.equal(full.allow_manual_positions, false);
   const specialist = fullManagementProposal({ ...scope, symbol: "EXACT.suffix" });
   assert.deepEqual(specialist?.symbols, ["EXACT.suffix"]);
   assert.equal(specialist?.symbol_scope, "selected");

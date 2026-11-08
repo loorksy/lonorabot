@@ -34,7 +34,15 @@ async def main():
                 await session.flush()
                 fields['operation_id']=operation
             proposal=OwnerActionProposal(**fields)
-            if data['kind']=='resume_trading':
+            if data['kind']=='grant_authority':
+                # The draft the tool resolves: this account, this pair, every action, until
+                # stopped, own positions excluded and a 3% daily loss (D1), suggested, or
+                # from the owner's sentence when the account already has its own limit.
+                from lonora_contracts.owner_actions import DailyLossDraft,GrantDraft
+                from lonora_db.owner_actions import ALL_ACTIONS
+                draft=GrantDraft(agent_id=data['agent'],account_id=data['account'],symbol_scope='selected',symbols=[data['symbol']],actions=list(ALL_ACTIONS),daily_loss=DailyLossDraft(amount='300.00',currency='USD',basis=data.get('basis','suggested'),percent='3',equity='10000'))
+                row,_=await propose(session,f.owner,proposal,card_id=str(uuid4()),agent_id=data['agent'],thread_id=data['thread'],run_id=None,grant=draft)
+            elif data['kind']=='resume_trading':
                 # As an agent proposes it when the owner asks to resume.
                 row,_=await propose(session,f.owner,proposal,card_id=str(uuid4()),agent_id=data['agent'],thread_id=data['thread'],run_id=None)
             else:
@@ -142,6 +150,17 @@ const copy = {
     unknown: "Unknown: release the hold",
     recorded: "Recorded: it did not execute (your statement, not broker confirmation).",
     lift: "Lift pause",
+    grantTitle: "trade on its own",
+    authorize: "Authorize with passkey",
+    resumeToo: "Resume trading too",
+    includeOwn: "Include positions I opened myself",
+    password: "Account password",
+    register: "Register this device first",
+    signed: "Signed. It trades on its own inside this grant.",
+    dailyLoss: "Daily loss limit",
+    keepLimit: "Keep my current limit",
+    ownExcluded: "Positions you opened yourself are excluded",
+    arrow: "→",
   },
   ar: {
     resumeTitle: "استئناف التداول",
@@ -152,8 +171,125 @@ const copy = {
     unknown: "غير معروفة — ارفع التعليق",
     recorded: "سُجّل: لم تُنفذ (تصريحك، لا تأكيد من الوسيط).",
     lift: "رفع الإيقاف",
+    grantTitle: "يتداول بنفسه",
+    authorize: "التفويض بمفتاح المرور",
+    resumeToo: "استأنف التداول أيضًا",
+    includeOwn: "اشمل المراكز التي فتحتها بنفسي",
+    password: "كلمة مرور الحساب",
+    register: "سجّل هذا الجهاز أولًا",
+    signed: "وُقّع. يتداول بنفسه ضمن هذا التفويض.",
+    dailyLoss: "حد الخسارة اليومية",
+    keepLimit: "أبقِ حدي الحالي",
+    ownExcluded: "لا يشمل المراكز التي فتحتها بنفسك",
+    arrow: "←",
   },
 };
+
+for (const locale of ["en", "ar"])
+  test(`${locale}: a grant card signs with one passkey tap, registering the device inline`, async ({
+    page,
+    context,
+  }) => {
+    test.setTimeout(90000);
+    const text = copy[locale];
+    const state = await setup(context, locale);
+    // A fresh authenticator: remove only the disposable owner's prior credentials.
+    for (const device of await (await context.request.get("/api/auth/devices")).json())
+      expect(
+        (
+          await context.request.delete(`/api/auth/devices/${device.id}`, { headers: state.headers })
+        ).ok(),
+      ).toBeTruthy();
+    const cdp = await context.newCDPSession(page);
+    await cdp.send("WebAuthn.enable");
+    await cdp.send("WebAuthn.addVirtualAuthenticator", {
+      options: {
+        protocol: "ctap2",
+        transport: "internal",
+        hasResidentKey: true,
+        hasUserVerification: true,
+        isUserVerified: true,
+        automaticPresenceSimulation: true,
+      },
+    });
+    try {
+      // The owner's own Stop: the card's Resume switch waits for the owner.
+      await state.controls({ enabled: true, emergency_stop: false });
+      await state.controls({ enabled: false, emergency_stop: false });
+      // The owner's own 500 daily loss limit; the sentence asked for 3% (300).
+      const limit = await context.request.put(
+        `/api/trading/accounts/${state.account}/execution-policy`,
+        { headers: state.headers, data: { risk: { currency: "USD", max_daily_loss: "500" } } },
+      );
+      expect(limit.ok()).toBeTruthy();
+      const seeded = seedCard({
+        kind: "grant_authority",
+        account: state.account,
+        symbol: state.data.symbol,
+        agent: state.agent.id,
+        thread: state.thread.id,
+        basis: "requested",
+      });
+      const bodies = [];
+      page.on("request", (request) => {
+        if (request.method() === "POST" && request.url().includes(`/owner-actions/${seeded.id}/`))
+          bodies.push([new URL(request.url()).pathname.split("/").pop(), request.postDataJSON()]);
+      });
+      await page.goto(`/app/${state.agent.id}`);
+      const card = page.locator(`[data-owner-action="${seeded.id}"]`);
+      await expect(card).toHaveAttribute("data-owner-action-status", "pending");
+      await expect(card.locator("strong")).toContainText(text.grantTitle);
+      await expect(card.locator("strong")).toContainText(state.agent.name);
+      await expect(card.getByText(state.data.symbol)).toBeVisible();
+      // One line from the owner's own limit to the lower one, and the opt-out keeps it.
+      const daily = card.getByText(text.dailyLoss, { exact: false });
+      await expect(daily).toBeVisible();
+      await expect(daily).toContainText(`500⁩ ${text.arrow} ⁨300.00 USD`);
+      await expect(card.getByRole("checkbox", { name: text.keepLimit })).not.toBeChecked();
+      // The switch states the owner's own positions; no fixed line contradicts it.
+      await expect(card.getByText(text.ownExcluded, { exact: true })).toHaveCount(0);
+      // D1: the owner's own positions are excluded unless switched on; Resume waits for
+      // the owner after the owner's own Stop.
+      const own = card.getByRole("checkbox", { name: text.includeOwn });
+      const resume = card.getByRole("checkbox", { name: text.resumeToo });
+      await expect(own).not.toBeChecked();
+      await expect(resume).not.toBeChecked();
+      await resume.check();
+      if (locale === "ar") {
+        await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
+        await card.screenshot({ path: test.info().outputPath("owner-action-grant-ar.png") });
+      }
+      const authorize = card.getByRole("button", { name: text.authorize, exact: true });
+      await authorize.click();
+      // First time on this device: the same card asks for the password and registers it.
+      await card.getByLabel(text.password, { exact: true }).fill("ci-only-owner-password");
+      await card.getByRole("button", { name: text.register, exact: true }).click();
+      await expect(card.getByLabel(text.password, { exact: true })).toHaveCount(0);
+      await authorize.click();
+      await expect(card).toHaveAttribute("data-owner-action-status", "confirmed");
+      await expect(card.getByRole("status")).toHaveText(text.signed);
+      await expect(card.getByRole("button")).toHaveCount(0);
+      const challenges = bodies.filter(([kind]) => kind === "challenge").map(([, body]) => body);
+      expect(challenges.at(-1)).toEqual({ allow_manual_positions: false });
+      const decision = bodies.find(([kind]) => kind === "decision")?.[1];
+      expect(decision.decision).toBe("confirm");
+      expect(decision.resume_trading).toBe(true);
+      expect(decision.money_limit).toBe("apply");
+      expect(decision.proof?.challenge_id).toBeTruthy();
+      const permission = await (
+        await context.request.get(`/api/agents/${state.agent.id}/permissions`)
+      ).json();
+      expect(permission.effective_level).toBe("autonomous");
+      expect(permission.active_authorities[0].envelope.allow_manual_positions).toBe(false);
+      expect(await state.read()).toEqual({ enabled: true, emergency_stop: false });
+      const policy = await (
+        await context.request.get(`/api/trading/accounts/${state.account}/execution-policy`)
+      ).json();
+      expect(Number(policy.risk.max_daily_loss)).toBe(300);
+    } finally {
+      await state.cleanup();
+    }
+  });
 
 for (const locale of ["en", "ar"])
   test(`${locale}: a Resume card in the conversation resumes trading with one tap`, async ({

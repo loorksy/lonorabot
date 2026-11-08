@@ -4,6 +4,7 @@ import {
   mergeOwnerAction,
   type OwnerActionButton,
   ownerActionCard,
+  ownerActionChoices,
   ownerActionText,
   webDeviceProof,
   webDeviceSupported,
@@ -51,9 +52,10 @@ export function useOwnerActions(threadId: string) {
 }
 
 /**
- * One owner action card: server facts in the owner's language and one tap. A card that
- * raises or removes a money limit asks for the passkey (registering this device inline
- * the first time). Every tap goes to the owner-session route, which re-validates.
+ * One owner action card: server facts in the owner's language and one tap. A grant
+ * card, or one that raises or removes a money limit, asks for the passkey (registering
+ * this device inline the first time); a grant card's switches go with that tap. Every
+ * tap goes to the owner-session route, which re-validates.
  */
 export function OwnerActionCard({
   row,
@@ -71,6 +73,7 @@ export function OwnerActionCard({
   const [reference, setReference] = useState("");
   const [enroll, setEnroll] = useState(false);
   const [password, setPassword] = useState("");
+  const [chosen, setChosen] = useState<Record<string, boolean>>({});
   const mounted = useRef(true);
   useEffect(() => {
     mounted.current = true;
@@ -83,14 +86,21 @@ export function OwnerActionCard({
     setBusy(true);
     setError(undefined);
     try {
-      const body: OwnerActionDecision = { decision: button.decision };
+      const choices = ownerActionChoices(row, chosen);
+      const body: OwnerActionDecision = {
+        decision: button.decision,
+        ...(button.decision === "confirm" ? choices.decision : {}),
+      };
       if (button.outcome) {
         body.outcome = button.outcome;
         if (note.trim()) body.note = note.trim();
         if (reference.trim()) body.broker_reference = reference.trim();
       }
       if (button.decision === "confirm" && spec.passkey) {
-        const challenge = await api.post<DeviceChallenge>(`/owner-actions/${row.id}/challenge`, {});
+        const challenge = await api.post<DeviceChallenge>(
+          `/owner-actions/${row.id}/challenge`,
+          choices.challenge,
+        );
         body.proof = await webDeviceProof(challenge);
       }
       const updated = await api.post<OwnerAction>(`/owner-actions/${row.id}/decision`, body);
@@ -140,6 +150,24 @@ export function OwnerActionCard({
         <p className="muted" dir="auto">
           {spec.hint}
         </p>
+      )}
+      {spec.options.length > 0 && (
+        <div className="lonora-owner-action-options">
+          {spec.options.map((option) => (
+            <label key={option.key} className="check" dir="auto">
+              <input
+                type="checkbox"
+                data-owner-action-option={option.key.split(":")[0]}
+                checked={chosen[option.key] ?? option.initial}
+                disabled={busy}
+                onChange={(event) =>
+                  setChosen((old) => ({ ...old, [option.key]: event.target.checked }))
+                }
+              />
+              <span>{option.label}</span>
+            </label>
+          ))}
+        </div>
       )}
       {spec.notes && (
         <div className="lonora-owner-action-notes">

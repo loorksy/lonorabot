@@ -90,7 +90,11 @@ export const labels = {
   visualTrue: ["نعم", "Yes"],
   visualFalse: ["لا", "No"],
 
-  superBotEnabled: ["السوبر بوت مفعّل", "Super Bot enabled"],
+  tradesOnItsOwn: ["يتداول بنفسه", "Trades on its own"],
+  grantReviewFailed: [
+    "لم يكتمل فحص الجاهزية بعد توقيعك؛ ذلك الفحص لم يرسل شيئًا.",
+    "The readiness check after you signed did not finish; that check sent nothing.",
+  ],
   skills: ["المهارات", "Skills"],
   skillsAdd: ["إضافة مهارة", "Add a skill"],
   skillsCreate: ["إنشاء المهارة", "Create skill"],
@@ -242,7 +246,6 @@ export const labels = {
     "Record a fresh market decision before virtual entry.",
   ],
   shadowMode: ["تداول ظلي — أوامر افتراضية فقط", "Shadow trading — virtual orders only"],
-  superBot: ["سوبر بوت", "Super Bot"],
   input_answer_invalid: ["اختر إجابة متاحة", "Choose an available answer"],
   input_answer_expired: [
     "لم يعد هذا السؤال ينتظر إجابة",
@@ -255,12 +258,6 @@ export const labels = {
   questionPending: ["اختر إجابة أو اكتب ردك", "Choose an option or write your reply"],
   questionAnswered: ["تمت الإجابة", "Answered"],
   questionClosed: ["أُغلق السؤال", "Question closed"],
-  superBotActivationQuestion: ["تفعيل سوبر بوت؟", "Activate Super Bot?"],
-  superBotDeviceConfirmation: [
-    "الموافقة تؤكد هذه الخطة فقط عبر مصادقة جهازك.",
-    "Approval confirms only this plan through your device authentication.",
-  ],
-  superBotMaximumVolume: ["الحد الأقصى للحجم", "Maximum volume"],
   devicePending: ["بانتظار تفويض الجهاز", "Waiting for device authorization"],
   expired: ["منتهي الصلاحية", "Expired"],
   stopped: ["متوقف", "Stopped"],
@@ -277,7 +274,6 @@ export const labels = {
   reviewPlan: ["مراجعة الخطة", "Review plan"],
   deviceActivate: ["التفعيل بمصادقة الجهاز", "Activate with device authentication"],
   deviceRegister: ["تسجيل مفتاح مرور", "Register a passkey"],
-  superBotStop: ["إيقاف سوبر بوت", "Stop Super Bot"],
   confirmAccountPassword: ["تأكيد كلمة مرور الحساب", "Confirm account password"],
   registerThisDevice: ["تسجيل هذا الجهاز", "Register this device"],
   myDevice: ["جهازي", "My device"],
@@ -291,12 +287,8 @@ export const labels = {
     "Register a passkey before activating this request.",
   ],
   device_authorization_required: [
-    "راجع طلب سوبر بوت وفوّضه من جهازك.",
-    "Review the Super Bot request and authorize it with your device.",
-  ],
-  super_bot_authority_expansion: [
-    "توسيع الصلاحيات يحتاج تفويضًا جديدًا من جهازك.",
-    "Expanded permissions require new device authorization.",
+    "يلزم تفويض جديد توقّعه بمفتاح المرور من جهازك.",
+    "This needs a new grant you sign with your passkey.",
   ],
   device_authorization_cancelled: [
     "أُلغيت المصادقة ولم تُمنح أي صلاحيات.",
@@ -304,14 +296,6 @@ export const labels = {
   ],
   stopLoss: ["وقف الخسارة", "Stop loss"],
   takeProfit: ["جني الربح", "Take profit"],
-  super_bot_advisory_only: [
-    "هذه الخطة استشارية ولا يمكنها تنفيذ صفقات.",
-    "This plan is advisory and cannot execute trades.",
-  ],
-  super_bot_scope_changed: [
-    "تغير نطاق التفويض. راجع طلبًا جديدًا.",
-    "Authority scope changed. Review a new request.",
-  ],
   device_challenge_not_found: [
     "طلب المصادقة غير متاح لهذه الجلسة.",
     "This authorization challenge is unavailable for this session.",
@@ -323,10 +307,6 @@ export const labels = {
   device_challenge_expired_or_used: [
     "انتهى طلب التفويض أو استُخدم؛ راجع طلبًا جديدًا.",
     "This authorization expired or was used. Review a new request.",
-  ],
-  super_bot_plan_changed: [
-    "تغيّرت الخطة؛ راجع طلب تفويض جديدًا.",
-    "The plan changed. Review a new authorization request.",
   ],
   notifications: ["التنبيهات", "Notifications"],
   noNotifications: ["لا توجد تنبيهات جديدة", "No new notifications"],
@@ -416,11 +396,11 @@ export const labels = {
   chooseTradingPair: ["اختر زوج التداول", "Choose trading pair"],
   searchBrokerSymbols: ["ابحث في رموز الوسيط", "Search broker symbols"],
   immutableTradingPair: [
-    "هذا الزوج ثابت للبوت. أنشئ بوتًا آخر لاستخدام زوج مختلف.",
+    "هذا الزوج ثابت لهذا الوكيل. أنشئ وكيلًا آخر لاستخدام زوج مختلف.",
     "This pair is permanent for this agent. Create another agent to use a different pair.",
   ],
   connectBrokerFirst: [
-    "اربط حساب الوسيط قبل إنشاء بوت التداول.",
+    "اربط حساب الوسيط قبل إنشاء وكيل التداول.",
     "Connect a broker account before creating a trading agent.",
   ],
   callAgent: ["اتصل بالوكيل", "Call agent"],
@@ -432,8 +412,8 @@ export const labels = {
   callListening: ["يستمع", "Listening"],
   callSpeaking: ["يتحدث", "Speaking"],
   nativeCallHint: [
-    "ابدأ مكالمة من زر الاتصال أعلى محادثة البوت. تستخدم المكالمة ذاكرة البوت والمحادثة نفسها. تنتهي المكالمة عند انتقال التطبيق إلى الخلفية.",
-    "Start a call from the call button in your bot conversation. Calls use the same bot memory and thread. Calls end when the app enters the background.",
+    "ابدأ مكالمة من زر الاتصال أعلى محادثة الوكيل. تستخدم المكالمة ذاكرة الوكيل والمحادثة نفسها. تنتهي المكالمة عند انتقال التطبيق إلى الخلفية.",
+    "Start a call from the call button in your agent conversation. Calls use the same agent memory and thread. Calls end when the app enters the background.",
   ],
   voice_permission_denied: [
     "اسمح للتطبيق باستخدام الميكروفون لإجراء المكالمة.",
@@ -452,15 +432,10 @@ export const labels = {
     "الخدمة الصوتية غير مهيأة بعد.",
     "Voice service is not configured yet.",
   ],
-  brokerResult: ["نتيجة الوسيط", "Broker result"],
   tradeApproval: ["طلب تداول", "Trading request"],
   approve: ["موافقة", "Approve"],
   reject: ["رفض", "Reject"],
-  approved: ["تمت الموافقة — بانتظار الوسيط", "Approved — awaiting broker"],
   rejected: ["مرفوض", "Rejected"],
-  confirmed: ["مؤكد", "Confirmed"],
-  ambiguous: ["نتيجة غير مؤكدة — لن تُرسل مجددًا", "Outcome uncertain — it will not be sent again"],
-  submitted: ["بانتظار تأكيد الوسيط", "Awaiting broker confirmation"],
   reserved: ["قيد التحضير — لم يُرسل", "Preparing — not sent"],
   resolved: ["سُوّيت دون تأكيد من الوسيط", "Resolved without broker confirmation"],
   clearStopLoss: ["إزالة وقف الخسارة", "Remove stop loss"],

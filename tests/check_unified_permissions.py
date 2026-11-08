@@ -152,7 +152,13 @@ async def main() -> None:
             return await f.request("POST", "/account-authorities/verify", proof), proof
 
         initial = await state()
-        assert initial["effective_level"] == "analysis" and not initial["active_authorities"]
+        # A new trading agent starts at Ask me (W15-3); this check starts from No trading,
+        # the owner's explicit choice.
+        assert initial["effective_level"] == "supervised" and not initial["active_authorities"]
+        initial = await f.request(
+            "PUT", path, {"level": "analysis", "expected_revision": initial["revision"]}
+        )
+        assert initial["effective_level"] == "analysis"
         async with f.runtime.db.sessions() as session:
             try:
                 await permission_state(session, str(uuid4()), agent["id"])
@@ -203,7 +209,7 @@ async def main() -> None:
             raise AssertionError("Direct executor bypassed Analysis Only")
         assert await broker.snapshot() == before
         print(
-            "PASS newly created Agent defaults to Analysis Only; auth/CSRF and unsigned autonomy cannot bypass server enforcement"
+            "PASS a new trading agent starts at Ask me and No trading is enforced; auth/CSRF and unsigned autonomy cannot bypass server enforcement"
         )
 
         # The very same financial intent is proposed, not submitted, in supervised mode.
@@ -275,9 +281,10 @@ async def main() -> None:
         assert migrated["active_authorities"][0]["id"] == grant["id"]
         async with f.runtime.db.sessions() as session, session.begin():
             session.add(SettingRow(key=key, payload=legacy_payload))
+        # The other trading agent keeps its own level: Ask me, the new-agent default.
         assert (await f.request("GET", f"/agents/{other['id']}/permissions"))[
             "effective_level"
-        ] == "analysis"
+        ] == "supervised"
         positions_before_autonomy = len(await broker.positions())
         autonomous = await execute(call(volume="0.2", stop_loss="91"))
         assert autonomous["status"] == "confirmed", autonomous
@@ -430,7 +437,6 @@ async def main() -> None:
                     "objective": "Explicit simulated permission boundary acceptance",
                     "account_id": account,
                     "symbol": symbol,
-                    "autonomous": False,
                     "maximum_volume": "0.1",
                     "max_trade_actions": 1,
                     "steps": [
@@ -467,11 +473,9 @@ async def main() -> None:
                 run_context,
             )
 
-        # A real legacy Super Bot signature cannot upgrade the current Agent level.
-        legacy = await goal_case("Legacy Goal signature cannot enable analysis Agent", "94")
-        await device.authorize_goal_service(f, legacy)
-        legacy = await f.request("GET", "/trading/goals/" + legacy["id"])
-        assert legacy["state"]["autonomous"] is True
+        # A goal is a plan under the current Agent level: it never upgrades No trading.
+        legacy = await goal_case("A goal cannot enable an analysis Agent", "94")
+        assert "autonomous" not in legacy["state"]
         assert (await state())["effective_level"] == "analysis"
         legacy_context = await goal_context(legacy)
         goal_count = len(await broker.positions())
@@ -480,7 +484,7 @@ async def main() -> None:
         except LonoraError as error:
             assert error.code == "agent_analysis_only", error.code
         else:
-            raise AssertionError("Legacy autonomous Goal signature bypassed Analysis Only")
+            raise AssertionError("A goal bypassed No trading")
         assert len(await broker.positions()) == goal_count
         await change("supervised")
         pending_goal = await goal_action(legacy, legacy_context, "legacy-entry")
@@ -506,7 +510,7 @@ async def main() -> None:
         assert autonomous_goal_result["result"]["status"] == "confirmed", autonomous_goal_result
         assert len(await broker.positions()) == goal_count + 2
         print(
-            "PASS legacy autonomous Goal signature cannot grant Agent rights; same Goal intent needs exact supervised approval or signed account authority"
+            "PASS a goal cannot grant Agent rights; the same Goal intent needs exact supervised approval or signed account authority"
         )
 
         for control, code, stop_loss in (

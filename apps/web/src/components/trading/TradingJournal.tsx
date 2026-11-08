@@ -1,5 +1,7 @@
+import { i18n } from "@lingui/core";
 import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
+import { brokerTicketLabel } from "@lonora/core";
 import { useState } from "react";
 import type { Journal, OperationResolution } from "../../lib/api";
 import { operationStatusLabel } from "../../lib/operation-status";
@@ -106,13 +108,24 @@ export function TradingJournal({
             </span>
             <time>{new Date(e.updated_at).toLocaleString()}</time>
           </summary>
-          <code>{e.operation_id}</code>
+          {typeof e.result.broker_id === "string" && e.result.broker_id && (
+            <p>
+              {brokerTicketLabel(i18n.locale)}: <bdi dir="ltr">{e.result.broker_id}</bdi>
+            </p>
+          )}
           {e.status === "ambiguous" && onChange && (
             <ResolveOperation entry={e} onResolved={onChange} />
           )}
-          <pre className="wrap" dir="ltr">
-            {JSON.stringify(e.result, null, 2)}
-          </pre>
+          {/* Identifiers and raw records are for support, never the normal view. */}
+          <details className="technical-details">
+            <summary>
+              <Trans>Technical details</Trans>
+            </summary>
+            <code dir="ltr">{e.operation_id}</code>
+            <pre className="wrap" dir="ltr">
+              {JSON.stringify(e.result, null, 2)}
+            </pre>
+          </details>
         </details>
       ))}
     </section>

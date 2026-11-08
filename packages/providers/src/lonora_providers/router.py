@@ -1,7 +1,9 @@
 """Model routing with classified recovery across an ordered candidate chain.
 
-Candidates: the Agent's own primary model (owner-chosen), the global route for
-the capability, the Agent's fallbacks, then the global backups. Each candidate
+Candidates: the model a Run was started with (a subagent's chosen model), the
+Agent's own primary model (owner-chosen, or the Agent's own choice in Automatic),
+the global route for the capability, the Agent's fallbacks, the global backups,
+then, for an Automatic Agent, the other models the owner allowed. Each candidate
 is admitted against its own window, retried a bounded number of times for
 transient failures (honouring a short ``Retry-After``), corrected once when its
 output budget is rejected or cut off, and benched for a short period when it
@@ -23,14 +25,14 @@ from lonora_adapter_kit.types import ModelMessage, ModelReply, ToolDefinition
 from lonora_contracts.model_catalog import ModelDescriptor
 from lonora_contracts.model_context import UNKNOWN_OUTPUT_TOKENS, ModelContextPolicy
 from lonora_contracts.model_routing import (
-    AgentModelPreference,
+    AgentModelRecord,
     Capability,
     ModelSelection,
     RoutingPolicy,
 )
 from lonora_core.model_routing import select_model
 from lonora_core.user_error import LonoraError
-from lonora_db.agent_models import agent_model_preference
+from lonora_db.agent_models import added_models, agent_model_preference
 from lonora_db.client import Database
 from lonora_db.transactions import SettingsRepository
 
@@ -143,9 +145,14 @@ class GlobalModelRouter:
         owner_id: str | None = None,
         agent_id: str | None = None,
         choices: Sequence[ModelSelection] | None = None,
+        run_choice: ModelSelection | None = None,
     ) -> Route:
-        """The ordered, de-duplicated candidates for one request."""
-        preference: AgentModelPreference | None = None
+        """The ordered, de-duplicated candidates for one request.
+
+        ``run_choice`` is the model a Run was started with; it leads the Agent's own
+        chain, which stays behind it as the fallback.
+        """
+        record: AgentModelRecord | None = None
         async with self.db.sessions() as session:
             settings = SettingsRepository()
             policy = ModelContextPolicy.model_validate(await settings.get(session, "model_context"))
@@ -160,13 +167,20 @@ class GlobalModelRouter:
                         raise
                     primary = None
                 backups = await settings.get(session, "model_backups")
+                added: list[ModelSelection] = []
                 if owner_id and agent_id:
-                    preference = await agent_model_preference(session, owner_id, agent_id)
+                    record = await agent_model_preference(session, owner_id, agent_id)
+                    if record is None or record.mode == "automatic":
+                        # Automatic: Lonora may fall back on every model the owner allowed.
+                        added = (await added_models(session)).added
+                preference = record.preference if record else None
                 ordered = [
+                    *([run_choice] if run_choice else []),
                     *([preference.primary] if preference and preference.primary else []),
                     *([primary] if primary else []),
                     *(preference.fallbacks if preference else []),
                     *(ModelSelection.model_validate(item) for item in backups.get("choices", [])),
+                    *added,
                 ]
             catalogs: dict[str, list[ModelDescriptor]] = {}
             for provider in dict.fromkeys(item.provider for item in ordered):
@@ -176,9 +190,11 @@ class GlobalModelRouter:
                 ]
         route = Route([], policy, catalogs)
         owned: set[tuple[str, str]] = set()
-        if preference:
-            chosen = [preference.primary, *preference.fallbacks]
+        if record:
+            chosen = [record.preference.primary, *record.preference.fallbacks]
             owned = {(item.provider, item.model) for item in chosen if item}
+        if run_choice:
+            owned.add((run_choice.provider, run_choice.model))
         seen: set[tuple[str, str]] = set()
         for selection in ordered:
             identity = (selection.provider, selection.model)
@@ -202,13 +218,16 @@ class GlobalModelRouter:
         owner_id: str | None = None,
         agent_id: str | None = None,
         input_scale: float = 1.0,
+        run_choice: ModelSelection | None = None,
     ) -> ContextLimits:
         """Admission limits of the model ``complete`` tries first for ``capability``.
 
         Runtime compaction plans against these; every attempt, fallbacks included,
         is still admitted separately against its own window.
         """
-        route = await self.route(capability, owner_id=owner_id, agent_id=agent_id)
+        route = await self.route(
+            capability, owner_id=owner_id, agent_id=agent_id, run_choice=run_choice
+        )
         choice = route.choices[0]
         return context_limits(
             route.descriptor(choice),
@@ -230,14 +249,22 @@ class GlobalModelRouter:
         agent_id: str | None = None,
         input_scale: float = 1.0,
         choices: Sequence[ModelSelection] | None = None,
+        run_choice: ModelSelection | None = None,
     ) -> tuple[ModelReply, ModelSelection]:
         """One model reply from the first candidate that can give one.
 
         ``choices`` replaces the routed chain (a consultation names its model);
-        ``input_scale`` tightens admission after a provider-proven overflow.
+        ``run_choice`` leads it (a subagent started on a chosen model); ``input_scale``
+        tightens admission after a provider-proven overflow.
         """
         started = monotonic()
-        route = await self.route(capability, owner_id=owner_id, agent_id=agent_id, choices=choices)
+        route = await self.route(
+            capability,
+            owner_id=owner_id,
+            agent_id=agent_id,
+            choices=choices,
+            run_choice=run_choice,
+        )
         routing_ms = round((monotonic() - started) * 1000, 2)
         failures: list[tuple[ModelSelection, ModelProviderError]] = []
         waits: list[float] = []

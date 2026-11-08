@@ -60,19 +60,14 @@ export function userError(error: unknown) {
       return t`Virtual monetary profit is unavailable without verified contract and currency valuation.`;
     case "shadow_decision_required":
       return t`Record a fresh market decision before virtual entry.`;
-    case "super_bot_advisory_only":
-      return t`This plan is advisory and cannot execute trades.`;
-    case "super_bot_scope_changed":
     case "device_challenge_not_found":
-    case "super_bot_manual_permission_required":
-      return t`Review a new Super Bot request and authorize it with your device.`;
+      return t`This passkey request is not available in this session. Start it again.`;
     case "device_secure_origin_required":
       return t`Use the configured secure website for device authentication.`;
     case "device_registration_required":
       return t`Register a passkey before activating this request.`;
     case "device_authorization_required":
-    case "super_bot_authority_expansion":
-      return t`Review a new Super Bot request and authorize it with your device.`;
+      return t`This needs a new grant you sign with your passkey.`;
     case "device_authorization_cancelled":
       return t`Device authentication was cancelled. No authority was granted.`;
     case "device_not_supported":
@@ -80,9 +75,6 @@ export function userError(error: unknown) {
     case "device_proof_invalid":
       return t`Device verification failed. No authority was granted.`;
     case "device_challenge_expired_or_used":
-    case "super_bot_request_expired_or_used":
-    case "super_bot_request_expired_or_changed":
-    case "super_bot_plan_changed":
       return t`This authorization request expired or changed. Review a new request.`;
     case "unauthorized":
       return t`Sign-in failed. Check your email and password.`;
@@ -112,13 +104,6 @@ export function userError(error: unknown) {
       return t`The model provider returned an unreadable response. Try again.`;
     case "broker_trading_not_allowed":
       return t`This broker account does not permit trading. Check its trading permissions.`;
-    case "goal_autonomy_required":
-    case "goal_owner_control_required":
-      return t`Enable autonomous trading for this goal in its owner controls first.`;
-    case "goal_volume_limit_required":
-    case "goal_volume_limit":
-    case "goal_action_limit":
-      return t`Review this goal's volume and action limits before continuing.`;
     case "goal_reconciliation_required":
     case "goal_target_ambiguous":
     case "goal_owner_retry_required":
@@ -214,7 +199,7 @@ export function userError(error: unknown) {
     case "rate_limited":
       return t`Too many attempts. Wait a minute and retry.`;
     case "stale_lease":
-      return t`This run was recovered by another worker.`;
+      return t`This step was interrupted and picked up again. Nothing was repeated.`;
     case "task_reconciliation_required":
       return t`This task is waiting for an uncertain external operation to be reconciled.`;
     case "task_cannot_resume":
@@ -223,13 +208,13 @@ export function userError(error: unknown) {
     case "context_limit_exceeded":
     case "history_message_too_large":
     case "history_summary_too_large":
-      return t`This conversation is too large to process. Shorten instructions, use fewer attachments, or start a new conversation.`;
+      return t`This message is too large to process, even after older history was summarized. Shorten it or send fewer attachments; the conversation is kept.`;
     case "history_summary_empty":
       return t`The model could not summarize this conversation. Retry or choose another global model.`;
     case "invalid_tool_exchange":
-      return t`This conversation could not be resumed. Start a new conversation.`;
+      return t`Part of this conversation's history could not be read, so this reply stopped. Send your message again; the conversation is kept.`;
     case "tool_round_limit":
-      return t`The agent reached the step limit for this run. Send another message to continue.`;
+      return t`I paused at this run's step budget. Send a message and I continue from here.`;
     default:
       return t`The request could not be completed. Try again.`;
   }

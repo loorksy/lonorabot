@@ -56,8 +56,9 @@ export function AttentionInbox({
     collaboration_completed: t`Collaboration result is ready`,
     task_review: t`Task needs review`,
     task_degraded: t`Task is retrying through a model outage`,
-    super_bot_authorization: t`Super Bot needs device authorization`,
-    super_bot_changed: t`Super Bot authority updated`,
+    // Retired Super Bot items still stored in the inbox; nothing raises them any more.
+    super_bot_authorization: t`Request updated`,
+    super_bot_changed: t`Request updated`,
     task_completed: t`Task completed`,
     internal_update: t`Activity updated`,
     maintenance_item_quarantined: t`A background item was paused after repeated errors; everything else keeps running`,

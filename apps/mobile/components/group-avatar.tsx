@@ -25,7 +25,7 @@ export function GroupAvatar({ members, size = 54 }: { members: Agent[]; size?: n
   if (members.length === 1)
     return (
       <BotAvatar
-        superBot={members[0].super_bot_active}
+        tradesOnItsOwn={members[0].trades_on_its_own}
         identity={members[0].id}
         color={members[0].color}
         variant={members[0].avatar}
@@ -52,7 +52,7 @@ export function GroupAvatar({ members, size = 54 }: { members: Agent[]; size?: n
           style={{ position: "absolute", ...positions[index], zIndex: index + 1 }}
         >
           <BotAvatar
-            superBot={member.super_bot_active}
+            tradesOnItsOwn={member.trades_on_its_own}
             identity={member.id}
             color={member.color}
             variant={member.avatar}

@@ -6,6 +6,7 @@ import { type AgentMarketMode, agentMarketMode, marketScopeChange } from "@lonor
 import { useEffect, useRef, useState } from "react";
 import { AvatarStudio } from "../../components/ai/AvatarStudio";
 import { PersonalAgentBadge } from "../../components/ai/PersonalAgentBadge";
+import { AgentModelCard } from "../../components/models/AgentModelCard";
 import { AccountAuthoritySettings } from "../../components/trading/AccountAuthoritySettings";
 import { AgentMarketPicker } from "../../components/trading/AgentMarketPicker";
 import { ExecutionModeSettings } from "../../components/trading/ExecutionModeSettings";
@@ -106,6 +107,7 @@ export function AgentSettings({
       )}
       <ExecutionModeSettings agent={agent} />
       <AccountAuthoritySettings key={agent.id} agent={agent} />
+      <AgentModelCard key={`model-${agent.id}`} agent={agent} />
       <label>
         <Trans>Name</Trans>
         <input

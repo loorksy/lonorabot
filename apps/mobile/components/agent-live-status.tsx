@@ -86,38 +86,9 @@ export function AgentLiveStatus({
           {(state.pending_authorization_count ?? 0) > 0 && (
             <Text style={{ color: colors.foreground }}>{t("devicePending")}</Text>
           )}
-          {(state.super_bot ?? []).map((grant) => (
-            <View key={grant.request_id}>
-              <Text style={{ color: colors.foreground }}>
-                {t("superBot")} · {t(grant.mode)}
-              </Text>
-              <Text style={{ color: colors.foreground }}>{grant.title}</Text>
-              {grant.execution_mode === "shadow" && (
-                <Text style={{ color: colors.secondary }}>{t("shadowMode")}</Text>
-              )}
-              {grant.review_status === "failed" && (
-                <Text style={{ color: colors.foreground }}>{t("live_action_required")}</Text>
-              )}
-              <Text style={{ color: colors.secondary }}>
-                {grant.authorization_status === "pending"
-                  ? t("devicePending")
-                  : grant.authorization_status === "paused"
-                    ? t("paused")
-                    : t("active")}
-                {" · "}
-                {(
-                  {
-                    active: t("active"),
-                    waiting: t("live_waiting"),
-                    paused: t("paused"),
-                    blocked: t("taskNeedsReview"),
-                    completed: t("completed"),
-                    cancelled: t("cancelled"),
-                  } as Record<string, string>
-                )[grant.goal_status] ?? t("live_action_required")}
-              </Text>
-            </View>
-          ))}
+          {(state.account_authorities ?? []).some((grant) => grant.review_status === "failed") && (
+            <Text style={{ color: colors.foreground }}>{t("grantReviewFailed")}</Text>
+          )}
           {state.tasks.map((task) => (
             <View key={task.id}>
               <Text style={{ color: colors.foreground }}>{task.title}</Text>

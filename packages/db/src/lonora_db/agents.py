@@ -10,7 +10,7 @@ from .schema import AgentRow, MemoryRow
 from .transactions import owned_agent
 
 
-def agent_data(row: AgentRow, *, super_bot_active: bool = False) -> dict[str, Any]:
+def agent_data(row: AgentRow, *, trades_on_its_own: bool = False) -> dict[str, Any]:
     return {
         "scope_mode": row.scope_mode,
         "scope_revision": row.scope_revision,
@@ -22,7 +22,7 @@ def agent_data(row: AgentRow, *, super_bot_active: bool = False) -> dict[str, An
         "color": row.color,
         "instructions": row.instructions,
         "paused": row.paused,
-        "super_bot_active": super_bot_active,
+        "trades_on_its_own": trades_on_its_own,
         "role": row.role,
         "execution_mode": row.execution_mode,
         "scope": scope_data(row),
@@ -110,6 +110,10 @@ async def update_agent(
             raise LonoraError("agent_scope_change_forbidden", 403)
         if request.expected_scope_revision != row.scope_revision:
             raise LonoraError("version_conflict", 409)
+        from .agent_permissions import pin_level
+
+        # Editing the focus pair never moves the agent on the trading ladder.
+        await pin_level(session, owner_id, row.id)
         row.scope_mode = "flexible"
         row.trading_account_id = request.trading_account_id
         row.trading_symbol = request.trading_symbol

@@ -538,7 +538,9 @@ async def test_every_work_lane_wake_reads_the_goals_of_its_conversation():
             listed = await call(context, "goal_list")
             assert [item["id"] for item in listed["goals"]] == [goal["id"]], label
             read = await call(context, "goal_read", goal_id=goal["id"])
-            assert read["limits"]["account_id"] == connection, label
+            assert read["scope"]["account_id"] == connection, label
+            # A goal's size is plan data: nothing presents it to the model as a limit.
+            assert "limits" not in read and "planned_volume" in read, label
             assert "decisions" in await call(context, "goal_decisions", goal_id=goal["id"])
             async with fixture.runtime.db.sessions() as session:
                 run = await require_lease(session, context.lease)

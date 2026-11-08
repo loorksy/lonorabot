@@ -1,4 +1,4 @@
-"""Invalid Goal schema repairs inside one existing Run; only a real pending card is proposed."""
+"""Invalid Goal schema repairs inside one existing Run; only a real pending grant card is proposed."""
 
 import asyncio
 import json
@@ -14,13 +14,15 @@ from lonora_db.schema import (
     AgentRow,
     BrokerSessionRow,
     MessageRow,
+    OwnerActionRow,
     RunRow,
-    SuperBotRequestRow,
     TradingGoalRow,
     TradingJournalRow,
 )
 from lonora_tools.loader import load_tools
 from sqlalchemy import func, select
+
+SUMMARY = "جهّزت خطة المراجعة وبطاقة التفويض؛ لن أتداول بنفسي قبل أن توقّعها بمفتاح المرور."
 
 
 async def main():
@@ -37,7 +39,32 @@ async def main():
                 },
             )
         )["id"]
-        agent = await f.agent("Natural-language Super Bot setup")
+        # The grant card suggests a daily loss from the account's actual equity.
+        await f.request(
+            "POST",
+            f"/trading/connections/{account}/simulation",
+            {
+                "snapshot": {
+                    "balance": "5000",
+                    "equity": "5000",
+                    "currency": "USD",
+                    "instruments": [
+                        {
+                            "symbol": "XAUUSDm",
+                            "digits": 2,
+                            "tick_size": "0.01",
+                            "volume_min": "0.01",
+                            "volume_max": "10",
+                            "volume_step": "0.01",
+                        }
+                    ],
+                    "quotes": {},
+                    "positions": [],
+                    "orders": [],
+                }
+            },
+        )
+        agent = await f.agent("Natural-language trading setup")
         async with f.runtime.db.sessions() as s, s.begin():
             row = await s.get(AgentRow, agent["id"])
             assert row
@@ -106,10 +133,11 @@ async def main():
                 saved = json.loads(observation.content)
                 assert saved["ok"] and saved["payload"]["steps"][0]["kind"] == "review"
                 goal_id = saved["id"]
+                # Trading on its own is one grant card the owner signs, never a goal flag.
                 call = ToolCall(
                     id="prepare-card",
-                    name="super_bot_propose",
-                    arguments={"goal_id": goal_id, "mode": "supervised"},
+                    name="owner_action_propose",
+                    arguments={"kind": "grant_authority"},
                 )
             else:
                 observation = next(
@@ -118,10 +146,9 @@ async def main():
                     if message.role == "tool" and message.tool_call_id == "prepare-card"
                 )
                 proposal = json.loads(observation.content)
-                assert proposal["ok"] and proposal["status"] == "pending"
-                assert proposal["internal_ids_are_private"] is True
-                assert "لم يُفعّل التداول التلقائي" in proposal["owner_summary"]
-                return ModelReply(text=proposal["owner_summary"]), ModelSelection(
+                assert proposal["ok"] and proposal["passkey_required"] is True, proposal
+                assert proposal["execution_authorized"] is False
+                return ModelReply(text=SUMMARY), ModelSelection(
                     provider="openai", model="scripted-setup-fixture"
                 )
             phase += 1
@@ -141,14 +168,17 @@ async def main():
                 .limit(1)
             )
             assert answer and goal_id not in answer.content and "pending" not in answer.content
-            assert "بطاقة" not in answer.content and "لم يُفعّل التداول التلقائي" in answer.content
+            assert answer.content == SUMMARY
             assert await s.scalar(select(func.count()).select_from(TradingGoalRow)) == 1
-            row = await s.scalar(
-                select(SuperBotRequestRow).where(SuperBotRequestRow.goal_id == goal_id)
+            card = await s.scalar(
+                select(OwnerActionRow).where(
+                    OwnerActionRow.thread_id == thread["id"],
+                    OwnerActionRow.kind == "grant_authority",
+                )
             )
-            assert row and row.status == "pending" and row.mode == "supervised"
+            assert card and card.status == "pending"
             goal = await s.get(TradingGoalRow, goal_id)
-            assert goal and not goal.state.get("autonomous")
+            assert goal and "autonomous" not in goal.state
             assert await s.scalar(select(func.count()).select_from(TradingJournalRow)) == 0
         async with f.runtime.db.sessions() as s, s.begin():
             broker = await s.get(BrokerSessionRow, account)
@@ -166,7 +196,7 @@ async def main():
         assert live["health"][0]["reason_code"] == "broker_reconciliation_pending"
         assert not any(item.get("kind") == "market" for item in live["health"])
         print(
-            "PASS same normal AgentRuntime repairs exact field validation and creates one real supervised card without a second user message, price fabrication, authority grant or trade"
+            "PASS same normal AgentRuntime repairs exact field validation and proposes one real grant card without a second user message, price fabrication, authority grant or trade"
         )
     finally:
         await f.close()

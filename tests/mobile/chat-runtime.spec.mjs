@@ -192,10 +192,17 @@ test("native bridge locally enqueues and clears before delayed ACK, then shows a
     const identity = { turn_id: "actual-turn", fence: 1, generation: 1, input_seq: 1 };
     event("run.reply_started", { ...identity, sequence: 0 });
     await expect(activity).toContainText("Thinking");
-    event("tool.started", { call_id: "call-one", name: "web_search" });
+    event("tool.started", {
+      call_id: "call-one",
+      name: "web_search",
+      toolset: "research",
+      effect: "read",
+    });
     await expect(activity).toContainText("Searching");
     await activity.getByRole("button").click();
-    await expect(activity).toContainText("web_search");
+    // The step reads as what the agent does; the registry id is not shown.
+    await expect(activity).toContainText("Searching sources");
+    await expect(activity).not.toContainText("web_search");
     event("tool.completed", { call_id: "call-one", name: "web_search", ok: true });
     event("run.delta", { ...identity, sequence: 1, text: "This arrives before completion. " });
     await expect(page.getByText("This arrives before completion.", { exact: true })).toBeVisible();

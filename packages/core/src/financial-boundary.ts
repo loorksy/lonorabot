@@ -137,6 +137,50 @@ export function financialBoundaryError(
   return messages[code][language(locale)];
 }
 
+const CHECK_EN = "Check your positions and orders before acting.";
+const CHECK_AR = "تحقّق من مراكزك وأوامرك قبل أي إجراء.";
+
+const UNCONFIRMED: Text = {
+  en: `The broker's answer was not confirmed, so this will not be sent again. ${CHECK_EN}`,
+  ar: `لم يتأكد رد الوسيط، لذلك لن يُرسل هذا الطلب مجددًا. ${CHECK_AR}`,
+};
+
+// After the send boundary nothing may be resent, so an uncertain result never reads as
+// "not sent" or "try again", whatever code the executor recorded.
+const uncertainMessages: Readonly<Record<string, Text>> = {
+  broker_result_ambiguous: UNCONFIRMED,
+  execution_interrupted_after_send: {
+    en: `The request was interrupted after it was sent, so its result is not confirmed and it will not be sent again. ${CHECK_EN}`,
+    ar: `انقطع الطلب بعد إرساله، فنتيجته غير مؤكدة ولن يُرسل مجددًا. ${CHECK_AR}`,
+  },
+  broker_result_mismatch: {
+    en: `The broker's answer did not match this request, so its result is not confirmed and it will not be sent again. ${CHECK_EN}`,
+    ar: `لم يطابق رد الوسيط هذا الطلب، فنتيجته غير مؤكدة ولن يُرسل مجددًا. ${CHECK_AR}`,
+  },
+  operation_in_progress: {
+    en: "This request is still waiting for the broker's result. It will not be sent again.",
+    ar: "ما زال هذا الطلب بانتظار نتيجة الوسيط. لن يُرسل مجددًا.",
+  },
+};
+
+/**
+ * The one reason line under a financial operation's status, identical on Web and Mobile:
+ * an uncertain result says it will not be resent, a known not-sent cause says why, and
+ * any other status needs no reason beyond its status line (null).
+ */
+export function financialResultReason(
+  status: string,
+  code: string | null | undefined,
+  locale: string,
+): string | null {
+  if (status === "ambiguous") {
+    const text = code && Object.hasOwn(uncertainMessages, code) ? uncertainMessages[code] : null;
+    return (text ?? UNCONFIRMED)[language(locale)];
+  }
+  if (status === "failed") return financialBoundaryError(code, locale);
+  return null;
+}
+
 export type OperationStatusKey =
   | "preparing"
   | "awaiting_broker"
@@ -231,4 +275,40 @@ const statusTexts: Readonly<Record<OperationStatusKey, Text>> = {
 /** The status line for clients without their own message catalog (Mobile). */
 export function operationStatusText(status: string, details: unknown, locale: string): string {
   return statusTexts[operationStatusKey(status, details)][language(locale)];
+}
+
+const approvalTexts: Readonly<Record<string, Text>> = {
+  pending: { en: "Waiting for your approval", ar: "بانتظار موافقتك" },
+  approved: { en: "Approved — awaiting broker result", ar: "تمت الموافقة — بانتظار نتيجة الوسيط" },
+  rejected: { en: "Rejected", ar: "مرفوض" },
+  cancelled: { en: "Cancelled", ar: "أُلغي" },
+  expired: { en: "Expired", ar: "انتهت صلاحيته" },
+  completed: { en: "Broker result", ar: "نتيجة الوسيط" },
+};
+
+/** One label per approval-card state, identical on Web and Mobile. */
+export function approvalStatusText(status: string, locale: string): string {
+  return (approvalTexts[status] ?? approvalTexts.completed)[language(locale)];
+}
+
+/** "Broker ticket" before a broker reference, so a bare number never stands alone. */
+export function brokerTicketLabel(locale: string): string {
+  return language(locale) === "ar" ? "تذكرة الوسيط" : "Broker ticket";
+}
+
+const runTexts: Readonly<Record<string, Text>> = {
+  queued: { en: "Queued", ar: "في الانتظار" },
+  leased: { en: "Starting", ar: "يبدأ العمل" },
+  running: { en: "Working", ar: "يعمل" },
+  waiting_input: { en: "Waiting for your reply", ar: "بانتظار ردك" },
+  waiting_takeover: { en: "Waiting to resume", ar: "بانتظار الاستئناف" },
+  completed: { en: "Completed", ar: "مكتمل" },
+  failed: { en: "Failed", ar: "فشل" },
+  cancelled: { en: "Cancelled", ar: "أُلغي" },
+  paused: { en: "Paused", ar: "متوقف مؤقتًا" },
+};
+
+/** One label per run status, identical on Web and Mobile. */
+export function runStatusText(status: string, locale: string): string {
+  return (runTexts[status] ?? runTexts.queued)[language(locale)];
 }

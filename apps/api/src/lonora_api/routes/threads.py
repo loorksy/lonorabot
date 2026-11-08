@@ -3,9 +3,9 @@ from typing import Any
 from fastapi import APIRouter, Depends, Request
 from lonora_auth.identity import OwnerIdentity
 from lonora_contracts.domain import ThreadCreate
+from lonora_db.authority_lock import authority_lock
 from lonora_db.inbox import inbox_projection
 from lonora_db.obligations import prepare_delete
-from lonora_db.super_bot import authority_lock
 from lonora_db.threads import create_thread, list_threads, thread_data
 from lonora_db.transactions import owned_thread
 

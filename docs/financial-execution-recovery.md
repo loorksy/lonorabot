@@ -224,13 +224,12 @@ Today every other caller (`trade_execute`, Goal steps) submits a single request.
 
 ## Durable records and deletes
 
-Journal rows, approvals, grants, restrictions, goal decisions and Super Bot requests
-survive the agent, conversation, Run, goal or broker connection they name (migration
+Journal rows, approvals, grants, restrictions, goal decisions and retired Super Bot
+requests survive the agent, conversation, Run, goal or broker connection they name (migration
 `0036_durable_records`). A delete of an agent, a conversation or a broker connection is
 refused with `delete_blocked_unresolved_operation` while an operation it touches has no
 confirmed broker outcome. Otherwise the delete settles what depended on the parent: a
-grant signed in a deleted conversation is revoked visibly, its Super Bot requests are
-stopped, its goals cancelled with `goal_origin_deleted` and its waiting owner action
+grant signed in a deleted conversation is revoked visibly, its goals cancelled with `goal_origin_deleted` and its waiting owner action
 cards superseded, so no record keeps reading active while it can no longer run. A live
 operation still uncertain after fifteen minutes raises one `operation_unresolved`
 attention item from the watchdog, in the conversation of the agent that placed it,

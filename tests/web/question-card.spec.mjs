@@ -83,7 +83,7 @@ for (const locale of ["en", "ar"]) {
         ),
       ).toHaveLength(1);
       const grants = await (
-        await context.request.get(`/api/agents/${fixture.agent.id}/super-bot`)
+        await context.request.get(`/api/agents/${fixture.agent.id}/account-authorities`)
       ).json();
       expect(grants).toHaveLength(0);
       const journal = await (await context.request.get("/api/trading/journal")).json();

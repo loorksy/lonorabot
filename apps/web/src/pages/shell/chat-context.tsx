@@ -3,13 +3,7 @@
 
 import { t } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
-import type {
-  InputAnswer,
-  OwnerAction,
-  SuperBotRequest,
-  TradeApproval,
-  VisualAction,
-} from "@lonora/contracts";
+import type { InputAnswer, OwnerAction, TradeApproval, VisualAction } from "@lonora/contracts";
 import {
   canCancel,
   conversationTimeline,
@@ -52,7 +46,6 @@ import { FilePreviewPanel } from "../../components/common/FilePreviewPanel";
 import { ConversationQuestion } from "../../components/conversation-question";
 import { OwnerActionCard, useOwnerActions } from "../../components/owner-actions/OwnerActionCard";
 import { AgentPermissions } from "../../components/permissions/AgentPermissions";
-import { SuperBotCard, useSuperBotRequests } from "../../components/trading/SuperBotCards";
 import { TradeApprovalCard, useTradeApprovals } from "../../components/trading/TradeApprovals";
 import { useThreads } from "../../hooks/useThreads";
 import type { Agent, Message, Resource, Run } from "../../lib/api";
@@ -99,7 +92,6 @@ export function ThreadViewport({
   const agent = agents.find((item) => item.id === agentId);
   const thread = useThreads(undefined, threadId, knownRuns);
   const approvalState = useTradeApprovals(threadId);
-  const superBot = useSuperBotRequests(agentId, { threadId });
   const ownerActions = useOwnerActions(threadId);
   const { owner, events, revision, streams, seedStreams, connected } = useClient();
   const repairingStreams = useRef(new Set<string>());
@@ -281,7 +273,6 @@ export function ThreadViewport({
         artifactError ??
         peerError ??
         approvalState.error ??
-        superBot.error ??
         ownerActions.error) != null && (
         <p className="template-thread-error" role="alert">
           {userError(
@@ -290,7 +281,6 @@ export function ThreadViewport({
               artifactError ??
               peerError ??
               approvalState.error ??
-              superBot.error ??
               ownerActions.error,
           )}
         </p>
@@ -317,8 +307,6 @@ export function ThreadViewport({
           thread.send(label, [], messageId, undefined, answer)
         }
         approvals={approvalState.rows}
-        superBotRequests={superBot.rows}
-        renderSuperBot={(row) => <SuperBotCard row={row} onChanged={superBot.update} />}
         ownerActions={ownerActions.rows}
         renderOwnerAction={(row) => <OwnerActionCard row={row} onChanged={ownerActions.update} />}
         renderApproval={(row) => (
@@ -365,6 +353,9 @@ export function ThreadViewport({
               agent={agent}
               threadId={threadId}
               surface="composer"
+              pendingTrade={approvalState.rows.some(
+                (row) => row.agent_id === agentId && row.status === "pending",
+              )}
             />
           ) : undefined
         }
@@ -913,8 +904,6 @@ export function ThreadMessages({
   showSpeakers = true,
   approvals = [],
   renderApproval,
-  superBotRequests = [],
-  renderSuperBot,
   ownerActions = [],
   renderOwnerAction,
   onAnswer,
@@ -934,8 +923,6 @@ export function ThreadMessages({
   messages: Message[];
   streaming?: StreamRow[];
   approvals?: TradeApproval[];
-  superBotRequests?: SuperBotRequest[];
-  renderSuperBot?: (row: SuperBotRequest) => ReactNode;
   renderApproval?: (row: TradeApproval) => ReactNode;
   ownerActions?: OwnerAction[];
   renderOwnerAction?: (row: OwnerAction) => ReactNode;
@@ -1079,9 +1066,7 @@ export function ThreadMessages({
             </button>
           )}
           {olderError != null && <p role="alert">{userError(olderError)}</p>}
-          {conversationTimeline(messages, approvals, superBotRequests, ownerActions).map((item) => {
-            if (item.kind === "super_bot")
-              return <Fragment key={item.id}>{renderSuperBot?.(item.request)}</Fragment>;
+          {conversationTimeline(messages, approvals, ownerActions).map((item) => {
             if (item.kind === "owner_action")
               return <Fragment key={item.id}>{renderOwnerAction?.(item.action)}</Fragment>;
             if (item.kind === "approval")

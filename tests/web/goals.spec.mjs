@@ -11,23 +11,11 @@ function fixture(data) {
   );
 }
 
-test("owner reviews a durable goal and controls limits, autonomy, pause, same-thread wake and cancellation", async ({
+test("a goal is a plan under the agent's level: pause, same-thread wake and cancellation, no autonomy switch", async ({
   page,
   context,
 }) => {
   const data = fixture({ action: "init" });
-  const device = await context.newCDPSession(page);
-  await device.send("WebAuthn.enable");
-  await device.send("WebAuthn.addVirtualAuthenticator", {
-    options: {
-      protocol: "ctap2",
-      transport: "internal",
-      hasResidentKey: true,
-      hasUserVerification: true,
-      isUserVerified: true,
-      automaticPresenceSimulation: true,
-    },
-  });
   let agent;
   const headers = {
     "X-CSRF-Token": data.cookies.find((cookie) => cookie.name === "lonora_csrf").value,
@@ -81,30 +69,17 @@ test("owner reviews a durable goal and controls limits, autonomy, pause, same-th
     await page.getByRole("button", { name: "Goals", exact: true }).click();
     const card = page.locator(`[data-goal-id='${goal.id}']`);
     await expect(card.getByText(goal.payload.title, { exact: true })).toBeVisible();
-    const autonomy = card.getByLabel("Allow autonomous trading for this goal", { exact: true });
-    await expect(autonomy).not.toBeChecked();
-    await card.getByLabel("Maximum volume", { exact: true }).fill("0.2");
-    // The controlled value follows durable server admission, not an optimistic toggle.
-    await autonomy.click();
-    await expect(autonomy).not.toBeChecked();
-    // A first activation attempt explains missing enrollment and opens its
-    // real registration flow instead of leaving the user at a dead-end error.
-    await card
-      .getByRole("button", { name: "Activate with device authentication", exact: true })
-      .click();
-    await expect(card.getByLabel("Confirm account password", { exact: true })).toBeVisible();
-    await card
-      .getByLabel("Confirm account password", { exact: true })
-      .fill("ci-only-owner-password");
-    await card.getByRole("button", { name: "Register this device", exact: true }).click();
-    await expect(card.getByLabel("Confirm account password", { exact: true })).toHaveCount(0);
-    await card
-      .getByRole("button", { name: "Activate with device authentication", exact: true })
-      .click();
-    await expect(autonomy).toBeChecked();
+    // No second authority system: no per-goal autonomy switch, limit knobs or Super Bot.
+    await expect(
+      card.getByLabel("Allow autonomous trading for this goal", { exact: true }),
+    ).toHaveCount(0);
+    await expect(card.getByLabel("Maximum volume", { exact: true })).toHaveCount(0);
+    await expect(card.getByText(/Super Bot/)).toHaveCount(0);
+    await expect(
+      card.getByText(/This goal is a plan under the agent's trading level and signed grant/),
+    ).toBeVisible();
     const current = await (await context.request.get(`/api/trading/goals/${goal.id}`)).json();
-    expect(current.state.autonomous).toBe(true);
-    expect(current.payload.maximum_volume).toBe("0.2");
+    expect(current.state).not.toHaveProperty("autonomous");
     await card.getByRole("button", { name: "Pause", exact: true }).click();
     await expect(card.getByRole("button", { name: "Resume", exact: true })).toBeVisible();
     await page.reload();
@@ -124,7 +99,7 @@ test("owner reviews a durable goal and controls limits, autonomy, pause, same-th
     await card.getByText("Execution history", { exact: true }).click();
     await expect(card.getByText("No financial executions yet.", { exact: true })).toBeVisible();
     await card.getByRole("button", { name: "Cancel goal", exact: true }).click();
-    await expect(autonomy).toBeDisabled();
+    await expect(card.getByRole("button", { name: "Cancel goal", exact: true })).toBeDisabled();
     await expect
       .poll(
         async () =>
@@ -141,7 +116,7 @@ test("owner reviews a durable goal and controls limits, autonomy, pause, same-th
   }
 });
 
-test("signed Shadow goal is visibly virtual and cannot inherit live authority after mode changes", async ({
+test("a Shadow goal is visibly virtual, needs no goal autonomy and pauses when the mode changes", async ({
   page,
   context,
 }) => {
@@ -158,18 +133,6 @@ test("signed Shadow goal is visibly virtual and cannot inherit live authority af
     })),
   );
   await context.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
-  const device = await context.newCDPSession(page);
-  await device.send("WebAuthn.enable");
-  await device.send("WebAuthn.addVirtualAuthenticator", {
-    options: {
-      protocol: "ctap2",
-      transport: "internal",
-      hasResidentKey: true,
-      hasUserVerification: true,
-      isUserVerified: true,
-      automaticPresenceSimulation: true,
-    },
-  });
   let agent;
   try {
     agent = await (
@@ -210,31 +173,20 @@ test("signed Shadow goal is visibly virtual and cannot inherit live authority af
     expect(goalResponse.status()).toBe(201);
     const goal = await goalResponse.json();
     expect(goal.execution_mode).toBe("shadow");
-    const proposed = await context.request.post(`/api/agents/${agent.id}/super-bot/proposals`, {
+    expect(goal.state).not.toHaveProperty("autonomous");
+    // The retired Super Bot request route is gone.
+    const retired = await context.request.post(`/api/agents/${agent.id}/super-bot/proposals`, {
       headers,
       data: { goal_id: goal.id, mode: "autonomous" },
     });
-    expect(proposed.status()).toBe(201);
-    const request = await proposed.json();
+    expect([404, 405]).toContain(retired.status());
     await page.goto(`/app/${agent.id}`);
-    const card = page.locator(`[data-super-bot-id='${request.id}']`);
+    await page.getByRole("button", { name: `Agent settings: ${agent.name}`, exact: true }).click();
+    await page.getByRole("button", { name: "Goals", exact: true }).click();
+    const card = page.locator(`[data-goal-id='${goal.id}']`);
     await expect(
       card.getByText("Shadow trading — virtual orders only", { exact: true }),
     ).toBeVisible();
-    await card.getByRole("button", { name: "Review plan", exact: true }).click();
-    await card.getByRole("button", { name: "Register a passkey", exact: true }).click();
-    // Password inputs deliberately have no textbox role in every engine.
-    await page
-      .getByLabel("Confirm account password", { exact: true })
-      .fill("ci-only-owner-password");
-    await page.getByRole("button", { name: "Register this device", exact: true }).click();
-    await expect(page.getByLabel("Confirm account password", { exact: true })).toHaveCount(0);
-    await card
-      .getByRole("button", { name: "Activate with device authentication", exact: true })
-      .click();
-    await expect(card.getByText("Super Bot · Active", { exact: true })).toBeVisible();
-    const active = await (await context.request.get(`/api/trading/goals/${goal.id}`)).json();
-    expect(active.state).toMatchObject({ execution_mode: "shadow", autonomous: true });
     expect((await (await context.request.get("/api/trading/controls")).json()).enabled).toBe(false);
     expect(
       (
@@ -245,16 +197,13 @@ test("signed Shadow goal is visibly virtual and cannot inherit live authority af
       ).ok(),
     ).toBeTruthy();
     await page.reload();
-    await expect(card.getByText("Super Bot · Stopped", { exact: true })).toBeVisible();
     await expect(
       card.getByText("Shadow trading — virtual orders only", { exact: true }),
     ).toBeVisible();
+    // The reason reads as a sentence, never a raw code.
+    await expect(card.getByText("execution_mode_changed", { exact: true })).toHaveCount(0);
     const paused = await (await context.request.get(`/api/trading/goals/${goal.id}`)).json();
-    expect(paused.state).toMatchObject({
-      execution_mode: "shadow",
-      autonomous: false,
-      status: "paused",
-    });
+    expect(paused.state).toMatchObject({ execution_mode: "shadow", status: "paused" });
   } finally {
     if (agent) await context.request.delete(`/api/agents/${agent.id}`, { headers });
     fixture({ ...data, action: "cleanup" });
