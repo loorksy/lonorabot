@@ -1,5 +1,7 @@
+import { i18n } from "@lingui/core";
 import { Trans } from "@lingui/react/macro";
 import type { TradeApproval as Approval } from "@lonora/contracts";
+import { financialBoundaryError } from "@lonora/core";
 import { useEffect, useRef, useState } from "react";
 import { api } from "../../lib/api";
 import { operationStatusLabel } from "../../lib/operation-status";
@@ -211,9 +213,7 @@ export function TradeApprovalCard({
             </p>
           )}
           {result.code && (
-            <p>
-              <bdi>{result.code}</bdi>
-            </p>
+            <p>{financialBoundaryError(result.code, i18n.locale) ?? <bdi>{result.code}</bdi>}</p>
           )}
           {Object.entries(result.details ?? {})
             .filter(([key]) =>

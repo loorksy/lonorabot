@@ -1,4 +1,5 @@
 import type { TradeApproval } from "@lonora/contracts";
+import { financialBoundaryError, operationStatusText } from "@lonora/core";
 import { useRef, useState } from "react";
 import { Text, View } from "react-native";
 import { api } from "../lib/api";
@@ -12,7 +13,7 @@ export function TradeApprovalCard({
   row: TradeApproval;
   onChange: (value: TradeApproval) => void;
 }) {
-  const { t, errorText, rtl } = useSession();
+  const { t, errorText, rtl, locale } = useSession();
   const [busy, setBusy] = useState(false);
   const pending = useRef(false);
   const [error, setError] = useState<string>();
@@ -79,21 +80,33 @@ export function TradeApprovalCard({
           {t(row.status === "completed" ? "brokerResult" : row.status)}
         </Text>
       )}
-      {row.results.map((result) => (
-        <View key={result.operation_id}>
-          <Text style={{ color: colors.foreground }}>{t(result.status)}</Text>
-          {result.code === "broker_reconciliation_required" && (
-            <Text style={{ color: colors.foreground, textAlign: rtl ? "right" : "left" }}>
-              {t("broker_reconciliation_required")}
+      {row.results.map((result) => {
+        // Shared with Web: the evidence-backed stage ("Not sent" when it never reached
+        // the broker) and why, in the owner's language instead of a raw code.
+        const reason = financialBoundaryError(result.code, locale);
+        return (
+          <View key={result.operation_id}>
+            <Text style={{ color: colors.foreground }}>
+              {operationStatusText(result.status, result.details, locale)}
             </Text>
-          )}
-          <Text style={{ color: colors.foreground, writingDirection: "ltr" }}>
-            {[result.broker_id, result.code, result.details.price, result.details.description]
-              .filter((value) => value != null)
-              .join(" · ")}
-          </Text>
-        </View>
-      ))}
+            {reason && (
+              <Text style={{ color: colors.foreground, textAlign: rtl ? "right" : "left" }}>
+                {reason}
+              </Text>
+            )}
+            <Text style={{ color: colors.foreground, writingDirection: "ltr" }}>
+              {[
+                result.broker_id,
+                reason ? null : result.code,
+                result.details.price,
+                result.details.description,
+              ]
+                .filter((value) => value != null)
+                .join(" · ")}
+            </Text>
+          </View>
+        );
+      })}
       <ErrorNotice text={error} />
     </View>
   );

@@ -435,10 +435,6 @@ export const labels = {
     "Voice service is not configured yet.",
   ],
   brokerResult: ["نتيجة الوسيط", "Broker result"],
-  broker_reconciliation_required: [
-    "لم يُرسل الطلب؛ يلزم التحقق من نتيجة عملية سابقة على هذا السوق لدى الوسيط. يبقى الإغلاق وإلغاء الأوامر المعلقة وتضييق وقف الخسارة متاحًا.",
-    "The request was not sent; a previous operation on this market still needs broker verification. Closing, cancelling pending orders and tightening stops remain available.",
-  ],
   tradeApproval: ["طلب تداول", "Trading request"],
   approve: ["موافقة", "Approve"],
   reject: ["رفض", "Reject"],

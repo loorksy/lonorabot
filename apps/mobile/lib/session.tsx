@@ -1,5 +1,5 @@
 import type { Owner } from "@lonora/contracts";
-import { agentPermissionError } from "@lonora/core";
+import { agentPermissionError, financialBoundaryError } from "@lonora/core";
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useState } from "react";
 import { AppState, Platform } from "react-native";
 import {
@@ -156,6 +156,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     if (error instanceof ApiError) {
       const permissionMessage = agentPermissionError(error.code, locale);
       if (permissionMessage) return permissionMessage;
+      const boundaryMessage = financialBoundaryError(error.code, locale);
+      if (boundaryMessage) return boundaryMessage;
       return Object.hasOwn(labels, error.code)
         ? translate(locale, error.code as Label)
         : t("request_failed");

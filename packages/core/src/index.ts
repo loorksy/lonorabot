@@ -26,6 +26,12 @@ export {
   nearConversationBottom,
 } from "./conversation-timeline";
 export { webDeviceProof, webDeviceSupported } from "./device-proof";
+export {
+  financialBoundaryError,
+  type OperationStatusKey,
+  operationStatusKey,
+  operationStatusText,
+} from "./financial-boundary";
 export { ReadRequestGate } from "./read-request-gate";
 export {
   accumulateStream,

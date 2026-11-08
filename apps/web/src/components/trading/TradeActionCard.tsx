@@ -1,4 +1,6 @@
+import { i18n } from "@lingui/core";
 import { Trans } from "@lingui/react/macro";
+import { financialBoundaryError } from "@lonora/core";
 import { useRef, useState } from "react";
 import type { Instrument, Payload } from "../../lib/api";
 import { operationStatusLabel, operationUnsettled } from "../../lib/operation-status";
@@ -163,6 +165,9 @@ export function TradeActionCard({
               {" "}
               <Trans>This operation will not be sent again.</Trans>
             </>
+          )}
+          {financialBoundaryError(String(result.code ?? ""), i18n.locale) && (
+            <> {financialBoundaryError(String(result.code ?? ""), i18n.locale)}</>
           )}
         </p>
       )}

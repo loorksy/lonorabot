@@ -1,12 +1,15 @@
 import { i18n } from "@lingui/core";
 import { t } from "@lingui/core/macro";
-import { agentPermissionError, errorCode } from "@lonora/core";
+import { agentPermissionError, errorCode, financialBoundaryError } from "@lonora/core";
 import { isRequestCancelled } from "./api";
 export function userError(error: unknown) {
   if (isRequestCancelled(error)) return "";
   const code = errorCode(error);
   const permissionMessage = agentPermissionError(code, i18n.locale);
   if (permissionMessage) return permissionMessage;
+  // Restrictions, money limits and boundary blocks: why nothing was sent, shared text.
+  const boundaryMessage = financialBoundaryError(code, i18n.locale);
+  if (boundaryMessage) return boundaryMessage;
   switch (code) {
     case "agent_scope_change_forbidden":
       return t`This agent’s market scope cannot be changed.`;
@@ -147,9 +150,6 @@ export function userError(error: unknown) {
       return t`Broker candles are unavailable for this symbol and timeframe.`;
     case "symbol_not_found":
       return t`This exact symbol is not available from your broker.`;
-    case "broker_reconciliation_pending":
-    case "broker_reconciliation_required":
-      return t`A previous operation on this market still needs broker verification, so this new order was not sent. Closing positions, cancelling pending orders and tightening stops remain available.`;
     case "operation_in_progress":
       return t`This operation is still in progress. Wait for its broker result before resolving it.`;
     case "operation_already_settled":
