@@ -48,7 +48,7 @@ from typing import Any, Literal, cast
 from lonora_adapter_kit.types import ToolCall
 from lonora_tools.base import Tool
 
-from .environment import blocked_route, route_key
+from .environment import blocked_route, expire_read_routes, route_key
 
 STATE_KEY = "tool_guardrails"
 VERSION = 1
@@ -219,6 +219,8 @@ def reset_guardrails(state: dict[str, Any]) -> None:
     """Real owner input or an external wake starts a new review epoch."""
     state.pop(STATE_KEY, None)
     state.pop("guard", None)
+    # Exhausted reads may succeed now; uncertain effects stay blocked.
+    expire_read_routes(state)
 
 
 def result_digest(result: dict[str, Any]) -> str:

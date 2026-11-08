@@ -469,3 +469,27 @@ def test_owner_attention_notice_states_the_known_truth_in_the_owner_language() -
     limited = attention_notice("tool_round_limit", False, [f"step {n}" for n in range(14)])
     assert "work limit" in limited and "(+2)" in limited
     assert attention_notice("guardrail_halt", False).startswith("This task stopped before")
+
+
+def test_an_exhausted_read_route_expires_with_a_new_review_epoch() -> None:
+    from lonora_agent.environment import blocked_route, observe
+
+    state: dict[str, Any] = {}
+    quote = call("read_a", symbol="XAUUSD")
+    for _ in range(3):
+        observe(state, quote, TOOLS["read_a"], {"ok": False, "code": "market_quote_unavailable"})
+    trade = call("trade", side="buy", symbol="XAUUSD", volume=0.01)
+    observe(state, trade, TOOLS["trade"], {"ok": True, "status": "ambiguous"})
+    assert blocked_route(state, quote) and blocked_route(state, trade)
+    # Real owner input or an external wake: the market may have reopened.
+    guardrails.reset_guardrails(state)
+    assert blocked_route(state, quote) is None
+    # An uncertain effect keeps blocking until it is reconciled.
+    assert blocked_route(state, trade)
+    # Records written before the read-only flag existed are kept.
+    observe(state, quote, TOOLS["read_a"], {"ok": False, "code": "market_quote_unavailable"})
+    for record in state["environment"]["routes"].values():
+        record.pop("read_only", None)
+        record["failures"] = 3
+    guardrails.reset_guardrails(state)
+    assert blocked_route(state, quote)

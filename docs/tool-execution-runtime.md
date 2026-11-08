@@ -218,7 +218,10 @@ The guardrail controller (adapted from Hermes Agent `agent/tool_guardrails.py`,
 MIT) replaces the old `repeated_tool_call` Run failure, which fired after the
 effect had already run. Its JSON state lives in the Run checkpoint
 (`tool_guardrails`), so restarts and compute slices cannot reset it; real owner
-input and external wakes start a new epoch.
+input and external wakes start a new epoch. A new epoch also expires exhausted
+read-only route records (`expire_read_routes`), so a quote refused while the market
+was closed can be read again after a wake; ambiguous effect routes stay blocked
+until reconciled.
 
 | Signal | Warn | Block / halt |
 | --- | --- | --- |

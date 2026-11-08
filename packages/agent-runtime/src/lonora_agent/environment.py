@@ -98,6 +98,29 @@ def environment_state(state: dict[str, Any]) -> dict[str, Any]:
     return environment
 
 
+def expire_read_routes(state: dict[str, Any]) -> None:
+    """Forget settled read routes at real owner input or an external wake.
+
+    An exhausted read (for example a quote while the market was closed) would
+    otherwise stay refused for the rest of a long-lived Run. Only records known
+    to be read-only and not ambiguous are dropped; an uncertain effect, and any
+    record written before the flag existed, keeps blocking until reconciled.
+    """
+    environment = state.get("environment")
+    if not isinstance(environment, dict):
+        return
+    routes = cast(dict[str, Any], environment).get("routes")
+    if not isinstance(routes, dict):
+        return
+    for key, record in list(cast(dict[str, Any], routes).items()):
+        if (
+            isinstance(record, dict)
+            and cast(dict[str, Any], record).get("read_only") is True
+            and not cast(dict[str, Any], record).get("ambiguous")
+        ):
+            del routes[key]
+
+
 def blocked_route(state: dict[str, Any], call: ToolCall) -> dict[str, Any] | None:
     record = environment_state(state)["routes"].get(route_key(call), {})
     if record.get("ambiguous") or record.get("failures", 0) >= 3:
@@ -161,6 +184,8 @@ def observe(
             and (call.id not in env.get("legacy_pending", []) or tool.legacy_replay_safe)
         ),
         "observed_at": utcnow().isoformat(),
+        # Lets a new review epoch expire exhausted reads, never uncertain effects.
+        "read_only": bool(tool and tool.read_only),
     }
     routes.pop(key, None)
     routes[key] = record
