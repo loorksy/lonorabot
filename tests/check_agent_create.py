@@ -291,8 +291,13 @@ async def main() -> None:
             gold_memory = await session.get(MemoryRow, gold_id)
             assert news_memory is not None and gold_memory is not None
             assert "# OPERATING.md" in news_memory.content
-            assert "Report important findings to Gold agent." in news_memory.content
-            assert "News agent reports important findings to you." in gold_memory.content
+            assert (
+                'Report important findings to the agent named "Gold agent".' in news_memory.content
+            )
+            assert (
+                'The agent named "News agent" reports important findings to you.'
+                in gold_memory.content
+            )
             # The directory holds the link; owner-visible notes carry no ids or tool names.
             for content in (news_memory.content, gold_memory.content):
                 assert gold_id not in content and news_id not in content, content
@@ -678,7 +683,9 @@ async def main() -> None:
         async with db.sessions() as session:
             relay_memory = await session.get(MemoryRow, relay_id)
             assert (
-                relay_memory and "Report important findings to Desk news." in relay_memory.content
+                relay_memory
+                and 'Report important findings to the agent named "Desk news".'
+                in relay_memory.content
             )
         news_undo = next(
             card
@@ -691,8 +698,14 @@ async def main() -> None:
             gold_memory = await session.get(MemoryRow, gold_id)
             relay_memory = await session.get(MemoryRow, relay_id)
             assert gold_memory is not None and relay_memory is not None
-            assert "Desk news reports important findings to you." not in gold_memory.content
-            assert "News agent reports important findings to you." in gold_memory.content
+            assert (
+                'The agent named "Desk news" reports important findings to you.'
+                not in gold_memory.content
+            )
+            assert (
+                'The agent named "News agent" reports important findings to you.'
+                in gold_memory.content
+            )
             assert "Desk news" not in relay_memory.content, relay_memory.content
             assert report_targets(await agent_origin(session, owner, relay_id)) == []
         directory = await call(links_turn, "list_agents", {})

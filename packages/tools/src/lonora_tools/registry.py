@@ -52,6 +52,7 @@ from .base import AvailabilityCheck, ExposureProfile, Tool, ToolScope, eager_for
 from .context import ToolContext
 from .environment import BridgeInput, EnvironmentInput
 from .market_binding import guard_market_tool, prepare_market_arguments, scope_market_result
+from .restrictions import mark_external_content
 from .schema import validate_arguments
 from .tool_discovery import MAX_SEARCH_RESULTS, search_definitions
 
@@ -60,6 +61,14 @@ log = logging.getLogger("lonora.tools")
 MAX_CAPABILITY_INVENTORY_CHARS = 8000
 INSPECTOR = "tool_environment"
 BRIDGE = "tool_call"
+
+
+def returns_external_content(name: str) -> bool:
+    """Whether a tool's result carries text someone other than the owner wrote: the
+    same list the context engine labels retrieved and untrusted."""
+    from lonora_agent.context.run_evidence import is_external
+
+    return is_external(name)
 BRIDGE_TOOLS = frozenset({INSPECTOR, BRIDGE})
 # Native schema budgets in serialized ToolDefinition JSON characters. The eager
 # budget is enforced for every profile combination by the registry tests; the
@@ -482,11 +491,18 @@ class ToolRegistry:
                 # possible after downgrade; the executor rechecks before send.
         timeout = tool.dispatch_timeout()
         if timeout is None:
-            return await self.dispatch(tool, call, context)
-        # TimeoutError keeps the loop's existing classification: an observation
-        # for a read, tool_execution_uncertain for an interrupted mutation.
-        async with asyncio.timeout(timeout):
-            return await self.dispatch(tool, call, context)
+            result = await self.dispatch(tool, call, context)
+        else:
+            # TimeoutError keeps the loop's existing classification: an observation
+            # for a read, tool_execution_uncertain for an interrupted mutation.
+            async with asyncio.timeout(timeout):
+                result = await self.dispatch(tool, call, context)
+        if returns_external_content(call.name):
+            # From now on this Run's owner message no longer stands for the owner's
+            # intent on its own (``restrictions.owner_message_id``).
+            async with context.db.sessions() as session, session.begin():
+                await mark_external_content(session, context.lease.run_id, call.name)
+        return result
 
     async def dispatch(self, tool: Tool, call: ToolCall, context: ToolContext) -> dict[str, Any]:
         arguments = await prepare_market_arguments(

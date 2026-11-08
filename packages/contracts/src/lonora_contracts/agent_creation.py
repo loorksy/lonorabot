@@ -5,6 +5,7 @@ trading template starts at "Ask me" (every trade waits for the owner's tap) and 
 other template at "No trading". A grant is only ever signed by the owner.
 """
 
+import re
 from typing import Literal
 
 from pydantic import Field, model_validator
@@ -23,6 +24,15 @@ TEMPLATE_LEVEL: dict[str, Literal["analysis", "supervised"]] = {
 # How a persistent agent came to exist: the owner's form, an owner message the
 # creating run answered, or the owner's tap on a creation card.
 AgentCreatedVia = Literal["owner_ui", "owner_message", "owner_card"]
+
+
+# Unicode bidirectional embeddings, overrides, isolates and marks (category Cf).
+BIDI_CONTROLS = re.compile("[\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]")
+
+
+def strip_bidi_controls(text: str) -> str:
+    return BIDI_CONTROLS.sub("", text)
+
 
 
 class AgentCreateInput(Contract):
@@ -65,7 +75,10 @@ class AgentCreateInput(Contract):
 
     @model_validator(mode="after")
     def market_for_template(self) -> "AgentCreateInput":
-        self.name = " ".join(self.name.split())
+        # Agent-written labels never carry direction controls: an embedded isolate end or
+        # override would reorder the owner's card and pill text around them.
+        self.name = " ".join(strip_bidi_controls(self.name).split())
+        self.responsibility = strip_bidi_controls(self.responsibility)
         if not self.name:
             raise ValueError("agent_name_required")
         if (self.template == "trading") != (self.market is not None):

@@ -800,7 +800,8 @@ async def test_the_owners_pause_is_the_owners_and_the_owners_word_resumes():
         assert await watch_state() == (False, "watch_cancelled")
         assert (await held(fixture, watch_id)).released_by == "holder"
 
-        # A Task: any agent carrying the owner's word lifts a supervisor's pause on it.
+        # A Task: Lonora carrying the owner's word lifts a supervisor's pause on it; an
+        # agent with no grant does not, whatever message its Run answers.
         await call(
             lead_context,
             "agent_control",
@@ -822,6 +823,37 @@ async def test_the_owners_pause_is_the_owners_and_the_owners_word_resumes():
             == "supervision_required"
         )
         told = await owner_says(fixture, helper, helper_thread, "Resume Gold's review task")
+        assert (
+            await refused(
+                told,
+                "agent_control",
+                agent_id=gold["id"],
+                action="resume",
+                target="task",
+                target_id=task_id,
+            )
+            == "supervision_required"
+        )
+        from lonora_db.personal_agent import ensure_personal_agent
+        from lonora_db.schema import SupervisionGrantRow
+        from lonora_db.supervision import revoke_supervision
+        from sqlalchemy import select
+
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            lonora = {"id": (await ensure_personal_agent(session, fixture.owner)).id}
+            # Even without its default grant, Lonora acts on the owner's word.
+            default = await session.scalar(
+                select(SupervisionGrantRow).where(
+                    SupervisionGrantRow.supervisor_agent_id == lonora["id"],
+                    SupervisionGrantRow.supervised_agent_id == gold["id"],
+                    SupervisionGrantRow.revoked_at.is_(None),
+                )
+            )
+            if default is not None:
+                await revoke_supervision(session, fixture.owner, default.id, via="owner_ui")
+        told = await owner_says(
+            fixture, lonora, await fixture.conversation(lonora), "Resume Gold's review task"
+        )
         freed = await call(
             told,
             "agent_control",
@@ -920,9 +952,9 @@ async def test_supervision_from_a_sentence_or_a_card_shows_undo():
         )
         thread = await fixture.conversation(watcher)
 
-        async def cards() -> list[dict[str, Any]]:
+        async def cards(thread_id: str | None = None) -> list[dict[str, Any]]:
             response = await fixture.client.get(
-                "/api/owner-actions", params={"thread_id": thread["id"]}
+                "/api/owner-actions", params={"thread_id": thread_id or thread["id"]}
             )
             assert response.is_success, response.text
             return cast(list[dict[str, Any]], response.json())
@@ -956,11 +988,30 @@ async def test_supervision_from_a_sentence_or_a_card_shows_undo():
         assert confirmed["status"] == "confirmed"
         assert (await call(woke, "agent_inspect", agent_id=gold["id"]))["agent"]["id"] == gold["id"]
 
-        # From the owner's sentence: set at once, the message recorded, with Undo.
-        said = await owner_says(fixture, watcher, thread, "خلي وكيل المراقبة يشرف على الذهب والفضة")
-        changed = await call(
-            said, "supervision_change", action="grant", supervised_ids=[gold["id"], silver["id"]]
+        # Oversight an agent asks for itself is the owner's tap, even from a sentence.
+        itself = await owner_says(fixture, watcher, thread, "خلي وكيل المراقبة يشرف على الفضة")
+        asked = await call(
+            itself, "supervision_change", action="grant", supervised_ids=[silver["id"]]
         )
+        assert asked["changed"] is False and asked["owner_must_tap"] is True, asked
+        await decide(asked["owner_action"]["id"], "cancel")
+        # From the owner's sentence to Lonora: set at once, the message recorded, with Undo.
+        from lonora_db.personal_agent import ensure_personal_agent
+
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            lonora = {"id": (await ensure_personal_agent(session, fixture.owner)).id}
+        lonora_thread = await fixture.conversation(lonora)
+        routed = await owner_says(
+            fixture, lonora, lonora_thread, "خلي وكيل المراقبة يشرف على الذهب والفضة"
+        )
+        changed = await call(
+            routed,
+            "supervision_change",
+            action="grant",
+            supervisor_id=watcher["id"],
+            supervised_ids=[gold["id"], silver["id"]],
+        )
+        said = await owner_says(fixture, watcher, thread, "What do you see?")
         # Gold was already supervised: only Silver is new, and only Silver is on the Undo.
         assert changed["changed"] is True and changed["undo_card_shown"] is True
         async with fixture.runtime.db.sessions() as session:
@@ -975,7 +1026,7 @@ async def test_supervision_from_a_sentence_or_a_card_shows_undo():
             assert row.source_message_id is not None
         undo = [
             item
-            for item in await cards()
+            for item in await cards(lonora_thread["id"])
             if item["kind"] == "supervision_created" and item["status"] == "pending"
         ]
         silver_undo = next(

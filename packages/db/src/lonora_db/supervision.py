@@ -641,8 +641,8 @@ async def control_work(
     """A supervisor pauses or resumes another agent's work (the agent itself, a Task, a
     routine or a watch). Repeating either changes nothing.
 
-    Pausing needs the grant, or the owner's message in the actor's run, and passes the
-    cycle rule. Without the owner's message it never pauses a whole agent with money
+    Pausing and resuming need the grant (Lonora also acts on the owner's message without
+    one), and pausing passes the cycle rule. Without the owner's message it never pauses a whole agent with money
     standing, and no agent ever pauses the Personal Agent itself. Each pause raises a
     card in the paused agent's conversation naming the supervisor, with Resume.
 
@@ -655,7 +655,11 @@ async def control_work(
     agent = await owned_agent(session, owner_id, agent_id)
     if agent.id == actor_id:
         raise LonoraError("supervision_self_target", 409)
-    if not owner_message and not await supervises(session, owner_id, actor_id, agent.id):
+    if not await supervises(session, owner_id, actor_id, agent.id) and not (
+        # The owner's message routes through Lonora, the owner's entry point; any other
+        # agent steers another only under a visible grant, whatever a message said.
+        owner_message and actor_id == await personal_agent_id(session, owner_id)
+    ):
         raise LonoraError("supervision_required", 403)
     item = agent.id if kind == "agent" else target_id
     if not item:

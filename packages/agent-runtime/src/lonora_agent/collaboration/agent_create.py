@@ -10,6 +10,7 @@ Neither text states authority: the memory guard would refuse it. The exact lines
 kept in the origin record, so deleting the agent takes them out again.
 """
 
+import json
 from typing import Any, cast
 
 from lonora_core.user_error import LonoraError
@@ -134,8 +135,16 @@ async def create_from_spec(
     links: list[dict[str, Any]] = []
     for target_id in spec.get("report_to", []):
         target = await owned_agent(session, owner_id, target_id)
-        own = f"Report important findings to {target.name}."
-        theirs = f"{row.name} reports important findings to you."
+        # Names are quoted as data: a model-chosen name never reads as an instruction in
+        # another agent's operating notes.
+        own = (
+            "Report important findings to the agent named "
+            f"{json.dumps(target.name, ensure_ascii=False)}."
+        )
+        theirs = (
+            f"The agent named {json.dumps(row.name, ensure_ascii=False)} "
+            "reports important findings to you."
+        )
         added_own = await _add_note(session, owner_id, row.id, own, source_message_id)
         added_theirs = await _add_note(session, owner_id, target.id, theirs, source_message_id)
         # Only lines this creation added are recorded, so a delete removes nothing else.

@@ -107,7 +107,12 @@ guidance, so a write that adds an authority statement to them is refused whole
 (`memory_authority_claim_refused`, `lonora_memory/guard.py`): phrases that skip
 or bypass approval, claim authorization to trade, say the owner approved, ignore
 or override limits, policies, pauses or instructions, or claim full or unlimited
-authority, in English and Arabic. A statement that is already present (an owner
+authority, in English and Arabic. The same guard refuses standing instructions to hand
+private data elsewhere: send or forward memory, `MEMORY.md`, `OPERATING.md`, the owner
+profile, notes or secrets anywhere, fetch an address built from data
+(`https://…?d=<summary>`), or name `peer_send`. A profile write or preference change
+from a Run that has read third-party content is no longer the owner's word
+(`owner_profile_requires_owner_message`, see `agents-from-chat.md`). A statement that is already present (an owner
 edit) does not block unrelated edits. `MEMORY.md` keeps its earlier contract: it
 is untrusted data. This is defence in depth only; the executor never reads memory
 and authority comes from the signed grant alone.

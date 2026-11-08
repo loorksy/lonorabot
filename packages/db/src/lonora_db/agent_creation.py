@@ -58,6 +58,21 @@ def origin_key(owner_id: str, agent_id: str) -> str:
     return "agent-origin:" + sha256((owner_id + ":" + agent_id).encode()).hexdigest()
 
 
+def instructions_digest(text: str) -> str:
+    return sha256(text.strip().encode()).hexdigest()
+
+
+def agent_written_instructions(origin: dict[str, Any], instructions: str) -> bool:
+    """Whether an agent's instructions are still the text another agent wrote when it
+    created it (``agent_create``), rather than the owner's own: those are model-authored
+    and belong in labelled context data, not the system role. An older record without
+    the digest counts as agent-written; the owner editing them makes them the owner's."""
+    if not origin.get("created_by_agent_id") or not instructions.strip():
+        return False
+    digest = origin.get("instructions_sha256")
+    return digest is None or digest == instructions_digest(instructions)
+
+
 async def agent_origin(session: AsyncSession, owner_id: str, agent_id: str) -> dict[str, Any]:
     """How the agent came to exist; empty for agents older than this record."""
     row = await session.get(SettingRow, origin_key(owner_id, agent_id))
@@ -241,6 +256,10 @@ async def create_root_agent(
         "run_id": run_id,
         "card_id": card_id,
         "report_to": list(spec.get("report_to", [])),
+        # The responsibility an agent wrote from the owner's request: while the agent's
+        # instructions still hash to it, the context shows them as that agent's
+        # writing, never in the system role (``agent_written_instructions``).
+        "instructions_sha256": instructions_digest(responsibility),
         "created_at": utcnow().isoformat(),
     }
     session.add(SettingRow(key=origin_key(owner_id, row.id), payload=origin))

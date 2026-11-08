@@ -1,4 +1,4 @@
-"""Refuse authority statements in text that every later Run reads as guidance.
+"""Refuse authority and disclosure statements in text every later Run reads as guidance.
 
 Operating notes and the shared owner profile shape how Agents work. Neither can
 grant or deny financial authority: that comes only from the owner's signed grant,
@@ -40,11 +40,32 @@ _AR = re.compile(
 )
 
 
+# Standing instructions to hand private data elsewhere: send an agent's memory, notes,
+# the owner profile or secrets somewhere, fetch an address built from data, or a tool
+# name. Every agent reads this text as guidance, so such a line is injected or misplaced.
+_DISCLOSURE_EN = re.compile(
+    r"\b(?:send|forward|share|post|upload|copy|leak|exfiltrat\w*|transmit|dump|relay)\s+"
+    r"(?:[^\s]+\s+){0,5}?"
+    r"(?:(?:its|your|their|full|whole|entire|private|the)\s+)?"
+    r"(?:memory(?:\.md)?|operating(?:\.md|\s+notes)|user\.md|owner\s+profile|private\s+notes"
+    r"|secrets?|api\s+keys?|keys|tokens?|credentials?|passwords?)\b"
+    r"|https?://[^\s]*?(?:[<{][^\s<>{}]*[>}])"
+    r"|\bpeer_send\b",
+    re.IGNORECASE,
+)
+_DISCLOSURE_AR = re.compile(
+    r"(?:أرسل|ارسل|شارك|انشر|حو[ّ]?ل|سر[ّ]?ب|انسخ)\s+(?:[^\s]+\s+){0,4}?"
+    r"(?:ال)?(?:ذاكرة|ذاكرتك|ذاكرته|ملاحظات\s+التشغيل|ملف\s+المالك|أسرار|مفاتيح|كلمات\s+المرور"
+    r"|بيانات\s+الدخول)"
+)
+
+
 def authority_claims(text: str) -> list[str]:
-    """Every authority statement in ``text``, normalized for comparison."""
+    """Every authority statement in ``text``, and every standing instruction to hand
+    private data elsewhere, normalized for comparison."""
     return [
         re.sub(r"\s+", " ", match.group(0)).strip().casefold()[:120]
-        for pattern in (_EN, _AR)
+        for pattern in (_EN, _AR, _DISCLOSURE_EN, _DISCLOSURE_AR)
         for match in pattern.finditer(text)
     ]
 
@@ -58,6 +79,8 @@ def authority_claim(text: str) -> str | None:
 AUTHORITY_RECOVERY = (
     "Nothing was saved. Operating notes and the owner profile cannot state trading "
     "authority, approvals or limits: authority comes only from the owner's signed grant, "
-    "and limits from account limits or a restriction. Save the working method without "
-    "that statement, or offer the owner the matching control."
+    "and limits from account limits or a restriction. Nor can they tell agents to send "
+    "memory, notes, the owner profile or secrets anywhere, or to fetch an address built "
+    "from data. Save the working method without that statement, or offer the owner the "
+    "matching control."
 )

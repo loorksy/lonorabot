@@ -22,7 +22,9 @@ function language(locale: string): Language {
 
 /** Keep a ticker, number or time in its own direction inside the surrounding text. */
 export function isolate(value: string): string {
-  return `⁨${value}⁩`;
+  // An embedded isolate end or override would end the isolate early and reorder the
+  // rest of the line, so the value's own direction controls are dropped first.
+  return `⁨${value.replace(/[\u202a-\u202e\u2066-\u2069]/g, "")}⁩`;
 }
 
 /** The list separator of the owner's language: the Arabic comma only in Arabic. */

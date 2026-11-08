@@ -40,7 +40,7 @@ from lonora_db.owner_actions import (
 )
 from lonora_db.runs import require_lease
 from lonora_db.schema import AgentRow, BrokerSessionRow, EffectReceiptRow, OwnerActionRow
-from lonora_db.supervision import supervised_ids
+from lonora_db.supervision import personal_agent_id, supervised_ids
 from lonora_session.idempotency import stable_id
 from pydantic import Field
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -280,6 +280,11 @@ async def create(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         run = await require_lease(session, context.lease)
         origin_thread = run.model_metadata.get("origin_thread_id") or context.thread_id
         message_id = await owner_message_id(session, run)
+        if message_id is not None and await personal_agent_id(session, context.owner_id) in set(
+            spec["supervises"]
+        ):
+            # Oversight over Lonora opens the owner's own chats: always the owner's tap.
+            message_id = None
         if message_id is None:
             # Already created (the owner said yes in chat, or tapped another card): a
             # card would only create a second one.

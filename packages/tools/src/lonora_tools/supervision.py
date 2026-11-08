@@ -58,6 +58,7 @@ from lonora_db.supervision import (
     control_work,
     grant_data,
     grant_supervision,
+    personal_agent_id,
     require_supervision,
     revoke_supervision,
     supervisor_ids,
@@ -537,6 +538,12 @@ async def change(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
                 ),
                 "restore_card_shown": card is not None,
             }
+        personal = await personal_agent_id(session, context.owner_id)
+        if supervisor_id == context.agent_id or personal in params.supervised_ids:
+            # Oversight for itself, or over Lonora, opens private memory to the caller or
+            # the owner's own chats: always the owner's tap on a card, never straight from
+            # a Run, so nothing is read before the owner sees the grant.
+            message_id = None
         if message_id is None:
             card, created = await propose_supervision(
                 session,

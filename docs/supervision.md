@@ -24,8 +24,11 @@ either agent.
   agents and fixtures all get it). A revoked default grant is not recreated.
 - **From one sentence.** `supervision_change` (toolset `collaboration`, long-tail)
   grants or revokes supervision for `supervisor_id` (default: the caller) over
-  `supervised_ids`. In a Run that answers the owner's message ("خلي وكيل المراقبة يشرف
-  على وكيل الذهب ووكيل الفضة") it grants at once, records the message as the source and
+  `supervised_ids`. Oversight for the calling agent itself, or over the Personal Agent,
+  is always a `supervise` card the owner taps, never set straight from a Run, so no
+  private memory or owner chat is read before the owner sees the grant. In a Run that
+  answers the owner's message ("خلي وكيل المراقبة يشرف على وكيل الذهب ووكيل الفضة", said
+  to Lonora) it grants at once, records the message as the source and
   raises a `supervision_created` card with Undo for the grants that call created; a
   grant that already existed is never on that card. Without the owner's message it
   raises a `supervise` card and nothing changes until the owner taps Allow; the tap
@@ -78,7 +81,10 @@ call, inside the same Run.
 supervised agent itself or one of its Tasks, routines or watches (`target`,
 `target_id`), or messages it (`action: message`, the same peer request as `peer_send`).
 It has no action that trades, grants, raises a limit, lifts a restriction or edits
-memory or instructions. A supervisor narrows the agent's trading with
+memory or instructions. Only a supervisor steers another agent's work; on the owner's
+message the Personal Agent may too without a grant, and no other agent, whatever
+message its Run answers (`supervision_required`). The owner's message counts only
+while the Run has read nothing someone else wrote (see `agents-from-chat.md`). A supervisor narrows the agent's trading with
 `trade_restriction_create` and its `agent_id`. `routine_toggle` on a supervised agent's
 routine follows the same rules.
 
