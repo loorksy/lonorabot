@@ -925,3 +925,64 @@ async def test_owner_attention_task_resumes_and_revises_through_task_controls(
     first, _ = revised.requests[0]
     assert any("<task_plan_revision>" in item.content for item in first)
     assert any(is_runtime_notice(item) and "revised it" in item.content for item in first)
+
+
+@pytest.mark.asyncio
+async def test_a_second_outage_after_resume_asks_the_owner_again_with_a_new_question(
+    task_db: Fixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from lonora_agent import tool_loop
+    from lonora_agent.model_recovery import BackoffProfile
+    from lonora_contracts.tasks import TaskControl
+    from lonora_core.user_error import LonoraError
+    from lonora_db.tasks import control_task
+
+    class Down:
+        async def __call__(self, *_: Any, **__: Any) -> Any:
+            raise LonoraError("model_provider_unavailable", 502)
+
+    db, owner, _, _ = task_db
+    # Escalate on the first transient failure; the WORK profile does so after six.
+    monkeypatch.setattr(tool_loop, "WORK", BackoffProfile(30.0, 900.0, 1))
+    context, task_id = await task_run(
+        task_db, TaskCreate(title="Verify gold", steps=[TaskStep(id="v", title="Verify quote")])
+    )
+    call = ToolCall(id="q1", name="fixture_quote", arguments={})
+    # The transcript ends with a tool result, so the resume notice joins that
+    # result and the message count does not change between the two escalations.
+    messages = [
+        ModelMessage(role="user", content="Verify gold"),
+        ModelMessage(role="assistant", content="", tool_calls=[call]),
+        ModelMessage(role="tool", tool_call_id="q1", content='{"ok": true, "bid": 2301.5}'),
+    ]
+    async with db.sessions() as session, session.begin():
+        run = await session.get(RunRow, context.lease.run_id)
+        assert run
+        run.execution_state = {
+            **run.execution_state,
+            "messages": [item.model_dump(mode="json") for item in messages],
+            "rounds": 1,
+            "task_plan_revision": 1,
+        }
+    monkeypatch.setattr("lonora_agent.tool_loop.model_turn", Down())
+    await execute_run(context, ToolRegistry([]), 120, 8)
+    run = await saved_run(context)
+    assert run.status == "waiting_input", (run.status, run.error_code)
+    first = run.execution_state["pending_input_request"]["id"]
+    async with db.sessions() as session, session.begin():
+        task = await get_task(session, owner, task_id)
+        await control_task(
+            session,
+            owner,
+            TaskControl(task_id=task_id, action="resume", expected_version=task.version),
+        )
+    # The provider is still down when the resumed Run is claimed.
+    await execute_run(await reclaim(task_db, run.id, "resume-writer"), ToolRegistry([]), 120, 8)
+    run = await saved_run(context)
+    assert run.status == "waiting_input", (run.status, run.error_code)
+    second = run.execution_state["pending_input_request"]["id"]
+    assert second != first
+    assert [(item["id"], item["status"]) for item in run.execution_state["input_requests"]] == [
+        (first, "cancelled"),
+        (second, "pending"),
+    ]

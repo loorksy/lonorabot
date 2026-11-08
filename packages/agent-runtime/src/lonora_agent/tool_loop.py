@@ -333,8 +333,20 @@ async def request_owner_attention(
     notice = attention_notice(
         reason, arabic, [title for _, title in completion.incomplete] if completion else ()
     )
+    # Every escalation gets its own question id. A Task-control resume cancels the
+    # previous question without adding a message (its notice joins the last tool
+    # result), so the transcript length alone would repeat the cancelled id.
+    taken = {
+        str(cast(dict[str, Any], item).get("id"))
+        for item in cast(list[Any], state.get("input_requests", []))
+        if isinstance(item, dict)
+    }
+    sequence = int(state.get("attention_sequence", 0)) + 1
+    while f"attention-{len(messages)}-{sequence}" in taken:
+        sequence += 1
+    state["attention_sequence"] = sequence
     question: dict[str, Any] = {
-        "id": "attention-" + str(len(messages)),
+        "id": f"attention-{len(messages)}-{sequence}",
         "question": attention_message(notice, text, arabic),
         "choices": [],
         "kind": OWNER_ATTENTION,
