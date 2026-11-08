@@ -64,6 +64,8 @@ async def dispatch_call(
             # approval/operation merely to learn the previous outcome.
             original = call.model_copy(update={"id": blocked["origin_call_id"]})
             result = await registry.execute(original, context, read_only)
+            # Not a new effect: the guardrails must not count it as a repeated send.
+            result = {**result, "_runtime_reconciled": blocked["origin_call_id"]}
         elif blocked:
             result = {
                 "ok": False,

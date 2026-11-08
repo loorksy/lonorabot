@@ -48,7 +48,7 @@ from typing import Any, Literal, cast
 from lonora_adapter_kit.types import ToolCall
 from lonora_tools.base import Tool
 
-from .environment import route_key
+from .environment import blocked_route, route_key
 
 STATE_KEY = "tool_guardrails"
 VERSION = 1
@@ -255,9 +255,28 @@ def _repeated_effect(guard: dict[str, Any], call: ToolCall) -> GuardrailDecision
     return _decision("block", "identical_effect_block", call.name, executed)
 
 
+def reconciles(state: dict[str, Any], call: ToolCall, tool: Tool | None) -> bool:
+    """Whether dispatch will reconcile an earlier uncertain operation instead of sending.
+
+    An identical call on an ambiguous financial route replays the SAME durable
+    operation (``tool_dispatch``): it sends nothing, so it is not a repeated effect.
+    """
+    record = blocked_route(state, call)
+    return bool(
+        record
+        and record.get("ambiguous")
+        and record.get("receipt_replay")
+        and tool
+        and tool.financial
+        and tool.replay_safe
+    )
+
+
 def before_call(state: dict[str, Any], call: ToolCall, tool: Tool | None) -> GuardrailDecision:
     """Refuse an unchanged read without progress or an effect repeated too often."""
     if _effect(tool):
+        if reconciles(state, call, tool):
+            return ALLOW
         return _repeated_effect(guardrail_state(state), call)
     if not _idempotent(tool):
         return ALLOW
@@ -333,10 +352,12 @@ def after_call(
             no_progress[signature] = [digest, repeat]
             if repeat >= NO_PROGRESS_WARN_AFTER:
                 decision = _decision("warn", "idempotent_no_progress_warning", call.name, repeat)
-    if _effect(tool):
+    if _effect(tool) and not result.get("_runtime_reconciled"):
         # Results are ignored: a new operation or version identity in every
         # result must not hide that the same effect keeps being requested.
         # Observations between the repeats do not make them different effects.
+        # Reconciling an earlier uncertain operation sends nothing and is not
+        # counted (the same-tool failure bound still applies to it).
         previous = guard.get("effect_streak")
         executed = (
             int(cast(list[Any], previous)[1]) + 1

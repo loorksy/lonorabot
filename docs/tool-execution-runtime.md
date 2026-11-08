@@ -237,7 +237,11 @@ break the streak; a different effect does. The previous release failed the
 Run on the 6th identical success, after that effect had run; now at most five
 identical effects execute per review epoch and the 6th is a synthetic
 `guardrail_blocked` observation. An approval wait is not an execution; the
-approved dispatch of the same call counts once.
+approved dispatch of the same call counts once. Nor is a reconciliation: an
+identical call on an ambiguous financial route replays the SAME durable operation
+through the blocked route and sends nothing, so dispatch marks its result
+`_runtime_reconciled` and the streak neither counts nor refuses it (the same-tool
+failure bound still ends an endless reconciliation loop).
 
 A warning is attached to that tool result as a `runtime_notice`. A block
 returns a synthetic `{"ok": false, "code": "guardrail_blocked", "executed":

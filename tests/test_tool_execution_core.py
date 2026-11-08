@@ -341,6 +341,40 @@ def test_identical_effects_are_bounded_whatever_they_return() -> None:
     assert legacy["tool_guardrails"]["effect_streak"] is None
 
 
+def test_reconciling_an_ambiguous_trade_is_never_counted_as_a_repeated_effect() -> None:
+    from lonora_agent.environment import blocked_route, observe
+
+    state: dict[str, Any] = {}
+    trade = TOOLS["trade"]
+    first = call("trade", "t1", side="buy", symbol="XAUUSD", volume=0.01)
+    sent = {"ok": True, "status": "ambiguous", "operation_id": "op-1"}
+    record = observe(state, first, trade, sent)
+    assert guardrails.after_call(state, first, trade, sent, failed=record["failures"] > 0)
+    for index in range(2, 8):
+        repeat = call("trade", f"t{index}", side="buy", symbol="XAUUSD", volume=0.01)
+        assert guardrails.reconciles(state, repeat, trade)
+        assert blocked_route(state, repeat)["origin_call_id"] == "t1"
+        assert guardrails.before_call(state, repeat, trade).action == "allow", index
+        # Dispatch reconciled the SAME operation through the blocked route.
+        reconciled = {**sent, "_runtime_reconciled": "t1"}
+        record = observe(state, repeat, trade, reconciled)
+        decision = guardrails.after_call(
+            state, repeat, trade, reconciled, failed=record["failures"] > 0
+        )
+        assert decision.code not in {"identical_effect_block", "identical_effect_halt"}
+    assert guardrails.halt_reason(state) is None
+    assert guardrails.guardrail_state(state)["effect_streak"][1] == 1
+    # The same-tool failure bound still ends an endless reconciliation loop.
+    for index in range(8, 12):
+        repeat = call("trade", f"t{index}", side="buy", symbol="XAUUSD", volume=0.01)
+        reconciled = {**sent, "_runtime_reconciled": "t1"}
+        record = observe(state, repeat, trade, reconciled)
+        decision = guardrails.after_call(
+            state, repeat, trade, reconciled, failed=record["failures"] > 0
+        )
+    assert decision.code == "same_tool_failure_halt"
+
+
 def test_short_identical_cycles_end_gracefully() -> None:
     cycle: dict[str, Any] = {}
     decisions: list[guardrails.GuardrailDecision] = []
