@@ -87,7 +87,9 @@ async def routing_frame(
         + (
             "Protected operational state, re-read from server records on every turn. It "
             "supersedes any summary, recalled evidence or earlier message: reconcile an "
-            "unresolved operation before any resend, and a pending approval has not executed."
+            "unresolved operation before any resend, never resend a reserved, verifying or "
+            "resolved one, a resolved operation is not broker-confirmed, and a pending "
+            "approval has not executed."
             "\n<protected_operational_state>"
             + encode_metadata(protected)
             + "</protected_operational_state>\n"

@@ -689,6 +689,60 @@ async def test_protected_state_is_read_from_server_records(task_db: Fixture) -> 
                     status="confirmed",
                     result={"details": {"execution": {"run_id": run.id}}},
                 ),
+                # T2 lifecycle: journaled but provably not sent yet.
+                TradingJournalRow(
+                    operation_id="op-reserved",
+                    owner_id=owner,
+                    account_id="acct",
+                    request_hash="h",
+                    request={"symbol": "EURUSD", "action": "buy", "volume": 0.1},
+                    status="reserved",
+                    result={"details": {"execution": {"run_id": run.id}}},
+                    submitted_at=utcnow(),
+                ),
+                TradingJournalRow(
+                    operation_id="op-verifying",
+                    owner_id=owner,
+                    account_id="acct",
+                    request_hash="h",
+                    request={"symbol": "XAUUSD", "action": "close_position"},
+                    status="confirmed",
+                    result={
+                        "details": {
+                            "execution": {"run_id": run.id},
+                            "verification": {"status": "pending"},
+                        }
+                    },
+                ),
+                TradingJournalRow(
+                    operation_id="op-resolved",
+                    owner_id=owner,
+                    account_id="acct",
+                    request_hash="h",
+                    request={"symbol": "XAUUSD", "action": "modify_position"},
+                    status="resolved",
+                    result={
+                        "details": {
+                            "execution": {"run_id": run.id},
+                            "resolution": {
+                                "source": "owner",
+                                "outcome": "executed",
+                                "statement": "Seen in the terminal",
+                                "broker_confirmed": False,
+                            },
+                        }
+                    },
+                ),
+                TradingJournalRow(
+                    operation_id="op-resolved-last-week",
+                    owner_id=owner,
+                    account_id="acct",
+                    request_hash="h",
+                    request={},
+                    status="resolved",
+                    result={"details": {"execution": {"run_id": run.id}}},
+                    updated_at=utcnow() - timedelta(days=7),
+                ),
                 TradeApprovalRow(
                     id="approval-1",
                     owner_id=owner,
@@ -708,8 +762,20 @@ async def test_protected_state_is_read_from_server_records(task_db: Fixture) -> 
         )
     async with db.sessions() as session:
         state = await protected_operational_state(session, owner, agent)
-    assert [item["operation_id"] for item in state["unresolved_operations"]] == ["op-ambiguous"]
-    assert state["unresolved_operations"][0]["next_action"] == "reconcile_before_any_resend"
+    unresolved = {item["operation_id"]: item for item in state["unresolved_operations"]}
+    assert set(unresolved) == {"op-ambiguous", "op-reserved"}
+    assert unresolved["op-ambiguous"]["next_action"] == "reconcile_before_any_resend"
+    assert unresolved["op-ambiguous"]["blocks"] == "new_risk_on_this_symbol_or_ticket"
+    assert unresolved["op-reserved"]["next_action"] == "await_outcome_never_resend"
+    assert "blocks" not in unresolved["op-reserved"]
+    verifying = state["operations_awaiting_verification"]
+    assert [item["operation_id"] for item in verifying] == ["op-verifying"]
+    assert verifying[0]["next_action"] == "executed_awaiting_state_verification_never_resend"
+    resolved = state["recently_resolved_operations"]
+    assert [item["operation_id"] for item in resolved] == ["op-resolved"]
+    assert resolved[0]["resolution"] == {"source": "owner", "outcome": "executed"}
+    assert resolved[0]["broker_confirmed"] is False
+    assert "statement" not in str(resolved[0])
     assert state["pending_approvals"][0]["approval_id"] == "approval-1"
     assert state["pending_approvals"][0]["requests"] == [
         {"action": "sell", "symbol": "XAUUSD", "volume": 0.2}
@@ -735,6 +801,7 @@ async def test_protected_state_is_read_from_server_records(task_db: Fixture) -> 
     async with db.sessions() as session:
         frame = await routing_frame(session, owner, agent, thread)
     assert "op-ambiguous" not in frame and "approval-1" not in frame
+    assert "op-reserved" in frame and "op-resolved" in frame
 
 
 # --- 6. Cross-turn evidence and the dark zone ----------------------------------------
