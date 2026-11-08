@@ -804,6 +804,45 @@ async def test_protected_state_is_read_from_server_records(task_db: Fixture) -> 
     assert "op-reserved" in frame and "op-resolved" in frame
 
 
+@pytest.mark.asyncio
+async def test_recently_settled_operations_never_crowd_out_an_unresolved_one(
+    task_db: Fixture,
+) -> None:
+    db, owner, agent, thread = task_db
+    async with db.sessions() as session, session.begin():
+        mine = RunRow(thread_id=thread, agent_id=agent, status="completed")
+        session.add(mine)
+        await session.flush()
+        session.add(
+            TradingJournalRow(
+                operation_id="op-old-ambiguous",
+                owner_id=owner,
+                account_id="acct",
+                request_hash="h",
+                request={"symbol": "XAUUSD", "action": "buy"},
+                status="ambiguous",
+                result={"details": {"execution": {"run_id": mine.id}}},
+                updated_at=utcnow() - timedelta(days=3),
+            )
+        )
+        session.add_all(
+            TradingJournalRow(
+                operation_id=f"op-settled-{index}",
+                owner_id=owner,
+                account_id="acct",
+                request_hash="h",
+                request={},
+                status="resolved",
+                result={"details": {"execution": {"run_id": mine.id}}},
+            )
+            for index in range(70)
+        )
+    async with db.sessions() as session:
+        state = await protected_operational_state(session, owner, agent)
+    assert [item["operation_id"] for item in state["unresolved_operations"]] == ["op-old-ambiguous"]
+    assert len(state["recently_resolved_operations"]) == 4
+
+
 # --- 6. Cross-turn evidence and the dark zone ----------------------------------------
 
 

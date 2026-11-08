@@ -69,30 +69,34 @@ async def protected_operational_state(
 ) -> dict[str, list[dict[str, Any]]]:
     # Unresolved entries per owner are few (status index), and settled ones are
     # bounded by a recent window; attributing them to this agent's Runs then
-    # uses primary-key lookups, not a scan of all Runs.
+    # uses primary-key lookups, not a scan of all Runs. Two statements, so
+    # recently settled rows can never crowd an unresolved one out of the limit.
     recent = utcnow() - SETTLED_WINDOW
-    candidates = list(
-        await session.scalars(
-            select(TradingJournalRow)
-            .where(
-                TradingJournalRow.owner_id == owner_id,
-                TradingJournalRow.execution_mode == "live",
-                or_(
-                    TradingJournalRow.status.in_(sorted(OPEN_STATUSES)),
-                    (TradingJournalRow.status == "resolved")
-                    & (TradingJournalRow.updated_at >= recent),
-                    (TradingJournalRow.status == "confirmed")
-                    & (TradingJournalRow.updated_at >= recent)
-                    & (
-                        TradingJournalRow.result["details"]["verification"]["status"].as_string()
-                        == "pending"
-                    ),
-                ),
+    candidates: list[TradingJournalRow] = []
+    for condition in (
+        TradingJournalRow.status.in_(sorted(OPEN_STATUSES)),
+        or_(
+            (TradingJournalRow.status == "resolved") & (TradingJournalRow.updated_at >= recent),
+            (TradingJournalRow.status == "confirmed")
+            & (TradingJournalRow.updated_at >= recent)
+            & (
+                TradingJournalRow.result["details"]["verification"]["status"].as_string()
+                == "pending"
+            ),
+        ),
+    ):
+        candidates.extend(
+            await session.scalars(
+                select(TradingJournalRow)
+                .where(
+                    TradingJournalRow.owner_id == owner_id,
+                    TradingJournalRow.execution_mode == "live",
+                    condition,
+                )
+                .order_by(TradingJournalRow.updated_at.desc())
+                .limit(CANDIDATE_LIMIT)
             )
-            .order_by(TradingJournalRow.updated_at.desc())
-            .limit(CANDIDATE_LIMIT)
         )
-    )
 
     def producers(row: TradingJournalRow) -> set[str]:
         details: Any = row.result.get("details", {})
