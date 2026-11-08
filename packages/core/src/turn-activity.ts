@@ -292,6 +292,8 @@ const toolLabels: Readonly<Record<string, Label>> = {
     ar: "ينسخ بيانات السوق إلى مساحة العمل",
   },
   consult_model: { en: "Consulting another model", ar: "يستشير نموذجًا آخر" },
+  model_request: { en: "Changing its model", ar: "يغيّر نموذجه" },
+  model_list: { en: "Checking its models", ar: "يراجع نماذجه" },
   mcp_execute: { en: "Using a connected tool", ar: "يستخدم أداة متصلة" },
   child_agent_create: HELPER,
   subagent_spawn: HELPER,

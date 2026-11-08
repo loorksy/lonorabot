@@ -11,10 +11,12 @@ owner changes it). The allowed models are the owner's global text routes and bac
 plus the models the owner added (``model_allowed``).
 """
 
+from collections.abc import Iterable
 from hashlib import sha256
 from typing import Any, Literal, cast
 
 from lonora_contracts.domain import utcnow
+from lonora_contracts.model_catalog import ModelDescriptor
 from lonora_contracts.model_routing import (
     MAXIMUM_ADDED_MODELS,
     AgentModelChange,
@@ -25,7 +27,7 @@ from lonora_contracts.model_routing import (
     ModelSelection,
     RoutingPolicy,
 )
-from lonora_core.model_routing import text_routes
+from lonora_core.model_routing import model_match_score, text_routes
 from lonora_core.user_error import LonoraError
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -134,7 +136,7 @@ async def apply_agent_model(
     agent_id: str,
     state: AgentModelState,
     *,
-    chosen_by: Literal["owner", "agent"],
+    chosen_by: Literal["owner", "agent"] | None,
     by_agent_id: str | None = None,
     run_id: str | None = None,
     expected_revision: int | None = None,
@@ -144,7 +146,8 @@ async def apply_agent_model(
     """Store one Agent's model choice; returns the record and whether it changed.
 
     The same choice again changes nothing (no revision, no event), so a replayed or
-    repeated request is harmless. The choice it replaces is kept for Undo.
+    repeated request is harmless. The choice it replaces is kept for Undo. ``chosen_by``
+    is None only when Undo restores the default nobody chose.
     """
     await owned_agent(session, owner_id, agent_id, lock=True)
     key = agent_model_key(owner_id, agent_id)
@@ -204,11 +207,16 @@ async def change_agent_model(
 
     # Cards before the agent: the order a card decision takes them in.
     await lock_owner_actions(session, owner_id)
+    fallbacks = change.fallbacks
+    if "fallbacks" not in change.model_fields_set:
+        # A choice that names no fallbacks keeps the agent's own, behind its new primary.
+        current = await stored_agent_model(session, owner_id, agent_id)
+        fallbacks = [item for item in current.preference.fallbacks if item != change.primary]
     state = AgentModelState(
         mode=change.mode,
-        preference=AgentModelPreference(primary=change.primary, fallbacks=change.fallbacks),
+        preference=AgentModelPreference(primary=change.primary, fallbacks=fallbacks),
     )
-    record, _ = await apply_agent_model(
+    record, changed = await apply_agent_model(
         session,
         owner_id,
         agent_id,
@@ -216,8 +224,43 @@ async def change_agent_model(
         chosen_by="owner",
         expected_revision=change.expected_revision,
     )
-    await supersede_agent_model_cards(session, owner_id, agent_id, "owner_changed_model")
+    if changed:
+        # Only a real change ends the pending requests and the Undo about this agent.
+        await supersede_agent_model_cards(session, owner_id, agent_id, "owner_changed_model")
     return record
+
+
+async def catalog_models(session: AsyncSession, providers: Iterable[str]) -> list[dict[str, str]]:
+    """Text models the providers' discovered catalogs list, as provider, id and name."""
+    settings = SettingsRepository()
+    found: list[dict[str, str]] = []
+    for provider in providers:
+        payload = await settings.get(session, "catalog:" + provider)
+        for item in cast(list[Any], payload.get("models", [])):
+            try:
+                descriptor = ModelDescriptor.model_validate(item)
+            except ValidationError:
+                continue
+            # A model the catalog verifies without text is not an agent's model.
+            if descriptor.verified and "text" not in descriptor.capabilities:
+                continue
+            found.append({"provider": provider, "model": descriptor.id, "name": descriptor.name})
+    return found
+
+
+def closest_models(
+    query: str, entries: list[dict[str, str]], allowed: list[ModelSelection], limit: int = 6
+) -> list[dict[str, Any]]:
+    """Catalog entries that best match a model name or a guessed id ("Opus" finds the
+    exact Opus ids), allowed models first among equals."""
+    listed = {(item.provider, item.model) for item in allowed}
+    scored = [
+        (score, (entry["provider"], entry["model"]) in listed, index, entry)
+        for index, entry in enumerate(entries)
+        if (score := model_match_score(query, entry["provider"], entry["model"], entry["name"]))
+    ]
+    scored.sort(key=lambda item: (-item[0], not item[1], item[2]))
+    return [{**entry, "allowed": allowed_now} for _, allowed_now, _, entry in scored[:limit]]
 
 
 async def catalog_has(session: AsyncSession, selection: ModelSelection) -> bool:

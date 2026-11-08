@@ -51,6 +51,16 @@ for (const locale of ["en", "ar"]) {
       const settings = page.getByTestId("agent-model-settings");
       await expect(settings).toBeVisible();
       await expect(settings.getByText("Claude Opus UI", { exact: false }).first()).toBeVisible();
+      // Automatic on a model someone set: one action returns it to the default model.
+      await settings.getByTestId("agent-model-default").click();
+      await expect
+        .poll(
+          async () =>
+            (await (await context.request.get(`/api/agents/${agent.id}/model`)).json()).preference
+              .primary,
+        )
+        .toBeNull();
+      await expect(settings.getByTestId("agent-model-default")).toHaveCount(0);
       await settings.getByTestId("agent-model-fixed").click();
       await settings.getByText("Claude Sonnet UI", { exact: true }).click();
       await expect

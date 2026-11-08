@@ -13,6 +13,7 @@ from typing import Any, Literal, cast
 from lonora_contracts.domain import utcnow
 from lonora_contracts.model_routing import (
     AgentModelPreference,
+    AgentModelRecord,
     AgentModelState,
     ModelSelection,
 )
@@ -54,13 +55,16 @@ def requested_state(payload: dict[str, Any]) -> AgentModelState:
 
 
 def undo_payload(
-    agent_id: str, revision: int, previous: AgentModelState, current: AgentModelState
+    agent_id: str, revision: int, previous: AgentModelRecord, current: AgentModelState
 ) -> dict[str, Any]:
-    """An ``agent_model_changed`` card: the switch that applied and what Undo restores."""
+    """An ``agent_model_changed`` card: the switch that applied and what Undo restores,
+    including who had made that earlier choice."""
     return {
         "agent_id": agent_id,
         "revision": revision,
-        "previous": previous.model_dump(mode="json"),
+        "previous": previous.state().model_dump(mode="json"),
+        "previous_chosen_by": previous.chosen_by,
+        "previous_chosen_by_agent_id": previous.chosen_by_agent_id,
         "current": current.model_dump(mode="json"),
     }
 
@@ -176,8 +180,10 @@ async def raise_model_card(
         return existing, False
     subject = model_subject(cast(str, payload["agent_id"]))
     if kind == "agent_model_changed":
-        # Only the latest switch can be undone.
-        await supersede_subject(session, owner_id, kind, subject, "model_changed_again")
+        # Only the latest switch can be undone, and an earlier request about this
+        # agent's model no longer applies: a later tap must not undo this choice.
+        for ended in ("agent_model", "agent_model_changed"):
+            await supersede_subject(session, owner_id, ended, subject, "model_changed_again")
     else:
         current = await pending_effect(session, agent_id, kind, payload_hash(kind, payload))
         if current is not None:
@@ -250,12 +256,15 @@ async def confirm_model_card(session: AsyncSession, row: OwnerActionRow) -> dict
         )
         return {"revision": record.revision, "allowed_added": added}
     previous = AgentModelState.model_validate(row.payload["previous"])
+    # Undo restores the earlier choice as it was, including who had made it.
+    chosen_by = row.payload.get("previous_chosen_by", "owner")
     record, _ = await apply_agent_model(
         session,
         row.owner_id,
         agent_id,
         previous,
-        chosen_by="owner",
+        chosen_by=cast(Literal["owner", "agent"] | None, chosen_by),
+        by_agent_id=cast(str | None, row.payload.get("previous_chosen_by_agent_id")),
         via="owner_undo",
         expected_revision=cast(int, row.payload["revision"]),
     )

@@ -1,6 +1,6 @@
 import { i18n } from "@lingui/core";
 import type { Agent, AgentModelChange, AgentModelSummary, Selection } from "@lonora/contracts";
-import { agentModelLines, agentModelText } from "@lonora/core";
+import { agentModelLines, agentModelText, offersDefaultModel } from "@lonora/core";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../../lib/api";
 import { userError } from "../../lib/user_error";
@@ -47,6 +47,22 @@ export function AgentModelCard({ agent }: { agent: Agent }) {
     mode !== summary.record.mode ||
     (mode === "fixed" &&
       choice !== (summary.record.preference.primary ? key(summary.record.preference.primary) : ""));
+  const save = async (body: AgentModelChange) => {
+    setBusy(true);
+    setError(undefined);
+    try {
+      await api.put(`/agents/${agent.id}/model`, {
+        ...body,
+        expected_revision: summary.record.revision,
+      });
+      await load();
+      setSaved(true);
+    } catch (failure) {
+      setError(failure);
+    } finally {
+      setBusy(false);
+    }
+  };
   return (
     <fieldset
       className="lonora-agent-model"
@@ -113,30 +129,21 @@ export function AgentModelCard({ agent }: { agent: Agent }) {
         <button
           type="button"
           disabled={!dirty || (mode === "fixed" && !selected)}
-          onClick={async () => {
-            setBusy(true);
-            setError(undefined);
-            try {
-              const body: AgentModelChange =
-                mode === "fixed" && selected
-                  ? {
-                      mode,
-                      primary: { provider: selected.provider, model: selected.model },
-                      expected_revision: summary.record.revision,
-                    }
-                  : { mode: "automatic", expected_revision: summary.record.revision };
-              await api.put(`/agents/${agent.id}/model`, body);
-              await load();
-              setSaved(true);
-            } catch (failure) {
-              setError(failure);
-            } finally {
-              setBusy(false);
-            }
-          }}
+          onClick={() =>
+            void save(
+              mode === "fixed" && selected
+                ? { mode, primary: { provider: selected.provider, model: selected.model } }
+                : { mode: "automatic" },
+            )
+          }
         >
           {text.save}
         </button>
+        {offersDefaultModel(summary) && mode === "automatic" && (
+          <button type="button" onClick={() => void save({ mode: "automatic" })}>
+            {text.backToDefault}
+          </button>
+        )}
       </div>
       {saved && <p role="status">{text.saved}</p>}
       {error != null && <p role="alert">{userError(error)}</p>}

@@ -9,6 +9,7 @@ export {
   modelCard,
   modelChoiceLine,
   modelName,
+  offersDefaultModel,
   tokenCount,
   usageLine,
 } from "./agent-model";

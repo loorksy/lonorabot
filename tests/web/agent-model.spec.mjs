@@ -69,6 +69,20 @@ for (const locale of ["en", "ar"]) {
       await expect(model).toContainText(
         locale === "ar" ? "لا استخدام للنماذج" : "No model use in the last",
       );
+      // Automatic on a model someone set: one action returns it to the default model.
+      const back = model.getByRole("button", {
+        name: locale === "ar" ? "العودة إلى نموذجك الافتراضي" : "Back to your default model",
+      });
+      await back.click();
+      await expect
+        .poll(
+          async () =>
+            (await (await context.request.get(`/api/agents/${agent.id}/model`)).json()).preference
+              .primary,
+        )
+        .toBeNull();
+      await expect(back).toHaveCount(0);
+      await expect(model).toContainText("GPT Default UI");
       await model.getByLabel(locale === "ar" ? "ثابت" : "Fixed").check();
       await model.locator("select").selectOption("anthropic:claude-sonnet-ui");
       await model.getByRole("button", { name: locale === "ar" ? "حفظ" : "Save" }).click();

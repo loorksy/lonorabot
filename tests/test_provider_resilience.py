@@ -46,12 +46,14 @@ from lonora_contracts.model_routing import (
 )
 from lonora_contracts.runs import Lease
 from lonora_contracts.tasks import TaskCreate, TaskFailure, TaskRetryPolicy
+from lonora_core.model_routing import names_model
 from lonora_core.user_error import LonoraError
 from lonora_db.agent_models import (
     agent_model_record,
     allowed_models,
     apply_agent_model,
     change_agent_model,
+    closest_models,
     save_added_models,
 )
 from lonora_db.client import Database
@@ -1033,6 +1035,42 @@ async def test_a_helper_run_asks_its_chosen_model_first(monkeypatch: pytest.Monk
     )
     await model_runtime.model_turn(context, USER, [], Capability.CONVERSATION)
     assert seen["run_choice"] == chosen and seen["agent_id"] == "agent"
+
+
+def test_the_owners_words_name_a_model_by_id_name_or_a_distinctive_word() -> None:
+    opus = ModelSelection(provider="anthropic", model="claude-opus-4-1-20250805")
+    assert names_model("استخدم Claude Opus", opus, "Claude Opus 4.1")
+    assert names_model("use claude-opus-4-1-20250805 please", opus, None)
+    # An unrelated message names no model, whatever the run is.
+    assert not names_model("What is the gold outlook today?", opus, "Claude Opus 4.1")
+    assert names_model("switch to GPT 4o", ModelSelection(provider="openai", model="gpt-4o"), None)
+    o3 = ModelSelection(provider="openai", model="o3")
+    assert names_model("use o3", o3, None) and not names_model("do 3 trades", o3, None)
+    # Words many names share ("flash", "pro", vendors) name no particular model.
+    flash = ModelSelection(provider="openrouter", model="google/gemini-2.5-flash")
+    assert not names_model("a flash crash in gold, google it", flash, "Google: Gemini 2.5 Flash")
+    assert names_model("use Gemini", flash, "Google: Gemini 2.5 Flash")
+
+
+def test_a_model_name_finds_the_exact_catalog_ids_allowed_first() -> None:
+    entries = [
+        {"provider": "anthropic", "model": "claude-3-opus-20240229", "name": "Claude Opus 3"},
+        {"provider": "anthropic", "model": "claude-sonnet-4-5", "name": "Claude Sonnet 4.5"},
+        {"provider": "anthropic", "model": "claude-opus-4-1-20250805", "name": "Claude Opus 4.1"},
+        {"provider": "openai", "model": "gpt-5", "name": "GPT-5"},
+    ]
+    allowed = [ModelSelection(provider="anthropic", model="claude-opus-4-1-20250805")]
+    found = closest_models("Opus", entries, allowed)
+    assert [item["model"] for item in found] == [
+        "claude-opus-4-1-20250805",
+        "claude-3-opus-20240229",
+    ]
+    assert found[0]["allowed"] is True and found[1]["allowed"] is False
+    # A guessed id ranks the entry sharing most of its words first.
+    guess = closest_models("anthropic claude-opus-4.1", entries, [])
+    assert guess[0]["model"] == "claude-opus-4-1-20250805"
+    # A bare version number names nothing.
+    assert closest_models("4.5", entries, []) == []
 
 
 def test_model_choice_records_written_before_modes_read_as_the_owner_chose() -> None:

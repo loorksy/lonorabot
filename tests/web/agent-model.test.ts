@@ -6,6 +6,7 @@ import {
   agentModelLines,
   modelCard,
   modelChoiceLine,
+  offersDefaultModel,
   usageLine,
 } from "../../packages/core/src/agent-model";
 import { ownerActionCard } from "../../packages/core/src/owner-actions";
@@ -156,4 +157,15 @@ test("choice and usage lines are plain owner text", () => {
   assert.equal(lines[1], "Set by the agent");
   assert.match(lines[2] ?? "", /^Models it may choose on its own: /);
   assert.ok(!lines.join(" ").includes("{"));
+  // An Automatic agent on a model someone set offers the way back, on Web and Mobile alike.
+  assert.equal(offersDefaultModel(summary), true);
+  const onDefault = {
+    ...summary,
+    record: { ...summary.record, preference: { primary: null, fallbacks: [] } },
+  };
+  assert.equal(offersDefaultModel(onDefault), false);
+  assert.equal(
+    offersDefaultModel({ ...summary, record: { ...summary.record, mode: "fixed" } }),
+    false,
+  );
 });

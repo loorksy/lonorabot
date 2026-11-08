@@ -225,16 +225,19 @@ one tap, never a passkey.
 
 | Card | Raised when | Buttons | Confirming |
 | --- | --- | --- | --- |
-| `agent_model` "Change the model of {agent}?" | The agent asked for a model outside the owner's allowed list, for itself while the owner fixed its model, or (Lonora) for another agent, in a run that answers no owner message | Use it (Let Lonora choose) / Not now | `apply_agent_model` in the owner's name; a model outside the list also joins the allowed list (the card says so) |
-| `agent_model_changed` "{agent} switched its model" | A switch applied (the agent's own, or one the owner asked for in chat) | Undo / Keep | Restores the choice before the switch, only while the record's revision is still the one the card reports |
+| `agent_model` "Change the model of {agent}?" | The agent asked for a model outside the owner's allowed list (always, even when the owner named it), or for a change to an agent the owner fixed, to another agent (Lonora) or to its mode, that the owner's message in this run does not name | Use it (Let Lonora choose) / Not now | `apply_agent_model` in the owner's name; a model outside the list also joins the allowed list (the card says so) |
+| `agent_model_changed` "{agent} switched its model" | A switch applied (the agent's own within the list, or one the owner's message named) | Undo / Keep | Restores the choice before the switch, with who had made it, only while the record's revision is still the one the card reports |
 
 The payload is the agent, the mode and model (or none: the owner's default), and for
-Undo the record revision and the choice before it; the subject is `agent-model:<agent>`.
-Facts are the agent's name, the catalog names of the models (never ids) and the owner's
-default model. Lifetimes: 24 hours for a request, 7 days for Undo. A newer switch
-supersedes the older Undo card (`model_changed_again`); the owner's own choice in
-settings or on a card supersedes both kinds for that agent (`owner_changed_model`); a
-request the record already matches settles as `model_already_set`. A deleted agent's
+Undo the record revision, the choice before it and who had made that choice; the subject
+is `agent-model:<agent>`. A request keeps the agent's mode unless it asks for another, so
+a Fixed agent's request is for another Fixed model. Facts are the agent's name, the
+catalog names of the models (never ids) and the owner's default model. Lifetimes: 24
+hours for a request, 7 days for Undo. A newer switch supersedes the older Undo card and
+the pending requests about that agent (`model_changed_again`); the owner's own change in
+settings or on a card supersedes both kinds for that agent (`owner_changed_model`; a
+choice that changes nothing ends no card); a request the record already matches settles
+as `model_already_set`. A deleted agent's
 model cards are superseded with it. The confirmation line says the model answers from
 the next reply and that memory, tasks, grants and open trades stay as they are.
 

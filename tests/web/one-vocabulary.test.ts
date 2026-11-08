@@ -166,6 +166,8 @@ test("activity rows say what the agent does from registry metadata, never a raw 
       "ينفّذ صفقة افتراضية",
     ],
     ["market_decision_record", "intelligence", "change", "Recording analysis", "يسجّل التحليل"],
+    ["model_request", "intelligence", "change", "Changing its model", "يغيّر نموذجه"],
+    ["model_list", "intelligence", "read", "Checking its models", "يراجع نماذجه"],
     ["chart_set_timeframe", "charts", "change", "Working on a chart", "يعمل على رسم بياني"],
   ];
   for (const [name, toolset, effect, en, ar] of cases) {

@@ -17,6 +17,7 @@ from lonora_adapter_kit.types import ModelMessage, ModelReply, ToolCall, ToolDef
 from lonora_contracts.model_routing import Capability, ModelSelection
 from lonora_contracts.usage import TokenUsage
 from lonora_core.user_error import LonoraError
+from lonora_db.personal_agent import ensure_personal_agent
 from lonora_db.schema import Base, EventRow, OwnerActionRow, RunRow
 from lonora_db.transactions import SettingsRepository
 from lonora_gateway.run_dispatch import run_model_choice
@@ -30,6 +31,8 @@ from sqlalchemy import func, select
 DEFAULT = ModelSelection(provider="openai", model="gpt-default-test")
 SONNET = ModelSelection(provider="anthropic", model="claude-sonnet-test")
 OPUS = ModelSelection(provider="anthropic", model="claude-opus-test")
+# In the catalog but never on the allowed list.
+HAIKU = ModelSelection(provider="anthropic", model="claude-haiku-test")
 UNCONNECTED = ModelSelection(provider="deepseek", model="deepseek-chat")
 # Records a switch may touch; every other table must stay exactly as it was.
 SWITCH_TABLES = {"ln_settings", "ln_events", "ln_owner_actions", "ln_effect_receipts"}
@@ -67,7 +70,8 @@ async def main() -> None:
                 "PUT", f"/providers/{provider}/credential", {"api_key": "explicit-test-key-1234"}
             )
         async with db.sessions() as session, session.begin():
-            for provider, models in {"openai": [DEFAULT], "anthropic": [SONNET, OPUS]}.items():
+            catalogs = {"openai": [DEFAULT], "anthropic": [SONNET, OPUS, HAIKU]}
+            for provider, models in catalogs.items():
                 await SettingsRepository().put(
                     session,
                     "catalog:" + provider,
@@ -104,6 +108,7 @@ async def main() -> None:
             DEFAULT.model,
             SONNET.model,
             OPUS.model,
+            HAIKU.model,
         }
         assert summary["usage"]["requests"] == 0
 
@@ -152,6 +157,38 @@ async def main() -> None:
             return await fixture.request(
                 "POST", f"/owner-actions/{card_id}/decision", {"decision": decision}
             )
+
+        async def card_row(card_id: str) -> OwnerActionRow:
+            async with db.sessions() as session:
+                row = await session.get(OwnerActionRow, card_id)
+                assert row is not None
+                return row
+
+        async def owner_says(words: str, to: dict[str, Any], conversation: dict[str, Any]):
+            """The owner's message in a conversation; a Run already working there takes
+            it as steering, otherwise it starts a new owner-message Run."""
+            sent = await fixture.request(
+                "POST",
+                f"/threads/{conversation['id']}/messages",
+                {"content": words, "client_nonce": "model-" + uuid4().hex},
+            )
+            run = {"id": sent["run_ids"][0], "agent_id": to["id"], "thread_id": conversation["id"]}
+            return await fixture.lease(run)
+
+        async def finish(context: Any) -> None:
+            """End every fixture Run still open in this conversation, so the owner's next
+            message starts a new Run."""
+            async with db.sessions() as session, session.begin():
+                rows = await session.scalars(
+                    select(RunRow)
+                    .where(
+                        RunRow.thread_id == context.thread_id,
+                        RunRow.status.in_(["queued", "leased", "running", "waiting_input"]),
+                    )
+                    .with_for_update()
+                )
+                for row in rows:
+                    row.status = "completed"
 
         # 2. Automatic: the agent's own switch to an allowed model applies at once,
         #    is logged, changes nothing else and offers Undo.
@@ -216,7 +253,8 @@ async def main() -> None:
         undone = await decide(undo["id"], "confirm")
         assert undone["status"] == "confirmed"
         restored = await record()
-        assert restored["preference"]["primary"] is None and restored["chosen_by"] == "owner"
+        # The earlier choice comes back as it was: the default nobody chose.
+        assert restored["preference"]["primary"] is None and restored["chosen_by"] is None
         again = await decide(undo["id"], "confirm")
         assert (
             again["status"] == "confirmed" and (await record())["revision"] == restored["revision"]
@@ -272,14 +310,8 @@ async def main() -> None:
             raise AssertionError("A peer must not change another agent's model")
         print("PASS a fixed model is the owner's; peers never change another agent's model")
 
-        # 7. The owner asked in this turn: applies at once, as the owner's choice.
-        sent = await fixture.request(
-            "POST",
-            f"/threads/{thread['id']}/messages",
-            {"content": "Use Opus and keep it", "client_nonce": "model-" + uuid4().hex},
-        )
-        owner_run = {"id": sent["run_ids"][0], "agent_id": agent["id"], "thread_id": thread["id"]}
-        owner_context = await fixture.lease(owner_run)
+        # 7. The owner's message names the model: applies at once, recorded with it.
+        owner_context = await owner_says("Use Opus and keep it", agent, thread)
         pinned = await call(owner_context, {"model": OPUS.model_dump(), "fixed": True})
         assert pinned["changed"] is True and pinned["mode"] == "fixed", pinned
         fixed = await record()
@@ -303,14 +335,110 @@ async def main() -> None:
         assert missing["code"] == "model_provider_not_connected"
         print("PASS the owner's request applies at once; unknown or unconnected models refuse")
 
-        # 8. A switch limit per run.
+        # 7b. The owner's words decide, not the kind of Run. A Fixed agent answering an
+        #     unrelated owner message keeps its model (a card), a model outside the list
+        #     is always a tap even when named, and words naming an allowed model apply at
+        #     once and keep the agent Fixed.
+        await finish(owner_context)
+        unrelated = await owner_says("What is the gold outlook today?", agent, thread)
+        held = await call(unrelated, {"model": SONNET.model_dump()})
+        assert held["owner_must_tap"] is True and held["why"] == "owner_fixed_model", held
+        kept = await record()
+        assert kept["mode"] == "fixed" and kept["preference"]["primary"] == OPUS.model_dump()
+        asked_card = next(
+            card for card in await cards() if card["id"] == held["owner_action"]["id"]
+        )
+        # A Fixed choice stays Fixed unless the owner asks for Automatic.
+        assert asked_card["facts"]["model"]["requested"]["mode"] == "fixed", asked_card
+        unpinned = await call(unrelated, {})
+        assert unpinned["owner_must_tap"] is True and unpinned["why"] == "owner_fixed_model"
+        steered = await owner_says("Use Claude Haiku for this", agent, thread)
+        assert steered.lease.run_id == unrelated.lease.run_id  # Steering, the same Run.
+        outside = await call(steered, {"model": HAIKU.model_dump()})
+        assert outside["owner_must_tap"] is True and outside["why"] == "outside_allowed_list"
+        assert (await card_row(outside["owner_action"]["id"])).payload["allow"] is True
+        assert (await record())["preference"]["primary"] == OPUS.model_dump()
+        named_context = await owner_says("Switch to sonnet please", agent, thread)
+        named = await call(named_context, {"model": SONNET.model_dump()})
+        assert named["changed"] is True and named["mode"] == "fixed", named
+        assert (await record())["preference"]["primary"] == SONNET.model_dump()
+        # The switch ends the earlier requests: a later tap cannot override it.
+        for card_id in (held["owner_action"]["id"], outside["owner_action"]["id"]):
+            ended = await card_row(card_id)
+            assert ended.status == "superseded" and ended.status_reason == "model_changed_again"
+        await finish(named_context)
+        print("PASS only the owner's words change a fixed model; outside the list is a tap")
+
+        # 7c. The agent sees its facts and finds exact ids by name.
+        context = await wake()
+        facts = await registry.execute(
+            ToolCall(id="list-" + uuid4().hex, name="model_list", arguments={"query": "Opus"}),
+            context,
+        )
+        assert facts["mode"] == "fixed" and facts["answering"]["model"] == SONNET.model, facts
+        assert {item["model"] for item in facts["allowed"]} == {
+            DEFAULT.model,
+            SONNET.model,
+            OPUS.model,
+        }
+        assert facts["matches"][0] == {**OPUS.model_dump(), "name": "Claude-Opus", "allowed": True}
+        assert HAIKU.model not in {item["model"] for item in facts["matches"]}
+        guessed = await call(context, {"model": {"provider": "anthropic", "model": "claude-haiku"}})
+        assert guessed["code"] == "model_not_in_catalog", guessed
+        assert guessed["closest"][0] == {
+            **HAIKU.model_dump(),
+            "name": "Claude-Haiku",
+            "allowed": False,
+        }
+        print("PASS model_list shows the mode, the allowed models and exact ids by name")
+
+        # 7d. Lonora sets another agent's model on the owner's words only.
+        async with db.sessions() as session, session.begin():
+            lonora = {"id": (await ensure_personal_agent(session, fixture.owner)).id}
+        lonora_thread = await fixture.conversation(lonora)
+        vague = await owner_says("Make the model chooser faster", lonora, lonora_thread)
+        routed = await call(vague, {"model": DEFAULT.model_dump(), "agent_id": agent["id"]})
+        assert routed["owner_must_tap"] is True, routed
+        assert (await record())["preference"]["primary"] == SONNET.model_dump()
+        await finish(vague)
+        told = await owner_says("Put the model chooser on gpt-default-test", lonora, lonora_thread)
+        routed = await call(told, {"model": DEFAULT.model_dump(), "agent_id": agent["id"]})
+        assert routed["changed"] is True and routed["mode"] == "fixed", routed
+        moved = await record()
+        assert moved["preference"]["primary"] == DEFAULT.model_dump()
+        assert moved["chosen_by_agent_id"] == lonora["id"]
+        await finish(told)
+        print("PASS Lonora changes another agent's model when the owner names it")
+
+        # 8. A switch limit per run; Undo restores the agent's own earlier choice as its.
         await fixture.request("PUT", path, {"mode": "automatic"})
         context = await wake()
         for model in (SONNET, DEFAULT, SONNET):
-            assert (await call(context, {"model": model.model_dump()}))["changed"] is True
+            last = await call(context, {"model": model.model_dump()})
+            assert last["changed"] is True, last
         limited = await call(context, {"model": DEFAULT.model_dump()})
         assert limited["code"] == "model_switch_limit", limited
-        print("PASS at most three switches per run")
+        # Choosing the current state again changes nothing and ends no card.
+        revision = (await record())["revision"]
+        unchanged = await fixture.request(
+            "PUT", path, {"mode": "automatic", "primary": SONNET.model_dump()}
+        )
+        assert unchanged["revision"] == revision
+        assert (await card_row(last["undo_card"])).status == "pending"
+        await decide(last["undo_card"], "confirm")
+        back = await record()
+        assert back["preference"]["primary"] == DEFAULT.model_dump()
+        assert back["chosen_by"] == "agent" and back["chosen_by_agent_id"] == agent["id"]
+        # A choice that names no fallbacks keeps the agent's own.
+        await fixture.request(
+            "PUT",
+            path,
+            {"mode": "automatic", "primary": SONNET.model_dump(), "fallbacks": [OPUS.model_dump()]},
+        )
+        await fixture.request("PUT", path, {"mode": "fixed", "primary": DEFAULT.model_dump()})
+        assert (await record())["preference"]["fallbacks"] == [OPUS.model_dump()]
+        await fixture.request("PUT", path, {"mode": "automatic", "fallbacks": []})
+        print("PASS at most three switches per run; Undo restores who chose")
 
         # 9. A helper on a chosen model: only allowed models, first in its chain.
         context = await wake()

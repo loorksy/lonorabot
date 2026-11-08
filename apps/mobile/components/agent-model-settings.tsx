@@ -1,5 +1,5 @@
 import type { Agent, AgentModelChange, AgentModelSummary } from "@lonora/contracts";
-import { agentModelLines, agentModelText } from "@lonora/core";
+import { agentModelLines, agentModelText, offersDefaultModel } from "@lonora/core";
 import { useCallback, useEffect, useState } from "react";
 import { Text, View } from "react-native";
 import { api } from "../lib/api";
@@ -69,8 +69,19 @@ export function AgentModelSettings({ agent }: { agent: Agent }) {
           detail={text.automaticHint}
           value={record.mode === "automatic" ? "✓" : undefined}
           disabled={busy}
-          onPress={() => void choose({ mode: "automatic" })}
+          onPress={() => {
+            // Already Automatic: nothing to choose (the same as the Web radio).
+            if (record.mode !== "automatic") void choose({ mode: "automatic" });
+          }}
         />
+        {offersDefaultModel(summary) && (
+          <SettingsRow
+            testID="agent-model-default"
+            title={text.backToDefault}
+            disabled={busy}
+            onPress={() => void choose({ mode: "automatic" })}
+          />
+        )}
         <SettingsRow
           testID="agent-model-fixed"
           title={text.fixed}

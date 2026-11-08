@@ -183,13 +183,18 @@ turn simply asks the new model (the router reads the record on every request).
 | --- | --- |
 | `mode` | `automatic`: Lonora chooses; the agent starts on the owner's default model and may switch itself among the allowed models. `fixed`: the owner chose one model; only the owner changes it. |
 | `preference` | `{primary, fallbacks (≤3)}`: in Automatic, the agent's own current choice (or none) |
-| `chosen_by`, `chosen_by_agent_id` | `owner` (settings or a card) or `agent` (`model_request`), and the agent that made a switch |
-| `previous` | The mode and models before the last change (what Undo restores) |
+| `chosen_by`, `chosen_by_agent_id` | `owner` (settings or a card) or `agent` (`model_request`), and the agent that made a switch; none until anyone chose |
+| `previous` | The mode and models before the last change (what Undo restores, with who had chosen them) |
 | `revision`, `changed_at` | Optimistic concurrency (`expected_revision`) and when it changed |
 
 A record written before modes existed reads as Fixed when it has a primary (the owner
 chose it through the E4 API) and Automatic otherwise. The same choice again changes
-nothing (no revision, no event). Every change emits `agent.model.updated` with the mode,
+nothing (no revision, no event, and no card ends). A `PUT` that omits `fallbacks` keeps
+the agent's current fallbacks behind the new primary; an explicit list replaces them.
+Choosing Automatic sends the agent back to the owner's default model: on Web and Mobile
+an Automatic agent on a model someone set offers "Back to your default model", and
+choosing Automatic again while already Automatic changes nothing. Every change emits
+`agent.model.updated` with the mode,
 model, who chose it and how (`owner_settings`, `model_request`, `owner_card`,
 `owner_undo`). `GET …/model/summary` is what the model card shows: the record, the model
 answering now, the allowed models, the models a Fixed choice can pick (text models in the
@@ -206,26 +211,45 @@ backups, then, for an Automatic agent only, the owner's added models. A Fixed ag
 falls back on the additions; a request without an agent (an in-run summary) keeps the
 global routes.
 
-### `model_request`
+### `model_list` and `model_request`
 
-One tool (toolset `intelligence`, long-tail, replay-safe, not available to helpers):
-`model` (or none: back to the owner's default), `fixed` (only when the owner wants the
-model kept) and `agent_id` (Lonora only, for another agent).
+`model_list` (read-only) gives the agent the facts it needs before it switches: its mode,
+who chose, the model answering now, the allowed models as provider, exact id and name,
+and the connected providers. With `query` ("Opus", "gpt-5") it also returns up to six
+catalog entries of the connected providers that share the most words with the query,
+allowed ones first among equals, each marked `allowed`. `agent_id` reads another of the
+owner's agents (the model choice is not private memory).
 
-- **The owner asked in this turn** (a run that answers an owner message, the rule
-  `trade_restriction_create` uses): the choice applies at once; the event records the
-  owner's message it answered (`source_message_id`). The record says the agent set it
-  (`chosen_by: agent`), since the choice is the agent's reading of that message.
-- **The agent's own switch**: applies at once only to itself, while it is Automatic, to an
-  allowed model. A model outside the list, an agent the owner fixed, or another agent
-  raises an `agent_model` owner card instead (`docs/owner-actions.md`); nothing changes
-  until the tap, and a repeated request returns the card already shown.
+`model_request` (toolset `intelligence`, long-tail, replay-safe, not available to
+helpers) takes `model` (or none: back to the owner's default), `fixed` (`true`: keep this
+model, only the owner changes it; `false`: Lonora may switch again; omitted: the current
+mode stays, so a Fixed agent stays Fixed) and `agent_id` (Lonora only, for another agent).
+
+- **The agent's own switch** applies at once: to itself, while it is and stays Automatic,
+  to an allowed model, in any Run.
+- **A change the owner asked for** applies at once only when the server can tie it to the
+  owner's words: the Run answers an owner message (a `user` or `group` trigger) and that
+  message, or one the owner added while the Run worked, names the requested model (its id,
+  its catalog name, or a distinctive word of either such as "Opus"; words many names
+  share such as "pro", "flash" or a vendor name do not count). That is how a Fixed agent
+  changes model or Lonora sets another agent's model from chat. The event records the
+  owner's message (`source_message_id`); the record says the agent set it (`chosen_by:
+  agent`).
+- **Everything else** raises an `agent_model` owner card (`docs/owner-actions.md`): a
+  model outside the allowed list, always, even when the owner named it (confirming adds it
+  to the list, so it is one tap once); a change to an agent the owner fixed, a change to
+  another agent or a mode change that the owner's words do not name (an unrelated chat
+  message, text the agent read on a page or from a tool). Nothing changes until the tap,
+  and a repeated request returns the card already shown.
 - A provider without a key is `model_provider_not_connected`; a model no connected
-  catalog lists is `model_not_in_catalog`; another agent's model from anyone but Lonora is
-  `model_request_agent_forbidden`. At most three switches apply per Run
-  (`model_switch_limit`).
+  catalog lists is `model_not_in_catalog`, with the `closest` real entries to retry with
+  (a guess such as `claude-opus` finds the exact Opus ids); another agent's model from
+  anyone but Lonora is `model_request_agent_forbidden`. At most three switches apply per
+  Run (`model_switch_limit`).
 - Every switch that applies raises an `agent_model_changed` card with Undo in the
-  conversation; a newer switch replaces it.
+  conversation. A newer switch replaces it and ends the pending `agent_model` requests
+  about the same agent (`model_changed_again`), so a later tap cannot override the newer
+  choice. Undo restores the earlier mode and models with who had chosen them.
 
 ### Helpers and second opinions
 
@@ -265,8 +289,10 @@ Nothing waits for agreement and nothing executes on its advice.
 - Like the per-Agent approval preference, the model record is not removed when
   the Agent is deleted (it is unreachable afterwards). A typed column on
   `ln_agents` would need a migration and is left as a follow-up.
-- The owner's chat request is the agent's reading of the owner's message, as for
-  other owner-asked effects; it is non-financial, visible and has Undo.
+- A change the owner asked for applies at once only when the owner's words name the
+  model; a name the server does not recognize (an Arabic transliteration such as
+  "أوبس") falls back to the one-tap card. The switch is non-financial, visible and has
+  Undo.
 - The Fixed picker lists every discovered model of a connected provider; catalogs
   that do not report capabilities (OpenAI) include non-chat models.
 - Reasoning/thinking controls (effort, thinking budgets) are not configured

@@ -9,12 +9,15 @@ from typing import Any
 from fastapi import APIRouter, Depends, Request
 from lonora_auth.identity import OwnerIdentity
 from lonora_contracts.domain import utcnow
-from lonora_contracts.model_catalog import ModelDescriptor
 from lonora_contracts.model_routing import AgentModelChange, AgentModelRecord, Capability
 from lonora_core.user_error import LonoraError
-from lonora_db.agent_models import agent_model_record, allowed_models, change_agent_model
+from lonora_db.agent_models import (
+    agent_model_record,
+    allowed_models,
+    catalog_models,
+    change_agent_model,
+)
 from lonora_db.model_cards import model_label
-from lonora_db.transactions import SettingsRepository
 from lonora_db.usage import agent_usage
 from lonora_providers.credentials import ProviderCredentials
 from lonora_providers.registry import PROVIDERS
@@ -69,18 +72,7 @@ async def summary(
     async with rt.db.sessions() as session:
         record = await agent_model_record(session, owner.id, agent_id)
         allowed = await allowed_models(session)
-        available: list[dict[str, Any]] = []
-        settings = SettingsRepository()
-        for provider in connected:
-            payload = await settings.get(session, "catalog:" + provider)
-            for item in payload.get("models", []):
-                descriptor = ModelDescriptor.model_validate(item)
-                # A model the catalog verifies without text is not an agent's model.
-                if descriptor.verified and "text" not in descriptor.capabilities:
-                    continue
-                available.append(
-                    {"provider": provider, "model": descriptor.id, "name": descriptor.name}
-                )
+        available = await catalog_models(session, connected)
         usage = await agent_usage(session, owner.id, since, agent_id)
         return {
             "record": record.model_dump(mode="json"),

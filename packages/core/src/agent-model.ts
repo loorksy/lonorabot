@@ -29,6 +29,7 @@ export const agentModelLabels = {
     fixed: "Fixed",
     fixedHint: "Always this model; only you change it.",
     chooseModel: "Choose a model",
+    backToDefault: "Back to your default model",
     defaultModel: "your default model",
     now: "Now",
     answering: "Answering now",
@@ -82,6 +83,7 @@ export const agentModelLabels = {
     fixed: "ثابت",
     fixedHint: "هذا النموذج دائمًا؛ لا يغيّره إلا أنت.",
     chooseModel: "اختر نموذجًا",
+    backToDefault: "العودة إلى نموذجك الافتراضي",
     defaultModel: "نموذجك الافتراضي",
     now: "الآن",
     answering: "يجيب الآن",
@@ -184,6 +186,14 @@ export function usageLine(
       new Intl.NumberFormat(language(locale) === "ar" ? "ar" : "en").format(usage.requests),
     ),
   })}`;
+}
+
+/**
+ * Whether an Automatic agent answers on a model someone set rather than the owner's
+ * default: then Web and Mobile both offer "Back to your default model".
+ */
+export function offersDefaultModel(summary: AgentModelSummary): boolean {
+  return summary.record.mode === "automatic" && summary.record.preference.primary != null;
 }
 
 /** The model card's summary lines in an agent's settings. */
