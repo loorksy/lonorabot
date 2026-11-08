@@ -9,6 +9,7 @@ from sqlalchemy import select
 
 from .base import Tool, eager_for
 from .context import ToolContext
+from .restrictions import owner_message_id
 
 
 async def step_update(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
@@ -59,9 +60,13 @@ async def inspect(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
 
 async def control(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     async with context.db.sessions() as session, session.begin():
-        await require_lease(session, context.lease)
+        run = await require_lease(session, context.lease)
         row = await control_task(
-            session, context.owner_id, TaskControl.model_validate(args), agent_id=context.agent_id
+            session,
+            context.owner_id,
+            TaskControl.model_validate(args),
+            agent_id=context.agent_id,
+            owner_message=await owner_message_id(session, run) is not None,
         )
         return await snapshot(session, row)
 

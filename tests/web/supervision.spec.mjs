@@ -13,7 +13,8 @@ function simulation(data) {
 
 // Lonora (supervising every agent by default), a gold agent and a watcher that
 // proposed to supervise it, as supervision_change raises the card without an owner
-// message (no model involved).
+// message (no model involved); Lonora paused one of Gold's routines on its own, which
+// raises the pause card in Gold's conversation.
 function seedSupervision(data) {
   const script = `
 import asyncio,json,sys
@@ -24,6 +25,11 @@ from lonora_contracts.domain import AgentCreate
 from lonora_db.agents import create_agent
 from lonora_db.owner_actions import propose_supervision
 from lonora_db.personal_agent import ensure_personal_agent
+from lonora_contracts.routines import RoutineCreate
+from lonora_db.routines import create_routine
+from lonora_db.schema import OwnerActionRow
+from lonora_db.supervision import control_work
+from sqlalchemy import select
 from lonora_db.threads import conversation_thread
 async def main():
     data=json.load(sys.stdin)
@@ -35,7 +41,11 @@ async def main():
             watcher=await create_agent(session,f.owner,AgentCreate(name=data['watcher'],scope_mode='flexible'))
             thread=await conversation_thread(session,f.owner,watcher.id)
             card,_=await propose_supervision(session,f.owner,watcher.id,[gold.id],card_id=str(uuid4()),agent_id=watcher.id,thread_id=thread.id,run_id=None)
-            print(json.dumps({'lonora':lonora.id,'lonora_name':lonora.name,'gold':gold.id,'watcher':watcher.id,'card':card.id}))
+            routine=await create_routine(session,f.owner,gold.id,RoutineCreate(prompt=data['routine'],interval_seconds=3600))
+            await control_work(session,f.owner,actor_id=lonora.id,agent_id=gold.id,kind='routine',target_id=routine.id,action='pause',owner_message_id=None,run_id=None)
+            pause=await session.scalar(select(OwnerActionRow.id).where(OwnerActionRow.kind=='supervision_paused',OwnerActionRow.agent_id==gold.id))
+            gold_thread=await conversation_thread(session,f.owner,gold.id)
+            print(json.dumps({'lonora':lonora.id,'lonora_name':lonora.name,'gold':gold.id,'watcher':watcher.id,'card':card.id,'pause':pause}))
     finally:
         await f.close(cleanup=False)
 asyncio.run(main())
@@ -64,6 +74,9 @@ const copy = {
     undo: "Undo",
     undone: "Undone: supervision stopped.",
     never: /never trades for them/,
+    pauseTitle: "Paused by a supervisor",
+    resume: "Resume",
+    resumed: "Resumed.",
   },
   ar: {
     settings: "إعدادات الوكيل: ",
@@ -80,6 +93,9 @@ const copy = {
     undo: "تراجع",
     undone: "تم التراجع: توقف الإشراف.",
     never: /لا يتداول عنهم/,
+    pauseTitle: "أوقفه مشرف مؤقتًا",
+    resume: "استئناف",
+    resumed: "تم الاستئناف.",
   },
 };
 
@@ -104,7 +120,11 @@ for (const locale of ["en", "ar"])
       "X-CSRF-Token": data.cookies.find((row) => row.name === "lonora_csrf").value,
     };
     const suffix = randomUUID().slice(0, 6);
-    const seeded = seedSupervision({ gold: `Gold ${suffix}`, watcher: `Watcher ${suffix}` });
+    const seeded = seedSupervision({
+      gold: `Gold ${suffix}`,
+      watcher: `Watcher ${suffix}`,
+      routine: `Review gold ${suffix}`,
+    });
     try {
       // Lonora's profile: every agent is supervised by default, each with one-tap Stop.
       await page.goto(`/app/${seeded.lonora}`);
@@ -158,6 +178,23 @@ for (const locale of ["en", "ar"])
         await context.request.get(`/api/supervision?agent_id=${seeded.watcher}`)
       ).json();
       expect(after.supervises).toEqual([]);
+
+      // Gold's conversation names who paused its routine, with one-tap Resume.
+      await page.goto(`/app/${seeded.gold}`);
+      const pause = page.locator(`[data-owner-action="${seeded.pause}"]`);
+      await expect(pause).toHaveAttribute("data-owner-action-kind", "supervision_paused");
+      await expect(pause.locator("strong")).toHaveText(text.pauseTitle);
+      await expect(pause).toContainText(`⁨${seeded.lonora_name}⁩`);
+      await expect(pause).toContainText(`⁨Review gold ${suffix}⁩`);
+      if (locale === "ar")
+        await pause.screenshot({ path: test.info().outputPath("supervision-pause-ar.png") });
+      await pause.getByRole("button", { name: text.resume, exact: true }).click();
+      await expect(pause).toHaveAttribute("data-owner-action-status", "confirmed");
+      await expect(pause.getByRole("status")).toHaveText(text.resumed);
+      const routines = await (await context.request.get(`/api/routines`)).json();
+      expect(
+        routines.filter((row) => row.agent_id === seeded.gold).map((row) => row.enabled),
+      ).toEqual([true]);
     } finally {
       for (const id of [seeded.gold, seeded.watcher])
         await context.request.delete(`/api/agents/${id}`, { headers });

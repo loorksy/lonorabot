@@ -7,8 +7,9 @@ function for its effect: Stop/Resume (``apply_controls``), lifting a restriction
 (``revoke_restriction``), the owner attestation of an uncertain operation
 (``attest_operation``), the account's execution policy (``store_execution_policy``),
 creating an agent (the creation service; never a grant), undoing a creation (the
-owner's delete for an agent that has done nothing yet, otherwise a pause), and setting
-or undoing supervision (``lonora_db.supervision``; never money authority).
+owner's delete for an agent that has done nothing yet, otherwise a pause), setting,
+undoing or restoring supervision, and the owner's own resume of work a supervisor
+paused (``lonora_db.supervision``; never money authority).
 Raising or removing a money limit also needs a verified passkey assertion bound to the
 card's payload hash; lowering a limit, lifting a pause, resuming, creating an agent,
 setting supervision and Undo are one tap.
@@ -49,7 +50,12 @@ from lonora_db.owner_actions import (
 )
 from lonora_db.schema import AgentRow, OwnerActionRow
 from lonora_db.super_bot import authority_lock
-from lonora_db.supervision import grant_supervision, owned_grant, revoke_supervision
+from lonora_db.supervision import (
+    grant_supervision,
+    owned_grant,
+    owner_resumes,
+    revoke_supervision,
+)
 from lonora_db.trading_readiness import risk_limit_frame
 from lonora_db.trading_restrictions import revoke_restriction
 from lonora_db.transactions import owned_thread
@@ -208,6 +214,10 @@ async def decide(
     elif row.kind == "supervision_created":
         revoked = await undo_supervision(session, owner, row)
         result = {"revoked": revoked}
+    elif row.kind == "supervision_stopped":
+        result = {"restored": await restore_supervision(session, owner, row)}
+    elif row.kind == "supervision_paused":
+        result = {"resumed": await owner_resumes(session, owner.id, row.payload["hold_id"])}
     else:
         account_id = row.payload["account_id"]
         policy = await account_policy(session, owner.id, account_id)
@@ -308,6 +318,26 @@ async def supervise_from_card(
         if new:
             created.append(grant.id)
     return created
+
+
+async def restore_supervision(
+    session: AsyncSession, owner: OwnerIdentity, row: OwnerActionRow
+) -> int:
+    """Restore: the grants stopped from chat are set again by the owner's tap; a pair
+    supervised again meanwhile stays as it is."""
+    restored = 0
+    for grant_id in row.payload["grant_ids"]:
+        stopped = await owned_grant(session, owner.id, grant_id)
+        _, new = await grant_supervision(
+            session,
+            owner.id,
+            stopped.supervisor_agent_id,
+            stopped.supervised_agent_id,
+            via="owner_card",
+            created_by_agent_id=row.agent_id,
+        )
+        restored += new
+    return restored
 
 
 async def undo_supervision(session: AsyncSession, owner: OwnerIdentity, row: OwnerActionRow) -> int:

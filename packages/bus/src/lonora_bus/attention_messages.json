@@ -31,7 +31,9 @@
     "owner_action_undo_deleted": "تم التراجع: أُزيل الوكيل.",
     "owner_action_undo_paused": "تم التراجع: أُوقف الوكيل مؤقتًا. كان قد بدأ العمل، وبقي ما أنجزه.",
     "owner_action_supervise": "صار الإشراف ساريًا: يقرأ المشرف عملهم ويراسلهم ويستطيع إيقاف عملهم مؤقتًا، ولا يتداول عنهم ولا يرفع أي فرامل.",
-    "owner_action_supervision_created": "تم التراجع: توقف الإشراف، ولم يعد المشرف يقرأ عملهم أو يوقفه."
+    "owner_action_supervision_created": "تم التراجع: توقف الإشراف، ولم يعد المشرف يقرأ عملهم أو يوقفه.",
+    "owner_action_supervision_stopped": "تمت الاستعادة: عاد الإشراف ساريًا، فيقرأ المشرف عملهم ويستطيع إيقافه مؤقتًا من جديد.",
+    "owner_action_supervision_paused": "تم الاستئناف: رُفع الإيقاف ويعود العمل."
   },
   "en": {
     "super_bot_authorization": "A Super Bot request needs your review and device authorization in the conversation. No execution authority has been granted yet.",
@@ -65,6 +67,8 @@
     "owner_action_undo_deleted": "Undone: the agent was removed.",
     "owner_action_undo_paused": "Undone: the agent was paused. It had already started work, which is kept.",
     "owner_action_supervise": "Supervision set: the supervisor reads their work, messages them and can pause it; it never trades for them or lifts a brake.",
-    "owner_action_supervision_created": "Undone: supervision stopped; the supervisor no longer reads or pauses their work."
+    "owner_action_supervision_created": "Undone: supervision stopped; the supervisor no longer reads or pauses their work.",
+    "owner_action_supervision_stopped": "Restored: supervision is set again; the supervisor reads their work and can pause it again.",
+    "owner_action_supervision_paused": "Resumed: the pause is lifted and the work continues."
   }
 }

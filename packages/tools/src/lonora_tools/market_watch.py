@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .base import Tool, eager_for
 from .context import ToolContext
 from .memory import Empty
+from .restrictions import owner_message_id
 
 
 async def keyed_watch(
@@ -120,9 +121,14 @@ class WatchUpdate(WatchReference):
 
 async def steer(context: ToolContext, watch_id: str, action: WatchAction) -> dict[str, Any]:
     async with context.db.sessions() as session, session.begin():
-        await require_lease(session, context.lease, lock=True)
+        run = await require_lease(session, context.lease, lock=True)
         row = await control_watch(
-            session, context.owner_id, watch_id, action, agent_id=context.agent_id
+            session,
+            context.owner_id,
+            watch_id,
+            action,
+            agent_id=context.agent_id,
+            owner_message=await owner_message_id(session, run) is not None,
         )
         return {
             **resource_data(row),

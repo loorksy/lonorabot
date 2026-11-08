@@ -109,6 +109,7 @@ async def update_agent(
     session: AsyncSession, owner_id: str, agent_id: str, request: AgentUpdate
 ) -> AgentRow:
     row = await owned_agent(session, owner_id, agent_id, lock=True)
+    was_paused = row.paused
     if "scope_mode" in request.model_fields_set:
         if row.parent_id or row.role in {"personal", "delegated"}:
             raise LonoraError("agent_scope_change_forbidden", 403)
@@ -124,9 +125,11 @@ async def update_agent(
         exclude={"scope_mode", "trading_account_id", "trading_symbol", "expected_scope_revision"},
     ).items():
         setattr(row, key, value)
-    if "paused" in request.model_fields_set:
+    if request.paused is not None and request.paused != was_paused:
         from .supervision import owner_takes_over
 
-        # The owner's pause or resume wins over a supervisor's hold on this agent.
-        await owner_takes_over(session, owner_id, "agent", agent_id)
+        # The owner's own pause or resume wins over a supervisor's hold on this agent.
+        # The settings form sends the switch with every save, so only a change counts:
+        # renaming a paused agent leaves a supervisor's pause the supervisor's.
+        await owner_takes_over(session, owner_id, "agent", agent_id, paused=request.paused)
     return row

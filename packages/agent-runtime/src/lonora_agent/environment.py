@@ -62,6 +62,9 @@ def classify(code: str, tool: Tool | None) -> dict[str, Any]:
         # An owner restriction: never route around it through another symbol or account.
         "trading_restriction_active",
         "restriction_all_mutations_requires_owner_message",
+        # Supervision never silences the owner's entry point or sheds its own oversight.
+        "supervision_personal_agent",
+        "supervision_revoke_own_oversight",
     }:
         category, action = "permission_denied", "respect_scope"
     elif code.startswith("risk_"):

@@ -143,6 +143,25 @@ export const ownerActionLabels = {
     supervisionEnded: "This supervision already ended.",
     supervisionAlreadySet: "This supervision is already set. Nothing changed.",
     supervisionAgentMissing: "One of these agents no longer exists. Nothing changed.",
+    stoppedTitle: "Supervision stopped",
+    restore: "Restore",
+    stoppedHint: "It no longer reads, messages or pauses their work. Restore sets it again.",
+    restored: "Restored: supervision set again.",
+    pauseTitle: "Paused by a supervisor",
+    pausedBy: "Paused by",
+    pausedWhat: "What",
+    targetAgent: "The whole agent",
+    targetRoutine: "Routine",
+    targetWatch: "Watch",
+    targetTask: "Task",
+    pauseHint: "The agent cannot resume it on its own. Resume lifts the pause now.",
+    pauseOwnerHolds: "You paused it too, so only you resume it.",
+    pauseEnded: "This pause already ended.",
+    resumeWork: "Resume",
+    keepPaused: "Keep paused",
+    resumedWork: "Resumed.",
+    keptPaused: "Kept paused.",
+    watchExpired: "This watch is past its expiry: move its expiry in the watch list to resume it.",
   },
   ar: {
     resumeTitle: "استئناف التداول",
@@ -255,6 +274,25 @@ export const ownerActionLabels = {
     supervisionEnded: "انتهى هذا الإشراف مسبقًا.",
     supervisionAlreadySet: "هذا الإشراف معيّن مسبقًا. لم يتغير شيء.",
     supervisionAgentMissing: "أحد هؤلاء الوكلاء لم يعد موجودًا. لم يتغير شيء.",
+    stoppedTitle: "توقف الإشراف",
+    restore: "استعادة",
+    stoppedHint: "لم يعد يقرأ عملهم أو يراسلهم أو يوقفه. الاستعادة تعيده.",
+    restored: "تمت الاستعادة: عاد الإشراف.",
+    pauseTitle: "أوقفه مشرف مؤقتًا",
+    pausedBy: "أوقفه",
+    pausedWhat: "ما أُوقف",
+    targetAgent: "الوكيل كله",
+    targetRoutine: "مهمة مجدولة",
+    targetWatch: "مراقبة",
+    targetTask: "مهمة",
+    pauseHint: "لا يستطيع الوكيل استئنافه بنفسه. الاستئناف يرفع الإيقاف الآن.",
+    pauseOwnerHolds: "أوقفته أنت أيضًا، فلا يستأنفه غيرك.",
+    pauseEnded: "انتهى هذا الإيقاف مسبقًا.",
+    resumeWork: "استئناف",
+    keepPaused: "إبقاؤه موقوفًا",
+    resumedWork: "تم الاستئناف.",
+    keptPaused: "بقي موقوفًا.",
+    watchExpired: "انتهت مدة هذه المراقبة: مدّد مدتها من قائمة المراقبات لاستئنافها.",
   },
 } as const satisfies Record<Language, Record<string, string>>;
 export type OwnerActionText = (typeof ownerActionLabels)[Language];
@@ -304,9 +342,11 @@ function settledLine(card: OwnerAction, text: OwnerActionText): string | null {
   if (card.status === "cancelled")
     return card.kind === "agent_created"
       ? text.kept
-      : card.kind === "supervision_created"
+      : card.kind === "supervision_created" || card.kind === "supervision_stopped"
         ? text.supervisionKept
-        : text.cancelled;
+        : card.kind === "supervision_paused"
+          ? text.keptPaused
+          : text.cancelled;
   if (card.status === "confirmed") {
     switch (card.kind) {
       case "create_agent":
@@ -317,6 +357,10 @@ function settledLine(card: OwnerAction, text: OwnerActionText): string | null {
         return text.supervisionSet;
       case "supervision_created":
         return text.supervisionUndone;
+      case "supervision_stopped":
+        return text.restored;
+      case "supervision_paused":
+        return text.resumedWork;
       case "resume_trading":
         return text.resumed;
       case "lift_restriction":
@@ -358,6 +402,10 @@ function settledLine(card: OwnerAction, text: OwnerActionText): string | null {
       return text.supervisionAlreadySet;
     case "supervision_agent_missing":
       return text.supervisionAgentMissing;
+    case "supervision_pause_ended":
+      return text.alreadyEnded;
+    case "watch_expired":
+      return text.watchExpired;
     case "expired":
       return text.expired;
     default:
@@ -400,6 +448,31 @@ function supervisionLines(card: OwnerAction, lang: Language, text: OwnerActionTe
     lines.push(`${text.supervisor}: ${isolate(supervision.supervisor_name)}`);
   if (supervision.supervised_names.length)
     lines.push(`${text.supervises}: ${nameList(supervision.supervised_names, lang)}`);
+  return lines;
+}
+
+const TARGET_LABEL = {
+  agent: "targetAgent",
+  routine: "targetRoutine",
+  watch: "targetWatch",
+  task: "targetTask",
+} as const;
+
+/** A pause card's lines: who paused it, whose work, and which item (its own label). */
+function pauseLines(card: OwnerAction, text: OwnerActionText): string[] {
+  const pause = card.facts.supervision;
+  if (!pause) return [];
+  const lines: string[] = [];
+  const by = pause.supervisor_name ? isolate(pause.supervisor_name) : text.anAgent;
+  lines.push(
+    `${text.pausedBy}: ${by}${pause.from_owner_message ? ` · ${text.fromYourMessage}` : ""}`,
+  );
+  const agent = pause.supervised_names[0];
+  if (agent) lines.push(`${text.agent}: ${isolate(agent)}`);
+  if (pause.target) {
+    const label = pause.target_label ? ` · ${isolate(pause.target_label)}` : "";
+    lines.push(`${text.pausedWhat}: ${text[TARGET_LABEL[pause.target]]}${label}`);
+  }
   return lines;
 }
 
@@ -603,6 +676,35 @@ export function ownerActionCard(
         { key: "confirm", label: text.undo, decision: "confirm", primary: false },
         { key: "cancel", label: text.keep, decision: "cancel", primary: false },
       ];
+      break;
+    }
+    case "supervision_stopped": {
+      title = text.stoppedTitle;
+      lines.push(...supervisionLines(card, lang, text));
+      if (!card.facts.supervision?.active) {
+        // Set again elsewhere (the profile, a card): the card can only be dismissed.
+        hint = text.supervisionAlreadySet;
+        buttons = [{ key: "cancel", label: text.keep, decision: "cancel", primary: false }];
+        break;
+      }
+      hint = text.stoppedHint;
+      buttons = [
+        { key: "confirm", label: text.restore, decision: "confirm", primary: false },
+        { key: "cancel", label: text.keep, decision: "cancel", primary: false },
+      ];
+      break;
+    }
+    case "supervision_paused": {
+      title = text.pauseTitle;
+      lines.push(...pauseLines(card, text));
+      if (!card.facts.supervision?.active) {
+        // Resumed elsewhere (the supervisor, the owner): the card can only be dismissed.
+        hint = text.pauseEnded;
+        buttons = [{ key: "cancel", label: text.keep, decision: "cancel", primary: false }];
+        break;
+      }
+      hint = card.facts.supervision.owner_holds ? text.pauseOwnerHolds : text.pauseHint;
+      buttons = pair(text.resumeWork, text.keepPaused);
       break;
     }
     case "set_account_limits": {

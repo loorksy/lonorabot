@@ -10,14 +10,16 @@ the reader, never its instructions.
 ``agent_control`` pauses or resumes an agent you supervise, or one of its Tasks,
 routines or watches, and messages it. It never grants, raises a limit, lifts a
 restriction, trades or edits the agent's memory or instructions; its trading is
-narrowed with ``trade_restriction_create``. The hold rules and the cycle rule are in
-``lonora_db.supervision``.
+narrowed with ``trade_restriction_create``. A whole agent with money standing is paused
+only from the owner's message, and the Personal Agent only by the owner. The hold
+rules and the cycle rule are in ``lonora_db.supervision``.
 
 ``supervision_change`` sets who supervises whom when the owner asks: from the owner's
 message in this run it grants directly (the message is recorded as the source, and the
 owner gets an Undo card); otherwise it raises a card and nothing changes until the
-owner taps it. Revoking another agent's oversight needs the owner's message too (or
-the owner's one tap on the profile).
+owner taps it. Revoking oversight needs the owner's message too (or the owner's one tap
+on the profile), is never done by the supervised agent itself, and raises a card with
+Restore.
 """
 
 from typing import Any, cast
@@ -34,6 +36,7 @@ from lonora_db.owner_actions import (
     lock_owner_actions,
     propose_supervision,
     raise_supervision_card,
+    raise_supervision_stopped_card,
 )
 from lonora_db.runs import require_lease
 from lonora_db.schema import (
@@ -124,6 +127,8 @@ async def _overview(
         paused_by = (
             "owner_or_itself"
             if hold is None
+            else "owner"
+            if hold.source == "owner"
             else "you"
             if hold.holder_agent_id == context.agent_id
             else names.get(hold.holder_agent_id)
@@ -255,6 +260,8 @@ async def _work(
                 if hold.holder_agent_id == context.agent_id
                 else names.get(hold.holder_agent_id),
                 "from_owner_message": hold.source == "owner_message",
+                # The owner paused it too: only the owner lifts it now.
+                "owner_holds": hold.source == "owner",
             }
             for hold in holds
         ],
@@ -428,7 +435,9 @@ async def control(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             "run": await delegate_peer(context, params.agent_id, params.message),
         }
     async with context.db.sessions() as session, session.begin():
-        run = await require_lease(session, context.lease, lock=True)
+        # The order the owner's card decision takes them in: cards, then the work.
+        await lock_owner_actions(session, context.owner_id)
+        run = await require_lease(session, context.lease)
         result = await control_work(
             session,
             context.owner_id,
@@ -440,6 +449,8 @@ async def control(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             owner_message_id=await owner_message_id(session, run),
             run_id=run.id,
         )
+        # Fenced after the conversation lock: the thread-before-run order of admission.
+        await require_lease(session, context.lease, lock=True)
     return {**result, "money_authority": "none", "lifts_owner_brakes": False}
 
 
@@ -481,6 +492,10 @@ async def change(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         for agent_id in {supervisor_id, *params.supervised_ids}:
             await owned_agent(session, context.owner_id, agent_id)
         if params.action == "revoke":
+            if context.agent_id in params.supervised_ids:
+                # Never the supervised agent itself: text it read could ask it to shed
+                # its oversight. The owner stops it from the profile or the supervisor.
+                raise LonoraError("supervision_revoke_own_oversight", 403)
             if message_id is None:
                 # Taking oversight away is the owner's: from a message or the profile.
                 raise LonoraError("supervision_revoke_requires_owner_message", 403)
@@ -498,6 +513,16 @@ async def change(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
                 await revoke_supervision(session, context.owner_id, row.id, via="owner_message")
                 for row in grants
             ]
+            # Taking oversight away is as visible as setting it: a card with Restore.
+            card = await raise_supervision_stopped_card(
+                session,
+                context.owner_id,
+                [row.id for row in revoked],
+                card_key=context.resource_id,
+                agent_id=context.agent_id,
+                thread_id=origin_thread,
+                run_id=run.id,
+            )
             await require_lease(session, context.lease, lock=True)
             names = await agent_names(
                 session, context.owner_id, {supervisor_id, *params.supervised_ids}
@@ -508,6 +533,7 @@ async def change(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
                 "not_supervised": sorted(
                     set(params.supervised_ids) - {row.supervised_agent_id for row in revoked}
                 ),
+                "restore_card_shown": card is not None,
             }
         if message_id is None:
             card, created = await propose_supervision(
@@ -576,10 +602,13 @@ def tools() -> list[Tool]:
             "agent_control",
             "Steer an agent you supervise: pause or resume it, or one of its Tasks, "
             "routines or watches (target, target_id), or message it. resume lifts only a "
-            "pause you set; the owner's and other agents' pauses stay. You cannot pause an "
-            "agent that holds a pause over you unless the owner asks. To pause its trading "
-            "use trade_restriction_create with its agent_id. It never trades, grants, "
-            "raises limits, lifts restrictions or edits its memory or instructions.",
+            "pause you set, or any supervisor's when the owner asks; the owner's own pauses "
+            "stay. You cannot pause an agent that holds a pause over you unless the owner "
+            "asks. A whole trading agent is paused only when the owner asks (its exits "
+            "would stop too): narrow it with trade_restriction_create (no_new_entries) and "
+            "pause its routines, watches or Tasks. Only the owner pauses Lonora itself. It "
+            "never trades, grants, raises limits, lifts restrictions or edits its memory "
+            "or instructions.",
             AgentControlInput,
             control,
             replay_safe=True,
@@ -589,8 +618,8 @@ def tools() -> list[Tool]:
             "When the owner asks (e.g. 'let X supervise Y'), grant or revoke supervision "
             "for supervisor_id (default you) over supervised_ids. Without the owner's "
             "message in this run, grant becomes a card the owner taps, and revoke is "
-            "refused. A supervisor reads, messages and pauses, never trades. The owner gets "
-            "an Undo card.",
+            "refused; you never revoke your own oversight. A supervisor reads, messages and "
+            "pauses, never trades. The owner gets an Undo or Restore card.",
             SupervisionChange,
             change,
             replay_safe=True,

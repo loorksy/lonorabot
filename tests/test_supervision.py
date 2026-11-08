@@ -96,7 +96,9 @@ def test_the_coordination_set_is_inspect_message_and_search() -> None:
 def test_supervision_cards_have_lifetimes_and_fixed_confirmations() -> None:
     assert LIFETIME["supervise"] == timedelta(hours=24)
     assert LIFETIME["supervision_created"] == timedelta(days=7)
-    for kind in ("supervise", "supervision_created"):
+    assert LIFETIME["supervision_stopped"] == timedelta(days=7)
+    assert LIFETIME["supervision_paused"] == timedelta(days=31)
+    for kind in ("supervise", "supervision_created", "supervision_stopped", "supervision_paused"):
         code = confirmation_code(cast(Any, type("Card", (), {"kind": kind, "result": {}})))
         assert code == "owner_action_" + kind
         for locale in ("ar", "en"):
@@ -378,14 +380,23 @@ async def test_pauses_are_held_by_their_supervisor_and_the_owner_wins():
         # The supervisor lifts its own hold; routine_toggle follows the same rules.
         resumed = await call(lead_context, "routine_toggle", routine_id=routine_id, enabled=True)
         assert resumed["enabled"] is True and await routine_enabled()
-        # Pausing the agent itself, then the owner taking it over from the profile.
+        # Pausing the agent itself. Saving its profile (the form sends the switch with
+        # every save) leaves the supervisor's pause the supervisor's.
         assert (await call(lead_context, "agent_control", agent_id=gold["id"], action="pause"))[
             "paused"
         ]
-        await fixture.request("PATCH", f"/agents/{gold['id']}", {"paused": True})
-        assert await refused(
-            lead_context, "agent_control", agent_id=gold["id"], action="resume"
-        ) == ("supervision_resume_not_yours")
+        await fixture.request(
+            "PATCH", f"/agents/{gold['id']}", {"name": "Gold renamed", "paused": True}
+        )
+        overview = await call(lead_context, "agent_inspect", agent_id=gold["id"])
+        assert overview["profile"]["paused_by"] == "you"
+        assert (await call(lead_context, "agent_control", agent_id=gold["id"], action="resume"))[
+            "changed"
+        ]
+        # The owner switching it back on releases the supervisor's pause.
+        assert (await call(lead_context, "agent_control", agent_id=gold["id"], action="pause"))[
+            "paused"
+        ]
         await fixture.request("PATCH", f"/agents/{gold['id']}", {"paused": False})
         async with fixture.runtime.db.sessions() as session:
             agent = await session.get(AgentRow, gold["id"])
@@ -461,6 +472,366 @@ async def test_pauses_are_held_by_their_supervisor_and_the_owner_wins():
             await refused(outsider_context, "routine_toggle", routine_id=routine_id, enabled=False)
             == "routine_not_found"
         )
+    finally:
+        await fixture.close()
+
+
+async def card_list(fixture: Any, thread_id: str) -> list[dict[str, Any]]:
+    response = await fixture.client.get("/api/owner-actions", params={"thread_id": thread_id})
+    assert response.is_success, response.text
+    return cast(list[dict[str, Any]], response.json())
+
+
+async def decide_card(fixture: Any, card_id: str, decision: str) -> dict[str, Any]:
+    response = await fixture.client.post(
+        f"/api/owner-actions/{card_id}/decision", json={"decision": decision}
+    )
+    assert response.is_success, response.text
+    return cast(dict[str, Any], response.json())
+
+
+async def held(fixture: Any, target_id: str) -> Any:
+    """The latest hold on one item (live or released)."""
+    from lonora_db.schema import SupervisionHoldRow
+
+    async with fixture.runtime.db.sessions() as session:
+        return await session.scalar(
+            select(SupervisionHoldRow)
+            .where(SupervisionHoldRow.target_id == target_id)
+            .order_by(SupervisionHoldRow.created_at.desc())
+            .limit(1)
+        )
+
+
+@pytest.mark.asyncio
+async def test_a_supervisor_never_pauses_a_trading_agent_or_lonora_on_its_own():
+    """A paused agent's runs stop, so its exits would too: on its own initiative a
+    supervisor never pauses a whole agent with money standing, and nobody but the owner
+    pauses Lonora. Its routines, watches and Tasks stay pausable, each with a card."""
+    database()
+    from check_streaming import Fixture
+    from lonora_contracts.routines import RoutineCreate
+    from lonora_db.personal_agent import ensure_personal_agent
+    from lonora_db.routines import create_routine
+    from lonora_db.schema import AgentRow, MessageRow, RoutineRow
+
+    fixture = await Fixture().open()
+    try:
+        connection = await fixture.request(
+            "POST",
+            "/trading/connections",
+            {"provider": "simulation", "account_id": "sv-" + uuid4().hex, "enabled": True},
+        )
+        lead, gold, asker = (
+            await fixture.agent("Lead"),
+            await fixture.agent("Gold"),
+            await fixture.agent("Asker"),
+        )
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            bound = await session.get(AgentRow, gold["id"])
+            assert bound is not None
+            bound.trading_account_id, bound.trading_symbol = connection["id"], "XAUUSD"
+            lonora = await ensure_personal_agent(session, fixture.owner)
+            lonora_id = lonora.id
+            routine = await create_routine(
+                session,
+                fixture.owner,
+                gold["id"],
+                RoutineCreate(prompt="Review gold before London", interval_seconds=3600),
+            )
+            routine_id = routine.id
+        # An unbound agent that trades with the owner's approval has money standing too.
+        permission = await fixture.request("GET", f"/agents/{asker['id']}/permissions")
+        await fixture.request(
+            "PUT",
+            f"/agents/{asker['id']}/permissions",
+            {"level": "supervised", "expected_revision": permission["revision"]},
+        )
+        for supervised in (gold, asker):
+            await grant(fixture, lead, supervised)
+        lead_thread = await fixture.conversation(lead)
+        woke = await wake(fixture, lead, lead_thread)
+        for target in (gold, asker):
+            assert (
+                await refused(woke, "agent_control", agent_id=target["id"], action="pause")
+                == "supervision_pause_trading_agent"
+            )
+        # Its work stays pausable, and the owner's conversation with Gold names who did it.
+        paused = await call(
+            woke,
+            "agent_control",
+            agent_id=gold["id"],
+            action="pause",
+            target="routine",
+            target_id=routine_id,
+        )
+        assert paused["changed"] is True
+        gold_thread = await fixture.conversation(gold)
+        card = next(
+            item
+            for item in await card_list(fixture, gold_thread["id"])
+            if item["kind"] == "supervision_paused"
+        )
+        assert card["status"] == "pending" and card["requires_passkey"] is False
+        assert card["facts"]["supervision"] == {
+            "supervisor_name": lead["name"],
+            "supervised_names": [gold["name"]],
+            "active": True,
+            "target": "routine",
+            "target_label": "Review gold before London",
+            "from_owner_message": False,
+            "owner_holds": False,
+        }
+        # The owner's one tap resumes it: the owner's own resume, whoever held it.
+        assert (await decide_card(fixture, card["id"], "confirm"))["status"] == "confirmed"
+        async with fixture.runtime.db.sessions() as session:
+            row = await session.get(RoutineRow, routine_id)
+            assert row is not None and row.enabled
+            line = await session.scalar(
+                select(MessageRow.content).where(
+                    MessageRow.thread_id == gold_thread["id"], MessageRow.role == "assistant"
+                )
+            )
+            assert line in {
+                catalogs()[locale]["owner_action_supervision_paused"] for locale in ("ar", "en")
+            }
+        assert (await held(fixture, routine_id)).released_by == "owner"
+        # The owner's message pauses the whole trading agent; the card says so.
+        said = await owner_says(fixture, lead, lead_thread, "Pause Gold completely for now")
+        whole = await call(said, "agent_control", agent_id=gold["id"], action="pause")
+        assert whole["changed"] is True and whole["paused"] is True
+        cards = [
+            item
+            for item in await card_list(fixture, gold_thread["id"])
+            if item["kind"] == "supervision_paused" and item["status"] == "pending"
+        ]
+        assert [item["facts"]["supervision"]["target"] for item in cards] == ["agent"]
+        assert cards[0]["facts"]["supervision"]["from_owner_message"] is True
+        await fixture.request("PATCH", f"/agents/{gold['id']}", {"paused": False})
+        # The stale card stops offering Resume by itself, and a tap only settles it.
+        stale = next(
+            item
+            for item in await card_list(fixture, gold_thread["id"])
+            if item["id"] == cards[0]["id"]
+        )
+        assert stale["facts"]["supervision"]["active"] is False
+        settled = await decide_card(fixture, stale["id"], "confirm")
+        assert (settled["status"], settled["status_reason"]) == (
+            "expired",
+            "supervision_pause_ended",
+        )
+        # Nobody but the owner pauses Lonora, not even from the owner's message.
+        await grant(fixture, lead, {"id": lonora_id})
+        for context in (woke, said):
+            assert (
+                await refused(context, "agent_control", agent_id=lonora_id, action="pause")
+                == "supervision_personal_agent"
+            )
+        # Reading Lonora stays open.
+        assert (await call(woke, "agent_inspect", agent_id=lonora_id))["agent"]["id"] == lonora_id
+        await fixture.request("DELETE", "/trading/connections/" + connection["id"])
+    finally:
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_the_owners_pause_is_the_owners_and_the_owners_word_resumes():
+    """The owner pausing held work makes the pause the owner's, never weaker; the
+    owner's message lifts a supervisor's pause; a watch the agent cancelled stays
+    cancelled when its supervisor resumes."""
+    database()
+    from check_streaming import Fixture
+    from lonora_contracts.routines import RoutineCreate
+    from lonora_contracts.tasks import TaskCreate
+    from lonora_db.routines import create_routine
+    from lonora_db.schema import MarketWatchRow, RoutineRow
+    from lonora_db.tasks import create_task
+
+    fixture = await Fixture().open()
+    try:
+        lead, gold, helper = (
+            await fixture.agent("Lead"),
+            await fixture.agent("Gold"),
+            await fixture.agent("Helper"),
+        )
+        await grant(fixture, lead, gold)
+        lead_thread, gold_thread, helper_thread = (
+            await fixture.conversation(lead),
+            await fixture.conversation(gold),
+            await fixture.conversation(helper),
+        )
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            routine = await create_routine(
+                session,
+                fixture.owner,
+                gold["id"],
+                RoutineCreate(prompt="Review gold", interval_seconds=3600),
+            )
+            watch = MarketWatchRow(
+                owner_id=fixture.owner,
+                agent_id=gold["id"],
+                thread_id=gold_thread["id"],
+                payload={
+                    "kind": "price",
+                    "symbol": "XAUUSD",
+                    "condition": "above",
+                    "level": "2100",
+                    "prompt": "Gold above 2100",
+                    "enabled": True,
+                },
+                state={},
+            )
+            session.add(watch)
+            task = await create_task(
+                session, fixture.owner, gold["id"], gold_thread["id"], TaskCreate(title="Review")
+            )
+            routine_id, task_id = routine.id, task.id
+            await session.flush()
+            watch_id = watch.id
+        lead_context = await wake(fixture, lead, lead_thread)
+        gold_context = await wake(fixture, gold, gold_thread)
+
+        async def watch_state() -> tuple[bool, str | None]:
+            async with fixture.runtime.db.sessions() as session:
+                row = await session.get(MarketWatchRow, watch_id)
+                assert row is not None
+                return bool(row.payload.get("enabled", True)), row.state.get("code")
+
+        # A routine: saving its schedule with the switch unchanged takes nothing over.
+        await call(
+            lead_context,
+            "agent_control",
+            agent_id=gold["id"],
+            action="pause",
+            target="routine",
+            target_id=routine_id,
+        )
+        await fixture.request(
+            "PUT",
+            f"/routines/{routine_id}",
+            {"prompt": "Review gold", "interval_seconds": 3600, "enabled": False},
+        )
+        assert (await held(fixture, routine_id)).source == "agent"
+        assert (
+            await refused(gold_context, "routine_toggle", routine_id=routine_id, enabled=True)
+            == "work_paused_by_supervisor"
+        )
+        # The owner's word to the paused agent lifts its supervisor's pause.
+        asked = await owner_says(fixture, gold, gold_thread, "Resume your review routine")
+        assert (await call(asked, "routine_toggle", routine_id=routine_id, enabled=True))["enabled"]
+        async with fixture.runtime.db.sessions() as session:
+            row = await session.get(RoutineRow, routine_id)
+            assert row is not None and row.enabled
+        assert (await held(fixture, routine_id)).released_by == "owner"
+
+        # A watch: the owner pausing it too makes the pause the owner's.
+        await call(
+            lead_context,
+            "agent_control",
+            agent_id=gold["id"],
+            action="pause",
+            target="watch",
+            target_id=watch_id,
+        )
+        await fixture.request("POST", f"/watches/{watch_id}/control", {"action": "pause"})
+        hold = await held(fixture, watch_id)
+        assert hold.source == "owner" and hold.released_at is None
+        assert hold.holder_agent_id == lead["id"]
+        assert await refused(
+            lead_context,
+            "agent_control",
+            agent_id=gold["id"],
+            action="resume",
+            target="watch",
+            target_id=watch_id,
+        ) == ("supervision_resume_not_yours")
+        again = await call(
+            lead_context,
+            "agent_control",
+            agent_id=gold["id"],
+            action="pause",
+            target="watch",
+            target_id=watch_id,
+        )
+        assert again["changed"] is False and again["paused_by"] == "owner"
+        asked = await owner_says(fixture, gold, gold_thread, "Resume your gold watch")
+        for context in (gold_context, asked):
+            assert (
+                await refused(context, "watch_resume", watch_id=watch_id) == "work_paused_by_owner"
+            )
+        # The owner holds no pause over Gold for the cycle rule: Lead did not.
+        gold_over_lead = await grant(fixture, gold, lead)
+        assert (await call(gold_context, "agent_control", agent_id=lead["id"], action="pause"))[
+            "changed"
+        ]
+        assert (await call(gold_context, "agent_control", agent_id=lead["id"], action="resume"))[
+            "changed"
+        ]
+        await fixture.request("POST", f"/supervision/{gold_over_lead}/revoke")
+        await fixture.request("POST", f"/watches/{watch_id}/control", {"action": "resume"})
+        assert await watch_state() == (True, None)
+        assert (await held(fixture, watch_id)).released_by == "owner"
+
+        # The agent cancels a watch its supervisor paused: the cancel stays its own.
+        await call(
+            lead_context,
+            "agent_control",
+            agent_id=gold["id"],
+            action="pause",
+            target="watch",
+            target_id=watch_id,
+        )
+        assert (await call(gold_context, "watch_cancel", watch_id=watch_id))["state"][
+            "code"
+        ] == "watch_cancelled"
+        assert (
+            await refused(gold_context, "watch_resume", watch_id=watch_id)
+            == "work_paused_by_supervisor"
+        )
+        lifted = await call(
+            lead_context,
+            "agent_control",
+            agent_id=gold["id"],
+            action="resume",
+            target="watch",
+            target_id=watch_id,
+        )
+        assert lifted["changed"] is True and lifted["stays_cancelled_by_the_agent"] is True
+        assert await watch_state() == (False, "watch_cancelled")
+        assert (await held(fixture, watch_id)).released_by == "holder"
+
+        # A Task: any agent carrying the owner's word lifts a supervisor's pause on it.
+        await call(
+            lead_context,
+            "agent_control",
+            agent_id=gold["id"],
+            action="pause",
+            target="task",
+            target_id=task_id,
+        )
+        helper_woke = await wake(fixture, helper, helper_thread)
+        assert (
+            await refused(
+                helper_woke,
+                "agent_control",
+                agent_id=gold["id"],
+                action="resume",
+                target="task",
+                target_id=task_id,
+            )
+            == "supervision_required"
+        )
+        told = await owner_says(fixture, helper, helper_thread, "Resume Gold's review task")
+        freed = await call(
+            told,
+            "agent_control",
+            agent_id=gold["id"],
+            action="resume",
+            target="task",
+            target_id=task_id,
+        )
+        assert freed["changed"] is True and freed["paused"] is False
+        assert (await held(fixture, task_id)).released_by == "owner"
     finally:
         await fixture.close()
 
@@ -618,6 +989,38 @@ async def test_supervision_from_a_sentence_or_a_card_shows_undo():
         assert (await call(said, "agent_inspect", agent_id=gold["id"]))["agent"]["id"] == gold["id"]
         view = await fixture.request("GET", f"/supervision?agent_id={watcher['id']}")
         assert [item["supervised"]["id"] for item in view["supervises"]] == [gold["id"]]
+
+        # The supervised agent never sheds its own oversight, even from the owner's message.
+        gold_thread = await fixture.conversation(gold)
+        gold_said = await owner_says(fixture, gold, gold_thread, "What is your plan today?")
+        assert (
+            await refused(
+                gold_said,
+                "supervision_change",
+                action="revoke",
+                supervisor_id=watcher["id"],
+                supervised_ids=[gold["id"]],
+            )
+            == "supervision_revoke_own_oversight"
+        )
+        # Stopping it from the owner's sentence is as visible as setting it: Restore.
+        stop = await owner_says(fixture, watcher, thread, "Stop supervising Gold")
+        stopped = await call(
+            stop, "supervision_change", action="revoke", supervised_ids=[gold["id"]]
+        )
+        assert stopped["changed"] is True and stopped["restore_card_shown"] is True
+        assert await refused(stop, "agent_inspect", agent_id=gold["id"]) == "supervision_required"
+        restore = next(item for item in await cards() if item["kind"] == "supervision_stopped")
+        assert restore["facts"]["supervision"] == {
+            "supervisor_name": watcher["name"],
+            "supervised_names": [gold["name"]],
+            "active": True,
+        }
+        restored = await decide(restore["id"], "confirm")
+        assert restored["status"] == "confirmed" and restored["result"]["restored"] == 1
+        view = await fixture.request("GET", f"/supervision?agent_id={watcher['id']}")
+        assert [item["created_via"] for item in view["supervises"]] == ["owner_card"]
+        assert (await call(stop, "agent_inspect", agent_id=gold["id"]))["agent"]["id"] == gold["id"]
     finally:
         await fixture.close()
 

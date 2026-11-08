@@ -105,6 +105,13 @@ def watch_active(row: MarketWatchRow, now: datetime | None = None) -> bool:
     return not expires or datetime.fromisoformat(str(expires)) > (now or utcnow())
 
 
+async def watch_past_expiry(session: AsyncSession, watch_id: str) -> bool:
+    """Whether a resume would be refused because the watch is past its expiry."""
+    row = await session.get(MarketWatchRow, watch_id)
+    expires = row.payload.get("expires_at") if row else None
+    return bool(expires) and datetime.fromisoformat(str(expires)) <= utcnow()
+
+
 async def steered_watch(
     session: AsyncSession, owner_id: str, watch_id: str, agent_id: str | None
 ) -> MarketWatchRow:
@@ -139,11 +146,15 @@ async def control_watch(
     action: WatchAction,
     *,
     agent_id: str | None = None,
+    owner_message: bool = False,
 ) -> MarketWatchRow:
     """Cancel, pause or resume a watch; repeating the same action changes nothing.
 
     A cancelled or paused watch keeps its record, so resuming it undoes the cancel. A
     watch past its expiry resumes only after its expiry is moved (``update_watch``).
+    The agent never resumes a watch a supervisor or the owner holds paused on its own
+    initiative (``owner_message``: its run answers the owner's message); it may still
+    cancel it, which only narrows and keeps the hold.
     """
     from .supervision import owner_takes_over, refuse_held
 
@@ -151,9 +162,11 @@ async def control_watch(
     by = "agent" if agent_id else "owner"
     if agent_id is None:
         # The owner's choice wins over a supervisor's pause of this watch.
-        await owner_takes_over(session, owner_id, "watch", watch_id)
+        await owner_takes_over(session, owner_id, "watch", watch_id, paused=action != "resume")
     elif action == "resume":
-        await refuse_held(session, owner_id, "watch", watch_id, agent_id)
+        await refuse_held(
+            session, owner_id, "watch", watch_id, agent_id, owner_message=owner_message
+        )
     if action in STOP_CODES:
         code = STOP_CODES[action]
         if not row.payload.get("enabled", True) and row.state.get("code") == code:

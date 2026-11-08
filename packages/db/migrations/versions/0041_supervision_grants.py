@@ -148,7 +148,7 @@ def upgrade() -> None:
             name="ln_supervision_hold_target_kind",
         ),
         sa.CheckConstraint(
-            "source IN ('agent','owner_message')", name="ln_supervision_hold_source"
+            "source IN ('agent','owner_message','owner')", name="ln_supervision_hold_source"
         ),
         sa.CheckConstraint(
             "released_by IS NULL OR released_by IN ('holder','owner','stale')",

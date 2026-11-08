@@ -3,11 +3,13 @@ from typing import Any
 from lonora_contracts.domain import Contract
 from lonora_contracts.routines import RoutineCreate
 from lonora_core.user_error import LonoraError
+from lonora_db.owner_actions import lock_owner_actions
 from lonora_db.routines import create_routine, owned_routine, routine_data
 from lonora_db.runs import locked_run_thread, require_lease
 from lonora_db.schema import RoutineRow
 from lonora_db.supervision import control_work, refuse_held, supervises
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from .base import Tool
 from .context import ToolContext
@@ -47,30 +49,52 @@ async def read(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
 
 async def toggle(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     async with context.db.sessions() as session, session.begin():
+        # A routine never changes agent, so an unlocked read routes the call.
+        found = await session.get(RoutineRow, args["routine_id"])
+        if found is not None and found.owner_id == context.owner_id:
+            if found.agent_id != context.agent_id:
+                return await supervised_toggle(context, session, found, args["enabled"])
         run = await require_lease(session, context.lease, lock=True)
         row = await owned_routine(session, context.owner_id, args["routine_id"])
         if row.agent_id != context.agent_id:
-            # A supervised agent's routine follows the supervision rules; any other
-            # agent's routine reads as not found.
-            if not await supervises(session, context.owner_id, context.agent_id, row.agent_id):
-                raise LonoraError("routine_not_found", 404)
-            await control_work(
+            raise LonoraError("routine_not_found", 404)
+        if args["enabled"]:
+            # A routine a supervisor paused stays paused until it or the owner resumes it.
+            await refuse_held(
                 session,
                 context.owner_id,
-                actor_id=context.agent_id,
-                agent_id=row.agent_id,
-                kind="routine",
-                target_id=row.id,
-                action="resume" if args["enabled"] else "pause",
-                owner_message_id=await owner_message_id(session, run),
-                run_id=run.id,
+                "routine",
+                row.id,
+                context.agent_id,
+                owner_message=await owner_message_id(session, run) is not None,
             )
-            return routine_data(row)
-        if args["enabled"]:
-            # A routine a supervisor paused stays paused until it (or the owner) resumes it.
-            await refuse_held(session, context.owner_id, "routine", row.id, context.agent_id)
         row.enabled = args["enabled"]
         return routine_data(row)
+
+
+async def supervised_toggle(
+    context: ToolContext, session: AsyncSession, found: RoutineRow, enabled: bool
+) -> dict[str, Any]:
+    """A supervised agent's routine follows the supervision rules; any other agent's
+    routine reads as not found. Cards, then the work, then the Run: the lock order the
+    owner's card decision and message admission take."""
+    if not await supervises(session, context.owner_id, context.agent_id, found.agent_id):
+        raise LonoraError("routine_not_found", 404)
+    await lock_owner_actions(session, context.owner_id)
+    run = await require_lease(session, context.lease)
+    await control_work(
+        session,
+        context.owner_id,
+        actor_id=context.agent_id,
+        agent_id=found.agent_id,
+        kind="routine",
+        target_id=found.id,
+        action="resume" if enabled else "pause",
+        owner_message_id=await owner_message_id(session, run),
+        run_id=run.id,
+    )
+    await require_lease(session, context.lease, lock=True)
+    return routine_data(await owned_routine(session, context.owner_id, found.id))
 
 
 def tools() -> list[Tool]:

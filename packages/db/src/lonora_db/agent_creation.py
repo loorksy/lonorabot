@@ -355,7 +355,7 @@ async def pause_agent(session: AsyncSession, owner_id: str, agent_id: str) -> Ag
 
     agent = await owned_agent(session, owner_id, agent_id, lock=True)
     # The owner's Undo: a supervisor's hold on this agent becomes the owner's pause.
-    await owner_takes_over(session, owner_id, "agent", agent_id)
+    await owner_takes_over(session, owner_id, "agent", agent_id, paused=True)
     if not agent.paused:
         agent.paused = True
         emit(session, owner_id, "agent.updated", agent_id=agent_id, payload=agent_data(agent))

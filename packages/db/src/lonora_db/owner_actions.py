@@ -36,6 +36,7 @@ from .schema import (
     BrokerSessionRow,
     OwnerActionRow,
     SupervisionGrantRow,
+    SupervisionHoldRow,
     ThreadRow,
     TradingJournalRow,
     TradingRestrictionRow,
@@ -53,9 +54,13 @@ LIFETIME = {
     # An agent's proposal to create an agent, and the Undo card after a creation.
     "create_agent": timedelta(hours=24),
     "agent_created": timedelta(days=7),
-    # An agent's proposal to set supervision, and the Undo card after one is set.
+    # An agent's proposal to set supervision, the Undo card after one is set, and the
+    # Restore card after supervision was stopped from chat.
     "supervise": timedelta(hours=24),
     "supervision_created": timedelta(days=7),
+    "supervision_stopped": timedelta(days=7),
+    # A supervisor paused an agent's work: who did it, with Resume, while it holds.
+    "supervision_paused": timedelta(days=31),
 }
 # Pending cards one agent may have proposed at once; runtime cards do not count.
 MAXIMUM_PENDING_PER_AGENT = 5
@@ -216,7 +221,66 @@ async def stale_reason(
         return "supervision_already_set"
     if kind == "supervision_created":
         return None if await _active_grants(session, owner_id, payload) else "supervision_ended"
+    if kind == "supervision_stopped":
+        grants = await _stopped_grants(session, owner_id, payload)
+        if not grants:
+            return "supervision_agent_missing"
+        return None if await _restorable(session, owner_id, grants) else "supervision_already_set"
+    if kind == "supervision_paused":
+        hold = await _live_pause(session, owner_id, payload)
+        if hold is None:
+            return "supervision_pause_ended"
+        if hold.target_kind == "watch":
+            from .market_watches import watch_past_expiry
+
+            # Resuming it needs a later expiry first (the watch list), not this card.
+            if await watch_past_expiry(session, hold.target_id):
+                return "watch_expired"
+        return None
     raise LonoraError("owner_action_kind_unsupported", 422)
+
+
+async def _stopped_grants(
+    session: AsyncSession, owner_id: str, payload: dict[str, Any]
+) -> list[SupervisionGrantRow]:
+    """The revoked grants a Restore card names (a deleted agent's grants are gone)."""
+    ids = [str(item) for item in payload.get("grant_ids", [])]
+    if not ids:
+        return []
+    return list(
+        await session.scalars(
+            select(SupervisionGrantRow)
+            .where(SupervisionGrantRow.owner_id == owner_id, SupervisionGrantRow.id.in_(ids))
+            .order_by(SupervisionGrantRow.created_at, SupervisionGrantRow.id)
+        )
+    )
+
+
+async def _restorable(
+    session: AsyncSession, owner_id: str, grants: list[SupervisionGrantRow]
+) -> list[SupervisionGrantRow]:
+    """The stopped grants whose pair is not supervised again by now."""
+    from .supervision import supervises
+
+    return [
+        grant
+        for grant in grants
+        if not await supervises(
+            session, owner_id, grant.supervisor_agent_id, grant.supervised_agent_id
+        )
+    ]
+
+
+async def _live_pause(
+    session: AsyncSession, owner_id: str, payload: dict[str, Any]
+) -> SupervisionHoldRow | None:
+    """The hold a pause card names while it still holds paused work."""
+    from .supervision import work_paused
+
+    hold = await session.get(SupervisionHoldRow, payload["hold_id"])
+    if hold is None or hold.owner_id != owner_id or hold.released_at is not None:
+        return None
+    return hold if await work_paused(session, hold.target_kind, hold.target_id) else None
 
 
 async def _active_grants(
@@ -354,8 +418,10 @@ async def card_facts(
         return facts, False
     if row.kind in {"create_agent", "agent_created"}:
         return await creation_facts(session, row, facts), False
-    if row.kind in {"supervise", "supervision_created"}:
+    if row.kind in {"supervise", "supervision_created", "supervision_stopped"}:
         return await supervision_facts(session, row, facts), False
+    if row.kind == "supervision_paused":
+        return await pause_facts(session, row, facts), False
     account_id = payload["account_id"]
     facts["account"] = account_facts(await session.get(BrokerSessionRow, account_id), account_id)
     current = (await account_policy(session, owner_id, account_id)).risk
@@ -457,7 +523,11 @@ async def supervision_facts(
             "active": False,
         }
         return facts
-    grants = await _active_grants(session, owner_id, row.payload)
+    grants = (
+        await _restorable(session, owner_id, await _stopped_grants(session, owner_id, row.payload))
+        if row.kind == "supervision_stopped"
+        else await _active_grants(session, owner_id, row.payload)
+    )
     supervisor = grants[0].supervisor_agent_id if grants else row.result.get("supervisor_id")
     names = await agent_names(
         session,
@@ -471,6 +541,53 @@ async def supervision_facts(
             names[item.supervised_agent_id] for item in grants if item.supervised_agent_id in names
         ],
         "active": bool(grants),
+    }
+    return facts
+
+
+# How much of a paused item's own text (a routine's prompt, a watch's market, a Task's
+# title) the pause card quotes, isolated, so the owner can tell which one it is.
+PAUSE_LABEL_CHARS = 80
+
+
+async def pause_label(session: AsyncSession, hold: SupervisionHoldRow) -> str | None:
+    from .schema import MarketWatchRow, RoutineRow, TicketRow
+
+    label: str = ""
+    if hold.target_kind == "routine":
+        routine = await session.get(RoutineRow, hold.target_id)
+        label = routine.prompt if routine else ""
+    elif hold.target_kind == "watch":
+        watch = await session.get(MarketWatchRow, hold.target_id)
+        label = str(watch.payload.get("symbol") or "") if watch else ""
+    elif hold.target_kind == "task":
+        task = await session.get(TicketRow, hold.target_id)
+        label = str(task.payload.get("title") or "") if task else ""
+    label = " ".join(label.split())
+    if len(label) > PAUSE_LABEL_CHARS:
+        label = label[:PAUSE_LABEL_CHARS].rstrip() + "…"
+    return label or None
+
+
+async def pause_facts(
+    session: AsyncSession, row: OwnerActionRow, facts: dict[str, Any]
+) -> dict[str, Any]:
+    """Who paused which work of which agent: names read now from the agents; and
+    whether the pause still holds (the card offers Resume only then)."""
+    hold = await session.get(SupervisionHoldRow, row.payload["hold_id"])
+    if hold is None or hold.owner_id != row.owner_id:
+        facts["supervision"] = {"supervisor_name": None, "supervised_names": [], "active": False}
+        return facts
+    names = await agent_names(session, row.owner_id, {hold.holder_agent_id, hold.agent_id})
+    facts["supervision"] = {
+        "supervisor_name": names.get(hold.holder_agent_id),
+        "supervised_names": [names[hold.agent_id]] if hold.agent_id in names else [],
+        "active": await _live_pause(session, row.owner_id, row.payload) is not None,
+        "target": hold.target_kind,
+        "target_label": await pause_label(session, hold),
+        "from_owner_message": hold.source == "owner_message",
+        # The owner paused the same work too: the pause is the owner's now.
+        "owner_holds": hold.source == "owner",
     }
     return facts
 
@@ -960,6 +1077,71 @@ async def raise_supervision_card(
     )
     row.result = {"supervisor_id": grants[0].supervisor_agent_id} if grants else {}
     return row
+
+
+async def raise_supervision_stopped_card(
+    session: AsyncSession,
+    owner_id: str,
+    grant_ids: list[str],
+    *,
+    card_key: str,
+    agent_id: str,
+    thread_id: str | None,
+    run_id: str | None,
+) -> OwnerActionRow | None:
+    """The one-line result card of supervision stopped from chat, with Restore; one per
+    change. Restore sets again only the grants this change ended."""
+    if not grant_ids:
+        return None
+    await lock_owner_actions(session, owner_id)
+    subject = "supervision-stopped:" + card_key
+    card_id = stable_id(owner_id, "owner-action:supervision_stopped:" + subject)
+    existing = await session.get(OwnerActionRow, card_id)
+    if existing is not None:
+        return existing
+    grants = await _stopped_grants(session, owner_id, {"grant_ids": grant_ids})
+    thread = await card_thread(session, owner_id, agent_id, thread_id)
+    row = await create_card(
+        session,
+        owner_id,
+        card_id=card_id,
+        agent_id=agent_id,
+        thread=thread,
+        run_id=run_id,
+        source="system",
+        kind="supervision_stopped",
+        subject=subject,
+        payload={"grant_ids": sorted(grant_ids)},
+    )
+    row.result = {"supervisor_id": grants[0].supervisor_agent_id} if grants else {}
+    return row
+
+
+async def raise_supervision_pause_card(
+    session: AsyncSession, hold: SupervisionHoldRow, *, run_id: str | None
+) -> OwnerActionRow:
+    """The card a supervisor's pause raises in the paused agent's conversation: who
+    paused which work, with one-tap Resume; one per hold. The caller holds the
+    owner-actions lock before the work's locks, the order a card decision takes."""
+    await lock_owner_actions(session, hold.owner_id)
+    subject = "supervision-hold:" + hold.id
+    card_id = stable_id(hold.owner_id, "owner-action:supervision_paused:" + subject)
+    existing = await session.get(OwnerActionRow, card_id)
+    if existing is not None:
+        return existing
+    thread = await card_thread(session, hold.owner_id, hold.agent_id, None)
+    return await create_card(
+        session,
+        hold.owner_id,
+        card_id=card_id,
+        agent_id=hold.agent_id,
+        thread=thread,
+        run_id=run_id,
+        source="system",
+        kind="supervision_paused",
+        subject=subject,
+        payload={"hold_id": hold.id},
+    )
 
 
 async def raise_system_card(
