@@ -350,8 +350,16 @@ export const labels = {
   attentionGoalChanged: ["تم تحديث هدف التداول", "Trading goal updated"],
   attentionCollaborationCompleted: ["نتيجة التعاون جاهزة", "Collaboration result is ready"],
   attentionTaskCompleted: ["اكتملت المهمة", "Task completed"],
+  attentionTaskDegraded: [
+    "المهمة تعيد المحاولة أثناء تعطل النموذج",
+    "Task is retrying through a model outage",
+  ],
   attentionUpdated: ["تم تحديث النشاط", "Activity updated"],
   retryScheduled: ["إعادة المحاولة مجدولة", "Retry scheduled"],
+  modelRetryScheduled: [
+    "مزود النموذج غير متاح — إعادة المحاولة مجدولة",
+    "Model provider unavailable — retry scheduled",
+  ],
   waitingReconciliation: ["بانتظار التحقق من النتيجة", "Waiting for reconciliation"],
   taskNeedsReview: ["المهمة تحتاج مراجعة", "Task needs review"],
   task_reconciliation_required: [
@@ -614,6 +622,31 @@ export const labels = {
     "اضبط توجيه النماذج من الإعدادات العامة في الويب.",
     "Configure model routing in the Web settings.",
   ],
+  model_access_denied: [
+    "لا يمكن لمفتاح API هذا استخدام النموذج المحدد. اختر نموذجًا آخر أو تحقق من صلاحيات النماذج في حساب المزود.",
+    "This API key cannot use the selected model. Choose another model or check the provider account’s model access.",
+  ],
+  model_billing_exhausted: [
+    "نفد رصيد حساب مزود النموذج أو تجاوز حد الإنفاق. أضف رصيدًا أو اختر مزودًا آخر.",
+    "Your model provider account is out of credits or over its spending limit. Add credit or choose another provider.",
+  ],
+  model_content_blocked: [
+    "حجب نظام الأمان لدى مزود النموذج هذه الإجابة.",
+    "The model provider’s safety system withheld this answer.",
+  ],
+  model_output_truncated: [
+    "انقطعت إجابة النموذج عند حد المخرجات. حاول مجددًا أو اطلب إجابة أقصر.",
+    "The model’s answer was cut off at its output limit. Try again or ask for a shorter answer.",
+  ],
+  model_endpoint_unavailable: [
+    "النموذج المحدد غير متاح لدى هذا المزود. اختر نموذجًا آخر من إعدادات الويب.",
+    "The selected model is not available from this provider. Choose another model in the Web settings.",
+  ],
+  model_provider_unavailable: [
+    "مزود النموذج غير متاح حاليًا. حاول مجددًا بعد قليل.",
+    "The model provider is unavailable right now. Try again shortly.",
+  ],
+  model_credentials_rejected: ["رفض المزود مفتاح API هذا.", "The provider rejected this API key."],
   attachment_too_large: ["أقصى حجم للمرفق 20 ميغابايت.", "Attachments must be smaller than 20 MB."],
   rate_limited: ["انتظر قليلًا ثم حاول مجددًا.", "Wait a moment and try again."],
   network: [

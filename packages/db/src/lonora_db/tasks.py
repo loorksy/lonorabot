@@ -680,6 +680,47 @@ async def request_task_attention(session: AsyncSession, run: RunRow, reason: str
     )
 
 
+async def report_task_degraded(
+    session: AsyncSession, run: RunRow, reason: str, code: str, since: str | None
+) -> None:
+    """Tell the owner that continuous work is retrying through an outage.
+
+    Nothing about the Task changes: it is not held and its Run keeps retrying
+    the same checkpoint. One notification per outage (``since`` is when the
+    failure streak began); the attention projection drops it once the work has
+    recovered or stopped.
+    """
+    identifier = run.model_metadata.get("task_id")
+    if not identifier:
+        return
+    row = await session.get(TicketRow, identifier)
+    if (
+        row is None
+        or row.agent_id != run.agent_id
+        or row.thread_id != run.thread_id
+        or not row.state.get("task")
+    ):
+        return
+    state = task_state(row)
+    if state.status in {"paused", "completed", "failed", "cancelled"} or state.control_requested:
+        return
+    emit(
+        session,
+        row.owner_id,
+        "task.degraded",
+        agent_id=row.agent_id,
+        thread_id=state.origin_thread_id,
+        run_id=run.id,
+        payload={
+            "id": row.id,
+            "run_id": run.id,
+            "reason": reason,
+            "code": code,
+            "transition_id": since or code,
+        },
+    )
+
+
 async def require_completed_task_steps(session: AsyncSession, run: RunRow) -> None:
     identifier = run.model_metadata.get("task_id")
     if not identifier:

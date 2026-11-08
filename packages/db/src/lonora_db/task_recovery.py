@@ -36,6 +36,7 @@ OWNER_CODES = frozenset(
         "skill_continuation_unavailable",
         "model_not_configured",
         "model_credentials_rejected",
+        "model_access_denied",
         "model_billing_exhausted",
         "model_content_blocked",
         "model_output_truncated",
@@ -47,17 +48,25 @@ FINANCIAL_REPLAY_TOOLS = frozenset({"trade_execute", "trade_close_positions", "g
 CHECKPOINT_TOOLS = frozenset({"task_step_update"})
 
 
-def has_unknown_mutation(run: RunRow, read_only_names: set[str]) -> bool:
-    """Classification comes from the server Tool registry, never model declarations."""
+def unresolved_calls(run: RunRow) -> list[dict[str, Any]]:
+    """Recorded tool calls that have no tool result in the checkpoint."""
     messages: list[dict[str, Any]] = run.execution_state.get("messages", [])
     resolved = {
         message.get("tool_call_id") for message in messages if message.get("role") == "tool"
     }
-    return any(
-        call.get("name") not in read_only_names | FINANCIAL_REPLAY_TOOLS | CHECKPOINT_TOOLS
-        and call.get("id") not in resolved
+    return [
+        call
         for message in messages
         for call in message.get("tool_calls", [])
+        if call.get("id") not in resolved
+    ]
+
+
+def has_unknown_mutation(run: RunRow, read_only_names: set[str]) -> bool:
+    """Classification comes from the server Tool registry, never model declarations."""
+    return any(
+        call.get("name") not in read_only_names | FINANCIAL_REPLAY_TOOLS | CHECKPOINT_TOOLS
+        for call in unresolved_calls(run)
     )
 
 
@@ -126,10 +135,16 @@ async def record_failure(session: AsyncSession, run: RunRow, read_only_names: se
             and all(step.side_effect == "read_only" for step in remaining)
             and all(call.get("name") in read_only_names | CHECKPOINT_TOOLS for call in calls)
         ) or (
-            # A provider outage must not end continuous monitoring: no call is
-            # unresolved (checked above), so the retry resumes after them.
+            # A provider outage must not end continuous monitoring. Only reads
+            # and checkpoints may lack a result: an unresolved financial call
+            # (even one with no journal row yet) waits for the owner, so the
+            # automatic retry can never resend it.
             code in MODEL_TRANSIENT_CODES
             and (state.completion_mode == "continuous" or state.retry_policy.mode == "automatic")
+            and all(
+                call.get("name") in read_only_names | CHECKPOINT_TOOLS
+                for call in unresolved_calls(run)
+            )
         ):
             recovery = "automatic"
     failure = TaskFailure(

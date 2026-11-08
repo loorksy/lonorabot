@@ -13,10 +13,11 @@ the provider's declared reset, otherwise back off exponentially) and the delay
 adapts the decorrelated jitter of ``agent/retry_utils.py``
 (``jittered_backoff``), source https://github.com/NousResearch/hermes-agent at
 revision a9ff9799e273f525b82718cdc69fdec71b1dca5a. Lonora's bench is
-process-local and short, keyed by model or (for credential failures) by a
-fingerprint of the credential so a replaced key is tried at once; nothing here
-decides authority, and a request whose output was cut off is never accepted
-because of a retry policy.
+process-local and short, keyed by model, by model and credential, or (when the
+key itself is rejected) by a fingerprint of the credential, so a replaced key
+is tried at once; a reason read only from message wording never benches beyond
+a transient cooldown. Nothing here decides authority, and a request whose
+output was cut off is never accepted because of a retry policy.
 
 MIT License
 
@@ -45,10 +46,15 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from hashlib import sha256
 from time import monotonic
+from typing import Literal
 
 from lonora_adapter_kit.model_errors import FailureReason, ModelProviderError
 from lonora_contracts.model_routing import ModelSelection
 from lonora_core.user_error import LonoraError
+
+# What a bench takes offline: one model for everyone (provider-side trouble),
+# one model for one key (access to that model), or every model of one key.
+BenchScope = Literal["model", "credential_model", "credential"]
 
 
 @dataclass(frozen=True)
@@ -62,14 +68,15 @@ class Recovery:
     transient: bool
     # Base cooldown after the provider gives up; 0 means no bench.
     bench_seconds: float = 0.0
-    # Bench the credential (all its models), not only the model.
-    credential_scope: bool = False
+    scope: BenchScope = "model"
 
 
 _R = FailureReason
 RECOVERY: dict[FailureReason, Recovery] = {
-    _R.AUTH: Recovery(0, 0, True, False, 900.0, True),
-    _R.BILLING: Recovery(0, 0, True, False, 900.0, True),
+    _R.AUTH: Recovery(0, 0, True, False, 900.0, "credential"),
+    _R.BILLING: Recovery(0, 0, True, False, 900.0, "credential"),
+    # The key works for other models: only this model is benched, for this key.
+    _R.PERMISSION: Recovery(0, 0, True, False, 900.0, "credential_model"),
     _R.RATE_LIMIT: Recovery(0, 2, True, True, 30.0),
     _R.OVERLOADED: Recovery(1, 2, True, True, 20.0),
     _R.SERVER_ERROR: Recovery(1, 2, True, True, 20.0),
@@ -79,7 +86,7 @@ RECOVERY: dict[FailureReason, Recovery] = {
     # Another model cannot shrink this request; the Run compacts and retries.
     _R.CONTEXT_OVERFLOW: Recovery(0, 0, False, False),
     _R.PAYLOAD_TOO_LARGE: Recovery(0, 0, False, False),
-    _R.MODEL_NOT_FOUND: Recovery(0, 0, True, False, 900.0),
+    _R.MODEL_NOT_FOUND: Recovery(0, 0, True, False, 900.0, "credential_model"),
     _R.CONTENT_POLICY: Recovery(0, 0, True, False),
     _R.FORMAT_ERROR: Recovery(0, 0, True, False),
     # Corrected or boosted once by the router before these apply.
@@ -101,6 +108,7 @@ _CODE_REASONS = {
     "model_rate_limited": FailureReason.RATE_LIMIT,
     "model_endpoint_unavailable": FailureReason.MODEL_NOT_FOUND,
     "model_credentials_rejected": FailureReason.AUTH,
+    "model_access_denied": FailureReason.PERMISSION,
     "model_billing_exhausted": FailureReason.BILLING,
     "model_request_rejected": FailureReason.FORMAT_ERROR,
     "model_response_invalid": FailureReason.INVALID_RESPONSE,
@@ -166,10 +174,18 @@ class ProviderHealth:
     def credential_key(selection: ModelSelection, fingerprint: str) -> str:
         return selection.provider + "#" + fingerprint
 
+    @classmethod
+    def keys(cls, selection: ModelSelection, fingerprint: str) -> dict[BenchScope, str]:
+        return {
+            "credential": cls.credential_key(selection, fingerprint),
+            "credential_model": cls.model_key(selection) + "#" + fingerprint,
+            "model": cls.model_key(selection),
+        }
+
     def benched(self, selection: ModelSelection, fingerprint: str) -> tuple[Bench, float] | None:
         """The active bench and its remaining seconds, if this candidate is benched."""
         now = self.clock()
-        for key in (self.credential_key(selection, fingerprint), self.model_key(selection)):
+        for key in self.keys(selection, fingerprint).values():
             bench = self.benches.get(key)
             if bench is not None and bench.until > now:
                 return bench, bench.until - now
@@ -182,11 +198,12 @@ class ProviderHealth:
         recovery = RECOVERY[error.reason]
         if recovery.bench_seconds <= 0:
             return 0.0
-        key = (
-            self.credential_key(selection, fingerprint)
-            if recovery.credential_scope
-            else self.model_key(selection)
-        )
+        if error.inferred and not recovery.transient:
+            # Wording on a generic 400/422 (a bad tool_call_id, a parameter
+            # named "billing_id") is not proof that the model or key is gone:
+            # this request may fall back, but nothing is taken offline.
+            return 0.0
+        key = self.keys(selection, fingerprint)[recovery.scope]
         previous = self.benches.get(key)
         streak = previous.streak + 1 if previous is not None else 1
         if error.retry_after is not None:
@@ -198,8 +215,8 @@ class ProviderHealth:
         return seconds
 
     def record_success(self, selection: ModelSelection, fingerprint: str) -> None:
-        self.benches.pop(self.model_key(selection), None)
-        self.benches.pop(self.credential_key(selection, fingerprint), None)
+        for key in self.keys(selection, fingerprint).values():
+            self.benches.pop(key, None)
 
     def output_cap(self, selection: ModelSelection) -> int | None:
         return self.output_caps.get(self.model_key(selection))

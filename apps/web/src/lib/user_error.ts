@@ -80,6 +80,22 @@ export function userError(error: unknown) {
       return t`The model provider rate limit was reached. Try again shortly.`;
     case "model_credentials_rejected":
       return t`The provider rejected this API key.`;
+    case "model_access_denied":
+      return t`This API key cannot use the selected model. Choose another model or check the provider account’s model access.`;
+    case "model_billing_exhausted":
+      return t`Your model provider account is out of credits or over its spending limit. Add credit or choose another provider.`;
+    case "model_content_blocked":
+      return t`The model provider’s safety system withheld this answer.`;
+    case "model_output_truncated":
+      return t`The model’s answer was cut off at its output limit. Try again or ask for a shorter answer.`;
+    case "model_endpoint_unavailable":
+      return t`The selected model is not available from this provider. Choose another model in Settings.`;
+    case "model_provider_unavailable":
+      return t`The model provider is unavailable right now. Try again shortly.`;
+    case "model_request_rejected":
+      return t`The model provider rejected this request.`;
+    case "model_response_invalid":
+      return t`The model provider returned an unreadable response. Try again.`;
     case "trading_disabled":
       return t`Trading is off.`;
     case "emergency_stop":

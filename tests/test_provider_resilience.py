@@ -25,12 +25,14 @@ from lonora_adapters.models.openai import OpenAIAdapter
 from lonora_agent.environment import ToolRetryScheduled
 from lonora_agent.executor import execute_run
 from lonora_agent.model_recovery import (
+    CONTINUOUS,
     CONVERSATION,
     RETRY_REASON,
     WORK,
     backoff_seconds,
     plan_failure,
 )
+from lonora_contracts.domain import MessageCreate
 from lonora_contracts.model_catalog import ModelDescriptor
 from lonora_contracts.model_routing import (
     AgentModelChange,
@@ -44,6 +46,7 @@ from lonora_contracts.tasks import TaskCreate, TaskFailure, TaskRetryPolicy
 from lonora_core.user_error import LonoraError
 from lonora_db.agent_models import agent_model_record, change_agent_model
 from lonora_db.client import Database
+from lonora_db.messages import send_message
 from lonora_db.runs import claim_next
 from lonora_db.schema import EventRow, RunRow
 from lonora_db.tasks import get_task, task_state
@@ -120,6 +123,33 @@ USER = [ModelMessage(role="user", content="Analyze gold")]
             {},
             "billing",
             "model_billing_exhausted",
+        ),
+        (
+            403,
+            {
+                "type": "error",
+                "error": {
+                    "type": "permission_error",
+                    "message": "Your API key does not have permission to use the specified resource.",
+                },
+            },
+            {},
+            "permission",
+            "model_access_denied",
+        ),
+        (
+            403,
+            {"error": {"message": "Project does not have access to this model"}},
+            {},
+            "permission",
+            "model_access_denied",
+        ),
+        (
+            403,
+            {"error": {"message": "Invalid API key provided"}},
+            {},
+            "auth",
+            "model_credentials_rejected",
         ),
         (
             400,
@@ -221,6 +251,46 @@ def test_http_failures_classify_into_stable_codes(
     raw = body if isinstance(body, str) else json.dumps(body)
     error = response_failure(status, raw, headers)
     assert (error.reason.value, error.code, error.http_status) == (reason, code, status)
+
+
+@pytest.mark.parametrize(
+    ("message", "reason"),
+    [
+        # Loose wording that once took a model or key offline for 15 minutes.
+        ("Invalid parameter: tool_call_id call_123 does not exist", "format_error"),
+        ("Invalid value for 'metadata.billing_id': expected a string", "format_error"),
+        ("Invalid parameter: authentication_method", "format_error"),
+        # Message-only classes still select the recovery, marked as inferred.
+        ("The model `gpt-x` does not exist", "model_not_found"),
+        ("Your credit balance is too low to access the Anthropic API", "billing"),
+    ],
+)
+def test_generic_4xx_wording_is_tight_and_marked_inferred(message: str, reason: str) -> None:
+    error = response_failure(400, json.dumps({"error": {"message": message}}), {})
+    assert error.reason.value == reason
+    assert error.inferred is (reason != "format_error")
+    # Decisive statuses and typed codes are never inferred.
+    assert response_failure(404, "{}", {}).inferred is False
+    assert response_failure(401, "{}", {}).inferred is False
+    typed = response_failure(400, '{"error":{"code":"context_length_exceeded"}}', {})
+    assert typed.inferred is False
+
+
+def test_inferred_failures_never_bench_beyond_a_transient_cooldown() -> None:
+    health = ProviderHealth(lambda: 0.0)
+    for message in ("The model `x` does not exist", "Your credit balance is too low"):
+        error = response_failure(400, json.dumps({"error": {"message": message}}), {})
+        assert health.record_failure(PRIMARY, "k", error) == 0.0
+        assert health.benched(PRIMARY, "k") is None
+    # A typed 404 still benches the model, but only for the key that saw it.
+    assert health.record_failure(PRIMARY, "k", response_failure(404, "{}", {})) == 900.0
+    assert health.benched(PRIMARY, "k") is not None
+    assert health.benched(PRIMARY, "other-key") is None
+    assert health.benched(ModelSelection(provider="openai", model="other"), "k") is None
+    # A transient class read from an untyped stream event keeps its short cooldown.
+    overloaded = classify_failure(None, {"error": {"message": "Overloaded"}})
+    assert overloaded.inferred and overloaded.reason is FailureReason.OVERLOADED
+    assert health.record_failure(BACKUP, "k", overloaded) == 20.0
 
 
 def test_retry_after_seconds_date_and_milliseconds() -> None:
@@ -667,6 +737,68 @@ async def test_auth_failure_never_retries_and_a_new_key_is_tried_at_once(
 
 
 @pytest.mark.asyncio
+async def test_model_permission_403_benches_only_that_model_for_that_key(
+    router_db: Database,
+) -> None:
+    model_a = ModelSelection(provider="anthropic", model="model-a")
+    model_b = ModelSelection(provider="anthropic", model="model-b")
+    await settings(
+        router_db,
+        {
+            "model_routing": RoutingPolicy(unified=model_a).model_dump(mode="json"),
+            "model_backups": {"choices": [model_b.model_dump(mode="json")]},
+        },
+    )
+    denied = response_failure(
+        403,
+        json.dumps(
+            {
+                "type": "error",
+                "error": {"type": "permission_error", "message": "not allowed for this model"},
+            }
+        ),
+        {},
+    )
+    fake = Scripted(**{"model-a": [denied], "model-b": [ok("Model B answers.")]})
+    router = fake.router(router_db)
+    reply, selection = await router.complete(Capability.CONVERSATION, USER, [])
+    # The same key still reaches another model of the same provider.
+    assert selection == model_b and reply.text == "Model B answers."
+    assert fake.models() == ["model-a", "model-b"] and fake.sleeps == []
+    assert reply.provider_metadata["route_failures"][0]["reason"] == "permission"
+    # Only model A is benched, and only for this key.
+    reply, selection = await router.complete(Capability.CONVERSATION, USER, [])
+    assert selection == model_b and fake.models()[2:] == ["model-b"]
+
+    class Rotated(FixtureCredentials):
+        async def resolve(self, provider: str) -> str:
+            return "a-key-with-model-access"
+
+    rotated = GlobalModelRouter(
+        router_db, Rotated(), fake.factory, sleep=fake.sleep, clock=lambda: fake.now
+    )
+    rotated.health = router.health
+    fake.scripts["model-a"] = [ok("Model A with the new key.")]
+    reply, selection = await rotated.complete(Capability.CONVERSATION, USER, [])
+    assert selection == model_a and reply.text == "Model A with the new key."
+
+
+@pytest.mark.asyncio
+async def test_wording_on_a_generic_400_falls_back_without_benching(router_db: Database) -> None:
+    await configure(router_db)
+    worded = response_failure(400, '{"error":{"message":"The model `x` does not exist"}}', {})
+    fake = Scripted(**{"primary-model": [worded, ok("Valid request answered.")]})
+    router = fake.router(router_db)
+    with pytest.raises(ModelProviderError) as caught:
+        await router.complete(Capability.CONVERSATION, USER, [])
+    assert caught.value.code == "model_endpoint_unavailable"
+    # A valid request a minute later reaches the provider again.
+    fake.now += 60
+    reply, _ = await router.complete(Capability.CONVERSATION, USER, [])
+    assert reply.text == "Valid request answered." and fake.models() == ["primary-model"] * 2
+
+
+@pytest.mark.asyncio
 async def test_context_overflow_is_raised_for_compaction_without_fallback(
     router_db: Database,
 ) -> None:
@@ -839,6 +971,28 @@ def test_backoff_grows_respects_hints_and_escalates_at_the_streak() -> None:
     assert overflow["model_recovery"]["input_scale"] == 0.343
 
 
+def test_continuous_monitoring_notifies_once_and_holds_only_after_hours() -> None:
+    state: dict[str, Any] = {}
+    error = LonoraError("model_provider_unavailable", 502)
+    start = datetime(2026, 11, 7, 12, tzinfo=UTC)
+    decisions = [
+        plan_failure(
+            state, error, CONTINUOUS, now=start + timedelta(minutes=16 * i), jitter=lambda: 0.0
+        )
+        for i in range(8)
+    ]
+    assert [decision.kind for decision in decisions] == ["retry"] * 8
+    # Told once at the streak threshold; retries go on at the capped interval.
+    assert [decision.notify for decision in decisions] == [False] * 5 + [True, False, False]
+    last = decisions[-1]
+    assert last.not_before == start + timedelta(minutes=16 * 7, seconds=900)
+    late = plan_failure(state, error, CONTINUOUS, now=start + timedelta(hours=12, minutes=1))
+    assert late.kind == "escalate" and state["model_recovery"]["failures"] == 0
+    # Non-transient reasons still stop at once, whatever the profile.
+    auth = LonoraError("model_credentials_rejected", 502)
+    assert plan_failure({}, auth, CONTINUOUS).kind == "raise"
+
+
 class Failing:
     def __init__(self, *outcomes: ModelReply | LonoraError):
         self.outcomes = list(outcomes)
@@ -897,6 +1051,17 @@ async def test_conversation_backs_off_releases_the_worker_then_fails_after_strea
             await session.scalars(select(EventRow).where(EventRow.kind == "run.retry_scheduled"))
         )
     assert events[-1].payload["reason_code"] == RETRY_REASON
+    from lonora_db.agent_state import agent_live_state
+
+    async with db.sessions() as session:
+        live = await agent_live_state(session, task_db[1], task_db[2])
+    # A model outage backoff is projected as itself, not as a tool read retry.
+    assert [wait["kind"] for wait in live.runtime_waits] == ["model_retry"]
+    assert (live.state, live.phase, live.reason_code) == (
+        "waiting",
+        "recovering",
+        "model_provider_retry",
+    )
     for attempt in (2, 3):
         lease = await reclaim(task_db, run.id, "conversation")
         await execute_run(context_for(task_db, lease, run.thread_id), ToolRegistry([]), 120, 8)
@@ -906,6 +1071,51 @@ async def test_conversation_backs_off_releases_the_worker_then_fails_after_strea
     assert run.status == "failed" and run.error_code == "model_provider_unavailable"
     # No model turn ever counted as a round; nothing was executed or repeated.
     assert run.execution_state.get("rounds", 0) == 0 and len(model.scales) == 3
+
+
+@pytest.mark.asyncio
+async def test_owner_message_during_a_failed_turn_clears_the_model_retry_deadline(
+    task_db: Fixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    db, owner, _, thread = task_db
+    context = await conversation_run(task_db)
+    replies: list[ModelReply | LonoraError] = [
+        ModelProviderError(FailureReason.OVERLOADED, retry_after=20.0),
+        ModelReply(text="The provider is back; gold is calm."),
+    ]
+    seen: list[list[str]] = []
+
+    async def model(_: Any, messages: list[ModelMessage], *__: Any, **___: Any) -> Any:
+        seen.append([message.content for message in messages if message.role == "user"])
+        outcome = replies.pop(0)
+        if isinstance(outcome, LonoraError):
+            # The owner writes while the router is still retrying inline.
+            async with db.sessions() as session, session.begin():
+                await send_message(session, owner, thread, MessageCreate(content="Any update?"))
+            raise outcome
+        return outcome, PRIMARY
+
+    monkeypatch.setattr("lonora_agent.tool_loop.model_turn", model)
+
+    async def no_skill_refresh(*_: Any, **__: Any) -> None:
+        # The empty fixture registry cannot satisfy built-in skills' tools.
+        return None
+
+    monkeypatch.setattr("lonora_agent.tool_loop.refresh_skill_context", no_skill_refresh)
+    await execute_run(context, ToolRegistry([]), 120, 8)
+    run = await saved_run(context)
+    # Queued without a deadline: the new message is not held behind the backoff.
+    assert run.status == "queued" and "retry" not in run.execution_state["environment"]
+    assert run.execution_state["model_recovery"]["failures"] == 1
+    async with db.sessions() as session, session.begin():
+        claimed = await claim_next(session, "steered-worker", 120, "conversation")
+        assert claimed and claimed.id == run.id
+        claimed.status = "running"
+        lease = Lease(run_id=run.id, owner="steered-worker", fence=claimed.lease_fence)
+    await execute_run(context_for(task_db, lease, thread), ToolRegistry([]), 120, 8)
+    run = await saved_run(context)
+    assert run.status == "completed" and run.result == "The provider is back; gold is calm."
+    assert seen[-1][-1] == "Any update?"
 
 
 @pytest.mark.asyncio
@@ -942,13 +1152,11 @@ async def test_provider_proven_overflow_tightens_admission_and_retries_now(
 
 
 @pytest.mark.asyncio
-async def test_task_work_waits_for_owner_attention_after_a_long_outage(
+async def test_finite_task_work_waits_for_owner_attention_after_a_long_outage(
     task_db: Fixture, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     db, owner, _, _ = task_db
-    context, task_id = await task_run(
-        task_db, TaskCreate(title="Watch gold", completion_mode="continuous")
-    )
+    context, task_id = await task_run(task_db, TaskCreate(title="Report on gold"))
     model = Failing(LonoraError("model_provider_unavailable", 502))
     monkeypatch.setattr("lonora_agent.tool_loop.model_turn", model)
     await execute_run(context, ToolRegistry([]), 120, 8)
@@ -965,6 +1173,101 @@ async def test_task_work_waits_for_owner_attention_after_a_long_outage(
     async with db.sessions() as session:
         task = await get_task(session, owner, task_id)
         assert task.state["task"]["waiting_reason"] == "owner_attention"
+
+
+@pytest.mark.asyncio
+async def test_continuous_task_keeps_monitoring_through_an_outage_and_tells_the_owner(
+    task_db: Fixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from lonora_core.attention import classify_attention
+    from lonora_gateway.attention import candidate
+
+    db, owner, _, _ = task_db
+    context, task_id = await task_run(
+        task_db, TaskCreate(title="Watch gold", completion_mode="continuous")
+    )
+    model = Failing(LonoraError("model_provider_unavailable", 502))
+    monkeypatch.setattr("lonora_agent.tool_loop.model_turn", model)
+    await execute_run(context, ToolRegistry([]), 120, 8)
+    run = await saved_run(context)
+    for _ in range(WORK.escalate_after + 1):
+        lease = await reclaim(task_db, run.id, "work")
+        await execute_run(context_for(task_db, lease, run.thread_id), ToolRegistry([]), 120, 8)
+        run = await saved_run(context)
+    # Past the streak threshold the Task is not held: it is queued to retry
+    # at the capped interval and was never handed to the owner.
+    assert run.status == "queued" and run.error_code is None
+    retry = run.execution_state["environment"]["retry"]
+    delay = datetime.fromisoformat(retry["not_before"]) - datetime.now(UTC)
+    assert timedelta(seconds=890) < delay <= timedelta(seconds=1125)
+    assert run.execution_state["model_recovery"]["failures"] == WORK.escalate_after + 2
+    async with db.sessions() as session:
+        task = await get_task(session, owner, task_id)
+        assert task.state["task"]["status"] != "failed"
+        assert task.state["task"].get("waiting_reason") != "owner_attention"
+        events = list(
+            await session.scalars(select(EventRow).where(EventRow.kind == "task.degraded"))
+        )
+    # The owner is told once, as an important change that needs no action.
+    assert len(events) == 1 and events[0].payload["code"] == "model_provider_unavailable"
+    assert classify_attention("task.degraded", events[0].payload).code == "task_degraded"
+    classification, *_ = await candidate(db, cast(Any, None), events[0])
+    assert classification.importance == "important_change"
+    # Once the provider answers again the notification is superseded.
+    async with db.sessions() as session, session.begin():
+        row = await session.get(RunRow, run.id)
+        assert row
+        row.execution_state = {
+            **row.execution_state,
+            "model_recovery": {**row.execution_state["model_recovery"], "failures": 0},
+        }
+    with pytest.raises(LonoraError, match="attention_superseded_state"):
+        await candidate(db, cast(Any, None), events[0])
+
+
+@pytest.mark.asyncio
+async def test_subagent_backs_off_like_the_work_that_waits_for_it(task_db: Fixture) -> None:
+    from lonora_agent.tool_loop import recovery_profile
+    from lonora_contracts.domain import ThreadCreate
+    from lonora_db.threads import create_thread
+
+    db, owner, agent, _ = task_db
+    conversation = await conversation_run(task_db)
+    routine_parent: str | None = None
+
+    async def subagent(parent_id: str) -> Lease:
+        async with db.sessions() as session, session.begin():
+            thread = await create_thread(session, owner, ThreadCreate(agent_id=agent, title="Sub"))
+            row = RunRow(
+                thread_id=thread.id,
+                agent_id=agent,
+                trigger="subagent",
+                parent_run_id=parent_id,
+                status="running",
+                lease_owner="sub-worker",
+                lease_fence=1,
+                lease_expires_at=datetime.now(UTC) + timedelta(seconds=120),
+            )
+            session.add(row)
+            await session.flush()
+            return Lease(run_id=row.id, owner="sub-worker", fence=1)
+
+    child = await subagent(conversation.lease.run_id)
+    grandchild = await subagent(child.run_id)
+    assert await recovery_profile(context_for(task_db, child, ""), False) == CONVERSATION
+    assert await recovery_profile(context_for(task_db, grandchild, ""), False) == CONVERSATION
+    async with db.sessions() as session, session.begin():
+        routine = RunRow(
+            thread_id=conversation.thread_id, agent_id=agent, trigger="routine", status="completed"
+        )
+        session.add(routine)
+        await session.flush()
+        routine_parent = routine.id
+    background = await subagent(routine_parent)
+    assert await recovery_profile(context_for(task_db, background, ""), False) == WORK
+    orphan = await subagent("no-such-run")
+    assert await recovery_profile(context_for(task_db, orphan, ""), False) == WORK
+    assert await recovery_profile(conversation, False) == CONVERSATION
 
 
 @pytest.mark.asyncio
@@ -986,6 +1289,42 @@ async def test_failed_continuous_task_retries_model_outages_automatically(
         failure = task_state(task).failure
         assert isinstance(failure, TaskFailure) and failure.recovery == "automatic"
         assert task_state(task).retry_policy == TaskRetryPolicy()
+
+
+@pytest.mark.asyncio
+async def test_unresolved_financial_call_never_retries_a_model_outage_automatically(
+    task_db: Fixture,
+) -> None:
+    from lonora_db.task_recovery import record_failure
+
+    db, owner, _, _ = task_db
+    context, task_id = await task_run(
+        task_db, TaskCreate(title="Watch gold", completion_mode="continuous")
+    )
+    async with db.sessions() as session, session.begin():
+        run = await session.get(RunRow, context.lease.run_id)
+        assert run
+        # A proposed trade with no result and no journal row yet: only the owner
+        # may decide whether it is resumed.
+        run.execution_state = {
+            **run.execution_state,
+            "messages": [
+                {"role": "user", "content": "Watch gold"},
+                {
+                    "role": "assistant",
+                    "content": "",
+                    "tool_calls": [
+                        {"id": "read-1", "name": "market_quote", "arguments": {}},
+                        {"id": "trade-1", "name": "trade_execute", "arguments": {}},
+                    ],
+                },
+            ],
+        }
+        run.error_code = "model_provider_unavailable"
+        await record_failure(session, run, {"market_quote"})
+        failure = task_state(await get_task(session, owner, task_id)).failure
+        assert isinstance(failure, TaskFailure)
+        assert (failure.recovery, failure.next_retry_at) == ("owner", None)
 
 
 @pytest.mark.asyncio

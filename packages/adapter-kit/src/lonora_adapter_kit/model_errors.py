@@ -52,7 +52,10 @@ from lonora_core.user_error import LonoraError
 class FailureReason(StrEnum):
     """Why one provider request failed; the router maps it to a recovery."""
 
+    # The credential itself is rejected (every model it could reach).
     AUTH = "auth"
+    # The credential is valid but may not use this model.
+    PERMISSION = "permission"
     BILLING = "billing"
     RATE_LIMIT = "rate_limit"
     OVERLOADED = "overloaded"
@@ -76,6 +79,7 @@ class FailureReason(StrEnum):
 # Stable owner-visible code and API status for each reason.
 CODES: dict[FailureReason, tuple[str, int]] = {
     FailureReason.AUTH: ("model_credentials_rejected", 502),
+    FailureReason.PERMISSION: ("model_access_denied", 502),
     FailureReason.BILLING: ("model_billing_exhausted", 502),
     FailureReason.RATE_LIMIT: ("model_rate_limited", 429),
     FailureReason.OVERLOADED: ("model_provider_unavailable", 502),
@@ -96,7 +100,13 @@ CODES: dict[FailureReason, tuple[str, int]] = {
 
 
 class ModelProviderError(LonoraError):
-    """A classified provider failure; ``code`` is the stable Lonora code."""
+    """A classified provider failure; ``code`` is the stable Lonora code.
+
+    ``inferred`` marks a reason read only from message wording on an otherwise
+    generic response (a plain 400/422 or an untyped stream error event). It
+    still selects the recovery, but it is not evidence strong enough to take a
+    model or credential offline for every Agent.
+    """
 
     def __init__(
         self,
@@ -106,6 +116,7 @@ class ModelProviderError(LonoraError):
         retry_after: float | None = None,
         output_limit: int | None = None,
         provider_type: str | None = None,
+        inferred: bool = False,
     ):
         code, status = CODES[reason]
         super().__init__(code, status, diagnostic_type=provider_type)
@@ -113,6 +124,7 @@ class ModelProviderError(LonoraError):
         self.http_status = http_status
         self.retry_after = retry_after
         self.output_limit = output_limit
+        self.inferred = inferred
 
 
 def reason_of(error: LonoraError) -> FailureReason | None:
@@ -129,7 +141,10 @@ _BILLING = (
     "insufficient balance",
     "credit balance",
     "credits exhausted",
-    "billing",
+    "billing hard limit",
+    "billing_hard_limit",
+    "billing_not_active",
+    "check your plan and billing",
     "payment required",
     "exceeded your current quota",
     "budget limit exceeded",
@@ -207,7 +222,6 @@ _CONTENT = (
 _MODEL_NOT_FOUND = (
     "model_not_found",
     "model not found",
-    "does not exist",
     "invalid model",
     "unknown model",
     "no such model",
@@ -215,18 +229,27 @@ _MODEL_NOT_FOUND = (
     "unsupported model",
     "no endpoints found",
 )
-_AUTH = (
+# Wording that says the key itself is rejected; decisive on a 403.
+_INVALID_KEY = (
     "invalid api key",
     "invalid_api_key",
     "invalid x-api-key",
-    "authentication",
-    "unauthorized",
-    "access denied",
+    "incorrect api key",
+    "api key not valid",
+    "api_key_invalid",
+    "invalid authentication",
+    "authentication failed",
+    "authentication_error",
 )
+_AUTH = (*_INVALID_KEY, "unauthorized")
+# "The model `x` does not exist": the word "model" must lead the phrase, so a
+# missing tool_call_id or file id is not read as a missing model.
+_MODEL_MISSING = re.compile(r"\bmodel\b[^.;\n]{0,120}?\bdoes not exist")
 # Structured provider error types and codes that are decisive on their own.
 _TYPED: dict[str, FailureReason] = {
     "authentication_error": FailureReason.AUTH,
-    "permission_error": FailureReason.AUTH,
+    # Anthropic: this key may not use this model; other models may answer.
+    "permission_error": FailureReason.PERMISSION,
     "invalid_api_key": FailureReason.AUTH,
     "billing_error": FailureReason.BILLING,
     "insufficient_quota": FailureReason.BILLING,
@@ -374,7 +397,7 @@ def _by_message(text: str) -> tuple[FailureReason, int | None] | None:
         return FailureReason.BILLING, None
     if _has(text, _CONTENT):
         return FailureReason.CONTENT_POLICY, None
-    if _has(text, _MODEL_NOT_FOUND):
+    if _has(text, _MODEL_NOT_FOUND) or _MODEL_MISSING.search(text):
         return FailureReason.MODEL_NOT_FOUND, None
     if _has(text, _RATE_LIMIT):
         return FailureReason.RATE_LIMIT, None
@@ -385,40 +408,48 @@ def _by_message(text: str) -> tuple[FailureReason, int | None] | None:
     return None
 
 
-def _by_status(status: int, text: str) -> tuple[FailureReason, int | None]:
+def _by_status(status: int, text: str) -> tuple[FailureReason, int | None, bool]:
+    """``(reason, output limit, inferred)`` for a failed HTTP response."""
     if status == 401:
-        return FailureReason.AUTH, None
+        return FailureReason.AUTH, None, False
     if status == 402:
-        return FailureReason.BILLING, None
+        return FailureReason.BILLING, None, False
     if status == 403:
         if _has(text, _BILLING):
-            return FailureReason.BILLING, None
+            return FailureReason.BILLING, None, False
         if _has(text, _CONTENT):
-            return FailureReason.CONTENT_POLICY, None
-        return FailureReason.AUTH, None
+            return FailureReason.CONTENT_POLICY, None, False
+        if _has(text, _INVALID_KEY):
+            return FailureReason.AUTH, None, False
+        # A 403 without invalid-key wording is a refusal for this model (or
+        # resource), not proof that the key is bad for every model.
+        return FailureReason.PERMISSION, None, False
     if status == 404:
-        return FailureReason.MODEL_NOT_FOUND, None
+        return FailureReason.MODEL_NOT_FOUND, None, False
     if status == 408:
-        return FailureReason.TIMEOUT, None
+        return FailureReason.TIMEOUT, None, False
     if status == 409:
-        return FailureReason.SERVER_ERROR, None
+        return FailureReason.SERVER_ERROR, None, False
     if status == 413:
-        return FailureReason.PAYLOAD_TOO_LARGE, None
+        return FailureReason.PAYLOAD_TOO_LARGE, None, False
     if status == 429:
         if _has(text, _OVERLOADED):
-            return FailureReason.OVERLOADED, None
+            return FailureReason.OVERLOADED, None, False
         if _has(text, _BILLING) and not _has(text, _RATE_LIMIT):
-            return FailureReason.BILLING, None
-        return FailureReason.RATE_LIMIT, None
+            return FailureReason.BILLING, None, False
+        return FailureReason.RATE_LIMIT, None, False
     if status in {503, 529} or (status >= 500 and _has(text, _OVERLOADED)):
-        return FailureReason.OVERLOADED, None
+        return FailureReason.OVERLOADED, None, False
     if status == 504:
-        return FailureReason.TIMEOUT, None
+        return FailureReason.TIMEOUT, None, False
     if status >= 500:
-        return FailureReason.SERVER_ERROR, None
+        return FailureReason.SERVER_ERROR, None, False
     if status >= 400:
-        return _by_message(text) or (FailureReason.FORMAT_ERROR, None)
-    return FailureReason.UNKNOWN, None
+        found = _by_message(text)
+        if found is not None:
+            return found[0], found[1], True
+        return FailureReason.FORMAT_ERROR, None, False
+    return FailureReason.UNKNOWN, None, False
 
 
 def classify_failure(
@@ -434,14 +465,17 @@ def classify_failure(
     effective = status if status is not None else numeric
     typed = _TYPED.get(code) or _TYPED.get(kind)
     output_limit: int | None = None
+    inferred = False
     if typed is not None and (effective is None or effective >= 400):
         reason = typed
     elif effective is not None and effective >= 300:
-        reason, output_limit = _by_status(effective, text)
+        reason, output_limit, inferred = _by_status(effective, text)
     else:
         # An error event mid-stream without a type: read the message, and
         # otherwise treat it as a provider-side interruption.
-        reason, output_limit = _by_message(text) or (FailureReason.SERVER_ERROR, None)
+        found = _by_message(text)
+        reason, output_limit = found or (FailureReason.SERVER_ERROR, None)
+        inferred = found is not None
     if reason is FailureReason.FORMAT_ERROR or (
         reason in {FailureReason.SERVER_ERROR, FailureReason.UNKNOWN}
         and effective is not None
@@ -450,6 +484,7 @@ def classify_failure(
         refined = _by_message(text)
         if refined is not None:
             reason, output_limit = refined
+            inferred = True
     retry_after: float | None = None
     if reason in {
         FailureReason.RATE_LIMIT,
@@ -464,6 +499,7 @@ def classify_failure(
         retry_after=retry_after,
         output_limit=output_limit,
         provider_type=kind or code or None,
+        inferred=inferred,
     )
 
 

@@ -11,10 +11,15 @@ replay and reconciliation rules.
 - A transient failure (outage, overload, rate limit) schedules a retry of the
   same checkpoint after a growing, jittered backoff and releases the worker
   through the existing ``ToolRetryScheduled`` path, as safe reads already do.
-- After a streak of transient failures the owner is told: Task work waits for
-  owner attention, resumable from the same checkpoint; any other Run fails with
-  the provider's stable code. The streak threshold follows the failure-streak
-  escalation idea of Hermes Agent's scheduler; no code is ported from it.
+- After a streak of transient failures the owner is told: finite Task work
+  waits for owner attention, resumable from the same checkpoint; any other Run
+  fails with the provider's stable code. Continuous monitoring is different:
+  the owner is notified at the streak threshold while retries go on at the
+  capped interval, and the work is held only after hours of outage. The streak
+  threshold follows the failure-streak escalation idea of Hermes Agent's
+  scheduler; no code is ported from it.
+- Who waits decides the profile: a subagent delegated from a conversation
+  backs off like that conversation, not like background work.
 """
 
 import random
@@ -25,12 +30,13 @@ from typing import Any, Literal, cast
 
 from lonora_adapter_kit.model_errors import FailureReason, ModelProviderError
 from lonora_contracts.domain import utcnow
+from lonora_core.runtime_failure import MODEL_RETRY_REASON
 from lonora_core.user_error import LonoraError
 from lonora_providers.context import MINIMUM_INPUT_SCALE
 from lonora_providers.resilience import is_transient
 
 STATE_KEY = "model_recovery"
-RETRY_REASON = "model_provider_retry"
+RETRY_REASON = MODEL_RETRY_REASON
 ATTENTION_REASON = "model_unavailable"
 # Each provider-proven overflow multiplies this Run's admission by this factor.
 OVERFLOW_SCALE = 0.7
@@ -43,12 +49,18 @@ class BackoffProfile:
     cap_seconds: float
     # Consecutive transient failures before the owner is told.
     escalate_after: int
+    # Set for continuous monitoring: telling the owner does not stop the work.
+    # Retries continue at the cap, and the work waits for the owner only once
+    # the outage has lasted this long.
+    hold_after_seconds: float | None = None
 
 
 # The owner is waiting on a conversation: short waits, early honest failure.
 CONVERSATION = BackoffProfile(10.0, 60.0, 3)
-# Background and Task work outlasts ordinary outages before asking the owner.
+# Background and finite Task work outlasts ordinary outages before asking.
 WORK = BackoffProfile(30.0, 900.0, 6)
+# A continuous Task (a trading monitor) keeps retrying through a long outage.
+CONTINUOUS = BackoffProfile(30.0, 900.0, 6, hold_after_seconds=12 * 3600.0)
 
 
 @dataclass(frozen=True)
@@ -56,6 +68,22 @@ class Decision:
     kind: Literal["compact", "retry", "escalate", "raise"]
     not_before: datetime | None = None
     failures: int = 0
+    # The owner should hear of an outage the work keeps retrying through.
+    notify: bool = False
+
+
+def outage_seconds(state: dict[str, Any], now: datetime) -> float:
+    """How long the current failure streak has lasted; 0 when unknown."""
+    value = state.get(STATE_KEY)
+    started = (
+        cast(dict[str, Any], value).get("first_failed_at") if isinstance(value, dict) else None
+    )
+    if not isinstance(started, str):
+        return 0.0
+    try:
+        return max(0.0, (now - datetime.fromisoformat(started)).total_seconds())
+    except ValueError:
+        return 0.0
 
 
 def recovery_state(state: dict[str, Any]) -> dict[str, Any]:
@@ -96,6 +124,7 @@ def record_success(state: dict[str, Any]) -> bool:
     record["failures"] = 0
     record["overflow_retries"] = 0
     record.pop("code", None)
+    record.pop("notified", None)
     return changed
 
 
@@ -103,7 +132,9 @@ def reset_streak(state: dict[str, Any]) -> None:
     """Owner input after an escalation starts a fresh streak."""
     value = state.get(STATE_KEY)
     if isinstance(value, dict):
-        cast(dict[str, Any], value)["failures"] = 0
+        record = cast(dict[str, Any], value)
+        record["failures"] = 0
+        record.pop("notified", None)
 
 
 def backoff_seconds(
@@ -152,11 +183,20 @@ def plan_failure(
     )
     if failures == 1:
         record["first_failed_at"] = moment.isoformat()
+    notify = False
     if failures >= profile.escalate_after:
-        # The streak restarts from zero if the owner resumes the work.
-        record["failures"] = 0
-        record["escalations"] = int(record.get("escalations") or 0) + 1
-        return Decision("escalate", failures=failures)
+        hold = profile.hold_after_seconds
+        if hold is None or outage_seconds(state, moment) >= hold:
+            # The streak restarts from zero if the owner resumes the work.
+            record["failures"] = 0
+            record.pop("notified", None)
+            record["escalations"] = int(record.get("escalations") or 0) + 1
+            return Decision("escalate", failures=failures)
+        # Monitoring goes on; the owner is told once per outage.
+        notify = not record.get("notified")
+        record["notified"] = True
     hint = error.retry_after if isinstance(error, ModelProviderError) else None
     delay = backoff_seconds(failures, profile, hint, jitter)
-    return Decision("retry", not_before=moment + timedelta(seconds=delay), failures=failures)
+    return Decision(
+        "retry", not_before=moment + timedelta(seconds=delay), failures=failures, notify=notify
+    )

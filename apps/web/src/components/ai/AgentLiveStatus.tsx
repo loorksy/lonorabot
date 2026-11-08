@@ -54,7 +54,11 @@ export function AgentLiveStatus({ agentId }: { agentId: string }) {
       {error != null && <p role="alert">{userError(error)}</p>}
       {(state.runtime_waits ?? []).map((wait) => (
         <p key={wait.run_id}>
-          {wait.kind === "read_retry" ? t`Retry scheduled` : t`Waiting`}
+          {wait.kind === "read_retry"
+            ? t`Retry scheduled`
+            : wait.kind === "model_retry"
+              ? t`Model provider unavailable — retry scheduled`
+              : t`Waiting`}
           {wait.retry_at && (
             <>
               {" "}

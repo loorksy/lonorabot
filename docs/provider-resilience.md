@@ -16,15 +16,16 @@ stays one of the stable codes Runs, Tasks and clients already read.
 
 | Reason | Typical source | Code |
 | --- | --- | --- |
-| `auth` | 401/403, `authentication_error` | `model_credentials_rejected` |
-| `billing` | 402, `insufficient_quota`, "credit balance" | `model_billing_exhausted` |
+| `auth` | 401, `authentication_error`, `invalid_api_key`, a 403 with invalid-key wording | `model_credentials_rejected` |
+| `permission` | Anthropic `permission_error`, any other 403 without billing, content or invalid-key wording | `model_access_denied` |
+| `billing` | 402, `insufficient_quota`, "credit balance", "exceeded your current quota" | `model_billing_exhausted` |
 | `rate_limit` | 429, `rate_limit_error` | `model_rate_limited` |
 | `overloaded` | 503/529, `overloaded_error`, overload wording on 429 | `model_provider_unavailable` |
 | `server_error` | other 5xx, `api_error`, untyped stream error events | `model_provider_unavailable` |
 | `timeout` | read/connect timeout, 408/504 | `model_provider_unavailable` |
 | `connection` | transport errors, a stream that closed before its end marker | `model_provider_unavailable` |
 | `context_overflow` / `payload_too_large` | "prompt is too long", `context_length_exceeded`, 413 | `context_limit_exceeded` |
-| `model_not_found` | 404, `not_found_error` | `model_endpoint_unavailable` |
+| `model_not_found` | 404, `not_found_error`, "the model … does not exist" | `model_endpoint_unavailable` |
 | `content_policy` | content filters, `refusal`/`content_filter` stops | `model_content_blocked` |
 | `output_limit` | "max_tokens … > N, which is the maximum", "at most N completion tokens" | `model_request_rejected` |
 | `truncated` | `max_tokens`/`length` stop with tool calls or no text | `model_output_truncated` |
@@ -35,6 +36,15 @@ Classification order: a decisive provider type or code, then the HTTP status
 refined by the message, then message patterns. `Retry-After` (seconds or an
 HTTP date), `retry-after-ms` and "try again in Ns" wording become `retry_after`
 on transient reasons only. Provider message text is never stored on the error.
+
+A reason read only from wording on a generic response (a plain 400/422, or an
+untyped error event mid-stream) is marked `inferred`. It still selects the
+recovery and allows fallback, but it never benches beyond a transient
+cooldown: a fault in one request (a stale `tool_call_id` that "does not
+exist", a parameter named `billing_id`) must not take a model or key offline
+for every Agent. The patterns are narrow for the same reason: a missing model
+needs the word "model" in the phrase, and bare "billing" or "authentication"
+is not enough.
 
 ## One request: retries, fallback and cooldown
 
@@ -55,10 +65,17 @@ Each candidate is admitted against its own window (unchanged from
 | overloaded, server error | 1 / 2 | fall back | 20 s doubling |
 | connection | 1 / 2 | fall back | 15 s doubling |
 | timeout | 0 / 1 | fall back | 30 s doubling |
-| auth, billing | none | fall back | 15 min, keyed by credential fingerprint |
-| model not found | none | fall back | 15 min |
+| auth, billing | none | fall back | 15 min, every model of that key (credential fingerprint) |
+| permission, model not found | none | fall back | 15 min, that model for that key only |
 | content policy, format, invalid response | none (invalid: 1) | fall back | none |
 | context overflow | none | raised to the Run (compact and retry) | none |
+
+Benches rest only on decisive evidence (a status such as 401, 402, 403 or
+404, or a typed provider code); an `inferred` reason benches nothing unless
+it is transient. A 403 that only refuses one model (Anthropic
+`permission_error`, "does not have access to this model") benches that model
+for that key, so an Agent preference pointing at a model the key cannot use
+never takes the provider offline for other Agents or other models.
 
 Waits use jittered exponential backoff (1 s, 2 s, … capped at 8 s, plus up to
 half again as jitter) or the provider's `Retry-After` when it is at most 20 s.
@@ -108,22 +125,42 @@ Adapters read the stop reason before trusting any tool input:
   existing worker release: `environment.retry = {not_before, reason_code:
   "model_provider_retry", code, attempt}`, the Run returns to `queued`, and the
   claimant skips it until the deadline. Owner input clears the deadline, as it
-  does for read retries. The partial reply preview of the failed turn is
+  does for read retries, including a message that arrives while the failed
+  turn is still being retried inside the router (it is stored as steering,
+  and the release then drops the deadline so the message is answered at once;
+  the failure streak is kept). The partial reply preview of the failed turn is
   withdrawn (`run.reply_committed` with phase `discarded`), and
   `run.retry_scheduled` carries the reason and code. The wait grows from 10 s
   (conversation, capped at 60 s) or 30 s (work, capped at 15 min), with jitter,
   and never undercuts the provider's or bench's stated wait.
+- **Who waits decides the profile.** A conversation Run, and a subagent it
+  delegated (the conversation waits for its result), uses the conversation
+  profile; the root of the delegation chain is followed through
+  `parent_run_id`. A subagent of Task or background work uses the work profile.
 - **Escalation.** After 3 consecutive transient failures of a conversation Run,
   it fails with the provider's code, which the owner sees in the chat. After 6
-  for background or Task work, Task Runs wait for owner attention
+  for background or finite Task work, Task Runs wait for owner attention
   (`task.attention_required`, reason `model_unavailable`), resumable from the
   same checkpoint with a fresh streak; other work Runs fail with the code. A
   successful model turn resets the streak. The failed turn never counts as a
   round.
+- **Continuous Tasks keep monitoring.** A continuous Task is not held at the
+  streak threshold: the owner gets one `task.degraded` event (attention code
+  `task_degraded`, importance `important_change`, superseded once the Run
+  recovers or the Task stops) and the Run keeps retrying at the capped 15-minute
+  interval. It waits for owner attention only once the outage has lasted 12
+  hours, or at once for a non-transient reason (rejected key, billing, access).
 - **Task recovery.** If a Task Run does fail with `model_provider_unavailable`
-  or `model_rate_limited` and no call is unresolved, a continuous Task (or any
-  Task in automatic retry mode) retries automatically within its attempt limit
-  instead of waiting for the owner.
+  or `model_rate_limited`, a continuous Task (or any Task in automatic retry
+  mode) retries automatically within its attempt limit, but only when every
+  call without a result is a read or a checkpoint. An unresolved financial call
+  (even one with no journal row yet) or any other mutation waits for the owner
+  or for reconciliation; the automatic path never resends it.
+- **Status.** The agent live state projects a model backoff as its own
+  `runtime_waits` kind, `model_retry` (reason `model_provider_retry`), distinct
+  from a tool `read_retry`. Clients show the owner-visible codes
+  (`model_billing_exhausted`, `model_content_blocked`, `model_output_truncated`,
+  `model_access_denied`, ...) in English and Arabic.
 
 ## Per-Agent model preference
 
@@ -153,6 +190,9 @@ Nothing waits for agreement and nothing executes on its advice.
 
 - Benches, learned output limits and same-provider retries are per process;
   several workers may each probe a failing provider once.
+- A `task_degraded` notification is in-app only (important changes are not
+  sent to external channels) and offers no action beyond opening the Agent's
+  conversation.
 - There is no UI yet for the per-Agent model preference (API only). Like the
   per-Agent approval preference, its settings row is not removed when the
   Agent is deleted (it is unreachable afterwards). A typed column on

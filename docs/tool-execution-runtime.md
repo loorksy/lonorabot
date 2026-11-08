@@ -315,8 +315,11 @@ transient failure schedules the same checkpoint again through the read-retry
 worker release (`environment.retry.reason_code = "model_provider_retry"`) with
 a growing backoff; a provider-proven context overflow tightens admission and
 compacts before one bounded retry. After a failure streak the owner is told:
-Task work waits for owner attention, other Runs fail with the provider code.
-Nothing executed is repeated. See `docs/provider-resilience.md`.
+finite Task work waits for owner attention, a continuous Task keeps retrying
+at the capped interval (with one `task_degraded` notification) and is held
+only after hours of outage, and other Runs fail with the provider code. An
+owner message that arrives during the failed turn clears the backoff. Nothing
+executed is repeated. See `docs/provider-resilience.md`.
 
 ## Context compaction
 

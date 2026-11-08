@@ -42,6 +42,8 @@ from lonora_contracts.runs import WORK_TRIGGERS
 from lonora_core.run_state import is_conversational
 from lonora_core.user_error import LonoraError
 from lonora_db.runs import checkpoint, require_lease
+from lonora_db.schema import RunRow
+from lonora_db.tasks import report_task_degraded
 from lonora_session.idempotency import request_hash
 from lonora_tools.context import ToolContext
 from lonora_tools.registry import ToolRegistry
@@ -69,9 +71,12 @@ from .environment import (
 )
 from .model_recovery import (
     ATTENTION_REASON,
+    CONTINUOUS,
     CONVERSATION,
     RETRY_REASON,
+    STATE_KEY,
     WORK,
+    BackoffProfile,
     input_scale,
     plan_failure,
     record_success,
@@ -276,6 +281,36 @@ def latest_answer(messages: list[ModelMessage]) -> str:
         if message.role == "assistant" and message.content.strip():
             return message.content.strip()
     return ""
+
+
+# Subagents delegate at most two levels deep; a few extra hops guard bad data.
+_MAXIMUM_DELEGATION_HOPS = 4
+
+
+async def recovery_profile(context: ToolContext, task_run: bool) -> BackoffProfile:
+    """How long this Run may back off: whoever waits on it decides.
+
+    Continuous Task work keeps monitoring through an outage; finite Task and
+    background work outlast ordinary outages; a conversation (and a subagent
+    it delegated, which the conversation waits on) fails honestly within
+    about a minute.
+    """
+    if task_run:
+        progress = await task_progress(context)
+        return CONTINUOUS if progress is not None and progress.continuous else WORK
+    async with context.db.sessions() as session:
+        run = await require_lease(session, context.lease)
+        trigger, parent_id = run.trigger, run.parent_run_id
+        for _ in range(_MAXIMUM_DELEGATION_HOPS):
+            if trigger != "subagent" or parent_id is None:
+                break
+            parent = await session.get(RunRow, parent_id)
+            if parent is None:
+                break
+            if parent.model_metadata.get("task_id"):
+                return WORK
+            trigger, parent_id = parent.trigger, parent.parent_run_id
+    return WORK if trigger in WORK_TRIGGERS else CONVERSATION
 
 
 async def request_owner_attention(
@@ -963,7 +998,7 @@ async def execute_tool_loop(
                 raise
             # Every candidate failed. Nothing ran for this turn and nothing is
             # repeated: retry the same checkpoint later or tell the owner.
-            profile = WORK if task_run or run.trigger in WORK_TRIGGERS else CONVERSATION
+            profile = await recovery_profile(context, task_run)
             decision = plan_failure(state, error, profile)
             if decision.kind == "compact":
                 log.warning("model_context_overflow input_scale=%s", input_scale(state))
@@ -977,10 +1012,21 @@ async def execute_tool_loop(
                     "attempt": decision.failures,
                 }
                 await persist(context, state, messages, pending)
+                if decision.notify:
+                    # Monitoring continues; the owner hears of the outage once.
+                    async with context.db.sessions() as session, session.begin():
+                        await report_task_degraded(
+                            session,
+                            await require_lease(session, context.lease),
+                            ATTENTION_REASON,
+                            error.code,
+                            cast(dict[str, Any], state[STATE_KEY]).get("first_failed_at"),
+                        )
                 log.warning(
-                    "model_turn_retry_scheduled code=%s attempt=%s",
+                    "model_turn_retry_scheduled code=%s attempt=%s notify=%s",
                     error.code,
                     decision.failures,
+                    decision.notify,
                 )
                 raise ToolRetryScheduled() from None
             if decision.kind == "escalate":

@@ -27,6 +27,12 @@ from pydantic import ValidationError
             "task_review",
         ),
         (
+            "task.degraded",
+            {"id": "task", "reason": "model_unavailable", "transition_id": "2026-11-07T12:00"},
+            "important_change",
+            "task_degraded",
+        ),
+        (
             "task.updated",
             {"status": "waiting", "waiting_reason": "owner_attention"},
             "silent",

@@ -26,6 +26,7 @@ const labels: Record<AttentionCode, Label> = {
   goal_changed: "attentionGoalChanged",
   collaboration_completed: "attentionCollaborationCompleted",
   task_review: "taskNeedsReview",
+  task_degraded: "attentionTaskDegraded",
   super_bot_authorization: "devicePending",
   super_bot_changed: "superBot",
   task_completed: "attentionTaskCompleted",

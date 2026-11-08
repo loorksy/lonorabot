@@ -15,6 +15,7 @@ from lonora_db.runs import (
     run_data,
 )
 from lonora_db.schema import MessageRow, SteeringRow, TradeApprovalRow
+from lonora_db.steering import user_interrupt_pending
 from lonora_db.streaming import settle_stream, stream_identity
 from lonora_db.task_wait_settlement import settle_task_wait
 from lonora_db.tasks import request_task_attention
@@ -220,6 +221,16 @@ async def execute_run(
                         run_id=row.id,
                         payload=stream_identity(snapshot),
                     )
+                if await user_interrupt_pending(session, row.id):
+                    # The owner wrote while the failed turn was being retried.
+                    # Admission only clears the deadline of an already queued
+                    # Run, so clear it here: the new message is answered (or
+                    # the provider state reported) now, not after the backoff.
+                    # The failure streak is kept, so this cannot loop forever.
+                    environment = dict(row.execution_state["environment"])
+                    environment.pop("retry", None)
+                    row.execution_state = {**row.execution_state, "environment": environment}
+                    retry = {**retry, "not_before": row.updated_at.isoformat()}
             emit(
                 session,
                 context.owner_id,
