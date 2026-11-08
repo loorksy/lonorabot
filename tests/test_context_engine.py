@@ -370,6 +370,7 @@ class SimpleThread:
 
 class SimpleRun:
     id = "run"
+    thread_id = "thread"
     trigger = "user"
     input_seq = 120
     prompt = ""

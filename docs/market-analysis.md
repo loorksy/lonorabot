@@ -136,8 +136,11 @@ history, opportunity reads, shadow reads, performance reads, position sizing and
 relationship reads drop their binding checks. `list_accounts` marks each account and
 `account_read` each position and order with `in_execution_scope`, and the catalog and
 account reads carry an `execution_scope` note, so the agent still sees what it may
-execute. `BINDING_POLICY` reads: focus pair; reading is open; executing follows your
-grant.
+execute. Omitted arguments default to the focus account and symbol, but the focus
+symbol is never copied onto another explicitly named account (`fill_bound_fields`),
+so `trade_record_history(account_id=<other>)` returns that account's records for every
+symbol, as for flexible agents. `BINDING_POLICY` reads: focus pair; reading is open;
+executing follows your grant.
 
 Mutations keep the binding (`agent_trading_account_mismatch` and
 `agent_trading_symbol_mismatch` now come only from mutation paths). Charts, watches

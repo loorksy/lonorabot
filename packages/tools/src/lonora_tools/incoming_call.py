@@ -30,6 +30,11 @@ NOTIFY_NOTE = (
     "Shown in the app's notifications and this Agent's conversation. Off-app delivery "
     "(push, messaging channels) is not available yet."
 )
+# Reach-me "activity only": no notification is raised; the reply is the record.
+ACTIVITY_NOTE = (
+    "The owner asked not to be interrupted, so no notification was raised. Say it once in "
+    "your reply in this conversation; that reply is the record the owner reads."
+)
 
 
 async def notify(context: ToolContext, arguments: dict[str, Any]) -> dict[str, Any]:
@@ -44,7 +49,8 @@ async def notify(context: ToolContext, arguments: dict[str, Any]) -> dict[str, A
             OwnerNotifyRequest.model_validate(arguments),
             run_id=run.id,
         )
-        return {**result, "note": NOTIFY_NOTE, "execution_authorized": False}
+        note = ACTIVITY_NOTE if result["status"] == "activity_only" else NOTIFY_NOTE
+        return {**result, "note": note, "execution_authorized": False}
 
 
 async def request(context: ToolContext, arguments: dict[str, Any]) -> dict[str, Any]:

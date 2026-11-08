@@ -271,7 +271,12 @@ async def test_actual_context_builder_resolver_and_fenced_diagnostics(
         summary_seq=0,
     )
     run = SimpleNamespace(
-        id="run", trigger="user", input_seq=1, prompt="", model_metadata={"provider": "keep"}
+        id="run",
+        thread_id="thread",
+        trigger="user",
+        input_seq=1,
+        prompt="",
+        model_metadata={"provider": "keep"},
     )
     session = FakeSession(agent, thread)
     context: Any = SimpleNamespace(

@@ -276,7 +276,14 @@ async def retire(fixture: Any, *connections: str) -> None:
         await fixture.client.delete(f"/api/trading/connections/{connection}")
 
 
-async def wake_run(fixture: Any, agent: dict[str, Any], *, observe_only: bool) -> Any:
+async def wake_run(
+    fixture: Any,
+    agent: dict[str, Any],
+    *,
+    observe_only: bool,
+    trigger: str = "broker_event",
+    metadata: dict[str, Any] | None = None,
+) -> Any:
     """A server-style wake: the Agent's work lane, reporting to its conversation."""
     from lonora_contracts.domain import ThreadCreate
     from lonora_contracts.runs import RunRequest
@@ -294,11 +301,12 @@ async def wake_run(fixture: Any, agent: dict[str, Any], *, observe_only: bool) -
             RunRequest(
                 thread_id=work.id,
                 agent_id=agent["id"],
-                trigger="broker_event",
+                trigger=trigger,
                 prompt="Wake fixture",
                 metadata={
                     "origin_thread_id": origin.id,
                     **({"authority": "observe_only"} if observe_only else {}),
+                    **(metadata or {}),
                 },
             ),
         )
@@ -375,6 +383,179 @@ async def test_an_observe_only_wake_acts_but_never_trades():
         ):
             with pytest.raises(LonoraError, match="observe_only_execution_forbidden"):
                 await call(context, name, **arguments)
+    finally:
+        await retire(fixture, connection)
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_tasks_and_tickets_an_observe_only_wake_starts_never_trade():
+    database()
+    from check_streaming import Fixture
+    from lonora_db.schema import RunRow, TicketRow
+    from lonora_trading.execution import require_goal_lineage
+
+    fixture = await Fixture().open()
+    connection = ""
+    try:
+        connection = await simulation(fixture)
+        agent = await fixture.agent("Wake delegator", supervised=True)
+        context, _ = await wake_run(fixture, agent, observe_only=True)
+        task = await call(context, "task_start", title="Watch gold after the stop")
+        board = await call(context, "board_create", title="Wake follow-ups")
+        ticket = await call(
+            context, "ticket_create", board_id=board["id"], title="Review gold exposure"
+        )
+        started = await call(context, "ticket_start", ticket_id=ticket["id"])
+        async with fixture.runtime.db.sessions() as session:
+            row = await session.get(TicketRow, task["id"])
+            assert row is not None
+            task_run = await session.get(RunRow, row.payload["run_id"])
+            ticket_run = await session.get(RunRow, started["id"])
+        assert task_run is not None and ticket_run is not None
+        for run in (task_run, ticket_run):
+            # No parent link, so the narrowing travels in the Run itself.
+            assert run.parent_run_id is None
+            assert run.model_metadata["authority"] == "observe_only"
+            assert run.model_metadata["authority_run_id"] == context.lease.run_id
+            assert run_scope(run.trigger, run.model_metadata) == "observe_only"
+        # A full Run's Task keeps the Agent's normal authority.
+        chat = await fixture.lease(await fixture.run(agent, await fixture.conversation(agent)))
+        normal = await call(chat, "task_start", title="Ordinary background work")
+        async with fixture.runtime.db.sessions() as session:
+            row = await session.get(TicketRow, normal["id"])
+            assert row is not None
+            normal_run = await session.get(RunRow, row.payload["run_id"])
+            assert normal_run is not None and "authority" not in normal_run.model_metadata
+        for run in (task_run, ticket_run):
+            delegated = await fixture.lease(
+                {"id": run.id, "agent_id": run.agent_id, "thread_id": run.thread_id}
+            )
+            # The Task keeps every non-financial ability ...
+            assert (await call(delegated, "memory_read"))["version"] >= 0
+            # ... and neither the registry nor the executor lets it reach the broker.
+            for name, arguments in (
+                (
+                    "trade_execute",
+                    {
+                        "account_id": connection,
+                        "symbol": "XAUUSD",
+                        "action": "buy",
+                        "volume": "0.1",
+                    },
+                ),
+                ("trade_close_positions", {"account_id": connection}),
+            ):
+                with pytest.raises(LonoraError, match="observe_only_execution_forbidden"):
+                    await call(delegated, name, **arguments)
+            async with fixture.runtime.db.sessions() as session:
+                with pytest.raises(LonoraError, match="observe_only_execution_forbidden"):
+                    await require_goal_lineage(session, delegated.lease, None)
+    finally:
+        await retire(fixture, connection)
+        await fixture.close()
+
+
+async def gold_goal(context: Any, connection: str) -> dict[str, Any]:
+    return await call(
+        context,
+        "goal_create",
+        title="Gold swing",
+        objective="Hold gold while the weekly trend holds",
+        account_id=connection,
+        symbol="XAUUSD",
+        steps=[{"id": "review", "title": "Review the position", "kind": "analysis"}],
+    )
+
+
+@pytest.mark.asyncio
+async def test_re_arming_an_identical_goal_watch_keeps_it():
+    database()
+    from check_streaming import Fixture
+    from lonora_db.schema import MarketWatchRow
+
+    fixture = await Fixture().open()
+    connection = ""
+    try:
+        connection = await simulation(fixture)
+        agent = await fixture.agent("Goal watcher", supervised=True)
+        chat = await fixture.lease(await fixture.run(agent, await fixture.conversation(agent)))
+        goal = await gold_goal(chat, connection)
+        watch = {
+            "account_id": connection,
+            "symbol": "XAUUSD",
+            "kind": "price",
+            "condition": "below",
+            "level": "90",
+            "prompt": "Review the swing below 90",
+            "goal_id": goal["id"],
+            "step_id": "review",
+            "dedupe_key": "swing-below-90-" + uuid4().hex[:6],
+        }
+        first = await call(chat, "watch_create", **watch)
+        # The server adds the Goal's plan version; an identical re-arm still matches.
+        assert first["payload"]["goal_plan_version"] == 1
+        again = await call(chat, "watch_create", **watch)
+        assert again["id"] == first["id"] and again["deduplicated"] is True
+        async with fixture.runtime.db.sessions() as session:
+            row = await session.get(MarketWatchRow, first["id"])
+            assert row is not None and row.payload["enabled"] is True
+            assert "code" not in row.state or row.state["code"] != "watch_replaced"
+    finally:
+        await retire(fixture, connection)
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_every_work_lane_wake_reads_the_goals_of_its_conversation():
+    database()
+    from check_streaming import Fixture
+    from lonora_agent.context.goals import goal_context_blocks
+    from lonora_db.runs import require_lease
+    from lonora_db.trading_goals import goal_read_threads
+
+    fixture = await Fixture().open()
+    connection = ""
+    try:
+        connection = await simulation(fixture)
+        agent = await fixture.agent("Goal keeper", supervised=True)
+        chat = await fixture.lease(await fixture.run(agent, await fixture.conversation(agent)))
+        goal = await gold_goal(chat, connection)
+        wakes = {
+            "observe-only": (await wake_run(fixture, agent, observe_only=True))[0],
+            "attributed broker event": (await wake_run(fixture, agent, observe_only=False))[0],
+            "opportunity": (
+                await wake_run(
+                    fixture,
+                    agent,
+                    observe_only=False,
+                    trigger="watch",
+                    metadata={"opportunity_id": "opportunity-fixture", "opportunity_version": 2},
+                )
+            )[0],
+        }
+        for label, context in wakes.items():
+            listed = await call(context, "goal_list")
+            assert [item["id"] for item in listed["goals"]] == [goal["id"]], label
+            read = await call(context, "goal_read", goal_id=goal["id"])
+            assert read["limits"]["account_id"] == connection, label
+            assert "decisions" in await call(context, "goal_decisions", goal_id=goal["id"])
+            async with fixture.runtime.db.sessions() as session:
+                run = await require_lease(session, context.lease)
+                core, _ = await goal_context_blocks(
+                    session,
+                    fixture.owner,
+                    agent["id"],
+                    await goal_read_threads(session, run),
+                )
+            # The Goal, its plan and limits are in the wake's own context.
+            assert goal["id"] in core, label
+        # Another Agent's lane never reads this conversation's Goals.
+        stranger = await fixture.agent("Stranger")
+        foreign, _ = await wake_run(fixture, stranger, observe_only=False)
+        assert (await call(foreign, "goal_list"))["goals"] == []
+        with pytest.raises(LonoraError, match="goal_run_mismatch"):
+            await call(foreign, "goal_read", goal_id=goal["id"])
     finally:
         await retire(fixture, connection)
         await fixture.close()
@@ -528,6 +709,46 @@ async def test_a_paused_agents_activity_falls_back_to_the_personal_agent():
         await fixture.close()
 
 
+async def other_symbol_records(fixture: Any, account_id: str) -> None:
+    """A confirmed EURUSD operation and an EURUSD decision by a colleague on ``account_id``."""
+    from lonora_contracts.trading_decision import DecisionEvidence, TradingDecision
+    from lonora_db.trading_decisions import store_decision
+
+    colleague = await fixture.agent("Euro desk")
+    thread = await fixture.conversation(colleague)
+    run = await fixture.run(colleague, thread)
+    async with fixture.runtime.db.sessions() as session, session.begin():
+        row = journal(
+            "eur-" + uuid4().hex[:10],
+            {"action": "buy", "symbol": "EURUSD", "volume": "0.1"},
+            agent_id=colleague["id"],
+            broker_id="EUR-1",
+        )
+        row.owner_id, row.account_id = fixture.owner, account_id
+        row.request = {**row.request, "account_id": account_id}
+        session.add(row)
+        await store_decision(
+            session,
+            TradingDecision(
+                id=str(uuid4()),
+                owner_id=fixture.owner,
+                agent_id=colleague["id"],
+                run_id=run["id"],
+                account_id=account_id,
+                symbol="EURUSD",
+                timeframe="H1",
+                recorded_at=utcnow(),
+                requested_action="WAIT",
+                action="WAIT",
+                summary="Euro range holds; wait for the break",
+                gate_codes=[],
+                evidence=DecisionEvidence(id=str(uuid4()), captured_at=utcnow()),
+            ),
+            thread_id=thread["id"],
+            intent="eur-wait",
+        )
+
+
 @pytest.mark.asyncio
 async def test_a_fixed_market_agent_reads_every_account_and_trades_only_its_pair():
     database()
@@ -553,6 +774,15 @@ async def test_a_fixed_market_agent_reads_every_account_and_trades_only_its_pair
         quote = await call(context, "market_quote", account_id=secondary, symbol="XAUUSD")
         assert quote["symbol"] == "XAUUSD"
         assert (await call(context, "account_activity", account_id=secondary))["activities"] == []
+        # Another account's records are read whole, not filtered to the focus symbol.
+        await other_symbol_records(fixture, secondary)
+        records = await call(context, "trade_record_history", account_id=secondary)
+        assert [item["symbol"] for item in records["records"]] == ["EURUSD"], records
+        decisions = await call(context, "market_decision_history", account_id=secondary)
+        assert [item["symbol"] for item in decisions["decisions"]] == ["EURUSD"], decisions
+        assert decisions["decisions"][0]["recorded_by"]["you"] is False
+        # The focus account still defaults to the focus symbol.
+        assert (await call(context, "trade_record_history"))["records"] == []
         with pytest.raises(LonoraError, match="agent_trading_account_mismatch"):
             await call(
                 context,
@@ -658,6 +888,8 @@ async def test_owner_notify_follows_dedupe_quiet_hours_rate_and_reach_me():
             dedupe_key="silver-" + uuid4().hex[:6],
         )
         assert quiet["status"] == "activity_only" and quiet["attention_id"] is None
+        # The Agent is told where the record goes instead of a notification.
+        assert "your reply" in quiet["note"] and "Shown in" not in quiet["note"]
         # A bounded rate per Agent and hour.
         await reach_me(fixture, channel="message")
         sent = 4  # Every alert counts, the activity-only one too.

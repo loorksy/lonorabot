@@ -74,6 +74,21 @@ def run_data(row: RunRow) -> dict[str, Any]:
     }
 
 
+def inherited_authority(starter: RunRow | None) -> dict[str, str]:
+    """Run metadata that carries an observe-only Run's narrowing into work it starts.
+
+    A Task or ticket started from an observe-only wake runs observe-only too, so
+    neither it nor anything it delegates can send a broker mutation. Watches,
+    routines and Goals are the Agent's own later work and are not narrowed.
+    """
+    if starter is None or starter.model_metadata.get("authority") != "observe_only":
+        return {}
+    return {
+        "authority": "observe_only",
+        "authority_run_id": str(starter.model_metadata.get("authority_run_id") or starter.id),
+    }
+
+
 async def create_run(
     session: AsyncSession, owner_id: str, request: RunRequest, run_id: str | None = None
 ) -> RunRow:

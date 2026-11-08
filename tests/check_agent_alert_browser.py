@@ -1,13 +1,19 @@
-"""Seed an Agent's own owner alert (owner_notify) for the browser renderers."""
+"""Seed an Agent's own owner alert (owner_notify) for the browser renderers.
+
+An optional argument replaces the Arabic summary (for example an English one).
+"""
 
 import asyncio
 import json
+import sys
 from uuid import uuid4
 
 from check_streaming import Fixture
 from lonora_contracts.attention import OwnerNotifyRequest
 from lonora_db.attention import notify_owner
 from lonora_db.threads import conversation_thread
+
+SUMMARY = "أُغلقت صفقة XAUUSD عند وقف الخسارة 2310.5"
 
 
 async def main() -> None:
@@ -23,7 +29,7 @@ async def main() -> None:
                 thread.id,
                 OwnerNotifyRequest(
                     importance="critical",
-                    summary="أُغلقت صفقة XAUUSD عند وقف الخسارة 2310.5",
+                    summary=sys.argv[1] if len(sys.argv) > 1 else SUMMARY,
                     evidence_refs=["broker:sim-gold-1"],
                     dedupe_key="browser-" + uuid4().hex,
                 ),

@@ -1,4 +1,5 @@
 import json
+from collections.abc import Collection
 from typing import Any
 
 from lonora_db.schema import TradingGoalRow
@@ -108,13 +109,17 @@ def split_summary(entry: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]
 
 
 async def goal_context_blocks(
-    session: AsyncSession, owner_id: str, agent_id: str, thread_id: str, goal_id: str | None = None
+    session: AsyncSession,
+    owner_id: str,
+    agent_id: str,
+    threads: Collection[str],
+    goal_id: str | None = None,
 ) -> tuple[str, str]:
     """The mandatory goal seed and its optional detail block (empty when no goals)."""
     query = select(TradingGoalRow).where(
         TradingGoalRow.owner_id == owner_id,
         TradingGoalRow.agent_id == agent_id,
-        TradingGoalRow.thread_id == thread_id,
+        TradingGoalRow.thread_id.in_(list(threads)),
     )
     if goal_id:
         query = query.where(TradingGoalRow.id == goal_id)
@@ -151,5 +156,5 @@ async def goal_context(
     session: AsyncSession, owner_id: str, agent_id: str, thread_id: str, goal_id: str | None = None
 ) -> str:
     """The complete goal seed as one text: core and detail."""
-    core, details = await goal_context_blocks(session, owner_id, agent_id, thread_id, goal_id)
+    core, details = await goal_context_blocks(session, owner_id, agent_id, [thread_id], goal_id)
     return core + "\n" + details if core else ""

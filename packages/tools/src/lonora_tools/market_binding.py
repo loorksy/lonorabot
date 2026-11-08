@@ -71,7 +71,9 @@ def fill_bound_fields(agent: AgentRow, args: dict[str, Any], fields: set[str]) -
         and not filled.get("symbol")
         # An explicit every-symbol scope (trade_restriction_create) is not a missing symbol.
         and not filled.get("all_symbols")
-        and (not flexible_scope(agent) or filled.get("account_id") == agent.trading_account_id)
+        # The focus symbol belongs to the focus account: a call naming another owned
+        # account reads (or is refused) for that account as a whole, fixed agents too.
+        and ("account_id" not in fields or filled.get("account_id") == agent.trading_account_id)
     ):
         filled["symbol"] = agent.trading_symbol
     return filled

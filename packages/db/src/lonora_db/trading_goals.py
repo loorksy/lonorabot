@@ -354,12 +354,18 @@ def decision_data(row: GoalDecisionRow) -> dict[str, Any]:
     }
 
 
-async def goal_read_thread(session: AsyncSession, run: RunRow) -> str:
-    """Observe-only work may inspect its same-Agent origin, never mutate that Goal."""
-    if run.model_metadata.get("authority") != "observe_only":
-        return run.thread_id
+async def goal_read_threads(session: AsyncSession, run: RunRow) -> list[str]:
+    """Threads whose Goals a Run may read: its own, plus its same-Agent origin.
+
+    A wake, Task or opportunity Run works in its own work lane but still sees the
+    Goals of the conversation it came from (the Agent's own, or a group it belongs
+    to), whatever its authority. Mutating a Goal still requires the Goal's thread.
+    """
+    origin_id = run.model_metadata.get("origin_thread_id")
+    if not isinstance(origin_id, str) or not origin_id or origin_id == run.thread_id:
+        return [run.thread_id]
     source = await session.get(ThreadRow, run.thread_id)
-    origin = await session.get(ThreadRow, run.model_metadata.get("origin_thread_id", ""))
+    origin = await session.get(ThreadRow, origin_id)
     if (
         source is not None
         and source.purpose == "work"
@@ -369,7 +375,7 @@ async def goal_read_thread(session: AsyncSession, run: RunRow) -> str:
         and source.agent_id == run.agent_id
     ):
         if origin.agent_id == run.agent_id:
-            return origin.id
+            return [run.thread_id, origin.id]
         if origin.group_id:
             group = await session.get(GroupRow, origin.group_id)
             if (
@@ -377,5 +383,5 @@ async def goal_read_thread(session: AsyncSession, run: RunRow) -> str:
                 and group.owner_id == origin.owner_id
                 and run.agent_id in group.payload.get("member_ids", [])
             ):
-                return origin.id
-    return run.thread_id
+                return [run.thread_id, origin.id]
+    return [run.thread_id]

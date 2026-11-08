@@ -23,9 +23,13 @@ allocation can expire; a known remote session must close before replacement.
 
 The incoming-call policy record is the owner's single reach-me preference, part
 of the owner profile every Agent reads (`docs/agent-memory-and-recall.md`). Its
-`channel` is one of `activity` (keep it in Activity, no interruption), `notify`
-(the inbox; see below), `message` (a message in the Agent's conversation) or `call`
-(an incoming invitation). `enabled` is derived: invitations are possible exactly
+`channel` is one of `activity` (no interruption: Agents raise no alerts or calls and
+report in their replies, which reach their conversation and the Activity list),
+`notify` (the inbox; see below), `message` (a message in the Agent's conversation) or
+`call` (an incoming invitation). The channel governs how Agents reach the owner
+(`owner_notify`, `owner_call_request`); Lonora's own alerts (approvals, Emergency
+Stop, broker health, Task review) follow the notification settings, whatever the
+channel, so a safety alert is never hidden by a reach-me choice. `enabled` is derived: invitations are possible exactly
 when the channel is `call`, so the two can never disagree. A stored policy or a
 client from before the channel existed keeps its meaning (`enabled` true reads as
 `call`); a request that states both and contradicts itself is refused
@@ -67,8 +71,10 @@ wake in the work lane reports to the conversation it came from, `report_thread` 
 - Quiet hours (the reach-me preference) hold everything but `critical` until they end
   (`held_for_quiet_hours`, with `held_until`); the gateway's `ready_attention` then
   publishes it (`publish_ready`, shared with server alerts).
-- Reach-me `activity` keeps non-critical alerts out of the inbox (`activity_only`);
-  the owner's informational preference applies as for server alerts.
+- Reach-me `activity` raises no item for a non-critical alert (`activity_only`, no
+  `attention_id`); the tool tells the Agent to say it once in its reply instead, and
+  that reply (a wake's included) is the record in its conversation and the Activity
+  list. The owner's informational preference applies as for server alerts.
 - `critical` and `action_required` alerts are ready at once; others within seconds.
 - Delivery is in-app only (`delivery: "in_app"`): Web and Mobile show the label
   "Your agent alerted you" / «نبّهك وكيلك» with the summary in its own text direction.

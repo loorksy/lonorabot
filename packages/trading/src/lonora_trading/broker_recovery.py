@@ -220,7 +220,8 @@ async def wake_for_activity(
             )
             identifier = stable_id(account_id, f"external:{revision}:{agent.id}")
         else:
-            # Facts only. This wake has no financial effects, including via descendants.
+            # Facts only. No financial effects from this wake, its helpers, peer runs or
+            # the Tasks it starts; watches it sets fire later as the Agent's own work.
             prompt = (
                 f"Use account_activity for account_id={account_id} and inspect current account "
                 "state. Explain observed changes without inventing owner intent. This wake has "

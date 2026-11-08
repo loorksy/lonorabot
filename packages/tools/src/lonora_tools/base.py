@@ -32,10 +32,13 @@ def eager_for(*profiles: ExposureProfile) -> frozenset[ExposureProfile]:
 # Which registered tools a Run may use. "full" is an ordinary Run. An
 # "observe_only" wake (server-authored, about events it did not cause) has no
 # financial effects: it keeps memory, watches, routines, peers, owner
-# notifications and artifacts, and the executor refuses broker mutations from it
-# and from anything it delegates. A "helper" is a temporary subagent: reads plus
-# sandbox computation and reports, never memory writes, new agents, peer
-# messages or financial tools.
+# notifications and artifacts. The executor refuses broker mutations from it,
+# from its helpers and peer runs (lineage) and from the Tasks and tickets it
+# starts (they inherit the narrowing). Watches, routines and Goals it sets up
+# are the Agent's own later work and fire with the Agent's normal authority,
+# still under its signed grant and limits. A "helper" is a temporary subagent:
+# reads plus sandbox computation and reports, never memory writes, new agents,
+# peer messages or financial tools.
 ToolScope = Literal["full", "observe_only", "helper"]
 HELPER_EFFECTS = frozenset({"workspace_execute", "artifact_create"})
 

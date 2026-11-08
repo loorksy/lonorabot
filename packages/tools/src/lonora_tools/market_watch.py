@@ -47,7 +47,10 @@ async def create(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         key = args.get("dedupe_key")
         existing = await keyed_watch(session, context, key) if isinstance(key, str) else None
         if existing is not None:
-            if existing.payload == Watch.model_validate(args).model_dump(mode="json"):
+            # Compare what would be stored, server-filled fields included.
+            if existing.payload == await MarketWatchRepository().stored_payload(
+                session, context.owner_id, context.agent_id, args
+            ):
                 return {**resource_data(existing), "deduplicated": True}
             # A changed condition replaces the live watch for this key, never adds one.
             existing.payload = {**existing.payload, "enabled": False}

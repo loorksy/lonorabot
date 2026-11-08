@@ -334,9 +334,10 @@ async def notify_owner(
     """An Agent-raised owner attention item under the owner's reach-me rules.
 
     One item per Agent and dedupe key, at most NOTIFY_LIMIT_PER_HOUR per Agent. Quiet
-    hours hold everything but critical items until they end; "activity only" keeps
-    non-critical ones in the activity record. Delivery is in the app until off-app
-    delivery exists. The item grants nothing.
+    hours hold everything but critical items until they end. Under reach-me "activity
+    only" a non-critical alert raises no item (``activity_only``): the Agent says it in
+    its reply, which reaches its conversation and the Activity list. Delivery is in the
+    app until off-app delivery exists. The item grants nothing.
     """
     now = utcnow()
     if request.expires_at is not None and not now < request.expires_at <= now + (

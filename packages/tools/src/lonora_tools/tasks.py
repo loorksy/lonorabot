@@ -23,7 +23,7 @@ async def step_update(context: ToolContext, args: dict[str, Any]) -> dict[str, A
 
 async def start(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     async with context.db.sessions() as session, session.begin():
-        await require_lease(session, context.lease)
+        run = await require_lease(session, context.lease)
         row = await create_task(
             session,
             context.owner_id,
@@ -31,6 +31,7 @@ async def start(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             context.thread_id,
             TaskCreate.model_validate(args),
             context.resource_id,
+            starter=run,
         )
         return await snapshot(session, row)
 
