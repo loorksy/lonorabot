@@ -191,6 +191,8 @@ export type TradingReadiness = {
     symbols?: string[];
     grant_count?: number;
     money_limit_set?: boolean;
+    /** The daily loss limit of the grant's account, when the owner set one. */
+    daily_loss?: { amount: string; currency: string | null } | null;
   };
   level: "analysis" | "supervised" | "autonomous";
   grants: Array<{

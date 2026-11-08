@@ -75,7 +75,9 @@ The line and every sheet label come from one shared table in
 `packages/core/src/trading-readiness.ts` (English and Arabic, tickers and times isolated
 with U+2068/U+2069 so they keep their order in Arabic text). Examples: "New trading stopped
 · exits allowed" / «التداول الجديد متوقف · الخروج متاح», "Trades on its own · XAUUSD ·
-until you stop it · No money limit set".
+until you stop it · Daily loss 200.00 USD" / «يتداول باستقلال · XAUUSD · حتى توقفه ·
+الخسارة اليومية 200.00 USD» when the grant's account has a daily loss limit, and "… · No
+money limit set" when it has no money limit at all.
 
 ## Header safety pill
 

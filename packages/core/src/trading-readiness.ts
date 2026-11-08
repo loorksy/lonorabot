@@ -262,8 +262,13 @@ export function tradingReadinessLine(
           ? tradingSafetyLabels[lang].allPairs
           : (params.symbols ?? []).map(isolate).join(listSeparator(locale));
       const end = until(params.valid_until, { en: "until you stop it", ar: "حتى توقفه" });
-      const money =
-        params.money_limit_set === false ? ` · ${tradingSafetyLabels[lang].noMoneyLimit}` : "";
+      // The money line the owner signed with: the daily loss limit, or none at all.
+      const daily = params.daily_loss;
+      const money = daily
+        ? ` · ${moneyLimitNames.max_daily_loss[lang]} ${isolate(daily.currency ? `${daily.amount} ${daily.currency}` : daily.amount)}`
+        : params.money_limit_set === false
+          ? ` · ${tradingSafetyLabels[lang].noMoneyLimit}`
+          : "";
       return `${ar ? "يتداول باستقلال" : "Trades on its own"}${markets ? ` · ${markets}` : ""} · ${end}${money}`;
     }
   }

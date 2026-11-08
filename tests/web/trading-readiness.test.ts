@@ -81,6 +81,24 @@ test("every readiness state has one plain line in English and Arabic, never a ra
   assert.ok(tradingReadinessLine(account, "en", now).includes("All pairs on this account"));
   const limited = { ...own, params: { ...own.params, money_limit_set: true } };
   assert.ok(!tradingReadinessLine(limited, "en", now).includes("No money limit"));
+  // The daily loss limit signed with the grant is part of the line, in both languages.
+  const daily = {
+    ...own,
+    params: {
+      ...own.params,
+      symbols: ["XAUUSD"],
+      money_limit_set: true,
+      daily_loss: { amount: "200.00", currency: "USD" },
+    },
+  };
+  assert.equal(
+    tradingReadinessLine(daily, "en", now),
+    `Trades on its own · ${isolate("XAUUSD")} · until you stop it · Daily loss ${isolate("200.00 USD")}`,
+  );
+  assert.equal(
+    tradingReadinessLine(daily, "ar", now),
+    `يتداول باستقلال · ${isolate("XAUUSD")} · حتى توقفه · الخسارة اليومية ${isolate("200.00 USD")}`,
+  );
 });
 
 test("a stop with a freeze never says exits are allowed, in English or Arabic", () => {

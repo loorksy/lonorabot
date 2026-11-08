@@ -281,6 +281,17 @@ def _headline(
     if level == "supervised":
         return "ask_me", {"money_limit_set": any(item["configured"] for item in money_limits)}
     first_grant = grants[0] if grants else None
+    # The daily loss limit of the grant's account, the money line the owner set with it.
+    daily_loss = next(
+        (
+            {"amount": item["limits"]["max_daily_loss"], "currency": item["currency"]}
+            for item in money_limits
+            if first_grant
+            and item["account_id"] == first_grant["account_id"]
+            and "max_daily_loss" in item["limits"]
+        ),
+        None,
+    )
     return "on_its_own", {
         "symbol_scope": first_grant["symbol_scope"] if first_grant else "selected",
         "symbols": first_grant["symbols"][:3] if first_grant else [],
@@ -289,4 +300,5 @@ def _headline(
         "money_limit_set": any(
             item["configured"] for item in money_limits if item["account_id"] in granted
         ),
+        "daily_loss": daily_loss,
     }

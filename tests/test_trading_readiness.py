@@ -146,6 +146,7 @@ async def test_ask_me_and_signed_grant_lines_report_whether_a_money_limit_is_set
     assert signed["params"]["symbols"] == ["XAUUSD"]
     assert signed["params"]["symbol_scope"] == "selected"
     assert signed["params"]["money_limit_set"] is False
+    assert signed["params"]["daily_loss"] is None
     assert signed["grants"][0]["actions"] == ["buy", "sell", "close_position"]
     assert signed["grants"][0]["allow_manual_positions"] is False
 
@@ -157,6 +158,8 @@ async def test_ask_me_and_signed_grant_lines_report_whether_a_money_limit_is_set
         )
     limited = await readiness(db, owner, agent)
     assert limited["params"]["money_limit_set"] is True
+    # The line names the daily loss limit the owner trades under.
+    assert limited["params"]["daily_loss"] == {"amount": "300", "currency": "USD"}
     assert limited["money_limits"][0]["limits"] == {"max_daily_loss": "300"}
     assert limited["money_limits"][0]["trading_day_timezone"] == "UTC"
     # The executor and this projection read the same settings key.
