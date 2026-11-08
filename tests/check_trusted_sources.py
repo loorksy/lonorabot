@@ -2,8 +2,8 @@
 
 1. Migration 0042 makes today's trust visible: github.com for every owner and one
    ``mcp_server`` entry per operator declaration in ``LONORA_MCP_DECLARATIONS`` (its
-   endpoint and schema hashes pinned); running its seed again adds nothing; a downgrade
-   drops the table and a re-upgrade seeds again.
+   endpoint and schema hashes pinned, its tools read-only); running its seed again adds
+   nothing; a downgrade drops the table and a re-upgrade seeds again.
 2. Add an MCP server from chat: the agent offers a secure credential card; the owner's
    form posts the URL and token straight to the owner API; the server reads the new
    server's tools and raises the trust card (the tool that can place orders is listed as
@@ -86,7 +86,11 @@ def transport(calls: list[str]) -> Any:
                 elif method == "tools/list":
                     result = {
                         "tools": [
-                            {"name": "search_posts", "inputSchema": SCHEMA},
+                            {
+                                "name": "search_posts",
+                                "inputSchema": SCHEMA,
+                                "annotations": {"readOnlyHint": True},
+                            },
                             {"name": "place_order", "inputSchema": SCHEMA},
                         ]
                     }
@@ -147,6 +151,8 @@ async def seeded(fixture: Fixture, url: str) -> None:
         server = await sources(fixture, "mcp_server", connection["id"])
         assert len(server) == 1 and server[0].added_via == "operator"
         assert server[0].tool_hashes == {"search_posts": schema_sha256(SCHEMA)}
+        # Declared tools are read-only; the entry stands for its declaration.
+        assert server[0].read_only_tools == ["search_posts"]
         assert server[0].endpoint_sha256 == endpoint_sha256(URL)
         async with engine.begin() as connection_:
             assert await connection_.run_sync(migration().seed_sources, declarations) == 0

@@ -73,9 +73,15 @@ export const capabilityLabels = {
     restore: "Restore",
     undo: "Undo",
     review: "Review and trust",
+    trust: "Trust",
     trustRead: "Trust: read only",
     trustWrite: "Trust: non-financial writes",
     neverMoney: "Tools that can trade or move money never run.",
+    writes: "may change something (only with non-financial writes)",
+    needWrites: "need non-financial writes",
+    needsReview: "declaration removed, review it to keep using it",
+    undone: "undone",
+    setUp: "Set up integrations on the web",
     unnamed: "Unnamed",
   },
   ar: {
@@ -132,9 +138,15 @@ export const capabilityLabels = {
     restore: "استعادة",
     undo: "تراجع",
     review: "مراجعة ووثوق",
+    trust: "ثقة",
     trustRead: "ثقة: قراءة فقط",
     trustWrite: "ثقة: كتابة غير مالية",
     neverMoney: "الأدوات التي تتداول أو تحرّك المال لا تعمل أبدًا.",
+    writes: "قد تغيّر شيئًا (مع الكتابة غير المالية فقط)",
+    needWrites: "تحتاج الكتابة غير المالية",
+    needsReview: "أُزيل الإعلان، راجعه لتواصل استخدامه",
+    undone: "تم التراجع",
+    setUp: "إعداد التكاملات على الويب",
     unnamed: "بلا اسم",
   },
 } as const satisfies Record<Language, Record<string, string>>;
@@ -160,19 +172,27 @@ function day(value: string | null, locale: string): string | null {
   );
 }
 
+/** How many trusted tools wait for the write tier while a server is trusted for reading. */
+function waitingWrites(tier: string | null, writes: string[], text: CapabilityText) {
+  return tier === "read" && writes.length
+    ? `${isolate(String(writes.length))} ${text.needWrites}`
+    : null;
+}
+
 /** One trusted source: what it is, who added it, its tier and when it was last used. */
 export function sourceLine(source: TrustedSource, locale: string): string {
   const text = capabilityText(locale);
   const label =
     source.kind === "github" ? null : source.label ? isolate(source.label) : text.unnamed;
   const used = day(source.last_used_at, locale);
+  const server = source.kind === "mcp_server";
   return dot([
     label ? `${text[source.kind]}: ${label}` : text[source.kind],
     text[source.added_via],
-    source.kind === "mcp_server" ? text[source.effect_tier] : null,
-    source.kind === "mcp_server" && source.tools.length
-      ? `${isolate(String(source.tools.length))} ${text.tools}`
-      : null,
+    server && source.needs_review ? text.needsReview : null,
+    server && !source.needs_review ? text[source.effect_tier] : null,
+    server && source.tools.length ? `${isolate(String(source.tools.length))} ${text.tools}` : null,
+    server ? waitingWrites(source.effect_tier, source.write_tools, text) : null,
     used ? `${text.lastUsed} ${used}` : null,
     source.active ? null : text.removedState,
   ]);
@@ -189,7 +209,7 @@ export function skillLine(skill: CapabilitySkill, locale: string): string {
     skill.version ? isolate(skill.version) : null,
     skill.agent_name ? isolate(skill.agent_name) : null,
     origin,
-    skill.enabled ? text.on : text.off,
+    skill.undone ? text.undone : skill.enabled ? text.on : text.off,
   ]);
 }
 
@@ -203,6 +223,7 @@ export function serverLine(server: CapabilityServer, locale: string): string {
       : server.operator_declared
         ? text.operator
         : text.notTrusted,
+    waitingWrites(server.trusted_tier, server.write_tools, text),
     server.blocked_tools.length
       ? `${isolate(String(server.blocked_tools.length))} ${text.blocked}`
       : null,

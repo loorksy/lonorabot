@@ -3,11 +3,14 @@
 Every request, including each redirect target, goes through ``public_get``: HTTPS only,
 the host resolved once and every address checked public, the connection pinned to that
 address. A document type declaration or entity is refused before parsing, so no entity
-expansion or external fetch can happen. Item text is bounded and stripped of markup;
+expansion or external fetch can happen; so is any body whose bytes would hide one (a
+UTF-16 or UTF-32 body, a NUL byte, or a declared encoding that does not spell that markup
+the way ASCII does). Item text is bounded and stripped of markup;
 it is untrusted evidence, never instructions. Errors carry stable codes, never the
 feed URL (it may contain a token).
 """
 
+import codecs
 import html
 import re
 from dataclasses import dataclass
@@ -23,6 +26,11 @@ MAXIMUM_FEED_BYTES = 2 * 1024 * 1024
 MAXIMUM_REDIRECTS = 3
 MAXIMUM_ITEMS = 50
 TAG = re.compile(r"<[^>]{0,2000}>")
+DECLARED_ENCODING = re.compile(
+    rb"^(?:\xef\xbb\xbf)?\s*<\?xml[^>]{0,200}?encoding\s*=\s*[\"']([A-Za-z0-9._:-]{1,40})[\"']"
+)
+MARKUP = "<!DOCTYPE <!ENTITY <!doctype <!entity"
+WIDE_BOMS = (codecs.BOM_UTF16_LE, codecs.BOM_UTF16_BE, codecs.BOM_UTF32_BE)
 
 
 @dataclass(frozen=True)
@@ -89,10 +97,26 @@ def atom_link(entry: ElementTree.Element) -> str | None:
     )
 
 
+def ascii_markup(body: bytes) -> bool:
+    """Whether "<!DOCTYPE" and "<!ENTITY" would appear in this body as their ASCII bytes,
+    so the byte check below sees them: real feeds are UTF-8 or another ASCII-compatible
+    encoding; a wide or exotic one could hide a declaration from it."""
+    if body.startswith(WIDE_BOMS) or b"\x00" in body:
+        return False
+    declared = DECLARED_ENCODING.match(body)
+    if declared is None:
+        return True
+    try:
+        return MARKUP.encode(declared.group(1).decode()) == MARKUP.encode()
+    except (LookupError, UnicodeError):
+        return False
+
+
 def parse_feed(body: bytes, base: str) -> tuple[str, list[FeedItem]]:
     """The feed's title and items (RSS 2.0, RSS 1.0 or Atom); ``news_feed_invalid``
     for anything else."""
-    if b"<!doctype" in body[:4096].lower() or b"<!entity" in body.lower():
+    lowered = body.lower()
+    if not ascii_markup(body) or b"<!doctype" in lowered or b"<!entity" in lowered:
         raise LonoraError("news_feed_invalid", 502)
     try:
         root = ElementTree.fromstring(body)

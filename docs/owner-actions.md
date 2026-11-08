@@ -7,7 +7,10 @@ W15-4 adds the agent creation and Undo cards (`docs/agents-from-chat.md`), W15-6
 supervision, Undo, Restore and pause cards (`supervise`, `supervision_created`,
 `supervision_stopped`, `supervision_paused`, `docs/supervision.md`).
 W15-8 adds the trust and secure credential cards (`trust_source`, `connect_credential`,
-`docs/trusted-sources.md`). Grant cards come with W15-3.
+`docs/trusted-sources.md`): an MCP server's trust card offers the read or write tier only
+when some tool may change something, and a credential card for an MCP server says
+whether the trust card follows (or why not, waking the agent that asked). Grant cards
+come with W15-3.
 
 A card is never a second authority path. It stores one exact effect, and the owner's
 tap runs the existing owner function for that effect, in the owner's session.

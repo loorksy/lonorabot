@@ -1020,8 +1020,13 @@ class TrustedSourceRow(Base):
     # mcp_server: the reviewed endpoint and {tool name: input schema sha256}.
     endpoint_sha256: Mapped[str | None] = mapped_column(String(64))
     tool_hashes: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    # The pinned tools the server marked read-only at review: the only ones the read tier
+    # runs (a later hint can narrow this, never widen it).
+    read_only_tools: Mapped[list[Any]] = mapped_column(JSON, default=list)
     # Tools seen at review that can trade or move money; never pinned, shown as blocked.
     blocked_tools: Mapped[list[Any]] = mapped_column(JSON, default=list)
+    # operator: copied from LONORA_MCP_DECLARATIONS; it authorizes nothing by itself (only
+    # while that declaration stands) until the owner reviews it.
     added_via: Mapped[str] = mapped_column(String(16))
     # The agent whose card the owner confirmed; a value, never cascaded away.
     added_by_agent_id: Mapped[str | None] = mapped_column(String(36))

@@ -172,11 +172,14 @@ export const ownerActionLabels = {
     trustFeed: "News feed site",
     trustTools: "Tools",
     trustBlocked: "Blocked, can trade or move money",
+    trustWrites: "May change something (only with non-financial writes)",
     trustSubscribe: "It also subscribes the feed for every agent.",
     trustHint:
       "Agents use it without asking again; you can remove it in Capabilities. It never carries money authority.",
     trustServerHint:
-      "Choose what its tools may do. Tools that can trade or move money never run, and a changed tool waits for your review.",
+      "Read only runs just the tools that only read; non-financial writes runs them all. Tools that can trade or move money never run, and a changed tool waits for your review.",
+    trustServerReadHint:
+      "Its tools only read. Tools that can trade or move money never run, and a changed tool waits for your review.",
     trust: "Trust",
     trustRead: "Trust: read only",
     trustWrite: "Trust: non-financial writes",
@@ -349,11 +352,14 @@ export const ownerActionLabels = {
     trustFeed: "موقع موجز الأخبار",
     trustTools: "الأدوات",
     trustBlocked: "محظورة، تتداول أو تحرّك المال",
+    trustWrites: "قد تغيّر شيئًا (مع الكتابة غير المالية فقط)",
     trustSubscribe: "ويشترك أيضًا في الموجز لكل الوكلاء.",
     trustHint:
       "يستخدمه الوكلاء دون أن يسألوك مجددًا، وتستطيع إزالته من القدرات. لا يحمل أي صلاحية مالية.",
     trustServerHint:
-      "اختر ما يُسمح لأدواته بفعله. الأدوات التي تتداول أو تحرّك المال لا تعمل أبدًا، وأي أداة تتغيّر تنتظر مراجعتك.",
+      "القراءة فقط تشغّل الأدوات التي تقرأ فحسب، والكتابة غير المالية تشغّلها كلها. الأدوات التي تتداول أو تحرّك المال لا تعمل أبدًا، وأي أداة تتغيّر تنتظر مراجعتك.",
+    trustServerReadHint:
+      "أدواته تقرأ فقط. الأدوات التي تتداول أو تحرّك المال لا تعمل أبدًا، وأي أداة تتغيّر تنتظر مراجعتك.",
     trust: "ثقة",
     trustRead: "ثقة: قراءة فقط",
     trustWrite: "ثقة: كتابة غير مالية",
@@ -480,9 +486,10 @@ function settledLine(card: OwnerAction, text: OwnerActionText): string | null {
       case "set_account_limits":
         return text.limitsSaved;
       case "trust_source":
+        // Read only matters only when some tool may change something.
         return card.result.tier === "write_nonfinancial"
           ? text.trustedWrite
-          : card.facts.source?.kind === "mcp_server"
+          : card.facts.source?.kind === "mcp_server" && card.result.writes
             ? text.trustedRead
             : text.trusted;
       case "connect_credential":
@@ -660,6 +667,7 @@ function sourceLines(card: OwnerAction, lang: Language, text: OwnerActionText): 
       : "";
   const lines = [`${text[SOURCE_LABEL[source.kind]]}: ${label}`];
   if (source.tools?.length) lines.push(`${text.trustTools}: ${nameList(source.tools, lang)}`);
+  if (source.writes?.length) lines.push(`${text.trustWrites}: ${nameList(source.writes, lang)}`);
   if (source.blocked?.length) lines.push(`${text.trustBlocked}: ${nameList(source.blocked, lang)}`);
   if (source.subscribe) lines.push(text.trustSubscribe);
   return lines;
@@ -995,6 +1003,15 @@ export function ownerActionCard(
       const source = facts.source;
       title = source?.review ? text.trustReviewTitle : text.trustTitle;
       lines.push(...sourceLines(card, lang, text));
+      if (source?.kind === "mcp_server" && !source.writes?.length) {
+        // Every tool only reads: one tap, nothing to choose.
+        hint = text.trustServerReadHint;
+        buttons = [
+          { key: "confirm", label: text.trust, decision: "confirm", tier: "read", primary: true },
+          { key: "cancel", label: text.notNow, decision: "cancel", primary: false },
+        ];
+        break;
+      }
       if (source?.kind === "mcp_server") {
         hint = text.trustServerHint;
         buttons = [

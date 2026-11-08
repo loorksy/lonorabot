@@ -1,6 +1,8 @@
 import type {
   CapabilityReport,
   CapabilitySkill,
+  EffectTier,
+  McpTrustPreview,
   SkillVersionControls,
   TrustedSource,
 } from "@lonora/contracts";
@@ -14,22 +16,24 @@ import {
 } from "@lonora/core";
 import { Redirect, useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
-import { Pressable, ScrollView, Text, View } from "react-native";
+import { Linking, Pressable, ScrollView, Text, View } from "react-native";
 import { SettingsGroup } from "../../components/settings-group";
 import { SheetHeader } from "../../components/sheet-header";
-import { colors, ErrorNotice, Loading, Screen } from "../../components/ui";
+import { Button, colors, ErrorNotice, Loading, Screen } from "../../components/ui";
 import { api } from "../../lib/api";
 import { useSession } from "../../lib/session";
 
 /**
  * Capabilities: everything agents can use now, the same report and labels as the Web
- * (GET /capabilities, @lonora/core). Undo goes to the existing owner routes; trusting an
- * MCP server's tools happens on its card in the chat. Nothing here carries money authority.
+ * (GET /capabilities, @lonora/core). Undo goes to the existing owner routes; a server whose
+ * tools are not trusted yet is reviewed and trusted here (or on its card in the chat), and
+ * setting up a new integration opens the web settings. Nothing here carries money authority.
  */
 export default function Capabilities() {
-  const { ready, owner, locale, rtl, errorText } = useSession();
+  const { ready, owner, locale, rtl, errorText, server: origin } = useSession();
   const text = capabilityText(locale);
   const [report, setReport] = useState<CapabilityReport | null>(null);
+  const [preview, setPreview] = useState<{ id: string; tools: McpTrustPreview } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const load = useCallback(async () => {
@@ -86,9 +90,56 @@ export default function Capabilities() {
     act(() =>
       api.post(`/trusted-sources/${source.id}/${source.active ? "revoke" : "restore"}`, {}),
     );
+  const review = (connectionId: string) =>
+    act(async () => {
+      setPreview({
+        id: connectionId,
+        tools: await api.post<McpTrustPreview>(`/trusted-sources/mcp/${connectionId}/preview`, {}),
+      });
+    });
+  const trust = (tier: EffectTier) =>
+    act(async () => {
+      if (!preview) return;
+      await api.post(`/trusted-sources/mcp/${preview.id}`, { tier, digest: preview.tools.digest });
+      setPreview(null);
+    });
+  const names = (values: string[]) =>
+    values.map((name) => `\u2068${name}\u2069`).join(rtl ? "، " : ", ");
+  const previewBlock = (connectionId: string) =>
+    preview?.id === connectionId ? (
+      <View key={`mcp-preview-${connectionId}`} testID="mcp-preview" style={{ gap: 6 }}>
+        <Text style={[{ color: colors.foreground }, align]}>
+          {text.tools}: {names(preview.tools.tools)}
+        </Text>
+        {preview.tools.writes.length ? (
+          <Text style={[{ color: colors.foreground }, align]}>
+            {text.writes}: {names(preview.tools.writes)}
+          </Text>
+        ) : null}
+        {preview.tools.blocked.length ? (
+          <Text style={[{ color: colors.foreground }, align]}>
+            {text.blocked}: {names(preview.tools.blocked)}
+          </Text>
+        ) : null}
+        <Text style={[{ color: colors.secondary }, align]}>{text.neverMoney}</Text>
+        <Button
+          label={preview.tools.writes.length ? text.trustRead : text.trust}
+          disabled={busy || !preview.tools.tools.length}
+          onPress={() => void trust("read")}
+        />
+        {preview.tools.writes.length ? (
+          <Button
+            label={text.trustWrite}
+            secondary
+            disabled={busy}
+            onPress={() => void trust("write_nonfinancial")}
+          />
+        ) : null}
+      </View>
+    ) : null;
   const undo = (skill: CapabilitySkill) =>
     act(async () => {
-      if (!skill.agent_id || !skill.version) return;
+      if (!skill.can_undo || !skill.agent_id || !skill.version) return;
       const controls = await api.get<SkillVersionControls>(
         `/agents/${skill.agent_id}/skills/revocations`,
       );
@@ -131,7 +182,7 @@ export default function Capabilities() {
             <SettingsGroup title={text.servers}>
               <View style={{ gap: 8 }}>
                 {report.mcp_servers.length
-                  ? report.mcp_servers.map((server) =>
+                  ? report.mcp_servers.flatMap((server) => [
                       line(
                         serverLine(server, locale),
                         `mcp-server-${server.connection_id}`,
@@ -143,9 +194,10 @@ export default function Capabilities() {
                                   api.post(`/trusted-sources/${server.trust_source_id}/revoke`, {}),
                                 ),
                             }
-                          : undefined,
+                          : { label: text.review, run: () => void review(server.connection_id) },
                       ),
-                    )
+                      previewBlock(server.connection_id),
+                    ])
                   : none}
               </View>
             </SettingsGroup>
@@ -156,7 +208,7 @@ export default function Capabilities() {
                       line(
                         skillLine(skill, locale),
                         `capability-skill-${skill.resource_id}`,
-                        skill.provenance === "external" || skill.provenance === "agent_authored"
+                        skill.can_undo
                           ? { label: text.undo, run: () => void undo(skill) }
                           : undefined,
                       ),
@@ -176,6 +228,15 @@ export default function Capabilities() {
                   : none}
               </View>
             </SettingsGroup>
+            <Button
+              label={text.setUp}
+              secondary
+              onPress={() => {
+                void Linking.openURL(`${origin}/app?settings=integrations`).catch((cause) =>
+                  setError(errorText(cause)),
+                );
+              }}
+            />
           </>
         )}
       </ScrollView>

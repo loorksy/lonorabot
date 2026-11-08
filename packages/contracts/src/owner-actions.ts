@@ -123,7 +123,8 @@ export type OwnerAction = {
     };
     /**
      * trust_source: the source to trust. An MCP server's label is its saved name and its
-     * tools are the reviewed names (tools that can move money are listed as blocked);
+     * tools are the reviewed names (tools that can move money are listed as blocked;
+     * writes are the ones that may change something and run only at the write tier);
      * review is true when the server is trusted already and its tools changed.
      */
     source?: {
@@ -131,6 +132,7 @@ export type OwnerAction = {
       label: string | null;
       subscribe: boolean;
       tools?: string[];
+      writes?: string[];
       blocked?: string[];
       review?: boolean;
       tier?: EffectTier | null;
@@ -154,11 +156,15 @@ export type OwnerAction = {
     resumed?: "agent" | "task" | "routine" | "watch";
     tier?: EffectTier;
     tools?: number;
+    /** trust_source on an MCP server: how many trusted tools may change something. */
+    writes?: number;
     subscribed?: boolean;
     target?: CredentialTarget;
     configured?: boolean;
     connection_id?: string;
     integration_id?: string;
+    /** connect_credential for an MCP server: whether its trust card followed. */
+    review?: "raised" | "unread" | "nothing_to_trust" | "disabled" | "already";
   };
   expires_at: string;
   decided_at: string | null;

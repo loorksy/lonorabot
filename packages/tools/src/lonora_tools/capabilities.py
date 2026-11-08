@@ -2,7 +2,8 @@
 for agents (``capabilities_list``).
 
 It lists the trusted sources, the Skills agents installed or wrote (with where they came
-from), the saved MCP servers and whether their tools are trusted, the integrations and
+from and whether the owner undid that version), the saved MCP servers and whether their
+tools are trusted (and which need the write tier), the integrations and
 feeds, and the built-in capabilities with their honest state: ``ready``,
 ``not_connected`` (the owner can connect it with one card) or ``not_set_up`` (this server
 lacks the service: a workspace host, a browser, a search service). Presentation only:
@@ -24,11 +25,14 @@ from lonora_db.schema import (
     ThreadRow,
     TrustedSourceRow,
 )
+from lonora_db.skill_controls import read_skill_controls
 from lonora_db.trusted_sources import (
+    declared_connections,
     ensure_defaults,
     list_sources,
     source_data,
     source_names,
+    write_tools,
 )
 from sqlalchemy import select
 
@@ -114,6 +118,11 @@ async def capability_report(
                 .limit(200)
             )
         )
+        # The versions the owner undid, per agent: such a Skill no longer loads.
+        revoked: set[tuple[str, str, str]] = set()
+        for agent_id in sorted({row.agent_id for row in skills if row.agent_id in agents}):
+            controls = await read_skill_controls(session, owner_id, agent_id)
+            revoked |= {(agent_id, item.skill_id, item.version) for item in controls.revoked}
         servers = list(
             await session.scalars(
                 select(McpConnectionRow)
@@ -147,12 +156,20 @@ async def capability_report(
                 )
             )
         }
+    saved = {row.id for row in servers}
+    # The owner's own trust of a server still saved; an operator entry stands for its
+    # declaration, shown as such.
     trusted = {
         row.identifier: row
         for row in sources
-        if row.kind == "mcp_server" and row.revoked_at is None and infrastructure.mcp_owner_trust
+        if row.kind == "mcp_server"
+        and row.revoked_at is None
+        and row.added_via != "operator"
+        and row.identifier in saved
+        and infrastructure.mcp_owner_trust
     }
-    listed_sources = [source_data(row, agent_names, connection_names) for row in sources]
+    declared = declared_connections(infrastructure.mcp_declarations, owner_id)
+    listed_sources = [source_data(row, agent_names, connection_names, declared) for row in sources]
     if for_agent:
         listed_sources = [
             {key: value for key, value in item.items() if key not in {"id", "added_by_agent_name"}}
@@ -161,7 +178,7 @@ async def capability_report(
         ]
     report: dict[str, Any] = {
         "trusted_sources": listed_sources,
-        "skills": [skill_entry(row, agents) for row in skills],
+        "skills": [skill_entry(row, agents, revoked) for row in skills],
         "mcp_servers": [
             server_entry(row, trusted.get(row.id), infrastructure, owner_id, for_agent=for_agent)
             for row in servers
@@ -188,6 +205,7 @@ def server_entry(
         "credentials_configured": bool(row.payload.get("secret_id")),
         "trusted_tier": trust.effect_tier if trust else None,
         "trusted_tools": sorted(trust.tool_hashes) if trust else [],
+        "write_tools": write_tools(trust) if trust else [],
         "blocked_tools": list(trust.blocked_tools) if trust else [],
         "operator_declared": sum(
             1
@@ -199,7 +217,9 @@ def server_entry(
     }
 
 
-def skill_entry(row: SkillRow, agents: dict[str, str]) -> dict[str, Any]:
+def skill_entry(
+    row: SkillRow, agents: dict[str, str], revoked: set[tuple[str, str, str]]
+) -> dict[str, Any]:
     manifest: dict[str, Any] = row.payload.get("manifest") or {}
     source = str(manifest.get("source") or "legacy")
     package: dict[str, Any] = row.state.get("package") or {}
@@ -207,16 +227,28 @@ def skill_entry(row: SkillRow, agents: dict[str, str]) -> dict[str, Any]:
     last: Any = versions[-1] if versions else None
     latest = cast(dict[str, Any], last) if isinstance(last, dict) else {}
     repository = latest.get("repository_url")
+    provenance = PROVENANCE.get(source, "unverified")
+    # Undo denies this exact version (the Skill's manifest id, as loading checks it).
+    skill_id = str(manifest.get("id") or row.payload.get("name") or "")
+    version = manifest.get("version")
+    undone = (row.agent_id or "", skill_id, str(version)) in revoked
     return {
         "resource_id": row.id,
         "agent_id": row.agent_id,
         "agent_name": agents.get(row.agent_id or ""),
-        "skill_id": row.payload.get("name"),
-        "version": manifest.get("version"),
-        "provenance": PROVENANCE.get(source, "unverified"),
+        "skill_id": skill_id,
+        "version": version,
+        "provenance": provenance,
         "repository": urlsplit(repository).path.strip("/") if isinstance(repository, str) else None,
         "commit": latest.get("commit"),
         "enabled": bool(row.payload.get("enabled")),
+        "undone": undone,
+        "can_undo": bool(
+            provenance in {"external", "agent_authored"}
+            and row.agent_id in agents
+            and version
+            and not undone
+        ),
         "installed_at": row.created_at.isoformat(),
         "updated_at": row.updated_at.isoformat(),
     }

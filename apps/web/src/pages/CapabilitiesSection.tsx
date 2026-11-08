@@ -23,7 +23,8 @@ import { userError } from "../lib/user_error";
  * Everything agents can use now (GET /capabilities): trusted sources, installed Skills,
  * MCP servers, integrations and built-in capabilities, each with its source, state, last
  * use and Undo. Undo goes to the existing owner routes; nothing here carries money
- * authority, and tools that can trade or move money are never trusted.
+ * authority, and tools that can trade or move money are never trusted. Reviewing a server
+ * shows which tools may change something: only then is there a tier to choose.
  */
 export function CapabilitiesSection() {
   const { i18n } = useLingui();
@@ -63,7 +64,7 @@ export function CapabilitiesSection() {
     );
   const undoSkill = (skill: CapabilitySkill) =>
     act(async () => {
-      if (!skill.agent_id || !skill.version) return;
+      if (!skill.can_undo || !skill.agent_id || !skill.version) return;
       const controls = await api.get<SkillVersionControls>(
         `/agents/${skill.agent_id}/skills/revocations`,
       );
@@ -80,6 +81,8 @@ export function CapabilitiesSection() {
         tools: await api.post<McpTrustPreview>(`/trusted-sources/mcp/${connectionId}/preview`, {}),
       });
     });
+  const names = (values: string[]) =>
+    values.map((name) => `⁨${name}⁩`).join(locale.startsWith("ar") ? "، " : ", ");
   const trust = (tier: EffectTier) =>
     act(async () => {
       if (!preview) return;
@@ -150,11 +153,16 @@ export function CapabilitiesSection() {
                 {preview?.id === server.connection_id && (
                   <div className="capability-preview" data-mcp-preview>
                     <p dir="auto">
-                      {text.tools}: {preview.tools.tools.map((name) => `⁨${name}⁩`).join(", ")}
+                      {text.tools}: {names(preview.tools.tools)}
                     </p>
+                    {preview.tools.writes.length > 0 && (
+                      <p dir="auto" data-mcp-writes>
+                        {text.writes}: {names(preview.tools.writes)}
+                      </p>
+                    )}
                     {preview.tools.blocked.length > 0 && (
                       <p dir="auto">
-                        {text.blocked}: {preview.tools.blocked.map((name) => `⁨${name}⁩`).join(", ")}
+                        {text.blocked}: {names(preview.tools.blocked)}
                       </p>
                     )}
                     <p className="muted" dir="auto">
@@ -167,15 +175,17 @@ export function CapabilitiesSection() {
                         disabled={busy || !preview.tools.tools.length}
                         onClick={() => void trust("read")}
                       >
-                        {text.trustRead}
+                        {preview.tools.writes.length ? text.trustRead : text.trust}
                       </button>
-                      <button
-                        type="button"
-                        disabled={busy || !preview.tools.tools.length}
-                        onClick={() => void trust("write_nonfinancial")}
-                      >
-                        {text.trustWrite}
-                      </button>
+                      {preview.tools.writes.length > 0 && (
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => void trust("write_nonfinancial")}
+                        >
+                          {text.trustWrite}
+                        </button>
+                      )}
                     </div>
                   </div>
                 )}
@@ -189,7 +199,7 @@ export function CapabilitiesSection() {
               .map((skill) => (
                 <li key={skill.resource_id} className="row" data-capability-skill={skill.skill_id}>
                   <span dir="auto">{skillLine(skill, locale)}</span>
-                  {(skill.provenance === "external" || skill.provenance === "agent_authored") && (
+                  {skill.can_undo && (
                     <button type="button" disabled={busy} onClick={() => void undoSkill(skill)}>
                       {text.undo}
                     </button>

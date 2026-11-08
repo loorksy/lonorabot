@@ -4,6 +4,7 @@ authorize MCP calls; a tool that can trade or move money is never trusted."""
 import hashlib
 import json
 import re
+from dataclasses import dataclass
 from typing import Any, cast
 
 from jsonschema import Draft202012Validator, validate
@@ -117,10 +118,13 @@ def validate_input(validator: Draft202012Validator, arguments: dict[str, Any]) -
 
 
 # A tool that can trade or move money is never trusted, whatever its server or tier says:
-# money moves only through Lonora's one executor. Names are split into words
-# (snake_case, kebab-case, camelCase); descriptions are checked for explicit phrases.
+# money moves only through Lonora's one executor. The check fails closed: a name word,
+# a money word next to a sending verb, a description phrase or an input schema shaped
+# like a transfer (an amount with a recipient, or a key or seed) is enough to block it.
+# Names are split into words (snake_case, kebab-case, camelCase).
 FINANCIAL_WORDS = frozenset(
     {
+        # Trading and brokerage.
         "buy",
         "sell",
         "order",
@@ -130,6 +134,13 @@ FINANCIAL_WORDS = frozenset(
         "trading",
         "position",
         "positions",
+        "broker",
+        "brokerage",
+        "margin",
+        "leverage",
+        "liquidate",
+        "forex",
+        # Payments and transfers.
         "withdraw",
         "withdrawal",
         "deposit",
@@ -138,55 +149,208 @@ FINANCIAL_WORDS = frozenset(
         "payments",
         "pay",
         "payout",
-        "wallet",
-        "swap",
-        "stake",
-        "unstake",
+        "cashout",
         "checkout",
         "purchase",
         "refund",
         "charge",
         "invoice",
-        "broker",
-        "brokerage",
-        "margin",
-        "leverage",
-        "liquidate",
+        "remit",
+        "donate",
         "funds",
+        "currency",
+        "currencies",
+        "usd",
+        "eur",
+        "gbp",
+        # Crypto assets, wallets and on-chain transactions.
+        "wallet",
+        "crypto",
+        "stablecoin",
+        "stablecoins",
+        "eth",
+        "ether",
+        "ethereum",
+        "btc",
+        "bitcoin",
+        "usdc",
+        "usdt",
+        "sol",
+        "solana",
+        "sats",
+        "satoshi",
+        "satoshis",
+        "lnurl",
+        "utxo",
+        "transaction",
+        "transactions",
+        "transact",
+        "tx",
+        "txn",
+        "sign",
+        "mint",
+        "swap",
+        "bridge",
+        "stake",
+        "unstake",
+        "spender",
+        "allowance",
+        "zap",
+        "zaps",
+        "lend",
+        "borrow",
+        "repay",
+        "loan",
+        "redeem",
+        # Betting.
+        "bet",
+        "bets",
+        "wager",
+        "gamble",
     }
+)
+# Words that move money only next to a sending verb or an amount: "send_tokens",
+# "tip_user(amount)", "approve(spender, amount)"; "count_tokens" or "approve_review" pass.
+MONEY_CONTEXT_WORDS = frozenset(
+    {
+        "token",
+        "tokens",
+        "coin",
+        "coins",
+        "cash",
+        "lightning",
+        "tip",
+        "approve",
+        "spend",
+        "fund",
+        "bid",
+        "exchange",
+        "convert",
+    }
+)
+SENDING_VERBS = frozenset({"send", "give", "move", "submit", "place", "broadcast"})
+ASSETS = (
+    r"(?:funds|money|cash|crypto(?:currency|currencies)?|assets|tokens?|coins?|stablecoins?"
+    r"|eth|ether|btc|bitcoin|usdc|usdt|sol|sats|satoshis|lightning|payments?)"
 )
 FINANCIAL_PHRASE = re.compile(
     r"\b(?:place|submit|execute|send|open|close|cancel|modify)\s+(?:an?\s+|the\s+|your\s+)?"
     r"(?:market\s+|limit\s+|stop\s+)?(?:order|trade|position|payment|transfer)s?\b"
-    r"|\b(?:transfer|withdraw|deposit|send|move)\s+(?:the\s+|your\s+)?"
-    r"(?:funds|money|crypto|assets|tokens|coins)\b",
+    r"|\b(?:transfer|withdraw|deposit|send|move|pay|tip|zap|bridge|swap|spend|lend|borrow)\s+"
+    r"(?:up\s+to\s+)?(?:an?\s+|the\s+|your\s+|some\s+|any\s+)?(?:[\d.,]+\s+)?" + ASSETS + r"\b"
+    r"|\b(?:sign|broadcast|submit|send)\s+(?:an?\s+|the\s+)?(?:signed\s+|raw\s+)?"
+    r"(?:on-?chain\s+)?transactions?\b"
+    r"|\b(?:place|make)\s+(?:an?\s+)?(?:bet|wager)s?\b",
     re.IGNORECASE,
 )
+# Input fields: an amount together with a recipient is a transfer; a key or seed signs one.
+AMOUNT_WORDS = frozenset({"amount", "quantity", "qty", "volume", "lots", "wei", "lamports"})
+RECIPIENT_WORDS = frozenset(
+    {
+        "recipient",
+        "destination",
+        "address",
+        "wallet",
+        "iban",
+        "account",
+        "receiver",
+        "payee",
+        "beneficiary",
+        "spender",
+    }
+)
+SECRET_FIELDS = ("privatekey", "secretkey", "seedphrase", "mnemonic", "signingkey")
+
+
+def word_list(name: str) -> list[str]:
+    spaced = re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", name)
+    return [word for word in re.split(r"[^A-Za-z0-9]+", spaced.casefold()) if word]
 
 
 def name_words(name: str) -> set[str]:
-    spaced = re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", name)
-    return {word for word in re.split(r"[^A-Za-z0-9]+", spaced.casefold()) if word}
+    return set(word_list(name))
+
+
+def schema_fields(schema: Any) -> list[str]:
+    """Every property name an input schema declares, at any depth (bounded)."""
+    fields: list[str] = []
+    stack: list[tuple[Any, int]] = [(schema, 0)]
+    visited = 0
+    while stack and visited < 5000:
+        value, depth = stack.pop()
+        visited += 1
+        if depth > 24:
+            continue
+        if isinstance(value, dict):
+            item = cast(dict[str, Any], value)
+            properties = item.get("properties")
+            if isinstance(properties, dict):
+                fields.extend(str(key) for key in cast(dict[str, Any], properties))
+            stack.extend((child, depth + 1) for child in item.values())
+        elif isinstance(value, list):
+            stack.extend((child, depth + 1) for child in cast(list[Any], value))
+    return fields
+
+
+def transfer_shaped(schema: Any) -> tuple[bool, bool]:
+    """(an amount field, a transfer or signing shape) of an input schema."""
+    amount = recipient = False
+    for field in schema_fields(schema):
+        ordered = word_list(field)
+        words, flat = set(ordered), "".join(ordered)
+        if any(secret in flat for secret in SECRET_FIELDS) or flat == "seed":
+            return True, True
+        amount = amount or bool(words & AMOUNT_WORDS) or flat == "value"
+        recipient = recipient or bool(words & RECIPIENT_WORDS) or flat == "to"
+    return amount, amount and recipient
 
 
 def financial_tool(item: dict[str, Any]) -> bool:
     """Whether an advertised tool could trade or move money (then it is never trusted)."""
     name = item.get("name")
-    if not isinstance(name, str) or name_words(name) & FINANCIAL_WORDS:
+    if not isinstance(name, str):
         return True
-    for key in ("title", "description"):
-        value = item.get(key)
-        if isinstance(value, str) and (
-            FINANCIAL_PHRASE.search(value) or name_words(value) & {"broker", "brokerage"}
-        ):
-            return True
-    return False
+    words = name_words(name)
+    amount, transfer = transfer_shaped(item.get("inputSchema"))
+    if (
+        words & FINANCIAL_WORDS
+        or transfer
+        or (words & MONEY_CONTEXT_WORDS and (words & SENDING_VERBS or amount))
+    ):
+        return True
+    annotations = item.get("annotations")
+    titles = [item.get("title"), item.get("description")]
+    if isinstance(annotations, dict):
+        titles.append(cast(dict[str, Any], annotations).get("title"))
+    return any(
+        isinstance(value, str)
+        and (FINANCIAL_PHRASE.search(value) or name_words(value) & {"broker", "brokerage"})
+        for value in titles
+    )
 
 
-def review_digest(endpoint: str, tools: dict[str, str], blocked: list[str]) -> str:
-    """One fingerprint of a review: the endpoint, each trusted schema and the blocked names."""
+def marked_read_only(item: dict[str, Any]) -> bool:
+    """The server says this tool only reads (MCP ``readOnlyHint``). It decides nothing
+    alone: it can keep a tool to the read tier, never widen what the owner trusted."""
+    annotations = item.get("annotations")
+    return (
+        isinstance(annotations, dict)
+        and cast(dict[str, Any], annotations).get("readOnlyHint") is True
+    )
+
+
+def review_digest(
+    endpoint: str, tools: dict[str, str], blocked: list[str], read_only: list[str]
+) -> str:
+    """One fingerprint of a review: the endpoint, each trusted schema, the tools the server
+    marks read-only and the blocked names."""
     value = json.dumps(
-        {"endpoint": endpoint, "tools": dict(sorted(tools.items())), "blocked": sorted(blocked)},
+        {
+            "endpoint": endpoint,
+            "tools": dict(sorted(tools.items())),
+            "read_only": sorted(read_only),
+            "blocked": sorted(blocked),
+        },
         sort_keys=True,
         separators=(",", ":"),
     )
@@ -197,11 +361,27 @@ def review_digest(endpoint: str, tools: dict[str, str], blocked: list[str]) -> s
 SAFE_TOOL_NAME = re.compile(r"^[A-Za-z0-9_.\-/]{1,128}$")
 
 
-def review_tools(advertised: list[dict[str, Any]]) -> tuple[dict[str, str], list[str], int]:
-    """What a review may trust: {name: input schema sha256} of the tools that cannot
-    move money and have a supported schema, the names that can (blocked, shown as such)
-    and how many others were left out (an unsupported name or schema)."""
+@dataclass(frozen=True)
+class ToolReview:
+    """What a review may trust: {name: input schema sha256} of the tools that cannot move
+    money and have a supported schema, which of those the server marks read-only (the only
+    ones the read tier runs), the names that can move money (blocked, shown as such) and
+    how many others were left out (an unsupported name or schema)."""
+
+    tools: dict[str, str]
+    read_only: list[str]
+    blocked: list[str]
+    unsupported: int
+
+    @property
+    def writes(self) -> list[str]:
+        """Trusted tools that may change something: they run only at the write tier."""
+        return sorted(set(self.tools) - set(self.read_only))
+
+
+def review_tools(advertised: list[dict[str, Any]]) -> ToolReview:
     trusted: dict[str, str] = {}
+    read_only: list[str] = []
     blocked: list[str] = []
     unsupported = 0
     for item in advertised:
@@ -219,4 +399,6 @@ def review_tools(advertised: list[dict[str, Any]]) -> tuple[dict[str, str], list
             unsupported += 1
             continue
         trusted[name] = digest
-    return trusted, sorted(blocked), unsupported
+        if marked_read_only(item):
+            read_only.append(name)
+    return ToolReview(trusted, sorted(read_only), sorted(blocked), unsupported)

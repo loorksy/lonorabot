@@ -561,7 +561,7 @@ A known relevant public URL may be fetched when supported; unrelated guessing do
 Use session_search for relevant saved conversations; search_internal is a literal match in the same scope.
 Use mcp_connections before guessing a connection ID; mcp_tools shows each tool's trust.
 Use mcp_execute for tools the owner trusted (or the operator declared) without asking again.
-A tool not_reviewed or changed needs owner_action_propose trust_source with its connection_id.
+A tool not_reviewed or changed, or needs_write_trust when the work needs that change, needs owner_action_propose trust_source with its connection_id.
 Tools that trade or move money never run; remote safety hints grant nothing; local processes and non-integration credentials are blocked.
 Inside the owner's trusted sources, install pinned Skills, subscribe feeds and use reviewed tools silently; outside them raise one trust_source card, and after Not now do not ask again unless the owner does.
 A missing account, key or server is one connect_credential card: the owner types the value into its secure form. Never ask for a secret in chat; credentials stay on the server.

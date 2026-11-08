@@ -4,10 +4,11 @@ The data step makes today's implicit trust visible: every owner gets ``github.co
 (every public repository, as Skill imports trusted it before) and one ``mcp_server``
 entry per saved connection that the operator declared in ``LONORA_MCP_DECLARATIONS``
 (read in this process's environment), with the declared endpoint and schema hashes
-pinned at the read tier. Owners or connections that no longer exist are skipped, and a
-source already listed is not added again, so running it again adds nothing. The
-declarations themselves keep working as an optional operator override. The downgrade
-drops the table.
+pinned at the read tier (declared tools are read-only). Such an ``operator`` entry is the
+declaration made visible: it authorizes a tool only while that declaration stands, and
+becomes the owner's own trust once the owner reviews it. Owners or connections that no
+longer exist are skipped, and a source already listed is not added again, so running it
+again adds nothing. The downgrade drops the table.
 """
 
 import json
@@ -85,9 +86,9 @@ def seed_sources(connection: Any, raw_declarations: str | None) -> int:
             connection.execute(
                 sa.text(
                     "INSERT INTO ln_trusted_sources (id, owner_id, kind, identifier, effect_tier, "
-                    "tool_hashes, blocked_tools, added_via, created_at, updated_at) VALUES "
-                    "(:id, :owner, 'github', 'github.com', 'read', '{}', '[]', 'default', "
-                    ":now, :now)"
+                    "tool_hashes, read_only_tools, blocked_tools, added_via, created_at, "
+                    "updated_at) VALUES (:id, :owner, 'github', 'github.com', 'read', '{}', "
+                    "'[]', '[]', 'default', :now, :now)"
                 ),
                 {"id": str(uuid.uuid4()), "owner": owner_id, "now": now},
             )
@@ -102,9 +103,9 @@ def seed_sources(connection: Any, raw_declarations: str | None) -> int:
         connection.execute(
             sa.text(
                 "INSERT INTO ln_trusted_sources (id, owner_id, kind, identifier, effect_tier, "
-                "endpoint_sha256, tool_hashes, blocked_tools, added_via, created_at, updated_at) "
-                "VALUES (:id, :owner, 'mcp_server', :identifier, 'read', :endpoint, :tools, "
-                "'[]', 'operator', :now, :now)"
+                "endpoint_sha256, tool_hashes, read_only_tools, blocked_tools, added_via, "
+                "created_at, updated_at) VALUES (:id, :owner, 'mcp_server', :identifier, "
+                "'read', :endpoint, :tools, :read_only, '[]', 'operator', :now, :now)"
             ),
             {
                 "id": str(uuid.uuid4()),
@@ -112,6 +113,7 @@ def seed_sources(connection: Any, raw_declarations: str | None) -> int:
                 "identifier": connection_id,
                 "endpoint": server["endpoint"],
                 "tools": json.dumps(server["tools"], sort_keys=True),
+                "read_only": json.dumps(sorted(server["tools"])),
                 "now": now,
             },
         )
@@ -134,6 +136,7 @@ def upgrade() -> None:
         sa.Column("effect_tier", sa.String(24), nullable=False),
         sa.Column("endpoint_sha256", sa.String(64)),
         sa.Column("tool_hashes", sa.JSON(), nullable=False),
+        sa.Column("read_only_tools", sa.JSON(), nullable=False),
         sa.Column("blocked_tools", sa.JSON(), nullable=False),
         sa.Column("added_via", sa.String(16), nullable=False),
         sa.Column("added_by_agent_id", sa.String(36)),

@@ -37,7 +37,10 @@
     "owner_action_trust_source": "صار موثوقًا ومحفوظًا: يستخدم وكلاؤك هذا المصدر دون أن يسألوك مجددًا، وتستطيع إزالته من القدرات.",
     "owner_action_trust_source_mcp": "صار موثوقًا: الأدوات التي راجعتها متاحة لكل الوكلاء. تبقى الأدوات التي تتداول أو تحرّك المال محظورة، وأي أداة تتغيّر تنتظر مراجعتك.",
     "owner_action_connect_credential": "تم الربط. يبقى السرّ على الخادم، ولا يرى وكلاؤك إلا أنه مُعدّ.",
-    "owner_action_connect_credential_mcp": "تم الربط. يبقى السرّ على الخادم. راجع أدواته في البطاقة التالية قبل أن يستخدمها الوكلاء."
+    "owner_action_connect_credential_mcp": "تم الربط. يبقى السرّ على الخادم. راجع أدواته في البطاقة التالية قبل أن يستخدمها الوكلاء.",
+    "owner_action_connect_credential_mcp_unread": "تم الربط. يبقى السرّ على الخادم، لكن تعذّرت قراءة أدواته حتى الآن؛ سيتحقق وكيلك مجددًا ويخبرك.",
+    "owner_action_connect_credential_mcp_blocked": "تم الربط. يبقى السرّ على الخادم، لكن لا يمكن الوثوق بأي من أدواته: الأدوات التي تتداول أو تحرّك المال لا تعمل هنا أبدًا. سيخبرك وكيلك بما يقدّمه.",
+    "owner_action_trust_source_mcp_read": "صار موثوقًا للقراءة: يستخدم الوكلاء أدواته التي تقرأ فقط. تنتظر الأدوات التي قد تغيّر شيئًا حتى تثق به للكتابة غير المالية، وتبقى الأدوات التي تتداول أو تحرّك المال محظورة."
   },
   "en": {
     "super_bot_authorization": "A Super Bot request needs your review and device authorization in the conversation. No execution authority has been granted yet.",
@@ -77,6 +80,9 @@
     "owner_action_trust_source": "Trusted and remembered: your agents use this source without asking again. You can remove it in Capabilities.",
     "owner_action_trust_source_mcp": "Trusted: the reviewed tools are available to every agent. Tools that can trade or move money stay blocked, and a changed tool waits for your review.",
     "owner_action_connect_credential": "Connected. The secret stays on the server; your agents only see that it is configured.",
-    "owner_action_connect_credential_mcp": "Connected. The secret stays on the server. Review its tools on the next card before agents use them."
+    "owner_action_connect_credential_mcp": "Connected. The secret stays on the server. Review its tools on the next card before agents use them.",
+    "owner_action_connect_credential_mcp_unread": "Connected. The secret stays on the server, but its tools could not be read yet; your agent will check again and tell you.",
+    "owner_action_connect_credential_mcp_blocked": "Connected. The secret stays on the server, but none of its tools can be trusted: tools that can trade or move money never run here. Your agent will tell you what it offers.",
+    "owner_action_trust_source_mcp_read": "Trusted for reading: agents use its tools that only read. Tools that may change something wait until you trust it for non-financial writes; tools that can trade or move money stay blocked."
   }
 }

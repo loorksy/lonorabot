@@ -3,8 +3,10 @@
 ``trust_source`` asks the owner to add one source to the trusted list: a GitHub owner or
 repository a Skill comes from, a news feed's domain (with the feed to subscribe), or an
 MCP server with the exact tools it advertised (each input schema pinned; tools that can
-trade or move money are listed as blocked and never trusted). The owner chooses the
-tier of an MCP server on the card: read only, or also non-financial writes.
+trade or move money are listed as blocked and never trusted). The card shows which
+tools only read (the server marks them read-only) and which may change something; when
+some may, the owner chooses the tier: read only (just the reading tools run) or also
+non-financial writes.
 
 ``connect_credential`` offers a secure form in the conversation. The client posts the
 value straight to the owner API (``/integrations/secrets``, ``/integrations``, ``/mcp``
@@ -23,7 +25,13 @@ from lonora_security.network import endpoint_sha256
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .schema import BrokerSessionRow, IntegrationRow, McpConnectionRow, OwnerActionRow
+from .schema import (
+    BrokerSessionRow,
+    IntegrationRow,
+    McpConnectionRow,
+    OwnerActionRow,
+    TrustedSourceRow,
+)
 from .trusted_sources import feed_trusted, github_trusted, mcp_trust
 
 TRUST_KINDS = ("mcp_server", "github_owner", "github_repo", "feed_domain")
@@ -43,15 +51,35 @@ def trust_subject(kind: str, identifier: str) -> str:
 
 
 def mcp_review_payload(
-    connection_id: str, endpoint: str, tools: dict[str, str], blocked: list[str]
+    connection_id: str,
+    endpoint: str,
+    tools: dict[str, str],
+    blocked: list[str],
+    read_only: list[str],
 ) -> dict[str, Any]:
     return {
         "source_kind": "mcp_server",
         "identifier": connection_id,
         "endpoint_sha256": endpoint,
         "tools": dict(sorted(tools.items())),
+        "read_only": sorted(set(read_only) & set(tools)),
         "blocked": sorted(set(blocked)),
     }
+
+
+def same_review(trusted: TrustedSourceRow, payload: dict[str, Any]) -> bool:
+    """The server offers exactly what the owner already reviewed."""
+    return (
+        trusted.endpoint_sha256 == payload["endpoint_sha256"]
+        and trusted.tool_hashes == payload["tools"]
+        and sorted(trusted.read_only_tools) == payload.get("read_only", [])
+        and sorted(trusted.blocked_tools) == payload["blocked"]
+    )
+
+
+def review_writes(payload: dict[str, Any]) -> list[str]:
+    """The card's tools that may change something (not marked read-only)."""
+    return sorted(set(payload["tools"]) - set(payload.get("read_only", [])))
 
 
 def source_payload(
@@ -104,9 +132,10 @@ async def stale_reason(
         trusted = await mcp_trust(session, owner_id, identifier)
         if (
             trusted is not None
-            and trusted.endpoint_sha256 == payload["endpoint_sha256"]
-            and trusted.tool_hashes == payload["tools"]
-            and sorted(trusted.blocked_tools) == payload["blocked"]
+            and trusted.added_via != "operator"
+            and same_review(trusted, payload)
+            # Trusted for reading while some tools write: the card can still widen it.
+            and (trusted.effect_tier == "write_nonfinancial" or not review_writes(payload))
         ):
             return "source_already_trusted"
         return None
@@ -162,13 +191,16 @@ async def card_facts(
     if source_kind == "mcp_server":
         connection = await _connection(session, owner_id, identifier)
         trusted = await mcp_trust(session, owner_id, identifier)
+        owned = trusted if trusted is not None and trusted.added_via != "operator" else None
         # The owner's own saved name for the server; the tools are the reviewed names.
+        # review: the server changed what the owner trusted (not a request to widen).
         source.update(
             label=str(connection.payload.get("name") or "") or None if connection else None,
             tools=sorted(payload["tools"]),
+            writes=review_writes(payload),
             blocked=list(payload["blocked"]),
-            review=trusted is not None,
-            tier=trusted.effect_tier if trusted is not None else None,
+            review=owned is not None and not same_review(owned, payload),
+            tier=owned.effect_tier if owned is not None else None,
         )
     elif source_kind == "feed_domain":
         source["subscribe"] = payload.get("subscribe") is not None

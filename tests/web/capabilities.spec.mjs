@@ -23,6 +23,7 @@ from lonora_contracts.domain import AgentCreate
 from lonora_db.agents import create_agent
 from lonora_db.capability_cards import credential_payload, source_payload, trust_subject
 from lonora_db.owner_actions import propose_capability
+from lonora_db.schema import SkillRow
 from lonora_db.threads import conversation_thread
 async def main():
     data=json.load(sys.stdin)
@@ -35,6 +36,8 @@ async def main():
             credential,_=await propose_capability(session,f.owner,'connect_credential',subject,payload,card_id=str(uuid4()),agent_id=agent.id,thread_id=thread.id,run_id=None)
             domain=data['domain']
             trust,_=await propose_capability(session,f.owner,'trust_source',trust_subject('feed_domain',domain),source_payload('feed_domain',domain),card_id=str(uuid4()),agent_id=agent.id,thread_id=thread.id,run_id=None)
+            skill=data['skill']
+            session.add(SkillRow(id=str(uuid4()),owner_id=f.owner,agent_id=agent.id,version=1,payload={'name':skill,'content':'---\\nname: '+skill+'\\ndescription: Short sourced notes.\\n---\\nUse cited evidence only.\\n','enabled':True,'manifest':{'id':skill,'version':'1.0.0','title':skill,'description':'Short sourced notes.','source':'installed','activation':{'mode':'explicit'}}}))
             print(json.dumps({'agent':agent.id,'credential':credential.id,'trust':trust.id}))
     finally:
         await f.close(cleanup=False)
@@ -61,6 +64,8 @@ const copy = {
     remove: "Remove",
     restore: "Restore",
     search: "Web search: Ready",
+    undo: "Undo",
+    undone: "undone",
   },
   ar: {
     connectTitle: "ربط بحث Brave",
@@ -74,6 +79,8 @@ const copy = {
     remove: "إزالة",
     restore: "استعادة",
     search: "البحث على الويب: جاهز",
+    undo: "تراجع",
+    undone: "تم التراجع",
   },
 };
 
@@ -100,7 +107,8 @@ for (const locale of ["en", "ar"])
     const suffix = randomUUID().slice(0, 8);
     const secret = `brave-key-${randomUUID()}`;
     const domain = `feeds-${suffix}.analyst.example`;
-    const seeded = seedCards({ agent: `News ${suffix}`, domain });
+    const skill = `notes-${suffix}`;
+    const seeded = seedCards({ agent: `News ${suffix}`, domain, skill });
     const posted = [];
     page.on("request", (request) => {
       if (request.method() === "POST" && request.url().includes("/api/"))
@@ -151,6 +159,16 @@ for (const locale of ["en", "ar"])
       await expect(github.getByRole("button", { name: text.restore, exact: true })).toBeVisible();
       await github.getByRole("button", { name: text.restore, exact: true }).click();
       await expect(github.getByRole("button", { name: text.remove, exact: true })).toBeVisible();
+      // Undo a Skill its agent wrote: the line says it is undone and offers no second Undo.
+      const written = view.locator(`[data-capability-skill="${skill}"]`);
+      await expect(written).toContainText(`⁨${skill}⁩`);
+      await written.getByRole("button", { name: text.undo, exact: true }).click();
+      await expect(written).toContainText(text.undone);
+      await expect(written.getByRole("button", { name: text.undo, exact: true })).toHaveCount(0);
+      const catalog = await (
+        await context.request.get(`/api/agents/${seeded.agent}/skills/catalog/${skill}`)
+      ).json();
+      expect(catalog.code).toBe("skill_version_revoked");
       await expect(page.getByText(secret)).toHaveCount(0);
     } finally {
       for (const id of created)

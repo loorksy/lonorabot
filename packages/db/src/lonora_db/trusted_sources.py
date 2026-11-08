@@ -2,18 +2,23 @@
 
 Inside the list agents install pinned Skills (``github``, ``github_owner``,
 ``github_repo``), use the reviewed tools of an MCP server (``mcp_server``: endpoint and
-each tool's input schema pinned, read or non-financial write tier) and subscribe to news
+each tool's input schema pinned; the read tier runs only the tools the server marked
+read-only at review, the non-financial write tier runs them all) and subscribe to news
 feeds (``feed_domain``) without asking; the owner sees each one in Capabilities with
-Undo. Outside it an agent raises one ``trust_source`` card and the owner's tap adds the
+Undo. An ``operator`` entry (copied from ``LONORA_MCP_DECLARATIONS``) shows the
+operator's declaration and authorizes nothing by itself; the owner's review of it makes
+it the owner's own trust. Outside it an agent raises one ``trust_source`` card and the owner's tap adds the
 source, remembered. Only the owner's session adds, removes or restores a source; no
 tool does. Every owner starts with ``github.com`` (every public repository, trusted as
 Skill imports always were, now visible and removable). No source carries money
 authority: a tool that can trade or move money is never pinned.
 """
 
+from collections.abc import Iterable
 from typing import Any, Literal
 
 from lonora_contracts.domain import utcnow
+from lonora_contracts.mcp import McpToolDeclaration
 from lonora_contracts.trusted_sources import normalize_identifier
 from lonora_core.user_error import LonoraError
 from sqlalchemy import select, text
@@ -61,6 +66,7 @@ async def ensure_defaults(session: AsyncSession, owner_id: str) -> None:
                 identifier=DEFAULT_GITHUB,
                 effect_tier="read",
                 tool_hashes={},
+                read_only_tools=[],
                 blocked_tools=[],
                 added_via="default",
                 created_at=now,
@@ -114,12 +120,14 @@ async def trust_source(
     card_id: str | None = None,
     endpoint_sha256: str | None = None,
     tool_hashes: dict[str, str] | None = None,
+    read_only_tools: list[str] | None = None,
     blocked_tools: list[str] | None = None,
 ) -> tuple[TrustedSourceRow, bool]:
     """Add a source, or (an MCP server reviewed again) replace its pinned review.
 
     Returns the active entry and whether this call changed the list. Callers are the
-    owner's routes and the owner's card decision; agents never reach this.
+    owner's routes and the owner's card decision; agents never reach this. The owner's
+    review of an operator entry makes it the owner's own, even when nothing else changed.
     """
     try:
         identifier = normalize_identifier(kind, identifier)
@@ -138,11 +146,14 @@ async def trust_source(
     row = await active_source(session, owner_id, kind, identifier, lock=True)
     now = utcnow()
     pinned = dict(sorted((tool_hashes or {}).items()))
+    # Only pinned tools can be read-only; anything else is treated as a write.
+    read_only = sorted(set(read_only_tools or []) & set(pinned))
     blocked = sorted(set(blocked_tools or []))
     review: dict[str, Any] = {
         "effect_tier": tier,
         "endpoint_sha256": endpoint_sha256,
         "tool_hashes": pinned,
+        "read_only_tools": read_only,
         "blocked_tools": blocked,
     }
     if row is not None:
@@ -150,13 +161,14 @@ async def trust_source(
             "effect_tier": row.effect_tier,
             "endpoint_sha256": row.endpoint_sha256,
             "tool_hashes": row.tool_hashes,
+            "read_only_tools": row.read_only_tools,
             "blocked_tools": row.blocked_tools,
         }
-        if current == review:
+        if current == review and (row.added_via != "operator" or via == "operator"):
             return row, False
         row.effect_tier = tier
         row.endpoint_sha256 = endpoint_sha256
-        row.tool_hashes, row.blocked_tools = pinned, blocked
+        row.tool_hashes, row.read_only_tools, row.blocked_tools = pinned, read_only, blocked
         row.added_via, row.added_by_agent_id, row.card_id = via, agent_id, card_id
         row.updated_at = now
         await session.flush()
@@ -220,6 +232,49 @@ async def restore_source(session: AsyncSession, owner_id: str, source_id: str) -
     await session.flush()
     _changed(session, row)
     return row
+
+
+async def revoke_server(session: AsyncSession, owner_id: str, connection_id: str) -> None:
+    """The owner deleted a saved MCP server: its trust goes with it (the row stays as the
+    record; it cannot be restored without the server)."""
+    row = await active_source(session, owner_id, "mcp_server", connection_id)
+    if row is not None:
+        await revoke_source(session, owner_id, row.id, via="owner_ui")
+
+
+async def revoke_feed_sites(
+    session: AsyncSession, owner_id: str, host: str, remaining: list[str]
+) -> list[str]:
+    """The owner removed a feed: each trusted site that covers its host and no other feed
+    still subscribed (``remaining`` hosts) leaves the list too, so an agent asks again
+    before subscribing it. Removed sites stay restorable. Returns their domains."""
+    try:
+        domain = feed_domain_of(host)
+    except ValueError:
+        return []
+    kept: set[str] = set()
+    for item in remaining:
+        try:
+            kept.add(feed_domain_of(item))
+        except ValueError:
+            continue
+    rows = await session.scalars(
+        select(TrustedSourceRow).where(
+            TrustedSourceRow.owner_id == owner_id,
+            TrustedSourceRow.kind == "feed_domain",
+            TrustedSourceRow.revoked_at.is_(None),
+        )
+    )
+
+    def covers(site: str, value: str) -> bool:
+        return value == site or value.endswith("." + site)
+
+    removed: list[str] = []
+    for row in list(rows):
+        if covers(row.identifier, domain) and not any(covers(row.identifier, k) for k in kept):
+            await revoke_source(session, owner_id, row.id, via="owner_ui")
+            removed.append(row.identifier)
+    return removed
 
 
 async def github_trusted(session: AsyncSession, owner_id: str, owner: str, repository: str) -> bool:
@@ -298,21 +353,41 @@ async def source_names(
     return agent_names, connection_names
 
 
+def declared_connections(
+    declarations: Iterable[McpToolDeclaration], owner_id: str
+) -> frozenset[str]:
+    """The owner's connections the operator still declares tools on."""
+    return frozenset(item.connection_id for item in declarations if item.owner_id == owner_id)
+
+
+def write_tools(row: TrustedSourceRow) -> list[str]:
+    """Pinned tools the server did not mark read-only: they run only at the write tier."""
+    return sorted(set(row.tool_hashes) - set(row.read_only_tools))
+
+
 def source_data(
-    row: TrustedSourceRow, agent_names: dict[str, str], connection_names: dict[str, str]
+    row: TrustedSourceRow,
+    agent_names: dict[str, str],
+    connection_names: dict[str, str],
+    declared: frozenset[str] = frozenset(),
 ) -> dict[str, Any]:
-    """One entry as the owner sees it: a plain label, never an internal id in the text."""
+    """One entry as the owner sees it: a plain label, never an internal id in the text.
+    ``declared``: the connections the operator still declares; an operator entry without
+    one waits for the owner's review (it authorizes nothing)."""
     label = (
         connection_names.get(row.identifier) or None if row.kind == "mcp_server" else row.identifier
     )
+    server = row.kind == "mcp_server"
     return {
         "id": row.id,
         "kind": row.kind,
         "identifier": row.identifier,
         "label": label,
         "effect_tier": row.effect_tier,
-        "tools": sorted(row.tool_hashes) if row.kind == "mcp_server" else [],
-        "blocked_tools": list(row.blocked_tools) if row.kind == "mcp_server" else [],
+        "tools": sorted(row.tool_hashes) if server else [],
+        "write_tools": write_tools(row) if server else [],
+        "blocked_tools": list(row.blocked_tools) if server else [],
+        "needs_review": row.added_via == "operator" and row.identifier not in declared,
         "added_via": row.added_via,
         "added_by_agent_name": agent_names.get(row.added_by_agent_id or ""),
         "active": row.revoked_at is None,

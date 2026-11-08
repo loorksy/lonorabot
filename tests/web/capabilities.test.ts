@@ -37,7 +37,8 @@ const base: OwnerAction = {
       kind: "mcp_server",
       label: "X posts",
       subscribe: false,
-      tools: ["search_posts", "user_timeline"],
+      tools: ["post_reply", "search_posts", "user_timeline"],
+      writes: ["post_reply"],
       blocked: ["place_order"],
       review: false,
       tier: null,
@@ -52,14 +53,17 @@ const base: OwnerAction = {
   updated_at: "2026-11-08T10:00:00Z",
 };
 
-test("an MCP trust card lists the reviewed tools, the blocked ones and two tiers", () => {
+test("an MCP trust card lists the reviewed tools, the writing and blocked ones and two tiers", () => {
   for (const locale of ["en", "ar"] as const) {
     const spec = ownerActionCard(base, locale);
     const text = ownerActionLabels[locale];
     assert.equal(spec.title, text.trustTitle);
+    assert.equal(spec.hint, text.trustServerHint);
     assert.ok(spec.lines[0]?.includes(isolated("X posts")), spec.lines[0]);
     assert.ok(spec.lines[1]?.includes(isolated("user_timeline")), spec.lines[1]);
-    assert.ok(spec.lines[2]?.startsWith(text.trustBlocked), spec.lines[2]);
+    assert.ok(spec.lines[2]?.startsWith(text.trustWrites), spec.lines[2]);
+    assert.ok(spec.lines[2]?.includes(isolated("post_reply")), spec.lines[2]);
+    assert.ok(spec.lines[3]?.startsWith(text.trustBlocked), spec.lines[3]);
     // Every line starts in the owner's language, never with a Latin name.
     for (const line of spec.lines) assert.ok(!line.startsWith("⁨"), line);
     assert.deepEqual(
@@ -90,6 +94,48 @@ test("an MCP trust card lists the reviewed tools, the blocked ones and two tiers
   );
   assert.equal(done.outcome, ownerActionLabels.ar.trustedWrite);
   assert.deepEqual(done.buttons, []);
+  const reading = ownerActionCard(
+    { ...base, status: "confirmed", result: { tier: "read", writes: 1 } },
+    "en",
+  );
+  assert.equal(reading.outcome, ownerActionLabels.en.trustedRead);
+});
+
+test("a server whose tools only read is one tap: nothing to choose", () => {
+  const reads: OwnerAction = {
+    ...base,
+    facts: {
+      several_accounts: false,
+      source: {
+        kind: "mcp_server",
+        label: "X posts",
+        subscribe: false,
+        tools: ["search_posts"],
+        writes: [],
+        blocked: ["place_order"],
+        review: false,
+        tier: null,
+      },
+    },
+  };
+  for (const locale of ["en", "ar"] as const) {
+    const spec = ownerActionCard(reads, locale);
+    const text = ownerActionLabels[locale];
+    assert.equal(spec.hint, text.trustServerReadHint);
+    assert.ok(!spec.lines.some((line) => line.startsWith(text.trustWrites)));
+    assert.deepEqual(
+      spec.buttons.map((button) => [button.label, button.tier ?? null]),
+      [
+        [text.trust, "read"],
+        [text.notNow, null],
+      ],
+    );
+  }
+  const done = ownerActionCard(
+    { ...reads, status: "confirmed", result: { tier: "read", writes: 0 } },
+    "ar",
+  );
+  assert.equal(done.outcome, ownerActionLabels.ar.trusted);
 });
 
 test("a repository or feed card is one tap, and a settled one says why", () => {
@@ -214,7 +260,9 @@ test("capability lines name source, tier and state in both languages", () => {
     label: "github.com",
     effect_tier: "read",
     tools: [],
+    write_tools: [],
     blocked_tools: [],
+    needs_review: false,
     added_via: "default",
     added_by_agent_name: null,
     active: true,
@@ -229,7 +277,8 @@ test("capability lines name source, tier and state in both languages", () => {
     enabled: true,
     credentials_configured: true,
     trusted_tier: "read",
-    trusted_tools: ["search_posts"],
+    trusted_tools: ["post_reply", "search_posts"],
+    write_tools: ["post_reply"],
     blocked_tools: ["place_order"],
     operator_declared: 0,
     trust_source_id: "t",
@@ -245,6 +294,8 @@ test("capability lines name source, tier and state in both languages", () => {
     repository: "example/briefings",
     commit: "a".repeat(40),
     enabled: true,
+    undone: false,
+    can_undo: true,
     installed_at: "2026-11-08T10:00:00Z",
     updated_at: "2026-11-08T10:00:00Z",
   };
@@ -254,7 +305,27 @@ test("capability lines name source, tier and state in both languages", () => {
     assert.ok(sourceLine({ ...github, active: false }, locale).endsWith(text.removedState));
     const line = serverLine(server, locale);
     assert.ok(line.startsWith(isolated("X posts")) && line.includes(text.read), line);
+    // Trusted for reading: the tool that may change something is counted as waiting.
+    assert.ok(line.includes(`${isolated("1")} ${text.needWrites}`), line);
+    assert.ok(
+      !serverLine({ ...server, trusted_tier: "write_nonfinancial" }, locale).includes(
+        text.needWrites,
+      ),
+    );
+    // An operator entry whose declaration is gone says it waits for a review.
+    const operator: TrustedSource = {
+      ...github,
+      kind: "mcp_server",
+      identifier: "c",
+      label: "Declared",
+      tools: ["search_posts"],
+      added_via: "operator",
+      needs_review: true,
+    };
+    const declared = sourceLine(operator, locale);
+    assert.ok(declared.includes(text.needsReview) && !declared.includes(text.read), declared);
     assert.ok(skillLine(skill, locale).includes(isolated("example/briefings")));
+    assert.ok(skillLine({ ...skill, undone: true, can_undo: false }, locale).endsWith(text.undone));
     assert.equal(
       builtInLine({ capability: "web_browse", state: "not_set_up", via: null }, locale),
       `${text.web_browse}: ${text.not_set_up}`,

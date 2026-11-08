@@ -74,20 +74,84 @@ def test_tools_that_can_move_money_are_never_trustable() -> None:
     ):
         assert financial_tool(item), item
     assert not financial_tool(safe)
-    tools, blocked, unsupported = review_tools(
+    review = review_tools(
         [
-            safe,
+            {**safe, "annotations": {"readOnlyHint": True}},
+            {"name": "post_note", "inputSchema": SCHEMA, "annotations": {"readOnlyHint": "yes"}},
             {"name": "place_order", "inputSchema": SCHEMA},
             {"name": "bad name‮", "inputSchema": SCHEMA},
             {"name": "refs", "inputSchema": {"type": "object", "$ref": "#/x"}},
         ]
     )
-    assert tools == {"search_posts": schema_sha256(SCHEMA)}
-    assert blocked == ["place_order"] and unsupported == 2
-    # The digest binds the endpoint, every pinned schema and the blocked names.
-    digest = review_digest("e" * 64, tools, blocked)
-    assert digest != review_digest("f" * 64, tools, blocked)
-    assert digest != review_digest("e" * 64, tools, [])
+    assert review.tools == {
+        "search_posts": schema_sha256(SCHEMA),
+        "post_note": schema_sha256(SCHEMA),
+    }
+    # Only an exact readOnlyHint true keeps a tool to the read tier; anything else writes.
+    assert review.read_only == ["search_posts"] and review.writes == ["post_note"]
+    assert review.blocked == ["place_order"] and review.unsupported == 2
+    # The digest binds the endpoint, every pinned schema, the read-only marks and the
+    # blocked names.
+    digest = review_digest("e" * 64, review.tools, review.blocked, review.read_only)
+    assert digest != review_digest("f" * 64, review.tools, review.blocked, review.read_only)
+    assert digest != review_digest("e" * 64, review.tools, [], review.read_only)
+    assert digest != review_digest("e" * 64, review.tools, review.blocked, [])
+
+
+# Wallet, payment and betting shapes a real MCP server offers; each must be blocked.
+MONEY_TOOLS: list[dict[str, Any]] = [
+    {"name": "send_transaction", "description": "Broadcast a signed transaction"},
+    {"name": "sendEth", "description": "Send ETH to an address"},
+    {"name": "send_usdc", "description": "Send USDC to a recipient address"},
+    {"name": "sendBitcoin"},
+    {"name": "bridge_tokens"},
+    {"name": "approve_spender"},
+    {"name": "submit_tx"},
+    {"name": "cashout"},
+    {"name": "place_bet"},
+    {"name": "exchange_currency"},
+    {"name": "zap"},
+    {"name": "send_tokens"},
+    {"name": "lookup", "description": "Send 5 ETH to a friend"},
+    {"name": "lookup", "annotations": {"title": "Broadcast a raw transaction"}},
+]
+# Input schemas shaped like a transfer or a signature, whatever the tool is called.
+MONEY_SCHEMAS: list[dict[str, Any]] = [
+    {"to": {"type": "string"}, "value": {"type": "string"}},
+    {"recipient": {"type": "string"}, "amount": {"type": "number"}},
+    {"toAddress": {"type": "string"}, "amountWei": {"type": "string"}},
+    {"account_id": {"type": "string"}, "quantity": {"type": "number"}},
+    {"privateKey": {"type": "string"}},
+    {"seed_phrase": {"type": "string"}},
+    {"mnemonic": {"type": "string"}},
+    {"payload": {"type": "object", "properties": {"iban": {}, "amount": {}}}},
+]
+
+
+def test_wallet_payment_and_betting_tools_fail_closed() -> None:
+    for item in MONEY_TOOLS:
+        assert financial_tool({**item, "inputSchema": SCHEMA}), item
+    for properties in MONEY_SCHEMAS:
+        assert financial_tool(
+            {"name": "do_it", "inputSchema": {"type": "object", "properties": properties}}
+        ), properties
+    # A money word with an amount moves money; the same word alone does not.
+    tip: dict[str, Any] = {"type": "object", "properties": {"user": {}, "amount": {}}}
+    assert financial_tool({"name": "tip_user", "inputSchema": tip})
+    for name in (
+        "search_posts",
+        "post_message",
+        "send_message",
+        "send_email",
+        "count_tokens",
+        "approve_pull_request",
+        "convert_to_pdf",
+        "exchange_rates",
+        "list_coins",
+    ):
+        assert not financial_tool({"name": name, "inputSchema": SCHEMA}), name
+    email: dict[str, Any] = {"type": "object", "properties": {"to": {}, "subject": {}, "body": {}}}
+    assert not financial_tool({"name": "draft", "inputSchema": email})
 
 
 def test_trusted_identifiers_are_canonical_and_bounded() -> None:
@@ -154,13 +218,29 @@ def test_feeds_parse_bounded_untrusted_text_and_refuse_entities() -> None:
     )
     _, entries = news_feed.parse_feed(atom, "https://news.example.test/feed")
     assert entries[0].link == "https://news.example.test/p/1"
+    entities = (
+        '<?xml version="1.0" encoding="{0}"?><!DOCTYPE rss [<!ENTITY a "x">'
+        '<!ENTITY b "&a;&a;">]><rss version="2.0"><channel><title>&b;</title></channel></rss>'
+    )
     for body in (
         b'<?xml version="1.0"?><!DOCTYPE rss [<!ENTITY x "y">]><rss/>',
         b"<html><body>not a feed</body></html>",
         b"\xff\xfe",
+        # Wide or exotic encodings would hide the declaration from a byte check.
+        entities.format("UTF-16").encode("utf-16"),
+        entities.format("UTF-16LE").encode("utf-16-le"),
+        entities.format("UTF-32").encode("utf-32"),
+        b'<?xml version="1.0" encoding="cp037"?>'
+        + '<!DOCTYPE rss [<!ENTITY a "x">]><rss/>'.encode("cp037"),
+        b"<rss>\x00</rss>",
     ):
         with pytest.raises(LonoraError, match="news_feed_invalid"):
             news_feed.parse_feed(body, "https://news.example.test/feed")
+    # ASCII-compatible encodings still parse (an Arabic feed in windows-1256).
+    arabic = '<?xml version="1.0" encoding="windows-1256"?><rss><channel><title>عاجل</title>'
+    assert news_feed.parse_feed(
+        (arabic + "</channel></rss>").encode("windows-1256"), "https://news.example.test/feed"
+    ) == ("عاجل", [])
 
 
 @pytest.mark.asyncio
@@ -196,12 +276,30 @@ def database() -> None:
         pytest.skip("Trusted sources use the PostgreSQL test database.")
 
 
-class Server:
-    """A scripted MCP server: no network; registry, owner routes and storage are real."""
+READS: dict[str, Any] = {"readOnlyHint": True}
+WRITES: dict[str, Any] = {"readOnlyHint": False, "destructiveHint": True}
 
-    def __init__(self) -> None:
+
+class Server:
+    """A scripted MCP server: no network; registry, owner routes and storage are real.
+    It offers a reading tool, a writing one and one that can place orders, unless
+    ``tools`` replaces them; ``unreachable`` makes every request fail."""
+
+    def __init__(self, tools: list[dict[str, Any]] | None = None) -> None:
         self.schema: dict[str, Any] = dict(SCHEMA)
+        self.annotations: dict[str, Any] = dict(READS)
+        self.tools = tools
+        self.unreachable = False
         self.calls: list[str] = []
+
+    def advertised(self) -> list[dict[str, Any]]:
+        if self.tools is not None:
+            return self.tools
+        return [
+            {"name": "search_posts", "inputSchema": self.schema, "annotations": self.annotations},
+            {"name": "post_note", "inputSchema": SCHEMA, "annotations": WRITES},
+            {"name": "place_order", "inputSchema": SCHEMA},
+        ]
 
     def transport(self, url: str, token: str | None = None) -> Any:
         server = self
@@ -210,18 +308,15 @@ class Server:
             async def request(self, payload: dict[str, Any]) -> dict[str, Any]:
                 method = payload["method"]
                 server.calls.append(method)
+                if server.unreachable:
+                    raise LonoraError("mcp_connection_failed", 502)
                 if method == "notifications/initialized":
                     return {}
                 result: dict[str, Any]
                 if method == "initialize":
                     result = {"protocolVersion": "2025-06-18"}
                 elif method == "tools/list":
-                    result = {
-                        "tools": [
-                            {"name": "search_posts", "inputSchema": server.schema},
-                            {"name": "place_order", "inputSchema": SCHEMA},
-                        ]
-                    }
+                    result = {"tools": server.advertised()}
                 else:
                     result = {"content": [{"type": "text", "text": "posts"}]}
                 return {"jsonrpc": "2.0", "id": payload["id"], "result": result}
@@ -292,14 +387,16 @@ async def test_a_trusted_mcp_server_runs_without_declarations_and_a_changed_tool
                 source_kind="mcp_server",
                 connection_id=connection_id,
             )
-            assert proposed["tools_listed"] == 1 and proposed["tools_blocked_moving_money"] == 1
+            assert proposed["tools_listed"] == 2 and proposed["tools_blocked_moving_money"] == 1
+            assert proposed["tools_that_write"] == 1
             card_id = proposed["owner_action"]["id"]
             cards = cast(
                 list[dict[str, Any]],
                 await fixture.request("GET", "/owner-actions?thread_id=" + context.thread_id),
             )
             card = next(item for item in cards if item["id"] == card_id)
-            assert card["facts"]["source"]["tools"] == ["search_posts"]
+            assert card["facts"]["source"]["tools"] == ["post_note", "search_posts"]
+            assert card["facts"]["source"]["writes"] == ["post_note"]
             assert card["facts"]["source"]["blocked"] == ["place_order"]
             assert card["facts"]["source"]["label"] == "X posts"
             # The owner picks the tier; a confirmation without one changes nothing.
@@ -315,7 +412,17 @@ async def test_a_trusted_mcp_server_runs_without_declarations_and_a_changed_tool
                     )
                 )
                 assert trusted is not None and trusted.added_via == "owner_card"
-                assert set(trusted.tool_hashes) == {"search_posts"}
+                assert set(trusted.tool_hashes) == {"post_note", "search_posts"}
+                assert trusted.read_only_tools == ["search_posts"]
+                # The line says what read only means here: the writing tool waits.
+                line = await session.scalar(
+                    select(MessageRow)
+                    .where(MessageRow.thread_id == context.thread_id)
+                    .order_by(MessageRow.seq.desc())
+                    .limit(1)
+                )
+                assert line is not None
+                assert line.content in said("owner_action_trust_source_mcp_read")
                 # The agent that asked continues the work that needed the server.
                 follow = await session.scalar(
                     select(RunRow).where(
@@ -332,6 +439,39 @@ async def test_a_trusted_mcp_server_runs_without_declarations_and_a_changed_tool
             )
             assert result["result"]["content"][0]["text"] == "posts"
             assert result["effect_tier"] == "read"
+            # Trusted for reading: a tool that may change something never runs, before
+            # any network; one no longer marked read-only is refused after discovery.
+            sent = server.calls.count("tools/call")
+            assert (
+                await refused(
+                    context,
+                    "mcp_execute",
+                    connection_id=connection_id,
+                    name="post_note",
+                    arguments={"query": "x"},
+                )
+                == "mcp_tool_needs_write_trust"
+            )
+            server.annotations = {}
+            assert (
+                await refused(
+                    context,
+                    "mcp_execute",
+                    connection_id=connection_id,
+                    name="search_posts",
+                    arguments={"query": "gold"},
+                )
+                == "mcp_tool_needs_write_trust"
+            )
+            listed = await call(context, "mcp_tools", connection_id=connection_id)
+            states = {item["name"]: item["trust"] for item in listed["tools"]}
+            assert states == {
+                "search_posts": "needs_write_trust",
+                "post_note": "needs_write_trust",
+                "place_order": "blocked_moves_money",
+            }
+            server.annotations = dict(READS)
+            assert server.calls.count("tools/call") == sent
             # A tool that can move money was never pinned and never runs.
             assert (
                 await refused(
@@ -348,6 +488,7 @@ async def test_a_trusted_mcp_server_runs_without_declarations_and_a_changed_tool
                 row = await session.get(TrustedSourceRow, trusted.id, with_for_update=True)
                 assert row is not None
                 row.tool_hashes = {**row.tool_hashes, "place_order": schema_sha256(SCHEMA)}
+                row.read_only_tools = [*row.read_only_tools, "place_order"]
             sent = server.calls.count("tools/call")
             assert (
                 await refused(
@@ -462,7 +603,8 @@ async def test_owner_preview_pins_exactly_what_was_shown_and_writes_are_never_re
         )["id"]
         with patch.object(mcp, "HttpMcpTransport", server.transport):
             preview = await fixture.request("POST", f"/trusted-sources/mcp/{connection_id}/preview")
-            assert preview["tools"] == ["search_posts"] and preview["blocked"] == ["place_order"]
+            assert preview["tools"] == ["post_note", "search_posts"]
+            assert preview["writes"] == ["post_note"] and preview["blocked"] == ["place_order"]
             server.schema = {**SCHEMA, "required": []}
             stale = await fixture.client.post(
                 f"/api/trusted-sources/mcp/{connection_id}",
@@ -481,7 +623,7 @@ async def test_owner_preview_pins_exactly_what_was_shown_and_writes_are_never_re
                 name="mcp_execute",
                 arguments={
                     "connection_id": connection_id,
-                    "name": "search_posts",
+                    "name": "post_note",
                     "arguments": {"query": "note"},
                 },
             )
@@ -496,6 +638,337 @@ async def test_owner_preview_pins_exactly_what_was_shown_and_writes_are_never_re
                 assert row is not None and row.last_used_at is not None
     finally:
         if connection_id:
+            await fixture.request("DELETE", "/mcp/" + connection_id)
+        await fixture.close()
+
+
+async def saved_server(fixture: Any, name: str) -> str:
+    return (
+        await fixture.request(
+            "POST",
+            "/mcp",
+            {"payload": {"name": name, "transport": "http", "url": URL, "enabled": True}},
+        )
+    )["id"]
+
+
+def said(code: str) -> set[str]:
+    """A fixed confirmation line in either language (the conversation's own)."""
+    return {catalogs()[locale][code] for locale in ("ar", "en")}
+
+
+async def last_line(fixture: Any, thread_id: str) -> str:
+    async with fixture.runtime.db.sessions() as session:
+        row = await session.scalar(
+            select(MessageRow)
+            .where(MessageRow.thread_id == thread_id)
+            .order_by(MessageRow.seq.desc())
+            .limit(1)
+        )
+    assert row is not None
+    return row.content
+
+
+@pytest.mark.asyncio
+async def test_a_wallet_server_moves_no_money_and_read_only_refuses_its_writes():
+    database()
+    from check_streaming import Fixture
+
+    fixture = await Fixture().open()
+    wallet = [{**item, "inputSchema": SCHEMA, "annotations": READS} for item in MONEY_TOOLS[:3]] + [
+        {
+            "name": "do_it",
+            "annotations": READS,
+            "inputSchema": {
+                "type": "object",
+                "properties": {"to": {"type": "string"}, "value": {"type": "string"}},
+            },
+        },
+        {"name": "post_message", "inputSchema": SCHEMA, "annotations": WRITES},
+        {"name": "get_balance", "inputSchema": SCHEMA, "annotations": READS},
+    ]
+    server = Server(wallet)
+    connection_id = None
+    try:
+        agent = await fixture.agent("Wallet reader")
+        context = await fixture.lease(await fixture.run(agent, await fixture.conversation(agent)))
+        connection_id = await saved_server(fixture, "Wallet")
+        with patch.object(mcp, "HttpMcpTransport", server.transport):
+            proposed = await call(
+                context,
+                "owner_action_propose",
+                kind="trust_source",
+                source_kind="mcp_server",
+                connection_id=connection_id,
+            )
+            assert proposed["tools_blocked_moving_money"] == 4 and proposed["tools_listed"] == 2
+            card_id = proposed["owner_action"]["id"]
+            cards = cast(
+                list[dict[str, Any]],
+                await fixture.request("GET", "/owner-actions?thread_id=" + context.thread_id),
+            )
+            card = next(item for item in cards if item["id"] == card_id)
+            assert card["facts"]["source"]["blocked"] == [
+                "do_it",
+                "sendEth",
+                "send_transaction",
+                "send_usdc",
+            ]
+            assert card["facts"]["source"]["writes"] == ["post_message"]
+            confirmed = await decide(fixture, card_id, {"decision": "confirm", "tier": "read"})
+            assert confirmed.status_code == 200
+            # Money tools were never pinned: refused before any call is sent.
+            for name in ("send_usdc", "send_transaction", "do_it"):
+                assert (
+                    await refused(
+                        context,
+                        "mcp_execute",
+                        connection_id=connection_id,
+                        name=name,
+                        arguments={"query": "x"},
+                    )
+                    == "mcp_tool_not_authorized"
+                ), name
+            # Trusted for reading: the writing tool is refused, the reading one runs.
+            assert (
+                await refused(
+                    context,
+                    "mcp_execute",
+                    connection_id=connection_id,
+                    name="post_message",
+                    arguments={"query": "x"},
+                )
+                == "mcp_tool_needs_write_trust"
+            )
+            assert server.calls.count("tools/call") == 0
+            read = await call(
+                context,
+                "mcp_execute",
+                connection_id=connection_id,
+                name="get_balance",
+                arguments={"query": "x"},
+            )
+            assert read["effect_tier"] == "read" and server.calls.count("tools/call") == 1
+            async with fixture.runtime.db.sessions() as session:
+                receipt = await session.get(EffectReceiptRow, mcp.receipt_key(context))
+                assert receipt is None
+            # The work needs the writing tool: one more card, and the owner widens the tier.
+            again = await call(
+                context,
+                "owner_action_propose",
+                kind="trust_source",
+                source_kind="mcp_server",
+                connection_id=connection_id,
+            )
+            widen = again["owner_action"]
+            assert widen["id"] != card_id and widen["status"] == "pending"
+            cards = cast(
+                list[dict[str, Any]],
+                await fixture.request("GET", "/owner-actions?thread_id=" + context.thread_id),
+            )
+            shown = next(item for item in cards if item["id"] == widen["id"])
+            assert shown["facts"]["source"]["review"] is False
+            assert shown["facts"]["source"]["tier"] == "read"
+            confirmed = await decide(
+                fixture, widen["id"], {"decision": "confirm", "tier": "write_nonfinancial"}
+            )
+            assert confirmed.json()["status"] == "confirmed"
+            wrote = await call(
+                context,
+                "mcp_execute",
+                connection_id=connection_id,
+                name="post_message",
+                arguments={"query": "x"},
+            )
+            assert wrote["effect_tier"] == "write_nonfinancial"
+            assert server.calls.count("tools/call") == 2
+        # Deleting the saved server removes its trust: nothing looks trusted that cannot run.
+        await fixture.request("DELETE", "/mcp/" + connection_id)
+        deleted, connection_id = connection_id, None
+        async with fixture.runtime.db.sessions() as session:
+            row = await session.scalar(
+                select(TrustedSourceRow).where(TrustedSourceRow.identifier == deleted)
+            )
+        assert row is not None and row.revoked_at is not None and row.revoked_via == "owner_ui"
+        report = await fixture.request("GET", "/capabilities")
+        assert all(
+            item["active"] is False
+            for item in report["trusted_sources"]
+            if item["identifier"] == deleted
+        )
+    finally:
+        if connection_id:
+            await fixture.request("DELETE", "/mcp/" + connection_id)
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_a_seeded_operator_entry_stops_with_its_declaration_until_the_owner_reviews_it():
+    database()
+    from check_streaming import Fixture
+    from lonora_contracts.domain import utcnow
+    from lonora_contracts.mcp import McpToolDeclaration
+
+    fixture = await Fixture().open()
+    server = Server()
+    connection_id = None
+    try:
+        agent = await fixture.agent("Declared")
+        context = await fixture.lease(await fixture.run(agent, await fixture.conversation(agent)))
+        connection_id = await saved_server(fixture, "Declared server")
+        endpoint = mcp.endpoint_sha256(URL)
+        declaration = McpToolDeclaration(
+            owner_id=fixture.owner,
+            connection_id=connection_id,
+            endpoint_sha256=endpoint,
+            tool_name="search_posts",
+            input_schema_sha256=schema_sha256(SCHEMA),
+        )
+        # What migration 0042 copies from LONORA_MCP_DECLARATIONS.
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            now = utcnow()
+            session.add(
+                TrustedSourceRow(
+                    owner_id=fixture.owner,
+                    kind="mcp_server",
+                    identifier=connection_id,
+                    effect_tier="read",
+                    endpoint_sha256=endpoint,
+                    tool_hashes={"search_posts": schema_sha256(SCHEMA)},
+                    read_only_tools=["search_posts"],
+                    blocked_tools=[],
+                    added_via="operator",
+                    created_at=now,
+                    updated_at=now,
+                )
+            )
+        declared = replace(context, mcp_declarations=(declaration,))
+        arguments = {"connection_id": connection_id, "name": "search_posts"}
+        with patch.object(mcp, "HttpMcpTransport", server.transport):
+            ran = await call(declared, "mcp_execute", **arguments, arguments={"query": "gold"})
+            assert ran["effect_tier"] == "read"
+            # The operator removes the declaration: the copied entry no longer authorizes.
+            assert (
+                await refused(context, "mcp_execute", **arguments, arguments={"query": "gold"})
+                == "mcp_tool_not_authorized"
+            )
+            listing = cast(list[dict[str, Any]], await fixture.request("GET", "/trusted-sources"))
+            entry = next(item for item in listing if item["identifier"] == connection_id)
+            assert entry["needs_review"] and entry["added_via"] == "operator"
+            report = await fixture.request("GET", "/capabilities")
+            listed = next(
+                item for item in report["mcp_servers"] if item["connection_id"] == connection_id
+            )
+            assert listed["trusted_tier"] is None
+            # The owner reviews it on a card: from then on it is the owner's own trust.
+            proposed = await call(
+                context,
+                "owner_action_propose",
+                kind="trust_source",
+                source_kind="mcp_server",
+                connection_id=connection_id,
+            )
+            card = proposed["owner_action"]
+            assert proposed["tools_listed"] == 2
+            confirmed = await decide(fixture, card["id"], {"decision": "confirm", "tier": "read"})
+            assert confirmed.json()["status"] == "confirmed"
+            ran = await call(context, "mcp_execute", **arguments, arguments={"query": "gold"})
+            assert ran["effect_tier"] == "read"
+            async with fixture.runtime.db.sessions() as session:
+                row = await session.scalar(
+                    select(TrustedSourceRow).where(
+                        TrustedSourceRow.identifier == connection_id,
+                        TrustedSourceRow.revoked_at.is_(None),
+                    )
+                )
+            assert row is not None and row.added_via == "owner_card"
+    finally:
+        if connection_id:
+            await fixture.request("DELETE", "/mcp/" + connection_id)
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_connecting_a_server_that_cannot_be_reviewed_never_promises_a_card():
+    database()
+    from check_streaming import Fixture
+
+    fixture = await Fixture().open()
+    created: list[str] = []
+    try:
+        agent = await fixture.agent("X news")
+        thread = await fixture.conversation(agent)
+        context = await fixture.lease(await fixture.run(agent, thread))
+        unreachable = Server()
+        unreachable.unreachable = True
+        only_money = Server([{**MONEY_TOOLS[2], "inputSchema": SCHEMA}])
+        for server, review, code in (
+            (unreachable, "unread", "owner_action_connect_credential_mcp_unread"),
+            (only_money, "nothing_to_trust", "owner_action_connect_credential_mcp_blocked"),
+        ):
+            proposed = await call(
+                context,
+                "owner_action_propose",
+                kind="connect_credential",
+                target="mcp_server",
+                service="x",
+            )
+            card_id = proposed["owner_action"]["id"]
+            connection_id = await saved_server(fixture, "X " + review)
+            created.append(connection_id)
+            with patch.object(mcp, "HttpMcpTransport", server.transport):
+                done = await decide(
+                    fixture,
+                    card_id,
+                    {"decision": "confirm", "connected": {"resource": "mcp", "id": connection_id}},
+                )
+            assert done.status_code == 200 and done.json()["result"]["review"] == review
+            assert await last_line(fixture, thread["id"]) in said(code)
+            async with fixture.runtime.db.sessions() as session:
+                waiting = await session.scalar(
+                    select(OwnerActionRow).where(
+                        OwnerActionRow.kind == "trust_source",
+                        OwnerActionRow.subject == "trusted-source:mcp_server:" + connection_id,
+                    )
+                )
+                assert waiting is None
+                # The agent that asked is woken to check the server and say what it found.
+                follow = await session.scalar(
+                    select(RunRow).where(
+                        RunRow.agent_id == agent["id"],
+                        RunRow.trigger == "owner_card",
+                        RunRow.prompt.contains("connection_id=" + connection_id),
+                    )
+                )
+                assert follow is not None and "mcp_tools" in follow.prompt
+        # A server that can be reviewed: its trust card follows and the line says so.
+        proposed = await call(
+            context, "owner_action_propose", kind="connect_credential", target="mcp_server"
+        )
+        connection_id = await saved_server(fixture, "X review")
+        created.append(connection_id)
+        with patch.object(mcp, "HttpMcpTransport", Server().transport):
+            done = await decide(
+                fixture,
+                proposed["owner_action"]["id"],
+                {"decision": "confirm", "connected": {"resource": "mcp", "id": connection_id}},
+            )
+        assert done.json()["result"]["review"] == "raised"
+        cards = cast(
+            list[dict[str, Any]],
+            await fixture.request("GET", "/owner-actions?thread_id=" + thread["id"]),
+        )
+        assert any(item["kind"] == "trust_source" and item["status"] == "pending" for item in cards)
+        async with fixture.runtime.db.sessions() as session:
+            line = await session.scalar(
+                select(MessageRow).where(
+                    MessageRow.thread_id == thread["id"],
+                    MessageRow.content.in_(said("owner_action_connect_credential_mcp")),
+                )
+            )
+        assert line is not None
+    finally:
+        for connection_id in created:
             await fixture.request("DELETE", "/mcp/" + connection_id)
         await fixture.close()
 
@@ -589,6 +1062,27 @@ async def test_skills_install_silently_inside_the_list_and_ask_once_outside_it()
         assert skill["provenance"] == "external"
         assert skill["repository"] == "Example/" + repository
         assert skill["agent_name"] == agent["name"] and skill["enabled"]
+        assert skill["can_undo"] and not skill["undone"]
+        # Undo in Capabilities: the owner's version denial; the Skill no longer loads.
+        controls = await fixture.request("GET", f"/agents/{agent['id']}/skills/revocations")
+        await fixture.request(
+            "POST",
+            f"/agents/{agent['id']}/skills/revocations",
+            {
+                "skill_id": skill["skill_id"],
+                "version": skill["version"],
+                "expected_revision": controls["revision"],
+            },
+        )
+        report = await fixture.request("GET", "/capabilities")
+        skill = next(
+            item
+            for item in report["skills"]
+            if item["skill_id"] == "briefing" and item["agent_id"] == agent["id"]
+        )
+        assert skill["undone"] and not skill["can_undo"]
+        detail = await fixture.request("GET", f"/agents/{agent['id']}/skills/catalog/briefing")
+        assert not detail["available"] and detail["code"] == "skill_version_revoked"
         repo = next(
             item
             for item in report["trusted_sources"]
@@ -653,6 +1147,21 @@ async def test_feeds_and_credentials_reach_agents_as_configured_never_as_values(
         cleanup.extend(item["id"] for item in feeds)
         assert {item["domain"] for item in feeds} >= {domain}
         assert "token=abc" not in json.dumps(report)
+        # Removing a feed sticks: the site leaves the list with its last feed, so an agent
+        # asks again before subscribing it.
+        mine_ids = [item["id"] for item in feeds if item["domain"] == domain]
+        await fixture.request("DELETE", "/integrations/" + mine_ids[0])
+        listing = cast(list[dict[str, Any]], await fixture.request("GET", "/trusted-sources"))
+        assert any(item["identifier"] == domain and item["active"] for item in listing)
+        await fixture.request("DELETE", "/integrations/" + mine_ids[1])
+        listing = cast(list[dict[str, Any]], await fixture.request("GET", "/trusted-sources"))
+        site = [item for item in listing if item["identifier"] == domain]
+        assert site and not any(item["active"] for item in site)
+        with patch.object(news_feed, "public_get", public):
+            again = await call(
+                context, "news_feed_subscribe", url="https://" + domain + "/two", name="Two"
+            )
+        assert again["status"] == "owner_trust_required"
 
         # A secure credential card: the client posts the value straight to the owner API.
         proposed = await call(

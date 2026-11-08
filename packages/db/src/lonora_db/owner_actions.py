@@ -1119,6 +1119,28 @@ async def raise_review_card(
     same tools already shown, or declined in the last week, raise none; tools already
     trusted exactly raise none; a newer review replaces an older one still waiting."""
     await lock_owner_actions(session, owner_id)
+    if not await review_card_wanted(session, owner_id, payload):
+        return None
+    # One review waits per server: a server that keeps changing never stacks up cards.
+    await supersede_subject(session, owner_id, "trust_source", subject, "server_changed_again")
+    thread = await card_thread(session, owner_id, agent_id, thread_id)
+    return await create_card(
+        session,
+        owner_id,
+        card_id=new_id(),
+        agent_id=agent_id,
+        thread=thread,
+        run_id=run_id,
+        source="system",
+        kind="trust_source",
+        subject=subject,
+        payload=payload,
+    )
+
+
+async def review_card_wanted(session: AsyncSession, owner_id: str, payload: dict[str, Any]) -> bool:
+    """Whether ``raise_review_card`` would raise this review now: not the same tools
+    already waiting or declined in the last week, not tools already trusted exactly."""
     digest = payload_hash("trust_source", payload)
     shown = await session.scalar(
         select(OwnerActionRow)
@@ -1139,24 +1161,8 @@ async def raise_review_card(
             and (shown.decided_at or now) > now - LIFETIME["trust_source"]
         )
     ):
-        return None
-    if await stale_reason(session, owner_id, "trust_source", payload) is not None:
-        return None
-    # One review waits per server: a server that keeps changing never stacks up cards.
-    await supersede_subject(session, owner_id, "trust_source", subject, "server_changed_again")
-    thread = await card_thread(session, owner_id, agent_id, thread_id)
-    return await create_card(
-        session,
-        owner_id,
-        card_id=new_id(),
-        agent_id=agent_id,
-        thread=thread,
-        run_id=run_id,
-        source="system",
-        kind="trust_source",
-        subject=subject,
-        payload=payload,
-    )
+        return False
+    return await stale_reason(session, owner_id, "trust_source", payload) is None
 
 
 async def raise_supervision_card(
@@ -1327,10 +1333,26 @@ def confirmation_code(row: OwnerActionRow) -> str:
     if row.kind == "agent_created":
         return "owner_action_undo_" + str(row.result.get("undo", "paused"))
     if row.kind == "trust_source" and row.payload.get("source_kind") == "mcp_server":
+        # Trusted for reading while some tools may change something: those wait.
+        if row.result.get("tier") == "read" and row.result.get("writes"):
+            return "owner_action_trust_source_mcp_read"
         return "owner_action_trust_source_mcp"
     if row.kind == "connect_credential" and row.payload.get("target") == "mcp_server":
-        return "owner_action_connect_credential_mcp"
+        # Whether the trust card for the connected server follows (MCP_REVIEW_LINES).
+        return MCP_REVIEW_LINES.get(
+            str(row.result.get("review", "raised")), "owner_action_connect_credential"
+        )
     return "owner_action_" + row.kind
+
+
+# What a credential card for an MCP server says once the form connected it: its trust
+# card follows; its tools could not be read; none can be trusted; or (operator deny
+# override) only declared tools run, said as a plain connection.
+MCP_REVIEW_LINES = {
+    "raised": "owner_action_connect_credential_mcp",
+    "unread": "owner_action_connect_credential_mcp_unread",
+    "nothing_to_trust": "owner_action_connect_credential_mcp_blocked",
+}
 
 
 def _same_symbol(left: str | None, right: str | None) -> bool:
@@ -1483,6 +1505,21 @@ def continue_prompt(row: OwnerActionRow) -> str:
     """Fixed text and server-checked identifiers only (a repository slug, a host name,
     a connection id, a target name): nothing the model wrote reaches the system role."""
     if row.kind == "connect_credential":
+        review = row.result.get("review")
+        if row.payload["target"] == "mcp_server" and review in {"unread", "nothing_to_trust"}:
+            reason = (
+                "its tools could not be read yet"
+                if review == "unread"
+                else "none of its tools can be trusted (a tool that can trade or move money "
+                "never runs)"
+            )
+            return (
+                "The owner connected an MCP server (connection_id="
+                f"{row.result.get('connection_id')}) on your card; its credential stays on "
+                f"the server. No review card followed: {reason}. Check it with mcp_tools now: "
+                "if it lists tools to review, propose trust_source for this connection_id; "
+                "otherwise tell the owner in one line what is wrong."
+            )
         return (
             f"The owner connected {row.payload['target']} on your card; it is configured on "
             "the server and you never see its value. Continue the work that needed it now, "

@@ -19,7 +19,12 @@ export type TrustedSource = {
   label: string | null;
   effect_tier: EffectTier;
   tools: string[];
+  /** Trusted tools the server does not mark read-only: they run only at the write tier. */
+  write_tools: string[];
   blocked_tools: string[];
+  /** Copied from an operator declaration that no longer stands: it runs nothing until
+   * the owner reviews the server. */
+  needs_review: boolean;
   added_via: "default" | "operator" | "owner_ui" | "owner_card";
   added_by_agent_name: string | null;
   active: boolean;
@@ -38,6 +43,10 @@ export type CapabilitySkill = {
   repository: string | null;
   commit: string | null;
   enabled: boolean;
+  /** The owner undid this version: it no longer loads. */
+  undone: boolean;
+  /** Undo can deny this version (an installed or agent-written Skill with a version). */
+  can_undo: boolean;
   installed_at: string;
   updated_at: string;
 };
@@ -48,6 +57,7 @@ export type CapabilityServer = {
   credentials_configured: boolean;
   trusted_tier: EffectTier | null;
   trusted_tools: string[];
+  write_tools: string[];
   blocked_tools: string[];
   operator_declared: number;
   trust_source_id: string | null;
@@ -92,6 +102,8 @@ export type CapabilityReport = {
 export type McpTrustPreview = {
   name: string;
   tools: string[];
+  /** Tools that may change something: they run only when trusted for non-financial writes. */
+  writes: string[];
   blocked: string[];
   unsupported: number;
   digest: string;
