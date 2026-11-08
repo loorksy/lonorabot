@@ -32,7 +32,7 @@ from lonora_core.user_error import LonoraError
 from lonora_tools.base import Tool
 from lonora_tools.context import ToolContext
 from lonora_tools.loader import MODULES, load_tools
-from lonora_tools.registry import ToolRegistry
+from lonora_tools.registry import BRIDGE_TOOLS, ToolRegistry
 
 REMOVED_TOOLS = ("market_strategy_research", "market_research_history")
 BACKTEST_TERMS = re.compile(
@@ -222,10 +222,11 @@ async def test_a_run_checkpointed_across_the_removal_gets_unknown_tool_outcomes(
         return {}
 
     # The previous release's catalog, with read-only stand-ins for the removed tools.
-    # ToolRegistry adds its own tool_environment, so the loaded one is left out.
+    # ToolRegistry adds its own tool_environment and tool_call, so the loaded ones are
+    # left out.
     previous_catalog = ToolRegistry(
         [
-            *(tool for name, tool in load_tools().tools.items() if name != "tool_environment"),
+            *(tool for name, tool in load_tools().tools.items() if name not in BRIDGE_TOOLS),
             # The previous release executed every call serially (single inflight slot).
             Tool(
                 "market_strategy_research",
