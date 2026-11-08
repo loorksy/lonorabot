@@ -6,6 +6,12 @@ creation holds it exclusively. An operation therefore either committed its send
 authorization before a restriction existed (it is reported as already submitted), or
 its final check sees the restriction. Expiry needs no scheduler: every read evaluates
 ``valid_from``/``valid_until`` against the current time.
+
+Both sides use the database clock (``database_now``), never a process clock: an
+immediate restriction starts at the creating statement's database time, and the final
+check compares against its own later statement's database time. Clock skew between the
+API and worker hosts therefore cannot make a restriction that was visible under the
+lock look "not yet in force".
 """
 
 from datetime import datetime
@@ -42,6 +48,15 @@ async def restriction_lock(
         text(f"SELECT {function}(hashtextextended(:key, 0))"),
         {"key": restriction_lock_key(owner_id, account_id)},
     )
+
+
+async def database_now(session: AsyncSession) -> datetime:
+    """The database server's clock for the current statement (timezone-aware)."""
+    if session.get_bind().dialect.name != "postgresql":
+        return utcnow()
+    value = await session.scalar(text("SELECT statement_timestamp()"))
+    assert isinstance(value, datetime) and value.tzinfo is not None
+    return value
 
 
 def restriction_state(row: TradingRestrictionRow, now: datetime | None = None) -> RestrictionState:
@@ -136,13 +151,17 @@ async def create_restriction(
     await BrokerSessionRepository().get(session, owner_id, account_id)
     if agent_id is not None:
         await owned_agent(session, owner_id, agent_id)
-    now = utcnow()
-    start = valid_from or now
-    if start.tzinfo is None or (valid_until is not None and valid_until.tzinfo is None):
+    if (valid_from is not None and valid_from.tzinfo is None) or (
+        valid_until is not None and valid_until.tzinfo is None
+    ):
         raise LonoraError("restriction_time_zone_required", 422)
+    await restriction_lock(session, owner_id, account_id, shared=False)
+    # Database time under the exclusive lock: an immediate restriction is in force for
+    # every final check that sees it, whatever the deciding host's clock says.
+    now = await database_now(session)
+    start = valid_from or now
     if valid_until is not None and valid_until <= max(start, now):
         raise LonoraError("restriction_window_invalid", 422)
-    await restriction_lock(session, owner_id, account_id, shared=False)
     row = TradingRestrictionRow(
         id=restriction_id or new_id(),
         owner_id=owner_id,
@@ -201,8 +220,8 @@ async def revoke_restriction(
 async def restrictions_in_force(
     session: AsyncSession, owner_id: str, account_id: str, now: datetime | None = None
 ) -> list[TradingRestrictionRow]:
-    """Restrictions on this account in force at ``now`` (for every agent and symbol)."""
-    moment = now or utcnow()
+    """Restrictions on this account in force at ``now`` (default: database time)."""
+    moment = now or await database_now(session)
     return list(
         await session.scalars(
             select(TradingRestrictionRow)

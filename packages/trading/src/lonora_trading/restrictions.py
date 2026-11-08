@@ -26,7 +26,11 @@ from typing import Any
 from lonora_contracts.trading import TradeRequest
 from lonora_core.user_error import LonoraError
 from lonora_db.schema import TradingRestrictionRow
-from lonora_db.trading_restrictions import restriction_data, restrictions_in_force
+from lonora_db.trading_restrictions import (
+    database_now,
+    restriction_data,
+    restrictions_in_force,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .exposure import ENTRY_ACTIONS
@@ -72,7 +76,8 @@ async def blocking_restriction(
     reducing: bool,
     now: datetime | None = None,
 ) -> TradingRestrictionRow | None:
-    for row in await restrictions_in_force(session, owner_id, request.account_id, now):
+    moment = now or await database_now(session)
+    for row in await restrictions_in_force(session, owner_id, request.account_id, moment):
         if applies(row, request, agent_id=agent_id) and prohibits(
             row.action_class, request, reducing=reducing
         ):
@@ -89,11 +94,12 @@ async def require_unrestricted(
     reducing: bool,
     now: datetime | None = None,
 ) -> None:
+    moment = now or await database_now(session)
     row = await blocking_restriction(
-        session, owner_id, request, agent_id=agent_id, reducing=reducing, now=now
+        session, owner_id, request, agent_id=agent_id, reducing=reducing, now=moment
     )
     if row is not None:
         raise AdmissionBlocked(
             "trading_restriction_active",
-            {"code": "trading_restriction_active", "restriction": restriction_data(row, now)},
+            {"code": "trading_restriction_active", "restriction": restriction_data(row, moment)},
         )

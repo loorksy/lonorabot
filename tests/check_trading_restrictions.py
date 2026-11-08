@@ -12,9 +12,10 @@ real order is involved.
 import asyncio
 import json
 from collections.abc import Awaitable, Callable
-from datetime import timedelta
+from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Any, cast
+from unittest.mock import patch
 from uuid import uuid4
 
 from check_streaming import Fixture
@@ -32,6 +33,7 @@ from lonora_db.schema import (
     TradingJournalRow,
     TradingRestrictionRow,
 )
+from lonora_db.trading_restrictions import database_now
 from lonora_tools.context import ToolContext
 from lonora_tools.loader import load_tools
 from lonora_trading.controls import read_controls, save_controls
@@ -612,6 +614,40 @@ async def main() -> None:
         assert ended[frozen["id"]]["state"] == "revoked"
         print(
             "PASS an expired restriction stops applying at its valid_until without a scheduler and stays visible as ended"
+        )
+
+        # 5b. One clock: a creating host whose clock runs ahead (or a deciding host whose
+        #     clock runs behind) cannot make an immediate restriction look scheduled.
+        skewed = utcnow() + timedelta(hours=2)
+        with patch("lonora_db.trading_restrictions.utcnow", return_value=skewed):
+            skew_restriction = await fixture.request(
+                "POST",
+                "/trading/restrictions",
+                {
+                    "account_id": account,
+                    "symbol": GOLD,
+                    "action_class": "no_new_entries",
+                    "reason": "Owner: no new gold entries (skewed API clock)",
+                },
+            )
+        started = datetime.fromisoformat(skew_restriction["valid_from"])
+        assert abs(started - utcnow()) < timedelta(minutes=5), skew_restriction
+        behind = utcnow() - timedelta(hours=2)
+        with (
+            patch("lonora_db.trading_restrictions.utcnow", return_value=behind),
+            patch("lonora_trading.restrictions.database_now", wraps=database_now) as clock,
+        ):
+            skew_blocked = await approved(
+                {"action": "buy", "symbol": GOLD, "volume": "0.3", "stop_loss": "1990"}
+            )
+        assert skew_blocked["status"] == "failed", skew_blocked
+        assert clock.await_count > 0, skew_blocked
+        assert skew_blocked["code"] == "trading_restriction_active", skew_blocked
+        await fixture.request(
+            "POST", f"/trading/restrictions/{skew_restriction['id']}/revoke", {"reason": "done"}
+        )
+        print(
+            "PASS an immediate restriction starts and is checked on the database clock, so host clock skew never lets a trade pass it"
         )
 
         # 6. Monetary limits on a clean account, from broker tick economics.
