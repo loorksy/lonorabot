@@ -251,11 +251,25 @@ async def test_resumed_context_reads_current_permission_every_time(monkeypatch: 
     monkeypatch.setattr(
         "lonora_agent.context.permissions.trading_limits", AsyncMock(return_value=([], []))
     )
+    trading = AsyncMock(
+        side_effect=[
+            {"state": "running", "since": "2026-11-08T08:00:00+00:00", "changed_by": "owner"},
+            {"state": "stopped", "since": "2026-11-08T09:00:00+00:00", "changed_by": "owner"},
+        ]
+    )
+    monkeypatch.setattr("lonora_agent.context.permissions.global_trading", trading)
     first = await permission_context(AsyncMock(), "owner", "agent", origin())
     resumed = await permission_context(AsyncMock(), "owner", "agent", origin())
     assert context_snapshot(first)["valid_autonomous_authorization"] is True
     assert context_snapshot(resumed)["financial_mutations_prohibited"] is True
     assert state.await_count == 2
+    # Stop new trading is re-read every turn too, and travels as data in the frame.
+    assert context_snapshot(first)["global_trading"] == {
+        "state": "running",
+        "since": "2026-11-08T08:00:00+00:00",
+    }
+    assert context_snapshot(resumed)["global_trading"]["state"] == "stopped"
+    assert "While global_trading is stopped" in resumed and "attempt no entry" in resumed
 
 
 def test_provisional_voice_context_preserves_scope_and_extra_approval_boundary():

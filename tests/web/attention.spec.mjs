@@ -22,7 +22,7 @@ test("durable notification is shared across views and stays read after reload", 
   await page.goto("/app/activity");
   const inbox = page.getByTestId("attention-inbox");
   const alert = inbox.locator(`[data-attention-id="${fixture.notification.id}"]`);
-  await expect(alert.getByText("Emergency Stop is active", { exact: true })).toBeVisible();
+  await expect(alert.getByText("New trading stopped", { exact: true })).toBeVisible();
   // The watchdog's aging-operation item: owner text and the symbol, never a raw id.
   const uncertain = inbox.locator(`[data-attention-id="${fixture.uncertain.id}"]`);
   await expect(

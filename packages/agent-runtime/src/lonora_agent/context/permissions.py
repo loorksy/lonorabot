@@ -3,25 +3,13 @@
 import json
 from typing import Any
 
-from lonora_contracts.execution_quality import ExecutionPolicy
 from lonora_db.agent_binding import agent_binding
 from lonora_db.agent_permissions import permission_state
 from lonora_db.schema import RunRow
+from lonora_db.trading_readiness import account_money_limits, global_trading
 from lonora_db.trading_restrictions import list_restrictions, relevant_to, restriction_data
-from lonora_db.transactions import SettingsRepository
 from lonora_trading.account_authority import provisional_voice
-from lonora_trading.execution_quality import policy_key
 from sqlalchemy.ext.asyncio import AsyncSession
-
-RISK_LIMIT_NAMES = (
-    "max_trade_risk",
-    "max_trade_risk_equity_percent",
-    "max_daily_loss",
-    "max_open_risk",
-    "max_open_risk_equity_percent",
-    "min_free_margin",
-)
-
 
 # The owner's own reason is shown in the system-role frame, bounded.
 OWNER_REASON_CHARS = 240
@@ -68,23 +56,6 @@ def restriction_frame(row: dict[str, Any], agent_id: str) -> dict[str, Any]:
     }
 
 
-def risk_limit_frame(account_id: str, policy: ExecutionPolicy) -> dict[str, Any]:
-    limits = policy.risk
-    values = {name: getattr(limits, name) for name in RISK_LIMIT_NAMES}
-    return {
-        "account_id": account_id,
-        "configured": limits.configured,
-        "currency": limits.currency,
-        "limits": {name: str(value) for name, value in values.items() if value is not None},
-        "not_configured": [name for name, value in values.items() if value is None],
-        **(
-            {"trading_day_timezone": limits.trading_day_timezone}
-            if limits.max_daily_loss is not None
-            else {}
-        ),
-    }
-
-
 def permission_guidance(
     state: dict[str, Any],
     *,
@@ -92,6 +63,7 @@ def permission_guidance(
     provisional_approval_required: bool = False,
     restrictions: list[dict[str, Any]] | None = None,
     risk_limits: list[dict[str, Any]] | None = None,
+    trading: dict[str, Any] | None = None,
 ) -> str:
     """Project only verified state; a pending envelope/draft is never authority."""
     level = "analysis" if observe_only else state["effective_level"]
@@ -136,6 +108,8 @@ def permission_guidance(
         "owner_restrictions": restrictions or [],
         # Owner monetary limits per account; not_configured limits are not enforced.
         "monetary_risk_limits": risk_limits or [],
+        # Stop new trading / Resume, for every agent and the owner's manual orders.
+        "global_trading": {key: (trading or {}).get(key) for key in ("state", "since")},
     }
     encoded = (
         json.dumps(snapshot, ensure_ascii=False).replace("<", "\\u003c").replace(">", "\\u003e")
@@ -179,8 +153,10 @@ def permission_guidance(
         "within them, never lift or evade one, and record an owner's new narrowing with "
         "trade_restriction_create. An unset monetary limit is not enforced."
         + " A pending review, customization draft, chat agreement, task delegation or "
-        "global Trading ON grants no authority. Global Trading ON/OFF, Emergency Stop, "
-        "binding, preflight, manual intervention and reconciliation remain authoritative. "
+        "running global_trading grants no authority. global_trading, binding, preflight, "
+        "manual intervention and reconciliation remain authoritative. While global_trading "
+        "is stopped, new risk is blocked for every agent and exits stay allowed: attempt no "
+        "entry, say so in one line and offer the owner Resume in the conversation header. "
         "A profit target is an objective, never a guarantee or reason to force a trade. "
         "The LLM chooses the useful next action; no fixed keyword or workflow decides it. "
         "Claim execution only after broker confirmation and independent state verification. "
@@ -209,6 +185,7 @@ async def permission_context(
         provisional_approval_required=provisional,
         restrictions=restrictions,
         risk_limits=risk_limits,
+        trading=await global_trading(session),
     )
 
 
@@ -230,10 +207,8 @@ async def trading_limits(
             accounts.add(account_id)
     if agent.trading_account_id:
         accounts.add(agent.trading_account_id)
-    risk_limits: list[dict[str, Any]] = []
-    for account_id in sorted(accounts)[:10]:
-        policy = ExecutionPolicy.model_validate(
-            await SettingsRepository().get(session, policy_key(owner_id, account_id))
-        )
-        risk_limits.append(risk_limit_frame(account_id, policy))
+    risk_limits = [
+        await account_money_limits(session, owner_id, account_id)
+        for account_id in sorted(accounts)[:10]
+    ]
     return restrictions, risk_limits

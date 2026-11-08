@@ -6,7 +6,7 @@ from lonora_auth.identity import OwnerIdentity
 from lonora_contracts.account_authority import AccountAuthorityProposal
 from lonora_contracts.super_bot import DeviceProof
 from lonora_core.user_error import LonoraError
-from lonora_db.account_authority import authority_data, propose, revoke
+from lonora_db.account_authority import authority_summary, propose, revoke
 from lonora_db.schema import AccountAuthorityRow
 from lonora_db.transactions import owned_agent
 from sqlalchemy import select
@@ -30,7 +30,7 @@ async def state(request: Request, agent_id: str, owner: OwnerIdentity = Depends(
             .order_by(AccountAuthorityRow.created_at.desc())
             .limit(20)
         )
-        return [authority_data(row) for row in rows]
+        return [await authority_summary(session, row) for row in rows]
 
 
 @router.post("/agents/{agent_id}/account-authorities", status_code=201)
@@ -50,14 +50,15 @@ async def proposal(
         if any(symbol not in symbols for symbol in body.symbols):
             raise LonoraError("symbol_not_found", 404)
     async with rt.db.sessions() as session, session.begin():
-        return authority_data(
+        return await authority_summary(
+            session,
             await propose(
                 session,
                 owner.id,
                 agent_id,
                 body,
                 permission_revision=permission_revision,
-            )
+            ),
         )
 
 
@@ -80,14 +81,15 @@ async def verify(
 ):
     rt = runtime(request)
     async with rt.db.sessions() as session, session.begin():
-        return authority_data(
+        return await authority_summary(
+            session,
             await finish_activation(
                 session, owner, body, rt.settings.allowed_origin, native_origins(rt.settings)
-            )
+            ),
         )
 
 
 @router.post("/account-authorities/{identifier}/revoke")
 async def stop(request: Request, identifier: str, owner: OwnerIdentity = Depends(require_owner)):
     async with runtime(request).db.sessions() as session, session.begin():
-        return authority_data(await revoke(session, owner.id, identifier))
+        return await authority_summary(session, await revoke(session, owner.id, identifier))

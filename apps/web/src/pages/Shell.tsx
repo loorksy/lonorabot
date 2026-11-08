@@ -50,6 +50,7 @@ import { CallPill } from "../components/call/CallPill";
 import { VoiceChatCard } from "../components/call/VoiceChatCard";
 import { ConversationCharts } from "../components/charts/ConversationCharts";
 import { TradingGoals } from "../components/goals/TradingGoals";
+import { SafetyPill } from "../components/trading/SafetyPill";
 import { useAgents } from "../hooks/useAgents";
 import { dismissOverlays, useOverlayHistory } from "../hooks/useOverlayHistory";
 import { usePersistentThread } from "../hooks/usePersistentThread";
@@ -769,6 +770,7 @@ function WorkspaceShell({ onLogout }: { onLogout: () => void }) {
             </button>
           </div>
           <div className="tpl-toolbar">
+            {agent && <SafetyPill agentId={agent.id} agents={agents} />}
             <CallPill />
             {(agent || voice.target) && (
               <button

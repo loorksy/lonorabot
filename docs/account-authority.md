@@ -78,8 +78,10 @@ ceilings and daily monetary loss fields are **not part of the signed envelope**:
 envelope fields remain rejected, not silently interpreted as protection. Monetary
 limits are instead owner policy enforced at the execution boundary for every path (see
 "Monetary risk limits" below). Volume limits, an equity floor and a required stop
-cannot guarantee a maximum loss. The Web and Mobile review both state this limitation
-before signing. No authorization was activated on a production account while
+cannot guarantee a maximum loss. Grant summaries from the owner routes and the live
+Agent projection carry the account's `money_limits` (configured limits, or none), and
+the Web and Mobile review show them, or "No money limit set", before signing (see
+`trading-safety.md`). No authorization was activated on a production account while
 implementing or testing this capability.
 
 The compact Web/Mobile bot settings reuse existing account/market selectors and
@@ -188,8 +190,10 @@ it through another symbol or account), and every `risk_*` code is `risk_limit_bl
 `inspect_risk_assessment` (resize or protect to fit the limit, reduce exposure, or wait
 for the owner). No agent tool lifts a restriction. The owner
 lists, creates and lifts them through `GET/POST /trading/restrictions` and `POST
-/trading/restrictions/{id}/revoke` (owner session with CSRF, or bearer token). There is
-no Web or Mobile control for restrictions yet; the API is the owner surface.
+/trading/restrictions/{id}/revoke` (owner session with CSRF, or bearer token). The Web
+and Mobile header safety sheet lists the restrictions that apply to an agent, read only
+(`trading-safety.md`); lifting one from a card arrives with owner action cards (W15-2),
+until then the API is the owner's lift surface.
 
 ## Monetary risk limits
 

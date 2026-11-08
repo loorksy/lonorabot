@@ -1,42 +1,29 @@
+import { i18n } from "@lingui/core";
 import { Trans } from "@lingui/react/macro";
-import { useState } from "react";
-import type { Position } from "../../lib/api";
-import { executeTrade } from "../../lib/trading";
+import { financialBoundaryError } from "@lonora/core";
+import type { Journal, Position } from "../../lib/api";
+import { operationStatusLabel, operationUnsettled } from "../../lib/operation-status";
 import { userError } from "../../lib/user_error";
+import { useTicketAction } from "./useTicketAction";
+
 export function Positions({
   accountId,
   positions,
+  journal,
   onChange,
 }: {
   accountId: string;
   positions: Position[];
+  journal?: Journal[];
   onChange: () => void;
 }) {
-  const [error, setError] = useState<unknown>();
-  const [busy, setBusy] = useState("");
-  async function close(p: Position) {
-    setBusy(p.id);
-    try {
-      await executeTrade({
-        account_id: accountId,
-        operation_id: crypto.randomUUID(),
-        action: "close_position",
-        symbol: p.symbol,
-        position_id: p.id,
-      });
-      onChange();
-    } catch (e) {
-      setError(e);
-    } finally {
-      setBusy("");
-    }
-  }
+  const close = useTicketAction("close_position", accountId, journal, onChange);
   return (
     <section className="card">
       <h2>
         <Trans>Positions</Trans>
       </h2>
-      {error != null && <p role="alert">{userError(error)}</p>}
+      {close.error != null && <p role="alert">{userError(close.error)}</p>}
       <div className="table-wrap">
         <table>
           <thead>
@@ -62,22 +49,54 @@ export function Positions({
             </tr>
           </thead>
           <tbody>
-            {positions.map((p) => (
-              <tr key={p.id}>
-                <td>
-                  <bdi>{p.symbol}</bdi>
-                </td>
-                <td>{p.side === "buy" ? <Trans>Buy</Trans> : <Trans>Sell</Trans>}</td>
-                <td>{p.volume}</td>
-                <td>{p.open_price}</td>
-                <td>{p.profit}</td>
-                <td>
-                  <button type="button" disabled={busy === p.id} onClick={() => void close(p)}>
-                    <Trans>Close position</Trans>
-                  </button>
-                </td>
-              </tr>
-            ))}
+            {positions.map((p) => {
+              const outcome = close.outcome(p.id);
+              const unsettled = outcome != null && operationUnsettled(outcome.status);
+              return (
+                <tr key={p.id} data-position-id={p.id}>
+                  <td>
+                    <bdi>{p.symbol}</bdi>
+                  </td>
+                  <td>{p.side === "buy" ? <Trans>Buy</Trans> : <Trans>Sell</Trans>}</td>
+                  <td>{p.volume}</td>
+                  <td>{p.open_price}</td>
+                  <td>{p.profit}</td>
+                  <td>
+                    <button
+                      type="button"
+                      disabled={close.busy(p.id)}
+                      onClick={() =>
+                        void close.run(p.id, {
+                          action: "close_position",
+                          symbol: p.symbol,
+                          position_id: p.id,
+                        })
+                      }
+                    >
+                      {close.held(p.id) ? (
+                        <Trans>Check close result</Trans>
+                      ) : (
+                        <Trans>Close position</Trans>
+                      )}
+                    </button>
+                    {outcome && (
+                      <p role="status" data-operation-status={outcome.status}>
+                        {operationStatusLabel(outcome.status, outcome.details)}
+                        {unsettled && (
+                          <>
+                            {" "}
+                            <Trans>This operation will not be sent again.</Trans>
+                          </>
+                        )}
+                        {financialBoundaryError(outcome.code, i18n.locale) && (
+                          <> {financialBoundaryError(outcome.code, i18n.locale)}</>
+                        )}
+                      </p>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

@@ -57,7 +57,8 @@ fresh broker target read at the boundary:
 Everything else — entries, pending-order edits, take-profit changes, removing or
 widening protection — is risk-increasing.
 
-- Trading OFF and Emergency Stop reject risk-increasing requests only. A
+- Stop new trading (Trading OFF or the legacy Emergency Stop flag, one brake in the
+  clients, see `trading-safety.md`) rejects risk-increasing requests only. A
   risk-reducing request stays admissible on every path; this relaxes no
   authorization (owner session, exact approval or matching signed grant still apply,
   and the lease, preflight and broker checks still run).

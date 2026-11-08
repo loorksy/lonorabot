@@ -27,3 +27,6 @@ class AgentLiveState(Contract):
     )
     collaborations: list[dict[str, Any]] = Field(default_factory=list[dict[str, Any]], max_length=3)
     health: list[dict[str, Any]] = Field(default_factory=list[dict[str, Any]], max_length=6)
+    # Presentation only (lonora_db.trading_readiness): can it trade now, and what stops
+    # it. Never consulted for enforcement; the executor re-checks at the moment of send.
+    trading_readiness: dict[str, Any] | None = None

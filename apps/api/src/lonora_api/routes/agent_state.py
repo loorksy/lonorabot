@@ -13,4 +13,4 @@ async def state(
     request: Request, agent_id: str, owner: OwnerIdentity = Depends(require_owner)
 ) -> AgentLiveState:
     async with runtime(request).db.sessions() as session:
-        return await agent_live_state(session, owner.id, agent_id)
+        return await agent_live_state(session, owner.id, agent_id, readiness=True)

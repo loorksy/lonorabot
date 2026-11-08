@@ -1,3 +1,5 @@
+import type { MoneyLimits } from "./trading";
+
 /** Owner-confirmed account delegation. Reading this projection grants no authority. */
 export const authorityActions = [
   "buy",
@@ -44,5 +46,6 @@ export type AccountAuthority = {
   valid_until: string | null;
   created_at: string;
   updated_at: string;
-  monetary_stop_risk: "unavailable";
+  /** The account's owner money limits, enforced at the executor for every agent. */
+  money_limits?: MoneyLimits;
 };

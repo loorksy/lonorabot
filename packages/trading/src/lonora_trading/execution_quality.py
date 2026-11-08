@@ -8,14 +8,14 @@ from lonora_contracts.execution_quality import ExecutionPolicy, ExecutionQuality
 from lonora_contracts.market import Quote
 from lonora_contracts.trading import TradeRequest, TradeResult
 from lonora_db.client import Database
-from lonora_db.transactions import SettingsRepository
+from lonora_db.transactions import SettingsRepository, execution_policy_key
 from lonora_market.health import assess_account, assess_quote
 
 from .exposure import account_exposure, exposure_reasons
 
 
 def policy_key(owner_id: str, account_id: str) -> str:
-    return f"execution_policy:{owner_id}:{account_id}"
+    return execution_policy_key(owner_id, account_id)
 
 
 async def execution_policy(db: Database, owner_id: str, account_id: str) -> ExecutionPolicy:

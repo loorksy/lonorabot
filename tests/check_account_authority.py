@@ -172,7 +172,10 @@ async def main() -> None:
         proposal = await propose()
         assert proposal["status"] == "pending"
         assert (await propose())["id"] == proposal["id"]
-        assert proposal["monetary_stop_risk"] == "unavailable"
+        # The grant summary reports the account's T3 money limits; none is set here.
+        assert "monetary_stop_risk" not in proposal
+        assert proposal["money_limits"]["configured"] is False
+        assert proposal["money_limits"]["limits"] == {}
         before = await broker.snapshot()
         pending = await operation(volume="0.1", stop_loss="90")
         assert pending["_runtime_wait"] and await broker.snapshot() == before

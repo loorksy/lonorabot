@@ -349,7 +349,7 @@ async def main():
                 dispatch_channels(f.runtime.db, services),
             )
             await dispatch_channels(f.runtime.db, services)
-            assert len(sent) == 1 and "الإيقاف الطارئ" in sent[0]
+            assert len(sent) == 1 and "التداول الجديد متوقف" in sent[0]
         async with f.runtime.db.sessions() as session:
             receipts = list(
                 await session.scalars(

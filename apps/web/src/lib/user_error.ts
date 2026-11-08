@@ -7,7 +7,8 @@ export function userError(error: unknown) {
   const code = errorCode(error);
   const permissionMessage = agentPermissionError(code, i18n.locale);
   if (permissionMessage) return permissionMessage;
-  // Restrictions, money limits and boundary blocks: why nothing was sent, shared text.
+  // Stop new trading, restrictions, money limits and boundary blocks: why nothing was
+  // sent, in text shared with Mobile (@lonora/core).
   const boundaryMessage = financialBoundaryError(code, i18n.locale);
   if (boundaryMessage) return boundaryMessage;
   switch (code) {
@@ -99,10 +100,6 @@ export function userError(error: unknown) {
       return t`The model provider rejected this request.`;
     case "model_response_invalid":
       return t`The model provider returned an unreadable response. Try again.`;
-    case "trading_disabled":
-      return t`Trading is off.`;
-    case "emergency_stop":
-      return t`Emergency stop is active.`;
     case "broker_trading_not_allowed":
       return t`This broker account does not permit trading. Check its trading permissions.`;
     case "goal_autonomy_required":

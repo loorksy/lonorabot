@@ -45,7 +45,6 @@ const pending: AccountAuthority = {
   valid_until: draft.valid_until,
   created_at: new Date(now).toISOString(),
   updated_at: new Date(now).toISOString(),
-  monetary_stop_risk: "unavailable",
 };
 test("permission is absent until explicit exact scope and every limit are supplied", () => {
   assert.equal(authorityProposal(emptyAuthorityDraft(), scope, now), null);

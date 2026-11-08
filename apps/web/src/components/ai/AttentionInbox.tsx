@@ -44,7 +44,7 @@ export function AttentionInbox({
   }, [compact]);
   const labels = {
     watch_condition_met: t`Watch condition changed`,
-    emergency_stop: t`Emergency Stop is active`,
+    emergency_stop: t`New trading stopped`,
     approval_required: t`Waiting for approval`,
     approval_resolved: t`Request updated`,
     broker_degraded: t`Broker connection needs review`,

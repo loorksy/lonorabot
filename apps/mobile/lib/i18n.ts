@@ -335,7 +335,7 @@ export const labels = {
     "نبّهني بالفرص المؤكدة",
     "Notify me about confirmed opportunities",
   ],
-  attentionEmergency: ["الإيقاف الطارئ مفعّل", "Emergency Stop is active"],
+  attentionEmergency: ["التداول الجديد متوقف", "New trading stopped"],
   attentionApproval: ["بانتظار الموافقة", "Waiting for approval"],
   attentionRequestUpdated: ["تم تحديث الطلب", "Request updated"],
   attentionBrokerDegraded: ["اتصال الوسيط يحتاج مراجعة", "Broker connection needs review"],

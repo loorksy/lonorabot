@@ -302,6 +302,7 @@ The owner asked, on 2026-11-08, for a simple experience without contradictions a
    - One "Stop new trading / Resume" control.
    - Owner close and cancel buttons keep one operation id until the outcome settles.
    - Owner text in Arabic and English for every boundary code.
+   - Delivered on branch `w15-a1` (no migration); the design is in `docs/trading-safety.md`. The readiness block is presentation only and never read by enforcement. Stop sends the former Emergency Stop flag and Resume clears both flags in one call; the API contract is unchanged. Grant summaries now report the account's money limits instead of `monetary_stop_risk: "unavailable"`. Restrictions are listed read-only in the safety sheet; lifting from a card is W15-2.
 3. **W15-2 Owner action cards in chat.**
    - Durable, server-validated, single-use cards for resuming trading, lifting a pause, resolving an uncertain operation and setting money limits. Later slices add grants, agent creation, supervision, trusted sources and credentials.
    - Widening needs the passkey. Narrowing is one tap.

@@ -163,7 +163,13 @@ async def voice_context(
     }
     live = await agent_live_state(session, owner_id, agent.id)
     context["live_state"] = bounded_text(
-        _json(live.model_dump(mode="json", exclude={"health", "runs", "collaborations"})), 900
+        _json(
+            live.model_dump(
+                mode="json",
+                exclude={"health", "runs", "collaborations", "trading_readiness"},
+            )
+        ),
+        900,
     )
     parts = [authority, voice_surface_policy()]
     market = binding_context(agent)

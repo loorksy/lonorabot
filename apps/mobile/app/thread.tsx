@@ -659,6 +659,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
         }}
         onActions={() => setActionsVisible(true)}
         onCall={agent && thread ? () => void voice.start(agent, thread.id) : undefined}
+        agentId={agent?.id}
         avatar={
           agent ? (
             <BotAvatar

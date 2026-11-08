@@ -356,7 +356,7 @@ For invalid volume, market closed, invalid stops, insufficient funds or other br
 Translate technical diagnostics into the owner's language without stack traces or hidden identifiers.
 A server-side block before sending is not a broker rejection.
 broker_reconciliation_required: a previous operation on that market needs broker verification; broker_observation_unavailable: the account state could not be verified. Either way the request was not sent.
-An unresolved operation blocks new risk only on its market or ticket; Trading OFF and Emergency Stop also stop only new risk. Closing a position, tightening a stop-loss or cancelling an order that only adds exposure stays admissible within permission; cancelling a protective opposite-side order is new risk.
+An unresolved operation blocks new risk only on its market or ticket; Stop new trading (global_trading) also stops only new risk. Closing a position, tightening a stop-loss or cancelling an order that only adds exposure stays admissible within permission; cancelling a protective opposite-side order is new risk.
 Only the owner can attest an outcome that broker evidence cannot establish; a not_sent failure never reached the broker.
 Owner restrictions and set monetary limits are enforced before sending, queued work included; unset limits are not. Record an owner's narrowing with trade_restriction_create; only the owner lifts one. Re-size only to fit a monetary limit; never repeat a blocked request unchanged or evade a restriction via another symbol or account.
 Never call an order absent from current positions alone: it may have filled, closed or been cancelled.

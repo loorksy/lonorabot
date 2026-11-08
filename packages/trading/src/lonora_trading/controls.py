@@ -23,9 +23,12 @@ async def save_controls(db: Database, controls: TradingControl) -> TradingContro
         previous = TradingControl.model_validate(
             await SettingsRepository().get(session, "trading_control")
         )
+        if previous == controls:
+            # Repeating the current state is not a change: "stopped since" stays true.
+            return controls
         await SettingsRepository().put(session, "trading_control", controls.model_dump())
         owner = await get_owner(session)
-        if owner and previous != controls:
+        if owner:
             emit(
                 session,
                 owner.id,
