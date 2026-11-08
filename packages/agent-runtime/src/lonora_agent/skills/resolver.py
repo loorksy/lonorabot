@@ -3,6 +3,8 @@ from dataclasses import dataclass, field
 from html import escape
 from typing import Any
 
+from lonora_tools.base import ToolScope
+
 from .provenance import skill_provenance
 from .registry import CAPABILITY_TOOLS, SkillDefinition, SkillRegistry
 
@@ -13,7 +15,7 @@ class SkillSignals:
     trigger: str = "user"
     requested: frozenset[str] = frozenset()
     available_tools: frozenset[str] = frozenset()
-    read_only: bool = False
+    scope: ToolScope = "full"
     has_market: bool = False
     has_goal: bool = False
     has_chart: bool = False
@@ -57,6 +59,14 @@ class SkillSelection:
         }
 
 
+# An observe-only wake has no financial effects; a helper only reads and computes.
+SCOPE_RISK_CLASSES: dict[ToolScope, frozenset[str]] = {
+    "full": frozenset({"read_only", "state_mutating", "external_action", "financial"}),
+    "observe_only": frozenset({"read_only", "state_mutating", "external_action"}),
+    "helper": frozenset({"read_only", "state_mutating"}),
+}
+
+
 def eligibility_reason(
     definition: SkillDefinition, signals: SkillSignals, rejected: dict[str, str]
 ) -> str | None:
@@ -64,7 +74,7 @@ def eligibility_reason(
     manifest = definition.manifest
     if manifest.id in rejected:
         return rejected[manifest.id]
-    if signals.read_only and manifest.risk_class != "read_only":
+    if manifest.risk_class not in SCOPE_RISK_CLASSES[signals.scope]:
         return "skill_scope_unavailable"
     if set(manifest.required_tools) - signals.available_tools:
         return "skill_required_tools_unavailable"

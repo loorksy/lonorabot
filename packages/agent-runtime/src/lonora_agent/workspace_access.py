@@ -12,6 +12,7 @@ from lonora_db.runs import aware, require_lease
 from lonora_db.schema import AnalyticalWorkspaceRow, RunRow, ThreadRow, WorkspaceOperationRow
 from lonora_db.transactions import owned_agent
 from lonora_session.idempotency import request_hash
+from lonora_tools.base import run_scope
 from lonora_tools.context import ToolContext
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -32,8 +33,14 @@ class WorkspaceExecutor(Protocol):
 
 
 async def scoped_run(
-    session: AsyncSession, context: ToolContext, *, mutate: bool = False
+    session: AsyncSession, context: ToolContext, *, mutate: bool = False, helper: bool = False
 ) -> RunRow:
+    """The current Run of this Agent's workspace call.
+
+    ``mutate`` writes are refused for a paused Agent. A temporary helper may
+    only compute (``helper``); an observe-only wake has no financial effects,
+    so it keeps every workspace write.
+    """
     agent = await owned_agent(session, context.owner_id, context.agent_id, lock=mutate)
     run = await require_lease(session, context.lease, lock=mutate)
     thread = await session.get(ThreadRow, run.thread_id)
@@ -46,9 +53,7 @@ async def scoped_run(
     ):
         raise LonoraError("workspace_scope_mismatch", 409)
     if mutate and (
-        agent.paused
-        or run.trigger == "subagent"
-        or run.model_metadata.get("authority") == "observe_only"
+        agent.paused or (run_scope(run.trigger, run.model_metadata) == "helper" and not helper)
     ):
         raise LonoraError("tool_not_allowed", 403)
     return run
@@ -64,8 +69,10 @@ def manifest(revision: int, files: dict[str, bytes]) -> dict[str, Any]:
     }
 
 
-async def locked_workspace(session: AsyncSession, context: ToolContext) -> AnalyticalWorkspaceRow:
-    await scoped_run(session, context, mutate=True)
+async def locked_workspace(
+    session: AsyncSession, context: ToolContext, *, helper: bool = False
+) -> AnalyticalWorkspaceRow:
+    await scoped_run(session, context, mutate=True, helper=helper)
     row = await session.get(AnalyticalWorkspaceRow, context.agent_id, with_for_update=True)
     if row is None:
         row = AnalyticalWorkspaceRow(agent_id=context.agent_id, revision=0, snapshot=b"{}")
@@ -335,7 +342,7 @@ class RunWorkspaceAccess:
             }
         )
         async with context.db.sessions() as session, session.begin():
-            row = await locked_workspace(session, context)
+            row = await locked_workspace(session, context, helper=True)
             prior = await receipt(session, context, digest)
             if prior is not None:
                 return prior
@@ -375,7 +382,7 @@ class RunWorkspaceAccess:
                 raise LonoraError("workspace_profile_changed", 409)
             encoded = encode_snapshot(outcome.files)
             async with context.db.sessions() as session, session.begin():
-                row = await locked_workspace(session, context)
+                row = await locked_workspace(session, context, helper=True)
                 if row.active_operation_id != context.resource_id or row.revision != revision:
                     raise LonoraError("workspace_operation_superseded", 409)
                 operation = await session.get(WorkspaceOperationRow, context.resource_id)

@@ -400,15 +400,13 @@ async def main() -> None:
         async with context.db.sessions() as session, session.begin():
             run = await session.get(RunRow, context.lease.run_id)
             assert run
-            run.model_metadata = {**run.model_metadata, "authority": "observe_only"}
-        await denied(call("observe-create", "skill_package_create", create), "tool_not_allowed")
+            trigger, run.trigger = run.trigger, "subagent"
+        await denied(call("helper-create", "skill_package_create", create), "tool_not_allowed")
         async with context.db.sessions() as session, session.begin():
             run = await session.get(RunRow, context.lease.run_id)
             assert run
-            run.model_metadata = {
-                key: value for key, value in run.model_metadata.items() if key != "authority"
-            }
-        print("PASS stale source revision, owner/Agent scope and observe-only creation fail closed")
+            run.trigger = trigger
+        print("PASS stale source revision, owner/Agent scope and helper creation fail closed")
 
         revision = (await workspace.inspect(context.for_call("before-tamper")))["revision"]
         await call(

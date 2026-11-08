@@ -7,6 +7,7 @@ from typing import Any
 
 from lonora_adapter_kit.types import ToolCall
 from lonora_core.user_error import LonoraError
+from lonora_tools.base import ToolScope
 from lonora_tools.context import ToolContext
 from lonora_tools.registry import ToolRegistry
 from lonora_tools.schema import ToolArgumentsError
@@ -23,7 +24,7 @@ async def dispatch_call(
     registry: ToolRegistry,
     state: dict[str, Any],
     call: ToolCall,
-    read_only: bool,
+    scope: ToolScope,
     *,
     interrupted: bool,
     before_effect: Callable[[], Awaitable[None]] | None,
@@ -63,7 +64,7 @@ async def dispatch_call(
             # even if the model invents a new call ID. Never mint a new
             # approval/operation merely to learn the previous outcome.
             original = call.model_copy(update={"id": blocked["origin_call_id"]})
-            result = await registry.execute(original, context, read_only)
+            result = await registry.execute(original, context, scope)
             # Not a new effect: the guardrails must not count it as a repeated send.
             result = {**result, "_runtime_reconciled": blocked["origin_call_id"]}
         elif blocked:
@@ -103,7 +104,7 @@ async def dispatch_call(
                     context,
                     skill_access=RunSkillAccess(registry, tuple(state["instruction_skill_ids"])),
                 ),
-                read_only,
+                scope,
             )
         result = {"ok": True, **result}
     except LonoraError as error:

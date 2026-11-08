@@ -11,7 +11,7 @@ import pytest
 from lonora_adapter_kit.types import ToolCall, ToolDefinition
 from lonora_contracts.domain import Contract
 from lonora_core.user_error import LonoraError
-from lonora_tools.base import ExposureProfile, Tool, eager_for
+from lonora_tools.base import HELPER_EFFECTS, ExposureProfile, Tool, ToolScope, eager_for
 from lonora_tools.context import ToolContext
 from lonora_tools.environment import EnvironmentInput
 from lonora_tools.loader import load_tools
@@ -79,15 +79,15 @@ async def inspect(
     catalog: ToolRegistry,
     arguments: dict[str, Any],
     *,
-    read_only: bool = False,
+    scope: ToolScope = "full",
     native: list[str] | None = None,
 ) -> dict[str, Any]:
     context = cast(
         ToolContext, SimpleNamespace(db=SimpleNamespace(sessions=session), lease=object())
     )
     run = SimpleNamespace(
-        trigger="message",
-        model_metadata={"authority": "observe_only"} if read_only else {},
+        trigger="subagent" if scope == "helper" else "message",
+        model_metadata={"authority": "observe_only"} if scope == "observe_only" else {},
         execution_state={"tool_exposure": {"native": native or []}},
     )
     with patch("lonora_tools.registry.require_lease", AsyncMock(return_value=run)):
@@ -148,17 +148,21 @@ def test_eager_working_sets_are_data_from_tool_metadata():
     ]
 
 
-@pytest.mark.parametrize(("profiles", "read_only"), product(PROFILE_SETS, (False, True)))
+@pytest.mark.parametrize(
+    ("profiles", "scope"), product(PROFILE_SETS, ("full", "observe_only", "helper"))
+)
 def test_eager_schema_budget_holds_for_every_run_shape(
-    profiles: list[ExposureProfile], read_only: bool
+    profiles: list[ExposureProfile], scope: ToolScope
 ):
     catalog = load_tools()
-    names = catalog.eager_names(profiles, read_only)
+    names = catalog.eager_names(profiles, scope)
     total = sum(schema_chars(catalog.tools[name]) for name in names)
     assert total <= EAGER_SCHEMA_BUDGET
     assert EAGER_SCHEMA_BUDGET + PROMOTED_SCHEMA_BUDGET < 30000
-    if read_only:
-        assert all(catalog.tools[name].read_only for name in names)
+    if scope != "full":
+        assert not any(catalog.tools[name].financial for name in names)
+    if scope == "helper":
+        assert all(catalog.tools[name].read_only or name in HELPER_EFFECTS for name in names)
     full = sum(map(schema_chars, catalog.tools.values()))
     assert total < full / 3
 
@@ -167,7 +171,7 @@ def test_native_definitions_keep_bridges_and_drop_unknown_or_out_of_scope_names(
     catalog = load_tools()
     selected = catalog.native_definitions({"market_quote", "trade_execute", "invented"})
     assert {tool.name for tool in selected} == BRIDGE_TOOLS | {"market_quote", "trade_execute"}
-    read_only = catalog.native_definitions({"market_quote", "trade_execute"}, read_only=True)
+    read_only = catalog.native_definitions({"market_quote", "trade_execute"}, scope="helper")
     assert {tool.name for tool in read_only} == BRIDGE_TOOLS | {"market_quote"}
     assert [tool.name for tool in selected] == [
         name for name in catalog.tools if name in {tool.name for tool in selected}
@@ -206,7 +210,7 @@ def test_exposure_promotes_remembered_tools_within_count_and_schema_budget():
     # Unavailable and out-of-scope tools are never promoted.
     _, limited = catalog.exposure(
         ["core", "research"],
-        read_only=True,
+        scope="helper",
         remembered=remembered,
         unavailable={"list_accounts": "fixture_unconfigured"},
     )
@@ -227,14 +231,14 @@ def test_unavailable_eager_tools_leave_the_native_array_but_bridges_stay():
 def test_scope_membership_never_generates_or_caches_native_schemas():
     catalog = registry()
     complete = {tool.name for tool in catalog.definitions()}
-    read_only = {tool.name for tool in catalog.definitions(True)}
+    read_only = {tool.name for tool in catalog.definitions("helper")}
     with patch.object(
         Tool, "definition", side_effect=AssertionError("Schema work on membership path")
     ):
         assert catalog.names() == complete
-        assert catalog.names(True) == read_only
-        assert "trade_execute" not in catalog.names(True)
-        assert catalog.eager_names(["core", "market"], True)
+        assert catalog.names("helper") == read_only
+        assert "trade_execute" not in catalog.names("helper")
+        assert catalog.eager_names(["core", "market"], "helper")
         del catalog.tools["market_quote"]
         assert "market_quote" not in catalog.names()
 
@@ -265,15 +269,42 @@ async def test_search_and_inspection_report_invocation_and_availability():
 @pytest.mark.asyncio
 async def test_current_read_only_scope_filters_search_inspect_and_execution():
     catalog = registry()
-    result = await inspect(catalog, {"query": "trade_execute"}, read_only=True)
+    result = await inspect(catalog, {"query": "trade_execute"}, scope="helper")
     assert result["tools"] == []
     with pytest.raises(LonoraError, match="tool_not_allowed"):
-        await inspect(catalog, {"tool_name": "trade_execute"}, read_only=True)
-    with pytest.raises(LonoraError, match="tool_not_allowed"):
+        await inspect(catalog, {"tool_name": "trade_execute"}, scope="helper")
+    # A financial tool outside a full Run is refused as such, before any database work.
+    with pytest.raises(LonoraError, match="observe_only_execution_forbidden"):
         await catalog.execute(
             ToolCall(id="denied", name="trade_execute", arguments={}),
             cast(ToolContext, None),
-            True,
+            "helper",
+        )
+    with pytest.raises(LonoraError, match="tool_not_allowed"):
+        await catalog.execute(
+            ToolCall(id="denied", name="wait_for_input", arguments={}),
+            cast(ToolContext, None),
+            "helper",
+        )
+
+
+@pytest.mark.asyncio
+async def test_observe_only_scope_keeps_every_non_financial_capability():
+    catalog = load_tools()
+    names = catalog.names("observe_only")
+    assert {"memory_write", "watch_create", "peer_send", "owner_call_request"} <= names
+    assert not {"trade_execute", "trade_close_positions", "goal_step_execute"} & names
+    assert names == {name for name, tool in catalog.tools.items() if not tool.financial}
+    helper = catalog.names("helper")
+    assert {"workspace_execute", "artifact_create", "web_search"} <= helper
+    assert not {"memory_write", "peer_send", "child_agent_create", "subagent_spawn"} & helper
+    found = await inspect(catalog, {"query": "memory_write"}, scope="observe_only")
+    assert "memory_write" in [tool["name"] for tool in found["tools"]]
+    with pytest.raises(LonoraError, match="observe_only_execution_forbidden"):
+        await catalog.execute(
+            ToolCall(id="denied", name="trade_execute", arguments={}),
+            cast(ToolContext, None),
+            "observe_only",
         )
 
 
@@ -382,11 +413,11 @@ def test_current_inventory_contains_all_real_names_grouped_by_toolset():
 
 def test_inventory_obeys_current_read_only_scope_and_has_no_invented_abilities():
     catalog = registry()
-    inventory = catalog.capability_inventory(read_only=True)
+    inventory = catalog.capability_inventory(scope="helper")
     assert "market_quote" in inventory and "قراءة_السعر" in inventory
     assert "trade_execute" not in inventory and "wait_for_input" not in inventory
     del catalog.tools["market_quote"]
-    assert "market_quote" not in catalog.capability_inventory(read_only=True)
+    assert "market_quote" not in catalog.capability_inventory(scope="helper")
 
 
 def test_large_inventory_is_explicitly_bounded_and_directs_to_paginated_metadata():

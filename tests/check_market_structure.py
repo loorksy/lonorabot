@@ -96,7 +96,7 @@ async def main() -> None:
         registry = load_tools()
         tool = registry.tools["market_structure"]
         assert tool.read_only and not tool.financial
-        assert "market_structure" in {item.name for item in registry.definitions(read_only=True)}
+        assert "market_structure" in {item.name for item in registry.definitions(scope="helper")}
 
         async def call(
             name: str, args: dict[str, Any], *, actor: ToolContext = context

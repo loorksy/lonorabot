@@ -31,6 +31,7 @@ const labels: Record<AttentionCode, Label> = {
   super_bot_changed: "superBot",
   task_completed: "attentionTaskCompleted",
   internal_update: "attentionUpdated",
+  agent_notification: "attentionAgentAlert",
 };
 export function AttentionInbox({
   items,
@@ -126,6 +127,18 @@ export function AttentionInbox({
           <Text style={{ color: colors.secondary, textAlign: rtl ? "right" : "left" }}>
             {agents.find((agent) => agent.id === item.agent_id)?.name}
           </Text>
+          {item.code === "agent_notification" && item.parameters.summary ? (
+            <Text
+              testID="attention-summary"
+              style={{
+                color: colors.foreground,
+                textAlign: rtl ? "right" : "left",
+                writingDirection: rtl ? "rtl" : "ltr",
+              }}
+            >
+              {item.parameters.summary}
+            </Text>
+          ) : null}
           {item.parameters.symbol && (
             <Text style={{ color: colors.foreground, writingDirection: "ltr" }}>
               {item.parameters.symbol}

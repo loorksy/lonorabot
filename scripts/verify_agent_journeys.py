@@ -58,7 +58,7 @@ from lonora_providers.router import GlobalModelRouter
 from lonora_providers.routing_policy import read_policy
 from lonora_security.runtime_storage import confined_path
 from lonora_session.idempotency import stable_id
-from lonora_tools.base import ExposureProfile
+from lonora_tools.base import ExposureProfile, ToolScope
 from lonora_tools.context import ToolContext
 from lonora_tools.loader import load_tools
 from lonora_tools.registry import BRIDGE, BRIDGE_TOOLS, ToolRegistry
@@ -289,23 +289,23 @@ class AcceptanceRegistry(ToolRegistry):
         self,
         profiles: Collection[ExposureProfile],
         *,
-        read_only: bool = False,
+        scope: ToolScope = "full",
         remembered: Sequence[str] = (),
         unavailable: Mapping[str, str] | None = None,
     ) -> tuple[list[str], list[str]]:
         return self.catalog.exposure(
-            profiles, read_only=read_only, remembered=remembered, unavailable=unavailable
+            profiles, scope=scope, remembered=remembered, unavailable=unavailable
         )
 
     def native_definitions(
-        self, names: Collection[str], read_only: bool = False
+        self, names: Collection[str], scope: ToolScope = "full"
     ) -> list[ToolDefinition]:
-        return self.catalog.native_definitions(names, read_only)
+        return self.catalog.native_definitions(names, scope)
 
     def capability_inventory(
-        self, read_only: bool = False, unavailable: Mapping[str, str] | None = None
+        self, scope: ToolScope = "full", unavailable: Mapping[str, str] | None = None
     ) -> str:
-        return self.catalog.capability_inventory(read_only, unavailable)
+        return self.catalog.capability_inventory(scope, unavailable)
 
     async def inspect_environment(
         self, context: ToolContext, arguments: dict[str, Any]
@@ -313,11 +313,11 @@ class AcceptanceRegistry(ToolRegistry):
         return await self.catalog.inspect_environment(context, arguments)
 
     async def execute(
-        self, call: ToolCall, context: ToolContext, read_only: bool = False
+        self, call: ToolCall, context: ToolContext, scope: ToolScope = "full"
     ) -> dict[str, Any]:
         if call.name not in ALLOWED | BRIDGE_TOOLS:
             raise LonoraError("acceptance_tool_denied", 403)
-        return await super().execute(call, context, read_only)
+        return await super().execute(call, context, scope)
 
 
 class AcceptanceRouter:

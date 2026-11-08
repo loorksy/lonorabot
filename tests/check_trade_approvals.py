@@ -539,12 +539,12 @@ async def main():
                 },
             ),
             isolated,
-            read_only=True,
+            scope="helper",
         )
         state = await registry.execute(
             ToolCall(id="account", name="account_read", arguments={"account_id": connection_id}),
             isolated,
-            read_only=True,
+            scope="helper",
         )
         assert (
             history["history"]

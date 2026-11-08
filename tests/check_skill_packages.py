@@ -303,14 +303,12 @@ async def main() -> None:
             async with db.sessions() as session, session.begin():
                 run = await session.get(RunRow, context.lease.run_id)
                 assert run
-                run.model_metadata = {**run.model_metadata, "authority": "observe_only"}
-            await denied(call("observe", "skill_package_import", update), "tool_not_allowed")
+                trigger, run.trigger = run.trigger, "subagent"
+            await denied(call("helper", "skill_package_import", update), "tool_not_allowed")
             async with db.sessions() as session, session.begin():
                 run = await session.get(RunRow, context.lease.run_id)
                 assert run
-                run.model_metadata = {
-                    key: value for key, value in run.model_metadata.items() if key != "authority"
-                }
+                run.trigger = trigger
             checks += 1
             controls = await fixture.request(
                 "POST",

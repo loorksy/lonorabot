@@ -22,7 +22,8 @@ export type AttentionCode =
   | "task_completed"
   | "internal_update"
   | "super_bot_authorization"
-  | "super_bot_changed";
+  | "super_bot_changed"
+  | "agent_notification";
 export interface AttentionNotification {
   id: string;
   agent_id: string;
@@ -36,6 +37,10 @@ export interface AttentionNotification {
     group_id?: string;
     valid_until?: string;
     execution_authorized?: false;
+    /** An Agent's own alert (agent_notification): its plain summary for the owner. */
+    summary?: string;
+    /** Where an Agent's alert is delivered; "in_app" until off-app delivery exists. */
+    delivery?: "in_app";
   };
   source_count: number;
   version: number;

@@ -14,6 +14,7 @@ from lonora_adapter_kit.types import ToolCall
 from lonora_core.user_error import LonoraError
 from lonora_db.schema import CloudChartRow
 from lonora_security.runtime_storage import confined_path
+from lonora_tools.base import ToolScope
 from lonora_tools.context import ToolContext
 from lonora_tools.loader import load_tools
 from PIL import Image
@@ -69,12 +70,12 @@ async def main() -> None:
             *,
             identity: str | None = None,
             actor: ToolContext = context,
-            read_only: bool = False,
+            scope: ToolScope = "full",
         ) -> dict[str, Any]:
             result = await registry.execute(
                 ToolCall(id=identity or uuid4().hex, name=name, arguments=arguments),
                 actor,
-                read_only=read_only,
+                scope=scope,
             )
             if name in {
                 "chart_open",
@@ -94,7 +95,7 @@ async def main() -> None:
                         arguments={"chart_id": result["chart"]["id"]},
                     ),
                     actor,
-                    read_only=True,
+                    scope="helper",
                 )
                 assert inspected["chart"]["version"] == result["command"]["revision"]
                 return inspected
@@ -114,10 +115,10 @@ async def main() -> None:
                 )
                 == 1
             )
-        persisted = await call("chart_inspect", {"chart_id": chart_id}, read_only=True)
+        persisted = await call("chart_inspect", {"chart_id": chart_id}, scope="helper")
         assert len(persisted["scene"]["candles"]) == 60
         assert persisted["chart"]["state"]["scene_revision"] == persisted["chart"]["version"]
-        directory = await call("chart_list", {"thread_id": thread["id"]}, read_only=True)
+        directory = await call("chart_list", {"thread_id": thread["id"]}, scope="helper")
         entry = next(item for item in directory["charts"] if item["chart_id"] == chart_id)
         assert entry["symbol"] == "XAUUSD" and "scene" not in entry and "payload" not in entry
         print(
@@ -146,7 +147,7 @@ async def main() -> None:
         values = await call(
             "chart_read_indicator",
             {"chart_id": chart_id, "name": "rsi", "period": 14, "tail": 60},
-            read_only=True,
+            scope="helper",
         )
         assert len(values["times"]) == 60 and len(values["series"]["value"]) == 60
         assert values["series"]["value"][:14] == [None] * 14
@@ -224,7 +225,7 @@ async def main() -> None:
             "chart_set_symbol",
             {"chart_id": chart_id, "version": changed["chart"]["version"], "symbol": "XAUUSD"},
             "tool_not_allowed",
-            read_only=True,
+            scope="helper",
         )
         await fails(
             "chart_set_symbol",

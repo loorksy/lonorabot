@@ -33,9 +33,8 @@ client from before the channel existed keeps its meaning (`enabled` true reads a
 response (`incoming_call_channel_conflict`, `incoming_call_device_required`,
 `incoming_call_quiet_hours_incomplete`, `invalid_timezone`) instead of a generic
 `invalid_request`, and Web and Mobile show the same Arabic or English text for each.
-`notify` currently means a message in the conversation while the alerts Lonora
-raises stay in the inbox; Agents raise their own alerts only once `owner_notify`
-exists.
+`notify` means the inbox: the alerts Lonora raises and the alerts an Agent raises
+itself with `owner_notify` (below).
 
 The owner sets it in Web Knowledge (About you) or Mobile Voice settings
 (`PUT /api/owner/preferences`), or in chat: "Send me a message instead of
@@ -48,6 +47,38 @@ with the channel to use and creates no invitation (it and the call gate read the
 channel afresh under the same owner lock a change takes, so a call never rings
 against a newer "message me instead"); the device choice is kept for
 a later "call me". Delivery is in-app only: none of this proves a device rang.
+
+## Agent alerts (`owner_notify`)
+
+An Agent can start contact itself. `owner_notify` (`lonora_tools/incoming_call.py`,
+`notify_owner` in `lonora_db/attention.py`) takes an importance (`critical`,
+`action_required`, `important_change` or `informational`; an opportunity needs the
+server's evidence revalidation, so an Agent reports it as an important change), a
+plain summary in the owner's language (8-400 characters, no ids or JSON), up to 8
+evidence references, a `dedupe_key` and an optional `expires_at` (at most 31 days
+ahead). It creates one attention item with code `agent_notification` through the
+same `decide_attention` path as server alerts, in the Agent's own conversation (a
+wake in the work lane reports to the conversation it came from, `report_thread` in
+`lonora_db/threads.py`). The rules:
+
+- One item per Agent and `dedupe_key`, whatever happens later: a repeat returns the
+  first result with `deduplicated: true`.
+- At most 6 alerts per Agent per rolling hour (`owner_notify_rate_limited`).
+- Quiet hours (the reach-me preference) hold everything but `critical` until they end
+  (`held_for_quiet_hours`, with `held_until`); the gateway's `ready_attention` then
+  publishes it (`publish_ready`, shared with server alerts).
+- Reach-me `activity` keeps non-critical alerts out of the inbox (`activity_only`);
+  the owner's informational preference applies as for server alerts.
+- `critical` and `action_required` alerts are ready at once; others within seconds.
+- Delivery is in-app only (`delivery: "in_app"`): Web and Mobile show the label
+  "Your agent alerted you" / «نبّهك وكيلك» with the summary in its own text direction.
+  Off-app channels skip these items until Wave 3.
+
+`owner_call_request` can target the returned `attention_id` (the Agent's own alert
+stays current until it expires or the owner reads it), still under reach-me `call`,
+the enrolled device, the allowed category, quiet hours and the call rate.
+`owner_attention_list` and `owner_call_request` scope to the same report thread, so
+a wake can call about the alert it raised. Nothing here grants authority.
 
 ## Delivery boundary
 

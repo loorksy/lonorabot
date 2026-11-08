@@ -38,6 +38,9 @@ class Watch(Contract):
     integration_id: str | None = None
     currency: str | None = None
     event_id: str | None = None
+    # One live watch per key and Agent: re-arming the key returns the same watch, or
+    # replaces it when the condition changed, so a repeated wake never duplicates it.
+    dedupe_key: str | None = Field(default=None, min_length=1, max_length=120)
 
     @model_validator(mode="after")
     def validate_source(self) -> "Watch":

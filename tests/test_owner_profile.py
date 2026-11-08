@@ -443,7 +443,7 @@ async def test_a_preference_one_agent_records_reaches_every_agent_and_is_reverti
         gold = await fixture.agent("Gold")
         context, message_id = await owner_turn(fixture, lonora, "ردودك قصيرة بالعربي")
         read = await registry.execute(
-            ToolCall(id="read", name="memory_read", arguments={}), context, read_only=True
+            ToolCall(id="read", name="memory_read", arguments={}), context, scope="helper"
         )
         assert read["owner_profile"]["profile_version"] == 1
         saved = await call(
@@ -923,7 +923,7 @@ async def test_writes_keep_the_legacy_section_and_history_shows_only_the_change(
             row.content = LEGACY
         context, _ = await owner_turn(fixture, agent, "Remember the rollover")
         read = await registry.execute(
-            ToolCall(id="read", name="memory_read", arguments={}), context, read_only=True
+            ToolCall(id="read", name="memory_read", arguments={}), context, scope="helper"
         )
         assert "Prefers Arabic" not in read["content"]
         saved = await call(
@@ -935,7 +935,7 @@ async def test_writes_keep_the_legacy_section_and_history_shows_only_the_change(
         )
         assert saved["changed"] is True, saved
         read = await registry.execute(
-            ToolCall(id="reread", name="memory_read", arguments={}), context, read_only=True
+            ToolCall(id="reread", name="memory_read", arguments={}), context, scope="helper"
         )
         whole = await call(
             registry,

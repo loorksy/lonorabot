@@ -13,9 +13,9 @@ from lonora_contracts.trading import TradingControl
 from lonora_core.attention import ATTENTION_KINDS, classify_attention
 from lonora_core.market_watch import condition_met
 from lonora_core.user_error import LonoraError
-from lonora_db.attention import attention_data, decide_attention, policy, set_cursor
+from lonora_db.attention import decide_attention, policy, publish_ready, set_cursor
 from lonora_db.client import Database
-from lonora_db.events import PUBLIC_CURSOR, emit, publish_committed
+from lonora_db.events import PUBLIC_CURSOR, publish_committed
 from lonora_db.personal_agent import ensure_personal_agent
 from lonora_db.schema import (
     AttentionRow,
@@ -108,7 +108,15 @@ async def candidate(
         agent_id, thread_id = event.agent_id or personal.id, event.thread_id
         identifier = classification.resource_id
         resource: Any = None
-        if event.kind.startswith("broker.") or event.kind == "trading.controls_updated":
+        responsible = (
+            event.kind == "broker.external_activity"
+            and bool(event.payload.get("agent_id"))
+            and event.agent_id == event.payload.get("agent_id")
+        )
+        if responsible:
+            # Activity on an Agent's own positions reaches the owner in that Agent's chat.
+            agent_id = str(event.agent_id)
+        elif event.kind.startswith("broker.") or event.kind == "trading.controls_updated":
             agent_id, thread_id = personal.id, None
         if event.kind == "trading.controls_updated":
             current = TradingControl.model_validate(
@@ -441,29 +449,5 @@ async def ready_attention(db: Database, brokers: BrokerManager, owner_id: str) -
             )
             if row is None or row.status != "pending" or row.version != original.version:
                 continue
-            row.status, row.version, row.updated_at = (
-                "suppressed" if suppression else "ready",
-                row.version + 1,
-                utcnow(),
-            )
-            if suppression:
-                row.parameters = {**row.parameters, "suppression_code": suppression}
-            emit(
-                session,
-                owner_id,
-                "attention.updated",
-                agent_id=row.agent_id,
-                thread_id=row.thread_id,
-                payload=attention_data(row),
-            )
-            if not suppression:
-                emit(
-                    session,
-                    owner_id,
-                    "attention.ready",
-                    agent_id=row.agent_id,
-                    thread_id=row.thread_id,
-                    payload=attention_data(row),
-                )
-                count += 1
+            count += publish_ready(session, row, suppression)
     return count

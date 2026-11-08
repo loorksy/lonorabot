@@ -198,7 +198,9 @@ async def main() -> None:
                 ),
                 context,
             )
-        assert historical == reconciling
+        # The stored record, labelled with the Agent that recorded it.
+        recorded_by = historical.pop("recorded_by")
+        assert historical == reconciling and recorded_by["you"] is True
         history = await registry.execute(
             ToolCall(
                 id="history", name="market_decision_history", arguments={"account_id": connection}

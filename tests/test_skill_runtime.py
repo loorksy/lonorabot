@@ -90,7 +90,7 @@ def test_explicit_and_trigger_modes() -> None:
 
 
 def test_missing_tools_and_subagent_cannot_load_financial_skill() -> None:
-    read_only = {tool.name for tool in load_tools().definitions(read_only=True)}
+    read_only = load_tools().names("helper")
     result = select_skill_context(
         [],
         SkillSignals(

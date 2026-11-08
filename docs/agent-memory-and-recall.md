@@ -154,8 +154,8 @@ its own history the same way. Labels and error texts come from one table in
 
 ## session_search
 
-A read-only core tool (`lonora_tools/session_search.py`), so subagents and
-observe-only Runs have it too. Its shape follows the arguments, adapted from
+A read-only core tool (`lonora_tools/session_search.py`), so helpers and
+observe-only wakes have it too. Its shape follows the arguments, adapted from
 Hermes Agent `tools/session_search_tool.py` (MIT, see `THIRD_PARTY_NOTICES.md`):
 
 | Arguments | Shape | Returns |

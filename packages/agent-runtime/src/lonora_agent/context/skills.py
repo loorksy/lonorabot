@@ -9,6 +9,7 @@ from lonora_core.user_error import LonoraError
 from lonora_db.runs import require_lease
 from lonora_db.schema import AgentRow, AnalyticalWorkspaceRow, CloudChartRow, MessageRow, SkillRow
 from lonora_db.skill_controls import read_skill_controls
+from lonora_tools.base import run_scope
 from lonora_tools.context import ToolContext
 from lonora_tools.registry import ToolRegistry
 from sqlalchemy import select
@@ -186,14 +187,14 @@ async def read_skill_context(
             select(CloudChartRow.id).where(CloudChartRow.agent_id == agent.id).limit(1)
         )
     )
-    read_only = run.trigger == "subagent" or run.model_metadata.get("authority") == "observe_only"
-    available = registry.names(read_only)
+    scope = run_scope(run.trigger, run.model_metadata)
+    available = registry.names(scope)
     signals = SkillSignals(
         # Description-first discovery; explicit requests, durable triggers and
         # already viewed pins still apply without routing by owner keywords.
         intents=frozenset(),
         trigger=run.trigger,
-        read_only=read_only,
+        scope=scope,
         requested=frozenset(requested),
         available_tools=frozenset(available),
         has_market=bool(agent.trading_account_id),
@@ -338,13 +339,8 @@ async def assert_skill_authority(
         current, rejected = await effective_skill_registry(
             session, context, registry, rows, run.model_metadata
         )
-        read_only = (
-            run.trigger == "subagent" or run.model_metadata.get("authority") == "observe_only"
-        )
-        signals = SkillSignals(
-            read_only=read_only,
-            available_tools=frozenset(registry.names(read_only)),
-        )
+        scope = run_scope(run.trigger, run.model_metadata)
+        signals = SkillSignals(scope=scope, available_tools=frozenset(registry.names(scope)))
         controls = await read_skill_controls(session, context.owner_id, context.agent_id)
         revoked = {(item.skill_id, item.version) for item in controls.revoked}
         failures: dict[str, str] = {}

@@ -2,7 +2,6 @@ from datetime import datetime
 from typing import Any
 
 from lonora_contracts.domain import Contract
-from lonora_db.agent_binding import agent_binding, assert_market_binding, fixed_market
 from lonora_db.broker_sessions import BrokerSessionRepository
 from lonora_db.schema import EventRow
 from lonora_trading.accounts import account_snapshot
@@ -82,16 +81,13 @@ async def activity(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]
     """Read actual durable broker observations, including manually created tickets."""
     params = ActivityInput.model_validate(args)
     async with context.db.sessions() as session:
-        agent = await agent_binding(session, context.owner_id, context.agent_id)
-        assert_market_binding(agent, params.account_id)
+        # Reading is open: every owned account's activity, whatever this Agent's focus.
         await BrokerSessionRepository().get(session, context.owner_id, params.account_id)
         query = select(EventRow).where(
             EventRow.owner_id == context.owner_id,
             EventRow.kind == "broker.external_activity",
             EventRow.payload["account_id"].as_string() == params.account_id,
         )
-        if fixed_market(agent) and agent.trading_symbol:
-            query = query.where(EventRow.payload["symbol"].as_string() == agent.trading_symbol)
         rows = await session.scalars(query.order_by(EventRow.cursor.desc()).limit(params.limit))
         return {
             "account_id": params.account_id,
@@ -105,7 +101,7 @@ def tools() -> list[Tool]:
     return [
         Tool(
             "account_activity",
-            "Inspect bounded durable broker changes, including manual positions/orders, by exact account and bound symbol. Facts do not reveal owner intent or grant execution authority.",
+            "Inspect bounded durable broker changes on any owned account, including manual positions/orders and which Agent opened or manages each ticket. Facts do not reveal owner intent or grant execution authority.",
             ActivityInput,
             activity,
             True,

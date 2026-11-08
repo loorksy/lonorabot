@@ -94,7 +94,9 @@ def test_risk_scope_and_dependency_order_are_deterministic() -> None:
     result = select_skill_context(
         [financial],
         SkillSignals(
-            requested=frozenset({"financial"}), read_only=True, available_tools=frozenset(TOOLS)
+            requested=frozenset({"financial"}),
+            scope="observe_only",
+            available_tools=frozenset(TOOLS),
         ),
         TOOLS,
     )

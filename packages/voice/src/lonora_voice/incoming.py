@@ -105,8 +105,11 @@ async def current_attention(session: AsyncSession, row: VoiceSessionRow) -> Atte
     deadline = source.parameters.get("valid_until")
     if deadline and datetime.fromisoformat(deadline) <= utcnow():
         raise LonoraError("incoming_call_attention_expired", 409)
-    if source.importance in {"critical", "action_required"} and not await mandatory_current(
-        session, source
+    # An Agent's own alert stays current until its expiry or until the owner reads it.
+    if (
+        source.importance in {"critical", "action_required"}
+        and source.code != "agent_notification"
+        and not await mandatory_current(session, source)
     ):
         raise LonoraError("incoming_call_attention_superseded", 409)
     return source

@@ -39,9 +39,12 @@ eagerly (`Tool.eager`). A Run's profiles come from its agent and kind:
 | `research` | every other agent | `web_search`, `web_fetch`, `artifact_read`, `economic_calendar_read` (only when the owner configured a calendar source) |
 | `task` | durable Task Runs | `task_wait`, `task_step_update` |
 
-Subagent and observe-only Runs keep only the read-only members. The eager set
+A Run's tool scope (`ToolScope`, `run_scope` in `lonora_tools/base.py`) narrows
+the members: an observe-only wake keeps every non-financial member (no financial
+effects), and a helper (subagent) keeps the read-only members plus
+`workspace_execute` and `artifact_create`. The eager set
 is at most `EAGER_SCHEMA_BUDGET` (25,700) characters of serialized schema for
-every profile combination (largest today: market Task Runs, about 25,500; a
+every profile combination (largest today: market Task Runs, about 25,700; a
 market conversation about 24,100; a general conversation about 9,100), against
 about 97,500 for the whole catalog. `tests/test_tool_discovery.py` enforces the
 budget, so adding an eager tool fails fast when it does not fit. The budget rose
@@ -65,8 +68,8 @@ access.
 succeeds, the loop records it in `ln_agent_tool_usage` (migration 0035; per
 agent, the 16 most recent, with a use count; best effort, never retried, never
 part of the call's observation: a failed write, such as a deadlock or a deleted
-agent, is logged and the Run continues unchanged). Read-only Runs record
-nothing: a subagent Run carries its parent's agent id, and observe-only Runs are
+agent, is logged and the Run continues unchanged). Narrowed Runs record
+nothing: a helper Run carries its parent's agent id, and observe-only wakes are
 automated, so neither displaces the agent's own tools. When the agent's next
 Run starts, its most recent remembered tools are promoted into that Run's
 native set, at most `MAX_PROMOTED_TOOLS` (6) and `PROMOTED_SCHEMA_BUDGET`

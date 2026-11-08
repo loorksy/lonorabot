@@ -355,6 +355,7 @@ export const labels = {
     "Task is retrying through a model outage",
   ],
   attentionUpdated: ["تم تحديث النشاط", "Activity updated"],
+  attentionAgentAlert: ["نبّهك وكيلك", "Your agent alerted you"],
   retryScheduled: ["إعادة المحاولة مجدولة", "Retry scheduled"],
   modelRetryScheduled: [
     "مزود النموذج غير متاح — إعادة المحاولة مجدولة",

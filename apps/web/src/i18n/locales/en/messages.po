@@ -1573,7 +1573,7 @@ msgstr "Manual position management excluded"
 msgid "Margin"
 msgstr "Margin"
 
-#: src/components/ai/AttentionInbox.tsx:132
+#: src/components/ai/AttentionInbox.tsx:138
 msgid "Mark as read"
 msgstr "Mark as read"
 
@@ -1784,7 +1784,7 @@ msgstr "No matching artifacts"
 msgid "No matching broker symbols"
 msgstr "No matching broker symbols"
 
-#: src/components/ai/AttentionInbox.tsx:104
+#: src/components/ai/AttentionInbox.tsx:105
 msgid "No new notifications"
 msgstr "No new notifications"
 
@@ -1841,12 +1841,12 @@ msgstr "Not sent"
 msgid "Note"
 msgstr "Note"
 
-#: src/components/ai/AttentionInbox.tsx:66
-#: src/components/ai/AttentionInbox.tsx:68
+#: src/components/ai/AttentionInbox.tsx:67
+#: src/components/ai/AttentionInbox.tsx:69
 msgid "Notifications"
 msgstr "Notifications"
 
-#: src/components/ai/AttentionInbox.tsx:99
+#: src/components/ai/AttentionInbox.tsx:100
 msgid "Notify me about confirmed opportunities"
 msgstr "Notify me about confirmed opportunities"
 
@@ -1871,7 +1871,7 @@ msgstr "Open call with {name}"
 msgid "Open chart"
 msgstr "Open chart"
 
-#: src/components/ai/AttentionInbox.tsx:124
+#: src/components/ai/AttentionInbox.tsx:130
 #: src/pages/ActivityList.tsx:262
 #: src/pages/Board.tsx:427
 #: src/pages/RoutineRunHistory.tsx:55
@@ -3500,6 +3500,10 @@ msgstr "Yesterday"
 #: src/components/charts/ChartAnnotations.tsx:81
 msgid "You"
 msgstr "You"
+
+#: src/components/ai/AttentionInbox.tsx:63
+msgid "Your agent alerted you"
+msgstr "Your agent alerted you"
 
 #: src/pages/ActivityList.tsx:178
 msgid "Your agents’ activity will appear here."

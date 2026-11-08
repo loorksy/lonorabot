@@ -60,6 +60,7 @@ export function AttentionInbox({
     super_bot_changed: t`Super Bot authority updated`,
     task_completed: t`Task completed`,
     internal_update: t`Activity updated`,
+    agent_notification: t`Your agent alerted you`,
   };
   if (compact && !items.length) return null;
   return (
@@ -109,6 +110,11 @@ export function AttentionInbox({
           <div>
             <p>{labels[item.code]}</p>
             <p dir="auto">{agents.find((agent) => agent.id === item.agent_id)?.name}</p>
+            {item.code === "agent_notification" && item.parameters.summary && (
+              <p dir="auto" data-testid="attention-summary">
+                {item.parameters.summary}
+              </p>
+            )}
             {item.parameters.symbol && <bdi>{item.parameters.symbol}</bdi>}
           </div>
           <Link

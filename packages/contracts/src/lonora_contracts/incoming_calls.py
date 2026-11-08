@@ -1,7 +1,7 @@
 """Incoming conversation invitations never carry execution authority."""
 
 from collections.abc import Iterable, Mapping
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -83,6 +83,16 @@ class IncomingCallPolicy(Contract):
         hour = now.astimezone(ZoneInfo(self.timezone)).hour
         start, end = self.quiet_start_hour, self.quiet_end_hour
         return start <= hour < end if start < end else hour >= start or hour < end
+
+    def quiet_until(self, now: datetime) -> datetime | None:
+        """When the current quiet hours end, or None outside them."""
+        if not self.quiet(now) or self.quiet_end_hour is None:
+            return None
+        local = now.astimezone(ZoneInfo(self.timezone))
+        end = local.replace(hour=self.quiet_end_hour, minute=0, second=0, microsecond=0)
+        if end <= local:
+            end += timedelta(days=1)
+        return end.astimezone(UTC)
 
 
 class IncomingCallRequest(Contract):

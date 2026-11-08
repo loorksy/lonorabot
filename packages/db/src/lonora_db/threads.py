@@ -5,7 +5,7 @@ from lonora_core.user_error import LonoraError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .schema import AgentRow, GroupRow, ThreadRow
+from .schema import AgentRow, GroupRow, RunRow, ThreadRow
 from .transactions import owned_agent
 
 
@@ -78,3 +78,28 @@ async def list_threads(
     return list(
         (await session.scalars(query.order_by(ThreadRow.created_at.desc()).limit(200))).all()
     )
+
+
+async def report_thread(session: AsyncSession, run: RunRow) -> str:
+    """Where a Run's owner-facing records belong.
+
+    A wake works in its own work lane but reports to the conversation it came
+    from, when that is the same Agent's direct conversation. Anything else keeps
+    the Run's own thread.
+    """
+    origin_id = run.model_metadata.get("origin_thread_id")
+    if not isinstance(origin_id, str) or not origin_id or origin_id == run.thread_id:
+        return run.thread_id
+    source = await session.get(ThreadRow, run.thread_id)
+    origin = await session.get(ThreadRow, origin_id)
+    if (
+        source is not None
+        and origin is not None
+        and source.purpose == "work"
+        and origin.purpose == "conversation"
+        and origin.group_id is None
+        and origin.owner_id == source.owner_id
+        and origin.agent_id == source.agent_id == run.agent_id
+    ):
+        return origin.id
+    return run.thread_id

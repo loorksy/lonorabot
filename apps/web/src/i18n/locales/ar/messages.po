@@ -1573,7 +1573,7 @@ msgstr "إدارة الصفقات اليدوية غير مشمولة"
 msgid "Margin"
 msgstr "الهامش"
 
-#: src/components/ai/AttentionInbox.tsx:132
+#: src/components/ai/AttentionInbox.tsx:138
 msgid "Mark as read"
 msgstr "تحديد كمقروء"
 
@@ -1784,7 +1784,7 @@ msgstr "لا توجد ملفات مطابقة"
 msgid "No matching broker symbols"
 msgstr "لا توجد رموز مطابقة"
 
-#: src/components/ai/AttentionInbox.tsx:104
+#: src/components/ai/AttentionInbox.tsx:105
 msgid "No new notifications"
 msgstr "لا توجد إشعارات جديدة"
 
@@ -1841,12 +1841,12 @@ msgstr "لم يُرسل"
 msgid "Note"
 msgstr "ملاحظة"
 
-#: src/components/ai/AttentionInbox.tsx:66
-#: src/components/ai/AttentionInbox.tsx:68
+#: src/components/ai/AttentionInbox.tsx:67
+#: src/components/ai/AttentionInbox.tsx:69
 msgid "Notifications"
 msgstr "الإشعارات"
 
-#: src/components/ai/AttentionInbox.tsx:99
+#: src/components/ai/AttentionInbox.tsx:100
 msgid "Notify me about confirmed opportunities"
 msgstr "أبلغني بالفرص المؤكدة"
 
@@ -1871,7 +1871,7 @@ msgstr "فتح المكالمة مع {name}"
 msgid "Open chart"
 msgstr "افتح شارت"
 
-#: src/components/ai/AttentionInbox.tsx:124
+#: src/components/ai/AttentionInbox.tsx:130
 #: src/pages/ActivityList.tsx:262
 #: src/pages/Board.tsx:427
 #: src/pages/RoutineRunHistory.tsx:55
@@ -3500,6 +3500,10 @@ msgstr "أمس"
 #: src/components/charts/ChartAnnotations.tsx:81
 msgid "You"
 msgstr "أنت"
+
+#: src/components/ai/AttentionInbox.tsx:63
+msgid "Your agent alerted you"
+msgstr "نبّهك وكيلك"
 
 #: src/pages/ActivityList.tsx:178
 msgid "Your agents’ activity will appear here."

@@ -98,7 +98,7 @@ async def main() -> None:
                     },
                 ),
                 context,
-                read_only=True,
+                scope="helper",
             )
 
         with patch.object(broker, "execute", AsyncMock()) as mutate:
@@ -148,6 +148,8 @@ async def main() -> None:
         fixture.agents.append(specialist["id"])
         specialist_thread = await fixture.conversation(specialist)
         specialist_context = await fixture.lease(await fixture.run(specialist, specialist_thread))
+        # A sizing estimate is a read: a specialist may size another symbol; it executes
+        # nothing, and trading that symbol stays outside its pair.
         try:
             await registry.execute(
                 ToolCall(
@@ -165,10 +167,11 @@ async def main() -> None:
                 specialist_context,
             )
         except LonoraError as error:
-            assert error.code == "agent_trading_symbol_mismatch"
-        else:
-            raise AssertionError("specialist crossed its exact-symbol boundary")
-        print("PASS native currency/account identity and specialist symbol scope fail closed")
+            assert error.code not in {
+                "agent_trading_symbol_mismatch",
+                "agent_trading_account_mismatch",
+            }, error.code
+        print("PASS native currency/account identity fail closed; reading another symbol is open")
 
         async with fixture.runtime.db.sessions() as session, session.begin():
             row = await session.get(TradingAccountRow, account_id, with_for_update=True)

@@ -87,7 +87,7 @@ async def main() -> None:
         )
         registry = load_tools()
         directory = await registry.execute(
-            ToolCall(id="list", name="list_accounts", arguments={}), context, read_only=True
+            ToolCall(id="list", name="list_accounts", arguments={}), context, scope="helper"
         )
         row = next(item for item in directory["accounts"] if item["connection_id"] == connection_id)
         assert "broker_account_id" not in row and external_id not in str(directory)
@@ -96,7 +96,7 @@ async def main() -> None:
             await registry.execute(
                 ToolCall(id="wrong", name="account_read", arguments={"account_id": external_id}),
                 context,
-                read_only=True,
+                scope="helper",
             )
             raise AssertionError("External ID unexpectedly accepted")
         except LonoraError as error:
@@ -106,13 +106,13 @@ async def main() -> None:
                 id="actual", name="account_read", arguments={"account_id": row["connection_id"]}
             ),
             context,
-            read_only=True,
+            scope="helper",
         )
         assert "1234.50" in str(actual) and "USD" in str(actual), actual
         refreshed = await registry.execute(
             ToolCall(id="native-identity", name="list_accounts", arguments={}),
             context,
-            read_only=True,
+            scope="helper",
         )
         identity = next(
             item["broker_identity"]
@@ -154,22 +154,22 @@ async def main() -> None:
         symbols = await registry.execute(
             ToolCall(id="symbols", name="market_symbols", arguments={"account_id": connection_id}),
             context,
-            read_only=True,
+            scope="helper",
         )
         assert symbols["symbols"] == ["XAUUSD.a"]
         base = {"account_id": connection_id, "symbol": "XAUUSD.a"}
         spec = await registry.execute(
-            ToolCall(id="spec", name="market_instrument", arguments=base), context, read_only=True
+            ToolCall(id="spec", name="market_instrument", arguments=base), context, scope="helper"
         )
         assert spec["symbol"] == "XAUUSD.a" and spec["tick_size"] == "0.01"
         quote = await registry.execute(
-            ToolCall(id="quote", name="market_quote", arguments=base), context, read_only=True
+            ToolCall(id="quote", name="market_quote", arguments=base), context, scope="helper"
         )
         assert quote["source"] == "explicit-test-snapshot" and quote["bid"] == "4000"
         candles = await registry.execute(
             ToolCall(id="candles", name="market_candles", arguments={**base, "timeframe": "15m"}),
             context,
-            read_only=True,
+            scope="helper",
         )
         assert len(candles["candles"]) == 2
         artifact = await registry.execute(
