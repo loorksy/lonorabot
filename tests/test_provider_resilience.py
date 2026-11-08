@@ -1528,3 +1528,32 @@ async def test_consult_model_budget_and_no_alternative(task_db: Fixture) -> None
         }
     # The only configured model is the one already answering: no second opinion.
     assert (await consult(context, {"question": "Anyone?"}))["code"] == "consult_model_unavailable"
+
+
+@pytest.mark.asyncio
+async def test_consult_budget_holds_when_the_provider_reuses_or_omits_call_ids(
+    task_db: Fixture,
+) -> None:
+    from dataclasses import replace
+
+    from lonora_tools.consult import MAXIMUM_CONSULTS_PER_RUN, consult
+
+    state = {
+        "messages": [ModelMessage(role="user", content="Analyze gold").model_dump(mode="json")],
+        "instruction_skill_ids": [],
+        "selection": {"provider": PRIMARY.provider, "model": PRIMARY.model},
+    }
+    context = await conversation_run(task_db, state)
+    router = ConsultRouter([PRIMARY, BACKUP])
+    # Every turn's call arrives as "call_0" (or with no id): the transcript cannot
+    # tell them apart, the server's usage records can.
+    for identifier in ("call_0", "call_0", ""):
+        answered = await consult(
+            replace(context, router=cast(Any, router)).for_call(identifier), {"question": "q"}
+        )
+        assert answered["ok"] is True
+    spent = await consult(
+        replace(context, router=cast(Any, router)).for_call("call_0"), {"question": "q"}
+    )
+    assert spent["code"] == "consult_budget_exhausted"
+    assert len(router.requests) == MAXIMUM_CONSULTS_PER_RUN

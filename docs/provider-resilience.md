@@ -183,7 +183,9 @@ configured model: one named by the Agent from its candidates, or the first
 candidate that is not the model it is using. The consulted model gets no
 tools, no conversation and no authority; markup in the pack is made inert.
 The critique (≤ 8,000 characters) returns as an advisory observation. At most
-three consultations per Run; usage is recorded with `purpose: consult_model`.
+three consultations per Run; usage is recorded with `purpose: consult_model`,
+and the budget counts those usage records as well as the transcript, so a
+provider that reuses tool-call ids across turns (or sends none) cannot reset it.
 Nothing waits for agreement and nothing executes on its advice.
 
 ## Limits and follow-ups

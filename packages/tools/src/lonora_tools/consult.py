@@ -15,9 +15,12 @@ from lonora_contracts.domain import Contract
 from lonora_contracts.model_routing import Capability, ModelSelection
 from lonora_core.user_error import LonoraError
 from lonora_db.runs import require_lease
+from lonora_db.schema import UsageRow
 from lonora_llm_usage.models import UsageRecord
 from lonora_llm_usage.store import save_usage
 from pydantic import Field
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from .base import Tool
 from .context import ToolContext
@@ -62,8 +65,26 @@ def _same(selection: ModelSelection, other: dict[str, Any] | None) -> bool:
     )
 
 
+async def _recorded_consults(session: AsyncSession, owner_id: str, run_id: str) -> int:
+    """Consultations this Run already paid for, from the server's own usage records.
+
+    Provider tool-call ids can repeat across turns or be empty, so the transcript
+    count alone could reset; a usage row is written for every completed request.
+    """
+    count = await session.scalar(
+        select(func.count())
+        .select_from(UsageRow)
+        .where(
+            UsageRow.owner_id == owner_id,
+            UsageRow.payload["run_id"].as_string() == run_id,
+            UsageRow.payload[("context_budget", "purpose")].as_string() == NAME,
+        )
+    )
+    return int(count or 0)
+
+
 def _prior_consults(state: dict[str, Any], call_id: str) -> int:
-    """Completed consultations in this Run; the current call is not counted."""
+    """Completed consultations in this Run's transcript; the current call is not counted."""
     messages = cast(list[dict[str, Any]], state.get("messages", []))
     answered = {
         message.get("tool_call_id") for message in messages if message.get("role") == "tool"
@@ -81,7 +102,8 @@ async def consult(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     async with context.db.sessions() as session:
         run = await require_lease(session, context.lease)
         state = dict(run.execution_state)
-    used = _prior_consults(state, context.call_id)
+        recorded = await _recorded_consults(session, context.owner_id, run.id)
+    used = max(_prior_consults(state, context.call_id), recorded)
     if used >= MAXIMUM_CONSULTS_PER_RUN:
         return {
             "ok": False,
@@ -154,7 +176,7 @@ async def consult(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         "critique": critique[:MAXIMUM_CRITIQUE_CHARS],
         "critique_truncated": len(critique) > MAXIMUM_CRITIQUE_CHARS
         or bool(reply.provider_metadata.get("output_truncated")),
-        "consults_remaining": MAXIMUM_CONSULTS_PER_RUN - used - 1,
+        "consults_remaining": max(MAXIMUM_CONSULTS_PER_RUN - used - 1, 0),
         "authority": "none: an opinion from another model, not evidence of market or account "
         "state; you remain responsible for the decision",
     }
