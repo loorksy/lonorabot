@@ -134,10 +134,10 @@ async def read_goal(context: ToolContext, args: dict[str, Any]) -> dict[str, Any
             "status": goal.state["status"],
             "execution_mode": goal.state.get("execution_mode", "live"),
             "plan_version": goal.state.get("plan_version", 1),
-            "limits": {
-                key: goal.payload.get(key)
-                for key in ("account_id", "symbol", "maximum_volume", "max_trade_actions")
-            },
+            "scope": {key: goal.payload.get(key) for key in ("account_id", "symbol")},
+            # Plan data, not limits: only the grant, money limits and restrictions bind.
+            "planned_volume": goal.payload.get("maximum_volume"),
+            "planned_trade_actions": goal.payload.get("max_trade_actions"),
             "step": step.model_dump(mode="json"),
             "state": goal.state["steps"][step.id],
             "plan": [

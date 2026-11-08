@@ -110,6 +110,32 @@ test("Expo approval buttons show durable real broker receipts", async ({ page, c
     await page.getByRole("button", { name: "رفض", exact: true }).click();
     await expect(page.getByText("مرفوض", { exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "موافقة", exact: true })).toHaveCount(0);
+    // An uncertain result reads the same shared reason as Web and never says "try again".
+    const uncertain = {
+      ...approval,
+      id: randomUUID(),
+      status: "completed",
+      requests: [{ action: "buy", symbol: "BTCUSD.demo", volume: "0.01" }],
+      results: [
+        {
+          operation_id: "uncertain-operation",
+          status: "ambiguous",
+          code: "broker_result_ambiguous",
+          details: {},
+        },
+      ],
+    };
+    await page.unroute("**/api/trading/approvals?*");
+    await page.route("**/api/trading/approvals?*", (route) => route.fulfill({ json: [uncertain] }));
+    await page.reload();
+    await expect(page.getByText("نتيجة غير مؤكدة — لن تُرسل مجددًا", { exact: true })).toBeVisible();
+    await expect(
+      page.getByText(
+        "لم يتأكد رد الوسيط، لذلك لن يُرسل هذا الطلب مجددًا. تحقّق من مراكزك وأوامرك قبل أي إجراء.",
+        { exact: true },
+      ),
+    ).toBeVisible();
+    await expect(page.getByText(/أعد المحاولة|broker_result_ambiguous/)).toHaveCount(0);
   } finally {
     await context.request.delete(`/api/agents/${agent.id}`, { headers });
     fixture({ ...data, action: "cleanup" });

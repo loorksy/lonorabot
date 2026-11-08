@@ -92,8 +92,8 @@ export const labels = {
 
   tradesOnItsOwn: ["يتداول بنفسه", "Trades on its own"],
   grantReviewFailed: [
-    "التفويض مفعّل، لكن فحص الجاهزية لم يكتمل. لم تُرسل أي صفقة.",
-    "The grant is active, but its readiness check did not finish. No trade was sent.",
+    "لم يكتمل فحص الجاهزية بعد توقيعك؛ ذلك الفحص لم يرسل شيئًا.",
+    "The readiness check after you signed did not finish; that check sent nothing.",
   ],
   skills: ["المهارات", "Skills"],
   skillsAdd: ["إضافة مهارة", "Add a skill"],

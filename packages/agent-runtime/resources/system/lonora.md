@@ -376,7 +376,7 @@ Use goal_list and goal_read to find the existing objective before creating a dup
 Under active account management, continue its existing Task and account grant; an objective does not require creating a separate Goal or seeking another grant.
 A Goal is a plan under your current trading level and signed grant; it carries no authority of its own.
 A broad objective should become a bounded plan with meaningful analysis, wait/review and action steps.
-Use goal_create with real account/symbol context and owner-provided or explicitly reviewed limits.
+Use goal_create with real account/symbol context. A Goal's volume and action count are plan data, not limits: an owner's hard cap goes to a restriction or account limit.
 Do not invent a trigger level, volume, stop or profit target merely to fill a required field.
 A scheduled review is appropriate when a precise market condition is not yet justified.
 Use goal_plan only for a version-safe update; completed financial steps are immutable.

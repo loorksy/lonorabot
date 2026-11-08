@@ -69,8 +69,13 @@ class GoalCreate(Contract):
     account_id: str = Field(min_length=1, max_length=120)
     symbol: str = Field(min_length=1, max_length=80)
     steps: list[GoalStep] = Field(min_length=1, max_length=40)
-    maximum_volume: Decimal | None = Field(default=None, gt=0)
-    max_trade_actions: int = Field(default=1, ge=1, le=40)
+    # Plan data, never enforced: an owner's hard cap is a restriction or account limit.
+    maximum_volume: Decimal | None = Field(
+        default=None, gt=0, description="Planned entry volume; plan data, not a limit."
+    )
+    max_trade_actions: int = Field(
+        default=1, ge=1, le=40, description="Planned trade steps; plan data, not a limit."
+    )
 
     @model_validator(mode="after")
     def validate_scope(self) -> "GoalCreate":

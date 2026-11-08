@@ -79,7 +79,11 @@ followed a Super Bot activation are now keyed on grants:
   writes one line in its conversation, in the conversation's language ("Trading on
   its own is on ..."); a lost-response replay adds none. A grant signed from its chat
   card is confirmed by the card itself. The review's own result stays quiet behind
-  that line unless the review fails.
+  that line. The review is observe-only and gates nothing, so a review that fails is
+  never retried and never puts the agent at "action required"; its status shows one
+  review-scoped line ("The readiness check after you signed did not finish; that check
+  sent nothing.") until a later Run of the agent completes (`review_status` then reads
+  `superseded`). The failed Run stays in Activity.
 - The avatar's "trades on its own" marker (`trades_on_its_own` on the agent) is shown
   only while the agent is not paused and holds a grant in force.
 

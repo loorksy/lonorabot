@@ -30,6 +30,7 @@ export {
   approvalStatusText,
   brokerTicketLabel,
   financialBoundaryError,
+  financialResultReason,
   type OperationStatusKey,
   operationStatusKey,
   operationStatusText,

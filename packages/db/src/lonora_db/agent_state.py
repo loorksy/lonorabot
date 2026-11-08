@@ -7,7 +7,7 @@ from lonora_contracts.domain import utcnow
 from lonora_core.runtime_failure import MODEL_RETRY_REASON
 from lonora_core.user_error import LonoraError
 from lonora_session.idempotency import stable_id
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .agent_binding import fixed_market
@@ -226,6 +226,23 @@ async def agent_live_state(
             if account_grant.status == "active"
             else None
         )
+        review_status = review.status if review else None
+        if (
+            review is not None
+            and review_status == "failed"
+            and await session.scalar(
+                select(
+                    exists().where(
+                        RunRow.agent_id == agent.id,
+                        RunRow.status == "completed",
+                        RunRow.created_at > review.created_at,
+                    )
+                )
+            )
+        ):
+            # The review is observe-only and gates nothing; once later work of this agent
+            # completed, its failure is history (Activity), not a status line.
+            review_status = "superseded"
         account_authorities.append(
             {
                 "id": account_grant.id,
@@ -245,7 +262,7 @@ async def agent_live_state(
                 "maximum_actions": envelope.get("maximum_actions"),
                 "minimum_equity": envelope.get("minimum_equity"),
                 "allow_manual_positions": bool(envelope.get("allow_manual_positions")),
-                "review_status": review.status if review else None,
+                "review_status": review_status,
                 # The owner's view adds the account's money limits; the agent reads
                 # them in its permission frame instead of twice per turn.
                 **(
@@ -288,7 +305,6 @@ async def agent_live_state(
         else "action_required"
         if approvals
         or pending_authorizations
-        or any(item["review_status"] == "failed" for item in account_authorities)
         or any(
             task.get("failure")
             and task["failure"]["recovery"] in {"owner", "modify_plan"}
@@ -331,8 +347,6 @@ async def agent_live_state(
         if approvals
         else "device_authorization_required"
         if pending_authorizations
-        else "activation_review_failed"
-        if any(item["review_status"] == "failed" for item in account_authorities)
         else "task_attention_required"
         if any(attention(task) for task in tasks)
         else "task_recovery_required"

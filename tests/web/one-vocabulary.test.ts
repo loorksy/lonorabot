@@ -5,6 +5,8 @@ import { showsTradingControl } from "../../packages/core/src/agent-permission";
 import {
   approvalStatusText,
   brokerTicketLabel,
+  financialBoundaryError,
+  financialResultReason,
   operationStatusText,
   runStatusText,
 } from "../../packages/core/src/financial-boundary";
@@ -84,6 +86,46 @@ test("Web and Mobile read operation and approval labels from the one shared tabl
   }
 });
 
+test("an uncertain broker result never tells the owner to try again, on either client", () => {
+  const codes = [
+    "broker_result_ambiguous",
+    "execution_interrupted_after_send",
+    "broker_result_mismatch",
+    "operation_in_progress",
+    // A LonoraError raised after the send boundary is recorded as uncertain with its code.
+    "broker_connection_unavailable",
+    "trading_disabled",
+  ];
+  for (const code of codes) {
+    const en = financialResultReason("ambiguous", code, "en");
+    const ar = financialResultReason("ambiguous", code, "ar-SA");
+    assert.match(en ?? "", /will not be sent again/, code);
+    assert.match(ar ?? "", /لن يُرسل/, code);
+    for (const text of [en ?? "", ar ?? ""]) {
+      assert.doesNotMatch(text, /try again|retry|was not sent|so this was not sent/i, code);
+      assert.doesNotMatch(text, /أعد المحاولة|حاول|لم يُرسل/, code);
+    }
+  }
+  assert.equal(
+    financialResultReason("ambiguous", null, "en"),
+    financialResultReason("ambiguous", "broker_result_ambiguous", "en"),
+  );
+  // A known not-sent cause keeps its reason; a settled or confirmed result needs none.
+  assert.equal(
+    financialResultReason("failed", "risk_daily_loss_limit", "ar"),
+    financialBoundaryError("risk_daily_loss_limit", "ar"),
+  );
+  assert.equal(financialResultReason("failed", "unknown_code", "en"), null);
+  assert.equal(financialResultReason("confirmed", "target_state_matched", "en"), null);
+  assert.equal(financialResultReason("resolved", "owner_attested_executed", "en"), null);
+  // Both approval cards read this one lookup.
+  for (const file of [
+    "apps/web/src/components/trading/TradeApprovals.tsx",
+    "apps/mobile/components/trade-approval.tsx",
+  ])
+    assert.match(read(file), /financialResultReason\(result\.status, result\.code/, file);
+});
+
 test("activity rows say what the agent does from registry metadata, never a raw tool id", () => {
   assert.equal(
     activityCallLabel({ toolset: "trading", effect: "financial" }, "en"),
@@ -98,6 +140,38 @@ test("activity rows say what the agent does from registry metadata, never a raw 
     "Reading the account",
   );
   assert.equal(activityCallLabel({}, "en"), "Using a tool");
+  // Labels checked against the live registry: each states the action the tool takes.
+  const cases: [string, string, "read" | "change" | "financial", string, string][] = [
+    ["owner_notify", "voice", "change", "Notifying you", "يرسل لك تنبيهًا"],
+    ["owner_call_request", "voice", "change", "Preparing a call", "يجهّز اتصالًا"],
+    ["owner_attention_list", "voice", "read", "Checking what needs you", "يراجع ما ينتظرك"],
+    ["owner_action_propose", "trading", "change", "Preparing a card for you", "يجهّز بطاقة لك"],
+    [
+      "trade_restriction_create",
+      "trading",
+      "change",
+      "Updating trading safeguards",
+      "يحدّث ضوابط التداول",
+    ],
+    ["wait_for_input", "tasks", "change", "Waiting for your reply", "ينتظر ردك"],
+    ["market_position_size", "trading", "read", "Sizing a position", "يحسب حجم المركز"],
+    ["skill_package_create", "memory", "change", "Working on a skill", "يعمل على مهارة"],
+    ["skills_list", "memory", "read", "Reviewing skills", "يراجع المهارات"],
+    ["memory_write", "memory", "change", "Saving to memory", "يحفظ في الذاكرة"],
+    [
+      "market_shadow_execute",
+      "intelligence",
+      "change",
+      "Placing a virtual trade",
+      "ينفّذ صفقة افتراضية",
+    ],
+    ["market_decision_record", "intelligence", "change", "Recording analysis", "يسجّل التحليل"],
+    ["chart_set_timeframe", "charts", "change", "Working on a chart", "يعمل على رسم بياني"],
+  ];
+  for (const [name, toolset, effect, en, ar] of cases) {
+    assert.equal(activityCallLabel({ name, toolset, effect }, "en"), en, name);
+    assert.equal(activityCallLabel({ name, toolset, effect }, "ar"), ar, name);
+  }
   assert.equal(activityCallLabel({ toolset: "unknown_family" }, "ar"), "يستخدم أداة");
 });
 

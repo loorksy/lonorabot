@@ -7,8 +7,9 @@ Runs on a fresh migrated PostgreSQL database (LONORA_DATABASE_URL):
    AgentRuntime, cannot trade (not even through a direct executor call), and stays
    quiet in the conversation: the owner already has the one confirmation line.
 2. A grant with full management starts its management Task instead and gets no review.
-3. A review the model cannot run marks the agent "action required" once and is never
-   retried.
+3. A review the model cannot run is never retried and never puts the agent at "action
+   required": it is observe-only and gates nothing. Its one review-scoped line stays only
+   until a later Run of the agent completes.
 4. The confirmation follows the conversation's language and is written once.
 """
 
@@ -27,11 +28,12 @@ from lonora_agent.executor import execute_run
 from lonora_bus.attention import attention_text
 from lonora_contracts.domain import ThreadCreate
 from lonora_contracts.model_routing import Capability, ModelSelection
+from lonora_contracts.runs import RunRequest
 from lonora_contracts.trading import TradeRequest
 from lonora_core.user_error import LonoraError
 from lonora_db.activation_acknowledgment import acknowledge_grant
 from lonora_db.activation_review import dispatch_activation_reviews
-from lonora_db.runs import claim_next, run_data
+from lonora_db.runs import claim_next, create_run, run_data
 from lonora_db.schema import (
     AccountAuthorityRow,
     EffectReceiptRow,
@@ -214,8 +216,8 @@ async def main() -> None:
         with patch.object(failed_context.router, "complete", unavailable):
             await execute_run(failed_context, load_tools(), 120, 5)
         live = await f.request("GET", f"/agents/{unconfigured['id']}/state")
-        assert live["state"] == "action_required", live
-        assert live["reason_code"] == "activation_review_failed", live
+        assert live["state"] != "action_required", live
+        assert live["reason_code"] is None, live
         assert live["account_authorities"][0]["review_status"] == "failed"
         await return_pending_outcomes(f.runtime.db)
         # The review produced no result to report; the inbox state carries the failure.
@@ -223,9 +225,23 @@ async def main() -> None:
             attention_text("grant_activated", "ar")
         ]
         assert await scheduler_tick(f.runtime.db) == 0  # No paid-model retry loop.
+        # Later work of the agent completes: the old review failure is history, not status.
+        async with f.runtime.db.sessions() as session, session.begin():
+            later = await create_run(
+                session,
+                f.owner,
+                RunRequest(
+                    agent_id=unconfigured["id"], thread_id=unconfigured_thread["id"], prompt="x"
+                ),
+                stable_id(unconfigured["id"], "later-work"),
+            )
+            later.status = "completed"
+        live = await f.request("GET", f"/agents/{unconfigured['id']}/state")
+        assert live["state"] != "action_required", live
+        assert live["account_authorities"][0]["review_status"] == "superseded", live
         print(
-            "PASS a review the model cannot run marks the agent action required once, adds no "
-            "chat noise beyond the confirmation and is not retried"
+            "PASS a review the model cannot run is not retried, adds no chat noise beyond the "
+            "confirmation, never needs the owner and its line ends once later work completes"
         )
 
         async with f.runtime.db.sessions() as session, session.begin():

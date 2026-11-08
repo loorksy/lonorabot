@@ -2,7 +2,7 @@ import type { TradeApproval } from "@lonora/contracts";
 import {
   approvalStatusText,
   brokerTicketLabel,
-  financialBoundaryError,
+  financialResultReason,
   operationStatusText,
 } from "@lonora/core";
 import { useRef, useState } from "react";
@@ -85,8 +85,9 @@ export function TradeApprovalCard({
       )}
       {row.results.map((result) => {
         // Shared with Web: the evidence-backed stage ("Not sent" when it never reached
-        // the broker) and why, in the owner's language instead of a raw code.
-        const reason = financialBoundaryError(result.code, locale);
+        // the broker) and why, in the owner's language instead of a raw code. An
+        // uncertain result always says it will not be sent again.
+        const reason = financialResultReason(result.status, result.code, locale);
         return (
           <View key={result.operation_id}>
             <Text style={{ color: colors.foreground }}>

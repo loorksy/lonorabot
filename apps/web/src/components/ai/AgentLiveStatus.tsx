@@ -84,7 +84,7 @@ export function AgentLiveStatus({ agentId }: { agentId: string }) {
       {(state.account_authorities ?? []).some((grant) => grant.review_status === "failed") && (
         <p>
           <Trans>
-            The grant is active, but its readiness check did not finish. No trade was sent.
+            The readiness check after you signed did not finish; that check sent nothing.
           </Trans>
         </p>
       )}

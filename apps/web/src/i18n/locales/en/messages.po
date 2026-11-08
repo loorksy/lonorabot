@@ -57,7 +57,7 @@ msgstr "Account number"
 
 #: src/components/trading/Positions.tsx:47
 #: src/components/trading/TradeActionCard.tsx:83
-#: src/components/trading/TradeApprovals.tsx:112
+#: src/components/trading/TradeApprovals.tsx:124
 msgid "Action"
 msgstr "Action"
 
@@ -251,7 +251,7 @@ msgstr "Appearance"
 msgid "Appearance and workspace"
 msgstr "Appearance and workspace"
 
-#: src/components/trading/TradeApprovals.tsx:188
+#: src/components/trading/TradeApprovals.tsx:200
 msgid "Approve"
 msgstr "Approve"
 
@@ -476,7 +476,7 @@ msgstr "Broker server"
 msgid "Broker symbol"
 msgstr "Broker symbol"
 
-#: src/components/trading/TradeApprovals.tsx:176
+#: src/components/trading/TradeApprovals.tsx:188
 msgid "Broker ticket"
 msgstr "Broker ticket"
 
@@ -2082,7 +2082,7 @@ msgstr "Previous"
 
 #: src/components/charts/ChartAnnotations.tsx:23
 #: src/components/market/MarketWatch.tsx:102
-#: src/components/trading/TradeApprovals.tsx:136
+#: src/components/trading/TradeApprovals.tsx:148
 msgid "Price"
 msgstr "Price"
 
@@ -2221,7 +2221,7 @@ msgstr "Register a passkey before activating this request."
 msgid "Regression"
 msgstr "Regression"
 
-#: src/components/trading/TradeApprovals.tsx:191
+#: src/components/trading/TradeApprovals.tsx:203
 msgid "Reject"
 msgstr "Reject"
 
@@ -2247,11 +2247,11 @@ msgstr "Remove {name}"
 msgid "Remove reply"
 msgstr "Remove reply"
 
-#: src/components/trading/TradeApprovals.tsx:155
+#: src/components/trading/TradeApprovals.tsx:167
 msgid "Remove stop loss"
 msgstr "Remove stop loss"
 
-#: src/components/trading/TradeApprovals.tsx:160
+#: src/components/trading/TradeApprovals.tsx:172
 msgid "Remove take profit"
 msgstr "Remove take profit"
 
@@ -2623,7 +2623,7 @@ msgstr "Shadow observations"
 
 #: src/components/goals/TradingGoals.tsx:199
 #: src/components/trading/ExecutionModeSettings.tsx:68
-#: src/components/trading/TradeApprovals.tsx:106
+#: src/components/trading/TradeApprovals.tsx:118
 msgid "Shadow trading — virtual orders only"
 msgstr "Shadow trading — virtual orders only"
 
@@ -2785,7 +2785,7 @@ msgid "Stop"
 msgstr "Stop"
 
 #: src/components/goals/TradingGoals.tsx:228
-#: src/components/trading/TradeApprovals.tsx:146
+#: src/components/trading/TradeApprovals.tsx:158
 msgid "Stop loss"
 msgstr "Stop loss"
 
@@ -2863,12 +2863,12 @@ msgid "Switch agent"
 msgstr "Switch agent"
 
 #: src/components/trading/Positions.tsx:32
-#: src/components/trading/TradeApprovals.tsx:118
+#: src/components/trading/TradeApprovals.tsx:130
 msgid "Symbol"
 msgstr "Symbol"
 
 #: src/components/goals/TradingGoals.tsx:229
-#: src/components/trading/TradeApprovals.tsx:166
+#: src/components/trading/TradeApprovals.tsx:178
 msgid "Take profit"
 msgstr "Take profit"
 
@@ -3001,8 +3001,8 @@ msgid "The full response will appear when complete."
 msgstr "The full response will appear when complete."
 
 #: src/components/ai/AgentLiveStatus.tsx:86
-msgid "The grant is active, but its readiness check did not finish. No trade was sent."
-msgstr "The grant is active, but its readiness check did not finish. No trade was sent."
+#~ msgid "The grant is active, but its readiness check did not finish. No trade was sent."
+#~ msgstr "The grant is active, but its readiness check did not finish. No trade was sent."
 
 #: src/lib/user_error.ts:213
 msgid "The model could not summarize this conversation. Retry or choose another global model."
@@ -3039,6 +3039,10 @@ msgstr "The page could not be displayed"
 #: src/lib/user_error.ts:88
 msgid "The provider rejected this API key."
 msgstr "The provider rejected this API key."
+
+#: src/components/ai/AgentLiveStatus.tsx:86
+msgid "The readiness check after you signed did not finish; that check sent nothing."
+msgstr "The readiness check after you signed did not finish; that check sent nothing."
 
 #: src/lib/user_error.ts:219
 msgid "The request could not be completed. Try again."
@@ -3335,7 +3339,7 @@ msgstr "Trading goals"
 msgid "Trading pair"
 msgstr "Trading pair"
 
-#: src/components/trading/TradeApprovals.tsx:102
+#: src/components/trading/TradeApprovals.tsx:114
 msgid "Trading request"
 msgstr "Trading request"
 
@@ -3445,7 +3449,7 @@ msgstr "Voice settings"
 #: src/components/market/MarketWatch.tsx:186
 #: src/components/trading/Positions.tsx:38
 #: src/components/trading/TradeActionCard.tsx:110
-#: src/components/trading/TradeApprovals.tsx:126
+#: src/components/trading/TradeApprovals.tsx:138
 msgid "Volume"
 msgstr "Volume"
 

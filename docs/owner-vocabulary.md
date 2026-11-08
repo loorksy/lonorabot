@@ -48,9 +48,14 @@ It is presentation only.
 - Activity rows say what the agent does ("Searching sources", «يحفظ في الذاكرة») from
   the tool's registry metadata: `tool.started` now carries the tool's `toolset` and its
   `effect` (`read`, `change` or `financial`), and `activityCallLabel` in `@lonora/core`
-  turns them into one Arabic or English line. The phase follows the same metadata
-  instead of a pattern on tool names. Events from before the metadata read as
-  "Using a tool". The registry id stays available as `data-tool` / a test id.
+  turns them into one Arabic or English line. A short override table, keyed by
+  registry id, names the few tools whose family label would state the wrong action
+  (`owner_action_propose` "Preparing a card for you", `wait_for_input` "Waiting for
+  your reply", `market_shadow_execute` "Placing a virtual trade", the skill tools,
+  `market_position_size`, `owner_call_request`); `tests/test_one_vocabulary.py` keeps
+  it in sync with the registry. The phase follows the same metadata instead of a
+  pattern on tool names. Events from before the metadata read as "Using a tool". The
+  registry id stays available as `data-tool` / a test id.
 - Goal execution history and the trading journal show the step or symbol, the status
   and the broker ticket; the operation id, the decision evidence and the raw broker
   result sit behind "Technical details". A goal's reason code is shown as a sentence.
@@ -58,12 +63,19 @@ It is presentation only.
   agents read; `peerOutcome` in `@lonora/core` strips it for inbox previews and Mobile
   message bubbles.
 - Approval cards show labeled values: "Broker ticket" before a broker reference, and a
-  result code only as its owner sentence.
+  result code only as its owner sentence. The reason under a broker result comes from
+  `financialResultReason` in `@lonora/core` on both clients: an uncertain result
+  (`broker_result_ambiguous`, `execution_interrupted_after_send`,
+  `broker_result_mismatch`, `operation_in_progress` or any code recorded after the send
+  boundary) always says it will not be sent again and to check positions and orders,
+  never "Try again"; a known not-sent cause says why; Web falls back to its general
+  error text only for a result known not to have executed.
 
 ## One label table for Web and Mobile
 
-Operation status (`operationStatusText`), approval-card status (`approvalStatusText`)
-and the broker ticket label (`brokerTicketLabel`) come from `@lonora/core`; neither
+Operation status (`operationStatusText`), approval-card status (`approvalStatusText`),
+the result reason (`financialResultReason`) and the broker ticket label
+(`brokerTicketLabel`) come from `@lonora/core`; neither
 client keeps its own copy. Mobile "bot" wording is "agent" / «وكيل».
 
 ## Error copy says the outcome

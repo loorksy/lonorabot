@@ -1,7 +1,7 @@
 import { i18n } from "@lingui/core";
 import { Trans } from "@lingui/react/macro";
 import type { TradeApproval as Approval } from "@lonora/contracts";
-import { approvalStatusText, brokerTicketLabel, financialBoundaryError } from "@lonora/core";
+import { approvalStatusText, brokerTicketLabel, financialResultReason } from "@lonora/core";
 import { useEffect, useRef, useState } from "react";
 import { api } from "../../lib/api";
 import { operationStatusLabel } from "../../lib/operation-status";
@@ -9,6 +9,18 @@ import { userError } from "../../lib/user_error";
 import { useClient } from "../../providers/ClientProvider";
 
 const rank = { pending: 0, approved: 1, rejected: 1, completed: 2, cancelled: 2 };
+
+/**
+ * The reason under a broker result, from the table Mobile reads too. Only a result
+ * known not to have executed may fall back to the general error text; an uncertain
+ * result always says it will not be sent again.
+ */
+function resultReason(result: Approval["results"][number]): string | null {
+  const shared = financialResultReason(result.status, result.code, i18n.locale);
+  if (shared || result.status !== "failed" || !result.code) return shared;
+  return userError({ code: result.code });
+}
+
 function merge(previous: Approval[], rows: Approval[]) {
   return rows.map((row) => {
     const old = previous.find((entry) => entry.id === row.id);
@@ -202,11 +214,7 @@ export function TradeApprovalCard({
               {brokerTicketLabel(i18n.locale)}: <bdi>{result.broker_id}</bdi>
             </p>
           )}
-          {result.code && result.status !== "confirmed" && (
-            <p>
-              {financialBoundaryError(result.code, i18n.locale) ?? userError({ code: result.code })}
-            </p>
-          )}
+          {resultReason(result) && <p>{resultReason(result)}</p>}
           {Object.entries(result.details ?? {})
             .filter(([key]) =>
               [

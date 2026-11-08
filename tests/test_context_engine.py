@@ -1230,7 +1230,9 @@ def test_goal_core_keeps_identities_and_details_are_optional() -> None:
     )
     core, detail = split_summary(summary(row))
     assert core["id"] == "goal-1" and core["status"] == "active"
-    assert core["limits"]["symbol"] == "XAUUSD" and core["limits"]["maximum_volume"] == "0.2"
+    assert core["scope"] == {"account_id": "acct", "symbol": "XAUUSD"}
+    # A goal's size is plan data, never presented as a limit.
+    assert core["planned_volume"] == "0.2" and "limits" not in core
     assert core["current_step"]["id"] == "protect"
     assert core["current_step"]["state"]["status"] == "pending"
     assert core["steps"][0] == {

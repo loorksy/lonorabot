@@ -1,5 +1,8 @@
 """One vocabulary: Super Bot and goal autonomy are retired; activity facts come from metadata."""
 
+import re
+from pathlib import Path
+
 import pytest
 from lonora_adapter_kit.types import ToolCall
 from lonora_agent.tool_loop import started_payload
@@ -62,3 +65,14 @@ def test_tool_started_carries_registry_toolset_and_effect(
 def test_an_unknown_tool_reports_only_its_name() -> None:
     payload = started_payload(ToolCall(id="call", name="not_a_tool", arguments={}), None)
     assert payload == {"name": "not_a_tool", "call_id": "call"}
+
+
+def test_activity_label_overrides_name_real_registry_tools() -> None:
+    """The few per-tool activity labels (core turn-activity.ts) never name a stale id."""
+    source = (
+        Path(__file__).resolve().parents[1] / "packages/core/src/turn-activity.ts"
+    ).read_text()
+    table = source.split("const toolLabels", 1)[1].split("\n};", 1)[0]
+    names = set(re.findall(r"^  ([a-z_]+):", table, re.MULTILINE))
+    assert {"owner_action_propose", "wait_for_input", "market_shadow_execute"} <= names
+    assert names <= set(load_tools().tools), names - set(load_tools().tools)

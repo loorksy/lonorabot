@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import type { TradingReadiness } from "../../packages/contracts/src/trading";
-import { financialBoundaryError } from "../../packages/core/src/financial-boundary";
+import {
+  financialBoundaryError,
+  financialResultReason,
+} from "../../packages/core/src/financial-boundary";
 import {
   isolate,
   moneyLimitsLine,
@@ -232,12 +235,20 @@ test("Web and Mobile explain every brake and money-limit code from one shared ta
   const mobile = readFileSync("apps/mobile/lib/session.tsx", "utf8");
   for (const source of [web, mobile]) assert.ok(source.includes("financialBoundaryError("));
   assert.ok(!web.includes('case "trading_disabled"') && !web.includes('case "emergency_stop"'));
-  // Approval results on both clients use the same table for their result codes.
+  // Approval results on both clients use the same table for their result codes, through
+  // the status-aware lookup (an uncertain result never reads as "not sent").
   for (const file of [
     "apps/web/src/components/trading/TradeApprovals.tsx",
     "apps/mobile/components/trade-approval.tsx",
   ])
-    assert.ok(readFileSync(file, "utf8").includes("financialBoundaryError(result.code"), file);
+    assert.ok(
+      readFileSync(file, "utf8").includes("financialResultReason(result.status, result.code"),
+      file,
+    );
+  assert.equal(
+    financialResultReason("failed", "risk_daily_loss_limit", "en"),
+    financialBoundaryError("risk_daily_loss_limit", "en"),
+  );
   // One brake on every client: Stop and Resume send the same single control change.
   const webTrading = readFileSync("apps/web/src/lib/trading.ts", "utf8");
   const mobilePill = readFileSync("apps/mobile/components/safety-pill.tsx", "utf8");

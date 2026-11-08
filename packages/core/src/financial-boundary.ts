@@ -137,6 +137,50 @@ export function financialBoundaryError(
   return messages[code][language(locale)];
 }
 
+const CHECK_EN = "Check your positions and orders before acting.";
+const CHECK_AR = "تحقّق من مراكزك وأوامرك قبل أي إجراء.";
+
+const UNCONFIRMED: Text = {
+  en: `The broker's answer was not confirmed, so this will not be sent again. ${CHECK_EN}`,
+  ar: `لم يتأكد رد الوسيط، لذلك لن يُرسل هذا الطلب مجددًا. ${CHECK_AR}`,
+};
+
+// After the send boundary nothing may be resent, so an uncertain result never reads as
+// "not sent" or "try again", whatever code the executor recorded.
+const uncertainMessages: Readonly<Record<string, Text>> = {
+  broker_result_ambiguous: UNCONFIRMED,
+  execution_interrupted_after_send: {
+    en: `The request was interrupted after it was sent, so its result is not confirmed and it will not be sent again. ${CHECK_EN}`,
+    ar: `انقطع الطلب بعد إرساله، فنتيجته غير مؤكدة ولن يُرسل مجددًا. ${CHECK_AR}`,
+  },
+  broker_result_mismatch: {
+    en: `The broker's answer did not match this request, so its result is not confirmed and it will not be sent again. ${CHECK_EN}`,
+    ar: `لم يطابق رد الوسيط هذا الطلب، فنتيجته غير مؤكدة ولن يُرسل مجددًا. ${CHECK_AR}`,
+  },
+  operation_in_progress: {
+    en: "This request is still waiting for the broker's result. It will not be sent again.",
+    ar: "ما زال هذا الطلب بانتظار نتيجة الوسيط. لن يُرسل مجددًا.",
+  },
+};
+
+/**
+ * The one reason line under a financial operation's status, identical on Web and Mobile:
+ * an uncertain result says it will not be resent, a known not-sent cause says why, and
+ * any other status needs no reason beyond its status line (null).
+ */
+export function financialResultReason(
+  status: string,
+  code: string | null | undefined,
+  locale: string,
+): string | null {
+  if (status === "ambiguous") {
+    const text = code && Object.hasOwn(uncertainMessages, code) ? uncertainMessages[code] : null;
+    return (text ?? UNCONFIRMED)[language(locale)];
+  }
+  if (status === "failed") return financialBoundaryError(code, locale);
+  return null;
+}
+
 export type OperationStatusKey =
   | "preparing"
   | "awaiting_broker"

@@ -245,7 +245,7 @@ const callLabels: Readonly<
   },
   charts: {
     read: { en: "Reading a chart", ar: "يقرأ رسمًا بيانيًا" },
-    change: { en: "Drawing on a chart", ar: "يرسم على رسم بياني" },
+    change: { en: "Working on a chart", ar: "يعمل على رسم بياني" },
   },
   account: { read: { en: "Reading the account", ar: "يقرأ الحساب" } },
   research: { read: { en: "Searching sources", ar: "يبحث في المصادر" } },
@@ -269,21 +269,55 @@ const callLabels: Readonly<
     read: { en: "Checking with agents", ar: "يراجع الوكلاء" },
     change: { en: "Messaging agents", ar: "يراسل الوكلاء" },
   },
-  voice: { read: { en: "Preparing a call", ar: "يجهّز اتصالًا" } },
+  voice: {
+    read: { en: "Checking what needs you", ar: "يراجع ما ينتظرك" },
+    change: { en: "Notifying you", ar: "يرسل لك تنبيهًا" },
+  },
 };
 const genericCall: Label = { en: "Using a tool", ar: "يستخدم أداة" };
 
+const SKILL_WORK: Label = { en: "Working on a skill", ar: "يعمل على مهارة" };
+const SKILL_READ: Label = { en: "Reviewing skills", ar: "يراجع المهارات" };
+const HELPER: Label = { en: "Starting a helper agent", ar: "يبدأ وكيلًا مساعدًا" };
+/** The few tools whose family label would state the wrong action, by registry id. */
+const toolLabels: Readonly<Record<string, Label>> = {
+  owner_call_request: { en: "Preparing a call", ar: "يجهّز اتصالًا" },
+  owner_action_propose: { en: "Preparing a card for you", ar: "يجهّز بطاقة لك" },
+  wait_for_input: { en: "Waiting for your reply", ar: "ينتظر ردك" },
+  group_silence: { en: "Staying quiet in the group", ar: "يلتزم الصمت في المجموعة" },
+  market_position_size: { en: "Sizing a position", ar: "يحسب حجم المركز" },
+  market_shadow_execute: { en: "Placing a virtual trade", ar: "ينفّذ صفقة افتراضية" },
+  market_candles_to_workspace: {
+    en: "Copying market data to the workspace",
+    ar: "ينسخ بيانات السوق إلى مساحة العمل",
+  },
+  consult_model: { en: "Consulting another model", ar: "يستشير نموذجًا آخر" },
+  mcp_execute: { en: "Using a connected tool", ar: "يستخدم أداة متصلة" },
+  child_agent_create: HELPER,
+  subagent_spawn: HELPER,
+  skill_package_control: SKILL_WORK,
+  skill_package_create: SKILL_WORK,
+  skill_package_import: SKILL_WORK,
+  skill_package_validate: SKILL_WORK,
+  skill_repository_inspect: SKILL_READ,
+  skill_view: SKILL_READ,
+  skills_list: SKILL_READ,
+};
+
 /**
  * The owner-facing line for one tool call, from its toolset and effect (E2 metadata), in
- * Arabic or English. The registry id stays behind "Technical details".
+ * Arabic or English; a short override names the few tools whose family label would be
+ * wrong. The registry id stays behind "Technical details".
  */
 export function activityCallLabel(
-  call: Pick<ActivityCall, "toolset" | "effect">,
+  call: Pick<ActivityCall, "toolset" | "effect"> & { name?: string },
   locale: string,
 ): string {
   const family = call.toolset ? callLabels[call.toolset] : undefined;
-  const label = family
-    ? (family[call.effect ?? "read"] ?? family.change ?? family.read)
-    : undefined;
+  const override =
+    call.name && Object.hasOwn(toolLabels, call.name) ? toolLabels[call.name] : undefined;
+  const label =
+    override ??
+    (family ? (family[call.effect ?? "read"] ?? family.change ?? family.read) : undefined);
   return (label ?? genericCall)[locale.toLowerCase().startsWith("ar") ? "ar" : "en"];
 }

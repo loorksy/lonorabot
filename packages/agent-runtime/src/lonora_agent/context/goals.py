@@ -9,7 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 MAX_GOAL_CONTEXT_CHARS = 24000
 DETAIL_TAG = "lonora_goal_details"
 # The safety-relevant core of each goal stays mandatory system text: identity,
-# scope limits, status and the current step's effect state. The rest is optional.
+# account and symbol scope, planned size, status and the current step's effect state.
+# The rest is optional.
 CORE_KEYS = (
     "id",
     "agent_id",
@@ -19,7 +20,9 @@ CORE_KEYS = (
     "execution_mode",
     "code",
     "plan_version",
-    "limits",
+    "scope",
+    "planned_volume",
+    "planned_trade_actions",
     "step_count",
 )
 
@@ -48,10 +51,10 @@ def summary(row: TradingGoalRow) -> dict[str, Any]:
         "execution_mode": row.state.get("execution_mode", "live"),
         "code": row.state.get("code"),
         "plan_version": row.state.get("plan_version", 1),
-        "limits": {
-            key: row.payload.get(key)
-            for key in ("account_id", "symbol", "maximum_volume", "max_trade_actions")
-        },
+        "scope": {key: row.payload.get(key) for key in ("account_id", "symbol")},
+        # Plan data, not limits: only the grant, money limits and restrictions bind.
+        "planned_volume": row.payload.get("maximum_volume"),
+        "planned_trade_actions": row.payload.get("max_trade_actions"),
         "current_step": {
             "id": current_id,
             "title": str(current.get("title", ""))[:160],
