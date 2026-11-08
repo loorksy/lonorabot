@@ -78,9 +78,11 @@ test("an MCP trust card lists the reviewed tools, the writing ones and two tiers
   }
   // A server that offers a tool that can trade or move money is trusted to read only:
   // its blocked tools are named, its writes are not offered.
+  const source = base.facts.source;
+  assert.ok(source);
   const trading = {
     ...base,
-    facts: { ...base.facts, source: { ...base.facts.source!, blocked: ["place_order"] } },
+    facts: { ...base.facts, source: { ...source, blocked: ["place_order"] } },
   };
   for (const locale of ["en", "ar"] as const) {
     const spec = ownerActionCard(trading, locale);

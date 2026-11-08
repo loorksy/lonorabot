@@ -184,15 +184,17 @@ export type TradingReadiness = {
     action_class?: RestrictionActionClass;
     valid_until?: string | null;
     symbol?: string | null;
-    /** The account of the strongest pause; the line names it when there are several. */
-    account_id?: string;
+    /**
+     * paused: the account of the strongest pause; on_its_own: the first grant's account.
+     * The line names it when the owner has several accounts.
+     */
+    account_id?: string | null;
     count?: number;
     symbol_scope?: "selected" | "account";
     symbols?: string[];
     grant_count?: number;
-    /** on_its_own: how many accounts its grants cover, and the first one's account. */
+    /** on_its_own: how many accounts its grants cover. */
     account_count?: number;
-    account_id?: string | null;
     money_limit_set?: boolean;
     /** The daily loss limit of the grant's account, when the owner set one. */
     daily_loss?: { amount: string; currency: string | null } | null;
