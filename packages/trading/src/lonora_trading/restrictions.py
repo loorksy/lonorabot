@@ -8,7 +8,11 @@ optional agent/symbol scope, one action class:
 - ``no_risk_increase``: everything that is not risk-reducing against the fresh broker
   target (``admission.risk_reducing``): closes, cancellations and tightening or adding
   a stop-loss stay admissible.
-- ``all_mutations``: every broker mutation in the scope, reduce-only included.
+- ``all_mutations``: every broker mutation in the scope, reduce-only included, when
+  the owner created it (Web/API). A restriction an agent recorded — its scope and
+  reason are model-authored, possibly from injected content — never blocks a
+  risk-reducing exit, whatever its class: it can stop new risk, never trap a
+  position (including an exit the owner approves).
 
 Restrictions govern agent-originated operations (every leased path: account grant,
 exact approval, Goal step). Owner-manual operations are exempt unless the owner flagged
@@ -46,7 +50,11 @@ class AdmissionBlocked(LonoraError):
         self.evidence = evidence
 
 
-def prohibits(action_class: str, request: TradeRequest, *, reducing: bool) -> bool:
+def prohibits(
+    action_class: str, request: TradeRequest, *, reducing: bool, owner_authored: bool = True
+) -> bool:
+    if reducing and not owner_authored:
+        return False  # Only the owner's own freeze can hold back an exit.
     if action_class == "all_mutations":
         return True
     if action_class == "no_risk_increase":
@@ -79,7 +87,10 @@ async def blocking_restriction(
     moment = now or await database_now(session)
     for row in await restrictions_in_force(session, owner_id, request.account_id, moment):
         if applies(row, request, agent_id=agent_id) and prohibits(
-            row.action_class, request, reducing=reducing
+            row.action_class,
+            request,
+            reducing=reducing,
+            owner_authored=row.created_by == "owner",
         ):
             return row
     return None

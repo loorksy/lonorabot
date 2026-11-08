@@ -149,14 +149,19 @@ reservation. A blocked send is journaled as `failed` with `send_state: not_sent`
 `details.admission_block.restriction`.
 
 Expiry needs no scheduler: every read compares `valid_from`/`valid_until` with the
-current time. Restrictions are listed as `scheduled`, `active`, `expired` or `revoked`
+database clock (`database_now`), which also stamps an immediate restriction's start, so
+clock skew between hosts cannot make a visible restriction look scheduled. Restrictions are listed as `scheduled`, `active`, `expired` or `revoked`
 with `ended_at`; creation and revocation emit durable `trading.restriction_created` and
 `trading.restriction_revoked` events for "what happened" summaries.
 
 Agents use `trade_restriction_create` (narrowing only, no financial authority needed,
 idempotent on crash replay, records the owner's message when the run answers one) and
 `trade_restriction_list`. The current restrictions that apply to an agent are rendered
-in its per-turn financial permission frame. A market-bound specialist records and sees
+in its per-turn financial permission frame. That frame is part of the system role, so it
+carries structured fields only (scope, class, state, window, `recorded_by`); the owner's
+own reason is shown bounded as `owner_reason`, while a reason an agent wrote —
+model-authored text that may carry injected content — never enters another Agent's
+system prompt and is read through `trade_restriction_list` output instead. A market-bound specialist records and sees
 restrictions on its own account and market only (`all_symbols` is refused with
 `agent_trading_symbol_mismatch`). The Personal Agent and flexible agents can scope one
 to any owned account and symbol. Like every market tool, an omitted symbol is filled
@@ -164,13 +169,18 @@ with the agent's home symbol when the restriction is on its home account; such a
 passes `all_symbols: true` for every symbol on that account (rejected together with
 `symbol`).
 
-`all_mutations` also blocks risk-reducing exits (closes, cancellations, tighter stops
-and Goal protective steps). An agent may therefore impose it on another agent or on all
-agents only in a run that answers the owner's message (source `owner_message`);
-otherwise creation fails with `restriction_all_mutations_requires_owner_message`, and on
-its own initiative an agent may freeze only itself. `no_new_entries` and
-`no_risk_increase` keep exits admissible and any agent may record them for any agent in
-its scope.
+`all_mutations` created by the owner also blocks risk-reducing exits (closes,
+cancellations, tighter stops and Goal protective steps). A restriction an agent recorded
+never blocks a risk-reducing exit, whatever its class: its scope and reason are
+model-authored and may come from injected content, so it can stop new risk but never
+trap a position, including an exit the owner approves. An agent may impose
+`all_mutations` on another agent or on all agents only in a run that answers the owner's
+message (source `owner_message`); otherwise creation fails with
+`restriction_all_mutations_requires_owner_message`, and on its own initiative an agent
+may freeze only itself. A restriction an agent records for another agent or for all
+agents is time-boxed: it needs `valid_until` (`restriction_valid_until_required`) at
+most 31 days after it starts (`restriction_window_too_long`); open-ended or longer
+restrictions on other agents are the owner's own.
 
 Blocked operations carry tool recovery metadata that matches the boundary:
 `trading_restriction_active` is `permission_denied` / `respect_scope` (never route around

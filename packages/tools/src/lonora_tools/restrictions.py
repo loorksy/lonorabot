@@ -5,14 +5,21 @@ authority. When the run was started by the owner's message, the restriction reco
 that message as its source. Revocation is an owner-session action (API), deliberately
 absent here.
 
-One narrowing is not left to an agent's own initiative: ``all_mutations`` also blocks
-risk-reducing exits (closes, cancellations, tighter stops), so an agent may impose it on
-another agent or on all agents only when the run answers the owner's message. On its
-own initiative an agent may freeze only itself.
+One narrowing is not left to an agent's own initiative: ``all_mutations`` on another
+agent or on all agents needs a run that answers the owner's message. On its own
+initiative an agent may freeze only itself. Whatever its class, a restriction an agent
+records never blocks a risk-reducing exit (``lonora_trading.restrictions``): its scope
+and reason are model-authored and may come from injected content.
+
+A restriction an agent records for another agent or for all agents is time-boxed: it
+needs a ``valid_until`` at most ``MAXIMUM_AGENT_WINDOW`` after it starts. Open-ended
+or longer restrictions on other agents are the owner's own (Web/API).
 """
 
+from datetime import timedelta
 from typing import Any
 
+from lonora_contracts.domain import utcnow
 from lonora_contracts.trading import UNRESOLVED_STATUSES
 from lonora_contracts.trading_restrictions import AgentRestrictionRequest, RestrictionListQuery
 from lonora_core.user_error import LonoraError
@@ -35,6 +42,8 @@ from .symbols import restriction_symbol
 
 # Runs started by the owner's own message in a conversation or group.
 OWNER_TRIGGERS = frozenset({"user", "group"})
+# Longest restriction an agent may record for other agents ("this month" at most).
+MAXIMUM_AGENT_WINDOW = timedelta(days=31)
 
 
 async def owner_message_id(session: AsyncSession, run: RunRow) -> str | None:
@@ -85,6 +94,14 @@ async def create(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         ):
             # Freezing other agents also blocks their protective exits: the owner asks.
             raise LonoraError("restriction_all_mutations_requires_owner_message", 403)
+        if not replayed and scoped_agent != context.agent_id:
+            # Binding other agents is a time-boxed pause, never an open-ended freeze.
+            if params.valid_until is None:
+                raise LonoraError("restriction_valid_until_required", 422)
+            if params.valid_until - max(params.valid_from or utcnow(), utcnow()) > (
+                MAXIMUM_AGENT_WINDOW
+            ):
+                raise LonoraError("restriction_window_too_long", 422)
         row = await create_restriction(
             session,
             context.owner_id,
@@ -179,16 +196,18 @@ def tools() -> list[Tool]:
             "allowed), no_risk_increase (only closes, cancellations of orders that would add "
             "exposure, and tighter stops; closing a hedge leg stays allowed even though it "
             "changes net direction, cancelling a protective opposite-side order does not) or "
-            "all_mutations (no broker changes, exits included; for another agent or all "
-            "agents only when the owner's message asked). Scope: account (default your bound "
-            "account); symbol (the broker must list it; your home market by default on your "
-            "home account) or all_symbols for every symbol on the account (not for a "
-            "market-bound agent); yourself by default, another agent_id or all_agents. Set "
-            "valid_until for a time-limited instruction such as 'today' (end of the owner's "
-            "day, timezone-aware); omit it only for an open-ended one. It only narrows: watches "
-            "and analysis continue, existing positions and pending orders are not changed, and "
-            "an already submitted operation is not reversed, so check and report those "
-            "separately. Only the owner can lift a restriction.",
+            "all_mutations (no other broker changes; for another agent or all agents only "
+            "when the owner's message asked). A restriction you record never blocks closes, "
+            "cancellations or tighter stops; only the owner's own freeze does. Scope: account "
+            "(default your bound account); symbol (the broker must list it; your home market "
+            "by default on your home account) or all_symbols for every symbol on the account "
+            "(not for a market-bound agent); yourself by default, another agent_id or "
+            "all_agents. Set valid_until for a time-limited instruction such as 'today' (end "
+            "of the owner's day, timezone-aware); it is required, within 31 days, for another "
+            "agent or all agents, and may be omitted only for an open-ended one on yourself. "
+            "It only narrows: watches and analysis continue, existing positions and pending "
+            "orders are not changed, and an already submitted operation is not reversed, so "
+            "check and report those separately. Only the owner can lift a restriction.",
             AgentRestrictionRequest,
             create,
             replay_safe=True,

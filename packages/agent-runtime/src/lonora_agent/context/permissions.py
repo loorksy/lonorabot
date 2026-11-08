@@ -23,7 +23,19 @@ RISK_LIMIT_NAMES = (
 )
 
 
+# The owner's own reason is shown in the system-role frame, bounded.
+OWNER_REASON_CHARS = 240
+
+
 def restriction_frame(row: dict[str, Any], agent_id: str) -> dict[str, Any]:
+    """Structured fields only: this frame is part of the system role.
+
+    A reason an agent wrote is model-authored text (possibly carrying injected
+    content), so it never enters another Agent's system prompt; it stays readable as
+    tool output through ``trade_restriction_list``. Provenance says who recorded the
+    restriction, never implying that the owner wrote an agent's words.
+    """
+    owner_written = row.get("created_by") == "owner"
     return {
         "id": row["id"],
         "account_id": row["account_id"],
@@ -37,8 +49,20 @@ def restriction_frame(row: dict[str, Any], agent_id: str) -> dict[str, Any]:
         "state": row["state"],
         "valid_from": row["valid_from"],
         "valid_until": row["valid_until"],
-        "source": row["source"],
-        "reason": row["reason"],
+        "recorded_by": "owner"
+        if owner_written
+        else "you"
+        if row.get("created_by_agent_id") == agent_id
+        else "agent",
+        **(
+            {"owner_reason": str(row.get("reason") or "")[:OWNER_REASON_CHARS]}
+            if owner_written
+            else {
+                "created_by_agent_id": row.get("created_by_agent_id"),
+                "recorded_while_answering_owner": row.get("source") == "owner_message",
+                "reason_available_via": "trade_restriction_list",
+            }
+        ),
         # Only shown when the broker catalog could not confirm the stored spelling.
         **({} if row.get("symbol_verified", True) else {"symbol_verified": False}),
     }
