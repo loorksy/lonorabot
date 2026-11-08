@@ -10,7 +10,9 @@ that prompt as the user-role turn, where it is a request, never policy.
 from lonora_db.schema import RunRow
 
 # Triggers whose run.prompt is fixed server text (lonora_trading, lonora_db).
-SERVER_AUTHORED_TRIGGERS = frozenset({"goal", "broker_event", "follow_up", "activation"})
+SERVER_AUTHORED_TRIGGERS = frozenset(
+    {"goal", "broker_event", "follow_up", "activation", "agent_created", "owner_card"}
+)
 
 
 def wake_context(run: RunRow) -> str:

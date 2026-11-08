@@ -23,12 +23,19 @@ OwnerActionKind = Literal[
     "resolve_operation",
     "set_account_limits",
     "grant_authority",
+    "trust_source",
+    "connect_credential",
 ]
 # Model cards (W15-10), raised only by model_request: "agent_model" asks the owner to
 # use a model for an agent; "agent_model_changed" offers Undo of a switch that applied.
 ModelCardKind = Literal["agent_model", "agent_model_changed"]
 MODEL_CARD_KINDS: tuple[ModelCardKind, ...] = ("agent_model", "agent_model_changed")
 GrantDuration = Literal["until_stopped", "12h", "24h", "7d"]
+# trust_source: what the owner adds to the trusted list (an MCP server with the tools it
+# advertises now, a GitHub owner or repository, or a news feed's domain).
+TrustSourceKind = Literal["mcp_server", "github_owner", "github_repo", "feed_domain"]
+# connect_credential: which secure form the card offers; "x" names an X MCP server.
+CredentialTarget = Literal["mcp_server", "news_feed", "brave_search", "economic_calendar", "broker"]
 OwnerActionStatus = Literal["pending", "confirmed", "cancelled", "expired", "superseded"]
 MoneyLimitName = Literal[
     "max_trade_risk",
@@ -71,13 +78,69 @@ class OwnerActionProposal(Contract):
     allow_manual_positions: bool | None = None
     daily_loss_percent: Decimal | None = Field(default=None, gt=0, le=100)
     daily_loss_amount: Decimal | None = Field(default=None, gt=0)
+    # trust_source: mcp_server takes connection_id (its tools are read from the server);
+    # the others take identifier ("owner", "owner/repository" or a feed domain).
+    source_kind: TrustSourceKind | None = None
+    connection_id: str | None = Field(default=None, min_length=1, max_length=80)
+    identifier: str | None = Field(default=None, min_length=1, max_length=300)
+    # connect_credential: the form to offer; service "x" for an X MCP server (D3).
+    target: CredentialTarget | None = None
+    service: Literal["x"] | None = None
 
     @model_validator(mode="after")
     def fields_for_kind(self) -> "OwnerActionProposal":
-        limits = bool(
-            self.set_limits or self.remove_limits or self.currency or self.trading_day_timezone
-        )
-        grant = any(
+        if self.kind in {"trust_source", "connect_credential"}:
+            return self.capability_fields()
+        if any(
+            value is not None
+            for value in (
+                self.source_kind,
+                self.connection_id,
+                self.identifier,
+                self.target,
+                self.service,
+            )
+        ):
+            raise ValueError("owner_action_fields_invalid")
+        return self.trading_fields()
+
+    def capability_fields(self) -> "OwnerActionProposal":
+        if (
+            self.restriction_id
+            or self.operation_id
+            or self.account_id
+            or self.set_limits
+            or self.remove_limits
+            or self.currency
+            or self.trading_day_timezone
+            or self.grant_fields()
+        ):
+            raise ValueError("owner_action_fields_invalid")
+        if self.kind == "connect_credential":
+            if (
+                self.target is None
+                or self.source_kind
+                or self.connection_id
+                or self.identifier
+                or (self.service is not None and self.target != "mcp_server")
+            ):
+                raise ValueError("owner_action_fields_invalid")
+            return self
+        if self.target is not None or self.service is not None or self.source_kind is None:
+            raise ValueError("owner_action_fields_invalid")
+        if (self.source_kind == "mcp_server") != (self.connection_id is not None) or (
+            self.source_kind == "mcp_server"
+        ) == (self.identifier is not None):
+            raise ValueError("owner_action_fields_invalid")
+        if self.identifier is not None:
+            from .trusted_sources import normalize_identifier
+
+            self.identifier = normalize_identifier(self.source_kind, self.identifier)
+        return self
+
+    def grant_fields(self) -> bool:
+        """Whether any grant_authority draft field is set."""
+        return any(
             value not in (None, False)
             for value in (
                 self.agent_id,
@@ -90,6 +153,12 @@ class OwnerActionProposal(Contract):
                 self.daily_loss_amount,
             )
         )
+
+    def trading_fields(self) -> "OwnerActionProposal":
+        limits = bool(
+            self.set_limits or self.remove_limits or self.currency or self.trading_day_timezone
+        )
+        grant = self.grant_fields()
         needed = {
             "resume_trading": (),
             "lift_restriction": ("restriction_id",),
@@ -171,9 +240,18 @@ class OwnerActionChallenge(Contract):
     allow_manual_positions: bool | None = None
 
 
+class ConnectedResource(Contract):
+    """What the owner's secure form created; never the value it holds."""
+
+    resource: Literal["integration", "mcp", "broker"]
+    id: str = Field(min_length=1, max_length=80)
+
+
 class OwnerActionDecision(Contract):
     """The owner's tap. ``outcome`` answers a resolve card; ``proof`` is the passkey
-    assertion a widening card requires (obtained from the card's challenge).
+    assertion a widening card requires (obtained from the card's challenge); ``tier`` is
+    what the owner trusts an MCP server for; ``connected`` names what a credential card's
+    form created.
 
     A grant card's own choices narrow or widen nothing that needs another signature:
     leaving the account without the suggested daily loss limit (``money_limit``
@@ -181,6 +259,8 @@ class OwnerActionDecision(Contract):
     """
 
     decision: Literal["confirm", "cancel"]
+    tier: Literal["read", "write_nonfinancial"] | None = None
+    connected: ConnectedResource | None = None
     outcome: AttestedOutcome | None = None
     note: str | None = Field(default=None, max_length=2000)
     broker_reference: str | None = Field(default=None, max_length=200)

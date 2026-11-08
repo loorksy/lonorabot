@@ -2,7 +2,7 @@
 
 import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
-import { projectRunEvents, turnActivity } from "@lonora/core";
+import { liveAvatarState, projectRunEvents, turnActivity } from "@lonora/core";
 import {
   Dialog,
   DialogContent,
@@ -56,6 +56,7 @@ import { dismissOverlays, useOverlayHistory } from "../hooks/useOverlayHistory";
 import { usePersistentThread } from "../hooks/usePersistentThread";
 import { useTheme } from "../hooks/useTheme";
 import { useVoice } from "../hooks/useVoice";
+import { useAgentLiveState } from "../lib/agent-live-state";
 import { type Agent, api, isRequestCancelled, type Resource, type Run } from "../lib/api";
 import { auth } from "../lib/auth";
 import {
@@ -248,6 +249,8 @@ function WorkspaceShell({ onLogout }: { onLogout: () => void }) {
   }, [isInbox]);
   const agentId = segments.length === 2 && !surfaces.includes(segments[1]) ? segments[1] : "";
   const agent = agents.find((row) => row.id === agentId);
+  // Between runs the header avatar follows the agent's server phase (monitoring, paused).
+  const { state: liveState } = useAgentLiveState(agent?.id);
   const group = isGroup ? groups.find((row) => row.id === segments[2]) : undefined;
   const memberIds = (group?.payload.member_ids ?? []) as string[];
   const memberAgents = memberIds
@@ -288,7 +291,16 @@ function WorkspaceShell({ onLogout }: { onLogout: () => void }) {
     const tab = params.get("settings");
     if (
       tab &&
-      ["overview", "models", "voice", "trading", "integrations", "mcp", "usage"].includes(tab)
+      [
+        "overview",
+        "capabilities",
+        "models",
+        "voice",
+        "trading",
+        "integrations",
+        "mcp",
+        "usage",
+      ].includes(tab)
     ) {
       setGlobalSettings(tab as SettingsTab);
       params.delete("settings");
@@ -750,7 +762,11 @@ function WorkspaceShell({ onLogout }: { onLogout: () => void }) {
                 <AgentAvatar
                   agent={agent}
                   working={busyIds.has(agent.id)}
-                  state={currentRun ? turnActivity(currentRun, events).avatar : "waiting"}
+                  state={
+                    currentRun
+                      ? turnActivity(currentRun, events).avatar
+                      : liveAvatarState(liveState)
+                  }
                 />
               ) : group ? (
                 <GroupAvatar members={memberAgents} />

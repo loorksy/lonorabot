@@ -43,6 +43,7 @@ async def dispatch_one(
     mcp_declarations: tuple[McpToolDeclaration, ...] = (),
     searxng_url: str | None = None,
     browser_url: str | None = None,
+    mcp_owner_trust: bool = True,
 ) -> bool:
     dispatch_started = perf_counter()
     async with db.sessions() as session, session.begin():
@@ -74,6 +75,7 @@ async def dispatch_one(
             mcp_declarations=mcp_declarations,
             searxng_url=searxng_url,
             browser_url=browser_url,
+            mcp_owner_trust=mcp_owner_trust,
         )
         services[owner_id] = owner_services
     context = owner_services.tool_context(

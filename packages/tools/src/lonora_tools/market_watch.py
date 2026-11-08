@@ -1,18 +1,26 @@
+from decimal import Decimal
 from typing import Any
 
-from lonora_contracts.domain import utcnow
+from lonora_contracts.domain import Contract, utcnow
 from lonora_contracts.market_watch import Watch
-from lonora_db.market_watches import MarketWatchRepository
+from lonora_db.market_watches import (
+    MarketWatchRepository,
+    WatchAction,
+    control_watch,
+    update_watch,
+)
 from lonora_db.runs import require_lease
 from lonora_db.schema import EventRow, MarketWatchRow
 from lonora_db.threads import report_thread
 from lonora_db.transactions import resource_data
+from pydantic import AwareDatetime, Field
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .base import Tool, eager_for
 from .context import ToolContext
 from .memory import Empty
+from .restrictions import owner_message_id
 
 
 async def keyed_watch(
@@ -99,6 +107,63 @@ async def read(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         }
 
 
+class WatchReference(Contract):
+    watch_id: str = Field(min_length=1, max_length=36)
+
+
+class WatchUpdate(WatchReference):
+    expires_at: AwareDatetime | None = Field(
+        default=None, description="New expiry with a timezone offset, e.g. the session close."
+    )
+    clear_expiry: bool = Field(default=False, description="Watch until cancelled.")
+    level: Decimal | None = Field(default=None, description="New price or indicator level.")
+
+
+async def steer(context: ToolContext, watch_id: str, action: WatchAction) -> dict[str, Any]:
+    async with context.db.sessions() as session, session.begin():
+        run = await require_lease(session, context.lease, lock=True)
+        row = await control_watch(
+            session,
+            context.owner_id,
+            watch_id,
+            action,
+            agent_id=context.agent_id,
+            owner_message=await owner_message_id(session, run) is not None,
+        )
+        return {
+            **resource_data(row),
+            "undo": "watch_resume" if action != "resume" else "watch_pause",
+        }
+
+
+async def cancel(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+    return await steer(context, WatchReference.model_validate(args).watch_id, "cancel")
+
+
+async def pause(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+    return await steer(context, WatchReference.model_validate(args).watch_id, "pause")
+
+
+async def resume(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+    return await steer(context, WatchReference.model_validate(args).watch_id, "resume")
+
+
+async def update(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+    params = WatchUpdate.model_validate(args)
+    async with context.db.sessions() as session, session.begin():
+        await require_lease(session, context.lease, lock=True)
+        row = await update_watch(
+            session,
+            context.owner_id,
+            params.watch_id,
+            agent_id=context.agent_id,
+            expires_at=params.expires_at,
+            clear_expiry=params.clear_expiry,
+            level=params.level,
+        )
+        return resource_data(row)
+
+
 def tools() -> list[Tool]:
     return [
         Tool(
@@ -116,5 +181,35 @@ def tools() -> list[Tool]:
             read,
             True,
             poller=True,
+        ),
+        Tool(
+            "watch_cancel",
+            "Stop one of your own watches; its record stays, and watch_resume undoes it.",
+            WatchReference,
+            cancel,
+            replay_safe=True,
+        ),
+        Tool(
+            "watch_pause",
+            "Pause one of your own watches until watch_resume.",
+            WatchReference,
+            pause,
+            replay_safe=True,
+        ),
+        Tool(
+            "watch_resume",
+            "Resume one of your own paused or cancelled watches (an expired one needs a later "
+            "expiry first, through watch_update).",
+            WatchReference,
+            resume,
+            replay_safe=True,
+        ),
+        Tool(
+            "watch_update",
+            "Move the expiry or level of one of your own watches; its condition and market "
+            "stay. A later expiry revives an expired watch.",
+            WatchUpdate,
+            update,
+            replay_safe=True,
         ),
     ]

@@ -5,10 +5,21 @@ confirmation re-validates the card against current state (a stale card is settle
 expired with its reason), is idempotent per card, and then runs the existing owner
 function for its effect: Stop/Resume (``apply_controls``), lifting a restriction
 (``revoke_restriction``), the owner attestation of an uncertain operation
-(``attest_operation``), the account's execution policy (``store_execution_policy``) or
-an agent's model choice (``apply_agent_model``, W15-10: using a model, or Undo).
+(``attest_operation``), the account's execution policy (``store_execution_policy``),
+an agent's model choice (``apply_agent_model``, W15-10: using a model, or Undo),
+creating an agent (the creation service; never a grant), undoing a creation (the
+owner's delete for an agent that has done nothing yet, otherwise a pause), setting,
+undoing or restoring supervision, and the owner's own resume of work a supervisor
+paused (``lonora_db.supervision``; never money authority), adding a source to the
+trusted list (``lonora_db.trusted_sources``; an MCP server at the tier the owner picks,
+with exactly the tools the card listed) and recording what a credential card's secure
+form connected (only which resource; the value went straight to the owner API). A newly
+connected MCP server's trust card follows in the same conversation; when its tools could
+not be read or none can be trusted, the line says so and the agent that asked is woken
+to check it, so nothing waits for a card that never comes.
 Raising or removing a money limit also needs a verified passkey assertion bound to the
-card's payload hash; lowering a limit, lifting a pause and resuming are one tap.
+card's payload hash; lowering a limit, lifting a pause, resuming, creating an agent,
+setting supervision, choosing a model and Undo are one tap.
 
 A grant card signs through the existing account-authority ceremony: its challenge builds
 the full-management proposal from the card's stored draft (``propose``) and returns the
@@ -17,13 +28,15 @@ the assertion (``finish_activation``). The card's other choices only narrow (the
 loss limit, stopping another agent's grant) or widen nothing (Resume).
 """
 
-from typing import Any
+from dataclasses import dataclass
+from typing import Any, Literal
 
 from fastapi import APIRouter, Body, Depends, Request
 from lonora_auth.account_authority import begin_activation, finish_activation
 from lonora_auth.devices import begin_bound_assertion, verify_bound_assertion
 from lonora_auth.identity import OwnerIdentity
 from lonora_contracts.domain import utcnow
+from lonora_contracts.mcp import McpConnection
 from lonora_contracts.owner_actions import (
     CARD_ATTESTATION,
     MODEL_CARD_KINDS,
@@ -34,13 +47,22 @@ from lonora_contracts.owner_actions import (
 from lonora_contracts.trading import OperationResolution, TradingControl
 from lonora_core.user_error import LonoraError
 from lonora_db.account_authority import owned_authority, propose, revoke
+from lonora_db.agent_creation import (
+    cancel_first_task,
+    pause_agent,
+    start_first_task,
+    undo_plan,
+)
 from lonora_db.authority_lock import authority_lock
+from lonora_db.capability_cards import connected_result, review_writes
+from lonora_db.integrations import subscribe_feed
 from lonora_db.model_cards import confirm_model_card, supersede_agent_model_cards
 from lonora_db.owner_actions import (
     account_policy,
     agent_names,
     card_facts,
     confirm_in_thread,
+    continue_after_card,
     daily_loss_change,
     global_trading,
     grant_conflicts,
@@ -51,17 +73,30 @@ from lonora_db.owner_actions import (
     owned_card,
     owner_action_data,
     proposed_limits,
+    raise_created_card,
+    raise_review_card,
+    raise_supervision_card,
+    review_card_wanted,
     settle,
     stale_reason,
     supersede_subject,
     thread_cards,
     widens,
 )
-from lonora_db.schema import OwnerActionRow
+from lonora_db.schema import AgentRow, McpConnectionRow, OwnerActionRow
+from lonora_db.supervision import (
+    grant_supervision,
+    owned_grant,
+    owner_resumes,
+    revoke_supervision,
+)
 from lonora_db.threads import conversation_thread
 from lonora_db.trading_readiness import risk_limit_frame
 from lonora_db.trading_restrictions import revoke_restriction
 from lonora_db.transactions import owned_thread
+from lonora_db.trusted_sources import trust_source
+from lonora_session.idempotency import stable_id
+from lonora_tools.mcp import advertised_tools, review_payload
 from lonora_trading.controls import apply_controls
 from lonora_trading.owner_controls import (
     attest_operation,
@@ -75,6 +110,18 @@ from ..middleware.auth import require_owner, runtime
 from ..runtime import ApiRuntime
 
 router = APIRouter(prefix="/owner-actions")
+
+
+@dataclass(frozen=True)
+class ServerReview:
+    """What the server just connected by a credential card offers to trust, read before
+    the transaction: ``review`` (a trust card can follow), ``unread`` (its tools could not
+    be read now), ``nothing_to_trust`` (every tool can move money or is unsupported) or
+    ``disabled`` (the operator's deny override: only declared tools run)."""
+
+    state: Literal["review", "unread", "nothing_to_trust", "disabled"]
+    subject: str = ""
+    payload: dict[str, Any] | None = None
 
 
 @router.get("")
@@ -123,12 +170,14 @@ async def decision(
     owner: OwnerIdentity = Depends(require_owner),
 ) -> dict[str, Any]:
     rt = runtime(request)
+    review: ServerReview | None = None
     if body.decision == "confirm":
         await check_currency(rt, owner, card_id, body)
+        review = await connected_server_review(rt, owner, card_id, body)
     async with rt.db.sessions() as session, session.begin():
         await lock_owner_actions(session, owner.id)
         row = await owned_card(session, owner.id, card_id, lock=True)
-        await decide(session, rt, owner, row, body)
+        await decide(session, rt, owner, row, body, review)
         return await owner_action_data(session, row)
 
 
@@ -169,6 +218,48 @@ async def grant_challenge(
     return await begin_activation(session, owner, authority.id, rt.settings.allowed_origin)
 
 
+async def connected_server_review(
+    rt: ApiRuntime, owner: OwnerIdentity, card_id: str, body: OwnerActionDecision
+) -> ServerReview | None:
+    """Before the transaction (network IO): the tools of the MCP server a credential
+    card's form just connected, for the trust card that follows. None when this is not
+    such a card; otherwise what can follow (``ServerReview``)."""
+    connected = body.connected
+    if connected is None or connected.resource != "mcp":
+        return None
+    async with rt.db.sessions() as session:
+        row = await owned_card(session, owner.id, card_id)
+        if row.kind != "connect_credential" or live_status(row) != "pending":
+            return None
+        if not rt.settings.mcp_owner_trust:
+            return ServerReview("disabled")
+        server = await session.get(McpConnectionRow, connected.id)
+        if server is None or server.owner_id != owner.id:
+            return None  # The decision refuses it (connected_result).
+        config = McpConnection.model_validate(server.payload)
+    if not config.enabled or config.transport != "http" or not config.url:
+        return ServerReview("unread")
+    try:
+        tools = await advertised_tools(rt.services(owner.id).secrets, config)
+        subject, payload = review_payload(connected.id, config.url, tools)
+    except LonoraError:
+        # Unreachable, a missing or wrong token, a timeout or an invalid list.
+        return ServerReview("unread")
+    if not payload["tools"]:
+        return ServerReview("nothing_to_trust")
+    return ServerReview("review", subject, payload)
+
+
+async def review_state(session: AsyncSession, owner_id: str, review: ServerReview | None) -> str:
+    """What the confirmation line and the agent learn about the connected server's
+    review: ``raised`` when its trust card follows now."""
+    if review is None:
+        return "unread"
+    if review.state != "review" or review.payload is None:
+        return review.state
+    return "raised" if await review_card_wanted(session, owner_id, review.payload) else "already"
+
+
 async def check_currency(
     rt: ApiRuntime, owner: OwnerIdentity, card_id: str, body: OwnerActionDecision
 ) -> None:
@@ -204,6 +295,7 @@ async def decide(
     owner: OwnerIdentity,
     row: OwnerActionRow,
     body: OwnerActionDecision,
+    review: ServerReview | None = None,
 ) -> None:
     desired = "confirmed" if body.decision == "confirm" else "cancelled"
     if row.status != "pending":
@@ -267,6 +359,36 @@ async def decide(
             raise LonoraError("owner_action_passkey_required", 403)
         result = await confirm_grant(session, rt, owner, row, body)
         via = "passkey"
+    elif row.kind == "create_agent":
+        created = await create_agent_from_card(session, owner, row)
+        result = {"agent_id": created.id, "agent_name": created.name}
+    elif row.kind == "agent_created":
+        undone = await undo_creation(session, owner, row)
+        if undone is None:
+            # Deleted by the owner while this tap waited: nothing is left to undo.
+            await settle(session, row, "expired", "agent_already_removed")
+            return
+        result = undone
+    elif row.kind == "supervise":
+        granted = await supervise_from_card(session, owner, row)
+        result = {"grant_ids": granted, "supervisor_id": row.payload["supervisor_id"]}
+    elif row.kind == "supervision_created":
+        revoked = await undo_supervision(session, owner, row)
+        result = {"revoked": revoked}
+    elif row.kind == "supervision_stopped":
+        result = {"restored": await restore_supervision(session, owner, row)}
+    elif row.kind == "supervision_paused":
+        result = {"resumed": await owner_resumes(session, owner.id, row.payload["hold_id"])}
+    elif row.kind == "trust_source":
+        result = await trust_from_card(session, rt, owner, row, body)
+    elif row.kind == "connect_credential":
+        if body.connected is None:
+            raise LonoraError("owner_action_connection_required", 422)
+        result = await connected_result(
+            session, owner.id, row.payload, body.connected.resource, body.connected.id
+        )
+        if row.payload["target"] == "mcp_server":
+            result["review"] = await review_state(session, owner.id, review)
     else:
         account_id = row.payload["account_id"]
         policy = await account_policy(session, owner.id, account_id)
@@ -290,7 +412,30 @@ async def decide(
             session, owner.id, account_id, policy.model_copy(update={"risk": proposed})
         )
         result = {"limits": risk_limit_frame(account_id, stored)}
-    await settle(session, row, "confirmed", None, via=via, result=result)
+    await settle(session, row, "confirmed", None, via=via, result={**row.result, **result})
+    created_agent = (
+        await session.get(AgentRow, result["agent_id"]) if row.kind == "create_agent" else None
+    )
+    if row.kind == "supervise":
+        # The same one-line result with Undo as a grant set from the owner's message.
+        await raise_supervision_card(
+            session,
+            owner.id,
+            result["grant_ids"],
+            card_key=row.id,
+            agent_id=row.agent_id,
+            thread_id=row.thread_id,
+            run_id=row.run_id,
+        )
+    if created_agent is not None:
+        await raise_created_card(
+            session,
+            owner.id,
+            created_agent,
+            agent_id=row.agent_id,
+            thread_id=row.thread_id,
+            run_id=row.run_id,
+        )
     await supersede_subject(
         session,
         owner.id,
@@ -306,6 +451,25 @@ async def decide(
             session, owner.id, row.payload["agent_id"], "owner_changed_model", keep=row.id
         )
     await confirm_in_thread(session, row)
+    if created_agent is not None:
+        # The agent that proposed it hands it its first task, after the line above.
+        await start_first_task(session, row, created_agent)
+    if row.kind == "connect_credential" and result.get("review") == "raised" and review:
+        # The server the owner just connected: its tools on the next card to trust; the
+        # agent continues once the owner taps it.
+        await raise_review_card(
+            session,
+            owner.id,
+            review.subject,
+            review.payload or {},
+            agent_id=row.agent_id,
+            thread_id=row.thread_id,
+            run_id=row.run_id,
+        )
+    elif row.kind in {"trust_source", "connect_credential"}:
+        # The agent that asked continues the work that needed this source (or checks a
+        # server whose tools could not be reviewed).
+        await continue_after_card(session, row)
 
 
 async def withdraw_grant(session: AsyncSession, owner: OwnerIdentity, row: OwnerActionRow) -> None:
@@ -376,3 +540,150 @@ async def confirm_grant(
         "daily_loss_kept": kept,
         "money_limit": body.money_limit,
     }
+
+
+async def trust_from_card(
+    session: AsyncSession,
+    rt: ApiRuntime,
+    owner: OwnerIdentity,
+    row: OwnerActionRow,
+    body: OwnerActionDecision,
+) -> dict[str, Any]:
+    """The owner's tap adds the card's source to the trusted list (an MCP server with
+    exactly the tools the card listed, at the tier the owner chose) and, for a feed
+    domain, subscribes the feed the card names."""
+    payload = row.payload
+    kind = payload["source_kind"]
+    if kind == "mcp_server":
+        if not rt.settings.mcp_owner_trust:
+            raise LonoraError("mcp_owner_trust_disabled", 403)
+        if body.tier is None:
+            raise LonoraError("owner_action_tier_required", 422)
+        await trust_source(
+            session,
+            owner.id,
+            kind,
+            payload["identifier"],
+            via="owner_card",
+            tier=body.tier,
+            agent_id=row.agent_id,
+            card_id=row.id,
+            endpoint_sha256=payload["endpoint_sha256"],
+            tool_hashes=payload["tools"],
+            read_only_tools=payload.get("read_only", []),
+            blocked_tools=payload["blocked"],
+        )
+        return {
+            "tier": body.tier,
+            "tools": len(payload["tools"]),
+            "writes": len(review_writes(payload)),
+        }
+    await trust_source(
+        session,
+        owner.id,
+        kind,
+        payload["identifier"],
+        via="owner_card",
+        agent_id=row.agent_id,
+        card_id=row.id,
+    )
+    subscribe = payload.get("subscribe")
+    if subscribe is None:
+        return {"tier": "read"}
+    _, created = await subscribe_feed(session, owner.id, subscribe["url"], subscribe["name"])
+    return {"tier": "read", "subscribed": True, "subscription_created": created}
+
+
+async def create_agent_from_card(
+    session: AsyncSession, owner: OwnerIdentity, row: OwnerActionRow
+) -> AgentRow:
+    """The owner's tap creates the agent the card names, once (its id comes from the card)."""
+    from lonora_agent.collaboration.agent_create import create_from_spec
+
+    created, _ = await create_from_spec(
+        session,
+        owner.id,
+        row.payload["spec"],
+        agent_id=stable_id(row.id, "created-agent"),
+        created_via="owner_card",
+        created_by_agent_id=row.agent_id,
+        source_message_id=None,
+        run_id=row.run_id,
+        card_id=row.id,
+    )
+    return created
+
+
+async def supervise_from_card(
+    session: AsyncSession, owner: OwnerIdentity, row: OwnerActionRow
+) -> list[str]:
+    """The owner's tap sets the supervision the card names; pairs already set stay as
+    they are and are not part of this change (its Undo never takes them back)."""
+    created: list[str] = []
+    for agent_id in row.payload["supervised_ids"]:
+        grant, new = await grant_supervision(
+            session,
+            owner.id,
+            row.payload["supervisor_id"],
+            agent_id,
+            via="owner_card",
+            created_by_agent_id=row.agent_id,
+        )
+        if new:
+            created.append(grant.id)
+    return created
+
+
+async def restore_supervision(
+    session: AsyncSession, owner: OwnerIdentity, row: OwnerActionRow
+) -> int:
+    """Restore: the grants stopped from chat are set again by the owner's tap; a pair
+    supervised again meanwhile stays as it is."""
+    restored = 0
+    for grant_id in row.payload["grant_ids"]:
+        stopped = await owned_grant(session, owner.id, grant_id)
+        _, new = await grant_supervision(
+            session,
+            owner.id,
+            stopped.supervisor_agent_id,
+            stopped.supervised_agent_id,
+            via="owner_card",
+            created_by_agent_id=row.agent_id,
+        )
+        restored += new
+    return restored
+
+
+async def undo_supervision(session: AsyncSession, owner: OwnerIdentity, row: OwnerActionRow) -> int:
+    """Undo: the grants this change set end now; reads and control stop at once."""
+    revoked = 0
+    for grant_id in row.payload["grant_ids"]:
+        grant = await owned_grant(session, owner.id, grant_id)
+        if grant.revoked_at is None:
+            await revoke_supervision(session, owner.id, grant_id, via="owner_card")
+            revoked += 1
+    return revoked
+
+
+async def undo_creation(
+    session: AsyncSession, owner: OwnerIdentity, row: OwnerActionRow
+) -> dict[str, Any] | None:
+    """Undo: remove an agent that has done nothing yet, pause one that has. None when
+    the owner deleted it while this tap waited for its lock."""
+    from lonora_agent.collaboration.agent_create import delete_created_agent
+
+    agent_id = row.payload["agent_id"]
+    # Lock it first: a run or watch that starts now waits on this lock, so the plan below
+    # never deletes work begun meanwhile.
+    await authority_lock(session, agent_id)
+    agent = await session.get(AgentRow, agent_id, with_for_update=True, populate_existing=True)
+    if agent is None or agent.owner_id != owner.id:
+        return None
+    name = agent.name
+    # The proposing agent's first-task run has not started: it never hands out a task.
+    await cancel_first_task(session, owner.id, agent_id)
+    if await undo_plan(session, owner.id, agent_id) == "delete":
+        await delete_created_agent(session, owner.id, agent_id, keep_card=row.id)
+        return {"undo": "deleted", "agent_name": name}
+    await pause_agent(session, owner.id, agent_id)
+    return {"undo": "paused", "agent_name": name}

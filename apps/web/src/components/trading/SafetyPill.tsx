@@ -1,5 +1,5 @@
 import { i18n } from "@lingui/core";
-import type { AgentLiveState, TradingReadiness } from "@lonora/contracts";
+import type { TradingReadiness } from "@lonora/contracts";
 import {
   isolate,
   moneyLimitsLine,
@@ -19,7 +19,8 @@ import {
 } from "@lonora/ui-web";
 import { ShieldCheck } from "lucide-react";
 import { useEffect, useState } from "react";
-import { type Agent, api, type Resource } from "../../lib/api";
+import { useAgentLiveState } from "../../lib/agent-live-state";
+import type { Agent, Resource } from "../../lib/api";
 import { brokerIdentityLabel } from "../../lib/broker-identity";
 import { operationStatusLabel } from "../../lib/operation-status";
 import { liftRestriction, readConnections, resumeTrading, stopNewTrading } from "../../lib/trading";
@@ -32,29 +33,15 @@ import "./safety-pill.css";
  * It renders the server's presentation-only readiness; the executor alone decides.
  */
 export function SafetyPill({ agentId, agents }: { agentId: string; agents: Agent[] }) {
-  const { revision, refresh } = useClient();
-  const [readiness, setReadiness] = useState<TradingReadiness | null>(null);
+  const { refresh } = useClient();
+  const readiness: TradingReadiness | null =
+    useAgentLiveState(agentId).state?.trading_readiness ?? null;
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>();
   const [accounts, setAccounts] = useState<Resource[]>([]);
   const locale = i18n.locale;
   const text = tradingSafetyText(locale);
-  useEffect(() => {
-    void revision;
-    let live = true;
-    void api
-      .get<AgentLiveState>(`/agents/${encodeURIComponent(agentId)}/state`)
-      .then((state) => {
-        if (live) setReadiness(state.trading_readiness ?? null);
-      })
-      .catch(() => {
-        // The pill is informational: a failed read keeps the last known line.
-      });
-    return () => {
-      live = false;
-    };
-  }, [agentId, revision]);
   // With more than one account the line and the sheet name the account of each item.
   const accountIds = new Set(
     readiness

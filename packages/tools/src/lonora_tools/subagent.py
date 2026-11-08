@@ -55,8 +55,9 @@ def tools() -> list[Tool]:
         ),
         Tool(
             "subagent_inspect",
-            "Inspect the state and outcome of a run this Agent delegated: its subagents, and "
-            "peer or collaboration requests it sent. Other Agents' runs are run_not_found.",
+            "Inspect the state and outcome of a run this Agent delegated (its subagents, peer "
+            "or collaboration requests it sent) or of an agent it supervises. Other Agents' "
+            "runs are run_not_found.",
             InspectInput,
             inspect,
             True,
@@ -64,7 +65,8 @@ def tools() -> list[Tool]:
         ),
         Tool(
             "child_agent_create",
-            "Create a persistent child agent with its own identity, thread and memory.",
+            "Compatibility only: a child identity under your own scope with its own thread "
+            "and memory. For a persistent agent the owner asks for, use agent_create.",
             ChildInput,
             child,
         ),

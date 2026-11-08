@@ -21,10 +21,29 @@ export {
   hasFixedMarket,
   marketScopeChange,
 } from "./agent-scope";
+export {
+  type AgentStatusText,
+  agentStatusLabels,
+  agentStatusLine,
+  agentStatusText,
+  liveAvatarState,
+  watchCondition,
+  watchUntil,
+} from "./agent-status";
 export { attachmentTooLarge, maxAttachmentBytes } from "./attachments";
 export * from "./avatar-geometry";
 export * from "./avatar-motion";
 export * from "./avatar-state";
+export {
+  builtInLine,
+  type CapabilityText,
+  capabilityLabels,
+  capabilityText,
+  integrationLine,
+  serverLine,
+  skillLine,
+  sourceLine,
+} from "./capabilities";
 export {
   type MentionAddress,
   type MentionRange,
@@ -50,6 +69,10 @@ export {
   runStatusText,
 } from "./financial-boundary";
 export {
+  type CredentialField,
+  type CredentialForm,
+  type CredentialPost,
+  credentialForm,
   mergeOwnerAction,
   type OwnerActionButton,
   type OwnerActionOption,
@@ -60,6 +83,7 @@ export {
   ownerActionError,
   ownerActionLabels,
   ownerActionText,
+  submitCredential,
 } from "./owner-actions";
 export {
   type OwnerProfileLabel,
@@ -87,6 +111,15 @@ export {
   streamText,
 } from "./reply-stream";
 export { activeStatuses, canCancel, canResume, isWorking } from "./run-state";
+export {
+  type SupervisionRow,
+  type SupervisionText,
+  supervisionError,
+  supervisionLabels,
+  supervisionRows,
+  supervisionText,
+  unsupervisedAgents,
+} from "./supervision";
 export { formatTimeSeparator, needsTimeSeparator, timeSeparatorIds } from "./time-separators";
 export * from "./trading-avatar-motion";
 export {

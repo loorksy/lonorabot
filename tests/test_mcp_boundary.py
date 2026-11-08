@@ -77,6 +77,9 @@ def context(*, declarations: tuple[McpToolDeclaration, ...] = (), **config: Any)
         db=SimpleNamespace(sessions=sessions),
         secrets=SimpleNamespace(read=decrypt),
         mcp_declarations=declarations,
+        # Operator declarations only (the deny override); owner trust is covered by
+        # tests/test_trusted_sources.py against PostgreSQL.
+        mcp_owner_trust=False,
         saved_connection=connection,
         saved_secret=secret,
         counters=counters,

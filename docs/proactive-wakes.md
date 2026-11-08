@@ -158,5 +158,5 @@ Delivery is in-app only until Wave 3. See
 - An attributed wake that finds its Agent paused falls back to the Personal Agent; the
   paused Agent is not woken when it resumes.
 - Off-app delivery of Agent alerts (push, messaging channels) arrives in Wave 3.
-- Supervision (W15-6) is not on this branch: the Personal Agent does not yet read
-  other Agents' runs or memory.
+- Supervision (W15-6, `docs/supervision.md`): the Personal Agent reads other Agents'
+  runs and memory through its default, revocable supervision grant, on demand.

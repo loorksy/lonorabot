@@ -6,7 +6,8 @@ from lonora_contracts.runs import RunRequest
 from lonora_core.user_error import LonoraError
 from lonora_db.agent_models import allowed_models
 from lonora_db.runs import create_run, require_lease, run_data
-from lonora_db.schema import RunRow
+from lonora_db.schema import AgentRow, RunRow
+from lonora_db.supervision import supervises
 from lonora_db.threads import create_thread
 from lonora_db.transactions import owned_thread
 from lonora_tools.context import ToolContext
@@ -94,7 +95,16 @@ async def inspect_subagent(context: ToolContext, run_id: str) -> dict[str, Any]:
         if row is None:
             raise LonoraError("run_not_found", 404)
         await owned_thread(session, context.owner_id, row.thread_id)
-        if not await delegated_by(session, row, context.agent_id):
-            # Another Agent's private Run reads exactly like a missing one.
-            raise LonoraError("run_not_found", 404)
-        return run_data(row)
+        if await delegated_by(session, row, context.agent_id):
+            return run_data(row)
+        if await supervises(session, context.owner_id, context.agent_id, row.agent_id):
+            # A supervised agent's Run, read through the owner's grant: its text is that
+            # agent's, data for this one and never its instructions.
+            agent = await session.get(AgentRow, row.agent_id)
+            return {
+                **run_data(row),
+                "supervised_agent": {"id": row.agent_id, "name": agent.name if agent else None},
+                "untrusted": True,
+            }
+        # Another Agent's private Run reads exactly like a missing one.
+        raise LonoraError("run_not_found", 404)

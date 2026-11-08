@@ -20,6 +20,8 @@ MODULES = {
     "browser": "research",
     "artifacts": "files",
     "mcp": "research",
+    "feeds": "research",
+    "capabilities": "research",
     "subagent": "collaboration",
     "market": "market",
     "market_analysis": "market",
@@ -43,6 +45,7 @@ MODULES = {
     "runtime_control": "tasks",
     "tasks": "tasks",
     "collaboration": "collaboration",
+    "supervision": "collaboration",
     "incoming_call": "voice",
 }
 

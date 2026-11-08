@@ -1,6 +1,7 @@
 import { Trans } from "@lingui/react/macro";
 export type SettingsTab =
   | "overview"
+  | "capabilities"
   | "models"
   | "voice"
   | "trading"
@@ -16,6 +17,7 @@ export function SettingsSidebar({
 }) {
   const tabs: [SettingsTab, React.ReactNode][] = [
     ["overview", <Trans key="367">Appearance</Trans>],
+    ["capabilities", <Trans key="capabilities">Capabilities</Trans>],
     ["models", <Trans key="410">Global models</Trans>],
     ["voice", <Trans key="455">Voice</Trans>],
     ["trading", <Trans key="494">Trading</Trans>],

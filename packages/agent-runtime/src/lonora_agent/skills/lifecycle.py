@@ -12,6 +12,7 @@ from lonora_db.skills import SkillRepository
 from lonora_session.idempotency import request_hash
 from lonora_tools.context import ToolContext
 from lonora_tools.registry import ToolRegistry
+from lonora_tools.workspace_access import WorkspaceAccess
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -29,6 +30,7 @@ from .packages import (
     validation_image,
 )
 from .registry import installed_registry
+from .repository import repository_identity
 
 
 def receipt_key(context: ToolContext) -> str:
@@ -198,6 +200,47 @@ def describe(row: SkillRow, entry: PackageVersion, **extra: Any) -> dict[str, An
     }
 
 
+def package_files(context: ToolContext, entry: PackageVersion) -> WorkspaceAccess:
+    """Where a package's files are kept: the Agent's workspace. Its file store needs no
+    analysis host, so an instructions-only package installs without one; utilities
+    still need the host to validate before activation."""
+    if context.workspace_access is not None:
+        return context.workspace_access
+    if entry.utilities:
+        raise LonoraError("workspace_runtime_unavailable", 409)
+    from ..workspace_access import RunWorkspaceAccess
+
+    return RunWorkspaceAccess()
+
+
+async def untrusted_source(context: ToolContext, repository_url: str) -> dict[str, Any] | None:
+    """A repository outside the owner's trusted list: one owner card instead of the
+    import. Inside it (github.com by default) the import goes on silently."""
+    from lonora_db.capability_cards import source_payload, trust_subject
+    from lonora_db.trusted_sources import github_trusted
+    from lonora_tools.owner_actions import propose_capability_card
+
+    owner, repository = repository_identity(repository_url)
+    async with context.db.sessions() as session, session.begin():
+        if await github_trusted(session, context.owner_id, owner, repository):
+            return None
+    identifier = (owner + "/" + repository).casefold()
+    card = await propose_capability_card(
+        context,
+        "trust_source",
+        trust_subject("github_repo", identifier),
+        source_payload("github_repo", identifier),
+    )
+    return {
+        "status": "owner_trust_required",
+        "repository": identifier,
+        "installed": False,
+        **card,
+        "guidance": "This repository is outside the owner's trusted sources. The card asks "
+        "the owner to trust it; you continue once the owner taps Trust.",
+    }
+
+
 async def import_package(
     context: ToolContext, registry: ToolRegistry, arguments: dict[str, Any]
 ) -> dict[str, Any]:
@@ -205,8 +248,8 @@ async def import_package(
     async with context.db.sessions() as session, session.begin():
         if (result := await prior(session, context, digest)) is not None:
             return result
-    if context.workspace_access is None:
-        raise LonoraError("workspace_runtime_unavailable", 409)
+    if (waiting := await untrusted_source(context, arguments["repository_url"])) is not None:
+        return waiting
     archive = await fetch_package(arguments["repository_url"], arguments["commit"])
     entry, files = prepare_package(
         archive,
@@ -228,8 +271,7 @@ async def install_entry(
     entry: PackageVersion,
     files: dict[str, str],
 ) -> dict[str, Any]:
-    if context.workspace_access is None:
-        raise LonoraError("workspace_runtime_unavailable", 409)
+    access = package_files(context, entry)
     identity = entry.payload.name
     # Reserve immutable semantic identities before materializing. No locks span I/O.
     async with context.db.sessions() as session, session.begin():
@@ -243,7 +285,7 @@ async def install_entry(
             entry.payload.model_dump(mode="json"),
             row.id if row else None,
         )
-    materialized = await context.workspace_access.update(
+    materialized = await access.update(
         context.for_call(context.call_id + ":package-files"),
         arguments["workspace_revision"],
         files,
@@ -339,8 +381,6 @@ async def create_package(
                     },
                 )
             )
-    if context.workspace_access is None:
-        raise LonoraError("workspace_runtime_unavailable", 409)
     return await install_entry(context, registry, arguments, digest, entry, files)
 
 

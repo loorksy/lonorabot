@@ -238,7 +238,9 @@ trap a position, including an exit the owner approves. An agent may impose
 `all_mutations` on another agent or on all agents only in a run that answers the owner's
 message (source `owner_message`); otherwise creation fails with
 `restriction_all_mutations_requires_owner_message`, and on its own initiative an agent
-may freeze only itself. A restriction an agent records for another agent or for all
+may freeze only itself. Pausing a whole agent stops its exits the same way, so a
+supervisor pauses an agent with money standing only from the owner's message
+(`supervision_pause_trading_agent`, `docs/supervision.md`). A restriction an agent records for another agent or for all
 agents is time-boxed: it needs `valid_until` (`restriction_valid_until_required`) at
 most 31 days after it starts (`restriction_window_too_long`); open-ended or longer
 restrictions on other agents are the owner's own.

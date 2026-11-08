@@ -32,7 +32,21 @@
     "owner_action_grant_stopped_others": "لم يعد الوكلاء الآخرون الذين اخترتهم يتداولون بأنفسهم على هذا الحساب.",
     "owner_action_grant_resumed": "واستؤنف التداول الجديد أيضًا.",
     "owner_action_agent_model": "تغيّر النموذج، ويبدأ من الرد التالي. الذاكرة والمهام والتفويضات والصفقات المفتوحة باقية كما هي.",
-    "owner_action_agent_model_changed": "أُعيد النموذج السابق، ويبدأ من الرد التالي. الذاكرة والمهام والتفويضات والصفقات المفتوحة باقية كما هي."
+    "owner_action_agent_model_changed": "أُعيد النموذج السابق، ويبدأ من الرد التالي. الذاكرة والمهام والتفويضات والصفقات المفتوحة باقية كما هي.",
+    "owner_action_create_agent": "أُنشئ الوكيل. لا يملك أي صلاحية مالية، ولا يمنحه إياها إلا تفويض توقّعه.",
+    "owner_action_undo_deleted": "تم التراجع: أُزيل الوكيل.",
+    "owner_action_undo_paused": "تم التراجع: أُوقف الوكيل مؤقتًا. كان قد بدأ العمل، وبقي ما أنجزه.",
+    "owner_action_supervise": "صار الإشراف ساريًا: يقرأ المشرف عملهم ويراسلهم ويستطيع إيقاف عملهم مؤقتًا، ولا يتداول عنهم ولا يرفع أي فرامل.",
+    "owner_action_supervision_created": "تم التراجع: توقف الإشراف، ولم يعد المشرف يقرأ عملهم أو يوقفه.",
+    "owner_action_supervision_stopped": "تمت الاستعادة: عاد الإشراف ساريًا، فيقرأ المشرف عملهم ويستطيع إيقافه مؤقتًا من جديد.",
+    "owner_action_supervision_paused": "تم الاستئناف: رُفع الإيقاف ويعود العمل.",
+    "owner_action_trust_source": "صار موثوقًا ومحفوظًا: يستخدم وكلاؤك هذا المصدر دون أن يسألوك مجددًا، وتستطيع إزالته من القدرات.",
+    "owner_action_trust_source_mcp": "صار موثوقًا: الأدوات التي راجعتها متاحة لكل الوكلاء. تبقى الأدوات التي تتداول أو تحرّك المال محظورة، وأي أداة تتغيّر تنتظر مراجعتك.",
+    "owner_action_connect_credential": "تم الربط. يبقى السرّ على الخادم، ولا يرى وكلاؤك إلا أنه مُعدّ.",
+    "owner_action_connect_credential_mcp": "تم الربط. يبقى السرّ على الخادم. راجع أدواته في البطاقة التالية قبل أن يستخدمها الوكلاء.",
+    "owner_action_connect_credential_mcp_unread": "تم الربط. يبقى السرّ على الخادم، لكن تعذّرت قراءة أدواته حتى الآن؛ سيتحقق وكيلك مجددًا ويخبرك.",
+    "owner_action_connect_credential_mcp_blocked": "تم الربط. يبقى السرّ على الخادم، لكن لا يمكن الوثوق بأي من أدواته: الأدوات التي تتداول أو تحرّك المال لا تعمل هنا أبدًا. سيخبرك وكيلك بما يقدّمه.",
+    "owner_action_trust_source_mcp_read": "صار موثوقًا للقراءة: يستخدم الوكلاء أدواته التي تقرأ فقط. تنتظر الأدوات التي قد تغيّر شيئًا حتى تثق به للكتابة غير المالية، وتبقى الأدوات التي تتداول أو تحرّك المال محظورة."
   },
   "en": {
     "super_bot_authorization": "An older authorization request was retired and granted nothing. Trading on its own needs a grant you sign for each agent.",
@@ -67,6 +81,20 @@
     "owner_action_grant_stopped_others": "The other agents you chose no longer trade on their own on this account.",
     "owner_action_grant_resumed": "New trading resumed too.",
     "owner_action_agent_model": "Model changed; it answers from the next reply. Memory, tasks, grants and open trades stay as they are.",
-    "owner_action_agent_model_changed": "The previous model is back; it answers from the next reply. Memory, tasks, grants and open trades stay as they are."
+    "owner_action_agent_model_changed": "The previous model is back; it answers from the next reply. Memory, tasks, grants and open trades stay as they are.",
+    "owner_action_create_agent": "Agent created. It has no money authority; only a grant you sign can give it one.",
+    "owner_action_undo_deleted": "Undone: the agent was removed.",
+    "owner_action_undo_paused": "Undone: the agent was paused. It had already started work, which is kept.",
+    "owner_action_supervise": "Supervision set: the supervisor reads their work, messages them and can pause it; it never trades for them or lifts a brake.",
+    "owner_action_supervision_created": "Undone: supervision stopped; the supervisor no longer reads or pauses their work.",
+    "owner_action_supervision_stopped": "Restored: supervision is set again; the supervisor reads their work and can pause it again.",
+    "owner_action_supervision_paused": "Resumed: the pause is lifted and the work continues.",
+    "owner_action_trust_source": "Trusted and remembered: your agents use this source without asking again. You can remove it in Capabilities.",
+    "owner_action_trust_source_mcp": "Trusted: the reviewed tools are available to every agent. Tools that can trade or move money stay blocked, and a changed tool waits for your review.",
+    "owner_action_connect_credential": "Connected. The secret stays on the server; your agents only see that it is configured.",
+    "owner_action_connect_credential_mcp": "Connected. The secret stays on the server. Review its tools on the next card before agents use them.",
+    "owner_action_connect_credential_mcp_unread": "Connected. The secret stays on the server, but its tools could not be read yet; your agent will check again and tell you.",
+    "owner_action_connect_credential_mcp_blocked": "Connected. The secret stays on the server, but none of its tools can be trusted: tools that can trade or move money never run here. Your agent will tell you what it offers.",
+    "owner_action_trust_source_mcp_read": "Trusted for reading: agents use its tools that only read. Tools that may change something wait until you trust it for non-financial writes; tools that can trade or move money stay blocked."
   }
 }

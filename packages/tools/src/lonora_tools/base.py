@@ -18,11 +18,18 @@ DEFAULT_MUTATION_TIMEOUT_SECONDS = 90.0
 # Exposure profiles name the working sets a Run receives as native schemas from
 # its first model turn. "core" applies to every Run; an agent bound to a broker
 # account and the owner's Personal Agent add "market", every other agent
-# "research"; durable Task Runs add "task". Exposure is presentation only:
-# execution validates every boundary whatever was exposed, and any registered
-# tool stays reachable via tool_call.
-ExposureProfile = Literal["core", "market", "research", "task"]
-EXPOSURE_PROFILES: tuple[ExposureProfile, ...] = ("core", "market", "research", "task")
+# "research"; a supervisor (the Personal Agent, and any agent while it holds a
+# supervision grant) adds "coordination"; durable Task Runs add "task". Exposure is
+# presentation only: execution validates every boundary whatever was exposed, and
+# any registered tool stays reachable via tool_call.
+ExposureProfile = Literal["core", "market", "research", "coordination", "task"]
+EXPOSURE_PROFILES: tuple[ExposureProfile, ...] = (
+    "core",
+    "market",
+    "research",
+    "coordination",
+    "task",
+)
 
 
 def eager_for(*profiles: ExposureProfile) -> frozenset[ExposureProfile]:

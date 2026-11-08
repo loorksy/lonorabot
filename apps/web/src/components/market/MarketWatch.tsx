@@ -1,10 +1,33 @@
+import { i18n } from "@lingui/core";
 import { Trans } from "@lingui/react/macro";
+import type { AgentWatchSummary } from "@lonora/contracts";
+import { watchCondition, watchUntil } from "@lonora/core";
 import { useEffect, useMemo, useState } from "react";
 import type { Agent, Resource } from "../../lib/api";
 import { resources } from "../../lib/rpc";
 import { userError } from "../../lib/user_error";
 import { AgentPicker } from "../../pages/shell/bot-picker";
 import { useClient } from "../../providers/ClientProvider";
+
+/** The watch as the status line summarizes it: condition, market and expiry. */
+function watchSummary(row: Resource): AgentWatchSummary {
+  const payload = row.payload;
+  const text = (value: unknown) => (value == null || value === "" ? null : String(value));
+  return {
+    id: row.id,
+    kind: (text(payload.kind) ?? "price") as AgentWatchSummary["kind"],
+    account_id: text(payload.account_id),
+    symbol: text(payload.symbol),
+    condition: text(payload.condition) as AgentWatchSummary["condition"],
+    level: text(payload.level),
+    indicator: payload.kind === "indicator" ? text(payload.indicator) : null,
+    timeframe: payload.kind === "indicator" ? text(payload.timeframe) : null,
+    metric: payload.kind === "account" || payload.kind === "position" ? text(payload.metric) : null,
+    expires_at: text(payload.expires_at),
+    lifecycle: text(row.state?.lifecycle) ?? "pending",
+  };
+}
+
 export function MarketWatch({
   accountId,
   symbol,
@@ -278,10 +301,16 @@ export function MarketWatch({
       </form>
       {error != null && <p role="alert">{userError(error)}</p>}
       {rows.map((w) => (
-        <div className="row" key={w.id}>
-          <bdi>
-            {String(w.payload.symbol)} · {String(w.payload.level)}
-          </bdi>
+        <div className="row" key={w.id} data-watch={w.id}>
+          <span>
+            {[
+              agents.find((row) => row.id === w.agent_id)?.name,
+              watchCondition(watchSummary(w), i18n.locale),
+              watchUntil(watchSummary(w), i18n.locale),
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+          </span>
           <button
             type="button"
             onClick={() =>

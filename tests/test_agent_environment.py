@@ -67,6 +67,10 @@ def test_recovery_contract_preserves_stable_categories(code: str, category: str)
         # An owner restriction is a scope: never an invitation to try another route.
         ("trading_restriction_active", "permission_denied", "respect_scope"),
         ("restriction_all_mutations_requires_owner_message", "permission_denied", "respect_scope"),
+        ("supervision_personal_agent", "permission_denied", "respect_scope"),
+        ("supervision_revoke_own_oversight", "permission_denied", "respect_scope"),
+        # Pausing a whole trading agent has a narrower route: restrict it, pause its work.
+        ("supervision_pause_trading_agent", "terminal_domain_failure", "alternate_route"),
         # A monetary limit points at its evidence: resize within it or wait for the owner.
         ("risk_trade_limit", "risk_limit_blocked", "inspect_risk_assessment"),
         ("risk_stop_loss_required", "risk_limit_blocked", "inspect_risk_assessment"),

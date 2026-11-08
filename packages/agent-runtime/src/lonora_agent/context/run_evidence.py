@@ -56,13 +56,15 @@ EXTERNAL_TOOLS = frozenset(
         "skill_repository_inspect",
         "search_internal",
         "session_search",
-        # A third-party calendar feed (event names and sources).
+        # Third-party calendar and news feeds (event names, headlines, summaries).
         "economic_calendar_read",
+        "news_feed_read",
         # Another model's text, possibly echoing injected evidence.
         "consult_model",
-        # Delegated or peer Agents' model-written results.
+        # Delegated, peer or supervised Agents' model-written results and memory.
         "subagent_inspect",
         "collaboration_inspect",
+        "agent_inspect",
     }
 )
 EXTERNAL_PREFIXES = ("web_", "mcp_", "search_")

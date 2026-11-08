@@ -878,3 +878,168 @@ class OwnerActionRow(Base):
     decided_via: Mapped[str | None] = mapped_column(String(16))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class SupervisionGrantRow(Base):
+    """One agent may read and steer another's work: visible, revocable, never money.
+
+    The Personal Agent holds a ``default`` grant over every agent; the owner revokes any
+    grant with one tap. A grant lets the supervisor read the supervised agent's threads,
+    runs, memory and records, message it, pause or resume its work and add narrowing
+    pauses. It never trades for it, never uses its grant and never lifts a brake.
+    """
+
+    __tablename__ = "ln_supervision_grants"
+    __table_args__ = (
+        CheckConstraint(
+            "created_via IN ('default','owner_ui','owner_message','owner_card')",
+            name="ln_supervision_grant_created_via",
+        ),
+        CheckConstraint(
+            "revoked_via IS NULL OR revoked_via IN ('owner_ui','owner_card','owner_message')",
+            name="ln_supervision_grant_revoked_via",
+        ),
+        CheckConstraint(
+            "supervisor_agent_id <> supervised_agent_id", name="ln_supervision_grant_distinct"
+        ),
+        Index("ln_supervision_grant_supervisor", "owner_id", "supervisor_agent_id", "revoked_at"),
+        Index("ln_supervision_grant_supervised", "owner_id", "supervised_agent_id", "revoked_at"),
+        # One active grant per pair; a revoked one stays as the record of what was allowed.
+        Index(
+            "ln_supervision_grant_active_pair",
+            "supervisor_agent_id",
+            "supervised_agent_id",
+            unique=True,
+            postgresql_where=text("revoked_at IS NULL"),
+            sqlite_where=text("revoked_at IS NULL"),
+        ),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    owner_id: Mapped[str] = mapped_column(ForeignKey("ln_owners.id", ondelete="CASCADE"))
+    supervisor_agent_id: Mapped[str] = mapped_column(ForeignKey("ln_agents.id", ondelete="CASCADE"))
+    supervised_agent_id: Mapped[str] = mapped_column(ForeignKey("ln_agents.id", ondelete="CASCADE"))
+    created_via: Mapped[str] = mapped_column(String(16))
+    source_message_id: Mapped[str | None] = mapped_column(
+        ForeignKey("ln_messages.id", ondelete="SET NULL")
+    )
+    # The agent whose tool call or card recorded it; a value, never cascaded away.
+    created_by_agent_id: Mapped[str | None] = mapped_column(String(36))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    revoked_via: Mapped[str | None] = mapped_column(String(16))
+
+
+class SupervisionHoldRow(Base):
+    """A pause one agent put on another agent's work (the agent itself, one of its
+    Tasks, routines or watches). On its own initiative only the agent that set it (still
+    supervising) lifts it; a run that answers the owner's message lifts it too. The owner
+    pausing the same work makes it the owner's (``source='owner'``, the holder kept for
+    attribution), lifted only by the owner; the owner resuming the work releases it."""
+
+    __tablename__ = "ln_supervision_holds"
+    __table_args__ = (
+        CheckConstraint(
+            "target_kind IN ('agent','task','routine','watch')",
+            name="ln_supervision_hold_target_kind",
+        ),
+        CheckConstraint(
+            "source IN ('agent','owner_message','owner')", name="ln_supervision_hold_source"
+        ),
+        CheckConstraint(
+            "released_by IS NULL OR released_by IN ('holder','owner','stale')",
+            name="ln_supervision_hold_released_by",
+        ),
+        Index("ln_supervision_hold_agent", "owner_id", "agent_id", "released_at"),
+        Index("ln_supervision_hold_holder", "owner_id", "holder_agent_id", "released_at"),
+        # At most one live hold per paused item.
+        Index(
+            "ln_supervision_hold_live_target",
+            "target_kind",
+            "target_id",
+            unique=True,
+            postgresql_where=text("released_at IS NULL"),
+            sqlite_where=text("released_at IS NULL"),
+        ),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    owner_id: Mapped[str] = mapped_column(ForeignKey("ln_owners.id", ondelete="CASCADE"))
+    holder_agent_id: Mapped[str] = mapped_column(ForeignKey("ln_agents.id", ondelete="CASCADE"))
+    # The agent whose work is paused.
+    agent_id: Mapped[str] = mapped_column(ForeignKey("ln_agents.id", ondelete="CASCADE"))
+    target_kind: Mapped[str] = mapped_column(String(8))
+    target_id: Mapped[str] = mapped_column(String(36))
+    source: Mapped[str] = mapped_column(String(16))
+    source_message_id: Mapped[str | None] = mapped_column(
+        ForeignKey("ln_messages.id", ondelete="SET NULL")
+    )
+    source_run_id: Mapped[str | None] = mapped_column(String(36))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    released_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    released_by: Mapped[str | None] = mapped_column(String(8))
+
+
+class TrustedSourceRow(Base):
+    """One source the owner trusts: inside the list, agents install and use capabilities
+    without asking; outside it, one owner card. Visible and removable in Capabilities.
+
+    ``github`` (github.com, every public repository; the default, trusted as before),
+    ``github_owner`` and ``github_repo`` admit Skill imports; ``mcp_server`` pins one saved
+    connection's endpoint and the exact input schema of each tool the owner reviewed;
+    ``feed_domain`` admits news feed subscriptions. A trusted source never carries money
+    authority: no tool that can trade or move money is ever pinned.
+    """
+
+    __tablename__ = "ln_trusted_sources"
+    __table_args__ = (
+        CheckConstraint(
+            "kind IN ('github','github_owner','github_repo','mcp_server','feed_domain')",
+            name="ln_trusted_source_kind",
+        ),
+        CheckConstraint(
+            "effect_tier IN ('read','write_nonfinancial')", name="ln_trusted_source_tier"
+        ),
+        CheckConstraint(
+            "added_via IN ('default','operator','owner_ui','owner_card')",
+            name="ln_trusted_source_added_via",
+        ),
+        CheckConstraint(
+            "revoked_via IS NULL OR revoked_via IN ('owner_ui','owner_card')",
+            name="ln_trusted_source_revoked_via",
+        ),
+        Index("ln_trusted_source_owner_kind", "owner_id", "kind", "revoked_at"),
+        # One active entry per source; a removed one stays as the record and can be restored.
+        Index(
+            "ln_trusted_source_active",
+            "owner_id",
+            "kind",
+            "identifier",
+            unique=True,
+            postgresql_where=text("revoked_at IS NULL"),
+            sqlite_where=text("revoked_at IS NULL"),
+        ),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    owner_id: Mapped[str] = mapped_column(ForeignKey("ln_owners.id", ondelete="CASCADE"))
+    kind: Mapped[str] = mapped_column(String(16))
+    # github.com, an owner name, owner/repository (case-folded), a connection id or a host.
+    identifier: Mapped[str] = mapped_column(String(300))
+    effect_tier: Mapped[str] = mapped_column(String(24), default="read")
+    # mcp_server: the reviewed endpoint and {tool name: input schema sha256}.
+    endpoint_sha256: Mapped[str | None] = mapped_column(String(64))
+    tool_hashes: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    # The pinned tools the server marked read-only at review: the only ones the read tier
+    # runs (a later hint can narrow this, never widen it).
+    read_only_tools: Mapped[list[Any]] = mapped_column(JSON, default=list)
+    # Tools seen at review that can trade or move money; never pinned, shown as blocked.
+    blocked_tools: Mapped[list[Any]] = mapped_column(JSON, default=list)
+    # operator: copied from LONORA_MCP_DECLARATIONS; it authorizes nothing by itself (only
+    # while that declaration stands) until the owner reviews it.
+    added_via: Mapped[str] = mapped_column(String(16))
+    # The agent whose card the owner confirmed; a value, never cascaded away.
+    added_by_agent_id: Mapped[str | None] = mapped_column(String(36))
+    card_id: Mapped[str | None] = mapped_column(String(36))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    revoked_via: Mapped[str | None] = mapped_column(String(16))

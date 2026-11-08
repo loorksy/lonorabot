@@ -1,5 +1,6 @@
 import type { AuthorityAction } from "./account-authority";
 import type { AuthorityDuration } from "./agent-permissions";
+import type { EffectTier } from "./capabilities";
 import type { DeviceProof } from "./devices";
 import type { AgentModelMode, ModelLabel } from "./models";
 import type { GlobalTrading, MoneyLimitName, MoneyLimits, RestrictionActionClass } from "./trading";
@@ -11,9 +12,43 @@ export type OwnerActionKind =
   | "set_account_limits"
   | "grant_authority"
   | "agent_model"
-  | "agent_model_changed";
+  | "agent_model_changed"
+  | "create_agent"
+  | "agent_created"
+  | "supervise"
+  | "supervision_created"
+  | "supervision_stopped"
+  | "supervision_paused"
+  | "trust_source"
+  | "connect_credential";
 /** A model card's side of a choice: the mode and its model (null: the owner's default). */
 export type OwnerActionModelState = { mode: AgentModelMode; model: ModelLabel };
+/** trust_source: what the owner adds to the trusted list. */
+export type TrustSourceKind = "mcp_server" | "github_owner" | "github_repo" | "feed_domain";
+/** connect_credential: which secure form the card offers. */
+export type CredentialTarget =
+  | "mcp_server"
+  | "news_feed"
+  | "brave_search"
+  | "economic_calendar"
+  | "broker";
+/** Agent templates (lonora_contracts.agent_creation); none carries money authority. */
+export type AgentTemplate = "trading" | "general" | "research" | "supervisor";
+/** A creation card's agent, read on the server. */
+export type OwnerActionAgent = {
+  exists: boolean;
+  name: string | null;
+  template?: AgentTemplate | null;
+  symbol?: string | null;
+  level?: "analysis" | "supervised" | "autonomous";
+  paused?: boolean;
+  report_to?: string[];
+  /** Names of the agents it supervises (reads, messages, pauses; never trades). */
+  supervises?: string[];
+  model?: string | null;
+  /** Its task exactly as stored (its standing instructions); shown isolated and labelled. */
+  responsibility?: string | null;
+};
 export type OwnerActionStatus = "pending" | "confirmed" | "cancelled" | "expired" | "superseded";
 export type AttestedOutcome = "executed" | "not_executed" | "unknown";
 /** A limits card shows one line per changed field: a limit, its currency or the day's zone. */
@@ -39,7 +74,9 @@ export type OwnerActionGrantTerms = {
 /**
  * One owner-only action offered as a card in the conversation (lonora_db.owner_actions).
  * Every fact is read on the server from the records the card names; nothing an agent
- * wrote appears on it. Only the owner's session can confirm it.
+ * wrote appears on it, except a creation card's stored task, quoted and labelled
+ * because it is the exact instruction the tap keeps. Only the owner's session can
+ * confirm it.
  */
 export type OwnerAction = {
   id: string;
@@ -132,6 +169,48 @@ export type OwnerAction = {
       /** Lonora asked on the owner's behalf for another agent. */
       asked_by_agent_name?: string;
     };
+    /** create_agent / agent_created: the agent the card creates or created. */
+    agent?: OwnerActionAgent;
+    /** agent_created: what Undo does now (remove an untouched agent, else pause it). */
+    undo?: "delete" | "pause";
+    /**
+     * supervise / supervision_created / supervision_stopped: who supervises whom;
+     * supervision_paused: which supervisor paused which work of which agent. Names are
+     * read on the server.
+     */
+    supervision?: {
+      supervisor_name: string | null;
+      supervised_names: string[];
+      /**
+       * supervision_created: a grant of this change is still in force; supervision_stopped:
+       * one can still be restored; supervision_paused: the pause still holds.
+       */
+      active: boolean;
+      /** supervision_paused: what is paused, and that item's own short label. */
+      target?: "agent" | "task" | "routine" | "watch";
+      target_label?: string | null;
+      from_owner_message?: boolean;
+      /** The owner paused it too: the pause is the owner's now. */
+      owner_holds?: boolean;
+    };
+    /**
+     * trust_source: the source to trust. An MCP server's label is its saved name and its
+     * tools are the reviewed names (tools that can move money are listed as blocked;
+     * writes are the ones that may change something and run only at the write tier);
+     * review is true when the server is trusted already and its tools changed.
+     */
+    source?: {
+      kind: TrustSourceKind;
+      label: string | null;
+      subscribe: boolean;
+      tools?: string[];
+      writes?: string[];
+      blocked?: string[];
+      review?: boolean;
+      tier?: EffectTier | null;
+    };
+    /** connect_credential: the form to offer ("x" names an X MCP server). */
+    credential?: { target: CredentialTarget; service: "x" | null };
   };
   /** Confirming needs the owner's passkey: it raises or removes a money limit. */
   requires_passkey: boolean;
@@ -139,7 +218,6 @@ export type OwnerAction = {
     outcome?: AttestedOutcome;
     global_trading?: string;
     limits?: MoneyLimits;
-    resumed?: boolean;
     daily_loss?: string | null;
     /** The account's own daily loss limit, unchanged by the card. */
     daily_loss_kept?: string | null;
@@ -147,6 +225,26 @@ export type OwnerAction = {
     stopped_agents?: string[];
     allowed_added?: boolean;
     undone?: boolean;
+    agent_id?: string;
+    agent_name?: string;
+    undo?: "deleted" | "paused";
+    grant_ids?: string[];
+    supervisor_id?: string;
+    revoked?: number;
+    restored?: number;
+    /** A grant card resumed new trading (true); supervision_paused: what was resumed. */
+    resumed?: boolean | "agent" | "task" | "routine" | "watch";
+    tier?: EffectTier;
+    tools?: number;
+    /** trust_source on an MCP server: how many trusted tools may change something. */
+    writes?: number;
+    subscribed?: boolean;
+    target?: CredentialTarget;
+    configured?: boolean;
+    connection_id?: string;
+    integration_id?: string;
+    /** connect_credential for an MCP server: whether its trust card followed. */
+    review?: "raised" | "unread" | "nothing_to_trust" | "disabled" | "already";
   };
   expires_at: string;
   decided_at: string | null;
@@ -166,6 +264,10 @@ export type OwnerActionDecision = {
   resume_trading?: boolean;
   /** Grant card: stop these other agents' grants on this market (narrowing). */
   stop_authorities?: string[];
+  /** trust_source on an MCP server: what the owner trusts its tools for. */
+  tier?: EffectTier;
+  /** connect_credential: what the secure form created; never the value it holds. */
+  connected?: { resource: "integration" | "mcp" | "broker"; id: string };
 };
 /** Grant card: the owner's choice that changes what the passkey signs. */
 export type OwnerActionChallenge = { allow_manual_positions?: boolean };

@@ -14,6 +14,7 @@ from lonora_contracts.domain import utcnow
 from lonora_contracts.market import Quote
 from lonora_contracts.model_routing import ModelSelection
 from lonora_contracts.tasks import TaskControl, TaskCreate
+from lonora_db.agent_state import agent_live_state
 from lonora_db.runs import claim_next
 from lonora_db.schema import MarketWatchRow, RunRow
 from lonora_db.task_wait import resume_ready_waits
@@ -117,6 +118,18 @@ async def main() -> None:
                         and state["status"] == "waiting"
                     )
                     assert state["waiting_reason"] == "external_" + kind
+                    # The status line says what the work waits on: its own watch is
+                    # "Monitoring", a timer or a broker recovery is not.
+                    live = await agent_live_state(session, f.owner, agent["id"])
+                    if kind == "watch":
+                        assert (live.state, live.phase, live.reason_code) == (
+                            "waiting",
+                            "monitoring",
+                            "market_watch",
+                        ), live
+                        assert live.watches[0]["id"] == watch_id, live.watches
+                    else:
+                        assert live.phase != "monitoring", live
                 # Recovered worker after checkpoint/suspend crash must not ask the model or execute again.
                 recovered = await f.lease(data)
                 await execute_run(recovered, load_tools(), 120, 8)

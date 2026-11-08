@@ -78,11 +78,13 @@ class Gateway:
         mcp_declarations: tuple[McpToolDeclaration, ...] = (),
         searxng_url: str | None = None,
         browser_url: str | None = None,
+        mcp_owner_trust: bool = True,
     ):
         self.db, self.key, self.root = db, key, artifact_root
         self.chart_visual = chart_visual
         self.workspace_socket = workspace_socket
         self.mcp_declarations = mcp_declarations
+        self.mcp_owner_trust = mcp_owner_trust
         self.searxng_url = searxng_url
         self.browser_url = browser_url
         self.lease_seconds, self.maximum_subagents, self.poll_seconds = (
@@ -122,6 +124,7 @@ class Gateway:
                     self.mcp_declarations,
                     self.searxng_url,
                     self.browser_url,
+                    self.mcp_owner_trust,
                 )
             except Exception as error:
                 # A worker whose every claim fails is not live: its record goes stale,
@@ -147,6 +150,7 @@ class Gateway:
                 mcp_declarations=self.mcp_declarations,
                 searxng_url=self.searxng_url,
                 browser_url=self.browser_url,
+                mcp_owner_trust=self.mcp_owner_trust,
             )
         return self.services[owner_id]
 

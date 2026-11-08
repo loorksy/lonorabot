@@ -16,6 +16,7 @@ from lonora_adapter_kit.types import ModelMessage, ToolCall, ToolDefinition
 from lonora_core.user_error import LonoraError
 from lonora_db.agent_binding import agent_binding
 from lonora_db.schema import AgentRow
+from lonora_db.supervision import supervised_ids
 from lonora_db.tool_usage import record_tool_use, remembered_tools
 from lonora_tools.base import EXPOSURE_PROFILES, ExposureProfile, ToolScope
 from lonora_tools.context import ToolContext
@@ -26,13 +27,22 @@ log = logging.getLogger("lonora.tool_loop")
 EXPOSURE_VERSION = 1
 
 
-def run_profiles(agent: AgentRow, task_run: bool) -> list[ExposureProfile]:
+def run_profiles(
+    agent: AgentRow, task_run: bool, *, supervises: bool = False
+) -> list[ExposureProfile]:
     """``market`` for trading identities: an agent bound to a broker account, and
     the owner's Personal Agent, which reads every owned account and analyzes
     directly when no specialist exists. Other agents get ``research``.
+
+    ``coordination`` (inspect and message the agents it supervises) for the Personal
+    Agent, which supervises every agent by default, and for any agent while it holds
+    a supervision grant. A trading identity's Task Run leaves it out: its market and
+    task schemas fill the eager budget, and coordination stays one tool_call away.
     """
     trading = bool(agent.trading_account_id) or agent.role == "personal"
     profiles: list[ExposureProfile] = ["core", "market" if trading else "research"]
+    if (agent.role == "personal" or supervises) and not (trading and task_run):
+        profiles.append("coordination")
     if task_run:
         profiles.append("task")
     return profiles
@@ -82,7 +92,8 @@ async def ensure_exposure(
     async with context.db.sessions() as session:
         agent = await agent_binding(session, context.owner_id, context.agent_id)
         remembered = await remembered_tools(session, context.owner_id, context.agent_id)
-    profiles = run_profiles(agent, task_run)
+        supervising = bool(await supervised_ids(session, context.owner_id, context.agent_id))
+    profiles = run_profiles(agent, task_run, supervises=supervising)
     unavailable = await registry.availability(context)
     native, promoted = registry.exposure(
         profiles, scope=scope, remembered=remembered, unavailable=unavailable

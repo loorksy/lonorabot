@@ -1,10 +1,14 @@
-from typing import Any
+from datetime import datetime
+from decimal import Decimal
+from typing import Any, Literal
 
-from lonora_contracts.domain import ThreadCreate
+from lonora_contracts.domain import ThreadCreate, utcnow
 from lonora_contracts.market_watch import Watch
 from lonora_core.user_error import LonoraError
+from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from .events import emit
 from .schema import IntegrationRow, MarketWatchRow
 from .threads import create_thread
 from .trading_goals import owned_goal, planned_step
@@ -86,3 +90,140 @@ class MarketWatchRepository(ResourceRepository):
             thread_id=thread_id,
             resource_id=resource_id,
         )
+
+
+WatchAction = Literal["cancel", "pause", "resume"]
+# Why a watch is off: the owner's or the agent's own choice, never a failure.
+STOP_CODES = {"cancel": "watch_cancelled", "pause": "watch_paused"}
+
+
+def watch_active(row: MarketWatchRow, now: datetime | None = None) -> bool:
+    """Enabled, not expired and not past its expiry: it is watching right now."""
+    if not row.payload.get("enabled", True) or row.state.get("lifecycle") == "expired":
+        return False
+    expires = row.payload.get("expires_at")
+    return not expires or datetime.fromisoformat(str(expires)) > (now or utcnow())
+
+
+async def watch_past_expiry(session: AsyncSession, watch_id: str) -> bool:
+    """Whether a resume would be refused because the watch is past its expiry."""
+    row = await session.get(MarketWatchRow, watch_id)
+    expires = row.payload.get("expires_at") if row else None
+    return bool(expires) and datetime.fromisoformat(str(expires)) <= utcnow()
+
+
+async def steered_watch(
+    session: AsyncSession, owner_id: str, watch_id: str, agent_id: str | None
+) -> MarketWatchRow:
+    """The owner's watch, locked; with ``agent_id`` only that agent's own watch.
+
+    Another agent's watch reads as not found, so an agent can neither steer nor probe it.
+    """
+    row = await session.get(MarketWatchRow, watch_id, with_for_update=True, populate_existing=True)
+    if row is None or row.owner_id != owner_id or (agent_id and row.agent_id != agent_id):
+        raise LonoraError("market_watches_not_found", 404)
+    return row
+
+
+def _changed(session: AsyncSession, row: MarketWatchRow, by: str) -> None:
+    row.version += 1
+    row.updated_at = utcnow()
+    row.state = {**row.state, "steered_by": by, "steered_at": row.updated_at.isoformat()}
+    emit(
+        session,
+        row.owner_id,
+        "market_watches.updated",
+        agent_id=row.agent_id,
+        thread_id=row.thread_id,
+        payload={"id": row.id, "version": row.version},
+    )
+
+
+async def control_watch(
+    session: AsyncSession,
+    owner_id: str,
+    watch_id: str,
+    action: WatchAction,
+    *,
+    agent_id: str | None = None,
+    owner_message: bool = False,
+) -> MarketWatchRow:
+    """Cancel, pause or resume a watch; repeating the same action changes nothing.
+
+    A cancelled or paused watch keeps its record, so resuming it undoes the cancel. A
+    watch past its expiry resumes only after its expiry is moved (``update_watch``).
+    The agent never resumes a watch a supervisor or the owner holds paused on its own
+    initiative (``owner_message``: its run answers the owner's message); it may still
+    cancel it, which only narrows and keeps the hold.
+    """
+    from .supervision import owner_takes_over, refuse_held
+
+    row = await steered_watch(session, owner_id, watch_id, agent_id)
+    by = "agent" if agent_id else "owner"
+    if agent_id is None:
+        # The owner's choice wins over a supervisor's pause of this watch.
+        await owner_takes_over(session, owner_id, "watch", watch_id, paused=action != "resume")
+    elif action == "resume":
+        await refuse_held(
+            session, owner_id, "watch", watch_id, agent_id, owner_message=owner_message
+        )
+    if action in STOP_CODES:
+        code = STOP_CODES[action]
+        if not row.payload.get("enabled", True) and row.state.get("code") == code:
+            return row
+        row.payload = {**row.payload, "enabled": False}
+        row.state = {**row.state, "code": code}
+        _changed(session, row, by)
+        return row
+    if watch_active(row):
+        return row
+    expires = row.payload.get("expires_at")
+    if expires and datetime.fromisoformat(str(expires)) <= utcnow():
+        raise LonoraError("watch_expired", 409)
+    state = {key: value for key, value in row.state.items() if key != "code"}
+    if state.get("lifecycle") == "expired":
+        state["lifecycle"] = "pending"
+        state.pop("lifecycle_reason", None)
+    row.payload = {**row.payload, "enabled": True}
+    row.state = state
+    _changed(session, row, by)
+    return row
+
+
+async def update_watch(
+    session: AsyncSession,
+    owner_id: str,
+    watch_id: str,
+    *,
+    agent_id: str | None = None,
+    expires_at: datetime | None = None,
+    clear_expiry: bool = False,
+    level: Decimal | None = None,
+) -> MarketWatchRow:
+    """Move a watch's expiry or level; the condition, market and prompt stay as they are.
+
+    An expired watch given a later expiry watches again.
+    """
+    row = await steered_watch(session, owner_id, watch_id, agent_id)
+    payload = dict(row.payload)
+    if clear_expiry:
+        payload["expires_at"] = None
+    elif expires_at is not None:
+        if expires_at <= utcnow():
+            raise LonoraError("watch_expiry_in_past", 422)
+        payload["expires_at"] = expires_at.isoformat()
+    if level is not None:
+        payload["level"] = str(level)
+    try:
+        validated = MarketWatchRepository().validate(payload)
+    except ValidationError as error:
+        raise LonoraError("watch_update_invalid", 422) from error
+    if validated == row.payload:
+        return row
+    state = dict(row.state)
+    if state.get("lifecycle") == "expired" and (clear_expiry or expires_at is not None):
+        state["lifecycle"] = "pending"
+        state.pop("lifecycle_reason", None)
+    row.payload, row.state = validated, state
+    _changed(session, row, "agent" if agent_id else "owner")
+    return row

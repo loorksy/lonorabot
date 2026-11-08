@@ -1,11 +1,13 @@
 import { i18n } from "@lingui/core";
 import type { DeviceChallenge, OwnerAction, OwnerActionDecision } from "@lonora/contracts";
 import {
+  type CredentialForm,
   mergeOwnerAction,
   type OwnerActionButton,
   ownerActionCard,
   ownerActionChoices,
   ownerActionText,
+  submitCredential,
   webDeviceProof,
   webDeviceSupported,
 } from "@lonora/core";
@@ -91,6 +93,7 @@ export function OwnerActionCard({
         decision: button.decision,
         ...(button.decision === "confirm" ? choices.decision : {}),
       };
+      if (button.tier) body.tier = button.tier;
       if (button.outcome) {
         body.outcome = button.outcome;
         if (note.trim()) body.note = note.trim();
@@ -110,6 +113,27 @@ export function OwnerActionCard({
       if (cause instanceof ApiError && cause.code === "device_registration_required")
         setEnroll(true);
       setError(cause);
+    } finally {
+      if (mounted.current) setBusy(false);
+    }
+  }
+  async function connect(form: CredentialForm, values: Record<string, string>) {
+    setBusy(true);
+    setError(undefined);
+    try {
+      // The value goes straight to the owner API; the card only learns what was created.
+      const connected = await submitCredential(
+        (path, body) => api.post<{ id: string }>(path, body),
+        form.target,
+        values,
+      );
+      const updated = await api.post<OwnerAction>(`/owner-actions/${row.id}/decision`, {
+        decision: "confirm",
+        connected,
+      } satisfies OwnerActionDecision);
+      if (mounted.current) onChanged(updated);
+    } catch (cause) {
+      if (mounted.current) setError(cause);
     } finally {
       if (mounted.current) setBusy(false);
     }
@@ -193,6 +217,13 @@ export function OwnerActionCard({
           </label>
         </div>
       )}
+      {spec.credential && (
+        <CredentialFields
+          form={spec.credential}
+          busy={busy}
+          onSubmit={(values) => void connect(spec.credential as CredentialForm, values)}
+        />
+      )}
       {spec.passkey && !supported && <p role="status">{text.passkeyUnsupported}</p>}
       {enroll && (
         <div className="lonora-owner-action-notes">
@@ -237,5 +268,51 @@ export function OwnerActionCard({
       )}
       {error != null && <p role="alert">{userError(error)}</p>}
     </article>
+  );
+}
+
+/** A credential card's secure form: values stay in this component until they are posted
+ * to the owner API, and are cleared as soon as they are sent. */
+function CredentialFields({
+  form,
+  busy,
+  onSubmit,
+}: {
+  form: CredentialForm;
+  busy: boolean;
+  onSubmit: (values: Record<string, string>) => void;
+}) {
+  const initial = () => Object.fromEntries(form.fields.map((field) => [field.key, field.initial]));
+  const [values, setValues] = useState<Record<string, string>>(initial);
+  return (
+    <form
+      className="lonora-owner-action-notes"
+      data-owner-action-form={form.target}
+      onSubmit={(event) => {
+        event.preventDefault();
+        const sent = values;
+        setValues(initial());
+        onSubmit(sent);
+      }}
+    >
+      {form.fields.map((field) => (
+        <label key={field.key}>
+          {field.label}
+          <input
+            name={field.key}
+            type={field.type}
+            dir={field.ltr ? "ltr" : "auto"}
+            required={field.required}
+            autoComplete={field.type === "password" ? "off" : undefined}
+            value={values[field.key] ?? ""}
+            disabled={busy}
+            onChange={(event) => setValues((old) => ({ ...old, [field.key]: event.target.value }))}
+          />
+        </label>
+      ))}
+      <button type="submit" className="primary" disabled={busy} data-owner-action-button="connect">
+        {form.submit}
+      </button>
+    </form>
   );
 }

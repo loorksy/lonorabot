@@ -3,9 +3,15 @@
 Wave 1.5 slices W15-2 and W15-3. Every owner-only action has a one-tap card inside the
 conversation, identical on Web and Mobile. Resuming trading, lifting a pause, settling
 an uncertain trade, changing money limits and signing a trading grant never need a
-settings page or the API. Later slices add cards for agent creation and supervision
-(W15-4, W15-6), trusted sources and credentials (W15-8), and an agent's model (W15-10,
-`docs/provider-resilience.md`).
+settings page or the API. W15-3 adds the grant card (`grant_authority`, below), W15-4
+the agent creation and Undo cards (`docs/agents-from-chat.md`), W15-6 the
+supervision, Undo, Restore and pause cards (`supervise`, `supervision_created`,
+`supervision_stopped`, `supervision_paused`, `docs/supervision.md`).
+W15-8 adds the trust and secure credential cards (`trust_source`, `connect_credential`,
+`docs/trusted-sources.md`): an MCP server's trust card offers the read or write tier only
+when some tool may change something, and a credential card for an MCP server says
+whether the trust card follows (or why not, waking the agent that asked). W15-10 adds
+the model cards (`agent_model`, `agent_model_changed`, `docs/provider-resilience.md`).
 
 A card is never a second authority path. It stores one exact effect, and the owner's
 tap runs the existing owner function for that effect, in the owner's session.
@@ -16,7 +22,7 @@ tap runs the existing owner function for that effect, in the owner's session.
 
 | Field | Meaning |
 | --- | --- |
-| `kind` | `resume_trading`, `lift_restriction`, `resolve_operation`, `set_account_limits` or `grant_authority` |
+| `kind` | `resume_trading`, `lift_restriction`, `resolve_operation`, `set_account_limits`, `grant_authority`, `create_agent`, `agent_created`, `supervise`, `supervision_created`, `supervision_stopped`, `supervision_paused`, `trust_source`, `connect_credential`, `agent_model` or `agent_model_changed` |
 | `payload`, `payload_hash` | The exact, server-validated effect, and its hash. A passkey challenge is bound to the hash. |
 | `subject` | The record the card acts on: `trading`, `restriction:<id>`, `operation:<id>`, `account:<id>`, `grant:<agent>:<account>` |
 | `source` | `agent` (proposed through the tool) or `system` (raised from a runtime event) |
@@ -73,7 +79,9 @@ request time from the records the card names: global trading, the restriction's 
 scope, window and who set it (never its reason text, which an agent may have written),
 the operation's action, volume, symbol, time and agent, and the account's current and
 proposed limits. No ids, codes or JSON are shown; the account is named only when the
-owner has several.
+owner has several. The one stored text a card quotes is a creation card's task: it
+becomes the new agent's standing instructions, so the card shows it word for word,
+isolated and labelled as the agent's task ("Its task: …"), never as Lonora's words.
 
 A limits card shows one line for every field its change touches
 (`LIMIT_CHANGE_NAMES`): each limit, the currency ("Currency: USD → EUR") and the
@@ -88,6 +96,8 @@ the card says "This no longer applies" and can only be dismissed; no passkey is 
 | New entries paused (Only exits allowed, Trading frozen) | Lift pause / Keep it | one tap |
 | The broker did not confirm this trade | It executed / It did not execute / Unknown: release the hold, optional note and broker ticket | one tap |
 | Change money limits | Apply (or Confirm with passkey) / Cancel | one tap when it allows no more risk; passkey otherwise |
+| Create an agent? (an agent proposed it without an owner message) | Create agent / Not now | one tap; the agent gets no money authority |
+| Agent created | Undo / Keep it | one tap; Undo removes an agent that has done nothing yet, otherwise pauses it |
 
 Any answer on a resolve card, "Unknown" included, settles the operation and releases
 the hold it puts on its market; the hint and the settled line say so. An owner who is

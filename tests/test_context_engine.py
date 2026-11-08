@@ -1349,7 +1349,8 @@ def test_every_catalog_tool_is_classified_for_earlier_run_evidence() -> None:
     # Server, broker and the agent's own state: first-party observations. A new
     # tool must be placed here or classified as external in run_evidence.
     first_party = {
-        "account_activity", "account_history", "account_read", "artifact_create",
+        "account_activity", "account_history", "account_read", "agent_control", "agent_create",
+        "artifact_create",
         "board_create", "board_list", "chart_add_indicator", "chart_annotate",
         "chart_indicator", "chart_inspect", "chart_list", "chart_open",
         "chart_read_indicator", "chart_remove_indicator", "chart_set_symbol",
@@ -1364,22 +1365,30 @@ def test_every_catalog_tool_is_classified_for_earlier_run_evidence() -> None:
         "market_performance_read", "market_position_size", "market_quote",
         "market_relationship_read", "market_relationship_record", "market_sessions",
         "market_shadow_execute", "market_shadow_read", "market_snapshot", "market_structure",
-        "market_symbols", "model_list", "model_request", "owner_action_propose", "owner_attention_list",
+        "market_symbols", "model_list", "model_request", "news_feed_subscribe",
+        "capabilities_list", "owner_action_propose", "owner_attention_list",
         "owner_call_request",
         "owner_notify", "peer_send",
         "routine_create", "routine_list", "routine_toggle", "scratchpad_read",
         "skill_package_control", "skill_package_create", "skill_package_import",
-        "skill_package_validate", "subagent_spawn", "task_control", "task_inspect",
-        "task_start", "task_step_update",
+        "skill_package_validate", "subagent_spawn", "supervision_change",
+        "task_control", "task_inspect", "task_start", "task_step_update",
         "ticket_create", "ticket_start", "trade_record_history", "trade_record_read",
-        "trade_restriction_create", "trade_restriction_list", "watch_create", "watch_list",
+        "trade_restriction_create", "trade_restriction_list", "watch_cancel", "watch_create",
+        "watch_list", "watch_pause", "watch_resume", "watch_update",
         "workspace_export", "workspace_update",
     }  # fmt: skip
     for name in sorted(tool.name for tool in load_tools().definitions()):
         if name in SKIPPED_TOOLS or name in EFFECT_TOOLS:
             continue
         assert is_external(name) != (name in first_party), name
-    for name in ("economic_calendar_read", "consult_model", "web_fetch", "mcp_execute"):
+    for name in (
+        "economic_calendar_read",
+        "news_feed_read",
+        "consult_model",
+        "web_fetch",
+        "mcp_execute",
+    ):
         assert is_external(name), name
 
 

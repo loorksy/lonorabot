@@ -96,6 +96,14 @@ async def _write(session: AsyncSession, record: PermissionRecord) -> None:
     )
 
 
+async def initial_permission(
+    session: AsyncSession, owner_id: str, agent_id: str, level: LowerPermissionLevel
+) -> None:
+    """A new agent's stored ladder level ("Ask me" or "No trading"); never a grant."""
+    current = await permission_record(session, owner_id, agent_id)
+    await _write(session, current.model_copy(update={"fallback_level": level}))
+
+
 async def bump_permission(session: AsyncSession, owner_id: str, agent_id: str) -> None:
     """Caller holds authority_lock; envelope creation/activation/revocation changed."""
     current = await permission_record(session, owner_id, agent_id)

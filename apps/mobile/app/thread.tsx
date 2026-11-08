@@ -16,6 +16,7 @@ import {
   type ConversationItem,
   conversationTimeline,
   type LiveReplyStream,
+  liveAvatarState,
   type MentionAddress,
   mergeOwnerAction,
   needsTimeSeparator,
@@ -693,7 +694,8 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
                 const active = [...runs]
                   .reverse()
                   .find((run) => activeStatuses.includes(run.status));
-                if (!active) return "waiting";
+                // Between runs the avatar follows the agent's server phase.
+                if (!active) return liveAvatarState(liveState.state);
                 if (connection !== "connected") return "connecting";
                 return turnActivity(
                   { ...active, stream: streamForRun(active, streams[active.id]) },
