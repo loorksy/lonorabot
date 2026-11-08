@@ -255,6 +255,71 @@ def external_wait_outcome(state: dict[str, Any]) -> LoopOutcome:
     )
 
 
+def close_pending(
+    state: dict[str, Any],
+    registry: ToolRegistry,
+    messages: list[ModelMessage],
+    pending: list[ToolCall],
+    reason: str | None,
+    *,
+    code: str = "",
+) -> list[ToolCall]:
+    """Answer every pending call; return those that may already have executed.
+
+    A non-read-only call whose in-flight marker survived a restart may have crossed
+    its effect boundary before the worker died. It is answered as dispatch answers an
+    interrupted call (``tool_execution_uncertain``, route marked ambiguous), never as
+    superseded or not executed, so the model reconciles instead of repeating it.
+    """
+    environment = environment_state(state)
+    started = inflight_ids(environment) | set(environment.get("legacy_pending", []))
+    uncertain: list[ToolCall] = []
+    for call in list(pending):
+        tool = registry.tools.get(call.name)
+        if call.id in started and not (tool and tool.read_only):
+            result: dict[str, Any] = {"ok": False, "code": "tool_execution_uncertain"}
+            observe(state, call, tool, result)
+            messages.append(
+                ModelMessage(
+                    role="tool",
+                    tool_call_id=call.id,
+                    content=json.dumps(result, ensure_ascii=False),
+                )
+            )
+            record_observed(state, call.id)
+            uncertain.append(call)
+        else:
+            close_unexecuted(messages, [call], reason, code=code)
+    environment["legacy_pending"] = [
+        identifier
+        for identifier in environment.get("legacy_pending", [])
+        if identifier not in {call.id for call in pending}
+    ]
+    pending.clear()
+    return uncertain
+
+
+async def report_closed(
+    context: ToolContext, closed: list[ToolCall], uncertain: list[ToolCall], code: str
+) -> None:
+    for call in closed:
+        if call in uncertain:
+            await progress(
+                context,
+                "tool.completed",
+                {
+                    "name": call.name,
+                    "call_id": call.id,
+                    "ok": False,
+                    "code": "tool_execution_uncertain",
+                },
+            )
+        else:
+            await progress(
+                context, "tool.cancelled", {"name": call.name, "call_id": call.id, "code": code}
+            )
+
+
 def supersede_wait_siblings(messages: list[ModelMessage], pending: list[ToolCall]) -> None:
     """Close the current tool block without carrying stale actions across a wait.
 
@@ -505,8 +570,10 @@ async def finish_turn(
     else:
         halt = halt_reason(state) or {}
         superseded = list(pending)
-        await cancel_superseded_approvals(context, superseded)
-        close_unexecuted(messages, pending, reason, code="tool_call_not_executed")
+        uncertain = close_pending(
+            state, registry, messages, pending, reason, code="tool_call_not_executed"
+        )
+        await cancel_superseded_approvals(context, [c for c in superseded if c not in uncertain])
         # The final request is its own trailing notice, the last thing read.
         messages.append(
             notice_message("work_limit", finish_instruction(reason, str(halt.get("message") or "")))
@@ -514,12 +581,7 @@ async def finish_turn(
         state["exit_reason"] = reason
         clear_inflight(environment_state(state), {call.id for call in superseded})
         await persist(context, state, messages, pending)
-        for call in superseded:
-            await progress(
-                context,
-                "tool.cancelled",
-                {"name": call.name, "call_id": call.id, "code": "tool_call_not_executed"},
-            )
+        await report_closed(context, superseded, uncertain, "tool_call_not_executed")
         turn_capability = (
             Capability.VISION if any(message.images for message in messages) else capability
         )
@@ -717,18 +779,15 @@ async def execute_tool_loop(
             )
 
     async def supersede_for_steering() -> None:
+        # Owner input supersedes only calls that never started; one interrupted
+        # after its in-flight marker may have executed and is reported uncertain.
         superseded = list(pending)
-        await cancel_superseded_approvals(context, superseded)
-        close_unexecuted(messages, pending, None)
+        uncertain = close_pending(state, registry, messages, pending, None)
+        await cancel_superseded_approvals(context, [c for c in superseded if c not in uncertain])
         clear_inflight(environment_state(state), {call.id for call in superseded})
         state.pop("waiting_call_id", None)
         await persist(context, state, messages, pending)
-        for call in superseded:
-            await progress(
-                context,
-                "tool.cancelled",
-                {"name": call.name, "call_id": call.id, "code": "tool_call_superseded"},
-            )
+        await report_closed(context, superseded, uncertain, "tool_call_superseded")
 
     while True:
         await cancellation_checkpoint(context)
@@ -753,16 +812,15 @@ async def execute_tool_loop(
                 raise ToolRetryScheduled()
             if pending:
                 superseded = list(pending)
-                await cancel_superseded_approvals(context, superseded)
-                close_unexecuted(messages, pending, reason, code="tool_call_not_executed")
+                uncertain = close_pending(
+                    state, registry, messages, pending, reason, code="tool_call_not_executed"
+                )
+                await cancel_superseded_approvals(
+                    context, [c for c in superseded if c not in uncertain]
+                )
                 clear_inflight(environment_state(state), {call.id for call in superseded})
                 await persist(context, state, messages, pending)
-                for call in superseded:
-                    await progress(
-                        context,
-                        "tool.cancelled",
-                        {"name": call.name, "call_id": call.id, "code": "tool_call_not_executed"},
-                    )
+                await report_closed(context, superseded, uncertain, "tool_call_not_executed")
             if await merge_steering(context, state, messages):
                 # A peer outcome arrived after the final reply was drafted; the
                 # reply must account for it, so draft it again (bounded by input).

@@ -986,3 +986,51 @@ async def test_a_second_outage_after_resume_asks_the_owner_again_with_a_new_ques
         (first, "cancelled"),
         (second, "pending"),
     ]
+
+
+@pytest.mark.asyncio
+async def test_owner_steering_never_calls_an_interrupted_mutation_superseded(
+    task_db: Fixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    db, owner, _, thread = task_db
+    effects: list[int] = []
+
+    async def write(_: Any, args: dict[str, Any]) -> dict[str, Any]:
+        effects.append(args["n"])
+        return {"sent": True}
+
+    async def read(_: Any, args: dict[str, Any]) -> dict[str, Any]:
+        return {"n": args["n"]}
+
+    registry = ToolRegistry(
+        [
+            Tool("peer_note", "Send a note", Arguments, write),
+            Tool("fixture_read", "Read", Arguments, read, True),
+        ]
+    )
+    block = [
+        ToolCall(id="w1", name="peer_note", arguments={"n": 1}),
+        ToolCall(id="w2", name="peer_note", arguments={"n": 2}),
+    ]
+    # The previous worker persisted w1's in-flight marker, may have crossed its
+    # effect boundary, then died; w2 never started.
+    marker = {"call_id": "w1", "route_key": "x", "tool": "peer_note"}
+    state = seeded(block, inflight_calls=[marker], inflight=marker)
+    context = await conversation_run(task_db, state)
+    async with db.sessions() as session, session.begin():
+        await send_message(session, owner, thread, MessageCreate(content="Also check silver"))
+    model = Script(ModelReply(text="Checked."))
+    monkeypatch.setattr("lonora_agent.tool_loop.model_turn", model)
+    monkeypatch.setattr("lonora_agent.tool_loop.refresh_skill_context", _no_skill_refresh)
+    await execute_run(context, registry, 120, 8)
+    run = await saved_run(context)
+    observed = results(run)
+    assert effects == []
+    # Possibly executed: uncertain, and its route is held for reconciliation.
+    assert observed["w1"]["code"] == "tool_execution_uncertain"
+    routes = run.execution_state["environment"]["routes"]
+    assert any(item["call_id"] == "w1" and item["ambiguous"] for item in routes.values())
+    # Never started: superseded by the owner's new request.
+    assert observed["w2"]["code"] == "tool_call_superseded"
+    assert not any(item["call_id"] == "w2" for item in routes.values())
+    assert run.status == "completed" and run.result == "Checked.", (run.status, run.error_code)

@@ -283,6 +283,13 @@ Owner input that arrives at a limit is a new request: it supersedes unexecuted
 proposals and starts one new bounded budget (`rounds` returns to zero and the
 slice counter to one; `prior_attempt_rounds` keeps the total).
 
+Owner steering and limits close only calls that never started
+(`tool_call_superseded` / `tool_call_not_executed`). A non-read-only call whose
+in-flight marker survived a restart may already have crossed its effect boundary,
+so `close_pending` answers it as dispatch answers an interrupted call:
+`tool_execution_uncertain`, with its route marked ambiguous for reconciliation and
+any linked approval left in place.
+
 ## Task completion: nudges, then owner attention
 
 A finite Task with declared steps that are not completed, and a continuous
