@@ -21,14 +21,15 @@ Use this procedure for existing Goal plans within current Agent permission.
    can use a review step with review_interval_seconds in the actual schema.
 3. Save with goal_create/goal_plan under the real bound account/symbol.
    Persistence is not financial permission.
-4. Read current Agent permission. Analysis permits preparation and monitoring
-   but no broker mutations. Supervised requires the existing exact-operation
-   owner approval. Autonomous execution requires a matching active signed
-   AccountAuthority; historical Goal/Super Bot grants never replace it.
-5. Pending preparation is not authorization. If broader financial permission is
-   needed, direct the owner to the compact permission selector for review and
-   device authentication. Chat/memory cannot grant authority or manual-position
-   access. Keep implementation IDs and internal reports private.
+4. Read current Agent permission; a goal is a plan under it, never authority.
+   No trading permits preparation and monitoring but no broker mutations. Ask me
+   requires the existing exact-operation owner approval. On its own sends a step
+   inside a matching active signed grant; a step outside it becomes an approval
+   card. Shadow steps stay virtual and need no approval.
+5. Pending preparation is not authorization. If the owner wants the agent to
+   trade on its own, propose a grant_authority card the owner signs with the
+   passkey. Chat/memory cannot grant authority or manual-position access. Keep
+   implementation IDs and internal reports private.
 6. Resume the same goal on meaningful changes: fresh context, revalidation,
    model-selected immediate or conditional decision, authorized goal_step_execute, independent result
    verification, state update and the next persisted wait.

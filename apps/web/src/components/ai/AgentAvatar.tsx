@@ -19,8 +19,8 @@ export function AgentAvatar({
       shape={agent.avatar}
       working={working}
       state={state}
-      superBot={agent.super_bot_active}
-      superBotLabel={t`Super Bot enabled`}
+      tradesOnItsOwn={agent.trades_on_its_own}
+      tradesOnItsOwnLabel={t`Trades on its own`}
     />
   );
 }

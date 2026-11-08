@@ -72,10 +72,14 @@ test("Expo approval buttons show durable real broker receipts", async ({ page, c
       page.getByText("close_position · BTCUSD.demo · manual-ticket-5", { exact: true }),
     ).toBeVisible();
     await page.getByRole("button", { name: "موافقة", exact: true }).click();
-    await expect(page.getByText("manual-ticket-5 · 65000.25", { exact: true })).toBeVisible();
+    // A broker reference is labeled, never a bare number; the shared table names the stage.
+    const ticket = page.getByText("تذكرة الوسيط: manual-ticket-5", { exact: true });
+    await expect(ticket).toBeVisible();
+    await expect(page.getByText("65000.25", { exact: true })).toBeVisible();
+    await expect(page.getByText("نتيجة الوسيط", { exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "موافقة", exact: true })).toHaveCount(0);
     await page.reload();
-    await expect(page.getByText("manual-ticket-5 · 65000.25", { exact: true })).toBeVisible();
+    await expect(ticket).toBeVisible();
     expect(decisions).toBe(1);
     const rejected = {
       ...approval,

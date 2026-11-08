@@ -4,7 +4,6 @@ import type { AgentLiveState } from "@lonora/contracts";
 import { ChevronDown } from "lucide-react";
 import { useEffect, useState } from "react";
 import { api } from "../../lib/api";
-import { goalStatusLabel } from "../../lib/goal-status";
 import { userError } from "../../lib/user_error";
 import { useClient } from "../../providers/ClientProvider";
 import "./agent-status.css";
@@ -82,37 +81,13 @@ export function AgentLiveStatus({ agentId }: { agentId: string }) {
           <Trans>Waiting for device authorization</Trans>
         </p>
       )}
-      {(state.super_bot ?? []).map((grant) => (
-        <div key={grant.request_id}>
-          <p>
-            <Trans>Super Bot</Trans> ·{" "}
-            {grant.mode === "autonomous"
-              ? t`Autonomous`
-              : grant.mode === "supervised"
-                ? t`Supervised`
-                : t`Advisory`}
-          </p>
-          <p dir="auto">{grant.title}</p>
-          {grant.execution_mode === "shadow" && (
-            <p>
-              <Trans>Shadow trading — virtual orders only</Trans>
-            </p>
-          )}
-          {grant.review_status === "failed" && (
-            <p>
-              <Trans>Action required</Trans>
-            </p>
-          )}
-          <p>
-            {grant.authorization_status === "pending"
-              ? t`Waiting for device authorization`
-              : grant.authorization_status === "paused"
-                ? t`Paused`
-                : t`Active`}{" "}
-            · {goalStatusLabel(grant.goal_status)}
-          </p>
-        </div>
-      ))}
+      {(state.account_authorities ?? []).some((grant) => grant.review_status === "failed") && (
+        <p>
+          <Trans>
+            The grant is active, but its readiness check did not finish. No trade was sent.
+          </Trans>
+        </p>
+      )}
       {state.tasks.map((task) => (
         <div key={task.id}>
           <p dir="auto">{task.title}</p>

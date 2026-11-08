@@ -7,12 +7,11 @@ from datetime import timedelta
 from typing import Any
 from urllib.parse import urlsplit
 
+from lonora_contracts.devices import DeviceEnrollment, DeviceProof
 from lonora_contracts.domain import utcnow
-from lonora_contracts.super_bot import DeviceEnrollment, DeviceProof, SuperBotEnvelope
 from lonora_core.user_error import LonoraError
-from lonora_db.schema import DeviceChallengeRow, DeviceCredentialRow, OwnerRow, SuperBotRequestRow
-from lonora_db.super_bot import authority_lock, changed, owned_request, plan_hash, stop_request
-from lonora_session.idempotency import request_hash
+from lonora_db.authority_lock import authority_lock
+from lonora_db.schema import DeviceChallengeRow, DeviceCredentialRow, OwnerRow
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from webauthn import (
@@ -250,105 +249,6 @@ async def finish_enrollment(
     session.add(device)
     await session.flush()
     return {"id": device.id, "name": device.name}
-
-
-async def begin_activation(
-    session: AsyncSession, owner: OwnerIdentity, request_id: str, origin: str
-) -> dict[str, Any]:
-    rp = relying_party(origin)
-    await authority_lock(session, owner.id + ":devices")
-    row = await owned_request(session, owner.id, request_id)
-    if row.status != "pending" or row.expires_at <= utcnow():
-        raise LonoraError("super_bot_request_expired_or_used", 409)
-    known = await devices(session, owner.id)
-    if not known:
-        raise LonoraError("device_registration_required", 409)
-    challenge = await new_challenge(
-        session, owner, "activate", row.envelope_hash, request_id=row.id
-    )
-    options = generate_authentication_options(
-        rp_id=rp,
-        challenge=base64url_to_bytes(challenge.challenge),
-        timeout=120000,
-        allow_credentials=[
-            PublicKeyCredentialDescriptor(id=base64url_to_bytes(item.credential_id))
-            for item in known
-        ],
-        user_verification=UserVerificationRequirement.REQUIRED,
-    )
-    return {"challenge_id": challenge.id, "publicKey": json.loads(options_to_json(options))}
-
-
-async def finish_activation(
-    session: AsyncSession,
-    owner: OwnerIdentity,
-    body: DeviceProof,
-    origin: str,
-    native_origins: list[str] | None = None,
-) -> SuperBotRequestRow:
-    from lonora_db.goal_scope import require_goal_agent
-    from lonora_db.trading_goals import owned_goal, require_autonomous_limits, update_goal_state
-
-    credential_size(body)
-    challenge = await pending_challenge(
-        session, owner, body.challenge_id, "activate", allow_used=True
-    )
-    if challenge.status == "used":
-        # A lost HTTP response may reread the existing result; it never applies
-        # authority again, including after pause, revocation or replacement.
-        return await owned_request(session, owner.id, challenge.request_id or "")
-    row = await owned_request(session, owner.id, challenge.request_id or "")
-    await authority_lock(session, row.agent_id)
-    goal = await owned_goal(session, owner.id, row.goal_id, True)
-    row = await owned_request(session, owner.id, row.id, lock=True)
-    if (
-        row.status != "pending"
-        or row.expires_at <= utcnow()
-        or challenge.binding_hash != row.envelope_hash
-        or request_hash(row.envelope) != row.envelope_hash
-    ):
-        raise LonoraError("super_bot_request_expired_or_changed", 409)
-    envelope = SuperBotEnvelope.model_validate(row.envelope)
-    agent = await require_goal_agent(session, goal)
-    if (
-        row.mode != envelope.mode
-        or goal.state.get("status") in {"cancelled", "completed"}
-        or goal.state.get("plan_version", 1) != envelope.plan_version
-        or plan_hash(goal) != envelope.plan_hash
-        or agent.execution_mode != envelope.execution_mode
-        or goal.payload.get("maximum_volume")
-        != (str(envelope.maximum_volume) if envelope.maximum_volume is not None else None)
-        or goal.payload["max_trade_actions"] != envelope.max_trade_actions
-    ):
-        raise LonoraError("super_bot_plan_changed", 409)
-    device, sign_count = await verified_device_assertion(
-        session, owner.id, body, challenge, origin, native_origins
-    )
-    if row.mode == "autonomous":
-        require_autonomous_limits(goal)
-    previous = list(
-        await session.scalars(
-            select(SuperBotRequestRow).where(
-                SuperBotRequestRow.goal_id == row.goal_id,
-                SuperBotRequestRow.status == "activated",
-            )
-        )
-    )
-    for prior in previous:
-        await stop_request(session, prior, "disabled")
-    await session.flush()
-    device.sign_count, challenge.status = sign_count, "used"
-    row.status, row.device_id = "activated", device.id
-    update_goal_state(
-        session,
-        goal,
-        {**goal.state, "autonomous": row.mode == "autonomous", "super_bot_request_id": row.id},
-    )
-    changed(session, row)
-    from lonora_db.activation_acknowledgment import acknowledge_activation
-
-    await acknowledge_activation(session, row)
-    return row
 
 
 async def begin_bound_assertion(

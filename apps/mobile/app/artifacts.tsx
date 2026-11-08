@@ -212,7 +212,7 @@ export default function ArtifactsScreen() {
                   >
                     {agent ? (
                       <BotAvatar
-                        superBot={agent.super_bot_active}
+                        tradesOnItsOwn={agent.trades_on_its_own}
                         identity={agent.id}
                         color={agent.color}
                         variant={agent.avatar}

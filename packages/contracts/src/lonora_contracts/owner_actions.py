@@ -13,8 +13,8 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from pydantic import Field, model_validator
 
 from .account_authority import AuthorityAction
+from .devices import DeviceProof
 from .domain import Contract
-from .super_bot import DeviceProof
 
 OwnerActionKind = Literal[
     "resume_trading",

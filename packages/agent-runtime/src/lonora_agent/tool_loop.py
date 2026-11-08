@@ -45,7 +45,7 @@ from lonora_db.runs import checkpoint, require_lease
 from lonora_db.schema import RunRow
 from lonora_db.tasks import report_task_degraded
 from lonora_session.idempotency import request_hash
-from lonora_tools.base import ToolScope, run_scope
+from lonora_tools.base import Tool, ToolScope, run_scope
 from lonora_tools.context import ToolContext
 from lonora_tools.registry import ToolRegistry
 from lonora_tools.tool_results import store_result
@@ -463,6 +463,17 @@ async def final_answer(
     return LoopOutcome(text, metadata)
 
 
+def started_payload(call: ToolCall, tool: Tool | None) -> dict[str, Any]:
+    """The activity line's facts: the registry's toolset and effect, never a guessed label."""
+    payload: dict[str, Any] = {"name": call.name, "call_id": call.id}
+    if tool is not None:
+        payload["toolset"] = tool.toolset
+        payload["effect"] = (
+            "financial" if tool.financial else "read" if tool.read_only else "change"
+        )
+    return payload
+
+
 async def execute_segment(
     context: ToolContext,
     registry: ToolRegistry,
@@ -477,7 +488,9 @@ async def execute_segment(
     interrupted = inflight_ids(environment) | set(environment.get("legacy_pending", []))
     decisions = [before_call(state, call, registry.tools.get(call.name)) for call in segment.calls]
     for call in segment.calls:
-        await progress(context, "tool.started", {"name": call.name, "call_id": call.id})
+        await progress(
+            context, "tool.started", started_payload(call, registry.tools.get(call.name))
+        )
     if segment.kind == "serial":
         call, decision = segment.calls[0], decisions[0]
         if decision.action in {"block", "halt"}:

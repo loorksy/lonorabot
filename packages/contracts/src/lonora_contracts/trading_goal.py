@@ -69,7 +69,6 @@ class GoalCreate(Contract):
     account_id: str = Field(min_length=1, max_length=120)
     symbol: str = Field(min_length=1, max_length=80)
     steps: list[GoalStep] = Field(min_length=1, max_length=40)
-    autonomous: bool = False
     maximum_volume: Decimal | None = Field(default=None, gt=0)
     max_trade_actions: int = Field(default=1, ge=1, le=40)
 
@@ -113,9 +112,6 @@ class GoalPlanUpdate(Contract):
 class GoalControl(Contract):
     version: int = Field(ge=1)
     action: Literal["pause", "resume", "cancel"]
-    autonomous: bool | None = None
-    maximum_volume: Decimal | None = Field(default=None, gt=0)
-    max_trade_actions: int | None = Field(default=None, ge=1, le=40)
 
 
 class GoalWake(Contract):

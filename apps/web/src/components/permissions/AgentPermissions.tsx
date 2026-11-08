@@ -17,6 +17,7 @@ import {
   emptyManagementCustomization,
   hasFixedMarket,
   listSeparator,
+  showsTradingControl,
   webDeviceProof,
   webDeviceSupported,
 } from "@lonora/core";
@@ -83,10 +84,13 @@ export function AgentPermissions({
   agent,
   threadId,
   surface = "settings",
+  pendingTrade = false,
 }: {
   agent: Agent;
   threadId: string;
   surface?: "composer" | "settings";
+  /** A trade of this agent waits for the owner in this conversation. */
+  pendingTrade?: boolean;
 }) {
   const { i18n } = useLingui();
   const locale = i18n.locale;
@@ -587,6 +591,29 @@ export function AgentPermissions({
       <ChevronDown className="permission-trigger-chevron" size={12} aria-hidden="true" />
     </>
   );
+  if (
+    surface === "composer" &&
+    state &&
+    !flow &&
+    !showsTradingControl({
+      role: agent.role,
+      trading_account_id: agent.trading_account_id,
+      level: state.effective_level,
+      grants: state.active_authorities.length + (state.pending_authority ? 1 : 0),
+      pendingTrade,
+    })
+  )
+    // An agent that cannot trade shows one quiet fact, not a control.
+    return (
+      <span
+        className="permission-no-trading"
+        data-testid="permission-no-trading"
+        dir={rtl ? "rtl" : "ltr"}
+      >
+        <Eye size={14} aria-hidden="true" />
+        {text.analysis}
+      </span>
+    );
   return (
     <div
       className={`agent-permissions${surface === "composer" ? " agent-permissions-composer" : ""}`}

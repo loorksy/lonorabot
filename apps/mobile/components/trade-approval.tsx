@@ -1,5 +1,10 @@
 import type { TradeApproval } from "@lonora/contracts";
-import { financialBoundaryError, operationStatusText } from "@lonora/core";
+import {
+  approvalStatusText,
+  brokerTicketLabel,
+  financialBoundaryError,
+  operationStatusText,
+} from "@lonora/core";
 import { useRef, useState } from "react";
 import { Text, View } from "react-native";
 import { api } from "../lib/api";
@@ -76,9 +81,7 @@ export function TradeApprovalCard({
           />
         </View>
       ) : (
-        <Text style={{ color: colors.secondary }}>
-          {t(row.status === "completed" ? "brokerResult" : row.status)}
-        </Text>
+        <Text style={{ color: colors.secondary }}>{approvalStatusText(row.status, locale)}</Text>
       )}
       {row.results.map((result) => {
         // Shared with Web: the evidence-backed stage ("Not sent" when it never reached
@@ -94,16 +97,19 @@ export function TradeApprovalCard({
                 {reason}
               </Text>
             )}
-            <Text style={{ color: colors.foreground, writingDirection: "ltr" }}>
-              {[
-                result.broker_id,
-                reason ? null : result.code,
-                result.details.price,
-                result.details.description,
-              ]
-                .filter((value) => value != null)
-                .join(" · ")}
-            </Text>
+            {result.broker_id != null && (
+              <Text style={{ color: colors.foreground, textAlign: rtl ? "right" : "left" }}>
+                {brokerTicketLabel(locale)}:{" "}
+                <Text style={{ writingDirection: "ltr" }}>{result.broker_id}</Text>
+              </Text>
+            )}
+            {[result.details.price, result.details.description].some((value) => value != null) && (
+              <Text style={{ color: colors.foreground, writingDirection: "ltr" }}>
+                {[result.details.price, result.details.description]
+                  .filter((value) => value != null)
+                  .join(" · ")}
+              </Text>
+            )}
           </View>
         );
       })}

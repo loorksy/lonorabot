@@ -28,8 +28,9 @@ const labels: Record<AttentionCode, Label> = {
   collaboration_completed: "attentionCollaborationCompleted",
   task_review: "taskNeedsReview",
   task_degraded: "attentionTaskDegraded",
-  super_bot_authorization: "devicePending",
-  super_bot_changed: "superBot",
+  // Retired Super Bot items still stored in the inbox; nothing raises them any more.
+  super_bot_authorization: "attentionRequestUpdated",
+  super_bot_changed: "attentionRequestUpdated",
   task_completed: "attentionTaskCompleted",
   internal_update: "attentionUpdated",
   maintenance_item_quarantined: "attentionItemQuarantined",

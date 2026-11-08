@@ -32,6 +32,7 @@ from lonora_contracts.owner_actions import (
 from lonora_contracts.trading import OperationResolution, TradingControl
 from lonora_core.user_error import LonoraError
 from lonora_db.account_authority import owned_authority, propose, revoke
+from lonora_db.authority_lock import authority_lock
 from lonora_db.owner_actions import (
     account_policy,
     agent_names,
@@ -54,7 +55,6 @@ from lonora_db.owner_actions import (
     widens,
 )
 from lonora_db.schema import OwnerActionRow
-from lonora_db.super_bot import authority_lock
 from lonora_db.threads import conversation_thread
 from lonora_db.trading_readiness import risk_limit_frame
 from lonora_db.trading_restrictions import revoke_restriction

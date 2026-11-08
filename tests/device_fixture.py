@@ -15,10 +15,7 @@ import cbor2
 from check_streaming import Fixture
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ec
-from lonora_auth.devices import begin_activation, finish_activation, relying_party
-from lonora_auth.sessions import read_session
-from lonora_contracts.super_bot import DeviceProof, SuperBotProposal
-from lonora_db.super_bot import propose
+from lonora_auth.devices import relying_party
 from webauthn.helpers import bytes_to_base64url
 
 
@@ -120,47 +117,13 @@ class Device:
         )
         return device
 
-    async def authorize_goal(
-        self, fixture: Fixture, goal: dict[str, Any], *, allow_manual_positions: bool = False
-    ) -> dict[str, Any]:
-        proposal = await fixture.request(
-            "POST",
-            f"/agents/{goal['agent_id']}/super-bot/proposals",
-            {
-                "goal_id": goal["id"],
-                "mode": "autonomous",
-                "allow_manual_positions": allow_manual_positions,
-            },
+    async def sign_grant(self, fixture: Fixture, proposal: dict[str, Any]) -> dict[str, Any]:
+        """Sign a pending grant through the owner routes, as the trading-level controls do."""
+        challenge = await fixture.request(
+            "POST", f"/account-authorities/{proposal['id']}/challenge", {}
         )
-        challenge = await fixture.request("POST", f"/super-bot/{proposal['id']}/challenge", {})
         return await fixture.request(
-            "POST", "/super-bot/verify", self.assertion(challenge, fixture.settings.allowed_origin)
+            "POST",
+            "/account-authorities/verify",
+            self.assertion(challenge, fixture.settings.allowed_origin),
         )
-
-    async def authorize_goal_service(
-        self, fixture: Fixture, goal: dict[str, Any], *, allow_manual_positions: bool = False
-    ) -> None:
-        async with fixture.runtime.db.sessions() as session, session.begin():
-            identity = await read_session(session, fixture.client.cookies.get("lonora_session"))
-            row = await propose(
-                session,
-                fixture.owner,
-                goal["agent_id"],
-                SuperBotProposal(
-                    goal_id=goal["id"],
-                    mode="autonomous",
-                    allow_manual_positions=allow_manual_positions,
-                ),
-            )
-            challenge = await begin_activation(
-                session, identity, row.id, fixture.settings.allowed_origin
-            )
-        async with fixture.runtime.db.sessions() as session, session.begin():
-            await finish_activation(
-                session,
-                identity,
-                DeviceProof.model_validate(
-                    self.assertion(challenge, fixture.settings.allowed_origin)
-                ),
-                fixture.settings.allowed_origin,
-            )

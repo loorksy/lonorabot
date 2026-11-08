@@ -42,7 +42,7 @@ export const BotAvatar = memo(function BotAvatar({
   size = 54,
   working = false,
   identity = "",
-  superBot = false,
+  tradesOnItsOwn = false,
   state,
   variant = "orb",
   paused = false,
@@ -52,7 +52,7 @@ export const BotAvatar = memo(function BotAvatar({
   working?: boolean;
   variant?: string;
   identity?: string;
-  superBot?: boolean;
+  tradesOnItsOwn?: boolean;
   state?: AvatarStateId;
   paused?: boolean;
 }) {
@@ -298,11 +298,11 @@ export const BotAvatar = memo(function BotAvatar({
           opacity={0.55}
         />
       </Svg>
-      {superBot && (
+      {tradesOnItsOwn && (
         <View
-          testID="super-bot-avatar"
+          testID="on-its-own-avatar"
           accessible
-          accessibilityLabel={t("superBotEnabled")}
+          accessibilityLabel={t("tradesOnItsOwn")}
           pointerEvents="none"
           style={{
             position: "absolute",

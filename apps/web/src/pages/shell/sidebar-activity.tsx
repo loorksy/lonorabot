@@ -1,4 +1,5 @@
 import { Trans, useLingui } from "@lingui/react/macro";
+import { runStatusText } from "@lonora/core";
 import { useState } from "react";
 import { AttentionInbox } from "../../components/ai/AttentionInbox";
 import { WorkingIndicator } from "../../components/ai/primitives";
@@ -60,19 +61,7 @@ export function SidebarActivity({
             "cancelled",
           ].map((value) => (
             <option key={value} value={value}>
-              {value === "queued"
-                ? t`Queued`
-                : value === "running"
-                  ? t`Working`
-                  : value === "waiting_input"
-                    ? t`Waiting for your reply`
-                    : value === "waiting_takeover"
-                      ? t`Waiting for handover`
-                      : value === "completed"
-                        ? t`Completed`
-                        : value === "failed"
-                          ? t`Failed`
-                          : t`Cancelled`}
+              {runStatusText(value, i18n.locale)}
             </option>
           ))}
         </select>

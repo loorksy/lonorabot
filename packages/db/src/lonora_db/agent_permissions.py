@@ -21,9 +21,9 @@ from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from .authority_lock import authority_lock
 from .events import emit
-from .schema import AccountAuthorityRow, AgentRow, SettingRow, SuperBotRequestRow
-from .super_bot import authority_lock, stop_request
+from .schema import AccountAuthorityRow, AgentRow, SettingRow
 from .transactions import owned_agent
 
 
@@ -220,21 +220,6 @@ async def change_permission(
         row.status = "revoked"
         await stop_management_task(session, row)
         changed(session, row)
-    # Remove only existing financial Goal delegation. Keep the analytical goal,
-    # watches and routines, and never send broker close/cancel operations here.
-    legacy = list(
-        await session.scalars(
-            select(SuperBotRequestRow)
-            .where(
-                SuperBotRequestRow.owner_id == owner_id,
-                SuperBotRequestRow.agent_id == agent_id,
-                SuperBotRequestRow.status.in_(["pending", "activated"]),
-            )
-            .order_by(SuperBotRequestRow.goal_id)
-        )
-    )
-    for row in legacy:
-        await stop_request(session, row, "disabled")
     await _write(
         session,
         record.model_copy(

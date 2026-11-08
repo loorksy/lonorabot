@@ -232,3 +232,39 @@ const statusTexts: Readonly<Record<OperationStatusKey, Text>> = {
 export function operationStatusText(status: string, details: unknown, locale: string): string {
   return statusTexts[operationStatusKey(status, details)][language(locale)];
 }
+
+const approvalTexts: Readonly<Record<string, Text>> = {
+  pending: { en: "Waiting for your approval", ar: "بانتظار موافقتك" },
+  approved: { en: "Approved — awaiting broker result", ar: "تمت الموافقة — بانتظار نتيجة الوسيط" },
+  rejected: { en: "Rejected", ar: "مرفوض" },
+  cancelled: { en: "Cancelled", ar: "أُلغي" },
+  expired: { en: "Expired", ar: "انتهت صلاحيته" },
+  completed: { en: "Broker result", ar: "نتيجة الوسيط" },
+};
+
+/** One label per approval-card state, identical on Web and Mobile. */
+export function approvalStatusText(status: string, locale: string): string {
+  return (approvalTexts[status] ?? approvalTexts.completed)[language(locale)];
+}
+
+/** "Broker ticket" before a broker reference, so a bare number never stands alone. */
+export function brokerTicketLabel(locale: string): string {
+  return language(locale) === "ar" ? "تذكرة الوسيط" : "Broker ticket";
+}
+
+const runTexts: Readonly<Record<string, Text>> = {
+  queued: { en: "Queued", ar: "في الانتظار" },
+  leased: { en: "Starting", ar: "يبدأ العمل" },
+  running: { en: "Working", ar: "يعمل" },
+  waiting_input: { en: "Waiting for your reply", ar: "بانتظار ردك" },
+  waiting_takeover: { en: "Waiting to resume", ar: "بانتظار الاستئناف" },
+  completed: { en: "Completed", ar: "مكتمل" },
+  failed: { en: "Failed", ar: "فشل" },
+  cancelled: { en: "Cancelled", ar: "أُلغي" },
+  paused: { en: "Paused", ar: "متوقف مؤقتًا" },
+};
+
+/** One label per run status, identical on Web and Mobile. */
+export function runStatusText(status: string, locale: string): string {
+  return (runTexts[status] ?? runTexts.queued)[language(locale)];
+}

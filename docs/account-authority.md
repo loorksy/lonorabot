@@ -61,8 +61,27 @@ create/reuse watches, choose trades and manage positions without per-order
 approval. The task is bound to this exact grant; replacement or revocation cannot
 silently let stale kickoff work spend a newer grant. Revocation, replacement and
 device removal cancel the corresponding Task using the existing lifecycle. An activation is not an
-entry signal or proof a broker is ready. Global Trading ON/OFF and Emergency Stop
+entry signal or proof a broker is ready. Stop new trading and the owner's pauses
 remain authoritative and are never silently switched by activation.
+
+A grant is the only authority (W15-9). The former Super Bot requests and per-goal
+autonomy are retired: migration `0040_retire_super_bot_requests` marks pending and
+activated requests `retired` and keeps every row as audit history, and nothing
+reads them for authority. The readiness review and the confirmation line that
+followed a Super Bot activation are now keyed on grants:
+
+- A bounded grant (selected markets with explicit limits) gets one observe-only
+  readiness review Run in the work lane after it is signed (receipt
+  `activation-review:<grant id>`). A full-management grant gets none: its management
+  Task is its first work. Grants that were already active when the migration ran get
+  a skipped receipt, so no agent is woken for an old grant.
+- A grant signed from the trading-level controls (`POST /account-authorities/verify`)
+  writes one line in its conversation, in the conversation's language ("Trading on
+  its own is on ..."); a lost-response replay adds none. A grant signed from its chat
+  card is confirmed by the card itself. The review's own result stays quiet behind
+  that line unless the review fails.
+- The avatar's "trades on its own" marker (`trades_on_its_own` on the agent) is shown
+  only while the agent is not paused and holds a grant in force.
 
 Full management leaves stop/target choices to the Agent, including changes to
 existing stops; broker validity and fresh target comparison still apply. Losing
@@ -89,7 +108,7 @@ itself authorize a symbol. Broker-discovered symbols are checked before proposal
 
 Each execution revalidates signature state, expiry, device, ownership, current
 broker snapshot and envelope limits inside the existing serialized financial
-boundary. Global Trading ON/OFF, Emergency Stop, risk/preflight, execution quality,
+boundary. Stop new trading, the owner's pauses, risk/preflight, execution quality,
 manual intervention, idempotency, durable journal and reconciliation still apply.
 Submitted, ambiguous, confirmed, owner-resolved and broker-rejected submitted
 attempts consume the lifetime budget. Known pre-submission failures and released
@@ -312,7 +331,7 @@ null legacy limits, exact symbols and optional limits. The signed simulation
 fixture `check_full_account_management.py` exercises the actual owner API,
 WebAuthn, durable kickoff Task/Run, repeat signatures, grant replacement, stale
 work, four symbol classes, market/pending orders, manual position management,
-partial close, discretionary stops, broker constraints, Emergency Stop and
+partial close, discretionary stops, broker constraints, Stop new trading and
 revocation. The older authority fixture signs the genuinely original v1 envelope
 shape so migration cannot reinterpret its absent fields. Browser checks exercise
 actual EN/AR owner surfaces, full and bounded signatures, and unchanged global

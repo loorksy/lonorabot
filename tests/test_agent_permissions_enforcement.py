@@ -50,17 +50,14 @@ def legacy_goal() -> TradingGoalRow:
 @pytest.mark.asyncio
 @pytest.mark.parametrize("trigger", ["user", "group", "goal", "watch", "routine", "task"])
 @pytest.mark.parametrize("level", ["analysis", "supervised", "autonomous"])
-async def test_live_goal_follows_current_permission_not_legacy_super_bot(
+async def test_live_goal_follows_current_permission_not_retired_goal_autonomy(
     monkeypatch: pytest.MonkeyPatch, trigger: str, level: str
 ):
+    """A Goal is a plan under the agent's level; its old autonomy flag means nothing."""
     session = AsyncMock()
     monkeypatch.setattr(goals, "require_goal_agent", AsyncMock())
     monkeypatch.setattr(goals, "effective_permission", AsyncMock(return_value=level))
     monkeypatch.setattr(goals, "provisional_voice", AsyncMock(return_value=False))
-    old_grant = AsyncMock(
-        side_effect=AssertionError("legacy Goal grant cannot authorize live trade")
-    )
-    monkeypatch.setattr(goals, "require_goal_authority", old_grant)
     if level == "analysis":
         with pytest.raises(LonoraError, match="agent_analysis_only"):
             await goals.goal_requires_approval(session, legacy_goal(), origin(trigger))
@@ -68,7 +65,20 @@ async def test_live_goal_follows_current_permission_not_legacy_super_bot(
         assert await goals.goal_requires_approval(session, legacy_goal(), origin(trigger)) == (
             level == "supervised"
         )
-    old_grant.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("trigger", ["user", "goal", "watch"])
+@pytest.mark.parametrize("level", ["analysis", "supervised", "autonomous"])
+async def test_shadow_goal_needs_neither_goal_autonomy_nor_approval(
+    monkeypatch: pytest.MonkeyPatch, trigger: str, level: str
+):
+    """Shadow never touches the broker: no approval, whatever the level or the trigger."""
+    monkeypatch.setattr(goals, "require_goal_agent", AsyncMock())
+    monkeypatch.setattr(goals, "effective_permission", AsyncMock(return_value=level))
+    shadow = legacy_goal()
+    shadow.state = {"execution_mode": "shadow", "steps": {}}
+    assert await goals.goal_requires_approval(AsyncMock(), shadow, origin(trigger)) is False
 
 
 @pytest.mark.asyncio

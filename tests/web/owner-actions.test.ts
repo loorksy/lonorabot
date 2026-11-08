@@ -299,7 +299,6 @@ test("cards sit at their server anchor in the conversation", () => {
   const rows = conversationTimeline(
     [message("before", 1), message("after", 2)],
     [],
-    [],
     [base, { ...base }],
   );
   assert.deepEqual(

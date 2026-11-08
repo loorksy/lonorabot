@@ -437,7 +437,6 @@ async def main() -> None:
                     "objective": "Explicit simulated permission boundary acceptance",
                     "account_id": account,
                     "symbol": symbol,
-                    "autonomous": False,
                     "maximum_volume": "0.1",
                     "max_trade_actions": 1,
                     "steps": [
@@ -474,11 +473,9 @@ async def main() -> None:
                 run_context,
             )
 
-        # A real legacy Super Bot signature cannot upgrade the current Agent level.
-        legacy = await goal_case("Legacy Goal signature cannot enable analysis Agent", "94")
-        await device.authorize_goal_service(f, legacy)
-        legacy = await f.request("GET", "/trading/goals/" + legacy["id"])
-        assert legacy["state"]["autonomous"] is True
+        # A goal is a plan under the current Agent level: it never upgrades No trading.
+        legacy = await goal_case("A goal cannot enable an analysis Agent", "94")
+        assert "autonomous" not in legacy["state"]
         assert (await state())["effective_level"] == "analysis"
         legacy_context = await goal_context(legacy)
         goal_count = len(await broker.positions())
@@ -487,7 +484,7 @@ async def main() -> None:
         except LonoraError as error:
             assert error.code == "agent_analysis_only", error.code
         else:
-            raise AssertionError("Legacy autonomous Goal signature bypassed Analysis Only")
+            raise AssertionError("A goal bypassed No trading")
         assert len(await broker.positions()) == goal_count
         await change("supervised")
         pending_goal = await goal_action(legacy, legacy_context, "legacy-entry")
@@ -513,7 +510,7 @@ async def main() -> None:
         assert autonomous_goal_result["result"]["status"] == "confirmed", autonomous_goal_result
         assert len(await broker.positions()) == goal_count + 2
         print(
-            "PASS legacy autonomous Goal signature cannot grant Agent rights; same Goal intent needs exact supervised approval or signed account authority"
+            "PASS a goal cannot grant Agent rights; the same Goal intent needs exact supervised approval or signed account authority"
         )
 
         for control, code, stop_loss in (

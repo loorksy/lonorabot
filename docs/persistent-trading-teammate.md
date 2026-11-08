@@ -52,8 +52,8 @@ Owner documents can use the same frontmatter; old plain Markdown stays compatibl
 Sources of unwanted narration included generic skill output instructions asking
 for persisted IDs, raw Super Bot request status/IDs, private argument diagnostics
 and provisional provider deltas reaching the client before any final check.
-Procedures now describe useful business outcomes. Super Bot preparation includes
-an owned-language summary and marks its identifiers private.
+Procedures now describe useful business outcomes. Super Bot is retired (W15-9): a
+grant card the owner signs is the only way an agent trades on its own.
 
 The common text runtime checks a narrowly defined lexical disclosure policy
 before publishing provider text. Safe responses cost one normal model call.

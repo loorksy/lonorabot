@@ -3,7 +3,8 @@ import type { RichContent } from "./visual-response";
 export type Json = string | number | boolean | null | Json[] | { [key: string]: Json };
 export type Payload = Record<string, Json>;
 export type Agent = {
-  super_bot_active?: boolean;
+  /** A signed grant is in force and the agent is not paused (presentation only). */
+  trades_on_its_own?: boolean;
   execution_mode?: "live" | "shadow";
   role?: "personal" | "general" | "specialist" | "delegated" | "legacy";
   scope_mode?: "fixed_market" | "flexible";

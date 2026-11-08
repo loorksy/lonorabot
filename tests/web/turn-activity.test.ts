@@ -57,26 +57,34 @@ test("queued and preparation are genuine states; thinking starts only on a model
 });
 
 test("tool state is ordered by cursor and blank completion names cannot leave fake work running", () => {
-  const started = event("tool.started", 2, { call_id: "call", name: "memory_search" });
+  const started = event("tool.started", 2, {
+    call_id: "call",
+    name: "web_search",
+    toolset: "research",
+    effect: "read",
+  });
   const finished = event("tool.completed", 3, { call_id: "call", name: "" });
   assert.equal(turnActivity(run, [started]).phase, "searching");
   const completed = turnActivity(run, [finished, event("run.reply_started", 1), started]);
   assert.equal(completed.phase, "thinking");
   assert.equal(completed.calls[0].status, "completed");
-  assert.equal(completed.calls[0].name, "memory_search");
-  assert.equal(
-    turnActivity(run, [event("tool.started", 1, { call_id: "write", name: "memory_write" })])
-      .avatar,
-    "learning",
-  );
-  assert.equal(
-    turnActivity(run, [event("tool.started", 1, { call_id: "peer", name: "peer_send" })]).avatar,
-    "sending",
-  );
+  assert.equal(completed.calls[0].name, "web_search");
+  assert.equal(completed.calls[0].toolset, "research");
+  const write = { call_id: "write", name: "memory_write", toolset: "memory", effect: "change" };
+  assert.equal(turnActivity(run, [event("tool.started", 1, write)]).avatar, "learning");
+  const peer = { call_id: "peer", name: "peer_send", toolset: "collaboration", effect: "change" };
+  assert.equal(turnActivity(run, [event("tool.started", 1, peer)]).avatar, "sending");
 });
 
 test("terminal and input-waiting states override tools without inventing completion", () => {
-  const events = [event("tool.started", 1, { call_id: "call", name: "market_read" })];
+  const events = [
+    event("tool.started", 1, {
+      call_id: "call",
+      name: "market_quote",
+      toolset: "market",
+      effect: "read",
+    }),
+  ];
   assert.equal(turnActivity(run, events).phase, "analyzing");
   assert.equal(turnActivity({ ...run, status: "waiting_input" }, events).phase, "waiting_input");
   const cancelled = turnActivity({ ...run, status: "cancelled" }, events);
@@ -107,6 +115,8 @@ test("restored activity reflects actual work without a status fetch or replay", 
       activity: {
         kind: "tool.started",
         name: "web_search",
+        toolset: "research",
+        effect: "read",
         observed_at: "2026-10-27T10:00:00.400Z",
       },
     },
@@ -118,18 +128,19 @@ test("restored activity reflects actual work without a status fetch or replay", 
     "writing",
   );
   assert.equal(turnActivity({ ...restored, status: "completed" }, []).phase, "completed");
-  assert.equal(
-    turnActivity(run, [event("tool.started", 2, { call_id: "exec", name: "workspace_execute" })])
-      .phase,
-    "executing",
-  );
-  assert.equal(
-    turnActivity(run, [event("tool.started", 2, { call_id: "read", name: "web_fetch" })]).phase,
-    "reading",
-  );
-  assert.equal(
-    turnActivity(run, [event("tool.started", 2, { call_id: "read", name: "trade_record_read" })])
-      .phase,
-    "reading",
-  );
+  const started = (payload: Payload) => [event("tool.started", 2, payload)];
+  const exec = { call_id: "exec", name: "workspace_execute", toolset: "files", effect: "change" };
+  assert.equal(turnActivity(run, started(exec)).phase, "executing");
+  const trade = {
+    call_id: "trade",
+    name: "trade_execute",
+    toolset: "trading",
+    effect: "financial",
+  };
+  assert.equal(turnActivity(run, started(trade)).phase, "executing");
+  // The registry's effect decides, not the tool's name: a trading read is reading.
+  const record = { call_id: "read", name: "trade_record_read", toolset: "trading", effect: "read" };
+  assert.equal(turnActivity(run, started(record)).phase, "reading");
+  // An event from before the metadata existed reads as plain work, never a guess.
+  assert.equal(turnActivity(run, started({ call_id: "old", name: "web_search" })).phase, "reading");
 });

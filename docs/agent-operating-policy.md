@@ -25,7 +25,7 @@ trade confirmation, journal/reconciliation and Web/Mobile result presentation.
 | Market, watches and charts | `lonora_tools.market`, `market_watch`, `chart_state`, `chart_snapshot`; `lonora_market`, `lonora_charts` |
 | Broker identity/history | `lonora_tools.account`, `lonora_adapters.brokers.metaapi` |
 | Financial commands and consent | `lonora_tools.trade`, `trading_goal`, `lonora_trading.execution`, `lonora_db.trade_approvals` |
-| Goals and device authorization | `lonora_db.super_bot`, `lonora_auth.devices`, `lonora_trading.goals` |
+| Goals and device authorization | `lonora_trading.goals`, `lonora_auth.devices`, `lonora_auth.account_authority` |
 | Evidence and performance | `lonora_tools.trading_decision`, `relationships`, `opportunity`, `shadow` |
 | Memory and procedures | `lonora_memory`, `lonora_agent.skills`, `lonora_tools.memory`, `scratchpad`, `skills` |
 | Collaboration and groups | `lonora_agent.collaboration`, `lonora_tools.collaboration`, `message`, `subagent` |

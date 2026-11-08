@@ -1,6 +1,6 @@
 // Modified from Tampletgrok apps/mobile/components/WorkingIndicator.tsx (Apache-2.0); see NOTICE.
 import type { Run } from "@lonora/contracts";
-import { isWorking } from "@lonora/core";
+import { isWorking, runStatusText } from "@lonora/core";
 import { useEffect } from "react";
 import { Text, View } from "react-native";
 import Animated, {
@@ -41,7 +41,7 @@ function Dot({
   );
 }
 export function WorkingIndicator({ compact = false, run }: { compact?: boolean; run?: Run }) {
-  const { t } = useSession();
+  const { t, locale } = useSession();
   const still = useReducedMotion();
   const progress = useSharedValue(0);
   const working = run ? isWorking(run.status) : true;
@@ -54,7 +54,8 @@ export function WorkingIndicator({ compact = false, run }: { compact?: boolean; 
     );
     return () => cancelAnimation(progress);
   }, [progress, still, working]);
-  if (run && !working) return <Text style={{ color: colors.secondary }}>{t(run.status)}</Text>;
+  if (run && !working)
+    return <Text style={{ color: colors.secondary }}>{runStatusText(run.status, locale)}</Text>;
   return (
     <View
       accessibilityLabel={t(run?.status ?? "running")}

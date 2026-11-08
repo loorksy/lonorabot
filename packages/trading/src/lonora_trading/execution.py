@@ -20,11 +20,11 @@ from lonora_contracts.trading_goal import GoalExecution
 from lonora_core.trading_control import require_trading
 from lonora_core.user_error import LonoraError
 from lonora_db.agent_binding import assert_market_binding, require_financial_agent
+from lonora_db.authority_lock import authority_lock
 from lonora_db.broker_sessions import BrokerSessionRepository
 from lonora_db.client import Database
 from lonora_db.runs import require_lease
 from lonora_db.schema import RunRow, TicketRow, TradingJournalRow
-from lonora_db.super_bot import authority_lock
 from lonora_db.trade_approvals import require_approved_target_current
 from lonora_db.trading_journal import persist_result, reserve_operation
 from lonora_db.trading_restrictions import restriction_lock

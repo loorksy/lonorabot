@@ -13,8 +13,8 @@ from lonora_adapter_kit.types import ToolCall
 from lonora_adapters.brokers.simulation import SimulationBroker
 from lonora_auth.account_authority import finish_activation
 from lonora_auth.sessions import read_session
+from lonora_contracts.devices import DeviceProof
 from lonora_contracts.domain import utcnow
-from lonora_contracts.super_bot import DeviceProof
 from lonora_contracts.trading import TradeResult, TradingControl
 from lonora_core.user_error import LonoraError
 from lonora_db.account_authority import authority_data, require_authority

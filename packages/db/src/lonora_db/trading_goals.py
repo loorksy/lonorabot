@@ -1,5 +1,4 @@
 import copy
-from decimal import Decimal
 from typing import Any
 
 from lonora_contracts.domain import utcnow
@@ -13,9 +12,7 @@ from .agent_binding import assert_payload_binding, require_financial_agent
 from .broker_sessions import BrokerSessionRepository
 from .events import emit
 from .goal_scope import goal_mode, require_goal_agent
-from .schema import GoalDecisionRow, GroupRow, RunRow, SuperBotRequestRow, ThreadRow, TradingGoalRow
-from .super_bot import changed as authority_changed
-from .super_bot import require_goal_authority
+from .schema import GoalDecisionRow, GroupRow, RunRow, ThreadRow, TradingGoalRow
 from .transactions import owned_agent, owned_thread, resource_data
 
 
@@ -76,7 +73,7 @@ def settle_orphaned_goal(session: AsyncSession, row: TradingGoalRow) -> bool:
     if row.state.get("status") in TERMINAL_GOAL_STATUSES:
         return False
     state = copy.deepcopy(row.state)
-    state.update(status="cancelled", code="goal_origin_deleted", autonomous=False)
+    state.update(status="cancelled", code="goal_origin_deleted")
     update_goal_state(session, row, state)
     return True
 
@@ -86,9 +83,12 @@ async def create_goal(
     owner_id: str,
     request: GoalCreate,
     goal_id: str | None = None,
-    *,
-    owner_authorized: bool = False,
 ) -> TradingGoalRow:
+    """A goal is a plan under the agent's current trading level and signed grant.
+
+    It carries no authority of its own: each financial step is checked at execution
+    like any other trade of the agent.
+    """
     agent = await owned_agent(session, owner_id, request.agent_id)
     await require_financial_agent(
         session,
@@ -96,8 +96,6 @@ async def create_goal(
         request.agent_id,
         execution_mode="shadow" if agent.execution_mode == "shadow" else "live",
     )
-    if request.autonomous and owner_authorized:
-        raise LonoraError("device_authorization_required", 403)
     thread = await owned_thread(session, owner_id, request.thread_id, lock=True)
     assert_payload_binding(
         await owned_agent(session, owner_id, request.agent_id), request.model_dump(mode="json")
@@ -112,7 +110,6 @@ async def create_goal(
                 raise LonoraError("goal_not_found", 404)
             return existing
     payload = request.model_dump(mode="json")
-    payload.pop("autonomous", None)
     row = TradingGoalRow(
         owner_id=owner_id,
         agent_id=request.agent_id,
@@ -121,7 +118,6 @@ async def create_goal(
         state={
             "status": "active",
             "execution_mode": agent.execution_mode,
-            "autonomous": request.autonomous if owner_authorized else False,
             "plan_version": 1,
             "current_step": request.steps[0].id,
             "steps": {step.id: {"status": "pending", "attempt": 1} for step in request.steps},
@@ -129,8 +125,6 @@ async def create_goal(
     )
     if goal_id:
         row.id = goal_id
-    if row.state["autonomous"]:
-        require_autonomous_limits(row)
     session.add(row)
     await session.flush()
     emit(
@@ -144,32 +138,6 @@ async def create_goal(
     return row
 
 
-def require_autonomous_limits(row: TradingGoalRow) -> None:
-    financial = [
-        GoalStep.model_validate(step)
-        for step in row.payload.get("steps", [])
-        if step["kind"] == "trade"
-    ]
-    if len(financial) > int(row.payload.get("max_trade_actions", 1)):
-        raise LonoraError("goal_action_limit", 409)
-    for step in financial:
-        if step.trade and step.trade.action in {
-            "buy",
-            "sell",
-            "buy_limit",
-            "sell_limit",
-            "buy_stop",
-            "sell_stop",
-        }:
-            maximum = row.payload.get("maximum_volume")
-            if maximum is None or step.trade.volume is None:
-                raise LonoraError("goal_volume_limit_required", 409)
-            from decimal import Decimal
-
-            if step.trade.volume > Decimal(str(maximum)):
-                raise LonoraError("goal_volume_limit", 409)
-
-
 async def control_goal(
     session: AsyncSession,
     owner_id: str,
@@ -178,33 +146,12 @@ async def control_goal(
     *,
     owner_authorized: bool = True,
 ) -> TradingGoalRow:
-    if not owner_authorized and any(
-        value is not None
-        for value in (body.autonomous, body.maximum_volume, body.max_trade_actions)
-    ):
-        raise LonoraError("goal_owner_control_required", 409)
     row = await owned_goal(session, owner_id, goal_id, True)
-    if body.action == "resume" or body.autonomous is True:
+    if body.action == "resume":
         await require_goal_agent(session, row)
     if row.version != body.version:
         raise LonoraError("version_conflict", 409)
     state = copy.deepcopy(row.state)
-    if (
-        state.get("autonomous")
-        and body.autonomous is not False
-        and body.action not in {"pause", "cancel"}
-    ):
-        if (
-            body.maximum_volume is not None
-            and (
-                row.payload.get("maximum_volume") is None
-                or body.maximum_volume > Decimal(str(row.payload["maximum_volume"]))
-            )
-        ) or (
-            body.max_trade_actions is not None
-            and body.max_trade_actions > row.payload["max_trade_actions"]
-        ):
-            raise LonoraError("super_bot_authority_expansion", 403)
     if state.get("status") in {"cancelled", "completed"}:
         raise LonoraError("goal_terminal", 409)
     if body.action == "resume":
@@ -240,39 +187,6 @@ async def control_goal(
         state["status"] = "active"
     else:
         state["status"] = "paused" if body.action == "pause" else "cancelled"
-    if body.maximum_volume is not None or body.max_trade_actions is not None:
-        row.payload = {
-            **row.payload,
-            **(
-                {"maximum_volume": str(body.maximum_volume)}
-                if body.maximum_volume is not None
-                else {}
-            ),
-            **(
-                {"max_trade_actions": body.max_trade_actions}
-                if body.max_trade_actions is not None
-                else {}
-            ),
-        }
-    if body.autonomous is not None:
-        if body.autonomous:
-            require_autonomous_limits(row)
-            await require_goal_authority(session, row)
-        state["autonomous"] = body.autonomous
-    if body.action == "cancel":
-        state["autonomous"] = False
-    if body.action == "resume" and state.get("autonomous"):
-        require_autonomous_limits(row)
-        await require_goal_authority(session, row)
-    if body.action in {"pause", "cancel"} or body.autonomous is False:
-        state["autonomous"] = False
-        grant = await session.get(SuperBotRequestRow, state.get("super_bot_request_id", ""))
-        if grant and grant.owner_id == owner_id and grant.status == "activated":
-            if body.action in {"pause", "cancel"}:
-                grant.status = "paused" if body.action == "pause" else "disabled"
-            elif grant.mode == "autonomous":
-                grant.mode = "supervised"
-            authority_changed(session, grant)
     update_goal_state(session, row, state)
     return row
 
@@ -287,7 +201,7 @@ async def update_plan(
     if row.state.get("status") in {"cancelled", "completed"}:
         raise LonoraError("goal_terminal", 409)
     payload = {**row.payload, "steps": [step.model_dump(mode="json") for step in body.steps]}
-    GoalCreate.model_validate({**payload, "autonomous": False})
+    GoalCreate.model_validate(payload)
     assert_payload_binding(await owned_agent(session, owner_id, row.agent_id or ""), payload)
     protected = set(
         await session.scalars(
@@ -308,14 +222,8 @@ async def update_plan(
         body.steps[-1].id,
     )
     state["plan_version"] = int(state.get("plan_version", 1)) + 1
-    grant = await session.get(SuperBotRequestRow, state.get("super_bot_request_id", ""))
-    if grant and grant.owner_id == owner_id and grant.status == "activated":
-        grant.status = "paused"
-        authority_changed(session, grant)
-    state["autonomous"] = False
-    # A changed financial plan cannot inherit authorization for its previous intent.
+    # A changed plan restarts the step it waits on; its trades are checked when they run.
     if row.payload["steps"] != payload["steps"]:
-        state["autonomous"] = False
         state.pop("code", None)
         if state["status"] == "waiting":
             state["status"] = "active"

@@ -16,10 +16,10 @@ The labels were renamed in Wave 1.5 (W15-3); `account-authority.md` describes th
 monotonic ladder and the defaults.
 
 Both bounded grants and customized full-management grants represent autonomy.
-Numerical restrictions do not select the supervised level. Global Trading ON/OFF
-and Emergency Stop are unchanged and never switched by the permission selector.
+Numerical restrictions do not select the supervised level. Stop new trading is
+unchanged and never switched by the permission selector.
 Existing valid account grants remain recognized without a preference record.
-Legacy Goal/Super Bot signatures alone cannot grant current Agent trading rights.
+A goal carries no authority: Super Bot and per-goal autonomy are retired (W15-9).
 
 ## Server state, signing and transitions
 
@@ -196,7 +196,6 @@ layouts and interactions were implemented directly in the existing applications.
 | Modified | [packages/db/src/lonora_db/account_authority.py](../packages/db/src/lonora_db/account_authority.py) |
 | Added | [packages/db/src/lonora_db/agent_permissions.py](../packages/db/src/lonora_db/agent_permissions.py) |
 | Modified | [packages/tools/src/lonora_tools/registry.py](../packages/tools/src/lonora_tools/registry.py) |
-| Modified | [packages/tools/src/lonora_tools/super_bot.py](../packages/tools/src/lonora_tools/super_bot.py) |
 | Modified | [packages/tools/src/lonora_tools/trade.py](../packages/tools/src/lonora_tools/trade.py) |
 | Modified | [packages/tools/src/lonora_tools/trading_goal.py](../packages/tools/src/lonora_tools/trading_goal.py) |
 | Modified | [packages/trading/src/lonora_trading/account_authority.py](../packages/trading/src/lonora_trading/account_authority.py) |

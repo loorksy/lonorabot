@@ -1,7 +1,7 @@
 import { i18n } from "@lingui/core";
 import { Trans } from "@lingui/react/macro";
 import type { TradeApproval as Approval } from "@lonora/contracts";
-import { financialBoundaryError } from "@lonora/core";
+import { approvalStatusText, brokerTicketLabel, financialBoundaryError } from "@lonora/core";
 import { useEffect, useRef, useState } from "react";
 import { api } from "../../lib/api";
 import { operationStatusLabel } from "../../lib/operation-status";
@@ -192,28 +192,20 @@ export function TradeApprovalCard({
           </button>
         </div>
       ) : (
-        <p>
-          {row.status === "cancelled" ? (
-            <Trans>Cancelled</Trans>
-          ) : row.status === "rejected" ? (
-            <Trans>Rejected</Trans>
-          ) : row.status === "approved" ? (
-            <Trans>Approved — awaiting broker result</Trans>
-          ) : (
-            <Trans>Broker result</Trans>
-          )}
-        </p>
+        <p>{approvalStatusText(row.status, i18n.locale)}</p>
       )}
       {row.results.map((result) => (
         <div key={result.operation_id} data-trade-result={result.status}>
           <p>{operationStatusLabel(result.status, result.details)}</p>
           {result.broker_id && (
             <p>
-              <Trans>Broker ticket</Trans>: <bdi>{result.broker_id}</bdi>
+              {brokerTicketLabel(i18n.locale)}: <bdi>{result.broker_id}</bdi>
             </p>
           )}
-          {result.code && (
-            <p>{financialBoundaryError(result.code, i18n.locale) ?? <bdi>{result.code}</bdi>}</p>
+          {result.code && result.status !== "confirmed" && (
+            <p>
+              {financialBoundaryError(result.code, i18n.locale) ?? userError({ code: result.code })}
+            </p>
           )}
           {Object.entries(result.details ?? {})
             .filter(([key]) =>

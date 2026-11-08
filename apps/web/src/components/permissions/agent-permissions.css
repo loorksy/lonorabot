@@ -8,6 +8,17 @@
   font-size: 11px;
   color: var(--lonora-muted, var(--muted-foreground));
 }
+.permission-no-trading {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  min-height: 32px;
+  color: var(--lonora-muted, var(--muted-foreground));
+  font-size: 11px;
+  white-space: nowrap;
+}
+
 .permission-trigger {
   display: inline-flex;
   align-items: center;

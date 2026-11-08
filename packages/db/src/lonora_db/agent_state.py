@@ -17,10 +17,8 @@ from .schema import (
     CollaborationSessionRow,
     MarketWatchRow,
     RunRow,
-    SuperBotRequestRow,
     TicketRow,
     TradeApprovalRow,
-    TradingGoalRow,
 )
 from .tasks import OWNER_ATTENTION, snapshot
 from .trading_readiness import account_money_limits, trading_readiness
@@ -180,19 +178,6 @@ async def agent_live_state(
     pending_authorizations = int(
         await session.scalar(
             select(func.count())
-            .select_from(SuperBotRequestRow)
-            .where(
-                SuperBotRequestRow.owner_id == owner_id,
-                SuperBotRequestRow.agent_id == agent.id,
-                SuperBotRequestRow.status == "pending",
-                SuperBotRequestRow.expires_at > utcnow(),
-            )
-        )
-        or 0
-    )
-    pending_authorizations += int(
-        await session.scalar(
-            select(func.count())
             .select_from(AccountAuthorityRow)
             .where(
                 AccountAuthorityRow.owner_id == owner_id,
@@ -236,6 +221,11 @@ async def agent_live_state(
             except LonoraError:
                 continue
         envelope = account_grant.envelope
+        review = (
+            await session.get(RunRow, stable_id(account_grant.id, "activation-review"))
+            if account_grant.status == "active"
+            else None
+        )
         account_authorities.append(
             {
                 "id": account_grant.id,
@@ -255,6 +245,7 @@ async def agent_live_state(
                 "maximum_actions": envelope.get("maximum_actions"),
                 "minimum_equity": envelope.get("minimum_equity"),
                 "allow_manual_positions": bool(envelope.get("allow_manual_positions")),
+                "review_status": review.status if review else None,
                 # The owner's view adds the account's money limits; the agent reads
                 # them in its permission frame instead of twice per turn.
                 **(
@@ -269,61 +260,6 @@ async def agent_live_state(
             }
         )
         if len(account_authorities) == 3:
-            break
-    grants = (
-        await session.execute(
-            select(SuperBotRequestRow, TradingGoalRow)
-            .join(TradingGoalRow, TradingGoalRow.id == SuperBotRequestRow.goal_id)
-            .where(
-                SuperBotRequestRow.owner_id == owner_id,
-                SuperBotRequestRow.agent_id == agent.id,
-                TradingGoalRow.owner_id == owner_id,
-                TradingGoalRow.agent_id == agent.id,
-                or_(
-                    and_(
-                        SuperBotRequestRow.status == "pending",
-                        SuperBotRequestRow.expires_at > utcnow(),
-                    ),
-                    and_(
-                        SuperBotRequestRow.status.in_(["activated", "paused"]),
-                        SuperBotRequestRow.id
-                        == TradingGoalRow.state["super_bot_request_id"].as_string(),
-                    ),
-                ),
-            )
-            .order_by(
-                (SuperBotRequestRow.status == "activated").desc(),
-                SuperBotRequestRow.created_at.desc(),
-            )
-            .limit(3)
-        )
-    ).all()
-    authority_summaries: list[dict[str, Any]] = []
-    for grant, goal in grants:
-        if grant.status == "pending" and grant.expires_at <= utcnow():
-            continue
-        if grant.status != "pending" and goal.state.get("super_bot_request_id") != grant.id:
-            continue
-        review = await session.get(RunRow, stable_id(grant.id, "activation-review"))
-        authority_summaries.append(
-            {
-                "request_id": grant.id,
-                "goal_id": goal.id,
-                "title": str(goal.payload["title"])[:80],
-                "mode": grant.mode,
-                "execution_mode": goal.state.get("execution_mode", "live"),
-                "authorization_status": grant.status,
-                "goal_status": goal.state.get("status"),
-                "current_step": goal.state.get("current_step"),
-                "reason_code": goal.state.get("code"),
-                "review_status": review.status if review else None,
-                "review_error_code": review.error_code if review else None,
-                "autonomous": grant.status == "activated"
-                and goal.state.get("super_bot_request_id") == grant.id
-                and bool(goal.state.get("autonomous")),
-            }
-        )
-        if len(authority_summaries) == 3:
             break
     runtime_waits: list[dict[str, Any]] = []
     for run in runs:
@@ -352,10 +288,7 @@ async def agent_live_state(
         else "action_required"
         if approvals
         or pending_authorizations
-        or any(
-            item["review_status"] == "failed" or item["goal_status"] == "blocked"
-            for item in authority_summaries
-        )
+        or any(item["review_status"] == "failed" for item in account_authorities)
         or any(
             task.get("failure")
             and task["failure"]["recovery"] in {"owner", "modify_plan"}
@@ -399,9 +332,7 @@ async def agent_live_state(
         else "device_authorization_required"
         if pending_authorizations
         else "activation_review_failed"
-        if any(item["review_status"] == "failed" for item in authority_summaries)
-        else "goal_requires_review"
-        if any(item["goal_status"] == "blocked" for item in authority_summaries)
+        if any(item["review_status"] == "failed" for item in account_authorities)
         else "task_attention_required"
         if any(attention(task) for task in tasks)
         else "task_recovery_required"
@@ -436,7 +367,6 @@ async def agent_live_state(
         pending_approval_count=approvals,
         watch_count=watches,
         pending_authorization_count=pending_authorizations,
-        super_bot=authority_summaries,
         account_authorities=account_authorities,
         collaborations=[
             {

@@ -107,7 +107,7 @@ export function VoiceSessionProvider({ children }: { children: ReactNode }) {
           if (currentAgent)
             setOrigin((previous) =>
               previous?.agent.id === currentAgent.id &&
-              previous.agent.super_bot_active !== currentAgent.super_bot_active
+              previous.agent.trades_on_its_own !== currentAgent.trades_on_its_own
                 ? { ...previous, agent: currentAgent }
                 : previous,
             );

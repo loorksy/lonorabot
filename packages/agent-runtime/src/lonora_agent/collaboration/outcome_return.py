@@ -155,7 +155,7 @@ async def return_outcome(db: Database, run_id: str) -> None:
         activation_ack = (
             await session.get(
                 EffectReceiptRow,
-                "activation-ack:" + str(child.model_metadata.get("super_bot_request_id", "")),
+                "activation-ack:" + str(child.model_metadata.get("account_authority_id", "")),
             )
             if child.trigger == "activation"
             else None
@@ -191,7 +191,7 @@ async def return_outcome(db: Database, run_id: str) -> None:
                     from lonora_bus.attention import attention_text
 
                     public_result = attention_text(
-                        "super_bot_review_unavailable", activation_ack.result.get("locale", "ar")
+                        "grant_review_unavailable", activation_ack.result.get("locale", "ar")
                     )
                 final = MessageRow(
                     thread_id=origin.id,

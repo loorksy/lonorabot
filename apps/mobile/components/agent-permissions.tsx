@@ -20,6 +20,7 @@ import {
   listSeparator,
   moneyLimitsLine,
   numericalAuthorityLimits,
+  showsTradingControl,
 } from "@lonora/core";
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -48,7 +49,14 @@ import { colors, ErrorNotice, Field } from "./ui";
 type Page = "select" | "editor" | "review";
 type Group = "scope" | "operations" | "limits" | "duration";
 type Signing = "preparing" | "confirming" | "verifying" | "activated" | "cancelled" | "failed";
-type Props = { agent: Agent; threadId?: string; revision?: number; settings?: boolean };
+type Props = {
+  agent: Agent;
+  threadId?: string;
+  revision?: number;
+  settings?: boolean;
+  /** A trade of this agent waits for the owner in this conversation. */
+  pendingTrade?: boolean;
+};
 const levels = ["analysis", "supervised", "autonomous"] as const;
 const permissionSymbols = {
   analysis: "eye",
@@ -66,7 +74,13 @@ export function AgentPermissions(props: Props) {
   return <PermissionControl key={`${server}:${owner.id}:${props.agent.id}`} {...props} />;
 }
 
-function PermissionControl({ agent, threadId, revision = 0, settings = false }: Props) {
+function PermissionControl({
+  agent,
+  threadId,
+  revision = 0,
+  settings = false,
+  pendingTrade = false,
+}: Props) {
   const { rtl, t, errorText } = useSession();
   const copy = permissionLabels[rtl ? "ar" : "en"];
   const authorityCopy = accountAuthorityLabels[rtl ? "ar" : "en"];
@@ -688,6 +702,29 @@ function PermissionControl({ agent, threadId, revision = 0, settings = false }: 
       )}
     </>
   );
+  if (
+    !settings &&
+    state &&
+    !open &&
+    !showsTradingControl({
+      role: agent.role,
+      trading_account_id: agent.trading_account_id,
+      level: state.effective_level,
+      grants: state.active_authorities.length + (state.pending_authority ? 1 : 0),
+      pendingTrade,
+    })
+  )
+    // An agent that cannot trade shows one quiet fact, not a control.
+    return (
+      <View
+        testID="permission-no-trading-native"
+        accessibilityLabel={copy.analysis}
+        style={{ flexDirection: rowDirection, alignItems: "center", gap: 4, flexShrink: 0 }}
+      >
+        <NativeSymbol name="eye" size={14} color={colors.secondary} />
+        <Text style={{ color: colors.secondary, fontSize: 11 }}>{copy.analysis}</Text>
+      </View>
+    );
   return (
     <>
       {settings ? (

@@ -1,7 +1,7 @@
 // Adapted for Lonora from Tampletgrok ActivityList.tsx (Apache-2.0).
 
 import { Trans, useLingui } from "@lingui/react/macro";
-import { canCancel, canResume } from "@lonora/core";
+import { canCancel, canResume, runStatusText } from "@lonora/core";
 import { ClipboardList } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
@@ -25,7 +25,7 @@ const statuses: Run["status"][] = [
   "cancelled",
 ];
 export function ActivityList({ agents }: { agents: Agent[] }) {
-  const { t } = useLingui();
+  const { t, i18n } = useLingui();
   const { revision, refresh } = useClient();
   const [runs, setRuns] = useState<Run[]>([]);
   const [loading, setLoading] = useState(true);
@@ -107,19 +107,7 @@ export function ActivityList({ agents }: { agents: Agent[] }) {
             </option>
             {statuses.map((value) => (
               <option key={value} value={value}>
-                {value === "queued"
-                  ? t`Queued`
-                  : value === "leased" || value === "running"
-                    ? t`Working`
-                    : value === "waiting_input"
-                      ? t`Waiting for your reply`
-                      : value === "waiting_takeover"
-                        ? t`Waiting for handover`
-                        : value === "completed"
-                          ? t`Completed`
-                          : value === "failed"
-                            ? t`Failed`
-                            : t`Cancelled`}
+                {runStatusText(value, i18n.locale)}
               </option>
             ))}
           </select>

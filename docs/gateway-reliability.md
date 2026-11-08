@@ -181,8 +181,7 @@ passkey, so nothing is left looking active while it can no longer run:
   revoked through the normal revocation (their full-management Task stops), so the
   permission frame shows "autonomous stopped" and the trade path asks for approval
   again, instead of a grant that still reads active but always fails;
-- Super Bot requests of the agent or conversation are stopped (`stop_request`, which
-  also clears the goal's autonomy);
+- retired Super Bot requests (W15-9) are audit history only and are left as they are;
 - goals of the agent or conversation are cancelled with `goal_origin_deleted` ("This
   goal stopped because its conversation or agent was deleted. Its history is kept.");
 - pending owner action cards the agent raised, the conversation shows or that act on
@@ -202,7 +201,8 @@ a goal without its conversation or agent is never retried through the failure le
   the financial hold; the watchdog's one-item rules, item origin and withdrawal of
   ended episodes after a restart; coalesced quarantine notices and the kept critical
   alert; drain release and lease renewal; durable records, delete refusal and the
-  settlement of a deleted conversation's grant, Super Bot request and goal.
+  settlement of a deleted conversation's grant and goal, with its retired Super Bot
+  request kept as history.
 - `tests/check_account_authority.py`: deleting a grant's conversation revokes it; the
   grant list, the permission frame and the trade path agree.
 - `tests/check_durable_records.py` (fresh PostgreSQL): the migration's constraints,

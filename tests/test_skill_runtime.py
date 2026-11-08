@@ -67,7 +67,10 @@ def test_resources_validate_and_policies_independent() -> None:
     assert "ambiguous-execution-recovery" in playbooks
     assert len(load_constitution()) == 7
     assert load_constitution()[0].startswith("<lonora_operating_policy>")
-    assert "Emergency Stop" in "\n".join(load_constitution())
+    # The one brake is named for what it does: it stops new trading and closes nothing.
+    assert "Stop new trading" in "\n".join(load_constitution())
+    assert "Emergency Stop" not in "\n".join(load_constitution())
+    assert "Super Bot" not in "\n".join(load_constitution())
     assert "MetaApi" not in "\n".join(load_constitution())
     assert len(built_in_skills()) == 9
 
@@ -335,7 +338,7 @@ async def test_actual_context_builder_resolver_and_fenced_diagnostics(
     assert '<skill id="memory"' not in messages[0].content
     assert "memory — Recall past conversations" in messages[0].content
     assert '<skill id="market-analysis"' not in messages[0].content
-    assert "Emergency Stop" in messages[0].content
+    assert "Stop new trading" in messages[0].content
     assert run.model_metadata["skill_selection"]["selected_skill_ids"] == []
     assert run.model_metadata["provider"] == "keep"
     cast(AsyncMock, skills.require_lease).assert_awaited_with(session, "lease", lock=True)
@@ -348,7 +351,7 @@ async def test_actual_context_builder_resolver_and_fenced_diagnostics(
     assert '<skill id="market-analysis"' not in messages[0].content
     assert "market-analysis — Analyze a broker market" in messages[0].content
     assert messages[-1].content == before
-    assert "Emergency Stop" in messages[0].content
+    assert "Stop new trading" in messages[0].content
     assert run.model_metadata["skill_selection"]["skill_versions"] == {}
 
 

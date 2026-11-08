@@ -27,10 +27,13 @@ export {
 } from "./conversation-timeline";
 export { webDeviceProof, webDeviceSupported } from "./device-proof";
 export {
+  approvalStatusText,
+  brokerTicketLabel,
   financialBoundaryError,
   type OperationStatusKey,
   operationStatusKey,
   operationStatusText,
+  runStatusText,
 } from "./financial-boundary";
 export {
   mergeOwnerAction,
@@ -59,6 +62,7 @@ export {
   replyLanguageLabel,
   replyLanguages,
 } from "./owner-profile";
+export { peerOutcome } from "./peer-outcome";
 export { ReadRequestGate } from "./read-request-gate";
 export {
   accumulateStream,
@@ -69,7 +73,6 @@ export {
   streamText,
 } from "./reply-stream";
 export { activeStatuses, canCancel, canResume, isWorking } from "./run-state";
-export { mergeSuperBotRequest } from "./super-bot";
 export { formatTimeSeparator, needsTimeSeparator, timeSeparatorIds } from "./time-separators";
 export * from "./trading-avatar-motion";
 export {
@@ -88,7 +91,9 @@ export {
 } from "./trading-readiness";
 export {
   type ActivityCall,
+  type ActivityEffect,
   type ActivityPhase,
+  activityCallLabel,
   projectRunEvents,
   turnActivity,
 } from "./turn-activity";

@@ -24,18 +24,11 @@ from lonora_db.schema import (
     AgentRow,
     GoalDecisionRow,
     RunRow,
-    SuperBotRequestRow,
     TradeApprovalRow,
     TradingGoalRow,
     TradingJournalRow,
 )
-from lonora_db.super_bot import require_goal_authority, stop_request
-from lonora_db.trading_goals import (
-    owned_goal,
-    planned_step,
-    require_autonomous_limits,
-    update_goal_state,
-)
+from lonora_db.trading_goals import owned_goal, planned_step, update_goal_state
 from lonora_session.idempotency import stable_id
 from sqlalchemy import exists, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -82,38 +75,26 @@ def matches_declared_trade(goal: TradingGoalRow, step_id: str, request: TradeReq
 
 
 async def goal_requires_approval(session: AsyncSession, goal: TradingGoalRow, run: RunRow) -> bool:
-    """Live Goals follow current Agent permission, never a legacy Goal grant."""
+    """A Goal is a plan under the Agent's current trading level, never a grant.
+
+    Live steps follow the level like any trade: No trading refuses, Ask me needs the
+    owner's exact approval, On its own sends inside a covering signed grant (a step
+    outside it asks instead, see ``execute_goal_step``). Shadow steps never touch the
+    broker and need no approval, like shadow trades outside a Goal.
+    """
     await require_goal_agent(session, goal, run)
-    if goal_mode(goal) == "live":
-        level = await effective_permission(session, goal.owner_id, run.agent_id)
-        if level == "analysis":
-            raise LonoraError("agent_analysis_only", 403)
-        # Goal plans and historical Super Bot signatures never replace the
-        # Agent's current approval behavior or a signed account grant.
-        return level != "autonomous" or await provisional_voice(session, run)
-    grant_id = goal.state.get("super_bot_request_id")
-    if grant_id:
-        grant = await session.get(SuperBotRequestRow, grant_id)
-        if grant and grant.status == "activated" and grant.mode == "advisory":
-            raise LonoraError("super_bot_advisory_only", 403)
-    if run.trigger in {"user", "group"} or await provisional_voice(session, run):
-        return True
-    if goal.state.get("autonomous", False):
-        require_autonomous_limits(goal)
-        await require_goal_authority(session, goal)
+    if goal_mode(goal) == "shadow":
         return False
-    if not grant_id:
-        raise LonoraError("goal_autonomy_required", 409)
-    await require_goal_authority(session, goal, mode="supervised")
-    return True
+    level = await effective_permission(session, goal.owner_id, run.agent_id)
+    if level == "analysis":
+        raise LonoraError("agent_analysis_only", 403)
+    return level != "autonomous" or await provisional_voice(session, run)
 
 
 async def require_supervised_approval(
     session: AsyncSession, goal: TradingGoalRow, run: RunRow, request: TradeRequest
 ) -> None:
-    if (
-        goal_mode(goal) == "shadow" and run.trigger in {"user", "group"}
-    ) or not await goal_requires_approval(session, goal, run):
+    if not await goal_requires_approval(session, goal, run):
         return
     approvals = await session.scalars(
         select(TradeApprovalRow).where(
@@ -151,11 +132,7 @@ async def guard_goal_execution(
         raise LonoraError("goal_run_mismatch", 409)
     if context.plan_version != goal.state.get("plan_version", 1):
         raise LonoraError("goal_plan_changed", 409)
-    await goal_requires_approval(session, goal, run)
     await require_supervised_approval(session, goal, run, request)
-    if goal_mode(goal) == "shadow" and goal.state.get("autonomous", False):
-        require_autonomous_limits(goal)
-        await require_goal_authority(session, goal)
     step = planned_step(goal, context.step_id)
     if not matches_declared_trade(goal, step.id, request):
         raise LonoraError("goal_plan_changed", 409)
@@ -310,19 +287,7 @@ async def settle_orphaned_goals(db: Database) -> int:
                 .with_for_update(skip_locked=True)
             )
         )
-        settled = 0
-        for goal in orphans:
-            for request in await session.scalars(
-                select(SuperBotRequestRow)
-                .where(
-                    SuperBotRequestRow.goal_id == goal.id,
-                    SuperBotRequestRow.status.in_(["pending", "activated", "paused"]),
-                )
-                .with_for_update()
-            ):
-                await stop_request(session, request, "cancelled")
-            settled += int(settle_orphaned_goal(session, goal))
-        return settled
+        return sum(int(settle_orphaned_goal(session, goal)) for goal in orphans)
 
 
 async def recover_decision(db: Database, operation_id: str) -> bool:
@@ -426,7 +391,7 @@ async def execute_goal_step(
             }
         if step.trade is None:
             raise LonoraError("goal_trade_step_required", 409)
-        needs_approval = await goal_requires_approval(session, goal, origin)
+        level_asks = await goal_requires_approval(session, goal, origin)
     expected_plan_version = int(goal.state.get("plan_version", 1))
     try:
         evidence = await fresh_goal_evidence(db, brokers, owner_id, goal_id, step.id, lease.run_id)
@@ -442,26 +407,25 @@ async def execute_goal_step(
         if error.code == "goal_target_not_observed":
             return await wait_for_goal_target(db, owner_id, goal_id, step.id, lease)
         raise
+    account_authority_id: str | None = None
+    expected_target: dict[str, Any] | None = None
+    if goal_mode(goal) == "live":
+        async with db.sessions() as session:
+            current = await require_lease(session, lease)
+            if await effective_permission(session, owner_id, current.agent_id) == "autonomous":
+                account_authority_id = await available_authority(
+                    session, owner_id, current, request
+                )
+    # The ladder is monotonic: under "On its own" a step no active grant covers asks the
+    # owner with an approval card, exactly like "Ask me", instead of being refused.
+    needs_approval = level_asks or (goal_mode(goal) == "live" and account_authority_id is None)
     if needs_approval:
         if approval_gate is None:
             raise LonoraError("trade_approval_required", 409)
         pending_approval = await approval_gate(request)
         if pending_approval is not None:
             return pending_approval
-    account_authority_id: str | None = None
-    expected_target: dict[str, Any] | None = None
     if goal_mode(goal) == "live":
-        async with db.sessions() as session:
-            current = await require_lease(session, lease)
-            autonomous = (
-                await effective_permission(session, owner_id, current.agent_id) == "autonomous"
-            )
-            if autonomous:
-                account_authority_id = await available_authority(
-                    session, owner_id, current, request
-                )
-        if autonomous and account_authority_id is None:
-            raise LonoraError("account_authority_required", 403)
         if request.position_id:
             target = next(
                 (p for p in evidence.get("positions", []) if p.get("id") == request.position_id),
@@ -496,12 +460,9 @@ async def execute_goal_step(
             }
         if goal.state.get("status") != "active":
             raise LonoraError("goal_not_active", 409)
-        if await goal_requires_approval(session, goal, run) != needs_approval:
-            raise LonoraError("super_bot_scope_changed", 409)
+        if await goal_requires_approval(session, goal, run) != level_asks:
+            raise LonoraError("agent_permission_changed", 409)
         await require_supervised_approval(session, goal, run, request)
-        if goal_mode(goal) == "shadow" and goal.state.get("autonomous", False):
-            require_autonomous_limits(goal)
-            await require_goal_authority(session, goal)
         if (
             attempt != expected_attempt
             or int(goal.state.get("plan_version", 1)) != expected_plan_version

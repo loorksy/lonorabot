@@ -4,9 +4,10 @@ from fastapi import APIRouter, Depends, Query, Request
 from lonora_auth.account_authority import begin_activation, finish_activation
 from lonora_auth.identity import OwnerIdentity
 from lonora_contracts.account_authority import AccountAuthorityProposal
-from lonora_contracts.super_bot import DeviceProof
+from lonora_contracts.devices import DeviceProof
 from lonora_core.user_error import LonoraError
 from lonora_db.account_authority import authority_summary, propose, revoke
+from lonora_db.activation_acknowledgment import acknowledge_grant
 from lonora_db.schema import AccountAuthorityRow
 from lonora_db.transactions import owned_agent
 from sqlalchemy import select
@@ -81,12 +82,13 @@ async def verify(
 ):
     rt = runtime(request)
     async with rt.db.sessions() as session, session.begin():
-        return await authority_summary(
-            session,
-            await finish_activation(
-                session, owner, body, rt.settings.allowed_origin, native_origins(rt.settings)
-            ),
+        row = await finish_activation(
+            session, owner, body, rt.settings.allowed_origin, native_origins(rt.settings)
         )
+        # Signed from the trading-level controls: one line in the conversation says so.
+        # A grant signed from its chat card is confirmed by the card instead.
+        await acknowledge_grant(session, row)
+        return await authority_summary(session, row)
 
 
 @router.post("/account-authorities/{identifier}/revoke")

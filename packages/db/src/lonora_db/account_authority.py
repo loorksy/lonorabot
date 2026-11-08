@@ -12,10 +12,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .agent_binding import account_wide_scope, assert_market_binding, require_financial_agent
+from .authority_lock import authority_lock
 from .broker_sessions import BrokerSessionRepository
 from .events import emit
 from .schema import AccountAuthorityRow, DeviceCredentialRow, TicketRow
-from .super_bot import authority_lock
 from .transactions import owned_thread
 
 

@@ -4,7 +4,7 @@ import { cn } from "./lib/utils";
 import { TradingAvatar } from "./trading-avatar";
 import "./avatar.css";
 
-/** Retains saved identity/colour and the verified Super Bot marker across existing surfaces. */
+/** Retains saved identity/colour and the verified "trades on its own" marker across existing surfaces. */
 export const AgentAvatar = memo(function AgentAvatar({
   name,
   identity,
@@ -13,8 +13,8 @@ export const AgentAvatar = memo(function AgentAvatar({
   working = false,
   state,
   quality = "lite",
-  superBot = false,
-  superBotLabel,
+  tradesOnItsOwn = false,
+  tradesOnItsOwnLabel,
   className,
 }: {
   name: string;
@@ -24,8 +24,8 @@ export const AgentAvatar = memo(function AgentAvatar({
   working?: boolean;
   state?: AvatarStateId;
   quality?: "full" | "lite" | "flat";
-  superBot?: boolean;
-  superBotLabel?: string;
+  tradesOnItsOwn?: boolean;
+  tradesOnItsOwnLabel?: string;
   className?: string;
 }) {
   return (
@@ -33,10 +33,10 @@ export const AgentAvatar = memo(function AgentAvatar({
       className={cn("lonora-agent-avatar", className)}
       data-shape={shape}
       data-working={working}
-      data-super-bot={superBot}
-      aria-hidden={superBot ? undefined : true}
+      data-on-its-own={tradesOnItsOwn}
+      aria-hidden={tradesOnItsOwn ? undefined : true}
       role="img"
-      aria-label={superBot ? superBotLabel : undefined}
+      aria-label={tradesOnItsOwn ? tradesOnItsOwnLabel : undefined}
     >
       <TradingAvatar
         identity={identity || name}
@@ -47,8 +47,8 @@ export const AgentAvatar = memo(function AgentAvatar({
         quality={quality}
         aria-hidden="true"
       />
-      {superBot && (
-        <svg className="lonora-super-bot-mark" viewBox="0 0 20 20" aria-hidden="true">
+      {tradesOnItsOwn && (
+        <svg className="lonora-on-its-own-mark" viewBox="0 0 20 20" aria-hidden="true">
           <circle cx="10" cy="10" r="10" fill="#191717" />
           <path d="M4 7 7 9 10 4 13 9 16 7 14 14H6Z" fill="#f0c866" />
         </svg>

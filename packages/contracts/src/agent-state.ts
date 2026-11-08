@@ -20,22 +20,10 @@ export type AgentLiveState = {
       id: string;
       status: "pending" | "active";
       money_limits?: MoneyLimits;
+      /** The readiness review after a bounded grant is signed (full grants start a Task). */
+      review_status?: string | null;
     }
   >;
-  super_bot?: Array<{
-    request_id: string;
-    goal_id: string;
-    title: string;
-    mode: "advisory" | "supervised" | "autonomous";
-    execution_mode?: "live" | "shadow";
-    authorization_status: "pending" | "activated" | "paused";
-    goal_status: string;
-    current_step: string | null;
-    reason_code: string | null;
-    autonomous: boolean;
-    review_status?: string | null;
-    review_error_code?: string | null;
-  }>;
   tasks: Array<{
     id: string;
     title: string;

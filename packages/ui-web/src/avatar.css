@@ -13,11 +13,11 @@
   background: transparent;
   user-select: none;
 }
-.lonora-agent-avatar[data-super-bot="true"] {
+.lonora-agent-avatar[data-on-its-own="true"] {
   outline: 2px solid #f0c866;
   outline-offset: 2px;
 }
-.lonora-agent-avatar > .lonora-super-bot-mark {
+.lonora-agent-avatar > .lonora-on-its-own-mark {
   position: absolute;
   width: 38%;
   height: 38%;

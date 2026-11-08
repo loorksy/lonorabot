@@ -1,6 +1,6 @@
 import { t } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { type ActivityPhase, isWorking, turnActivity } from "@lonora/core";
+import { type ActivityPhase, activityCallLabel, isWorking, turnActivity } from "@lonora/core";
 import { ChevronDown } from "lucide-react";
 import type { Agent, Event, Run } from "../../lib/api";
 import { AgentAvatar } from "./AgentAvatar";
@@ -86,8 +86,8 @@ export function TurnActivity({
       <summary>{compact}</summary>
       <div className="template-turn-steps">
         {activity.calls.map((call) => (
-          <div key={call.id} className="template-turn-step">
-            <code dir="ltr">{call.name}</code>
+          <div key={call.id} className="template-turn-step" data-tool={call.name}>
+            <bdi>{activityCallLabel(call, i18n.locale)}</bdi>
             <span>
               {call.status === "running"
                 ? t`Running`

@@ -1,6 +1,6 @@
 import type { AuthorityAction } from "./account-authority";
 import type { AuthorityDuration } from "./agent-permissions";
-import type { DeviceProof } from "./super-bot";
+import type { DeviceProof } from "./devices";
 import type { GlobalTrading, MoneyLimitName, MoneyLimits, RestrictionActionClass } from "./trading";
 
 export type OwnerActionKind =

@@ -11,14 +11,14 @@ from typing import Any
 from fastapi import APIRouter, Depends, Request
 from lonora_auth.devices import begin_bound_assertion, verify_bound_assertion
 from lonora_auth.identity import OwnerIdentity
+from lonora_contracts.devices import DeviceProof
 from lonora_contracts.domain import Contract, utcnow
 from lonora_contracts.execution_quality import ExecutionPolicy, ExecutionSnapshot, ExposureSnapshot
 from lonora_contracts.risk_limits import RiskAssessment
-from lonora_contracts.super_bot import DeviceProof
 from lonora_core.user_error import LonoraError
+from lonora_db.authority_lock import authority_lock
 from lonora_db.broker_sessions import BrokerSessionRepository
 from lonora_db.owner_actions import account_policy, widens
-from lonora_db.super_bot import authority_lock
 from lonora_session.idempotency import request_hash
 from lonora_trading.execution_quality import execution_policy
 from lonora_trading.exposure import account_exposure

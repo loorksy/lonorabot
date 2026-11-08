@@ -1,4 +1,16 @@
-"""Signed activation resumes into the existing observe-only work lane exactly once."""
+"""A signed grant gets one restart-safe readiness review in the observe-only work lane.
+
+Runs on a fresh migrated PostgreSQL database (LONORA_DATABASE_URL):
+
+1. A bounded grant schedules exactly one observe-only review Run, even from two
+   concurrent scheduler ticks. The review reads the account through the normal
+   AgentRuntime, cannot trade (not even through a direct executor call), and stays
+   quiet in the conversation: the owner already has the one confirmation line.
+2. A grant with full management starts its management Task instead and gets no review.
+3. A review the model cannot run marks the agent "action required" once and is never
+   retried.
+4. The confirmation follows the conversation's language and is written once.
+"""
 
 import asyncio
 import json
@@ -6,100 +18,87 @@ from decimal import Decimal
 from typing import Any, cast
 from unittest.mock import patch
 
+from check_device_authority import assistant_lines, bounded_grant, on_its_own, simulated_account
 from check_streaming import Fixture
 from device_fixture import Device
 from lonora_adapter_kit.types import ModelMessage, ModelReply, ToolCall
 from lonora_agent.collaboration.outcome_return import return_pending_outcomes
 from lonora_agent.executor import execute_run
+from lonora_bus.attention import attention_text
 from lonora_contracts.domain import ThreadCreate
 from lonora_contracts.model_routing import Capability, ModelSelection
 from lonora_contracts.trading import TradeRequest
 from lonora_core.user_error import LonoraError
-from lonora_db.activation_acknowledgment import acknowledge_activation
+from lonora_db.activation_acknowledgment import acknowledge_grant
 from lonora_db.activation_review import dispatch_activation_reviews
 from lonora_db.runs import claim_next, run_data
 from lonora_db.schema import (
-    AgentRow,
-    DeviceCredentialRow,
+    AccountAuthorityRow,
+    EffectReceiptRow,
     MessageRow,
     RunRow,
-    SuperBotRequestRow,
-    TradingGoalRow,
+    TicketRow,
     TradingJournalRow,
 )
 from lonora_db.threads import create_thread
 from lonora_gateway.scheduler import scheduler_tick
+from lonora_session.idempotency import stable_id
 from lonora_tools.loader import load_tools
 from sqlalchemy import func, select
 
+ALL_ACTIONS = [
+    "buy",
+    "sell",
+    "buy_limit",
+    "sell_limit",
+    "buy_stop",
+    "sell_stop",
+    "close_position",
+    "modify_position",
+    "cancel_order",
+    "modify_order",
+]
 
-async def main():
+
+async def claim_review(f: Fixture) -> dict[str, Any]:
+    """Claim the review Run; a management Task's first Run may be queued in the lane too."""
+    async with f.runtime.db.sessions() as session, session.begin():
+        assert await claim_next(session, "activation-test", 120, lane="conversation") is None
+        for _ in range(5):
+            row = await claim_next(session, "activation-test", 120, lane="work")
+            assert row
+            if row.trigger == "activation":
+                return run_data(row)
+    raise AssertionError("no readiness review was queued")
+
+
+async def main() -> None:
     f = await Fixture().open()
     try:
-        account = (
-            await f.request(
-                "POST",
-                "/trading/connections",
-                {"provider": "simulation", "account_id": "activation-review", "enabled": True},
-            )
-        )["id"]
-        await f.request(
-            "POST",
-            f"/trading/connections/{account}/simulation",
-            {
-                "snapshot": {
-                    "balance": "2500",
-                    "currency": "USD",
-                    "instruments": [],
-                    "quotes": {},
-                    "positions": [],
-                    "orders": [],
-                }
-            },
-        )
-        agent = await f.agent("Activation review")
+        account = await simulated_account(f, "activation-review")
+        agent = await f.agent("Activation review", supervised=True)
         thread = await f.conversation(agent)
-        goal = await f.request(
-            "POST",
-            "/trading/goals",
-            {
-                "agent_id": agent["id"],
-                "thread_id": thread["id"],
-                "account_id": account,
-                "symbol": "EURUSDm",
-                "title": "Review before action",
-                "objective": "Inspect actual state first",
-                "maximum_volume": "0.1",
-                "max_trade_actions": 1,
-                "steps": [{"id": "inspect", "title": "Read actual evidence", "kind": "analysis"}],
-            },
-        )
         assert await scheduler_tick(f.runtime.db) == 0
         device = await Device.enroll(f)
-        await device.authorize_goal_service(f, goal)
-        active_agent = await f.request("GET", f"/agents/{agent['id']}")
-        assert active_agent["super_bot_active"] is True
-        roster = cast(list[dict[str, Any]], await f.request("GET", "/agents"))
-        assert next(item for item in roster if item["id"] == agent["id"])["super_bot_active"]
-        async with f.runtime.db.sessions() as session, session.begin():
-            identity = await session.get(AgentRow, agent["id"])
-            assert identity
-            identity.paused = True
-        assert not (await f.request("GET", f"/agents/{agent['id']}"))["super_bot_active"]
-        async with f.runtime.db.sessions() as session, session.begin():
-            identity = await session.get(AgentRow, agent["id"])
-            assert identity
-            identity.paused = False
+        grant = await device.sign_grant(
+            f,
+            await f.request(
+                "POST",
+                f"/agents/{agent['id']}/account-authorities",
+                bounded_grant(thread["id"], account),
+            ),
+        )
+        assert await on_its_own(f, agent["id"])
         counts = await asyncio.gather(scheduler_tick(f.runtime.db), scheduler_tick(f.runtime.db))
         assert sum(counts) == 1 and await dispatch_activation_reviews(f.runtime.db) == 0
-        async with f.runtime.db.sessions() as session, session.begin():
-            assert await claim_next(session, "activation-test", 120, lane="conversation") is None
-            row = await claim_next(session, "activation-test", 120, lane="work")
-            assert row and row.trigger == "activation" and row.thread_id != thread["id"]
-            data = run_data(row)
+        data = await claim_review(f)
+        assert data["thread_id"] != thread["id"]
         context = await f.lease(data)
-        # Even a direct executor caller cannot spend this signed goal's authority
-        # from the observe-only activation review.
+        async with f.runtime.db.sessions() as session:
+            review = await session.get(RunRow, context.lease.run_id)
+            assert review and review.model_metadata["account_authority_id"] == grant["id"]
+            assert review.model_metadata["authority"] == "observe_only"
+        # Even a direct executor caller cannot spend the grant from the review.
         try:
             await context.trading.execute(
                 f.owner,
@@ -111,16 +110,17 @@ async def main():
                     volume=Decimal("0.1"),
                 ),
                 context.lease,
+                account_authority_id=grant["id"],
             )
         except LonoraError as error:
             assert error.code == "observe_only_execution_forbidden"
         else:
-            raise AssertionError("activation directly mutated the broker")
+            raise AssertionError("the readiness review mutated the broker")
         phase = 0
 
         async def complete(
             capability: Any, messages: list[ModelMessage], tools: Any, **kwargs: Any
-        ):
+        ) -> tuple[ModelReply, ModelSelection]:
             nonlocal phase
             assert capability == Capability.BACKGROUND
             assert "trade_execute" not in {tool.name for tool in tools}
@@ -129,29 +129,7 @@ async def main():
                 reply = ModelReply(
                     tool_calls=[
                         ToolCall(
-                            id="activation-read-goal",
-                            name="goal_read",
-                            arguments={"goal_id": goal["id"]},
-                        )
-                    ]
-                )
-            elif phase == 2:
-                result = json.loads(
-                    next(
-                        message.content
-                        for message in reversed(messages)
-                        if message.role == "tool" and message.tool_call_id == "activation-read-goal"
-                    )
-                )
-                assert (
-                    result["ok"] is True
-                    and result["id"] == goal["id"]
-                    and result["step"]["id"] == "inspect"
-                )
-                reply = ModelReply(
-                    tool_calls=[
-                        ToolCall(
-                            id="activation-connections",
+                            id="activation-account",
                             name="account_read",
                             arguments={"account_id": account},
                         )
@@ -162,180 +140,137 @@ async def main():
                     next(
                         message.content
                         for message in reversed(messages)
-                        if message.role == "tool"
-                        and message.tool_call_id == "activation-connections"
+                        if message.role == "tool" and message.tool_call_id == "activation-account"
                     )
                 )
                 assert result["ok"] is True and result["account"]["balance"] == "2500"
                 reply = ModelReply(
-                    text="Reviewed the saved goal and configured broker account. Waiting for current market evidence; no trade was sent."
+                    text="Reviewed the account inside the signed grant. Waiting for current "
+                    "market evidence; no trade was sent."
                 )
             return reply, ModelSelection(provider="openai", model="scripted-activation-review")
 
         with patch.object(context.router, "complete", complete):
             await execute_run(context, load_tools(), 120, 5)
-        assert phase == 3
+        assert phase == 2
         async with f.runtime.db.sessions() as session:
             completed = await session.get(RunRow, context.lease.run_id)
             assert completed and completed.status == "completed"
         await return_pending_outcomes(f.runtime.db)
         await return_pending_outcomes(f.runtime.db)
+        assert await assistant_lines(f, thread["id"]) == [attention_text("grant_activated", "ar")]
         async with f.runtime.db.sessions() as session:
-            replies = list(
-                await session.scalars(
-                    select(MessageRow).where(
-                        MessageRow.thread_id == thread["id"], MessageRow.role == "assistant"
-                    )
-                )
-            )
-            assert (
-                len(replies) == 1
-                and replies[0].content == "تم تفعيل السوبر بوت وفق الحدود التي وافقت عليها."
-            )
             assert await session.scalar(select(func.count()).select_from(TradingJournalRow)) == 0
         assert await scheduler_tick(f.runtime.db) == 0
-        second = await f.request(
-            "POST",
-            "/trading/goals",
-            {
-                **goal["payload"],
-                "agent_id": agent["id"],
-                "thread_id": thread["id"],
-                "title": "Unconfigured review",
-            },
+        print(
+            "PASS a bounded grant schedules one restart-safe observe-only review; it reads the "
+            "account, cannot trade and stays quiet behind the single confirmation line"
         )
-        await device.authorize_goal_service(f, second)
-        assert await scheduler_tick(f.runtime.db) == 1
-        async with f.runtime.db.sessions() as session, session.begin():
-            row = await claim_next(session, "activation-test", 120, lane="work")
-            assert row
-            data = run_data(row)
-        failed_context = await f.lease(data)
 
-        async def unavailable(*args: Any, **kwargs: Any):
+        # Full management of a whole account is the Personal Agent's grant card.
+        agents = cast(list[dict[str, Any]], await f.request("GET", "/agents"))
+        manager = next(row for row in agents if row["role"] == "personal")
+        manager_thread = await f.conversation(manager)
+        full = await device.sign_grant(
+            f,
+            await f.request(
+                "POST",
+                f"/agents/{manager['id']}/account-authorities",
+                {
+                    "thread_id": manager_thread["id"],
+                    "account_id": account,
+                    "management_mode": "full",
+                    "symbol_scope": "account",
+                    "symbols": [],
+                    "actions": ALL_ACTIONS,
+                },
+            ),
+        )
+        assert await dispatch_activation_reviews(f.runtime.db) == 0
+        async with f.runtime.db.sessions() as session:
+            receipt = await session.get(EffectReceiptRow, "activation-review:" + full["id"])
+            task = await session.get(TicketRow, stable_id(full["id"], "account-management-task"))
+            assert receipt and receipt.result == {"skipped": "management_task"}
+            assert task and task.agent_id == manager["id"]
+            assert await session.get(RunRow, stable_id(full["id"], "activation-review")) is None
+        print("PASS a full-management grant starts its management Task and gets no extra review")
+
+        unconfigured = await f.agent("Unconfigured review", supervised=True)
+        unconfigured_thread = await f.conversation(unconfigured)
+        await device.sign_grant(
+            f,
+            await f.request(
+                "POST",
+                f"/agents/{unconfigured['id']}/account-authorities",
+                bounded_grant(unconfigured_thread["id"], account),
+            ),
+        )
+        assert await scheduler_tick(f.runtime.db) == 1
+        failed_context = await f.lease(await claim_review(f))
+
+        async def unavailable(*args: Any, **kwargs: Any) -> Any:
             raise LonoraError("model_not_configured", 409)
 
         with patch.object(failed_context.router, "complete", unavailable):
             await execute_run(failed_context, load_tools(), 120, 5)
-        live = await f.request("GET", f"/agents/{agent['id']}/state")
-        assert (
-            live["state"] == "action_required" and live["reason_code"] == "activation_review_failed"
-        )
-        assert live["super_bot"][0]["review_error_code"] == "model_not_configured"
-        assert await scheduler_tick(f.runtime.db) == 0  # No paid-model retry loop.
-
-        peer = await f.agent("Review peer")
-        group = await f.request(
-            "POST",
-            "/groups/create",
-            {
-                "name": "Activation group",
-                "member_ids": [agent["id"], peer["id"]],
-                "participation": "mentions_or_lead",
-            },
-        )
-        f.groups.append(group["id"])
-        f.group_threads.append(group["thread_id"])
-        goal = await f.request(
-            "POST",
-            "/trading/goals",
-            {
-                **goal["payload"],
-                "agent_id": agent["id"],
-                "thread_id": group["thread_id"],
-                "title": "Inspect a blocked group goal",
-            },
-        )
-        async with f.runtime.db.sessions() as session, session.begin():
-            blocked = await session.get(TradingGoalRow, goal["id"])
-            assert blocked
-            blocked.state = {
-                **blocked.state,
-                "status": "blocked",
-                "code": "market_evidence_unavailable",
-            }
-        await device.authorize_goal_service(f, goal)
-        assert await scheduler_tick(f.runtime.db) == 1
-        async with f.runtime.db.sessions() as session, session.begin():
-            row = await claim_next(session, "activation-test", 120, lane="work")
-            assert row
-            data = run_data(row)
-        group_context = await f.lease(data)
-        phase = 0
-        with patch.object(group_context.router, "complete", complete):
-            await execute_run(group_context, load_tools(), 120, 5)
-        assert phase == 3
-        async with f.runtime.db.sessions() as session:
-            completed = await session.get(RunRow, group_context.lease.run_id)
-            assert completed and completed.status == "completed"
+        live = await f.request("GET", f"/agents/{unconfigured['id']}/state")
+        assert live["state"] == "action_required", live
+        assert live["reason_code"] == "activation_review_failed", live
+        assert live["account_authorities"][0]["review_status"] == "failed"
         await return_pending_outcomes(f.runtime.db)
-        async with f.runtime.db.sessions() as session:
-            replies = list(
-                await session.scalars(
-                    select(MessageRow).where(
-                        MessageRow.thread_id == group["thread_id"], MessageRow.role == "assistant"
-                    )
-                )
-            )
-            assert len(replies) == 1 and replies[0].agent_id == agent["id"]
-            blocked = await session.get(TradingGoalRow, goal["id"])
-            assert blocked and blocked.state["status"] == "blocked"  # Read-only does not resume it.
-            assert await session.scalar(select(func.count()).select_from(TradingJournalRow)) == 0
+        # The review produced no result to report; the inbox state carries the failure.
+        assert await assistant_lines(f, unconfigured_thread["id"]) == [
+            attention_text("grant_activated", "ar")
+        ]
+        assert await scheduler_tick(f.runtime.db) == 0  # No paid-model retry loop.
+        print(
+            "PASS a review the model cannot run marks the agent action required once, adds no "
+            "chat noise beyond the confirmation and is not retried"
+        )
+
         async with f.runtime.db.sessions() as session, session.begin():
-            english_thread = await create_thread(
-                session, f.owner, ThreadCreate(agent_id=agent["id"])
-            )
+            english = await create_thread(session, f.owner, ThreadCreate(agent_id=agent["id"]))
             session.add(
                 MessageRow(
-                    thread_id=english_thread.id,
-                    seq=english_thread.next_seq,
+                    thread_id=english.id,
+                    seq=english.next_seq,
                     role="user",
-                    content="Please enable analysis for this account",
+                    content="Please let this agent trade EURUSD on its own",
                 )
             )
-            english_thread.next_seq += 1
-            english_thread_id = english_thread.id
-        english_goal = await f.request(
-            "POST",
-            "/trading/goals",
-            {
-                **goal["payload"],
-                "agent_id": agent["id"],
-                "thread_id": english_thread_id,
-                "title": "Localized activation",
-            },
+            english.next_seq += 1
+            english_id = english.id
+        await device.sign_grant(
+            f,
+            await f.request(
+                "POST",
+                f"/agents/{agent['id']}/account-authorities",
+                bounded_grant(english_id, account),
+            ),
         )
-        await device.authorize_goal_service(f, english_goal)
         async with f.runtime.db.sessions() as session, session.begin():
-            english_grant = await session.scalar(
-                select(SuperBotRequestRow).where(SuperBotRequestRow.goal_id == english_goal["id"])
-            )
-            assert english_grant
-            await acknowledge_activation(session, english_grant)
-            await acknowledge_activation(session, english_grant)
-            english_replies = list(
-                await session.scalars(
-                    select(MessageRow).where(
-                        MessageRow.thread_id == english_thread_id, MessageRow.role == "assistant"
-                    )
+            row = await session.scalar(
+                select(AccountAuthorityRow).where(
+                    AccountAuthorityRow.thread_id == english_id,
+                    AccountAuthorityRow.status == "active",
                 )
             )
-            assert (
-                len(english_replies) == 1
-                and english_replies[0].content
-                == "Super Bot is enabled within the limits you authorized."
-            )
-        async with f.runtime.db.sessions() as session, session.begin():
-            credentials = list(
-                await session.scalars(
-                    select(DeviceCredentialRow).where(DeviceCredentialRow.owner_id == f.owner)
-                )
-            )
-            for credential in credentials:
-                credential.revoked = True
-        assert not (await f.request("GET", f"/agents/{agent['id']}"))["super_bot_active"]
+            assert row
+            await acknowledge_grant(session, row)
+            await acknowledge_grant(session, row)
+        assert await assistant_lines(f, english_id) == [attention_text("grant_activated", "en")]
+        async with f.runtime.db.sessions() as session:
+            first = await session.get(AccountAuthorityRow, grant["id"], populate_existing=True)
+            # Signing again on the same account replaces the earlier grant.
+            assert first and first.status == "revoked"
+        devices = cast(list[dict[str, Any]], await f.request("GET", "/auth/devices"))
+        for item in devices:
+            await f.request("DELETE", "/auth/devices/" + item["id"])
+        assert not await on_its_own(f, agent["id"])
+        assert not await on_its_own(f, manager["id"])
         print(
-            "PASS verified activation schedules one restart-safe observe-only background review; normal AgentRuntime reads the same Goal, cannot execute, and returns one actual result to its conversation"
+            "PASS the confirmation line follows the conversation's language and is written once; "
+            "revoking the device ends trading on its own"
         )
     finally:
         await f.close()
