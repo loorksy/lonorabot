@@ -77,6 +77,15 @@ export {
 } from "./reply-stream";
 export { activeStatuses, canCancel, canResume, isWorking } from "./run-state";
 export { mergeSuperBotRequest } from "./super-bot";
+export {
+  type SupervisionRow,
+  type SupervisionText,
+  supervisionError,
+  supervisionLabels,
+  supervisionRows,
+  supervisionText,
+  unsupervisedAgents,
+} from "./supervision";
 export { formatTimeSeparator, needsTimeSeparator, timeSeparatorIds } from "./time-separators";
 export * from "./trading-avatar-motion";
 export {

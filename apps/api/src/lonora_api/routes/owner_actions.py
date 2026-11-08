@@ -6,11 +6,12 @@ expired with its reason), is idempotent per card, and then runs the existing own
 function for its effect: Stop/Resume (``apply_controls``), lifting a restriction
 (``revoke_restriction``), the owner attestation of an uncertain operation
 (``attest_operation``), the account's execution policy (``store_execution_policy``),
-creating an agent (the creation service; never a grant) or undoing a creation (the
-owner's delete for an agent that has done nothing yet, otherwise a pause).
+creating an agent (the creation service; never a grant), undoing a creation (the
+owner's delete for an agent that has done nothing yet, otherwise a pause), and setting
+or undoing supervision (``lonora_db.supervision``; never money authority).
 Raising or removing a money limit also needs a verified passkey assertion bound to the
-card's payload hash; lowering a limit, lifting a pause, resuming, creating an agent and
-Undo are one tap.
+card's payload hash; lowering a limit, lifting a pause, resuming, creating an agent,
+setting supervision and Undo are one tap.
 """
 
 from typing import Any
@@ -39,6 +40,7 @@ from lonora_db.owner_actions import (
     owner_action_data,
     proposed_limits,
     raise_created_card,
+    raise_supervision_card,
     settle,
     stale_reason,
     supersede_subject,
@@ -47,6 +49,7 @@ from lonora_db.owner_actions import (
 )
 from lonora_db.schema import AgentRow, OwnerActionRow
 from lonora_db.super_bot import authority_lock
+from lonora_db.supervision import grant_supervision, owned_grant, revoke_supervision
 from lonora_db.trading_readiness import risk_limit_frame
 from lonora_db.trading_restrictions import revoke_restriction
 from lonora_db.transactions import owned_thread
@@ -199,6 +202,12 @@ async def decide(
             await settle(session, row, "expired", "agent_already_removed")
             return
         result = undone
+    elif row.kind == "supervise":
+        granted = await supervise_from_card(session, owner, row)
+        result = {"grant_ids": granted, "supervisor_id": row.payload["supervisor_id"]}
+    elif row.kind == "supervision_created":
+        revoked = await undo_supervision(session, owner, row)
+        result = {"revoked": revoked}
     else:
         account_id = row.payload["account_id"]
         policy = await account_policy(session, owner.id, account_id)
@@ -226,6 +235,17 @@ async def decide(
     created_agent = (
         await session.get(AgentRow, result["agent_id"]) if row.kind == "create_agent" else None
     )
+    if row.kind == "supervise":
+        # The same one-line result with Undo as a grant set from the owner's message.
+        await raise_supervision_card(
+            session,
+            owner.id,
+            result["grant_ids"],
+            card_key=row.id,
+            agent_id=row.agent_id,
+            thread_id=row.thread_id,
+            run_id=row.run_id,
+        )
     if created_agent is not None:
         await raise_created_card(
             session,
@@ -268,6 +288,37 @@ async def create_agent_from_card(
         card_id=row.id,
     )
     return created
+
+
+async def supervise_from_card(
+    session: AsyncSession, owner: OwnerIdentity, row: OwnerActionRow
+) -> list[str]:
+    """The owner's tap sets the supervision the card names; pairs already set stay as
+    they are and are not part of this change (its Undo never takes them back)."""
+    created: list[str] = []
+    for agent_id in row.payload["supervised_ids"]:
+        grant, new = await grant_supervision(
+            session,
+            owner.id,
+            row.payload["supervisor_id"],
+            agent_id,
+            via="owner_card",
+            created_by_agent_id=row.agent_id,
+        )
+        if new:
+            created.append(grant.id)
+    return created
+
+
+async def undo_supervision(session: AsyncSession, owner: OwnerIdentity, row: OwnerActionRow) -> int:
+    """Undo: the grants this change set end now; reads and control stop at once."""
+    revoked = 0
+    for grant_id in row.payload["grant_ids"]:
+        grant = await owned_grant(session, owner.id, grant_id)
+        if grant.revoked_at is None:
+            await revoke_supervision(session, owner.id, grant_id, via="owner_card")
+            revoked += 1
+    return revoked
 
 
 async def undo_creation(

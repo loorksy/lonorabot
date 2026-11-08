@@ -181,7 +181,8 @@ def test_agents_can_only_propose_and_the_decision_is_an_owner_session_route() ->
     assert not tool.financial and not tool.read_only and tool.replay_safe
     assert tool.toolset == "trading" and not tool.eager
     # No tool module imports anything that settles or decides a card. agent_create raises
-    # a creation card or a creation's Undo card; neither settles one.
+    # a creation card or a creation's Undo card, supervision_change a supervision card or
+    # its Undo card; none settles one.
     allowed = {
         "card_facts",
         "live_status",
@@ -192,6 +193,8 @@ def test_agents_can_only_propose_and_the_decision_is_an_owner_session_route() ->
         "pending_effect",
         "propose_creation",
         "raise_created_card",
+        "propose_supervision",
+        "raise_supervision_card",
     }
     for path in (ROOT / "packages/tools/src/lonora_tools").glob("*.py"):
         for node in ast.walk(ast.parse(path.read_text())):

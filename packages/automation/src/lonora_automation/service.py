@@ -19,6 +19,10 @@ class RoutineService:
     ) -> dict[str, Any]:
         async with self.db.sessions() as session, session.begin():
             row = await owned_routine(session, owner_id, routine_id)
+            from lonora_db.supervision import owner_takes_over
+
+            # The owner's schedule wins over a supervisor's pause of this routine.
+            await owner_takes_over(session, owner_id, "routine", routine_id)
             for key, value in request.model_dump().items():
                 setattr(row, key, value)
             row.next_run_at = next_run(request, utcnow())

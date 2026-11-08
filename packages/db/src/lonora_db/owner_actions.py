@@ -35,6 +35,7 @@ from .schema import (
     AttentionRow,
     BrokerSessionRow,
     OwnerActionRow,
+    SupervisionGrantRow,
     ThreadRow,
     TradingJournalRow,
     TradingRestrictionRow,
@@ -52,6 +53,9 @@ LIFETIME = {
     # An agent's proposal to create an agent, and the Undo card after a creation.
     "create_agent": timedelta(hours=24),
     "agent_created": timedelta(days=7),
+    # An agent's proposal to set supervision, and the Undo card after one is set.
+    "supervise": timedelta(hours=24),
+    "supervision_created": timedelta(days=7),
 }
 # Pending cards one agent may have proposed at once; runtime cards do not count.
 MAXIMUM_PENDING_PER_AGENT = 5
@@ -198,7 +202,41 @@ async def stale_reason(
     if kind == "agent_created":
         agent = await session.get(AgentRow, payload["agent_id"])
         return "agent_already_removed" if agent is None or agent.owner_id != owner_id else None
+    if kind == "supervise":
+        from .supervision import supervises
+
+        supervisor = str(payload["supervisor_id"])
+        wanted = [str(item) for item in payload["supervised_ids"]]
+        names = await agent_names(session, owner_id, {supervisor, *wanted})
+        if any(item not in names for item in (supervisor, *wanted)):
+            return "supervision_agent_missing"
+        for item in wanted:
+            if not await supervises(session, owner_id, supervisor, item):
+                return None
+        return "supervision_already_set"
+    if kind == "supervision_created":
+        return None if await _active_grants(session, owner_id, payload) else "supervision_ended"
     raise LonoraError("owner_action_kind_unsupported", 422)
+
+
+async def _active_grants(
+    session: AsyncSession, owner_id: str, payload: dict[str, Any]
+) -> list[SupervisionGrantRow]:
+    """The grants a supervision card set that are still in force."""
+    ids = [str(item) for item in payload.get("grant_ids", [])]
+    if not ids:
+        return []
+    return list(
+        await session.scalars(
+            select(SupervisionGrantRow)
+            .where(
+                SupervisionGrantRow.owner_id == owner_id,
+                SupervisionGrantRow.id.in_(ids),
+                SupervisionGrantRow.revoked_at.is_(None),
+            )
+            .order_by(SupervisionGrantRow.created_at, SupervisionGrantRow.id)
+        )
+    )
 
 
 # Why a creation card no longer applies, by the refusal its re-check raised.
@@ -206,6 +244,7 @@ CREATION_STALE = {
     "agent_limit_reached": "agent_limit_reached",
     "agent_not_found": "agent_report_to_missing",
     "agent_report_to_invalid": "agent_report_to_missing",
+    "agent_supervises_missing": "supervision_agent_missing",
     "broker_sessions_not_found": "broker_connection_changed",
     "broker_connection_changed": "broker_connection_changed",
 }
@@ -315,6 +354,8 @@ async def card_facts(
         return facts, False
     if row.kind in {"create_agent", "agent_created"}:
         return await creation_facts(session, row, facts), False
+    if row.kind in {"supervise", "supervision_created"}:
+        return await supervision_facts(session, row, facts), False
     account_id = payload["account_id"]
     facts["account"] = account_facts(await session.get(BrokerSessionRow, account_id), account_id)
     current = (await account_policy(session, owner_id, account_id)).risk
@@ -347,7 +388,8 @@ async def creation_facts(
     if row.kind == "create_agent":
         spec = row.payload["spec"]
         report_to = [str(item) for item in spec.get("report_to", [])]
-        names = await agent_names(session, owner_id, set(report_to))
+        supervises = [str(item) for item in spec.get("supervises", [])]
+        names = await agent_names(session, owner_id, {*report_to, *supervises})
         account_id = spec.get("account_id")
         if account_id:
             facts["account"] = account_facts(
@@ -362,6 +404,7 @@ async def creation_facts(
             "level": TEMPLATE_LEVEL[spec["template"]],
             "paused": False,
             "report_to": [names[item] for item in report_to if item in names],
+            "supervises": [names[item] for item in supervises if item in names],
             "model": cast(dict[str, Any], model).get("model") if isinstance(model, dict) else None,
             "responsibility": str(spec.get("responsibility") or "") or None,
         }
@@ -371,9 +414,12 @@ async def creation_facts(
     if agent is None or agent.owner_id != owner_id:
         facts["agent"] = {"exists": False, "name": row.result.get("agent_name")}
         return facts
+    from .supervision import supervised_ids
+
     origin = await agent_origin(session, owner_id, agent_id)
     report_to = report_targets(origin)
-    names = await agent_names(session, owner_id, set(report_to))
+    supervises = await supervised_ids(session, owner_id, agent_id)
+    names = await agent_names(session, owner_id, {*report_to, *supervises})
     if agent.trading_account_id:
         facts["account"] = account_facts(
             await session.get(BrokerSessionRow, agent.trading_account_id),
@@ -387,10 +433,45 @@ async def creation_facts(
         "level": await effective_permission(session, owner_id, agent_id),
         "paused": agent.paused,
         "report_to": [names[item] for item in report_to if item in names],
+        "supervises": [names[item] for item in supervises if item in names],
         "model": None,
         "responsibility": agent.instructions or None,
     }
     facts["undo"] = await undo_plan(session, owner_id, agent_id)
+    return facts
+
+
+async def supervision_facts(
+    session: AsyncSession, row: OwnerActionRow, facts: dict[str, Any]
+) -> dict[str, Any]:
+    """Who supervises whom: names read now from the agents (never model text), and for an
+    Undo card which of its grants are still in force."""
+    owner_id = row.owner_id
+    if row.kind == "supervise":
+        supervisor = str(row.payload["supervisor_id"])
+        wanted = [str(item) for item in row.payload["supervised_ids"]]
+        names = await agent_names(session, owner_id, {supervisor, *wanted})
+        facts["supervision"] = {
+            "supervisor_name": names.get(supervisor),
+            "supervised_names": [names[item] for item in wanted if item in names],
+            "active": False,
+        }
+        return facts
+    grants = await _active_grants(session, owner_id, row.payload)
+    supervisor = grants[0].supervisor_agent_id if grants else row.result.get("supervisor_id")
+    names = await agent_names(
+        session,
+        owner_id,
+        {item.supervised_agent_id for item in grants}
+        | ({str(supervisor)} if supervisor else set()),
+    )
+    facts["supervision"] = {
+        "supervisor_name": names.get(str(supervisor)) if supervisor else None,
+        "supervised_names": [
+            names[item.supervised_agent_id] for item in grants if item.supervised_agent_id in names
+        ],
+        "active": bool(grants),
+    }
     return facts
 
 
@@ -808,6 +889,76 @@ async def raise_created_card(
         payload={"agent_id": created_agent.id},
     )
     row.result = {"agent_name": created_agent.name}
+    return row
+
+
+async def propose_supervision(
+    session: AsyncSession,
+    owner_id: str,
+    supervisor_id: str,
+    supervised_ids: list[str],
+    *,
+    card_id: str,
+    agent_id: str,
+    thread_id: str | None,
+    run_id: str | None,
+) -> tuple[OwnerActionRow, bool]:
+    """A supervision card when no owner message asked for it: the owner's tap sets it.
+    A repeated proposal of the same supervision returns the card shown."""
+    await lock_owner_actions(session, owner_id)
+    existing = await session.get(OwnerActionRow, card_id)
+    if existing is not None:
+        if existing.owner_id != owner_id or existing.agent_id != agent_id:
+            raise LonoraError("owner_action_not_found", 404)
+        return existing, False
+    return await propose_effect(
+        session,
+        owner_id,
+        "supervise",
+        "supervision:" + supervisor_id,
+        {"supervisor_id": supervisor_id, "supervised_ids": sorted(set(supervised_ids))},
+        card_id=card_id,
+        agent_id=agent_id,
+        thread_id=thread_id,
+        run_id=run_id,
+    )
+
+
+async def raise_supervision_card(
+    session: AsyncSession,
+    owner_id: str,
+    grant_ids: list[str],
+    *,
+    card_key: str,
+    agent_id: str,
+    thread_id: str | None,
+    run_id: str | None,
+) -> OwnerActionRow | None:
+    """The one-line result card of new supervision grants, with Undo; one per change.
+    Grants that existed before are never on it, so Undo takes back only this change."""
+    if not grant_ids:
+        return None
+    await lock_owner_actions(session, owner_id)
+    subject = "supervision-grants:" + card_key
+    card_id = stable_id(owner_id, "owner-action:supervision_created:" + subject)
+    existing = await session.get(OwnerActionRow, card_id)
+    if existing is not None:
+        return existing
+    grants = await _active_grants(session, owner_id, {"grant_ids": grant_ids})
+    thread = await card_thread(session, owner_id, agent_id, thread_id)
+    row = await create_card(
+        session,
+        owner_id,
+        card_id=card_id,
+        agent_id=agent_id,
+        thread=thread,
+        run_id=run_id,
+        source="system",
+        kind="supervision_created",
+        subject=subject,
+        payload={"grant_ids": sorted(grant_ids)},
+    )
+    row.result = {"supervisor_id": grants[0].supervisor_agent_id} if grants else {}
     return row
 
 

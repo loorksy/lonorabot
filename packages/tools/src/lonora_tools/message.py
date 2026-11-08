@@ -3,7 +3,7 @@ from typing import Any
 from lonora_contracts.domain import Contract
 from pydantic import Field
 
-from .base import Tool
+from .base import Tool, eager_for
 from .context import ToolContext
 
 
@@ -25,5 +25,6 @@ def tools() -> list[Tool]:
             "Ask an existing owned agent for help. Its outcome returns durably to this run/thread.",
             PeerInput,
             send,
+            eager=eager_for("coordination"),
         )
     ]

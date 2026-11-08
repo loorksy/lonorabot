@@ -377,9 +377,16 @@ async def snapshot(session: AsyncSession, row: TicketRow) -> dict[str, Any]:
 async def control_task(
     session: AsyncSession, owner_id: str, request: TaskControl, *, agent_id: str | None = None
 ) -> TicketRow:
+    from .supervision import owner_takes_over, refuse_held
+
     row = await get_task(session, owner_id, request.task_id)
     if agent_id and row.agent_id != agent_id:
         raise LonoraError("task_agent_mismatch", 403)
+    if agent_id is None:
+        # The owner's control wins over a supervisor's pause of this Task.
+        await owner_takes_over(session, owner_id, "task", row.id)
+    elif request.action == "resume":
+        await refuse_held(session, owner_id, "task", row.id, agent_id)
     if row.version != request.expected_version:
         raise LonoraError("version_conflict", 409)
     state = task_state(row)

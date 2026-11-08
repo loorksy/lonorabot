@@ -60,9 +60,10 @@ EXTERNAL_TOOLS = frozenset(
         "economic_calendar_read",
         # Another model's text, possibly echoing injected evidence.
         "consult_model",
-        # Delegated or peer Agents' model-written results.
+        # Delegated, peer or supervised Agents' model-written results and memory.
         "subagent_inspect",
         "collaboration_inspect",
+        "agent_inspect",
     }
 )
 EXTERNAL_PREFIXES = ("web_", "mcp_", "search_")

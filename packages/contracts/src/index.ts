@@ -11,5 +11,6 @@ export type * from "./performance";
 export type * from "./runs";
 export type * from "./skills";
 export type * from "./super-bot";
+export type * from "./supervision";
 export type * from "./trading";
 export type * from "./visual-response";

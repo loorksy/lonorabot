@@ -37,6 +37,7 @@ eagerly (`Tool.eager`). A Run's profiles come from its agent and kind:
 | `core` | every Run | `tool_environment`, `tool_call`, `skills_list`, `skill_view`, `wait_for_input`, `memory_read`, `memory_write`, `session_search` |
 | `market` | agent bound to a broker account, and the owner's Personal Agent (it reads every owned account and analyzes directly when no specialist exists) | `list_accounts`, `market_quote`, `market_candles`, `market_instrument`, `market_snapshot`, `market_sessions`, `account_read`, `chart_snapshot`, `market_decision_record`, `market_decision_history`, `watch_create`, `trade_execute` |
 | `research` | every other agent | `web_search`, `web_fetch`, `artifact_read`, `economic_calendar_read` (only when the owner configured a calendar source) |
+| `coordination` | the Personal Agent, and any agent while it holds a supervision grant; not a trading identity's Task Run (`docs/supervision.md`) | `agent_inspect`, `peer_send`, `web_search` |
 | `task` | durable Task Runs | `task_wait`, `task_step_update` |
 
 A Run's tool scope (`ToolScope`, `run_scope` in `lonora_tools/base.py`) narrows
@@ -44,8 +45,9 @@ the members: an observe-only wake keeps every non-financial member (no financial
 effects), and a helper (subagent) keeps the read-only members plus
 `workspace_execute` and `artifact_create`. The eager set
 is at most `EAGER_SCHEMA_BUDGET` (25,700) characters of serialized schema for
-every profile combination (largest today: market Task Runs, about 25,700; a
-market conversation about 24,100; a general conversation about 9,100), against
+every profile combination (largest today: the Personal Agent's conversation
+with coordination, 25,695, and market Task Runs, 25,689; a market conversation
+about 24,300; a general conversation about 9,000), against
 about 97,500 for the whole catalog. `tests/test_tool_discovery.py` enforces the
 budget, so adding an eager tool fails fast when it does not fit. The budget rose
 from 24,000 to 24,800 when the core set gained ranked history recall

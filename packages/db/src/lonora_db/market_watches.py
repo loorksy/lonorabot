@@ -145,8 +145,15 @@ async def control_watch(
     A cancelled or paused watch keeps its record, so resuming it undoes the cancel. A
     watch past its expiry resumes only after its expiry is moved (``update_watch``).
     """
+    from .supervision import owner_takes_over, refuse_held
+
     row = await steered_watch(session, owner_id, watch_id, agent_id)
     by = "agent" if agent_id else "owner"
+    if agent_id is None:
+        # The owner's choice wins over a supervisor's pause of this watch.
+        await owner_takes_over(session, owner_id, "watch", watch_id)
+    elif action == "resume":
+        await refuse_held(session, owner_id, "watch", watch_id, agent_id)
     if action in STOP_CODES:
         code = STOP_CODES[action]
         if not row.payload.get("enabled", True) and row.state.get("code") == code:

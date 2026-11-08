@@ -29,7 +29,9 @@
     "owner_action_still_unresolved": "ما زالت صفقة بلا نتيجة مؤكدة من الوسيط تعلّق المخاطرة الجديدة هناك.",
     "owner_action_create_agent": "أُنشئ الوكيل. لا يملك أي صلاحية مالية، ولا يمنحه إياها إلا تفويض توقّعه.",
     "owner_action_undo_deleted": "تم التراجع: أُزيل الوكيل.",
-    "owner_action_undo_paused": "تم التراجع: أُوقف الوكيل مؤقتًا. كان قد بدأ العمل، وبقي ما أنجزه."
+    "owner_action_undo_paused": "تم التراجع: أُوقف الوكيل مؤقتًا. كان قد بدأ العمل، وبقي ما أنجزه.",
+    "owner_action_supervise": "صار الإشراف ساريًا: يقرأ المشرف عملهم ويراسلهم ويستطيع إيقاف عملهم مؤقتًا، ولا يتداول عنهم ولا يرفع أي فرامل.",
+    "owner_action_supervision_created": "تم التراجع: توقف الإشراف، ولم يعد المشرف يقرأ عملهم أو يوقفه."
   },
   "en": {
     "super_bot_authorization": "A Super Bot request needs your review and device authorization in the conversation. No execution authority has been granted yet.",
@@ -61,6 +63,8 @@
     "owner_action_still_unresolved": "A trade without a confirmed broker result still holds new risk there.",
     "owner_action_create_agent": "Agent created. It has no money authority; only a grant you sign can give it one.",
     "owner_action_undo_deleted": "Undone: the agent was removed.",
-    "owner_action_undo_paused": "Undone: the agent was paused. It had already started work, which is kept."
+    "owner_action_undo_paused": "Undone: the agent was paused. It had already started work, which is kept.",
+    "owner_action_supervise": "Supervision set: the supervisor reads their work, messages them and can pause it; it never trades for them or lifts a brake.",
+    "owner_action_supervision_created": "Undone: supervision stopped; the supervisor no longer reads or pauses their work."
   }
 }

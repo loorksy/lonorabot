@@ -9,7 +9,8 @@ every other template at "No trading", whatever the contract default becomes.
 
 Provenance (who created it, from which owner message, run or card) is kept in the
 agent's origin record and in the ``agent.created`` event. The origin record also holds
-the agents it reports to: that is the peer link the directory shows.
+the agents it reports to: that is the peer link the directory shows. The agents it
+supervises get supervision grants with the creation's source (``lonora_db.supervision``).
 
 Limits: at most ``MAXIMUM_ACTIVE_AGENTS`` active (not paused) persistent agents per
 owner and ``MAXIMUM_CREATIONS_PER_RUN`` creations or creation cards per run. Undo
@@ -157,6 +158,11 @@ async def check_creation(session: AsyncSession, owner_id: str, spec: dict[str, A
         target = await owned_agent(session, owner_id, target_id)
         if target.role == "delegated":
             raise LonoraError("agent_report_to_invalid", 422)
+    for target_id in spec.get("supervises", []):
+        try:
+            await owned_agent(session, owner_id, target_id)
+        except LonoraError as error:
+            raise LonoraError("agent_supervises_missing", 409) from error
     account_id = spec.get("account_id")
     if account_id:
         connection = await BrokerSessionRepository().get(session, owner_id, account_id)
@@ -239,6 +245,19 @@ async def create_root_agent(
     }
     session.add(SettingRow(key=origin_key(owner_id, row.id), payload=origin))
     await session.flush()
+    from .supervision import grant_supervision
+
+    # Supervision the owner asked for with the agent: the same source as the agent.
+    for target_id in spec.get("supervises", []):
+        await grant_supervision(
+            session,
+            owner_id,
+            row.id,
+            str(target_id),
+            via="owner_message" if created_via == "owner_message" else "owner_card",
+            created_by_agent_id=created_by_agent_id,
+            source_message_id=source_message_id,
+        )
     emit(
         session,
         owner_id,
@@ -332,7 +351,11 @@ async def delete_agent(
 
 async def pause_agent(session: AsyncSession, owner_id: str, agent_id: str) -> AgentRow:
     """Stop its runs, routines and watches; nothing it did is removed."""
+    from .supervision import owner_takes_over
+
     agent = await owned_agent(session, owner_id, agent_id, lock=True)
+    # The owner's Undo: a supervisor's hold on this agent becomes the owner's pause.
+    await owner_takes_over(session, owner_id, "agent", agent_id)
     if not agent.paused:
         agent.paused = True
         emit(session, owner_id, "agent.updated", agent_id=agent_id, payload=agent_data(agent))

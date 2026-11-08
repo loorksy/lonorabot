@@ -66,6 +66,8 @@ async def main() -> None:
             "trading_symbol",
             "template",
             "reports_to",
+            "you_supervise",
+            "supervises_you",
         }
         # An agent from before creation provenance has no template and no peer links.
         assert rows[peer["id"]]["template"] is None and rows[peer["id"]]["reports_to"] == []

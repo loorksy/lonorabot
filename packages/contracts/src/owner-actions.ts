@@ -7,7 +7,9 @@ export type OwnerActionKind =
   | "resolve_operation"
   | "set_account_limits"
   | "create_agent"
-  | "agent_created";
+  | "agent_created"
+  | "supervise"
+  | "supervision_created";
 /** Agent templates (lonora_contracts.agent_creation); none carries money authority. */
 export type AgentTemplate = "trading" | "general" | "research" | "supervisor";
 /** A creation card's agent, read on the server. */
@@ -19,6 +21,8 @@ export type OwnerActionAgent = {
   level?: "analysis" | "supervised" | "autonomous";
   paused?: boolean;
   report_to?: string[];
+  /** Names of the agents it supervises (reads, messages, pauses; never trades). */
+  supervises?: string[];
   model?: string | null;
   /** Its task exactly as stored (its standing instructions); shown isolated and labelled. */
   responsibility?: string | null;
@@ -83,6 +87,13 @@ export type OwnerAction = {
     agent?: OwnerActionAgent;
     /** agent_created: what Undo does now (remove an untouched agent, else pause it). */
     undo?: "delete" | "pause";
+    /** supervise / supervision_created: who supervises whom, names read on the server. */
+    supervision?: {
+      supervisor_name: string | null;
+      supervised_names: string[];
+      /** supervision_created: whether any grant of this change is still in force. */
+      active: boolean;
+    };
   };
   /** Confirming needs the owner's passkey: it raises or removes a money limit. */
   requires_passkey: boolean;
@@ -93,6 +104,9 @@ export type OwnerAction = {
     agent_id?: string;
     agent_name?: string;
     undo?: "deleted" | "paused";
+    grant_ids?: string[];
+    supervisor_id?: string;
+    revoked?: number;
   };
   expires_at: string;
   decided_at: string | null;

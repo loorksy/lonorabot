@@ -43,6 +43,7 @@ MODULES = {
     "runtime_control": "tasks",
     "tasks": "tasks",
     "collaboration": "collaboration",
+    "supervision": "collaboration",
     "incoming_call": "voice",
 }
 

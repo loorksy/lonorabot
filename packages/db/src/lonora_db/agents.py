@@ -82,6 +82,10 @@ async def create_agent(
     session.add(row)
     await session.flush()
     session.add(MemoryRow(agent_id=row.id))
+    from .supervision import grant_default
+
+    # Every new agent is supervised by the Personal Agent from the start (revocable).
+    await grant_default(session, owner_id, row)
     return row
 
 
@@ -120,4 +124,9 @@ async def update_agent(
         exclude={"scope_mode", "trading_account_id", "trading_symbol", "expected_scope_revision"},
     ).items():
         setattr(row, key, value)
+    if "paused" in request.model_fields_set:
+        from .supervision import owner_takes_over
+
+        # The owner's pause or resume wins over a supervisor's hold on this agent.
+        await owner_takes_over(session, owner_id, "agent", agent_id)
     return row

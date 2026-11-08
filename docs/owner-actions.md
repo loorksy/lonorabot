@@ -3,9 +3,9 @@
 Wave 1.5 slice W15-2. Every owner-only action has a one-tap card inside the
 conversation, identical on Web and Mobile. Resuming trading, lifting a pause, settling
 an uncertain trade and changing money limits never need a settings page or the API.
-W15-4 adds the agent creation and Undo cards (`docs/agents-from-chat.md`). Later slices
-add cards for grants (W15-3), supervision (W15-6), trusted sources and credentials
-(W15-8).
+W15-4 adds the agent creation and Undo cards (`docs/agents-from-chat.md`), W15-6 the
+supervision and Undo cards (`supervise`, `supervision_created`, `docs/supervision.md`).
+Later slices add cards for grants (W15-3), trusted sources and credentials (W15-8).
 
 A card is never a second authority path. It stores one exact effect, and the owner's
 tap runs the existing owner function for that effect, in the owner's session.
@@ -16,7 +16,7 @@ tap runs the existing owner function for that effect, in the owner's session.
 
 | Field | Meaning |
 | --- | --- |
-| `kind` | `resume_trading`, `lift_restriction`, `resolve_operation`, `set_account_limits`, `create_agent` or `agent_created` |
+| `kind` | `resume_trading`, `lift_restriction`, `resolve_operation`, `set_account_limits`, `create_agent`, `agent_created`, `supervise` or `supervision_created` |
 | `payload`, `payload_hash` | The exact, server-validated effect, and its hash. A passkey challenge is bound to the hash. |
 | `subject` | The record the card acts on: `trading`, `restriction:<id>`, `operation:<id>`, `account:<id>` |
 | `source` | `agent` (proposed through the tool) or `system` (raised from a runtime event) |

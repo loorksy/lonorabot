@@ -129,6 +129,20 @@ export const ownerActionLabels = {
     agentLimit: "You already have the most active agents allowed. Nothing changed.",
     reportToMissing: "An agent it reports to no longer exists. Nothing changed.",
     connectionChanged: "The broker account changed. Nothing changed.",
+    supervises: "Supervises",
+    superviseTitle: "Let it supervise?",
+    supervisionTitle: "Supervision set",
+    supervisor: "Supervisor",
+    allow: "Allow",
+    supervisionHint:
+      "It reads their work and memory, messages them and can pause or resume their work. It never trades for them, never uses their grant and never lifts your brakes.",
+    supervisionUndoHint: "Undo stops it at once.",
+    supervisionSet: "Supervision set.",
+    supervisionUndone: "Undone: supervision stopped.",
+    supervisionKept: "Kept.",
+    supervisionEnded: "This supervision already ended.",
+    supervisionAlreadySet: "This supervision is already set. Nothing changed.",
+    supervisionAgentMissing: "One of these agents no longer exists. Nothing changed.",
   },
   ar: {
     resumeTitle: "استئناف التداول",
@@ -227,6 +241,20 @@ export const ownerActionLabels = {
     agentLimit: "لديك أكبر عدد مسموح من الوكلاء النشطين. لم يتغير شيء.",
     reportToMissing: "وكيل يبلغه هذا الوكيل لم يعد موجودًا. لم يتغير شيء.",
     connectionChanged: "تغيّر حساب الوسيط. لم يتغير شيء.",
+    supervises: "يشرف على",
+    superviseTitle: "السماح له بالإشراف؟",
+    supervisionTitle: "تم تعيين الإشراف",
+    supervisor: "المشرف",
+    allow: "السماح",
+    supervisionHint:
+      "يقرأ عملهم وذاكرتهم ويراسلهم ويستطيع إيقاف عملهم أو استئنافه. لا يتداول عنهم أبدًا ولا يستخدم تفويضهم ولا يرفع فراملك.",
+    supervisionUndoHint: "التراجع يوقفه فورًا.",
+    supervisionSet: "تم تعيين الإشراف.",
+    supervisionUndone: "تم التراجع: توقف الإشراف.",
+    supervisionKept: "أُبقي.",
+    supervisionEnded: "انتهى هذا الإشراف مسبقًا.",
+    supervisionAlreadySet: "هذا الإشراف معيّن مسبقًا. لم يتغير شيء.",
+    supervisionAgentMissing: "أحد هؤلاء الوكلاء لم يعد موجودًا. لم يتغير شيء.",
   },
 } as const satisfies Record<Language, Record<string, string>>;
 export type OwnerActionText = (typeof ownerActionLabels)[Language];
@@ -274,13 +302,21 @@ function actionLabel(action: string | null, lang: Language): string {
 function settledLine(card: OwnerAction, text: OwnerActionText): string | null {
   if (card.status === "pending") return null;
   if (card.status === "cancelled")
-    return card.kind === "agent_created" ? text.kept : text.cancelled;
+    return card.kind === "agent_created"
+      ? text.kept
+      : card.kind === "supervision_created"
+        ? text.supervisionKept
+        : text.cancelled;
   if (card.status === "confirmed") {
     switch (card.kind) {
       case "create_agent":
         return text.createdLine;
       case "agent_created":
         return card.result.undo === "deleted" ? text.undoneDeleted : text.undonePaused;
+      case "supervise":
+        return text.supervisionSet;
+      case "supervision_created":
+        return text.supervisionUndone;
       case "resume_trading":
         return text.resumed;
       case "lift_restriction":
@@ -316,6 +352,12 @@ function settledLine(card: OwnerAction, text: OwnerActionText): string | null {
       return text.reportToMissing;
     case "broker_connection_changed":
       return text.connectionChanged;
+    case "supervision_ended":
+      return text.supervisionEnded;
+    case "supervision_already_set":
+      return text.supervisionAlreadySet;
+    case "supervision_agent_missing":
+      return text.supervisionAgentMissing;
     case "expired":
       return text.expired;
     default:
@@ -344,6 +386,23 @@ const TEMPLATE_LABEL = {
   supervisor: "templateSupervisor",
 } as const;
 
+/** Agent names, each isolated, joined with the language's list comma. */
+function nameList(names: string[], lang: Language): string {
+  return names.map(isolate).join(lang === "ar" ? "، " : ", ");
+}
+
+/** A supervision card's lines: the supervisor and the agents it supervises. */
+function supervisionLines(card: OwnerAction, lang: Language, text: OwnerActionText): string[] {
+  const supervision = card.facts.supervision;
+  if (!supervision) return [];
+  const lines: string[] = [];
+  if (supervision.supervisor_name)
+    lines.push(`${text.supervisor}: ${isolate(supervision.supervisor_name)}`);
+  if (supervision.supervised_names.length)
+    lines.push(`${text.supervises}: ${nameList(supervision.supervised_names, lang)}`);
+  return lines;
+}
+
 /** A creation card's lines: name and template, focus pair, ladder, links, model and task. */
 function agentLines(
   card: OwnerAction,
@@ -365,10 +424,9 @@ function agentLines(
     );
   if (agent.level)
     lines.push(`${tradingSafetyLabels[lang].level}: ${tradingSafetyLabels[lang][agent.level]}`);
-  if (agent.report_to?.length)
-    lines.push(
-      `${text.reportsTo}: ${agent.report_to.map(isolate).join(lang === "ar" ? "، " : ", ")}`,
-    );
+  if (agent.report_to?.length) lines.push(`${text.reportsTo}: ${nameList(agent.report_to, lang)}`);
+  if (agent.supervises?.length)
+    lines.push(`${text.supervises}: ${nameList(agent.supervises, lang)}`);
   if (agent.model) lines.push(`${text.model}: ${isolate(agent.model)}`);
   // The stored task, word for word, on one line and isolated: it is the agent's
   // standing instruction, so the owner sees exactly what the tap keeps.
@@ -518,6 +576,29 @@ export function ownerActionCard(
       hint = `${authorityHint(agent.level, text)} ${
         facts.undo === "delete" ? text.undoDeleteHint : text.undoPauseHint
       }`;
+      buttons = [
+        { key: "confirm", label: text.undo, decision: "confirm", primary: false },
+        { key: "cancel", label: text.keep, decision: "cancel", primary: false },
+      ];
+      break;
+    }
+    case "supervise": {
+      title = text.superviseTitle;
+      lines.push(...supervisionLines(card, lang, text));
+      hint = text.supervisionHint;
+      buttons = pair(text.allow, text.notNow);
+      break;
+    }
+    case "supervision_created": {
+      title = text.supervisionTitle;
+      lines.push(...supervisionLines(card, lang, text));
+      if (!card.facts.supervision?.active) {
+        // Revoked elsewhere (the profile): the card can only be dismissed.
+        hint = text.supervisionEnded;
+        buttons = [{ key: "cancel", label: text.keep, decision: "cancel", primary: false }];
+        break;
+      }
+      hint = `${text.supervisionHint} ${text.supervisionUndoHint}`;
       buttons = [
         { key: "confirm", label: text.undo, decision: "confirm", primary: false },
         { key: "cancel", label: text.keep, decision: "cancel", primary: false },

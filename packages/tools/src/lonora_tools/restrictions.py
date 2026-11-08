@@ -5,9 +5,11 @@ authority. When the run was started by the owner's message, the restriction reco
 that message as its source. Revocation is an owner-session action (API), deliberately
 absent here.
 
-One narrowing is not left to an agent's own initiative: ``all_mutations`` on another
-agent or on all agents needs a run that answers the owner's message. On its own
-initiative an agent may freeze only itself. Whatever its class, a restriction an agent
+Narrowing another agent needs a run that answers the owner's message, or a supervision
+grant over that agent (over every agent, for all agents; ``lonora_db.supervision``), and
+passes the cycle rule: an agent never narrows one that holds an active pause over it
+unless the owner asks. ``all_mutations`` on another agent or on all agents always needs
+the owner's message: on its own initiative an agent may freeze only itself. Whatever its class, a restriction an agent
 records never blocks a risk-reducing exit (``lonora_trading.restrictions``): its scope
 and reason are model-authored and may come from injected content.
 
@@ -25,7 +27,14 @@ from lonora_contracts.trading_restrictions import AgentRestrictionRequest, Restr
 from lonora_core.user_error import LonoraError
 from lonora_db.agent_binding import agent_binding, fixed_market
 from lonora_db.runs import require_lease
-from lonora_db.schema import MessageRow, RunRow, TradingJournalRow, TradingRestrictionRow
+from lonora_db.schema import (
+    AgentRow,
+    MessageRow,
+    RunRow,
+    TradingJournalRow,
+    TradingRestrictionRow,
+)
+from lonora_db.supervision import check_cycle, record_intervention, supervises, supervises_all
 from lonora_db.trading_restrictions import (
     create_restriction,
     list_restrictions,
@@ -62,6 +71,16 @@ async def owner_message_id(session: AsyncSession, run: RunRow) -> str | None:
     )
 
 
+async def other_agents(session: AsyncSession, context: ToolContext) -> list[str]:
+    return list(
+        await session.scalars(
+            select(AgentRow.id).where(
+                AgentRow.owner_id == context.owner_id, AgentRow.id != context.agent_id
+            )
+        )
+    )
+
+
 async def create(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     params = AgentRestrictionRequest.model_validate(args)
     async with context.db.sessions() as session:
@@ -95,6 +114,22 @@ async def create(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             # Freezing other agents also blocks their protective exits: the owner asks.
             raise LonoraError("restriction_all_mutations_requires_owner_message", 403)
         if not replayed and scoped_agent != context.agent_id:
+            # Narrowing another agent needs the owner's message in this run or a
+            # supervision grant over it (over every agent, for all agents); and an agent
+            # never narrows one that holds an active pause over it, unless the owner asks.
+            if message_id is None and not (
+                await supervises_all(session, context.owner_id, context.agent_id)
+                if scoped_agent is None
+                else await supervises(session, context.owner_id, context.agent_id, scoped_agent)
+            ):
+                raise LonoraError("restriction_supervision_required", 403)
+            await check_cycle(
+                session,
+                context.owner_id,
+                context.agent_id,
+                [scoped_agent] if scoped_agent else await other_agents(session, context),
+                owner_message=message_id is not None,
+            )
             # Binding other agents is a time-boxed pause, never an open-ended freeze.
             if params.valid_until is None:
                 raise LonoraError("restriction_valid_until_required", 422)
@@ -119,6 +154,21 @@ async def create(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             created_by_agent_id=context.agent_id,
             restriction_id=context.resource_id,
         )
+        if not replayed and scoped_agent != context.agent_id:
+            record_intervention(
+                session,
+                context.owner_id,
+                actor_id=context.agent_id,
+                agent_id=scoped_agent or context.agent_id,
+                payload={
+                    "action": "restrict",
+                    "target": "restriction",
+                    "target_id": row.id,
+                    "all_agents": scoped_agent is None,
+                    "source": "owner_message" if message_id else "agent",
+                },
+                run_id=run.id,
+            )
         query = select(TradingJournalRow).where(
             TradingJournalRow.owner_id == context.owner_id,
             TradingJournalRow.account_id == row.account_id,
@@ -201,8 +251,8 @@ def tools() -> list[Tool]:
             "cancellations or tighter stops; only the owner's own freeze does. Scope: account "
             "(default your bound account); symbol (the broker must list it; your home market "
             "by default on your home account) or all_symbols for every symbol on the account "
-            "(not for a market-bound agent); yourself by default, another agent_id or "
-            "all_agents. Set valid_until for a time-limited instruction such as 'today' (end "
+            "(not for a market-bound agent); yourself by default, another agent_id (one you "
+            "supervise, or when the owner's message asked) or all_agents. Set valid_until for a time-limited instruction such as 'today' (end "
             "of the owner's day, timezone-aware); it is required, within 31 days, for another "
             "agent or all agents, and may be omitted only for an open-ended one on yourself. "
             "It only narrows: watches and analysis continue, existing positions and pending "

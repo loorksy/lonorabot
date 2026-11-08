@@ -733,7 +733,9 @@ async def main() -> None:
             assert await grants(agent_id) == 0
         async with db.sessions() as session:
             names = sorted(name for name in registry.tools if name.startswith("agent_"))
-            assert names == ["agent_create"], names
+            # Supervision reads and steers (W15-6); no agent tool carries money authority.
+            assert names == ["agent_control", "agent_create", "agent_inspect"], names
+            assert not any(registry.tools[name].financial for name in names)
             orphan = await session.scalar(
                 select(func.count())
                 .select_from(OwnerActionRow)

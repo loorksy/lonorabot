@@ -101,6 +101,11 @@ PROFILE_SETS: list[list[ExposureProfile]] = [
     ["core", "research"],
     ["core", "market", "task"],
     ["core", "research", "task"],
+    # Supervisors: the Personal Agent and any agent holding a grant. A trading
+    # identity's Task Run leaves coordination out (tool_exposure.run_profiles).
+    ["core", "market", "coordination"],
+    ["core", "research", "coordination"],
+    ["core", "research", "coordination", "task"],
 ]
 
 

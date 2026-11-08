@@ -40,6 +40,7 @@ from lonora_db.owner_actions import (
 )
 from lonora_db.runs import require_lease
 from lonora_db.schema import AgentRow, BrokerSessionRow, EffectReceiptRow, OwnerActionRow
+from lonora_db.supervision import supervised_ids
 from lonora_session.idempotency import stable_id
 from pydantic import Field
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -186,6 +187,7 @@ async def created_result(
             else None,
             "trading_level": "ask_me" if TEMPLATE_LEVEL[template] == "supervised" else "no_trading",
             "reports_to": report_targets(origin),
+            "supervises": await supervised_ids(session, context.owner_id, row.id),
         },
         "undo_card_shown": card is not None,
         "money_authority": "none: every trade waits for the owner's tap until the owner signs "
@@ -247,6 +249,7 @@ async def create(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         "connection_version": None,
         "model": params.model.model_dump(mode="json") if params.model else None,
         "report_to": params.report_to,
+        "supervises": params.supervises,
     }
     if params.market is not None:
         market = await resolve_market(context, params.market, params.account_id)
@@ -362,8 +365,9 @@ def tools() -> list[Tool]:
             "owner asked it to do in responsibility. Without the owner's message in this run "
             "it becomes a card the owner taps. It never gets money authority: trading starts "
             "at Ask me, the others at No trading. If two accounts or symbols match, ask the "
-            "owner once and call again with account_id. report_to: agents it reports to. "
-            "The owner gets an Undo card; a taken name gets a number.",
+            "owner once and call again with account_id. report_to: agents it reports to; "
+            "supervises: agents it supervises. The owner gets an Undo card; a taken name gets "
+            "a number.",
             AgentCreateInput,
             create,
             replay_safe=True,

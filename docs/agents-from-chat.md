@@ -21,6 +21,7 @@ the creation service `lonora_db.agent_creation.create_root_agent` and
 | `account_id` | Only when the owner chose among several accounts |
 | `model` | Optional, one of the owner's configured models (the router's conversation routes); otherwise the result lists them (`agent_model_not_allowed`) |
 | `report_to` | Up to five existing agents it reports important findings to |
+| `supervises` | Up to ten existing agents it supervises, granted with the creation's source (`docs/supervision.md`) |
 
 Every new agent is an independent root: `parent_id` null, `scope_mode` flexible, role
 `specialist` with a focus pair and `general` without one (the `ln_agent_flexible_root`
@@ -137,8 +138,8 @@ finds the agent gone ("This agent was already removed"). The confirmation line i
   stay. Repeating an action changes nothing.
 - The owner cancels, pauses or resumes any watch with `POST /api/watches/{id}/control`
   (`{"action": "cancel" | "pause" | "resume"}`), from the status line's watch list.
-- `routine_toggle` pauses or resumes only the agent's own routines (supervised agents'
-  routines come with W15-6).
+- `routine_toggle` pauses or resumes the agent's own routines, and the routines of an
+  agent it supervises under the supervision hold rules (`docs/supervision.md`).
 
 ## The status line
 
@@ -157,9 +158,9 @@ fixed-market agents.
 
 ## Not in this slice
 
-- Supervision grants and `supervises` (W15-6): a supervisor-template agent is created
-  with *No trading* and its role in its notes, but reads other agents' private work only
-  once W15-6 adds the visible supervision grant.
+- Supervision grants and `supervises` are W15-6 (`docs/supervision.md`): a
+  supervisor-template agent reads other agents' private work only through the visible
+  supervision grant.
 - The ladder defaults for existing agents and the grant card (W15-3): new agents get
   their level written explicitly here; existing agents are unchanged.
 

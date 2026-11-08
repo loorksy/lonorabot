@@ -57,6 +57,11 @@ class AgentCreateInput(Contract):
         max_length=5,
         description="Existing agent ids this agent reports important findings to.",
     )
+    supervises: list[str] = Field(
+        default_factory=list[str],
+        max_length=10,
+        description="Existing agent ids it supervises (reads, messages, pauses; never trades).",
+    )
 
     @model_validator(mode="after")
     def market_for_template(self) -> "AgentCreateInput":
@@ -69,4 +74,6 @@ class AgentCreateInput(Contract):
             raise ValueError("agent_market_template_mismatch")
         if len(set(self.report_to)) != len(self.report_to):
             raise ValueError("agent_report_to_duplicate")
+        if len(set(self.supervises)) != len(self.supervises):
+            raise ValueError("supervision_duplicate")
         return self
