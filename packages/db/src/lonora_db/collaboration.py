@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .events import emit
 from .peer_messages import PeerMessageRepository
-from .runs import create_run, outcome_status
+from .runs import create_run, inherited_authority, outcome_status
 from .schema import CollaborationSessionRow, MessageRow, RunRow, ThreadRow
 from .threads import conversation_thread
 from .transactions import ResourceRepository, owned_agent, owned_thread, resource_data
@@ -339,6 +339,7 @@ async def schedule_synthesis(
                         "collaboration_round_id": round.id,
                         "collaboration_synthesis": True,
                         "depth": host.model_metadata.get("depth", 0),
+                        **inherited_authority(host),
                     },
                 ),
                 run_id,

@@ -7,7 +7,7 @@ from lonora_db.events import emit
 from lonora_db.item_failures import ItemGuard, blocked
 from lonora_db.messages import message_data
 from lonora_db.rich_response import validated_rich_content
-from lonora_db.runs import create_run, outcome_status
+from lonora_db.runs import create_run, inherited_authority, outcome_status
 from lonora_db.schema import (
     EffectReceiptRow,
     MessageRow,
@@ -257,7 +257,12 @@ async def return_outcome(db: Database, run_id: str) -> None:
                         trigger="follow_up",
                         parent_run_id=parent.id,
                         prompt="Use the returned peer outcome to complete the owner's request.",
-                        metadata={"depth": parent.model_metadata.get("depth", 0)},
+                        # A follow-up keeps an observe-only requester's narrowing, so it
+                        # never asks the owner to approve a trade the executor refuses.
+                        metadata={
+                            "depth": parent.model_metadata.get("depth", 0),
+                            **inherited_authority(parent),
+                        },
                     ),
                 )
         from lonora_db.collaboration import record_outcome

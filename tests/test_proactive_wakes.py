@@ -456,6 +456,46 @@ async def test_tasks_and_tickets_an_observe_only_wake_starts_never_trade():
         await fixture.close()
 
 
+@pytest.mark.asyncio
+async def test_a_follow_up_to_an_observe_only_request_stays_observe_only():
+    """A peer's answer after the requester's Run ended starts a follow-up Run that keeps
+    the requester's narrowing: it never asks the owner to approve a trade the executor
+    would refuse."""
+    database()
+    from check_streaming import Fixture
+    from lonora_agent.collaboration.outcome_return import return_outcome
+    from lonora_db.schema import RunRow
+    from sqlalchemy import select
+
+    fixture = await Fixture().open()
+    try:
+        requester = await fixture.agent("Wake requester", supervised=True)
+        peer = await fixture.agent("Wake helper peer")
+        context, _ = await wake_run(fixture, requester, observe_only=True)
+        sent = await call(context, "peer_send", agent_id=peer["id"], task="Check gold news")
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            parent = await session.get(RunRow, context.lease.run_id)
+            child = await session.scalar(
+                select(RunRow).where(RunRow.parent_run_id == context.lease.run_id)
+            )
+            assert parent is not None and child is not None, sent
+            parent.status, parent.result = "completed", "Asked the helper"
+            child.status, child.result = "completed", "Nothing material"
+            child_id = child.id
+        await return_outcome(fixture.runtime.db, child_id)
+        async with fixture.runtime.db.sessions() as session:
+            follow_up = await session.scalar(
+                select(RunRow).where(
+                    RunRow.parent_run_id == context.lease.run_id, RunRow.trigger == "follow_up"
+                )
+            )
+        assert follow_up is not None
+        assert follow_up.model_metadata["authority"] == "observe_only"
+        assert run_scope(follow_up.trigger, follow_up.model_metadata) == "observe_only"
+    finally:
+        await fixture.close()
+
+
 async def gold_goal(context: Any, connection: str) -> dict[str, Any]:
     return await call(
         context,
