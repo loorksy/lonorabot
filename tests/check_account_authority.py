@@ -177,7 +177,11 @@ async def main() -> None:
         assert proposal["money_limits"]["configured"] is False
         assert proposal["money_limits"]["limits"] == {}
         before = await broker.snapshot()
-        pending = await operation(volume="0.1", stop_loss="90")
+        # The trade the owner just refused, asked again in this Run, returns that refusal.
+        refused = await operation(volume="0.1", stop_loss="90")
+        assert refused["status"] == "rejected", refused
+        assert refused["approval_id"] == no_grant["approval_id"], refused
+        pending = await operation(volume="0.2", stop_loss="90")
         assert pending["_runtime_wait"] and await broker.snapshot() == before
         await f.request(
             "POST", f"/trading/approvals/{pending['approval_id']}/decision", {"decision": "reject"}
@@ -316,8 +320,9 @@ async def main() -> None:
             row = await session.get(RunRow, context.lease.run_id)
             assert row
             row.model_metadata = {**row.model_metadata, "voice_handoff": {"finalized": False}}
-        partial = await operation(volume="0.1", stop_loss="90")
-        assert partial["_runtime_wait"]
+        # Not the trade the owner refused above (that one returns the refusal).
+        partial = await operation(volume="0.3", stop_loss="90")
+        assert partial["_runtime_wait"], partial
         await f.request(
             "POST", f"/trading/approvals/{partial['approval_id']}/decision", {"decision": "reject"}
         )
@@ -554,8 +559,8 @@ async def main() -> None:
         assert revoked["status"] == "revoked"
         replay = await f.client.post("/api/account-authorities/verify", json=proof)
         assert replay.status_code == 403
-        needs_approval = await operation(volume="0.1", stop_loss="90")
-        assert needs_approval["_runtime_wait"]
+        needs_approval = await operation(volume="0.4", stop_loss="90")
+        assert needs_approval["_runtime_wait"], needs_approval
         print(
             "PASS revocation and lost-response proof replay cannot restore grant; absent authority returns to explicit approval"
         )

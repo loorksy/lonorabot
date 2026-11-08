@@ -34,6 +34,7 @@ from lonora_db.schema import (
     MessageRow,
     OwnerActionRow,
     SettingRow,
+    ThreadRow,
     TradeApprovalRow,
     TradingAccountRow,
 )
@@ -362,6 +363,10 @@ async def main() -> None:
         outside = await call(gold_context, "trade_execute", **euro_args)
         assert outside.get("_runtime_wait") and outside.get("approval_id"), outside
         assert await broker.snapshot() == before
+        # Asked again while the card waits: the same card, never a second one.
+        waiting = await call(gold_context, "trade_execute", **euro_args)
+        assert waiting.get("_runtime_wait"), waiting
+        assert waiting["approval_id"] == outside["approval_id"], waiting
         await fixture.request(
             "POST", f"/trading/approvals/{outside['approval_id']}/decision", {"decision": "approve"}
         )
@@ -393,8 +398,39 @@ async def main() -> None:
         await fixture.request(
             "POST", f"/trading/approvals/{manual['approval_id']}/decision", {"decision": "reject"}
         )
+        manual_args = {
+            "action": "close_position",
+            "account_id": account,
+            "symbol": GOLD,
+            "position_id": "manual-ticket",
+        }
+        # The same request right after the owner refused it returns that refusal.
+        refused_again = await call(gold_context, "trade_execute", **manual_args)
+        assert refused_again.get("status") == "rejected", refused_again
+        assert refused_again["approval_id"] == manual["approval_id"], refused_again
+        # Once the owner writes again in the conversation, it may ask once more.
+        async with db.sessions() as session, session.begin():
+            decided = await session.get(TradeApprovalRow, manual["approval_id"])
+            assert decided is not None and decided.thread_id is not None
+            conversation = await session.get(ThreadRow, decided.thread_id, with_for_update=True)
+            assert conversation is not None
+            session.add(
+                MessageRow(
+                    thread_id=conversation.id,
+                    seq=conversation.next_seq,
+                    role="user",
+                    content="Close my own gold position after all.",
+                )
+            )
+            conversation.next_seq += 1
+        asked = await call(gold_context, "trade_execute", **manual_args)
+        assert asked.get("_runtime_wait") and asked["approval_id"] != manual["approval_id"], asked
+        assert await broker.snapshot() == before
+        await fixture.request(
+            "POST", f"/trading/approvals/{asked['approval_id']}/decision", {"decision": "reject"}
+        )
         print(
-            "PASS under On its own an out-of-grant trade and the owner's own position become one approval card, reused when repeated, never a refusal"
+            "PASS under On its own an out-of-grant trade and the owner's own position become one approval card, reused while it waits, after approval and right after a refusal, never a refusal"
         )
 
         # 5. Two agents on one market: the card says so and can stop the other agent.
@@ -417,10 +453,10 @@ async def main() -> None:
         shown = await card(lonora_thread["id"], second_id)
         conflicts = shown["facts"]["conflicts"]
         assert [item["agent_name"] for item in conflicts] == [gold["name"]], conflicts
-        # The account already has a 200 limit, below the suggested 3% (300): it stays.
+        # The account already has the owner's 200 limit: nothing is suggested over it.
         daily = shown["facts"]["money"]["daily_loss"]
         assert Decimal(daily["current"]) == 200 and daily["proposed"] is None, daily
-        assert daily["basis"] == "suggested" and shown["facts"]["first_grant"] is False
+        assert daily["basis"] is None and shown["facts"]["first_grant"] is False
         challenge = await fixture.request("POST", f"/owner-actions/{second_id}/challenge", {})
         status, decided = await raw(
             "POST",
@@ -477,6 +513,107 @@ async def main() -> None:
         assert await level(lonora_id) == "supervised"
         print(
             "PASS Lonora's grant card preselects all pairs; the owner's switch for own positions is signed, and dismissing withdraws the proposal"
+        )
+
+        # 6b. Replacing a capped grant: the card lists every cap, protection and market
+        #     the old grant had; the owner's daily loss lowers the limit only when lower.
+        gold_state = await fixture.request("GET", f"/agents/{gold['id']}/permissions")
+        capped = await fixture.request(
+            "POST",
+            f"/agents/{gold['id']}/account-authorities?permission_revision={gold_state['revision']}",
+            {
+                "thread_id": gold_thread["id"],
+                "account_id": account,
+                "management_mode": "full",
+                "symbol_scope": "selected",
+                "symbols": [GOLD, EURO],
+                "actions": ["buy", "sell", "close_position"],
+                "maximum_order_volume": "0.5",
+                "maximum_positions": 3,
+                "valid_until": None,
+                "allow_manual_positions": False,
+            },
+        )
+        signed = await fixture.request("POST", f"/account-authorities/{capped['id']}/challenge", {})
+        await fixture.request(
+            "POST",
+            "/account-authorities/verify",
+            device.assertion(signed, fixture.settings.allowed_origin),
+        )
+        higher = await call(
+            lonora_context,
+            "owner_action_propose",
+            kind="grant_authority",
+            agent_id=gold["id"],
+            symbols=[GOLD],
+            daily_loss_amount="900",
+        )
+        # A higher daily loss than the owner's own limit is never raised by a grant card.
+        assert higher["daily_loss_above_current_needs_limits_card"] is True, higher
+        replace_id = higher["owner_action"]["id"]
+        shown = await card(lonora_thread["id"], replace_id)
+        replaced = shown["facts"]["replaces"]
+        assert replaced["symbols"] == [GOLD, EURO] and replaced["all_actions"] is False, replaced
+        assert replaced["maximum_order_volume"] == "0.5" and replaced["maximum_positions"] == 3
+        assert replaced["management_mode"] == "full" and replaced["valid_until"] is None
+        daily = shown["facts"]["money"]["daily_loss"]
+        assert daily["proposed"] is None and daily["requested_above"] == "900", daily
+        await fixture.request(
+            "POST", f"/owner-actions/{replace_id}/decision", {"decision": "cancel"}
+        )
+        lower = await call(
+            lonora_context,
+            "owner_action_propose",
+            kind="grant_authority",
+            agent_id=gold["id"],
+            symbols=[GOLD],
+            daily_loss_amount="120",
+        )
+        assert "daily_loss_above_current_needs_limits_card" not in lower
+        lower_id = lower["owner_action"]["id"]
+        daily = (await card(lonora_thread["id"], lower_id))["facts"]["money"]["daily_loss"]
+        assert daily["current"] is not None and Decimal(daily["current"]) == 200, daily
+        assert daily["proposed"] == "120", daily
+        challenge = await fixture.request("POST", f"/owner-actions/{lower_id}/challenge", {})
+        status, decided = await raw(
+            "POST",
+            f"/owner-actions/{lower_id}/decision",
+            {
+                "decision": "confirm",
+                "proof": device.assertion(challenge, fixture.settings.allowed_origin),
+                "money_limit": "none",
+            },
+        )
+        # "Keep my current limit": the grant is signed and the 200 limit stays.
+        assert status == 200 and decided["status"] == "confirmed", decided
+        assert decided["result"]["daily_loss"] is None
+        assert Decimal(decided["result"]["daily_loss_kept"]) == 200
+        policy = await fixture.request("GET", f"/trading/accounts/{account}/execution-policy")
+        assert Decimal(policy["risk"]["max_daily_loss"]) == 200
+        async with db.sessions() as session:
+            grants = list(
+                await session.scalars(
+                    select(AccountAuthorityRow).where(
+                        AccountAuthorityRow.agent_id == gold["id"],
+                        AccountAuthorityRow.status == "active",
+                    )
+                )
+            )
+            assert len(grants) == 1 and grants[0].id != capped["id"], grants
+            assert grants[0].envelope["maximum_order_volume"] is None
+            assert grants[0].envelope["symbols"] == [GOLD]
+            old_grant = await session.get(AccountAuthorityRow, capped["id"])
+            assert old_grant is not None and old_grant.status == "revoked"
+            line = await session.scalar(
+                select(MessageRow)
+                .where(MessageRow.thread_id == lonora_thread["id"], MessageRow.role == "assistant")
+                .order_by(MessageRow.seq.desc())
+                .limit(1)
+            )
+            assert line is not None
+            assert "stays as it was" in line.content or "بقي حد" in line.content, line.content
+        print(
+            "PASS replacing a capped grant lists its caps and markets; a higher daily loss is never raised by the card and keeping the current limit keeps it"
         )
 
         # 7. Moving down the ladder revokes the signed grant (a new signature is needed).

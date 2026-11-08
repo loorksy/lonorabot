@@ -321,15 +321,55 @@ def grant_proposal(
 
 def daily_loss_change(current: MonetaryRiskLimits, draft: GrantDraft) -> MonetaryRiskLimits | None:
     """The account limits after the card's daily loss limit, or None when it changes
-    nothing. The card only sets a missing limit or lowers one, so it never widens."""
+    nothing. A suggested limit is set only where the account has none; a limit from the
+    owner's own words may also lower the current one. It never raises one, so it never
+    widens, and it never tightens a limit the owner set without being asked."""
     daily = draft.daily_loss
     if daily is None:
         return None
     if current.currency is not None and current.currency != daily.currency:
         return None
-    if current.max_daily_loss is not None and daily.amount >= current.max_daily_loss:
+    if current.max_daily_loss is not None and (
+        daily.basis != "requested" or daily.amount >= current.max_daily_loss
+    ):
         return None
     return current.model_copy(update={"max_daily_loss": daily.amount, "currency": daily.currency})
+
+
+def requested_above(current: MonetaryRiskLimits, draft: GrantDraft) -> Decimal | None:
+    """The owner's own daily loss amount when it is above the account's current limit:
+    the grant card keeps the current limit, and raising it needs a limits card."""
+    daily = draft.daily_loss
+    if (
+        daily is None
+        or daily.basis != "requested"
+        or current.max_daily_loss is None
+        or current.currency not in {None, daily.currency}
+        or daily.amount <= current.max_daily_loss
+    ):
+        return None
+    return daily.amount
+
+
+def grant_terms(envelope: AccountAuthorityEnvelope) -> dict[str, Any]:
+    """Everything a signed grant allows, for the card that replaces it: its markets,
+    actions, caps, protections, expiry and the owner's own positions."""
+    return {
+        "management_mode": envelope.management_mode,
+        "symbol_scope": envelope.symbol_scope,
+        "symbols": list(envelope.symbols),
+        "actions": list(envelope.actions),
+        "all_actions": set(envelope.actions) == set(ALL_ACTIONS),
+        **{
+            name: None if getattr(envelope, name) is None else str(getattr(envelope, name))
+            for name in ("maximum_order_volume", "maximum_symbol_volume", "minimum_equity")
+        },
+        "maximum_positions": envelope.maximum_positions,
+        "maximum_pending_orders": envelope.maximum_pending_orders,
+        "maximum_actions": envelope.maximum_actions,
+        "valid_until": None if envelope.valid_until is None else envelope.valid_until.isoformat(),
+        "allow_manual_positions": envelope.allow_manual_positions,
+    }
 
 
 def proposal_payload(
@@ -487,6 +527,7 @@ async def grant_facts(
     }
     policy = await account_policy(session, owner_id, draft.account_id)
     change = daily_loss_change(policy.risk, draft)
+    above = requested_above(policy.risk, draft)
     daily = draft.daily_loss
     facts["money"] = {
         "limits": risk_limit_frame(draft.account_id, policy),
@@ -495,9 +536,11 @@ async def grant_facts(
             if policy.risk.max_daily_loss is None
             else str(policy.risk.max_daily_loss),
             "proposed": None if change is None or daily is None else str(daily.amount),
-            "currency": daily.currency if daily else policy.risk.currency,
+            "currency": policy.risk.currency or (daily.currency if daily else None),
             "basis": daily.basis if daily else None,
             "percent": None if daily is None or daily.percent is None else str(daily.percent),
+            # The owner asked for more than the current limit: the card keeps it.
+            "requested_above": None if above is None else str(above),
         },
     }
     facts["global_trading"] = await global_trading(session)
@@ -515,9 +558,8 @@ async def grant_facts(
         for item, envelope in await active_grants(session, owner_id, draft.account_id)
         if item.agent_id == draft.agent_id
     ]
-    facts["replaces"] = (
-        {"symbol_scope": own[0].symbol_scope, "symbols": list(own[0].symbols)} if own else None
-    )
+    # Everything the replaced grant allowed, so the card shows each effect of replacing it.
+    facts["replaces"] = grant_terms(own[0]) if own else None
     signed = await session.scalar(
         select(AccountAuthorityRow.id)
         .where(AccountAuthorityRow.owner_id == owner_id, AccountAuthorityRow.device_id.is_not(None))
@@ -884,9 +926,18 @@ async def grant_notes(session: AsyncSession, row: OwnerActionRow) -> list[str]:
     if result.get("daily_loss") is not None:
         notes.append("owner_action_grant_daily_loss")
     elif result.get("money_limit") == "none":
-        notes.append("owner_action_grant_no_money_limit")
-    if result.get("stopped_authorities"):
-        notes.append("owner_action_grant_stopped_other")
+        notes.append(
+            "owner_action_grant_kept_limit"
+            if result.get("daily_loss_kept") is not None
+            else "owner_action_grant_no_money_limit"
+        )
+    stopped = cast(list[str], result.get("stopped_authorities") or [])
+    if stopped:
+        notes.append(
+            "owner_action_grant_stopped_other"
+            if len(stopped) == 1
+            else "owner_action_grant_stopped_others"
+        )
     if result.get("resumed"):
         notes.append("owner_action_grant_resumed")
     elif (await global_trading(session))["state"] == "stopped":

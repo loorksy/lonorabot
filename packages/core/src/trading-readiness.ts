@@ -25,6 +25,11 @@ export function isolate(value: string): string {
   return `⁨${value}⁩`;
 }
 
+/** The list separator of the owner's language: the Arabic comma only in Arabic. */
+export function listSeparator(locale: string): string {
+  return language(locale) === "ar" ? "، " : ", ";
+}
+
 export const tradingSafetyLabels = {
   en: {
     title: "Trading safety",
@@ -255,7 +260,7 @@ export function tradingReadinessLine(
       const markets =
         params.symbol_scope === "account"
           ? tradingSafetyLabels[lang].allPairs
-          : (params.symbols ?? []).map(isolate).join(ar ? "، " : ", ");
+          : (params.symbols ?? []).map(isolate).join(listSeparator(locale));
       const end = until(params.valid_until, { en: "until you stop it", ar: "حتى توقفه" });
       const money =
         params.money_limit_set === false ? ` · ${tradingSafetyLabels[lang].noMoneyLimit}` : "";

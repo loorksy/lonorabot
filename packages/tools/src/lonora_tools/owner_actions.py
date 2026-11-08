@@ -10,6 +10,7 @@ money authority (a grant, or raising a money limit) needs the owner's passkey th
 from decimal import ROUND_DOWN, Decimal
 from typing import Any
 
+from lonora_adapter_kit.broker import BrokerAdapter
 from lonora_contracts.owner_actions import DailyLossDraft, GrantDraft, OwnerActionProposal
 from lonora_core.user_error import LonoraError
 from lonora_db.agent_binding import account_wide_scope, agent_binding, require_financial_agent
@@ -67,13 +68,37 @@ async def grant_draft(context: ToolContext, proposal: OwnerActionProposal) -> Gr
         symbols, scope = [], "account"
     else:
         raise LonoraError("owner_action_grant_markets_required", 409)
+    requested = proposal.daily_loss_amount is not None or proposal.daily_loss_percent is not None
+    if not requested and risk.max_daily_loss is not None:
+        # The account already has the owner's own daily loss limit: the card shows it
+        # and changes nothing, so there is nothing to suggest.
+        daily_loss = None
+    else:
+        daily_loss = await daily_loss_draft(proposal, broker, risk.currency)
+    return GrantDraft(
+        agent_id=grantee,
+        account_id=account_id,
+        symbol_scope=scope,
+        symbols=symbols,
+        actions=list(proposal.actions or ALL_ACTIONS),
+        duration=proposal.duration or "until_stopped",
+        allow_manual_positions=bool(proposal.allow_manual_positions),
+        daily_loss=daily_loss,
+    )
+
+
+async def daily_loss_draft(
+    proposal: OwnerActionProposal, broker: BrokerAdapter, account_currency: str | None
+) -> DailyLossDraft:
+    """The owner's own daily loss (an amount, or a percentage of equity now), or the
+    suggested 3% of equity (owner decision D1), in the account currency."""
     equity = currency = None
     try:
         state = await broker.account()
         equity, currency = state.equity, state.currency
     except Exception:
         pass
-    currency = currency or risk.currency
+    currency = currency or account_currency
     if proposal.daily_loss_amount is not None:
         amount, percent, basis = proposal.daily_loss_amount, None, "requested"
     else:
@@ -84,21 +109,12 @@ async def grant_draft(context: ToolContext, proposal: OwnerActionProposal) -> Gr
         amount = (equity * percent / 100).quantize(Decimal("0.01"), rounding=ROUND_DOWN)
     if currency is None or amount <= 0:
         raise LonoraError("owner_action_equity_unavailable", 503)
-    return GrantDraft(
-        agent_id=grantee,
-        account_id=account_id,
-        symbol_scope=scope,
-        symbols=symbols,
-        actions=list(proposal.actions or ALL_ACTIONS),
-        duration=proposal.duration or "until_stopped",
-        allow_manual_positions=bool(proposal.allow_manual_positions),
-        daily_loss=DailyLossDraft(
-            amount=amount,
-            currency=currency,
-            basis=basis,
-            percent=percent,
-            equity=equity if percent is not None else None,
-        ),
+    return DailyLossDraft(
+        amount=amount,
+        currency=currency,
+        basis=basis,
+        percent=percent,
+        equity=equity if percent is not None else None,
     )
 
 
@@ -125,7 +141,8 @@ async def propose_card(context: ToolContext, args: dict[str, Any]) -> dict[str, 
         )
         # Fenced after the conversation lock: the thread-before-run order of message admission.
         await require_lease(session, context.lease, lock=True)
-        _, passkey = await card_facts(session, row, row.updated_at)
+        facts, passkey = await card_facts(session, row, row.updated_at)
+        above = facts.get("money", {}).get("daily_loss", {}).get("requested_above")
         return {
             "owner_action": {
                 "id": row.id,
@@ -139,6 +156,9 @@ async def propose_card(context: ToolContext, args: dict[str, Any]) -> dict[str, 
             "owner_must_tap": True,
             "passkey_required": passkey,
             "execution_authorized": False,
+            # A grant card never raises the account's daily loss limit; the owner asked
+            # for more, so a set_account_limits card is the way to raise it.
+            **({"daily_loss_above_current_needs_limits_card": True} if above else {}),
         }
 
 
@@ -157,8 +177,9 @@ def tools() -> list[Tool]:
             "for the first time) and grant_authority (the owner wants an agent to trade on "
             "its own and no active grant covers it: optional agent_id, account_id, symbols "
             "or all_pairs, actions, duration, allow_manual_positions, and the owner's daily "
-            "loss as daily_loss_percent or daily_loss_amount; omit what the owner did not say "
-            "and the server fills the obvious defaults). Lowering or adding a limit is one "
+            "loss as daily_loss_percent or daily_loss_amount, which the card only sets or "
+            "lowers; omit what the owner did not say and the server fills the obvious "
+            "defaults). Lowering or adding a limit is one "
             "tap; a grant, raising or removing a limit, or moving the currency or trading day "
             "of set limits needs the owner's passkey. The card shows only server facts; say "
             "in one line what it does. A repeated proposal returns the card already shown; "

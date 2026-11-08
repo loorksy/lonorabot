@@ -333,7 +333,7 @@ async def confirm_grant(
     for other in sorted(set(body.stop_authorities)):
         if other not in conflicts:
             raise LonoraError("owner_action_conflict_not_found", 409)
-        # Narrowing: that agent no longer trades this account on its own.
+        # Narrowing: that agent's whole grant on this account ends, every market of it.
         await revoke(session, owner.id, other)
         stopped.append(other)
     names = await agent_names(session, owner.id, {conflicts[item].agent_id for item in stopped})
@@ -341,19 +341,20 @@ async def confirm_grant(
     if body.resume_trading and (await global_trading(session))["state"] == "stopped":
         await apply_controls(session, TradingControl(enabled=True, emergency_stop=False))
         resumed = True
-    daily = None
-    if body.money_limit == "apply":
-        # The account lock the settings route takes before it reads the limits.
-        await owned_account(session, owner.id, draft.account_id, lock=True)
-        policy = await account_policy(session, owner.id, draft.account_id)
-        change = daily_loss_change(policy.risk, draft)
-        if change is not None:
-            if widens(policy.risk, change):
-                raise LonoraError("owner_action_limits_invalid", 422)
-            await store_execution_policy(
-                session, owner.id, draft.account_id, policy.model_copy(update={"risk": change})
-            )
-            daily = str(change.max_daily_loss)
+    daily = kept = None
+    # The account lock the settings route takes before it reads the limits.
+    await owned_account(session, owner.id, draft.account_id, lock=True)
+    policy = await account_policy(session, owner.id, draft.account_id)
+    change = daily_loss_change(policy.risk, draft) if body.money_limit == "apply" else None
+    if change is not None:
+        if widens(policy.risk, change):
+            raise LonoraError("owner_action_limits_invalid", 422)
+        await store_execution_policy(
+            session, owner.id, draft.account_id, policy.model_copy(update={"risk": change})
+        )
+        daily = str(change.max_daily_loss)
+    elif policy.risk.max_daily_loss is not None:
+        kept = str(policy.risk.max_daily_loss)
     return {
         "authority_id": authority.id,
         "allow_manual_positions": row.result.get("allow_manual_positions"),
@@ -361,5 +362,7 @@ async def confirm_grant(
         "stopped_authorities": stopped,
         "stopped_agents": sorted(names.values()),
         "daily_loss": daily,
+        # The account's own daily loss limit, unchanged by this card.
+        "daily_loss_kept": kept,
         "money_limit": body.money_limit,
     }

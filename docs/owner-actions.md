@@ -153,24 +153,42 @@ only what the owner said; the tool resolves the rest on the server into a stored
 | `actions` | every action (full management) |
 | `duration` | until the owner stops it |
 | `allow_manual_positions` | false: positions the owner opened are excluded unless switched on |
-| `daily_loss` | the owner's amount or percentage, else a suggested 3% of current equity (rounded down to cents, in the account currency) |
+| `daily_loss` | the owner's amount or percentage; else, only when the account has no daily loss limit, a suggested 3% of current equity (rounded down to cents, in the account currency). An account that has its own limit keeps it: nothing is suggested over it |
 
 A card is raised only when authority is missing: a draft an active grant already covers
 (same or wider markets and actions, full management without numerical limits, a validity
 at least as long) is refused with `owner_action_not_needed_grant_already_active`. The
 card shows, from server facts: the agent, the account, the markets, the actions in plain
-words, until when, the owner's own positions, the daily loss line (the card's amount, or
-the account's existing limit, or "No money limit set"), the account's other money
-limits, Stop new trading when it is in force, other agents already trading an
+words, until when, one daily loss line, the account's other money limits (or "No money
+limit set"), Stop new trading when it is in force, other agents already trading an
 overlapping market on that account on their own, the agent's own grant it replaces, and
 on the owner's first grant the one rule from `VISION.md`.
 
+The daily loss line is exactly what confirming does: the amount the card sets on an
+account without one ("Daily loss limit: 300.00 USD (suggested: 3% of equity)"), the
+owner's own lower amount from one to the other ("Daily loss limit: 500 → 300 USD"), or
+the account's current limit unchanged ("Daily loss limit: 500 USD"). When the owner asked
+for more than the current limit, the card keeps it and says that raising it needs a
+limits card with the passkey; the tool result tells the agent the same
+(`daily_loss_above_current_needs_limits_card`).
+
+The replaced grant is described in full in one line: its markets, actions, every
+numerical cap, the bounded protections (a stop loss on every entry, never loosened), its
+expiry and the owner's own positions, then the new grant's side of each one that changes
+("Replaces its current grant: all pairs · max 0.5 lots per order · max 3 positions →
+XAUUSD · no volume, position or activity caps"), so a tap never removes a cap the card
+did not show.
+
 Its switches are the owner's choices: include my own positions (signed: it is sent with
-the challenge and becomes part of the envelope), no money limit (only when the card
-would set one), Resume trading too (pre-checked only when trading was never started;
-after the owner's own Stop it waits for the owner), and per conflicting agent "Stop
-<agent> trading here" (otherwise both keep trading and the account's limits bind them
-together).
+the challenge and becomes part of the envelope; while the card waits the switch is the
+only place that states it, and a settled card shows it as a line), "No money limit (my
+choice)" ("No daily loss limit (my choice)" when other limits are set) where the card
+would set a first limit, "Keep my current limit" where it would lower one, Resume
+trading too (pre-checked only when trading was never started; after the owner's own
+Stop it waits for the owner), and per conflicting agent "Stop <agent> trading on its own
+on this account" (it revokes that agent's whole grant there, every market of it;
+otherwise both keep trading and the account's limits bind them together). Lists use the
+English comma in English and the Arabic comma in Arabic (`listSeparator`).
 
 Signing runs the existing account-authority ceremony from inside the card:
 
@@ -187,14 +205,16 @@ Signing runs the existing account-authority ceremony from inside the card:
    assertion for any other proposal is refused and the transaction rolls back. Then the
    card's choices, none of which widens anything: revoke each chosen conflicting grant
    (narrowing), Resume (widens no authority), and the daily loss limit, which the card
-   only sets when the account has none or lowers when its own is lower
-   (`daily_loss_change`; it never raises one and never converts a currency).
+   sets only when the account has none and lowers only to an amount the owner asked for
+   (`daily_loss_change`; it never raises one, never tightens the owner's own limit unasked
+   and never converts a currency).
 3. Dismissing a card revokes the pending proposal its challenge prepared.
 
 The confirmation line says it is signed, that anything outside the grant comes back as
-an approval card, and what else changed (the daily loss limit, no money limit by choice,
-another agent stopped there, Resume), or that new trading is still stopped. A card for
-an agent that is deleted is superseded with it.
+an approval card, and what else changed (the daily loss limit set, no limit by choice or
+the current limit kept by choice, the other agent or agents stopped on this account,
+Resume), or that new trading is still stopped. The settled card names the agents it
+stopped. A card for an agent that is deleted is superseded with it.
 
 ## The raw execution-policy route
 
@@ -221,7 +241,7 @@ asks to resume (the tool description says the same).
 - A grant card signs one account at a time; several accounts take one card each (a
   combined multi-account signature is Wave 2).
 - A grant card's daily loss limit never raises or removes an existing one; that stays a
-  limits card with the passkey.
+  limits card with the passkey, which the agent proposes separately.
 - A runtime card is raised by the gateway's attention projection, so it appears when the
   gateway runs (within a tick); the API alone never raises one.
 

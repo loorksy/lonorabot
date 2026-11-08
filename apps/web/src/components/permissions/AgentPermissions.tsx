@@ -16,6 +16,7 @@ import {
   customizedManagementProposal,
   emptyManagementCustomization,
   hasFixedMarket,
+  listSeparator,
   webDeviceProof,
   webDeviceSupported,
 } from "@lonora/core";
@@ -545,7 +546,10 @@ export function AgentPermissions({
       {downgrade && (
         <div className="permission-downgrade" role="alert" data-testid="permission-downgrade">
           <p dir="auto">
-            {text.downgrade.replace("{account}", [...new Set(signedAccounts)].join("، "))}
+            {text.downgrade.replace(
+              "{account}",
+              [...new Set(signedAccounts)].join(listSeparator(locale)),
+            )}
           </p>
           <div className="permission-downgrade-actions">
             <button

@@ -37,9 +37,12 @@ monotonic:
   operation without a grant only with the owner's approval of that exact
   operation (`require_operation_permission`). A grant's management Task is held
   to its own grant; outside it, it asks too. The same exact request repeated in
-  another call of the same Run reuses the approval the owner already gave when
-  its operation reached the broker; a rejection, or a result that never reached
-  the broker, asks again.
+  another call of the same Run answers from the card already raised for it
+  (`reviewed_approval`, newest first): it waits on that card while it is pending,
+  uses the owner's approval when it is approved or its operation reached the
+  broker, and returns the owner's rejection until the owner writes again in that
+  conversation. A result that never reached the broker, or a rejection the owner
+  has spoken after, asks again.
 - Moving down revokes the agent's signed and pending grants, as before
   (`change_permission`). The selector says so first, in one line: "This revokes
   the signed grant for <account>; going back needs a new signature", with Revoke

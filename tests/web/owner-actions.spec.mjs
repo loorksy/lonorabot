@@ -36,10 +36,11 @@ async def main():
             proposal=OwnerActionProposal(**fields)
             if data['kind']=='grant_authority':
                 # The draft the tool resolves: this account, this pair, every action, until
-                # stopped, own positions excluded and a 3% daily loss suggestion (D1).
+                # stopped, own positions excluded and a 3% daily loss (D1), suggested, or
+                # from the owner's sentence when the account already has its own limit.
                 from lonora_contracts.owner_actions import DailyLossDraft,GrantDraft
                 from lonora_db.owner_actions import ALL_ACTIONS
-                draft=GrantDraft(agent_id=data['agent'],account_id=data['account'],symbol_scope='selected',symbols=[data['symbol']],actions=list(ALL_ACTIONS),daily_loss=DailyLossDraft(amount='300.00',currency='USD',basis='suggested',percent='3',equity='10000'))
+                draft=GrantDraft(agent_id=data['agent'],account_id=data['account'],symbol_scope='selected',symbols=[data['symbol']],actions=list(ALL_ACTIONS),daily_loss=DailyLossDraft(amount='300.00',currency='USD',basis=data.get('basis','suggested'),percent='3',equity='10000'))
                 row,_=await propose(session,f.owner,proposal,card_id=str(uuid4()),agent_id=data['agent'],thread_id=data['thread'],run_id=None,grant=draft)
             elif data['kind']=='resume_trading':
                 # As an agent proposes it when the owner asks to resume.
@@ -157,6 +158,9 @@ const copy = {
     register: "Register this device first",
     signed: "Signed. It trades on its own inside this grant.",
     dailyLoss: "Daily loss limit",
+    keepLimit: "Keep my current limit",
+    ownExcluded: "Positions you opened yourself are excluded",
+    arrow: "→",
   },
   ar: {
     resumeTitle: "استئناف التداول",
@@ -175,6 +179,9 @@ const copy = {
     register: "سجّل هذا الجهاز أولًا",
     signed: "وُقّع. يتداول بنفسه ضمن هذا التفويض.",
     dailyLoss: "حد الخسارة اليومية",
+    keepLimit: "أبقِ حدي الحالي",
+    ownExcluded: "لا يشمل المراكز التي فتحتها بنفسك",
+    arrow: "←",
   },
 };
 
@@ -209,12 +216,19 @@ for (const locale of ["en", "ar"])
       // The owner's own Stop: the card's Resume switch waits for the owner.
       await state.controls({ enabled: true, emergency_stop: false });
       await state.controls({ enabled: false, emergency_stop: false });
+      // The owner's own 500 daily loss limit; the sentence asked for 3% (300).
+      const limit = await context.request.put(
+        `/api/trading/accounts/${state.account}/execution-policy`,
+        { headers: state.headers, data: { risk: { currency: "USD", max_daily_loss: "500" } } },
+      );
+      expect(limit.ok()).toBeTruthy();
       const seeded = seedCard({
         kind: "grant_authority",
         account: state.account,
         symbol: state.data.symbol,
         agent: state.agent.id,
         thread: state.thread.id,
+        basis: "requested",
       });
       const bodies = [];
       page.on("request", (request) => {
@@ -227,7 +241,13 @@ for (const locale of ["en", "ar"])
       await expect(card.locator("strong")).toContainText(text.grantTitle);
       await expect(card.locator("strong")).toContainText(state.agent.name);
       await expect(card.getByText(state.data.symbol)).toBeVisible();
-      await expect(card.getByText(text.dailyLoss, { exact: false })).toBeVisible();
+      // One line from the owner's own limit to the lower one, and the opt-out keeps it.
+      const daily = card.getByText(text.dailyLoss, { exact: false });
+      await expect(daily).toBeVisible();
+      await expect(daily).toContainText(`500⁩ ${text.arrow} ⁨300.00 USD`);
+      await expect(card.getByRole("checkbox", { name: text.keepLimit })).not.toBeChecked();
+      // The switch states the owner's own positions; no fixed line contradicts it.
+      await expect(card.getByText(text.ownExcluded, { exact: true })).toHaveCount(0);
       // D1: the owner's own positions are excluded unless switched on; Resume waits for
       // the owner after the owner's own Stop.
       const own = card.getByRole("checkbox", { name: text.includeOwn });

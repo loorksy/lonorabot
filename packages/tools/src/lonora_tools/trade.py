@@ -12,7 +12,13 @@ from lonora_db.agent_binding import (
 )
 from lonora_db.agent_permissions import effective_permission
 from lonora_db.runs import require_lease
-from lonora_db.schema import EffectReceiptRow, RunRow, TradeApprovalRow, TradingJournalRow
+from lonora_db.schema import (
+    EffectReceiptRow,
+    MessageRow,
+    RunRow,
+    TradeApprovalRow,
+    TradingJournalRow,
+)
 from lonora_db.steering import user_interrupt_pending
 from lonora_db.trade_approvals import approval_event
 from lonora_db.transactions import owned_thread
@@ -100,12 +106,15 @@ async def management_snapshot(context: ToolContext, requests: list[TradeRequest]
 async def reviewed_approval(
     session: AsyncSession, context: ToolContext, requests: list[TradeRequest]
 ) -> TradeApprovalRow | None:
-    """The approval this Run already holds for the same exact operations, if the owner
-    approved it and its operations are executing or reached the broker.
+    """The approval card this Run already holds for the same exact operations, newest
+    first: one still waiting for the owner, one approved, one whose operations reached
+    the broker, or one the owner rejected with no word from the owner since.
 
     A repeated request in another call of the same Run (identical operation ids and
-    fingerprints) reuses it instead of asking the owner twice. A rejection, or a result
-    that never reached the broker (a pause that has since been lifted), asks again.
+    fingerprints) answers from that card instead of asking the owner again: it waits on
+    the same card, or returns the owner's rejection. A result that never reached the
+    broker (a pause that has since been lifted), or a rejection the owner has spoken
+    after in the conversation, asks again.
     """
     expected = [trade_fingerprint(request) for request in requests]
     rows = await session.scalars(
@@ -114,9 +123,9 @@ async def reviewed_approval(
             TradeApprovalRow.owner_id == context.owner_id,
             TradeApprovalRow.agent_id == context.agent_id,
             TradeApprovalRow.run_id == context.lease.run_id,
-            TradeApprovalRow.status.in_(["approved", "completed"]),
+            TradeApprovalRow.status.in_(["pending", "approved", "completed", "rejected"]),
         )
-        .order_by(TradeApprovalRow.created_at, TradeApprovalRow.id)
+        .order_by(TradeApprovalRow.created_at.desc(), TradeApprovalRow.id.desc())
     )
     for row in rows:
         if row.broker_snapshot.get("execution_mode", {}).get("value", "live") != "live":
@@ -125,11 +134,32 @@ async def reviewed_approval(
             expected
         ):
             continue
-        if row.status == "approved" or all(
-            result.get("status") in REACHED_BROKER for result in row.results
-        ):
+        if row.status in {"pending", "approved"}:
+            return row
+        if row.status == "rejected":
+            if not await owner_spoke_since(session, row):
+                return row
+            continue
+        if all(result.get("status") in REACHED_BROKER for result in row.results):
             return row
     return None
+
+
+async def owner_spoke_since(session: AsyncSession, row: TradeApprovalRow) -> bool:
+    """Whether the owner wrote in the card's conversation after deciding it."""
+    if row.thread_id is None:
+        return False
+    return (
+        await session.scalar(
+            select(MessageRow.id)
+            .where(
+                MessageRow.thread_id == row.thread_id,
+                MessageRow.role == "user",
+                MessageRow.created_at > row.updated_at,
+            )
+            .limit(1)
+        )
+    ) is not None
 
 
 def independent_exits(requests: list[TradeRequest]) -> bool:

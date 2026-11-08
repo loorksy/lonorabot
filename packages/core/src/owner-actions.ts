@@ -12,11 +12,13 @@ import type {
   OwnerActionAccount,
   OwnerActionChallenge,
   OwnerActionDecision,
+  OwnerActionGrantTerms,
   OwnerActionLimitField,
 } from "@lonora/contracts";
 import { accountAuthorityLabels } from "./account-authority-labels";
 import {
   isolate,
+  listSeparator,
   moneyLimitLabel,
   moneyLimitsLine,
   pauseClassLabel,
@@ -118,12 +120,32 @@ export const ownerActionLabels = {
     suggested: "suggested",
     accountLimits: "Account money limits",
     noMoneyLimitChoice: "No money limit (my choice)",
+    noDailyLossChoice: "No daily loss limit (my choice)",
+    keepCurrentLimit: "Keep my current limit",
+    raiseNeedsCard:
+      "You asked for {amount}: this card never raises the daily loss limit; raising it needs a limits card with your passkey.",
     tradingStopped: "New trading is stopped",
     resumeToo: "Resume trading too",
     conflict:
       "{agent} already trades {markets} here on its own. Keeping both is fine: the account's limits bind them together.",
-    stopOther: "Stop {agent} trading here",
-    replaces: "Replaces its current grant on this account",
+    stopOther: "Stop {agent} trading on its own on this account",
+    stoppedOthers: "Stopped on this account: {agents}.",
+    replaces: "Replaces its current grant",
+    capOrderVolume: "max {value} lots per order",
+    capSymbolVolume: "max {value} lots per market",
+    capPositions: "max {value} positions",
+    capPendingOrders: "max {value} pending orders",
+    capActions: "max {value} executions",
+    capEquity: "equity floor {value}",
+    boundedRule: "a stop loss on every entry, never loosened",
+    noCaps: "no volume, position or activity caps",
+    noBoundedRule: "no stop-loss rule",
+    everyAction: "every trading action",
+    ownIncludedShort: "positions you opened yourself included",
+    untilStoppedShort: "until you stop it",
+    for12hShort: "for 12 hours",
+    for24hShort: "for 24 hours",
+    for7dShort: "for 7 days",
     grantHint:
       "Confirm with your passkey. Anything outside this grant still comes to you as an approval card.",
     oneRule:
@@ -216,12 +238,32 @@ export const ownerActionLabels = {
     ofEquity: "من السيولة",
     suggested: "مقترح",
     accountLimits: "الحدود المالية للحساب",
-    noMoneyLimitChoice: "دون حد مالي (اختياري)",
+    noMoneyLimitChoice: "بلا حد مالي، بقرار مني",
+    noDailyLossChoice: "بلا حد للخسارة اليومية، بقرار مني",
+    keepCurrentLimit: "أبقِ حدي الحالي",
+    raiseNeedsCard:
+      "طلبت {amount}: هذه البطاقة لا ترفع حد الخسارة اليومية أبدًا؛ رفعه يحتاج بطاقة حدود بمفتاح المرور.",
     tradingStopped: "التداول الجديد متوقف",
     resumeToo: "استأنف التداول أيضًا",
     conflict: "{agent} يتداول {markets} هنا بنفسه. لا بأس ببقائهما معًا: حدود الحساب تلزمهما معًا.",
-    stopOther: "أوقف تداول {agent} هنا",
-    replaces: "يحل محل تفويضه الحالي على هذا الحساب",
+    stopOther: "أوقف تداول {agent} بنفسه على هذا الحساب",
+    stoppedOthers: "أُوقف على هذا الحساب: {agents}.",
+    replaces: "يحل محل تفويضه الحالي",
+    capOrderVolume: "حد حجم الأمر {value} لوت",
+    capSymbolVolume: "حد حجم السوق {value} لوت",
+    capPositions: "حد الصفقات {value}",
+    capPendingOrders: "حد الأوامر المعلّقة {value}",
+    capActions: "حد التنفيذات {value}",
+    capEquity: "حد السيولة {value}",
+    boundedRule: "وقف خسارة لكل دخول دون توسيعه",
+    noCaps: "دون حدود للحجم أو الصفقات أو النشاط",
+    noBoundedRule: "دون شرط وقف الخسارة",
+    everyAction: "كل عمليات التداول",
+    ownIncludedShort: "يشمل المراكز التي فتحتها بنفسك",
+    untilStoppedShort: "حتى توقفه",
+    for12hShort: "لمدة ١٢ ساعة",
+    for24hShort: "لمدة ٢٤ ساعة",
+    for7dShort: "لمدة ٧ أيام",
     grantHint: "أكّد بمفتاح المرور. ما يخرج عن هذا التفويض يصلك كبطاقة موافقة.",
     oneRule:
       "كل وكيل يرى ويستخدم كل ما وصلته بلونورا، لكنه لا ينفّذ صفقة حقيقية إلا ضمن التفويض الذي وقّعته له بمفتاح المرور وضمن حدود حسابك؛ وما يحتاجك يصلك كبطاقة في المحادثة بلمسة واحدة، وتستطيع إيقاف أي شيء بلمسة، ولا يستطيع أي وكيل أو مهارة أو إضافة توسيع صلاحياتك المالية.",
@@ -277,13 +319,17 @@ function actionLabel(action: string | null, lang: Language): string {
   return action ? (labels[action] ?? isolate(action)) : "";
 }
 
-function settledLine(card: OwnerAction, text: OwnerActionText): string | null {
+function settledLine(card: OwnerAction, text: OwnerActionText, lang: Language): string | null {
   if (card.status === "pending") return null;
   if (card.status === "cancelled") return text.cancelled;
   if (card.status === "confirmed") {
     switch (card.kind) {
-      case "grant_authority":
-        return text.signed;
+      case "grant_authority": {
+        const stopped = card.result.stopped_agents ?? [];
+        return stopped.length
+          ? `${text.signed} ${fill(text.stoppedOthers, { agents: stopped.map(isolate).join(listSeparator(lang)) })}`
+          : text.signed;
+      }
       case "resume_trading":
         return text.resumed;
       case "lift_restriction":
@@ -340,11 +386,89 @@ function marketsLabel(
   scope: "selected" | "account",
   symbols: string[],
   text: OwnerActionText,
+  lang: Language,
 ): string {
-  return scope === "account" ? text.allPairsAccount : symbols.map(isolate).join("، ");
+  return scope === "account"
+    ? text.allPairsAccount
+    : symbols.map(isolate).join(listSeparator(lang));
 }
 
-function grantCard(card: OwnerAction, locale: string, lang: Language) {
+function actionsLabel(actions: string[], lang: Language): string {
+  return actions.map((item) => actionLabel(item, lang)).join(listSeparator(lang));
+}
+
+/** The arrow of a change points along the reading direction: right to left in Arabic. */
+function arrow(lang: Language): string {
+  return lang === "ar" ? "←" : "→";
+}
+
+type GrantDuration = NonNullable<OwnerAction["facts"]["grant"]>["duration"];
+
+function durationShort(duration: GrantDuration, text: OwnerActionText): string {
+  return duration === "12h"
+    ? text.for12hShort
+    : duration === "24h"
+      ? text.for24hShort
+      : duration === "7d"
+        ? text.for7dShort
+        : text.untilStoppedShort;
+}
+
+function sameActions(left: string[], right: string[]): boolean {
+  return left.length === right.length && left.every((item) => right.includes(item));
+}
+
+/**
+ * The replaced grant and what replacing it changes, in one line: every cap, protection,
+ * market, action and expiry it had, then the new grant's side of each of them. A cap
+ * or protection that goes away is said plainly, so no effect of the tap is hidden.
+ */
+function replacesLine(
+  old: OwnerActionGrantTerms,
+  grant: NonNullable<OwnerAction["facts"]["grant"]>,
+  currency: string | null,
+  text: OwnerActionText,
+  lang: Language,
+  locale: string,
+  now: Date,
+): string {
+  const value = (amount: string | number, unit = "") => isolate(`${amount}${unit}`);
+  const before = [marketsLabel(old.symbol_scope, old.symbols, text, lang)];
+  if (!old.all_actions) before.push(`${text.actionsLine}: ${actionsLabel(old.actions, lang)}`);
+  const caps: Array<[string | number | null, string, string]> = [
+    [old.maximum_order_volume, text.capOrderVolume, ""],
+    [old.maximum_symbol_volume, text.capSymbolVolume, ""],
+    [old.maximum_positions, text.capPositions, ""],
+    [old.maximum_pending_orders, text.capPendingOrders, ""],
+    [old.maximum_actions, text.capActions, ""],
+    [old.minimum_equity, text.capEquity, currency ? ` ${currency}` : ""],
+  ];
+  const capped = caps.filter(([amount]) => amount != null);
+  for (const [amount, template, unit] of capped)
+    before.push(fill(template, { value: value(amount ?? "", unit) }));
+  if (old.management_mode === "bounded") before.push(text.boundedRule);
+  const timed = old.valid_until != null || grant.duration !== "until_stopped";
+  if (timed)
+    before.push(
+      old.valid_until
+        ? `${text.until} ${readinessTime(old.valid_until, locale, now)}`
+        : text.untilStoppedShort,
+    );
+  if (old.allow_manual_positions) before.push(text.ownIncludedShort);
+  const after = [marketsLabel(grant.symbol_scope, grant.symbols, text, lang)];
+  if (!sameActions(old.actions, grant.actions))
+    after.push(
+      grant.all_actions
+        ? text.everyAction
+        : `${text.actionsLine}: ${actionsLabel(grant.actions, lang)}`,
+    );
+  if (capped.length) after.push(text.noCaps);
+  if (old.management_mode === "bounded") after.push(text.noBoundedRule);
+  if (timed) after.push(durationShort(grant.duration, text));
+  return `${text.replaces}: ${before.join(" · ")} ${arrow(lang)} ${after.join(" · ")}`;
+}
+
+function grantCard(card: OwnerAction, locale: string, lang: Language, now: Date) {
   const text = ownerActionLabels[lang];
   const facts = card.facts;
   const grant = facts.grant;
@@ -355,11 +479,11 @@ function grantCard(card: OwnerAction, locale: string, lang: Language) {
   if (grant) {
     const account = accountLabel(facts.account, text);
     if (account) lines.push(`${text.account}: ${account}`);
-    lines.push(`${text.markets}: ${marketsLabel(grant.symbol_scope, grant.symbols, text)}`);
+    lines.push(`${text.markets}: ${marketsLabel(grant.symbol_scope, grant.symbols, text, lang)}`);
     lines.push(
       grant.all_actions
         ? text.allActions
-        : `${text.actionsLine}: ${grant.actions.map((item) => actionLabel(item, lang)).join("، ")}`,
+        : `${text.actionsLine}: ${actionsLabel(grant.actions, lang)}`,
     );
     lines.push(
       grant.duration === "12h"
@@ -370,21 +494,52 @@ function grantCard(card: OwnerAction, locale: string, lang: Language) {
             ? text.for7d
             : text.untilStopped,
     );
-    lines.push(grant.allow_manual_positions ? text.ownIncluded : text.ownExcluded);
-    options.push({ key: "manual", label: text.includeOwn, initial: grant.allow_manual_positions });
+    if (card.status === "pending")
+      // The switch states it; a fixed line beside it would contradict a ticked switch.
+      options.push({
+        key: "manual",
+        label: text.includeOwn,
+        initial: grant.allow_manual_positions,
+      });
+    else lines.push(grant.allow_manual_positions ? text.ownIncluded : text.ownExcluded);
   }
-  const daily = facts.money?.daily_loss;
-  if (daily?.proposed) {
-    const amount = isolate(daily.currency ? `${daily.proposed} ${daily.currency}` : daily.proposed);
-    const basis = daily.percent
-      ? ` (${daily.basis === "suggested" ? `${text.suggested}: ` : ""}${isolate(`${daily.percent}%`)} ${text.ofEquity})`
-      : "";
-    lines.push(`${text.dailyLoss}: ${amount}${basis}`);
-    options.push({ key: "no_money_limit", label: text.noMoneyLimitChoice, initial: false });
-    const others = facts.money?.limits;
-    if (others?.configured) lines.push(`${text.accountLimits}: ${moneyLimitsLine(others, locale)}`);
-  } else if (facts.money) {
-    lines.push(`${text.accountLimits}: ${moneyLimitsLine(facts.money.limits, locale)}`);
+  const money = facts.money;
+  if (money) {
+    const daily = money.daily_loss;
+    const amount = (value: string) =>
+      isolate(daily.currency ? `${value} ${daily.currency}` : value);
+    // The daily loss has its own line; the account line shows every other limit.
+    const rest = Object.fromEntries(
+      Object.entries(money.limits.limits).filter(([name]) => name !== "max_daily_loss"),
+    );
+    const others = Object.keys(rest).length > 0;
+    if (daily.proposed) {
+      const basis = daily.percent
+        ? ` (${daily.basis === "suggested" ? `${text.suggested}: ` : ""}${isolate(`${daily.percent}%`)} ${text.ofEquity})`
+        : "";
+      // An existing limit is only ever lowered, in one line from the current amount.
+      const from = daily.current ? `${isolate(daily.current)} ${arrow(lang)} ` : "";
+      lines.push(`${text.dailyLoss}: ${from}${amount(daily.proposed)}${basis}`);
+      options.push(
+        daily.current
+          ? { key: "keep_limit", label: text.keepCurrentLimit, initial: false }
+          : {
+              key: "no_money_limit",
+              label: others ? text.noDailyLossChoice : text.noMoneyLimitChoice,
+              initial: false,
+            },
+      );
+    } else if (daily.current) {
+      lines.push(`${text.dailyLoss}: ${amount(daily.current)}`);
+    }
+    if (daily.requested_above)
+      lines.push(fill(text.raiseNeedsCard, { amount: amount(daily.requested_above) }));
+    if (others)
+      lines.push(
+        `${text.accountLimits}: ${moneyLimitsLine({ ...money.limits, limits: rest }, locale)}`,
+      );
+    else if (!daily.proposed && !daily.current)
+      lines.push(`${text.accountLimits}: ${moneyLimitsLine(money.limits, locale)}`);
   }
   if (facts.global_trading?.state === "stopped") {
     lines.push(text.tradingStopped);
@@ -400,7 +555,7 @@ function grantCard(card: OwnerAction, locale: string, lang: Language) {
     lines.push(
       fill(text.conflict, {
         agent: name,
-        markets: marketsLabel(conflict.symbol_scope, conflict.symbols, text),
+        markets: marketsLabel(conflict.symbol_scope, conflict.symbols, text, lang),
       }),
     );
     options.push({
@@ -409,7 +564,18 @@ function grantCard(card: OwnerAction, locale: string, lang: Language) {
       initial: false,
     });
   }
-  if (facts.replaces) lines.push(text.replaces);
+  if (facts.replaces && grant)
+    lines.push(
+      replacesLine(
+        facts.replaces,
+        grant,
+        money?.daily_loss.currency ?? null,
+        text,
+        lang,
+        locale,
+        now,
+      ),
+    );
   hints.push(text.grantHint);
   if (facts.first_grant) hints.push(text.oneRule);
   return {
@@ -432,10 +598,11 @@ export function ownerActionChoices(
 ): { challenge: OwnerActionChallenge; decision: Partial<OwnerActionDecision> } {
   if (card.kind !== "grant_authority") return { challenge: {}, decision: {} };
   const value = (key: string, initial: boolean) => chosen[key] ?? initial;
-  const options = grantCard(card, "en", "en").options;
+  const options = grantCard(card, "en", "en", new Date()).options;
   const initial = (key: string) => options.find((item) => item.key === key)?.initial ?? false;
   const decision: Partial<OwnerActionDecision> = {
-    money_limit: value("no_money_limit", false) ? "none" : "apply",
+    // Either opt-out leaves the account's daily loss limit exactly as it is.
+    money_limit: value("no_money_limit", false) || value("keep_limit", false) ? "none" : "apply",
     resume_trading: options.some((item) => item.key === "resume")
       ? value("resume", initial("resume"))
       : false,
@@ -470,7 +637,7 @@ export function ownerActionCard(
   ];
   switch (card.kind) {
     case "grant_authority": {
-      const grant = grantCard(card, locale, lang);
+      const grant = grantCard(card, locale, lang, now);
       title = grant.title;
       lines.push(...grant.lines);
       hint = grant.hint;
@@ -607,7 +774,7 @@ export function ownerActionCard(
     buttons: pending ? buttons : [],
     notes: pending && card.kind === "resolve_operation",
     passkey: pending && card.requires_passkey,
-    outcome: settledLine(card, text),
+    outcome: settledLine(card, text, lang),
   };
 }
 

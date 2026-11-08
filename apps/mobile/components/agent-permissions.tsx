@@ -17,6 +17,7 @@ import {
   customizedManagementProposal,
   emptyManagementCustomization,
   hasFixedMarket,
+  listSeparator,
   moneyLimitsLine,
   numericalAuthorityLimits,
 } from "@lonora/core";
@@ -852,7 +853,7 @@ function PermissionControl({ agent, threadId, revision = 0, settings = false }: 
                               .filter((row) => authorityStatus(row, clock) === "active")
                               .map((row) => accountName(row.account_id)),
                           ),
-                        ].join("، "),
+                        ].join(listSeparator(rtl ? "ar" : "en")),
                       )}
                     </Text>
                     {actionButton(

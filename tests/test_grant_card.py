@@ -21,7 +21,9 @@ from lonora_db.owner_actions import (
     covers_draft,
     daily_loss_change,
     grant_proposal,
+    grant_terms,
     overlaps_draft,
+    requested_above,
     widens,
 )
 from lonora_db.schema import AgentRow
@@ -102,21 +104,68 @@ def test_a_grant_proposal_is_built_only_from_the_stored_draft() -> None:
         draft(symbols=[])
 
 
-def test_the_card_daily_loss_only_sets_or_lowers_a_limit() -> None:
+def requested(amount: str, percent: str | None = None) -> GrantDraft:
+    return draft(
+        daily_loss=DailyLossDraft(
+            amount=Decimal(amount),
+            currency="USD",
+            basis="requested",
+            percent=None if percent is None else Decimal(percent),
+        )
+    )
+
+
+def test_a_suggested_daily_loss_is_set_only_where_the_account_has_none() -> None:
     unset = MonetaryRiskLimits()
     first = daily_loss_change(unset, draft())
     assert first is not None and first.max_daily_loss == 300 and first.currency == "USD"
     assert not widens(unset, first)
-    lower = MonetaryRiskLimits(currency="USD", max_daily_loss=Decimal(500))
-    lowered = daily_loss_change(lower, draft())
-    assert lowered is not None and lowered.max_daily_loss == 300 and not widens(lower, lowered)
-    # A tighter existing limit stays; the card never raises it.
-    tight = MonetaryRiskLimits(currency="USD", max_daily_loss=Decimal(200))
-    assert daily_loss_change(tight, draft()) is None
+    # The owner set 500 themselves: the suggested 3% (300) never tightens it unasked.
+    own = MonetaryRiskLimits(currency="USD", max_daily_loss=Decimal(500))
+    assert daily_loss_change(own, draft()) is None
+    assert requested_above(own, draft()) is None
     # Another currency is never converted.
     euro = MonetaryRiskLimits(currency="EUR", max_trade_risk=Decimal(50))
     assert daily_loss_change(euro, draft()) is None
     assert daily_loss_change(unset, draft(daily_loss=None)) is None
+
+
+def test_the_owners_own_daily_loss_lowers_a_limit_and_never_raises_one() -> None:
+    own = MonetaryRiskLimits(currency="USD", max_daily_loss=Decimal(500))
+    lowered = daily_loss_change(own, requested("300", "3"))
+    assert lowered is not None and lowered.max_daily_loss == 300 and not widens(own, lowered)
+    assert requested_above(own, requested("300")) is None
+    # Asking for more keeps the current limit; raising it is a limits card's passkey.
+    assert daily_loss_change(own, requested("800")) is None
+    assert requested_above(own, requested("800")) == 800
+    assert daily_loss_change(own, requested("500")) is None
+    assert requested_above(own, requested("500")) is None
+    first = daily_loss_change(MonetaryRiskLimits(), requested("800"))
+    assert first is not None and first.max_daily_loss == 800
+    assert requested_above(MonetaryRiskLimits(), requested("800")) is None
+
+
+def test_the_replaced_grant_is_described_in_full() -> None:
+    capped = envelope(
+        management_mode="bounded",
+        symbols=["XAUUSD", "EURUSD"],
+        actions=["buy", "sell", "close_position"],
+        maximum_order_volume=Decimal("0.5"),
+        maximum_symbol_volume=Decimal(1),
+        maximum_positions=3,
+        maximum_pending_orders=0,
+        maximum_actions=40,
+        minimum_equity=Decimal(1000),
+        valid_until=utcnow() + timedelta(days=2),
+        schema_version=1,
+    )
+    terms = grant_terms(capped)
+    assert terms["management_mode"] == "bounded" and terms["all_actions"] is False
+    assert terms["symbols"] == ["XAUUSD", "EURUSD"]
+    assert terms["maximum_order_volume"] == "0.5" and terms["maximum_positions"] == 3
+    assert terms["maximum_pending_orders"] == 0 and terms["minimum_equity"] == "1000"
+    assert terms["valid_until"] is not None and terms["allow_manual_positions"] is False
+    assert not covers_draft(capped, draft())
 
 
 def test_covered_scope_needs_no_card_and_overlap_is_named() -> None:

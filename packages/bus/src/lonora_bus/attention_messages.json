@@ -30,7 +30,9 @@
     "owner_action_grant_authority": "وُقّع التفويض. صار يتداول بنفسه ضمن هذا التفويض، وما يخرج عنه يصلك كبطاقة موافقة. يبقى إيقاف الصفقات الجديدة وإيقافاتك والحدود المالية للحساب نافذة.",
     "owner_action_grant_daily_loss": "صار حد الخسارة اليومية الظاهر في البطاقة مضبوطًا على هذا الحساب.",
     "owner_action_grant_no_money_limit": "كما اخترت، لم يُضبط حد للخسارة اليومية.",
-    "owner_action_grant_stopped_other": "لم يعد الوكيل الآخر يتداول هذا السوق بنفسه.",
+    "owner_action_grant_kept_limit": "كما اخترت، بقي حد الخسارة اليومية للحساب كما كان.",
+    "owner_action_grant_stopped_other": "لم يعد الوكيل الآخر الذي اخترته يتداول بنفسه على هذا الحساب.",
+    "owner_action_grant_stopped_others": "لم يعد الوكلاء الآخرون الذين اخترتهم يتداولون بأنفسهم على هذا الحساب.",
     "owner_action_grant_resumed": "واستؤنف التداول الجديد أيضًا."
   },
   "en": {
@@ -64,7 +66,9 @@
     "owner_action_grant_authority": "Signed. It now trades on its own inside this grant; anything outside it comes to you as an approval card. Stop new trading, your pauses and the account's money limits still apply.",
     "owner_action_grant_daily_loss": "The daily loss limit on the card is now set on this account.",
     "owner_action_grant_no_money_limit": "As you chose, no daily loss limit was set.",
-    "owner_action_grant_stopped_other": "The other agent no longer trades this market on its own.",
+    "owner_action_grant_kept_limit": "As you chose, the account's daily loss limit stays as it was.",
+    "owner_action_grant_stopped_other": "The other agent you chose no longer trades on its own on this account.",
+    "owner_action_grant_stopped_others": "The other agents you chose no longer trade on their own on this account.",
     "owner_action_grant_resumed": "New trading resumed too."
   }
 }

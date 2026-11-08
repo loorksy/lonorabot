@@ -15,6 +15,22 @@ export type AttestedOutcome = "executed" | "not_executed" | "unknown";
 export type OwnerActionLimitField = MoneyLimitName | "currency" | "trading_day_timezone";
 /** The broker identity the owner recognizes; label is null when it is not verified. */
 export type OwnerActionAccount = { id: string; label: string | null; provider: string | null };
+/** What a signed grant allows: markets, actions, caps, protections, expiry and own positions. */
+export type OwnerActionGrantTerms = {
+  management_mode: "bounded" | "full";
+  symbol_scope: "selected" | "account";
+  symbols: string[];
+  actions: AuthorityAction[];
+  all_actions: boolean;
+  maximum_order_volume: string | null;
+  maximum_symbol_volume: string | null;
+  maximum_positions: number | null;
+  maximum_pending_orders: number | null;
+  maximum_actions: number | null;
+  minimum_equity: string | null;
+  valid_until: string | null;
+  allow_manual_positions: boolean;
+};
 /**
  * One owner-only action offered as a card in the conversation (lonora_db.owner_actions).
  * Every fact is read on the server from the records the card names; nothing an agent
@@ -84,6 +100,8 @@ export type OwnerAction = {
         currency: string | null;
         basis: "suggested" | "requested" | null;
         percent: string | null;
+        /** The owner asked for more than the current limit: the card keeps the current one. */
+        requested_above?: string | null;
       };
     };
     /** Other agents already trading this market on the account on their own. */
@@ -93,8 +111,8 @@ export type OwnerAction = {
       symbol_scope: "selected" | "account";
       symbols: string[];
     }>;
-    /** The agent's own grant on this account that the new one replaces. */
-    replaces?: { symbol_scope: "selected" | "account"; symbols: string[] } | null;
+    /** Everything the agent's own grant on this account allows, which the new one replaces. */
+    replaces?: OwnerActionGrantTerms | null;
     /** The owner's first grant: the card shows the one rule. */
     first_grant?: boolean;
   };
@@ -106,6 +124,8 @@ export type OwnerAction = {
     limits?: MoneyLimits;
     resumed?: boolean;
     daily_loss?: string | null;
+    /** The account's own daily loss limit, unchanged by the card. */
+    daily_loss_kept?: string | null;
     money_limit?: "apply" | "none";
     stopped_agents?: string[];
   };
@@ -121,7 +141,7 @@ export type OwnerActionDecision = {
   note?: string;
   broker_reference?: string;
   proof?: DeviceProof;
-  /** Grant card: "none" leaves the account without the card's daily loss limit. */
+  /** Grant card: "none" leaves the account's daily loss limit as it is. */
   money_limit?: "apply" | "none";
   /** Grant card: resume new trading too (it widens no authority). */
   resume_trading?: boolean;
