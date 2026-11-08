@@ -12,6 +12,9 @@ The owner delegated responsibility for the Lonora system and asked for a simple 
 | D2 | Automatic emergency reduction | Optional, off by default, set per account and signed with the passkey. Executed only by the financial boundary, only reduces exposure, never re-opens. Never run by the watchdog or the model. |
 | D3 | Reading X/Twitter | Web search, RSS/news feeds and any X MCP server the owner trusts. An X API key can be added later. No scraping with the owner's account. |
 | D4 | Model spending cap | No cap. Show usage per agent. |
+| D5 | Code as a deliverable | Lonora never hands the owner code as a product, trading code included (MQL5, Pine Script, scripts, websites, apps). An agent may write and run code inside its own sandbox as a means to analyse, monitor or build skills, and gives the owner the result. |
+| D6 | Requests outside trading | Light personal tasks are allowed (reminders, translation, short questions). Programming, websites and large projects unrelated to trading are declined in one polite line, with what Lonora can do instead. |
+| D7 | Connecting to any API and other platforms | Agents may connect to any data or service API the owner has an account for, through the agent computer with credentials injected by the server and never seen by the agent, after a one-time trust tap. Trading platforms are never reached that way: each broker or exchange is added as an adapter behind the single executor (MetaApi today; Alpaca, Interactive Brokers, OANDA or crypto exchanges next), so grants, limits, journal and reconciliation always apply. The agent computer has a terminal and controlled internet but no interactive browser for now. |
 
 ## Corrections
 
@@ -46,3 +49,4 @@ The owner delegated responsibility for the Lonora system and asked for a simple 
 29. **Two agents on one account and symbol.** Shared account limits bind them together. At grant time the card says another agent already manages that market and offers "keep both" or "stop that agent trading here". Amends §7.
 30. **Identity wording.** The system prompt calls every agent "a persistent Lonora agent; trading is your specialization only when your responsibilities include it". For reading and analysis Lonora uses the obvious default (the only account, the focus pair, the named instrument) and never defaults authority, size limits or autonomy.
 31. **Out of scope:** multi-user hosting and subscriptions; retraining model weights (not forbidden forever).
+32. **Domain scope** (D5, D6). The protected core states Lonora's domain: trading, markets, financial and economic research, light personal tasks, and running Lonora itself. Out-of-domain deliverables are declined in one line. Enforcement is layered: the protected core rule, capabilities that cannot publish or host anything, no import of off-domain skills, and a permanent refusal test set (including attempts to talk the agent out of the rule).

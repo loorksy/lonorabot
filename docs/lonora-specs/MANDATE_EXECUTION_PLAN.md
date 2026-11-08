@@ -603,6 +603,12 @@ Verification on the final code tree (`2c5092c`; the documentation commit that fo
 | CI "authenticated durable runtime" and "persistent context, steering and concurrency" steps, re-extracted from `ci.yml` (unchanged since the last extraction) and run in order on one database, as in CI | Pass. 1 and 22 PASS lines. |
 | Playwright `test:web` / `test:mobile` (system Chrome, each suite on its own fresh `*_ci` database) | Web: 111 passed, 7 failed, exactly the phase 2 baseline (`agent-permissions:391`, `group-status:14`, `skills-management:121`, `visual-response:64` in all four variants). `avatar:110` and `inbox:120` pass, and so do `owner-actions` and `simple-lonora` with the counted registration tap. Mobile, after `2c5092c`: 55 passed, 5 failed, exactly the baseline (`attention:4`, `chat-reliability:85`, `skills-management:67` in English and Arabic, `workspace:7`). No failure is new. |
 
+## Next, after PR #30 is merged (separate branches and PRs)
+
+- **Reference UI for `apps/web`** from `docs/ui-reference/Lonora-Desktop-32.html`, in six phases, one PR each: capability map and tokens; layout and sheets; conversation; agent and domain pages; settings and onboarding; calls.
+- **Agent computer and domain scope** (D5–D7). Each agent gets a persistent isolated environment: a terminal, controlled internet through the SSRF-safe proxy, long jobs, Lonora tools callable from code, and server-injected credentials that the agent never sees, including OAuth connections. It gets no interactive browser, no hosting and no inbound ports, and broker or financial hosts are refused. A domain-scope rule sits in the protected core, with a permanent refusal test set.
+- **More brokers** as adapters behind the single executor, starting with Alpaca (paper trading for safe tests), then Interactive Brokers.
+
 ## Wave 2 — durable responsibilities and the always-on gateway
 
 - A `Responsibility` record that owns tasks, wakes, watches, grants, restrictions, communication preference and expiry. It answers "what is active" and "what happened while I was away".
