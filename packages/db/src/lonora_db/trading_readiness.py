@@ -130,6 +130,9 @@ async def trading_readiness(
     # trades on its own, otherwise every account it may ask to trade on. The sheet still
     # lists pauses and operations on the other accounts, each with its account named.
     granted = {str(row["account_id"]) for row in permission["active_authorities"]}
+    # A signed grant's account is always read, however many other accounts the owner has:
+    # otherwise its money limits and pauses would be missing from the line it speaks for.
+    accounts += sorted(granted - set(accounts))
     in_scope = granted if level == "autonomous" and granted else set(accounts)
     restrictions: list[dict[str, Any]] = []
     for row in await list_restrictions(session, owner_id, agent_id=agent.id, limit=20, now=now):

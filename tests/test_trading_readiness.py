@@ -167,6 +167,34 @@ async def test_ask_me_and_signed_grant_lines_report_whether_a_money_limit_is_set
 
 
 @pytest.mark.asyncio
+async def test_a_granted_account_is_read_whatever_the_owner_s_other_accounts(
+    task_db: Fixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The line names the daily loss and pauses of the account the grant signs for, even
+    when the owner has more accounts than the projection lists by default."""
+    db, owner, agent, _ = task_db
+    for _ in range(12):
+        await account(db, owner)
+    granted = await account(db, owner)  # Created last: beyond the first ten.
+    await resume(db)
+    async with db.sessions() as session, session.begin():
+        await SettingsRepository().put(
+            session,
+            execution_policy_key(owner, granted),
+            {"risk": {"currency": "USD", "max_daily_loss": "200.00"}},
+        )
+    level(monkeypatch, "autonomous", grant(granted))
+    signed = await readiness(db, owner, agent)
+    assert signed["state"] == "on_its_own", signed
+    assert signed["params"]["money_limit_set"] is True
+    assert signed["params"]["daily_loss"] == {"amount": "200.00", "currency": "USD"}
+    async with db.sessions() as session, session.begin():
+        session.add(restriction(owner, granted, "no_new_entries"))
+    paused = await readiness(db, owner, agent)
+    assert paused["state"] == "paused" and paused["params"]["account_id"] == granted, paused
+
+
+@pytest.mark.asyncio
 async def test_globally_stopped_wins_over_the_ladder_and_since_stays_true(
     task_db: Fixture, monkeypatch: pytest.MonkeyPatch
 ) -> None:
