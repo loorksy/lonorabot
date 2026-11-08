@@ -176,7 +176,7 @@ async def main() -> None:
         )
         blocked = await registry.execute(command, context)
         assert (
-            blocked["status"] == "failed" and blocked["code"] == "broker_reconciliation_required"
+            blocked["status"] == "failed" and blocked["code"] == "broker_observation_unavailable"
         ), blocked
         assert await broker.positions() == before
         print(

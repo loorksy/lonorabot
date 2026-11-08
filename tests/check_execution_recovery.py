@@ -421,8 +421,9 @@ async def main() -> None:
                 }
 
         await recovery_status("disconnected")
+        # The account observation failed: a distinct cause, not a previous operation.
         await blocked(
-            trade("buy", POUND, volume="0.1", stop_loss="95"), "broker_reconciliation_required"
+            trade("buy", POUND, volume="0.1", stop_loss="95"), "broker_observation_unavailable"
         )
         assert (
             await run(trade("close_position", EURO, position_id=opened["p3"]))

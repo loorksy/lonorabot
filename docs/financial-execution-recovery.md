@@ -70,8 +70,11 @@ widening protection — is risk-increasing.
   and about to settle, so it rejects only on `ambiguous` operations; a request
   admitted there waits for the lock and is re-checked.
 - A `degraded` broker observation blocks only markets with unresolved operations
-  (also for decision readiness); a `disconnected` one blocks new risk on the account
-  but still admits exits.
+  (also for decision readiness) with `broker_reconciliation_required`; a
+  `disconnected` one (or any other non-admissible observation) blocks new risk on the
+  whole account with `broker_observation_unavailable` — the account state could not
+  be verified, which is a different cause than a previous operation — but still
+  admits exits.
 
 ## Owner restrictions and monetary limits at the send boundary
 

@@ -40,8 +40,9 @@ it releases that lock, so under the lock another ``submitted`` operation has los
 sender and blocks; before the lock is taken a ``submitted`` sibling may still be in flight
 and about to settle, so only ``ambiguous`` operations reject a request that early (the
 locked check at the send boundary repeats with both). A disconnected broker observation
-blocks new risk on the account; a ``degraded`` one is decided by the scoped journal check
-instead.
+blocks new risk on the whole account (``broker_observation_unavailable``: the account
+state could not be verified, whatever the journal holds); a ``degraded`` one is decided
+by the scoped journal check instead (``broker_reconciliation_required``).
 """
 
 from collections.abc import Iterable
@@ -223,7 +224,8 @@ async def require_operation_scope(
     if reducing:
         return
     if recovery and recovery.get("status") not in ADMISSIBLE_RECOVERY:
-        raise LonoraError("broker_reconciliation_required", 409)
+        # The account observation itself failed: no particular operation is to blame.
+        raise LonoraError("broker_observation_unavailable", 409)
     statuses = UNRESOLVED_STATUSES if send_locked else LOCK_FREE_BLOCKING
     if await unresolved_conflict(session, owner_id, request, statuses=statuses):
         raise LonoraError("broker_reconciliation_required", 409)
