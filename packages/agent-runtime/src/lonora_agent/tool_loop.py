@@ -94,6 +94,7 @@ from .runtime_notices import (
     budget_warning,
     finish_instruction,
     is_owner_message,
+    is_runtime_notice,
     limit_fallback,
     notice_message,
     prefers_arabic,
@@ -574,10 +575,13 @@ async def finish_turn(
             state, registry, messages, pending, reason, code="tool_call_not_executed"
         )
         await cancel_superseded_approvals(context, [c for c in superseded if c not in uncertain])
-        # The final request is its own trailing notice, the last thing read.
-        messages.append(
-            notice_message("work_limit", finish_instruction(reason, str(halt.get("message") or "")))
+        # The final request is its own trailing notice, the last thing read. A
+        # restart after this checkpoint finds it already there: never add it twice.
+        notice = notice_message(
+            "work_limit", finish_instruction(reason, str(halt.get("message") or ""))
         )
+        if not (messages and is_runtime_notice(messages[-1]) and messages[-1] == notice):
+            messages.append(notice)
         state["exit_reason"] = reason
         clear_inflight(environment_state(state), {call.id for call in superseded})
         await persist(context, state, messages, pending)

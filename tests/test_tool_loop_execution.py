@@ -1034,3 +1034,51 @@ async def test_owner_steering_never_calls_an_interrupted_mutation_superseded(
     assert observed["w2"]["code"] == "tool_call_superseded"
     assert not any(item["call_id"] == "w2" for item in routes.values())
     assert run.status == "completed" and run.result == "Checked.", (run.status, run.error_code)
+
+
+@pytest.mark.asyncio
+async def test_a_restart_inside_the_final_report_adds_its_notice_once(
+    task_db: Fixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from datetime import timedelta
+
+    from lonora_agent import tool_loop
+    from lonora_contracts.domain import utcnow
+
+    class WorkerDied(BaseException):
+        """The worker process dies: nothing in the executor handles it."""
+
+    context, _ = await task_run_with(
+        task_db,
+        TaskCreate(title="Verify gold", steps=[TaskStep(id="verify", title="Verify quote")]),
+        rounds=3,
+        task_continuation={"version": 1, "slice": 4, "rounds_per_slice": 1},
+        task_plan_revision=1,
+    )
+    model = Script(ModelReply(text="Stopped at the limit; the quote is not verified."))
+    monkeypatch.setattr("lonora_agent.tool_loop.model_turn", model)
+    original = tool_loop.persist
+    died = {"once": False}
+
+    async def dies_after_the_notice(*args: Any, **kwargs: Any) -> None:
+        await original(*args, **kwargs)
+        if not died["once"] and any(
+            "work_limit" in item.content for item in cast(list[ModelMessage], args[2])
+        ):
+            died["once"] = True
+            raise WorkerDied()
+
+    monkeypatch.setattr(tool_loop, "persist", dies_after_the_notice)
+    with pytest.raises(WorkerDied):
+        await execute_run(context, ToolRegistry([]), 120, 8)
+    db = task_db[0]
+    async with db.sessions() as session, session.begin():
+        row = await session.get(RunRow, context.lease.run_id)
+        assert row
+        row.lease_expires_at = utcnow() - timedelta(seconds=1)
+    resumed = await reclaim(task_db, context.lease.run_id, "restart-writer")
+    await execute_run(resumed, ToolRegistry([]), 120, 8)
+    run = await saved_run(resumed)
+    assert run.status == "waiting_input", (run.status, run.error_code)
+    notices = [m for m in run.execution_state["messages"] if "work_limit" in m["content"]]
+    assert len(notices) == 1 and len(model.requests) == 1
