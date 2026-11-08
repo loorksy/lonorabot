@@ -156,8 +156,9 @@ message, a restriction on others is still time-boxed, and only the owner lifts o
 A new exposure profile `coordination` holds `agent_inspect`, `peer_send` and
 `web_search`. The Personal Agent gets it in every conversation Run, and any agent gets it
 while it holds a supervision grant. A trading identity's Task Run leaves it out: core,
-market and task already fill the eager budget (25,689 of 25,700), and these tools stay
-one `tool_call` away. The Personal Agent's conversation set is 25,695 of 25,700.
+market and task already fill the eager budget (25,678 of 25,700 after the phase 2
+integration), and these tools stay one `tool_call` away. The Personal Agent's
+conversation set is 25,684 of 25,700 (25,695 on the slice branch).
 `web_fetch`, `artifact_read` and `economic_calendar_read` (the rest of the research
 profile) do not fit and are promoted after first use like any remembered tool.
 `web_search`'s description was shortened to make room; its meaning is unchanged.
@@ -183,9 +184,9 @@ profile) do not fit and are promoted after first use like any remembered tool.
 
 - Per-agent private sharing other than supervision (a scoped knowledge store) is Wave 2.
 - The rest of the research profile and the `collaboration_*` tools in the Personal
-  Agent's eager set (spec item 6): its conversation set is 25,695 of the 25,700 budget,
-  so the next description edit there breaks the budget test. Open item for the
-  integration or acceptance slice: trim other eager descriptions, or set an explicit,
+  Agent's eager set (spec item 6): its conversation set is 25,684 of the 25,700 budget
+  after integration, so a longer eager description there breaks the budget test. Open
+  item for the acceptance slice: trim other eager descriptions, or set an explicit,
   owner-approved budget.
 
 ## Verification
