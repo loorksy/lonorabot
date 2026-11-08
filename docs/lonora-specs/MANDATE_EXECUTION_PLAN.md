@@ -45,7 +45,7 @@ These were verified by reading the code and are kept as the foundation:
 **Trading track:**
 
 - **T1** Remove backtesting completely.
-- **T2 Execution integrity.** A row that was never sent resolves as not sent. Modify and cancel operations are reconciled against the account's actual state. Blocking is scoped to the affected symbol or ticket, and risk-reducing actions are always admissible. The owner can resolve an operation by recording evidence. Approval batches stop after an unconfirmed result. Verification is re-checked until it settles.
+- **T2 Execution integrity.** A row that was never sent resolves as not sent. Modify and cancel operations are reconciled against the account's actual state. Blocking is scoped to the affected symbol or ticket, and risk-reducing actions are always admissible. The owner can resolve an operation by recording evidence. Dependent approval batches stop after an unconfirmed result, while the closes of an approved close-all are independent exits. Verification is re-checked until it settles.
 - **T3 Owner restrictions and money limits.** Restrictions have a scope and an expiry, for example "no new positions today", and are enforced at the execution boundary. Monetary limits cover per-trade risk at the stop, daily loss, aggregate open risk and a margin floor.
 - **T4 Professional analysis tools.** A multi-timeframe market snapshot, a DST-correct session clock, an economic calendar read tool, and a bridge that writes candles into the analysis workspace. Agents can read related instruments, while execution scope stays separate.
 
@@ -79,7 +79,7 @@ Points where the two tracks met:
 - **Bridge, planner, approvals and retries** (`ec0cd9f`). New regression tests cover four cases:
   - Bridged trading calls get exactly the direct-call plan. Financial calls and the restriction writer stay serial barriers.
   - A bridged financial call runs alone between overlapping reads.
-  - An approved batch proposed through `tool_call` still stops after an uncertain result (`check_execution_recovery` scenario 7).
+  - An approved close-all proposed through `tool_call` is handled exactly like a direct call (`check_execution_recovery` scenario 7). After review, an uncertain close no longer holds back the other closes.
   - An E4 model outage after an uncertain trade retries the checkpoint and never the trade. A `reserved` journal row keeps a Task outage with the owner.
 - **Other fixes.**
   - The T1 legacy-catalog test now excludes `tool_call` (`3341154`).
@@ -95,7 +95,7 @@ Points where the two tracks met:
   - Modify, cancel and full close are concluded from the broker target state after a settle window.
   - An unresolved operation blocks only new risk on its own account and symbol, or its own ticket. Risk-reducing exits stay admissible under Emergency Stop, Trading OFF and degraded recovery.
   - The owner can resolve an operation with an audited attestation (`POST /trading/journal/{id}/resolve`).
-  - Approval and authority batches stop after the first result that is not confirmed.
+  - Dependent approval and authority batches stop after the first result that is not confirmed. After review, a close-all made only of full closes of distinct positions sends every close (`1dfb611`).
   - Pending verification is re-checked until it settles.
   - The scoped guard also applies to the owner's own execute path.
 - **T3. Restrictions and money limits.**
@@ -167,16 +167,40 @@ Playwright was driven with the system Chrome (`LONORA_UI_TEST_BROWSER_PATH=/usr/
 
 No Playwright failure is new.
 
+### Review of the integrated branch (2026-11-08)
+
+Four reviewers (financial, engine, security, mandate) reviewed the integrated branch at `7da46c0`. Every finding was checked against the code, and the critical and high ones were reproduced before they were fixed. Each fix has a regression test.
+
+- **Financial.**
+  - Fixed (high): an approved close-all stopped at the first close that was not confirmed, which left the other approved exits open. A batch made only of full closes of distinct positions is now independent on both the approval path and the standing-authority path (`1dfb611`). Dependent sequences still stop.
+  - Fixed in part (medium): cancelling a *protective* order now counts as new risk at admission (`c9c77b0`). A protective order is an opposite-side order whose fill would offset open positions. Closing a hedge leg stays an exit, as VISION requires; the docs and owner texts now say so.
+  - Fixed (low): a restriction's start and its in-force check now both use the database clock (`cfda73c`).
+- **Engine.**
+  - Fixed (high): a Run that stops at a work limit is projected as `limited`, never as completed work (`6b01b19`). A ticket moves to `waiting`, a peer gets `status='limited'`, a collaboration participant is recorded as failed, and a limited synthesis never completes.
+  - Fixed (high): every owner-attention escalation gets a unique question id, so a resumed Task whose model outage escalates again no longer fails (`7420a1d`).
+  - Fixed (medium, pre-existing): steering or a limit after a restart now reports an interrupted mutation as `tool_execution_uncertain` with an ambiguous route, never as superseded (`8ab4024`).
+  - Fixed (low): reconciling an ambiguous trade is no longer counted as a repeated effect (`52b18d0`). Exhausted read routes now expire with a new review epoch (`215ece3`). The final-report notice is added only once across a restart (`d87e476`).
+- **Security.**
+  - Fixed (high): a reason written by an agent never enters another Agent's system-role permission frame, and the frame shows truthfully who recorded each restriction (`df704bf`).
+  - Fixed in part (medium): a restriction recorded by an agent never blocks a risk-reducing exit, including an exit the owner approved. Restrictions an agent records for other agents need a `valid_until` at most 31 days ahead (`df704bf`). An owner attention item and a Lift control are listed under Wave 2 and Wave 3.
+  - Fixed (low): compaction labels speakers truthfully and escapes tool names (`87bec51`); calendar, consulted-model and delegated-agent results are labelled untrusted evidence (`337e00e`); the `consult_model` budget counts usage records (`56d962c`); calendar responses are streamed under a 2 MiB cap (`6652c1e`); a prompt written by a model or a person no longer enters the system role through `wake_context` (`cf72884`).
+- **Mandate.**
+  - Fixed (medium): broker-state resolutions show basis-specific labels on Web and Mobile, and boundary codes have owner text in Arabic and English. Both come from `@lonora/core` and are covered by `tests/web/financial-boundary.test.ts` (`2dcc111`).
+  - Fixed (low): a failed account observation now raises `broker_observation_unavailable` instead of blaming a previous operation (`e49d6da`).
+  - Fixed (low): `docs/context-engine.md` now matches the code (`cf72884`).
+  - The gap findings are planned for future waves and are listed under Waves 2–4 below.
+
 ### Known limitations and follow-ups
 
 - **T2.**
   - Execution-quality gates (spread, freshness) still apply to risk-reducing exits under Emergency Stop. Exempting exits, or making that an owner choice, is open.
-  - A worker crash between storing halted batch receipts and completing the approval could resume the remaining requests after reconciliation.
+  - A worker crash between storing halted batch receipts and completing the approval could resume the remaining requests after reconciliation. This applies only to dependent sequences, and no caller submits one today: an approved close-all is a batch of independent exits.
   - A Goal step whose operation becomes `resolved` stays blocked until the owner decides.
   - MetaApi modify and cancel rely on the generic target-state comparison. A cancel needs deal history; without it, the cancel stays ambiguous until the owner resolves it.
 - **T3.**
   - Web and mobile have no control yet to list or lift restrictions or to edit limits; this is API only.
-  - `trading_restriction_active` and the `risk_*` codes have no client text. Clients show the generic "could not be completed" message.
+  - A restriction an agent records raises no owner attention item yet. It cannot trap an exit, and a restriction on other agents is time-boxed to 31 days.
+  - Closing one leg of a hedged book stays an exit under Emergency Stop and `no_risk_increase`, even though it changes net direction. This is a deliberate rule, documented in the admission module and in the owner texts.
   - Daily loss depends on synchronized broker deal history, and there is no opening-equity baseline.
   - Open risk uses current tick values and ignores gaps, slippage, swap and margin.
   - Restrictions are not yet fed into attention or "what happened" summaries.
@@ -197,12 +221,12 @@ No Playwright failure is new.
 - **E3.**
   - Provider context-overflow errors are mapped to compact-and-retry (E4), but there is no usage-anchored trigger.
   - The checkpoint still grows with the full transcript.
-  - `wake_context` still puts `run.prompt` in the system role.
+  - Goal detail records (an agent's objective and step text) remain a system-role block. They are JSON-escaped and labelled untrusted. The run prompt itself now reaches the system role only for server-authored wakes.
   - The family window and output-cap tables must be kept current.
 - **E4.**
   - Cooldowns and learned limits are kept per process.
   - The per-agent model preference has no UI, and its settings row is not deleted with the agent.
-  - No spend budget is enforced per agent or owner.
+  - No spend budget is enforced per agent or owner. Correction D4 keeps it that way (no cap); Wave 2 adds a usage view per agent instead.
   - There are no per-adapter reasoning or thinking controls.
   - A truncated text reply is not continued.
 - **E5.**
@@ -243,9 +267,44 @@ No Playwright failure is new.
 - A real outbox relay with retries, fallback channels and accurate delivery states. Each loop records its own liveness, an LLM-independent watchdog checks it, and failures are isolated per item.
 - A first-class task table where each run is an attempt, plus an append-only step log instead of rewriting a full-transcript blob. Financial and authority records are append-only and no longer cascade-deleted. Ephemeral telemetry is separated from domain events, with retention.
 - Memory revisions with revert, and a scoped knowledge store (agent-private, shared with named agents, owner-wide) with provenance. A GIN full-text index backs `session_search`.
-- A self-improvement loop: a review run, grounded in verified outcomes, proposes versioned memory and skill changes. A curator archives stale skills and never deletes. A single `skill_manage` tool covers create, edit and patch.
+- A self-improvement loop: a review run, grounded in verified outcomes, makes versioned and revertible memory and skill changes, which the agent activates itself (correction 11). A curator archives stale skills and never deletes them. A single `skill_manage` tool covers create, edit and patch.
 - A trade outcome ledger: decision → operation → fills → realized P&L, R-multiple, MAE/MFE.
 - Per-agent primary model and fallback chain (needs a schema change). Richer delegation: context handoff, output schema, batches, steer and stop.
+
+Gaps from the review of the integrated Wave 1 branch. They are planned here and were not implemented in Wave 1:
+
+- **First slice: fault isolation and durable financial records** (section 26, correction 8).
+  - Isolate every maintenance step and give it a liveness record, so one failing step no longer halts all maintenance, broker reconciliation included.
+  - Add a watchdog that does not depend on an LLM. It watches for missed wakes, stalled runs, a lost broker connection, ambiguous operations that keep aging, and risk-limit breaches.
+  - Protect `ln_trading_journal`, restrictions, approvals and authority rows from ordinary deletes with `ON DELETE RESTRICT` or soft delete, and add a migration test. T2 and T3 depend on their evidence and attestations.
+- **Re-baseline on the owner's 2026-11-08 corrections.**
+  - Commit `MANDATE_CORRECTIONS.md` (D1–D4, corrections 1–31) and the new `VISION.md` into `docs/lonora-specs/`. The new VISION points to that path. Today both exist only outside the repository, and the repository `VISION.md` is the old text.
+  - Re-check every Wave 2–4 item against each correction. Drop the spend-cap follow-up (D4) in favour of a usage view per agent.
+- **One ladder per agent: No trading / Ask me / On its own** (corrections 5–7).
+  - When the signed grant does not cover a trade from an autonomous agent, create the existing approval card with the same operation id, instead of refusing with `account_authority_scope_mismatch`.
+  - Move Super Bot and per-goal autonomy onto AccountAuthority plus the ladder, then retire them.
+  - Rename Emergency Stop to "Stop new trading" / "Resume" in the UI, `lonora.md` and the attention messages. Exits stay admissible, as T2 already does.
+- **Money limits are money authority** (correction 21, D1).
+  - Compare the previous and new risk policy in `PUT /trading/accounts/{id}/execution-policy`.
+  - Accept narrowing silently, with Undo. Require the existing passkey device challenge for any widening: a limit raised or removed, or a changed currency or time zone.
+  - Show a daily-loss limit on the default grant card, suggested at 3% of equity.
+- **Restrictions recorded by agents.**
+  - Raise an owner attention item when an agent records a restriction for other agents, with a one-tap Lift.
+  - Consider owner confirmation for restrictions that affect other agents. Today they are time-boxed and can never block an exit.
+- **Readable scope and supervision** (corrections 1, 3, 4).
+  - Every agent can read all owner-connected accounts and pairs; it can execute only within its signed grant. `account_history` and `account_activity` stop filtering by the bound symbol.
+  - Add a supervision grant table (supervisor, supervised, created_by, revoked_at). The Personal Assistant's default grant is visible and revocable in the UI.
+  - `session_search`, `subagent_inspect` and memory reads honour the supervision grant. Since E5, the PA cannot inspect other agents' work at all.
+- **One owner profile** (correction 18).
+  - Add an `owner_profile` record: versioned, attributed (author and run) and revertible. Every agent reads it as first-party owner instructions.
+  - Migrate the `USER.md` sections of each agent's memory into it, with provenance. This goes with the memory revision table above.
+- **Wake runs act without financial effects** (correction 25).
+  - Split the loop's `read_only` flag into `no_financial_effects` (observe-only wakes) and `read_only` (subagents).
+  - Expose non-financial mutating tools to wake runs: memory writes, watch and routine changes, peer messages, owner notifications and artifacts.
+- **Context and admission follow-ups found in review.**
+  - Move goal detail records from the system role into the user-role context data.
+  - Report a non-connected account observation in decision readiness as `broker_observation_unavailable`, as the executor now does.
+  - If a live provider rejects history that names a tool missing from the request (after a bridged call), send bridged calls on the wire as `tool_call` wrappers and keep the real name internally. See Wave 4 for the contract test.
 
 ## Wave 3 — communication and experience
 
@@ -254,6 +313,15 @@ No Playwright failure is new.
 - Server-authored activity states: researching, monitoring, awaiting broker confirmation, waiting for the owner, blocked or uncertain. Both clients render them through one shared projection, and the avatar follows them.
 - An execution lifecycle card tied to the operation ledger. Mobile gets trading parity: positions, orders, trading on/off and emergency stop. One shared client chat runtime in `@lonora/core`.
 - Peer outcomes and other wrapper markup are stored as structured metadata, so internal wrappers never reach the owner.
+- **Owner controls for T2 and T3 in chat and on Mobile** (section 26, corrections 2, 12, 21(4), 26).
+  - Today restrictions, money limits and risk status are API only. Operation resolve is a form on the Web Trading page only, and Mobile cannot clear an ambiguous block.
+  - Add shared `@lonora/core` projections and chat cards, rendered the same way on Web and Mobile:
+    - "It executed / it did not / still unknown".
+    - "Lift pause".
+    - A limits editor that asks for the passkey only when a limit is widened.
+    - A status line built from risk status.
+  - Feed `trading.restriction_*` and `operation_resolved` into attention and into the "what happened" builder.
+  - The owner-notify tool is the `contact_owner` tool above.
 
 ## Wave 4 — installation, releases and updates
 
@@ -261,6 +329,11 @@ No Playwright failure is new.
 - A production installer that needs no development toolchain. `lonora update [version]` uses a pinned digest, takes a backup first, runs migrations as a separate step, gates on health and rolls back on failure.
 - Complete, encrypted, restore-tested backups. A versioned export and import of all operational state.
 - One canonical deployment definition that matches production.
+- **Release gating that covers what is still unverified.**
+  - Add a provider contract test with real Anthropic and OpenAI-compatible keys: one turn with a bridged call in its history and a reduced tools array. If a provider rejects it, the Wave 2 wire fallback applies.
+  - Run `scripts/cache_model_tokenizers.py` and the tokenizer tests in CI.
+  - Exercise the MetaApi target-state, cancel and history paths against a demo account.
+  - Gate releases on Playwright Web and Mobile parity once runners are back.
 
 ## Acceptance
 
