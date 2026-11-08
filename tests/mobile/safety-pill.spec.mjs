@@ -63,10 +63,12 @@ for (const locale of ["ar", "en"])
             noLimit: "No money limit set",
           };
     try {
-      await context.request.put("/api/trading/controls", {
-        headers,
-        data: { enabled: false, emergency_stop: false },
-      });
+      // The owner stopped it (not the never-started default), so the sheet offers Resume.
+      for (const enabled of [true, false])
+        await context.request.put("/api/trading/controls", {
+          headers,
+          data: { enabled, emergency_stop: false },
+        });
       const permissions = await (
         await context.request.get(`/api/agents/${agent.id}/permissions`)
       ).json();

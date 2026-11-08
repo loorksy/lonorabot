@@ -11,6 +11,41 @@ function simulation(data) {
   );
 }
 
+// Durable close rows on the owner's own positions, as an earlier tab left them.
+function seedCloses(data) {
+  const script = `
+import asyncio,json,sys
+from uuid import uuid4
+sys.path.insert(0,'tests')
+from check_streaming import Fixture
+from lonora_contracts.domain import utcnow
+from lonora_contracts.trading import TradeRequest
+from lonora_db.schema import TradingJournalRow
+from lonora_trading.idempotency import trade_fingerprint
+async def main():
+    data=json.load(sys.stdin)
+    f=await Fixture().open()
+    try:
+        rows={}
+        async with f.runtime.db.sessions() as session, session.begin():
+            for position,status,code in data['rows']:
+                operation=str(uuid4())
+                request=TradeRequest(account_id=data['account'],operation_id=operation,action='close_position',symbol=data['symbol'],position_id=position)
+                session.add(TradingJournalRow(operation_id=operation,owner_id=f.owner,account_id=data['account'],request_hash=trade_fingerprint(request),request=request.model_dump(mode='json'),status=status,result={'status':status,'code':code,'details':{}},submitted_at=utcnow(),updated_at=utcnow()))
+                rows[position]=operation
+        print(json.dumps(rows))
+    finally:
+        await f.close(cleanup=False)
+asyncio.run(main())
+`;
+  return JSON.parse(
+    execFileSync(".venv/bin/python", ["-c", script], {
+      input: JSON.stringify(data),
+      encoding: "utf8",
+    }),
+  );
+}
+
 async function setup(context, locale = "en") {
   const data = simulation({ action: "init", empty: true });
   await context.addCookies(
@@ -77,6 +112,28 @@ async function setup(context, locale = "en") {
   };
 }
 
+async function openPositions(context, state, count) {
+  for (let index = 0; index < count; index += 1) {
+    const opened = await context.request.post("/api/trading/execute", {
+      headers: state.headers,
+      data: {
+        account_id: state.data.account,
+        operation_id: randomUUID(),
+        action: "buy",
+        symbol: state.data.symbol,
+        volume: "0.10",
+      },
+    });
+    expect(opened.ok()).toBeTruthy();
+    expect((await opened.json()).status).toBe("confirmed");
+  }
+  const snapshot = await (
+    await context.request.get(`/api/trading/accounts/${state.data.account}`)
+  ).json();
+  expect(snapshot.positions).toHaveLength(count);
+  return snapshot;
+}
+
 test("owner close: a double click and a retry after a timeout make exactly one operation", async ({
   page,
   context,
@@ -85,29 +142,14 @@ test("owner close: a double click and a retry after a timeout make exactly one o
   const state = await setup(context);
   try {
     await state.controls({ enabled: true, emergency_stop: false });
-    for (let index = 0; index < 2; index += 1) {
-      const opened = await context.request.post("/api/trading/execute", {
-        headers: state.headers,
-        data: {
-          account_id: state.data.account,
-          operation_id: randomUUID(),
-          action: "buy",
-          symbol: state.data.symbol,
-          volume: "0.10",
-        },
-      });
-      expect(opened.ok()).toBeTruthy();
-      expect((await opened.json()).status).toBe("confirmed");
-    }
-    const snapshot = await (
-      await context.request.get(`/api/trading/accounts/${state.data.account}`)
-    ).json();
-    expect(snapshot.positions).toHaveLength(2);
+    const snapshot = await openPositions(context, state, 2);
     const [first, second] = snapshot.positions;
     // The owner keeps looking at the list as it was: the rows stay while closes settle.
     await page.route(`**/api/trading/accounts/${state.data.account}`, (route) =>
       route.fulfill({ json: snapshot }),
     );
+    // Nor has the page heard from the journal yet: the retry is how it learns the outcome.
+    await page.route("**/api/trading/journal", (route) => route.fulfill({ json: [] }));
     const sent = [];
     let dropped = false;
     await page.route("**/api/trading/execute", async (route) => {
@@ -163,6 +205,96 @@ test("owner close: a double click and a retry after a timeout make exactly one o
   }
 });
 
+test("owner close: a settled journal row releases the held identity for a new close", async ({
+  page,
+  context,
+}) => {
+  test.setTimeout(60000);
+  const state = await setup(context);
+  try {
+    await state.controls({ enabled: true, emergency_stop: false });
+    const [attested, failed] = (await openPositions(context, state, 2)).positions;
+    // An uncertain close the owner attests was not executed, and a close that failed:
+    // both positions are still open.
+    const seeded = seedCloses({
+      account: state.data.account,
+      symbol: state.data.symbol,
+      rows: [
+        [attested.id, "ambiguous", "broker_timeout"],
+        [failed.id, "failed", "broker_rejected"],
+      ],
+    });
+    const resolved = await context.request.post(
+      `/api/trading/journal/${seeded[attested.id]}/resolve`,
+      {
+        headers: state.headers,
+        data: { outcome: "not_executed", statement: "Checked the terminal: still open." },
+      },
+    );
+    expect(resolved.ok()).toBeTruthy();
+    expect((await resolved.json()).status).toBe("resolved");
+    const sent = [];
+    await page.route("**/api/trading/execute", async (route) => {
+      sent.push(route.request().postDataJSON());
+      await route.continue();
+    });
+    await page.goto("/app/trading");
+    // The tab still holds both identities, as it did when those closes were made.
+    await page.evaluate(
+      ({ account, rows }) => {
+        for (const [ticket, operation] of Object.entries(rows))
+          sessionStorage.setItem(
+            `lonora.held-operation:close_position:${account}:${ticket}`,
+            operation,
+          );
+      },
+      { account: state.data.account, rows: seeded },
+    );
+    await page.reload();
+    await page.getByLabel("Broker account").selectOption(state.data.account);
+    for (const [position, status, label] of [
+      [attested, "resolved", "Resolved by owner"],
+      [failed, "failed", "Failed"],
+    ]) {
+      const row = page.locator(`[data-position-id="${position.id}"]`);
+      // The settled outcome stays on the row; the button closes again.
+      await expect(row.locator(`[data-operation-status="${status}"]`)).toHaveText(label);
+      await row.getByRole("button", { name: "Close position", exact: true }).click();
+      await expect(row).toHaveCount(0);
+    }
+    expect(sent).toHaveLength(2);
+    expect(sent.map((body) => body.position_id)).toEqual([attested.id, failed.id]);
+    expect(sent[0].operation_id).not.toBe(seeded[attested.id]);
+    expect(sent[1].operation_id).not.toBe(seeded[failed.id]);
+    const journal = await (
+      await context.request.get(`/api/trading/journal?account_id=${state.data.account}`)
+    ).json();
+    for (const [position, body] of [
+      [attested, sent[0]],
+      [failed, sent[1]],
+    ]) {
+      const closes = journal.filter(
+        (row) => row.request.action === "close_position" && row.request.position_id === position.id,
+      );
+      expect(closes).toHaveLength(2);
+      expect(closes.find((row) => row.operation_id === body.operation_id)?.status).toBe(
+        "confirmed",
+      );
+    }
+    const after = await (
+      await context.request.get(`/api/trading/accounts/${state.data.account}`)
+    ).json();
+    expect(after.positions).toHaveLength(0);
+    expect(
+      await page.evaluate(() =>
+        Object.keys(sessionStorage).filter((name) => name.startsWith("lonora.held-operation:")),
+      ),
+    ).toEqual([]);
+  } finally {
+    await state.cleanup();
+  }
+});
+
 test("header safety pill: one line, one brake, Resume in one call", async ({ page, context }) => {
   test.setTimeout(60000);
   const state = await setup(context);
@@ -177,6 +309,8 @@ test("header safety pill: one line, one brake, Resume in one call", async ({ pag
   expect(response.status()).toBe(201);
   const agent = await response.json();
   try {
+    // The owner stopped it (not the never-started default), so the sheet offers Resume.
+    await state.controls({ enabled: true, emergency_stop: false });
     await state.controls({ enabled: false, emergency_stop: false });
     const permissions = await (
       await context.request.get(`/api/agents/${agent.id}/permissions`)
@@ -220,3 +354,73 @@ test("header safety pill: one line, one brake, Resume in one call", async ({ pag
     await state.cleanup();
   }
 });
+
+for (const locale of ["en", "ar"])
+  test(`${locale}: a stop with a freeze says exits are frozen too, in the line and the sheet`, async ({
+    page,
+    context,
+  }) => {
+    test.setTimeout(60000);
+    const state = await setup(context, locale);
+    const response = await context.request.post("/api/agents", {
+      headers: state.headers,
+      data: {
+        name: `Freeze ${randomUUID()}`,
+        trading_account_id: state.data.account,
+        trading_symbol: state.data.symbol,
+      },
+    });
+    expect(response.status()).toBe(201);
+    const agent = await response.json();
+    const text =
+      locale === "ar"
+        ? {
+            allowed: "التداول الجديد متوقف · الخروج متاح",
+            frozen: "التداول الجديد متوقف · والخروج مجمّد أيضًا",
+            alert: "يوجد تجميد نشط: الخروج محظور أيضًا.",
+          }
+        : {
+            allowed: "New trading stopped · exits allowed",
+            frozen: "New trading stopped · exits frozen too",
+            alert: "A freeze is active: exits are blocked too.",
+          };
+    let freeze;
+    try {
+      const permissions = await (
+        await context.request.get(`/api/agents/${agent.id}/permissions`)
+      ).json();
+      const changed = await context.request.put(`/api/agents/${agent.id}/permissions`, {
+        headers: state.headers,
+        data: { level: "supervised", expected_revision: permissions.revision },
+      });
+      expect(changed.ok()).toBeTruthy();
+      await state.controls({ enabled: true, emergency_stop: false });
+      await state.controls({ enabled: false, emergency_stop: true });
+      await page.goto(`/app/${agent.id}`);
+      const pill = page.getByTestId("safety-pill");
+      await expect(pill).toHaveText(text.allowed);
+      const created = await context.request.post("/api/trading/restrictions", {
+        headers: state.headers,
+        data: { account_id: state.data.account, action_class: "all_mutations" },
+      });
+      expect(created.status()).toBe(201);
+      freeze = (await created.json()).id;
+      await page.reload();
+      await expect(pill).toHaveAttribute("data-readiness", "stopped");
+      await expect(pill).toHaveText(text.frozen);
+      await pill.click();
+      const sheet = page.getByTestId("safety-sheet");
+      // The sheet's description repeats the line; it never contradicts the freeze alert.
+      await expect(sheet.getByText(text.frozen, { exact: true })).toBeVisible();
+      await expect(sheet.getByRole("alert")).toHaveText(text.alert);
+      await expect(sheet.getByText(text.allowed, { exact: true })).toHaveCount(0);
+    } finally {
+      if (freeze)
+        await context.request.post(`/api/trading/restrictions/${freeze}/revoke`, {
+          headers: state.headers,
+          data: {},
+        });
+      await context.request.delete(`/api/agents/${agent.id}`, { headers: state.headers });
+      await state.cleanup();
+    }
+  });

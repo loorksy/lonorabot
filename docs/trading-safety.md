@@ -25,8 +25,12 @@ contract is unchanged; the clients now offer one control:
   level, signed grant, pauses and money limits.
 
 Trading OFF and the Emergency Stop flag are both "stopped" everywhere. Trading starts
-stopped until the owner resumes it. `save_controls` writes and emits only on a real
-change, so "stopped since" stays true when Stop is pressed twice.
+stopped until the owner starts it: while nobody has changed it (`changed_by: "default"`)
+the header sheet says "Trading has not been started yet." and offers **Start trading**
+(the same payload as Resume); after the owner stops it, it offers Resume. The Trading
+page card reads `GET /trading/controls`, which does not say who changed it, so it keeps
+Resume. `save_controls` writes and emits only on a real change, so "stopped since" stays
+true when Stop is pressed twice.
 
 Web shows the control on the Trading page and in the header safety sheet; Mobile shows it
 in the header safety sheet. Both send the same payloads.
@@ -48,12 +52,24 @@ same facts every turn. Enforcement code must never import it
 | `restrictions` | active and scheduled restrictions that apply to the agent: class, account, symbol, scope, window, source (`owner_ui`, `owner_message`, `agent`). No reason text: an agent's words are model prose |
 | `money_limits` | each readable account's `ExecutionPolicy.risk`, configured or not |
 | `unresolved_operations` | live `submitted`/`ambiguous` journal rows on readable accounts (a market-bound agent: its own market), with the scoped block `new_risk_on_this_symbol_or_ticket` and whether this agent sent it |
-| `exits_allowed` | false only under an account-wide `all_mutations` freeze |
+| `exits_allowed` | false only under an active `all_mutations` freeze on an account the agent acts on (account-wide, or for a market-bound agent, on its market) |
 
 `state` is the one line, chosen in this order: `no_trading` (the agent never trades),
 `agent_paused`, `stopped`, `paused` (strongest active restriction first), `uncertain`
 (unresolved operations), then `ask_me` or `on_its_own`. `params` carry the values the line
-needs (time, symbol, class, count, whether a money limit is set).
+needs (time, symbol, class, account of the pause, count, whether a money limit is set).
+
+The line speaks only for the accounts the agent acts on: its bound account, its signed
+grants when it trades on its own, otherwise every account it may ask to trade on. A pause
+or an uncertain operation on another account does not turn an agent that trades on its own
+on account A into "Paused"; the sheet still lists it, with its account named. With several
+accounts the "Paused" line names the account too ("Paused (Simulation · 2): no new
+entries · until you lift it").
+
+The stopped line follows `exits_allowed`: "New trading stopped · exits allowed" /
+«التداول الجديد متوقف · الخروج متاح» only when no freeze is in force, otherwise "New trading
+stopped · exits frozen too" / «التداول الجديد متوقف · والخروج مجمّد أيضًا», matching the
+sheet's freeze alert.
 
 The line and every sheet label come from one shared table in
 `packages/core/src/trading-readiness.ts` (English and Arabic, tickers and times isolated
@@ -69,7 +85,15 @@ Stop new trading / Resume, the ladder level and signed grants, active pauses (re
 until owner action cards arrive in W15-2; only the owner lifts one), money limits per
 account ("No money limit set" when none) and operations awaiting broker confirmation
 (never resent; new risk on that market is held, exits stay allowed). No ids, codes or
-JSON are shown; account names appear only when several accounts are involved.
+JSON are shown; account names appear only when several accounts are involved, and then
+on every grant, pause, money limit and operation. A pause an agent set names that agent
+on both clients ("Set by an agent · <name>").
+
+Web reads `GET /agents/{id}/state` through the shared request layer, which coalesces the
+pill's and the background-status strip's concurrent reads of the same path into one
+request per refresh. Mobile polls it once per thread screen (`lib/agent-live-state.ts`,
+every 15 seconds while focused and active) and passes the result to both the pill and the
+strip.
 
 ## Permission frame
 
@@ -91,10 +115,15 @@ The Web Positions and Orders buttons (`useTicketAction`, `lib/held-operation.ts`
 `operation_id` per ticket action, store it in `sessionStorage` before sending and reuse it
 for every retry, double click and reload. The executor answers a repeated id from its
 journal (`idempotency`), so a timeout followed by a retry never sends a second close. The
-id is released only when the journal shows the operation `failed` (did not happen); a
-confirmed or resolved close keeps it, so a row still on screen answers from the journal.
-While the identity is held the button reads "Check close result" / "Check cancel result",
-and the row shows the journal state ("Outcome uncertain — it will not be sent again").
+id stays held while the journal row is `reserved`, `submitted` or `ambiguous`, and is
+released as soon as the row settles (`confirmed`, `failed` or `resolved`, the contract's
+`TERMINAL_STATUSES`). The settled outcome stays on the row and the next click is a new
+operation: a position or order that is still open (an uncertain close the owner attested
+as not executed, a target changed by another action, a failed close) can be closed again,
+and one that is already gone fails the executor's preflight against fresh broker state, so
+nothing reaches the broker twice. While the identity is held the button reads "Check close
+result" / "Check cancel result", and the row shows the journal state ("Outcome uncertain —
+it will not be sent again").
 
 ## Owner text for boundary codes
 

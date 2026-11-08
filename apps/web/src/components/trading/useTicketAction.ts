@@ -22,19 +22,35 @@ export function useTicketAction(
   // Synchronous guard: a second click before React re-renders sends nothing.
   const inflight = useRef(new Set<string>());
   useEffect(() => {
-    // A held identity is released once the durable journal shows it did not happen.
+    // A held identity is released once the durable journal row is settled (confirmed,
+    // failed or resolved); reserved, submitted and ambiguous keep it held. The settled
+    // outcome stays on the row, and the button acts again as a new operation.
+    const settled: Record<string, TicketOutcome> = {};
     for (const entry of journal ?? []) {
       const ticket = String(
         entry.request[action === "close_position" ? "position_id" : "order_id"],
       );
-      if (heldOperation(action, accountId, ticket) === entry.operation_id)
-        settleOperation(action, accountId, ticket, entry.status);
+      if (
+        heldOperation(action, accountId, ticket) === entry.operation_id &&
+        settleOperation(action, accountId, ticket, entry.status)
+      )
+        settled[ticket] = {
+          status: entry.status,
+          details: entry.result.details,
+          code: typeof entry.result.code === "string" ? entry.result.code : null,
+        };
     }
+    if (Object.keys(settled).length) setResults((old) => ({ ...old, ...settled }));
   }, [journal, action, accountId]);
   function outcome(ticket: string): TicketOutcome | null {
     const held = heldOperation(action, accountId, ticket);
     const entry = held ? journal?.find((row) => row.operation_id === held) : undefined;
-    if (entry) return { status: entry.status, details: entry.result.details };
+    if (entry)
+      return {
+        status: entry.status,
+        details: entry.result.details,
+        code: typeof entry.result.code === "string" ? entry.result.code : null,
+      };
     return results[ticket] ?? null;
   }
   async function run(ticket: string, request: Omit<Trade, "operation_id" | "account_id">) {

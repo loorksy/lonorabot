@@ -1,23 +1,18 @@
 // The thread header's safety pill and its sheet, the same projection and text as Web.
-import type {
-  AgentLiveState,
-  Resource,
-  TradingControls,
-  TradingReadiness,
-} from "@lonora/contracts";
+import type { Agent, Resource, TradingControls, TradingReadiness } from "@lonora/contracts";
 import {
   isolate,
   moneyLimitsLine,
   operationStatusText,
   pauseClassLabel,
   readinessTime,
+  tradingBrake,
   tradingReadinessLine,
   tradingReadinessTone,
   tradingSafetyText,
 } from "@lonora/core";
-import { useFocusEffect } from "expo-router";
-import { useCallback, useRef, useState } from "react";
-import { AppState, Modal, Pressable, ScrollView, Text, View } from "react-native";
+import { useEffect, useState } from "react";
+import { Modal, Pressable, ScrollView, Text, View } from "react-native";
 import { api } from "../lib/api";
 import { brokerIdentityLabel } from "../lib/broker-identity";
 import { useSession } from "../lib/session";
@@ -29,73 +24,76 @@ export const stopNewTrading: TradingControls = { enabled: false, emergency_stop:
 /** One tap, no passkey: it widens no authority. */
 export const resumeTrading: TradingControls = { enabled: true, emergency_stop: false };
 
-export function SafetyPill({ agentId }: { agentId: string }) {
+/**
+ * The header's one safety pill and its sheet. The thread screen reads the agent's live
+ * state once (``useAgentLiveState``) and passes its readiness here; a brake change
+ * refreshes that one read.
+ */
+export function SafetyPill({
+  readiness,
+  agents,
+  onChanged,
+}: {
+  readiness: TradingReadiness | null;
+  agents: Agent[];
+  onChanged: () => Promise<void>;
+}) {
   const { locale, rtl, errorText, t } = useSession();
-  const [readiness, setReadiness] = useState<TradingReadiness | null>(null);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [accounts, setAccounts] = useState<Resource[]>([]);
-  const refreshRef = useRef<() => Promise<void>>(async () => undefined);
   const text = tradingSafetyText(locale);
-  useFocusEffect(
-    useCallback(() => {
-      let live = true;
-      let timer: ReturnType<typeof setTimeout>;
-      const refresh = async () => {
-        clearTimeout(timer);
-        try {
-          if (AppState.currentState === "active") {
-            const next = await api.get<AgentLiveState>(
-              `/agents/${encodeURIComponent(agentId)}/state`,
-            );
-            if (live) setReadiness(next.trading_readiness ?? null);
-          }
-        } catch {
-          // Informational: a failed read keeps the last known line.
-        }
-        if (live) timer = setTimeout(() => void refresh(), 15000);
-      };
-      refreshRef.current = refresh;
-      void refresh();
-      return () => {
-        live = false;
-        clearTimeout(timer);
-      };
-    }, [agentId]),
+  // With more than one account the line and the sheet name the account of each item.
+  const accountIds = new Set(
+    readiness
+      ? [
+          ...readiness.money_limits.map((item) => item.account_id),
+          ...readiness.grants.map((item) => item.account_id),
+          ...readiness.restrictions.map((item) => item.account_id),
+          ...readiness.unresolved_operations.map((item) => item.account_id),
+        ]
+      : [],
   );
+  const several = accountIds.size > 1;
+  useEffect(() => {
+    if (!open && !several) return;
+    let live = true;
+    void api
+      .get<Resource[]>("/trading/connections")
+      .then((rows) => {
+        if (live) setAccounts(rows);
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [open, several]);
   if (!readiness) return null;
-  const line = tradingReadinessLine(readiness, locale);
+  const accountName = (id: string) => {
+    if (!several) return null;
+    const index = accounts.findIndex((row) => row.id === id);
+    return index < 0 ? null : brokerIdentityLabel(accounts[index], index, t);
+  };
+  const agentName = (id: string | null) => {
+    const name = agents.find((agent) => agent.id === id)?.name;
+    return name ? `${text.setByAgent} · ${isolate(name)}` : text.setByAgent;
+  };
+  const line = tradingReadinessLine(readiness, locale, new Date(), accountName);
   const tone = tradingReadinessTone(readiness);
   const tint =
     tone === "ready" ? colors.success : tone === "held" ? colors.warning : colors.secondary;
-  const stopped = readiness.global_trading.state === "stopped";
+  const brake = tradingBrake(readiness.global_trading, locale);
   const align = rtl ? "right" : "left";
   const body = { color: colors.foreground, fontSize: 14, textAlign: align } as const;
   const muted = { ...body, color: colors.secondary, fontSize: 13 } as const;
   const heading = { ...body, fontWeight: "600", fontSize: 15 } as const;
-  const accountIds = new Set([
-    ...readiness.money_limits.map((item) => item.account_id),
-    ...readiness.grants.map((item) => item.account_id),
-  ]);
-  const accountName = (id: string) => {
-    if (accountIds.size < 2) return null;
-    const index = accounts.findIndex((row) => row.id === id);
-    return index < 0 ? null : brokerIdentityLabel(accounts[index], index, t);
-  };
-  const show = () => {
-    setOpen(true);
-    void api
-      .get<Resource[]>("/trading/connections")
-      .then(setAccounts)
-      .catch(() => undefined);
-  };
   const change = async (controls: TradingControls) => {
     setBusy(true);
     try {
       await api.put<TradingControls>("/trading/controls", controls);
       setError(null);
-      await refreshRef.current();
+      await onChanged();
     } catch (caught) {
       setError(errorText(caught));
     } finally {
@@ -108,7 +106,7 @@ export function SafetyPill({ agentId }: { agentId: string }) {
         accessibilityRole="button"
         accessibilityLabel={`${text.open}: ${line}`}
         testID="safety-pill"
-        onPress={show}
+        onPress={() => setOpen(true)}
         style={({ pressed }) => ({
           alignSelf: "center",
           flexDirection: rtl ? "row-reverse" : "row",
@@ -184,17 +182,17 @@ export function SafetyPill({ agentId }: { agentId: string }) {
               </View>
               <Text style={body}>{line}</Text>
               <Text style={heading} testID="safety-trading-state">
-                {stopped ? text.stopped : text.running}
+                {brake.status}
                 {readiness.global_trading.since
                   ? ` · ${text.since} ${readinessTime(readiness.global_trading.since, locale)}`
                   : ""}
               </Text>
-              <Text style={muted}>{stopped ? text.resumeHint : text.stopHint}</Text>
+              <Text style={muted}>{brake.hint}</Text>
               <Button
-                label={stopped ? text.resume : text.stop}
-                secondary={!stopped}
+                label={brake.action}
+                secondary={!brake.stopped}
                 disabled={busy}
-                onPress={() => void change(stopped ? resumeTrading : stopNewTrading)}
+                onPress={() => void change(brake.stopped ? resumeTrading : stopNewTrading)}
               />
               <ErrorNotice text={error} />
               <Text style={heading}>{text.level}</Text>
@@ -221,6 +219,7 @@ export function SafetyPill({ agentId }: { agentId: string }) {
                 readiness.restrictions.map((item) => (
                   <Text key={item.id} style={body}>
                     {[
+                      accountName(item.account_id),
                       pauseClassLabel(item.action_class, locale),
                       item.symbol ? isolate(item.symbol) : text.allPairs,
                       item.applies_to === "all_agents" ? text.allAgents : text.thisAgent,
@@ -229,7 +228,7 @@ export function SafetyPill({ agentId }: { agentId: string }) {
                         ? text.setByYou
                         : item.source === "owner_message"
                           ? text.fromYourMessage
-                          : text.setByAgent,
+                          : agentName(item.created_by_agent_id),
                       item.state === "scheduled"
                         ? `${text.starts} ${readinessTime(item.valid_from, locale)}`
                         : item.valid_until
@@ -260,8 +259,13 @@ export function SafetyPill({ agentId }: { agentId: string }) {
                 <>
                   {readiness.unresolved_operations.map((operation) => (
                     <Text key={operation.operation_id} style={body}>
-                      {isolate(operation.symbol)} ·{" "}
-                      {operationStatusText(operation.status, {}, locale)}
+                      {[
+                        accountName(operation.account_id),
+                        isolate(operation.symbol),
+                        operationStatusText(operation.status, {}, locale),
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
                     </Text>
                   ))}
                   <Text style={muted}>{text.uncertainHint}</Text>

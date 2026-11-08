@@ -5,6 +5,7 @@ import {
   moneyLimitsLine,
   pauseClassLabel,
   readinessTime,
+  tradingBrake,
   tradingReadinessLine,
   tradingReadinessTone,
   tradingSafetyText,
@@ -54,8 +55,20 @@ export function SafetyPill({ agentId, agents }: { agentId: string; agents: Agent
       live = false;
     };
   }, [agentId, revision]);
+  // With more than one account the line and the sheet name the account of each item.
+  const accountIds = new Set(
+    readiness
+      ? [
+          ...readiness.money_limits.map((item) => item.account_id),
+          ...readiness.grants.map((item) => item.account_id),
+          ...readiness.restrictions.map((item) => item.account_id),
+          ...readiness.unresolved_operations.map((item) => item.account_id),
+        ]
+      : [],
+  );
+  const several = accountIds.size > 1;
   useEffect(() => {
-    if (!open) return;
+    if (!open && !several) return;
     let live = true;
     void readConnections()
       .then((rows) => {
@@ -65,15 +78,11 @@ export function SafetyPill({ agentId, agents }: { agentId: string; agents: Agent
     return () => {
       live = false;
     };
-  }, [open]);
+  }, [open, several]);
   if (!readiness) return null;
-  const stopped = readiness.global_trading.state === "stopped";
-  const accountIds = new Set([
-    ...readiness.money_limits.map((item) => item.account_id),
-    ...readiness.grants.map((item) => item.account_id),
-  ]);
+  const brake = tradingBrake(readiness.global_trading, locale);
   const accountName = (id: string) => {
-    if (accountIds.size < 2) return null;
+    if (!several) return null;
     const index = accounts.findIndex((row) => row.id === id);
     return index < 0 ? null : brokerIdentityLabel(accounts[index], index);
   };
@@ -93,7 +102,7 @@ export function SafetyPill({ agentId, agents }: { agentId: string; agents: Agent
       setBusy(false);
     }
   }
-  const line = tradingReadinessLine(readiness, locale);
+  const line = tradingReadinessLine(readiness, locale, new Date(), accountName);
   return (
     <>
       <button
@@ -117,7 +126,7 @@ export function SafetyPill({ agentId, agents }: { agentId: string; agents: Agent
           </DialogHeader>
           <section aria-label={text.title}>
             <p role="status" data-trading-state={readiness.global_trading.state}>
-              {stopped ? text.stopped : text.running}
+              {brake.status}
               {readiness.global_trading.since && (
                 <>
                   {" "}
@@ -125,26 +134,15 @@ export function SafetyPill({ agentId, agents }: { agentId: string; agents: Agent
                 </>
               )}
             </p>
-            <p className="muted">{stopped ? text.resumeHint : text.stopHint}</p>
-            {stopped ? (
-              <button
-                type="button"
-                className="primary"
-                disabled={busy}
-                onClick={() => void change(resumeTrading)}
-              >
-                {text.resume}
-              </button>
-            ) : (
-              <button
-                type="button"
-                className="danger"
-                disabled={busy}
-                onClick={() => void change(stopNewTrading)}
-              >
-                {text.stop}
-              </button>
-            )}
+            <p className="muted">{brake.hint}</p>
+            <button
+              type="button"
+              className={brake.stopped ? "primary" : "danger"}
+              disabled={busy}
+              onClick={() => void change(brake.stopped ? resumeTrading : stopNewTrading)}
+            >
+              {brake.action}
+            </button>
             {error != null && <p role="alert">{userError(error)}</p>}
           </section>
           <section>
@@ -171,6 +169,7 @@ export function SafetyPill({ agentId, agents }: { agentId: string; agents: Agent
               <>
                 {readiness.restrictions.map((item) => (
                   <p key={item.id} data-restriction-state={item.state} dir="auto">
+                    {accountName(item.account_id) && <>{accountName(item.account_id)} · </>}
                     {pauseClassLabel(item.action_class, locale)} ·{" "}
                     {item.symbol ? isolate(item.symbol) : text.allPairs} ·{" "}
                     {item.applies_to === "all_agents" ? text.allAgents : text.thisAgent}
@@ -210,6 +209,9 @@ export function SafetyPill({ agentId, agents }: { agentId: string; agents: Agent
               <>
                 {readiness.unresolved_operations.map((operation) => (
                   <p key={operation.operation_id} dir="auto">
+                    {accountName(operation.account_id) && (
+                      <>{accountName(operation.account_id)} · </>
+                    )}
                     <bdi>{operation.symbol}</bdi> · {operationStatusLabel(operation.status)}
                   </p>
                 ))}

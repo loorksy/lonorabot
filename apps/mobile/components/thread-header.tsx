@@ -4,7 +4,6 @@ import { Pressable, Text, View } from "react-native";
 import { useSession } from "../lib/session";
 import { HeaderButton } from "./header-button";
 import { NativeSymbol } from "./native-symbol";
-import { SafetyPill } from "./safety-pill";
 import { colors } from "./ui";
 export function ThreadHeader({
   title,
@@ -14,7 +13,7 @@ export function ThreadHeader({
   onSettings,
   onActions,
   onCall,
-  agentId,
+  safety,
 }: {
   title: string;
   avatar?: ReactNode;
@@ -24,7 +23,7 @@ export function ThreadHeader({
   onActions: () => void;
   onCall?: () => void;
   /** An agent thread shows its one safety pill: can it trade now, what stops it. */
-  agentId?: string;
+  safety?: ReactNode;
 }) {
   const { rtl, t } = useSession();
   return (
@@ -79,7 +78,7 @@ export function ThreadHeader({
           <NativeSymbol name="more" size={21} />
         </HeaderButton>
       </View>
-      {agentId ? <SafetyPill agentId={agentId} /> : null}
+      {safety ?? null}
     </View>
   );
 }

@@ -6,6 +6,7 @@ import { financialBoundaryError } from "../../packages/core/src/financial-bounda
 import {
   isolate,
   moneyLimitsLine,
+  tradingBrake,
   tradingReadinessLine,
   tradingReadinessTone,
   tradingSafetyLabels,
@@ -77,6 +78,80 @@ test("every readiness state has one plain line in English and Arabic, never a ra
   assert.ok(tradingReadinessLine(account, "en", now).includes("All pairs on this account"));
   const limited = { ...own, params: { ...own.params, money_limit_set: true } };
   assert.ok(!tradingReadinessLine(limited, "en", now).includes("No money limit"));
+});
+
+test("a stop with a freeze never says exits are allowed, in English or Arabic", () => {
+  const frozen = {
+    ...base,
+    state: "stopped" as const,
+    params: { since: null },
+    exits_allowed: false,
+  };
+  const en = tradingReadinessLine(frozen, "en", now);
+  const ar = tradingReadinessLine(frozen, "ar", now);
+  assert.equal(en, "New trading stopped · exits frozen too");
+  assert.equal(ar, "التداول الجديد متوقف · والخروج مجمّد أيضًا");
+  assert.ok(!en.includes("exits allowed") && !ar.includes("الخروج متاح"));
+  // The sheet's own alert agrees with the line.
+  assert.match(tradingSafetyLabels.en.exitsFrozen, /exits are blocked too/);
+  assert.match(tradingSafetyLabels.ar.exitsFrozen, /الخروج محظور أيضًا/);
+});
+
+test("a pause names its account when the owner has several, and only then", () => {
+  const paused = {
+    ...base,
+    state: "paused" as const,
+    params: {
+      action_class: "no_new_entries" as const,
+      valid_until: null,
+      symbol: null,
+      account_id: "account-b",
+      count: 1,
+    },
+  };
+  const named = (id: string) => (id === "account-b" ? "Simulation · 2" : null);
+  assert.equal(
+    tradingReadinessLine(paused, "en", now),
+    "Paused: no new entries · until you lift it",
+  );
+  assert.equal(
+    tradingReadinessLine(paused, "en", now, named),
+    `Paused (${isolate("Simulation · 2")}): no new entries · until you lift it`,
+  );
+  assert.equal(
+    tradingReadinessLine(paused, "ar", now, named),
+    `إيقاف (${isolate("Simulation · 2")}): لا صفقات جديدة · حتى ترفعه`,
+  );
+  const market = { ...paused, params: { ...paused.params, symbol: "XAUUSD" } };
+  assert.equal(
+    tradingReadinessLine(market, "en", now, named),
+    `Paused on ${isolate("XAUUSD")} (${isolate("Simulation · 2")}): no new entries · until you lift it`,
+  );
+});
+
+test("the brake starts trading the owner never started and resumes what they stopped", () => {
+  const since = "2026-11-08T09:00:00Z";
+  for (const locale of ["en", "ar"] as const) {
+    const text = tradingSafetyLabels[locale];
+    assert.deepEqual(
+      tradingBrake({ state: "stopped", since: null, changed_by: "default" }, locale),
+      { stopped: true, status: text.neverStarted, hint: text.startHint, action: text.start },
+    );
+    assert.deepEqual(tradingBrake({ state: "stopped", since, changed_by: "owner" }, locale), {
+      stopped: true,
+      status: text.stopped,
+      hint: text.resumeHint,
+      action: text.resume,
+    });
+    assert.deepEqual(tradingBrake({ state: "running", since, changed_by: "owner" }, locale), {
+      stopped: false,
+      status: text.running,
+      hint: text.stopHint,
+      action: text.stop,
+    });
+  }
+  assert.equal(tradingSafetyLabels.en.start, "Start trading");
+  assert.equal(tradingSafetyLabels.ar.start, "بدء التداول");
 });
 
 test("the pill tone follows what is stopping or holding new trades", () => {
@@ -169,5 +244,15 @@ test("Web and Mobile explain every brake and money-limit code from one shared ta
   for (const source of [webTrading, mobilePill]) {
     assert.ok(source.replace(/\s+/g, " ").includes("{ enabled: true, emergency_stop: false }"));
     assert.ok(source.replace(/\s+/g, " ").includes("{ enabled: false, emergency_stop: true }"));
+  }
+  // Both sheets render the same brake, name the agent that set a pause and the account
+  // of every item when there are several.
+  const webPill = readFileSync("apps/web/src/components/trading/SafetyPill.tsx", "utf8");
+  for (const source of [webPill, mobilePill]) {
+    assert.ok(source.includes("tradingBrake(readiness.global_trading, locale)"));
+    assert.ok(source.includes("agentName(item.created_by_agent_id)"));
+    assert.ok(source.includes("accountName(item.account_id)"));
+    assert.ok(source.includes("accountName(operation.account_id)"));
+    assert.ok(source.includes("tradingReadinessLine(readiness, locale, new Date(), accountName)"));
   }
 });

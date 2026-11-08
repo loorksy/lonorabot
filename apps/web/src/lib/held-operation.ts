@@ -38,23 +38,39 @@ export function holdOperation(action: string, accountId: string, ticket: string)
 }
 
 /**
- * Release the identity only when the journal shows the operation did not happen
- * (``failed``, including never sent): trying again is then a new operation. A confirmed
- * or resolved close keeps its identity for this ticket, so a row that is still on screen
- * answers from the journal instead of becoming a second close.
+ * The journal statuses that settle an operation, as ``TERMINAL_STATUSES`` in
+ * ``lonora_contracts.trading``: confirmed, failed (including never sent) or resolved
+ * (by reconciliation or the owner's attestation). Reserved, submitted and ambiguous are
+ * not settled, so the identity stays held and a retry asks the journal, never resends.
+ */
+const SETTLED: ReadonlySet<string> = new Set(["confirmed", "failed", "resolved"]);
+
+/** Whether the outcome is settled, so the next click on this ticket is a new action. */
+export function operationSettled(status: string): boolean {
+  return SETTLED.has(status);
+}
+
+/**
+ * Release the identity once the journal row is settled. The next click is then a new
+ * operation: on a position or order that is still open (an uncertain close the owner
+ * attested as not executed, a target changed by another action, a failed close) the
+ * owner can act again, and on one that is gone it fails the executor's preflight against
+ * fresh broker state, so nothing reaches the broker twice. Returns whether it released.
  */
 export function settleOperation(
   action: string,
   accountId: string,
   ticket: string,
   status: string,
-): void {
-  if (status !== "failed") return;
+): boolean {
+  if (!operationSettled(status)) return false;
   const name = key(action, accountId, ticket);
-  memory.delete(name);
+  const held = memory.delete(name);
   try {
+    if (sessionStorage.getItem(name) == null) return held;
     sessionStorage.removeItem(name);
   } catch {
-    // Nothing held.
+    return held;
   }
+  return true;
 }

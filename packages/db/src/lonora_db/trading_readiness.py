@@ -126,6 +126,11 @@ async def trading_readiness(
     if fixed_market(agent):
         accounts_query = accounts_query.where(BrokerSessionRow.id == agent.trading_account_id)
     accounts = list(await session.scalars(accounts_query.limit(ACCOUNT_LIMIT)))
+    # The accounts the line speaks for: the agent's own market, its signed grants when it
+    # trades on its own, otherwise every account it may ask to trade on. The sheet still
+    # lists pauses and operations on the other accounts, each with its account named.
+    granted = {str(row["account_id"]) for row in permission["active_authorities"]}
+    in_scope = granted if level == "autonomous" and granted else set(accounts)
     restrictions: list[dict[str, Any]] = []
     for row in await list_restrictions(session, owner_id, agent_id=agent.id, limit=20, now=now):
         if not relevant_to(row, agent):
@@ -148,13 +153,17 @@ async def trading_readiness(
             }
         )
     restrictions.sort(
-        key=lambda item: (item["state"] != "active", RESTRICTION_ORDER.index(item["action_class"]))
+        key=lambda item: (
+            item["state"] != "active",
+            item["account_id"] not in in_scope,
+            RESTRICTION_ORDER.index(item["action_class"]),
+        )
     )
     money_limits = [
         await account_money_limits(session, owner_id, account_id) for account_id in accounts
     ]
     operations: list[dict[str, Any]] = []
-    unresolved_count = 0
+    counts: dict[str, int] = {}
     if accounts:
         scope = [
             TradingJournalRow.owner_id == owner_id,
@@ -167,10 +176,16 @@ async def trading_readiness(
                 func.lower(TradingJournalRow.request["symbol"].as_string())
                 == (agent.trading_symbol or "").casefold()
             )
-        unresolved_count = int(
-            await session.scalar(select(func.count()).select_from(TradingJournalRow).where(*scope))
-            or 0
-        )
+        counts = {
+            str(account_id): int(count)
+            for account_id, count in (
+                await session.execute(
+                    select(TradingJournalRow.account_id, func.count())
+                    .where(*scope)
+                    .group_by(TradingJournalRow.account_id)
+                )
+            ).all()
+        }
         for row in await session.scalars(
             select(TradingJournalRow)
             .where(*scope)
@@ -191,15 +206,27 @@ async def trading_readiness(
                     "blocks": "new_risk_on_this_symbol_or_ticket",
                 }
             )
-    active = [item for item in restrictions if item["state"] == "active"]
+    active = [
+        item
+        for item in restrictions
+        if item["state"] == "active" and item["account_id"] in in_scope
+    ]
+    # Exits stay allowed under every brake except a freeze: one on a whole account the
+    # agent acts on, or (market-bound agent) on its own market.
+    exits_allowed = not any(
+        item["action_class"] == "all_mutations" and (item["symbol"] is None or fixed_market(agent))
+        for item in active
+    )
     state, params = _headline(
         level=level,
         paused=bool(agent.paused),
         trading=trading,
         grants=grants,
         restrictions=active,
-        operations=operations,
-        unresolved_count=unresolved_count,
+        operations=[item for item in operations if item["account_id"] in in_scope],
+        unresolved_count=sum(
+            count for account_id, count in counts.items() if account_id in in_scope
+        ),
         money_limits=money_limits,
     )
     return {
@@ -213,11 +240,8 @@ async def trading_readiness(
         "restrictions": restrictions[:LIST_LIMIT],
         "money_limits": money_limits,
         "unresolved_operations": operations,
-        "unresolved_count": unresolved_count,
-        # Exits stay allowed under every brake except a "freeze everything" pause.
-        "exits_allowed": not any(
-            item["action_class"] == "all_mutations" and item["symbol"] is None for item in active
-        ),
+        "unresolved_count": sum(counts.values()),
+        "exits_allowed": exits_allowed,
     }
 
 
@@ -246,6 +270,7 @@ def _headline(
             "action_class": first["action_class"],
             "valid_until": first["valid_until"],
             "symbol": first["symbol"],
+            "account_id": first["account_id"],
             "count": len(restrictions),
         }
     if unresolved_count:

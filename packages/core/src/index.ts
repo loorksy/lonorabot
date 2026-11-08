@@ -51,6 +51,7 @@ export {
   pauseClassLabel,
   readinessTime,
   type TradingSafetyText,
+  tradingBrake,
   tradingReadinessLine,
   tradingReadinessTone,
   tradingSafetyLabels,

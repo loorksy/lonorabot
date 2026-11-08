@@ -184,6 +184,8 @@ export type TradingReadiness = {
     action_class?: RestrictionActionClass;
     valid_until?: string | null;
     symbol?: string | null;
+    /** The account of the strongest pause; the line names it when there are several. */
+    account_id?: string;
     count?: number;
     symbol_scope?: "selected" | "account";
     symbols?: string[];
