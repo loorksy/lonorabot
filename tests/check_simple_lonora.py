@@ -584,7 +584,8 @@ class Acceptance:
 
     # Setup -----------------------------------------------------------------------------
 
-    async def setup(self) -> None:
+    async def provider(self) -> None:
+        """The owner's model settings, pointing at the scripted provider."""
         await self.request("PUT", "/providers/openai/credential", {"api_key": PROVIDER_KEY})
         await self.request(
             "PUT",
@@ -595,6 +596,9 @@ class Acceptance:
                 "routes": {},
             },
         )
+
+    async def setup(self) -> None:
+        await self.provider()
         # A shared database may hold other checks' agents: set them aside so the per-owner
         # limits count only this check's agents; restored at the end.
         async with self.db.sessions() as session, session.begin():
@@ -2145,5 +2149,149 @@ async def main() -> None:
         await fixture.close(cleanup=False)
 
 
+# --- The Web and Mobile acceptance specs (tests/{web,mobile}/simple-lonora.spec.mjs) ------
+
+# The owner's sentences the browser specs type into the real composer.
+UI_WORDS = {
+    "create_gold": "أنشئ وكيل ذهب يدير صفقاتي على حسابي بنفسه، وخسارة يومية قصوى 2%",
+    "pause_today": "أوقف فتح صفقات جديدة اليوم، وكمّل مراقبة الذهب",
+    "buy_once": "اشترِ 0.1 ذهب على حسابي بوقف خسارة 150",
+}
+
+
+async def ui_turn(data: dict[str, Any]) -> dict[str, Any]:
+    """A gateway worker for the browser specs: execute the owner's queued turn in one
+    conversation with the scripted model, then the attention step (cards raised with no
+    model). The specs send the owner's Arabic words through the real composer and tap the
+    cards themselves; this only stands in for the worker process."""
+    fixture = await Fixture().open()
+    acceptance = Acceptance(fixture)
+    try:
+        await acceptance.provider()
+        account, symbol = cast(str, data["account"]), cast(str, data["symbol"])
+        from datetime import datetime, time
+        from zoneinfo import ZoneInfo
+
+        end_of_day = datetime.combine(
+            datetime.now(ZoneInfo("UTC")).date(), time(23, 59, 59), ZoneInfo("UTC")
+        ).isoformat()
+        model = acceptance.model
+        model.script(
+            UI_WORDS["create_gold"],
+            lambda t: call(
+                "ui-create",
+                "agent_create",
+                {
+                    "template": "trading",
+                    "name": data.get("name", "Gold agent"),
+                    "market": symbol,
+                    "account_id": account,
+                    "responsibility": "يدير صفقات الذهب على حساب المالك بنفسه.",
+                },
+            ),
+            lambda t: call(
+                "ui-grant",
+                "owner_action_propose",
+                {
+                    "kind": "grant_authority",
+                    "agent_id": t.result("ui-create")["agent"]["id"],
+                    "daily_loss_percent": "2",
+                },
+            ),
+            "أنشأت وكيل الذهب؛ وقّع البطاقة ليتداول بنفسه.",
+        )
+        model.script(
+            UI_WORDS["pause_today"],
+            lambda t: call(
+                "ui-pause",
+                "trade_restriction_create",
+                {
+                    "account_id": account,
+                    "all_symbols": True,
+                    "all_agents": True,
+                    "action_class": "no_new_entries",
+                    "valid_until": end_of_day,
+                    "reason": "The owner asked: no new trades today; keep watching gold.",
+                },
+            ),
+            "أوقفت الصفقات الجديدة لكل الوكلاء حتى نهاية اليوم، والمراقبة مستمرة.",
+        )
+        model.script(
+            UI_WORDS["buy_once"],
+            lambda t: call(
+                "ui-buy",
+                "trade_execute",
+                {
+                    "action": "buy",
+                    "account_id": account,
+                    "symbol": symbol,
+                    "volume": "0.1",
+                    "stop_loss": "150",
+                },
+            ),
+            "نُفّذ الشراء بعد موافقتك.",
+        )
+        # Fresh quotes, as the broker stream keeps them.
+        async with acceptance.db.sessions() as session, session.begin():
+            book = await session.get(TradingAccountRow, account, with_for_update=True)
+            assert book is not None
+            quotes = dict(book.payload.get("quotes", {}))
+            for name, value in quotes.items():
+                quotes[name] = {**value, "observed_at": utcnow().isoformat()}
+            book.payload = {**book.payload, "quotes": quotes}
+            run = await session.scalar(
+                select(RunRow)
+                .where(RunRow.thread_id == data["thread"], RunRow.status == "queued")
+                .order_by(RunRow.created_at.desc())
+                .limit(1)
+            )
+            run_id = run.id if run else None
+        status = None
+        started = utcnow()
+        if run_id:
+            status = (await acceptance.work(run_id)).status
+        await acceptance.project()
+        created = None
+        async with acceptance.db.sessions() as session:
+            if data.get("name"):
+                created = await session.scalar(
+                    select(AgentRow.id).where(
+                        AgentRow.owner_id == fixture.owner, AgentRow.name == data["name"]
+                    )
+                )
+            # What this turn raised, so the spec taps exactly those cards.
+            raised = [
+                {"id": row.id, "kind": row.kind}
+                for row in await session.scalars(
+                    select(OwnerActionRow)
+                    .where(
+                        OwnerActionRow.thread_id == data["thread"],
+                        OwnerActionRow.created_at >= started,
+                    )
+                    .order_by(OwnerActionRow.created_at)
+                )
+            ]
+            restrictions = list(
+                await session.scalars(
+                    select(TradingRestrictionRow.id).where(
+                        TradingRestrictionRow.account_id == account,
+                        TradingRestrictionRow.source_run_id == run_id,
+                    )
+                )
+            )
+        return {
+            "run": run_id,
+            "status": status,
+            "agent": created,
+            "cards": raised,
+            "restrictions": restrictions,
+        }
+    finally:
+        await fixture.close(cleanup=False)
+
+
 if __name__ == "__main__":
-    asyncio.run(main())
+    if sys.argv[1:] == ["--ui-turn"]:
+        print(json.dumps(asyncio.run(ui_turn(json.load(sys.stdin)))))
+    else:
+        asyncio.run(main())
