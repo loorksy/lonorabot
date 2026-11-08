@@ -531,6 +531,7 @@ export const labels = {
   edit: ["تعديل", "Edit"],
 
   integrations: ["التكاملات", "Integrations"],
+  capabilities: ["القدرات", "Capabilities"],
   voice: ["الصوت", "Voice"],
   providers: ["المزودون", "Providers"],
   configured: ["تم الإعداد", "Configured"],

@@ -139,7 +139,7 @@ handler remains authoritative.
 | `web_browse` | no browser service URL | `browser_unconfigured` |
 | `workspace_*` | no analytical workspace | `workspace_unconfigured` |
 | `workspace_execute`, `skill_package_validate` | no analysis host bridge | `workspace_execution_unconfigured` |
-| `mcp_execute` | no operator declaration for this owner | `mcp_tool_not_authorized` |
+| `mcp_execute` | no operator declaration and no MCP server the owner trusted (or the operator's deny override) | `mcp_tool_not_authorized` |
 | `trade_execute`, `trade_close_positions`, `goal_step_execute` | live (not Shadow) Run of an agent whose current permission is analysis | `agent_analysis_only` |
 
 Unavailable tools stay out of the native set, are listed under

@@ -1,3 +1,4 @@
+import type { EffectTier } from "./capabilities";
 import type { DeviceProof } from "./super-bot";
 import type { GlobalTrading, MoneyLimitName, MoneyLimits, RestrictionActionClass } from "./trading";
 
@@ -11,7 +12,18 @@ export type OwnerActionKind =
   | "supervise"
   | "supervision_created"
   | "supervision_stopped"
-  | "supervision_paused";
+  | "supervision_paused"
+  | "trust_source"
+  | "connect_credential";
+/** trust_source: what the owner adds to the trusted list. */
+export type TrustSourceKind = "mcp_server" | "github_owner" | "github_repo" | "feed_domain";
+/** connect_credential: which secure form the card offers. */
+export type CredentialTarget =
+  | "mcp_server"
+  | "news_feed"
+  | "brave_search"
+  | "economic_calendar"
+  | "broker";
 /** Agent templates (lonora_contracts.agent_creation); none carries money authority. */
 export type AgentTemplate = "trading" | "general" | "research" | "supervisor";
 /** A creation card's agent, read on the server. */
@@ -109,6 +121,22 @@ export type OwnerAction = {
       /** The owner paused it too: the pause is the owner's now. */
       owner_holds?: boolean;
     };
+    /**
+     * trust_source: the source to trust. An MCP server's label is its saved name and its
+     * tools are the reviewed names (tools that can move money are listed as blocked);
+     * review is true when the server is trusted already and its tools changed.
+     */
+    source?: {
+      kind: TrustSourceKind;
+      label: string | null;
+      subscribe: boolean;
+      tools?: string[];
+      blocked?: string[];
+      review?: boolean;
+      tier?: EffectTier | null;
+    };
+    /** connect_credential: the form to offer ("x" names an X MCP server). */
+    credential?: { target: CredentialTarget; service: "x" | null };
   };
   /** Confirming needs the owner's passkey: it raises or removes a money limit. */
   requires_passkey: boolean;
@@ -124,6 +152,13 @@ export type OwnerAction = {
     revoked?: number;
     restored?: number;
     resumed?: "agent" | "task" | "routine" | "watch";
+    tier?: EffectTier;
+    tools?: number;
+    subscribed?: boolean;
+    target?: CredentialTarget;
+    configured?: boolean;
+    connection_id?: string;
+    integration_id?: string;
   };
   expires_at: string;
   decided_at: string | null;
@@ -137,4 +172,8 @@ export type OwnerActionDecision = {
   note?: string;
   broker_reference?: string;
   proof?: DeviceProof;
+  /** trust_source on an MCP server: what the owner trusts its tools for. */
+  tier?: EffectTier;
+  /** connect_credential: what the secure form created; never the value it holds. */
+  connected?: { resource: "integration" | "mcp" | "broker"; id: string };
 };

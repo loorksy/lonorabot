@@ -47,6 +47,8 @@ ROUTES = (
     "search",
     "mcp",
     "integrations",
+    "trusted_sources",
+    "capabilities",
     "providers",
     "model_router",
     "usage",

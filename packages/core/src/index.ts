@@ -22,6 +22,16 @@ export * from "./avatar-geometry";
 export * from "./avatar-motion";
 export * from "./avatar-state";
 export {
+  builtInLine,
+  type CapabilityText,
+  capabilityLabels,
+  capabilityText,
+  integrationLine,
+  serverLine,
+  skillLine,
+  sourceLine,
+} from "./capabilities";
+export {
   type MentionAddress,
   type MentionRange,
   mentionAddress,
@@ -42,6 +52,10 @@ export {
   operationStatusText,
 } from "./financial-boundary";
 export {
+  type CredentialField,
+  type CredentialForm,
+  type CredentialPost,
+  credentialForm,
   mergeOwnerAction,
   type OwnerActionButton,
   type OwnerActionSpec,
@@ -50,6 +64,7 @@ export {
   ownerActionError,
   ownerActionLabels,
   ownerActionText,
+  submitCredential,
 } from "./owner-actions";
 export {
   type OwnerProfileLabel,

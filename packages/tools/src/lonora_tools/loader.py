@@ -20,6 +20,8 @@ MODULES = {
     "browser": "research",
     "artifacts": "files",
     "mcp": "research",
+    "feeds": "research",
+    "capabilities": "research",
     "subagent": "collaboration",
     "market": "market",
     "market_analysis": "market",

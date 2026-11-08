@@ -1363,7 +1363,8 @@ def test_every_catalog_tool_is_classified_for_earlier_run_evidence() -> None:
         "market_performance_read", "market_position_size", "market_quote",
         "market_relationship_read", "market_relationship_record", "market_sessions",
         "market_shadow_execute", "market_shadow_read", "market_snapshot", "market_structure",
-        "market_symbols", "owner_action_propose", "owner_attention_list", "owner_call_request",
+        "market_symbols", "news_feed_subscribe", "capabilities_list",
+        "owner_action_propose", "owner_attention_list", "owner_call_request",
         "owner_notify", "peer_send",
         "routine_create", "routine_list", "routine_toggle", "scratchpad_read",
         "skill_package_control", "skill_package_create", "skill_package_import",
@@ -1379,7 +1380,13 @@ def test_every_catalog_tool_is_classified_for_earlier_run_evidence() -> None:
         if name in SKIPPED_TOOLS or name in EFFECT_TOOLS:
             continue
         assert is_external(name) != (name in first_party), name
-    for name in ("economic_calendar_read", "consult_model", "web_fetch", "mcp_execute"):
+    for name in (
+        "economic_calendar_read",
+        "news_feed_read",
+        "consult_model",
+        "web_fetch",
+        "mcp_execute",
+    ):
         assert is_external(name), name
 
 

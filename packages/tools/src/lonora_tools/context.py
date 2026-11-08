@@ -34,6 +34,7 @@ class ToolContext:
     skill_access: SkillAccess | None = None
     workspace_access: WorkspaceAccess | None = None
     mcp_declarations: tuple[McpToolDeclaration, ...] = ()
+    mcp_owner_trust: bool = True
     searxng_url: str | None = None
     browser_url: str | None = None
 

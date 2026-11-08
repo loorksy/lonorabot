@@ -6,6 +6,10 @@ financial permission system.
 
 ## Import and adaptation
 
+An import first checks the owner's trusted sources (`docs/trusted-sources.md`): inside
+them (github.com by default) it goes on silently; outside them it raises one owner card
+and fetches nothing. Instructions-only packages need no analysis host.
+
 `skill_repository_inspect` discovers documents, utility hashes, Python imports,
 dependency filenames and licensing without executing source. `skill_package_import`
 then accepts one compatible `SKILL.md` at a full immutable Git commit, an adapted

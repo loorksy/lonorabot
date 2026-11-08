@@ -1,5 +1,11 @@
 import type { DeviceChallenge, OwnerAction, OwnerActionDecision } from "@lonora/contracts";
-import { type OwnerActionButton, ownerActionCard, ownerActionText } from "@lonora/core";
+import {
+  type CredentialForm,
+  type OwnerActionButton,
+  ownerActionCard,
+  ownerActionText,
+  submitCredential,
+} from "@lonora/core";
 import { useEffect, useRef, useState } from "react";
 import { Text, View } from "react-native";
 import { api } from "../lib/api";
@@ -30,6 +36,8 @@ export function OwnerActionCard({
   const [enroll, setEnroll] = useState(false);
   const [password, setPassword] = useState("");
   const [supported, setSupported] = useState<boolean | null>(null);
+  // A credential card's form: values stay here until posted to the owner API, then clear.
+  const [values, setValues] = useState<Record<string, string>>({});
   const pending = useRef(false);
   const align = { textAlign: rtl ? ("right" as const) : ("left" as const) };
   useEffect(() => {
@@ -61,6 +69,7 @@ export function OwnerActionCard({
   const decide = (button: OwnerActionButton) =>
     run(async () => {
       const body: OwnerActionDecision = { decision: button.decision };
+      if (button.tier) body.tier = button.tier;
       if (button.outcome) {
         body.outcome = button.outcome;
         if (note.trim()) body.note = note.trim();
@@ -71,6 +80,26 @@ export function OwnerActionCard({
         body.proof = await deviceProof(challenge);
       }
       onChange(await api.post<OwnerAction>(`/owner-actions/${row.id}/decision`, body));
+    });
+  const connect = (form: CredentialForm) =>
+    run(async () => {
+      const sent = {
+        ...Object.fromEntries(form.fields.map((field) => [field.key, field.initial])),
+        ...values,
+      };
+      setValues({});
+      // The value goes straight to the owner API; the card only learns what was created.
+      const connected = await submitCredential(
+        (path, body) => api.post<{ id: string }>(path, body),
+        form.target,
+        sent,
+      );
+      onChange(
+        await api.post<OwnerAction>(`/owner-actions/${row.id}/decision`, {
+          decision: "confirm",
+          connected,
+        } satisfies OwnerActionDecision),
+      );
     });
   const register = () =>
     run(async () => {
@@ -114,6 +143,34 @@ export function OwnerActionCard({
             onChangeText={setReference}
           />
         </>
+      ) : null}
+      {spec.credential ? (
+        <View testID={`owner-action-form-${spec.credential.target}`} style={{ gap: 8 }}>
+          {spec.credential.fields.map((field) => (
+            <Field
+              key={field.key}
+              label={field.label}
+              secureTextEntry={field.type === "password"}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType={field.type === "url" ? "url" : "default"}
+              value={values[field.key] ?? field.initial}
+              editable={!busy}
+              style={field.ltr ? { textAlign: "left", writingDirection: "ltr" } : undefined}
+              onChangeText={(value) => setValues((old) => ({ ...old, [field.key]: value }))}
+            />
+          ))}
+          <Button
+            label={spec.credential.submit}
+            disabled={
+              busy ||
+              spec.credential.fields.some(
+                (field) => field.required && !(values[field.key] ?? field.initial).trim(),
+              )
+            }
+            onPress={() => void connect(spec.credential as CredentialForm)}
+          />
+        </View>
       ) : null}
       {blocked ? (
         <Text style={[{ color: colors.secondary }, align]}>{text.passkeyUnsupported}</Text>

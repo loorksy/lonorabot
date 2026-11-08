@@ -1,5 +1,12 @@
 # External integration authority
 
+W15-8 adds the owner's own authority: a server the owner trusted on a card or in
+Capabilities authorizes the exact tools it pinned (endpoint and input schemas), at the
+read or non-financial write tier, without any declaration. Tools that can trade or move
+money are never trusted. The operator declarations below remain an optional allow
+override, and `LONORA_MCP_OWNER_TRUST=false` is the deny override. See
+`docs/trusted-sources.md`.
+
 Owner-saved MCP endpoints remain in the existing connection directory. Their
 advertisements and `readOnlyHint` annotations are untrusted metadata. Saving or
 enabling a connection does not authorize its tools. External finance remains

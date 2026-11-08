@@ -18,7 +18,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Any, cast
 
-from lonora_contracts.domain import utcnow
+from lonora_contracts.domain import new_id, utcnow
 from lonora_contracts.execution_quality import ExecutionPolicy
 from lonora_contracts.owner_actions import OwnerActionProposal
 from lonora_contracts.risk_limits import MonetaryRiskLimits
@@ -35,6 +35,7 @@ from .schema import (
     AttentionRow,
     BrokerSessionRow,
     OwnerActionRow,
+    RunRow,
     SupervisionGrantRow,
     SupervisionHoldRow,
     ThreadRow,
@@ -61,6 +62,9 @@ LIFETIME = {
     "supervision_stopped": timedelta(days=7),
     # A supervisor paused an agent's work: who did it, with Resume, while it holds.
     "supervision_paused": timedelta(days=31),
+    # Add a source to the trusted list, or connect an account or credential (W15-8).
+    "trust_source": timedelta(days=7),
+    "connect_credential": timedelta(days=7),
 }
 # Pending cards one agent may have proposed at once; runtime cards do not count.
 MAXIMUM_PENDING_PER_AGENT = 5
@@ -226,6 +230,10 @@ async def stale_reason(
         if not grants:
             return "supervision_agent_missing"
         return None if await _restorable(session, owner_id, grants) else "supervision_already_set"
+    if kind in {"trust_source", "connect_credential"}:
+        from .capability_cards import stale_reason as capability_stale
+
+        return await capability_stale(session, owner_id, kind, payload)
     if kind == "supervision_paused":
         hold = await _live_pause(session, owner_id, payload)
         if hold is None:
@@ -324,6 +332,19 @@ def proposal_payload(proposal: OwnerActionProposal) -> tuple[str, dict[str, Any]
     if proposal.kind == "resolve_operation":
         assert proposal.operation_id is not None
         return "operation:" + proposal.operation_id, {"operation_id": proposal.operation_id}
+    if proposal.kind in {"trust_source", "connect_credential"}:
+        from .capability_cards import credential_payload, source_payload, trust_subject
+
+        if proposal.kind == "connect_credential":
+            assert proposal.target is not None
+            return credential_payload(proposal.target, proposal.service)
+        # An MCP server's card carries the tools read from the server (``propose_capability``).
+        if proposal.source_kind == "mcp_server" or proposal.identifier is None:
+            raise LonoraError("owner_action_fields_invalid", 422)
+        assert proposal.source_kind is not None
+        return trust_subject(proposal.source_kind, proposal.identifier), source_payload(
+            proposal.source_kind, proposal.identifier
+        )
     assert proposal.account_id is not None
     return "account:" + proposal.account_id, {
         "account_id": proposal.account_id,
@@ -422,6 +443,10 @@ async def card_facts(
         return await supervision_facts(session, row, facts), False
     if row.kind == "supervision_paused":
         return await pause_facts(session, row, facts), False
+    if row.kind in {"trust_source", "connect_credential"}:
+        from .capability_cards import card_facts as capability_facts
+
+        return await capability_facts(session, row, facts), False
     account_id = payload["account_id"]
     facts["account"] = account_facts(await session.get(BrokerSessionRow, account_id), account_id)
     current = (await account_policy(session, owner_id, account_id)).risk
@@ -862,6 +887,10 @@ async def propose_effect(
     """An agent's card for one validated effect: deduplicated per agent, capped. The
     caller holds the owner-actions lock and has checked the card id is new."""
     reason = await stale_reason(session, owner_id, kind, payload)
+    if reason is None and kind == "connect_credential":
+        from .capability_cards import credential_not_needed
+
+        reason = await credential_not_needed(session, owner_id, payload)
     if reason is not None:
         raise LonoraError("owner_action_not_needed_" + reason, 409)
     current = await pending_effect(session, agent_id, kind, payload_hash(kind, payload))
@@ -1041,6 +1070,95 @@ async def propose_supervision(
     )
 
 
+async def propose_capability(
+    session: AsyncSession,
+    owner_id: str,
+    kind: str,
+    subject: str,
+    payload: dict[str, Any],
+    *,
+    card_id: str,
+    agent_id: str,
+    thread_id: str | None,
+    run_id: str | None,
+) -> tuple[OwnerActionRow, bool]:
+    """A trust or credential card on an agent's behalf, with the effect built on the
+    server (an MCP server's card carries the tools read from it). Deduplicated per agent
+    and capped like every proposal; a repeated call returns the card shown."""
+    await lock_owner_actions(session, owner_id)
+    existing = await session.get(OwnerActionRow, card_id)
+    if existing is not None:
+        if existing.owner_id != owner_id or existing.agent_id != agent_id:
+            raise LonoraError("owner_action_not_found", 404)
+        return existing, False
+    return await propose_effect(
+        session,
+        owner_id,
+        kind,
+        subject,
+        payload,
+        card_id=card_id,
+        agent_id=agent_id,
+        thread_id=thread_id,
+        run_id=run_id,
+    )
+
+
+async def raise_review_card(
+    session: AsyncSession,
+    owner_id: str,
+    subject: str,
+    payload: dict[str, Any],
+    *,
+    agent_id: str,
+    thread_id: str | None,
+    run_id: str | None,
+) -> OwnerActionRow | None:
+    """An MCP server's tools to trust, raised by the server with no model involved: a
+    trusted server whose tools changed (re-review), or one the owner just connected. The
+    same tools already shown, or declined in the last week, raise none; tools already
+    trusted exactly raise none; a newer review replaces an older one still waiting."""
+    await lock_owner_actions(session, owner_id)
+    digest = payload_hash("trust_source", payload)
+    shown = await session.scalar(
+        select(OwnerActionRow)
+        .where(
+            OwnerActionRow.owner_id == owner_id,
+            OwnerActionRow.kind == "trust_source",
+            OwnerActionRow.payload_hash == digest,
+            OwnerActionRow.status.in_(["pending", "cancelled"]),
+        )
+        .order_by(OwnerActionRow.created_at.desc())
+        .limit(1)
+    )
+    now = utcnow()
+    if shown is not None and (
+        (shown.status == "pending" and shown.expires_at > now)
+        or (
+            shown.status == "cancelled"
+            and (shown.decided_at or now) > now - LIFETIME["trust_source"]
+        )
+    ):
+        return None
+    if await stale_reason(session, owner_id, "trust_source", payload) is not None:
+        return None
+    # One review waits per server: a server that keeps changing never stacks up cards.
+    await supersede_subject(session, owner_id, "trust_source", subject, "server_changed_again")
+    thread = await card_thread(session, owner_id, agent_id, thread_id)
+    return await create_card(
+        session,
+        owner_id,
+        card_id=new_id(),
+        agent_id=agent_id,
+        thread=thread,
+        run_id=run_id,
+        source="system",
+        kind="trust_source",
+        subject=subject,
+        payload=payload,
+    )
+
+
 async def raise_supervision_card(
     session: AsyncSession,
     owner_id: str,
@@ -1208,6 +1326,10 @@ def confirmation_code(row: OwnerActionRow) -> str:
         return "owner_action_resolve_" + str(row.result.get("outcome", "unknown"))
     if row.kind == "agent_created":
         return "owner_action_undo_" + str(row.result.get("undo", "paused"))
+    if row.kind == "trust_source" and row.payload.get("source_kind") == "mcp_server":
+        return "owner_action_trust_source_mcp"
+    if row.kind == "connect_credential" and row.payload.get("target") == "mcp_server":
+        return "owner_action_connect_credential_mcp"
     return "owner_action_" + row.kind
 
 
@@ -1350,6 +1472,70 @@ async def confirm_in_thread(session: AsyncSession, row: OwnerActionRow) -> None:
         thread_id=thread.id,
         agent_id=message.agent_id,
         payload=message_data(message),
+    )
+
+
+# The run that tells the agent behind a trust or credential card that the owner tapped it.
+CONTINUE_TRIGGER = "owner_card"
+
+
+def continue_prompt(row: OwnerActionRow) -> str:
+    """Fixed text and server-checked identifiers only (a repository slug, a host name,
+    a connection id, a target name): nothing the model wrote reaches the system role."""
+    if row.kind == "connect_credential":
+        return (
+            f"The owner connected {row.payload['target']} on your card; it is configured on "
+            "the server and you never see its value. Continue the work that needed it now, "
+            "then tell the owner in one line what you did."
+        )
+    kind, identifier = row.payload["source_kind"], row.payload["identifier"]
+    named = (
+        f"the MCP server (connection_id={identifier}) at tier {row.result.get('tier', 'read')}"
+        if kind == "mcp_server"
+        else f"{kind} {identifier}"
+    )
+    return (
+        f"The owner trusted {named} on your card; it is now in the trusted list. Continue the "
+        "work that needed it now (retry what was waiting), then tell the owner in one line "
+        "what you did."
+    )
+
+
+async def continue_after_card(session: AsyncSession, row: OwnerActionRow) -> RunRow | None:
+    """One run for the card's agent in the card's conversation, so the work that needed
+    the source or credential goes on without the owner asking again. None when the agent
+    is gone or paused (it then waits for the owner)."""
+    from lonora_contracts.runs import RunRequest
+
+    from .runs import create_run
+    from .threads import conversation_thread
+
+    run_id = stable_id(row.id, "continue-after-card")
+    if await session.get(RunRow, run_id) is not None:
+        return None
+    agent = await session.get(AgentRow, row.agent_id)
+    if agent is None or agent.owner_id != row.owner_id or agent.paused or agent.role == "delegated":
+        return None
+    thread = await session.get(ThreadRow, row.thread_id) if row.thread_id else None
+    if (
+        thread is None
+        or thread.owner_id != row.owner_id
+        or thread.purpose != "conversation"
+        or thread.agent_id != agent.id
+        or thread.group_id
+    ):
+        thread = await conversation_thread(session, row.owner_id, agent.id)
+    return await create_run(
+        session,
+        row.owner_id,
+        RunRequest(
+            thread_id=thread.id,
+            agent_id=agent.id,
+            trigger=CONTINUE_TRIGGER,
+            prompt=continue_prompt(row),
+            metadata={"owner_action_id": row.id},
+        ),
+        run_id,
     )
 
 

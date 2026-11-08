@@ -46,7 +46,11 @@ export function McpServersOverlay() {
           <Trans>MCP servers</Trans>
         </h2>
         <p className="muted">
-          <Trans>Connect a server to make its tools available to your agents.</Trans>
+          <Trans>
+            Connect a server, then review and trust its tools in Capabilities. Until you trust them,
+            agents can see the server but not use its tools; tools that can trade or move money
+            never run.
+          </Trans>
         </p>
         <label>
           <Trans>Name</Trans>

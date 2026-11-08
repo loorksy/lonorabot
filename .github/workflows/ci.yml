@@ -820,11 +820,12 @@ jobs:
           .venv/bin/python tests/check_agent_market.py
           .venv/bin/python tests/check_agent_create.py
           .venv/bin/python tests/check_supervision.py
+          .venv/bin/python tests/check_trusted_sources.py
 
       - name: Verify coherent shared foundations in isolated PostgreSQL databases
         run: .venv/bin/python tests/run_foundation_checks.py --isolated-databases
       - name: Verify shared permission proposal construction, financial-boundary, safety and owner-profile texts
-        run: pnpm exec tsx --test tests/web/agent-permission.test.ts tests/web/account-authority.test.ts tests/web/financial-boundary.test.ts tests/web/trading-readiness.test.ts tests/web/held-operation.test.ts tests/web/owner-actions.test.ts tests/web/owner-profile.test.ts tests/web/agent-create.test.ts tests/web/supervision.test.ts
+        run: pnpm exec tsx --test tests/web/agent-permission.test.ts tests/web/account-authority.test.ts tests/web/financial-boundary.test.ts tests/web/trading-readiness.test.ts tests/web/held-operation.test.ts tests/web/owner-actions.test.ts tests/web/owner-profile.test.ts tests/web/agent-create.test.ts tests/web/supervision.test.ts tests/web/capabilities.test.ts
       - name: Verify native sessions and concurrent persistent conversations
         run: .venv/bin/python tests/check_clients.py
       - name: Verify durable reply streams and idempotent peer communication

@@ -9,6 +9,8 @@
  */
 import type {
   AttestedOutcome,
+  CredentialTarget,
+  EffectTier,
   OwnerAction,
   OwnerActionAccount,
   OwnerActionAgent,
@@ -162,6 +164,52 @@ export const ownerActionLabels = {
     resumedWork: "Resumed.",
     keptPaused: "Kept paused.",
     watchExpired: "This watch is past its expiry: move its expiry in the watch list to resume it.",
+    trustTitle: "Trust this source?",
+    trustReviewTitle: "This server's tools changed",
+    trustServer: "MCP server",
+    trustRepo: "GitHub repository",
+    trustPublisher: "GitHub publisher",
+    trustFeed: "News feed site",
+    trustTools: "Tools",
+    trustBlocked: "Blocked, can trade or move money",
+    trustSubscribe: "It also subscribes the feed for every agent.",
+    trustHint:
+      "Agents use it without asking again; you can remove it in Capabilities. It never carries money authority.",
+    trustServerHint:
+      "Choose what its tools may do. Tools that can trade or move money never run, and a changed tool waits for your review.",
+    trust: "Trust",
+    trustRead: "Trust: read only",
+    trustWrite: "Trust: non-financial writes",
+    trusted: "Trusted.",
+    trustedRead: "Trusted for reading.",
+    trustedWrite: "Trusted for non-financial writes.",
+    unnamedServer: "Unnamed server",
+    alreadyTrusted: "This source is already trusted. Nothing changed.",
+    serverMissing: "This server is no longer saved. Nothing changed.",
+    serverChanged: "This server's address changed. Nothing changed; review it again.",
+    nothingToTrust: "This server offers no tool that can be trusted.",
+    feedSubscribed: "This feed is already subscribed.",
+    serverChangedAgain: "The server changed again; the newer card replaces this one.",
+    connectMcp: "Connect an MCP server",
+    connectX: "Connect X",
+    connectFeed: "Add a news feed",
+    connectBrave: "Connect Brave web search",
+    connectCalendar: "Connect an economic calendar",
+    connectBroker: "Connect a broker account",
+    connectHint:
+      "What you type goes straight to the server: it never enters the chat or reaches an agent.",
+    connectXHint:
+      "Lonora reads X through web search, news feeds or an X MCP server you trust; it never uses your X account.",
+    fieldName: "Name",
+    fieldServerUrl: "Server URL",
+    fieldFeedUrl: "Feed URL",
+    fieldToken: "Access token (optional)",
+    fieldApiKey: "API key",
+    fieldAccount: "Account ID",
+    fieldBrokerToken: "MetaApi token",
+    connect: "Connect",
+    connected: "Connected. Agents see only that it is configured.",
+    alreadyConnected: "This is already connected. Nothing changed.",
   },
   ar: {
     resumeTitle: "استئناف التداول",
@@ -293,6 +341,51 @@ export const ownerActionLabels = {
     resumedWork: "تم الاستئناف.",
     keptPaused: "بقي موقوفًا.",
     watchExpired: "انتهت مدة هذه المراقبة: مدّد مدتها من قائمة المراقبات لاستئنافها.",
+    trustTitle: "الوثوق بهذا المصدر؟",
+    trustReviewTitle: "تغيّرت أدوات هذا الخادم",
+    trustServer: "خادم MCP",
+    trustRepo: "مستودع على GitHub",
+    trustPublisher: "ناشر على GitHub",
+    trustFeed: "موقع موجز الأخبار",
+    trustTools: "الأدوات",
+    trustBlocked: "محظورة، تتداول أو تحرّك المال",
+    trustSubscribe: "ويشترك أيضًا في الموجز لكل الوكلاء.",
+    trustHint:
+      "يستخدمه الوكلاء دون أن يسألوك مجددًا، وتستطيع إزالته من القدرات. لا يحمل أي صلاحية مالية.",
+    trustServerHint:
+      "اختر ما يُسمح لأدواته بفعله. الأدوات التي تتداول أو تحرّك المال لا تعمل أبدًا، وأي أداة تتغيّر تنتظر مراجعتك.",
+    trust: "ثقة",
+    trustRead: "ثقة: قراءة فقط",
+    trustWrite: "ثقة: كتابة غير مالية",
+    trusted: "صار موثوقًا.",
+    trustedRead: "صار موثوقًا للقراءة.",
+    trustedWrite: "صار موثوقًا للكتابة غير المالية.",
+    unnamedServer: "خادم بلا اسم",
+    alreadyTrusted: "هذا المصدر موثوق مسبقًا. لم يتغير شيء.",
+    serverMissing: "لم يعد هذا الخادم محفوظًا. لم يتغير شيء.",
+    serverChanged: "تغيّر عنوان هذا الخادم. لم يتغير شيء؛ راجعه من جديد.",
+    nothingToTrust: "لا يقدّم هذا الخادم أي أداة يمكن الوثوق بها.",
+    feedSubscribed: "هذا الموجز مشترك فيه مسبقًا.",
+    serverChangedAgain: "تغيّر الخادم مجددًا؛ البطاقة الأحدث تحل محل هذه.",
+    connectMcp: "ربط خادم MCP",
+    connectX: "ربط X",
+    connectFeed: "إضافة موجز أخبار",
+    connectBrave: "ربط بحث Brave",
+    connectCalendar: "ربط تقويم اقتصادي",
+    connectBroker: "ربط حساب وسيط",
+    connectHint: "ما تكتبه يذهب مباشرة إلى الخادم: لا يدخل المحادثة ولا يصل إلى أي وكيل.",
+    connectXHint:
+      "تقرأ لونورا X عبر البحث على الويب أو موجزات الأخبار أو خادم MCP لـ X تثق به، ولا تستخدم حسابك على X أبدًا.",
+    fieldName: "الاسم",
+    fieldServerUrl: "عنوان الخادم",
+    fieldFeedUrl: "عنوان الموجز",
+    fieldToken: "رمز الوصول (اختياري)",
+    fieldApiKey: "مفتاح API",
+    fieldAccount: "معرّف الحساب",
+    fieldBrokerToken: "رمز MetaApi",
+    connect: "ربط",
+    connected: "تم الربط. لا يرى الوكلاء إلا أنه مُعدّ.",
+    alreadyConnected: "هذا مربوط مسبقًا. لم يتغير شيء.",
   },
 } as const satisfies Record<Language, Record<string, string>>;
 export type OwnerActionText = (typeof ownerActionLabels)[Language];
@@ -301,13 +394,30 @@ export function ownerActionText(locale: string): OwnerActionText {
   return ownerActionLabels[language(locale)];
 }
 
-/** What a button sends: confirm (with an outcome for a resolve card) or cancel. */
+/** What a button sends: confirm (with an outcome for a resolve card, or the tier an MCP
+ * server is trusted for) or cancel. */
 export type OwnerActionButton = {
-  key: "confirm" | "cancel" | AttestedOutcome;
+  key: "confirm" | "cancel" | "trust_write" | AttestedOutcome;
   label: string;
   decision: "confirm" | "cancel";
   outcome?: AttestedOutcome;
+  tier?: EffectTier;
   primary: boolean;
+};
+/** One field of a credential card's secure form; its value goes only to the owner API. */
+export type CredentialField = {
+  key: "name" | "url" | "secret" | "account";
+  label: string;
+  type: "text" | "url" | "password";
+  required: boolean;
+  /** Addresses, ids and keys read left to right inside Arabic text. */
+  ltr: boolean;
+  initial: string;
+};
+export type CredentialForm = {
+  target: CredentialTarget;
+  fields: CredentialField[];
+  submit: string;
 };
 export type OwnerActionSpec = {
   title: string;
@@ -318,6 +428,8 @@ export type OwnerActionSpec = {
   buttons: OwnerActionButton[];
   /** A resolve card offers an optional note and broker ticket. */
   notes: boolean;
+  /** A credential card's secure form while it waits (submitted by the client itself). */
+  credential: CredentialForm | null;
   passkey: boolean;
   /** The settled line ("Trading resumed.", "This card expired. Nothing changed."). */
   outcome: string | null;
@@ -367,6 +479,14 @@ function settledLine(card: OwnerAction, text: OwnerActionText): string | null {
         return text.lifted;
       case "set_account_limits":
         return text.limitsSaved;
+      case "trust_source":
+        return card.result.tier === "write_nonfinancial"
+          ? text.trustedWrite
+          : card.facts.source?.kind === "mcp_server"
+            ? text.trustedRead
+            : text.trusted;
+      case "connect_credential":
+        return text.connected;
       case "resolve_operation":
         return card.result.outcome === "executed"
           ? text.recordedExecuted
@@ -406,6 +526,20 @@ function settledLine(card: OwnerAction, text: OwnerActionText): string | null {
       return text.alreadyEnded;
     case "watch_expired":
       return text.watchExpired;
+    case "source_already_trusted":
+      return text.alreadyTrusted;
+    case "mcp_connection_missing":
+      return text.serverMissing;
+    case "mcp_connection_changed":
+      return text.serverChanged;
+    case "mcp_nothing_to_trust":
+      return text.nothingToTrust;
+    case "feed_already_subscribed":
+      return text.feedSubscribed;
+    case "server_changed_again":
+      return text.serverChangedAgain;
+    case "credential_already_configured":
+      return text.alreadyConnected;
     case "expired":
       return text.expired;
     default:
@@ -508,6 +642,155 @@ function agentLines(
   return lines;
 }
 
+const SOURCE_LABEL = {
+  mcp_server: "trustServer",
+  github_repo: "trustRepo",
+  github_owner: "trustPublisher",
+  feed_domain: "trustFeed",
+} as const;
+
+/** A trust card's lines: which source, the tools it would trust and those it blocks. */
+function sourceLines(card: OwnerAction, lang: Language, text: OwnerActionText): string[] {
+  const source = card.facts.source;
+  if (!source) return [];
+  const label = source.label
+    ? isolate(source.label)
+    : source.kind === "mcp_server"
+      ? text.unnamedServer
+      : "";
+  const lines = [`${text[SOURCE_LABEL[source.kind]]}: ${label}`];
+  if (source.tools?.length) lines.push(`${text.trustTools}: ${nameList(source.tools, lang)}`);
+  if (source.blocked?.length) lines.push(`${text.trustBlocked}: ${nameList(source.blocked, lang)}`);
+  if (source.subscribe) lines.push(text.trustSubscribe);
+  return lines;
+}
+
+function credentialTitle(
+  credential: { target: CredentialTarget; service: "x" | null },
+  text: OwnerActionText,
+): string {
+  if (credential.service === "x") return text.connectX;
+  return {
+    mcp_server: text.connectMcp,
+    news_feed: text.connectFeed,
+    brave_search: text.connectBrave,
+    economic_calendar: text.connectCalendar,
+    broker: text.connectBroker,
+  }[credential.target];
+}
+
+/** The secure form of a credential card: which fields, in the owner's language. */
+export function credentialForm(
+  credential: { target: CredentialTarget; service: "x" | null },
+  text: OwnerActionText,
+): CredentialForm {
+  const name = (initial: string): CredentialField => ({
+    key: "name",
+    label: text.fieldName,
+    type: "text",
+    required: true,
+    ltr: false,
+    initial,
+  });
+  const url = (label: string): CredentialField => ({
+    key: "url",
+    label,
+    type: "url",
+    required: true,
+    ltr: true,
+    initial: "",
+  });
+  const secret = (label: string, required: boolean): CredentialField => ({
+    key: "secret",
+    label,
+    type: "password",
+    required,
+    ltr: true,
+    initial: "",
+  });
+  const account: CredentialField = {
+    key: "account",
+    label: text.fieldAccount,
+    type: "text",
+    required: true,
+    ltr: true,
+    initial: "",
+  };
+  const fields: CredentialField[] = {
+    mcp_server: [
+      name(credential.service === "x" ? "X" : ""),
+      url(text.fieldServerUrl),
+      secret(text.fieldToken, false),
+    ],
+    news_feed: [name(""), url(text.fieldFeedUrl)],
+    economic_calendar: [name(""), url(text.fieldFeedUrl)],
+    brave_search: [name("Brave Search"), secret(text.fieldApiKey, true)],
+    broker: [account, secret(text.fieldBrokerToken, true)],
+  }[credential.target];
+  return { target: credential.target, fields, submit: text.connect };
+}
+
+/** A minimal POST for the client's API (Web or Mobile); it returns the created record. */
+export type CredentialPost = (path: string, body: unknown) => Promise<{ id: string }>;
+
+/**
+ * Submit a credential card's form straight to the owner API and say what it created.
+ * The secret goes to /integrations/secrets (stored encrypted, only its id is kept) or,
+ * for a broker, to /trading/connections; it is never sent to the card or a chat route.
+ */
+export async function submitCredential(
+  post: CredentialPost,
+  target: CredentialTarget,
+  values: Partial<Record<CredentialField["key"], string>>,
+): Promise<{ resource: "integration" | "mcp" | "broker"; id: string }> {
+  const name = (values.name ?? "").trim();
+  const secret = values.secret ?? "";
+  const stored = async () =>
+    secret
+      ? (await post("/integrations/secrets", { name: name || target, value: secret })).id
+      : null;
+  if (target === "broker") {
+    const account = await post("/trading/connections", {
+      provider: "metaapi",
+      account_id: (values.account ?? "").trim(),
+      region: null,
+      enabled: true,
+      secret_id: null,
+      api_key: secret,
+    });
+    return { resource: "broker", id: account.id };
+  }
+  if (target === "mcp_server") {
+    const secret_id = await stored();
+    const server = await post("/mcp", {
+      payload: {
+        name,
+        url: (values.url ?? "").trim(),
+        transport: "http",
+        command: [],
+        secret_id,
+        enabled: true,
+      },
+      agent_id: null,
+      thread_id: null,
+    });
+    return { resource: "mcp", id: server.id };
+  }
+  const secret_id = target === "brave_search" ? await stored() : null;
+  const integration = await post("/integrations", {
+    payload: {
+      type: target,
+      name,
+      url: target === "brave_search" ? null : (values.url ?? "").trim(),
+      secret_id,
+      enabled: true,
+    },
+    agent_id: null,
+    thread_id: null,
+  });
+  return { resource: "integration", id: integration.id };
+}
+
 /** What the agent may do with money, by its level now (a grant may be signed later). */
 function authorityHint(level: OwnerActionAgent["level"], text: OwnerActionText): string {
   if (level === "autonomous") return text.grantHint;
@@ -529,6 +812,7 @@ export function ownerActionCard(
   let title: string = text.resumeTitle;
   let hint: string | null = null;
   let buttons: OwnerActionButton[] = [];
+  let form: CredentialForm | null = null;
   const pair = (confirm: string, cancel: string): OwnerActionButton[] => [
     { key: "confirm", label: confirm, decision: "confirm", primary: true },
     { key: "cancel", label: cancel, decision: "cancel", primary: false },
@@ -707,6 +991,45 @@ export function ownerActionCard(
       buttons = pair(text.resumeWork, text.keepPaused);
       break;
     }
+    case "trust_source": {
+      const source = facts.source;
+      title = source?.review ? text.trustReviewTitle : text.trustTitle;
+      lines.push(...sourceLines(card, lang, text));
+      if (source?.kind === "mcp_server") {
+        hint = text.trustServerHint;
+        buttons = [
+          {
+            key: "confirm",
+            label: text.trustRead,
+            decision: "confirm",
+            tier: "read",
+            primary: true,
+          },
+          {
+            key: "trust_write",
+            label: text.trustWrite,
+            decision: "confirm",
+            tier: "write_nonfinancial",
+            primary: false,
+          },
+          { key: "cancel", label: text.notNow, decision: "cancel", primary: false },
+        ];
+        break;
+      }
+      hint = text.trustHint;
+      buttons = pair(text.trust, text.notNow);
+      break;
+    }
+    case "connect_credential": {
+      const credential = facts.credential;
+      title = credential ? credentialTitle(credential, text) : text.connectMcp;
+      hint =
+        credential?.service === "x" ? `${text.connectHint} ${text.connectXHint}` : text.connectHint;
+      if (credential) form = credentialForm(credential, text);
+      // Connect is the form's own submit: the value goes to the owner API, never here.
+      buttons = [{ key: "cancel", label: text.notNow, decision: "cancel", primary: false }];
+      break;
+    }
     case "set_account_limits": {
       title = text.limitsTitle;
       const currency = facts.proposed?.currency ?? facts.current?.currency ?? null;
@@ -739,6 +1062,7 @@ export function ownerActionCard(
     hint: pending ? hint : null,
     buttons: pending ? buttons : [],
     notes: pending && card.kind === "resolve_operation",
+    credential: pending ? form : null,
     passkey: pending && card.requires_passkey,
     outcome: settledLine(card, text),
   };
@@ -778,6 +1102,34 @@ const errors: Readonly<Record<string, { en: string; ar: string }>> = {
   owner_action_limits_invalid: {
     en: "These limits are not valid for this account.",
     ar: "هذه الحدود غير صالحة لهذا الحساب.",
+  },
+  owner_action_tier_required: {
+    en: "Choose what its tools may do.",
+    ar: "اختر ما يُسمح لأدواته بفعله.",
+  },
+  owner_action_connection_required: {
+    en: "Fill in the form to connect it.",
+    ar: "املأ النموذج لربطه.",
+  },
+  owner_action_connection_mismatch: {
+    en: "That connection does not match this card.",
+    ar: "هذا الربط لا يطابق هذه البطاقة.",
+  },
+  mcp_owner_trust_disabled: {
+    en: "This server's operator allows only declared MCP tools.",
+    ar: "مشغّل هذا الخادم يسمح فقط بأدوات MCP المعلنة.",
+  },
+  mcp_tools_changed: {
+    en: "The server's tools changed since you looked. Review them again.",
+    ar: "تغيّرت أدوات الخادم منذ نظرت إليها. راجعها من جديد.",
+  },
+  mcp_nothing_to_trust: {
+    en: "This server offers no tool that can be trusted.",
+    ar: "لا يقدّم هذا الخادم أي أداة يمكن الوثوق بها.",
+  },
+  news_feed_url_invalid: {
+    en: "Enter a public https:// feed address.",
+    ar: "أدخل عنوان موجز عامًا يبدأ بـ https://.",
   },
 };
 

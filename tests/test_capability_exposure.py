@@ -844,6 +844,7 @@ async def test_availability_reflects_configured_backends_and_fails_open(
             browser_url=None,
             workspace_access=None,
             mcp_declarations=(),
+            mcp_owner_trust=False,
         ),
     )
     assert await catalog.availability(bare) == {
@@ -868,6 +869,7 @@ async def test_availability_reflects_configured_backends_and_fails_open(
             browser_url="http://browser.internal",
             workspace_access=RunWorkspaceAccess(None),
             mcp_declarations=(),
+            mcp_owner_trust=False,
         ),
     )
     assert await catalog.availability(files_only) == {

@@ -969,3 +969,65 @@ class SupervisionHoldRow(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     released_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     released_by: Mapped[str | None] = mapped_column(String(8))
+
+
+class TrustedSourceRow(Base):
+    """One source the owner trusts: inside the list, agents install and use capabilities
+    without asking; outside it, one owner card. Visible and removable in Capabilities.
+
+    ``github`` (github.com, every public repository; the default, trusted as before),
+    ``github_owner`` and ``github_repo`` admit Skill imports; ``mcp_server`` pins one saved
+    connection's endpoint and the exact input schema of each tool the owner reviewed;
+    ``feed_domain`` admits news feed subscriptions. A trusted source never carries money
+    authority: no tool that can trade or move money is ever pinned.
+    """
+
+    __tablename__ = "ln_trusted_sources"
+    __table_args__ = (
+        CheckConstraint(
+            "kind IN ('github','github_owner','github_repo','mcp_server','feed_domain')",
+            name="ln_trusted_source_kind",
+        ),
+        CheckConstraint(
+            "effect_tier IN ('read','write_nonfinancial')", name="ln_trusted_source_tier"
+        ),
+        CheckConstraint(
+            "added_via IN ('default','operator','owner_ui','owner_card')",
+            name="ln_trusted_source_added_via",
+        ),
+        CheckConstraint(
+            "revoked_via IS NULL OR revoked_via IN ('owner_ui','owner_card')",
+            name="ln_trusted_source_revoked_via",
+        ),
+        Index("ln_trusted_source_owner_kind", "owner_id", "kind", "revoked_at"),
+        # One active entry per source; a removed one stays as the record and can be restored.
+        Index(
+            "ln_trusted_source_active",
+            "owner_id",
+            "kind",
+            "identifier",
+            unique=True,
+            postgresql_where=text("revoked_at IS NULL"),
+            sqlite_where=text("revoked_at IS NULL"),
+        ),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    owner_id: Mapped[str] = mapped_column(ForeignKey("ln_owners.id", ondelete="CASCADE"))
+    kind: Mapped[str] = mapped_column(String(16))
+    # github.com, an owner name, owner/repository (case-folded), a connection id or a host.
+    identifier: Mapped[str] = mapped_column(String(300))
+    effect_tier: Mapped[str] = mapped_column(String(24), default="read")
+    # mcp_server: the reviewed endpoint and {tool name: input schema sha256}.
+    endpoint_sha256: Mapped[str | None] = mapped_column(String(64))
+    tool_hashes: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    # Tools seen at review that can trade or move money; never pinned, shown as blocked.
+    blocked_tools: Mapped[list[Any]] = mapped_column(JSON, default=list)
+    added_via: Mapped[str] = mapped_column(String(16))
+    # The agent whose card the owner confirmed; a value, never cascaded away.
+    added_by_agent_id: Mapped[str | None] = mapped_column(String(36))
+    card_id: Mapped[str | None] = mapped_column(String(36))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    revoked_via: Mapped[str | None] = mapped_column(String(16))

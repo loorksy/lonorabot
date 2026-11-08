@@ -291,7 +291,16 @@ function WorkspaceShell({ onLogout }: { onLogout: () => void }) {
     const tab = params.get("settings");
     if (
       tab &&
-      ["overview", "models", "voice", "trading", "integrations", "mcp", "usage"].includes(tab)
+      [
+        "overview",
+        "capabilities",
+        "models",
+        "voice",
+        "trading",
+        "integrations",
+        "mcp",
+        "usage",
+      ].includes(tab)
     ) {
       setGlobalSettings(tab as SettingsTab);
       params.delete("settings");

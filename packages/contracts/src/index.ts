@@ -3,6 +3,7 @@ export type * from "./agent-permissions";
 export type * from "./agent-state";
 export type * from "./attention";
 export type * from "./auth";
+export type * from "./capabilities";
 export type * from "./domain";
 export type * from "./events";
 export type * from "./models";
