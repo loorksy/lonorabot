@@ -1053,3 +1053,212 @@ async def test_the_personal_agent_supervises_new_agents_by_default():
         )
     finally:
         await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_the_owners_own_pause_or_cancel_is_never_lifted_by_the_agent():
+    """The owner's Pause or Cancel of a watch, switch-off of a routine and Pause of a
+    Task are the owner's: the agent cannot undo them in a wake or from the owner's
+    message, and the owner's own Resume lifts them."""
+    database()
+    from check_streaming import Fixture
+    from lonora_contracts.routines import RoutineCreate
+    from lonora_contracts.tasks import TaskControl, TaskCreate
+    from lonora_db.routines import create_routine
+    from lonora_db.schema import MarketWatchRow, RoutineRow, SupervisionHoldRow
+    from lonora_db.tasks import control_task, create_task, get_task
+    from sqlalchemy import select
+
+    fixture = await Fixture().open()
+    try:
+        gold = await fixture.agent("Gold owner stops")
+        thread = await fixture.conversation(gold)
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            watch = MarketWatchRow(
+                owner_id=fixture.owner,
+                agent_id=gold["id"],
+                thread_id=thread["id"],
+                payload={"enabled": True, "kind": "price", "symbol": "XAUUSD"},
+                state={},
+            )
+            session.add(watch)
+            routine = await create_routine(
+                session,
+                fixture.owner,
+                gold["id"],
+                RoutineCreate(prompt="Scan gold", interval_seconds=3600),
+            )
+            await session.flush()
+            watch_id, routine_id = watch.id, routine.id
+        for action in ("pause", "cancel"):
+            response = await fixture.client.post(
+                f"/api/watches/{watch_id}/control", json={"action": action}
+            )
+            assert response.is_success, response.text
+            for context in (
+                await wake(fixture, gold, thread),
+                await owner_says(fixture, gold, thread, "Resume your gold watch"),
+            ):
+                assert (
+                    await refused(context, "watch_resume", watch_id=watch_id)
+                    == "work_paused_by_owner"
+                ), action
+            # The owner's own Resume lifts it.
+            response = await fixture.client.post(
+                f"/api/watches/{watch_id}/control", json={"action": "resume"}
+            )
+            assert response.is_success and response.json()["payload"]["enabled"] is True
+        await fixture.request(
+            "PUT",
+            f"/routines/{routine_id}",
+            {"prompt": "Scan gold", "interval_seconds": 3600, "enabled": False},
+        )
+        assert (
+            await refused(
+                await wake(fixture, gold, thread),
+                "routine_toggle",
+                routine_id=routine_id,
+                enabled=True,
+            )
+            == "work_paused_by_owner"
+        )
+        async with fixture.runtime.db.sessions() as session:
+            routine_row = await session.get(RoutineRow, routine_id)
+            assert routine_row is not None and routine_row.enabled is False
+            hold = await session.scalar(
+                select(SupervisionHoldRow).where(
+                    SupervisionHoldRow.target_id == routine_id,
+                    SupervisionHoldRow.released_at.is_(None),
+                )
+            )
+            assert hold is not None and hold.source == "owner" and hold.holder_agent_id is None
+        await fixture.request(
+            "PUT",
+            f"/routines/{routine_id}",
+            {"prompt": "Scan gold", "interval_seconds": 3600, "enabled": True},
+        )
+        async with fixture.runtime.db.sessions() as session:
+            assert (await session.get(SupervisionHoldRow, hold.id)).released_at is not None  # type: ignore[union-attr]
+        # A Task the owner paused stays paused for the agent.
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            task = await create_task(
+                session,
+                fixture.owner,
+                gold["id"],
+                thread["id"],
+                TaskCreate(title="Watch gold after the stop"),
+            )
+            task_id = task.id
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            row = await get_task(session, fixture.owner, task_id)
+            await control_task(
+                session,
+                fixture.owner,
+                TaskControl(task_id=task_id, action="pause", expected_version=row.version),
+            )
+        async with fixture.runtime.db.sessions() as session:
+            row = await get_task(session, fixture.owner, task_id)
+            version = row.version
+        assert (
+            await refused(
+                await wake(fixture, gold, thread),
+                "task_control",
+                task_id=task_id,
+                action="resume",
+                expected_version=version,
+            )
+            == "work_paused_by_owner"
+        )
+    finally:
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_deleting_a_supervisor_keeps_its_pauses_as_the_owners():
+    """A deleted supervisor's pauses stay in force as the owner's: the work stays paused,
+    its card keeps offering Resume, and the paused agent still cannot lift them."""
+    database()
+    from check_streaming import Fixture
+    from lonora_contracts.routines import RoutineCreate
+    from lonora_db.owner_actions import stale_reason
+    from lonora_db.routines import create_routine
+    from lonora_db.schema import AgentRow, OwnerActionRow, RoutineRow, SupervisionHoldRow
+    from sqlalchemy import select
+
+    fixture = await Fixture().open()
+    try:
+        lead, gold = await fixture.agent("Lead deleted"), await fixture.agent("Gold held")
+        await grant(fixture, lead, gold)
+        lead_thread, gold_thread = (
+            await fixture.conversation(lead),
+            await fixture.conversation(gold),
+        )
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            routine = await create_routine(
+                session,
+                fixture.owner,
+                gold["id"],
+                RoutineCreate(prompt="Review gold", interval_seconds=3600),
+            )
+            routine_id = routine.id
+        lead_context = await wake(fixture, lead, lead_thread)
+        await call(lead_context, "agent_control", agent_id=gold["id"], action="pause")
+        await call(
+            lead_context,
+            "agent_control",
+            agent_id=gold["id"],
+            action="pause",
+            target="routine",
+            target_id=routine_id,
+        )
+        async with fixture.runtime.db.sessions() as session:
+            holds = list(
+                await session.scalars(
+                    select(SupervisionHoldRow).where(SupervisionHoldRow.agent_id == gold["id"])
+                )
+            )
+            cards = list(
+                await session.scalars(
+                    select(OwnerActionRow).where(
+                        OwnerActionRow.kind == "supervision_paused",
+                        OwnerActionRow.agent_id == gold["id"],
+                    )
+                )
+            )
+        assert len(holds) == 2 and len(cards) == 2
+        await fixture.request("DELETE", f"/agents/{lead['id']}")
+        fixture.agents.remove(lead["id"])
+        async with fixture.runtime.db.sessions() as session:
+            agent = await session.get(AgentRow, gold["id"])
+            assert agent is not None and agent.paused
+            for hold in holds:
+                kept = await session.get(SupervisionHoldRow, hold.id)
+                assert kept is not None and kept.released_at is None
+                assert kept.source == "owner" and kept.holder_agent_id is None
+            for card in cards:
+                assert await stale_reason(session, fixture.owner, card.kind, card.payload) is None
+        # The paused agent cannot lift them; the owner's Resume on the card does.
+        await fixture.request("PATCH", f"/agents/{gold['id']}", {"paused": False})
+        assert (
+            await refused(
+                await wake(fixture, gold, gold_thread),
+                "routine_toggle",
+                routine_id=routine_id,
+                enabled=True,
+            )
+            == "work_paused_by_owner"
+        )
+        routine_card = next(
+            card
+            for card in cards
+            if card.payload["hold_id"] in {h.id for h in holds if h.target_kind == "routine"}
+        )
+        decided = await fixture.request(
+            "POST", f"/owner-actions/{routine_card.id}/decision", {"decision": "confirm"}
+        )
+        assert decided["status"] == "confirmed", decided
+        async with fixture.runtime.db.sessions() as session:
+            row = await session.get(RoutineRow, routine_id)
+            assert row is not None and row.enabled
+    finally:
+        await fixture.close()

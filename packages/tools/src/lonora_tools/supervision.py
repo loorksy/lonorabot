@@ -131,7 +131,7 @@ async def _overview(
             if hold.source == "owner"
             else "you"
             if hold.holder_agent_id == context.agent_id
-            else names.get(hold.holder_agent_id)
+            else names.get(hold.holder_agent_id or "")
         )
     return {
         "profile": {
@@ -256,7 +256,9 @@ async def _work(
             {
                 "target": hold.target_kind,
                 "target_id": hold.target_id,
-                "by": "you"
+                "by": "owner"
+                if hold.holder_agent_id is None
+                else "you"
                 if hold.holder_agent_id == context.agent_id
                 else names.get(hold.holder_agent_id),
                 "from_owner_message": hold.source == "owner_message",

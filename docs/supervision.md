@@ -107,8 +107,22 @@ Holds (`ln_supervision_holds`) record each pause a supervisor sets:
   lifts any supervisor's hold, whichever agent it is (the paused agent itself through
   `routine_toggle`, `watch_resume` or `task_control`, or any supervisor through
   `agent_control`); it is released as the owner's (`released_by='owner'`). The
-  owner's own pause, without a hold or held by the owner, and the agent's own pause
-  stay with them (`supervision_resume_not_yours`).
+  owner's own pause and the agent's own pause stay with them
+  (`supervision_resume_not_yours`).
+- **The owner's own pause is a hold too.** When the owner pauses or cancels work that
+  no supervisor holds (the agent's switch, a routine switched off, the watch list's
+  Pause or Cancel, a Task's Pause, an Undo), `owner_takes_over` records a hold with
+  `source='owner'` and no holder (migration `0043_owner_held_pauses`). The paused agent
+  is refused its own resume (`work_paused_by_owner`) in a wake and from the owner's
+  message alike, exactly as for a supervisor's hold the owner took over: only the
+  owner's own Resume lifts it. Before, such a pause left no record, so `watch_resume`,
+  `routine_toggle` and `task_control` undid the owner's stop on the agent's own
+  initiative.
+- **A deleted supervisor's pauses stay.** Deleting an agent first makes every live
+  hold it holds the owner's (`owner_holds_for`); the row keeps the paused work and its
+  card (`holder_agent_id` becomes null, `ON DELETE SET NULL`), so the work stays paused,
+  its card keeps offering Resume, and the paused agent cannot lift it. Nothing resumes
+  without the owner.
 - **The owner's pause is the owner's.** The owner pausing work a supervisor holds (the
   agent's switch, the routine's switch, the watch list's Pause or Cancel, the Task's
   Pause, an Undo) keeps the hold and makes it the owner's (`source='owner'`, the

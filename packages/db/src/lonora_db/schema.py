@@ -930,11 +930,13 @@ class SupervisionGrantRow(Base):
 
 
 class SupervisionHoldRow(Base):
-    """A pause one agent put on another agent's work (the agent itself, one of its
-    Tasks, routines or watches). On its own initiative only the agent that set it (still
-    supervising) lifts it; a run that answers the owner's message lifts it too. The owner
-    pausing the same work makes it the owner's (``source='owner'``, the holder kept for
-    attribution), lifted only by the owner; the owner resuming the work releases it."""
+    """A pause on an agent's work (the agent itself, one of its Tasks, routines or
+    watches), put there by a supervising agent or by the owner. On its own initiative
+    only the agent that set it (still supervising) lifts it; a run that answers the
+    owner's message lifts it too. The owner pausing the same work makes it the owner's
+    (``source='owner'``, the holder kept for attribution), lifted only by the owner; the
+    owner resuming the work releases it. The owner's own pause with no supervisor is a
+    hold with no holder, and a deleted supervisor's hold stays as the owner's."""
 
     __tablename__ = "ln_supervision_holds"
     __table_args__ = (
@@ -963,7 +965,11 @@ class SupervisionHoldRow(Base):
     )
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     owner_id: Mapped[str] = mapped_column(ForeignKey("ln_owners.id", ondelete="CASCADE"))
-    holder_agent_id: Mapped[str] = mapped_column(ForeignKey("ln_agents.id", ondelete="CASCADE"))
+    # The supervising agent that set it; None for the owner's own pause, or once that
+    # supervisor is deleted (its hold is then the owner's).
+    holder_agent_id: Mapped[str | None] = mapped_column(
+        ForeignKey("ln_agents.id", ondelete="SET NULL")
+    )
     # The agent whose work is paused.
     agent_id: Mapped[str] = mapped_column(ForeignKey("ln_agents.id", ondelete="CASCADE"))
     target_kind: Mapped[str] = mapped_column(String(8))

@@ -25,7 +25,12 @@ class RoutineService:
             # saving its schedule with the switch unchanged leaves the pause as it is.
             if request.enabled != row.enabled:
                 await owner_takes_over(
-                    session, owner_id, "routine", routine_id, paused=not request.enabled
+                    session,
+                    owner_id,
+                    "routine",
+                    routine_id,
+                    paused=not request.enabled,
+                    agent_id=row.agent_id,
                 )
             for key, value in request.model_dump().items():
                 setattr(row, key, value)

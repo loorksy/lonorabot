@@ -584,11 +584,14 @@ def proposal_payload(
     }
 
 
-async def agent_names(session: AsyncSession, owner_id: str, ids: set[str]) -> dict[str, str]:
-    if not ids:
+async def agent_names(
+    session: AsyncSession, owner_id: str, ids: set[str] | set[str | None]
+) -> dict[str, str]:
+    wanted = sorted({identifier for identifier in ids if identifier})
+    if not wanted:
         return {}
     rows = await session.scalars(
-        select(AgentRow).where(AgentRow.owner_id == owner_id, AgentRow.id.in_(sorted(ids)))
+        select(AgentRow).where(AgentRow.owner_id == owner_id, AgentRow.id.in_(wanted))
     )
     return {row.id: row.name for row in rows}
 
@@ -913,7 +916,8 @@ async def pause_facts(
         return facts
     names = await agent_names(session, row.owner_id, {hold.holder_agent_id, hold.agent_id})
     facts["supervision"] = {
-        "supervisor_name": names.get(hold.holder_agent_id),
+        # None once the supervisor is deleted: its pause stays, as the owner's.
+        "supervisor_name": names.get(hold.holder_agent_id or ""),
         "supervised_names": [names[hold.agent_id]] if hold.agent_id in names else [],
         "active": await _live_pause(session, row.owner_id, row.payload) is not None,
         "target": hold.target_kind,

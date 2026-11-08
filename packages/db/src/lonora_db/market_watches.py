@@ -162,7 +162,9 @@ async def control_watch(
     by = "agent" if agent_id else "owner"
     if agent_id is None:
         # The owner's choice wins over a supervisor's pause of this watch.
-        await owner_takes_over(session, owner_id, "watch", watch_id, paused=action != "resume")
+        await owner_takes_over(
+            session, owner_id, "watch", watch_id, paused=action != "resume", agent_id=row.agent_id
+        )
     elif action == "resume":
         await refuse_held(
             session, owner_id, "watch", watch_id, agent_id, owner_message=owner_message

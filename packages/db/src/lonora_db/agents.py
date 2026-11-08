@@ -135,5 +135,7 @@ async def update_agent(
         # The owner's own pause or resume wins over a supervisor's hold on this agent.
         # The settings form sends the switch with every save, so only a change counts:
         # renaming a paused agent leaves a supervisor's pause the supervisor's.
-        await owner_takes_over(session, owner_id, "agent", agent_id, paused=request.paused)
+        await owner_takes_over(
+            session, owner_id, "agent", agent_id, paused=request.paused, agent_id=agent_id
+        )
     return row

@@ -346,6 +346,10 @@ async def delete_agent(
     origin = await session.get(SettingRow, origin_key(owner_id, agent_id))
     if origin is not None:
         await session.delete(origin)
+    from .supervision import owner_holds_for
+
+    # Every pause it holds on other agents' work stays, as the owner's; nothing resumes.
+    await owner_holds_for(session, owner_id, agent_id)
     await session.delete(agent)
 
 
@@ -355,7 +359,7 @@ async def pause_agent(session: AsyncSession, owner_id: str, agent_id: str) -> Ag
 
     agent = await owned_agent(session, owner_id, agent_id, lock=True)
     # The owner's Undo: a supervisor's hold on this agent becomes the owner's pause.
-    await owner_takes_over(session, owner_id, "agent", agent_id, paused=True)
+    await owner_takes_over(session, owner_id, "agent", agent_id, paused=True, agent_id=agent_id)
     if not agent.paused:
         agent.paused = True
         emit(session, owner_id, "agent.updated", agent_id=agent_id, payload=agent_data(agent))

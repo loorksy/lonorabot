@@ -36,6 +36,7 @@ it, unless the owner's message asks for it. Every intervention is an event recor
 both agents.
 """
 
+from collections.abc import Iterable
 from typing import Any, Literal
 
 from lonora_contracts.domain import utcnow
@@ -249,12 +250,15 @@ async def seed_personal_grants(session: AsyncSession, owner_id: str, personal_id
     return created
 
 
-async def agent_names(session: AsyncSession, owner_id: str, ids: set[str]) -> dict[str, str]:
-    if not ids:
+async def agent_names(
+    session: AsyncSession, owner_id: str, ids: Iterable[str | None]
+) -> dict[str, str]:
+    wanted = sorted({identifier for identifier in ids if identifier})
+    if not wanted:
         return {}
     rows = await session.execute(
         select(AgentRow.id, AgentRow.name).where(
-            AgentRow.owner_id == owner_id, AgentRow.id.in_(sorted(ids))
+            AgentRow.owner_id == owner_id, AgentRow.id.in_(wanted)
         )
     )
     return {str(identity): str(name) for identity, name in rows}
@@ -354,19 +358,63 @@ async def release_hold(session: AsyncSession, hold: SupervisionHoldRow, by: str)
 
 
 async def owner_takes_over(
-    session: AsyncSession, owner_id: str, kind: str, target_id: str, *, paused: bool
+    session: AsyncSession,
+    owner_id: str,
+    kind: str,
+    target_id: str,
+    *,
+    paused: bool,
+    agent_id: str | None,
 ) -> None:
-    """The owner itself paused (``paused``) or resumed this work. A supervisor's hold on
-    it becomes the owner's pause, never a weaker one: the supervisor stays named, but
-    only the owner lifts it. The owner's resume releases it."""
+    """The owner itself paused or cancelled (``paused``), or resumed, this work of
+    ``agent_id``. The owner's pause is a hold of its own (``source='owner'``, no holder),
+    so the paused agent never lifts it on its own initiative, and a supervisor's hold on
+    it becomes the owner's, never a weaker one: the supervisor stays named, but only the
+    owner lifts it. The owner's resume releases it."""
     hold = await live_hold(session, kind, target_id, lock=True)
-    if hold is None or hold.owner_id != owner_id:
+    if hold is not None and hold.owner_id != owner_id:
         return
     if not paused:
-        await release_hold(session, hold, "owner")
+        if hold is not None:
+            await release_hold(session, hold, "owner")
+        return
+    if hold is None:
+        if agent_id is None:
+            return  # Work of no agent: there is nobody who could lift it.
+        session.add(
+            SupervisionHoldRow(
+                owner_id=owner_id,
+                holder_agent_id=None,
+                agent_id=agent_id,
+                target_kind=kind,
+                target_id=target_id,
+                source="owner",
+                created_at=utcnow(),
+            )
+        )
+        await session.flush()
     elif hold.source != "owner":
         hold.source = "owner"
         await session.flush()
+
+
+async def owner_holds_for(session: AsyncSession, owner_id: str, holder_id: str) -> None:
+    """A supervisor is being deleted: every pause it holds stays in force as the
+    owner's (its card keeps offering Resume), so nothing it paused is resumed, and no
+    pause becomes one the paused agent could lift. The row loses its holder when the
+    agent row goes (``ON DELETE SET NULL``)."""
+    holds = await session.scalars(
+        select(SupervisionHoldRow)
+        .where(
+            SupervisionHoldRow.owner_id == owner_id,
+            SupervisionHoldRow.holder_agent_id == holder_id,
+            SupervisionHoldRow.released_at.is_(None),
+        )
+        .with_for_update()
+    )
+    for hold in holds:
+        hold.source = "owner"
+    await session.flush()
 
 
 async def refuse_held(
@@ -700,7 +748,9 @@ async def owner_resumes(session: AsyncSession, owner_id: str, hold_id: str) -> s
         from .agents import agent_data
 
         agent = await owned_agent(session, owner_id, target_id, lock=True)
-        await owner_takes_over(session, owner_id, kind, target_id, paused=False)
+        await owner_takes_over(
+            session, owner_id, kind, target_id, paused=False, agent_id=hold.agent_id
+        )
         if agent.paused:
             agent.paused = False
             emit(session, owner_id, "agent.updated", agent_id=agent.id, payload=agent_data(agent))
@@ -708,7 +758,9 @@ async def owner_resumes(session: AsyncSession, owner_id: str, hold_id: str) -> s
         from .routines import owned_routine
 
         routine = await owned_routine(session, owner_id, target_id)
-        await owner_takes_over(session, owner_id, kind, target_id, paused=False)
+        await owner_takes_over(
+            session, owner_id, kind, target_id, paused=False, agent_id=hold.agent_id
+        )
         routine.enabled = True
     elif kind == "watch":
         from .market_watches import control_watch

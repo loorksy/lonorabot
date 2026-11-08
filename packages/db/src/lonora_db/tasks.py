@@ -391,7 +391,12 @@ async def control_task(
         # The owner's pause, resume or cancel wins over a supervisor's pause of this Task.
         if request.action != "revise":
             await owner_takes_over(
-                session, owner_id, "task", row.id, paused=request.action == "pause"
+                session,
+                owner_id,
+                "task",
+                row.id,
+                paused=request.action == "pause",
+                agent_id=row.agent_id,
             )
     elif request.action == "resume":
         await refuse_held(session, owner_id, "task", row.id, agent_id, owner_message=owner_message)
