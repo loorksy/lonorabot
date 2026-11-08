@@ -557,6 +557,8 @@ async def update_task_step(
                     "ambiguous",
                     "rejected",
                     "submitted",
+                    "reserved",
+                    "resolved",
                     "pending",
                     "approved",
                     "cancelled",

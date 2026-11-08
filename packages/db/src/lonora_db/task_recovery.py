@@ -64,7 +64,7 @@ async def unresolved_financial(session: AsyncSession, run_id: str) -> bool:
         await session.scalar(
             select(TradingJournalRow.operation_id)
             .where(
-                TradingJournalRow.status.in_(["submitted", "ambiguous"]),
+                TradingJournalRow.status.in_(["reserved", "submitted", "ambiguous"]),
                 TradingJournalRow.execution_mode == "live",
                 or_(
                     TradingJournalRow.result["details"]["lease"]["run_id"].as_string() == run_id,

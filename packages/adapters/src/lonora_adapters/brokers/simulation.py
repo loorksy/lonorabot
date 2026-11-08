@@ -6,7 +6,7 @@ from typing import Any
 
 from lonora_contracts.account import AccountState, Order, Position
 from lonora_contracts.domain import new_id, utcnow
-from lonora_contracts.market import Candle, Instrument, Quote
+from lonora_contracts.market import Candle, Instrument, Quote, TradingHours
 from lonora_contracts.trading import TradeRequest, TradeResult
 from lonora_core.user_error import LonoraError
 from lonora_db.client import Database
@@ -84,6 +84,13 @@ class SimulationBroker:
     async def candles(self, symbol: str, timeframe: str, limit: int) -> list[Candle]:
         values = (await self.snapshot()).get("candles", {}).get(symbol + ":" + timeframe, [])
         return [Candle.model_validate(value) for value in values[-limit:]]
+
+    async def trading_hours(self, symbol: str) -> TradingHours:
+        """Only explicitly imported broker sessions; absence is unknown, never assumed."""
+        payload = (await self.snapshot()).get("trading_hours", {}).get(symbol)
+        if payload is None:
+            raise LonoraError("broker_trading_hours_unavailable", 404)
+        return TradingHours.model_validate(payload)
 
     async def history(self, start: datetime, end: datetime, limit: int) -> list[dict[str, Any]]:
         rows = (await self.snapshot()).get("history", [])

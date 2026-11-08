@@ -14,11 +14,13 @@ from uuid import uuid4
 from lonora_adapter_kit.broker import BrokerAdapter
 from lonora_adapters.brokers.base import BrokerManager
 from lonora_contracts.account import AccountState, Order, Position
+from lonora_contracts.agent_permissions import PermissionChange
 from lonora_contracts.domain import utcnow
 from lonora_contracts.market import Candle, Instrument, Quote
 from lonora_contracts.runs import Lease
 from lonora_contracts.trading import TradeRequest, TradeResult, TradingControl
 from lonora_core.user_error import LonoraError
+from lonora_db.agent_permissions import change_permission
 from lonora_db.broker_sessions import BrokerSessionRepository
 from lonora_db.client import Database
 from lonora_db.schema import (
@@ -27,6 +29,7 @@ from lonora_db.schema import (
     OwnerRow,
     RunRow,
     ThreadRow,
+    TradeApprovalRow,
     TradingJournalRow,
 )
 from lonora_db.trading_journal import persist_result, reserve_operation
@@ -53,13 +56,16 @@ class ScriptedBroker:
         self.release = asyncio.Event()
         self.wrong_reconcile = False
         self.scripted_positions: list[Position] = []
+        self.account_id = "scripted"
 
     async def symbols(self) -> list[str]:
         return ["FIXTURE"]
 
     async def instrument(self, symbol: str) -> Instrument:
+        # Uncertain scenarios use their own fixture symbol: an unresolved operation
+        # blocks new risk on its own market only.
         return Instrument(
-            symbol="FIXTURE",
+            symbol=symbol,
             digits=2,
             tick_size=Decimal("0.01"),
             volume_min=Decimal("0.1"),
@@ -78,7 +84,7 @@ class ScriptedBroker:
 
     async def quote(self, symbol: str) -> Quote:
         return Quote(
-            symbol="FIXTURE",
+            symbol=symbol,
             bid=Decimal("100"),
             ask=Decimal("100.01"),
             observed_at=utcnow(),
@@ -90,7 +96,8 @@ class ScriptedBroker:
 
     async def account(self) -> AccountState:
         return AccountState(
-            id="scripted",
+            # Preflight requires the adapter to identify the connected account.
+            id=self.account_id,
             currency="USD",
             balance=Decimal(1000),
             equity=Decimal(1000),
@@ -173,6 +180,7 @@ class ScriptedManager:
         self.broker = broker
 
     async def get(self, owner_id: str, connection_id: str) -> BrokerAdapter:
+        self.broker.account_id = connection_id
         return self.broker
 
 
@@ -208,27 +216,29 @@ async def checks() -> None:
                 session.add(owner)
                 await session.flush()
             owner_id = owner.id
-            for _ in range(2):
+            # Two distinct provider accounts: one broker account may be connected only once.
+            for provider_account in ("explicit-scripted-fixture", "explicit-scripted-fixture-2"):
                 account = await BrokerSessionRepository().create(
                     session,
                     owner_id,
                     {
                         "provider": "simulation",
-                        "account_id": "explicit-scripted-fixture",
+                        "account_id": provider_account,
                         "enabled": True,
                     },
                 )
                 accounts.append(account.id)
         await save_controls(db, TradingControl(enabled=True))
+        broker.account_id = accounts[0]
 
-        def request(account: str | None = None) -> TradeRequest:
+        def request(account: str | None = None, symbol: str = "FIXTURE") -> TradeRequest:
             operation_id = "scripted-" + uuid4().hex
             operations.append(operation_id)
             return TradeRequest(
                 account_id=account or accounts[0],
                 operation_id=operation_id,
                 action="buy",
-                symbol="FIXTURE",
+                symbol=symbol,
                 volume=Decimal("0.1"),
             )
 
@@ -333,10 +343,10 @@ async def checks() -> None:
 
         # Exception and cancellation after irreversible send both retain uncertainty.
         broker.mode = "unexpected"
-        failed_transport = request()
+        failed_transport = request(symbol="FIXTURE.U1")
         assert (await service.execute(owner_id, failed_transport)).status == "ambiguous"
         broker.mode = "cancel"
-        cancelled = request()
+        cancelled = request(symbol="FIXTURE.U2")
         task = asyncio.create_task(service.execute(owner_id, cancelled))
         await asyncio.wait_for(broker.waiting.wait(), 5)
         task.cancel()
@@ -399,7 +409,8 @@ async def checks() -> None:
         assert await reconcile_ambiguous(db, manager) == 1
         broker.mode = "confirmed"
 
-        # A persisted submitted crash window is reconciled by observation, not resubmission.
+        # A legacy "submitted" row without a recorded send boundary (written before the
+        # reserved state existed) is reconciled by observation, never resubmission.
         crashed = request()
         async with db.sessions() as session, session.begin():
             row, _ = await reserve_operation(
@@ -474,6 +485,29 @@ async def checks() -> None:
             await session.flush()
             lease = Lease(run_id=run.id, owner="scripted-worker", fence=1)
         fenced = request()
+        async with db.sessions() as session, session.begin():
+            # New agents are analysis-only; a supervised agent sends only an exact,
+            # owner-approved operation.
+            await change_permission(
+                session,
+                owner_id,
+                agent_id,
+                PermissionChange(level="supervised", expected_revision=0),
+            )
+            session.add(
+                TradeApprovalRow(
+                    id=str(uuid4()),
+                    owner_id=owner_id,
+                    run_id=run.id,
+                    thread_id=thread.id,
+                    agent_id=agent_id,
+                    call_id="scripted-call",
+                    broker_snapshot={},
+                    requests=[fenced.model_dump(mode="json")],
+                    status="approved",
+                    results=[],
+                )
+            )
 
         async def invalidate() -> None:
             async with db.sessions() as session, session.begin():

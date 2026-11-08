@@ -3,10 +3,62 @@
 import json
 from typing import Any
 
+from lonora_contracts.execution_quality import ExecutionPolicy
+from lonora_db.agent_binding import agent_binding
 from lonora_db.agent_permissions import permission_state
 from lonora_db.schema import RunRow
+from lonora_db.trading_restrictions import list_restrictions, relevant_to, restriction_data
+from lonora_db.transactions import SettingsRepository
 from lonora_trading.account_authority import provisional_voice
+from lonora_trading.execution_quality import policy_key
 from sqlalchemy.ext.asyncio import AsyncSession
+
+RISK_LIMIT_NAMES = (
+    "max_trade_risk",
+    "max_trade_risk_equity_percent",
+    "max_daily_loss",
+    "max_open_risk",
+    "max_open_risk_equity_percent",
+    "min_free_margin",
+)
+
+
+def restriction_frame(row: dict[str, Any], agent_id: str) -> dict[str, Any]:
+    return {
+        "id": row["id"],
+        "account_id": row["account_id"],
+        "symbol": row["symbol"],
+        "action_class": row["action_class"],
+        "applies_to": "all_agents"
+        if row["agent_id"] is None
+        else "you"
+        if row["agent_id"] == agent_id
+        else "another_agent",
+        "state": row["state"],
+        "valid_from": row["valid_from"],
+        "valid_until": row["valid_until"],
+        "source": row["source"],
+        "reason": row["reason"],
+        # Only shown when the broker catalog could not confirm the stored spelling.
+        **({} if row.get("symbol_verified", True) else {"symbol_verified": False}),
+    }
+
+
+def risk_limit_frame(account_id: str, policy: ExecutionPolicy) -> dict[str, Any]:
+    limits = policy.risk
+    values = {name: getattr(limits, name) for name in RISK_LIMIT_NAMES}
+    return {
+        "account_id": account_id,
+        "configured": limits.configured,
+        "currency": limits.currency,
+        "limits": {name: str(value) for name, value in values.items() if value is not None},
+        "not_configured": [name for name, value in values.items() if value is None],
+        **(
+            {"trading_day_timezone": limits.trading_day_timezone}
+            if limits.max_daily_loss is not None
+            else {}
+        ),
+    }
 
 
 def permission_guidance(
@@ -14,6 +66,8 @@ def permission_guidance(
     *,
     observe_only: bool = False,
     provisional_approval_required: bool = False,
+    restrictions: list[dict[str, Any]] | None = None,
+    risk_limits: list[dict[str, Any]] | None = None,
 ) -> str:
     """Project only verified state; a pending envelope/draft is never authority."""
     level = "analysis" if observe_only else state["effective_level"]
@@ -53,6 +107,11 @@ def permission_guidance(
         "provisional_speech_requires_confirmation": provisional_approval_required,
         "authorization_pending": state.get("pending_authority") is not None,
         "authorized_scopes": scopes,
+        # Owner restrictions narrowing what execution admits for you; enforced at the
+        # send boundary for queued work too. Only the owner can lift them.
+        "owner_restrictions": restrictions or [],
+        # Owner monetary limits per account; not_configured limits are not enforced.
+        "monetary_risk_limits": risk_limits or [],
     }
     encoded = (
         json.dumps(snapshot, ensure_ascii=False).replace("<", "\\u003c").replace(">", "\\u003e")
@@ -92,6 +151,9 @@ def permission_guidance(
             if level == "autonomous" and provisional_approval_required
             else ""
         )
+        + " Owner restrictions below are enforced at execution, queued work included; work "
+        "within them, never lift or evade one, and record an owner's new narrowing with "
+        "trade_restriction_create. An unset monetary limit is not enforced."
         + " A pending review, customization draft, chat agreement, task delegation or "
         "global Trading ON grants no authority. Global Trading ON/OFF, Emergency Stop, "
         "binding, preflight, manual intervention and reconciliation remain authoritative. "
@@ -116,6 +178,38 @@ async def permission_context(
     provisional = (
         await provisional_voice(session, run) if run is not None and not observe_only else False
     )
+    restrictions, risk_limits = await trading_limits(session, owner_id, agent_id, state)
     return permission_guidance(
-        state, observe_only=observe_only, provisional_approval_required=provisional
+        state,
+        observe_only=observe_only,
+        provisional_approval_required=provisional,
+        restrictions=restrictions,
+        risk_limits=risk_limits,
     )
+
+
+async def trading_limits(
+    session: AsyncSession, owner_id: str, agent_id: str, state: dict[str, Any]
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Current restrictions that apply to this agent and the relevant accounts' limits."""
+    agent = await agent_binding(session, owner_id, agent_id)
+    rows = [
+        row
+        for row in await list_restrictions(session, owner_id, agent_id=agent_id, limit=20)
+        if relevant_to(row, agent)
+    ]
+    restrictions = [restriction_frame(restriction_data(row), agent_id) for row in rows]
+    accounts: set[str] = {row.account_id for row in rows}
+    for authority in state.get("active_authorities", []):
+        account_id = authority.get("envelope", {}).get("account_id")
+        if isinstance(account_id, str):
+            accounts.add(account_id)
+    if agent.trading_account_id:
+        accounts.add(agent.trading_account_id)
+    risk_limits: list[dict[str, Any]] = []
+    for account_id in sorted(accounts)[:10]:
+        policy = ExecutionPolicy.model_validate(
+            await SettingsRepository().get(session, policy_key(owner_id, account_id))
+        )
+        risk_limits.append(risk_limit_frame(account_id, policy))
+    return restrictions, risk_limits

@@ -143,12 +143,22 @@ async def main() -> None:
         assert chart
         fixed_thread = await f.conversation(fixed)
         fixed_context = await f.lease(await f.run(fixed, fixed_thread))
-        try:
-            await call("market_quote", {"account_id": first, "symbol": "XAUUSDm"}, fixed_context)
-        except LonoraError as error:
-            assert error.code == "agent_trading_symbol_mismatch"
-        else:
-            raise AssertionError("Legacy scope widened implicitly")
+        # A legacy fixed-market agent may read a related symbol on its own account, but
+        # not another account, and persistent chart work stays on its bound pair.
+        related = await call(
+            "market_quote", {"account_id": first, "symbol": "XAUUSDm"}, fixed_context
+        )
+        assert related["symbol"] == "XAUUSDm"
+        for name, args, code in (
+            ("market_quote", {"account_id": second, "symbol": "XAUUSDm"}, "account"),
+            ("chart_open", {"account_id": first, "symbol": "XAUUSDm", "timeframe": "1h"}, "symbol"),
+        ):
+            try:
+                await call(name, args, fixed_context)
+            except LonoraError as error:
+                assert error.code == f"agent_trading_{code}_mismatch", (name, error.code)
+            else:
+                raise AssertionError("Legacy scope widened implicitly: " + name)
         print(
             "PASS default fill, explicit alternate market/account, full discovery, chart path and legacy rejection"
         )

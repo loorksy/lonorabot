@@ -69,51 +69,68 @@ def _observation(
     return Observation.model_validate({"id": _hash(payload), **payload})
 
 
-def _pivots(
-    candles: list[Candle], *, account_id: str, left_bars: int, right_bars: int
-) -> list[_Pivot]:
-    found: list[_Pivot] = []
+@dataclass(frozen=True)
+class SwingPoint:
+    side: Literal["high", "low"]
+    index: int
+    time: datetime
+    price: Decimal
+    available_at: datetime
+
+
+def swing_points(candles: list[Candle], *, left_bars: int, right_bars: int) -> list[SwingPoint]:
+    """Strict unique extrema in already closed bars, known once the right bars close."""
+    found: list[SwingPoint] = []
     for index in range(left_bars, len(candles) - right_bars):
         current = candles[index]
         window = candles[index - left_bars : index + right_bars + 1]
         others = window[:left_bars] + window[left_bars + 1 :]
         available_at = candle_close_time(candles[index + right_bars].time, current.timeframe)
-        sides: list[tuple[Literal["high", "low"], Decimal]] = []
         if all(current.high > other.high for other in others):
-            sides.append(("high", current.high))
+            found.append(SwingPoint("high", index, current.time, current.high, available_at))
         if all(current.low < other.low for other in others):
-            sides.append(("low", current.low))
-        for side, price in sides:
-            observation = _observation(
-                category="candle",
-                detector_id="strict_swing_" + side,
-                symbol=current.symbol,
-                timeframe=current.timeframe,
-                observed_at=available_at,
-                state="confirmed",
-                values={
-                    "kind": "swing_" + side,
-                    "time": current.time.isoformat(),
-                    "price": str(price),
-                    "available_at": available_at.isoformat(),
-                    "confirmation_bar_at": candles[index + right_bars].time.isoformat(),
-                    "left_bars": left_bars,
-                    "right_bars": right_bars,
-                    "tie_policy": "strict_unique_extremum",
-                    "source_hash": _source_hash(window, account_id),
-                    "input_first_at": window[0].time.isoformat(),
-                    "input_last_at": window[-1].time.isoformat(),
-                },
+            found.append(SwingPoint("low", index, current.time, current.low, available_at))
+    return found
+
+
+def _pivots(
+    candles: list[Candle], *, account_id: str, left_bars: int, right_bars: int
+) -> list[_Pivot]:
+    found: list[_Pivot] = []
+    for point in swing_points(candles, left_bars=left_bars, right_bars=right_bars):
+        index, side, price, available_at = point.index, point.side, point.price, point.available_at
+        current = candles[index]
+        window = candles[index - left_bars : index + right_bars + 1]
+        observation = _observation(
+            category="candle",
+            detector_id="strict_swing_" + side,
+            symbol=current.symbol,
+            timeframe=current.timeframe,
+            observed_at=available_at,
+            state="confirmed",
+            values={
+                "kind": "swing_" + side,
+                "time": current.time.isoformat(),
+                "price": str(price),
+                "available_at": available_at.isoformat(),
+                "confirmation_bar_at": candles[index + right_bars].time.isoformat(),
+                "left_bars": left_bars,
+                "right_bars": right_bars,
+                "tie_policy": "strict_unique_extremum",
+                "source_hash": _source_hash(window, account_id),
+                "input_first_at": window[0].time.isoformat(),
+                "input_last_at": window[-1].time.isoformat(),
+            },
+        )
+        found.append(
+            _Pivot(
+                side,
+                index,
+                TrendlineAnchor(time=current.time, price=price),
+                available_at,
+                observation,
             )
-            found.append(
-                _Pivot(
-                    side,
-                    index,
-                    TrendlineAnchor(time=current.time, price=price),
-                    available_at,
-                    observation,
-                )
-            )
+        )
     return found
 
 

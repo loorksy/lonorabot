@@ -129,6 +129,12 @@ resuming that call returns its interrupted result instead of running it again.
 Late old-worker results cannot overwrite the replacement's files. Inspection
 projects whether a reservation is genuinely running or needs recovery.
 
+Broker candles can enter the workspace without passing through the conversation:
+`market_candles_to_workspace` writes a CSV through `RunWorkspaceAccess.write_generated`,
+which applies the same ownership, fence, path, quota and revision rules and stores a
+receipt keyed on the request rather than the bytes, so an interrupted call replays its
+original write. See [market-analysis.md](market-analysis.md#market_candles_to_workspace).
+
 ## Reproduce the actual container acceptance
 
 From the repository root, using the local Docker daemon:

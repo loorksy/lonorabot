@@ -1,9 +1,9 @@
 from collections.abc import AsyncIterator, Awaitable, Callable
 from datetime import datetime
-from typing import Any, Protocol
+from typing import Any, Protocol, runtime_checkable
 
 from lonora_contracts.account import AccountState, Order, Position
-from lonora_contracts.market import Candle, Instrument, Quote
+from lonora_contracts.market import Candle, Instrument, Quote, TradingHours
 from lonora_contracts.trading import TradeRequest, TradeResult
 
 
@@ -33,3 +33,10 @@ class BrokerAdapter(BrokerStateReader, Protocol):
         submitted_at: datetime | None = None,
     ) -> TradeResult: ...
     async def close(self) -> None: ...
+
+
+@runtime_checkable
+class TradingHoursReader(Protocol):
+    """Optional broker capability. An adapter without it has unknown trading hours."""
+
+    async def trading_hours(self, symbol: str) -> TradingHours: ...

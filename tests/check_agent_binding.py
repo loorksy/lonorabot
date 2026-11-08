@@ -128,19 +128,32 @@ async def checks() -> None:
             else:
                 raise AssertionError(name + " bypassed binding")
 
-        for name in (
-            "market_quote",
-            "market_instrument",
-            "market_candles",
-            "chart_indicator",
-            "chart_open",
-            "chart_snapshot",
-        ):
+        # Readable scope: market data reads may cover related symbols on the bound
+        # account. Persistent chart work, like every mutation, keeps the bound pair.
+        for name in ("market_quote", "market_instrument", "market_candles", "chart_indicator"):
             args: dict[str, Any] = {"account_id": primary, "symbol": symbols[1]}
-            if name in ("market_candles", "chart_indicator", "chart_snapshot"):
+            if name in ("market_candles", "chart_indicator"):
                 args["timeframe"] = "1h"
             if name == "chart_indicator":
                 args["name"] = "rsi"
+            try:
+                await registry.execute(ToolCall(id=uuid4().hex, name=name, arguments=args), context)
+            except LonoraError as error:
+                # Simulation fixtures carry no bars for this pair; scope still passed.
+                assert error.code != "agent_trading_symbol_mismatch", (name, error.code)
+        related = await registry.execute(
+            ToolCall(
+                id=uuid4().hex,
+                name="market_quote",
+                arguments={"account_id": primary, "symbol": symbols[1]},
+            ),
+            context,
+        )
+        assert related["symbol"] == symbols[1]
+        for name in ("chart_open", "chart_snapshot"):
+            args = {"account_id": primary, "symbol": symbols[1]}
+            if name == "chart_snapshot":
+                args["timeframe"] = "1h"
             await denied(name, args, "agent_trading_symbol_mismatch")
         await denied(
             "market_quote",
@@ -203,9 +216,10 @@ async def checks() -> None:
             ToolCall(id="symbols", name="market_symbols", arguments={"account_id": primary}),
             context,
         )
-        assert catalog["symbols"] == [symbols[0]]
+        assert set(catalog["symbols"]) >= set(symbols[:2])
+        assert catalog["execution_scope"]["symbol"] == symbols[0]
         print(
-            "PASS generic tool boundary rejects cross-pair/account quote/candle/chart/trade/watch and nested goal steps"
+            "PASS generic tool boundary: related-pair reads on the bound account; cross-account reads and cross-pair chart/trade/watch/goal steps rejected"
         )
         async with fixture.runtime.db.sessions() as session, session.begin():
             snapshot = await session.get(TradingAccountRow, primary, with_for_update=True)
@@ -226,7 +240,10 @@ async def checks() -> None:
         account = await registry.execute(
             ToolCall(id="account", name="account_read", arguments={"account_id": primary}), context
         )
-        assert [p["symbol"] for p in account["positions"]] == [symbols[0]]
+        # Account-wide exposure is visible; only the bound pair is executable.
+        assert {p["symbol"]: p["in_execution_scope"] for p in account["positions"]} == {
+            s: s == symbols[0] for s in symbols
+        }
         proposal = await registry.execute(
             ToolCall(id="close", name="trade_close_positions", arguments={"account_id": primary}),
             context,
@@ -265,11 +282,24 @@ async def checks() -> None:
             row = await session.get(RunRow, child_context.lease.run_id)
             assert row is not None
             row.parent_run_id = context.lease.run_id
-        await denied(
-            "market_quote",
-            {"account_id": primary, "symbol": symbols[1]},
-            "agent_trading_symbol_mismatch",
-        )
+        try:
+            await registry.execute(
+                ToolCall(
+                    id=uuid4().hex,
+                    name="trade_execute",
+                    arguments={
+                        "account_id": primary,
+                        "symbol": symbols[1],
+                        "action": "buy",
+                        "volume": "0.1",
+                    },
+                ),
+                child_context,
+            )
+        except LonoraError as error:
+            assert error.code == "agent_trading_symbol_mismatch", error.code
+        else:
+            raise AssertionError("Child bypassed the inherited binding")
         async with fixture.runtime.db.sessions() as session:
             selected = await session.get(AgentRow, agent["id"])
             assert selected is not None

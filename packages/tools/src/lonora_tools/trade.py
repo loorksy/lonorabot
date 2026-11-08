@@ -60,6 +60,23 @@ async def management_snapshot(context: ToolContext, requests: list[TradeRequest]
     return result
 
 
+def halted_receipts(remaining: list[TradeRequest], after: TradeResult) -> list[dict[str, Any]]:
+    """Known not-sent receipts for the rest of a batch stopped by an unsettled result.
+
+    A sequence never continues after an operation that is not confirmed: the remaining
+    operations may depend on it, so they are reported as never reaching the broker.
+    """
+    return [
+        TradeResult(
+            operation_id=request.operation_id,
+            status="failed",
+            code="batch_halted_after_unconfirmed_result",
+            details={"send_state": "not_sent", "halted_after": after.operation_id},
+        ).model_dump(mode="json")
+        for request in remaining
+    ]
+
+
 async def approved_execution(
     context: ToolContext, requests: list[TradeRequest], *, gate_only: bool = False
 ) -> dict[str, Any]:
@@ -228,6 +245,11 @@ async def approved_execution(
                 operation_id=request.operation_id, status="failed", code=error.code
             )
         results.append(result.model_dump(mode="json"))
+        stop = result.status != "confirmed"
+        if stop:
+            # Same rule as standing authority: never advance an approved sequence past
+            # an uncertain, failed or blocked operation.
+            results.extend(halted_receipts(frozen[index + 1 :], result))
         async with context.db.sessions() as session, session.begin():
             await require_lease(session, context.lease, lock=True)
             current = await session.get(TradeApprovalRow, approval_id, with_for_update=True)
@@ -237,6 +259,8 @@ async def approved_execution(
             current.results = list(results)
             current.updated_at = utcnow()
             approval_event(session, current)
+        if stop:
+            break
 
     async with context.db.sessions() as session, session.begin():
         await require_lease(session, context.lease, lock=True)
@@ -259,7 +283,7 @@ async def account_authorized_execution(
     """Standing authority uses the same executor, journal and independent verification."""
     expected = await management_snapshot(context, requests)
     results: list[dict[str, Any]] = []
-    for request, identifier in zip(requests, grants, strict=True):
+    for index, (request, identifier) in enumerate(zip(requests, grants, strict=True)):
         assert identifier is not None
 
         async def current() -> None:
@@ -288,7 +312,9 @@ async def account_authorized_execution(
             )
         results.append(result.model_dump(mode="json"))
         if result.status != "confirmed":
-            break  # Never advance a batch after uncertain/blocked financial state.
+            # Never advance a batch after uncertain/blocked financial state.
+            results.extend(halted_receipts(requests[index + 1 :], result))
+            break
     return {
         "results": results,
         **(results[0] if len(results) == 1 else {}),

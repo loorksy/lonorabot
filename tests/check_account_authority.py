@@ -315,15 +315,43 @@ async def main() -> None:
             row.model_metadata = {
                 key: value for key, value in row.model_metadata.items() if key != "voice_handoff"
             }
+        resting = await operation("buy_limit", symbols[1], volume="0.1", price="99", stop_loss="90")
+        assert resting["status"] == "confirmed", resting
+        own = {p.symbol: p for p in await broker.positions()}
         await save_controls(f.runtime.db, TradingControl(enabled=False))
         stopped = await operation(volume="0.1", stop_loss="90")
         assert stopped["status"] == "failed" and stopped["code"] == "trading_disabled", stopped
+        # Exits stay admissible for the signed grant: global controls stop new risk only.
+        tightened = await operation(
+            "modify_position", symbols[2], position_id=own[symbols[2]].id, stop_loss="95"
+        )
+        assert tightened["status"] == "confirmed", tightened
+        assert tightened["details"]["execution"]["risk_reducing"] is True
+        assert tightened["details"]["execution"]["account_authority_id"] == grant["id"]
+        widened = await operation(
+            "modify_position", symbols[2], position_id=own[symbols[2]].id, stop_loss="94"
+        )
+        assert widened["status"] == "failed" and widened["code"] == "trading_disabled", widened
+        closed = await operation("close_position", symbols[3], position_id=own[symbols[3]].id)
+        assert closed["status"] == "confirmed", closed
+        assert closed["details"]["execution"]["account_authority_id"] == grant["id"]
+        assert not any(p.symbol == symbols[3] for p in await broker.positions())
         await save_controls(f.runtime.db, TradingControl(enabled=True, emergency_stop=True))
         stopped = await operation(volume="0.1", stop_loss="90")
         assert stopped["status"] == "failed" and stopped["code"] == "emergency_stop", stopped
+        cancelled = await operation("cancel_order", symbols[1], order_id=resting["broker_id"])
+        assert cancelled["status"] == "confirmed", cancelled
+        tighter = await operation(
+            "modify_position", symbols[2], position_id=own[symbols[2]].id, stop_loss="96"
+        )
+        assert tighter["status"] == "confirmed", tighter
+        reopened = await operation(
+            "buy_limit", symbols[1], volume="0.1", price="98", stop_loss="90"
+        )
+        assert reopened["status"] == "failed" and reopened["code"] == "emergency_stop", reopened
         await save_controls(f.runtime.db, TradingControl(enabled=True))
         print(
-            "PASS provisional voice requires real confirmation; global OFF and Emergency Stop dominate grants"
+            "PASS provisional voice requires real confirmation; global OFF and Emergency Stop dominate grants for new risk, while the signed grant still closes, cancels and tightens"
         )
 
         async with f.runtime.db.sessions() as session, session.begin():
@@ -507,7 +535,7 @@ async def main() -> None:
                 and journal.result["details"]["execution"]["account_authority_id"] == grant["id"]
             )
         print(
-            "PASS lost acknowledgement persists grant provenance, replay never resends, unresolved account blocks subsequent autonomous operations"
+            "PASS lost acknowledgement persists grant provenance, replay never resends, the unresolved market blocks subsequent autonomous risk"
         )
 
         revoked = await f.request("POST", f"/account-authorities/{grant['id']}/revoke", {})

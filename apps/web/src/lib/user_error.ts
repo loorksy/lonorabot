@@ -133,7 +133,11 @@ export function userError(error: unknown) {
       return t`This exact symbol is not available from your broker.`;
     case "broker_reconciliation_pending":
     case "broker_reconciliation_required":
-      return t`Broker verification pending. Market data may remain available; trading is blocked until verification finishes.`;
+      return t`A previous operation on this market still needs broker verification, so this new order was not sent. Closing positions, cancelling pending orders and tightening stops remain available.`;
+    case "operation_in_progress":
+      return t`This operation is still in progress. Wait for its broker result before resolving it.`;
+    case "operation_already_settled":
+      return t`This operation already has a settled outcome. Reload the journal.`;
     case "broker_account_not_found":
       return t`Broker account not found.`;
     case "broker_account_already_connected":

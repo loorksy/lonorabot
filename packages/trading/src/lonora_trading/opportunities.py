@@ -1,12 +1,12 @@
 """Shared thesis lifecycle and final execution linkage, without another scheduler."""
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal, cast
 
 from lonora_contracts.domain import ThreadCreate, utcnow
 from lonora_contracts.opportunity import OpportunityUpdate, ThesisDefinition
 from lonora_contracts.runs import RunRequest
-from lonora_contracts.trading import TradeRequest
+from lonora_contracts.trading import TERMINAL_STATUSES, TradeRequest
 from lonora_core.user_error import LonoraError
 from lonora_db.client import Database
 from lonora_db.runs import create_run
@@ -221,35 +221,81 @@ async def require_entry_thesis(session: AsyncSession, owner_id: str, request: Tr
     row.state = {**row.state, "pending_entry_operation_id": request.operation_id}
 
 
+def execution_outcome(journal: TradingJournalRow) -> Literal["executed", "not_executed", "unknown"]:
+    """What a settled journal row says about its own broker effect, for thesis linkage.
+
+    ``resolved`` is settled without broker confirmation: an owner attestation states an
+    outcome (or ``unknown``); a broker-state resolution (target gone or changed) never
+    establishes whether this operation applied.
+    """
+    if journal.status == "confirmed":
+        return "executed"
+    if journal.status == "failed":
+        return "not_executed"
+    resolution = journal.result.get("details", {}).get("resolution")
+    if isinstance(resolution, dict) and cast(dict[str, Any], resolution).get("source") == "owner":
+        outcome = cast(dict[str, Any], resolution).get("outcome")
+        if outcome in {"executed", "not_executed"}:
+            return outcome
+    return "unknown"
+
+
 async def sync_opportunity_execution(session: AsyncSession, journal: TradingJournalRow) -> None:
     if journal.execution_mode != "live":
         return
     identifier = journal.request.get("thesis_id")
-    if not identifier or journal.status not in {"confirmed", "failed"}:
+    if not identifier or journal.status not in TERMINAL_STATUSES:
         return
     row = await owned_opportunity(session, journal.owner_id, str(identifier), lock=True)
-    if journal.status == "failed":
+    outcome = execution_outcome(journal)
+    action = journal.request.get("action")
+    if outcome == "not_executed" or (outcome == "unknown" and action not in ENTRY_ACTIONS):
+        # Never sent, rejected, or a management outcome nobody can establish: release the
+        # pending link. Exposure is read from the broker again, never from this thesis.
         row.state = {
             **row.state,
+            **({"last_operation_id": journal.operation_id} if outcome == "unknown" else {}),
             **{
                 key: None
                 for key in ("pending_entry_operation_id", "pending_management_operation_id")
                 if row.state.get(key) == journal.operation_id
             },
         }
+        raw = journal.result.get("details", {}).get("resolution")
+        resolution = cast(dict[str, Any], raw) if isinstance(raw, dict) else {}
+        if (
+            outcome == "unknown"
+            and resolution.get("source") == "broker_state"
+            and resolution.get("basis") == "target_closed"
+            and row.state.get("entry_position_id")
+            and journal.request.get("position_id") == row.state.get("entry_position_id")
+            and row.status != "completed"
+        ):
+            # Whoever closed it, the thesis position is observed closed at the broker.
+            transition(
+                session,
+                row,
+                "completed",
+                "thesis_position_no_longer_open",
+                evidence={"operation_id": journal.operation_id, "resolution": resolution},
+            )
         return
-    action = journal.request.get("action")
     state = {**row.state, "last_operation_id": journal.operation_id}
     if state.get("pending_management_operation_id") == journal.operation_id:
         state["pending_management_operation_id"] = None
     details = journal.result.get("details", {})
     row.state = state
     if action in ENTRY_ACTIONS and row.state.get("entry_operation_id") != journal.operation_id:
+        # An entry that may have executed (attested, or of unknown outcome) still acts on
+        # the thesis: it must never authorize a second entry for the same setup.
+        attested = journal.status == "resolved"
         row.state = {
             **state,
             "entry_operation_id": journal.operation_id,
             "pending_entry_operation_id": None,
-            "entry_position_id": details.get("position_id")
+            "entry_position_id": None
+            if attested
+            else details.get("position_id")
             or (
                 journal.result.get("broker_id")
                 if details.get("simulation") and action in {"buy", "sell"}
@@ -260,10 +306,15 @@ async def sync_opportunity_execution(session: AsyncSession, journal: TradingJour
             session,
             row,
             "acted_on",
-            "thesis_entry_confirmed",
+            "thesis_entry_confirmed"
+            if not attested
+            else "thesis_entry_attested"
+            if outcome == "executed"
+            else "thesis_entry_outcome_unknown",
             evidence={
                 "operation_id": journal.operation_id,
                 "broker_id": journal.result.get("broker_id"),
+                **({"resolution": details.get("resolution")} if attested else {}),
             },
         )
     elif (

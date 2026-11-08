@@ -182,7 +182,9 @@ async def main() -> None:
         )
         assert artifact["payload"]["media_type"] == "image/svg+xml"
         image = context.artifact_root / artifact["payload"]["key"]
-        assert "XAUUSD.a" in image.read_text() and "polyline" in image.read_text()
+        svg = image.read_text()
+        # Broker OHLC renders as candle bodies (rect) and wicks (line), not a close polyline.
+        assert "XAUUSD.a" in svg and svg.count("<rect") >= 3 and "<line" in svg
         image.unlink()
         print(
             "PASS exact suffixed gold symbol, targeted specifications, sourced quote, candles and persisted chart image"

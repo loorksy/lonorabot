@@ -12,10 +12,13 @@ from .schema import AgentRow
 
 BINDING_POLICY = (
     "account_id and broker_symbol were chosen when this bot was created and cannot change. "
-    "Use these exact values in every market, chart, watch, goal and trade tool. "
+    "Use these exact values in every chart, watch, goal, decision and trade tool. "
     "Never ask which pair, account, or symbol, and never ask the owner to repeat or retype it. "
     "If the owner omits the pair, use this binding. Letter case is not a different symbol. "
-    "Never strip suffixes or use another market. A different market requires a different bot. "
+    "Never strip suffixes. Market data reads (quote, candles, instrument, structure, indicator, "
+    "snapshot, sessions, workspace CSV) may also cover related symbols on this same account, and "
+    "account_read shows account-wide exposure; reading another symbol never authorizes trading it. "
+    "Trading a different market requires a different bot. "
     "Child agents inherit this binding. Delegation cannot bypass financial authority. "
     "An active signed account grant may cover matching trades without per-order approval. Otherwise trade approval requires the real Approve or Reject controls in chat or voice. "
     "Never ask for a spoken or typed yes. Speech and chat text are not approval."

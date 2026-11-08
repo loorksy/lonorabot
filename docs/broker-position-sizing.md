@@ -50,3 +50,8 @@ the simulation adapter, never live funds. The integration check verifies real
 tool admission, symbol isolation, currency mismatch, absent economics and no
 financial journal/approval effects. Production acceptance may inspect current
 read-only broker metadata; an estimate must not be described as a submitted order.
+
+The same arithmetic values risk at the stop when the owner's monetary limits
+(`ExecutionPolicy.risk`) are enforced at the execution boundary; see
+`account-authority.md`. Enforcement uses fresh economics inside the send boundary,
+never a sizing result produced earlier.

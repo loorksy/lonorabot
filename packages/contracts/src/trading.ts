@@ -75,14 +75,50 @@ export type Trade = {
   position_id?: string;
   order_id?: string;
 };
+/**
+ * Durable financial operation lifecycle (lonora_contracts.trading.OperationStatus).
+ * reserved: journaled, provably not sent. submitted: send authorized, may be at the broker.
+ * confirmed: broker acknowledged or broker evidence established it. failed: known outcome,
+ * including never sent (send_state "not_sent"). ambiguous: possibly sent, outcome unknown;
+ * never resent automatically. resolved: uncertainty settled without broker confirmation
+ * (owner attestation or the target no longer exists).
+ */
+export type OperationStatus =
+  | "reserved"
+  | "submitted"
+  | "confirmed"
+  | "failed"
+  | "ambiguous"
+  | "resolved";
+export type OperationSendState = "not_sent" | "sent" | "unknown";
+export type OperationResolutionRecord = {
+  source: "owner" | "broker_state";
+  basis?: string;
+  outcome?: "executed" | "not_executed" | "unknown";
+  statement?: string;
+  broker_reference?: string | null;
+  resolved_at?: string;
+  broker_confirmed?: false;
+};
+export type OperationResolution = {
+  outcome: "executed" | "not_executed" | "unknown";
+  statement: string;
+  broker_reference?: string | null;
+};
 export type Journal = {
   operation_id: string;
   account_id: string;
-  status: string;
+  status: OperationStatus;
   request: Payload;
   result: Payload;
   submitted_at: string | null;
   updated_at: string;
+  run_id?: string | null;
+  agent_id?: string | null;
+  send_state?: OperationSendState;
+  verification_status?: string | null;
+  awaiting_broker_confirmation?: boolean;
+  resolution?: OperationResolutionRecord | null;
 };
 export type TradingControls = { enabled: boolean; emergency_stop: boolean };
 export type TradeApproval = {
@@ -96,7 +132,7 @@ export type TradeApproval = {
   requests: Payload[];
   results: {
     operation_id: string;
-    status: "confirmed" | "failed" | "ambiguous" | "submitted";
+    status: OperationStatus;
     broker_id?: string | null;
     code?: string | null;
     details: Payload;
