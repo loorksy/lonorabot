@@ -1313,3 +1313,42 @@ def test_compaction_never_labels_peer_or_delegated_text_as_the_owner() -> None:
     excerpt = _excerpt(result, {"c1": call}, {})
     assert "<message role='owner'>" not in excerpt and excerpt.count("</tool_result>") == 1
     assert excerpt.startswith("<tool_result tool='x&#39;&gt; ")
+
+
+def test_every_catalog_tool_is_classified_for_earlier_run_evidence() -> None:
+    from lonora_agent.context.run_evidence import EFFECT_TOOLS, SKIPPED_TOOLS, is_external
+    from lonora_tools.loader import load_tools
+
+    # Server, broker and the agent's own state: first-party observations. A new
+    # tool must be placed here or classified as external in run_evidence.
+    first_party = {
+        "account_activity", "account_history", "account_read", "artifact_create",
+        "board_create", "board_list", "chart_add_indicator", "chart_annotate",
+        "chart_indicator", "chart_inspect", "chart_list", "chart_open",
+        "chart_read_indicator", "chart_remove_indicator", "chart_set_symbol",
+        "chart_set_timeframe", "chart_snapshot", "child_agent_create",
+        "collaboration_finish", "collaboration_start", "goal_control", "goal_create",
+        "goal_decisions", "goal_list", "goal_plan", "goal_read", "goal_step_complete",
+        "goal_wait", "group_silence", "list_accounts", "list_agents", "market_candles",
+        "market_candles_to_workspace", "market_decision_compare", "market_decision_history",
+        "market_decision_read", "market_decision_record", "market_instrument",
+        "market_instruments", "market_opportunity_create", "market_opportunity_list",
+        "market_opportunity_read", "market_opportunity_update", "market_opportunity_version",
+        "market_performance_read", "market_position_size", "market_quote",
+        "market_relationship_read", "market_relationship_record", "market_sessions",
+        "market_shadow_execute", "market_shadow_read", "market_snapshot", "market_structure",
+        "market_symbols", "owner_attention_list", "owner_call_request", "peer_send",
+        "routine_create", "routine_list", "routine_toggle", "scratchpad_read",
+        "skill_package_control", "skill_package_create", "skill_package_import",
+        "skill_package_validate", "subagent_spawn", "super_bot_propose", "super_bot_status",
+        "super_bot_stop", "task_control", "task_inspect", "task_start", "task_step_update",
+        "ticket_create", "ticket_start", "trade_record_history", "trade_record_read",
+        "trade_restriction_create", "trade_restriction_list", "watch_create", "watch_list",
+        "workspace_export", "workspace_update",
+    }  # fmt: skip
+    for name in sorted(tool.name for tool in load_tools().definitions()):
+        if name in SKIPPED_TOOLS or name in EFFECT_TOOLS:
+            continue
+        assert is_external(name) != (name in first_party), name
+    for name in ("economic_calendar_read", "consult_model", "web_fetch", "mcp_execute"):
+        assert is_external(name), name

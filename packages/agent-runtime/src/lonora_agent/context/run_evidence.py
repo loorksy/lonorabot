@@ -5,9 +5,10 @@ follow-up re-fetches what was just observed or trusts its own paraphrase. This
 projection reads the checkpoints of the Agent's most recent Runs in the same
 thread and keeps the most relevant successful observations and every effect
 identity, labelled historical: what was known then, never live broker truth.
-Results of tools that return third-party content (web pages, search excerpts,
-MCP servers, repositories, stored files) are returned separately so the builder
-can label them retrieved and untrusted, like recalled evidence.
+Results of tools that return third-party or other-model content (web pages,
+search excerpts, MCP servers, repositories, stored files, calendar feeds,
+consulted models, delegated Agents) are returned separately so the builder can
+label them retrieved and untrusted, like recalled evidence.
 """
 
 import json
@@ -43,14 +44,24 @@ SKIPPED_TOOLS = frozenset(
     }
 )
 EFFECT_TOOLS = frozenset({"trade_execute", "trade_close_positions", "goal_step_execute"})
-# Tools whose results carry text written by third parties or stored files.
+# Tools whose results carry text written by third parties, another model or stored
+# files. tests/test_context_engine.py makes every catalog tool take a side.
 EXTERNAL_TOOLS = frozenset(
     {
         "artifact_read",
         "workspace_read",
+        "workspace_inspect",
+        "workspace_execute",
         "skill_repository_inspect",
         "search_internal",
         "session_search",
+        # A third-party calendar feed (event names and sources).
+        "economic_calendar_read",
+        # Another model's text, possibly echoing injected evidence.
+        "consult_model",
+        # Delegated or peer Agents' model-written results.
+        "subagent_inspect",
+        "collaboration_inspect",
     }
 )
 EXTERNAL_PREFIXES = ("web_", "mcp_", "search_")

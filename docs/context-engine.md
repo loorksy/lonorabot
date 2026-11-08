@@ -217,11 +217,15 @@ only its newest observation; entries that mention terms of the new request rank
 first. Each entry has the tool, arguments, `observed_at` (or the Run's last
 update, labelled `run_last_updated`), identities, any `result_ref` and a short
 preview. The section is labelled historical, not live market or broker truth.
-Results of tools that return third-party or stored content (`web_*`, `mcp_*`,
-`search_*`, `artifact_read`, `workspace_read`, `skill_repository_inspect`) go
-to a separate `recent_external_evidence` section (4,000 characters) labelled
+Results of tools that return third-party, other-model or stored content
+(`web_*`, `mcp_*`, `search_*`, `artifact_read`, `workspace_read`,
+`workspace_inspect`, `workspace_execute`, `skill_repository_inspect`,
+`session_search`, `economic_calendar_read`, `consult_model`, `subagent_inspect`,
+`collaboration_inspect`) go to a separate `recent_external_evidence` section (4,000 characters) labelled
 `retrieved_untrusted`, like recalled evidence, so page text that was a tool
-result in its own Run is never promoted to a more trusted label.
+result in its own Run is never promoted to a more trusted label. A registry test
+makes every catalog tool take a side, so a new tool cannot silently default to the
+first-party label.
 
 ## The summary/window dark zone
 
