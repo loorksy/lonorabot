@@ -133,6 +133,16 @@ async def test_real_adapter_turns_transport_and_payload_failures_into_codes(
             return httpx.Response(200, json={"events": []})
         if host == "error":
             return httpx.Response(503, text="unavailable")
+        if host == "huge":
+            # Streamed in chunks past the cap: refused before it is buffered or parsed.
+            chunk = b" " * 65536
+
+            async def body() -> AsyncGenerator[bytes]:
+                for _ in range(64):
+                    yield chunk
+                raise AssertionError("the adapter kept reading past its byte cap")
+
+            return httpx.Response(200, content=body())
         return httpx.Response(200, content=json.dumps([event_payload()]).encode())
 
     real_client = httpx.AsyncClient
@@ -145,7 +155,7 @@ async def test_real_adapter_turns_transport_and_payload_failures_into_codes(
 
     monkeypatch.setattr(adapter_module, "validate_public_url", public)
     monkeypatch.setattr(adapter_module.httpx, "AsyncClient", client)
-    names = ("down", "slow", "html", "malformed", "object", "error", "ok")
+    names = ("down", "slow", "html", "malformed", "object", "error", "huge", "ok")
     sources, events = await read_calendar(database(*names), "owner")
     status = by_name(sources)
     assert {name: status[name].get("reason") for name in names} == {
@@ -155,6 +165,7 @@ async def test_real_adapter_turns_transport_and_payload_failures_into_codes(
         "malformed": "calendar_response_invalid",
         "object": "calendar_response_invalid",
         "error": "calendar_source_unavailable",
+        "huge": "calendar_response_invalid",
         "ok": None,
     }
     assert status["ok"]["status"] == "ok"

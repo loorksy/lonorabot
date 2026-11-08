@@ -99,7 +99,8 @@ result is `configured: false` with `economic_calendar_not_configured`. A failing
 is reported per source as `unavailable` with a reason and without its URL, while the
 other sources' events are still returned: the adapter turns transport failures into
 `calendar_source_unavailable`, timeouts into `calendar_source_timeout` and a non-JSON
-body, a non-list payload or a malformed event into `calendar_response_invalid`; any
+body, a non-list payload, a malformed event or a body over 2 MiB (streamed and refused
+at the cap, before it is buffered or parsed) into `calendar_response_invalid`; any
 other exception from a source is `calendar_source_failed` and is logged by type only,
 because exception text can carry the configured URL. Calendar watches and the owner
 calendar route get the same codes from the adapter. Events whose timestamps carry no
