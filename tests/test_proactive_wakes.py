@@ -1077,7 +1077,7 @@ async def test_agent_declared_critical_alerts_are_capped_per_owner():
                 or 0
             )
         allowed = max(CRITICAL_LIMIT_PER_HOUR - earlier, 0)
-        results = []
+        results: list[dict[str, Any]] = []
         for index in range(allowed + 2):
             # One alert per agent: the per-agent rate never decides here.
             agent = await fixture.agent("Alert " + str(index))
