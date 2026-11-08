@@ -190,6 +190,9 @@ export type TradingReadiness = {
     symbol_scope?: "selected" | "account";
     symbols?: string[];
     grant_count?: number;
+    /** on_its_own: how many accounts its grants cover, and the first one's account. */
+    account_count?: number;
+    account_id?: string | null;
     money_limit_set?: boolean;
     /** The daily loss limit of the grant's account, when the owner set one. */
     daily_loss?: { amount: string; currency: string | null } | null;

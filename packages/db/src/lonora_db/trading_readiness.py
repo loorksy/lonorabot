@@ -300,6 +300,9 @@ def _headline(
         "symbols": first_grant["symbols"][:3] if first_grant else [],
         "valid_until": first_grant["valid_until"] if first_grant else None,
         "grant_count": len(grants),
+        # Grants on several accounts: the line counts them and the sheet lists each.
+        "account_count": len({item["account_id"] for item in grants}),
+        "account_id": first_grant["account_id"] if first_grant else None,
         "money_limit_set": any(
             item["configured"] for item in money_limits if item["account_id"] in granted
         ),

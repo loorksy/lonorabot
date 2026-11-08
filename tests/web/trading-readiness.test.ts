@@ -99,6 +99,17 @@ test("every readiness state has one plain line in English and Arabic, never a ra
     tradingReadinessLine(daily, "ar", now),
     `يتداول باستقلال · ${isolate("XAUUSD")} · حتى توقفه · الخسارة اليومية ${isolate("200.00 USD")}`,
   );
+  // With several accounts the line names the granted one the way the sheet does ...
+  const named = { ...daily, params: { ...daily.params, account_id: "acct-1", account_count: 1 } };
+  assert.ok(
+    tradingReadinessLine(named, "en", now, () => "Simulation · 1").startsWith(
+      `Trades on its own · ${isolate("Simulation · 1")} · `,
+    ),
+  );
+  // ... and grants on several accounts are counted; the sheet lists each with its limit.
+  const two = { ...daily, params: { ...daily.params, account_count: 2 } };
+  assert.equal(tradingReadinessLine(two, "en", now), "Trades on its own on 2 accounts");
+  assert.equal(tradingReadinessLine(two, "ar", now), `يتداول باستقلال على ${isolate("2")} حسابات`);
 });
 
 test("a stop with a freeze never says exits are allowed, in English or Arabic", () => {

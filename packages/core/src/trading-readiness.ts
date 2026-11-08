@@ -259,6 +259,13 @@ export function tradingReadinessLine(
     case "ask_me":
       return ar ? "يسألك قبل كل صفقة" : "Asks you before each trade";
     case "on_its_own": {
+      const accounts = params.account_count ?? 1;
+      if (accounts > 1)
+        // One grant per account: the line counts them, the sheet names each with its limit.
+        return ar
+          ? `يتداول باستقلال على ${isolate(String(accounts))} حسابات`
+          : `Trades on its own on ${accounts} accounts`;
+      const account = params.account_id ? accountName(params.account_id) : null;
       const markets =
         params.symbol_scope === "account"
           ? tradingSafetyLabels[lang].allPairs
@@ -271,7 +278,7 @@ export function tradingReadinessLine(
         : params.money_limit_set === false
           ? ` · ${tradingSafetyLabels[lang].noMoneyLimit}`
           : "";
-      return `${ar ? "يتداول باستقلال" : "Trades on its own"}${markets ? ` · ${markets}` : ""} · ${end}${money}`;
+      return `${ar ? "يتداول باستقلال" : "Trades on its own"}${account ? ` · ${isolate(account)}` : ""}${markets ? ` · ${markets}` : ""} · ${end}${money}`;
     }
   }
 }
