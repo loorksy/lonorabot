@@ -263,9 +263,8 @@ for (const locale of ["en", "ar"])
       await authorize.click();
       // First time on this device: the same card asks for the password and registers it.
       await card.getByLabel(text.password, { exact: true }).fill("ci-only-owner-password");
+      // Registering continues straight into the passkey prompt for this decision.
       await card.getByRole("button", { name: text.register, exact: true }).click();
-      await expect(card.getByLabel(text.password, { exact: true })).toHaveCount(0);
-      await authorize.click();
       await expect(card).toHaveAttribute("data-owner-action-status", "confirmed");
       await expect(card.getByRole("status")).toHaveText(text.signed);
       await expect(card.getByRole("button")).toHaveCount(0);

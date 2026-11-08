@@ -84,30 +84,14 @@ export function OwnerActionCard({
     };
   }, []);
   const supported = webDeviceSupported();
+  // The tap that found no passkey on this device: registering continues straight into it.
+  const waiting = useRef<OwnerActionButton | null>(null);
   async function decide(button: OwnerActionButton) {
     setBusy(true);
     setError(undefined);
     try {
-      const choices = ownerActionChoices(row, chosen);
-      const body: OwnerActionDecision = {
-        decision: button.decision,
-        ...(button.decision === "confirm" ? choices.decision : {}),
-      };
-      if (button.tier) body.tier = button.tier;
-      if (button.outcome) {
-        body.outcome = button.outcome;
-        if (note.trim()) body.note = note.trim();
-        if (reference.trim()) body.broker_reference = reference.trim();
-      }
-      if (button.decision === "confirm" && spec.passkey) {
-        const challenge = await api.post<DeviceChallenge>(
-          `/owner-actions/${row.id}/challenge`,
-          choices.challenge,
-        );
-        body.proof = await webDeviceProof(challenge);
-      }
-      const updated = await api.post<OwnerAction>(`/owner-actions/${row.id}/decision`, body);
-      if (mounted.current) onChanged(updated);
+      waiting.current = button;
+      await submit(button);
     } catch (cause) {
       if (!mounted.current) return;
       if (cause instanceof ApiError && cause.code === "device_registration_required")
@@ -116,6 +100,29 @@ export function OwnerActionCard({
     } finally {
       if (mounted.current) setBusy(false);
     }
+  }
+  async function submit(button: OwnerActionButton) {
+    const choices = ownerActionChoices(row, chosen);
+    const body: OwnerActionDecision = {
+      decision: button.decision,
+      ...(button.decision === "confirm" ? choices.decision : {}),
+    };
+    if (button.tier) body.tier = button.tier;
+    if (button.outcome) {
+      body.outcome = button.outcome;
+      if (note.trim()) body.note = note.trim();
+      if (reference.trim()) body.broker_reference = reference.trim();
+    }
+    if (button.decision === "confirm" && spec.passkey) {
+      const challenge = await api.post<DeviceChallenge>(
+        `/owner-actions/${row.id}/challenge`,
+        choices.challenge,
+      );
+      body.proof = await webDeviceProof(challenge);
+    }
+    const updated = await api.post<OwnerAction>(`/owner-actions/${row.id}/decision`, body);
+    waiting.current = null;
+    if (mounted.current) onChanged(updated);
   }
   async function connect(form: CredentialForm, values: Record<string, string>) {
     setBusy(true);
@@ -150,6 +157,9 @@ export function OwnerActionCard({
       });
       await api.post("/auth/devices/enrollment/verify", await webDeviceProof(challenge, true));
       if (mounted.current) setEnroll(false);
+      // One owner action: the registered device now signs the decision that needed it.
+      const button = waiting.current;
+      if (button && mounted.current) await submit(button);
     } catch (cause) {
       if (mounted.current) setError(cause);
     } finally {

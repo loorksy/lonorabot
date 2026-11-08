@@ -64,7 +64,8 @@ test("ar: one sentence creates a gold agent; one tap approves a trade, one passk
   const name = `Gold agent ${randomUUID().slice(0, 6)}`;
   let gold;
   let pause;
-  const taps = { create: 0, approve: 0, pause: 0 };
+  // enroll: the one-time device registration on a device with no passkey yet.
+  const taps = { create: 0, enroll: 0, approve: 0, pause: 0 };
   const said = async (sentence) => {
     const composer = page.locator("textarea");
     await composer.fill(sentence);
@@ -166,17 +167,18 @@ test("ar: one sentence creates a gold agent; one tap approves a trade, one passk
       data: { enabled: false, emergency_stop: false },
     });
 
-    // 3. One passkey tap signs the grant (registering this device inline) and resumes.
+    // 3. One passkey tap signs the grant and resumes. On a device with no passkey yet the
+    //    same card first asks for the password and registers the device; registering
+    //    continues straight into the passkey prompt for this decision (no second tap).
     await page.goto(`/app/${lonora.id}`);
     const card = page.locator(`[data-owner-action="${grantRow.id}"]`);
     await card.getByRole("checkbox", { name: text.resumeToo }).check();
     const authorize = card.getByRole("button", { name: text.authorize, exact: true });
     await authorize.click();
+    taps.create += 1;
     await card.getByLabel(text.password, { exact: true }).fill("ci-only-owner-password");
     await card.getByRole("button", { name: text.register, exact: true }).click();
-    await expect(card.getByLabel(text.password, { exact: true })).toHaveCount(0);
-    await authorize.click();
-    taps.create += 1;
+    taps.enroll += 1;
     await expect(card).toHaveAttribute("data-owner-action-status", "confirmed");
     await expect(card.getByRole("status")).toHaveText(text.signed);
     const permission = await (await context.request.get(`/api/agents/${gold}/permissions`)).json();
@@ -221,7 +223,7 @@ test("ar: one sentence creates a gold agent; one tap approves a trade, one passk
     await expect(pill).not.toContainText(text.paused);
 
     // The vision's counts: one confirmation each; nothing else was sent.
-    expect(taps).toEqual({ create: 1, approve: 1, pause: 1 });
+    expect(taps).toEqual({ create: 1, enroll: 1, approve: 1, pause: 1 });
     expect(decisions.filter((path) => path.includes("/trading/execute"))).toEqual([]);
   } finally {
     if (pause)

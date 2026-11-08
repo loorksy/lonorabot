@@ -70,28 +70,36 @@ export function OwnerActionCard({
       setBusy(false);
     }
   }
+  // The tap that found no passkey on this device: registering continues straight into it.
+  const waiting = useRef<OwnerActionButton | null>(null);
   const decide = (button: OwnerActionButton) =>
     run(async () => {
-      const choices = ownerActionChoices(row, chosen);
-      const body: OwnerActionDecision = {
-        decision: button.decision,
-        ...(button.decision === "confirm" ? choices.decision : {}),
-      };
-      if (button.tier) body.tier = button.tier;
-      if (button.outcome) {
-        body.outcome = button.outcome;
-        if (note.trim()) body.note = note.trim();
-        if (reference.trim()) body.broker_reference = reference.trim();
-      }
-      if (button.decision === "confirm" && spec.passkey) {
-        const challenge = await api.post<DeviceChallenge>(
-          `/owner-actions/${row.id}/challenge`,
-          choices.challenge,
-        );
-        body.proof = await deviceProof(challenge);
-      }
-      onChange(await api.post<OwnerAction>(`/owner-actions/${row.id}/decision`, body));
+      waiting.current = button;
+      await submit(button);
     });
+  const submit = async (button: OwnerActionButton) => {
+    const choices = ownerActionChoices(row, chosen);
+    const body: OwnerActionDecision = {
+      decision: button.decision,
+      ...(button.decision === "confirm" ? choices.decision : {}),
+    };
+    if (button.tier) body.tier = button.tier;
+    if (button.outcome) {
+      body.outcome = button.outcome;
+      if (note.trim()) body.note = note.trim();
+      if (reference.trim()) body.broker_reference = reference.trim();
+    }
+    if (button.decision === "confirm" && spec.passkey) {
+      const challenge = await api.post<DeviceChallenge>(
+        `/owner-actions/${row.id}/challenge`,
+        choices.challenge,
+      );
+      body.proof = await deviceProof(challenge);
+    }
+    const updated = await api.post<OwnerAction>(`/owner-actions/${row.id}/decision`, body);
+    waiting.current = null;
+    onChange(updated);
+  };
   const connect = (form: CredentialForm) =>
     run(async () => {
       const sent = {
@@ -122,6 +130,8 @@ export function OwnerActionCard({
       });
       await api.post("/auth/devices/enrollment/verify", await deviceProof(challenge, true));
       setEnroll(false);
+      // One owner action: the registered device now signs the decision that needed it.
+      if (waiting.current) await submit(waiting.current);
     });
   const blocked = spec.passkey && supported === false;
   return (
