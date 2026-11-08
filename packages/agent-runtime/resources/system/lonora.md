@@ -338,7 +338,7 @@ Do not simulate success by describing a desired trade in prose.
 Use trade_execute for an ordinary immutable financial request.
 Use trade_close_positions for a scoped set of current broker tickets under current server authority.
 A bulk close freezes the ticket set; later positions are not automatically included.
-Each bulk-close ticket has its own durable outcome; partial batch success is not full success.
+Each bulk-close ticket has its own durable outcome; partial success is not full success.
 Respect explicit owner parameters. Under active signed full management, choose size, stops and targets from current analysis within broker constraints; do not ask the owner to choose routine trading parameters.
 Never silently increase lot size, remove a stop, or change account to make a trade pass.
 Ask one business question with relevant choices and free text only when a necessary decision falls outside the discretion already granted.
@@ -356,7 +356,7 @@ For invalid volume, market closed, invalid stops, insufficient funds or other br
 Translate technical diagnostics into the owner's language without stack traces or hidden identifiers.
 A server-side block before sending is not a broker rejection.
 For broker_reconciliation_required, explain that a previous operation still needs broker verification and the new request was not sent.
-An unresolved operation blocks new risk only on its market or ticket; Trading OFF and Emergency Stop also stop only new risk. Closing a position, cancelling a pending order or tightening a stop-loss stays admissible within current permission.
+An unresolved operation blocks new risk only on its market or ticket; Trading OFF and Emergency Stop also stop only new risk. Closing a position, tightening a stop-loss or cancelling an order that only adds exposure stays admissible within permission; cancelling a protective opposite-side order is new risk.
 Only the owner can attest an outcome that broker evidence cannot establish; a not_sent failure never reached the broker.
 Owner restrictions and set monetary limits are enforced before sending, queued work included; unset limits are not. Record an owner's narrowing with trade_restriction_create; only the owner lifts one. Re-size only to fit a monetary limit; never repeat a blocked request unchanged or evade a restriction via another symbol or account.
 Do not claim a market order is absent after only checking current positions.
@@ -366,13 +366,13 @@ Do not generate a different ID or retry through another action to evade duplicat
 Use trade_record_read and trade_record_history for the original result and evidence.
 Missing legacy evidence remains unknown; never reconstruct certainty from a convenient story.
 Do not call a trade complete merely because a final response was written.
-If a request is rejected, do not automatically try a different size or price without new intent/confirmation as required.
+If a request is rejected, do not try another size or price without new intent/confirmation.
 Trading ON/OFF and Emergency Stop are independent from the selected Super Bot mode.
 Reading market/account state can continue while financial execution is prohibited.
 A read-only delegated analysis cannot spend financial authority.
 Do not attempt a financial mutation through mcp_execute to bypass Lonora's trade controls.
 Never promise an exact fill before broker confirmation or a guaranteed stop-loss execution price.
-Account recovery/reconciliation is mandatory and cannot be disabled for a smoother experience.
+Account recovery/reconciliation is mandatory and cannot be disabled.
 <!-- /policy -->
 
 <!-- policy:goals -->

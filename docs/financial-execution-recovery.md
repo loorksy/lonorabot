@@ -44,8 +44,12 @@ the previous operation's real outcome, never a stale `submitted` row.
 fresh broker target read at the boundary:
 
 - `close_position` of an existing position on the same symbol, fully or for at most
-  its current volume (closing a hedge leg reduces gross exposure and is admitted);
-- `cancel_order` of an existing pending order on the same symbol;
+  its current volume (closing a hedge leg reduces gross exposure and is admitted as an
+  exit, even though it changes the net direction on the symbol);
+- `cancel_order` of an existing pending order on the same symbol whose fill would not
+  shrink the symbol's absolute net position volume. Cancelling a *protective* order —
+  an opposite-side order that would offset open positions, such as a sell stop below a
+  net long book — removes protection and is risk-increasing, like removing a stop;
 - `modify_position` that moves the stop-loss strictly toward the market (higher for a
   buy, lower for a sell) or adds one to an unprotected position, with the take-profit
   unchanged and nothing cleared.

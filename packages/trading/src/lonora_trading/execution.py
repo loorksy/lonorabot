@@ -194,7 +194,11 @@ class ExecutionService:
         planned_snapshot = await preflight(broker, request)
         # Global OFF/Emergency Stop and unresolved operations stop new risk, not exits.
         # The final decision is repeated against a fresh target inside before_send.
-        planned_reducing = risk_reducing(request, management_target(planned_snapshot, request))
+        planned_reducing = risk_reducing(
+            request,
+            management_target(planned_snapshot, request),
+            positions=planned_snapshot.positions,
+        )
         require_trading(controls, risk_reducing=planned_reducing)
         async with self.db.sessions() as session, session.begin():
             if lease:
@@ -330,7 +334,9 @@ class ExecutionService:
                 await authorization()
             snapshot = await preflight(broker, request)
             before_snapshot = snapshot
-            reducing = risk_reducing(request, management_target(snapshot, request))
+            reducing = risk_reducing(
+                request, management_target(snapshot, request), positions=snapshot.positions
+            )
             policy = await execution_policy(self.db, owner_id, request.account_id)
             quality = evaluate_execution(
                 request, snapshot, policy, planned_quote=planned_snapshot.quote

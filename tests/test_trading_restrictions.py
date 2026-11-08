@@ -225,7 +225,7 @@ async def assess(
         request,
         state,
         limits,
-        reducing=request is not None and risk_reducing(request, target),
+        reducing=request is not None and risk_reducing(request, target, positions=state.positions),
         operations=operations or [],
         now=NOW,
     )
@@ -242,8 +242,9 @@ def test_action_classes_keep_reduce_only_admissible_except_all_mutations() -> No
     target_change = trade("modify_position", position_id="p1", take_profit="2050")
     cancel = trade("cancel_order", order_id="o1")
     edit_order = trade("modify_order", order_id="o1", price="1991")
-    assert risk_reducing(close, held) and risk_reducing(tighten, held)
-    assert not risk_reducing(widen, held)
+    assert risk_reducing(close, held, positions=[held])
+    assert risk_reducing(tighten, held, positions=[held])
+    assert not risk_reducing(widen, held, positions=[held])
     for action in ("buy", "sell", "buy_limit", "sell_stop"):
         entry = trade(action, volume="0.1", **({"price": "1990"} if "_" in action else {}))
         assert prohibits("no_new_entries", entry, reducing=False)

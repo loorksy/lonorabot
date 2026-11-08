@@ -5,17 +5,26 @@ boundary (never the model's or caller's description), it can only shrink the acc
 gross exposure or bound its loss:
 
 - ``close_position`` of an existing open position on the same symbol, in full or for at
-  most its current volume. Closing one leg of a hedge reduces gross exposure even though
-  it can raise net directional exposure; flattening a hedged book requires it.
-- ``cancel_order`` of an existing pending order on the same symbol (removes exposure the
-  order could create).
+  most its current volume. Closing is an exit (the owner's "Stop new trading" keeps
+  exits allowed). Closing one leg of a hedge reduces gross exposure and modeled loss at
+  the stops even though it can raise net directional exposure on the symbol: that is
+  deliberate, since flattening a hedged book requires it, and owner-facing texts for
+  ``no_risk_increase`` and Emergency Stop say that closing a hedge leg stays allowed.
+- ``cancel_order`` of an existing pending order on the same symbol whose fill would not
+  reduce the symbol's absolute net position volume: an entry order only adds exposure,
+  so removing it reduces risk. A *protective* order — an opposite-side order whose fill
+  would offset open positions on the symbol (for example a sell stop below a net long
+  book) — bounds the book's loss like a stop-loss does, so cancelling it is removing
+  protection and counts as risk-increasing. An order of unknown direction against a
+  non-flat book is treated as protective.
 - ``modify_position`` that only moves the stop-loss strictly toward the market — higher
   for a buy, lower for a sell — or adds a stop-loss to an unprotected position, while the
   take-profit is unchanged and nothing is cleared.
 
 Everything else is *risk-increasing* for admission: every entry (market or pending), any
-pending-order edit, take-profit changes, removing protection, widening or keeping a stop,
-and any request whose target is missing or does not match.
+pending-order edit, take-profit changes, removing protection (including cancelling a
+protective order), widening or keeping a stop, and any request whose target is missing
+or does not match.
 
 Global Trading OFF and Emergency Stop stop new risk, not exits: a risk-reducing request
 stays admissible on every admission path. This relaxes no authorization — each path has
@@ -35,6 +44,8 @@ blocks new risk on the account; a ``degraded`` one is decided by the scoped jour
 instead.
 """
 
+from collections.abc import Iterable
+from decimal import Decimal
 from typing import Any
 
 from lonora_contracts.account import Order, Position
@@ -60,7 +71,35 @@ def may_reduce_risk(request: TradeRequest) -> bool:
     return request.action in REDUCING_ACTIONS
 
 
-def risk_reducing(request: TradeRequest, target: Position | Order | None) -> bool:
+def net_position_volume(positions: Iterable[Position], symbol: str) -> Decimal | None:
+    """Signed open volume on one symbol (long minus short); None if a side is unknown."""
+    net = Decimal(0)
+    for position in positions:
+        if position.symbol != symbol:
+            continue
+        side = direction(position.side)
+        if side == "unknown":
+            return None
+        net += position.volume if side == "buy" else -position.volume
+    return net
+
+
+def protective_order(order: Order, positions: Iterable[Position]) -> bool:
+    """Whether filling this pending order would shrink the symbol's absolute net volume."""
+    net = net_position_volume(positions, order.symbol)
+    if net == 0:
+        return False  # A flat book: any fill only adds exposure.
+    side = direction(order.side)
+    if net is None or side == "unknown":
+        return True  # Cannot prove the order only adds exposure.
+    filled = net + (order.volume if side == "buy" else -order.volume)
+    return abs(filled) < abs(net)
+
+
+def risk_reducing(
+    request: TradeRequest, target: Position | Order | None, *, positions: Iterable[Position]
+) -> bool:
+    """Classify against the fresh target and the fresh open positions on the account."""
     if request.action == "close_position":
         return (
             isinstance(target, Position)
@@ -74,6 +113,7 @@ def risk_reducing(request: TradeRequest, target: Position | Order | None) -> boo
             isinstance(target, Order)
             and target.id == request.order_id
             and target.symbol == request.symbol
+            and not protective_order(target, positions)
         )
     if (
         request.action != "modify_position"

@@ -111,9 +111,44 @@ def request(action: str, **fields: Any) -> TradeRequest:
 def test_risk_reducing_is_judged_against_the_current_broker_target(
     trade: TradeRequest, target: Position | Order | None, expected: bool
 ) -> None:
-    assert risk_reducing(trade, target) is expected
+    assert risk_reducing(trade, target, positions=[]) is expected
     if expected:
         assert may_reduce_risk(trade)
+
+
+@pytest.mark.parametrize(
+    ("book", "pending", "expected"),
+    [
+        # A flat book (no position or a hedged pair): any fill only adds exposure.
+        ([], order(side="sell_stop"), True),
+        ([position(), position("sell", id="p2")], order(side="sell_stop"), True),
+        # An entry order on the same side as the book only adds exposure.
+        ([position()], order(side="buy_limit"), True),
+        ([position("sell")], order(side="sell_limit"), True),
+        # A protective order offsets the book: cancelling it removes protection.
+        ([position()], order(side="sell_stop"), False),
+        ([position("sell")], order(side="buy_stop"), False),
+        ([position(), position("sell", id="p2", volume="0.4")], order(side="sell_stop"), False),
+        # An order that would flip the book to at least the same size does not protect it.
+        ([position()], order(side="sell_stop", volume="2"), True),
+        # Positions on another symbol never make an order protective.
+        ([position(symbol="EURUSD")], order(side="sell_stop"), True),
+        # Unknown direction against a non-flat book cannot be proven to only add exposure.
+        ([position()], order(side="close_by"), False),
+        ([position("hedge")], order(side="buy_limit"), False),
+    ],
+)
+def test_cancelling_a_protective_order_is_not_risk_reducing(
+    book: list[Position], pending: Order, expected: bool
+) -> None:
+    cancel = request("cancel_order", order_id="o1")
+    assert risk_reducing(cancel, pending, positions=book) is expected
+
+
+def test_closing_a_hedge_leg_stays_an_exit() -> None:
+    long, short = position(), position("sell", id="p2")
+    close = request("close_position", position_id="p2")
+    assert risk_reducing(close, short, positions=[long, short])
 
 
 def test_global_controls_stop_new_risk_but_never_trap_an_exit() -> None:

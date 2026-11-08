@@ -123,7 +123,11 @@ Matching ignores letter case only. The action classes:
   (`modify_order`). Managing, closing and cancelling continue. This is "keep
   watching gold, but stop opening new positions today".
 - `no_risk_increase`: only risk-reducing requests (`admission.risk_reducing` against
-  the fresh broker target): closes, cancellations, tighter or added stops.
+  the fresh broker target and open positions): closes, cancellations of orders that
+  would only add exposure, tighter or added stops. Closing one leg of a hedged book is
+  an exit and stays allowed even though it changes the net direction on the symbol;
+  cancelling a protective order (an opposite-side order whose fill would offset open
+  positions on its symbol) removes protection and is blocked like removing a stop.
 - `all_mutations`: no broker mutation in the scope, reduce-only included.
 
 Restrictions govern agent-originated operations: every leased path (signed account

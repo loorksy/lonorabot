@@ -15,7 +15,9 @@ from .domain import Contract
 
 # no_new_entries    no new market or pending entry and no pending-entry edit; position
 #                   management, closes and cancellations stay admissible.
-# no_risk_increase  only risk-reducing actions (close, cancel, tighten/add a stop-loss).
+# no_risk_increase  only risk-reducing actions (close, cancel an order that would add
+#                   exposure, tighten/add a stop-loss). Closing a hedge leg stays an exit;
+#                   cancelling a protective opposite-side order removes protection.
 # all_mutations     no broker mutation at all in the scope, reduce-only included.
 RestrictionActionClass = Literal["no_new_entries", "no_risk_increase", "all_mutations"]
 # owner_ui          created by the authenticated owner directly.

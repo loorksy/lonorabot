@@ -745,6 +745,10 @@ async def main() -> None:
         assert (await journal(results[0]["operation_id"])).status == "ambiguous"
         resting = await run(trade("buy_limit", POUND, volume="0.2", price="99"))
         assert resting.status == "confirmed" and resting.broker_id
+        # A protective order: a sell stop that would offset the net long EURO book.
+        assert (await run(trade("buy", EURO, volume="0.2", stop_loss="95"))).status == "confirmed"
+        guard = await run(trade("sell_stop", EURO, volume="0.2", price="96"))
+        assert guard.status == "confirmed" and guard.broker_id, guard
         await refresh()
         held = sorted(
             (p for p in await broker.positions() if p.symbol == GOLD and p.stop_loss),
@@ -768,6 +772,13 @@ async def main() -> None:
             {"action": "buy", "symbol": EURO, "volume": "0.1", "stop_loss": "95"}
         )
         assert entry["status"] == "failed" and entry["code"] == "emergency_stop", entry
+        # Cancelling a protective order removes protection: new risk, not an exit.
+        unguarded = await approved(
+            {"action": "cancel_order", "symbol": EURO, "order_id": guard.broker_id}
+        )
+        assert unguarded["status"] == "failed", unguarded
+        assert unguarded["code"] == "emergency_stop", unguarded
+        assert any(o.id == guard.broker_id for o in await broker.orders())
         widened = await approved(
             {
                 "action": "modify_position",
@@ -793,7 +804,7 @@ async def main() -> None:
         assert entry["status"] == "failed" and entry["code"] == "trading_disabled", entry
         await save_controls(db, TradingControl(enabled=True))
         print(
-            "PASS approved agent cards close, cancel and tighten under Emergency Stop and Trading OFF on an uncertain market, while entries and wider stops stay blocked"
+            "PASS approved agent cards close, cancel and tighten under Emergency Stop and Trading OFF on an uncertain market, while entries, wider stops and cancelling a protective order stay blocked"
         )
     finally:
         await save_controls(db, original_controls)
