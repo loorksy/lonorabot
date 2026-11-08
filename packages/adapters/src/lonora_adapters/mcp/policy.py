@@ -140,6 +140,30 @@ FINANCIAL_WORDS = frozenset(
         "leverage",
         "liquidate",
         "forex",
+        # Broker platforms and trading terms that only mean money here.
+        "mt4",
+        "mt5",
+        "metatrader",
+        "ctrader",
+        "metaapi",
+        "oanda",
+        "ibkr",
+        "alpaca",
+        "binance",
+        "bybit",
+        "kraken",
+        "coinbase",
+        "bitmex",
+        "okx",
+        "deribit",
+        "fxcm",
+        "exness",
+        "stoploss",
+        "takeprofit",
+        "hedge",
+        "hedging",
+        "lot",
+        "lots",
         # Payments and transfers.
         "withdraw",
         "withdrawal",
@@ -229,6 +253,51 @@ MONEY_CONTEXT_WORDS = frozenset(
     }
 )
 SENDING_VERBS = frozenset({"send", "give", "move", "submit", "place", "broadcast"})
+# Trading terms that move money next to an acting verb: "open_long", "go_short",
+# "modify_sl", "set_exposure"; "long_description" or "shorten_url" pass.
+TRADE_CONTEXT_WORDS = frozenset({"long", "short", "sl", "tp", "exposure", "trailing"})
+ACTING_VERBS = frozenset(
+    {
+        "open",
+        "close",
+        "go",
+        "enter",
+        "exit",
+        "modify",
+        "set",
+        "move",
+        "adjust",
+        "change",
+        "update",
+        "clear",
+        "remove",
+        "increase",
+        "reduce",
+        "flatten",
+        "add",
+        "cancel",
+        "execute",
+        "place",
+        "submit",
+        "take",
+        "put",
+    }
+)
+# Broker words that mark a description, title or name as trading, in any spelling
+# ("MetaTrader", "meta trader", "cTrader", "MT5").
+BROKER_PHRASE = re.compile(
+    r"\b(?:brokers?|brokerage|forex|meta\s*trader|meta\s*api|c\s*trader|mt\s*[45])\b",
+    re.IGNORECASE,
+)
+BROKER_NAMES = ("metatrader", "metaapi", "ctrader")
+# Input fields of a trading shape: an instrument with a size, or a ticket with a stop or
+# a target, whatever the tool is called.
+INSTRUMENT_WORDS = frozenset({"symbol", "instrument", "ticker", "pair", "epic"})
+SIZE_WORDS = frozenset(
+    {"lot", "lots", "size", "units", "quantity", "qty", "volume", "contracts", "notional"}
+)
+TICKET_WORDS = frozenset({"ticket", "deal", "position", "order"})
+PROTECTION_WORDS = frozenset({"sl", "tp", "stop", "stoploss", "takeprofit", "trailing"})
 ASSETS = (
     r"(?:funds|money|cash|crypto(?:currency|currencies)?|assets|tokens?|coins?|stablecoins?"
     r"|eth|ether|btc|bitcoin|usdc|usdt|sol|sats|satoshis|lightning|payments?)"
@@ -305,6 +374,20 @@ def transfer_shaped(schema: Any) -> tuple[bool, bool]:
     return amount, amount and recipient
 
 
+def trading_shaped(schema: Any) -> bool:
+    """Whether an input schema looks like an order or a position change: an instrument
+    with a size, or a ticket with a stop or a target."""
+    words: set[str] = set()
+    for field in schema_fields(schema):
+        ordered = word_list(field)
+        words.update(ordered)
+        words.add("".join(ordered))
+    return bool(
+        (words & INSTRUMENT_WORDS and words & SIZE_WORDS)
+        or (words & TICKET_WORDS and words & PROTECTION_WORDS)
+    )
+
+
 def financial_tool(item: dict[str, Any]) -> bool:
     """Whether an advertised tool could trade or move money (then it is never trusted)."""
     name = item.get("name")
@@ -313,9 +396,12 @@ def financial_tool(item: dict[str, Any]) -> bool:
     words = name_words(name)
     amount, transfer = transfer_shaped(item.get("inputSchema"))
     if (
-        words & FINANCIAL_WORDS
+        any(broker in "".join(word_list(name)) for broker in BROKER_NAMES)
+        or words & FINANCIAL_WORDS
         or transfer
+        or trading_shaped(item.get("inputSchema"))
         or (words & MONEY_CONTEXT_WORDS and (words & SENDING_VERBS or amount))
+        or (words & TRADE_CONTEXT_WORDS and words & ACTING_VERBS)
     ):
         return True
     annotations = item.get("annotations")
@@ -323,8 +409,7 @@ def financial_tool(item: dict[str, Any]) -> bool:
     if isinstance(annotations, dict):
         titles.append(cast(dict[str, Any], annotations).get("title"))
     return any(
-        isinstance(value, str)
-        and (FINANCIAL_PHRASE.search(value) or name_words(value) & {"broker", "brokerage"})
+        isinstance(value, str) and (FINANCIAL_PHRASE.search(value) or BROKER_PHRASE.search(value))
         for value in titles
     )
 

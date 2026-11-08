@@ -234,9 +234,11 @@ export const ownerActionLabels = {
     trustHint:
       "Agents use it without asking again; you can remove it in Capabilities. It never carries money authority.",
     trustServerHint:
-      "Read only runs just the tools that only read; non-financial writes runs them all. Tools that can trade or move money never run, and a changed tool waits for your review.",
+      "Read only runs just the tools that only read; non-financial writes runs them all. Tools that look like they trade or move money are blocked and never run, and a changed tool waits for your review. Money moves only through your grants.",
     trustServerReadHint:
-      "Its tools only read. Tools that can trade or move money never run, and a changed tool waits for your review.",
+      "Its tools only read. Tools that look like they trade or move money are blocked and never run, and a changed tool waits for your review.",
+    trustServerBlockedHint:
+      "It offers tools that look like they trade or move money. They are blocked, so only its reading tools can run. Money moves only through your grants.",
     trust: "Trust",
     trustRead: "Trust: read only",
     trustWrite: "Trust: non-financial writes",
@@ -463,9 +465,11 @@ export const ownerActionLabels = {
     trustHint:
       "يستخدمه الوكلاء دون أن يسألوك مجددًا، وتستطيع إزالته من القدرات. لا يحمل أي صلاحية مالية.",
     trustServerHint:
-      "القراءة فقط تشغّل الأدوات التي تقرأ فحسب، والكتابة غير المالية تشغّلها كلها. الأدوات التي تتداول أو تحرّك المال لا تعمل أبدًا، وأي أداة تتغيّر تنتظر مراجعتك.",
+      "القراءة فقط تشغّل الأدوات التي تقرأ فحسب، والكتابة غير المالية تشغّلها كلها. الأدوات التي يبدو أنها تتداول أو تحرّك المال محظورة ولا تعمل أبدًا، وأي أداة تتغيّر تنتظر مراجعتك. المال لا يتحرك إلا ضمن تفويضاتك.",
     trustServerReadHint:
-      "أدواته تقرأ فقط. الأدوات التي تتداول أو تحرّك المال لا تعمل أبدًا، وأي أداة تتغيّر تنتظر مراجعتك.",
+      "أدواته تقرأ فقط. الأدوات التي يبدو أنها تتداول أو تحرّك المال محظورة ولا تعمل أبدًا، وأي أداة تتغيّر تنتظر مراجعتك.",
+    trustServerBlockedHint:
+      "يقدّم أدوات يبدو أنها تتداول أو تحرّك المال. هي محظورة، فلا تعمل إلا أدواته التي تقرأ. المال لا يتحرك إلا ضمن تفويضاتك.",
     trust: "ثقة",
     trustRead: "ثقة: قراءة فقط",
     trustWrite: "ثقة: كتابة غير مالية",
@@ -1024,7 +1028,9 @@ function sourceLines(card: OwnerAction, lang: Language, text: OwnerActionText): 
       : "";
   const lines = [`${text[SOURCE_LABEL[source.kind]]}: ${label}`];
   if (source.tools?.length) lines.push(`${text.trustTools}: ${nameList(source.tools, lang)}`);
-  if (source.writes?.length) lines.push(`${text.trustWrites}: ${nameList(source.writes, lang)}`);
+  // A server with a blocked tool runs only its reading tools, so no write is listed.
+  if (source.writes?.length && !source.blocked?.length)
+    lines.push(`${text.trustWrites}: ${nameList(source.writes, lang)}`);
   if (source.blocked?.length) lines.push(`${text.trustBlocked}: ${nameList(source.blocked, lang)}`);
   if (source.subscribe) lines.push(text.trustSubscribe);
   return lines;
@@ -1385,9 +1391,10 @@ export function ownerActionCard(
       const source = facts.source;
       title = source?.review ? text.trustReviewTitle : text.trustTitle;
       lines.push(...sourceLines(card, lang, text));
-      if (source?.kind === "mcp_server" && !source.writes?.length) {
-        // Every tool only reads: one tap, nothing to choose.
-        hint = text.trustServerReadHint;
+      if (source?.kind === "mcp_server" && (!source.writes?.length || source.blocked?.length)) {
+        // Every tool only reads, or the server offers a tool that can trade or move money
+        // (then only its reading tools may run): one tap, nothing to choose.
+        hint = source.blocked?.length ? text.trustServerBlockedHint : text.trustServerReadHint;
         buttons = [
           { key: "confirm", label: text.trust, decision: "confirm", tier: "read", primary: true },
           { key: "cancel", label: text.notNow, decision: "cancel", primary: false },
@@ -1530,6 +1537,10 @@ const errors: Readonly<Record<string, { en: string; ar: string }>> = {
   owner_action_tier_required: {
     en: "Choose what its tools may do.",
     ar: "اختر ما يُسمح لأدواته بفعله.",
+  },
+  trusted_source_write_blocked: {
+    en: "This server offers tools that look like they trade or move money, so only its reading tools can run.",
+    ar: "يقدّم هذا الخادم أدوات يبدو أنها تتداول أو تحرّك المال، فلا تعمل إلا أدواته التي تقرأ.",
   },
   owner_action_connection_required: {
     en: "Fill in the form to connect it.",

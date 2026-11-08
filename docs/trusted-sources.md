@@ -68,7 +68,20 @@ operator declared it. The order is:
    "send 5 ETH", "broadcast a signed transaction", "place a bet"), and any tool whose
    input schema is shaped like a transfer: an amount, value, quantity, volume or lots
    field together with a recipient, to, address, wallet, IBAN or account field, or any
-   private key, seed or mnemonic field. Money moves only through Lonora's executor.
+   private key, seed or mnemonic field. Broker trading shapes are blocked the same way:
+   a broker platform or trading term in the name (MT4, MT5, MetaTrader, cTrader,
+   MetaApi, broker exchanges, lot, hedge, stop loss, take profit), a trading term next
+   to an acting verb (`open_long`, `go_short`, `modify_sl`, `set_exposure`), a broker
+   named in the description ("Close an MT5 ticket"), and an input schema shaped like an
+   order or a position change: an instrument (symbol, instrument, ticker, pair) with a
+   size (lot, size, units, quantity, volume), or a ticket, deal, position or order with
+   a stop or a target. Money moves only through Lonora's executor.
+   A server that offers any blocked tool is trusted to read only: its card offers the
+   read tier alone, the owner's route refuses the write tier
+   (`trusted_source_write_blocked`), and no card proposes widening it. A trading-shaped
+   tool is never pinned, so its own `readOnlyHint` cannot admit it to the read tier.
+   The card and Capabilities say what is enforced: tools that look like they trade or
+   move money are blocked, and money moves only through the owner's grants.
 5. At the read tier a tool still marked read-only after discovery runs; a hint that
    dropped is refused (`mcp_tool_needs_write_trust`). A remote hint only narrows: a tool
    that becomes read-only later still needs the write tier, because its review said

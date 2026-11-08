@@ -76,7 +76,8 @@ export const capabilityLabels = {
     trust: "Trust",
     trustRead: "Trust: read only",
     trustWrite: "Trust: non-financial writes",
-    neverMoney: "Tools that can trade or move money never run.",
+    neverMoney:
+      "Tools that look like they trade or move money are blocked and never run. Money moves only through your grants.",
     writes: "may change something (only with non-financial writes)",
     needWrites: "need non-financial writes",
     needsReview: "declaration removed, review it to keep using it",
@@ -141,7 +142,8 @@ export const capabilityLabels = {
     trust: "ثقة",
     trustRead: "ثقة: قراءة فقط",
     trustWrite: "ثقة: كتابة غير مالية",
-    neverMoney: "الأدوات التي تتداول أو تحرّك المال لا تعمل أبدًا.",
+    neverMoney:
+      "الأدوات التي يبدو أنها تتداول أو تحرّك المال محظورة ولا تعمل أبدًا. المال لا يتحرك إلا ضمن تفويضاتك.",
     writes: "قد تغيّر شيئًا (مع الكتابة غير المالية فقط)",
     needWrites: "تحتاج الكتابة غير المالية",
     needsReview: "أُزيل الإعلان، راجعه لتواصل استخدامه",

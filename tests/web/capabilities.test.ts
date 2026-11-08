@@ -39,7 +39,7 @@ const base: OwnerAction = {
       subscribe: false,
       tools: ["post_reply", "search_posts", "user_timeline"],
       writes: ["post_reply"],
-      blocked: ["place_order"],
+      blocked: [],
       review: false,
       tier: null,
     },
@@ -53,7 +53,7 @@ const base: OwnerAction = {
   updated_at: "2026-11-08T10:00:00Z",
 };
 
-test("an MCP trust card lists the reviewed tools, the writing and blocked ones and two tiers", () => {
+test("an MCP trust card lists the reviewed tools, the writing ones and two tiers", () => {
   for (const locale of ["en", "ar"] as const) {
     const spec = ownerActionCard(base, locale);
     const text = ownerActionLabels[locale];
@@ -63,7 +63,6 @@ test("an MCP trust card lists the reviewed tools, the writing and blocked ones a
     assert.ok(spec.lines[1]?.includes(isolated("user_timeline")), spec.lines[1]);
     assert.ok(spec.lines[2]?.startsWith(text.trustWrites), spec.lines[2]);
     assert.ok(spec.lines[2]?.includes(isolated("post_reply")), spec.lines[2]);
-    assert.ok(spec.lines[3]?.startsWith(text.trustBlocked), spec.lines[3]);
     // Every line starts in the owner's language, never with a Latin name.
     for (const line of spec.lines) assert.ok(!line.startsWith("⁨"), line);
     assert.deepEqual(
@@ -76,6 +75,26 @@ test("an MCP trust card lists the reviewed tools, the writing and blocked ones a
     );
     assert.equal(spec.passkey, false);
     assert.equal(spec.credential, null);
+  }
+  // A server that offers a tool that can trade or move money is trusted to read only:
+  // its blocked tools are named, its writes are not offered.
+  const trading = {
+    ...base,
+    facts: { ...base.facts, source: { ...base.facts.source!, blocked: ["place_order"] } },
+  };
+  for (const locale of ["en", "ar"] as const) {
+    const spec = ownerActionCard(trading, locale);
+    const text = ownerActionLabels[locale];
+    assert.equal(spec.hint, text.trustServerBlockedHint);
+    assert.ok(!spec.lines.some((line) => line.startsWith(text.trustWrites)));
+    assert.ok(spec.lines.some((line) => line.startsWith(text.trustBlocked)));
+    assert.deepEqual(
+      spec.buttons.map((button) => [button.decision, button.tier ?? null]),
+      [
+        ["confirm", "read"],
+        ["cancel", null],
+      ],
+    );
   }
   const review = ownerActionCard(
     {
@@ -112,7 +131,7 @@ test("a server whose tools only read is one tap: nothing to choose", () => {
         subscribe: false,
         tools: ["search_posts"],
         writes: [],
-        blocked: ["place_order"],
+        blocked: [],
         review: false,
         tier: null,
       },

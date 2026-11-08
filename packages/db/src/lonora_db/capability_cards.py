@@ -134,8 +134,13 @@ async def stale_reason(
             trusted is not None
             and trusted.added_via != "operator"
             and same_review(trusted, payload)
-            # Trusted for reading while some tools write: the card can still widen it.
-            and (trusted.effect_tier == "write_nonfinancial" or not review_writes(payload))
+            # Trusted for reading while some tools write: the card can still widen it,
+            # unless the server offers a tool that can trade or move money (read only).
+            and (
+                trusted.effect_tier == "write_nonfinancial"
+                or not review_writes(payload)
+                or bool(payload.get("blocked"))
+            )
         ):
             return "source_already_trusted"
         return None

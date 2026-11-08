@@ -175,9 +175,12 @@ export function CapabilitiesSection() {
                         disabled={busy || !preview.tools.tools.length}
                         onClick={() => void trust("read")}
                       >
-                        {preview.tools.writes.length ? text.trustRead : text.trust}
+                        {preview.tools.writes.length && !preview.tools.blocked.length
+                          ? text.trustRead
+                          : text.trust}
                       </button>
-                      {preview.tools.writes.length > 0 && (
+                      {/* A server with a blocked money tool is trusted to read only. */}
+                      {preview.tools.writes.length > 0 && !preview.tools.blocked.length && (
                         <button
                           type="button"
                           disabled={busy}

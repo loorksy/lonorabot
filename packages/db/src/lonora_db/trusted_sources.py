@@ -141,6 +141,10 @@ async def trust_source(
             raise LonoraError("mcp_not_found", 404)
         if not endpoint_sha256 or not tool_hashes:
             raise LonoraError("mcp_nothing_to_trust", 422)
+        if tier == "write_nonfinancial" and blocked_tools:
+            # A server that offers a tool that can trade or move money is a trading server:
+            # its other writes are not trusted either, only its reading tools run.
+            raise LonoraError("trusted_source_write_blocked", 422)
     await lock_sources(session, owner_id)
     await ensure_defaults(session, owner_id)
     row = await active_source(session, owner_id, kind, identifier, lock=True)

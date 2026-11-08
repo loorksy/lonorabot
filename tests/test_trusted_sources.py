@@ -154,6 +154,56 @@ def test_wallet_payment_and_betting_tools_fail_closed() -> None:
     assert not financial_tool({"name": "draft", "inputSchema": email})
 
 
+# Broker trading shapes a MetaTrader-style server offers; each must be blocked.
+TRADING_TOOLS: list[dict[str, Any]] = [
+    {"name": "open_long", "description": "Open a long on a symbol."},
+    {"name": "go_short", "description": "Go short XAUUSD."},
+    {"name": "mt5_execute", "description": "Run an MT5 instruction (deal)."},
+    {"name": "close_ticket", "description": "Close an MT5 ticket by id."},
+    {"name": "modify_sl", "description": "Move or clear the stop of a ticket."},
+    {"name": "set_exposure", "description": "Adjust exposure on an instrument."},
+    {"name": "hedge_all"},
+    {"name": "lookup", "description": "Talks to your MetaTrader terminal."},
+]
+TRADING_SCHEMAS: list[dict[str, Any]] = [
+    {"symbol": {"type": "string"}, "lot": {"type": "number"}},
+    {"instrument": {"type": "string"}, "units": {"type": "number"}},
+    {"ticker": {"type": "string"}, "size": {"type": "number"}},
+    {"ticket": {"type": "integer"}, "sl": {"type": ["number", "null"]}},
+    {"deal_id": {"type": "string"}, "takeProfit": {"type": "number"}},
+]
+
+
+def test_broker_trading_tools_fail_closed() -> None:
+    for item in TRADING_TOOLS:
+        assert financial_tool({**item, "inputSchema": SCHEMA}), item
+    for properties in TRADING_SCHEMAS:
+        assert financial_tool(
+            {"name": "do_it", "inputSchema": {"type": "object", "properties": properties}}
+        ), properties
+    quote: dict[str, Any] = {"type": "object", "properties": {"symbol": {}, "timeframe": {}}}
+    pages: dict[str, Any] = {"type": "object", "properties": {"order_by": {}, "limit": {}}}
+    for name, schema in (
+        ("get_quote", quote),
+        ("get_candles", quote),
+        ("search_posts", pages),
+        ("long_description", SCHEMA),
+        ("shorten_url", SCHEMA),
+        ("close_issue", SCHEMA),
+        ("update_ticket", SCHEMA),
+    ):
+        assert not financial_tool({"name": name, "inputSchema": schema}), name
+    # A server that offers any of them is reviewed with them blocked, never pinned.
+    review = review_tools(
+        [
+            {"name": "get_quote", "inputSchema": quote, "annotations": {"readOnlyHint": True}},
+            *({**item, "inputSchema": SCHEMA} for item in TRADING_TOOLS[:5]),
+        ]
+    )
+    assert list(review.tools) == ["get_quote"] and review.writes == []
+    assert review.blocked == sorted(item["name"] for item in TRADING_TOOLS[:5])
+
+
 def test_trusted_identifiers_are_canonical_and_bounded() -> None:
     assert normalize_identifier("github_repo", "Owner/Repo.git") == "owner/repo"
     assert normalize_identifier("feed_domain", "WWW.Reuters.com.") == "reuters.com"
@@ -612,6 +662,19 @@ async def test_owner_preview_pins_exactly_what_was_shown_and_writes_are_never_re
             )
             assert stale.status_code == 409 and stale.json()["code"] == "mcp_tools_changed"
             preview = await fixture.request("POST", f"/trusted-sources/mcp/{connection_id}/preview")
+            # While it offers a tool that can place orders it is trusted to read only.
+            refused_write = await fixture.client.post(
+                f"/api/trusted-sources/mcp/{connection_id}",
+                json={"tier": "write_nonfinancial", "digest": preview["digest"]},
+            )
+            assert refused_write.status_code == 422, refused_write.text
+            assert refused_write.json()["code"] == "trusted_source_write_blocked"
+            server.tools = [
+                {"name": "search_posts", "inputSchema": server.schema, "annotations": READS},
+                {"name": "post_note", "inputSchema": SCHEMA, "annotations": WRITES},
+            ]
+            preview = await fixture.request("POST", f"/trusted-sources/mcp/{connection_id}/preview")
+            assert preview["blocked"] == []
             trusted = await fixture.request(
                 "POST",
                 f"/trusted-sources/mcp/{connection_id}",
@@ -752,36 +815,36 @@ async def test_a_wallet_server_moves_no_money_and_read_only_refuses_its_writes()
             async with fixture.runtime.db.sessions() as session:
                 receipt = await session.get(EffectReceiptRow, mcp.receipt_key(context))
                 assert receipt is None
-            # The work needs the writing tool: one more card, and the owner widens the tier.
-            again = await call(
-                context,
-                "owner_action_propose",
-                kind="trust_source",
-                source_kind="mcp_server",
-                connection_id=connection_id,
+            # A server that offers money tools is never trusted to write: no card widens
+            # it, and the owner's route refuses the write tier too.
+            assert (
+                await refused(
+                    context,
+                    "owner_action_propose",
+                    kind="trust_source",
+                    source_kind="mcp_server",
+                    connection_id=connection_id,
+                )
+                == "owner_action_not_needed_source_already_trusted"
             )
-            widen = again["owner_action"]
-            assert widen["id"] != card_id and widen["status"] == "pending"
-            cards = cast(
-                list[dict[str, Any]],
-                await fixture.request("GET", "/owner-actions?thread_id=" + context.thread_id),
+            preview = await fixture.request("POST", f"/trusted-sources/mcp/{connection_id}/preview")
+            widen = await fixture.client.post(
+                f"/api/trusted-sources/mcp/{connection_id}",
+                json={"tier": "write_nonfinancial", "digest": preview["digest"]},
             )
-            shown = next(item for item in cards if item["id"] == widen["id"])
-            assert shown["facts"]["source"]["review"] is False
-            assert shown["facts"]["source"]["tier"] == "read"
-            confirmed = await decide(
-                fixture, widen["id"], {"decision": "confirm", "tier": "write_nonfinancial"}
+            assert widen.status_code == 422, widen.text
+            assert widen.json()["code"] == "trusted_source_write_blocked"
+            assert (
+                await refused(
+                    context,
+                    "mcp_execute",
+                    connection_id=connection_id,
+                    name="post_message",
+                    arguments={"query": "x"},
+                )
+                == "mcp_tool_needs_write_trust"
             )
-            assert confirmed.json()["status"] == "confirmed"
-            wrote = await call(
-                context,
-                "mcp_execute",
-                connection_id=connection_id,
-                name="post_message",
-                arguments={"query": "x"},
-            )
-            assert wrote["effect_tier"] == "write_nonfinancial"
-            assert server.calls.count("tools/call") == 2
+            assert server.calls.count("tools/call") == 1
         # Deleting the saved server removes its trust: nothing looks trusted that cannot run.
         await fixture.request("DELETE", "/mcp/" + connection_id)
         deleted, connection_id = connection_id, None

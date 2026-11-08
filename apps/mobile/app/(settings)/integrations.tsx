@@ -123,11 +123,16 @@ export default function Capabilities() {
         ) : null}
         <Text style={[{ color: colors.secondary }, align]}>{text.neverMoney}</Text>
         <Button
-          label={preview.tools.writes.length ? text.trustRead : text.trust}
+          label={
+            preview.tools.writes.length && !preview.tools.blocked.length
+              ? text.trustRead
+              : text.trust
+          }
           disabled={busy || !preview.tools.tools.length}
           onPress={() => void trust("read")}
         />
-        {preview.tools.writes.length ? (
+        {/* A server with a blocked money tool is trusted to read only. */}
+        {preview.tools.writes.length && !preview.tools.blocked.length ? (
           <Button
             label={text.trustWrite}
             secondary
