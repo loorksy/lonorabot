@@ -235,47 +235,29 @@ async def sync_goal_decision(db: Database, operation_id: str, *, settle: bool = 
 
 
 async def recover_goals(db: Database) -> int:
+    from lonora_db.item_failures import ItemGuard, blocked
+
     async with db.sessions() as session:
         pending = list(
-            await session.scalars(
-                select(GoalDecisionRow.operation_id)
-                .where(GoalDecisionRow.status.in_(["executing", "submitted", "ambiguous"]))
+            await session.execute(
+                select(GoalDecisionRow.operation_id, GoalDecisionRow.owner_id)
+                .where(
+                    GoalDecisionRow.status.in_(["executing", "submitted", "ambiguous"]),
+                    ~blocked("goal_decision", GoalDecisionRow.operation_id),
+                )
                 .limit(100)
             )
         )
+    # A goal decision mirrors a financial operation: it backs off but is never quarantined.
+    decisions = ItemGuard(db, "goal_decision", quarantine_after=None)
+    await decisions.prepare(operation_id for operation_id, _ in pending)
     recovered = 0
-    for operation_id in pending:
-        async with db.sessions() as session:
-            decision = await session.scalar(
-                select(GoalDecisionRow).where(GoalDecisionRow.operation_id == operation_id)
-            )
-            journal = await session.get(TradingJournalRow, operation_id)
-            if decision is None:
-                continue
-            goal_id, decision_id = decision.goal_id, decision.id
-            run = await session.get(RunRow, decision.run_id) if decision.run_id else None
-            live = bool(
-                run is not None
-                and run.status in {"leased", "running"}
-                and run.lease_expires_at
-                and run.lease_expires_at > utcnow()
-            )
-        if journal is None and decision.status == "executing" and not live:
-            async with db.sessions() as session, session.begin():
-                goal = await session.get(TradingGoalRow, goal_id, with_for_update=True)
-                current = await session.get(GoalDecisionRow, decision_id, with_for_update=True)
-                if (
-                    goal is not None
-                    and current is not None
-                    and await session.get(TradingJournalRow, operation_id) is None
-                ):
-                    current.status = "planned"
-                    state = copy.deepcopy(goal.state)
-                    state["steps"][current.step_id]["status"] = "pending"
-                    update_goal_state(session, goal, state)
-                    recovered += 1
-            continue
-        recovered += int(await sync_goal_decision(db, operation_id))
+    for operation_id, owner_id in pending:
+
+        async def sync(operation_id: str = operation_id) -> bool:
+            return await recover_decision(db, operation_id)
+
+        recovered += int(bool(await decisions.run(operation_id, owner_id, sync)))
     async with db.sessions() as session:
         waiting = list(
             await session.scalars(
@@ -283,21 +265,67 @@ async def recover_goals(db: Database) -> int:
                 .where(
                     TradingGoalRow.state["status"].as_string() == "waiting",
                     TradingGoalRow.state["code"].as_string() == "goal_target_pending",
+                    ~blocked("goal_target", TradingGoalRow.id),
                 )
                 .limit(100)
             )
         )
+    targets = ItemGuard(db, "goal_target", quarantine_after=None)
+    await targets.prepare(goal.id for goal in waiting)
+    for goal in waiting:
+
+        async def review(goal: TradingGoalRow = goal) -> bool:
+            return await restore_target_review(db, goal)
+
+        recovered += int(bool(await targets.run(goal.id, goal.owner_id, review)))
+    return recovered
+
+
+async def recover_decision(db: Database, operation_id: str) -> bool:
+    async with db.sessions() as session:
+        decision = await session.scalar(
+            select(GoalDecisionRow).where(GoalDecisionRow.operation_id == operation_id)
+        )
+        journal = await session.get(TradingJournalRow, operation_id)
+        if decision is None:
+            return False
+        goal_id, decision_id = decision.goal_id, decision.id
+        run = await session.get(RunRow, decision.run_id) if decision.run_id else None
+        live = bool(
+            run is not None
+            and run.status in {"leased", "running"}
+            and run.lease_expires_at
+            and run.lease_expires_at > utcnow()
+        )
+    if journal is None and decision.status == "executing" and not live:
+        async with db.sessions() as session, session.begin():
+            goal = await session.get(TradingGoalRow, goal_id, with_for_update=True)
+            current = await session.get(GoalDecisionRow, decision_id, with_for_update=True)
+            if (
+                goal is not None
+                and current is not None
+                and await session.get(TradingJournalRow, operation_id) is None
+            ):
+                current.status = "planned"
+                state = copy.deepcopy(goal.state)
+                state["steps"][current.step_id]["status"] = "pending"
+                update_goal_state(session, goal, state)
+                return True
+        return False
+    return await sync_goal_decision(db, operation_id)
+
+
+async def restore_target_review(db: Database, goal: TradingGoalRow) -> bool:
     from lonora_db.schema import RoutineRow
 
-    for goal in waiting:
-        step_id = str(goal.state["current_step"])
-        identifier = goal.state["steps"][step_id].get("target_review_id")
-        async with db.sessions() as session:
-            routine = await session.get(RoutineRow, identifier) if identifier else None
-        if routine is None:
-            await wait_for_goal_target(db, goal.owner_id, goal.id, step_id)
-            recovered += 1
-    return recovered
+    step_id = str(goal.state["current_step"])
+    identifier = goal.state["steps"][step_id].get("target_review_id")
+    async with db.sessions() as session:
+        routine = await session.get(RoutineRow, identifier) if identifier else None
+    if routine is not None:
+        return False
+    await wait_for_goal_target(db, goal.owner_id, goal.id, step_id)
+    return True
 
 
 async def wake_goal(

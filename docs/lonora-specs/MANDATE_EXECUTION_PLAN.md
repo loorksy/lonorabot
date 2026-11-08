@@ -26,8 +26,8 @@ These were verified by reading the code and are kept as the foundation:
 | An unresolvable uncertain operation freezes the whole account, including closes and stop-loss moves | `trading/execution.py`, `broker_recovery.py`, `brokers/metaapi.py` | 1 (T2) |
 | A model-independent 120k-char ceiling silently drops evidence mid-run; there is no in-run compaction | `adapter-kit/context.py` | 1 (E3) |
 | Backtesting engine shipped as an agent tool, which the mandate excludes | `market/research.py`, `tools/strategy_research.py` | 1 (T1) |
-| One failing scheduler step halts all maintenance, including broker reconciliation | `gateway/service.py` maintenance loop | 2 |
-| Financial and authority records are hard-deleted by FK cascades from ordinary deletes | `db/schema.py` | 2 |
+| One failing scheduler step halts all maintenance, including broker reconciliation | `gateway/service.py` maintenance loop | 1.5 (W15-0) |
+| Financial and authority records are hard-deleted by FK cascades from ordinary deletes | `db/schema.py` | 1.5 (W15-0) |
 | No off-app delivery to the owner (no push, no telephony) | gateway, voice | 3 |
 | Mobile has no trading controls, positions or emergency stop | `apps/mobile` | 3 |
 | The default update deploys a stale image that cannot start on the current schema | `infra/compose/deploy-main.sh` | 4 |
@@ -295,6 +295,7 @@ The owner asked, on 2026-11-08, for a simple experience without contradictions a
    - Each gateway maintenance step runs in its own supervised task with per-item fault isolation and its own liveness record. One bad routine, watch or attention event can no longer halt broker reconciliation.
    - A minimal LLM-independent watchdog detects stalled loops, runs recovered too many times and aging unresolved operations, and raises owner attention.
    - Financial and authority records (journal, approvals, grants, restrictions, decisions) are no longer cascade-deleted by ordinary deletes.
+   - Delivered on branch `w15-a1` (migrations `0036_durable_records` and `0037_gateway_reliability`); the design is in `docs/gateway-reliability.md`.
 2. **W15-1 Safety truth and one brake.**
    - A one-line trading readiness for every agent, shown in the permission frame and in a header safety pill on web and mobile.
    - One "Stop new trading / Resume" control.

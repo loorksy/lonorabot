@@ -5,6 +5,7 @@ from typing import Any
 
 from lonora_contracts.attention import AttentionClassification, AttentionPolicy
 from lonora_contracts.domain import utcnow
+from lonora_contracts.trading import IN_PROGRESS_STATUSES, UNRESOLVED_STATUSES
 from lonora_core.user_error import LonoraError
 from lonora_session.idempotency import request_hash, stable_id
 from sqlalchemy import select, text
@@ -20,8 +21,17 @@ from .schema import (
     SuperBotRequestRow,
     TicketRow,
     TradeApprovalRow,
+    TradingJournalRow,
 )
 from .transactions import SettingsRepository, owned_agent, owned_thread
+
+# Raised by the deterministic watchdog and the maintenance isolation, never by a model.
+SYSTEM_ATTENTION = {
+    "maintenance_item_quarantined": "important_change",
+    "run_quarantined": "action_required",
+    "operation_unresolved": "action_required",
+    "gateway_degraded": "important_change",
+}
 
 
 def attention_data(row: AttentionRow) -> dict[str, Any]:
@@ -48,6 +58,15 @@ async def policy(session: AsyncSession, owner_id: str) -> AttentionPolicy:
 
 
 async def mandatory_current(session: AsyncSession, row: AttentionRow) -> bool:
+    if row.code == "operation_unresolved":
+        journal = await session.get(TradingJournalRow, row.parameters.get("operation_id", ""))
+        return (
+            journal is not None
+            and journal.owner_id == row.owner_id
+            and journal.status in IN_PROGRESS_STATUSES | UNRESOLVED_STATUSES
+        )
+    if row.code == "run_quarantined":
+        return True
     if row.code == "super_bot_authorization":
         proposal = await session.get(
             SuperBotRequestRow, row.parameters.get("super_bot_request_id", "")
@@ -309,3 +328,86 @@ async def set_cursor(session: AsyncSession, owner_id: str, cursor: int) -> None:
         row.payload = {"cursor": max(cursor, int(row.payload.get("cursor", 0)))}
     else:
         session.add(SettingRow(key=key, payload={"cursor": cursor}))
+
+
+async def raise_system_attention(
+    session: AsyncSession,
+    owner_id: str,
+    code: str,
+    subject: str,
+    parameters: dict[str, Any] | None = None,
+) -> AttentionRow | None:
+    """One owner-visible item per (code, subject), straight to ready.
+
+    It does not depend on the event projection loop, so the watchdog can still reach
+    the owner while that loop is the thing that is stalled. Raising the same subject
+    again is a no-op, including after the owner has seen it.
+    """
+    from .personal_agent import ensure_personal_agent
+    from .threads import conversation_thread
+
+    importance = SYSTEM_ATTENTION[code]
+    logical = request_hash({"system": [owner_id, code, subject]})
+    if await session.scalar(
+        select(AttentionRow.id).where(
+            AttentionRow.owner_id == owner_id, AttentionRow.logical_key == logical
+        )
+    ):
+        return None
+    personal = await ensure_personal_agent(session, owner_id)
+    thread = await conversation_thread(session, owner_id, personal.id)
+    now = utcnow()
+    row = AttentionRow(
+        id=stable_id(owner_id, "attention:" + logical),
+        owner_id=owner_id,
+        agent_id=personal.id,
+        thread_id=thread.id,
+        logical_key=logical,
+        coalesce_key=request_hash({"scope": [owner_id, personal.id, "system:" + code, subject]}),
+        importance=importance,
+        code=code,
+        parameters={**(parameters or {}), "execution_authorized": False},
+        status="ready",
+        source_events=[],
+        source_count=1,
+        version=1,
+        due_at=now,
+    )
+    session.add(row)
+    await session.flush()
+    for kind in ("attention.updated", "attention.ready"):
+        emit(
+            session,
+            owner_id,
+            kind,
+            agent_id=row.agent_id,
+            thread_id=row.thread_id,
+            payload=attention_data(row),
+        )
+    return row
+
+
+async def settle_system_attention(
+    session: AsyncSession, owner_id: str, code: str, subject: str
+) -> bool:
+    """Withdraw an unread system item once its condition has cleared, so it never
+    keeps claiming a state that is no longer true."""
+    logical = request_hash({"system": [owner_id, code, subject]})
+    row = await session.scalar(
+        select(AttentionRow)
+        .where(AttentionRow.owner_id == owner_id, AttentionRow.logical_key == logical)
+        .with_for_update()
+    )
+    if row is None or row.status not in {"pending", "ready"}:
+        return False
+    row.status, row.version, row.updated_at = "suppressed", row.version + 1, utcnow()
+    row.parameters = {**row.parameters, "suppression_code": "attention_superseded_state"}
+    emit(
+        session,
+        owner_id,
+        "attention.updated",
+        agent_id=row.agent_id,
+        thread_id=row.thread_id,
+        payload=attention_data(row),
+    )
+    return True

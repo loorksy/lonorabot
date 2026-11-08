@@ -6,7 +6,9 @@ test("durable notification is shared across views and stays read after reload", 
   context,
 }) => {
   const fixture = JSON.parse(
-    execFileSync(".venv/bin/python", ["tests/check_attention_browser.py"], { encoding: "utf8" }),
+    execFileSync(".venv/bin/python", ["tests/check_attention_browser.py", "--uncertain"], {
+      encoding: "utf8",
+    }),
   );
   await context.addCookies(
     fixture.cookies.map((cookie) => ({
@@ -21,10 +23,19 @@ test("durable notification is shared across views and stays read after reload", 
   const inbox = page.getByTestId("attention-inbox");
   const alert = inbox.locator(`[data-attention-id="${fixture.notification.id}"]`);
   await expect(alert.getByText("Emergency Stop is active", { exact: true })).toBeVisible();
+  // The watchdog's aging-operation item: owner text and the symbol, never a raw id.
+  const uncertain = inbox.locator(`[data-attention-id="${fixture.uncertain.id}"]`);
+  await expect(
+    uncertain.getByText("A trade still has no confirmed broker result", { exact: true }),
+  ).toBeVisible();
+  await expect(uncertain.getByText("XAUUSD", { exact: true })).toBeVisible();
+  await expect(uncertain).not.toContainText(fixture.uncertain.parameters.operation_id);
   await page.reload();
   await expect(alert).toHaveCount(1);
   await alert.getByRole("button", { name: "Mark as read", exact: true }).click();
   await expect(alert).toHaveCount(0);
+  await uncertain.getByRole("button", { name: "Mark as read", exact: true }).click();
+  await expect(uncertain).toHaveCount(0);
   await page.reload();
   await expect(inbox.getByText("No new notifications", { exact: true })).toBeVisible();
   const controls = await (await context.request.get("/api/trading/controls")).json();

@@ -44,7 +44,8 @@ async def decide(
     candidate = await session.get(TradeApprovalRow, approval_id)
     if candidate is None or candidate.owner_id != owner_id:
         raise LonoraError("trade_approval_not_found", 404)
-    await owned_thread(session, owner_id, candidate.thread_id, lock=True)
+    # An approval whose conversation was deleted can no longer be decided.
+    await owned_thread(session, owner_id, candidate.thread_id or "", lock=True)
     run = await session.scalar(
         select(RunRow).where(RunRow.id == candidate.run_id).with_for_update()
     )

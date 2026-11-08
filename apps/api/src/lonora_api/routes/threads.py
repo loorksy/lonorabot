@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, Request
 from lonora_auth.identity import OwnerIdentity
 from lonora_contracts.domain import ThreadCreate
 from lonora_db.inbox import inbox_projection
+from lonora_db.obligations import prepare_delete
 from lonora_db.threads import create_thread, list_threads, thread_data
 from lonora_db.transactions import owned_thread
 
@@ -49,5 +50,9 @@ async def delete(
     request: Request, thread_id: str, owner: OwnerIdentity = Depends(require_owner)
 ) -> dict[str, bool]:
     async with runtime(request).db.sessions() as session, session.begin():
-        await session.delete(await owned_thread(session, owner.id, thread_id, lock=True))
+        thread = await owned_thread(session, owner.id, thread_id, lock=True)
+        # Refused while a trade from this conversation is uncertain; approvals and grants
+        # survive the conversation itself.
+        await prepare_delete(session, owner.id, thread_id=thread_id)
+        await session.delete(thread)
     return {"deleted": True}

@@ -355,6 +355,19 @@ export const labels = {
     "Task is retrying through a model outage",
   ],
   attentionUpdated: ["تم تحديث النشاط", "Activity updated"],
+  attentionItemQuarantined: [
+    "أُوقف عنصر في الخلفية بعد أخطاء متكررة؛ يستمر كل ما عداه في العمل",
+    "A background item was paused after repeated errors; everything else keeps running",
+  ],
+  attentionRunQuarantined: [
+    "توقف عمل بعد انقطاعات متكررة",
+    "Work stopped after repeated interruptions",
+  ],
+  attentionOperationUnresolved: [
+    "صفقة ما زالت بلا نتيجة مؤكدة من الوسيط",
+    "A trade still has no confirmed broker result",
+  ],
+  attentionGatewayDegraded: ["خدمة الخلفية متأخرة", "Background service is running late"],
   retryScheduled: ["إعادة المحاولة مجدولة", "Retry scheduled"],
   modelRetryScheduled: [
     "مزود النموذج غير متاح — إعادة المحاولة مجدولة",

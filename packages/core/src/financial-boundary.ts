@@ -109,6 +109,10 @@ const messages: Readonly<Record<string, Text>> = {
     en: "Choose the account for this pause.",
     ar: "اختر الحساب لهذا الإيقاف.",
   },
+  delete_blocked_unresolved_operation: {
+    en: "This can’t be deleted yet: a trade linked to it still has no confirmed broker result. Settle that operation first; nothing was deleted.",
+    ar: "لا يمكن الحذف الآن: صفقة مرتبطة به ما زالت بلا نتيجة مؤكدة من الوسيط. احسم تلك العملية أولًا؛ لم يُحذف شيء.",
+  },
 };
 
 function language(locale: string): "ar" | "en" {

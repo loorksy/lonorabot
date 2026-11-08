@@ -6,7 +6,7 @@ from lonora_contracts.routines import RoutineCreate
 from lonora_contracts.runs import RunRequest
 from lonora_core.cron import next_occurrence
 from lonora_core.user_error import LonoraError
-from sqlalchemy import select
+from sqlalchemy import Select, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .runs import create_run
@@ -85,90 +85,127 @@ async def create_routine(
     return row
 
 
+def due_query(now: datetime) -> Select[RoutineRow]:
+    return (
+        select(RoutineRow)
+        .join(AgentRow, AgentRow.id == RoutineRow.agent_id)
+        .where(
+            RoutineRow.enabled.is_(True),
+            RoutineRow.next_run_at <= now,
+            AgentRow.paused.is_(False),
+        )
+        .order_by(RoutineRow.next_run_at)
+    )
+
+
 async def enqueue_due(session: AsyncSession, limit: int = 30) -> int:
+    """Enqueue every due routine in the caller's transaction (one batch, one outcome)."""
     now = utcnow()
     due = list(
-        (
-            await session.scalars(
-                select(RoutineRow)
-                .join(AgentRow, AgentRow.id == RoutineRow.agent_id)
-                .where(
-                    RoutineRow.enabled.is_(True),
-                    RoutineRow.next_run_at <= now,
-                    AgentRow.paused.is_(False),
-                )
-                .order_by(RoutineRow.next_run_at)
-                .limit(limit)
-                .with_for_update(skip_locked=True)
-            )
-        ).all()
+        (await session.scalars(due_query(now).limit(limit).with_for_update(skip_locked=True))).all()
     )
     enqueued = 0
     for row in due:
-        if row.goal_id:
-            goal = await owned_goal(session, row.owner_id, row.goal_id)
-            step_state = goal.state.get("steps", {}).get(row.step_id, {})
-            source_version = (
-                step_state.get("target_review_plan_version")
-                if step_state.get("target_review_id") == row.id
-                else step_state.get("routine_plan_version")
-                if step_state.get("routine_id") == row.id
-                else None
-            )
-            if (
-                source_version is not None
-                and source_version != goal.state.get("plan_version", 1)
-                or row.step_id not in goal.state.get("steps", {})
-            ):
-                row.enabled = False
-                continue
-            target_review = (
-                goal.state.get("steps", {}).get(row.step_id, {}).get("target_review_id") == row.id
-            )
-            if target_review and (
-                goal.state.get("code") != "goal_target_pending"
-                or goal.state.get("current_step") != row.step_id
-                or goal.state.get("status") in {"completed", "cancelled"}
-            ):
-                row.enabled = False
-                continue
-        try:
-            await create_run(
-                session,
-                row.owner_id,
-                RunRequest(
-                    thread_id=row.thread_id,
-                    agent_id=row.agent_id,
-                    trigger="routine",
-                    prompt=row.prompt,
-                    metadata={
-                        "routine_id": row.id,
-                        **({"goal_id": row.goal_id, "step_id": row.step_id} if row.goal_id else {}),
-                    },
-                ),
-            )
-            enqueued += 1
-        except LonoraError as error:
-            if error.code not in {
-                "goal_not_active",
-                "goal_step_unavailable",
-                "goal_step_not_found",
-            }:
-                raise
-        request = RoutineCreate(
-            prompt=row.prompt,
-            interval_seconds=row.interval_seconds,
-            cron=row.cron,
-            timezone=row.timezone,
-            enabled=row.enabled,
+        enqueued += int(await enqueue_routine(session, row, now))
+    return enqueued
+
+
+async def due_routines(session: AsyncSession, limit: int = 30) -> list[tuple[str, str]]:
+    """Due routines, skipping any that are backing off or quarantined after failures."""
+    from .item_failures import blocked
+
+    rows = await session.execute(
+        due_query(utcnow())
+        .with_only_columns(RoutineRow.id, RoutineRow.owner_id)
+        .where(~blocked("routine", RoutineRow.id))
+        .limit(limit)
+    )
+    return [(identifier, owner_id) for identifier, owner_id in rows]
+
+
+async def enqueue_one(session: AsyncSession, routine_id: str) -> bool:
+    """Enqueue one routine in its own transaction, if it is still due and unclaimed."""
+    now = utcnow()
+    row = await session.scalar(
+        due_query(now)
+        .where(RoutineRow.id == routine_id)
+        .with_for_update(skip_locked=True, of=RoutineRow)
+    )
+    return row is not None and await enqueue_routine(session, row, now)
+
+
+async def disable_routine(session: AsyncSession, routine_id: str) -> bool:
+    """Quarantine: a routine that keeps failing stops firing until it is re-enabled."""
+    row = await session.get(RoutineRow, routine_id, with_for_update=True)
+    if row is not None:
+        row.enabled = False
+    return True
+
+
+async def enqueue_routine(session: AsyncSession, row: RoutineRow, now: datetime) -> bool:
+    enqueued = False
+    if row.goal_id:
+        goal = await owned_goal(session, row.owner_id, row.goal_id)
+        step_state = goal.state.get("steps", {}).get(row.step_id, {})
+        source_version = (
+            step_state.get("target_review_plan_version")
+            if step_state.get("target_review_id") == row.id
+            else step_state.get("routine_plan_version")
+            if step_state.get("routine_id") == row.id
+            else None
         )
-        previous = (
-            row.next_run_at if row.next_run_at.tzinfo else row.next_run_at.replace(tzinfo=UTC)
+        if (
+            source_version is not None
+            and source_version != goal.state.get("plan_version", 1)
+            or row.step_id not in goal.state.get("steps", {})
+        ):
+            row.enabled = False
+            return False
+        target_review = (
+            goal.state.get("steps", {}).get(row.step_id, {}).get("target_review_id") == row.id
         )
-        candidate = next_run(request, previous)
-        # Collapse missed schedules into one wake; never replay a burst after downtime.
-        row.next_run_at = candidate if candidate > now else next_run(request, now)
-        row.last_run_at = now
+        if target_review and (
+            goal.state.get("code") != "goal_target_pending"
+            or goal.state.get("current_step") != row.step_id
+            or goal.state.get("status") in {"completed", "cancelled"}
+        ):
+            row.enabled = False
+            return False
+    try:
+        await create_run(
+            session,
+            row.owner_id,
+            RunRequest(
+                thread_id=row.thread_id,
+                agent_id=row.agent_id,
+                trigger="routine",
+                prompt=row.prompt,
+                metadata={
+                    "routine_id": row.id,
+                    **({"goal_id": row.goal_id, "step_id": row.step_id} if row.goal_id else {}),
+                },
+            ),
+        )
+        enqueued = True
+    except LonoraError as error:
+        if error.code not in {
+            "goal_not_active",
+            "goal_step_unavailable",
+            "goal_step_not_found",
+        }:
+            raise
+    request = RoutineCreate(
+        prompt=row.prompt,
+        interval_seconds=row.interval_seconds,
+        cron=row.cron,
+        timezone=row.timezone,
+        enabled=row.enabled,
+    )
+    previous = row.next_run_at if row.next_run_at.tzinfo else row.next_run_at.replace(tzinfo=UTC)
+    candidate = next_run(request, previous)
+    # Collapse missed schedules into one wake; never replay a burst after downtime.
+    row.next_run_at = candidate if candidate > now else next_run(request, now)
+    row.last_run_at = now
     return enqueued
 
 

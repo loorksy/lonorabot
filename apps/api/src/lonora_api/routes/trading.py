@@ -14,6 +14,7 @@ from lonora_contracts.trading import (
 )
 from lonora_core.user_error import LonoraError
 from lonora_db.broker_sessions import BrokerSessionRepository
+from lonora_db.obligations import prepare_delete
 from lonora_db.trading_journal import journal_entries, resolve_operation
 from lonora_db.transactions import resource_data
 from lonora_trading.accounts import account_snapshot
@@ -83,6 +84,9 @@ async def disconnect(
 ) -> dict[str, bool]:
     rt = runtime(request)
     async with rt.db.sessions() as session, session.begin():
+        # Refused while an operation on this account is uncertain; grants on it are
+        # revoked first, and its journal, grants and restrictions outlive it.
+        await prepare_delete(session, owner.id, account_id=connection_id)
         await BrokerSessionRepository().delete(session, owner.id, connection_id)
     prior = rt.services(owner.id).brokers.connections.pop(connection_id, None)
     if prior:

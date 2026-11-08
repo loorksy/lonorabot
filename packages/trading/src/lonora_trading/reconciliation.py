@@ -1,6 +1,6 @@
 """Observe-only recovery of journaled financial operations; nothing here sends or resends.
 
-The maintenance loop settles what durable evidence can settle and leaves the rest
+The gateway reconcile step settles what durable evidence can settle and leaves the rest
 explicitly uncertain:
 
 - An abandoned ``reserved`` row never crossed the send boundary. It is released to
@@ -50,6 +50,8 @@ SUBMISSION_GRACE = timedelta(seconds=60)
 # acknowledged but unverified; it is never resent or reinterpreted as failure.
 VERIFICATION_WINDOW = timedelta(minutes=15)
 VERIFICATION_INTERVAL = timedelta(seconds=30)
+# One broker observation on the reconciliation path; a timeout leaves the operation as it was.
+OBSERVATION_TIMEOUT_SECONDS = 30
 
 
 def send_lock_key(owner_id: str, account_id: str) -> str:
@@ -263,8 +265,10 @@ async def reconcile_ambiguous(db: Database, brokers: BrokerManager) -> int:
             # including a persisted submission left behind by a terminated process.
             receipt: TradeResult | None = None
             try:
-                broker = await brokers.get(row.owner_id, row.account_id)
-                receipt = await observe_operation(broker, row)
+                # A hung broker is no evidence either way; it never holds the batch.
+                async with asyncio.timeout(OBSERVATION_TIMEOUT_SECONDS):
+                    broker = await brokers.get(row.owner_id, row.account_id)
+                    receipt = await observe_operation(broker, row)
             except Exception:
                 # An unreachable broker, a history limit or a malformed receipt is not
                 # evidence either way. The operation stays uncertain, but an abandoned
@@ -326,8 +330,9 @@ async def recheck_verifications(db: Database, brokers: BrokerManager) -> int:
             receipt = TradeResult.model_validate(row.result)
             snapshot = details.get("execution_evidence", {}).get("before_send", {}).get("snapshot")
             before = ExecutionSnapshot.model_validate(snapshot) if snapshot else None
-            broker = await brokers.get(row.owner_id, row.account_id)
-            verification = await verify_effect(broker, request, receipt, before)
+            async with asyncio.timeout(OBSERVATION_TIMEOUT_SECONDS):
+                broker = await brokers.get(row.owner_id, row.account_id)
+                verification = await verify_effect(broker, request, receipt, before)
             verification = {
                 **verification,
                 "pending_since": started.isoformat(),

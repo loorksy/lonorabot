@@ -22,7 +22,11 @@ export type AttentionCode =
   | "task_completed"
   | "internal_update"
   | "super_bot_authorization"
-  | "super_bot_changed";
+  | "super_bot_changed"
+  | "maintenance_item_quarantined"
+  | "run_quarantined"
+  | "operation_unresolved"
+  | "gateway_degraded";
 export interface AttentionNotification {
   id: string;
   agent_id: string;

@@ -4,6 +4,7 @@ from lonora_contracts.domain import utcnow
 from lonora_contracts.runs import RunRequest
 from lonora_db.client import Database
 from lonora_db.events import emit
+from lonora_db.item_failures import ItemGuard, blocked
 from lonora_db.messages import message_data
 from lonora_db.rich_response import validated_rich_content
 from lonora_db.runs import create_run, outcome_status
@@ -319,8 +320,9 @@ async def return_pending_outcomes(db: Database, limit: int = 20) -> int:
     receipt = literal("outcome:") + RunRow.id + literal(":") + sql_cast(RunRow.lease_fence, String)
     async with db.sessions() as session:
         identifiers = list(
-            await session.scalars(
-                select(RunRow.id)
+            await session.execute(
+                select(RunRow.id, ThreadRow.owner_id)
+                .join(ThreadRow, ThreadRow.id == RunRow.thread_id)
                 .where(
                     RunRow.status.in_(["completed", "failed", "cancelled"]),
                     or_(
@@ -329,11 +331,19 @@ async def return_pending_outcomes(db: Database, limit: int = 20) -> int:
                         RunRow.model_metadata["opportunity_id"].as_string().is_not(None),
                     ),
                     ~exists(select(EffectReceiptRow.key).where(EffectReceiptRow.key == receipt)),
+                    ~blocked("outcome", RunRow.id),
                 )
                 .order_by(RunRow.updated_at, RunRow.id)
                 .limit(min(max(limit, 1), 20))
             )
         )
-    for identifier in identifiers:
-        await return_outcome(db, identifier)
-    return len(identifiers)
+    # One outcome that cannot be returned backs off alone; the others still return.
+    guard = ItemGuard(db, "outcome")
+    await guard.prepare(identifier for identifier, _ in identifiers)
+    for identifier, owner_id in identifiers:
+
+        async def deliver(identifier: str = identifier) -> None:
+            await return_outcome(db, identifier)
+
+        await guard.run(identifier, owner_id, deliver)
+    return len(identifiers) - guard.errors

@@ -11,7 +11,11 @@
     "super_bot_activated_autonomous": "تم تفعيل السوبر بوت وفق الحدود التي وافقت عليها.",
     "super_bot_activated_shadow": "تم تفعيل السوبر بوت للمحاكاة؛ لن تُرسل صفقات إلى الوسيط.",
     "super_bot_review_unavailable": "تم التفعيل، لكن فحص الجاهزية لم يكتمل بعد. لم تُرسل أي صفقة.",
-    "account_management_task": "إدارة حساب التداول"
+    "account_management_task": "إدارة حساب التداول",
+    "maintenance_item_quarantined": "أوقفت لونورا عنصرًا في الخلفية بعد أخطاء متكررة. يستمر كل ما عداه في العمل.",
+    "run_quarantined": "توقف عمل بعد انقطاعات متكررة. افتح المحادثة لمراجعته.",
+    "operation_unresolved": "صفقة ما زالت بلا نتيجة مؤكدة من الوسيط. لن تُعاد إرسالها؛ افتح المحادثة لمراجعتها.",
+    "gateway_degraded": "خدمة الخلفية في لونورا متأخرة. ستستمر في المحاولة وتبلغك عند الحاجة."
   },
   "en": {
     "super_bot_authorization": "A Super Bot request needs your review and device authorization in the conversation. No execution authority has been granted yet.",
@@ -25,6 +29,10 @@
     "super_bot_activated_autonomous": "Super Bot is enabled within the limits you authorized.",
     "super_bot_activated_shadow": "Super Bot is enabled in virtual mode; no trades will be sent to the broker.",
     "super_bot_review_unavailable": "Activation succeeded, but the readiness check is incomplete. No trade was sent.",
-    "account_management_task": "Manage the trading account"
+    "account_management_task": "Manage the trading account",
+    "maintenance_item_quarantined": "Lonora paused a background item after repeated errors. Everything else keeps running.",
+    "run_quarantined": "Work stopped after repeated interruptions. Open the conversation to review it.",
+    "operation_unresolved": "A trade still has no confirmed broker result. It will not be resent; open the conversation to review it.",
+    "gateway_degraded": "Lonora's background service is running late. It keeps retrying and will tell you if you are needed."
   }
 }

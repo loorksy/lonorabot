@@ -18,7 +18,7 @@ def acknowledgment_key(request_id: str) -> str:
 async def acknowledge_activation(session: AsyncSession, row: SuperBotRequestRow) -> None:
     if row.status != "activated":
         return
-    thread = await owned_thread(session, row.owner_id, row.thread_id, lock=True)
+    thread = await owned_thread(session, row.owner_id, row.thread_id or "", lock=True)
     key = acknowledgment_key(row.id)
     if await session.get(EffectReceiptRow, key):
         return

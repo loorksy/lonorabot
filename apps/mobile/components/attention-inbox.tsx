@@ -31,6 +31,10 @@ const labels: Record<AttentionCode, Label> = {
   super_bot_changed: "superBot",
   task_completed: "attentionTaskCompleted",
   internal_update: "attentionUpdated",
+  maintenance_item_quarantined: "attentionItemQuarantined",
+  run_quarantined: "attentionRunQuarantined",
+  operation_unresolved: "attentionOperationUnresolved",
+  gateway_degraded: "attentionGatewayDegraded",
 };
 export function AttentionInbox({
   items,

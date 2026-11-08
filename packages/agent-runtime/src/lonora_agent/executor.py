@@ -1,5 +1,7 @@
 import asyncio
 import logging
+from collections.abc import Callable
+from time import monotonic
 
 from lonora_contracts.domain import utcnow
 from lonora_core.user_error import LonoraError
@@ -23,6 +25,7 @@ from lonora_logging.context import run_id as diagnostic_run_id
 from lonora_tools.context import ToolContext
 from lonora_tools.registry import ToolRegistry
 from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
 
 from .collaboration.outcome_return import return_outcome
 from .environment import ToolRetryScheduled
@@ -32,6 +35,41 @@ from .tool_loop import execute_tool_loop
 
 log = logging.getLogger("lonora.executor")
 
+# Database failures a lease renewal retries before it gives the lease up.
+TRANSIENT_RENEWAL_ERRORS = (SQLAlchemyError, OSError, TimeoutError)
+
+
+async def keep_lease(context: ToolContext, lease_seconds: int, lost: Callable[[], None]) -> None:
+    """Renew the Run's lease every third of its length.
+
+    A transient database error (a dropped connection, a failover, a timeout) is retried
+    until shortly before the lease would expire; only a fenced ``stale_lease``, an
+    unknown error or running out of lease time declares it lost and stops the Run.
+    """
+    renewed = monotonic()
+    margin = lease_seconds / 6
+    while True:
+        await asyncio.sleep(lease_seconds / 3)
+        while True:
+            try:
+                # A renewal that hangs is as transient as one that fails.
+                async with asyncio.timeout(max(1.0, margin)):
+                    async with context.db.sessions() as session, session.begin():
+                        await renew_lease(session, context.lease, lease_seconds)
+            except TRANSIENT_RENEWAL_ERRORS as error:
+                if monotonic() - renewed >= lease_seconds - margin:
+                    log.error("lease_lost reason=renewal_unavailable")
+                    lost()
+                    return
+                log.warning("lease_renewal_retry type=%s", type(error).__name__)
+                await asyncio.sleep(min(2.0, margin / 2))
+                continue
+            except Exception:
+                lost()
+                return
+            renewed = monotonic()
+            break
+
 
 async def execute_run(
     context: ToolContext, registry: ToolRegistry, lease_seconds: int, maximum_rounds: int
@@ -40,19 +78,12 @@ async def execute_run(
     current = asyncio.current_task()
     lost_lease = asyncio.Event()
 
-    async def heartbeat() -> None:
-        while True:
-            await asyncio.sleep(lease_seconds / 3)
-            try:
-                async with context.db.sessions() as session, session.begin():
-                    await renew_lease(session, context.lease, lease_seconds)
-            except Exception:
-                lost_lease.set()
-                if current:
-                    current.cancel()
-                return
+    def lose() -> None:
+        lost_lease.set()
+        if current:
+            current.cancel()
 
-    heartbeat_task = asyncio.create_task(heartbeat())
+    heartbeat_task = asyncio.create_task(keep_lease(context, lease_seconds, lose))
     try:
         async with context.db.sessions() as session, session.begin():
             row = await require_lease(session, context.lease, lock=True)

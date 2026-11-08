@@ -60,6 +60,10 @@ export function AttentionInbox({
     super_bot_changed: t`Super Bot authority updated`,
     task_completed: t`Task completed`,
     internal_update: t`Activity updated`,
+    maintenance_item_quarantined: t`A background item was paused after repeated errors; everything else keeps running`,
+    run_quarantined: t`Work stopped after repeated interruptions`,
+    operation_unresolved: t`A trade still has no confirmed broker result`,
+    gateway_degraded: t`Background service is running late`,
   };
   if (compact && !items.length) return null;
   return (

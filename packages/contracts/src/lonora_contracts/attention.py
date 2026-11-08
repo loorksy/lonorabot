@@ -25,6 +25,10 @@ AttentionCode = Literal[
     "internal_update",
     "super_bot_authorization",
     "super_bot_changed",
+    "maintenance_item_quarantined",
+    "run_quarantined",
+    "operation_unresolved",
+    "gateway_degraded",
 ]
 
 

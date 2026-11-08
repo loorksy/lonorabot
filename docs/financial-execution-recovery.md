@@ -92,8 +92,10 @@ server evidence. Neither ever blocks a risk-reducing request, except an explicit
 
 ## Observe-only recovery
 
-`reconcile_ambiguous` (gateway maintenance loop, every 10 s, bounded and rotating)
-and `reconcile_broker_account` share `observe_operation` and never send.
+`reconcile_ambiguous` (the gateway's own `reconcile` step, every 10 s, bounded and
+rotating, with a 30 s timeout per broker observation; see `docs/gateway-reliability.md`)
+and `reconcile_broker_account` share `observe_operation` and never send. No other
+maintenance step can delay or stop it.
 `reconcile_broker_account` observes while holding the account send lock, so every
 `submitted` row it sees has lost its sender; rows it cannot settle mark the account
 `degraded` for their market.
@@ -159,7 +161,7 @@ ambiguous entries. A resolved Goal step stays blocked for an explicit owner deci
 Consumers of `resolved`:
 
 - Opportunity theses (`sync_opportunity_execution`, run by the executor, by this
-  route and by the maintenance loop) read the outcome from the attestation: `executed`
+  route and by the gateway maintenance steps) read the outcome from the attestation: `executed`
   acts on the thesis as a confirmed entry would; `not_executed` releases the pending
   link so the thesis can be acted on again; an entry of `unknown` outcome still acts
   on the thesis so it can never authorize a second entry. A management operation of
@@ -215,3 +217,13 @@ Today every other caller (`trade_execute`, Goal steps) submits a single request.
   entry position completes its thesis.
 - `tests/check_trading.py`: concurrency, lost responses, cancellation, legacy rows and
   observer fencing.
+
+## Durable records and deletes
+
+Journal rows, approvals, grants, restrictions, goal decisions and Super Bot requests
+survive the agent, conversation, Run, goal or broker connection they name (migration
+`0036_durable_records`). A delete of an agent, a conversation or a broker connection is
+refused with `delete_blocked_unresolved_operation` while an operation it touches has no
+confirmed broker outcome. A live operation still uncertain after fifteen minutes raises
+one `operation_unresolved` attention item from the watchdog; it is never resent. See
+`docs/gateway-reliability.md`.

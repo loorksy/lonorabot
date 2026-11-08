@@ -11,6 +11,10 @@ msgstr ""
 #~ msgid "{name} is working"
 #~ msgstr "{name} is working"
 
+#: src/components/ai/AttentionInbox.tsx:63
+msgid "A background item was paused after repeated errors; everything else keeps running"
+msgstr "A background item was paused after repeated errors; everything else keeps running"
+
 #: src/lib/user_error.ts:23
 msgid "A different answer was already recorded."
 msgstr "A different answer was already recorded."
@@ -22,6 +26,10 @@ msgstr "A different answer was already recorded."
 #: src/lib/user_error.ts:152
 #~ msgid "A previous operation on this market still needs broker verification, so this new order was not sent. Closing positions, cancelling pending orders and tightening stops remain available."
 #~ msgstr "A previous operation on this market still needs broker verification, so this new order was not sent. Closing positions, cancelling pending orders and tightening stops remain available."
+
+#: src/components/ai/AttentionInbox.tsx:65
+msgid "A trade still has no confirmed broker result"
+msgstr "A trade still has no confirmed broker result"
 
 #: src/pages/shell/chat-context.tsx:841
 #~ msgid "A workspace that remembers"
@@ -333,6 +341,10 @@ msgstr "Back to conversations"
 #: src/pages/Shell.tsx:123
 msgid "Back to workspace"
 msgstr "Back to workspace"
+
+#: src/components/ai/AttentionInbox.tsx:66
+msgid "Background service is running late"
+msgstr "Background service is running late"
 
 #: src/pages/ModelRoutingSettings.tsx:17
 msgid "Background work"
@@ -1573,7 +1585,7 @@ msgstr "Manual position management excluded"
 msgid "Margin"
 msgstr "Margin"
 
-#: src/components/ai/AttentionInbox.tsx:132
+#: src/components/ai/AttentionInbox.tsx:136
 msgid "Mark as read"
 msgstr "Mark as read"
 
@@ -1784,7 +1796,7 @@ msgstr "No matching artifacts"
 msgid "No matching broker symbols"
 msgstr "No matching broker symbols"
 
-#: src/components/ai/AttentionInbox.tsx:104
+#: src/components/ai/AttentionInbox.tsx:108
 msgid "No new notifications"
 msgstr "No new notifications"
 
@@ -1841,12 +1853,12 @@ msgstr "Not sent"
 msgid "Note"
 msgstr "Note"
 
-#: src/components/ai/AttentionInbox.tsx:66
-#: src/components/ai/AttentionInbox.tsx:68
+#: src/components/ai/AttentionInbox.tsx:70
+#: src/components/ai/AttentionInbox.tsx:72
 msgid "Notifications"
 msgstr "Notifications"
 
-#: src/components/ai/AttentionInbox.tsx:99
+#: src/components/ai/AttentionInbox.tsx:103
 msgid "Notify me about confirmed opportunities"
 msgstr "Notify me about confirmed opportunities"
 
@@ -1871,7 +1883,7 @@ msgstr "Open call with {name}"
 msgid "Open chart"
 msgstr "Open chart"
 
-#: src/components/ai/AttentionInbox.tsx:124
+#: src/components/ai/AttentionInbox.tsx:128
 #: src/pages/ActivityList.tsx:262
 #: src/pages/Board.tsx:427
 #: src/pages/RoutineRunHistory.tsx:55
@@ -3461,6 +3473,10 @@ msgstr "What this agent is for"
 #: src/components/ai/AvatarStudio.tsx:64
 msgid "Wink"
 msgstr "Wink"
+
+#: src/components/ai/AttentionInbox.tsx:64
+msgid "Work stopped after repeated interruptions"
+msgstr "Work stopped after repeated interruptions"
 
 #: src/components/ai/AgentLiveStatus.tsx:37
 #: src/components/ai/primitives.tsx:33

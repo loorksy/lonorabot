@@ -74,7 +74,7 @@ confirmed mutation, under the existing account lock. It never resubmits. Exact
 target, side, volume, requested protections and management postconditions must
 match. Missing, delayed, netting-ambiguous or unavailable evidence stays pending;
 the financial receipt remains the broker acknowledgment and retains that nuance.
-The gateway maintenance loop re-reads a pending verification until it is verified
+The gateway's `verifications` step re-reads a pending verification until it is verified
 or, after fifteen minutes, ends as unverified; each change emits
 `trading.operation_updated` so clients show "Awaiting broker confirmation".
 That acknowledgment is committed before the verification read, so a process

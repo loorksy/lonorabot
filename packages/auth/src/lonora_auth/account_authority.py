@@ -129,12 +129,14 @@ async def finish_activation(
     device.sign_count, challenge.status = sign_count, "used"
     row.status, row.device_id = "active", device.id
     if envelope.management_mode == "full":
-        locale = await conversation_locale(session, owner.id, row.thread_id)
+        # A deleted conversation leaves the signed grant without its origin thread.
+        origin = row.thread_id or ""
+        locale = await conversation_locale(session, owner.id, origin)
         task = await create_task(
             session,
             owner.id,
             row.agent_id,
-            row.thread_id,
+            origin,
             TaskCreate(
                 title=attention_text("account_management_task", locale),
                 completion_mode="continuous",

@@ -567,6 +567,19 @@ async def main() -> None:
             "device_challenge_expired_or_used",
         )
         print("PASS persisted envelope tampering and expired challenges cannot activate authority")
+
+        # Deleting the agent while its trade is uncertain is refused; the owner settles
+        # it first (an attestation, never a resend), and the fixture cleanup then deletes.
+        blocked = await f.client.delete("/api/agents/" + agent["id"])
+        assert blocked.status_code == 409
+        assert blocked.json()["code"] == "delete_blocked_unresolved_operation"
+        settled = await f.request(
+            "POST",
+            f"/trading/journal/{ambiguous['operation_id']}/resolve",
+            {"outcome": "executed", "statement": "Checked the broker terminal: it executed."},
+        )
+        assert settled["status"] == "resolved", settled
+        print("PASS an agent with an uncertain trade cannot be deleted until the owner settles it")
     finally:
         await save_controls(f.runtime.db, controls)
         await f.close()
