@@ -68,7 +68,10 @@ async def test_stop_and_pauses_refuse_new_entries_before_any_approval_card() -> 
                     or 0
                 )
 
-        # Stop new trading (and the first-run default) refuses the entry, no card.
+        # The owner's own Stop new trading refuses the entry, no card. (Saving the stopped
+        # default on an install that never started stores nothing: that case offers the
+        # Start trading card, below.)
+        await save_controls(fixture.runtime.db, TradingControl(enabled=True))
         await save_controls(fixture.runtime.db, TradingControl(enabled=False))
         assert await refused(context, **entry) == "trading_disabled"
         await save_controls(fixture.runtime.db, TradingControl(enabled=True, emergency_stop=True))
