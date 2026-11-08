@@ -47,6 +47,7 @@ HINT_LINE_CHARS = 200
 # The same explicit view headings profile_documents() recognizes.
 HEADING = re.compile(r"(?m)^# (USER\.md|(?:memory/)?MEMORY\.md)[ \t]*\n")
 LIST_ITEM = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s")
+MARKDOWN_HEADING = re.compile(r"^#{1,6}\s")
 
 MemorySection = Literal["USER.md", "MEMORY.md"]
 MemoryAction = Literal["add", "patch", "remove"]
@@ -169,20 +170,73 @@ def _locate(document: str, old_text: str, index: int) -> int:
     return document.find(old_text)
 
 
-def apply_edit(document: str, edit: MemoryEdit, index: int = 0) -> tuple[str, bool]:
-    """One operation on a normalized document -> (result, changed)."""
+def _starts_entry(lines: list[str], index: int) -> bool:
+    return (
+        index == 0
+        or not lines[index - 1].strip()
+        or LIST_ITEM.match(lines[index]) is not None
+        or MARKDOWN_HEADING.match(lines[index - 1]) is not None
+    )
+
+
+def _ends_entry(lines: list[str], index: int) -> bool:
+    following = index + 1
+    return (
+        following == len(lines)
+        or not lines[following].strip()
+        or LIST_ITEM.match(lines[following]) is not None
+        or MARKDOWN_HEADING.match(lines[following]) is not None
+    )
+
+
+def existing_entry(view: str, entry: str) -> str | None:
+    """The stored entry exactly equal to entry, never a longer one containing it.
+
+    Lines compare without surrounding whitespace. A one-line entry matches a whole
+    line; a multi-line entry matches a whole block bounded by blank lines, list
+    items or headings. 'Max daily loss 50' is therefore new beside 'Max daily loss
+    500 USD', as in Hermes, which deduplicates on whole-entry equality.
+    """
+    wanted = [line.strip() for line in entry.split("\n")]
+    lines = view.split("\n")
+    stripped = [line.strip() for line in lines]
+    size = len(wanted)
+    for start in range(len(lines) - size + 1):
+        if stripped[start : start + size] != wanted:
+            continue
+        if size == 1 or (_starts_entry(lines, start) and _ends_entry(lines, start + size - 1)):
+            return "\n".join(stripped[start : start + size])[:HINT_LINE_CHARS]
+    return None
+
+
+def _line_span(document: str, start: int, old_text: str) -> tuple[int, int]:
+    """The whole lines holding old_text's non-newline characters. A newline at
+    either end of old_text only bounds it; it never pulls in the neighbouring line."""
+    first = start + len(old_text) - len(old_text.lstrip("\n"))
+    last = start + len(old_text.rstrip("\n"))
+    line_start = document.rfind("\n", 0, first) + 1
+    newline = document.find("\n", last)
+    return line_start, len(document) if newline < 0 else newline + 1
+
+
+def apply_edit(document: str, edit: MemoryEdit, index: int = 0) -> tuple[str, dict[str, Any]]:
+    """One operation on a normalized document -> (normalized result, outcome)."""
+    outcome: dict[str, Any] = {"action": edit.action}
     if edit.action == "add":
+        outcome["section"] = edit.section
         entry = edit.content.replace("\r\n", "\n").strip()
         if not entry:
             raise MemoryEditError("memory_edit_content_required", index)
-        view = "\n".join(
-            body
-            for name, body in _views(document)
-            if name == edit.section or (edit.section == "MEMORY.md" and name is None)
-        )
-        if entry in view:
-            return document, False
-        return _add(document, edit.section, entry), True
+        if HEADING.search(entry + "\n"):
+            # An entry may not open another view: text bound for MEMORY.md could
+            # otherwise start a USER.md section of owner preferences.
+            raise MemoryEditError("memory_edit_heading_protected", index)
+        for name, body in _views(document):
+            if name == edit.section or (edit.section == "MEMORY.md" and name is None):
+                if (duplicate := existing_entry(body, entry)) is not None:
+                    return document, {**outcome, "changed": False, "duplicate_of": duplicate}
+        result = normalize_memory(_add(document, edit.section, entry))
+        return result, {**outcome, "changed": result != document}
     old_text = edit.old_text.replace("\r\n", "\n")
     if not old_text.strip():
         raise MemoryEditError("memory_edit_old_text_required", index)
@@ -192,18 +246,14 @@ def apply_edit(document: str, edit: MemoryEdit, index: int = 0) -> tuple[str, bo
         result = document[:start] + edit.content.replace("\r\n", "\n") + document[stop:]
     else:
         # Remove the whole lines the unique span touches, so no dangling bullet remains.
-        line_start = document.rfind("\n", 0, start) + 1
-        if old_text.endswith("\n"):
-            line_stop = stop
-        else:
-            newline = document.find("\n", stop)
-            line_stop = len(document) if newline < 0 else newline + 1
+        line_start, line_stop = _line_span(document, start, old_text)
         result = re.sub(r"\n{3,}", "\n\n", document[:line_start] + document[line_stop:])
+    result = normalize_memory(result)
     if headings(result) != headings(document):
         # View headings separate owner preferences from knowledge; only a whole
         # document write may restructure them.
         raise MemoryEditError("memory_edit_heading_protected", index)
-    return result, result != document
+    return result, {**outcome, "changed": result != document}
 
 
 def _views(document: str) -> list[tuple[MemorySection | None, str]]:
@@ -220,19 +270,18 @@ def _views(document: str) -> list[tuple[MemorySection | None, str]]:
 def apply_edits(
     document: str, edits: list[MemoryEdit], version: int
 ) -> tuple[str, list[dict[str, Any]]]:
-    """All operations or none; the limit is checked on the final document only."""
+    """All operations or none; the limit is checked on the final document only.
+
+    A batch that changes nothing returns the stored document itself, so the
+    caller keeps the current revision instead of committing an identical one.
+    """
     current = normalize_memory(document)
     applied: list[dict[str, Any]] = []
     for index, edit in enumerate(edits):
-        current, changed = apply_edit(current, edit, index)
-        current = normalize_memory(current)
-        applied.append(
-            {
-                "action": edit.action,
-                **({"section": edit.section} if edit.action == "add" else {}),
-                "changed": changed,
-            }
-        )
+        current, outcome = apply_edit(current, edit, index)
+        applied.append(outcome)
+    if current == normalize_memory(document):
+        return document, applied
     if len(current) > MEMORY_CHAR_LIMIT:
         raise MemoryOverflow(version, len(document), len(current))
     return current, applied

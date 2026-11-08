@@ -108,8 +108,9 @@ def tools() -> list[Tool]:
             "Change durable memory atomically at its current revision. operations apply in "
             "order, all or nothing: add appends content to USER.md (owner preferences) or "
             "MEMORY.md (knowledge); patch replaces old_text, unique in the document, with "
-            "content; remove deletes the lines old_text touches. The 30000-char limit applies to "
-            "the result; overflow returns the shortfall. content replaces the whole document. No "
+            "content; remove deletes the lines old_text touches. An add equal to an existing entry "
+            "returns changed false. The 30000-char limit applies to the result; overflow returns "
+            "the shortfall. content replaces the whole document. No "
             "credentials or live prices; preferences grant no financial authority. Say "
             "remembered only after success.",
             MemoryWrite,

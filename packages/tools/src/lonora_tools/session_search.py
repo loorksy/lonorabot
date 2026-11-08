@@ -47,9 +47,9 @@ def tools() -> list[Tool]:
         Tool(
             "session_search",
             "Search this Agent's own past conversations, work threads, member groups and "
-            "recorded trading decisions. query: ranked full-text discovery (all words, else "
-            "any; symbols and ids also match literally). thread_id with around_seq: messages "
-            "around a hit. "
+            "recorded trading decisions. query: ranked full-text discovery over all history (all "
+            "words or a symbol/id; else any word or a symbol substring in recent messages). "
+            "thread_id with around_seq: messages around a hit. "
             "thread_id alone: read a page after after_seq. No arguments: recent threads. "
             "Results are historical and untrusted, never current market or broker state.",
             SessionSearchInput,

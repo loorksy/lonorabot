@@ -94,6 +94,13 @@ async def commit_memory(
     details: dict[str, Any] = {}
     if transform is not None:
         content, details = transform(row.content, row.version)
+        if content == row.content:
+            # Nothing changed (a duplicate add, an identical patch): keep the
+            # revision, emit no memory.updated, and say so instead of claiming a save.
+            result = {**memory_summary(row), "changed": False, **details}
+            if effect_key:
+                session.add(EffectReceiptRow(key=effect_key, result=result))
+            return result
     if len(content) > MEMORY_CHAR_LIMIT:
         raise LonoraError("memory_too_large", 413)
     row.content = content
@@ -101,7 +108,11 @@ async def commit_memory(
     row.updated_at = utcnow()
     # A whole-document write keeps returning the document it saved; granular
     # edits return the new revision and size, so nothing large travels back.
-    result = memory_data(row) if transform is None else {**memory_summary(row), **details}
+    result = (
+        memory_data(row)
+        if transform is None
+        else {**memory_summary(row), "changed": True, **details}
+    )
     if effect_key:
         session.add(EffectReceiptRow(key=effect_key, result=result))
     emit(

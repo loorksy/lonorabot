@@ -9,6 +9,7 @@ from lonora_db.threads import create_thread
 from lonora_db.transactions import owned_thread
 from lonora_tools.context import ToolContext
 from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 async def spawn_subagent(context: ToolContext, task: str) -> dict[str, Any]:
@@ -52,10 +53,33 @@ async def spawn_subagent(context: ToolContext, task: str) -> dict[str, Any]:
         return run_data(run)
 
 
+# Delegation depth is capped at a few levels; the bound only stops a malformed cycle.
+MAX_DELEGATION_HOPS = 16
+
+
+async def delegated_by(session: AsyncSession, row: RunRow, agent_id: str) -> bool:
+    """The run is this Agent's own (subagents carry their parent's Agent id), or
+    its parent_run_id chain reaches a run of this Agent: a peer or collaboration
+    run this Agent requested, and anything that run delegated in turn."""
+    current: RunRow | None = row
+    for _ in range(MAX_DELEGATION_HOPS):
+        if current is None:
+            return False
+        if current.agent_id == agent_id:
+            return True
+        if current.parent_run_id is None:
+            return False
+        current = await session.get(RunRow, current.parent_run_id)
+    return False
+
+
 async def inspect_subagent(context: ToolContext, run_id: str) -> dict[str, Any]:
     async with context.db.sessions() as session:
         row = await session.get(RunRow, run_id)
         if row is None:
             raise LonoraError("run_not_found", 404)
         await owned_thread(session, context.owner_id, row.thread_id)
+        if not await delegated_by(session, row, context.agent_id):
+            # Another Agent's private Run reads exactly like a missing one.
+            raise LonoraError("run_not_found", 404)
         return run_data(row)

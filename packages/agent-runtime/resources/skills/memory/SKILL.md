@@ -28,7 +28,9 @@ Change memory with memory_write operations in one batch: add an entry to a
 section, patch a unique old_text, or remove the lines a unique old_text touches.
 Send the whole document as content only for a deliberate rewrite. On a conflict
 or no-match, re-check the current text; on overflow, remove or shorten at least
-the reported shortfall in the same batch. Say remembered only after success.
+the reported shortfall in the same batch. Say remembered only after a result
+with changed true; changed false with duplicate_of means that exact entry was
+already saved and nothing new was stored.
 
 Keep atomic current facts, not "discussed risk". Merge duplicates, replace
 corrected facts and remove superseded details. Apply SNIP: Signal, Novel,
