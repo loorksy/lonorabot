@@ -28,7 +28,9 @@ class StepSpec:
 
     @property
     def stall_after(self) -> float:
-        return max(120.0, self.interval * 12)
+        # Never shorter than one legitimate iteration (its timeout) plus one interval: a
+        # slow broker inside the timeout is a broker problem, not a stalled step.
+        return max(120.0, self.interval * 12, self.timeout + self.interval)
 
 
 @dataclass

@@ -119,6 +119,8 @@ export function userError(error: unknown) {
     case "goal_not_active":
     case "goal_terminal":
       return t`This goal is paused, cancelled or completed. Reload its current state.`;
+    case "goal_origin_deleted":
+      return t`This goal stopped because its conversation or agent was deleted. Its history is kept.`;
     case "goal_condition_unmet":
     case "goal_condition_stale":
       return t`The current market no longer confirms this goal's condition. No trade was sent.`;

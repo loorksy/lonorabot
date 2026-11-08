@@ -7,8 +7,10 @@ from datetime import timedelta
 from uuid import uuid4
 
 from check_streaming import Fixture
-from lonora_contracts.domain import utcnow
-from lonora_db.schema import TradingJournalRow
+from lonora_contracts.domain import AgentCreate, utcnow
+from lonora_db.agents import agent_data, create_agent
+from lonora_db.schema import RunRow, TradingJournalRow
+from lonora_db.threads import conversation_thread
 from lonora_gateway.attention import attention_tick
 from lonora_gateway.liveness import Liveness
 from lonora_gateway.watchdog import Watchdog
@@ -34,8 +36,19 @@ async def main():
             alert = next(row for row in notifications if row["code"] == "emergency_stop")
             print(json.dumps({"notification": alert, "cookies": cookies(fixture)}))
             return
-        # An operation still uncertain after the watchdog's threshold reaches the owner once.
+        # An operation still uncertain after the watchdog's threshold reaches the owner
+        # once, in the conversation of the agent that placed it. The agent is created
+        # directly (not cleaned up): its uncertain trade rightly refuses its deletion.
         async with fixture.runtime.db.sessions() as session, session.begin():
+            desk = agent_data(
+                await create_agent(
+                    session, fixture.owner, AgentCreate(name="Gold desk " + uuid4().hex[:6])
+                )
+            )
+            thread = await conversation_thread(session, fixture.owner, desk["id"])
+            run = RunRow(thread_id=thread.id, agent_id=desk["id"], status="completed")
+            session.add(run)
+            await session.flush()
             session.add(
                 TradingJournalRow(
                     operation_id="browser-" + uuid4().hex[:12],
@@ -45,7 +58,7 @@ async def main():
                     request={"symbol": "XAUUSD"},
                     status="ambiguous",
                     submitted_at=utcnow() - timedelta(hours=1),
-                    result={},
+                    result={"details": {"execution": {"agent_id": desk["id"], "run_id": run.id}}},
                 )
             )
         await Watchdog(fixture.runtime.db, Liveness(), set()).aging_operations()
@@ -57,6 +70,7 @@ async def main():
                 {
                     "notification": alert,
                     "uncertain": uncertain,
+                    "agent": {"id": desk["id"], "name": desk["name"]},
                     "cookies": cookies(fixture),
                 }
             )

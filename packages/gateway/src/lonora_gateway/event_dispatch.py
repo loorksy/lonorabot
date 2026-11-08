@@ -45,7 +45,9 @@ async def dispatch_channels(db: Database, services: OwnerServices) -> None:
         ).all()
     # One integration that raises (an unreachable Telegram, a malformed update) backs
     # off alone; the other integrations keep receiving and delivering.
-    guard = ItemGuard(db, "integration", quarantine_after=None)
+    # Each network call has its own timeout; the item limit only bounds a whole batch of
+    # deliveries, below the step's iteration timeout.
+    guard = ItemGuard(db, "integration", quarantine_after=None, timeout=100)
     await guard.prepare(row.id for row in rows)
     for row in rows:
 

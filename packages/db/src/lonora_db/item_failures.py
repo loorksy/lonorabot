@@ -1,11 +1,13 @@
 """Per-item fault isolation for the gateway's maintenance steps.
 
-A routine, watch, attention event or integration that raises is recorded here, backs
-off and, after repeated failures, is quarantined with one owner-visible attention item.
+A routine, watch, attention event or integration that raises, or hangs past its own
+time limit, is recorded here, backs off and, after repeated failures, is quarantined with
+one owner-visible attention item.
 Every other item in the batch keeps running. Items tied to an unresolved financial
 operation are never quarantined: they only back off, because they must be reconciled.
 """
 
+import asyncio
 import logging
 import re
 from collections.abc import Awaitable, Callable, Iterable
@@ -21,6 +23,10 @@ from .client import Database
 from .schema import ItemFailureRow
 
 QUARANTINE_AFTER = 5
+# One item's own time limit, well below every step's iteration timeout: an item that
+# hangs is recorded as a failure ("timeout") like one that raises, instead of being cut
+# off silently by the step timeout and selected first again on every pass.
+ITEM_TIMEOUT_SECONDS = 45.0
 BACKOFF_SECONDS = 10
 MAXIMUM_BACKOFF_SECONDS = 600
 
@@ -87,8 +93,11 @@ class ItemGuard:
         quarantine_after: int | None = QUARANTINE_AFTER,
         quarantine: QuarantineAction | None = None,
         notify_when_inert: bool = True,
+        timeout: float | None = None,
     ) -> None:
         self.db, self.kind = db, kind
+        # None means the shared item limit; every item has one.
+        self.timeout = ITEM_TIMEOUT_SECONDS if timeout is None else timeout
         self.quarantine_after, self.quarantine = quarantine_after, quarantine
         # False when the quarantine action itself reaches the owner (a failed Task).
         self.notify_when_inert = notify_when_inert
@@ -115,7 +124,8 @@ class ItemGuard:
         self, item_id: str, owner_id: str | None, action: Callable[[], Awaitable[T]]
     ) -> T | None:
         try:
-            result = await action()
+            async with asyncio.timeout(self.timeout):
+                result = await action()
         except Exception as error:
             self.errors += 1
             await self.fail(item_id, owner_id, error)
@@ -197,7 +207,10 @@ class ItemGuard:
                     session,
                     owner_id,
                     "maintenance_item_quarantined",
-                    # One item per quarantine: a re-enabled item that fails again is new.
+                    # A re-enabled item that fails again is a new quarantine.
                     self.kind + ":" + item_id + ":" + at.isoformat(timespec="seconds"),
                     {"item_kind": self.kind, "reason_code": code},
+                    # One open notice per kind: a systematic fault adds to its count
+                    # instead of flooding the inbox with identical items.
+                    group=self.kind,
                 )

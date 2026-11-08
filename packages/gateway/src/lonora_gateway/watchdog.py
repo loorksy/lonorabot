@@ -9,16 +9,22 @@ the broker or the owner settles it.
 import logging
 from collections.abc import Awaitable, Callable
 from datetime import timedelta
+from typing import Any
 
 from lonora_contracts.domain import utcnow
 from lonora_contracts.trading import IN_PROGRESS_STATUSES, UNRESOLVED_STATUSES
-from lonora_db.attention import raise_system_attention, settle_system_attention
+from lonora_db.attention import (
+    raise_system_attention,
+    settle_system_attention,
+    withdraw_attention,
+)
 from lonora_db.client import Database
 from lonora_db.item_failures import blocked, failure_code
-from lonora_db.runs import MAX_RUN_RECOVERIES, quarantine_run
+from lonora_db.runs import MAX_RUN_RECOVERIES, aware, quarantine_run
 from lonora_db.schema import (
     AgentRow,
     AttentionRow,
+    GatewayRow,
     OwnerRow,
     RoutineRow,
     RunRow,
@@ -26,7 +32,9 @@ from lonora_db.schema import (
     TradingJournalRow,
 )
 from sqlalchemy import and_, func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from .health import HEARTBEAT_FRESH
 from .liveness import Liveness
 
 log = logging.getLogger("lonora.watchdog")
@@ -38,6 +46,19 @@ OVERDUE_GRACE = timedelta(minutes=5)
 SCHEDULER_STEPS = frozenset({"routines", "task_waits"})
 
 
+async def operation_origin(
+    session: AsyncSession, row: TradingJournalRow
+) -> tuple[str | None, str | None]:
+    """The agent and conversation of the Run that placed a journaled operation."""
+    details: dict[str, Any] = (row.result or {}).get("details") or {}
+    execution: dict[str, Any] = details.get("execution") or {}
+    lease: dict[str, Any] = details.get("lease") or {}
+    run_id = execution.get("run_id") or lease.get("run_id")
+    run = await session.get(RunRow, str(run_id)) if run_id else None
+    agent_id = execution.get("agent_id") or (run.agent_id if run else None)
+    return (str(agent_id) if agent_id else None), (run.thread_id if run else None)
+
+
 class Watchdog:
     def __init__(
         self,
@@ -45,12 +66,15 @@ class Watchdog:
         liveness: Liveness,
         read_only_names: set[str],
         *,
+        identity: str = "",
         operation_age: timedelta = OPERATION_AGE,
         overdue_grace: timedelta = OVERDUE_GRACE,
     ) -> None:
         self.db, self.liveness, self.read_only_names = db, liveness, read_only_names
+        self.identity = identity
         self.operation_age, self.overdue_grace = operation_age, overdue_grace
-        # One alert per stall episode; an episode ends when the condition clears.
+        # One alert per stall episode; an episode ends when the condition clears. Each
+        # item records its episode and gateway, so a restart can withdraw what it ended.
         self.episodes: dict[str, str] = {}
 
     async def tick(self) -> dict[str, int]:
@@ -60,6 +84,7 @@ class Watchdog:
             "runs": self.recovered_runs,
             "overdue": self.overdue_wakes,
             "operations": self.aging_operations,
+            "ended": self.ended_episodes,
         }
         report: dict[str, int] = {}
         failure: Exception | None = None
@@ -110,9 +135,56 @@ class Watchdog:
             raised += await self.alert(
                 "gateway_degraded",
                 self.episodes[key],
-                {"reason_code": "step_stalled", "step": name},
+                {"reason_code": "step_stalled", "step": name, **self.episode(key)},
             )
         return raised
+
+    def episode(self, key: str) -> dict[str, str]:
+        return {"episode": self.episodes[key], "gateway": self.identity}
+
+    async def ended_episodes(self) -> int:
+        """Withdraw "running late" items no live watchdog stands behind any more.
+
+        Episodes live in memory, so after a restart (often what cleared the stall) the
+        earlier gateway's items would keep claiming the service is late. An item is
+        withdrawn when its episode is not current here, or its gateway is gone.
+        """
+        current = set(self.episodes.values())
+        now = utcnow()
+        async with self.db.sessions() as session:
+            items = list(
+                await session.scalars(
+                    select(AttentionRow)
+                    .where(
+                        AttentionRow.code == "gateway_degraded",
+                        AttentionRow.status.in_(["pending", "ready"]),
+                    )
+                    .limit(100)
+                )
+            )
+            live = {
+                row.id
+                for row in await session.scalars(select(GatewayRow))
+                if row.state in {"running", "ready"}
+                and now - aware(row.heartbeat_at) < HEARTBEAT_FRESH
+            }
+        ended = [
+            item.id
+            for item in items
+            if (
+                item.parameters.get("episode") not in current
+                if item.parameters.get("gateway") == self.identity
+                else item.parameters.get("gateway") not in live
+            )
+        ]
+        withdrawn = 0
+        for identifier in ended:
+            async with self.db.sessions() as session, session.begin():
+                row = await session.get(AttentionRow, identifier, with_for_update=True)
+                withdrawn += int(row is not None and withdraw_attention(session, row))
+        if withdrawn:
+            log.info("degraded_items_withdrawn count=%s", withdrawn)
+        return withdrawn
 
     async def recovered_runs(self) -> int:
         """Quarantine Runs that crashed their worker too often instead of re-leasing them.
@@ -161,7 +233,10 @@ class Watchdog:
                     thread.owner_id,
                     "run_quarantined",
                     identifier,
-                    {"run_id": identifier, "agent_id": row.agent_id},
+                    {"run_id": identifier},
+                    # The item opens the agent and conversation where the work stopped.
+                    agent_id=row.agent_id,
+                    thread_id=row.thread_id,
                 )
         from lonora_agent.collaboration.outcome_return import return_outcome
 
@@ -209,7 +284,7 @@ class Watchdog:
         return await self.alert(
             "gateway_degraded",
             self.episodes["overdue"],
-            {"reason_code": "wakes_overdue", "count": overdue},
+            {"reason_code": "wakes_overdue", "count": overdue, **self.episode("overdue")},
         )
 
     async def aging_operations(self) -> int:
@@ -235,6 +310,7 @@ class Watchdog:
         raised = 0
         for row in rows:
             async with self.db.sessions() as session, session.begin():
+                agent_id, thread_id = await operation_origin(session, row)
                 raised += int(
                     await raise_system_attention(
                         session,
@@ -246,6 +322,9 @@ class Watchdog:
                             "account_id": row.account_id,
                             "symbol": row.request.get("symbol"),
                         },
+                        # The item opens the agent and conversation that placed the trade.
+                        agent_id=agent_id,
+                        thread_id=thread_id,
                     )
                     is not None
                 )

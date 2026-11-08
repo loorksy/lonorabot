@@ -296,6 +296,7 @@ The owner asked, on 2026-11-08, for a simple experience without contradictions a
    - A minimal LLM-independent watchdog detects stalled loops, runs recovered too many times and aging unresolved operations, and raises owner attention.
    - Financial and authority records (journal, approvals, grants, restrictions, decisions) are no longer cascade-deleted by ordinary deletes.
    - Delivered on branch `w15-a1` (migrations `0036_durable_records` and `0037_gateway_reliability`); the design is in `docs/gateway-reliability.md`.
+   - Review fixes: a delete settles the grants, Super Bot requests and goals of the deleted conversation or agent instead of leaving them active but unusable; every maintenance item has its own time limit and the attention cursor advances per event; watchdog items open the originating agent; failed worker polls no longer count as liveness; ended "running late" items are withdrawn after a restart; quarantine notices coalesce per kind and never cost a critical alert. Deferred: an owner-recoverable failure for a quarantined Task wait or outcome return (they stay in the ledger quarantine, with the owner notice).
 2. **W15-1 Safety truth and one brake.**
    - A one-line trading readiness for every agent, shown in the permission frame and in a header safety pill on web and mobile.
    - One "Stop new trading / Resume" control.

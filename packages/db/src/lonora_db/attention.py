@@ -330,23 +330,62 @@ async def set_cursor(session: AsyncSession, owner_id: str, cursor: int) -> None:
         session.add(SettingRow(key=key, payload={"cursor": cursor}))
 
 
+async def system_origin(
+    session: AsyncSession, owner_id: str, agent_id: str | None, thread_id: str | None
+) -> tuple[str, str, str | None]:
+    """The owner's agent and conversation an item is about, checked for ownership.
+
+    A work thread, or one that no longer exists, falls back to the agent's own
+    conversation, as for every other notification; a missing agent falls back to the
+    Personal Agent. Returns the group id when the origin is a group conversation.
+    """
+    from .personal_agent import ensure_personal_agent
+    from .schema import AgentRow, ThreadRow
+    from .threads import conversation_thread
+
+    agent = await session.get(AgentRow, agent_id) if agent_id else None
+    if agent is not None and agent.owner_id == owner_id:
+        thread = await session.get(ThreadRow, thread_id) if thread_id else None
+        if (
+            thread is not None
+            and thread.owner_id == owner_id
+            and thread.purpose == "conversation"
+            and thread.agent_id in {agent.id, None}
+        ):
+            return agent.id, thread.id, thread.group_id
+        return agent.id, (await conversation_thread(session, owner_id, agent.id)).id, None
+    personal = await ensure_personal_agent(session, owner_id)
+    return personal.id, (await conversation_thread(session, owner_id, personal.id)).id, None
+
+
+def system_coalesce_key(owner_id: str, code: str, group: str) -> str:
+    return request_hash({"system_group": [owner_id, code, group]})
+
+
 async def raise_system_attention(
     session: AsyncSession,
     owner_id: str,
     code: str,
     subject: str,
     parameters: dict[str, Any] | None = None,
+    *,
+    agent_id: str | None = None,
+    thread_id: str | None = None,
+    group: str | None = None,
+    importance: str | None = None,
 ) -> AttentionRow | None:
     """One owner-visible item per (code, subject), straight to ready.
 
     It does not depend on the event projection loop, so the watchdog can still reach
     the owner while that loop is the thing that is stalled. Raising the same subject
-    again is a no-op, including after the owner has seen it.
+    again is a no-op, including after the owner has seen it. The item opens the agent
+    and conversation it is about (``agent_id``/``thread_id``), or the Personal Agent's
+    when it concerns no agent or that agent is gone. With ``group``, a further item of
+    the same group joins the one still open (its ``count`` grows) instead of adding one.
+    ``importance`` is given only to deliver a classified notification whose own
+    projection kept failing, so a critical alert is never lost.
     """
-    from .personal_agent import ensure_personal_agent
-    from .threads import conversation_thread
-
-    importance = SYSTEM_ATTENTION[code]
+    importance = importance or SYSTEM_ATTENTION[code]
     logical = request_hash({"system": [owner_id, code, subject]})
     if await session.scalar(
         select(AttentionRow.id).where(
@@ -354,19 +393,57 @@ async def raise_system_attention(
         )
     ):
         return None
-    personal = await ensure_personal_agent(session, owner_id)
-    thread = await conversation_thread(session, owner_id, personal.id)
+    if group is not None:
+        open_row = await session.scalar(
+            select(AttentionRow)
+            .where(
+                AttentionRow.owner_id == owner_id,
+                AttentionRow.coalesce_key == system_coalesce_key(owner_id, code, group),
+                AttentionRow.status.in_(["pending", "ready"]),
+            )
+            .order_by(AttentionRow.created_at)
+            .limit(1)
+            .with_for_update()
+        )
+        if open_row is not None:
+            open_row.parameters = {
+                **open_row.parameters,
+                **(parameters or {}),
+                "count": int(open_row.parameters.get("count", 1)) + 1,
+                "execution_authorized": False,
+            }
+            open_row.source_count += 1
+            open_row.version, open_row.updated_at = open_row.version + 1, utcnow()
+            emit(
+                session,
+                owner_id,
+                "attention.updated",
+                agent_id=open_row.agent_id,
+                thread_id=open_row.thread_id,
+                payload=attention_data(open_row),
+            )
+            return None
+    origin_agent, origin_thread, group_id = await system_origin(
+        session, owner_id, agent_id, thread_id
+    )
     now = utcnow()
     row = AttentionRow(
         id=stable_id(owner_id, "attention:" + logical),
         owner_id=owner_id,
-        agent_id=personal.id,
-        thread_id=thread.id,
+        agent_id=origin_agent,
+        thread_id=origin_thread,
         logical_key=logical,
-        coalesce_key=request_hash({"scope": [owner_id, personal.id, "system:" + code, subject]}),
+        coalesce_key=system_coalesce_key(owner_id, code, group)
+        if group is not None
+        else request_hash({"scope": [owner_id, origin_agent, "system:" + code, subject]}),
         importance=importance,
         code=code,
-        parameters={**(parameters or {}), "execution_authorized": False},
+        parameters={
+            **(parameters or {}),
+            **({"group_id": group_id} if group_id else {}),
+            **({"count": 1} if group is not None else {}),
+            "execution_authorized": False,
+        },
         status="ready",
         source_events=[],
         source_count=1,
@@ -398,13 +475,20 @@ async def settle_system_attention(
         .where(AttentionRow.owner_id == owner_id, AttentionRow.logical_key == logical)
         .with_for_update()
     )
-    if row is None or row.status not in {"pending", "ready"}:
+    if row is None:
+        return False
+    return withdraw_attention(session, row)
+
+
+def withdraw_attention(session: AsyncSession, row: AttentionRow) -> bool:
+    """Suppress an unread item whose state is no longer true."""
+    if row.status not in {"pending", "ready"}:
         return False
     row.status, row.version, row.updated_at = "suppressed", row.version + 1, utcnow()
     row.parameters = {**row.parameters, "suppression_code": "attention_superseded_state"}
     emit(
         session,
-        owner_id,
+        row.owner_id,
         "attention.updated",
         agent_id=row.agent_id,
         thread_id=row.thread_id,

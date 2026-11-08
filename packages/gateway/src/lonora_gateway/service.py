@@ -97,7 +97,9 @@ class Gateway:
         self.services: dict[str, OwnerServices] = {}
         self.runtime = AgentRuntime(load_tools(), lease_seconds, maximum_rounds)
         self.liveness = Liveness()
-        self.watchdog = Watchdog(db, self.liveness, self.runtime.read_only_names())
+        self.watchdog = Watchdog(
+            db, self.liveness, self.runtime.read_only_names(), identity=self.identity
+        )
 
     async def worker_loop(self, lane: str | None = None, name: str = "worker") -> None:
         # A worker is live while it polls; while it runs a Run it is busy, not stalled.
@@ -121,9 +123,16 @@ class Gateway:
                     self.searxng_url,
                     self.browser_url,
                 )
+            except Exception as error:
+                # A worker whose every claim fails is not live: its record goes stale,
+                # so readiness and the watchdog report it while the supervisor restarts it.
+                record.failures += 1
+                record.last_error = failure_code(error)
+                raise
             finally:
                 record.busy = False
-                record.succeeded_at = utcnow()
+            record.failures, record.last_error = 0, None
+            record.succeeded_at = utcnow()
             if not claimed:
                 await asyncio.sleep(self.poll_seconds)
 

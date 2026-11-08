@@ -129,7 +129,8 @@ async def finish_activation(
     device.sign_count, challenge.status = sign_count, "used"
     row.status, row.device_id = "active", device.id
     if envelope.management_mode == "full":
-        # A deleted conversation leaves the signed grant without its origin thread.
+        # validate_scope above proved the origin conversation exists; deleting it later
+        # revokes this grant, so a NULL thread is only ever history.
         origin = row.thread_id or ""
         locale = await conversation_locale(session, owner.id, origin)
         task = await create_task(

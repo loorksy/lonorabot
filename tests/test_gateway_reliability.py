@@ -13,6 +13,7 @@ from types import SimpleNamespace
 from typing import Any, cast
 
 import lonora_agent.executor as executor
+import lonora_db.item_failures as item_failures
 import lonora_db.routines as routines
 import lonora_gateway.attention as attention
 import lonora_gateway.service as service
@@ -23,6 +24,8 @@ from lonora_automation.runner import dispatch_routines
 from lonora_contracts.domain import utcnow
 from lonora_contracts.runs import Lease, RunRequest
 from lonora_core.user_error import LonoraError
+from lonora_db.account_authority import require_authority
+from lonora_db.agent_permissions import permission_state
 from lonora_db.client import Database
 from lonora_db.events import emit
 from lonora_db.item_failures import QUARANTINE_AFTER, ItemGuard
@@ -55,6 +58,7 @@ from lonora_gateway.runtime import OwnerServices
 from lonora_gateway.shutdown import drain
 from lonora_gateway.watchdog import Watchdog
 from lonora_tools.context import ToolContext
+from lonora_trading.goals import recover_goals
 from sqlalchemy import select, update
 from sqlalchemy.exc import OperationalError
 from test_task_runtime import task_db as task_db
@@ -436,6 +440,8 @@ async def test_a_run_recovered_too_often_is_quarantined_unless_a_trade_is_uncert
     assert held and held.status in {"leased", "running"}
     items = await system_items(db, owner, "run_quarantined")
     assert [item.parameters["run_id"] for item in items] == [plain]
+    # The item opens the agent and conversation where the work stopped.
+    assert (items[0].agent_id, items[0].thread_id) == (agent, failed.thread_id)
     async with db.sessions() as session, session.begin():
         journal = await session.get(TradingJournalRow, "op-held")
         assert journal
@@ -452,6 +458,12 @@ async def test_the_watchdog_reports_aging_operations_overdue_wakes_and_stalls_on
 ) -> None:
     db, owner, agent, thread = task_db
     async with db.sessions() as session, session.begin():
+        desk = ThreadRow(owner_id=owner, agent_id=agent, title="Gold desk")
+        session.add(desk)
+        await session.flush()
+        placed = RunRow(thread_id=desk.id, agent_id=agent, status="completed")
+        session.add(placed)
+        await session.flush()
         session.add(
             TradingJournalRow(
                 operation_id="op-aging",
@@ -461,7 +473,7 @@ async def test_the_watchdog_reports_aging_operations_overdue_wakes_and_stalls_on
                 request={"symbol": "XAUUSD"},
                 status="ambiguous",
                 submitted_at=utcnow() - timedelta(hours=1),
-                result={},
+                result={"details": {"execution": {"agent_id": agent, "run_id": placed.id}}},
             )
         )
         session.add(
@@ -478,12 +490,15 @@ async def test_the_watchdog_reports_aging_operations_overdue_wakes_and_stalls_on
     stalled = liveness.register(StepSpec("reconcile", 10, 300))
     stalled.registered_at = utcnow() - timedelta(hours=1)
     watchdog = Watchdog(db, liveness, set())
-    assert await watchdog.tick() == {"steps": 1, "runs": 0, "overdue": 1, "operations": 1}
+    quiet = {"steps": 0, "runs": 0, "overdue": 0, "operations": 0, "ended": 0}
+    assert await watchdog.tick() == {**quiet, "steps": 1, "overdue": 1, "operations": 1}
     # One item per operation and per episode: a second pass raises nothing new.
-    assert await watchdog.tick() == {"steps": 0, "runs": 0, "overdue": 0, "operations": 0}
+    assert await watchdog.tick() == quiet
     operation = await system_items(db, owner, "operation_unresolved")
     assert len(operation) == 1 and operation[0].parameters["symbol"] == "XAUUSD"
     assert operation[0].importance == "action_required"
+    # It opens the conversation of the Run that placed the trade.
+    assert (operation[0].agent_id, operation[0].thread_id) == (agent, desk.id)
     degraded = await system_items(db, owner, "gateway_degraded")
     assert sorted(item.parameters["reason_code"] for item in degraded) == [
         "step_stalled",
@@ -833,3 +848,274 @@ async def test_an_item_guard_never_quarantines_financial_kinds(task_db: Fixture)
         recorded and recorded.quarantined_at is None and recorded.failures == QUARANTINE_AFTER + 2
     )
     assert not await system_items(db, owner, "maintenance_item_quarantined")
+
+
+def waiting_goal_state(request_id: str | None = None) -> dict[str, Any]:
+    return {
+        "status": "waiting",
+        "code": "goal_target_pending",
+        "autonomous": request_id is not None,
+        **({"super_bot_request_id": request_id} if request_id else {}),
+        "current_step": "entry",
+        "steps": {"entry": {"status": "waiting"}},
+    }
+
+
+@pytest.mark.asyncio
+async def test_deleting_a_conversation_settles_its_grant_super_bot_request_and_goal(
+    task_db: Fixture,
+) -> None:
+    db, owner, _, _ = task_db
+    ids = await financial_fixture(db, owner)
+    async with db.sessions() as session, session.begin():
+        goal = await session.get(TradingGoalRow, ids["goal"])
+        assert goal
+        goal.state = waiting_goal_state("sb-live")
+        session.add(
+            SuperBotRequestRow(
+                id="sb-live",
+                owner_id=owner,
+                agent_id=ids["agent"],
+                thread_id=ids["thread"],
+                goal_id=ids["goal"],
+                mode="autonomous",
+                status="activated",
+                envelope={"symbol": "XAUUSD"},
+                envelope_hash="hash",
+                expires_at=utcnow(),
+            )
+        )
+    async with db.sessions() as session, session.begin():
+        await prepare_delete(session, owner, thread_id=ids["thread"])
+        thread = await session.get(ThreadRow, ids["thread"])
+        assert thread
+        await session.delete(thread)
+    async with db.sessions() as session:
+        grant = await session.scalar(
+            select(AccountAuthorityRow).where(AccountAuthorityRow.owner_id == owner)
+        )
+        assert grant and grant.status == "revoked"
+        # Records, the permission frame and the trade path tell the same story.
+        with pytest.raises(LonoraError) as unusable:
+            await require_authority(session, owner, ids["agent"], grant.id)
+        assert unusable.value.code == "account_authority_unavailable"
+        frame = await permission_state(session, owner, ids["agent"])
+        assert frame["status"] == "autonomous_stopped"
+        assert frame["effective_level"] != "autonomous" and not frame["active_authorities"]
+        request = await session.get(SuperBotRequestRow, "sb-live", populate_existing=True)
+        goal = await session.get(TradingGoalRow, ids["goal"], populate_existing=True)
+    assert request and request.status == "cancelled"
+    assert goal and goal.state["status"] == "cancelled"
+    assert goal.state["code"] == "goal_origin_deleted" and goal.state["autonomous"] is False
+    # Settled once: recovery never retries it through the failure ledger.
+    assert await recover_goals(db) == 0
+    assert await failure(db, "goal_target", ids["goal"]) is None
+
+
+@pytest.mark.asyncio
+async def test_a_goal_orphaned_before_the_rule_settles_once_and_is_never_retried(
+    task_db: Fixture,
+) -> None:
+    db, owner, _, _ = task_db
+    ids = await financial_fixture(db, owner)
+    async with db.sessions() as session, session.begin():
+        goal = await session.get(TradingGoalRow, ids["goal"])
+        assert goal
+        # As left by a conversation delete before deletes settled their goals.
+        goal.state, goal.thread_id = waiting_goal_state(), None
+        healthy = TradingGoalRow(
+            owner_id=owner,
+            agent_id=ids["agent"],
+            thread_id=ids["thread"],
+            state={"status": "active", "current_step": "entry", "steps": {}},
+        )
+        session.add(healthy)
+        await session.flush()
+        healthy_id = healthy.id
+    assert await recover_goals(db) == 1
+    assert await recover_goals(db) == 0
+    async with db.sessions() as session:
+        orphan = await session.get(TradingGoalRow, ids["goal"], populate_existing=True)
+        alive = await session.get(TradingGoalRow, healthy_id, populate_existing=True)
+    assert orphan and orphan.state["status"] == "cancelled"
+    assert orphan.state["code"] == "goal_origin_deleted"
+    assert alive and alive.state["status"] == "active"
+    assert await failure(db, "goal_target", ids["goal"]) is None
+
+
+@pytest.mark.asyncio
+async def test_a_hanging_attention_event_times_out_into_the_ledger_and_never_holds_the_cursor(
+    task_db: Fixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    db, owner, agent, _ = task_db
+    async with db.sessions() as session, session.begin():
+        for identifier in ("before", "hang", "after"):
+            emit(
+                session,
+                owner,
+                "task.failed",
+                agent_id=agent,
+                payload={"id": identifier, "attempt": 1, "recovery": "owner"},
+            )
+    real = attention.candidate
+
+    async def hanging(db_: Database, brokers: BrokerManager, event: EventRow) -> Any:
+        if event.payload.get("id") == "hang":
+            await asyncio.Event().wait()
+        return await real(db_, brokers, event)
+
+    monkeypatch.setattr(attention, "candidate", hanging)
+
+    async def state() -> tuple[int, dict[str, int], dict[str, bool]]:
+        async with db.sessions() as session:
+            events = list(
+                await session.scalars(
+                    select(EventRow).where(
+                        EventRow.owner_id == owner, EventRow.kind == "task.failed"
+                    )
+                )
+            )
+            counter = await session.get(
+                SettingRow, "attention-cursor:" + owner, populate_existing=True
+            )
+            decided = {
+                event.payload["id"]: await session.get(
+                    EffectReceiptRow, "attention-source:" + owner + ":" + str(event.cursor)
+                )
+                is not None
+                for event in events
+            }
+        positions = {
+            event.payload["id"]: int(event.payload["_ln_public_cursor"]) for event in events
+        }
+        return int(counter.payload["cursor"]) if counter else 0, positions, decided
+
+    # The step's iteration timeout cancels the batch: what was already decided is kept.
+    with pytest.raises(TimeoutError):
+        async with asyncio.timeout(3.0):
+            await attention.attention_tick(db, NO_BROKERS, owner)
+    cursor, positions, decided = await state()
+    assert cursor == positions["before"] and decided["before"] and not decided["after"]
+    # Its own item limit turns the hang into a recorded failure; later events are decided.
+    monkeypatch.setattr(item_failures, "ITEM_TIMEOUT_SECONDS", 0.2)
+    await asyncio.wait_for(attention.attention_tick(db, NO_BROKERS, owner), 10)
+    cursor, positions, decided = await state()
+    assert cursor == max(positions.values()) and decided["after"] and not decided["hang"]
+    recorded = await failure(db, "attention_event", str(await event_cursor(db, owner, "hang")))
+    assert recorded and recorded.code == "timeout" and recorded.quarantined_at is None
+
+
+async def event_cursor(db: Database, owner: str, identifier: str) -> int:
+    async with db.sessions() as session:
+        events = await session.scalars(
+            select(EventRow).where(EventRow.owner_id == owner, EventRow.kind == "task.failed")
+        )
+        return next(event.cursor for event in events if event.payload["id"] == identifier)
+
+
+@pytest.mark.asyncio
+async def test_a_restart_withdraws_running_late_items_it_ended_but_keeps_a_live_gateways(
+    task_db: Fixture,
+) -> None:
+    db, owner, *_ = task_db
+    liveness = Liveness()
+    stalled = liveness.register(StepSpec("reconcile", 10, 300))
+    stalled.registered_at = utcnow() - timedelta(hours=1)
+    before = Watchdog(db, liveness, set(), identity="gw-before")
+    other = Watchdog(db, liveness, set(), identity="gw-other")
+    assert await before.stalled_steps() == 1
+    other.episodes["step:reconcile"] = "step:reconcile:other"
+    assert await other.alert(
+        "gateway_degraded",
+        other.episodes["step:reconcile"],
+        {"reason_code": "step_stalled", "step": "reconcile", **other.episode("step:reconcile")},
+    )
+    async with db.sessions() as session, session.begin():
+        session.add(GatewayRow(id="gw-before", state="stopped", liveness={}))
+        session.add(GatewayRow(id="gw-other", state="running", liveness={}))
+    # The restarted gateway runs every step live: nothing it stands behind is late.
+    after = Watchdog(db, Liveness(), set(), identity="gw-after")
+    assert await after.ended_episodes() == 1
+    statuses = {
+        item.parameters["gateway"]: item.status
+        for item in await system_items(db, owner, "gateway_degraded")
+    }
+    assert statuses == {"gw-before": "suppressed", "gw-other": "ready"}
+    # The live gateway's own episode is still current there.
+    assert await other.ended_episodes() == 0
+
+
+@pytest.mark.asyncio
+async def test_a_worker_whose_every_claim_fails_goes_stale_and_is_reported(
+    task_db: Fixture, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    db, owner, *_ = task_db
+    calls = [0]
+
+    async def broken(*_: Any) -> bool:
+        calls[0] += 1
+        raise RuntimeError("poison row in the claim query")
+
+    monkeypatch.setattr(service, "dispatch_one", broken)
+    gateway = service.Gateway(db, "unused-key", tmp_path, maximum_subagents=0, poll_seconds=0.01)
+    for _ in range(3):
+        with pytest.raises(RuntimeError):
+            await gateway.worker_loop(None, "worker-0")
+    record = gateway.liveness.steps["worker-0"]
+    assert calls[0] == 3 and record.failures == 3
+    assert record.last_error == "unexpected_runtime_error" and record.succeeded_at is None
+    # A failed claim never counts as liveness, so the worker goes stale and is reported.
+    record.registered_at = utcnow() - timedelta(minutes=5)
+    assert "worker-0" in gateway.liveness.stalled()
+    assert gateway.liveness.snapshot()["ready"] is False
+    assert await Watchdog(db, gateway.liveness, set()).stalled_steps() == 1
+    degraded = await system_items(db, owner, "gateway_degraded")
+    assert [item.parameters["step"] for item in degraded] == ["worker-0"]
+
+
+def test_the_stall_threshold_covers_one_legitimate_iteration() -> None:
+    # A broker outage inside reconcile's own timeout is not a stalled service.
+    assert StepSpec("reconcile", 10, 300).stall_after == 310
+    assert StepSpec("routines", 5, 120).stall_after == 125
+    assert StepSpec("worker-0", 0.5, 0).stall_after == 120
+
+
+@pytest.mark.asyncio
+async def test_quarantine_notices_coalesce_per_kind_and_never_cost_a_critical_alert(
+    task_db: Fixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    db, owner, agent, _ = task_db
+    guard = ItemGuard(db, "routine")
+
+    async def broken() -> None:
+        raise RuntimeError("systematic")
+
+    for item in ("routine-a", "routine-b", "routine-c"):
+        for _ in range(QUARANTINE_AFTER):
+            await expire_backoff(db, "routine")
+            await guard.run(item, owner, broken)
+    notices = await system_items(db, owner, "maintenance_item_quarantined")
+    # One open notice per kind with a count, not three identical items.
+    assert len(notices) == 1 and notices[0].parameters["count"] == 3
+    assert notices[0].parameters["item_kind"] == "routine"
+    async with db.sessions() as session, session.begin():
+        emit(
+            session,
+            owner,
+            "trading.controls_updated",
+            agent_id=agent,
+            payload={"emergency_stop": True, "enabled": True},
+        )
+
+    async def poisoned(*_: Any) -> Any:
+        raise KeyError("projection bug")
+
+    monkeypatch.setattr(attention, "candidate", poisoned)
+    await attention.attention_tick(db, NO_BROKERS, owner)
+    for _ in range(QUARANTINE_AFTER - 1):
+        await expire_backoff(db, "attention_event")
+        await attention.attention_tick(db, NO_BROKERS, owner)
+    # The Emergency Stop alert still reaches the owner under its own code.
+    stops = await system_items(db, owner, "emergency_stop")
+    assert len(stops) == 1 and stops[0].status == "ready"
+    assert stops[0].importance == "critical" and stops[0].agent_id == agent

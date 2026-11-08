@@ -194,10 +194,16 @@ async def require_goal_authority(
 
 
 async def stop_request(session: AsyncSession, row: SuperBotRequestRow, status: str) -> None:
-    from .trading_goals import owned_goal, update_goal_state
+    from .trading_goals import update_goal_state
 
-    goal = await owned_goal(session, row.owner_id, row.goal_id, True)
-    if goal.state.get("super_bot_request_id") == row.id:
+    # The request is a durable record and may outlive its goal; stopping it never fails.
+    goal = await session.scalar(
+        select(TradingGoalRow)
+        .where(TradingGoalRow.owner_id == row.owner_id, TradingGoalRow.id == row.goal_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    if goal is not None and goal.state.get("super_bot_request_id") == row.id:
         update_goal_state(session, goal, {**goal.state, "autonomous": False})
     row.status = status
     changed(session, row)

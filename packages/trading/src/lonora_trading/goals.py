@@ -21,6 +21,7 @@ from lonora_db.client import Database
 from lonora_db.goal_scope import goal_mode, require_goal_agent
 from lonora_db.runs import create_run, locked_run_thread, require_lease, run_data
 from lonora_db.schema import (
+    AgentRow,
     GoalDecisionRow,
     RunRow,
     SuperBotRequestRow,
@@ -28,7 +29,7 @@ from lonora_db.schema import (
     TradingGoalRow,
     TradingJournalRow,
 )
-from lonora_db.super_bot import require_goal_authority
+from lonora_db.super_bot import require_goal_authority, stop_request
 from lonora_db.trading_goals import (
     owned_goal,
     planned_step,
@@ -36,7 +37,7 @@ from lonora_db.trading_goals import (
     update_goal_state,
 )
 from lonora_session.idempotency import stable_id
-from sqlalchemy import select
+from sqlalchemy import exists, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .account_authority import available_authority, provisional_voice
@@ -265,6 +266,9 @@ async def recover_goals(db: Database) -> int:
                 .where(
                     TradingGoalRow.state["status"].as_string() == "waiting",
                     TradingGoalRow.state["code"].as_string() == "goal_target_pending",
+                    # A goal without its conversation or agent cannot be reviewed again.
+                    TradingGoalRow.thread_id.is_not(None),
+                    exists(select(AgentRow.id).where(AgentRow.id == TradingGoalRow.agent_id)),
                     ~blocked("goal_target", TradingGoalRow.id),
                 )
                 .limit(100)
@@ -278,7 +282,47 @@ async def recover_goals(db: Database) -> int:
             return await restore_target_review(db, goal)
 
         recovered += int(bool(await targets.run(goal.id, goal.owner_id, review)))
-    return recovered
+    return recovered + await settle_orphaned_goals(db)
+
+
+async def settle_orphaned_goals(db: Database) -> int:
+    """Cancel, once, goals whose conversation or agent is gone (deleted before this rule).
+
+    A delete settles its goals itself; this only repairs goals orphaned earlier, so they
+    stop claiming to wait and are never retried through the failure ledger.
+    """
+    from lonora_db.trading_goals import TERMINAL_GOAL_STATUSES, settle_orphaned_goal
+
+    status = TradingGoalRow.state["status"].as_string()
+    async with db.sessions() as session, session.begin():
+        orphans = list(
+            await session.scalars(
+                select(TradingGoalRow)
+                .where(
+                    or_(status.is_(None), status.not_in(sorted(TERMINAL_GOAL_STATUSES))),
+                    or_(
+                        TradingGoalRow.thread_id.is_(None),
+                        ~exists(select(AgentRow.id).where(AgentRow.id == TradingGoalRow.agent_id)),
+                    ),
+                )
+                .order_by(TradingGoalRow.id)
+                .limit(100)
+                .with_for_update(skip_locked=True)
+            )
+        )
+        settled = 0
+        for goal in orphans:
+            for request in await session.scalars(
+                select(SuperBotRequestRow)
+                .where(
+                    SuperBotRequestRow.goal_id == goal.id,
+                    SuperBotRequestRow.status.in_(["pending", "activated", "paused"]),
+                )
+                .with_for_update()
+            ):
+                await stop_request(session, request, "cancelled")
+            settled += int(settle_orphaned_goal(session, goal))
+        return settled
 
 
 async def recover_decision(db: Database, operation_id: str) -> bool:

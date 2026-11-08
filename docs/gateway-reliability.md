@@ -32,8 +32,13 @@ broken routine can no longer stop broker reconciliation.
 | `incoming` (incoming calls) | 2 s | 60 s | no |
 
 Each run worker has a liveness record too. A worker running a Run is busy, never
-stalled; the Run's lease covers it. A step is stalled when its current iteration has
-run longer than `max(120 s, 12 × interval)`, or when it has not succeeded for that long.
+stalled; the Run's lease covers it. Only a poll that returns counts as liveness: a
+worker whose every claim fails records the failure and goes stale, so readiness and the
+watchdog report it while the supervisor restarts it. A step is stalled when its current
+iteration has run longer than `max(120 s, 12 × interval, timeout + interval)`, or when
+it has not succeeded for that long. The threshold is never shorter than one legitimate
+iteration, so a slow broker inside reconciliation's own timeout is a broker problem
+(`broker_degraded`), not a stalled service.
 Steps that serve several owners run each owner separately, so one owner's failure never
 skips another.
 
@@ -42,20 +47,30 @@ skips another.
 Inside a step, every item is isolated by `ItemGuard` (`lonora_db/item_failures.py`):
 routines, automatic task retries, activation reviews, task waits, outcome returns,
 attention events and items, watches, channel integrations, goal decisions and goal
-target reviews, and opportunities. Each item runs in its own transaction. An item that
-raises is recorded in `ln_item_failures` (kind, item, failure count, code, next attempt)
-and backs off (10 s doubling to 10 min). A SQL predicate keeps backing-off and
+target reviews, and opportunities. Each item runs in its own transaction and has its
+own time limit (45 s; 100 s for a channel integration's batch of deliveries), well
+below the step's timeout. An item that raises, or hangs past its limit (code
+`timeout`), is recorded in `ln_item_failures` (kind, item, failure count, code, next
+attempt) and backs off (10 s doubling to 10 min). A hanging item is therefore isolated
+like a raising one instead of being cut off silently by the step timeout and selected
+first again on every pass. A SQL predicate keeps backing-off and
 quarantined items out of the batch, so they never take the slot of a healthy item.
 Success clears the record.
 
-After five consecutive failures an item is quarantined, and the owner gets one
+After five consecutive failures an item is quarantined, and the owner gets an
 attention item, `maintenance_item_quarantined` ("A background item was paused after
-repeated errors; everything else keeps running"):
+repeated errors; everything else keeps running"). There is one open item per kind: a
+further quarantine of the same kind adds to its `count` instead of a new item, so a
+systematic fault cannot flood the inbox.
 
 - a routine is disabled, a watch is disabled (`state.code: watch_quarantined`), an
   activation review is recorded as skipped, an attention event is recorded as decided
   (`attention_projection_failed`) and an attention item is suppressed; re-enabling a
   routine or watch starts fresh;
+- a critical or action-required notification is never lost to a projection bug: a
+  quarantined event still raises its own code (for example `emergency_stop`) straight
+  to ready, without the details its failed projection would have added, and a
+  quarantined pending item of that importance is delivered as it is;
 - an automatic task retry is turned into a Task failure that waits for the owner, which
   already reaches the owner as `task_review`;
 - a task wait or outcome return stays in the ledger quarantine.
@@ -71,9 +86,11 @@ has its own timeout (30 s and 20 s). A watch whose observation times out records
 thread) and, when polling, takes only due watches: never-checked first, then the most
 overdue. Old or retired watches can no longer starve new ones.
 
-The attention cursor advances past every event in the batch: an event that raises is
-retried from the failure ledger instead of holding the cursor, so later events
-(critical broker alerts included) are projected on time. Incoming calls are their own
+The attention cursor advances per event, over the prefix of events already handled
+(critical events are handled first): an event that raises or hangs is retried from the
+failure ledger instead of holding the cursor, and an iteration cancelled by the step
+timeout keeps every event it already decided. Later events (critical broker alerts
+included) are projected on time. Incoming calls are their own
 step and are no longer behind attention.
 
 ## Watchdog
@@ -98,7 +115,16 @@ from the others.
   item ("A trade still has no confirmed broker result"). It is never resent.
 
 These items are written straight to `ready` (`raise_system_attention`), so they do not
-depend on the attention loop being healthy. `run_quarantined` and
+depend on the attention loop being healthy. Each names and opens the agent and
+conversation it is about: `run_quarantined` the agent and conversation where the Run
+stopped, `operation_unresolved` those of the Run that placed the trade. Only an item
+about no agent (a stalled step) or whose agent is gone uses the Personal Agent.
+
+Stall episodes live in memory, so every `gateway_degraded` item records its episode and
+gateway. Each watchdog pass withdraws an unread item whose episode is no longer current
+on its own gateway, or whose gateway has stopped or lost its heartbeat. After a restart
+(often what cleared the stall) the owner is therefore not told the service is late
+while every step is live. `run_quarantined` and
 `operation_unresolved` need action and are mirrored to Telegram while still current.
 Every new code has Arabic and English text on web, mobile and in channel messages.
 
@@ -143,17 +169,35 @@ refused while any record has outlived its parent.
 are refused with 409 `delete_blocked_unresolved_operation` while an operation they
 touch is still `reserved`, `submitted` or `ambiguous`. The owner sees "This can't be deleted yet: a trade linked to it still has no
 confirmed broker result. Settle that operation first; nothing was deleted." Otherwise
-the delete first narrows what depended on the deleted parent, which never needs the
-passkey: open approvals (pending, or approved but not yet sent) are cancelled, so a
-cancelled approval can no longer authorize a send; the agent's or account's grants are
-revoked and the agent's Super Bot requests are cancelled.
+the delete first settles what depended on the deleted parent, which never needs the
+passkey, so nothing is left looking active while it can no longer run:
+
+- open approvals (pending, or approved but not yet sent) are cancelled, so a cancelled
+  approval can no longer authorize a send;
+- grants of the agent, of the account, or signed in the deleted conversation are
+  revoked through the normal revocation (their full-management Task stops), so the
+  permission frame shows "autonomous stopped" and the trade path asks for approval
+  again, instead of a grant that still reads active but always fails;
+- Super Bot requests of the agent or conversation are stopped (`stop_request`, which
+  also clears the goal's autonomy);
+- goals of the agent or conversation are cancelled with `goal_origin_deleted` ("This
+  goal stopped because its conversation or agent was deleted. Its history is kept.").
+
+Goals orphaned before this rule are settled the same way, once, by the `goals` step;
+a goal without its conversation or agent is never retried through the failure ledger.
 
 ## Verification
 
 - `tests/test_gateway_reliability.py`: a poison routine, watch and attention event back
-  off and are quarantined while the others run; a failing step never stops
-  reconciliation and liveness is persisted; a hung iteration times out; readiness;
-  recovery-count quarantine and the financial hold; the watchdog's one-item rules;
-  drain release and lease renewal; durable records and delete refusal.
+  off and are quarantined while the others run; a hanging attention event times out
+  into the ledger and never holds the cursor; a failing step never stops
+  reconciliation and liveness is persisted; a hung iteration times out; a worker whose
+  claims fail goes stale; the stall threshold; readiness; recovery-count quarantine and
+  the financial hold; the watchdog's one-item rules, item origin and withdrawal of
+  ended episodes after a restart; coalesced quarantine notices and the kept critical
+  alert; drain release and lease renewal; durable records, delete refusal and the
+  settlement of a deleted conversation's grant, Super Bot request and goal.
+- `tests/check_account_authority.py`: deleting a grant's conversation revokes it; the
+  grant list, the permission frame and the trade path agree.
 - `tests/check_durable_records.py` (fresh PostgreSQL): the migration's constraints,
   lossy-downgrade refusal and round trip, the three delete routes and `/ready`.

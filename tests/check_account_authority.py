@@ -580,6 +580,28 @@ async def main() -> None:
         )
         assert settled["status"] == "resolved", settled
         print("PASS an agent with an uncertain trade cannot be deleted until the owner settles it")
+
+        # Deleting the conversation a grant was signed in revokes that grant visibly:
+        # its record, the permission frame and the trade path agree.
+        # A distinct scope: the identical request still names the tampered pending one.
+        doomed = await activate(maximum_actions=50)
+        assert doomed["status"] == "active" and doomed["thread_id"] == thread["id"]
+        removed = await f.client.delete("/api/threads/" + thread["id"])
+        assert removed.status_code == 200, removed.text
+        listed = cast(
+            list[dict[str, Any]],
+            await f.request("GET", f"/agents/{agent['id']}/account-authorities"),
+        )
+        assert next(item for item in listed if item["id"] == doomed["id"])["status"] == "revoked"
+        frame = await f.request("GET", f"/agents/{agent['id']}/permissions")
+        assert frame["status"] == "autonomous_stopped", frame
+        assert frame["effective_level"] != "autonomous" and not frame["active_authorities"]
+        context = await f.lease(await f.run(agent, await f.conversation(agent)))
+        after_delete = await operation(volume="0.1", stop_loss="90")
+        assert after_delete["_runtime_wait"], after_delete
+        print(
+            "PASS deleting a grant's conversation revokes it: records, permission frame and trades agree"
+        )
     finally:
         await save_controls(f.runtime.db, controls)
         await f.close()

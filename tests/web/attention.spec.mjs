@@ -30,6 +30,11 @@ test("durable notification is shared across views and stays read after reload", 
   ).toBeVisible();
   await expect(uncertain.getByText("XAUUSD", { exact: true })).toBeVisible();
   await expect(uncertain).not.toContainText(fixture.uncertain.parameters.operation_id);
+  // It names and opens the agent that placed the trade, not the Personal Agent.
+  await expect(uncertain.getByText(fixture.agent.name, { exact: true })).toBeVisible();
+  await expect(
+    uncertain.getByRole("link", { name: "Open conversation", exact: true }),
+  ).toHaveAttribute("href", `/app/${fixture.agent.id}`);
   await page.reload();
   await expect(alert).toHaveCount(1);
   await alert.getByRole("button", { name: "Mark as read", exact: true }).click();

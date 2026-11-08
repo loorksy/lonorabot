@@ -13,7 +13,13 @@ from lonora_contracts.trading import TradingControl
 from lonora_core.attention import ATTENTION_KINDS, classify_attention
 from lonora_core.market_watch import condition_met
 from lonora_core.user_error import LonoraError
-from lonora_db.attention import attention_data, decide_attention, policy, set_cursor
+from lonora_db.attention import (
+    attention_data,
+    decide_attention,
+    policy,
+    raise_system_attention,
+    set_cursor,
+)
 from lonora_db.client import Database
 from lonora_db.events import PUBLIC_CURSOR, emit, publish_committed
 from lonora_db.item_failures import ItemGuard, blocked, due_retries
@@ -367,12 +373,32 @@ async def project_event(
         await ready_attention(db, brokers, owner_id)
 
 
+URGENT = frozenset({"critical", "action_required"})
+
+
 async def quarantine_event(session: AsyncSession, item_id: str) -> bool:
-    """Quarantine: an event that keeps failing is recorded as decided and never re-read."""
+    """Quarantine: an event that keeps failing is recorded as decided and never re-read.
+
+    A critical or action-required event still reaches the owner under its own code
+    (without the details its failed projection would have added): a projection bug
+    must never cost the owner an Emergency Stop or approval alert.
+    """
     event = await session.get(EventRow, int(item_id))
     if event is None:
         return True
     key = "attention-source:" + event.owner_id + ":" + str(event.cursor)
+    classification = classify_attention(event.kind, event.payload)
+    if classification.importance in URGENT:
+        await raise_system_attention(
+            session,
+            event.owner_id,
+            classification.code,
+            "event:" + str(event.cursor),
+            {"reason_code": "attention_projection_failed"},
+            agent_id=event.agent_id,
+            thread_id=event.thread_id,
+            importance=classification.importance,
+        )
     if await session.get(EffectReceiptRow, key) is None:
         session.add(
             EffectReceiptRow(
@@ -388,19 +414,30 @@ async def quarantine_event(session: AsyncSession, item_id: str) -> bool:
 
 
 async def suppress_item(session: AsyncSession, item_id: str) -> bool:
-    """Quarantine: a notification that cannot be readied is suppressed, not retried forever."""
+    """Quarantine: a notification that cannot be readied is not retried forever.
+
+    A critical or action-required one is delivered as it is rather than lost; any
+    other is suppressed.
+    """
     row = await session.get(AttentionRow, item_id, with_for_update=True)
     if row is not None and row.status == "pending":
-        row.status, row.version, row.updated_at = "suppressed", row.version + 1, utcnow()
-        row.parameters = {**row.parameters, "suppression_code": "attention_projection_failed"}
-        emit(
-            session,
-            row.owner_id,
-            "attention.updated",
-            agent_id=row.agent_id,
-            thread_id=row.thread_id,
-            payload=attention_data(row),
+        urgent = row.importance in URGENT
+        row.status, row.version, row.updated_at = (
+            "ready" if urgent else "suppressed",
+            row.version + 1,
+            utcnow(),
         )
+        if not urgent:
+            row.parameters = {**row.parameters, "suppression_code": "attention_projection_failed"}
+        for kind in ("attention.updated", "attention.ready") if urgent else ("attention.updated",):
+            emit(
+                session,
+                row.owner_id,
+                kind,
+                agent_id=row.agent_id,
+                thread_id=row.thread_id,
+                payload=attention_data(row),
+            )
     return True
 
 
@@ -431,24 +468,40 @@ async def attention_tick(db: Database, brokers: BrokerManager, owner_id: str) ->
             else 1
         )
     )
-    # Each event is isolated: one that raises is recorded in the failure ledger and
-    # retried there, so the cursor still advances past it and later events (critical
-    # broker alerts included) are never stuck behind it.
+    # Each event is isolated: one that raises or hangs past its own time limit is
+    # recorded in the failure ledger and retried there, so the cursor still advances past
+    # it and later events (critical broker alerts included) are never stuck behind it.
     guard = ItemGuard(db, "attention_event", quarantine=quarantine_event)
     await guard.prepare(str(event.cursor) for event in events)
+    order = sorted(int(event.payload[PUBLIC_CURSOR]) for event in events)
+    handled: set[int] = set()
+    written = cursor
+
+    async def advance(position: int) -> None:
+        # Per event, over the handled prefix only (critical events are handled first),
+        # so even a cancelled iteration keeps every event it already decided.
+        nonlocal written
+        handled.add(position)
+        target = written
+        for value in order:
+            if value <= written:
+                continue
+            if value not in handled:
+                break
+            target = value
+        if target > written:
+            async with db.sessions() as session, session.begin():
+                await set_cursor(session, owner_id, target)
+            written = target
+
     for event in events:
-        if str(event.cursor) in guard.failing:
-            continue
+        if str(event.cursor) not in guard.failing:
 
-        async def project(event: EventRow = event) -> None:
-            await project_event(db, brokers, owner_id, event)
+            async def project(event: EventRow = event) -> None:
+                await project_event(db, brokers, owner_id, event)
 
-        await guard.run(str(event.cursor), owner_id, project)
-    if events:
-        async with db.sessions() as session, session.begin():
-            await set_cursor(
-                session, owner_id, max(int(event.payload[PUBLIC_CURSOR]) for event in events)
-            )
+            await guard.run(str(event.cursor), owner_id, project)
+        await advance(int(event.payload[PUBLIC_CURSOR]))
     async with db.sessions() as session:
         retries = [
             event
