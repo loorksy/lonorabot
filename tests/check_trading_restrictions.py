@@ -216,7 +216,18 @@ async def main() -> None:
                 name="trade_execute",
                 arguments={"account_id": on, **arguments},
             )
-            proposal = await registry.execute(call, context)
+            try:
+                proposal = await registry.execute(call, context)
+            except LonoraError as error:
+                # New risk a brake holds is refused before any approval card (W15-ACC):
+                # the owner is never asked to approve what the boundary would refuse.
+                if error.code not in {
+                    "trading_restriction_active",
+                    "trading_disabled",
+                    "emergency_stop",
+                }:
+                    raise
+                return {"status": "failed", "code": error.code, "before_card": True}
             if not proposal.get("_runtime_wait"):
                 # The identical operation the owner already approved in this Run, which
                 # reached the broker: its approval is reused, never asked twice (W15-3).
@@ -231,6 +242,19 @@ async def main() -> None:
             outcome = await registry.execute(call, context)
             operations.extend(item["operation_id"] for item in outcome["results"])
             return outcome
+
+        async def refused_before_card(arguments: dict[str, Any]) -> str:
+            """New risk a pause holds is refused before any approval card is raised."""
+            call = ToolCall(
+                id="card-" + uuid4().hex,
+                name="trade_execute",
+                arguments={"account_id": account, **arguments},
+            )
+            try:
+                await registry.execute(call, context)
+            except LonoraError as error:
+                return error.code
+            raise AssertionError("an approval card was raised for a held entry")
 
         # Owner-manual book: a gold position, a resting gold order and a euro position.
         held = await owner(trade("buy", volume="0.2", stop_loss="1990"))
@@ -442,9 +466,9 @@ async def main() -> None:
         )
 
         # 2. Enforcement on the agent path; reduce-only and other markets stay admissible.
-        blocked = await approved({"action": "buy", "symbol": GOLD, "volume": "0.1"})
-        assert blocked["status"] == "failed" and blocked["code"] == "trading_restriction_active"
-        edit = await approved(
+        blocked = await refused_before_card({"action": "buy", "symbol": GOLD, "volume": "0.1"})
+        assert blocked == "trading_restriction_active", blocked
+        edit = await refused_before_card(
             {
                 "action": "modify_order",
                 "symbol": GOLD,
@@ -452,7 +476,7 @@ async def main() -> None:
                 "price": "1994",
             }
         )
-        assert edit["status"] == "failed" and edit["code"] == "trading_restriction_active", edit
+        assert edit == "trading_restriction_active", edit
         other_market = await approved(
             {"action": "buy", "symbol": EURO, "volume": "0.1", "stop_loss": "99"}
         )
@@ -504,6 +528,7 @@ async def main() -> None:
         )
         assert frozen_entry["status"] == "failed", frozen_entry
         assert frozen_entry["code"] == "trading_restriction_active", frozen_entry
+        assert frozen_entry.get("before_card") is True, frozen_entry
         approved_exit = await approved(
             {
                 "action": "close_position",

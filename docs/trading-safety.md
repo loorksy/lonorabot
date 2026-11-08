@@ -35,6 +35,19 @@ true when Stop is pressed twice.
 Web shows the control on the Trading page and in the header safety sheet; Mobile shows it
 in the header safety sheet. Both send the same payloads.
 
+### Brakes come before approval cards
+
+An agent at *Ask me*, or a trade outside an *On its own* grant, asks the owner with an
+approval card. While Stop new trading or a pause holds new risk, a card for a new entry
+could only fail after the owner's tap. `trade_execute` therefore checks the brakes before
+it raises a card (`refuse_braked_entries` in `lonora_tools.trade`) and returns the
+boundary's own code instead (`trading_disabled`, `emergency_stop`,
+`trading_restriction_active`), so the agent tells the owner what is holding it and offers
+the Resume or Lift card. Only actions that can never reduce risk are checked there
+(`admission.may_reduce_risk`): a close, a cancel or a stop change is still asked and is
+decided by the executor against the fresh broker target. The executor repeats every
+check at the moment of sending; this only refuses earlier.
+
 ## Trading readiness (presentation only)
 
 `lonora_db.trading_readiness.trading_readiness` builds one bounded block from the records

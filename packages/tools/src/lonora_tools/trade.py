@@ -3,7 +3,8 @@ from typing import Any
 from lonora_contracts.account import Order, Position
 from lonora_contracts.domain import Contract, utcnow
 from lonora_contracts.shadow import ExecutionMode
-from lonora_contracts.trading import TradeRequest, TradeResult
+from lonora_contracts.trading import TradeRequest, TradeResult, TradingControl
+from lonora_core.trading_control import require_trading
 from lonora_core.user_error import LonoraError
 from lonora_db.account_authority import require_authority
 from lonora_db.agent_binding import (
@@ -16,6 +17,7 @@ from lonora_db.schema import (
     EffectReceiptRow,
     MessageRow,
     RunRow,
+    SettingRow,
     TradeApprovalRow,
     TradingJournalRow,
 )
@@ -28,9 +30,11 @@ from lonora_trading.account_authority import (
     covering_authority,
     provisional_voice,
 )
+from lonora_trading.admission import may_reduce_risk
 from lonora_trading.idempotency import trade_fingerprint
 from lonora_trading.journal import record_excerpt
 from lonora_trading.manual_activity import material_state
+from lonora_trading.restrictions import require_unrestricted
 from pydantic import Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -162,6 +166,30 @@ async def owner_spoke_since(session: AsyncSession, row: TradeApprovalRow) -> boo
     ) is not None
 
 
+async def refuse_braked_entries(
+    session: AsyncSession, context: ToolContext, requests: list[TradeRequest]
+) -> None:
+    """Never ask the owner to approve new risk a brake in force would refuse at send.
+
+    Stop new trading and a pause (``no_new_entries`` and stronger) hold every entry, so an
+    approval card for one could only fail after the owner's tap. The boundary's own codes
+    (``trading_disabled``, ``emergency_stop``, ``trading_restriction_active``) come back
+    instead, and the agent offers the owner's Resume or Lift card. Only actions that can
+    never reduce risk are checked here (``may_reduce_risk``); a close, cancel or stop
+    change is still asked and decided by the executor against the fresh broker target,
+    which repeats every check at the moment of sending. This only refuses earlier.
+    """
+    entries = [request for request in requests if not may_reduce_risk(request)]
+    if not entries:
+        return
+    stored = await session.get(SettingRow, "trading_control", populate_existing=True)
+    require_trading(TradingControl.model_validate(stored.payload if stored else {}))
+    for request in entries:
+        await require_unrestricted(
+            session, context.owner_id, request, agent_id=context.agent_id, reducing=False
+        )
+
+
 def independent_exits(requests: list[TradeRequest]) -> bool:
     """Whether a batch is only full closes of distinct positions.
 
@@ -284,6 +312,8 @@ async def approved_execution(
             if row is not None:
                 approval_id = row.id
         if row is None:
+            if mode == "live" and not gate_only:
+                await refuse_braked_entries(session, context, requests)
             row = TradeApprovalRow(
                 id=approval_id,
                 owner_id=context.owner_id,

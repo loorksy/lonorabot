@@ -731,7 +731,14 @@ async def main() -> None:
                 name="trade_execute",
                 arguments={"account_id": account, **arguments},
             )
-            proposal = await registry.execute(call, context)
+            try:
+                proposal = await registry.execute(call, context)
+            except LonoraError as error:
+                # New risk a brake holds is refused before any approval card (W15-ACC):
+                # the owner is never asked to approve what the boundary would refuse.
+                if error.code not in {"trading_disabled", "emergency_stop"}:
+                    raise
+                return {"status": "failed", "code": error.code, "before_card": True}
             assert proposal["_runtime_wait"], proposal
             await fixture.request(
                 "POST",
@@ -772,7 +779,9 @@ async def main() -> None:
         entry = await approved(
             {"action": "buy", "symbol": EURO, "volume": "0.1", "stop_loss": "95"}
         )
+        # New risk under the stop is refused before any approval card is raised.
         assert entry["status"] == "failed" and entry["code"] == "emergency_stop", entry
+        assert entry.get("before_card") is True, entry
         # Cancelling a protective order removes protection: new risk, not an exit.
         unguarded = await approved(
             {"action": "cancel_order", "symbol": EURO, "order_id": guard.broker_id}
@@ -803,6 +812,7 @@ async def main() -> None:
             {"action": "buy_limit", "symbol": POUND, "volume": "0.1", "price": "99"}
         )
         assert entry["status"] == "failed" and entry["code"] == "trading_disabled", entry
+        assert entry.get("before_card") is True, entry
         await save_controls(db, TradingControl(enabled=True))
         print(
             "PASS approved agent cards close, cancel and tighten under Emergency Stop and Trading OFF on an uncertain market, while entries, wider stops and cancelling a protective order stay blocked"
