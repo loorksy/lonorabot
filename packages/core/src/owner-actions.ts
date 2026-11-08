@@ -10,12 +10,15 @@ import type {
   AttestedOutcome,
   OwnerAction,
   OwnerActionAccount,
+  OwnerActionChallenge,
+  OwnerActionDecision,
   OwnerActionLimitField,
 } from "@lonora/contracts";
 import { accountAuthorityLabels } from "./account-authority-labels";
 import {
   isolate,
   moneyLimitLabel,
+  moneyLimitsLine,
   pauseClassLabel,
   readinessTime,
   tradingSafetyLabels,
@@ -97,6 +100,37 @@ export const ownerActionLabels = {
     registerDevice: "Register this device first",
     deviceName: accountAuthorityLabels.en.device,
     password: "Account password",
+    grantTitle: "Let {agent} trade on its own",
+    grantAgent: "this agent",
+    markets: "Markets",
+    allPairsAccount: "All pairs on this account",
+    allActions: "Opens, closes and manages trades",
+    actionsLine: "Actions",
+    untilStopped: "Until you stop it",
+    for12h: "For 12 hours",
+    for24h: "For 24 hours",
+    for7d: "For 7 days",
+    ownExcluded: "Positions you opened yourself are excluded",
+    ownIncluded: "Positions you opened yourself are included",
+    includeOwn: "Include positions I opened myself",
+    dailyLoss: "Daily loss limit",
+    ofEquity: "of equity",
+    suggested: "suggested",
+    accountLimits: "Account money limits",
+    noMoneyLimitChoice: "No money limit (my choice)",
+    tradingStopped: "New trading is stopped",
+    resumeToo: "Resume trading too",
+    conflict:
+      "{agent} already trades {markets} here on its own. Keeping both is fine: the account's limits bind them together.",
+    stopOther: "Stop {agent} trading here",
+    replaces: "Replaces its current grant on this account",
+    grantHint:
+      "Confirm with your passkey. Anything outside this grant still comes to you as an approval card.",
+    oneRule:
+      "Every agent can see and use everything you have connected to Lonora, but it places real trades only inside the grant you signed for it with your passkey and within your account limits. Anything that needs you arrives as a one-tap card in the chat, you can stop anything with one tap, and no agent, skill or plugin can ever widen your money authority.",
+    authorize: "Authorize with passkey",
+    signed: "Signed. It trades on its own inside this grant.",
+    alreadySigned: "This is already signed. Nothing changed.",
   },
   ar: {
     resumeTitle: "استئناف التداول",
@@ -165,6 +199,35 @@ export const ownerActionLabels = {
     registerDevice: "سجّل هذا الجهاز أولًا",
     deviceName: accountAuthorityLabels.ar.device,
     password: "كلمة مرور الحساب",
+    grantTitle: "دع {agent} يتداول بنفسه",
+    grantAgent: "هذا الوكيل",
+    markets: "الأسواق",
+    allPairsAccount: "كل أزواج هذا الحساب",
+    allActions: "يفتح الصفقات ويغلقها ويديرها",
+    actionsLine: "العمليات",
+    untilStopped: "حتى توقفه",
+    for12h: "لمدة ١٢ ساعة",
+    for24h: "لمدة ٢٤ ساعة",
+    for7d: "لمدة ٧ أيام",
+    ownExcluded: "لا يشمل المراكز التي فتحتها بنفسك",
+    ownIncluded: "يشمل المراكز التي فتحتها بنفسك",
+    includeOwn: "اشمل المراكز التي فتحتها بنفسي",
+    dailyLoss: "حد الخسارة اليومية",
+    ofEquity: "من السيولة",
+    suggested: "مقترح",
+    accountLimits: "الحدود المالية للحساب",
+    noMoneyLimitChoice: "دون حد مالي (اختياري)",
+    tradingStopped: "التداول الجديد متوقف",
+    resumeToo: "استأنف التداول أيضًا",
+    conflict: "{agent} يتداول {markets} هنا بنفسه. لا بأس ببقائهما معًا: حدود الحساب تلزمهما معًا.",
+    stopOther: "أوقف تداول {agent} هنا",
+    replaces: "يحل محل تفويضه الحالي على هذا الحساب",
+    grantHint: "أكّد بمفتاح المرور. ما يخرج عن هذا التفويض يصلك كبطاقة موافقة.",
+    oneRule:
+      "كل وكيل يرى ويستخدم كل ما وصلته بلونورا، لكنه لا ينفّذ صفقة حقيقية إلا ضمن التفويض الذي وقّعته له بمفتاح المرور وضمن حدود حسابك؛ وما يحتاجك يصلك كبطاقة في المحادثة بلمسة واحدة، وتستطيع إيقاف أي شيء بلمسة، ولا يستطيع أي وكيل أو مهارة أو إضافة توسيع صلاحياتك المالية.",
+    authorize: "التفويض بمفتاح المرور",
+    signed: "وُقّع. يتداول بنفسه ضمن هذا التفويض.",
+    alreadySigned: "هذا موقّع بالفعل. لم يتغير شيء.",
   },
 } as const satisfies Record<Language, Record<string, string>>;
 export type OwnerActionText = (typeof ownerActionLabels)[Language];
@@ -181,11 +244,16 @@ export type OwnerActionButton = {
   outcome?: AttestedOutcome;
   primary: boolean;
 };
+/** An owner switch on a card (a grant card's own positions, money limit, Resume, a
+ * conflict); the client keeps its state and ``ownerActionChoices`` sends it. */
+export type OwnerActionOption = { key: string; label: string; initial: boolean };
 export type OwnerActionSpec = {
   title: string;
   /** Server facts, one per line, ready to render with dir="auto". */
   lines: string[];
   hint: string | null;
+  /** Switches shown while pending; empty for every card but a grant card. */
+  options: OwnerActionOption[];
   /** Shown while pending; empty once the card is settled. */
   buttons: OwnerActionButton[];
   /** A resolve card offers an optional note and broker ticket. */
@@ -214,6 +282,8 @@ function settledLine(card: OwnerAction, text: OwnerActionText): string | null {
   if (card.status === "cancelled") return text.cancelled;
   if (card.status === "confirmed") {
     switch (card.kind) {
+      case "grant_authority":
+        return text.signed;
       case "resume_trading":
         return text.resumed;
       case "lift_restriction":
@@ -239,6 +309,8 @@ function settledLine(card: OwnerAction, text: OwnerActionText): string | null {
       return text.alreadySet;
     case "done_by_another_card":
       return text.doneElsewhere;
+    case "grant_already_active":
+      return text.alreadySigned;
     case "expired":
       return text.expired;
     default:
@@ -260,6 +332,123 @@ function limitFieldLabel(name: OwnerActionLimitField, locale: string, text: Owne
   return moneyLimitLabel(name, locale);
 }
 
+function fill(template: string, values: Record<string, string>): string {
+  return template.replace(/\{(\w+)\}/g, (_, key: string) => values[key] ?? "");
+}
+
+function marketsLabel(
+  scope: "selected" | "account",
+  symbols: string[],
+  text: OwnerActionText,
+): string {
+  return scope === "account" ? text.allPairsAccount : symbols.map(isolate).join("، ");
+}
+
+function grantCard(card: OwnerAction, locale: string, lang: Language) {
+  const text = ownerActionLabels[lang];
+  const facts = card.facts;
+  const grant = facts.grant;
+  const agent = grant?.agent_name ? isolate(grant.agent_name) : text.grantAgent;
+  const lines: string[] = [];
+  const options: OwnerActionOption[] = [];
+  const hints: string[] = [];
+  if (grant) {
+    const account = accountLabel(facts.account, text);
+    if (account) lines.push(`${text.account}: ${account}`);
+    lines.push(`${text.markets}: ${marketsLabel(grant.symbol_scope, grant.symbols, text)}`);
+    lines.push(
+      grant.all_actions
+        ? text.allActions
+        : `${text.actionsLine}: ${grant.actions.map((item) => actionLabel(item, lang)).join("، ")}`,
+    );
+    lines.push(
+      grant.duration === "12h"
+        ? text.for12h
+        : grant.duration === "24h"
+          ? text.for24h
+          : grant.duration === "7d"
+            ? text.for7d
+            : text.untilStopped,
+    );
+    lines.push(grant.allow_manual_positions ? text.ownIncluded : text.ownExcluded);
+    options.push({ key: "manual", label: text.includeOwn, initial: grant.allow_manual_positions });
+  }
+  const daily = facts.money?.daily_loss;
+  if (daily?.proposed) {
+    const amount = isolate(daily.currency ? `${daily.proposed} ${daily.currency}` : daily.proposed);
+    const basis = daily.percent
+      ? ` (${daily.basis === "suggested" ? `${text.suggested}: ` : ""}${isolate(`${daily.percent}%`)} ${text.ofEquity})`
+      : "";
+    lines.push(`${text.dailyLoss}: ${amount}${basis}`);
+    options.push({ key: "no_money_limit", label: text.noMoneyLimitChoice, initial: false });
+    const others = facts.money?.limits;
+    if (others?.configured) lines.push(`${text.accountLimits}: ${moneyLimitsLine(others, locale)}`);
+  } else if (facts.money) {
+    lines.push(`${text.accountLimits}: ${moneyLimitsLine(facts.money.limits, locale)}`);
+  }
+  if (facts.global_trading?.state === "stopped") {
+    lines.push(text.tradingStopped);
+    // Checked when the owner never started trading; after the owner's own Stop it waits.
+    options.push({
+      key: "resume",
+      label: text.resumeToo,
+      initial: facts.global_trading.changed_by === "default",
+    });
+  }
+  for (const conflict of facts.conflicts ?? []) {
+    const name = conflict.agent_name ? isolate(conflict.agent_name) : text.anAgent;
+    lines.push(
+      fill(text.conflict, {
+        agent: name,
+        markets: marketsLabel(conflict.symbol_scope, conflict.symbols, text),
+      }),
+    );
+    options.push({
+      key: `stop:${conflict.authority_id}`,
+      label: fill(text.stopOther, { agent: name }),
+      initial: false,
+    });
+  }
+  if (facts.replaces) lines.push(text.replaces);
+  hints.push(text.grantHint);
+  if (facts.first_grant) hints.push(text.oneRule);
+  return {
+    title: fill(text.grantTitle, { agent }),
+    lines,
+    options,
+    hint: hints.join(" "),
+    buttons: [
+      { key: "confirm", label: text.authorize, decision: "confirm", primary: true },
+      { key: "cancel", label: text.notNow, decision: "cancel", primary: false },
+    ] satisfies OwnerActionButton[],
+  };
+}
+
+/** What a grant card's switches send: the passkey challenge carries the owner's own
+ * positions choice (it is signed); the decision carries the rest. */
+export function ownerActionChoices(
+  card: OwnerAction,
+  chosen: Readonly<Record<string, boolean>>,
+): { challenge: OwnerActionChallenge; decision: Partial<OwnerActionDecision> } {
+  if (card.kind !== "grant_authority") return { challenge: {}, decision: {} };
+  const value = (key: string, initial: boolean) => chosen[key] ?? initial;
+  const options = grantCard(card, "en", "en").options;
+  const initial = (key: string) => options.find((item) => item.key === key)?.initial ?? false;
+  const decision: Partial<OwnerActionDecision> = {
+    money_limit: value("no_money_limit", false) ? "none" : "apply",
+    resume_trading: options.some((item) => item.key === "resume")
+      ? value("resume", initial("resume"))
+      : false,
+    stop_authorities: options
+      .filter((item) => item.key.startsWith("stop:") && value(item.key, false))
+      .map((item) => item.key.slice("stop:".length)),
+  };
+  return {
+    challenge: { allow_manual_positions: value("manual", initial("manual")) },
+    decision,
+  };
+}
+
 /** The whole card for one locale: title, fact lines, hint, buttons and settled line. */
 export function ownerActionCard(
   card: OwnerAction,
@@ -274,11 +463,21 @@ export function ownerActionCard(
   let title: string = text.resumeTitle;
   let hint: string | null = null;
   let buttons: OwnerActionButton[] = [];
+  let options: OwnerActionOption[] = [];
   const pair = (confirm: string, cancel: string): OwnerActionButton[] => [
     { key: "confirm", label: confirm, decision: "confirm", primary: true },
     { key: "cancel", label: cancel, decision: "cancel", primary: false },
   ];
   switch (card.kind) {
+    case "grant_authority": {
+      const grant = grantCard(card, locale, lang);
+      title = grant.title;
+      lines.push(...grant.lines);
+      hint = grant.hint;
+      buttons = grant.buttons;
+      options = grant.options;
+      break;
+    }
     case "resume_trading": {
       const trading = facts.global_trading;
       if (trading?.state === "stopped")
@@ -404,6 +603,7 @@ export function ownerActionCard(
     title,
     lines,
     hint: pending ? hint : null,
+    options: pending ? options : [],
     buttons: pending ? buttons : [],
     notes: pending && card.kind === "resolve_operation",
     passkey: pending && card.requires_passkey,
@@ -445,6 +645,26 @@ const errors: Readonly<Record<string, { en: string; ar: string }>> = {
   owner_action_limits_invalid: {
     en: "These limits are not valid for this account.",
     ar: "هذه الحدود غير صالحة لهذا الحساب.",
+  },
+  owner_action_challenge_required: {
+    en: "Confirm with your passkey on this card.",
+    ar: "أكّد بمفتاح المرور من هذه البطاقة.",
+  },
+  owner_action_conflict_not_found: {
+    en: "That agent no longer trades here on its own. Nothing changed.",
+    ar: "لم يعد ذلك الوكيل يتداول هنا بنفسه. لم يتغير شيء.",
+  },
+  owner_action_not_needed_grant_already_active: {
+    en: "This is already signed.",
+    ar: "هذا موقّع بالفعل.",
+  },
+  execution_policy_passkey_required: {
+    en: "Raising or removing a money limit needs your passkey.",
+    ar: "رفع حد مالي أو إزالته يحتاج مفتاح المرور.",
+  },
+  execution_policy_passkey_not_needed: {
+    en: "This change allows no more risk, so it needs no passkey.",
+    ar: "هذا التغيير لا يسمح بمخاطرة أكبر، فلا يحتاج مفتاح المرور.",
   },
 };
 

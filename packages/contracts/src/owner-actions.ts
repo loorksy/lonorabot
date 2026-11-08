@@ -1,3 +1,5 @@
+import type { AuthorityAction } from "./account-authority";
+import type { AuthorityDuration } from "./agent-permissions";
 import type { DeviceProof } from "./super-bot";
 import type { GlobalTrading, MoneyLimitName, MoneyLimits, RestrictionActionClass } from "./trading";
 
@@ -5,7 +7,8 @@ export type OwnerActionKind =
   | "resume_trading"
   | "lift_restriction"
   | "resolve_operation"
-  | "set_account_limits";
+  | "set_account_limits"
+  | "grant_authority";
 export type OwnerActionStatus = "pending" | "confirmed" | "cancelled" | "expired" | "superseded";
 export type AttestedOutcome = "executed" | "not_executed" | "unknown";
 /** A limits card shows one line per changed field: a limit, its currency or the day's zone. */
@@ -60,10 +63,52 @@ export type OwnerAction = {
     changes?: Array<{ name: OwnerActionLimitField; from: string | null; to: string | null }>;
     /** The account's limits changed since the card was raised and its change no longer fits. */
     no_longer_applies?: boolean;
+    /** A grant card: exactly what the owner signs, resolved on the server from its draft. */
+    grant?: {
+      agent_name: string | null;
+      agent_is_personal: boolean;
+      symbol_scope: "selected" | "account";
+      symbols: string[];
+      actions: AuthorityAction[];
+      all_actions: boolean;
+      duration: AuthorityDuration;
+      allow_manual_positions: boolean;
+    };
+    /** The account's money limits and the daily loss line a grant card sets (D1). */
+    money?: {
+      limits: MoneyLimits;
+      daily_loss: {
+        current: string | null;
+        /** Set by the card on confirm unless the owner chooses no money limit. */
+        proposed: string | null;
+        currency: string | null;
+        basis: "suggested" | "requested" | null;
+        percent: string | null;
+      };
+    };
+    /** Other agents already trading this market on the account on their own. */
+    conflicts?: Array<{
+      authority_id: string;
+      agent_name: string | null;
+      symbol_scope: "selected" | "account";
+      symbols: string[];
+    }>;
+    /** The agent's own grant on this account that the new one replaces. */
+    replaces?: { symbol_scope: "selected" | "account"; symbols: string[] } | null;
+    /** The owner's first grant: the card shows the one rule. */
+    first_grant?: boolean;
   };
   /** Confirming needs the owner's passkey: it raises or removes a money limit. */
   requires_passkey: boolean;
-  result: { outcome?: AttestedOutcome; global_trading?: string; limits?: MoneyLimits };
+  result: {
+    outcome?: AttestedOutcome;
+    global_trading?: string;
+    limits?: MoneyLimits;
+    resumed?: boolean;
+    daily_loss?: string | null;
+    money_limit?: "apply" | "none";
+    stopped_agents?: string[];
+  };
   expires_at: string;
   decided_at: string | null;
   decided_via: "tap" | "passkey" | null;
@@ -76,4 +121,12 @@ export type OwnerActionDecision = {
   note?: string;
   broker_reference?: string;
   proof?: DeviceProof;
+  /** Grant card: "none" leaves the account without the card's daily loss limit. */
+  money_limit?: "apply" | "none";
+  /** Grant card: resume new trading too (it widens no authority). */
+  resume_trading?: boolean;
+  /** Grant card: stop these other agents' grants on this market (narrowing). */
+  stop_authorities?: string[];
 };
+/** Grant card: the owner's choice that changes what the passkey signs. */
+export type OwnerActionChallenge = { allow_manual_positions?: boolean };

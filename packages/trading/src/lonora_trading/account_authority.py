@@ -39,13 +39,20 @@ async def provisional_voice(session: AsyncSession, run: RunRow) -> bool:
 async def available_authority(
     session: AsyncSession, owner_id: str, run: RunRow, request: TradeRequest
 ) -> str | None:
+    """The active grant whose account, market and action cover this request, or None.
+
+    None never refuses the trade: the caller asks the owner for exact approval instead
+    (the ladder is monotonic). A grant's management Run is held to its own grant.
+    """
     management_id = run.model_metadata.get("account_management_id")
     if management_id:
         _, envelope = await require_authority(session, owner_id, run.agent_id, management_id)
-        if request.account_id != envelope.account_id or not envelope.permits_symbol(request.symbol):
-            raise LonoraError("account_authority_scope_mismatch", 403)
-        if request.action not in envelope.actions:
-            raise LonoraError("account_authority_action_forbidden", 403)
+        if (
+            request.account_id != envelope.account_id
+            or not envelope.permits_symbol(request.symbol)
+            or request.action not in envelope.actions
+        ):
+            return None
         return management_id
     rows = await session.scalars(
         select(AccountAuthorityRow)
@@ -68,6 +75,58 @@ async def available_authority(
             continue
         if envelope.permits_symbol(request.symbol) and request.action in envelope.actions:
             return row.id
+    return None
+
+
+async def lonora_opened(
+    session: AsyncSession, owner_id: str, request: TradeRequest, target: Position | Order
+) -> bool:
+    """Whether the journal attributes this ticket to a Lonora entry (not the owner's own).
+
+    Attribute by the existing journal and broker identity, never ticket format. Bounded
+    history is not proof of external ownership; default to requiring explicit manual
+    permission whenever a matching origin is unavailable.
+    """
+    entries = await session.scalars(
+        select(TradingJournalRow)
+        .where(
+            TradingJournalRow.owner_id == owner_id,
+            TradingJournalRow.account_id == request.account_id,
+            TradingJournalRow.execution_mode == "live",
+            TradingJournalRow.status == "confirmed",
+            TradingJournalRow.request["symbol"].as_string() == request.symbol,
+            TradingJournalRow.request["action"].as_string().in_(sorted(ENTRY_ACTIONS)),
+        )
+        .order_by(TradingJournalRow.updated_at.desc())
+        .limit(1000)
+    )
+    kind = "position_id" if request.position_id else "order_id"
+    for entry in entries:
+        details = entry.result.get("details", {})
+        safe_id = entry.result.get("broker_id") if details.get("simulation") else None
+        if target.operation_id in {
+            entry.operation_id,
+            broker_operation_tag(entry.operation_id),
+        } or target.id in {details.get(kind), safe_id}:
+            return True
+    return False
+
+
+async def covering_authority(
+    session: AsyncSession,
+    owner_id: str,
+    run: RunRow,
+    request: TradeRequest,
+    target: Position | Order | None,
+) -> str | None:
+    """``available_authority`` that also covers the ticket it manages: a grant that
+    excludes the owner's own positions does not cover one, so the owner approves it."""
+    identifier = await available_authority(session, owner_id, run, request)
+    if identifier is None or target is None or not (request.position_id or request.order_id):
+        return identifier
+    _, envelope = await require_authority(session, owner_id, run.agent_id, identifier)
+    if envelope.allow_manual_positions or await lonora_opened(session, owner_id, request, target):
+        return identifier
     return None
 
 
@@ -165,34 +224,9 @@ async def require_account_execution(
     if request.position_id or request.order_id:
         if target is None or expected_target is None or material_state(target) != expected_target:
             raise LonoraError("account_authority_broker_state_changed", 409)
-        # Attribute by the existing journal and broker identity, never ticket format.
-        # Bounded history is not proof of external ownership; default to requiring
-        # explicit manual permission whenever a matching origin is unavailable.
-        entries = await session.scalars(
-            select(TradingJournalRow)
-            .where(
-                TradingJournalRow.owner_id == owner_id,
-                TradingJournalRow.account_id == request.account_id,
-                TradingJournalRow.execution_mode == "live",
-                TradingJournalRow.status == "confirmed",
-                TradingJournalRow.request["symbol"].as_string() == request.symbol,
-                TradingJournalRow.request["action"].as_string().in_(sorted(ENTRY_ACTIONS)),
-            )
-            .order_by(TradingJournalRow.updated_at.desc())
-            .limit(1000)
-        )
-        owned = False
-        for entry in entries:
-            details = entry.result.get("details", {})
-            kind = "position_id" if request.position_id else "order_id"
-            safe_id = entry.result.get("broker_id") if details.get("simulation") else None
-            if target.operation_id in {
-                entry.operation_id,
-                broker_operation_tag(entry.operation_id),
-            } or target.id in {details.get(kind), safe_id}:
-                owned = True
-                break
-        if not owned and not envelope.allow_manual_positions:
+        if not envelope.allow_manual_positions and not await lonora_opened(
+            session, owner_id, request, target
+        ):
             raise LonoraError("account_authority_manual_permission_required", 403)
         if envelope.management_mode == "bounded" and request.clear_stop_loss:
             raise LonoraError("account_authority_protection_removal_forbidden", 403)

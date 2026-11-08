@@ -30,3 +30,17 @@
   gap: 2px;
   font-size: 12px;
 }
+.lonora-owner-action-options {
+  display: grid;
+  gap: 4px;
+}
+.lonora-owner-action-options label {
+  margin: 0;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 400;
+  overflow-wrap: anywhere;
+}
+.lonora-owner-action-options input {
+  flex: none;
+}

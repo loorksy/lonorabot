@@ -117,7 +117,8 @@ async def test_supervised_goal_accepts_exact_stored_operation(monkeypatch: pytes
         ("analysis", None, "agent_analysis_only"),
         ("analysis", "signed-old", "agent_analysis_only"),
         ("supervised", "signed-old", "trade_approval_required"),
-        ("autonomous", None, "account_authority_required"),
+        # The ladder is monotonic: "On its own" without a covering grant asks like Ask me.
+        ("autonomous", None, "trade_approval_required"),
     ],
 )
 async def test_executor_gate_rejects_authority_substitution(
@@ -125,7 +126,8 @@ async def test_executor_gate_rejects_authority_substitution(
 ):
     monkeypatch.setattr(agent_permission, "effective_permission", AsyncMock(return_value=level))
     session = AsyncMock()
-    session.scalars.return_value = [TradeApprovalRow(requests=[request().model_dump(mode="json")])]
+    approved = [] if level == "autonomous" else [request().model_dump(mode="json")]
+    session.scalars.return_value = [TradeApprovalRow(requests=approved)]
     with pytest.raises(LonoraError, match=code):
         await agent_permission.require_operation_permission(
             session, "owner", origin(), request(), grant
@@ -167,7 +169,11 @@ async def test_autonomous_provisional_speech_requires_approval_and_signed_scope(
     await agent_permission.require_operation_permission(
         session, "owner", origin(), request(), "grant"
     )
-    with pytest.raises(LonoraError, match="account_authority_required"):
+    # Outside every grant, the owner's exact approval admits the operation (monotonic
+    # ladder); without it nothing is sent.
+    await agent_permission.require_operation_permission(session, "owner", origin(), request(), None)
+    session.scalars.return_value = []
+    with pytest.raises(LonoraError, match="trade_approval_required"):
         await agent_permission.require_operation_permission(
             session, "owner", origin(), request(), None
         )

@@ -119,23 +119,24 @@ def permission_guidance(
         "analysis": (
             "You may research, inspect markets/accounts/charts, reason independently, prepare "
             "plans and persist useful monitoring. You may not open, close, modify or cancel "
-            "broker positions/orders. If execution is needed, explain the missing authority "
-            "briefly; a grant is signed in the permission selector. "
+            "broker positions/orders. If the owner wants you to trade, propose a "
+            "grant_authority card; the owner signs it with the passkey. "
             "Do not refuse permitted analysis merely because execution is unavailable."
         ),
         "supervised": (
             "Reason and prepare independently; every broker mutation requires the owner's "
             "existing exact-operation approval. Use the ordinary approval flow when an "
             "action is ready. Keep useful analysis/monitoring moving while approval is "
-            "pending. Old Goal/Super Bot signatures do not waive operation approval."
+            "pending. Old Goal/Super Bot signatures do not waive operation approval. To trade "
+            "on your own, the owner signs a grant_authority card."
         ),
         "autonomous": (
             "Independently inspect fresh account/market facts, decide whether/when to trade, "
             "size and manage positions, and persist useful monitoring within the exact active "
             "signed scopes below. Matching actions need no repeated per-operation approval. "
-            "Out-of-scope actions require a newly reviewed signed authorization; never "
-            "enlarge scope yourself or fall back to a legacy Goal grant. Optional numerical "
-            "limits do not turn full management into supervised mode."
+            "Any other action becomes the owner's approval card (trade_execute does it); "
+            "never enlarge scope yourself or fall back to a legacy Goal grant. Optional "
+            "numerical limits do not turn full management into supervised mode."
         ),
     }[level]
     return (
@@ -153,9 +154,9 @@ def permission_guidance(
         + " Owner restrictions below are enforced at execution, queued work included; work "
         "within them, never lift or evade one, and record an owner's new narrowing with "
         "trade_restriction_create. An unset monetary limit is not enforced. Only the owner "
-        "lifts a restriction, resumes trading, attests an uncertain outcome or changes a "
-        "limit; when the owner asks for one, propose the matching owner action card "
-        "(owner_action_propose)."
+        "signs a grant, lifts a restriction, resumes trading, attests an uncertain outcome "
+        "or changes a limit; when the owner asks for one, propose the matching owner action "
+        "card (owner_action_propose), a grant only when no active scope covers it."
         + " A pending review, customization draft, chat agreement, task delegation or "
         "running global_trading grants no authority. global_trading, binding, preflight, "
         "manual intervention and reconciliation remain authoritative. While global_trading "

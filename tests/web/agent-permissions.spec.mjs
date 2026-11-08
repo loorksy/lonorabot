@@ -44,6 +44,17 @@ async function setup(context, locale = "en", theme = "dark") {
     expect(response.status()).toBe(201);
     const value = await response.json();
     created.push(value.id);
+    // A new trading agent starts at Ask me (W15-3); these scenarios start from No trading,
+    // set explicitly through the owner API.
+    const permission = await (
+      await context.request.get(`/api/agents/${value.id}/permissions`)
+    ).json();
+    expect(permission.effective_level).toBe("supervised");
+    const reset = await context.request.put(`/api/agents/${value.id}/permissions`, {
+      headers,
+      data: { level: "analysis", expected_revision: permission.revision },
+    });
+    expect(reset.ok()).toBeTruthy();
     const conversation = await context.request.post(`/api/agents/${value.id}/conversation`, {
       headers,
       data: {},
@@ -171,8 +182,8 @@ for (const locale of ["en", "ar"])
       );
       await expect(trigger).toHaveAccessibleName(
         locale === "ar"
-          ? "صلاحيات الوكيل: إدارة مستقلة"
-          : "Agent Permissions: Autonomous Management",
+          ? "صلاحيات الوكيل: مستقل ضمن تفويضي الموقّع"
+          : "Agent Permissions: On its own (signed)",
       );
       await choose(page, "autonomous");
       const review = page.getByTestId("permission-review");
@@ -282,7 +293,7 @@ for (const layout of layouts) {
       } else {
         await expect(trigger.locator(".permission-trigger-label")).toBeVisible();
         await expect(trigger.locator(".permission-trigger-label")).toHaveText(
-          layout.locale === "ar" ? "تحليل فقط" : "Analysis Only",
+          layout.locale === "ar" ? "لا يتداول" : "No trading",
         );
       }
       const buttonBox = await trigger.boundingBox();
@@ -321,7 +332,7 @@ for (const layout of layouts) {
         "supervised",
       );
       await expect(trigger).toHaveAccessibleName(
-        layout.locale === "ar" ? "صلاحيات الوكيل: بموافقتي" : "Agent Permissions: With My Approval",
+        layout.locale === "ar" ? "صلاحيات الوكيل: يسألني أولًا" : "Agent Permissions: Ask me",
       );
       await expect(composer).toHaveValue(draft);
       await page.reload();
@@ -550,6 +561,12 @@ test("customized scope signs through actual virtual WebAuthn, then downgrade rev
       "autonomous",
     );
     await choose(page, "supervised");
+    // Moving down says plainly that it revokes the signed grant, and asks once.
+    const warning = page.getByTestId("permission-downgrade");
+    await expect(warning).toContainText("revokes the signed grant for");
+    await expect(warning).toContainText("going back needs a new signature");
+    expect((await state.state()).effective_level).toBe("autonomous");
+    await warning.getByTestId("permission-downgrade-confirm").click();
     await expect.poll(async () => (await state.state()).effective_level).toBe("supervised");
     const downgraded = await state.state();
     expect(downgraded.active_authorities).toEqual([]);

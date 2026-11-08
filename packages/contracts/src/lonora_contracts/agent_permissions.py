@@ -39,7 +39,8 @@ class PermissionCustomization(Contract):
     )
     limits: CustomizationLimits = Field(default_factory=CustomizationLimits)
     duration: Literal["until_stopped", "12h", "24h", "7d"] = "until_stopped"
-    allow_manual_positions: bool = True
+    # Owner decision D1: the owner's own positions are excluded unless switched on.
+    allow_manual_positions: bool = False
 
 
 class PermissionRecord(Contract):

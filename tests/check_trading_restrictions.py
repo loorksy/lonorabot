@@ -19,6 +19,7 @@ from unittest.mock import patch
 from uuid import uuid4
 
 from check_streaming import Fixture
+from device_fixture import Device
 from lonora_adapter_kit.types import ToolCall
 from lonora_adapters.brokers.simulation import SimulationBroker
 from lonora_agent.context.permissions import permission_context
@@ -216,7 +217,11 @@ async def main() -> None:
                 arguments={"account_id": on, **arguments},
             )
             proposal = await registry.execute(call, context)
-            assert proposal.get("_runtime_wait"), proposal
+            if not proposal.get("_runtime_wait"):
+                # The identical operation the owner already approved in this Run, which
+                # reached the broker: its approval is reused, never asked twice (W15-3).
+                assert proposal["results"], proposal
+                return proposal
             await fixture.request(
                 "POST",
                 f"/trading/approvals/{proposal['approval_id']}/decision",
@@ -729,8 +734,26 @@ async def main() -> None:
         status = await fixture.request("GET", f"/trading/accounts/{risk}/risk-status")
         assert status["state"] == "not_configured"
 
+        signer: list[Device] = []
+
+        async def store_policy(policy: dict[str, Any]) -> None:
+            """Lowering or adding a limit is one request; replacing one (a removal) is a
+            widening and goes through the passkey challenge bound to the exact policy."""
+            response = await fixture.client.request("PUT", "/api" + policy_path, json=policy)
+            if response.is_success:
+                return
+            assert response.status_code == 403, response.text
+            assert "execution_policy_passkey_required" in response.text
+            if not signer:
+                signer.append(await Device.enroll(fixture))
+            challenge = await fixture.request("POST", policy_path + "/challenge", policy)
+            proof = signer[0].assertion(challenge, fixture.settings.allowed_origin)
+            await fixture.request(
+                "POST", policy_path + "/verify", {"policy": policy, "proof": proof}
+            )
+
         async def limits(**values: str) -> None:
-            await fixture.request("PUT", policy_path, {"risk": {"currency": "USD", **values}})
+            await store_policy({"risk": {"currency": "USD", **values}})
 
         await limits(max_trade_risk="50")
         # Ask 2000.50 to a 1995.00 stop: 550 ticks * 1 per lot * 0.1 lot = 55 > 50.
@@ -858,7 +881,8 @@ async def main() -> None:
         cancel = await owner(trade("cancel_order", on=risk, order_id=pending.broker_id))
         assert cancel.status == "confirmed", cancel
         assert (await events("trading.execution_policy_updated"))[-1]["account_id"] == risk
-        await fixture.request("PUT", policy_path, {})
+        await store_policy({})
+        assert signer, "removing limits must have needed the passkey"
         cleared = await owner(trade("buy", on=risk, volume="0.1"))
         assert cleared.status == "confirmed"  # Unset limits are not enforced.
         print(

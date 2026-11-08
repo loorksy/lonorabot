@@ -140,6 +140,8 @@ export function AgentPermissions({
   const [enroll, setEnroll] = useState(false);
   const [password, setPassword] = useState("");
   const [reload, setReload] = useState(0);
+  // Moving down from a signed grant asks once: it revokes the grant (W15-3).
+  const [downgrade, setDowngrade] = useState<AgentPermissionLevel | null>(null);
   const compact = useCompactSurface();
   const flowActive = flow !== null;
   const path = `/agents/${encodeURIComponent(agent.id)}/permissions`;
@@ -398,10 +400,18 @@ export function AgentPermissions({
     setEnroll(false);
     await fresh();
   };
-  const choose = (level: AgentPermissionLevel) => {
-    setPicker(false);
+  const signedAccounts = (state?.active_authorities ?? [])
+    .filter((row) => authorityStatus(row) === "active")
+    .map((row) => permissionAccountName(accounts, row.account_id, labels.account));
+  const choose = (level: AgentPermissionLevel, confirmed = false) => {
     setError(undefined);
     setPhase(null);
+    if (level !== "autonomous" && !confirmed && signedAccounts.length) {
+      setDowngrade(level);
+      return;
+    }
+    setDowngrade(null);
+    setPicker(false);
     if (level !== "autonomous") {
       void execute(async () => {
         const latest = await fresh();
@@ -531,6 +541,27 @@ export function AgentPermissions({
         >
           {text.advanced}
         </button>
+      )}
+      {downgrade && (
+        <div className="permission-downgrade" role="alert" data-testid="permission-downgrade">
+          <p dir="auto">
+            {text.downgrade.replace("{account}", [...new Set(signedAccounts)].join("، "))}
+          </p>
+          <div className="permission-downgrade-actions">
+            <button
+              type="button"
+              className="primary"
+              data-testid="permission-downgrade-confirm"
+              disabled={busy}
+              onClick={() => choose(downgrade, true)}
+            >
+              {text.downgradeConfirm}
+            </button>
+            <button type="button" disabled={busy} onClick={() => setDowngrade(null)}>
+              {text.downgradeKeep}
+            </button>
+          </div>
+        </div>
       )}
       {surface === "composer" && inlineError}
       {statusText && <p className="permission-explanation">{statusText}</p>}

@@ -17,8 +17,40 @@ The Personal Agent may receive explicit `symbol_scope=account` for all exact
 broker instruments on that one account. Specialists retain their immutable
 selected symbol; account-wide scope is rejected for them. Actual instruments,
 lot steps, market prices and supported actions are checked at execution time.
-The simple review includes management of manually opened positions. Arbitrary
-code still cannot access broker credentials or bypass the typed executor.
+By owner decision D1 the simple review excludes positions the owner opened
+manually unless the owner switches them on; grants already signed keep exactly
+what they signed. Arbitrary code still cannot access broker credentials or
+bypass the typed executor. The same proposal is signed from a grant card in the
+conversation (`owner-actions.md`), built only from the card's stored draft.
+
+## The ladder: No trading / Ask me / On its own
+
+Each agent has one level, in the same words on Web and Mobile, in English and
+Arabic (`tradingSafetyLabels` in `packages/core`): No trading (`analysis`), Ask me
+(`supervised`), On its own (`autonomous`, an active signed grant). The ladder is
+monotonic:
+
+- Under On its own, a trade no active grant covers (another market or action, or
+  a ticket the owner opened when the grant excludes those) becomes an approval
+  card exactly as under Ask me, never `account_authority_scope_mismatch`. The
+  tool decides before anything is sent (`covering_grants`); the executor admits an
+  operation without a grant only with the owner's approval of that exact
+  operation (`require_operation_permission`). A grant's management Task is held
+  to its own grant; outside it, it asks too. The same exact request repeated in
+  another call of the same Run reuses the approval the owner already gave when
+  its operation reached the broker; a rejection, or a result that never reached
+  the broker, asks again.
+- Moving down revokes the agent's signed and pending grants, as before
+  (`change_permission`). The selector says so first, in one line: "This revokes
+  the signed grant for <account>; going back needs a new signature", with Revoke
+  and switch / Keep it.
+- Defaults: Lonora (the Personal Agent) and a root trading agent with a focus pair
+  start at Ask me; general, research and supervisor agents, bound children and
+  delegated helpers start at No trading (`default_level`). A level the owner set is
+  stored and kept; editing an agent's focus pair stores its current level first,
+  so the edit never moves it. Migration `0040_explicit_agent_permission_rows`
+  stores an explicit level for every agent that existed before: No trading, and
+  Ask me for the Personal Agent. Delegated helpers can still never trade.
 
 Activation atomically creates one existing durable Task and its work Run. Signed
 proof replay cannot create another kickoff. It inspects actual state and may
@@ -87,7 +119,8 @@ implementing or testing this capability.
 The compact Web/Mobile bot settings reuse existing account/market selectors and
 passkey enrollment/signing. The advanced bounded form requires explicit limits;
 the full-management review explicitly grants discretionary choices without
-product-set numerical quotas. No pair or permission is preselected for an unbound Personal Agent.
+product-set numerical quotas. The Personal Agent's review and grant card preselect
+all pairs on the account; no permission is ever preselected as signed.
 Current authoritative grant summaries enter the existing live Agent projection;
 the badge is presentation, never permission.
 
@@ -204,7 +237,9 @@ instead of converting. Unset means not enforced; no money amount is chosen for t
 owner. The agent sees configured and unset limits in its permission frame and through
 `trade_restriction_list`; the owner reads the current book against them with `GET
 /trading/accounts/{id}/risk-status`. The conversation's money-limit card changes the same
-policy; raising or removing a limit there needs the owner's passkey (`owner-actions.md`).
+policy; raising or removing a limit there needs the owner's passkey (`owner-actions.md`),
+and so does a widening through the policy route itself (`…/execution-policy/challenge`
+and `…/verify`); adding or lowering a limit stays one request.
 
 - `max_trade_risk` / `max_trade_risk_equity_percent`: modeled loss at the stop-loss of
   a new entry, a pending-entry edit or a risk-increasing position edit. A stop-loss is

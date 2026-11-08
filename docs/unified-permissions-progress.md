@@ -8,9 +8,12 @@ The feature has not been merged or deployed.
 
 | User selection | Server meaning | Financial execution |
 | --- | --- | --- |
-| Analysis Only / تحليل فقط | `analysis`, default without a broader valid authorization | No broker mutations; analysis, charts, memory, watches and analytical tasks remain available |
-| With My Approval / بموافقتي | `supervised`, authenticated immediate selection | Existing immutable approval for each exact operation |
-| Autonomous Management / إدارة مستقلة | `autonomous`, derived from valid signed AccountAuthority | Only the account, markets, actions, limits and duration in that grant |
+| No trading / لا يتداول | `analysis`; the default for general, research and supervisor agents and helpers | No broker mutations; analysis, charts, memory, watches and analytical tasks remain available |
+| Ask me / يسألني أولًا | `supervised`; the default for Lonora and root trading agents (W15-3) | Existing immutable approval for each exact operation |
+| On its own / مستقل ضمن تفويضي الموقّع | `autonomous`, derived from valid signed AccountAuthority | Within that grant without asking; anything outside it becomes an approval card (W15-3) |
+
+The labels were renamed in Wave 1.5 (W15-3); `account-authority.md` describes the
+monotonic ladder and the defaults.
 
 Both bounded grants and customized full-management grants represent autonomy.
 Numerical restrictions do not select the supervised level. Global Trading ON/OFF

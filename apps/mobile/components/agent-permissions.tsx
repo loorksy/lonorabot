@@ -73,6 +73,8 @@ function PermissionControl({ agent, threadId, revision = 0, settings = false }: 
   const [open, setOpen] = useState(false);
   const [page, setPage] = useState<Page>("select");
   const [selected, setSelected] = useState<AgentPermissionLevel>("analysis");
+  // Moving down from a signed grant asks once: it revokes the grant (W15-3).
+  const [downgrade, setDowngrade] = useState<AgentPermissionLevel | null>(null);
   const [expanded, setExpanded] = useState<Group | null>(null);
   const [draft, setDraft] = useState<PermissionCustomization>(() => initialDraft(agent));
   const [review, setReview] = useState<AccountAuthority | null>(null);
@@ -414,7 +416,15 @@ function PermissionControl({ agent, threadId, revision = 0, settings = false }: 
       setEnroll(false);
     } else if (mounted.current) throw new ApiError("version_conflict", 409);
   };
-  const choose = (level: AgentPermissionLevel) => {
+  const choose = (level: AgentPermissionLevel, confirmed = false) => {
+    const signed = state?.active_authorities.some(
+      (row) => authorityStatus(row, clock) === "active",
+    );
+    if (level !== "autonomous" && !confirmed && signed) {
+      setDowngrade(level);
+      return;
+    }
+    setDowngrade(null);
     setSelected(level);
     setSigning(null);
     if (level === "autonomous") {
@@ -831,6 +841,35 @@ function PermissionControl({ agent, threadId, revision = 0, settings = false }: 
                         </Pressable>
                       );
                     })}
+                {downgrade && (
+                  <View testID="permission-downgrade-native" style={{ gap: 8 }}>
+                    <Text accessibilityRole="alert" style={{ ...textStyle, color: colors.warning }}>
+                      {copy.downgrade.replace(
+                        "{account}",
+                        [
+                          ...new Set(
+                            (state?.active_authorities ?? [])
+                              .filter((row) => authorityStatus(row, clock) === "active")
+                              .map((row) => accountName(row.account_id)),
+                          ),
+                        ].join("، "),
+                      )}
+                    </Text>
+                    {actionButton(
+                      copy.downgradeConfirm,
+                      () => choose(downgrade, true),
+                      "permission-downgrade-confirm-native",
+                      busy,
+                    )}
+                    {actionButton(
+                      copy.downgradeKeep,
+                      () => setDowngrade(null),
+                      "permission-downgrade-keep-native",
+                      busy,
+                      true,
+                    )}
+                  </View>
+                )}
                 {selected === "autonomous" &&
                   actionButton(
                     copy.advanced,
@@ -1330,7 +1369,8 @@ function initialDraft(agent: Agent): PermissionCustomization {
   return {
     ...emptyManagementCustomization(),
     account_id: personal ? "" : (agent.trading_account_id ?? ""),
-    symbol_scope: personal || agent.trading_symbol ? "selected" : "account",
+    // Lonora's review preselects all pairs on the account (W15-3); the owner picks it.
+    symbol_scope: !personal && agent.trading_symbol ? "selected" : "account",
     symbols: !personal && agent.trading_symbol ? [agent.trading_symbol] : [],
   };
 }

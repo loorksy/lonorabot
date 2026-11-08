@@ -76,6 +76,16 @@ async function setup(context, locale) {
     expect(response.status()).toBe(201);
     const agent = await response.json();
     created.push(agent.id);
+    // A new trading agent starts at Ask me (W15-3); these scenarios start from No trading.
+    const permission = await (
+      await context.request.get(`/api/agents/${agent.id}/permissions`)
+    ).json();
+    expect(permission.effective_level).toBe("supervised");
+    const reset = await context.request.put(`/api/agents/${agent.id}/permissions`, {
+      headers,
+      data: { level: "analysis", expected_revision: permission.revision },
+    });
+    expect(reset.ok()).toBeTruthy();
     const conversation = await context.request.post(`/api/agents/${agent.id}/conversation`, {
       headers,
       data: {},
@@ -139,7 +149,7 @@ for (const layout of layouts)
       await expect(inputSurface.getByTestId("permission-selector-native")).toBeVisible();
       await expect(selector).toHaveText("");
       await expect(selector).toHaveAccessibleName(
-        layout.locale === "ar" ? "صلاحيات الوكيل: تحليل فقط" : "Agent Permissions: Analysis Only",
+        layout.locale === "ar" ? "صلاحيات الوكيل: لا يتداول" : "Agent Permissions: No trading",
       );
       await expect(selector.getByTestId("permission-icon-analysis-native")).toBeVisible();
       const attachBox = await page.getByTestId("thread-composer-attach-native").boundingBox();
@@ -359,6 +369,20 @@ for (const locale of ["en", "ar"])
       expect(await (await context.request.get("/api/trading/journal")).json()).toEqual(
         journalBefore,
       );
+      // Moving down the ladder says plainly that it revokes the signed grant, and asks once.
+      await page.reload();
+      await page.getByTestId("permission-selector-native").click();
+      await page.getByTestId("permission-choice-supervised").click();
+      const warning = page.getByTestId("permission-downgrade-native");
+      await expect(warning).toContainText(
+        locale === "ar" ? "يلغي التفويض الموقّع على" : "revokes the signed grant for",
+      );
+      await expect(warning).toContainText(
+        locale === "ar" ? "توقيعًا جديدًا" : "going back needs a new signature",
+      );
+      await page.getByTestId("permission-downgrade-keep-native").click();
+      await expect(warning).toHaveCount(0);
+      expect((await read()).effective_level).toBe("autonomous");
     } finally {
       const current = await read();
       for (const grant of [...current.active_authorities, current.pending_authority].filter(

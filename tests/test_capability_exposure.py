@@ -25,7 +25,7 @@ from lonora_contracts.agent_permissions import PermissionChange
 from lonora_contracts.mcp import McpToolDeclaration
 from lonora_contracts.model_routing import Capability, ModelSelection
 from lonora_core.user_error import LonoraError
-from lonora_db.agent_permissions import change_permission
+from lonora_db.agent_permissions import change_permission, effective_permission
 from lonora_db.schema import AgentRow, EventRow, RunRow
 from lonora_db.task_recovery import CHECKPOINT_TOOLS, FINANCIAL_REPLAY_TOOLS
 from lonora_db.tool_usage import MAX_REMEMBERED_TOOLS, record_tool_use, remembered_tools
@@ -598,6 +598,14 @@ async def test_trading_identities_get_the_market_working_set(
         assert agent
         agent.role, agent.trading_account_id, agent.trading_symbol = role, account, symbol
         agent.execution_mode = mode
+    if mode == "live":
+        # Lonora and a root trading agent start at Ask me (W15-3); this case starts from
+        # No trading, the owner's explicit choice.
+        async with db.sessions() as session, session.begin():
+            assert await effective_permission(session, owner, agent_id) == "supervised"
+            await change_permission(
+                session, owner, agent_id, PermissionChange(level="analysis", expected_revision=0)
+            )
     catalog = load_tools()
     model = BridgingScript(ModelReply(text="Watching."))
     monkeypatch.setattr("lonora_agent.tool_loop.model_turn", model)
@@ -625,8 +633,8 @@ async def test_trading_identities_get_the_market_working_set(
         # Shadow execution does not depend on the live permission level.
         assert "trade_execute" in offered and not financial & exposure["unavailable"].keys()
         return
-    # The per-agent permission defaults to analysis, which refuses every live
-    # mutation: the tools are named unavailable instead of offered natively.
+    # No trading refuses every live mutation: the tools are named unavailable instead
+    # of offered natively.
     assert "trade_execute" not in offered
     assert {name: exposure["unavailable"][name] for name in financial} == dict.fromkeys(
         financial, "agent_analysis_only"
@@ -634,7 +642,7 @@ async def test_trading_identities_get_the_market_working_set(
     assert "trade_execute=agent_analysis_only" in inventory
     async with db.sessions() as session, session.begin():
         await change_permission(
-            session, owner, agent_id, PermissionChange(level="supervised", expected_revision=0)
+            session, owner, agent_id, PermissionChange(level="supervised", expected_revision=1)
         )
     supervised = BridgingScript(ModelReply(text="Ready."))
     monkeypatch.setattr("lonora_agent.tool_loop.model_turn", supervised)

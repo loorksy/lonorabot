@@ -16,9 +16,14 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Any, cast
 
+from lonora_contracts.account_authority import (
+    AccountAuthorityEnvelope,
+    AccountAuthorityProposal,
+    AuthorityAction,
+)
 from lonora_contracts.domain import utcnow
 from lonora_contracts.execution_quality import ExecutionPolicy
-from lonora_contracts.owner_actions import OwnerActionProposal
+from lonora_contracts.owner_actions import GrantDraft, OwnerActionProposal
 from lonora_contracts.risk_limits import MonetaryRiskLimits
 from lonora_contracts.trading import UNRESOLVED_STATUSES, TradingControl
 from lonora_core.user_error import LonoraError
@@ -29,6 +34,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .events import emit
 from .schema import (
+    AccountAuthorityRow,
     AgentRow,
     AttentionRow,
     BrokerSessionRow,
@@ -47,7 +53,21 @@ LIFETIME = {
     "lift_restriction": timedelta(days=31),
     "resolve_operation": timedelta(days=7),
     "set_account_limits": timedelta(hours=24),
+    "grant_authority": timedelta(hours=24),
 }
+GRANT_HOURS = {"until_stopped": None, "12h": 12, "24h": 24, "7d": 168}
+ALL_ACTIONS: tuple[AuthorityAction, ...] = (
+    "buy",
+    "sell",
+    "buy_limit",
+    "sell_limit",
+    "buy_stop",
+    "sell_stop",
+    "close_position",
+    "modify_position",
+    "cancel_order",
+    "modify_order",
+)
 # Pending cards one agent may have proposed at once; runtime cards do not count.
 MAXIMUM_PENDING_PER_AGENT = 5
 UPPER_LIMITS = (
@@ -178,11 +198,148 @@ async def stale_reason(
         await owned_account(session, owner_id, payload["account_id"])
         current = (await account_policy(session, owner_id, payload["account_id"])).risk
         return "limits_already_set" if proposed_limits(current, payload) == current else None
+    if kind == "grant_authority":
+        from .agent_binding import (
+            account_wide_scope,
+            assert_market_binding,
+            require_financial_agent,
+        )
+
+        draft = GrantDraft.model_validate(payload)
+        agent = await require_financial_agent(session, owner_id, draft.agent_id)
+        await owned_account(session, owner_id, draft.account_id)
+        # The same scope rules the signed envelope is held to (validate_scope).
+        if draft.symbol_scope == "account" and not account_wide_scope(agent):
+            raise LonoraError("account_authority_scope_mismatch", 403)
+        for symbol in draft.symbols:
+            assert_market_binding(agent, draft.account_id, symbol)
+        covered = await covering_grant(session, owner_id, draft)
+        return "grant_already_active" if covered is not None else None
     raise LonoraError("owner_action_kind_unsupported", 422)
 
 
-def proposal_payload(proposal: OwnerActionProposal) -> tuple[str, dict[str, Any]]:
+async def active_grants(
+    session: AsyncSession, owner_id: str, account_id: str
+) -> list[tuple[AccountAuthorityRow, AccountAuthorityEnvelope]]:
+    """Every signed grant in force on the account, each re-validated as the executor does."""
+    from .account_authority import require_authority
+
+    rows = await session.scalars(
+        select(AccountAuthorityRow)
+        .where(
+            AccountAuthorityRow.owner_id == owner_id,
+            AccountAuthorityRow.account_id == account_id,
+            AccountAuthorityRow.status == "active",
+        )
+        .order_by(AccountAuthorityRow.created_at, AccountAuthorityRow.id)
+    )
+    result: list[tuple[AccountAuthorityRow, AccountAuthorityEnvelope]] = []
+    for row in rows:
+        try:
+            result.append(await require_authority(session, owner_id, row.agent_id, row.id))
+        except LonoraError:
+            continue
+    return result
+
+
+def covers_draft(envelope: AccountAuthorityEnvelope, draft: GrantDraft) -> bool:
+    """Whether a signed grant already allows everything the draft would."""
+    hours = GRANT_HOURS[draft.duration]
+    return (
+        envelope.management_mode == "full"
+        and all(
+            getattr(envelope, name) is None
+            for name in (
+                "maximum_order_volume",
+                "maximum_symbol_volume",
+                "maximum_positions",
+                "maximum_pending_orders",
+                "maximum_actions",
+                "minimum_equity",
+            )
+        )
+        and (
+            envelope.symbol_scope == "account"
+            or draft.symbol_scope == "selected"
+            and set(draft.symbols) <= set(envelope.symbols)
+        )
+        and set(draft.actions) <= set(envelope.actions)
+        and (envelope.allow_manual_positions or not draft.allow_manual_positions)
+        and (
+            envelope.valid_until is None
+            or hours is not None
+            and envelope.valid_until >= utcnow() + timedelta(hours=hours)
+        )
+    )
+
+
+def overlaps_draft(envelope: AccountAuthorityEnvelope, draft: GrantDraft) -> bool:
+    if envelope.symbol_scope == "account" or draft.symbol_scope == "account":
+        return True
+    mine = {symbol.casefold() for symbol in draft.symbols}
+    return any(symbol.casefold() in mine for symbol in envelope.symbols)
+
+
+async def covering_grant(
+    session: AsyncSession, owner_id: str, draft: GrantDraft
+) -> AccountAuthorityRow | None:
+    """The agent's own grant that already covers the draft: no card is needed."""
+    for row, envelope in await active_grants(session, owner_id, draft.account_id):
+        if row.agent_id == draft.agent_id and covers_draft(envelope, draft):
+            return row
+    return None
+
+
+async def grant_conflicts(
+    session: AsyncSession, owner_id: str, draft: GrantDraft
+) -> list[tuple[AccountAuthorityRow, AccountAuthorityEnvelope]]:
+    """Other agents' grants in force on the same account and an overlapping market."""
+    return [
+        (row, envelope)
+        for row, envelope in await active_grants(session, owner_id, draft.account_id)
+        if row.agent_id != draft.agent_id and overlaps_draft(envelope, draft)
+    ]
+
+
+def grant_proposal(
+    draft: GrantDraft, thread_id: str, now: datetime | None = None
+) -> AccountAuthorityProposal:
+    """The exact full-management proposal the card signs: built from the stored draft
+    only, the same shape the permission composer sends for the same choices."""
+    hours = GRANT_HOURS[draft.duration]
+    return AccountAuthorityProposal(
+        thread_id=thread_id,
+        account_id=draft.account_id,
+        management_mode="full",
+        symbol_scope=draft.symbol_scope,
+        symbols=list(draft.symbols),
+        actions=list(draft.actions),
+        valid_until=None if hours is None else (now or utcnow()) + timedelta(hours=hours),
+        allow_manual_positions=draft.allow_manual_positions,
+    )
+
+
+def daily_loss_change(current: MonetaryRiskLimits, draft: GrantDraft) -> MonetaryRiskLimits | None:
+    """The account limits after the card's daily loss limit, or None when it changes
+    nothing. The card only sets a missing limit or lowers one, so it never widens."""
+    daily = draft.daily_loss
+    if daily is None:
+        return None
+    if current.currency is not None and current.currency != daily.currency:
+        return None
+    if current.max_daily_loss is not None and daily.amount >= current.max_daily_loss:
+        return None
+    return current.model_copy(update={"max_daily_loss": daily.amount, "currency": daily.currency})
+
+
+def proposal_payload(
+    proposal: OwnerActionProposal, grant: GrantDraft | None = None
+) -> tuple[str, dict[str, Any]]:
     """The card's exact stored effect and the record it acts on."""
+    if proposal.kind == "grant_authority":
+        if grant is None:
+            raise LonoraError("owner_action_fields_invalid", 422)
+        return "grant:" + grant.agent_id + ":" + grant.account_id, grant.model_dump(mode="json")
     if proposal.kind == "resume_trading":
         return "trading", TradingControl(enabled=True, emergency_stop=False).model_dump()
     if proposal.kind == "lift_restriction":
@@ -283,6 +440,8 @@ async def card_facts(
         }
         facts["blocks"] = "new_risk_on_this_symbol_or_ticket"
         return facts, False
+    if row.kind == "grant_authority":
+        return await grant_facts(session, row, facts), True
     account_id = payload["account_id"]
     facts["account"] = account_facts(await session.get(BrokerSessionRow, account_id), account_id)
     current = (await account_policy(session, owner_id, account_id)).risk
@@ -297,6 +456,76 @@ async def card_facts(
     facts["proposed"] = risk_limit_frame(account_id, ExecutionPolicy(risk=proposed))
     facts["changes"] = limit_changes(current, proposed)
     return facts, widens(current, proposed)
+
+
+async def grant_facts(
+    session: AsyncSession, row: OwnerActionRow, facts: dict[str, Any]
+) -> dict[str, Any]:
+    """What the owner signs, read now: the agent, account, markets, actions, duration,
+    their own positions, the account's money limits and daily loss line, Stop new
+    trading, other agents already trading that market and the grant it replaces."""
+    owner_id = row.owner_id
+    draft = GrantDraft.model_validate(row.payload)
+    conflicts = await grant_conflicts(session, owner_id, draft)
+    names = await agent_names(
+        session, owner_id, {draft.agent_id, *(item.agent_id for item, _ in conflicts)}
+    )
+    grantee = await session.get(AgentRow, draft.agent_id)
+    facts["account"] = account_facts(
+        await session.get(BrokerSessionRow, draft.account_id), draft.account_id
+    )
+    allow_manual = row.result.get("allow_manual_positions", draft.allow_manual_positions)
+    facts["grant"] = {
+        "agent_name": names.get(draft.agent_id),
+        "agent_is_personal": grantee is not None and grantee.role == "personal",
+        "symbol_scope": draft.symbol_scope,
+        "symbols": list(draft.symbols),
+        "actions": list(draft.actions),
+        "all_actions": set(draft.actions) == set(ALL_ACTIONS),
+        "duration": draft.duration,
+        "allow_manual_positions": bool(allow_manual),
+    }
+    policy = await account_policy(session, owner_id, draft.account_id)
+    change = daily_loss_change(policy.risk, draft)
+    daily = draft.daily_loss
+    facts["money"] = {
+        "limits": risk_limit_frame(draft.account_id, policy),
+        "daily_loss": {
+            "current": None
+            if policy.risk.max_daily_loss is None
+            else str(policy.risk.max_daily_loss),
+            "proposed": None if change is None or daily is None else str(daily.amount),
+            "currency": daily.currency if daily else policy.risk.currency,
+            "basis": daily.basis if daily else None,
+            "percent": None if daily is None or daily.percent is None else str(daily.percent),
+        },
+    }
+    facts["global_trading"] = await global_trading(session)
+    facts["conflicts"] = [
+        {
+            "authority_id": item.id,
+            "agent_name": names.get(item.agent_id),
+            "symbol_scope": envelope.symbol_scope,
+            "symbols": list(envelope.symbols),
+        }
+        for item, envelope in conflicts
+    ]
+    own = [
+        envelope
+        for item, envelope in await active_grants(session, owner_id, draft.account_id)
+        if item.agent_id == draft.agent_id
+    ]
+    facts["replaces"] = (
+        {"symbol_scope": own[0].symbol_scope, "symbols": list(own[0].symbols)} if own else None
+    )
+    signed = await session.scalar(
+        select(AccountAuthorityRow.id)
+        .where(AccountAuthorityRow.owner_id == owner_id, AccountAuthorityRow.device_id.is_not(None))
+        .limit(1)
+    )
+    # The one rule is shown on the owner's first grant card.
+    facts["first_grant"] = signed is None
+    return facts
 
 
 def limit_changes(
@@ -523,11 +752,13 @@ async def propose(
     agent_id: str,
     thread_id: str | None,
     run_id: str | None,
+    grant: GrantDraft | None = None,
 ) -> tuple[OwnerActionRow, bool]:
     """An agent's card: validated against current state, deduplicated, capped.
 
     Returns the card and whether it is new. A repeated proposal of the same effect by
-    the same agent returns the pending card it already raised.
+    the same agent returns the pending card it already raised. A grant card carries the
+    draft the tool resolved (``grant``).
     """
     await lock_owner_actions(session, owner_id)
     existing = await session.get(OwnerActionRow, card_id)
@@ -535,7 +766,7 @@ async def propose(
         if existing.owner_id != owner_id or existing.agent_id != agent_id:
             raise LonoraError("owner_action_not_found", 404)
         return existing, False
-    subject, payload = proposal_payload(proposal)
+    subject, payload = proposal_payload(proposal, grant)
     reason = await stale_reason(session, owner_id, proposal.kind, payload)
     if reason is not None:
         raise LonoraError("owner_action_not_needed_" + reason, 409)
@@ -646,6 +877,23 @@ def confirmation_code(row: OwnerActionRow) -> str:
     return "owner_action_" + row.kind
 
 
+async def grant_notes(session: AsyncSession, row: OwnerActionRow) -> list[str]:
+    """The grant's one-line confirmation: what else the card did, and Stop if it holds."""
+    result = row.result
+    notes: list[str] = []
+    if result.get("daily_loss") is not None:
+        notes.append("owner_action_grant_daily_loss")
+    elif result.get("money_limit") == "none":
+        notes.append("owner_action_grant_no_money_limit")
+    if result.get("stopped_authorities"):
+        notes.append("owner_action_grant_stopped_other")
+    if result.get("resumed"):
+        notes.append("owner_action_grant_resumed")
+    elif (await global_trading(session))["state"] == "stopped":
+        notes.append("owner_action_still_stopped")
+    return notes
+
+
 def _same_symbol(left: str | None, right: str | None) -> bool:
     return left is None or right is None or left.casefold() == right.casefold()
 
@@ -654,6 +902,8 @@ async def still_holding(session: AsyncSession, row: OwnerActionRow) -> list[str]
     """What still holds new risk where a lift or an answer just released it, read after
     the effect: Stop new trading, another pause in force over the same market and agents,
     or another trade there without a confirmed broker outcome. One fixed clause each."""
+    if row.kind == "grant_authority":
+        return await grant_notes(session, row)
     if row.kind not in {"lift_restriction", "resolve_operation"}:
         return []
     agent: str | None = None
@@ -819,7 +1069,7 @@ async def awaiting_owner_answer(session: AsyncSession, owner_id: str, operation_
 
 
 async def card_account(session: AsyncSession, row: OwnerActionRow) -> str | None:
-    if row.kind == "set_account_limits":
+    if row.kind in {"set_account_limits", "grant_authority"}:
         return cast(str, row.payload["account_id"])
     if row.kind == "lift_restriction":
         restriction = await session.get(TradingRestrictionRow, row.payload["restriction_id"])
@@ -849,7 +1099,13 @@ async def settle_for_delete(
         OwnerActionRow.owner_id == owner_id, OwnerActionRow.status == "pending"
     )
     if agent_id is not None:
-        query = query.where(OwnerActionRow.agent_id == agent_id)
+        # The agent's own cards, and grant cards that would sign authority for it.
+        query = query.where(
+            or_(
+                OwnerActionRow.agent_id == agent_id,
+                OwnerActionRow.subject.startswith("grant:" + agent_id + ":"),
+            )
+        )
     if thread_id is not None:
         query = query.where(OwnerActionRow.thread_id == thread_id)
     rows = list(

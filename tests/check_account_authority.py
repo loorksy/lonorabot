@@ -287,9 +287,16 @@ async def main() -> None:
             "PASS repeated signed account trades across exact forex/metal/index/crypto symbols; pending and management use one verified executor"
         )
 
-        denied_manual = await operation("close_position", position_id="manual-ticket")
-        assert denied_manual["code"] == "account_authority_manual_permission_required", (
-            denied_manual
+        # The grant excludes the owner's own position: closing it asks the owner with an
+        # approval card (the ladder is monotonic) and sends nothing before the tap.
+        before = await broker.snapshot()
+        asked_manual = await operation("close_position", position_id="manual-ticket")
+        assert asked_manual["_runtime_wait"], asked_manual
+        assert await broker.snapshot() == before
+        await f.request(
+            "POST",
+            f"/trading/approvals/{asked_manual['approval_id']}/decision",
+            {"decision": "reject"},
         )
         for params, code in (
             ({"volume": "0.6", "stop_loss": "90"}, "account_authority_volume_limit"),
@@ -301,7 +308,9 @@ async def main() -> None:
             "modify_position", position_id=opened["broker_id"], stop_loss="80"
         )
         assert widened["code"] == "account_authority_protection_expansion_forbidden", widened
-        print("PASS scope volume/protection/manual ownership limits remain server authoritative")
+        print(
+            "PASS scope volume/protection limits remain server authoritative; the owner's own position asks for approval"
+        )
 
         async with f.runtime.db.sessions() as session, session.begin():
             row = await session.get(RunRow, context.lease.run_id)

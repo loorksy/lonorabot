@@ -6,6 +6,7 @@ import { conversationTimeline } from "../../packages/core/src/conversation-timel
 import {
   mergeOwnerAction,
   ownerActionCard,
+  ownerActionChoices,
   ownerActionError,
   ownerActionLabels,
 } from "../../packages/core/src/owner-actions";
@@ -337,4 +338,192 @@ test("Web and Mobile render the same shared spec and never show agent text", () 
     Object.keys(ownerActionLabels.en).sort(),
     Object.keys(ownerActionLabels.ar).sort(),
   );
+});
+
+const grantCard = (overrides: Partial<OwnerAction["facts"]> = {}): OwnerAction => ({
+  ...base,
+  kind: "grant_authority",
+  requires_passkey: true,
+  facts: {
+    several_accounts: false,
+    account: { id: "acct", label: "Broker · 1234 · Live", provider: "metaapi" },
+    grant: {
+      agent_name: "Gold agent",
+      agent_is_personal: false,
+      symbol_scope: "selected",
+      symbols: ["XAUUSD"],
+      actions: [
+        "buy",
+        "sell",
+        "buy_limit",
+        "sell_limit",
+        "buy_stop",
+        "sell_stop",
+        "close_position",
+        "modify_position",
+        "cancel_order",
+        "modify_order",
+      ],
+      all_actions: true,
+      duration: "until_stopped",
+      allow_manual_positions: false,
+    },
+    money: {
+      limits: {
+        account_id: "acct",
+        configured: false,
+        currency: null,
+        limits: {},
+        not_configured: [],
+      },
+      daily_loss: {
+        current: null,
+        proposed: "200.00",
+        currency: "USD",
+        basis: "requested",
+        percent: "2",
+      },
+    },
+    global_trading: { state: "stopped", since: null, changed_by: "default" },
+    conflicts: [
+      {
+        authority_id: "other-grant",
+        agent_name: "Silver agent",
+        symbol_scope: "account",
+        symbols: [],
+      },
+    ],
+    replaces: null,
+    first_grant: true,
+    ...overrides,
+  },
+});
+
+test("a grant card shows exactly what is signed, with the D1 defaults, in both languages", () => {
+  const en = ownerActionCard(grantCard(), "en", now);
+  assert.equal(en.title, "Let ⁨Gold agent⁩ trade on its own");
+  assert.equal(en.passkey, true);
+  assert.deepEqual(en.lines.slice(0, 6), [
+    "Account: ⁨Broker · 1234 · Live⁩",
+    "Markets: ⁨XAUUSD⁩",
+    "Opens, closes and manages trades",
+    "Until you stop it",
+    "Positions you opened yourself are excluded",
+    "Daily loss limit: ⁨200.00 USD⁩ (⁨2%⁩ of equity)",
+  ]);
+  assert.ok(en.lines.includes("New trading is stopped"));
+  assert.ok(en.lines.some((line) => line.startsWith("⁨Silver agent⁩ already trades")));
+  // The first grant card states the one rule; every grant card says what stays asked.
+  assert.match(en.hint ?? "", /approval card/);
+  assert.match(en.hint ?? "", /no agent, skill or plugin can ever widen your money authority/);
+  assert.deepEqual(
+    en.options.map((option) => [option.key, option.initial]),
+    [
+      ["manual", false],
+      ["no_money_limit", false],
+      // Never started: Resume is pre-checked; after the owner's own Stop it is not.
+      ["resume", true],
+      ["stop:other-grant", false],
+    ],
+  );
+  assert.deepEqual(
+    en.buttons.map((button) => [button.key, button.decision, button.label]),
+    [
+      ["confirm", "confirm", "Authorize with passkey"],
+      ["cancel", "cancel", "Not now"],
+    ],
+  );
+  const ar = ownerActionCard(grantCard(), "ar", now);
+  assert.equal(ar.title, "دع ⁨Gold agent⁩ يتداول بنفسه");
+  assert.ok(ar.lines.includes("الأسواق: ⁨XAUUSD⁩"));
+  assert.ok(ar.lines.includes("حد الخسارة اليومية: ⁨200.00 USD⁩ (⁨2%⁩ من السيولة)"));
+  assert.match(ar.hint ?? "", /بطاقة موافقة/);
+  assert.equal(ar.buttons[0]?.label, "التفويض بمفتاح المرور");
+  const stopped = ownerActionCard(
+    grantCard({ global_trading: { state: "stopped", since: null, changed_by: "owner" } }),
+    "en",
+    now,
+  );
+  assert.equal(stopped.options.find((option) => option.key === "resume")?.initial, false);
+});
+
+test("Lonora's grant card preselects all pairs; an existing limit is shown, never widened", () => {
+  const card = grantCard({
+    grant: {
+      ...(grantCard().facts.grant ?? (undefined as never)),
+      agent_name: "Lonora",
+      agent_is_personal: true,
+      symbol_scope: "account",
+      symbols: [],
+    },
+    money: {
+      limits: {
+        account_id: "acct",
+        configured: true,
+        currency: "USD",
+        limits: { max_daily_loss: "150" },
+        not_configured: [],
+      },
+      daily_loss: {
+        current: "150",
+        proposed: null,
+        currency: "USD",
+        basis: "suggested",
+        percent: "3",
+      },
+    },
+    global_trading: { state: "running", since: null, changed_by: "owner" },
+    conflicts: [],
+    first_grant: false,
+  });
+  const en = ownerActionCard(card, "en", now);
+  assert.ok(en.lines.includes("Markets: All pairs on this account"));
+  assert.ok(en.lines.some((line) => line.startsWith("Account money limits: ")));
+  assert.ok(!en.lines.some((line) => line.startsWith("Daily loss limit")));
+  assert.deepEqual(
+    en.options.map((option) => option.key),
+    ["manual"],
+  );
+  assert.doesNotMatch(en.hint ?? "", /plugin/);
+});
+
+test("a grant card's switches map to the signed challenge and the decision", () => {
+  const card = grantCard();
+  const initial = ownerActionChoices(card, {});
+  assert.deepEqual(initial.challenge, { allow_manual_positions: false });
+  assert.deepEqual(initial.decision, {
+    money_limit: "apply",
+    resume_trading: true,
+    stop_authorities: [],
+  });
+  const chosen = ownerActionChoices(card, {
+    manual: true,
+    no_money_limit: true,
+    resume: false,
+    "stop:other-grant": true,
+  });
+  assert.deepEqual(chosen.challenge, { allow_manual_positions: true });
+  assert.deepEqual(chosen.decision, {
+    money_limit: "none",
+    resume_trading: false,
+    stop_authorities: ["other-grant"],
+  });
+  assert.deepEqual(ownerActionChoices(base, { resume: true }), { challenge: {}, decision: {} });
+  const settled = ownerActionCard({ ...card, status: "confirmed" }, "en", now);
+  assert.deepEqual(settled.options, []);
+  assert.equal(settled.outcome, "Signed. It trades on its own inside this grant.");
+  const covered = ownerActionCard(
+    { ...card, status: "expired", status_reason: "grant_already_active" },
+    "ar",
+    now,
+  );
+  assert.equal(covered.outcome, "هذا موقّع بالفعل. لم يتغير شيء.");
+  for (const code of [
+    "owner_action_challenge_required",
+    "owner_action_conflict_not_found",
+    "execution_policy_passkey_required",
+  ]) {
+    assert.ok(ownerActionError(code, "en"));
+    assert.match(ownerActionError(code, "ar") ?? "", /[؀-ۿ]/);
+  }
 });

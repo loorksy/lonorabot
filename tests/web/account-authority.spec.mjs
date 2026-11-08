@@ -81,7 +81,7 @@ async function setup(context, locale = "en") {
       await expect(review).toBeVisible();
       return review;
     },
-    async revoke(page) {
+    async revoke(page, signed = false) {
       if (await page.getByTestId("permission-review").count())
         await page.getByTestId("permission-cancel").click();
       await page.getByTestId("permission-selector").click();
@@ -91,6 +91,12 @@ async function setup(context, locale = "en") {
           response.request().method() === "PUT",
       );
       await page.getByTestId("permission-option-analysis").click();
+      if (signed) {
+        // Moving down from a signed grant says it revokes it, and asks once (W15-3).
+        const warning = page.getByTestId("permission-downgrade");
+        await expect(warning).toContainText("revokes the signed grant for");
+        await warning.getByTestId("permission-downgrade-confirm").click();
+      }
       expect((await changed).ok()).toBeTruthy();
       await expect(page.getByTestId("permission-effective")).toHaveAttribute(
         "data-level",
@@ -120,7 +126,8 @@ for (const locale of ["en", "ar"])
       const pending = await (
         await context.request.get(`/api/agents/${state.agent.id}/permissions`)
       ).json();
-      expect(pending.effective_level).toBe("analysis");
+      // A new trading agent starts at Ask me; a pending proposal grants nothing.
+      expect(pending.effective_level).toBe("supervised");
       expect(pending.pending_authority.id).toBe(state.row.id);
       await state.revoke(page);
       const saved = await (
@@ -199,7 +206,7 @@ for (const full of [false, true])
       expect((await (await context.request.get("/api/trading/controls")).json()).enabled).toBe(
         false,
       );
-      await state.revoke(page);
+      await state.revoke(page, true);
       const stopped = await (
         await context.request.get(`/api/agents/${state.agent.id}/account-authorities`)
       ).json();

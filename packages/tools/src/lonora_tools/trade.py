@@ -1,30 +1,40 @@
 from typing import Any
 
+from lonora_contracts.account import Order, Position
 from lonora_contracts.domain import Contract, utcnow
 from lonora_contracts.shadow import ExecutionMode
 from lonora_contracts.trading import TradeRequest, TradeResult
 from lonora_core.user_error import LonoraError
+from lonora_db.account_authority import require_authority
 from lonora_db.agent_binding import (
     agent_binding,
     require_financial_agent,
 )
 from lonora_db.agent_permissions import effective_permission
 from lonora_db.runs import require_lease
-from lonora_db.schema import EffectReceiptRow, TradeApprovalRow, TradingJournalRow
+from lonora_db.schema import EffectReceiptRow, RunRow, TradeApprovalRow, TradingJournalRow
 from lonora_db.steering import user_interrupt_pending
 from lonora_db.trade_approvals import approval_event
 from lonora_db.transactions import owned_thread
 from lonora_session.idempotency import request_hash, stable_id
-from lonora_trading.account_authority import available_authority, provisional_voice
+from lonora_trading.account_authority import (
+    available_authority,
+    covering_authority,
+    provisional_voice,
+)
 from lonora_trading.idempotency import trade_fingerprint
 from lonora_trading.journal import record_excerpt
 from lonora_trading.manual_activity import material_state
 from pydantic import Field
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from .base import Tool, eager_for
 from .context import ToolContext
 from .symbols import canonical_broker_symbol
+
+# Results whose operation reached, or may have reached, the broker: never asked twice.
+REACHED_BROKER = {"confirmed", "submitted", "ambiguous", "resolved"}
 
 
 class ClosePositions(Contract):
@@ -49,8 +59,19 @@ async def trading_permission_available(context: ToolContext) -> str | None:
     return "agent_analysis_only" if level == "analysis" else None
 
 
-async def management_snapshot(context: ToolContext, requests: list[TradeRequest]) -> dict[str, Any]:
-    result: dict[str, Any] = {}
+def target_key(request: TradeRequest) -> str:
+    return (
+        request.account_id
+        + (":position:" if request.position_id else ":order:")
+        + str(request.position_id or request.order_id or "")
+    )
+
+
+async def management_targets(
+    context: ToolContext, requests: list[TradeRequest]
+) -> dict[str, Position | Order | None]:
+    """The broker's current ticket for each request that manages one (None: not found)."""
+    result: dict[str, Position | Order | None] = {}
     for account_id in sorted(
         {request.account_id for request in requests if request.position_id or request.order_id}
     ):
@@ -60,19 +81,55 @@ async def management_snapshot(context: ToolContext, requests: list[TradeRequest]
             positions = {item.id: item for item in await broker.positions()}
             for request in selected:
                 if request.position_id:
-                    position = positions.get(request.position_id)
-                    result[account_id + ":position:" + request.position_id] = (
-                        material_state(position) if position else None
-                    )
+                    result[target_key(request)] = positions.get(request.position_id)
         if any(request.order_id for request in selected):
             orders = {item.id: item for item in await broker.orders()}
             for request in selected:
                 if request.order_id:
-                    order = orders.get(request.order_id)
-                    result[account_id + ":order:" + request.order_id] = (
-                        material_state(order) if order else None
-                    )
+                    result[target_key(request)] = orders.get(request.order_id)
     return result
+
+
+async def management_snapshot(context: ToolContext, requests: list[TradeRequest]) -> dict[str, Any]:
+    return {
+        key: material_state(target) if target else None
+        for key, target in (await management_targets(context, requests)).items()
+    }
+
+
+async def reviewed_approval(
+    session: AsyncSession, context: ToolContext, requests: list[TradeRequest]
+) -> TradeApprovalRow | None:
+    """The approval this Run already holds for the same exact operations, if the owner
+    approved it and its operations are executing or reached the broker.
+
+    A repeated request in another call of the same Run (identical operation ids and
+    fingerprints) reuses it instead of asking the owner twice. A rejection, or a result
+    that never reached the broker (a pause that has since been lifted), asks again.
+    """
+    expected = [trade_fingerprint(request) for request in requests]
+    rows = await session.scalars(
+        select(TradeApprovalRow)
+        .where(
+            TradeApprovalRow.owner_id == context.owner_id,
+            TradeApprovalRow.agent_id == context.agent_id,
+            TradeApprovalRow.run_id == context.lease.run_id,
+            TradeApprovalRow.status.in_(["approved", "completed"]),
+        )
+        .order_by(TradeApprovalRow.created_at, TradeApprovalRow.id)
+    )
+    for row in rows:
+        if row.broker_snapshot.get("execution_mode", {}).get("value", "live") != "live":
+            continue
+        if [trade_fingerprint(TradeRequest.model_validate(item)) for item in row.requests] != (
+            expected
+        ):
+            continue
+        if row.status == "approved" or all(
+            result.get("status") in REACHED_BROKER for result in row.results
+        ):
+            return row
+    return None
 
 
 def independent_exits(requests: list[TradeRequest]) -> bool:
@@ -145,9 +202,13 @@ async def approved_execution(
             if mode == "live" and not gate_only and level == "autonomous"
             else []
         )
-        if grants and not all(grants):
-            raise LonoraError("account_authority_scope_mismatch", 403)
     if grants and all(grants) and not provisional:
+        grants = await covering_grants(context, origin, authority_requests, grants)
+    if not all(grants):
+        # The ladder is monotonic: a trade no active grant covers asks the owner with an
+        # approval card, exactly like "Ask me", instead of being refused.
+        grants = []
+    if grants and not provisional:
         return await account_authorized_execution(context, authority_requests, grants)
     if mode == "shadow" and previous is None:
         from lonora_trading.shadow import ShadowReadView
@@ -188,6 +249,10 @@ async def approved_execution(
             raise LonoraError("agent_thread_mismatch", 409)
         await require_lease(session, context.lease, lock=True)
         row = await session.get(TradeApprovalRow, approval_id)
+        if row is None and mode == "live" and not gate_only:
+            row = await reviewed_approval(session, context, requests)
+            if row is not None:
+                approval_id = row.id
         if row is None:
             row = TradeApprovalRow(
                 id=approval_id,
@@ -217,7 +282,11 @@ async def approved_execution(
         if row.status == "rejected":
             return {"status": "rejected", "code": "trade_approval_rejected", "approval_id": row.id}
         if row.status == "completed":
-            return {"approval_id": row.id, "results": row.results}
+            return {
+                "approval_id": row.id,
+                "results": row.results,
+                **(row.results[0] if len(row.results) == 1 else {}),
+            }
         if row.status != "approved":
             raise LonoraError("trade_approval_unavailable", 409)
         frozen = [TradeRequest.model_validate(item) for item in row.requests]
@@ -261,18 +330,13 @@ async def approved_execution(
                     raise LonoraError("trade_approval_broker_state_changed", 409)
 
         try:
-            target_key = (
-                request.account_id
-                + (":position:" if request.position_id else ":order:")
-                + str(request.position_id or request.order_id or "")
-            )
             result = await context.trading.execute(
                 context.owner_id,
                 request,
                 context.lease,
                 authorization=authorize,
                 account_authority_id=grants[index] if grants else None,
-                expected_target=expected_snapshot.get(target_key),
+                expected_target=expected_snapshot.get(target_key(request)),
             )
         except LonoraError as error:
             result = TradeResult(
@@ -311,6 +375,39 @@ async def approved_execution(
     }
 
 
+async def covering_grants(
+    context: ToolContext,
+    origin: RunRow,
+    requests: list[TradeRequest],
+    grants: list[str | None],
+) -> list[str | None]:
+    """Drop a grant that does not cover the ticket it would manage (the owner's own
+    position under a grant that excludes them); that request then asks the owner."""
+    excluded: set[str] = set()
+    async with context.db.sessions() as session:
+        for request, identifier in zip(requests, grants, strict=True):
+            if identifier and (request.position_id or request.order_id):
+                _, envelope = await require_authority(
+                    session, context.owner_id, context.agent_id, identifier
+                )
+                if not envelope.allow_manual_positions:
+                    excluded.add(target_key(request))
+    if not excluded:
+        return grants
+    targets = await management_targets(
+        context, [request for request in requests if target_key(request) in excluded]
+    )
+    async with context.db.sessions() as session:
+        return [
+            await covering_authority(
+                session, context.owner_id, origin, request, targets.get(target_key(request))
+            )
+            if identifier and target_key(request) in excluded
+            else identifier
+            for request, identifier in zip(requests, grants, strict=True)
+        ]
+
+
 async def account_authorized_execution(
     context: ToolContext, requests: list[TradeRequest], grants: list[str | None]
 ) -> dict[str, Any]:
@@ -327,11 +424,6 @@ async def account_authorized_execution(
                 if await user_interrupt_pending(session, context.lease.run_id):
                     raise LonoraError("tool_call_superseded", 409)
 
-        key = (
-            request.account_id
-            + (":position:" if request.position_id else ":order:")
-            + str(request.position_id or request.order_id or "")
-        )
         try:
             result = await context.trading.execute(
                 context.owner_id,
@@ -339,7 +431,7 @@ async def account_authorized_execution(
                 context.lease,
                 authorization=current,
                 account_authority_id=identifier,
-                expected_target=expected.get(key),
+                expected_target=expected.get(target_key(request)),
             )
         except LonoraError as error:
             result = TradeResult(

@@ -107,10 +107,10 @@ async def checks() -> None:
             "PASS new creation requires real broker selection; all asset suffixes exact; PATCH cannot alter binding"
         )
         agent = agents[0]
-        # This fixture tests scoped financial proposals; opt in through the
-        # owner API while leaving creation's Analysis Only default intact.
+        # This fixture tests scoped financial proposals. A new trading agent starts at
+        # Ask me (W15-3); setting it again through the owner API keeps that level.
         permission = await fixture.request("GET", f"/agents/{agent['id']}/permissions")
-        assert permission["effective_level"] == "analysis"
+        assert permission["effective_level"] == "supervised"
         await fixture.request(
             "PUT",
             f"/agents/{agent['id']}/permissions",

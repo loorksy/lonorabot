@@ -35,7 +35,9 @@ export function emptyManagementCustomization(): ManagementCustomization {
       minimum_equity: "",
     },
     duration: "until_stopped",
-    allow_manual_positions: true,
+    // Owner decision D1: positions the owner opened manually stay excluded unless the
+    // owner switches them on.
+    allow_manual_positions: false,
   };
 }
 

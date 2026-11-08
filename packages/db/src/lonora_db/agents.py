@@ -110,6 +110,10 @@ async def update_agent(
             raise LonoraError("agent_scope_change_forbidden", 403)
         if request.expected_scope_revision != row.scope_revision:
             raise LonoraError("version_conflict", 409)
+        from .agent_permissions import pin_level
+
+        # Editing the focus pair never moves the agent on the trading ladder.
+        await pin_level(session, owner_id, row.id)
         row.scope_mode = "flexible"
         row.trading_account_id = request.trading_account_id
         row.trading_symbol = request.trading_symbol

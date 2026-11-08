@@ -35,9 +35,11 @@ export {
 export {
   mergeOwnerAction,
   type OwnerActionButton,
+  type OwnerActionOption,
   type OwnerActionSpec,
   type OwnerActionText,
   ownerActionCard,
+  ownerActionChoices,
   ownerActionError,
   ownerActionLabels,
   ownerActionText,

@@ -134,9 +134,12 @@ async def main():
             assert result["status"] == "confirmed", result
             assert result["details"]["verification"]["status"] == "verified", result
             assert result["details"]["verification"]["financial_retry_allowed"] is False
+            # A replay answers from the completed approval, with the single result's
+            # fields at the top level as on the first execution.
             assert await registry.execute(call, context) == {
                 "approval_id": approval,
                 "results": result["results"],
+                **(result["results"][0] if len(result["results"]) == 1 else {}),
             }
             return result
 
