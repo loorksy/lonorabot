@@ -46,6 +46,7 @@ const copy = {
     created: "أُنشئ وكيل",
     template: "وكيل أبحاث",
     level: "مستوى التداول: لا يتداول",
+    task: "مهمته: ⁨Follow economic news.⁩",
     keep: "إبقاؤه",
     kept: "أُبقي الوكيل.",
     monitoring: "يراقب",
@@ -55,6 +56,7 @@ const copy = {
     created: "Agent created",
     template: "Research agent",
     level: "Trading level: No trading",
+    task: "Its task: ⁨Follow economic news.⁩",
     keep: "Keep it",
     kept: "Kept.",
     monitoring: "Monitoring",
@@ -122,6 +124,7 @@ for (const locale of ["ar", "en"])
       await expect(card.getByText(text.created, { exact: true })).toBeVisible();
       await expect(card.getByText(`${text.template} · ⁨${name}⁩`, { exact: true })).toBeVisible();
       await expect(card.getByText(text.level, { exact: true })).toBeVisible();
+      await expect(card.getByText(text.task, { exact: true })).toBeVisible();
       if (locale === "ar")
         await card.screenshot({ path: test.info().outputPath("agent-created-native-ar.png") });
       await card.getByRole("button", { name: text.keep, exact: true }).click();

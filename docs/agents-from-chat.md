@@ -16,7 +16,7 @@ the creation service `lonora_db.agent_creation.create_root_agent` and
 | --- | --- |
 | `template` | `trading`, `general`, `research` or `supervisor` |
 | `name` | Display name; a name another agent already has gets the first free number ("Gold agent 2") |
-| `responsibility` | What the owner asked it to do. Stored as its instructions; a short form is its directory description. Text that states authority ("trade without approval") is refused (`agent_responsibility_authority_claim`), like operating notes. |
+| `responsibility` | What the owner asked it to do. Stored as its instructions; a short form is its directory description. Text that states authority ("trade without approval") is refused (`agent_responsibility_authority_claim`), like operating notes. Both creation cards show it word for word ("Its task: …"), so the owner sees the standing instruction a tap keeps. |
 | `market` | Trading template only, and required there: the focus pair as the broker names it |
 | `account_id` | Only when the owner chose among several accounts |
 | `model` | Optional, one of the owner's configured models (the router's conversation routes); otherwise the result lists them (`agent_model_not_allowed`) |
@@ -50,6 +50,13 @@ connection version is recorded and re-checked when the agent is created.
   a `create_agent` owner action card in the conversation ("Create an agent?", Create /
   Not now). The owner's tap runs the same creation in the owner's session
   (`created_via = owner_card`); a repeated proposal returns the card already shown.
+- **The owner answers a card in chat** ("yes, create it"): that run answers an owner
+  message, so it creates the agent, and every pending creation card for the same
+  template and name closes (`agent_already_created`, "This agent was already created").
+  The same happens to another agent's card when one card is tapped. A card whose agent
+  exists by then (same template and name) is settled with that reason instead of
+  creating a second one, and a new proposal for it returns `agent_already_exists` with
+  the agent.
 
 ### Limits and duplicates
 
@@ -76,19 +83,34 @@ too, with `owner_ui`. `report_to` is the peer link: `list_agents` shows each age
 
 Operating notes (`OPERATING.md`, fixed server text, attributed to the owner's request
 and revertible like any memory change) tell the new agent its template's role and whom
-it reports to ("Report important findings to Gold agent (agent id …) with
-peer_send."), and tell each agent it reports to who reports to it. A note that would not
-fit, or that the memory guard refuses, is skipped; the link itself stays.
+it reports to ("Report important findings to Gold agent."), and tell each agent it
+reports to who reports to it ("News agent reports important findings to you."). The
+notes name agents, never ids or tool names: `list_agents` holds the link. A note that
+would not fit, or that the memory guard refuses, is skipped; the link itself stays. The
+origin record keeps the exact lines it added (`link_notes`).
+
+When the agent is deleted (Undo or the owner's delete,
+`lonora_agent.collaboration.agent_create.delete_created_agent`), the lines its creation
+wrote into the agents it reports to are removed, and agents that reported to it lose
+that link and their "Report … to it" line. An agent locked by another change at that
+moment is skipped rather than waited on; its line stays visible and revertible.
 
 After creating, the creating agent hands the new agent its first task with `peer_send`
-and confirms in one line what was created and what is still missing.
+and confirms in one line what was created and what is still missing. When the owner
+created it from a card, the tap queues one run (trigger `agent_created`, run id derived
+from the card) for the proposing agent in the card's conversation, with fixed server
+text naming only the new agent's id, so it sends that first task. Undo before that run
+starts cancels it. It is not an owner turn: an `agent_create` in it raises a card.
 
 ## The result card and Undo
 
 Every creation raises one `agent_created` card in the creating conversation (source
 `system`, one per agent, seven days): the agent's name and template, its focus pair (the
-account named when the owner has several), its trading level, whom it reports to, and
-what Undo does now. The responsibility text, which a model wrote, is never shown.
+account named when the owner has several), its trading level, whom it reports to, its
+stored task (isolated and labelled, "Its task: …" / «مهمته: …»), and what Undo does now.
+The money sentence follows the live level: "No money authority: every trade waits for
+your tap" at Ask me, "It does not trade" at No trading, and "It trades on its own only
+inside the grant you signed" once the owner signed a grant while the card was pending.
 
 | Card | Buttons | Undo does |
 | --- | --- | --- |
@@ -98,7 +120,9 @@ what Undo does now. The responsibility text, which a model wrote, is never shown
 Undo is the owner's delete (`lonora_db.agent_creation.delete_agent`, the same function
 as `DELETE /api/agents/{id}`: refused while a trade is uncertain, grants and approvals
 settled first, financial records kept) or a pause. Deleting an agent anywhere settles its
-pending Undo card. The confirmation line in the conversation is fixed text
+pending Undo card, except one the owner is tapping at that moment: the delete never
+waits for that tap (which takes the agent's lock after the card's), and the tap then
+finds the agent gone ("This agent was already removed"). The confirmation line in the conversation is fixed text
 (`owner_action_create_agent`, `owner_action_undo_deleted`, `owner_action_undo_paused`).
 
 ## Steering watches and routines
@@ -122,7 +146,8 @@ The live state (`GET /api/agents/{id}/state`) counts only watches that are watch
 now (enabled, not expired, before their expiry) and lists up to six of them
 (`watches`: kind, market, condition, level, indicator, metric, expiry; never the prompt).
 Web and Mobile render one shared line (`packages/core/src/agent-status.ts`): while the
-agent waits on its watches, "Monitoring XAUUSD until 17:00 · 2 more" /
+agent waits on its watches (also when a Task's work waits on one of its own watches; that
+watch is named first), "Monitoring XAUUSD until 17:00 · 2 more" /
 «يراقب XAUUSD حتى 17:00 · 2 أخرى», otherwise the plain state (Working, Waiting for you,
 Paused). Opening it shows each watch's condition and expiry with Cancel. Between runs
 the header avatar follows the same phase: watching while monitoring, asleep while
@@ -144,7 +169,10 @@ fixed-market agents.
   owner message creates a flexible root trading agent at Ask me with no grant; replays and
   retries add nothing; the result card shows server facts; a research agent's link and
   notes; the per-run and per-owner limits (a repeat still answers); a creation card
-  without an owner message and its single creation; Undo removes or pauses; two matching
+  without an owner message and its single creation, its task on the card and the
+  proposer's first-task run; a yes in chat to a pending card creates one agent and closes
+  the card (also another agent's card); Undo removes the creation's notes and links; the
+  owner's delete never deadlocks with an Undo tap; Undo removes or pauses; two matching
   accounts ask one question; watches steered only by their agent and by the owner's route;
   `routine_toggle` limited to own routines; a scripted Arabic turn through the normal
   runtime creates one news agent, one supervisor and one link, and a restarted worker
@@ -153,4 +181,8 @@ fixed-market agents.
   responsibility guard, the receipt key, tool metadata and scopes, card lifetimes and
   fixed confirmations, active watches.
 - `tests/web/agent-create.test.ts` (tsx): both cards in English and Arabic, Undo's two
-  outcomes, the status line, watch conditions, the avatar, Web/Mobile parity.
+  outcomes, the money sentence by live level (a signed grant included), the task line,
+  the already-created line, the status line, watch conditions, the avatar, Web/Mobile
+  parity.
+- `tests/check_task_environment_wait.py`: a Task waiting on its own watch reads as
+  monitoring (`market_watch`), a timer or broker wait does not.

@@ -150,6 +150,53 @@ test("Undo says what it does: remove an untouched agent, pause one that started"
   );
 });
 
+test("the Undo card's authority sentence follows the live level, a signed grant included", () => {
+  const agent = created.facts.agent;
+  assert.ok(agent);
+  const signed = {
+    ...created,
+    facts: { ...created.facts, agent: { ...agent, level: "autonomous" as const } },
+  };
+  const en = ownerActionCard(signed, "en", now);
+  assert.equal(en.lines[2], "Trading level: On its own (signed)");
+  assert.match(en.hint ?? "", /^It trades on its own only inside the grant you signed\./);
+  assert.doesNotMatch(en.hint ?? "", /No money authority|waits for your tap/);
+  const ar = ownerActionCard(signed, "ar", now);
+  assert.equal(ar.lines[2], "مستوى التداول: مستقل ضمن تفويضي الموقّع");
+  assert.match(ar.hint ?? "", /^يتداول وحده فقط ضمن التفويض الذي وقّعته\./);
+  assert.doesNotMatch(ar.hint ?? "", /لا يملك صلاحية مالية|تنتظر لمستك/);
+  const research = {
+    ...created,
+    facts: {
+      ...created.facts,
+      agent: { ...agent, template: "research" as const, level: "analysis" as const },
+    },
+  };
+  assert.match(ownerActionCard(research, "en", now).hint ?? "", /^It does not trade\./);
+  assert.match(ownerActionCard(research, "ar", now).hint ?? "", /^لا يتداول\./);
+});
+
+test("both cards show the stored task word for word, isolated and labelled", () => {
+  const task = "Follow economic news\n and report  important items.";
+  const proposed = proposal.facts.agent;
+  const result = created.facts.agent;
+  assert.ok(proposed && result);
+  const asked = {
+    ...proposal,
+    facts: { ...proposal.facts, agent: { ...proposed, responsibility: task } },
+  };
+  const en = ownerActionCard(asked, "en", now);
+  assert.equal(en.lines.at(-1), "Its task: ⁨Follow economic news and report important items.⁩");
+  const ar = ownerActionCard(asked, "ar", now);
+  assert.equal(ar.lines.at(-1), "مهمته: ⁨Follow economic news and report important items.⁩");
+  const quoted = {
+    ...created,
+    facts: { ...created.facts, agent: { ...result, responsibility: "تابع الذهب وأبلغني" } },
+  };
+  assert.equal(ownerActionCard(quoted, "ar", now).lines.at(-1), "مهمته: ⁨تابع الذهب وأبلغني⁩");
+  assert.equal(ownerActionCard(created, "en", now).lines.length, 3);
+});
+
 test("a creation card without an owner message asks before anything exists", () => {
   const en = ownerActionCard(proposal, "en", now);
   assert.equal(en.title, "Create an agent?");
@@ -172,6 +219,20 @@ test("a creation card without an owner message asks before anything exists", () 
   assert.equal(ownerActionCard(done, "en", now).outcome, "Agent created.");
   const full = { ...proposal, status: "expired" as const, status_reason: "agent_limit_reached" };
   assert.match(ownerActionCard(full, "en", now).outcome ?? "", /most active agents/);
+  const answered = {
+    ...proposal,
+    status: "superseded" as const,
+    status_reason: "agent_already_created",
+  };
+  assert.equal(
+    ownerActionCard(answered, "en", now).outcome,
+    "This agent was already created. Nothing changed.",
+  );
+  assert.equal(
+    ownerActionCard(answered, "ar", now).outcome,
+    "أُنشئ هذا الوكيل مسبقًا. لم يتغير شيء.",
+  );
+  assert.deepEqual(ownerActionCard(answered, "en", now).buttons, []);
 });
 
 test("the status line says what it monitors and until when, in both languages", () => {

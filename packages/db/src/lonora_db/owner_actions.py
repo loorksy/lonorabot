@@ -6,6 +6,8 @@ events (a new restriction, an operation that became uncertain); only the owner's
 confirms one, through the existing owner function for that effect (see the owner
 actions API route). Everything the owner sees on a card is derived here from the records
 it names, at read time: never model text, never the restriction reason an agent wrote.
+The one exception is a creation card's stored task, the exact standing instruction the
+tap keeps, which the card quotes labelled as the agent's task.
 
 A card is pending until it is confirmed, cancelled, superseded (its record changed, or
 another card did the same thing) or expired. Expiry needs no scheduler: a pending card
@@ -182,10 +184,14 @@ async def stale_reason(
         current = (await account_policy(session, owner_id, payload["account_id"])).risk
         return "limits_already_set" if proposed_limits(current, payload) == current else None
     if kind == "create_agent":
-        from .agent_creation import check_creation
+        from .agent_creation import check_creation, existing_creation
 
+        spec = payload["spec"]
+        # The owner already had it created another way (said yes in chat, another card).
+        if await existing_creation(session, owner_id, spec["template"], spec["name"]):
+            return "agent_already_created"
         try:
-            await check_creation(session, owner_id, payload["spec"])
+            await check_creation(session, owner_id, spec)
         except LonoraError as error:
             return CREATION_STALE.get(error.code, "agent_creation_unavailable")
         return None
@@ -329,7 +335,9 @@ async def creation_facts(
     session: AsyncSession, row: OwnerActionRow, facts: dict[str, Any]
 ) -> dict[str, Any]:
     """What a creation card shows: the agent's name, template, focus pair and ladder,
-    and whom it reports to. The responsibility text (model prose) is never shown."""
+    whom it reports to, and its task exactly as stored. That task becomes the agent's
+    standing instructions, so the owner sees every word the tap commits to; the client
+    shows it isolated and labelled as the agent's task, never as Lonora's words."""
     from lonora_contracts.agent_creation import TEMPLATE_LEVEL
 
     from .agent_creation import agent_origin, report_targets, undo_plan
@@ -355,6 +363,7 @@ async def creation_facts(
             "paused": False,
             "report_to": [names[item] for item in report_to if item in names],
             "model": cast(dict[str, Any], model).get("model") if isinstance(model, dict) else None,
+            "responsibility": str(spec.get("responsibility") or "") or None,
         }
         return facts
     agent_id = row.payload["agent_id"]
@@ -379,6 +388,7 @@ async def creation_facts(
         "paused": agent.paused,
         "report_to": [names[item] for item in report_to if item in names],
         "model": None,
+        "responsibility": agent.instructions or None,
     }
     facts["undo"] = await undo_plan(session, owner_id, agent_id)
     return facts
@@ -485,11 +495,14 @@ async def supersede_subject(
     *,
     keep: str | None = None,
     effect: str | None = None,
+    skip_locked: bool = False,
 ) -> list[OwnerActionRow]:
     """Settle every other pending card for the same record: its effect is done or gone.
 
     ``effect`` narrows it to cards with that exact payload hash (the same change proposed
     twice); a different change to the same account's limits stays on its card.
+    ``skip_locked`` leaves a card the owner is deciding at this moment to its decision,
+    which re-checks it (a delete holding the agent's lock never waits on a tap).
     """
     query = select(OwnerActionRow).where(
         OwnerActionRow.owner_id == owner_id,
@@ -501,7 +514,9 @@ async def supersede_subject(
         query = query.where(OwnerActionRow.payload_hash == effect)
     rows = list(
         await session.scalars(
-            query.order_by(OwnerActionRow.created_at, OwnerActionRow.id).with_for_update()
+            query.order_by(OwnerActionRow.created_at, OwnerActionRow.id).with_for_update(
+                skip_locked=skip_locked
+            )
         )
     )
     settled: list[OwnerActionRow] = []
@@ -720,6 +735,47 @@ async def propose_creation(
         thread_id=thread_id,
         run_id=run_id,
     )
+
+
+async def settle_created_proposals(
+    session: AsyncSession,
+    owner_id: str,
+    template: str,
+    name: str,
+    *,
+    keep: str | None = None,
+) -> list[OwnerActionRow]:
+    """Pending creation cards for an agent that now exists (same template and name) no
+    longer apply: tapping one would create a second agent. The caller holds the
+    owner-actions lock, so no tap is deciding one of them at this moment."""
+    wanted = " ".join(name.split()).casefold()
+    rows = await session.scalars(
+        select(OwnerActionRow)
+        .where(
+            OwnerActionRow.owner_id == owner_id,
+            OwnerActionRow.kind == "create_agent",
+            OwnerActionRow.status == "pending",
+        )
+        .order_by(OwnerActionRow.created_at, OwnerActionRow.id)
+        .with_for_update()
+    )
+    settled: list[OwnerActionRow] = []
+    for row in list(rows):
+        spec = row.payload["spec"]
+        if row.id == keep or spec["template"] != template:
+            continue
+        if str(spec["name"]).casefold() != wanted:
+            continue
+        expired = row.expires_at <= utcnow()
+        settled.append(
+            await settle(
+                session,
+                row,
+                "expired" if expired else "superseded",
+                "expired" if expired else "agent_already_created",
+            )
+        )
+    return settled
 
 
 async def raise_created_card(

@@ -73,7 +73,9 @@ request time from the records the card names: global trading, the restriction's 
 scope, window and who set it (never its reason text, which an agent may have written),
 the operation's action, volume, symbol, time and agent, and the account's current and
 proposed limits. No ids, codes or JSON are shown; the account is named only when the
-owner has several.
+owner has several. The one stored text a card quotes is a creation card's task: it
+becomes the new agent's standing instructions, so the card shows it word for word,
+isolated and labelled as the agent's task ("Its task: …"), never as Lonora's words.
 
 A limits card shows one line for every field its change touches
 (`LIMIT_CHANGE_NAMES`): each limit, the currency ("Currency: USD → EUR") and the

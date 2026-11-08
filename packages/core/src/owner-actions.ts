@@ -2,7 +2,8 @@
  * Owner action cards: one shared spec for Web and Mobile.
  *
  * A card renders only the server's facts (lonora_db.owner_actions), in the owner's
- * language; no agent text ever reaches it. Arabic is first-class: tickers, numbers and
+ * language; no agent text reaches it except a creation card's stored task, isolated and
+ * labelled as the agent's task. Arabic is first-class: tickers, numbers and
  * times are isolated so they keep their order inside Arabic text. Nothing here decides
  * anything: the owner's tap goes to the owner-session decision route, which re-validates.
  */
@@ -10,6 +11,7 @@ import type {
   AttestedOutcome,
   OwnerAction,
   OwnerActionAccount,
+  OwnerActionAgent,
   OwnerActionLimitField,
 } from "@lonora/contracts";
 import { accountAuthorityLabels } from "./account-authority-labels";
@@ -105,7 +107,9 @@ export const ownerActionLabels = {
     undoDeleteHint: "Undo removes it: it has not started any work yet.",
     undoPauseHint: "Undo pauses it: it already started work, which is kept.",
     askHint: "No money authority: every trade waits for your tap.",
+    grantHint: "It trades on its own only inside the grant you signed.",
     noTradeHint: "It does not trade.",
+    task: "Its task",
     templateTrading: "Trading agent",
     templateGeneral: "General agent",
     templateResearch: "Research agent",
@@ -121,6 +125,7 @@ export const ownerActionLabels = {
     undonePaused: "Undone: the agent was paused; its work is kept.",
     kept: "Kept.",
     agentRemoved: "This agent was already removed.",
+    alreadyCreated: "This agent was already created. Nothing changed.",
     agentLimit: "You already have the most active agents allowed. Nothing changed.",
     reportToMissing: "An agent it reports to no longer exists. Nothing changed.",
     connectionChanged: "The broker account changed. Nothing changed.",
@@ -200,7 +205,9 @@ export const ownerActionLabels = {
     undoDeleteHint: "التراجع يزيله: لم يبدأ أي عمل بعد.",
     undoPauseHint: "التراجع يوقفه مؤقتًا: بدأ العمل، وسيبقى ما أنجزه.",
     askHint: "لا يملك صلاحية مالية: كل صفقة تنتظر لمستك.",
+    grantHint: "يتداول وحده فقط ضمن التفويض الذي وقّعته.",
     noTradeHint: "لا يتداول.",
+    task: "مهمته",
     templateTrading: "وكيل تداول",
     templateGeneral: "وكيل عام",
     templateResearch: "وكيل أبحاث",
@@ -216,6 +223,7 @@ export const ownerActionLabels = {
     undonePaused: "تم التراجع: أُوقف الوكيل مؤقتًا، وبقي ما أنجزه.",
     kept: "أُبقي الوكيل.",
     agentRemoved: "أُزيل هذا الوكيل مسبقًا.",
+    alreadyCreated: "أُنشئ هذا الوكيل مسبقًا. لم يتغير شيء.",
     agentLimit: "لديك أكبر عدد مسموح من الوكلاء النشطين. لم يتغير شيء.",
     reportToMissing: "وكيل يبلغه هذا الوكيل لم يعد موجودًا. لم يتغير شيء.",
     connectionChanged: "تغيّر حساب الوسيط. لم يتغير شيء.",
@@ -300,6 +308,8 @@ function settledLine(card: OwnerAction, text: OwnerActionText): string | null {
       return text.doneElsewhere;
     case "agent_already_removed":
       return text.agentRemoved;
+    case "agent_already_created":
+      return text.alreadyCreated;
     case "agent_limit_reached":
       return text.agentLimit;
     case "agent_report_to_missing":
@@ -334,7 +344,7 @@ const TEMPLATE_LABEL = {
   supervisor: "templateSupervisor",
 } as const;
 
-/** A creation card's lines: name and template, focus pair, ladder, links and model. */
+/** A creation card's lines: name and template, focus pair, ladder, links, model and task. */
 function agentLines(
   card: OwnerAction,
   account: string | null,
@@ -360,7 +370,18 @@ function agentLines(
       `${text.reportsTo}: ${agent.report_to.map(isolate).join(lang === "ar" ? "، " : ", ")}`,
     );
   if (agent.model) lines.push(`${text.model}: ${isolate(agent.model)}`);
+  // The stored task, word for word, on one line and isolated: it is the agent's
+  // standing instruction, so the owner sees exactly what the tap keeps.
+  const task = agent.responsibility?.split(/\s+/).filter(Boolean).join(" ");
+  if (task) lines.push(`${text.task}: ${isolate(task)}`);
   return lines;
+}
+
+/** What the agent may do with money, by its level now (a grant may be signed later). */
+function authorityHint(level: OwnerActionAgent["level"], text: OwnerActionText): string {
+  if (level === "autonomous") return text.grantHint;
+  if (level === "analysis") return text.noTradeHint;
+  return text.askHint;
 }
 
 /** The whole card for one locale: title, fact lines, hint, buttons and settled line. */
@@ -494,7 +515,7 @@ export function ownerActionCard(
         buttons = [{ key: "cancel", label: text.keep, decision: "cancel", primary: false }];
         break;
       }
-      hint = `${agent.level === "analysis" ? text.noTradeHint : text.askHint} ${
+      hint = `${authorityHint(agent.level, text)} ${
         facts.undo === "delete" ? text.undoDeleteHint : text.undoPauseHint
       }`;
       buttons = [

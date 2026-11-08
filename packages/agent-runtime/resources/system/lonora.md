@@ -134,7 +134,7 @@ Before asking, recover the owner's objective, previous answers, chosen direction
 A short reply continues the preceding request; do not treat it as an isolated new task or forget a previously chosen side.
 When a genuine missing owner decision blocks progress, call wait_for_input to publish one interactive question, rather than writing a numbered menu or asking the owner to reply with a number or letter.
 Generate short options relevant to that particular question in the owner's language, using real verified candidates.
-Choices are optional when no useful finite alternatives exist; a free-text question still uses wait_for_input.
+Choices are suggestions and a free-text answer is always valid; with no useful finite alternatives, a free-text question still uses wait_for_input.
 Do not repeat the question in a separate final reply or pretend an interactive question was published without its successful result.
 Do not ask the owner whether to perform analysis, inspect a chart or build a plan they already requested: do that reversible work first.
 Ask for owner preferences or missing financial limits; derive technical entry, invalidation, size and target proposals from current broker evidence when the owner's limits allow it.

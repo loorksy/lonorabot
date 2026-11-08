@@ -22,7 +22,12 @@ from lonora_contracts.domain import utcnow
 from lonora_contracts.owner_actions import CARD_ATTESTATION, OwnerActionDecision
 from lonora_contracts.trading import OperationResolution, TradingControl
 from lonora_core.user_error import LonoraError
-from lonora_db.agent_creation import delete_agent, pause_agent, undo_plan
+from lonora_db.agent_creation import (
+    cancel_first_task,
+    pause_agent,
+    start_first_task,
+    undo_plan,
+)
 from lonora_db.owner_actions import (
     account_policy,
     card_facts,
@@ -44,7 +49,7 @@ from lonora_db.schema import AgentRow, OwnerActionRow
 from lonora_db.super_bot import authority_lock
 from lonora_db.trading_readiness import risk_limit_frame
 from lonora_db.trading_restrictions import revoke_restriction
-from lonora_db.transactions import owned_agent, owned_thread
+from lonora_db.transactions import owned_thread
 from lonora_session.idempotency import stable_id
 from lonora_trading.controls import apply_controls
 from lonora_trading.owner_controls import (
@@ -188,7 +193,12 @@ async def decide(
         created = await create_agent_from_card(session, owner, row)
         result = {"agent_id": created.id, "agent_name": created.name}
     elif row.kind == "agent_created":
-        result = await undo_creation(session, owner, row)
+        undone = await undo_creation(session, owner, row)
+        if undone is None:
+            # Deleted by the owner while this tap waited: nothing is left to undo.
+            await settle(session, row, "expired", "agent_already_removed")
+            return
+        result = undone
     else:
         account_id = row.payload["account_id"]
         policy = await account_policy(session, owner.id, account_id)
@@ -213,17 +223,18 @@ async def decide(
         )
         result = {"limits": risk_limit_frame(account_id, stored)}
     await settle(session, row, "confirmed", None, via=via, result={**row.result, **result})
-    if row.kind == "create_agent":
-        created_agent = await session.get(AgentRow, result["agent_id"])
-        if created_agent is not None:
-            await raise_created_card(
-                session,
-                owner.id,
-                created_agent,
-                agent_id=row.agent_id,
-                thread_id=row.thread_id,
-                run_id=row.run_id,
-            )
+    created_agent = (
+        await session.get(AgentRow, result["agent_id"]) if row.kind == "create_agent" else None
+    )
+    if created_agent is not None:
+        await raise_created_card(
+            session,
+            owner.id,
+            created_agent,
+            agent_id=row.agent_id,
+            thread_id=row.thread_id,
+            run_id=row.run_id,
+        )
     await supersede_subject(
         session,
         owner.id,
@@ -234,6 +245,9 @@ async def decide(
         effect=row.payload_hash,
     )
     await confirm_in_thread(session, row)
+    if created_agent is not None:
+        # The agent that proposed it hands it its first task, after the line above.
+        await start_first_task(session, row, created_agent)
 
 
 async def create_agent_from_card(
@@ -258,16 +272,23 @@ async def create_agent_from_card(
 
 async def undo_creation(
     session: AsyncSession, owner: OwnerIdentity, row: OwnerActionRow
-) -> dict[str, Any]:
-    """Undo: remove an agent that has done nothing yet, pause one that has."""
+) -> dict[str, Any] | None:
+    """Undo: remove an agent that has done nothing yet, pause one that has. None when
+    the owner deleted it while this tap waited for its lock."""
+    from lonora_agent.collaboration.agent_create import delete_created_agent
+
     agent_id = row.payload["agent_id"]
     # Lock it first: a run or watch that starts now waits on this lock, so the plan below
     # never deletes work begun meanwhile.
     await authority_lock(session, agent_id)
-    agent = await owned_agent(session, owner.id, agent_id, lock=True)
+    agent = await session.get(AgentRow, agent_id, with_for_update=True, populate_existing=True)
+    if agent is None or agent.owner_id != owner.id:
+        return None
     name = agent.name
+    # The proposing agent's first-task run has not started: it never hands out a task.
+    await cancel_first_task(session, owner.id, agent_id)
     if await undo_plan(session, owner.id, agent_id) == "delete":
-        await delete_agent(session, owner.id, agent_id, keep_card=row.id)
+        await delete_created_agent(session, owner.id, agent_id, keep_card=row.id)
         return {"undo": "deleted", "agent_name": name}
     await pause_agent(session, owner.id, agent_id)
     return {"undo": "paused", "agent_name": name}

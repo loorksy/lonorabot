@@ -35,7 +35,7 @@ msgstr "A trade still has no confirmed broker result"
 #~ msgid "A workspace that remembers"
 #~ msgstr "A workspace that remembers"
 
-#: src/components/market/MarketWatch.tsx:265
+#: src/components/market/MarketWatch.tsx:266
 msgid "Above"
 msgstr "Above"
 
@@ -43,7 +43,7 @@ msgstr "Above"
 msgid "Access token"
 msgstr "Access token"
 
-#: src/components/market/MarketWatch.tsx:133
+#: src/components/market/MarketWatch.tsx:134
 msgid "Account changes"
 msgstr "Account changes"
 
@@ -182,7 +182,7 @@ msgid "Agent settings"
 msgstr "Agent settings"
 
 #: src/pages/Shell.tsx:283
-#: src/pages/Shell.tsx:1044
+#: src/pages/Shell.tsx:1046
 msgid "Agent workspace"
 msgstr "Agent workspace"
 
@@ -268,7 +268,7 @@ msgstr "Arrow"
 #: src/pages/Artifacts.tsx:140
 #: src/pages/Shell.tsx:271
 #: src/pages/Shell.tsx:652
-#: src/pages/Shell.tsx:1168
+#: src/pages/Shell.tsx:1170
 msgid "Artifacts"
 msgstr "Artifacts"
 
@@ -349,12 +349,12 @@ msgstr "Background service is running late"
 msgid "Background work"
 msgstr "Background work"
 
-#: src/components/market/MarketWatch.tsx:193
+#: src/components/market/MarketWatch.tsx:194
 #: src/components/trading/AccountSummary.tsx:40
 msgid "Balance"
 msgstr "Balance"
 
-#: src/components/market/MarketWatch.tsx:268
+#: src/components/market/MarketWatch.tsx:269
 msgid "Below"
 msgstr "Below"
 
@@ -522,8 +522,8 @@ msgstr "bytes"
 msgid "Cached"
 msgstr "Cached"
 
-#: src/pages/Shell.tsx:784
-#: src/pages/Shell.tsx:785
+#: src/pages/Shell.tsx:786
+#: src/pages/Shell.tsx:787
 msgid "Call"
 msgstr "Call"
 
@@ -576,7 +576,7 @@ msgstr "Capabilities unverified"
 msgid "Card view"
 msgstr "Card view"
 
-#: src/components/market/MarketWatch.tsx:245
+#: src/components/market/MarketWatch.tsx:246
 msgid "Changes"
 msgstr "Changes"
 
@@ -597,8 +597,8 @@ msgid "Chart could not be displayed."
 msgstr "Chart could not be displayed."
 
 #: src/pages/Shell.tsx:284
-#: src/pages/Shell.tsx:801
-#: src/pages/Shell.tsx:802
+#: src/pages/Shell.tsx:803
+#: src/pages/Shell.tsx:804
 msgid "Charts"
 msgstr "Charts"
 
@@ -640,7 +640,7 @@ msgstr "Choose a connection"
 msgid "Choose a discovered model"
 msgstr "Choose a discovered model"
 
-#: src/components/market/MarketWatch.tsx:224
+#: src/components/market/MarketWatch.tsx:225
 msgid "Choose a feed"
 msgstr "Choose a feed"
 
@@ -710,7 +710,7 @@ msgid "Close chart"
 msgstr "Close chart"
 
 #: src/pages/ResizableSidePanel.tsx:138
-#: src/pages/Shell.tsx:1019
+#: src/pages/Shell.tsx:1021
 msgid "Close context panel"
 msgstr "Close context panel"
 
@@ -723,7 +723,7 @@ msgstr "Close navigation"
 msgid "Close position"
 msgstr "Close position"
 
-#: src/components/market/MarketWatch.tsx:251
+#: src/components/market/MarketWatch.tsx:252
 msgid "Closes"
 msgstr "Closes"
 
@@ -757,7 +757,7 @@ msgstr "Color"
 msgid "Completed"
 msgstr "Completed"
 
-#: src/components/market/MarketWatch.tsx:236
+#: src/components/market/MarketWatch.tsx:237
 msgid "Condition"
 msgstr "Condition"
 
@@ -900,7 +900,7 @@ msgstr "Create agents before starting a group."
 msgid "Create an agent before adding a routine."
 msgstr "Create an agent before adding a routine."
 
-#: src/pages/Shell.tsx:827
+#: src/pages/Shell.tsx:829
 #: src/pages/shell/conversation-inbox.tsx:167
 msgid "Create conversation"
 msgstr "Create conversation"
@@ -928,7 +928,7 @@ msgstr "Create routine"
 msgid "Create the owner account using the setup token from your server configuration."
 msgstr "Create the owner account using the setup token from your server configuration."
 
-#: src/components/market/MarketWatch.tsx:298
+#: src/components/market/MarketWatch.tsx:299
 msgid "Create watch"
 msgstr "Create watch"
 
@@ -945,11 +945,11 @@ msgstr "Credential configured"
 msgid "Cron expression"
 msgstr "Cron expression"
 
-#: src/components/market/MarketWatch.tsx:259
+#: src/components/market/MarketWatch.tsx:260
 msgid "Crosses above"
 msgstr "Crosses above"
 
-#: src/components/market/MarketWatch.tsx:262
+#: src/components/market/MarketWatch.tsx:263
 msgid "Crosses below"
 msgstr "Crosses below"
 
@@ -979,7 +979,7 @@ msgid "Delegated task"
 msgstr "Delegated task"
 
 #: src/components/integrations/IntegrationSetup.tsx:123
-#: src/components/market/MarketWatch.tsx:329
+#: src/components/market/MarketWatch.tsx:330
 #: src/components/skills/SkillEditor.tsx:131
 #: src/pages/McpServersOverlay.tsx:98
 #: src/pages/RoutineEditor.tsx:122
@@ -1089,12 +1089,12 @@ msgid "Durable trading journal"
 msgstr "Durable trading journal"
 
 #: src/components/market/EconomicCalendar.tsx:25
-#: src/components/market/MarketWatch.tsx:136
+#: src/components/market/MarketWatch.tsx:137
 msgid "Economic calendar"
 msgstr "Economic calendar"
 
 #: src/components/integrations/IntegrationSetup.tsx:66
-#: src/components/market/MarketWatch.tsx:217
+#: src/components/market/MarketWatch.tsx:218
 msgid "Economic calendar feed"
 msgstr "Economic calendar feed"
 
@@ -1161,12 +1161,12 @@ msgstr "Ending call"
 msgid "Enter to send · Shift+Enter for a new line"
 msgstr "Enter to send · Shift+Enter for a new line"
 
-#: src/components/market/MarketWatch.tsx:190
+#: src/components/market/MarketWatch.tsx:191
 #: src/components/trading/AccountSummary.tsx:48
 msgid "Equity"
 msgstr "Equity"
 
-#: src/components/market/MarketWatch.tsx:240
+#: src/components/market/MarketWatch.tsx:241
 msgid "Event is due"
 msgstr "Event is due"
 
@@ -1285,7 +1285,7 @@ msgstr "Follow your agents’ runs and pick up unfinished work."
 msgid "Free Browse"
 msgstr "Free Browse"
 
-#: src/components/market/MarketWatch.tsx:199
+#: src/components/market/MarketWatch.tsx:200
 #: src/components/trading/AccountSummary.tsx:60
 msgid "Free margin"
 msgstr "Free margin"
@@ -1309,7 +1309,7 @@ msgid "Global embedding model"
 msgstr "Global embedding model"
 
 #: src/pages/settings-sidebar.tsx:19
-#: src/pages/Shell.tsx:1174
+#: src/pages/Shell.tsx:1176
 msgid "Global models"
 msgstr "Global models"
 
@@ -1326,7 +1326,7 @@ msgid "Global trading settings"
 msgstr "Global trading settings"
 
 #: src/pages/Shell.tsx:282
-#: src/pages/Shell.tsx:1053
+#: src/pages/Shell.tsx:1055
 msgid "Goals"
 msgstr "Goals"
 
@@ -1380,8 +1380,8 @@ msgid "Index note"
 msgstr "Index note"
 
 #: src/components/charts/ChartIndicators.tsx:22
-#: src/components/market/MarketWatch.tsx:127
-#: src/components/market/MarketWatch.tsx:143
+#: src/components/market/MarketWatch.tsx:128
+#: src/components/market/MarketWatch.tsx:144
 msgid "Indicator"
 msgstr "Indicator"
 
@@ -1455,14 +1455,14 @@ msgstr "Jump to latest"
 msgid "Keep current fixed market"
 msgstr "Keep current fixed market"
 
-#: src/pages/Shell.tsx:1133
+#: src/pages/Shell.tsx:1135
 msgid "Keep working beside the conversation."
 msgstr "Keep working beside the conversation."
 
 #: src/pages/Knowledge.tsx:20
 #: src/pages/Shell.tsx:276
 #: src/pages/Shell.tsx:280
-#: src/pages/Shell.tsx:1040
+#: src/pages/Shell.tsx:1042
 msgid "Knowledge"
 msgstr "Knowledge"
 
@@ -1529,7 +1529,7 @@ msgid "Loading activity…"
 msgstr "Loading activity…"
 
 #: src/pages/Shell.tsx:559
-#: src/pages/Shell.tsx:985
+#: src/pages/Shell.tsx:987
 msgid "Loading agents…"
 msgstr "Loading agents…"
 
@@ -1543,7 +1543,7 @@ msgstr "Loading chart…"
 msgid "Loading conversations…"
 msgstr "Loading conversations…"
 
-#: src/pages/Shell.tsx:960
+#: src/pages/Shell.tsx:962
 msgid "Loading group…"
 msgstr "Loading group…"
 
@@ -1551,11 +1551,11 @@ msgstr "Loading group…"
 msgid "Loading preview…"
 msgstr "Loading preview…"
 
-#: src/pages/Shell.tsx:1210
+#: src/pages/Shell.tsx:1212
 msgid "Loading settings…"
 msgstr "Loading settings…"
 
-#: src/pages/Shell.tsx:857
+#: src/pages/Shell.tsx:859
 msgid "Loading workspace…"
 msgstr "Loading workspace…"
 
@@ -1587,7 +1587,7 @@ msgstr "Manual position management allowed"
 msgid "Manual position management excluded"
 msgstr "Manual position management excluded"
 
-#: src/components/market/MarketWatch.tsx:196
+#: src/components/market/MarketWatch.tsx:197
 #: src/components/trading/AccountSummary.tsx:54
 msgid "Margin"
 msgstr "Margin"
@@ -1604,7 +1604,7 @@ msgid "Market"
 msgstr "Market"
 
 #: src/components/charts/ConversationCharts.tsx:104
-#: src/pages/Shell.tsx:1150
+#: src/pages/Shell.tsx:1152
 msgid "Market and charts"
 msgstr "Market and charts"
 
@@ -1620,7 +1620,7 @@ msgstr "Market data unavailable"
 msgid "Market sell"
 msgstr "Market sell"
 
-#: src/components/market/MarketWatch.tsx:71
+#: src/components/market/MarketWatch.tsx:72
 msgid "Market watches"
 msgstr "Market watches"
 
@@ -1652,7 +1652,7 @@ msgstr "Members"
 msgid "Memory"
 msgstr "Memory"
 
-#: src/pages/Shell.tsx:1138
+#: src/pages/Shell.tsx:1140
 msgid "Memory, skills and open work"
 msgstr "Memory, skills and open work"
 
@@ -1689,7 +1689,7 @@ msgstr "Messages"
 msgid "MetaApi token"
 msgstr "MetaApi token"
 
-#: src/components/market/MarketWatch.tsx:185
+#: src/components/market/MarketWatch.tsx:186
 msgid "Metric"
 msgstr "Metric"
 
@@ -1881,8 +1881,8 @@ msgstr "Now"
 msgid "One model for text work"
 msgstr "One model for text work"
 
-#: src/pages/Shell.tsx:784
-#: src/pages/Shell.tsx:785
+#: src/pages/Shell.tsx:786
+#: src/pages/Shell.tsx:787
 msgid "Open active call"
 msgstr "Open active call"
 
@@ -1929,7 +1929,7 @@ msgstr "Opening conversation…"
 msgid "Opening workspace…"
 msgstr "Opening workspace…"
 
-#: src/components/market/MarketWatch.tsx:254
+#: src/components/market/MarketWatch.tsx:255
 msgid "Opens"
 msgstr "Opens"
 
@@ -1988,7 +1988,7 @@ msgstr "Password · at least 12 characters"
 
 #: src/components/ai/AgentLiveStatus.tsx:152
 #: src/components/goals/TradingGoals.tsx:315
-#: src/components/market/MarketWatch.tsx:322
+#: src/components/market/MarketWatch.tsx:323
 #: src/pages/Board.tsx:543
 #: src/pages/Routines.tsx:100
 msgid "Pause"
@@ -2003,7 +2003,7 @@ msgstr "Pause agent and scheduled work"
 #: src/lib/goal-status.ts:42
 #: src/pages/Board.tsx:26
 #: src/pages/Routines.tsx:83
-#: src/pages/Shell.tsx:772
+#: src/pages/Shell.tsx:774
 #: src/pages/shell/bot-roster-row.tsx:36
 #: src/pages/shell/conversation-inbox.tsx:119
 msgid "Paused"
@@ -2022,7 +2022,7 @@ msgid "Pending orders"
 msgstr "Pending orders"
 
 #: src/components/charts/ChartIndicators.tsx:32
-#: src/components/market/MarketWatch.tsx:153
+#: src/components/market/MarketWatch.tsx:154
 msgid "Period"
 msgstr "Period"
 
@@ -2053,11 +2053,11 @@ msgstr "Play audio"
 msgid "Playful"
 msgstr "Playful"
 
-#: src/components/market/MarketWatch.tsx:130
+#: src/components/market/MarketWatch.tsx:131
 msgid "Position"
 msgstr "Position"
 
-#: src/components/market/MarketWatch.tsx:174
+#: src/components/market/MarketWatch.tsx:175
 msgid "Position ID"
 msgstr "Position ID"
 
@@ -2090,7 +2090,7 @@ msgid "Previous"
 msgstr "Previous"
 
 #: src/components/charts/ChartAnnotations.tsx:23
-#: src/components/market/MarketWatch.tsx:124
+#: src/components/market/MarketWatch.tsx:125
 #: src/components/trading/TradeApprovals.tsx:136
 msgid "Price"
 msgstr "Price"
@@ -2101,7 +2101,7 @@ msgstr "Price annotations"
 
 #: src/components/charts/ChartAnnotations.tsx:67
 #: src/components/charts/ChartAnnotations.tsx:68
-#: src/components/market/MarketWatch.tsx:273
+#: src/components/market/MarketWatch.tsx:274
 msgid "Price level"
 msgstr "Price level"
 
@@ -2113,11 +2113,11 @@ msgstr "Price zone"
 #~ msgid "Processing the task"
 #~ msgstr "Processing the task"
 
-#: src/pages/Shell.tsx:1036
+#: src/pages/Shell.tsx:1038
 msgid "Profile"
 msgstr "Profile"
 
-#: src/components/market/MarketWatch.tsx:205
+#: src/components/market/MarketWatch.tsx:206
 #: src/components/trading/Positions.tsx:44
 msgid "Profit"
 msgstr "Profit"
@@ -2340,7 +2340,7 @@ msgstr "Resolved without broker confirmation"
 
 #: src/components/ai/AgentLiveStatus.tsx:152
 #: src/components/goals/TradingGoals.tsx:313
-#: src/components/market/MarketWatch.tsx:322
+#: src/components/market/MarketWatch.tsx:323
 #: src/pages/ActivityList.tsx:281
 #: src/pages/Board.tsx:545
 #: src/pages/Routines.tsx:100
@@ -2357,7 +2357,7 @@ msgstr "Resume"
 #: src/pages/Routines.tsx:169
 #: src/pages/Shell.tsx:149
 #: src/pages/Shell.tsx:165
-#: src/pages/Shell.tsx:850
+#: src/pages/Shell.tsx:852
 #: src/pages/shell/conversation-inbox.tsx:97
 #: src/pages/shell/message-cards.tsx:183
 msgid "Retry"
@@ -2404,7 +2404,7 @@ msgstr "Route by capability"
 #: src/pages/Routines.tsx:24
 #: src/pages/Shell.tsx:275
 #: src/pages/Shell.tsx:281
-#: src/pages/Shell.tsx:1048
+#: src/pages/Shell.tsx:1050
 msgid "Routines"
 msgstr "Routines"
 
@@ -2476,7 +2476,7 @@ msgstr "Schedule"
 msgid "Schedule recurring work for your agents."
 msgstr "Schedule recurring work for your agents."
 
-#: src/pages/Shell.tsx:1144
+#: src/pages/Shell.tsx:1146
 msgid "Scheduled work"
 msgstr "Scheduled work"
 
@@ -2519,7 +2519,7 @@ msgstr "Search artifacts…"
 msgid "Search broker symbols"
 msgstr "Search broker symbols"
 
-#: src/pages/Shell.tsx:814
+#: src/pages/Shell.tsx:816
 #: src/pages/shell/conversation-inbox.tsx:87
 #: src/pages/shell/conversation-inbox.tsx:88
 msgid "Search conversations"
@@ -2611,7 +2611,7 @@ msgstr "Server URL"
 #~ msgstr "Service needs attention"
 
 #: src/pages/Shell.tsx:664
-#: src/pages/Shell.tsx:838
+#: src/pages/Shell.tsx:840
 #: src/pages/shell/chat-context.tsx:755
 msgid "Settings"
 msgstr "Settings"
@@ -2645,7 +2645,7 @@ msgstr "Shadow trading — virtual orders only"
 #~ msgid "Shared chart workspace"
 #~ msgstr "Shared chart workspace"
 
-#: src/pages/Shell.tsx:1204
+#: src/pages/Shell.tsx:1206
 msgid "Shared preferences and connections for all your agents."
 msgstr "Shared preferences and connections for all your agents."
 
@@ -2902,7 +2902,7 @@ msgstr "Task"
 #: src/pages/Board.tsx:79
 #: src/pages/Shell.tsx:270
 #: src/pages/Shell.tsx:648
-#: src/pages/Shell.tsx:1162
+#: src/pages/Shell.tsx:1164
 msgid "Task boards"
 msgstr "Task boards"
 
@@ -2923,7 +2923,7 @@ msgstr "Task is retrying through a model outage"
 msgid "Task needs review"
 msgstr "Task needs review"
 
-#: src/components/market/MarketWatch.tsx:285
+#: src/components/market/MarketWatch.tsx:286
 msgid "Task when triggered"
 msgstr "Task when triggered"
 
@@ -3221,7 +3221,7 @@ msgid "Tick size"
 msgstr "Tick size"
 
 #: src/components/charts/ChartToolbar.tsx:16
-#: src/components/market/MarketWatch.tsx:163
+#: src/components/market/MarketWatch.tsx:164
 msgid "Timeframe"
 msgstr "Timeframe"
 
@@ -3281,7 +3281,7 @@ msgstr "Trade action"
 msgid "Trading"
 msgstr "Trading"
 
-#: src/pages/Shell.tsx:1156
+#: src/pages/Shell.tsx:1158
 msgid "Trading and operation journal"
 msgstr "Trading and operation journal"
 
@@ -3420,7 +3420,7 @@ msgstr "Voice requires a browser with WebRTC and microphone support on HTTPS."
 msgid "Voice settings"
 msgstr "Voice settings"
 
-#: src/components/market/MarketWatch.tsx:208
+#: src/components/market/MarketWatch.tsx:209
 #: src/components/trading/Positions.tsx:38
 #: src/components/trading/TradeActionCard.tsx:110
 #: src/components/trading/TradeApprovals.tsx:126
@@ -3482,7 +3482,7 @@ msgstr "Watch condition changed"
 msgid "Watch confirmed — review current evidence"
 msgstr "Watch confirmed — review current evidence"
 
-#: src/components/market/MarketWatch.tsx:105
+#: src/components/market/MarketWatch.tsx:106
 msgid "Watch source"
 msgstr "Watch source"
 
@@ -3518,7 +3518,7 @@ msgstr "Working"
 msgid "Workspace menu"
 msgstr "Workspace menu"
 
-#: src/pages/Shell.tsx:1201
+#: src/pages/Shell.tsx:1203
 msgid "Workspace settings"
 msgstr "Workspace settings"
 

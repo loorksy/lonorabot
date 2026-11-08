@@ -23,6 +23,7 @@ from lonora_db.agent_creation import (
     MAXIMUM_CREATIONS_PER_RUN,
     active_agents,
     agent_origin,
+    existing_creation,
     report_targets,
     run_creations,
 )
@@ -277,6 +278,18 @@ async def create(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         origin_thread = run.model_metadata.get("origin_thread_id") or context.thread_id
         message_id = await owner_message_id(session, run)
         if message_id is None:
+            # Already created (the owner said yes in chat, or tapped another card): a
+            # card would only create a second one.
+            existing = await existing_creation(
+                session, context.owner_id, params.template, params.name
+            )
+            if existing is not None:
+                return {
+                    "created": False,
+                    "code": "agent_already_exists",
+                    "agent": {"id": existing.id, "name": existing.name, "paused": existing.paused},
+                    "recovery": "Use this agent (peer_send) instead of creating another one.",
+                }
             # No owner message asked for it: the owner's tap creates it. A repeat returns
             # the card already shown, whatever the limits are now.
             shown = await pending_effect(

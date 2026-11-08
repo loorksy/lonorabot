@@ -14,15 +14,24 @@ from uuid import uuid4
 
 from check_streaming import Fixture
 from lonora_adapter_kit.types import ModelMessage, ModelReply, ToolCall
+from lonora_agent.context.routine import wake_context
 from lonora_agent.executor import execute_run
+from lonora_api.routes.owner_actions import undo_creation
+from lonora_auth.identity import OwnerIdentity
 from lonora_contracts.domain import utcnow
 from lonora_contracts.model_routing import ModelSelection
 from lonora_contracts.routines import RoutineCreate
 from lonora_contracts.runs import Lease, RunRequest
 from lonora_core.user_error import LonoraError
-from lonora_db.agent_creation import MAXIMUM_ACTIVE_AGENTS, agent_origin, report_targets
+from lonora_db.agent_creation import (
+    MAXIMUM_ACTIVE_AGENTS,
+    agent_origin,
+    first_task_run_id,
+    report_targets,
+)
 from lonora_db.agent_permissions import permission_record
 from lonora_db.agent_state import agent_live_state
+from lonora_db.owner_actions import lock_owner_actions, owned_card, settle, stale_reason
 from lonora_db.personal_agent import ensure_personal_agent
 from lonora_db.routines import create_routine
 from lonora_db.runs import claim_next, create_run
@@ -249,8 +258,9 @@ async def main() -> None:
         assert facts["name"] == "Gold agent" and facts["symbol"] == GOLD
         assert facts["level"] == "supervised" and facts["template"] == "trading"
         assert undo_card["facts"]["undo"] == "delete"
-        assert "responsibility" not in str(undo_card["facts"]), undo_card
-        print("PASS the result card shows the agent, its pair and Ask me, with Undo")
+        # Its stored task, word for word: it becomes the agent's standing instructions.
+        assert facts["responsibility"] == "Manage gold trades on the owner's account.", facts
+        print("PASS the result card shows the agent, its pair, Ask me and its task, with Undo")
 
         # 4. A research agent that reports to the gold agent, and a supervisor: one peer
         #    link, notes in both agents, No trading for both.
@@ -280,8 +290,13 @@ async def main() -> None:
             news_memory = await session.get(MemoryRow, news_id)
             gold_memory = await session.get(MemoryRow, gold_id)
             assert news_memory is not None and gold_memory is not None
-            assert "# OPERATING.md" in news_memory.content and gold_id in news_memory.content
-            assert news_id in gold_memory.content, gold_memory.content
+            assert "# OPERATING.md" in news_memory.content
+            assert "Report important findings to Gold agent." in news_memory.content
+            assert "News agent reports important findings to you." in gold_memory.content
+            # The directory holds the link; owner-visible notes carry no ids or tool names.
+            for content in (news_memory.content, gold_memory.content):
+                assert gold_id not in content and news_id not in content, content
+                assert "peer_send" not in content, content
         directory = await call(context, "list_agents", {})
         entries = {item["id"]: item for item in directory["agents"]}
         assert entries[news_id]["reports_to"] == [gold_id]
@@ -306,13 +321,19 @@ async def main() -> None:
         async with db.sessions() as session, session.begin():
             gold_thread = (await conversation_thread(session, owner, gold_id)).id
         quiet = await wake(gold_id, gold_thread)
+        scout_task = "Watch silver news and report what matters."
         proposal = await call(
-            quiet, "agent_create", {"template": "research", "name": "Silver scout"}, "scout"
+            quiet,
+            "agent_create",
+            {"template": "research", "name": "Silver scout", "responsibility": scout_task},
+            "scout",
         )
         assert proposal["created"] is False and proposal["owner_must_tap"] is True, proposal
         card_id = proposal["owner_action"]["id"]
         repeated = await call(
-            quiet, "agent_create", {"template": "research", "name": "Silver scout"}
+            quiet,
+            "agent_create",
+            {"template": "research", "name": "Silver scout", "responsibility": scout_task},
         )
         assert repeated["owner_action"]["id"] == card_id and repeated["already_shown"] is True
         async with db.sessions() as session:
@@ -327,23 +348,49 @@ async def main() -> None:
         listed = {card["id"]: card for card in await cards(gold_thread)}
         assert listed[card_id]["kind"] == "create_agent"
         assert listed[card_id]["facts"]["agent"]["level"] == "analysis"
+        assert listed[card_id]["facts"]["agent"]["responsibility"] == scout_task
         confirmed = await decide(card_id, "confirm")
         assert confirmed["status"] == "confirmed", confirmed
         scout_id = confirmed["result"]["agent_id"]
         created_ids.append(scout_id)
         assert (await decide(card_id, "confirm"))["result"]["agent_id"] == scout_id
+        # The proposing agent gets one run in the card's conversation to hand out the
+        # first task: fixed server text naming the new agent's id, never an owner turn.
+        async with db.sessions() as session:
+            first = await session.get(RunRow, first_task_run_id(card_id))
+            assert first is not None and first.status == "queued", first
+            assert (first.agent_id, first.thread_id, first.trigger) == (
+                gold_id,
+                gold_thread,
+                "agent_created",
+            )
+            assert scout_id in first.prompt and "peer_send" in first.prompt
+            assert "Silver scout" not in first.prompt
+            assert first.model_metadata["created_agent_id"] == scout_id
+            assert wake_context(first).startswith("<wake trigger='agent_created'>")
+            first_runs = await session.scalar(
+                select(func.count())
+                .select_from(RunRow)
+                .where(RunRow.agent_id == gold_id, RunRow.trigger == "agent_created")
+            )
+            assert first_runs == 1, first_runs
         async with db.sessions() as session:
             origin = await agent_origin(session, owner, scout_id)
             assert origin["created_via"] == "owner_card" and origin["card_id"] == card_id
         after = [card for card in await cards(gold_thread) if card["kind"] == "agent_created"]
         assert len(after) == 1 and after[0]["facts"]["agent"]["name"] == "Silver scout"
-        print("PASS without an owner message a creation card waits; the tap creates it once")
+        print(
+            "PASS without an owner message a creation card waits; the tap creates it once "
+            "and wakes the proposer to give it its first task"
+        )
 
         # 7. Undo removes an agent that has done nothing; it pauses one that has started.
         removed = await decide(after[0]["id"], "confirm")
         assert removed["status"] == "confirmed" and removed["result"]["undo"] == "deleted"
         async with db.sessions() as session:
             assert await session.get(AgentRow, scout_id) is None
+            first = await session.get(RunRow, first_task_run_id(card_id))
+            assert first is not None and first.status == "cancelled", first and first.status
         created_ids.remove(scout_id)
         paused = await decide(undo_card["id"], "confirm")
         assert paused["result"]["undo"] == "paused", paused  # The gold agent has a run.
@@ -515,7 +562,11 @@ async def main() -> None:
             attempt["value"] = 1
             async with db.sessions() as session, session.begin():
                 row = await session.get(RunRow, scenario.lease.run_id, with_for_update=True)
-                assert row is not None and row.status == "completed", row and row.status
+                assert row is not None and row.status == "completed", row and (
+                    row.status,
+                    row.error_code,
+                    row.result,
+                )
                 # A restarted worker that lost the transcript runs the turn again.
                 row.status, row.execution_state = "queued", {}
                 claimed = await claim_next(session, "restarted-worker", 120)
@@ -547,6 +598,136 @@ async def main() -> None:
             created_ids.extend([macro[0].id, desk[0].id])
         print("PASS a scripted turn creates one news agent, one supervisor and one link, once")
 
+        # 13. The owner answers a creation card in chat: the chat creates the agent once,
+        #     the card closes, and tapping it (or proposing again) never adds a second.
+        await end_runs(lonora_id)
+        lonora_wake = await wake(lonora_id, thread_id)
+        pending = await call(
+            lonora_wake, "agent_create", {"template": "research", "name": "Scout X"}
+        )
+        scout_card = pending["owner_action"]["id"]
+        yes = await owner_turn("yes, create it")
+        made = await call(yes, "agent_create", {"template": "research", "name": "Scout X"})
+        assert made["created"] is True and made["deduplicated"] is False, made
+        scout_x = made["agent"]["id"]
+        created_ids.append(scout_x)
+        listed = {card["id"]: card for card in await cards(thread_id)}
+        assert listed[scout_card]["status"] == "superseded", listed[scout_card]
+        assert listed[scout_card]["status_reason"] == "agent_already_created"
+        tapped = await decide(scout_card, "confirm")
+        assert tapped["status"] == "superseded" and "agent_id" not in tapped["result"], tapped
+        await end_runs(lonora_id)
+        again = await call(
+            await wake(lonora_id, thread_id),
+            "agent_create",
+            {"template": "research", "name": "scout  x"},
+        )
+        assert again["created"] is False and again["code"] == "agent_already_exists", again
+        assert again["agent"]["id"] == scout_x
+        # Two agents proposed the same agent in their own words: the first tap creates it,
+        # the other card closes (an identical card already closes as done elsewhere).
+        await end_runs(lonora_id)
+        await end_runs(gold_id)
+        first_card = await call(
+            await wake(lonora_id, thread_id),
+            "agent_create",
+            {"template": "general", "name": "Scout Y", "responsibility": "Scout the week."},
+        )
+        second_card = await call(
+            await wake(gold_id, gold_thread),
+            "agent_create",
+            {"template": "general", "name": "Scout Y", "responsibility": "Scout gold news."},
+        )
+        tapped = await decide(first_card["owner_action"]["id"], "confirm")
+        scout_y = tapped["result"]["agent_id"]
+        created_ids.append(scout_y)
+        other = {card["id"]: card for card in await cards(gold_thread)}[
+            second_card["owner_action"]["id"]
+        ]
+        assert (other["status"], other["status_reason"]) == ("superseded", "agent_already_created")
+        async with db.sessions() as session:
+            for name in ("Scout X", "Scout Y"):
+                count = await session.scalar(
+                    select(func.count())
+                    .select_from(AgentRow)
+                    .where(AgentRow.owner_id == owner, AgentRow.name.like(name + "%"))
+                )
+                assert count == 1, (name, count)
+            spec: dict[str, Any] = {"template": "research", "name": "Scout X", "report_to": []}
+            reason = await stale_reason(session, owner, "create_agent", {"spec": spec})
+            assert reason == "agent_already_created", reason
+        print("PASS a yes in chat to a creation card creates it once and closes the card")
+
+        # 14. Undo (the owner's delete) takes the creation's notes and links out of the
+        #     other agents: nobody keeps believing a removed agent reports to it.
+        await end_runs(lonora_id)
+        links_turn = await owner_turn("Create Desk news for the gold agent and Desk relay for it")
+        desk_news = await call(
+            links_turn,
+            "agent_create",
+            {"template": "research", "name": "Desk news", "report_to": [gold_id]},
+        )
+        desk_news_id = desk_news["agent"]["id"]
+        relay = await call(
+            links_turn,
+            "agent_create",
+            {"template": "research", "name": "Desk relay", "report_to": [desk_news_id]},
+        )
+        relay_id = relay["agent"]["id"]
+        created_ids.extend([desk_news_id, relay_id])
+        async with db.sessions() as session:
+            relay_memory = await session.get(MemoryRow, relay_id)
+            assert (
+                relay_memory and "Report important findings to Desk news." in relay_memory.content
+            )
+        news_undo = next(
+            card
+            for card in await cards(thread_id)
+            if card["kind"] == "agent_created" and card["facts"]["agent"]["name"] == "Desk news"
+        )
+        assert (await decide(news_undo["id"], "confirm"))["result"]["undo"] == "deleted"
+        created_ids.remove(desk_news_id)
+        async with db.sessions() as session:
+            gold_memory = await session.get(MemoryRow, gold_id)
+            relay_memory = await session.get(MemoryRow, relay_id)
+            assert gold_memory is not None and relay_memory is not None
+            assert "Desk news reports important findings to you." not in gold_memory.content
+            assert "News agent reports important findings to you." in gold_memory.content
+            assert "Desk news" not in relay_memory.content, relay_memory.content
+            assert report_targets(await agent_origin(session, owner, relay_id)) == []
+        directory = await call(links_turn, "list_agents", {})
+        assert {item["id"]: item for item in directory["agents"]}[relay_id]["reports_to"] == []
+        print("PASS Undo removes the creation's notes and links from the other agents")
+
+        # 15. The owner's delete and a simultaneous Undo tap never deadlock: the delete
+        #     leaves the card being tapped to its decision, which finds the agent gone.
+        await end_runs(lonora_id)
+        probe_turn = await owner_turn("Create a probe agent")
+        probe = await call(probe_turn, "agent_create", {"template": "general", "name": "Probe"})
+        probe_id = probe["agent"]["id"]
+        created_ids.append(probe_id)
+        probe_card = next(
+            card
+            for card in await cards(thread_id)
+            if card["kind"] == "agent_created" and card["facts"]["agent"]["name"] == "Probe"
+        )
+        await end_runs(lonora_id)
+        identity = OwnerIdentity(id=owner, email="", token_hash="probe")
+        async with db.sessions() as tap, tap.begin():
+            # The decision route's order: the owner's cards, the card, then the agent.
+            await lock_owner_actions(tap, owner)
+            card_row = await owned_card(tap, owner, probe_card["id"], lock=True)
+            assert await stale_reason(tap, owner, card_row.kind, card_row.payload) is None
+            deleting = asyncio.create_task(fixture.request("DELETE", "/agents/" + probe_id))
+            await asyncio.sleep(0.5)
+            assert await undo_creation(tap, identity, card_row) is None
+            await settle(tap, card_row, "expired", "agent_already_removed")
+            assert (await asyncio.wait_for(deleting, 15))["deleted"] is True
+        created_ids.remove(probe_id)
+        settled = {card["id"]: card for card in await cards(thread_id)}[probe_card["id"]]
+        assert (settled["status"], settled["status_reason"]) == ("expired", "agent_already_removed")
+        print("PASS the owner's delete never deadlocks with an Undo tap")
+
         # No creation path ever produced a grant.
         for agent_id in created_ids:
             assert await grants(agent_id) == 0
@@ -558,7 +739,7 @@ async def main() -> None:
                 .select_from(OwnerActionRow)
                 .where(OwnerActionRow.owner_id == owner, OwnerActionRow.kind == "create_agent")
             )
-            assert orphan == 1
+            assert orphan == 4, orphan
         print("PASS no agent created from chat holds a grant")
     finally:
         async with db.sessions() as session, session.begin():

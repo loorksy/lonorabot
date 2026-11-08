@@ -24,6 +24,7 @@ from lonora_contracts.agent_creation import TEMPLATE_LEVEL
 from lonora_contracts.domain import AgentCreate, utcnow
 from lonora_contracts.model_routing import AgentModelChange, ModelSelection
 from lonora_core.user_error import LonoraError
+from lonora_session.idempotency import stable_id
 from sqlalchemy import exists, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -39,6 +40,7 @@ from .schema import (
     RoutineRow,
     RunRow,
     SettingRow,
+    ThreadRow,
     TicketRow,
     TradeApprovalRow,
 )
@@ -127,6 +129,25 @@ async def available_name(session: AsyncSession, owner_id: str, name: str) -> str
     raise LonoraError("agent_name_unavailable", 409)
 
 
+async def existing_creation(
+    session: AsyncSession, owner_id: str, template: str, name: str
+) -> AgentRow | None:
+    """The persistent agent already created from this template under this name, if any:
+    the owner asked twice (a card and a chat message), it exists once."""
+    wanted = " ".join(name.split()).casefold()
+    rows = await session.scalars(
+        select(AgentRow)
+        .where(AgentRow.owner_id == owner_id, AgentRow.role != "delegated")
+        .order_by(AgentRow.created_at, AgentRow.id)
+    )
+    for row in rows:
+        if row.name.casefold() != wanted:
+            continue
+        if (await agent_origin(session, owner_id, row.id)).get("template") == template:
+            return row
+    return None
+
+
 async def check_creation(session: AsyncSession, owner_id: str, spec: dict[str, Any]) -> None:
     """Re-check a creation against current state: the cap, the agents it reports to and
     the broker connection its focus pair was looked up on."""
@@ -160,8 +181,14 @@ async def create_root_agent(
 
     Returns the agent and whether it is new. The caller has validated the spec's shape
     and resolved its market; this re-checks the cap and references under the owner's
-    creation lock.
+    creation lock. Pending creation cards for the same template and name close with it
+    (``agent_already_created``), except ``card_id`` being confirmed: answering a card in
+    chat, or two agents proposing one agent, never creates a second one.
     """
+    from .owner_actions import lock_owner_actions, settle_created_proposals
+
+    # The order every caller takes them in: owner action cards, then creation.
+    await lock_owner_actions(session, owner_id)
     await lock_creation(session, owner_id)
     existing = await session.get(AgentRow, agent_id)
     if existing is not None:
@@ -222,6 +249,7 @@ async def create_root_agent(
         run_id=run_id if created_via == "owner_message" else None,
         payload={key: value for key, value in origin.items() if key != "owner_id"},
     )
+    await settle_created_proposals(session, owner_id, template, str(spec["name"]), keep=card_id)
     return row, True
 
 
@@ -273,7 +301,9 @@ async def delete_agent(
 ) -> None:
     """The owner's delete: refused while its trade is uncertain; its grants, approvals
     and cards are settled first, and its financial records outlive it. The Undo card
-    of its creation settles too, except ``keep_card`` (the Undo being confirmed)."""
+    of its creation settles too, except ``keep_card`` (the Undo being confirmed) and
+    one the owner is tapping right now: that decision takes this agent's lock after the
+    card's, so waiting for it here would deadlock; it finds the agent gone instead."""
     from .obligations import prepare_delete
     from .owner_actions import supersede_subject
     from .skill_controls import delete_skill_controls
@@ -291,6 +321,7 @@ async def delete_agent(
         "agent:" + agent_id,
         "agent_already_removed",
         keep=keep_card,
+        skip_locked=True,
     )
     await delete_skill_controls(session, owner_id, agent_id)
     origin = await session.get(SettingRow, origin_key(owner_id, agent_id))
@@ -306,6 +337,82 @@ async def pause_agent(session: AsyncSession, owner_id: str, agent_id: str) -> Ag
         agent.paused = True
         emit(session, owner_id, "agent.updated", agent_id=agent_id, payload=agent_data(agent))
     return agent
+
+
+# The run that tells the proposing agent its card was tapped (server-written prompt).
+FIRST_TASK_TRIGGER = "agent_created"
+
+
+def first_task_run_id(card_id: str) -> str:
+    return stable_id(card_id, "first-task")
+
+
+def first_task_prompt(agent_id: str) -> str:
+    """Fixed text and a server id only: the new agent's (model-chosen) name stays out."""
+    return (
+        f"The owner tapped Create agent on your card: the new agent (agent_id={agent_id}) "
+        "exists now and has no task yet. Give it its first task with peer_send, from what "
+        "you proposed it for, then tell the owner in one line what it will do."
+    )
+
+
+async def start_first_task(
+    session: AsyncSession, card: OwnerActionRow, created: AgentRow
+) -> RunRow | None:
+    """After the owner tapped Create agent, the agent that proposed it gets one run in the
+    card's conversation to hand the new agent its first task. One per card; none when
+    the proposing agent is gone or paused (the new agent then waits for the owner)."""
+    from lonora_contracts.runs import RunRequest
+
+    from .runs import create_run
+    from .threads import conversation_thread
+
+    owner_id = card.owner_id
+    run_id = first_task_run_id(card.id)
+    if await session.get(RunRow, run_id) is not None:
+        return None
+    proposer = await session.get(AgentRow, card.agent_id)
+    if (
+        proposer is None
+        or proposer.owner_id != owner_id
+        or proposer.paused
+        or proposer.role == "delegated"
+        or proposer.id == created.id
+    ):
+        return None
+    thread = await session.get(ThreadRow, card.thread_id) if card.thread_id else None
+    if (
+        thread is None
+        or thread.owner_id != owner_id
+        or thread.purpose != "conversation"
+        or thread.agent_id != proposer.id
+        or thread.group_id
+    ):
+        thread = await conversation_thread(session, owner_id, proposer.id)
+    return await create_run(
+        session,
+        owner_id,
+        RunRequest(
+            thread_id=thread.id,
+            agent_id=proposer.id,
+            trigger=FIRST_TASK_TRIGGER,
+            prompt=first_task_prompt(created.id),
+            metadata={"created_agent_id": created.id, "owner_action_id": card.id},
+        ),
+        run_id,
+    )
+
+
+async def cancel_first_task(session: AsyncSession, owner_id: str, agent_id: str) -> None:
+    """Undo before the proposing agent's first-task run started: it never starts."""
+    from .cancellation import cancel_run
+
+    card_id = (await agent_origin(session, owner_id, agent_id)).get("card_id")
+    if not card_id:
+        return
+    run = await session.get(RunRow, first_task_run_id(str(card_id)))
+    if run is not None and run.status == "queued":
+        await cancel_run(session, owner_id, run.id)
 
 
 def report_targets(origin: dict[str, Any]) -> list[str]:

@@ -371,6 +371,17 @@ async def agent_live_state(
                 {"run_id": run.id, "kind": wait["kind"], "retry_at": wait.get("due_at")}
             )
     waiting_runs = {item["run_id"] for item in runtime_waits}
+    # Task work held by one of its own active watches: the agent is monitoring.
+    active_watch_ids = {row.id for row in watch_rows}
+    held_watches = {
+        str(wait.get("source_id"))
+        for run in runs
+        if run.id in waiting_runs
+        and (wait := run.execution_state.get("environment", {}).get("wait"))
+        and wait.get("kind") == "watch"
+    } & active_watch_ids
+    # The line names the watch the work waits on first.
+    watch_rows.sort(key=lambda row: row.id not in held_watches)
     state: Any = (
         "paused"
         if agent.paused
@@ -410,10 +421,10 @@ async def agent_live_state(
         if state == "working"
         else "recovering"
         if runtime_waits and runtime_waits[0]["kind"] in {"read_retry", "model_retry"}
+        else "monitoring"
+        if watches and state == "waiting" and (held_watches or not tasks)
         else str(tasks[0]["phase"])
         if tasks and state == "waiting"
-        else "monitoring"
-        if watches and state == "waiting"
         else state
     )
     reason = (

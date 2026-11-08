@@ -46,6 +46,7 @@ const copy = {
   en: {
     created: "Agent created",
     level: "Trading level: Ask me",
+    task: "Its task: ⁨Watch gold for the owner.⁩",
     undo: "Undo",
     undone: "Undone: the agent was removed.",
     monitoring: /^Monitoring ⁨XAUUSD⁩ until /,
@@ -55,6 +56,7 @@ const copy = {
   ar: {
     created: "أُنشئ وكيل",
     level: "مستوى التداول: يسألني أولًا",
+    task: "مهمته: ⁨Watch gold for the owner.⁩",
     undo: "تراجع",
     undone: "تم التراجع: أُزيل الوكيل.",
     monitoring: /^يراقب ⁨XAUUSD⁩ حتى /,
@@ -128,6 +130,8 @@ for (const locale of ["en", "ar"])
       await expect(card).toHaveAttribute("data-owner-action-kind", "agent_created");
       await expect(card.locator("strong")).toHaveText(text.created);
       await expect(card.getByText(text.level, { exact: true })).toBeVisible();
+      // The stored task, word for word: the standing instruction the agent keeps.
+      await expect(card.getByText(text.task, { exact: true })).toBeVisible();
       await expect(card.getByText(name, { exact: false })).toBeVisible();
       const line = page.getByTestId("agent-status-line");
       await expect(line).toHaveText(text.monitoring);

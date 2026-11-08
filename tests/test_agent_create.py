@@ -130,3 +130,23 @@ def test_a_watch_is_active_only_while_enabled_and_before_its_expiry() -> None:
     assert not watch_active(row({"enabled": False}))
     assert not watch_active(row({"enabled": True, "expires_at": earlier}))
     assert not watch_active(row({"enabled": True}, {"lifecycle": "expired"}))
+
+
+def test_the_first_task_wake_after_a_tapped_card_is_first_party_text() -> None:
+    from lonora_agent.context.routine import SERVER_AUTHORED_TRIGGERS, wake_context
+    from lonora_db.agent_creation import (
+        FIRST_TASK_TRIGGER,
+        first_task_prompt,
+        first_task_run_id,
+    )
+    from lonora_tools.restrictions import OWNER_TRIGGERS
+
+    prompt = first_task_prompt("agent-1")
+    assert "agent_id=agent-1" in prompt and "peer_send" in prompt
+    # Server text in the system role, and never an owner turn: agent_create in that run
+    # raises a card instead of creating.
+    assert FIRST_TASK_TRIGGER in SERVER_AUTHORED_TRIGGERS
+    assert FIRST_TASK_TRIGGER not in OWNER_TRIGGERS
+    run: Any = SimpleNamespace(trigger=FIRST_TASK_TRIGGER, prompt=prompt, model_metadata={})
+    assert wake_context(run) == f"<wake trigger='agent_created'>\n{prompt}\n</wake>"
+    assert first_task_run_id("card") == first_task_run_id("card") != first_task_run_id("other")

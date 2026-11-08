@@ -10,7 +10,7 @@ export type OwnerActionKind =
   | "agent_created";
 /** Agent templates (lonora_contracts.agent_creation); none carries money authority. */
 export type AgentTemplate = "trading" | "general" | "research" | "supervisor";
-/** A creation card's agent, read on the server; the responsibility text is never shown. */
+/** A creation card's agent, read on the server. */
 export type OwnerActionAgent = {
   exists: boolean;
   name: string | null;
@@ -20,6 +20,8 @@ export type OwnerActionAgent = {
   paused?: boolean;
   report_to?: string[];
   model?: string | null;
+  /** Its task exactly as stored (its standing instructions); shown isolated and labelled. */
+  responsibility?: string | null;
 };
 export type OwnerActionStatus = "pending" | "confirmed" | "cancelled" | "expired" | "superseded";
 export type AttestedOutcome = "executed" | "not_executed" | "unknown";
@@ -30,7 +32,9 @@ export type OwnerActionAccount = { id: string; label: string | null; provider: s
 /**
  * One owner-only action offered as a card in the conversation (lonora_db.owner_actions).
  * Every fact is read on the server from the records the card names; nothing an agent
- * wrote appears on it. Only the owner's session can confirm it.
+ * wrote appears on it, except a creation card's stored task, quoted and labelled
+ * because it is the exact instruction the tap keeps. Only the owner's session can
+ * confirm it.
  */
 export type OwnerAction = {
   id: string;
