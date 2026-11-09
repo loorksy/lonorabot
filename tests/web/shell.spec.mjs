@@ -96,7 +96,9 @@ test.describe("phone shell (390×844, Arabic)", () => {
       const nav = page.locator("nav.tabbar");
       await expect(nav).toHaveAttribute("aria-label", "التنقل الرئيسي");
       await expect(nav.getByRole("button")).toHaveCount(4);
-      await expect(nav.getByRole("button", { name: "المحادثات", exact: true })).toHaveAttribute(
+      // Unread chats other specs leave behind add a badge to the tab's name: match the tab.
+      await expect(nav.locator('button[data-root="chats"]')).toContainText("المحادثات");
+      await expect(nav.locator('button[data-root="chats"]')).toHaveAttribute(
         "aria-current",
         "page",
       );
