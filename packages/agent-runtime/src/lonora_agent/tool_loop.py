@@ -1,4 +1,12 @@
-"""The durable agent tool loop: execution, checkpoints, steering, waits and limits.
+"""The durable agent tool loop: the one loop that drives every Run's model.
+
+Every trigger reaches ``execute_tool_loop`` through ``executor.execute_run``,
+and ``model_turn`` is called only here: once per round, and once more for the
+final report at a limit. A pass restores the checkpoint (``loop_restore``),
+then alternates the pending tool block (``tool_block``) with the next model
+turn until a final reply, a wait or a limit ends it (``loop_outcomes``). Every
+checkpoint is written by ``persist``; the phase modules write through the
+``save`` closure the loop gives them.
 
 The final tool-less report at a limit (``finish_turn``) adapts the
 iteration-budget grace call of Hermes Agent
@@ -57,11 +65,7 @@ from .context_engine import (
     resolve_limits,
 )
 from .continuation import MAXIMUM_SLICES, schedule_task_continuation, slice_limit
-from .environment import (
-    ToolRetryScheduled,
-    environment_state,
-    retry_pending,
-)
+from .environment import ToolRetryScheduled, environment_state, retry_pending
 from .loop_outcomes import (
     LoopOutcome,
     final_answer,
@@ -105,12 +109,8 @@ from .stop_gates import task_progress
 from .tasks import task_checkpoint
 from .tool_block import close_pending, execute_next_segment, report_closed
 from .tool_exposure import inventory, native_definitions
-from .tool_guardrails import (
-    halt_reason,
-)
-from .tool_intent import (
-    start_budget_epoch,
-)
+from .tool_guardrails import halt_reason
+from .tool_intent import start_budget_epoch
 
 log = logging.getLogger("lonora.tool_loop")
 
@@ -173,6 +173,24 @@ async def compact_for_turn(
     except Exception as error:
         log.warning("context_compaction_failed type=%s", type(error).__name__)
     return lambda request: compacted_view(request, state)
+
+
+def capability_for(messages: list[ModelMessage], capability: Capability) -> Capability:
+    return Capability.VISION if any(message.images for message in messages) else capability
+
+
+def selection_metadata(
+    selection: ModelSelection, reply: ModelReply, capability: Capability
+) -> dict[str, Any]:
+    """The checkpointed facts of the model that answered a turn."""
+    return {
+        "provider": selection.provider,
+        "model": selection.model,
+        "capability": reply.provider_metadata.get("runtime_capability", capability.value),
+        "stream_timings": reply.provider_metadata.get("stream_timings", {}),
+        "visual_errors": reply.provider_metadata.get("visual_errors", []),
+        "visual_diagnostics": reply.provider_metadata.get("visual_diagnostics", []),
+    }
 
 
 # Subagents delegate at most two levels deep; a few extra hops guard bad data.
@@ -241,9 +259,7 @@ async def finish_turn(
         state["exit_reason"] = reason
         await save()
         await report_closed(context, closed, uncertain, "tool_call_not_executed")
-        turn_capability = (
-            Capability.VISION if any(message.images for message in messages) else capability
-        )
+        turn_capability = capability_for(messages, capability)
         selection: ModelSelection | None
         try:
             view = await compact_for_turn(context, state, messages, pending, turn_capability, [])
@@ -274,16 +290,7 @@ async def finish_turn(
         else:
             state["rich_content"] = reply.rich_content
         if selection is not None:
-            state["selection"] = {
-                "provider": selection.provider,
-                "model": selection.model,
-                "capability": reply.provider_metadata.get(
-                    "runtime_capability", turn_capability.value
-                ),
-                "stream_timings": reply.provider_metadata.get("stream_timings", {}),
-                "visual_errors": reply.provider_metadata.get("visual_errors", []),
-                "visual_diagnostics": reply.provider_metadata.get("visual_diagnostics", []),
-            }
+            state["selection"] = selection_metadata(selection, reply, turn_capability)
         messages.append(
             ModelMessage(
                 role="assistant",
@@ -301,6 +308,7 @@ async def finish_turn(
 async def execute_tool_loop(
     context: ToolContext, registry: ToolRegistry, maximum_rounds: int
 ) -> LoopOutcome:
+    """Drive one pass of a Run: restore it, then alternate tool blocks and model turns."""
     async with context.db.sessions() as session:
         run = await require_lease(session, context.lease)
         state: dict[str, Any] = dict(run.execution_state)
@@ -315,27 +323,6 @@ async def execute_tool_loop(
 
     async def save() -> None:
         await persist(context, state, messages, pending)
-
-    if resume_after_attention(state, messages, maximum_rounds):
-        await persist(context, state, messages, pending)
-    question = state.get("pending_input_request")
-    if isinstance(question, dict):
-        question = cast(dict[str, Any], question)
-        if not await owner_steering_pending(context):
-            if not pending and await merge_steering(context, state, messages):
-                # A peer outcome woke a Run that waits for its owner. Keep it as
-                # evidence for the answer; otherwise the outstanding steering row
-                # would make the executor re-enter this wait indefinitely.
-                await persist(context, state, messages, pending)
-            return question_outcome(state, question)
-        # A new owner message supersedes an unpublished question before it reaches chat.
-        state.pop("pending_input_request", None)
-        await persist(context, state, messages, pending)
-    if environment_state(state).get("wait"):
-        return await reenter_external_wait(context, state, messages, pending, save)
-    woken = consume_wake(state, messages, pending)
-    await persist(context, state, messages, pending)
-    await report_wait_superseded(context, woken)
 
     async def refresh_after_steering() -> None:
         updated_skills = await refresh_skill_context(
@@ -356,9 +343,34 @@ async def execute_tool_loop(
         await save()
         await report_closed(context, closed, uncertain, "tool_call_superseded")
 
+    # Resume where the checkpoint left off: owner attention, a pending question,
+    # an external wait or a new wake.
+    if resume_after_attention(state, messages, maximum_rounds):
+        await save()
+    question = state.get("pending_input_request")
+    if isinstance(question, dict):
+        question = cast(dict[str, Any], question)
+        if not await owner_steering_pending(context):
+            if not pending and await merge_steering(context, state, messages):
+                # A peer outcome woke a Run that waits for its owner. Keep it as
+                # evidence for the answer; otherwise the outstanding steering row
+                # would make the executor re-enter this wait indefinitely.
+                await save()
+            return question_outcome(state, question)
+        # A new owner message supersedes an unpublished question before it reaches chat.
+        state.pop("pending_input_request", None)
+        await save()
+    if environment_state(state).get("wait"):
+        return await reenter_external_wait(context, state, messages, pending, save)
+    woken = consume_wake(state, messages, pending)
+    await save()
+    await report_wait_superseded(context, woken)
+
     while True:
         await cancellation_checkpoint(context)
         await task_checkpoint(context)
+        # At a limit: owner input buys a new budget, a Task takes another slice,
+        # otherwise the final report ends the pass.
         limit = slice_limit(state, maximum_rounds)
         if int(state.get("rounds", 0)) >= limit or halt_reason(state) or state.get("limit_exit"):
             reason = "guardrail_halt" if halt_reason(state) else "tool_round_limit"
@@ -369,7 +381,7 @@ async def execute_tool_loop(
                 if await merge_steering(context, state, messages):
                     await refresh_after_steering()
                 start_budget_epoch(state)
-                await persist(context, state, messages, pending)
+                await save()
                 continue
             if (
                 reason == "tool_round_limit"
@@ -399,7 +411,8 @@ async def execute_tool_loop(
                 reason=reason,
                 task_run=task_run,
             )
-        # New user input follows the complete tool-result block, never splits it.
+        # The pending tool block, one segment at a time. New user input follows
+        # the complete tool-result block, never splits it.
         while pending:
             await task_checkpoint(context)
             if await owner_steering_pending(context):
@@ -417,6 +430,8 @@ async def execute_tool_loop(
         if halt_reason(state):
             # The boundary handler finishes gracefully with the halt reason.
             continue
+        # Between the block and the next model turn: steering, Task controls,
+        # skill authority and the round budget.
         if await merge_steering(context, state, messages):
             await refresh_after_steering()
         await task_checkpoint(context, state, messages)
@@ -446,9 +461,8 @@ async def execute_tool_loop(
         if executable <= BUDGET_WARNING_ROUNDS and state.get("budget_warned") != executable:
             append_notice(messages, "budget", budget_warning(executable))
             state["budget_warned"] = executable
-        turn_capability = (
-            Capability.VISION if any(message.images for message in messages) else capability
-        )
+        # The model turn.
+        turn_capability = capability_for(messages, capability)
         native = native_definitions(registry, exposure, scope)
         inventory_text = inventory(registry, exposure, scope)
         policy_tools = registry.names(scope)
@@ -484,7 +498,7 @@ async def execute_tool_loop(
             decision = plan_failure(state, error, profile)
             if decision.kind == "compact":
                 log.warning("model_context_overflow input_scale=%s", input_scale(state))
-                await persist(context, state, messages, pending)
+                await save()
                 continue
             if decision.kind == "retry" and decision.not_before is not None:
                 environment_state(state)["retry"] = {
@@ -493,7 +507,7 @@ async def execute_tool_loop(
                     "code": error.code,
                     "attempt": decision.failures,
                 }
-                await persist(context, state, messages, pending)
+                await save()
                 if decision.notify:
                     # Monitoring continues; the owner hears of the outage once.
                     async with context.db.sessions() as session, session.begin():
@@ -512,7 +526,7 @@ async def execute_tool_loop(
                 )
                 raise ToolRetryScheduled() from None
             if decision.kind == "escalate":
-                await persist(context, state, messages, pending)
+                await save()
                 if task_run:
                     # The Task waits for its owner, resumable from this checkpoint.
                     return await request_owner_attention(
@@ -525,14 +539,7 @@ async def execute_tool_loop(
         else:
             state["rich_content"] = reply.rich_content
         state["rounds"] = int(state.get("rounds", 0)) + 1
-        state["selection"] = {
-            "provider": selection.provider,
-            "model": selection.model,
-            "capability": reply.provider_metadata.get("runtime_capability", turn_capability.value),
-            "stream_timings": reply.provider_metadata.get("stream_timings", {}),
-            "visual_errors": reply.provider_metadata.get("visual_errors", []),
-            "visual_diagnostics": reply.provider_metadata.get("visual_diagnostics", []),
-        }
+        state["selection"] = selection_metadata(selection, reply, turn_capability)
         log.info(
             "model_turn_completed timings=%s visual_errors=%s",
             json.dumps(state["selection"]["stream_timings"], sort_keys=True),
@@ -543,7 +550,7 @@ async def execute_tool_loop(
             # An empty provider turn carries nothing to keep; the notice follows
             # the existing tail instead of an empty assistant message.
             append_notice(messages, "no_answer", NO_ANSWER)
-            await persist(context, state, messages, pending)
+            await save()
             continue
         messages.append(
             ModelMessage(
@@ -554,7 +561,7 @@ async def execute_tool_loop(
             )
         )
         pending = list(reply.tool_calls)
-        await persist(context, state, messages, pending)
+        await save()
         if pending:
             continue
         if await merge_steering(context, state, messages):
