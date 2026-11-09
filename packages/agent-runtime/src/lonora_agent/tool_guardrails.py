@@ -409,8 +409,6 @@ def halt_reason(state: dict[str, Any]) -> dict[str, Any] | None:
 
 
 def _streak(history: list[Any]) -> int:
-    if not history:
-        return 0
     last = history[-1][:2]
     count = 0
     for entry in reversed(history):
