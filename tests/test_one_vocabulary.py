@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 from lonora_adapter_kit.types import ToolCall
-from lonora_agent.tool_loop import started_payload
+from lonora_agent.tool_block import started_payload
 from lonora_contracts.trading_goal import GoalControl, GoalCreate
 from lonora_core.attention import ATTENTION_KINDS, classify_attention
 from lonora_tools.loader import load_tools
