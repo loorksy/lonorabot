@@ -287,6 +287,8 @@ async def run_case(
     try:
         await api.login()
         await seed_context(api, ids, contexts.get(case["context"].get("seed") or "", []))
+        # The turn: from the owner's message to the end of the run, without database setup.
+        started = time.monotonic()
         sent = await api.request(
             "POST", f"/threads/{ids['thread_id']}/messages", {"content": case["message"]}
         )
@@ -300,6 +302,7 @@ async def run_case(
             await execute_run(
                 context, bank.fixture_registry(tools, calls), LEASE_SECONDS, MAXIMUM_ROUNDS
             )
+        turn_ms = round((time.monotonic() - started) * 1000)
         async with api.runtime.db.sessions() as session:
             row = await session.get(RunRow, run_id)
             assert row is not None
@@ -313,6 +316,7 @@ async def run_case(
             transcript = current_request(row.execution_state.get("messages", []))
             exposure = row.execution_state.get("tool_exposure")
     except TimeoutError:
+        turn_ms = round((time.monotonic() - started) * 1000)
         status, error_code, transcript, answer, exposure = "timeout", None, [], None, None
     finally:
         await api.close()
@@ -336,7 +340,7 @@ async def run_case(
         "tool_calls": calls,
         "tool_exposure": exposure,
         "usage": usage,
-        "latency_ms": round((time.monotonic() - started) * 1000),
+        "latency_ms": turn_ms,
         "content": answer.content if answer and status == "completed" else None,
         "rich_content": answer.rich_content if answer and status == "completed" else None,
     }

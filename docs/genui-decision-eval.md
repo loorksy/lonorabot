@@ -124,6 +124,8 @@ the capability list.
 holds:
 - the raw final reply and the scorer's view of it;
 - every model request, with its token usage (input, cached, output) and latency;
+- the turn's latency, from the owner's message to the end of the run (database setup and
+  teardown are not counted);
 - every tool call, with what answered it;
 - the request's transcript, the committed message and the tool exposure;
 - the prompt hash.
