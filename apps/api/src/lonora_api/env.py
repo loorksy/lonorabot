@@ -39,6 +39,9 @@ class Settings(BaseSettings):
     searxng_url: str | None = None
     browser_url: str | None = None
     mcp_declarations: tuple[McpToolDeclaration, ...] = Field(default=(), max_length=128)
+    # The owner's trusted MCP servers authorize their reviewed tools. False is the
+    # operator's deny override: then only the declarations above authorize.
+    mcp_owner_trust: bool = True
 
     @field_validator("searxng_url", "browser_url")
     @classmethod

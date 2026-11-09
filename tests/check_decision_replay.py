@@ -219,7 +219,12 @@ async def main() -> None:
             nonlocal phase
             phase += 1
             if phase == 1:
-                assert "recorded_decisions" in messages[0].content
+                # Recorded decisions are an optional server-record system block.
+                assert any(
+                    "recorded_decisions" in message.content
+                    for message in messages
+                    if message.role == "system"
+                )
                 reply = ModelReply(
                     tool_calls=[
                         ToolCall(
@@ -269,19 +274,19 @@ async def main() -> None:
             row.trading_symbol = symbols[0]
         specialist_thread = await f.conversation(specialist)
         specialist_context = await f.lease(await f.run(specialist, specialist_thread))
-        try:
-            await registry.execute(
-                ToolCall(
-                    id="scope-check",
-                    name="market_decision_read",
-                    arguments={"decision_id": records[1]["id"]},
-                ),
-                specialist_context,
-            )
-        except LonoraError as error:
-            assert error.code == "agent_trading_symbol_mismatch"
-        else:
-            raise AssertionError("Specialist read an unbound market decision")
+        # Decisions on owner accounts are shared operational records, labelled by author.
+        shared = await registry.execute(
+            ToolCall(
+                id="scope-check",
+                name="market_decision_read",
+                arguments={"decision_id": records[1]["id"]},
+            ),
+            specialist_context,
+        )
+        assert shared["id"] == records[1]["id"]
+        assert shared["recorded_by"]["you"] is False
+        assert shared["recorded_by"]["agent_id"] == shared["agent_id"]
+        assert shared["recorded_by"]["name"]
         api = await f.request("GET", f"/trading/decisions/{records[0]['id']}")
         assert api["evidence"]["quote"]["bid"] == "100"
         await f.client.delete(f"/api/trading/connections/{connection}")

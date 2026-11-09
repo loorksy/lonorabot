@@ -42,8 +42,10 @@ For flexible agents, omitted market arguments may use the saved default.
 Explicit accounts/symbols take precedence. A default symbol is not copied onto a
 different explicitly requested account. Market discovery, charts, observations,
 watch evaluation, decision history and trade history do not filter an explicit
-request back to the preferred market. Fixed-market agents retain their existing
-guards and result filtering.
+request back to the preferred market. Fixed-market agents follow the same default
+rule and keep their account and symbol for every mutation path; reading is open
+across every owned account and symbol, as described in
+[market-analysis.md](market-analysis.md#readable-and-executable-scope-of-fixed-market-agents).
 
 Creating, converting or changing a default never signs a grant or changes a
 signed envelope. Scope editors allow separate selected-market or full-account

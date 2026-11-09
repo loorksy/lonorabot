@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { api, type Model } from "../lib/api";
 import { userError } from "../lib/user_error";
 import { useClient } from "../providers/ClientProvider";
+import { MemoryRevisions } from "./MemoryRevisions";
 
 type Memory = { content: string; version: number };
 export function KnowledgeSection({ agentId }: { agentId: string }) {
@@ -73,7 +74,10 @@ export function KnowledgeSection({ agentId }: { agentId: string }) {
         }}
       >
         <p className="muted">
-          <Trans>Stable facts and preferences kept separately from conversation history.</Trans>
+          <Trans>
+            This agent's own knowledge and working notes, kept apart from conversation history. What
+            agents know about you is in About you.
+          </Trans>
         </p>
         <textarea
           aria-label={t`Long-term memory`}
@@ -97,6 +101,15 @@ export function KnowledgeSection({ agentId }: { agentId: string }) {
           </button>
         </div>
       </form>
+      <MemoryRevisions
+        url={`/agents/${encodeURIComponent(agentId)}/memory/revisions`}
+        revision={revision}
+        version={() => memory?.version}
+        onRestored={() => {
+          dirty.current = false;
+          refresh();
+        }}
+      />
       <SemanticKnowledge agentId={agentId} />
     </>
   );

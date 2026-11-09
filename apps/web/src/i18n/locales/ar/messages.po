@@ -11,7 +11,11 @@ msgstr ""
 #~ msgid "{name} is working"
 #~ msgstr "{name} يعمل"
 
-#: src/lib/user_error.ts:20
+#: src/components/ai/AttentionInbox.tsx:64
+msgid "A background item was paused after repeated errors; everything else keeps running"
+msgstr "أُوقف عنصر في الخلفية بعد أخطاء متكررة؛ يستمر كل ما عداه في العمل"
+
+#: src/lib/user_error.ts:37
 msgid "A different answer was already recorded."
 msgstr "سُجّلت إجابة مختلفة مسبقًا."
 
@@ -19,19 +23,27 @@ msgstr "سُجّلت إجابة مختلفة مسبقًا."
 #~ msgid "A new teammate"
 #~ msgstr "زميل جديد"
 
+#: src/lib/user_error.ts:152
+#~ msgid "A previous operation on this market still needs broker verification, so this new order was not sent. Closing positions, cancelling pending orders and tightening stops remain available."
+#~ msgstr "لا تزال عملية سابقة على هذا السوق بانتظار تحقق الوسيط، لذا لم يُرسل هذا الأمر الجديد. يبقى إغلاق المراكز وإلغاء الأوامر المعلقة وتضييق وقف الخسارة متاحًا."
+
+#: src/components/ai/AttentionInbox.tsx:66
+msgid "A trade still has no confirmed broker result"
+msgstr "صفقة ما زالت بلا نتيجة مؤكدة من الوسيط"
+
 #: src/pages/shell/chat-context.tsx:841
 #~ msgid "A workspace that remembers"
 #~ msgstr "مساحة عمل تتذكر"
 
-#: src/components/market/MarketWatch.tsx:243
+#: src/components/market/MarketWatch.tsx:266
 msgid "Above"
 msgstr "أعلى من"
 
-#: src/pages/McpServersOverlay.tsx:66
+#: src/pages/McpServersOverlay.tsx:70
 msgid "Access token"
 msgstr "رمز الوصول"
 
-#: src/components/market/MarketWatch.tsx:111
+#: src/components/market/MarketWatch.tsx:134
 msgid "Account changes"
 msgstr "تغيرات الحساب"
 
@@ -43,43 +55,40 @@ msgstr "معرّف الحساب"
 msgid "Account number"
 msgstr "رقم الحساب"
 
-#: src/components/trading/Positions.tsx:60
-#: src/components/trading/TradeActionCard.tsx:79
-#: src/components/trading/TradeApprovals.tsx:109
+#: src/components/trading/Positions.tsx:47
+#: src/components/trading/TradeActionCard.tsx:83
+#: src/components/trading/TradeApprovals.tsx:124
 msgid "Action"
 msgstr "الإجراء"
 
-#: src/components/ai/AgentLiveStatus.tsx:39
-#: src/components/ai/AgentLiveStatus.tsx:99
-msgid "Action required"
-msgstr "يلزم تدخلك"
+#: src/components/ai/AgentLiveStatus.tsx:38
+#~ msgid "Action required"
+#~ msgstr "يلزم تدخلك"
 
 #: src/components/trading/SuperBotCards.tsx:209
-msgid "Activate Super Bot?"
-msgstr "تفعيل سوبر بوت؟"
+#~ msgid "Activate Super Bot?"
+#~ msgstr "تفعيل سوبر بوت؟"
 
 #: src/components/trading/SuperBotCards.tsx:172
-msgid "Activate with device authentication"
-msgstr "التفعيل بمصادقة الجهاز"
+#~ msgid "Activate with device authentication"
+#~ msgstr "التفعيل بمصادقة الجهاز"
 
-#: src/components/ai/AgentLiveStatus.tsx:107
-#: src/components/trading/SuperBotCards.tsx:156
 #: src/lib/goal-status.ts:6
 msgid "Active"
 msgstr "نشط"
 
-#: src/components/ai/AgentLiveStatus.tsx:73
-msgid "Active watches"
-msgstr "المراقبات النشطة"
+#: src/components/ai/AgentLiveStatus.tsx:76
+#~ msgid "Active watches"
+#~ msgstr "المراقبات النشطة"
 
 #: src/pages/ActivityList.tsx:82
-#: src/pages/Shell.tsx:265
-#: src/pages/Shell.tsx:470
-#: src/pages/shell/sidebar-activity.tsx:40
+#: src/pages/Shell.tsx:269
+#: src/pages/Shell.tsx:483
+#: src/pages/shell/sidebar-activity.tsx:41
 msgid "Activity"
 msgstr "النشاط"
 
-#: src/components/ai/AttentionInbox.tsx:61
+#: src/components/ai/AttentionInbox.tsx:63
 msgid "Activity updated"
 msgstr "تم تحديث النشاط"
 
@@ -88,7 +97,7 @@ msgstr "تم تحديث النشاط"
 msgid "Add"
 msgstr "إضافة"
 
-#: src/pages/ModelSettingsOverlay.tsx:73
+#: src/pages/ModelSettingsOverlay.tsx:74
 msgid "Add a provider credential"
 msgstr "أضف مفتاح المزود"
 
@@ -105,7 +114,7 @@ msgstr "إضافة لوحة"
 msgid "Add broker connection"
 msgstr "إضافة اتصال بالوسيط"
 
-#: src/pages/shell/chat-context.tsx:792
+#: src/pages/shell/chat-context.tsx:795
 msgid "Add direction while the agent works…"
 msgstr "أضف توجيهًا أثناء عمل الوكيل…"
 
@@ -113,7 +122,7 @@ msgstr "أضف توجيهًا أثناء عمل الوكيل…"
 msgid "Add indicator"
 msgstr "إضافة مؤشر"
 
-#: src/components/integrations/IntegrationSetup.tsx:100
+#: src/components/integrations/IntegrationSetup.tsx:158
 msgid "Add integration"
 msgstr "إضافة تكامل"
 
@@ -125,14 +134,14 @@ msgstr "إضافة خط"
 msgid "Add owner instructions"
 msgstr "إضافة تعليمات خاصة"
 
-#: src/pages/shell/bot-settings.tsx:133
+#: src/pages/shell/bot-settings.tsx:137
 msgid "Advanced"
 msgstr "إعدادات متقدمة"
 
-#: src/components/ai/AgentLiveStatus.tsx:89
+#: src/components/ai/AgentLiveStatus.tsx:92
 #: src/components/trading/SuperBotCards.tsx:153
-msgid "Advisory"
-msgstr "استشاري"
+#~ msgid "Advisory"
+#~ msgstr "استشاري"
 
 #: src/components/ai/primitives.tsx:70
 #: src/components/charts/ChartAnnotations.tsx:81
@@ -140,19 +149,19 @@ msgstr "استشاري"
 #: src/pages/Board.tsx:389
 #: src/pages/shell/bot-picker.tsx:116
 #: src/pages/shell/chat-context.tsx:255
-#: src/pages/shell/message-cards.tsx:38
-#: src/pages/shell/message-cards.tsx:102
-#: src/pages/shell/message-cards.tsx:253
-#: src/pages/shell/message-cards.tsx:256
-#: src/pages/shell/message-cards.tsx:261
-#: src/pages/shell/message-cards.tsx:264
+#: src/pages/shell/message-cards.tsx:39
+#: src/pages/shell/message-cards.tsx:103
+#: src/pages/shell/message-cards.tsx:251
+#: src/pages/shell/message-cards.tsx:254
+#: src/pages/shell/message-cards.tsx:259
+#: src/pages/shell/message-cards.tsx:262
 #: src/pages/shell/message-cards.tsx:329
-#: src/pages/shell/sidebar-activity.tsx:103
+#: src/pages/shell/sidebar-activity.tsx:92
 msgid "Agent"
 msgstr "الوكيل"
 
 #: src/components/ai/CollaborationMarker.tsx:11
-#: src/pages/shell/message-cards.tsx:245
+#: src/pages/shell/message-cards.tsx:243
 msgid "Agent collaboration"
 msgstr "تعاون الوكلاء"
 
@@ -165,31 +174,31 @@ msgstr "نطاق الوكيل"
 msgid "Agent name"
 msgstr "اسم الوكيل"
 
-#: src/pages/Shell.tsx:275
-#: src/pages/Shell.tsx:570
+#: src/pages/Shell.tsx:279
+#: src/pages/Shell.tsx:583
 msgid "Agent settings"
 msgstr "إعدادات الوكيل"
 
-#: src/pages/Shell.tsx:279
-#: src/pages/Shell.tsx:1037
+#: src/pages/Shell.tsx:283
+#: src/pages/Shell.tsx:1055
 msgid "Agent workspace"
 msgstr "مساحة عمل الوكيل"
 
-#: src/pages/Shell.tsx:543
+#: src/pages/Shell.tsx:556
 #: src/pages/SpaceSearch.tsx:21
 msgid "Agents"
 msgstr "الوكلاء"
 
-#: src/pages/Shell.tsx:455
+#: src/pages/Shell.tsx:468
 msgid "Agents and groups"
 msgstr "الوكلاء والمجموعات"
 
-#: src/pages/shell/sidebar-activity.tsx:128
+#: src/pages/shell/sidebar-activity.tsx:117
 msgid "All activity"
 msgstr "كل النشاط"
 
 #: src/pages/ActivityList.tsx:106
-#: src/pages/shell/sidebar-activity.tsx:52
+#: src/pages/shell/sidebar-activity.tsx:53
 msgid "All statuses"
 msgstr "كل الحالات"
 
@@ -198,22 +207,22 @@ msgid "All time"
 msgstr "كل الأوقات"
 
 #: src/components/trading/SuperBotCards.tsx:175
-msgid "Allow"
-msgstr "موافقة"
+#~ msgid "Allow"
+#~ msgstr "موافقة"
 
 #: src/components/goals/TradingGoals.tsx:295
-msgid "Allow autonomous trading for this goal"
-msgstr "السماح بالتداول التلقائي لهذا الهدف"
+#~ msgid "Allow autonomous trading for this goal"
+#~ msgstr "السماح بالتداول التلقائي لهذا الهدف"
 
-#: src/lib/user_error.ts:113
+#: src/lib/user_error.ts:129
 msgid "Allow microphone access to start a voice conversation."
 msgstr "اسمح بالوصول إلى الميكروفون لبدء محادثة صوتية."
 
-#: src/components/integrations/IntegrationSetup.tsx:96
+#: src/components/integrations/IntegrationSetup.tsx:148
 msgid "Allowed destinations · comma separated"
 msgstr "الوجهات المسموح بها · مفصولة بفواصل"
 
-#: src/lib/user_error.ts:38
+#: src/lib/user_error.ts:55
 msgid "An active skill is no longer available. Review its settings before resuming this task."
 msgstr "إحدى المهارات النشطة لم تعد متاحة. راجع إعداداتها قبل استئناف المهمة."
 
@@ -230,11 +239,11 @@ msgstr "غاضب"
 msgid "Answered"
 msgstr "تمت الإجابة"
 
-#: src/pages/ModelSettingsOverlay.tsx:77
+#: src/pages/ModelSettingsOverlay.tsx:78
 msgid "API key"
 msgstr "مفتاح API"
 
-#: src/pages/settings-sidebar.tsx:18
+#: src/pages/settings-sidebar.tsx:19
 msgid "Appearance"
 msgstr "المظهر"
 
@@ -242,22 +251,22 @@ msgstr "المظهر"
 msgid "Appearance and workspace"
 msgstr "المظهر ومساحة العمل"
 
-#: src/components/trading/TradeApprovals.tsx:185
+#: src/components/trading/TradeApprovals.tsx:200
 msgid "Approve"
 msgstr "موافقة"
 
-#: src/components/trading/TradeApprovals.tsx:198
-msgid "Approved — awaiting broker result"
-msgstr "تمت الموافقة — بانتظار نتيجة الوسيط"
+#: src/components/trading/TradeApprovals.tsx:201
+#~ msgid "Approved — awaiting broker result"
+#~ msgstr "تمت الموافقة — بانتظار نتيجة الوسيط"
 
 #: src/components/charts/ChartAnnotations.tsx:75
 msgid "Arrow"
 msgstr "سهم"
 
 #: src/pages/Artifacts.tsx:140
-#: src/pages/Shell.tsx:267
-#: src/pages/Shell.tsx:648
-#: src/pages/Shell.tsx:1161
+#: src/pages/Shell.tsx:271
+#: src/pages/Shell.tsx:661
+#: src/pages/Shell.tsx:1179
 msgid "Artifacts"
 msgstr "الملفات والمخرجات"
 
@@ -265,7 +274,7 @@ msgstr "الملفات والمخرجات"
 msgid "Ask"
 msgstr "سعر العرض"
 
-#: src/components/goals/TradingGoals.tsx:173
+#: src/components/goals/TradingGoals.tsx:171
 msgid "Ask this agent to create a trading goal. Its plan, watches and execution history remain on the server."
 msgstr "اطلب من هذا الوكيل إنشاء هدف تداول. تبقى خطته ومراقباته وسجل تنفيذاته محفوظة على الخادم."
 
@@ -273,23 +282,23 @@ msgstr "اطلب من هذا الوكيل إنشاء هدف تداول. تبقى
 msgid "Assign work to your agents and follow each task."
 msgstr "أسند العمل إلى وكلائك وتابع كل مهمة."
 
-#: src/pages/shell/chat-context.tsx:769
-#: src/pages/shell/chat-context.tsx:770
+#: src/pages/shell/chat-context.tsx:772
+#: src/pages/shell/chat-context.tsx:773
 msgid "Attach file"
 msgstr "إرفاق ملف"
 
-#: src/pages/shell/chat-context.tsx:592
+#: src/pages/shell/chat-context.tsx:595
 msgid "Attached files"
 msgstr "ملفات مرفقة"
 
-#: src/pages/shell/message-cards.tsx:159
+#: src/pages/shell/message-cards.tsx:160
 msgid "Attachment"
 msgstr "مرفق"
 
-#: src/components/ai/AgentLiveStatus.tsx:86
+#: src/components/ai/AgentLiveStatus.tsx:89
 #: src/components/trading/SuperBotCards.tsx:153
-msgid "Autonomous"
-msgstr "مستقل"
+#~ msgid "Autonomous"
+#~ msgstr "مستقل"
 
 #: src/components/skills/SkillCard.tsx:79
 msgid "Available"
@@ -306,37 +315,44 @@ msgstr "متاحة"
 msgid "Avatar Studio"
 msgstr "استوديو الأفاتار"
 
-#: src/components/trading/TradeApprovals.tsx:210
-#: src/components/trading/TradingJournal.tsx:24
-msgid "Awaiting reconciliation"
-msgstr "بانتظار مطابقة التنفيذ"
+#: src/lib/operation-status.ts:16
+#~ msgid "Awaiting broker confirmation"
+#~ msgstr "بانتظار تأكيد الوسيط"
+
+#: src/lib/operation-status.ts:38
+#~ msgid "Awaiting reconciliation"
+#~ msgstr "بانتظار مطابقة التنفيذ"
 
 #: src/components/trading/TradeActionCard.tsx:161
-msgid "Awaiting reconciliation. This operation will not be sent again."
-msgstr "بانتظار مطابقة التنفيذ. لن تُرسل هذه العملية مرة أخرى."
+#~ msgid "Awaiting reconciliation. This operation will not be sent again."
+#~ msgstr "بانتظار مطابقة التنفيذ. لن تُرسل هذه العملية مرة أخرى."
 
 #: src/pages/Artifacts.tsx:263
 msgid "Back to artifacts"
 msgstr "العودة إلى الملفات"
 
-#: src/pages/Shell.tsx:716
+#: src/pages/Shell.tsx:729
 msgid "Back to conversations"
 msgstr "العودة إلى المحادثات"
 
-#: src/pages/Shell.tsx:123
+#: src/pages/Shell.tsx:125
 msgid "Back to workspace"
 msgstr "العودة إلى مساحة العمل"
+
+#: src/components/ai/AttentionInbox.tsx:68
+msgid "Background service is running late"
+msgstr "خدمة الخلفية متأخرة"
 
 #: src/pages/ModelRoutingSettings.tsx:17
 msgid "Background work"
 msgstr "العمل في الخلفية"
 
-#: src/components/market/MarketWatch.tsx:171
+#: src/components/market/MarketWatch.tsx:194
 #: src/components/trading/AccountSummary.tsx:40
 msgid "Balance"
 msgstr "الرصيد"
 
-#: src/components/market/MarketWatch.tsx:246
+#: src/components/market/MarketWatch.tsx:269
 msgid "Below"
 msgstr "أقل من"
 
@@ -381,11 +397,11 @@ msgstr "اللوحة"
 msgid "Board title"
 msgstr "عنوان اللوحة"
 
-#: src/components/integrations/IntegrationSetup.tsx:63
+#: src/components/integrations/IntegrationSetup.tsx:76
 msgid "Brave web search"
 msgstr "بحث الويب عبر Brave"
 
-#: src/pages/Shell.tsx:614
+#: src/pages/Shell.tsx:627
 msgid "Bring agents together in a group."
 msgstr "اجمع الوكلاء في مجموعة."
 
@@ -393,8 +409,8 @@ msgstr "اجمع الوكلاء في مجموعة."
 msgid "Broker"
 msgstr "الوسيط"
 
-#: src/components/trading/BrokerPairPicker.tsx:76
-#: src/components/trading/BrokerPairPicker.tsx:78
+#: src/components/trading/BrokerPairPicker.tsx:79
+#: src/components/trading/BrokerPairPicker.tsx:81
 #: src/pages/Market.tsx:27
 #: src/pages/Trading.tsx:31
 msgid "Broker account"
@@ -404,19 +420,23 @@ msgstr "حساب الوسيط"
 msgid "Broker account changed"
 msgstr "تغيّرت حالة حساب الوسيط"
 
-#: src/lib/user_error.ts:138
+#: src/lib/user_error.ts:155
 msgid "Broker account not found."
 msgstr "لم يتم العثور على حساب الوسيط."
 
-#: src/lib/user_error.ts:150
+#: src/lib/operation-status.ts:18
+#~ msgid "Broker acknowledged — resulting state unverified"
+#~ msgstr "أقرّ الوسيط بالطلب — لم يُتحقق من الحالة الناتجة"
+
+#: src/lib/user_error.ts:167
 msgid "Broker authentication was rejected."
 msgstr "رفض الوسيط بيانات المصادقة."
 
-#: src/lib/user_error.ts:131
+#: src/lib/user_error.ts:147
 msgid "Broker candles are unavailable for this symbol and timeframe."
 msgstr "شموع الوسيط غير متاحة لهذا الرمز والإطار الزمني."
 
-#: src/lib/user_error.ts:163
+#: src/lib/user_error.ts:180
 msgid "Broker candles contain invalid or mismatched data."
 msgstr "تحتوي شموع الوسيط على بيانات غير صالحة أو غير متطابقة."
 
@@ -428,20 +448,23 @@ msgstr "اتصال الوسيط يحتاج إلى مراجعة"
 msgid "Broker connection recovered"
 msgstr "تمت استعادة اتصال الوسيط"
 
-#: src/components/ai/AgentLiveStatus.tsx:163
+#: src/components/ai/AgentLiveStatus.tsx:141
 msgid "Broker connection requires attention"
 msgstr "اتصال الوسيط يحتاج إلى مراجعة"
 
-#: src/lib/user_error.ts:144
+#: src/lib/user_error.ts:161
 msgid "Broker data does not match the selected account. Nothing was sent."
 msgstr "بيانات الوسيط لا تطابق الحساب المحدد. لم يُرسل أي أمر."
 
-#: src/lib/user_error.ts:178
+#: src/lib/user_error.ts:195
 msgid "Broker deal history is unavailable for this time range."
 msgstr "سجل صفقات الوسيط غير متاح لهذه الفترة."
 
-#: src/components/goals/TradingGoals.tsx:70
-#: src/components/trading/TradeApprovals.tsx:200
+#: src/components/trading/TradingJournal.tsx:65
+msgid "Broker reference (optional)"
+msgstr "مرجع لدى الوسيط (اختياري)"
+
+#: src/components/goals/TradingGoals.tsx:79
 msgid "Broker result"
 msgstr "نتيجة الوسيط"
 
@@ -453,15 +476,18 @@ msgstr "خادم الوسيط"
 msgid "Broker symbol"
 msgstr "رمز الوسيط"
 
-#: src/components/trading/TradeApprovals.tsx:173
-#: src/components/trading/TradeApprovals.tsx:219
+#: src/components/trading/TradeApprovals.tsx:188
 msgid "Broker ticket"
 msgstr "رقم العملية لدى الوسيط"
 
-#: src/components/ai/AgentLiveStatus.tsx:158
-#: src/lib/user_error.ts:136
-msgid "Broker verification pending. Market data may remain available; trading is blocked until verification finishes."
-msgstr "التحقق من عمليات الوسيط معلّق. قد تبقى بيانات السوق متاحة؛ التداول محظور حتى اكتمال التحقق."
+#: src/components/ai/AgentLiveStatus.tsx:162
+#: src/lib/user_error.ts:152
+#~ msgid "Broker verification pending. Market data may remain available; trading is blocked until verification finishes."
+#~ msgstr "التحقق من عمليات الوسيط معلّق. قد تبقى بيانات السوق متاحة؛ التداول محظور حتى اكتمال التحقق."
+
+#: src/components/ai/AgentLiveStatus.tsx:136
+msgid "Broker verification pending. Market data remains available; new orders on the affected market are blocked until verification finishes, and closing remains available."
+msgstr "التحقق من عملية لدى الوسيط معلّق. تبقى بيانات السوق متاحة؛ الأوامر الجديدة على السوق المتأثر محظورة حتى اكتمال التحقق، ويبقى الإغلاق متاحًا."
 
 #: src/components/skills/shared.ts:21
 msgid "Built in"
@@ -471,15 +497,15 @@ msgstr "مدمجة"
 msgid "Built-in override rejected"
 msgstr "رُفض استبدال المهارة المدمجة"
 
-#: src/components/trading/Positions.tsx:70
+#: src/components/trading/Positions.tsx:60
 msgid "Buy"
 msgstr "شراء"
 
-#: src/components/trading/TradeActionCard.tsx:92
+#: src/components/trading/TradeActionCard.tsx:96
 msgid "Buy limit"
 msgstr "شراء بحد سعري"
 
-#: src/components/trading/TradeActionCard.tsx:98
+#: src/components/trading/TradeActionCard.tsx:102
 msgid "Buy stop"
 msgstr "شراء عند الاختراق"
 
@@ -488,12 +514,12 @@ msgstr "شراء عند الاختراق"
 msgid "bytes"
 msgstr "بايت"
 
-#: src/pages/UsageSettingsPanel.tsx:36
+#: src/pages/UsageSettingsPanel.tsx:43
 msgid "Cached"
 msgstr "من الذاكرة المؤقتة"
 
-#: src/pages/Shell.tsx:777
-#: src/pages/Shell.tsx:778
+#: src/pages/Shell.tsx:795
+#: src/pages/Shell.tsx:796
 msgid "Call"
 msgstr "اتصال"
 
@@ -505,22 +531,21 @@ msgstr "انتهت المكالمة"
 msgid "Call with {name}"
 msgstr "مكالمة مع {name}"
 
-#: src/components/ai/AgentLiveStatus.tsx:149
+#: src/components/ai/AgentLiveStatus.tsx:127
 #: src/components/ai/AvatarStudio.tsx:220
 #: src/components/skills/RevokeVersion.tsx:103
 #: src/components/skills/SkillCard.tsx:133
 #: src/components/skills/SkillEditor.tsx:141
-#: src/components/trading/SuperBotCards.tsx:421
 #: src/pages/Board.tsx:547
-#: src/pages/shell/bot-settings.tsx:208
+#: src/pages/shell/bot-settings.tsx:212
 msgid "Cancel"
 msgstr "إلغاء"
 
-#: src/components/goals/TradingGoals.tsx:331
+#: src/components/goals/TradingGoals.tsx:277
 msgid "Cancel goal"
 msgstr "إلغاء الهدف"
 
-#: src/components/trading/Orders.tsx:49
+#: src/components/trading/Orders.tsx:41
 msgid "Cancel order"
 msgstr "إلغاء الأمر"
 
@@ -528,17 +553,17 @@ msgstr "إلغاء الأمر"
 #: src/components/ai/TurnActivity.tsx:38
 #: src/components/ai/TurnActivity.tsx:99
 #: src/components/ToolActivityDisclosure.tsx:23
-#: src/components/trading/SuperBotCards.tsx:159
-#: src/components/trading/TradeApprovals.tsx:194
-#: src/lib/goal-status.ts:42
-#: src/pages/ActivityList.tsx:122
+#: src/lib/goal-status.ts:44
 #: src/pages/Board.tsx:24
-#: src/pages/shell/message-cards.tsx:274
-#: src/pages/shell/sidebar-activity.tsx:75
+#: src/pages/shell/message-cards.tsx:272
 msgid "Cancelled"
 msgstr "ملغى"
 
-#: src/pages/ModelSettingsOverlay.tsx:120
+#: src/pages/settings-sidebar.tsx:20
+msgid "Capabilities"
+msgstr "القدرات"
+
+#: src/pages/ModelSettingsOverlay.tsx:122
 msgid "Capabilities unverified"
 msgstr "القدرات غير مؤكدة"
 
@@ -546,7 +571,7 @@ msgstr "القدرات غير مؤكدة"
 msgid "Card view"
 msgstr "عرض البطاقات"
 
-#: src/components/market/MarketWatch.tsx:223
+#: src/components/market/MarketWatch.tsx:246
 msgid "Changes"
 msgstr "يتغيّر"
 
@@ -566,17 +591,25 @@ msgstr "تعذّر تحديث مظهر الشارت."
 msgid "Chart could not be displayed."
 msgstr "تعذّر عرض الشارت."
 
-#: src/pages/Shell.tsx:280
-#: src/pages/Shell.tsx:794
-#: src/pages/Shell.tsx:795
+#: src/pages/Shell.tsx:284
+#: src/pages/Shell.tsx:812
+#: src/pages/Shell.tsx:813
 msgid "Charts"
 msgstr "الرسوم البيانية"
 
-#: src/components/trading/TradeActionCard.tsx:153
+#: src/components/trading/Orders.tsx:41
+msgid "Check cancel result"
+msgstr "تحقق من نتيجة الإلغاء"
+
+#: src/components/trading/Positions.tsx:77
+msgid "Check close result"
+msgstr "تحقق من نتيجة الإغلاق"
+
+#: src/components/trading/TradeActionCard.tsx:157
 msgid "Check existing operation"
 msgstr "فحص العملية الحالية"
 
-#: src/lib/user_error.ts:184
+#: src/lib/user_error.ts:201
 msgid "Check the required fields and try again."
 msgstr "تحقق من الحقول المطلوبة وأعد المحاولة."
 
@@ -584,7 +617,7 @@ msgstr "تحقق من الحقول المطلوبة وأعد المحاولة."
 msgid "Child agent"
 msgstr "وكيل ابن"
 
-#: src/lib/user_error.ts:14
+#: src/lib/user_error.ts:31
 msgid "Choose a complete market scope and reload the saved settings before continuing."
 msgstr "اختر نطاق سوق مكتملًا وأعد تحميل الإعدادات المحفوظة قبل المتابعة."
 
@@ -597,12 +630,12 @@ msgstr "اختر حسابًا متصلًا وأداة مالية لتحميل ب
 msgid "Choose a connection"
 msgstr "اختر اتصالًا"
 
-#: src/pages/KnowledgeSection.tsx:164
+#: src/pages/KnowledgeSection.tsx:177
 #: src/pages/ModelRoutingSettings.tsx:34
 msgid "Choose a discovered model"
 msgstr "اختر نموذجًا من الكتالوج"
 
-#: src/components/market/MarketWatch.tsx:202
+#: src/components/market/MarketWatch.tsx:225
 msgid "Choose a feed"
 msgstr "اختر مصدرًا"
 
@@ -610,21 +643,22 @@ msgstr "اختر مصدرًا"
 msgid "Choose a glowing face and color. Preview your changes before applying them."
 msgstr "اختر وجهًا مضيئًا ولونًا، وعاين التغييرات قبل تطبيقها."
 
-#: src/pages/Knowledge.tsx:53
+#: src/components/integrations/IntegrationSetup.tsx:136
+#: src/pages/Knowledge.tsx:67
 #: src/pages/shell/bot-picker.tsx:117
 msgid "Choose an agent"
 msgstr "اختر وكيلًا"
 
-#: src/pages/Shell.tsx:120
+#: src/pages/Shell.tsx:122
 msgid "Choose an agent or return to your workspace."
 msgstr "اختر وكيلاً أو عد إلى مساحة عملك."
 
-#: src/lib/user_error.ts:16
+#: src/lib/user_error.ts:33
 msgid "Choose an available answer."
 msgstr "اختر إجابة متاحة."
 
 #: src/components/market/SymbolSearch.tsx:21
-#: src/components/trading/TradeActionCard.tsx:69
+#: src/components/trading/TradeActionCard.tsx:73
 msgid "Choose an instrument"
 msgstr "اختر أداة مالية"
 
@@ -636,20 +670,20 @@ msgstr "اختر أداة مالية"
 msgid "Choose an option or write your reply"
 msgstr "اختر إجابة أو اكتب ردك"
 
-#: src/components/trading/BrokerPairPicker.tsx:85
+#: src/components/trading/BrokerPairPicker.tsx:88
 msgid "Choose broker account"
 msgstr "اختر حساب الوسيط"
 
-#: src/lib/user_error.ts:124
+#: src/lib/user_error.ts:140
 msgid "Choose GPT-Live 1 or GPT-Live 1 mini as the global voice model."
 msgstr "اختر GPT-Live 1 أو GPT-Live 1 mini كنموذج الصوت العام."
 
-#: src/lib/user_error.ts:126
+#: src/lib/user_error.ts:142
 msgid "Choose supported global speech models in Settings."
 msgstr "اختر نماذج صوت مدعومة من الإعدادات العالمية."
 
-#: src/components/trading/BrokerPairPicker.tsx:97
-#: src/components/trading/BrokerPairPicker.tsx:105
+#: src/components/trading/BrokerPairPicker.tsx:100
+#: src/components/trading/BrokerPairPicker.tsx:108
 msgid "Choose trading pair"
 msgstr "اختر زوج التداول"
 
@@ -658,12 +692,11 @@ msgstr "اختر زوج التداول"
 #: src/components/ai/AvatarStudio.tsx:116
 #: src/components/charts/ChartSheetHandle.tsx:76
 #: src/components/common/FilePreviewPanel.tsx:99
-#: src/components/trading/SuperBotCards.tsx:283
 #: src/pages/Board.tsx:316
 #: src/pages/Board.tsx:508
 #: src/pages/RoutineEditor.tsx:103
-#: src/pages/Shell.tsx:696
-#: src/pages/shell/bot-settings.tsx:165
+#: src/pages/Shell.tsx:709
+#: src/pages/shell/bot-settings.tsx:169
 msgid "Close"
 msgstr "إغلاق"
 
@@ -672,20 +705,20 @@ msgid "Close chart"
 msgstr "إغلاق الشارت"
 
 #: src/pages/ResizableSidePanel.tsx:138
-#: src/pages/Shell.tsx:1012
+#: src/pages/Shell.tsx:1030
 msgid "Close context panel"
 msgstr "إغلاق لوحة السياق"
 
-#: src/pages/Shell.tsx:447
-#: src/pages/Shell.tsx:496
+#: src/pages/Shell.tsx:460
+#: src/pages/Shell.tsx:509
 msgid "Close navigation"
 msgstr "إغلاق قائمة التنقل"
 
-#: src/components/trading/Positions.tsx:76
+#: src/components/trading/Positions.tsx:79
 msgid "Close position"
 msgstr "إغلاق الصفقة"
 
-#: src/components/market/MarketWatch.tsx:229
+#: src/components/market/MarketWatch.tsx:252
 msgid "Closes"
 msgstr "يُغلق"
 
@@ -712,14 +745,12 @@ msgstr "اللون"
 #: src/components/ai/TurnActivity.tsx:95
 #: src/components/ToolActivityDisclosure.tsx:27
 #: src/lib/goal-status.ts:36
-#: src/pages/ActivityList.tsx:119
 #: src/pages/Board.tsx:18
-#: src/pages/shell/message-cards.tsx:278
-#: src/pages/shell/sidebar-activity.tsx:72
+#: src/pages/shell/message-cards.tsx:276
 msgid "Completed"
 msgstr "مكتمل"
 
-#: src/components/market/MarketWatch.tsx:214
+#: src/components/market/MarketWatch.tsx:237
 msgid "Condition"
 msgstr "الشرط"
 
@@ -727,7 +758,7 @@ msgstr "الشرط"
 msgid "Condition triggered"
 msgstr "تحقق الشرط"
 
-#: src/lib/user_error.ts:111
+#: src/lib/user_error.ts:127
 msgid "Configure an OpenAI credential with GPT-Live access to start a voice call."
 msgstr "اضبط مفتاح OpenAI يتيح الوصول إلى GPT-Live لبدء المكالمة."
 
@@ -736,35 +767,38 @@ msgid "Configure an OpenAI credential with GPT-Live API access"
 msgstr "اضبط مفتاح OpenAI يتيح الوصول إلى واجهة GPT-Live"
 
 #: src/components/trading/SuperBotCards.tsx:397
-msgid "Confirm account password"
-msgstr "تأكيد كلمة مرور الحساب"
+#~ msgid "Confirm account password"
+#~ msgstr "تأكيد كلمة مرور الحساب"
 
-#: src/components/trading/TradeApprovals.tsx:208
-#: src/components/trading/TradingJournal.tsx:20
-msgid "Confirmed"
-msgstr "مؤكد"
+#: src/lib/operation-status.ts:20
+#~ msgid "Confirmed"
+#~ msgstr "مؤكد"
 
-#: src/components/trading/BrokerPairPicker.tsx:146
+#: src/components/trading/BrokerPairPicker.tsx:151
 msgid "Connect a broker account before creating a trading agent."
 msgstr "اربط حساب الوسيط قبل إنشاء بوت التداول."
 
-#: src/lib/user_error.ts:78
+#: src/lib/user_error.ts:87
 msgid "Connect a provider and choose a global model in Settings."
 msgstr "اربط مزودًا واختر نموذجًا عالميًا في الإعدادات."
 
 #: src/pages/McpServersOverlay.tsx:49
-msgid "Connect a server to make its tools available to your agents."
-msgstr "اربط خادمًا لإتاحة أدواته لوكلائك."
+#~ msgid "Connect a server to make its tools available to your agents."
+#~ msgstr "اربط خادمًا لإتاحة أدواته لوكلائك."
+
+#: src/pages/McpServersOverlay.tsx:49
+msgid "Connect a server, then review and trust its tools in Capabilities. Until you trust them, agents can see the server but not use its tools; tools that can trade or move money never run."
+msgstr "اربط خادمًا، ثم راجع أدواته وثِق بها من القدرات. قبل أن تثق بها يرى الوكلاء الخادم ولا يستخدمون أدواته؛ والأدوات التي تتداول أو تحرّك المال لا تعمل أبدًا."
 
 #: src/components/trading/BrokerConnection.tsx:89
 msgid "Connect account"
 msgstr "ربط الحساب"
 
-#: src/pages/McpServersOverlay.tsx:75
+#: src/pages/McpServersOverlay.tsx:79
 msgid "Connect server"
 msgstr "ربط الخادم"
 
-#: src/pages/Shell.tsx:463
+#: src/pages/Shell.tsx:476
 msgid "Connected"
 msgstr "متصل"
 
@@ -796,24 +830,24 @@ msgid "Context panel"
 msgstr "لوحة السياق"
 
 #: src/pages/ModelRoutingSettings.tsx:10
-#: src/pages/shell/chat-context.tsx:1024
+#: src/pages/shell/chat-context.tsx:1027
 msgid "Conversation"
 msgstr "المحادثة"
 
-#: src/pages/Shell.tsx:170
 #: src/pages/Shell.tsx:172
+#: src/pages/Shell.tsx:174
 msgid "Conversation history"
 msgstr "سجل المحادثات"
 
 #: src/components/integrations/IntegrationSetup.tsx:92
-msgid "Conversation ID for incoming messages"
-msgstr "معرّف المحادثة للرسائل الواردة"
+#~ msgid "Conversation ID for incoming messages"
+#~ msgstr "معرّف المحادثة للرسائل الواردة"
 
 #: src/components/call/Transcript.tsx:7
 msgid "Conversation transcript"
 msgstr "نص المحادثة"
 
-#: src/pages/shell/conversation-inbox.tsx:79
+#: src/pages/shell/conversation-inbox.tsx:80
 msgid "Conversations"
 msgstr "المحادثات"
 
@@ -830,7 +864,7 @@ msgstr "نسخ الرسالة"
 msgid "Copy table"
 msgstr "نسخ الجدول"
 
-#: src/pages/Shell.tsx:488
+#: src/pages/Shell.tsx:501
 msgid "Create"
 msgstr "إنشاء"
 
@@ -850,7 +884,7 @@ msgstr "إنشاء مجموعة"
 msgid "Create a routine to schedule recurring work."
 msgstr "أنشئ مهمة لجدولة العمل المتكرر."
 
-#: src/pages/Shell.tsx:281
+#: src/pages/Shell.tsx:285
 #: src/pages/shell/bot-panel.tsx:125
 msgid "Create agent"
 msgstr "إنشاء وكيل"
@@ -863,14 +897,14 @@ msgstr "أنشئ وكلاء قبل بدء مجموعة."
 msgid "Create an agent before adding a routine."
 msgstr "أنشئ وكيلًا قبل إضافة مهمة مجدولة."
 
-#: src/pages/Shell.tsx:820
-#: src/pages/shell/conversation-inbox.tsx:167
+#: src/pages/Shell.tsx:838
+#: src/pages/shell/conversation-inbox.tsx:169
 msgid "Create conversation"
 msgstr "إنشاء محادثة"
 
 #: src/pages/GroupPanel.tsx:90
-#: src/pages/Shell.tsx:282
-#: src/pages/Shell.tsx:593
+#: src/pages/Shell.tsx:286
+#: src/pages/Shell.tsx:606
 msgid "Create group"
 msgstr "إنشاء المجموعة"
 
@@ -891,7 +925,7 @@ msgstr "إنشاء مهمة مجدولة"
 msgid "Create the owner account using the setup token from your server configuration."
 msgstr "أنشئ حساب المالك باستخدام رمز الإعداد الموجود في إعدادات الخادم."
 
-#: src/components/market/MarketWatch.tsx:276
+#: src/components/market/MarketWatch.tsx:299
 msgid "Create watch"
 msgstr "إنشاء مراقبة"
 
@@ -899,7 +933,7 @@ msgstr "إنشاء مراقبة"
 msgid "Create workspace"
 msgstr "إنشاء مساحة العمل"
 
-#: src/pages/ModelSettingsOverlay.tsx:71
+#: src/pages/ModelSettingsOverlay.tsx:72
 msgid "Credential configured"
 msgstr "تم إعداد مفتاح الوصول"
 
@@ -908,11 +942,11 @@ msgstr "تم إعداد مفتاح الوصول"
 msgid "Cron expression"
 msgstr "تعبير Cron"
 
-#: src/components/market/MarketWatch.tsx:237
+#: src/components/market/MarketWatch.tsx:260
 msgid "Crosses above"
 msgstr "يتجاوز إلى الأعلى"
 
-#: src/components/market/MarketWatch.tsx:240
+#: src/components/market/MarketWatch.tsx:263
 msgid "Crosses below"
 msgstr "يتجاوز إلى الأسفل"
 
@@ -929,7 +963,7 @@ msgstr "تخصيص الأفاتار"
 msgid "Dark"
 msgstr "داكن"
 
-#: src/components/goals/TradingGoals.tsx:64
+#: src/components/goals/TradingGoals.tsx:75
 msgid "Decision evidence"
 msgstr "أدلة القرار"
 
@@ -941,21 +975,21 @@ msgstr "سوق افتراضي"
 msgid "Delegated task"
 msgstr "مهمة مفوّضة"
 
-#: src/components/integrations/IntegrationSetup.tsx:123
-#: src/components/market/MarketWatch.tsx:301
+#: src/components/integrations/IntegrationSetup.tsx:184
+#: src/components/market/MarketWatch.tsx:330
 #: src/components/skills/SkillEditor.tsx:131
-#: src/pages/McpServersOverlay.tsx:98
+#: src/pages/McpServersOverlay.tsx:102
 #: src/pages/RoutineEditor.tsx:122
 #: src/pages/ScratchpadSection.tsx:203
 msgid "Delete"
 msgstr "حذف"
 
-#: src/pages/shell/bot-settings.tsx:187
-#: src/pages/shell/bot-settings.tsx:237
+#: src/pages/shell/bot-settings.tsx:191
+#: src/pages/shell/bot-settings.tsx:241
 msgid "Delete agent"
 msgstr "حذف المساعد"
 
-#: src/pages/shell/bot-settings.tsx:196
+#: src/pages/shell/bot-settings.tsx:200
 msgid "Delete agent permanently?"
 msgstr "حذف المساعد نهائيًا؟"
 
@@ -963,13 +997,17 @@ msgstr "حذف المساعد نهائيًا؟"
 msgid "Delete owner instructions"
 msgstr "حذف التعليمات الخاصة"
 
-#: src/pages/shell/bot-settings.tsx:226
+#: src/pages/shell/bot-settings.tsx:230
 msgid "Delete permanently"
 msgstr "حذف نهائي"
 
 #: src/components/skills/SkillEditor.tsx:137
 msgid "Delete these owner instructions? Existing version blocks will remain."
 msgstr "هل تريد حذف هذه التعليمات الخاصة؟ ستبقى عمليات حظر الإصدارات محفوظة."
+
+#: src/components/integrations/IntegrationSetup.tsx:128
+msgid "Deliver incoming messages to"
+msgstr "توصيل الرسائل الواردة إلى"
 
 #: src/components/skills/SkillMetadata.tsx:8
 msgid "Dependencies"
@@ -986,7 +1024,7 @@ msgstr "صف دور هذا الوكيل"
 #: src/pages/Board.tsx:361
 #: src/pages/Board.tsx:363
 #: src/pages/shell/bot-panel.tsx:95
-#: src/pages/shell/bot-settings.tsx:123
+#: src/pages/shell/bot-settings.tsx:127
 msgid "Description"
 msgstr "الوصف"
 
@@ -994,11 +1032,11 @@ msgstr "الوصف"
 msgid "Determined"
 msgstr "مصمم"
 
-#: src/lib/user_error.ts:63
+#: src/lib/user_error.ts:75
 msgid "Device authentication was cancelled. No authority was granted."
 msgstr "أُلغيت مصادقة الجهاز. لم يُمنح أي تفويض."
 
-#: src/lib/user_error.ts:67
+#: src/lib/user_error.ts:79
 msgid "Device verification failed. No authority was granted."
 msgstr "فشل التحقق من الجهاز. لم يُمنح أي تفويض."
 
@@ -1007,8 +1045,8 @@ msgstr "فشل التحقق من الجهاز. لم يُمنح أي تفويض."
 #~ msgid "Diamond"
 #~ msgstr "معيّن"
 
-#: src/components/integrations/IntegrationSetup.tsx:116
-#: src/pages/McpServersOverlay.tsx:91
+#: src/components/integrations/IntegrationSetup.tsx:177
+#: src/pages/McpServersOverlay.tsx:95
 msgid "Disable"
 msgstr "تعطيل"
 
@@ -1020,11 +1058,11 @@ msgstr "معطلة"
 msgid "Disconnect account"
 msgstr "فصل الحساب"
 
-#: src/pages/ModelSettingsOverlay.tsx:109
+#: src/pages/ModelSettingsOverlay.tsx:111
 msgid "Discovered models"
 msgstr "النماذج المكتشفة"
 
-#: src/pages/shell/chat-context.tsx:665
+#: src/pages/shell/chat-context.tsx:668
 msgid "Dismiss error"
 msgstr "إخفاء الخطأ"
 
@@ -1047,17 +1085,17 @@ msgstr "نزّل هذا الملف لعرضه"
 msgid "Dreamy"
 msgstr "حالم"
 
-#: src/components/trading/TradingJournal.tsx:7
+#: src/components/trading/TradingJournal.tsx:91
 msgid "Durable trading journal"
 msgstr "سجل التداول الدائم"
 
 #: src/components/market/EconomicCalendar.tsx:25
-#: src/components/market/MarketWatch.tsx:114
+#: src/components/market/MarketWatch.tsx:137
 msgid "Economic calendar"
 msgstr "التقويم الاقتصادي"
 
-#: src/components/integrations/IntegrationSetup.tsx:66
-#: src/components/market/MarketWatch.tsx:195
+#: src/components/integrations/IntegrationSetup.tsx:82
+#: src/components/market/MarketWatch.tsx:218
 msgid "Economic calendar feed"
 msgstr "مصدر التقويم الاقتصادي"
 
@@ -1076,31 +1114,31 @@ msgid "Email"
 msgstr "البريد الإلكتروني"
 
 #: src/components/trading/TradingStatus.tsx:59
-msgid "Emergency Stop"
-msgstr "إيقاف طارئ"
+#~ msgid "Emergency Stop"
+#~ msgstr "إيقاف طارئ"
 
 #: src/components/trading/TradingStatus.tsx:36
-msgid "Emergency stop active"
-msgstr "الإيقاف الطارئ مفعّل"
+#~ msgid "Emergency stop active"
+#~ msgstr "الإيقاف الطارئ مفعّل"
 
 #: src/components/ai/AttentionInbox.tsx:47
-msgid "Emergency Stop is active"
-msgstr "الإيقاف الطارئ مفعّل"
+#~ msgid "Emergency Stop is active"
+#~ msgstr "الإيقاف الطارئ مفعّل"
 
-#: src/lib/user_error.ts:86
-msgid "Emergency stop is active."
-msgstr "الإيقاف الطارئ مفعّل."
+#: src/lib/user_error.ts:112
+#~ msgid "Emergency stop is active."
+#~ msgstr "الإيقاف الطارئ مفعّل."
 
-#: src/components/integrations/IntegrationSetup.tsx:116
-#: src/pages/McpServersOverlay.tsx:91
+#: src/components/integrations/IntegrationSetup.tsx:177
+#: src/pages/McpServersOverlay.tsx:95
 msgid "Enable"
 msgstr "تفعيل"
 
-#: src/lib/user_error.ts:91
-msgid "Enable autonomous trading for this goal in its owner controls first."
-msgstr "فعّل التداول التلقائي لهذا الهدف من إعدادات المالك أولًا."
+#: src/lib/user_error.ts:120
+#~ msgid "Enable autonomous trading for this goal in its owner controls first."
+#~ msgstr "فعّل التداول التلقائي لهذا الهدف من إعدادات المالك أولًا."
 
-#: src/pages/KnowledgeSection.tsx:155
+#: src/pages/KnowledgeSection.tsx:168
 msgid "Enable semantic retrieval"
 msgstr "تفعيل الاسترجاع الدلالي"
 
@@ -1120,16 +1158,16 @@ msgstr "إنهاء المكالمة"
 msgid "Ending call"
 msgstr "جارٍ إنهاء المكالمة"
 
-#: src/pages/shell/chat-context.tsx:872
+#: src/pages/shell/chat-context.tsx:875
 msgid "Enter to send · Shift+Enter for a new line"
 msgstr "Enter للإرسال · Shift+Enter لسطر جديد"
 
-#: src/components/market/MarketWatch.tsx:168
+#: src/components/market/MarketWatch.tsx:191
 #: src/components/trading/AccountSummary.tsx:48
 msgid "Equity"
-msgstr "قيمة الحساب"
+msgstr "حقوق الملكية"
 
-#: src/components/market/MarketWatch.tsx:218
+#: src/components/market/MarketWatch.tsx:241
 msgid "Event is due"
 msgstr "حان موعد الحدث"
 
@@ -1137,8 +1175,12 @@ msgstr "حان موعد الحدث"
 msgid "Every · minutes"
 msgstr "التكرار · بالدقائق"
 
+#: src/components/integrations/IntegrationSetup.tsx:108
+msgid "Every agent reads this feed. Follow X analysts through their feeds, web search or a trusted X MCP server; Lonora never uses your X account."
+msgstr "يقرأ كل وكيل هذا الموجز. تابع محللي X عبر موجزاتهم أو البحث على الويب أو خادم MCP لـ X تثق به؛ لا تستخدم لونورا حسابك على X أبدًا."
+
 #: src/components/market/SymbolSearch.tsx:17
-#: src/components/trading/TradeActionCard.tsx:61
+#: src/components/trading/TradeActionCard.tsx:65
 msgid "Exact broker symbol"
 msgstr "رمز الوسيط كما هو"
 
@@ -1146,7 +1188,7 @@ msgstr "رمز الوسيط كما هو"
 msgid "Excited"
 msgstr "متحمس"
 
-#: src/components/trading/TradeActionCard.tsx:153
+#: src/components/trading/TradeActionCard.tsx:157
 msgid "Execute"
 msgstr "تنفيذ"
 
@@ -1156,7 +1198,7 @@ msgstr "تنفيذ"
 msgid "Executing"
 msgstr "جارٍ التنفيذ"
 
-#: src/components/goals/TradingGoals.tsx:41
+#: src/components/goals/TradingGoals.tsx:48
 #: src/pages/RoutineRunHistory.tsx:37
 msgid "Execution history"
 msgstr "سجل التنفيذ"
@@ -1165,7 +1207,7 @@ msgstr "سجل التنفيذ"
 msgid "Execution mode"
 msgstr "وضع التنفيذ"
 
-#: src/lib/user_error.ts:44
+#: src/lib/user_error.ts:61
 msgid "Execution mode changed. Review the saved plan before continuing."
 msgstr "تغير وضع التنفيذ. راجع الخطة المحفوظة قبل المتابعة."
 
@@ -1182,8 +1224,8 @@ msgid "Expand chart"
 msgstr "توسيع الشارت"
 
 #: src/components/trading/SuperBotCards.tsx:157
-msgid "Expired"
-msgstr "منتهي الصلاحية"
+#~ msgid "Expired"
+#~ msgstr "منتهي الصلاحية"
 
 #: src/components/ai/AvatarStudio.tsx:137
 #: src/components/ai/AvatarStudio.tsx:153
@@ -1194,17 +1236,13 @@ msgstr "الوجه"
 #: src/components/ai/TurnActivity.tsx:37
 #: src/components/ai/TurnActivity.tsx:97
 #: src/components/ToolActivityDisclosure.tsx:25
-#: src/components/trading/TradeApprovals.tsx:212
-#: src/components/trading/TradingJournal.tsx:22
 #: src/lib/goal-status.ts:38
-#: src/pages/ActivityList.tsx:121
 #: src/pages/Board.tsx:28
-#: src/pages/shell/message-cards.tsx:276
-#: src/pages/shell/sidebar-activity.tsx:74
+#: src/pages/shell/message-cards.tsx:274
 msgid "Failed"
 msgstr "فشل"
 
-#: src/components/integrations/IntegrationSetup.tsx:79
+#: src/components/integrations/IntegrationSetup.tsx:96
 msgid "Feed or webhook URL"
 msgstr "رابط المصدر أو Webhook"
 
@@ -1249,14 +1287,14 @@ msgstr "تابع تنفيذ وكلائك واستكمل العمل غير الم
 msgid "Free Browse"
 msgstr "تصفح حر"
 
-#: src/components/market/MarketWatch.tsx:177
+#: src/components/market/MarketWatch.tsx:200
 #: src/components/trading/AccountSummary.tsx:60
 msgid "Free margin"
 msgstr "الهامش المتاح"
 
-#: src/pages/ActivityList.tsx:128
-#: src/pages/ActivityList.tsx:131
-#: src/pages/shell/sidebar-activity.tsx:81
+#: src/pages/ActivityList.tsx:116
+#: src/pages/ActivityList.tsx:119
+#: src/pages/shell/sidebar-activity.tsx:70
 msgid "From"
 msgstr "من"
 
@@ -1268,12 +1306,12 @@ msgstr "وكيل عام"
 #~ msgid "Give your persistent agent an identity. Add instructions after creating it."
 #~ msgstr "امنح وكيلك الدائم هوية. أضف التعليمات بعد إنشائه."
 
-#: src/pages/KnowledgeSection.tsx:158
+#: src/pages/KnowledgeSection.tsx:171
 msgid "Global embedding model"
 msgstr "نموذج التضمين العالمي"
 
-#: src/pages/settings-sidebar.tsx:19
-#: src/pages/Shell.tsx:1167
+#: src/pages/settings-sidebar.tsx:21
+#: src/pages/Shell.tsx:1185
 msgid "Global models"
 msgstr "النماذج العالمية"
 
@@ -1282,15 +1320,15 @@ msgid "Global routing"
 msgstr "التوجيه العالمي"
 
 #: src/components/goals/TradingGoals.tsx:299
-msgid "Global Trading and Emergency Stop still govern every financial operation. Pausing a goal does not close existing broker positions."
-msgstr "يبقى التحكم العام بالتداول والإيقاف الطارئ مطبقًا على كل عملية مالية. إيقاف الهدف مؤقتًا لا يغلق الصفقات المفتوحة لدى الوسيط."
+#~ msgid "Global Trading and Emergency Stop still govern every financial operation. Pausing a goal does not close existing broker positions."
+#~ msgstr "يبقى التحكم العام بالتداول والإيقاف الطارئ مطبقًا على كل عملية مالية. إيقاف الهدف مؤقتًا لا يغلق الصفقات المفتوحة لدى الوسيط."
 
 #: src/pages/TradingSettingsPanel.tsx:8
 msgid "Global trading settings"
 msgstr "إعدادات التداول العالمية"
 
-#: src/pages/Shell.tsx:278
-#: src/pages/Shell.tsx:1046
+#: src/pages/Shell.tsx:282
+#: src/pages/Shell.tsx:1064
 msgid "Goals"
 msgstr "الأهداف"
 
@@ -1298,7 +1336,7 @@ msgstr "الأهداف"
 msgid "GPT-Live connects directly over WebRTC using your server-stored OpenAI credential. Choose the voice model in global routing; delegated work uses the same Lonora agent and tools."
 msgstr "يتصل GPT-Live مباشرة عبر WebRTC باستخدام مفتاح OpenAI المحفوظ على الخادم. اختر نموذج الصوت في التوجيه العام؛ وينفذ وكيل Lonora نفسه المهام المفوضة بأدواته."
 
-#: src/lib/user_error.ts:117
+#: src/lib/user_error.ts:133
 msgid "GPT-Live is not available for this OpenAI project. Check its API access."
 msgstr "GPT-Live غير متاح لمشروع OpenAI هذا. تحقق من صلاحية الوصول إلى واجهته."
 
@@ -1307,11 +1345,11 @@ msgstr "GPT-Live غير متاح لمشروع OpenAI هذا. تحقق من صل�
 msgid "Group name"
 msgstr "اسم المجموعة"
 
-#: src/pages/Shell.tsx:283
+#: src/pages/Shell.tsx:287
 msgid "Group settings"
 msgstr "إعدادات المجموعة"
 
-#: src/pages/Shell.tsx:589
+#: src/pages/Shell.tsx:602
 msgid "Groups"
 msgstr "المجموعات"
 
@@ -1319,33 +1357,37 @@ msgstr "المجموعات"
 msgid "Happy"
 msgstr "سعيد"
 
-#: src/lib/user_error.ts:152
+#: src/lib/user_error.ts:169
 msgid "Historical broker candles timed out. Retry the chart refresh."
 msgstr "انتهت مهلة تحميل شموع الوسيط التاريخية. أعد تحديث الشارت."
 
-#: src/lib/user_error.ts:156
+#: src/lib/user_error.ts:173
 msgid "Historical market data is blocked by the data provider's billing. Fund the provider account, then retry. Live prices may remain available."
 msgstr "حُجبت بيانات الشموع بسبب رصيد خدمة البيانات. أضف رصيدًا إلى حساب مزوّد البيانات ثم أعد المحاولة. قد تبقى الأسعار الحية متاحة."
 
-#: src/components/ai/AgentLiveStatus.tsx:36
-msgid "Idle"
-msgstr "جاهز"
+#: src/lib/user_error.ts:220
+msgid "I paused at this run's step budget. Send a message and I continue from here."
+msgstr "توقفت عند حد الخطوات لهذا التشغيل. أرسل رسالة وأكمل من حيث توقفت."
+
+#: src/components/ai/AgentLiveStatus.tsx:35
+#~ msgid "Idle"
+#~ msgstr "جاهز"
 
 #: src/components/common/ImageGallery.tsx:5
 msgid "Image attachment"
 msgstr "صورة مرفقة"
 
-#: src/lib/user_error.ts:182
+#: src/lib/user_error.ts:199
 msgid "Import a market snapshot before using the demo account."
 msgstr "استورد بيانات السوق قبل استخدام حساب المحاكاة."
 
-#: src/pages/KnowledgeSection.tsx:196
+#: src/pages/KnowledgeSection.tsx:209
 msgid "Index note"
 msgstr "فهرسة الملاحظة"
 
 #: src/components/charts/ChartIndicators.tsx:22
-#: src/components/market/MarketWatch.tsx:105
-#: src/components/market/MarketWatch.tsx:121
+#: src/components/market/MarketWatch.tsx:128
+#: src/components/market/MarketWatch.tsx:144
 msgid "Indicator"
 msgstr "المؤشر"
 
@@ -1357,7 +1399,7 @@ msgstr "المؤشرات"
 msgid "Indicators and drawings"
 msgstr "المؤشرات والرسومات"
 
-#: src/pages/UsageSettingsPanel.tsx:24
+#: src/pages/UsageSettingsPanel.tsx:31
 msgid "Input"
 msgstr "الإدخال"
 
@@ -1372,7 +1414,7 @@ msgid "Instruction version"
 msgstr "إصدار التعليمات"
 
 #: src/pages/shell/bot-panel.tsx:105
-#: src/pages/shell/bot-settings.tsx:137
+#: src/pages/shell/bot-settings.tsx:141
 msgid "Instructions"
 msgstr "التعليمات"
 
@@ -1380,9 +1422,9 @@ msgstr "التعليمات"
 msgid "Insufficient data for performance conclusions"
 msgstr "بيانات غير كافية لاستنتاجات الأداء"
 
-#: src/components/integrations/IntegrationSetup.tsx:57
-#: src/pages/settings-sidebar.tsx:22
-#: src/pages/Shell.tsx:624
+#: src/components/integrations/IntegrationSetup.tsx:70
+#: src/pages/settings-sidebar.tsx:24
+#: src/pages/Shell.tsx:637
 msgid "Integrations"
 msgstr "التكاملات"
 
@@ -1403,7 +1445,15 @@ msgstr "فاصل زمني"
 msgid "Isolated document preview"
 msgstr "معاينة المستند المعزولة"
 
-#: src/pages/shell/chat-context.tsx:1160
+#: src/components/trading/TradingJournal.tsx:51
+msgid "It was executed"
+msgstr "نُفّذت"
+
+#: src/components/trading/TradingJournal.tsx:52
+msgid "It was not executed"
+msgstr "لم تُنفّذ"
+
+#: src/pages/shell/chat-context.tsx:1163
 msgid "Jump to latest"
 msgstr "الانتقال إلى الأحدث"
 
@@ -1411,18 +1461,18 @@ msgstr "الانتقال إلى الأحدث"
 msgid "Keep current fixed market"
 msgstr "الإبقاء على السوق الثابت الحالي"
 
-#: src/pages/Shell.tsx:1126
+#: src/pages/Shell.tsx:1144
 msgid "Keep working beside the conversation."
 msgstr "واصل العمل بجانب المحادثة."
 
-#: src/pages/Knowledge.tsx:16
-#: src/pages/Shell.tsx:272
+#: src/pages/Knowledge.tsx:20
 #: src/pages/Shell.tsx:276
-#: src/pages/Shell.tsx:1033
+#: src/pages/Shell.tsx:280
+#: src/pages/Shell.tsx:1051
 msgid "Knowledge"
 msgstr "المعرفة"
 
-#: src/pages/KnowledgeSection.tsx:192
+#: src/pages/KnowledgeSection.tsx:205
 msgid "Knowledge note"
 msgstr "ملاحظة معرفية"
 
@@ -1472,7 +1522,7 @@ msgstr "الاتصال المباشر فعّال"
 msgid "Live observations"
 msgstr "ملاحظات التداول الحقيقي"
 
-#: src/pages/shell/chat-context.tsx:1061
+#: src/pages/shell/chat-context.tsx:1064
 msgid "Load earlier messages"
 msgstr "تحميل الرسائل السابقة"
 
@@ -1480,12 +1530,12 @@ msgstr "تحميل الرسائل السابقة"
 msgid "Loading"
 msgstr "جارٍ التحميل"
 
-#: src/pages/ActivityList.tsx:172
+#: src/pages/ActivityList.tsx:160
 msgid "Loading activity…"
 msgstr "جارٍ تحميل النشاط…"
 
-#: src/pages/Shell.tsx:555
-#: src/pages/Shell.tsx:978
+#: src/pages/Shell.tsx:568
+#: src/pages/Shell.tsx:996
 msgid "Loading agents…"
 msgstr "جارٍ تحميل الوكلاء…"
 
@@ -1495,11 +1545,11 @@ msgstr "جارٍ تحميل الوكلاء…"
 msgid "Loading chart…"
 msgstr "جارٍ تحميل الشارت…"
 
-#: src/pages/shell/conversation-inbox.tsx:103
+#: src/pages/shell/conversation-inbox.tsx:104
 msgid "Loading conversations…"
 msgstr "جارٍ تحميل المحادثات…"
 
-#: src/pages/Shell.tsx:953
+#: src/pages/Shell.tsx:971
 msgid "Loading group…"
 msgstr "جارٍ تحميل المجموعة…"
 
@@ -1507,99 +1557,95 @@ msgstr "جارٍ تحميل المجموعة…"
 msgid "Loading preview…"
 msgstr "جارٍ تحميل المعاينة…"
 
-#: src/pages/Shell.tsx:1203
+#: src/pages/Shell.tsx:1221
 msgid "Loading settings…"
 msgstr "جارٍ تحميل الإعدادات…"
 
-#: src/pages/Shell.tsx:850
+#: src/pages/Shell.tsx:868
 msgid "Loading workspace…"
 msgstr "جارٍ تحميل مساحة العمل…"
 
-#: src/components/goals/TradingGoals.tsx:45
-#: src/components/goals/TradingGoals.tsx:181
+#: src/components/goals/TradingGoals.tsx:52
+#: src/components/goals/TradingGoals.tsx:179
 #: src/components/skills/SkillCard.tsx:87
-#: src/components/trading/BrokerPairPicker.tsx:105
+#: src/components/trading/BrokerPairPicker.tsx:108
 #: src/pages/Artifacts.tsx:271
 #: src/pages/Board.tsx:173
 #: src/pages/RoutineRunHistory.tsx:43
 #: src/pages/Routines.tsx:176
 #: src/pages/ScratchpadSection.tsx:94
-#: src/pages/shell/chat-context.tsx:1058
+#: src/pages/shell/chat-context.tsx:1061
 #: src/pages/SkillsSection.tsx:101
 msgid "Loading…"
 msgstr "جارٍ التحميل…"
 
-#: src/pages/Knowledge.tsx:26
-#: src/pages/KnowledgeSection.tsx:79
+#: src/pages/Knowledge.tsx:37
+#: src/pages/KnowledgeSection.tsx:83
 msgid "Long-term memory"
 msgstr "الذاكرة الدائمة"
 
 #: src/components/trading/SuperBotCards.tsx:234
 #: src/components/trading/SuperBotCards.tsx:355
-msgid "Manual position management allowed"
-msgstr "إدارة الصفقات اليدوية مسموحة"
+#~ msgid "Manual position management allowed"
+#~ msgstr "إدارة الصفقات اليدوية مسموحة"
 
 #: src/components/trading/SuperBotCards.tsx:357
-msgid "Manual position management excluded"
-msgstr "إدارة الصفقات اليدوية غير مشمولة"
+#~ msgid "Manual position management excluded"
+#~ msgstr "إدارة الصفقات اليدوية غير مشمولة"
 
-#: src/components/market/MarketWatch.tsx:174
+#: src/components/market/MarketWatch.tsx:197
 #: src/components/trading/AccountSummary.tsx:54
 msgid "Margin"
 msgstr "الهامش"
 
-#: src/components/ai/AttentionInbox.tsx:131
+#: src/components/ai/AttentionInbox.tsx:144
 msgid "Mark as read"
 msgstr "تحديد كمقروء"
 
-#: src/components/trading/SuperBotCards.tsx:292
 #: src/pages/Market.tsx:23
-#: src/pages/Shell.tsx:269
-#: src/pages/Shell.tsx:652
+#: src/pages/Shell.tsx:273
+#: src/pages/Shell.tsx:665
 msgid "Market"
 msgstr "السوق"
 
 #: src/components/charts/ConversationCharts.tsx:104
-#: src/pages/Shell.tsx:1143
+#: src/pages/Shell.tsx:1161
 msgid "Market and charts"
 msgstr "السوق والمخططات"
 
-#: src/components/trading/TradeActionCard.tsx:86
+#: src/components/trading/TradeActionCard.tsx:90
 msgid "Market buy"
 msgstr "شراء بسعر السوق"
 
-#: src/components/ai/AgentLiveStatus.tsx:166
+#: src/components/ai/AgentLiveStatus.tsx:144
 msgid "Market data unavailable"
 msgstr "بيانات السوق غير متاحة"
 
-#: src/components/trading/TradeActionCard.tsx:89
+#: src/components/trading/TradeActionCard.tsx:93
 msgid "Market sell"
 msgstr "بيع بسعر السوق"
 
-#: src/components/market/MarketWatch.tsx:49
+#: src/components/market/MarketWatch.tsx:72
 msgid "Market watches"
 msgstr "مراقبة السوق"
 
 #: src/components/goals/TradingGoals.tsx:260
 #: src/components/trading/SuperBotCards.tsx:229
 #: src/components/trading/SuperBotCards.tsx:314
-msgid "Maximum trade actions"
-msgstr "الحد الأقصى لعمليات التداول"
+#~ msgid "Maximum trade actions"
+#~ msgstr "الحد الأقصى لعمليات التداول"
 
-#: src/components/goals/TradingGoals.tsx:244
 #: src/components/market/MarketOverview.tsx:29
-#: src/components/trading/SuperBotCards.tsx:228
-#: src/components/trading/SuperBotCards.tsx:306
 msgid "Maximum volume"
 msgstr "أقصى حجم"
 
 #: src/pages/McpServersOverlay.tsx:46
-#: src/pages/settings-sidebar.tsx:23
+#: src/pages/settings-sidebar.tsx:25
 msgid "MCP servers"
 msgstr "خوادم MCP"
 
 #: src/pages/GroupPanel.tsx:58
-#: src/pages/Shell.tsx:608
+#: src/pages/Shell.tsx:621
 msgid "Members"
 msgstr "الأعضاء"
 
@@ -1608,7 +1654,7 @@ msgstr "الأعضاء"
 msgid "Memory"
 msgstr "الذاكرة"
 
-#: src/pages/Shell.tsx:1131
+#: src/pages/Shell.tsx:1149
 msgid "Memory, skills and open work"
 msgstr "الذاكرة والمهارات والعمل المفتوح"
 
@@ -1616,24 +1662,24 @@ msgstr "الذاكرة والمهارات والعمل المفتوح"
 msgid "Mention agents with @name. Without a mention, the first member responds."
 msgstr "اذكر الوكلاء باستخدام ‎@الاسم. عند عدم تحديد وكيل، يرد العضو الأول."
 
-#: src/pages/shell/chat-context.tsx:718
+#: src/pages/shell/chat-context.tsx:721
 msgid "Mentions"
 msgstr "الإشارات"
 
-#: src/pages/shell/chat-context.tsx:782
+#: src/pages/shell/chat-context.tsx:785
 #: src/pages/SpaceSearch.tsx:164
 msgid "Message"
 msgstr "الرسالة"
 
-#: src/pages/shell/chat-context.tsx:794
+#: src/pages/shell/chat-context.tsx:797
 msgid "Message {recipientName}"
 msgstr "راسل {recipientName}"
 
-#: src/pages/shell/chat-context.tsx:631
+#: src/pages/shell/chat-context.tsx:634
 msgid "Message composer"
 msgstr "محرر الرسالة"
 
-#: src/pages/shell/chat-context.tsx:795
+#: src/pages/shell/chat-context.tsx:798
 msgid "Message your agent…"
 msgstr "اكتب رسالة لوكيلك…"
 
@@ -1645,7 +1691,7 @@ msgstr "الرسائل"
 msgid "MetaApi token"
 msgstr "رمز MetaApi"
 
-#: src/components/market/MarketWatch.tsx:163
+#: src/components/market/MarketWatch.tsx:186
 msgid "Metric"
 msgstr "المقياس"
 
@@ -1653,7 +1699,7 @@ msgstr "المقياس"
 msgid "Microphone muted"
 msgstr "الميكروفون مكتوم"
 
-#: src/pages/Shell.tsx:480
+#: src/pages/Shell.tsx:493
 msgid "Minimize agents"
 msgstr "طي قائمة الوكلاء"
 
@@ -1666,10 +1712,13 @@ msgstr "تصغير المكالمة"
 msgid "Minimum volume"
 msgstr "أدنى حجم"
 
-#: src/components/trading/SuperBotCards.tsx:300
 #: src/pages/ModelRoutingSettings.tsx:88
 msgid "Mode"
 msgstr "الوضع"
+
+#: src/components/ai/AgentLiveStatus.tsx:38
+msgid "Model provider unavailable — retry scheduled"
+msgstr "مزود النموذج غير متاح — إعادة المحاولة مجدولة"
 
 #: src/pages/shell/bot-settings.tsx:96
 #~ msgid "Models, voice and trading connections are shared workspace settings."
@@ -1685,13 +1734,13 @@ msgid "Mute microphone"
 msgstr "كتم الميكروفون"
 
 #: src/components/trading/SuperBotCards.tsx:382
-msgid "My device"
-msgstr "جهازي"
+#~ msgid "My device"
+#~ msgstr "جهازي"
 
-#: src/components/integrations/IntegrationSetup.tsx:75
-#: src/pages/McpServersOverlay.tsx:52
+#: src/components/integrations/IntegrationSetup.tsx:91
+#: src/pages/McpServersOverlay.tsx:56
 #: src/pages/shell/bot-panel.tsx:76
-#: src/pages/shell/bot-settings.tsx:110
+#: src/pages/shell/bot-settings.tsx:114
 msgid "Name"
 msgstr "الاسم"
 
@@ -1708,6 +1757,14 @@ msgstr "تستخدم المهارات الخاصة الجديدة التفعيل
 msgid "New ticket"
 msgstr "مهمة جديدة"
 
+#: src/components/ai/AttentionInbox.tsx:47
+msgid "New trading stopped"
+msgstr "التداول الجديد متوقف"
+
+#: src/components/integrations/IntegrationSetup.tsx:79
+msgid "News or RSS feed"
+msgstr "موجز أخبار أو RSS"
+
 #: src/pages/SkillsSection.tsx:140
 msgid "Next"
 msgstr "التالي"
@@ -1716,7 +1773,7 @@ msgstr "التالي"
 msgid "Next run"
 msgstr "التنفيذ القادم"
 
-#: src/pages/Shell.tsx:585
+#: src/pages/Shell.tsx:598
 #: src/pages/shell/bot-picker.tsx:87
 #: src/pages/shell/bot-picker.tsx:99
 #: src/pages/shell/command-palette.tsx:77
@@ -1727,7 +1784,7 @@ msgstr "لا يوجد وكلاء مطابقون"
 msgid "No artifacts found."
 msgstr "لم يتم العثور على ملفات."
 
-#: src/lib/user_error.ts:160
+#: src/lib/user_error.ts:177
 msgid "No candle history was found for this symbol and timeframe."
 msgstr "لم يتم العثور على شموع تاريخية لهذا الرمز والفريم."
 
@@ -1735,7 +1792,7 @@ msgstr "لم يتم العثور على شموع تاريخية لهذا الر�
 msgid "No candles available for this instrument and timeframe."
 msgstr "لا تتوفر شموع لهذه الأداة والفترة الزمنية."
 
-#: src/pages/shell/conversation-inbox.tsx:163
+#: src/pages/shell/conversation-inbox.tsx:165
 msgid "No conversations match"
 msgstr "لا توجد محادثات مطابقة"
 
@@ -1743,7 +1800,7 @@ msgstr "لا توجد محادثات مطابقة"
 msgid "No executions yet"
 msgstr "لا توجد عمليات تنفيذ بعد"
 
-#: src/components/goals/TradingGoals.tsx:51
+#: src/components/goals/TradingGoals.tsx:58
 msgid "No financial executions yet."
 msgstr "لا توجد تنفيذات مالية بعد."
 
@@ -1751,23 +1808,23 @@ msgstr "لا توجد تنفيذات مالية بعد."
 msgid "No matching artifacts"
 msgstr "لا توجد ملفات مطابقة"
 
-#: src/components/trading/BrokerPairPicker.tsx:118
+#: src/components/trading/BrokerPairPicker.tsx:121
 msgid "No matching broker symbols"
 msgstr "لا توجد رموز مطابقة"
 
-#: src/components/ai/AttentionInbox.tsx:103
+#: src/components/ai/AttentionInbox.tsx:111
 msgid "No new notifications"
 msgstr "لا توجد إشعارات جديدة"
 
-#: src/components/trading/Positions.tsx:86
+#: src/components/trading/Positions.tsx:105
 msgid "No open positions"
 msgstr "لا توجد صفقات مفتوحة"
 
-#: src/components/trading/TradingJournal.tsx:11
+#: src/components/trading/TradingJournal.tsx:95
 msgid "No operations yet"
 msgstr "لا توجد عمليات بعد"
 
-#: src/components/trading/Orders.tsx:55
+#: src/components/trading/Orders.tsx:62
 msgid "No pending orders"
 msgstr "لا توجد أوامر معلقة"
 
@@ -1779,8 +1836,8 @@ msgstr "لا حاجة للرد"
 msgid "No results"
 msgstr "لا توجد نتائج"
 
-#: src/pages/ActivityList.tsx:183
-#: src/pages/shell/sidebar-activity.tsx:124
+#: src/pages/ActivityList.tsx:171
+#: src/pages/shell/sidebar-activity.tsx:113
 msgid "No runs match these filters."
 msgstr "لا توجد عمليات تنفيذ تطابق هذه المرشحات."
 
@@ -1800,24 +1857,28 @@ msgstr "لا توجد مهارات متاحة."
 msgid "No tickets yet"
 msgstr "لا توجد مهام بعد"
 
-#: src/components/goals/TradingGoals.tsx:186
+#: src/components/goals/TradingGoals.tsx:184
 msgid "No trading goals yet."
 msgstr "لا توجد أهداف تداول بعد."
+
+#: src/lib/operation-status.ts:22
+#~ msgid "Not sent"
+#~ msgstr "لم يُرسل"
 
 #: src/components/charts/ChartAnnotations.tsx:70
 msgid "Note"
 msgstr "ملاحظة"
 
-#: src/components/ai/AttentionInbox.tsx:65
-#: src/components/ai/AttentionInbox.tsx:67
+#: src/components/ai/AttentionInbox.tsx:73
+#: src/components/ai/AttentionInbox.tsx:75
 msgid "Notifications"
 msgstr "الإشعارات"
 
-#: src/components/ai/AttentionInbox.tsx:98
+#: src/components/ai/AttentionInbox.tsx:106
 msgid "Notify me about confirmed opportunities"
 msgstr "أبلغني بالفرص المؤكدة"
 
-#: src/pages/ActivityList.tsx:192
+#: src/pages/ActivityList.tsx:180
 msgid "Now"
 msgstr "الآن"
 
@@ -1825,8 +1886,8 @@ msgstr "الآن"
 msgid "One model for text work"
 msgstr "نموذج واحد للمهام النصية"
 
-#: src/pages/Shell.tsx:777
-#: src/pages/Shell.tsx:778
+#: src/pages/Shell.tsx:795
+#: src/pages/Shell.tsx:796
 msgid "Open active call"
 msgstr "فتح المكالمة الحالية"
 
@@ -1838,8 +1899,8 @@ msgstr "فتح المكالمة مع {name}"
 msgid "Open chart"
 msgstr "افتح شارت"
 
-#: src/components/ai/AttentionInbox.tsx:123
-#: src/pages/ActivityList.tsx:262
+#: src/components/ai/AttentionInbox.tsx:136
+#: src/pages/ActivityList.tsx:250
 #: src/pages/Board.tsx:427
 #: src/pages/RoutineRunHistory.tsx:55
 msgid "Open conversation"
@@ -1849,15 +1910,15 @@ msgstr "فتح المحادثة"
 msgid "Open conversation with {name}"
 msgstr "فتح المحادثة مع {name}"
 
-#: src/pages/Shell.tsx:725
+#: src/pages/Shell.tsx:738
 msgid "Open navigation"
 msgstr "فتح قائمة التنقل"
 
-#: src/components/trading/Positions.tsx:54
+#: src/components/trading/Positions.tsx:41
 msgid "Open price"
 msgstr "سعر الفتح"
 
-#: src/components/trading/BrokerPairPicker.tsx:148
+#: src/components/trading/BrokerPairPicker.tsx:153
 msgid "Open trading settings"
 msgstr "فتح إعدادات التداول"
 
@@ -1865,7 +1926,7 @@ msgstr "فتح إعدادات التداول"
 msgid "OpenAI voice credential configured"
 msgstr "تم ضبط مفتاح OpenAI للصوت"
 
-#: src/pages/Shell.tsx:154
+#: src/pages/Shell.tsx:156
 msgid "Opening conversation…"
 msgstr "جارٍ فتح المحادثة…"
 
@@ -1873,28 +1934,28 @@ msgstr "جارٍ فتح المحادثة…"
 msgid "Opening workspace…"
 msgstr "جارٍ فتح مساحة العمل…"
 
-#: src/components/market/MarketWatch.tsx:232
+#: src/components/market/MarketWatch.tsx:255
 msgid "Opens"
 msgstr "يُفتح"
 
-#: src/components/goals/TradingGoals.tsx:60
+#: src/components/goals/TradingGoals.tsx:72
 msgid "Operation"
 msgstr "العملية"
 
 #: src/components/trading/TradeActionCard.tsx:159
-msgid "Operation confirmed"
-msgstr "تم تأكيد العملية"
+#~ msgid "Operation confirmed"
+#~ msgstr "تم تأكيد العملية"
 
 #: src/components/trading/TradeActionCard.tsx:163
-msgid "Operation failed"
-msgstr "فشلت العملية"
+#~ msgid "Operation failed"
+#~ msgstr "فشلت العملية"
 
 #: src/pages/shell/bot-panel.tsx:98
 #: src/pages/shell/bot-settings.tsx:115
 #~ msgid "Orb"
 #~ msgstr "دائرة"
 
-#: src/components/trading/TradeActionCard.tsx:120
+#: src/components/trading/TradeActionCard.tsx:124
 msgid "Order price"
 msgstr "سعر الأمر"
 
@@ -1902,7 +1963,11 @@ msgstr "سعر الأمر"
 #~ msgid "Organic"
 #~ msgstr "شكل عضوي"
 
-#: src/pages/UsageSettingsPanel.tsx:30
+#: src/lib/operation-status.ts:26
+#~ msgid "Outcome uncertain — it will not be sent again"
+#~ msgstr "النتيجة غير مؤكدة — لن تُرسل مجددًا"
+
+#: src/pages/UsageSettingsPanel.tsx:37
 msgid "Output"
 msgstr "الإخراج"
 
@@ -1918,6 +1983,10 @@ msgstr "تعليمات خاصة"
 msgid "Owner-supplied source"
 msgstr "مصدر أضافه المالك"
 
+#: src/lib/user_error.ts:218
+msgid "Part of this conversation's history could not be read, so this reply stopped. Send your message again; the conversation is kept."
+msgstr "تعذّرت قراءة جزء من سجل هذه المحادثة فتوقف هذا الرد. أرسل رسالتك مرة أخرى؛ المحادثة محفوظة."
+
 #: src/pages/Auth.tsx:42
 msgid "Password"
 msgstr "كلمة المرور"
@@ -1926,27 +1995,24 @@ msgstr "كلمة المرور"
 msgid "Password · at least 12 characters"
 msgstr "كلمة المرور · 12 حرفًا على الأقل"
 
-#: src/components/ai/AgentLiveStatus.tsx:149
-#: src/components/goals/TradingGoals.tsx:315
-#: src/components/market/MarketWatch.tsx:294
+#: src/components/ai/AgentLiveStatus.tsx:127
+#: src/components/goals/TradingGoals.tsx:261
+#: src/components/market/MarketWatch.tsx:323
 #: src/pages/Board.tsx:543
 #: src/pages/Routines.tsx:100
 msgid "Pause"
 msgstr "إيقاف مؤقت"
 
-#: src/pages/shell/bot-settings.tsx:154
+#: src/pages/shell/bot-settings.tsx:158
 msgid "Pause agent and scheduled work"
 msgstr "إيقاف الوكيل ومهامه المجدولة مؤقتًا"
 
-#: src/components/ai/AgentLiveStatus.tsx:41
-#: src/components/ai/AgentLiveStatus.tsx:106
-#: src/components/trading/SuperBotCards.tsx:160
-#: src/lib/goal-status.ts:40
+#: src/lib/goal-status.ts:42
 #: src/pages/Board.tsx:26
 #: src/pages/Routines.tsx:83
-#: src/pages/Shell.tsx:766
+#: src/pages/Shell.tsx:783
 #: src/pages/shell/bot-roster-row.tsx:36
-#: src/pages/shell/conversation-inbox.tsx:119
+#: src/pages/shell/conversation-inbox.tsx:121
 msgid "Paused"
 msgstr "متوقف مؤقتًا"
 
@@ -1954,25 +2020,25 @@ msgstr "متوقف مؤقتًا"
 msgid "PDF preview"
 msgstr "معاينة PDF"
 
-#: src/lib/goal-status.ts:44
+#: src/lib/goal-status.ts:46
 msgid "Pending"
 msgstr "قيد الانتظار"
 
-#: src/components/trading/Orders.tsx:20
+#: src/components/trading/Orders.tsx:24
 msgid "Pending orders"
 msgstr "الأوامر المعلقة"
 
 #: src/components/charts/ChartIndicators.tsx:32
-#: src/components/market/MarketWatch.tsx:131
+#: src/components/market/MarketWatch.tsx:154
 msgid "Period"
 msgstr "الفترة"
 
 #. placeholder {0}: agent.name
-#: src/pages/shell/bot-settings.tsx:199
+#: src/pages/shell/bot-settings.tsx:203
 msgid "Permanently delete {0}? This cannot be undone."
 msgstr "هل تريد حذف {0} نهائيًا؟ لا يمكن التراجع عن هذا الإجراء."
 
-#: src/pages/shell/bot-settings.tsx:158
+#: src/pages/shell/bot-settings.tsx:162
 msgid "Persistent child agent"
 msgstr "وكيل ابن دائم"
 
@@ -1980,6 +2046,10 @@ msgstr "وكيل ابن دائم"
 #: src/components/ai/PersonalAgentBadge.tsx:11
 msgid "Personal Agent"
 msgstr "المساعد الشخصي"
+
+#: src/components/goals/TradingGoals.tsx:64
+msgid "Plan step"
+msgstr "خطوة من الخطة"
 
 #: src/lib/goal-status.ts:12
 msgid "Planning"
@@ -1994,11 +2064,11 @@ msgstr "تشغيل الصوت"
 msgid "Playful"
 msgstr "مرح"
 
-#: src/components/market/MarketWatch.tsx:108
+#: src/components/market/MarketWatch.tsx:131
 msgid "Position"
 msgstr "الصفقة"
 
-#: src/components/market/MarketWatch.tsx:152
+#: src/components/market/MarketWatch.tsx:175
 msgid "Position ID"
 msgstr "معرّف الصفقة"
 
@@ -2006,13 +2076,17 @@ msgstr "معرّف الصفقة"
 msgid "Position open"
 msgstr "الصفقة مفتوحة"
 
-#: src/components/trading/Positions.tsx:37
+#: src/components/trading/Positions.tsx:24
 msgid "Positions"
 msgstr "الصفقات"
 
 #: src/components/ai/TurnActivity.tsx:27
 msgid "Preparing"
 msgstr "يجهّز"
+
+#: src/lib/operation-status.ts:14
+#~ msgid "Preparing — not sent"
+#~ msgstr "قيد التحضير — لم يُرسل"
 
 #: src/components/ArtifactFileCard.tsx:60
 msgid "Preview"
@@ -2027,8 +2101,8 @@ msgid "Previous"
 msgstr "السابق"
 
 #: src/components/charts/ChartAnnotations.tsx:23
-#: src/components/market/MarketWatch.tsx:102
-#: src/components/trading/TradeApprovals.tsx:133
+#: src/components/market/MarketWatch.tsx:125
+#: src/components/trading/TradeApprovals.tsx:148
 msgid "Price"
 msgstr "السعر"
 
@@ -2038,7 +2112,7 @@ msgstr "التعليقات السعرية"
 
 #: src/components/charts/ChartAnnotations.tsx:67
 #: src/components/charts/ChartAnnotations.tsx:68
-#: src/components/market/MarketWatch.tsx:251
+#: src/components/market/MarketWatch.tsx:274
 msgid "Price level"
 msgstr "المستوى السعري"
 
@@ -2050,21 +2124,21 @@ msgstr "منطقة سعرية"
 #~ msgid "Processing the task"
 #~ msgstr "جارٍ معالجة المهمة"
 
-#: src/pages/Shell.tsx:1029
+#: src/pages/Shell.tsx:1047
 msgid "Profile"
 msgstr "الهوية"
 
-#: src/components/market/MarketWatch.tsx:183
-#: src/components/trading/Positions.tsx:57
+#: src/components/market/MarketWatch.tsx:206
+#: src/components/trading/Positions.tsx:44
 msgid "Profit"
 msgstr "الربح"
 
-#: src/pages/ModelSettingsOverlay.tsx:56
-#: src/pages/ModelSettingsOverlay.tsx:58
+#: src/pages/ModelSettingsOverlay.tsx:57
+#: src/pages/ModelSettingsOverlay.tsx:59
 msgid "Provider"
 msgstr "المزود"
 
-#: src/pages/ModelSettingsOverlay.tsx:53
+#: src/pages/ModelSettingsOverlay.tsx:54
 msgid "Providers and official catalog"
 msgstr "المزودون والكتالوج الرسمي"
 
@@ -2079,9 +2153,7 @@ msgstr "أُغلق السؤال"
 #: src/components/ai/primitives.tsx:33
 #: src/components/ai/primitives.tsx:81
 #: src/components/ai/TurnActivity.tsx:26
-#: src/pages/ActivityList.tsx:111
 #: src/pages/shell/message-cards.tsx:280
-#: src/pages/shell/sidebar-activity.tsx:64
 msgid "Queued"
 msgstr "في الانتظار"
 
@@ -2114,8 +2186,8 @@ msgstr "السبب"
 msgid "Reasoning"
 msgstr "الاستدلال"
 
-#: src/pages/ActivityList.tsx:192
-#: src/pages/shell/sidebar-activity.tsx:89
+#: src/pages/ActivityList.tsx:180
+#: src/pages/shell/sidebar-activity.tsx:78
 msgid "Recent"
 msgstr "حديثًا"
 
@@ -2129,7 +2201,7 @@ msgstr "جارٍ التحقق من التنفيذ لدى الوسيط"
 
 #: src/components/ai/TurnActivity.tsx:53
 #: src/components/ai/TurnActivity.tsx:114
-#: src/pages/Shell.tsx:463
+#: src/pages/Shell.tsx:476
 msgid "Reconnecting"
 msgstr "جارٍ إعادة الاتصال"
 
@@ -2137,9 +2209,13 @@ msgstr "جارٍ إعادة الاتصال"
 msgid "Reconnecting to live updates"
 msgstr "جارٍ إعادة الاتصال بالتحديثات المباشرة"
 
-#: src/lib/user_error.ts:48
+#: src/lib/user_error.ts:65
 msgid "Record a fresh market decision before virtual entry."
 msgstr "سجّل قرار سوق حديثًا قبل الدخول الافتراضي."
+
+#: src/components/trading/TradingJournal.tsx:74
+msgid "Record resolution"
+msgstr "تسجيل التسوية"
 
 #: src/components/charts/ChartToolbar.tsx:48
 msgid "Refresh chart"
@@ -2150,66 +2226,68 @@ msgstr "تحديث الرسم البياني"
 #~ msgstr "تحديث الشموع المباشر"
 
 #: src/components/trading/SuperBotCards.tsx:435
-msgid "Register a passkey"
-msgstr "تسجيل مفتاح مرور"
+#~ msgid "Register a passkey"
+#~ msgstr "تسجيل مفتاح مرور"
 
-#: src/lib/user_error.ts:58
+#: src/lib/user_error.ts:71
 msgid "Register a passkey before activating this request."
 msgstr "سجّل مفتاح مرور قبل تفعيل هذا الطلب."
 
 #: src/components/trading/SuperBotCards.tsx:412
-msgid "Register this device"
-msgstr "تسجيل هذا الجهاز"
+#~ msgid "Register this device"
+#~ msgstr "تسجيل هذا الجهاز"
 
 #: src/components/skills/shared.ts:59
 msgid "Regression"
 msgstr "تراجع في الأداء"
 
-#: src/components/trading/SuperBotCards.tsx:178
-#: src/components/trading/TradeApprovals.tsx:188
+#: src/components/trading/TradeApprovals.tsx:203
 msgid "Reject"
 msgstr "رفض"
 
 #: src/components/trading/SuperBotCards.tsx:158
-#: src/components/trading/TradeApprovals.tsx:196
-msgid "Rejected"
-msgstr "مرفوض"
+#: src/components/trading/TradeApprovals.tsx:199
+#~ msgid "Rejected"
+#~ msgstr "مرفوض"
 
 #: src/components/ErrorBoundary.tsx:15
 #: src/components/skills/SkillCard.tsx:93
 #: src/components/skills/SkillEditor.tsx:112
-#: src/pages/KnowledgeSection.tsx:48
+#: src/pages/KnowledgeSection.tsx:49
+#: src/pages/OwnerProfileSection.tsx:136
 #: src/pages/SkillsSection.tsx:96
 msgid "Reload"
 msgstr "إعادة تحميل"
 
-#: src/pages/shell/chat-context.tsx:704
+#: src/pages/shell/chat-context.tsx:707
 msgid "Remove {name}"
 msgstr "إزالة {name}"
 
-#: src/pages/shell/chat-context.tsx:687
+#: src/pages/shell/chat-context.tsx:690
 msgid "Remove reply"
 msgstr "إزالة الرد"
 
-#: src/components/trading/TradeApprovals.tsx:152
+#: src/components/trading/TradeApprovals.tsx:167
 msgid "Remove stop loss"
 msgstr "إزالة وقف الخسارة"
 
-#: src/components/trading/TradeApprovals.tsx:157
+#: src/components/trading/TradeApprovals.tsx:172
 msgid "Remove take profit"
 msgstr "إزالة جني الربح"
 
-#: src/pages/shell/message-cards.tsx:195
 #: src/pages/shell/message-cards.tsx:196
+#: src/pages/shell/message-cards.tsx:197
 msgid "Reply"
 msgstr "رد"
 
-#: src/pages/shell/chat-context.tsx:676
-#: src/pages/shell/message-cards.tsx:111
+#: src/pages/shell/chat-context.tsx:679
+#: src/pages/shell/message-cards.tsx:112
 msgid "Reply to an earlier message"
 msgstr "رد على رسالة سابقة"
 
 #: src/components/ai/AttentionInbox.tsx:49
+#: src/components/ai/AttentionInbox.tsx:60
+#: src/components/ai/AttentionInbox.tsx:61
 msgid "Request updated"
 msgstr "تم تحديث الطلب"
 
@@ -2229,13 +2307,13 @@ msgstr "البحث المعمق"
 msgid "Reset"
 msgstr "إعادة الضبط"
 
-#: src/pages/ActivityList.tsx:157
+#: src/pages/ActivityList.tsx:145
 msgid "Reset all"
 msgstr "إعادة ضبط الكل"
 
 #: src/components/trading/TradingStatus.tsx:67
-msgid "Reset emergency stop"
-msgstr "إلغاء الإيقاف الطارئ"
+#~ msgid "Reset emergency stop"
+#~ msgstr "إلغاء الإيقاف الطارئ"
 
 #: src/components/charts/ChartSheetHandle.tsx:24
 msgid "Resize chart"
@@ -2245,10 +2323,34 @@ msgstr "تغيير حجم الشارت"
 msgid "Resize panel"
 msgstr "تغيير عرض اللوحة"
 
-#: src/components/ai/AgentLiveStatus.tsx:149
-#: src/components/goals/TradingGoals.tsx:313
-#: src/components/market/MarketWatch.tsx:294
-#: src/pages/ActivityList.tsx:281
+#: src/lib/operation-status.ts:34
+#~ msgid "Resolved — changed by another action; current state observed"
+#~ msgstr "سُوّيت — غيّره إجراء آخر؛ رُصدت الحالة الحالية"
+
+#: src/lib/operation-status.ts:32
+#~ msgid "Resolved — order no longer pending"
+#~ msgstr "سُوّيت — لم يعد الأمر معلقًا"
+
+#: src/lib/operation-status.ts:30
+#~ msgid "Resolved — position no longer open"
+#~ msgstr "سُوّيت — لم يعد المركز مفتوحًا"
+
+#: src/lib/operation-status.ts:29
+#~ msgid "Resolved — target no longer exists"
+#~ msgstr "سُوّيت — لم يعد الهدف موجودًا"
+
+#: src/lib/operation-status.ts:28
+#~ msgid "Resolved by owner"
+#~ msgstr "سوّاها المالك"
+
+#: src/lib/goal-status.ts:40
+msgid "Resolved without broker confirmation"
+msgstr "سُوّيت دون تأكيد من الوسيط"
+
+#: src/components/ai/AgentLiveStatus.tsx:127
+#: src/components/goals/TradingGoals.tsx:259
+#: src/components/market/MarketWatch.tsx:323
+#: src/pages/ActivityList.tsx:269
 #: src/pages/Board.tsx:545
 #: src/pages/Routines.tsx:100
 #: src/pages/shell/chat-context.tsx:262
@@ -2258,47 +2360,47 @@ msgstr "استئناف"
 #: src/App.tsx:51
 #: src/components/call/CallCard.tsx:149
 #: src/components/call/CallCard.tsx:149
-#: src/pages/ActivityList.tsx:165
+#: src/pages/ActivityList.tsx:153
 #: src/pages/Artifacts.tsx:251
 #: src/pages/Board.tsx:110
 #: src/pages/Routines.tsx:169
-#: src/pages/Shell.tsx:147
-#: src/pages/Shell.tsx:163
-#: src/pages/Shell.tsx:843
-#: src/pages/shell/conversation-inbox.tsx:97
-#: src/pages/shell/message-cards.tsx:183
+#: src/pages/Shell.tsx:149
+#: src/pages/Shell.tsx:165
+#: src/pages/Shell.tsx:861
+#: src/pages/shell/conversation-inbox.tsx:98
+#: src/pages/shell/message-cards.tsx:184
 msgid "Retry"
 msgstr "إعادة المحاولة"
 
-#: src/components/ai/AgentLiveStatus.tsx:57
-#: src/components/ai/AgentLiveStatus.tsx:117
+#: src/components/ai/AgentLiveStatus.tsx:36
+#: src/components/ai/AgentLiveStatus.tsx:95
 msgid "Retry scheduled"
 msgstr "إعادة المحاولة مجدولة"
 
-#: src/lib/user_error.ts:54
-#: src/lib/user_error.ts:61
-msgid "Review a new Super Bot request and authorize it with your device."
-msgstr "راجع طلب سوبر بوت جديدًا وفوّضه بمصادقة جهازك."
+#: src/lib/user_error.ts:71
+#: src/lib/user_error.ts:78
+#~ msgid "Review a new Super Bot request and authorize it with your device."
+#~ msgstr "راجع طلب سوبر بوت جديدًا وفوّضه بمصادقة جهازك."
 
-#: src/components/goals/TradingGoals.tsx:323
+#: src/components/goals/TradingGoals.tsx:269
 msgid "Review now"
 msgstr "مراجعة الآن"
 
 #: src/components/trading/SuperBotCards.tsx:201
-msgid "Review plan"
-msgstr "مراجعة الخطة"
+#~ msgid "Review plan"
+#~ msgstr "مراجعة الخطة"
 
-#: src/lib/user_error.ts:36
+#: src/lib/user_error.ts:53
 msgid "Review skill dependencies and unique identities before saving."
 msgstr "راجع اعتماديات المهارات ومعرّفاتها الفريدة قبل الحفظ."
 
-#: src/lib/user_error.ts:32
+#: src/lib/user_error.ts:49
 msgid "Review the skill identity, version and manifest before saving."
 msgstr "راجع معرّف المهارة وإصدارها وبياناتها الوصفية قبل الحفظ."
 
-#: src/lib/user_error.ts:95
-msgid "Review this goal's volume and action limits before continuing."
-msgstr "راجع حدود الحجم وعدد العمليات لهذا الهدف قبل المتابعة."
+#: src/lib/user_error.ts:124
+#~ msgid "Review this goal's volume and action limits before continuing."
+#~ msgstr "راجع حدود الحجم وعدد العمليات لهذا الهدف قبل المتابعة."
 
 #: src/components/skills/RevokeVersion.tsx:107
 msgid "Review version block"
@@ -2309,9 +2411,9 @@ msgid "Route by capability"
 msgstr "التوجيه حسب القدرة"
 
 #: src/pages/Routines.tsx:24
-#: src/pages/Shell.tsx:271
-#: src/pages/Shell.tsx:277
-#: src/pages/Shell.tsx:1041
+#: src/pages/Shell.tsx:275
+#: src/pages/Shell.tsx:281
+#: src/pages/Shell.tsx:1059
 msgid "Routines"
 msgstr "المهام المجدولة"
 
@@ -2331,14 +2433,14 @@ msgstr "التنفيذ بأسعار مأخوذة دوريًا افتراضي. ا
 #: src/components/ai/AvatarStudio.tsx:230
 #: src/components/skills/SkillEditor.tsx:123
 #: src/pages/Board.tsx:457
-#: src/pages/KnowledgeSection.tsx:174
+#: src/pages/KnowledgeSection.tsx:187
 #: src/pages/RoutineEditor.tsx:100
 #: src/pages/ScratchpadSection.tsx:195
-#: src/pages/shell/bot-settings.tsx:179
+#: src/pages/shell/bot-settings.tsx:183
 msgid "Save"
 msgstr "حفظ"
 
-#: src/pages/ModelSettingsOverlay.tsx:90
+#: src/pages/ModelSettingsOverlay.tsx:91
 msgid "Save and discover models"
 msgstr "حفظ واكتشاف النماذج"
 
@@ -2350,12 +2452,12 @@ msgstr "حفظ التوجيه العالمي"
 msgid "Save members"
 msgstr "حفظ الأعضاء"
 
-#: src/pages/KnowledgeSection.tsx:96
+#: src/pages/KnowledgeSection.tsx:100
 msgid "Save memory"
 msgstr "حفظ الذاكرة"
 
 #: src/components/skills/SkillEditor.tsx:119
-#: src/pages/KnowledgeSection.tsx:92
+#: src/pages/KnowledgeSection.tsx:96
 #: src/pages/ModelRoutingSettings.tsx:161
 msgid "Saved"
 msgstr "تم الحفظ"
@@ -2383,17 +2485,17 @@ msgstr "الجدولة"
 msgid "Schedule recurring work for your agents."
 msgstr "جدول العمل المتكرر لوكلائك."
 
-#: src/pages/Shell.tsx:1137
+#: src/pages/Shell.tsx:1155
 msgid "Scheduled work"
 msgstr "العمل المجدول"
 
-#: src/pages/Knowledge.tsx:40
+#: src/pages/Knowledge.tsx:51
 msgid "Scratchpad"
 msgstr "مسودة العمل"
 
-#: src/pages/Shell.tsx:268
-#: src/pages/Shell.tsx:512
-#: src/pages/Shell.tsx:513
+#: src/pages/Shell.tsx:272
+#: src/pages/Shell.tsx:525
+#: src/pages/Shell.tsx:526
 #: src/pages/SpaceSearch.tsx:124
 msgid "Search"
 msgstr "بحث"
@@ -2421,14 +2523,14 @@ msgstr "البحث في الملفات"
 msgid "Search artifacts…"
 msgstr "البحث في الملفات…"
 
-#: src/components/trading/BrokerPairPicker.tsx:113
-#: src/components/trading/BrokerPairPicker.tsx:114
+#: src/components/trading/BrokerPairPicker.tsx:116
+#: src/components/trading/BrokerPairPicker.tsx:117
 msgid "Search broker symbols"
 msgstr "ابحث في رموز الوسيط"
 
-#: src/pages/Shell.tsx:807
-#: src/pages/shell/conversation-inbox.tsx:87
+#: src/pages/Shell.tsx:825
 #: src/pages/shell/conversation-inbox.tsx:88
+#: src/pages/shell/conversation-inbox.tsx:89
 msgid "Search conversations"
 msgstr "البحث في المحادثات"
 
@@ -2438,17 +2540,17 @@ msgid "Search messages, memory and notes"
 msgstr "ابحث في الرسائل والذاكرة والملاحظات"
 
 #: src/pages/ActivityList.tsx:93
-#: src/pages/shell/sidebar-activity.tsx:44
 #: src/pages/shell/sidebar-activity.tsx:45
+#: src/pages/shell/sidebar-activity.tsx:46
 msgid "Search runs"
 msgstr "البحث في عمليات التنفيذ"
 
-#: src/pages/KnowledgeSection.tsx:131
+#: src/pages/KnowledgeSection.tsx:144
 msgid "Search separate knowledge notes using real embeddings from a globally selected OpenAI model."
 msgstr "ابحث في الملاحظات المعرفية المنفصلة باستخدام تضمينات فعلية من نموذج OpenAI تختاره عالميًا."
 
-#: src/pages/Shell.tsx:519
-#: src/pages/Shell.tsx:520
+#: src/pages/Shell.tsx:532
+#: src/pages/Shell.tsx:533
 #: src/pages/SpaceSearch.tsx:88
 #: src/pages/SpaceSearch.tsx:115
 msgid "Search your workspace"
@@ -2464,62 +2566,62 @@ msgstr "يبحث"
 msgid "Searching…"
 msgstr "جارٍ البحث…"
 
-#: src/components/integrations/IntegrationSetup.tsx:83
+#: src/components/integrations/IntegrationSetup.tsx:116
 msgid "Secret or API token"
 msgstr "السر أو مفتاح API"
 
 #: src/components/trading/SuperBotCards.tsx:255
 #: src/components/trading/SuperBotCards.tsx:442
-msgid "Secure device authentication is unavailable in this browser."
-msgstr "مصادقة الجهاز الآمنة غير متاحة في هذا المتصفح."
+#~ msgid "Secure device authentication is unavailable in this browser."
+#~ msgstr "مصادقة الجهاز الآمنة غير متاحة في هذا المتصفح."
 
-#: src/lib/user_error.ts:65
+#: src/lib/user_error.ts:77
 msgid "Secure device authentication is unavailable on this device."
 msgstr "المصادقة الآمنة غير متاحة على هذا الجهاز."
 
-#: src/components/trading/Positions.tsx:70
+#: src/components/trading/Positions.tsx:60
 msgid "Sell"
 msgstr "بيع"
 
-#: src/components/trading/TradeActionCard.tsx:95
+#: src/components/trading/TradeActionCard.tsx:99
 msgid "Sell limit"
 msgstr "بيع بحد سعري"
 
-#: src/components/trading/TradeActionCard.tsx:101
+#: src/components/trading/TradeActionCard.tsx:105
 msgid "Sell stop"
 msgstr "بيع عند الكسر"
 
-#: src/pages/KnowledgeSection.tsx:128
+#: src/pages/KnowledgeSection.tsx:141
 msgid "Semantic memory · optional"
 msgstr "الذاكرة الدلالية · اختيارية"
 
-#: src/pages/shell/chat-context.tsx:847
-#: src/pages/shell/chat-context.tsx:848
+#: src/pages/shell/chat-context.tsx:850
+#: src/pages/shell/chat-context.tsx:851
 msgid "Send"
 msgstr "إرسال"
 
-#: src/pages/shell/chat-context.tsx:847
-#: src/pages/shell/chat-context.tsx:848
+#: src/pages/shell/chat-context.tsx:850
+#: src/pages/shell/chat-context.tsx:851
 msgid "Send direction"
 msgstr "إرسال توجيه"
 
 #: src/components/ai/primitives.tsx:74
 #: src/components/ai/TurnActivity.tsx:25
-#: src/pages/shell/message-cards.tsx:187
+#: src/pages/shell/message-cards.tsx:188
 msgid "Sending…"
 msgstr "جارٍ الإرسال…"
 
-#: src/pages/McpServersOverlay.tsx:56
+#: src/pages/McpServersOverlay.tsx:60
 msgid "Server URL"
 msgstr "رابط الخادم"
 
-#: src/components/ai/AgentLiveStatus.tsx:40
-msgid "Service needs attention"
-msgstr "الخدمة تحتاج إلى مراجعة"
+#: src/components/ai/AgentLiveStatus.tsx:39
+#~ msgid "Service needs attention"
+#~ msgstr "الخدمة تحتاج إلى مراجعة"
 
-#: src/pages/Shell.tsx:660
-#: src/pages/Shell.tsx:831
-#: src/pages/shell/chat-context.tsx:743
+#: src/pages/Shell.tsx:673
+#: src/pages/Shell.tsx:849
+#: src/pages/shell/chat-context.tsx:746
 msgid "Settings"
 msgstr "الإعدادات"
 
@@ -2539,12 +2641,9 @@ msgstr "سجل التداول الظلي"
 msgid "Shadow observations"
 msgstr "ملاحظات التداول الظلي"
 
-#: src/components/ai/AgentLiveStatus.tsx:94
-#: src/components/goals/TradingGoals.tsx:202
+#: src/components/goals/TradingGoals.tsx:199
 #: src/components/trading/ExecutionModeSettings.tsx:68
-#: src/components/trading/SuperBotCards.tsx:239
-#: src/components/trading/SuperBotCards.tsx:362
-#: src/components/trading/TradeApprovals.tsx:103
+#: src/components/trading/TradeApprovals.tsx:118
 msgid "Shadow trading — virtual orders only"
 msgstr "تداول ظلي — أوامر افتراضية فقط"
 
@@ -2552,7 +2651,7 @@ msgstr "تداول ظلي — أوامر افتراضية فقط"
 #~ msgid "Shared chart workspace"
 #~ msgstr "مساحة الرسم البياني المشتركة"
 
-#: src/pages/Shell.tsx:1197
+#: src/pages/Shell.tsx:1215
 msgid "Shared preferences and connections for all your agents."
 msgstr "تفضيلات واتصالات مشتركة لجميع وكلائك."
 
@@ -2560,11 +2659,11 @@ msgstr "تفضيلات واتصالات مشتركة لجميع وكلائك."
 msgid "Show Agent analysis"
 msgstr "عرض تحليل الوكيل"
 
-#: src/pages/Shell.tsx:734
+#: src/pages/Shell.tsx:747
 msgid "Show agents"
 msgstr "إظهار الوكلاء"
 
-#: src/components/trading/Positions.tsx:48
+#: src/components/trading/Positions.tsx:35
 msgid "Side"
 msgstr "الاتجاه"
 
@@ -2576,11 +2675,11 @@ msgstr "تسجيل الدخول"
 msgid "Sign in to your persistent workspace"
 msgstr "سجّل دخولك إلى مساحة عملك الدائمة"
 
-#: src/pages/Shell.tsx:685
+#: src/pages/Shell.tsx:698
 msgid "Sign out"
 msgstr "تسجيل الخروج"
 
-#: src/lib/user_error.ts:74
+#: src/lib/user_error.ts:83
 msgid "Sign-in failed. Check your email and password."
 msgstr "فشل تسجيل الدخول. تحقق من البريد الإلكتروني وكلمة المرور."
 
@@ -2588,7 +2687,7 @@ msgstr "فشل تسجيل الدخول. تحقق من البريد الإلكت�
 msgid "Signals"
 msgstr "أعمدة الإشارة"
 
-#: src/components/integrations/IntegrationSetup.tsx:70
+#: src/components/integrations/IntegrationSetup.tsx:86
 msgid "Signed webhook"
 msgstr "Webhook موقّع"
 
@@ -2622,11 +2721,11 @@ msgstr "مكتبة المهارات"
 msgid "Skill ID"
 msgstr "معرّف المهارة"
 
-#: src/lib/user_error.ts:29
+#: src/lib/user_error.ts:46
 msgid "Skill version controls could not be verified. Reload before making changes."
 msgstr "تعذر التحقق من ضوابط إصدارات المهارات. أعد التحميل قبل إجراء تغييرات."
 
-#: src/pages/Knowledge.tsx:33
+#: src/pages/Knowledge.tsx:44
 msgid "Skills"
 msgstr "المهارات"
 
@@ -2672,10 +2771,10 @@ msgstr "فارق السعر"
 #~ msgstr "مربع"
 
 #: src/pages/KnowledgeSection.tsx:76
-msgid "Stable facts and preferences kept separately from conversation history."
-msgstr "حقائق وتفضيلات ثابتة محفوظة بشكل مستقل عن سجل المحادثة."
+#~ msgid "Stable facts and preferences kept separately from conversation history."
+#~ msgstr "حقائق وتفضيلات ثابتة محفوظة بشكل مستقل عن سجل المحادثة."
 
-#: src/pages/shell/conversation-inbox.tsx:154
+#: src/pages/shell/conversation-inbox.tsx:156
 msgid "Start a conversation"
 msgstr "ابدأ محادثة"
 
@@ -2691,51 +2790,62 @@ msgstr "ابدأ محادثة"
 #: src/pages/ActivityList.tsx:101
 #: src/pages/Board.tsx:405
 #: src/pages/Board.tsx:407
-#: src/pages/shell/sidebar-activity.tsx:50
+#: src/pages/shell/sidebar-activity.tsx:51
 msgid "Status"
 msgstr "الحالة"
 
-#: src/pages/ActivityList.tsx:271
-#: src/pages/shell/chat-context.tsx:863
-#: src/pages/shell/chat-context.tsx:864
+#: src/components/trading/TradingJournal.tsx:53
+msgid "Still unknown"
+msgstr "لا تزال غير معروفة"
+
+#: src/pages/ActivityList.tsx:259
+#: src/pages/shell/chat-context.tsx:866
+#: src/pages/shell/chat-context.tsx:867
 msgid "Stop"
 msgstr "إيقاف"
 
-#: src/components/goals/TradingGoals.tsx:233
-#: src/components/trading/SuperBotCards.tsx:333
-#: src/components/trading/TradeApprovals.tsx:143
+#: src/components/goals/TradingGoals.tsx:228
+#: src/components/trading/TradeApprovals.tsx:158
 msgid "Stop loss"
 msgstr "وقف الخسارة"
 
-#: src/components/trading/TradeActionCard.tsx:132
+#: src/components/trading/TradeActionCard.tsx:136
 msgid "Stop loss · optional"
 msgstr "وقف الخسارة · اختياري"
 
+#: src/components/goals/TradingGoals.tsx:299
+#~ msgid "Stop new trading, your pauses and the account's money limits still apply to every order. Pausing a goal does not close existing broker positions."
+#~ msgstr "يبقى إيقاف الصفقات الجديدة وإيقافاتك والحدود المالية للحساب نافذة على كل أمر. إيقاف الهدف مؤقتًا لا يغلق المراكز المفتوحة لدى الوسيط."
+
 #: src/components/trading/SuperBotCards.tsx:184
-msgid "Stop Super Bot"
-msgstr "إيقاف سوبر بوت"
+#~ msgid "Stop Super Bot"
+#~ msgstr "إيقاف سوبر بوت"
 
 #: src/components/trading/SuperBotCards.tsx:161
-msgid "Stopped"
-msgstr "متوقف"
+#~ msgid "Stopped"
+#~ msgstr "متوقف"
+
+#: src/pages/shell/message-cards.tsx:278
+msgid "Stopped at its work limit"
+msgstr "توقف عند حد العمل"
 
 #: src/components/trading/TradeApprovals.tsx:214
-msgid "Submitted"
-msgstr "أُرسل"
+#~ msgid "Submitted"
+#~ msgstr "أُرسل"
 
-#: src/components/ai/AgentLiveStatus.tsx:84
+#: src/components/ai/AgentLiveStatus.tsx:87
 #: src/components/trading/SuperBotCards.tsx:212
 #: src/components/trading/SuperBotCards.tsx:457
-msgid "Super Bot"
-msgstr "سوبر بوت"
+#~ msgid "Super Bot"
+#~ msgstr "سوبر بوت"
 
-#: src/components/ai/AttentionInbox.tsx:59
-msgid "Super Bot authority updated"
-msgstr "تم تحديث تفويض سوبر بوت"
+#: src/components/ai/AttentionInbox.tsx:60
+#~ msgid "Super Bot authority updated"
+#~ msgstr "تم تحديث تفويض سوبر بوت"
 
 #: src/components/trading/SuperBotCards.tsx:278
-msgid "Super Bot details"
-msgstr "تفاصيل سوبر بوت"
+#~ msgid "Super Bot details"
+#~ msgstr "تفاصيل سوبر بوت"
 
 #: src/components/ai/AgentAvatar.tsx:23
 #: src/components/call/CallCard.tsx:60
@@ -2743,21 +2853,21 @@ msgstr "تفاصيل سوبر بوت"
 #: src/pages/shell/bot-picker.tsx:76
 #: src/pages/shell/bot-roster-row.tsx:59
 #: src/pages/shell/command-palette.tsx:97
-msgid "Super Bot enabled"
-msgstr "السوبر بوت مفعّل"
+#~ msgid "Super Bot enabled"
+#~ msgstr "السوبر بوت مفعّل"
 
-#: src/components/ai/AttentionInbox.tsx:58
-msgid "Super Bot needs device authorization"
-msgstr "سوبر بوت يحتاج إلى تفويض الجهاز"
+#: src/components/ai/AttentionInbox.tsx:59
+#~ msgid "Super Bot needs device authorization"
+#~ msgstr "سوبر بوت يحتاج إلى تفويض الجهاز"
 
 #: src/components/skills/shared.ts:63
 msgid "Superseded version"
 msgstr "إصدار مستبدل"
 
-#: src/components/ai/AgentLiveStatus.tsx:88
+#: src/components/ai/AgentLiveStatus.tsx:91
 #: src/components/trading/SuperBotCards.tsx:153
-msgid "Supervised"
-msgstr "بإشرافك"
+#~ msgid "Supervised"
+#~ msgstr "بإشرافك"
 
 #: src/components/trading/BrokerConnection.tsx:81
 msgid "Supply account, instruments, quotes and candles explicitly. Simulation data is labelled in the workspace."
@@ -2767,23 +2877,22 @@ msgstr "أدخل بيانات الحساب والأدوات والأسعار و�
 msgid "Surprised"
 msgstr "متفاجئ"
 
-#: src/pages/Shell.tsx:547
+#: src/pages/Shell.tsx:560
 #: src/pages/shell/command-palette.tsx:63
 msgid "Switch agent"
 msgstr "تبديل الوكيل"
 
-#: src/components/trading/Positions.tsx:45
-#: src/components/trading/TradeApprovals.tsx:115
+#: src/components/trading/Positions.tsx:32
+#: src/components/trading/TradeApprovals.tsx:130
 msgid "Symbol"
 msgstr "الرمز"
 
-#: src/components/goals/TradingGoals.tsx:234
-#: src/components/trading/SuperBotCards.tsx:334
-#: src/components/trading/TradeApprovals.tsx:163
+#: src/components/goals/TradingGoals.tsx:229
+#: src/components/trading/TradeApprovals.tsx:178
 msgid "Take profit"
 msgstr "جني الربح"
 
-#: src/components/trading/TradeActionCard.tsx:142
+#: src/components/trading/TradeActionCard.tsx:146
 msgid "Take profit · optional"
 msgstr "جني الربح · اختياري"
 
@@ -2795,13 +2904,13 @@ msgid "Task"
 msgstr "المهمة"
 
 #: src/pages/Board.tsx:79
-#: src/pages/Shell.tsx:266
-#: src/pages/Shell.tsx:644
-#: src/pages/Shell.tsx:1155
+#: src/pages/Shell.tsx:270
+#: src/pages/Shell.tsx:657
+#: src/pages/Shell.tsx:1173
 msgid "Task boards"
 msgstr "لوحات المهام"
 
-#: src/components/ai/AttentionInbox.tsx:60
+#: src/components/ai/AttentionInbox.tsx:62
 msgid "Task completed"
 msgstr "اكتملت المهمة"
 
@@ -2809,72 +2918,89 @@ msgstr "اكتملت المهمة"
 msgid "Task details"
 msgstr "تفاصيل المهمة"
 
-#: src/components/ai/AgentLiveStatus.tsx:126
+#: src/components/ai/AttentionInbox.tsx:58
+msgid "Task is retrying through a model outage"
+msgstr "المهمة تعيد المحاولة أثناء تعطل النموذج"
+
+#: src/components/ai/AgentLiveStatus.tsx:104
 #: src/components/ai/AttentionInbox.tsx:57
 msgid "Task needs review"
 msgstr "المهمة تحتاج مراجعة"
 
-#: src/components/market/MarketWatch.tsx:263
+#: src/components/market/MarketWatch.tsx:286
 msgid "Task when triggered"
 msgstr "المهمة عند تحقق الشرط"
+
+#: src/components/goals/TradingGoals.tsx:69
+#: src/components/trading/TradingJournal.tsx:122
+msgid "Technical details"
+msgstr "التفاصيل التقنية"
 
 #: src/components/ai/CollaborationMarker.tsx:21
 msgid "Temporary delegated tasks"
 msgstr "المهام المفوّضة المؤقتة"
 
-#: src/lib/user_error.ts:165
+#: src/lib/user_error.ts:182
 msgid "That chart timeframe is not supported by this broker."
 msgstr "هذا الفريم غير مدعوم لدى الوسيط."
 
-#: src/lib/user_error.ts:203
-msgid "The agent reached the step limit for this run. Send another message to continue."
-msgstr "بلغ الوكيل الحد الأقصى لخطوات هذا التشغيل. أرسل رسالة أخرى للمتابعة."
+#: src/lib/user_error.ts:235
+#~ msgid "The agent reached the step limit for this run. Send another message to continue."
+#~ msgstr "بلغ الوكيل الحد الأقصى لخطوات هذا التشغيل. أرسل رسالة أخرى للمتابعة."
 
-#: src/lib/user_error.ts:142
+#: src/lib/user_error.ts:159
 msgid "The broker account could not be verified. Check its connection details and try again."
 msgstr "تعذر التحقق من حساب الوسيط. راجع بيانات الاتصال وحاول مجددًا."
 
-#: src/lib/user_error.ts:148
+#: src/lib/user_error.ts:165
 msgid "The broker account is not ready at the connection provider. Check its status, then retry."
 msgstr "حساب الوسيط غير جاهز لدى مزوّد الربط. تحقق من حالته ثم أعد المحاولة."
 
-#: src/lib/user_error.ts:174
+#: src/lib/user_error.ts:191
 msgid "The broker connection changed. Reload it before continuing."
 msgstr "تغيّر اتصال الوسيط. أعد تحميله قبل المتابعة."
 
-#: src/lib/user_error.ts:146
+#: src/lib/user_error.ts:163
 msgid "The broker connection is stopped at the connection provider. Start it there, then retry."
 msgstr "اتصال حساب الوسيط متوقف لدى مزوّد الربط. شغّله هناك ثم أعد المحاولة."
 
-#: src/lib/user_error.ts:180
+#: src/lib/user_error.ts:197
 msgid "The broker connection is unavailable."
 msgstr "الاتصال بالوسيط غير متاح."
 
-#: src/lib/user_error.ts:158
+#: src/components/trading/TradingJournal.tsx:39
+msgid "The broker could not establish this operation's outcome. Record what you verified at the broker. This settles the block on this market; it is not broker confirmation and nothing is sent again."
+msgstr "تعذّر على الوسيط إثبات نتيجة هذه العملية. سجّل ما تحققت منه لدى الوسيط. يرفع هذا الحظر عن هذا السوق؛ وهو ليس تأكيدًا من الوسيط ولن يُعاد إرسال أي شيء."
+
+#: src/components/ai/AttentionInbox.tsx:67
+msgid "The broker did not confirm a trade — tell Lonora whether it executed"
+msgstr "الوسيط لم يؤكد صفقة — أخبر لونورا هل نُفذت"
+
+#: src/lib/user_error.ts:175
 msgid "The broker market-data service is rate limited."
 msgstr "تم بلوغ حد طلبات خدمة بيانات السوق لدى الوسيط."
 
-#: src/lib/user_error.ts:176
+#: src/lib/user_error.ts:193
 msgid "The broker mutation is uncertain. Execution remains blocked until its result can be verified."
 msgstr "نتيجة العملية لدى الوسيط غير مؤكدة. يبقى التنفيذ محظورًا حتى التحقق من نتيجتها."
 
-#: src/lib/user_error.ts:167
+#: src/lib/user_error.ts:184
 msgid "The broker quote is unavailable for this exact symbol."
 msgstr "سعر الوسيط غير متاح لهذا الرمز المحدد."
 
-#: src/lib/user_error.ts:154
+#: src/lib/user_error.ts:171
 msgid "The broker rejected this timeframe or candle request."
 msgstr "رفض الوسيط هذا الفريم أو طلب الشموع."
 
-#: src/lib/user_error.ts:169
+#: src/lib/user_error.ts:186
 msgid "The broker specifications are unavailable for this exact symbol."
 msgstr "مواصفات الوسيط غير متاحة لهذا الرمز المحدد."
 
-#: src/pages/ModelSettingsOverlay.tsx:93
+#: src/pages/ModelSettingsOverlay.tsx:94
 msgid "The catalog is read from the provider. Unknown capabilities are shown as unverified."
 msgstr "يُقرأ الكتالوج من المزود. تظهر القدرات غير المعروفة على أنها غير مؤكدة."
 
-#: src/lib/user_error.ts:105
+#: src/lib/user_error.ts:121
 msgid "The current market no longer confirms this goal's condition. No trade was sent."
 msgstr "لم يعد السوق الحالي يؤكد شرط هذا الهدف. لم يُرسل أي أمر تداول."
 
@@ -2894,35 +3020,67 @@ msgstr "تعذّر عرض معاينة الملف"
 msgid "The full response will appear when complete."
 msgstr "ستظهر الإجابة كاملة عند الانتهاء."
 
-#: src/lib/user_error.ts:199
+#: src/components/ai/AgentLiveStatus.tsx:86
+#~ msgid "The grant is active, but its readiness check did not finish. No trade was sent."
+#~ msgstr "التفويض مفعّل، لكن فحص الجاهزية لم يكتمل. لم تُرسل أي صفقة."
+
+#: src/lib/user_error.ts:216
 msgid "The model could not summarize this conversation. Retry or choose another global model."
 msgstr "تعذّر على النموذج تلخيص هذه المحادثة. أعد المحاولة أو اختر نموذجًا عالميًا آخر."
 
-#: src/lib/user_error.ts:80
+#: src/lib/user_error.ts:103
+msgid "The model provider is unavailable right now. Try again shortly."
+msgstr "مزود النموذج غير متاح حاليًا. حاول مجددًا بعد قليل."
+
+#: src/lib/user_error.ts:89
 msgid "The model provider rate limit was reached. Try again shortly."
 msgstr "تم بلوغ حد طلبات مزود النماذج. أعد المحاولة بعد قليل."
+
+#: src/lib/user_error.ts:105
+msgid "The model provider rejected this request."
+msgstr "رفض مزود النموذج هذا الطلب."
+
+#: src/lib/user_error.ts:107
+msgid "The model provider returned an unreadable response. Try again."
+msgstr "أعاد مزود النموذج استجابة غير قابلة للقراءة. حاول مجددًا."
+
+#: src/lib/user_error.ts:97
+msgid "The model provider’s safety system withheld this answer."
+msgstr "حجب نظام الأمان لدى مزود النموذج هذه الإجابة."
+
+#: src/lib/user_error.ts:99
+msgid "The model’s answer was cut off at its output limit. Try again or ask for a shorter answer."
+msgstr "انقطعت إجابة النموذج عند حد المخرجات. حاول مجددًا أو اطلب إجابة أقصر."
 
 #: src/components/ErrorBoundary.tsx:12
 msgid "The page could not be displayed"
 msgstr "تعذر عرض الصفحة"
 
-#: src/lib/user_error.ts:82
+#: src/lib/user_error.ts:91
 msgid "The provider rejected this API key."
 msgstr "رفض المزود مفتاح API هذا."
 
-#: src/lib/user_error.ts:205
+#: src/components/ai/AgentLiveStatus.tsx:85
+msgid "The readiness check after you signed did not finish; that check sent nothing."
+msgstr "لم يكتمل فحص الجاهزية بعد توقيعك؛ ذلك الفحص لم يرسل شيئًا."
+
+#: src/lib/user_error.ts:222
 msgid "The request could not be completed. Try again."
 msgstr "تعذر إكمال الطلب. أعد المحاولة."
 
-#: src/lib/user_error.ts:119
+#: src/lib/user_error.ts:135
 msgid "The resident voice worker is unavailable. Check server readiness and retry."
 msgstr "خدمة الصوت المقيمة غير متاحة. تحقق من جاهزية الخادم وأعد المحاولة."
 
-#: src/lib/user_error.ts:128
+#: src/lib/user_error.ts:144
 msgid "The resident worker is preparing this chart."
 msgstr "العامل المقيم يجهّز هذا الشارت."
 
-#: src/lib/user_error.ts:76
+#: src/lib/user_error.ts:101
+msgid "The selected model is not available from this provider. Choose another model in Settings."
+msgstr "النموذج المحدد غير متاح لدى هذا المزود. اختر نموذجًا آخر من الإعدادات."
+
+#: src/lib/user_error.ts:85
 msgid "The setup code is incorrect."
 msgstr "رمز الإعداد غير صحيح."
 
@@ -2930,7 +3088,7 @@ msgstr "رمز الإعداد غير صحيح."
 msgid "The task resumed from its saved state after reconnection."
 msgstr "استؤنفت المهمة من حالتها المحفوظة بعد إعادة الاتصال."
 
-#: src/lib/user_error.ts:122
+#: src/lib/user_error.ts:138
 msgid "The voice connection failed. Retry the call."
 msgstr "تعذر اتصال الصوت. أعد محاولة المكالمة."
 
@@ -2949,95 +3107,141 @@ msgstr "تنطبق هذه الإعدادات على جميع الوكلاء وا
 msgid "Thinking"
 msgstr "يفكر"
 
-#: src/lib/user_error.ts:22
+#: src/lib/user_error.ts:39
 msgid "This agent has reached its blocked-version limit. Existing blocks have been preserved."
 msgstr "وصل هذا الوكيل إلى الحد الأقصى للإصدارات المحظورة. بقيت عمليات الحظر الحالية محفوظة."
 
-#: src/lib/user_error.ts:12
+#: src/lib/user_error.ts:29
 msgid "This agent’s market scope cannot be changed."
 msgstr "لا يمكن تعديل نطاق هذا الوكيل."
 
-#: src/lib/user_error.ts:72
+#: src/pages/KnowledgeSection.tsx:77
+msgid "This agent's own knowledge and working notes, kept apart from conversation history. What agents know about you is in About you."
+msgstr "معرفة هذا الوكيل وملاحظات عمله الخاصة، محفوظة بمعزل عن سجل المحادثة. ما يعرفه الوكلاء عنك موجود في «عنك»."
+
+#: src/lib/user_error.ts:93
+msgid "This API key cannot use the selected model. Choose another model or check the provider account’s model access."
+msgstr "لا يمكن لمفتاح API هذا استخدام النموذج المحدد. اختر نموذجًا آخر أو تحقق من صلاحيات النماذج في حساب المزود."
+
+#: src/lib/user_error.ts:81
 msgid "This authorization request expired or changed. Review a new request."
 msgstr "انتهت صلاحية طلب التفويض أو تغير. راجع طلبًا جديدًا."
 
-#: src/lib/user_error.ts:88
+#: src/lib/user_error.ts:109
 msgid "This broker account does not permit trading. Check its trading permissions."
 msgstr "لا يسمح حساب الوسيط هذا بالتداول. تحقق من صلاحياته."
 
-#: src/lib/user_error.ts:140
+#: src/lib/user_error.ts:157
 msgid "This broker account is already connected. Use the existing connection."
 msgstr "حساب الوسيط مرتبط بالفعل. استخدم الاتصال الموجود."
 
-#: src/lib/user_error.ts:171
+#: src/lib/user_error.ts:188
 msgid "This broker connection is disabled."
 msgstr "اتصال الوسيط هذا معطّل."
 
-#: src/lib/user_error.ts:201
-msgid "This conversation could not be resumed. Start a new conversation."
-msgstr "تعذّر استئناف هذه المحادثة. ابدأ محادثة جديدة."
+#: src/lib/user_error.ts:233
+#~ msgid "This conversation could not be resumed. Start a new conversation."
+#~ msgstr "تعذّر استئناف هذه المحادثة. ابدأ محادثة جديدة."
 
-#: src/lib/user_error.ts:197
-msgid "This conversation is too large to process. Shorten instructions, use fewer attachments, or start a new conversation."
-msgstr "هذه المحادثة أكبر من الحد المتاح. اختصر التعليمات أو قلّل المرفقات أو ابدأ محادثة جديدة."
+#: src/lib/user_error.ts:229
+#~ msgid "This conversation is too large to process. Shorten instructions, use fewer attachments, or start a new conversation."
+#~ msgstr "هذه المحادثة أكبر من الحد المتاح. اختصر التعليمات أو قلّل المرفقات أو ابدأ محادثة جديدة."
 
-#: src/lib/user_error.ts:133
+#: src/lib/user_error.ts:149
 msgid "This exact symbol is not available from your broker."
 msgstr "هذا الرمز بالضبط غير متاح لدى وسيطك."
 
-#: src/lib/user_error.ts:102
+#: src/components/goals/TradingGoals.tsx:244
+msgid "This goal is a plan under the agent's trading level and signed grant. Stop new trading, your pauses and the account's money limits still apply to every order. Pausing a goal does not close existing broker positions."
+msgstr "هذا الهدف خطة ضمن مستوى تداول الوكيل وتفويضه الموقّع. يبقى إيقاف الصفقات الجديدة وإيقافاتك المؤقتة وحدود الحساب المالية سارية على كل أمر. إيقاف الهدف مؤقتًا لا يغلق صفقات الوسيط القائمة."
+
+#: src/lib/user_error.ts:116
 msgid "This goal is paused, cancelled or completed. Reload its current state."
 msgstr "هذا الهدف متوقف مؤقتًا أو ملغى أو مكتمل. أعد تحميل حالته الحالية."
 
-#: src/lib/user_error.ts:99
+#: src/lib/user_error.ts:113
 msgid "This goal is waiting for broker verification. Its financial operation will not be repeated automatically."
 msgstr "ينتظر هذا الهدف التحقق لدى الوسيط. لن تُكرر عمليته المالية تلقائيًا."
 
-#: src/lib/user_error.ts:109
+#: src/lib/user_error.ts:118
+msgid "This goal stopped because its conversation or agent was deleted. Its history is kept."
+msgstr "توقف هذا الهدف لأن محادثته أو وكيله حُذف. سجله محفوظ."
+
+#: src/lib/user_error.ts:125
 msgid "This item changed. Reload it before saving."
 msgstr "تغيّر هذا العنصر. أعد تحميله قبل الحفظ."
+
+#: src/lib/user_error.ts:214
+msgid "This message is too large to process, even after older history was summarized. Shorten it or send fewer attachments; the conversation is kept."
+msgstr "هذه الرسالة أكبر من أن تُعالج حتى بعد تلخيص السجل الأقدم. اختصرها أو أرسل مرفقات أقل؛ المحادثة محفوظة."
 
 #: src/pages/Artifacts.tsx:241
 msgid "This month"
 msgstr "هذا الشهر"
 
-#: src/pages/Shell.tsx:117
+#: src/lib/user_error.ts:73
+msgid "This needs a new grant you sign with your passkey."
+msgstr "يلزم تفويض جديد توقّعه بمفتاح المرور."
+
+#: src/lib/user_error.ts:153
+msgid "This operation already has a settled outcome. Reload the journal."
+msgstr "لهذه العملية نتيجة محسومة بالفعل. أعد تحميل السجل."
+
+#: src/lib/user_error.ts:151
+msgid "This operation is still in progress. Wait for its broker result before resolving it."
+msgstr "هذه العملية ما زالت قيد التنفيذ. انتظر نتيجة الوسيط قبل تسويتها."
+
+#: src/components/trading/Orders.tsx:49
+#: src/components/trading/Positions.tsx:88
+#: src/components/trading/TradeActionCard.tsx:166
+msgid "This operation will not be sent again."
+msgstr "لن تُرسل هذه العملية مرة أخرى."
+
+#: src/pages/Shell.tsx:119
 msgid "This page is unavailable"
 msgstr "هذه الصفحة غير متاحة"
 
-#: src/components/trading/BrokerPairPicker.tsx:140
+#: src/components/trading/BrokerPairPicker.tsx:144
 msgid "This pair is permanent for this agent. Create another agent to use a different pair."
 msgstr "هذا الزوج ثابت للبوت. أنشئ بوتًا آخر لاستخدام زوج مختلف."
+
+#: src/lib/user_error.ts:67
+msgid "This passkey request is not available in this session. Start it again."
+msgstr "طلب مفتاح المرور هذا غير متاح في هذه الجلسة. ابدأه من جديد."
 
 #: src/components/skills/RevokeVersion.tsx:93
 msgid "This permanent block cannot be undone. Confirm the exact skill and version."
 msgstr "لا يمكن التراجع عن هذا الحظر الدائم. تأكد من المهارة والإصدار المحددين."
 
-#: src/lib/user_error.ts:50
-msgid "This plan is advisory and cannot execute trades."
-msgstr "هذه الخطة استشارية ولا يمكنها تنفيذ صفقات."
+#: src/lib/user_error.ts:67
+#~ msgid "This plan is advisory and cannot execute trades."
+#~ msgstr "هذه الخطة استشارية ولا يمكنها تنفيذ صفقات."
 
-#: src/lib/user_error.ts:24
+#: src/lib/user_error.ts:41
 msgid "This procedure requires a validated version before it can be enabled or changed."
 msgstr "يتطلب تفعيل هذا الإجراء أو تغييره إصدارًا جرى التحقق منه."
 
-#: src/lib/user_error.ts:18
+#: src/lib/user_error.ts:35
 msgid "This question is no longer waiting for an answer."
 msgstr "لم يعد هذا السؤال ينتظر إجابة."
 
-#: src/lib/user_error.ts:188
-msgid "This run was recovered by another worker."
-msgstr "استعاد عامل آخر هذا التنفيذ."
+#: src/lib/user_error.ts:220
+#~ msgid "This run was recovered by another worker."
+#~ msgstr "استعاد عامل آخر هذا التنفيذ."
 
-#: src/lib/user_error.ts:26
+#: src/lib/user_error.ts:43
 msgid "This skill is no longer in the current catalog. Reload the list."
 msgstr "لم تعد هذه المهارة موجودة في المكتبة الحالية. أعد تحميل القائمة."
 
-#: src/lib/user_error.ts:193
+#: src/lib/user_error.ts:205
+msgid "This step was interrupted and picked up again. Nothing was repeated."
+msgstr "انقطعت هذه الخطوة ثم استُؤنفت. لم يتكرر أي شيء."
+
+#: src/lib/user_error.ts:210
 msgid "This task cannot resume in its current state. Review its plan or retry limit."
 msgstr "لا يمكن استئناف المهمة بحالتها الحالية. راجع الخطة وحد المحاولات."
 
-#: src/lib/user_error.ts:190
+#: src/lib/user_error.ts:207
 msgid "This task is waiting for an uncertain external operation to be reconciled."
 msgstr "تنتظر المهمة التحقق من عملية خارجية غير محسومة."
 
@@ -3054,7 +3258,7 @@ msgid "Tick size"
 msgstr "أصغر حركة سعرية"
 
 #: src/components/charts/ChartToolbar.tsx:16
-#: src/components/market/MarketWatch.tsx:141
+#: src/components/market/MarketWatch.tsx:164
 msgid "Timeframe"
 msgstr "الفترة الزمنية"
 
@@ -3066,13 +3270,13 @@ msgstr "المنطقة الزمنية"
 #: src/pages/ScratchpadSection.tsx:69
 #: src/pages/ScratchpadSection.tsx:160
 #: src/pages/shell/bot-panel.tsx:86
-#: src/pages/shell/bot-settings.tsx:119
+#: src/pages/shell/bot-settings.tsx:123
 msgid "Title"
 msgstr "العنوان"
 
-#: src/pages/ActivityList.tsx:137
-#: src/pages/ActivityList.tsx:140
-#: src/pages/shell/sidebar-activity.tsx:85
+#: src/pages/ActivityList.tsx:125
+#: src/pages/ActivityList.tsx:128
+#: src/pages/shell/sidebar-activity.tsx:74
 msgid "To"
 msgstr "إلى"
 
@@ -3085,17 +3289,17 @@ msgid "To:"
 msgstr "إلى:"
 
 #: src/pages/Artifacts.tsx:235
-#: src/pages/shell/chat-context.tsx:1112
+#: src/pages/shell/chat-context.tsx:1115
 msgid "Today"
 msgstr "اليوم"
 
-#: src/pages/settings-sidebar.tsx:24
-#: src/pages/Shell.tsx:664
-#: src/pages/UsageSettingsPanel.tsx:18
+#: src/pages/settings-sidebar.tsx:26
+#: src/pages/Shell.tsx:677
+#: src/pages/UsageSettingsPanel.tsx:25
 msgid "Token usage"
 msgstr "استهلاك الرموز"
 
-#: src/lib/user_error.ts:186
+#: src/lib/user_error.ts:203
 msgid "Too many attempts. Wait a minute and retry."
 msgstr "محاولات كثيرة. انتظر دقيقة وأعد المحاولة."
 
@@ -3103,50 +3307,59 @@ msgstr "محاولات كثيرة. انتظر دقيقة وأعد المحاول
 msgid "Tool activity"
 msgstr "نشاط الأدوات"
 
-#: src/components/trading/TradeActionCard.tsx:57
+#: src/components/trading/TradeActionCard.tsx:61
 msgid "Trade action"
 msgstr "عملية تداول"
 
-#: src/pages/settings-sidebar.tsx:21
-#: src/pages/Shell.tsx:270
-#: src/pages/Shell.tsx:656
+#: src/components/ai/AgentAvatar.tsx:23
+#: src/components/call/CallCard.tsx:60
+#: src/components/call/CallPill.tsx:24
+#: src/pages/shell/bot-picker.tsx:76
+#: src/pages/shell/bot-roster-row.tsx:59
+#: src/pages/shell/command-palette.tsx:97
+msgid "Trades on its own"
+msgstr "يتداول بنفسه"
+
+#: src/pages/settings-sidebar.tsx:23
+#: src/pages/Shell.tsx:274
+#: src/pages/Shell.tsx:669
 #: src/pages/Trading.tsx:25
 msgid "Trading"
 msgstr "التداول"
 
-#: src/pages/Shell.tsx:1149
+#: src/pages/Shell.tsx:1167
 msgid "Trading and operation journal"
 msgstr "التداول وسجل العمليات"
 
 #: src/components/trading/TradingStatus.tsx:32
-msgid "Trading control"
-msgstr "التحكم بالتداول"
+#~ msgid "Trading control"
+#~ msgstr "التحكم بالتداول"
 
 #: src/components/ai/AttentionInbox.tsx:55
 msgid "Trading goal updated"
 msgstr "تم تحديث هدف التداول"
 
-#: src/components/goals/TradingGoals.tsx:171
+#: src/components/goals/TradingGoals.tsx:169
 msgid "Trading goals"
 msgstr "أهداف التداول"
 
-#: src/lib/user_error.ts:84
-msgid "Trading is off."
-msgstr "التداول متوقف."
+#: src/lib/user_error.ts:110
+#~ msgid "Trading is off."
+#~ msgstr "التداول متوقف."
 
 #: src/components/trading/TradingStatus.tsx:40
-msgid "Trading OFF"
-msgstr "التداول متوقف"
+#~ msgid "Trading OFF"
+#~ msgstr "التداول متوقف"
 
 #: src/components/trading/TradingStatus.tsx:38
-msgid "Trading ON"
-msgstr "التداول مفعّل"
+#~ msgid "Trading ON"
+#~ msgstr "التداول مفعّل"
 
-#: src/pages/shell/bot-settings.tsx:95
+#: src/pages/shell/bot-settings.tsx:97
 msgid "Trading pair"
 msgstr "زوج التداول"
 
-#: src/components/trading/TradeApprovals.tsx:99
+#: src/components/trading/TradeApprovals.tsx:114
 msgid "Trading request"
 msgstr "طلب تداول"
 
@@ -3159,14 +3372,14 @@ msgid "Trend line"
 msgstr "خط اتجاه"
 
 #: src/components/trading/TradingStatus.tsx:51
-msgid "Turn trading OFF"
-msgstr "إيقاف التداول"
+#~ msgid "Turn trading OFF"
+#~ msgstr "إيقاف التداول"
 
 #: src/components/trading/TradingStatus.tsx:51
-msgid "Turn trading ON"
-msgstr "تفعيل التداول"
+#~ msgid "Turn trading ON"
+#~ msgstr "تفعيل التداول"
 
-#: src/components/integrations/IntegrationSetup.tsx:60
+#: src/components/integrations/IntegrationSetup.tsx:73
 msgid "Type"
 msgstr "النوع"
 
@@ -3204,11 +3417,11 @@ msgstr "رفع ملف"
 msgid "Uploading…"
 msgstr "جارٍ الرفع…"
 
-#: src/lib/user_error.ts:56
+#: src/lib/user_error.ts:69
 msgid "Use the configured secure website for device authentication."
 msgstr "استخدم الموقع الآمن المعتمد لمصادقة الجهاز."
 
-#: src/pages/ModelSettingsOverlay.tsx:118
+#: src/pages/ModelSettingsOverlay.tsx:120
 msgid "Verified metadata"
 msgstr "بيانات مؤكدة"
 
@@ -3228,7 +3441,7 @@ msgstr "مراجعة ضوابط الإصدارات"
 msgid "Virtual"
 msgstr "افتراضي"
 
-#: src/lib/user_error.ts:46
+#: src/lib/user_error.ts:63
 msgid "Virtual monetary profit is unavailable without verified contract and currency valuation."
 msgstr "الربح النقدي الافتراضي غير متاح دون تقييم موثق للعقد والعملة."
 
@@ -3236,7 +3449,7 @@ msgstr "الربح النقدي الافتراضي غير متاح دون تقي
 msgid "Vision"
 msgstr "الرؤية"
 
-#: src/pages/settings-sidebar.tsx:20
+#: src/pages/settings-sidebar.tsx:22
 msgid "Voice"
 msgstr "الصوت"
 
@@ -3244,7 +3457,7 @@ msgstr "الصوت"
 #~ msgid "Voice disconnected"
 #~ msgstr "الصوت غير متصل"
 
-#: src/lib/user_error.ts:115
+#: src/lib/user_error.ts:131
 msgid "Voice requires a browser with WebRTC and microphone support on HTTPS."
 msgstr "يتطلب الصوت متصفحًا يدعم WebRTC والميكروفون عبر HTTPS."
 
@@ -3253,10 +3466,10 @@ msgstr "يتطلب الصوت متصفحًا يدعم WebRTC والميكروف�
 msgid "Voice settings"
 msgstr "إعدادات الصوت"
 
-#: src/components/market/MarketWatch.tsx:186
-#: src/components/trading/Positions.tsx:51
-#: src/components/trading/TradeActionCard.tsx:106
-#: src/components/trading/TradeApprovals.tsx:123
+#: src/components/market/MarketWatch.tsx:209
+#: src/components/trading/Positions.tsx:38
+#: src/components/trading/TradeActionCard.tsx:110
+#: src/components/trading/TradeApprovals.tsx:138
 msgid "Volume"
 msgstr "الحجم"
 
@@ -3264,8 +3477,7 @@ msgstr "الحجم"
 msgid "Volume step"
 msgstr "خطوة الحجم"
 
-#: src/components/ai/AgentLiveStatus.tsx:38
-#: src/components/ai/AgentLiveStatus.tsx:57
+#: src/components/ai/AgentLiveStatus.tsx:39
 msgid "Waiting"
 msgstr "ينتظر"
 
@@ -3274,37 +3486,31 @@ msgstr "ينتظر"
 msgid "Waiting for a condition"
 msgstr "بانتظار تحقق شرط"
 
-#: src/components/ai/AgentLiveStatus.tsx:68
+#: src/components/ai/AgentLiveStatus.tsx:50
 #: src/components/ai/AttentionInbox.tsx:48
 msgid "Waiting for approval"
 msgstr "بانتظار موافقتك"
 
-#: src/components/ai/AgentLiveStatus.tsx:78
-#: src/components/ai/AgentLiveStatus.tsx:104
-#: src/components/trading/SuperBotCards.tsx:155
+#: src/components/ai/AgentLiveStatus.tsx:80
 msgid "Waiting for device authorization"
 msgstr "بانتظار تفويض الجهاز"
 
 #: src/components/ai/primitives.tsx:43
 #: src/components/ai/TurnActivity.tsx:35
-#: src/pages/ActivityList.tsx:117
-#: src/pages/shell/sidebar-activity.tsx:70
 msgid "Waiting for handover"
 msgstr "بانتظار التسليم"
 
-#: src/components/ai/AgentLiveStatus.tsx:122
+#: src/components/ai/AgentLiveStatus.tsx:100
 msgid "Waiting for reconciliation"
 msgstr "بانتظار التحقق من النتيجة"
 
-#: src/lib/user_error.ts:107
+#: src/lib/user_error.ts:123
 msgid "Waiting for the broker to report the entry position. The accepted order will not be submitted again."
 msgstr "بانتظار أن يبلغ الوسيط عن صفقة الدخول. لن يُرسل الأمر المقبول مرة أخرى."
 
 #: src/components/ai/primitives.tsx:41
 #: src/components/ai/TurnActivity.tsx:34
-#: src/pages/ActivityList.tsx:115
 #: src/pages/Board.tsx:22
-#: src/pages/shell/sidebar-activity.tsx:68
 msgid "Waiting for your reply"
 msgstr "بانتظار ردك"
 
@@ -3316,11 +3522,15 @@ msgstr "تغيّر شرط المراقبة"
 msgid "Watch confirmed — review current evidence"
 msgstr "تأكدت المراقبة — راجع الأدلة الحالية"
 
-#: src/components/market/MarketWatch.tsx:83
+#: src/components/market/MarketWatch.tsx:106
 msgid "Watch source"
 msgstr "مصدر المراقبة"
 
-#: src/pages/shell/bot-settings.tsx:141
+#: src/components/trading/TradingJournal.tsx:46
+msgid "What happened at the broker"
+msgstr "ما الذي حدث لدى الوسيط"
+
+#: src/pages/shell/bot-settings.tsx:145
 msgid "What should this agent know about its work?"
 msgstr "ما الذي يجب أن يعرفه هذا الوكيل عن عمله؟"
 
@@ -3332,20 +3542,21 @@ msgstr "ما مهمة هذا الوكيل؟"
 msgid "Wink"
 msgstr "غمزة"
 
-#: src/components/ai/AgentLiveStatus.tsx:37
+#: src/components/ai/AttentionInbox.tsx:65
+msgid "Work stopped after repeated interruptions"
+msgstr "توقف عمل بعد انقطاعات متكررة"
+
 #: src/components/ai/primitives.tsx:33
-#: src/pages/ActivityList.tsx:113
 #: src/pages/Board.tsx:20
 #: src/pages/shell/bot-roster-row.tsx:36
-#: src/pages/shell/sidebar-activity.tsx:66
 msgid "Working"
 msgstr "جارٍ العمل"
 
-#: src/pages/Shell.tsx:641
+#: src/pages/Shell.tsx:654
 msgid "Workspace menu"
 msgstr "قائمة مساحة العمل"
 
-#: src/pages/Shell.tsx:1194
+#: src/pages/Shell.tsx:1212
 msgid "Workspace settings"
 msgstr "إعدادات مساحة العمل"
 
@@ -3358,7 +3569,7 @@ msgstr "قلق"
 msgid "Writing"
 msgstr "يكتب"
 
-#: src/pages/shell/chat-context.tsx:1113
+#: src/pages/shell/chat-context.tsx:1116
 msgid "Yesterday"
 msgstr "أمس"
 
@@ -3366,23 +3577,39 @@ msgstr "أمس"
 msgid "You"
 msgstr "أنت"
 
-#: src/pages/ActivityList.tsx:178
+#: src/components/ai/AttentionInbox.tsx:69
+msgid "Your agent alerted you"
+msgstr "نبّهك وكيلك"
+
+#: src/pages/ActivityList.tsx:166
 msgid "Your agents’ activity will appear here."
 msgstr "سيظهر نشاط وكلائك هنا."
 
 #: src/components/trading/SuperBotCards.tsx:244
-msgid "Your approval is needed."
-msgstr "يحتاج إلى موافقتك."
+#~ msgid "Your approval is needed."
+#~ msgstr "يحتاج إلى موافقتك."
 
 #: src/pages/Onboarding.tsx:16
 msgid "Your Lonora workspace"
 msgstr "مساحة عملك في Lonora"
 
-#: src/lib/user_error.ts:40
-#: src/pages/shell/bot-settings.tsx:184
+#: src/lib/user_error.ts:95
+msgid "Your model provider account is out of credits or over its spending limit. Add credit or choose another provider."
+msgstr "نفد رصيد حساب مزود النموذج أو تجاوز حد الإنفاق. أضف رصيدًا أو اختر مزودًا آخر."
+
+#: src/lib/user_error.ts:57
+#: src/pages/shell/bot-settings.tsx:188
 msgid "Your Personal Agent cannot be deleted."
 msgstr "لا يمكن حذف مساعدك الشخصي."
 
-#: src/pages/shell/conversation-inbox.tsx:163
+#: src/components/trading/TradingJournal.tsx:55
+#~ msgid "Your statement"
+#~ msgstr "إفادتك"
+
+#: src/components/trading/TradingJournal.tsx:57
+msgid "Your statement (optional)"
+msgstr "إفادتك (اختيارية)"
+
+#: src/pages/shell/conversation-inbox.tsx:165
 msgid "Your team starts here"
 msgstr "فريقك يبدأ من هنا"

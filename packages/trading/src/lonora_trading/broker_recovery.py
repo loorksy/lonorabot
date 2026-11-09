@@ -1,27 +1,27 @@
 """Reconciliation-first account observations in the existing Gateway and broker ledger."""
 
 import asyncio
-from datetime import timedelta
 
 from lonora_adapters.brokers.base import BrokerManager
-from lonora_contracts.broker_activity import BrokerRecoverySnapshot
+from lonora_contracts.broker_activity import BrokerActivity, BrokerRecoverySnapshot
 from lonora_contracts.domain import ThreadCreate, utcnow
-from lonora_contracts.runs import Lease, RunRequest
-from lonora_contracts.trading import TradeRequest
+from lonora_contracts.runs import RunRequest
+from lonora_contracts.trading import UNRESOLVED_STATUSES
 from lonora_core.user_error import LonoraError
 from lonora_db.broker_sessions import BrokerSessionRepository
 from lonora_db.client import Database
 from lonora_db.events import emit
 from lonora_db.personal_agent import ensure_personal_agent
 from lonora_db.runs import create_run
-from lonora_db.schema import BrokerSessionRow, EffectReceiptRow, RunRow, TradingJournalRow
+from lonora_db.schema import AgentRow, BrokerSessionRow, EffectReceiptRow, TradingJournalRow
 from lonora_db.threads import conversation_thread, create_thread
-from lonora_db.trading_journal import persist_result
 from lonora_market.health import assess_account, require_healthy
 from lonora_session.idempotency import stable_id
 from sqlalchemy import select, text
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from .manual_activity import detect_activity
+from .reconciliation import observe_operation, send_lock_key, settle
 
 
 async def reconcile_broker_account(
@@ -38,7 +38,7 @@ async def reconcile_broker_account(
     async with db.sessions() as gate, gate.begin():
         acquired = await gate.scalar(
             text("SELECT pg_try_advisory_xact_lock(hashtextextended(:key, 0))"),
-            {"key": f"execution:{owner_id}:{account_id}"},
+            {"key": send_lock_key(owner_id, account_id)},
         )
         if not acquired:
             return None
@@ -58,6 +58,7 @@ async def reconcile_broker_account(
                         account, account_id=account_id, now=utcnow(), maximum_age_seconds=60
                     )
                 )
+                read_at = utcnow()
                 positions, orders = await broker.positions(), await broker.orders()
                 if len(positions) > 1000 or len(orders) > 1000:
                     raise LonoraError("broker_snapshot_limit", 409)
@@ -76,48 +77,15 @@ async def reconcile_broker_account(
                     )
                 unresolved: list[str] = []
                 for entry in entries:
-                    if entry.status not in {"ambiguous", "submitted"}:
+                    # Under this same account send lock a reservation has provably not
+                    # been sent (reconcile_ambiguous releases an abandoned one), and a
+                    # submitted operation has lost its sender: the executor persists
+                    # every outcome before releasing the lock. Both are only observed.
+                    if entry.status not in UNRESOLVED_STATUSES:
                         continue
-                    if (
-                        entry.status == "submitted"
-                        and entry.submitted_at
-                        and entry.submitted_at > now - timedelta(seconds=60)
-                    ):
-                        # A live fenced sender waiting for this account lock has not
-                        # submitted yet. Do not make its own reservation degrade it.
-                        raw_lease = entry.result.get("details", {}).get("lease")
-                        lease = Lease.model_validate(raw_lease) if raw_lease else None
-                        active = None
-                        if lease:
-                            async with db.sessions() as session:
-                                active = await session.get(RunRow, lease.run_id)
-                        if not (
-                            active
-                            and lease
-                            and active.status in {"leased", "running"}
-                            and active.lease_owner == lease.owner
-                            and active.lease_fence == lease.fence
-                            and active.lease_expires_at
-                            and active.lease_expires_at > now
-                        ):
-                            unresolved.append(entry.operation_id)
-                        continue
-                    receipt = await broker.reconcile(
-                        entry.operation_id,
-                        TradeRequest.model_validate(entry.request),
-                        submitted_at=entry.submitted_at,
-                    )
-                    if receipt.operation_id == entry.operation_id and receipt.status in {
-                        "confirmed",
-                        "failed",
-                    }:
-                        async with db.sessions() as session, session.begin():
-                            await persist_result(
-                                session,
-                                entry.operation_id,
-                                receipt.status,
-                                receipt.model_dump(mode="json"),
-                            )
+                    receipt = await observe_operation(broker, entry, (positions, orders, read_at))
+                    if receipt is not None:
+                        await settle(db, entry.operation_id, receipt)
                         entry.status, entry.result = receipt.status, receipt.model_dump(mode="json")
                     else:
                         unresolved.append(entry.operation_id)
@@ -183,51 +151,97 @@ async def reconcile_broker_account(
                     },
                 )
             if external:
-                personal = await ensure_personal_agent(session, owner_id)
-                thread = await conversation_thread(session, owner_id, personal.id)
-                pending_ids: list[str] = []
-                for change in external:
-                    key = "broker-activity:" + change.id
-                    if await session.get(EffectReceiptRow, key):
-                        continue
-                    emit(
-                        session,
-                        owner_id,
-                        "broker.external_activity",
-                        agent_id=personal.id,
-                        thread_id=thread.id,
-                        payload=change.model_dump(mode="json"),
-                    )
-                    session.add(
-                        EffectReceiptRow(
-                            key=key, result={"event_id": change.id, "agent_id": personal.id}
-                        )
-                    )
-                    pending_ids.append(change.id)
-                if pending_ids and not personal.paused:
-                    work = await create_thread(
-                        session, owner_id, ThreadCreate(agent_id=personal.id), purpose="work"
-                    )
-                    # Facts only. This wake cannot grant management permission, including via descendants.
-                    await create_run(
-                        session,
-                        owner_id,
-                        RunRequest(
-                            thread_id=work.id,
-                            agent_id=personal.id,
-                            trigger="broker_event",
-                            prompt=f"Use account_activity for account_id={account_id} and inspect current account state. Explain observed changes without inventing owner intent. This is observe-only work; do not change broker state.",
-                            metadata={
-                                "authority": "observe_only",
-                                "origin_thread_id": thread.id,
-                                "account_id": account_id,
-                                "broker_event_ids": pending_ids,
-                                "broker_revision": revision,
-                            },
-                        ),
-                        stable_id(account_id, "external:" + str(revision)),
-                    )
+                await wake_for_activity(session, owner_id, account_id, revision, external)
         return snapshot
+
+
+async def wake_for_activity(
+    session: AsyncSession,
+    owner_id: str,
+    account_id: str,
+    revision: int,
+    external: list[BrokerActivity],
+) -> None:
+    """Wake the Agent responsible for each external broker change, once per change.
+
+    A change on a ticket the journal attributes to an Agent (a stop-loss or take-profit
+    hit, a manual close of its position) wakes that Agent with its normal authority:
+    its grant, the account limits and pauses still decide at the executor. Unattributed
+    activity is the owner's own and wakes the Personal Agent with no financial effects,
+    as does activity of an Agent that is paused or no longer exists.
+    """
+    personal = await ensure_personal_agent(session, owner_id)
+    groups: dict[tuple[str, bool], list[str]] = {}
+    agents: dict[str, AgentRow] = {personal.id: personal}
+    for change in external:
+        key = "broker-activity:" + change.id
+        if await session.get(EffectReceiptRow, key):
+            continue
+        responsible = await session.get(AgentRow, change.agent_id) if change.agent_id else None
+        attributed = bool(
+            responsible
+            and responsible.owner_id == owner_id
+            and not responsible.paused
+            and responsible.role != "delegated"
+        )
+        agent = responsible if attributed and responsible else personal
+        agents[agent.id] = agent
+        thread = await conversation_thread(session, owner_id, agent.id)
+        emit(
+            session,
+            owner_id,
+            "broker.external_activity",
+            agent_id=agent.id,
+            thread_id=thread.id,
+            payload=change.model_dump(mode="json"),
+        )
+        session.add(EffectReceiptRow(key=key, result={"event_id": change.id, "agent_id": agent.id}))
+        groups.setdefault((agent.id, attributed), []).append(change.id)
+    for (agent_id, attributed), pending_ids in groups.items():
+        agent = agents[agent_id]
+        if agent.paused:
+            continue
+        thread = await conversation_thread(session, owner_id, agent.id)
+        work = await create_thread(
+            session, owner_id, ThreadCreate(agent_id=agent.id), purpose="work"
+        )
+        metadata = {
+            "origin_thread_id": thread.id,
+            "account_id": account_id,
+            "broker_event_ids": pending_ids,
+            "broker_revision": revision,
+        }
+        if attributed:
+            prompt = (
+                f"Broker activity on positions or orders you opened or manage on account_id="
+                f"{account_id}. Use account_activity and current account state to reassess them "
+                "and decide what to do next. Your normal authority applies; your grant, account "
+                "limits and pauses decide at execution. Never resend an uncertain operation."
+            )
+            identifier = stable_id(account_id, f"external:{revision}:{agent.id}")
+        else:
+            # Facts only. No financial effects from this wake, its helpers, peer runs or
+            # the Tasks it starts; watches it sets fire later as the Agent's own work.
+            prompt = (
+                f"Use account_activity for account_id={account_id} and inspect current account "
+                "state. Explain observed changes without inventing owner intent. This wake has "
+                "no financial effects: do not change broker state; you may save findings, adjust "
+                "watches, tell colleagues or notify the owner."
+            )
+            metadata["authority"] = "observe_only"
+            identifier = stable_id(account_id, "external:" + str(revision))
+        await create_run(
+            session,
+            owner_id,
+            RunRequest(
+                thread_id=work.id,
+                agent_id=agent.id,
+                trigger="broker_event",
+                prompt=prompt,
+                metadata=metadata,
+            ),
+            identifier,
+        )
 
 
 async def maintenance_account_recovery(db: Database, brokers: BrokerManager, owner_id: str) -> int:

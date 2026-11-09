@@ -4,7 +4,7 @@ from lonora_contracts.domain import ThreadCreate
 from lonora_contracts.runs import Lease, RunRequest
 from lonora_core.user_error import LonoraError
 from lonora_db.client import Database
-from lonora_db.runs import create_run, require_lease, run_data
+from lonora_db.runs import create_run, inherited_authority, require_lease, run_data
 from lonora_db.schema import EffectReceiptRow
 from lonora_db.threads import create_thread
 from lonora_db.tickets import TicketRepository
@@ -19,8 +19,7 @@ async def start_ticket(
     effect_key: str | None = None,
 ) -> dict[str, Any]:
     async with db.sessions() as session, session.begin():
-        if lease:
-            await require_lease(session, lease, lock=True)
+        starter = await require_lease(session, lease, lock=True) if lease else None
         if effect_key:
             existing = await session.get(EffectReceiptRow, effect_key)
             if existing:
@@ -44,7 +43,7 @@ async def start_ticket(
             thread_id=ticket.thread_id,
             trigger="tickets",
             prompt=ticket.payload["title"] + "\n" + ticket.payload.get("description", ""),
-            metadata={"ticket_id": ticket.id},
+            metadata={"ticket_id": ticket.id, **inherited_authority(starter)},
         )
         run = await create_run(session, owner_id, request)
         ticket.payload = {**ticket.payload, "status": "working", "run_id": run.id}

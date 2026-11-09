@@ -7,6 +7,7 @@ from lonora_tools.context import ToolContext
 
 from .context.attachments import attachment_context
 from .stop_gates import reset_stop_gate
+from .tool_guardrails import reset_guardrails
 
 
 async def owner_steering_pending(context: ToolContext) -> bool:
@@ -40,6 +41,7 @@ async def merge_steering(
                 row.role == "user" and (row.content.strip() or row.attachment_ids) for row in fresh
             ):
                 reset_stop_gate(state)
+                reset_guardrails(state)
             state["messages"] = [message.model_dump(mode="json") for message in messages]
             await checkpoint(session, context.lease, state)
         return bool(fresh)

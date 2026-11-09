@@ -8,6 +8,17 @@
   font-size: 11px;
   color: var(--lonora-muted, var(--muted-foreground));
 }
+.permission-no-trading {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  min-height: 32px;
+  color: var(--lonora-muted, var(--muted-foreground));
+  font-size: 11px;
+  white-space: nowrap;
+}
+
 .permission-trigger {
   display: inline-flex;
   align-items: center;
@@ -642,4 +653,22 @@
   .agent-permissions-composer .permission-trigger-chevron {
     display: none;
   }
+}
+.permission-downgrade {
+  display: grid;
+  gap: 8px;
+  margin-block-start: 8px;
+  padding: 10px 12px;
+  border-inline-start: 3px solid var(--warning);
+  border-radius: 8px;
+  background: var(--muted);
+}
+.permission-downgrade p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.permission-downgrade-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }

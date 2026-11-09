@@ -1,6 +1,7 @@
 from typing import Any
 
 from lonora_contracts.domain import Contract
+from lonora_contracts.model_routing import ModelSelection
 from pydantic import Field
 
 from .base import Tool
@@ -9,9 +10,14 @@ from .context import ToolContext
 
 class SubagentInput(Contract):
     task: str = Field(min_length=1, max_length=8000)
+    model: ModelSelection | None = Field(
+        default=None,
+        description="One of the owner's allowed models for this helper; omit to use yours.",
+    )
 
 
-class ChildInput(SubagentInput):
+class ChildInput(Contract):
+    task: str = Field(min_length=1, max_length=8000)
     name: str = Field(min_length=1, max_length=80)
 
 
@@ -22,7 +28,8 @@ class InspectInput(Contract):
 async def spawn(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     from lonora_agent.collaboration.subagents import spawn_subagent
 
-    return await spawn_subagent(context, args["task"])
+    params = SubagentInput.model_validate(args)
+    return await spawn_subagent(context, params.task, params.model)
 
 
 async def inspect(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
@@ -41,20 +48,25 @@ def tools() -> list[Tool]:
     return [
         Tool(
             "subagent_spawn",
-            "Start a bounded temporary research run without creating a permanent agent identity.",
+            "Start a bounded temporary research run without creating a permanent agent "
+            "identity, optionally on another of the owner's allowed models.",
             SubagentInput,
             spawn,
         ),
         Tool(
             "subagent_inspect",
-            "Inspect an owned delegated run's state and outcome.",
+            "Inspect the state and outcome of a run this Agent delegated (its subagents, peer "
+            "or collaboration requests it sent) or of an agent it supervises. Other Agents' "
+            "runs are run_not_found.",
             InspectInput,
             inspect,
             True,
+            poller=True,
         ),
         Tool(
             "child_agent_create",
-            "Create a persistent child agent with its own identity, thread and memory.",
+            "Compatibility only: a child identity under your own scope with its own thread "
+            "and memory. For a persistent agent the owner asks for, use agent_create.",
             ChildInput,
             child,
         ),

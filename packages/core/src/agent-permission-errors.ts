@@ -19,6 +19,10 @@ const messages = {
     en: "A limit in the signed authorization prevents this action. Review its configured limits.",
     ar: "أحد حدود التفويض الموقّع يمنع هذه العملية. راجع الحدود التي حددتها.",
   },
+  changed: {
+    en: "This agent's trading level changed while the step was prepared. Nothing was sent; it is checked again under the current level.",
+    ar: "تغيّر مستوى تداول هذا الوكيل أثناء تحضير الخطوة. لم يُرسل شيء، وستُراجع وفق المستوى الحالي.",
+  },
   state: {
     en: "The current permissions could not be verified. Reload them before making changes.",
     ar: "تعذّر التحقق من الصلاحيات الحالية. أعد تحميلها قبل إجراء تغييرات.",
@@ -43,6 +47,7 @@ const categories: Readonly<Record<string, keyof typeof messages>> = {
   account_authority_pending_limit: "limits",
   account_authority_action_limit: "limits",
   account_authority_equity_floor: "limits",
+  agent_permission_changed: "changed",
   agent_permission_state_invalid: "state",
   agent_permission_scope_mismatch: "state",
 };

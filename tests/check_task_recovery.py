@@ -52,11 +52,16 @@ async def main():
             phase += 1
             completed = [message.tool_call_id for message in messages if message.role == "tool"]
             if phase == 2:
+                # A transient outage: the Run backs off on its own checkpoint.
                 assert completed.count("first-status") == 1 and "first-step" in completed
                 raise LonoraError("model_provider_unavailable", 502)
-            if phase in {1, 3}:
+            if phase == 3:
+                # A non-transient model failure fails the Run; the Task retries it.
+                assert completed.count("first-status") == 1 and "first-step" in completed
+                raise LonoraError("model_endpoint_unavailable", 502)
+            if phase in {1, 4}:
                 identifier = "first" if phase == 1 else "recovered"
-                if phase == 3:
+                if phase == 4:
                     assert completed.count("first-status") == 1 and "first-step" in completed
                 observed_calls.append(identifier)
                 reply = ModelReply(
@@ -76,7 +81,7 @@ async def main():
                 )
             else:
                 assert (
-                    phase == 4
+                    phase == 5
                     and completed.count("first-status") == 1
                     and completed.count("recovered-status") == 1
                 )
@@ -95,6 +100,28 @@ async def main():
         first = await claimed_context()
         with patch.object(first.router, "complete", complete):
             await execute_run(first, registry, 120, 8)
+            async with fixture.runtime.db.sessions() as session, session.begin():
+                run = await session.get(RunRow, first.lease.run_id)
+                assert run and run.status == "queued" and run.error_code is None
+                retry = run.execution_state["environment"]["retry"]
+                assert retry["reason_code"] == "model_provider_retry"
+                assert retry["code"] == "model_provider_unavailable"
+                # The worker was released; nothing is claimable before the deadline.
+                assert await claim_next(session, "too-early", 120, "work") is None
+                state = dict(run.execution_state)
+                state["environment"] = {
+                    **state["environment"],
+                    "retry": {
+                        **retry,
+                        "not_before": (utcnow() - timedelta(seconds=1)).isoformat(),
+                    },
+                }
+                run.execution_state = state
+            pending = await fixture.request("GET", "/tasks/" + task["id"])
+            assert pending["status"] != "failed" and pending["failure"] is None
+            backed_off = await claimed_context()
+            assert backed_off.lease.run_id == first.lease.run_id
+            await execute_run(backed_off, registry, 120, 8)
             waiting = await fixture.request("GET", "/tasks/" + task["id"])
             assert waiting["status"] == "waiting" and waiting["phase"] == "retry_wait"
             assert (
@@ -121,7 +148,8 @@ async def main():
             )
             second = await claimed_context()
             assert (
-                second.lease.run_id == first.lease.run_id and second.lease.fence > first.lease.fence
+                second.lease.run_id == first.lease.run_id
+                and second.lease.fence > backed_off.lease.fence > first.lease.fence
             )
             await execute_run(second, registry, 120, 8)
         actual = await fixture.request("GET", "/tasks/" + task["id"])
@@ -145,7 +173,7 @@ async def main():
             )
             assert len(messages) == 1
         print(
-            "PASS actual AgentRuntime/tool loop/provider failure → durable backoff → two gateway recovery callers → same fenced Run/checkpoint → fresh verification → one canonical result; completed work not repeated"
+            "PASS actual AgentRuntime/tool loop/provider outage → Run-level backoff on the same checkpoint → model failure → durable Task backoff → two gateway recovery callers → same fenced Run/checkpoint → fresh verification → one canonical result; completed work not repeated"
         )
     finally:
         await fixture.close()

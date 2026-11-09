@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .client import Database
 from .events import emit
+from .item_failures import ItemGuard, blocked
 from .runs import locked_run_thread
 from .schema import BrokerSessionRow, EffectReceiptRow, MarketWatchRow, RunRow, ThreadRow, TicketRow
 from .tasks import save_task, task_state
@@ -205,61 +206,72 @@ async def resume_ready_waits(db: Database) -> int:
     )
     async with db.sessions() as session:
         rows = list(
-            await session.scalars(
-                select(RunRow)
+            await session.execute(
+                select(RunRow, ThreadRow.owner_id)
+                .join(ThreadRow, ThreadRow.id == RunRow.thread_id)
                 .join(TicketRow, TicketRow.id == RunRow.model_metadata["task_id"].as_string())
                 .where(
                     RunRow.status == "waiting_takeover",
                     TicketRow.state["task"]["status"].as_string() == "waiting",
                     ready_source,
+                    ~blocked("task_wait", RunRow.id),
                 )
                 .order_by(RunRow.updated_at)
                 .limit(50)
             )
         )
+    guard = ItemGuard(db, "task_wait")
+    await guard.prepare(candidate.id for candidate, _ in rows)
     changed = 0
-    for candidate in rows:
-        wait = candidate.execution_state["environment"]["wait"]
-        kind, source_id = wait["kind"], wait.get("source_id")
-        async with db.sessions() as session, session.begin():
-            thread = await session.get(ThreadRow, candidate.thread_id)
-            if thread is None:
-                continue
-            ready, observation = False, ""
-            if kind == "timer":
-                ready, observation = wait["due_at"] <= utcnow().isoformat(), wait["due_at"]
-            elif kind == "watch":
-                source = await session.get(MarketWatchRow, source_id)
-                if (
-                    source
-                    and source.owner_id == thread.owner_id
-                    and source.agent_id == candidate.agent_id
-                    and source.thread_id == candidate.thread_id
-                ):
-                    observed = source.state.get("last_triggered")
-                    ready = bool(observed and observed >= source.created_at.isoformat())
-                    observation = str(observed or "")
-            elif kind == "broker_recovery":
-                source = await session.get(BrokerSessionRow, source_id)
-                recovery: dict[str, Any] = (
-                    source.state.get("broker_recovery", {})
-                    if source and source.owner_id == thread.owner_id
-                    else {}
-                )
-                ready = (
-                    recovery.get("status") == "connected"
-                    and recovery.get("observed_at", "") >= wait["created_at"]
-                )
-                observation = str(recovery.get("observed_at", ""))
-            if ready:
-                changed += int(
-                    await wake_waiting_run(
-                        session,
-                        candidate.id,
-                        kind=kind,
-                        source_id=source_id,
-                        observation=observation,
-                        expected_call_id=wait["call_id"],
-                    )
-                )
+    for candidate, owner_id in rows:
+
+        async def resume(candidate: RunRow = candidate) -> bool:
+            return await resume_one(db, candidate)
+
+        changed += int(bool(await guard.run(candidate.id, owner_id, resume)))
     return changed
+
+
+async def resume_one(db: Database, candidate: RunRow) -> bool:
+    wait = candidate.execution_state["environment"]["wait"]
+    kind, source_id = wait["kind"], wait.get("source_id")
+    async with db.sessions() as session, session.begin():
+        thread = await session.get(ThreadRow, candidate.thread_id)
+        if thread is None:
+            return False
+        ready, observation = False, ""
+        if kind == "timer":
+            ready, observation = wait["due_at"] <= utcnow().isoformat(), wait["due_at"]
+        elif kind == "watch":
+            source = await session.get(MarketWatchRow, source_id)
+            if (
+                source
+                and source.owner_id == thread.owner_id
+                and source.agent_id == candidate.agent_id
+                and source.thread_id == candidate.thread_id
+            ):
+                observed = source.state.get("last_triggered")
+                ready = bool(observed and observed >= source.created_at.isoformat())
+                observation = str(observed or "")
+        elif kind == "broker_recovery":
+            source = await session.get(BrokerSessionRow, source_id)
+            recovery: dict[str, Any] = (
+                source.state.get("broker_recovery", {})
+                if source and source.owner_id == thread.owner_id
+                else {}
+            )
+            ready = (
+                recovery.get("status") == "connected"
+                and recovery.get("observed_at", "") >= wait["created_at"]
+            )
+            observation = str(recovery.get("observed_at", ""))
+        if not ready:
+            return False
+        return await wake_waiting_run(
+            session,
+            candidate.id,
+            kind=kind,
+            source_id=source_id,
+            observation=observation,
+            expected_call_id=wait["call_id"],
+        )

@@ -630,3 +630,19 @@ Do not claim “Lonora outperforms Nanobot” based on this plan or local tests 
 - Controls, permissions, approvals, operation identity, and reconciliation remain authoritative for every improvement.
 - Add migrations only when required state cannot be represented cleanly in the current schema, after reviewing ownership and retention.
 - Begin with Wave 0, then 1. The first integration point is context management with existing parity tests. Do not combine every wave into one rewrite.
+
+---
+
+> **Superseded: backtesting is excluded by the owner mandate (editorial note, 2026-11-07).**
+> The owner's current mandate (section 5, "Explicit Exclusion: Backtesting") excludes strategy
+> backtesting from Lonora: no historical strategy backtesting engine, workflow, interface or
+> dependency, and no backtest as a prerequisite for strategy creation, modification or agent
+> autonomy. Lonora's bounded SMA-cross research engine was removed accordingly.
+>
+> In "Measured strategy evaluation" (line 53), "historical outcomes" means real recorded
+> outcomes, and "out-of-sample checks" and "historical fit" refer to no backtest: Lonora runs
+> none.
+>
+> Historical market observations used to understand the market, and real recorded live or
+> Shadow outcomes, remain in scope. The original text above is unchanged; this note is appended
+> so existing line references stay valid. See [decision readiness](../decision-readiness.md#strategy-backtesting-is-excluded).

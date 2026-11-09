@@ -169,25 +169,41 @@ async def main() -> None:
         assert (await call("other-empty", "workspace_inspect", {}, other_context))["files"] == []
         checks += 1
 
+        # An observe-only wake has no financial effects, so it keeps workspace writes:
+        # both calls pass the scope and stop only at their own checks.
         async with db.sessions() as session, session.begin():
             run = await session.get(RunRow, context.lease.run_id)
             assert run
             run.model_metadata = {**run.model_metadata, "authority": "observe_only"}
         await denied(
-            call("readonly-write", "workspace_update", {"revision": 2, "files": {"bad": "no"}}),
-            "tool_not_allowed",
+            call("observe-write", "workspace_update", {"revision": 1, "files": {"bad": "no"}}),
+            "workspace_revision_conflict",
         )
         await denied(
-            call("readonly-exec", "workspace_execute", {"revision": 2, "command": "anything"}),
-            "tool_not_allowed",
+            call("observe-exec", "workspace_execute", {"revision": 2, "command": "anything"}),
+            "workspace_execution_unconfigured",
         )
-        assert (await call("readonly-inspect", "workspace_inspect", {}))["revision"] == 2
+        # A temporary helper computes in the sandbox but never edits files directly.
         async with db.sessions() as session, session.begin():
             run = await session.get(RunRow, context.lease.run_id)
             assert run
             run.model_metadata = {
                 key: value for key, value in run.model_metadata.items() if key != "authority"
             }
+            trigger, run.trigger = run.trigger, "subagent"
+        await denied(
+            call("helper-write", "workspace_update", {"revision": 2, "files": {"bad": "no"}}),
+            "tool_not_allowed",
+        )
+        await denied(
+            call("helper-exec", "workspace_execute", {"revision": 2, "command": "anything"}),
+            "workspace_execution_unconfigured",
+        )
+        assert (await call("helper-inspect", "workspace_inspect", {}))["revision"] == 2
+        async with db.sessions() as session, session.begin():
+            run = await session.get(RunRow, context.lease.run_id)
+            assert run
+            run.trigger = trigger
         checks += 1
 
         await denied(

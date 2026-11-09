@@ -39,7 +39,7 @@ export default function Settings() {
           <SettingsRow title={t("account")} icon="agent" onPress={() => router.push("/account")} />
           <SettingsRow title={t("models")} icon="settings" onPress={() => router.push("/models")} />
           <SettingsRow
-            title={t("integrations")}
+            title={t("capabilities")}
             icon="layers"
             onPress={() => router.push("/integrations")}
           />

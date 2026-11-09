@@ -36,6 +36,8 @@ export function goalStatusLabel(value: unknown): string {
       return t`Completed`;
     case "failed":
       return t`Failed`;
+    case "resolved":
+      return t`Resolved without broker confirmation`;
     case "paused":
       return t`Paused`;
     case "cancelled":

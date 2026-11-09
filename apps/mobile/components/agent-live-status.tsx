@@ -1,47 +1,28 @@
 import type { AgentLiveState } from "@lonora/contracts";
-import { useFocusEffect } from "expo-router";
-import { useCallback, useRef, useState } from "react";
-import { AppState, Pressable, Text, View } from "react-native";
+import { agentStatusLine, agentStatusText, watchCondition, watchUntil } from "@lonora/core";
+import { useState } from "react";
+import { Pressable, Text, View } from "react-native";
 import { api } from "../lib/api";
 import { useSession } from "../lib/session";
 import { NativeSymbol } from "./native-symbol";
 import { Button, colors, ErrorNotice } from "./ui";
 
-export function AgentLiveStatus({ agentId }: { agentId: string }) {
-  const { t, errorText, rtl } = useSession();
-  const [state, setState] = useState<AgentLiveState | null>(null);
+/** The thread's background-activity strip; the screen polls the live state once for it
+ * and the header's safety pill (``useAgentLiveState``). */
+export function AgentLiveStatus({
+  state,
+  error: readError,
+  refresh,
+}: {
+  state: AgentLiveState | null;
+  error: unknown;
+  refresh: () => Promise<void>;
+}) {
+  const { t, errorText, rtl, locale } = useSession();
   const [expanded, setExpanded] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const reportError = useRef(errorText);
-  reportError.current = errorText;
-  useFocusEffect(
-    useCallback(() => {
-      let live = true;
-      let timer: ReturnType<typeof setTimeout>;
-      const refresh = async () => {
-        try {
-          if (AppState.currentState === "active") {
-            const next = await api.get<AgentLiveState>(
-              `/agents/${encodeURIComponent(agentId)}/state`,
-            );
-            if (live) {
-              setState(next);
-              setError(null);
-            }
-          }
-        } catch (caught) {
-          if (live) setError(reportError.current(caught));
-        }
-        if (live) timer = setTimeout(() => void refresh(), 15000);
-      };
-      void refresh();
-      return () => {
-        live = false;
-        clearTimeout(timer);
-      };
-    }, [agentId]),
-  );
+  const [actionError, setActionError] = useState<string | null>(null);
   if (!state) return null;
+  const error = actionError ?? (readError ? errorText(readError) : null);
   const attention = state.state === "degraded" || state.state === "action_required";
   const tint = attention
     ? colors.warning
@@ -76,7 +57,7 @@ export function AgentLiveStatus({ agentId }: { agentId: string }) {
         <Text
           style={{ color: tint, fontSize: 12, flexShrink: 1, textAlign: rtl ? "right" : "left" }}
         >
-          {t("backgroundActivity")} · {t(`live_${state.state}`)}
+          {t("backgroundActivity")} · {agentStatusLine(state, locale)}
         </Text>
         <View style={{ transform: [{ rotate: expanded ? "90deg" : rtl ? "180deg" : "0deg" }] }}>
           <NativeSymbol name="chevron" size={11} color={tint} />
@@ -87,53 +68,61 @@ export function AgentLiveStatus({ agentId }: { agentId: string }) {
           <ErrorNotice text={error} />
           {(state.runtime_waits ?? []).map((wait) => (
             <Text key={wait.run_id} style={{ color: colors.secondary }}>
-              {wait.kind === "read_retry" ? t("retryScheduled") : t("live_waiting")}
+              {wait.kind === "read_retry"
+                ? t("retryScheduled")
+                : wait.kind === "model_retry"
+                  ? t("modelRetryScheduled")
+                  : t("live_waiting")}
               {wait.retry_at ? ` · ${new Date(wait.retry_at).toLocaleTimeString()}` : ""}
             </Text>
           ))}
           {state.pending_approval_count > 0 && (
             <Text style={{ color: colors.foreground }}>{t("live_action_required")}</Text>
           )}
-          {state.watch_count > 0 && (
-            <Text style={{ color: colors.foreground }}>
-              {t("activeWatches")}: {state.watch_count}
-            </Text>
-          )}
+          {(state.watches ?? []).map((watch) => (
+            <View
+              key={watch.id}
+              testID={`agent-watch-${watch.id}`}
+              style={{
+                flexDirection: rtl ? "row-reverse" : "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 8,
+              }}
+            >
+              <Text
+                style={{
+                  color: colors.foreground,
+                  flexShrink: 1,
+                  textAlign: rtl ? "right" : "left",
+                  writingDirection: rtl ? "rtl" : "ltr",
+                }}
+              >
+                {watchCondition(watch, locale)} · {watchUntil(watch, locale)}
+              </Text>
+              <Button
+                label={agentStatusText(locale).cancel}
+                secondary
+                onPress={() => {
+                  void api
+                    .post(`/watches/${encodeURIComponent(watch.id)}/control`, {
+                      action: "cancel",
+                    })
+                    .then(() => {
+                      setActionError(null);
+                      return refresh();
+                    })
+                    .catch((caught) => setActionError(errorText(caught)));
+                }}
+              />
+            </View>
+          ))}
           {(state.pending_authorization_count ?? 0) > 0 && (
             <Text style={{ color: colors.foreground }}>{t("devicePending")}</Text>
           )}
-          {(state.super_bot ?? []).map((grant) => (
-            <View key={grant.request_id}>
-              <Text style={{ color: colors.foreground }}>
-                {t("superBot")} · {t(grant.mode)}
-              </Text>
-              <Text style={{ color: colors.foreground }}>{grant.title}</Text>
-              {grant.execution_mode === "shadow" && (
-                <Text style={{ color: colors.secondary }}>{t("shadowMode")}</Text>
-              )}
-              {grant.review_status === "failed" && (
-                <Text style={{ color: colors.foreground }}>{t("live_action_required")}</Text>
-              )}
-              <Text style={{ color: colors.secondary }}>
-                {grant.authorization_status === "pending"
-                  ? t("devicePending")
-                  : grant.authorization_status === "paused"
-                    ? t("paused")
-                    : t("active")}
-                {" · "}
-                {(
-                  {
-                    active: t("active"),
-                    waiting: t("live_waiting"),
-                    paused: t("paused"),
-                    blocked: t("taskNeedsReview"),
-                    completed: t("completed"),
-                    cancelled: t("cancelled"),
-                  } as Record<string, string>
-                )[grant.goal_status] ?? t("live_action_required")}
-              </Text>
-            </View>
-          ))}
+          {(state.account_authorities ?? []).some((grant) => grant.review_status === "failed") && (
+            <Text style={{ color: colors.foreground }}>{t("grantReviewFailed")}</Text>
+          )}
           {state.tasks.map((task) => (
             <View key={task.id}>
               <Text style={{ color: colors.foreground }}>{task.title}</Text>
@@ -160,11 +149,11 @@ export function AgentLiveStatus({ agentId }: { agentId: string }) {
                             action,
                             expected_version: task.version,
                           })
-                          .then(() =>
-                            api.get<AgentLiveState>(`/agents/${encodeURIComponent(agentId)}/state`),
-                          )
-                          .then(setState)
-                          .catch((caught) => setError(errorText(caught)));
+                          .then(() => {
+                            setActionError(null);
+                            return refresh();
+                          })
+                          .catch((caught) => setActionError(errorText(caught)));
                       }}
                     />
                   ),

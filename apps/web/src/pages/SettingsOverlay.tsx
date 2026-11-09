@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { IntegrationSetup } from "../components/integrations/IntegrationSetup";
+import { CapabilitiesSection } from "./CapabilitiesSection";
 import { LocalSettings } from "./LocalSettings";
 import { McpServersOverlay } from "./McpServersOverlay";
 import { ModelSettingsOverlay } from "./ModelSettingsOverlay";
@@ -16,6 +17,8 @@ export function SettingsOverlay({ initialTab = "overview" }: { initialTab?: Sett
         <div>
           {tab === "overview" ? (
             <LocalSettings />
+          ) : tab === "capabilities" ? (
+            <CapabilitiesSection />
           ) : tab === "models" ? (
             <ModelSettingsOverlay />
           ) : tab === "voice" ? (

@@ -1,6 +1,6 @@
 """Structured event classification; never match human text or invent a market signal."""
 
-from typing import Any
+from typing import Any, cast
 
 from lonora_contracts.attention import AttentionClassification
 
@@ -8,6 +8,11 @@ ATTENTION_KINDS = frozenset(
     {
         "trading.controls_updated",
         "trading.approval.updated",
+        # Owner action cards follow these (lonora_gateway.owner_cards); an operation that
+        # becomes ambiguous is also the owner's "operation_uncertain" item.
+        "trading.operation_updated",
+        "trading.restriction_created",
+        "trading.restriction_revoked",
         "broker.degraded",
         "broker.recovered",
         "broker.external_activity",
@@ -22,9 +27,10 @@ ATTENTION_KINDS = frozenset(
         "collaboration.updated",
         "collaboration.completed",
         "task.failed",
+        "task.attention_required",
+        "task.degraded",
         "task.retry_scheduled",
         "task.updated",
-        "super_bot.updated",
     }
 )
 
@@ -41,20 +47,24 @@ def classify_attention(kind: str, payload: dict[str, Any]) -> AttentionClassific
         or payload.get("state")
         or kind
     )
+    if kind == "trading.operation_updated":
+        resource = str(payload.get("operation_id") or resource)
+    elif kind.startswith("trading.restriction_"):
+        restriction: Any = payload.get("restriction")
+        if isinstance(restriction, dict):
+            identifier = cast(dict[str, Any], restriction).get("id")
+            resource = str(identifier or resource)
     if kind in {"watch.suspended_health", "watch.resumed_health"}:
         transition = str(payload.get("health", {}).get("observed_at") or transition)
     result = AttentionClassification(
         importance="silent", code="internal_update", resource_id=resource, transition=transition
     )
-    if kind == "super_bot.updated":
-        result.importance, result.code = (
-            ("action_required", "super_bot_authorization")
-            if payload.get("status") == "pending"
-            else ("important_change", "super_bot_changed")
-        )
-        transition = str(payload.get("status")) + ":" + str(payload.get("mode"))
-    elif kind == "trading.controls_updated" and payload.get("emergency_stop") is True:
+    if kind == "trading.controls_updated" and payload.get("emergency_stop") is True:
         result.importance, result.code = "critical", "emergency_stop"
+    elif kind == "trading.operation_updated" and payload.get("status") == "ambiguous":
+        # One item per operation: later ambiguous rewrites of the row are the same fact.
+        result.importance, result.code = "action_required", "operation_uncertain"
+        transition = "ambiguous"
     elif kind == "trading.approval.updated":
         result.importance, result.code = (
             ("action_required", "approval_required")
@@ -96,6 +106,12 @@ def classify_attention(kind: str, payload: dict[str, Any]) -> AttentionClassific
             else "important_change",
             "task_review",
         )
+    elif kind == "task.attention_required":
+        # Unfinished work waits for the owner's direction instead of failing.
+        result.importance, result.code = "action_required", "task_review"
+    elif kind == "task.degraded":
+        # Monitoring keeps retrying through an outage; nothing waits on the owner.
+        result.importance, result.code = "important_change", "task_degraded"
     elif kind == "task.updated" and payload.get("status") == "completed":
         result.importance, result.code = "informational", "task_completed"
     result.transition = transition

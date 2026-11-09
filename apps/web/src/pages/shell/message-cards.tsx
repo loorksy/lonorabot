@@ -4,6 +4,7 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { plainTextLinkParts } from "@lonora/chat-ui/markdown";
 import { ChatMarkdown } from "@lonora/chat-ui/web";
 import type { VisualAction } from "@lonora/contracts";
+import { peerOutcome } from "@lonora/core";
 import { ArrowRight, CornerUpLeft, MessagesSquare } from "lucide-react";
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
@@ -217,11 +218,8 @@ export function PeerMessageCard({
   const payload = peer.payload;
   const request =
     payload.source_message_id === message.id || payload.target_message_id === message.id;
-  const wrapped =
-    /^<peer_outcome\b[^>]*status=['"]([^'"]+)['"][^>]*>\n([\s\S]*)\n<\/peer_outcome>$/.exec(
-      message.content,
-    );
-  const body = wrapped?.[2] ?? message.content;
+  const wrapped = peerOutcome(message.content);
+  const body = wrapped.body;
   const sourceName = String(payload.source_agent_name ?? "");
   const targetName = String(payload.target_agent_name ?? "");
   const sender = request ? sourceName : targetName;
@@ -230,7 +228,7 @@ export function PeerMessageCard({
   const toId = String((request ? payload.target_agent_id : payload.source_agent_id) ?? "");
   const fromThread = String((request ? payload.source_thread_id : payload.target_thread_id) ?? "");
   const toThread = String((request ? payload.target_thread_id : payload.source_thread_id) ?? "");
-  const status = wrapped?.[1] ?? run?.status ?? String(payload.status ?? "queued");
+  const status = wrapped.status ?? run?.status ?? String(payload.status ?? "queued");
   return (
     <article
       className="message template-message assistant template-peer-card"
@@ -276,6 +274,8 @@ export function PeerMessageCard({
             <Trans>Failed</Trans>
           ) : status === "completed" ? (
             <Trans>Completed</Trans>
+          ) : status === "limited" ? (
+            <Trans>Stopped at its work limit</Trans>
           ) : (
             <Trans>Queued</Trans>
           )}

@@ -17,6 +17,11 @@ from lonora_tools.base import Tool
 AMBIGUOUS = frozenset(
     {"broker_result_ambiguous", "operation_ambiguous", "tool_execution_uncertain"}
 )
+# Financial statuses whose outcome is not yet known (lonora_contracts.trading lifecycle).
+IN_FLIGHT = frozenset({"ambiguous", "submitted", "reserved"})
+# Settled without broker confirmation (owner attestation or a vanished/changed target):
+# terminal, so never retried or resent, but not evidence that the requested effect holds.
+SETTLED_UNCONFIRMED = "resolved"
 
 
 class ToolRetryScheduled(Exception):
@@ -51,9 +56,21 @@ def classify(code: str, tool: Tool | None) -> dict[str, Any]:
     elif code in {
         "tool_not_allowed",
         "agent_market_binding_mismatch",
+        "agent_trading_account_mismatch",
+        "agent_trading_symbol_mismatch",
         "financial_authority_required",
+        # An owner restriction: never route around it through another symbol or account.
+        "trading_restriction_active",
+        "restriction_all_mutations_requires_owner_message",
+        # Supervision never silences the owner's entry point or sheds its own oversight.
+        "supervision_personal_agent",
+        "supervision_revoke_own_oversight",
     }:
         category, action = "permission_denied", "respect_scope"
+    elif code.startswith("risk_"):
+        # details.risk_assessment holds the limit and modeled risk: resize to fit, protect
+        # or reduce exposure, or wait for the owner; never repeat the same request.
+        category, action = "risk_limit_blocked", "inspect_risk_assessment"
     elif code.endswith("_unconfigured") or code in {
         "model_not_configured",
         "search_not_configured",
@@ -82,6 +99,29 @@ def environment_state(state: dict[str, Any]) -> dict[str, Any]:
     environment.setdefault("routes", {})
     environment.setdefault("recent", [])
     return environment
+
+
+def expire_read_routes(state: dict[str, Any]) -> None:
+    """Forget settled read routes at real owner input or an external wake.
+
+    An exhausted read (for example a quote while the market was closed) would
+    otherwise stay refused for the rest of a long-lived Run. Only records known
+    to be read-only and not ambiguous are dropped; an uncertain effect, and any
+    record written before the flag existed, keeps blocking until reconciled.
+    """
+    environment = state.get("environment")
+    if not isinstance(environment, dict):
+        return
+    routes = cast(dict[str, Any], environment).get("routes")
+    if not isinstance(routes, dict):
+        return
+    for key, record in list(cast(dict[str, Any], routes).items()):
+        if (
+            isinstance(record, dict)
+            and cast(dict[str, Any], record).get("read_only") is True
+            and not cast(dict[str, Any], record).get("ambiguous")
+        ):
+            del routes[key]
 
 
 def blocked_route(state: dict[str, Any], call: ToolCall) -> dict[str, Any] | None:
@@ -114,16 +154,20 @@ def observe(
         else []
     )
     uncertain = (
-        result.get("status") in {"ambiguous", "submitted"}
-        or nested.get("status") in {"ambiguous", "submitted"}
+        result.get("status") in IN_FLIGHT
+        or nested.get("status") in IN_FLIGHT
         or code in AMBIGUOUS
         or any(
-            item.get("status") in {"ambiguous", "submitted"} or item.get("code") in AMBIGUOUS
-            for item in outcomes
+            item.get("status") in IN_FLIGHT or item.get("code") in AMBIGUOUS for item in outcomes
         )
     )
     failed = (
         result.get("ok") is False or uncertain or result.get("status") in {"failed", "rejected"}
+    )
+    unconfirmed = not failed and (
+        result.get("status") == SETTLED_UNCONFIRMED
+        or nested.get("status") == SETTLED_UNCONFIRMED
+        or any(item.get("status") == SETTLED_UNCONFIRMED for item in outcomes)
     )
     failures = int(previous.get("failures", 0)) + 1 if failed else 0
     record = {
@@ -132,7 +176,7 @@ def observe(
         "origin_call_id": previous.get("origin_call_id", call.id)
         if previous.get("ambiguous")
         else call.id,
-        "code": code if failed else None,
+        "code": code if failed else "operation_resolved_unconfirmed" if unconfirmed else None,
         "failures": failures,
         "ambiguous": uncertain or bool(previous.get("ambiguous")),
         "receipt_replay": previous.get("receipt_replay", False)
@@ -143,6 +187,8 @@ def observe(
             and (call.id not in env.get("legacy_pending", []) or tool.legacy_replay_safe)
         ),
         "observed_at": utcnow().isoformat(),
+        # Lets a new review epoch expire exhausted reads, never uncertain effects.
+        "read_only": bool(tool and tool.read_only),
     }
     routes.pop(key, None)
     routes[key] = record
@@ -162,6 +208,11 @@ def observe(
             recovery["next_action"] = "alternate_route_or_wait"
             recovery["retry_exhausted"] = True
         result["recovery"] = recovery
+    elif unconfirmed:
+        # Not a success to build on: read the account again before any next decision.
+        result["recovery"] = ToolRecovery(
+            category="stale_state", next_action="reload_authoritative_state"
+        ).model_dump(mode="json")
     return record
 
 

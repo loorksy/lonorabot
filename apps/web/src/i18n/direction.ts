@@ -3,5 +3,6 @@ export function applyDirection(locale: string) {
   document.documentElement.dir = locale === "ar" ? "rtl" : "ltr";
 }
 export function isolated(value: string) {
-  return `\u2068${value}\u2069`;
+  // The value's own direction controls would end the isolate early: drop them first.
+  return `\u2068${value.replace(/[\u202a-\u202e\u2066-\u2069]/g, "")}\u2069`;
 }

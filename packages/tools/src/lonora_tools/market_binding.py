@@ -16,6 +16,25 @@ from pydantic import BaseModel
 from .context import ToolContext
 
 MARKET_TOOLS = ("market_", "chart_", "watch_", "trade_", "goal_", "account_")
+# Reading records and narrowing admission need no financial authority: any agent may
+# record an owner's restriction, and none can lift one.
+NONFINANCIAL_TRADE_TOOLS = frozenset(
+    {
+        "trade_record_read",
+        "trade_record_history",
+        "trade_restriction_create",
+        "trade_restriction_list",
+    }
+)
+
+
+# Reading is open: a fixed-market agent reads every owned account and symbol (quotes,
+# candles, accounts, full history and activity, records), like every other Agent. Its
+# bound account and symbol stay its focus for every mutation path (charts, watches,
+# goals, decisions, trades), and the executor independently re-checks the binding for
+# every financial request. Copying market data into the agent's own workspace is a read
+# of the market.
+OPEN_READ_EFFECTS = frozenset({"market_candles_to_workspace"})
 
 
 def market_tool(name: str) -> bool:
@@ -50,7 +69,11 @@ def fill_bound_fields(agent: AgentRow, args: dict[str, Any], fields: set[str]) -
         agent.trading_symbol
         and "symbol" in fields
         and not filled.get("symbol")
-        and (not flexible_scope(agent) or filled.get("account_id") == agent.trading_account_id)
+        # An explicit every-symbol scope (trade_restriction_create) is not a missing symbol.
+        and not filled.get("all_symbols")
+        # The focus symbol belongs to the focus account: a call naming another owned
+        # account reads (or is refused) for that account as a whole, fixed agents too.
+        and ("account_id" not in fields or filled.get("account_id") == agent.trading_account_id)
     ):
         filled["symbol"] = agent.trading_symbol
     return filled
@@ -72,15 +95,19 @@ async def prepare_market_arguments(
 
 
 async def guard_market_tool(
-    context: ToolContext, name: str, args: dict[str, Any]
+    context: ToolContext, name: str, args: dict[str, Any], *, read: bool = False
 ) -> dict[str, Any]:
+    """Financial identity for financial tools; a fixed market for mutations only.
+
+    ``read`` is the registry's own effect metadata for the tool: reads are open.
+    """
     if not market_tool(name):
         return args
     async with context.db.sessions() as session:
         agent = await agent_binding(session, context.owner_id, context.agent_id)
         if (
             name.startswith("trade_")
-            and name not in {"trade_record_read", "trade_record_history"}
+            and name not in NONFINANCIAL_TRADE_TOOLS
             and agent.execution_mode != "shadow"
         ) or (
             name.startswith("goal_") and name not in {"goal_read", "goal_list", "goal_decisions"}
@@ -99,6 +126,8 @@ async def guard_market_tool(
         aligned = align_payload(agent, args)
         if isinstance(aligned, dict):
             args = cast(dict[str, Any], aligned)
+        if read or name in OPEN_READ_EFFECTS:
+            return args
         if name in {"watch_create", "trade_close_positions"} and not args.get("symbol"):
             args = {**args, "symbol": agent.trading_symbol}
         assert_payload_binding(agent, args)
@@ -123,63 +152,53 @@ async def guard_market_tool(
         return args
 
 
+EXECUTION_SCOPE_NOTE = (
+    "Reading is open across every owned account and symbol; charts, watches, goals, "
+    "decisions and trades stay on this bound account and symbol."
+)
+
+
 def _kept(value: object, bound: str | None) -> bool:
     return same_binding(value, bound)
 
 
 async def scope_market_result(
-    context: ToolContext, name: str, result: dict[str, Any]
+    context: ToolContext, name: str, result: dict[str, Any], args: dict[str, Any] | None = None
 ) -> dict[str, Any]:
-    if name not in {
-        "market_symbols",
-        "market_instruments",
-        "chart_list",
-        "account_read",
-        "account_history",
-        "list_accounts",
-    }:
+    """Annotate what a fixed-market agent may execute; never hide what it may read."""
+    if name not in {"market_symbols", "market_instruments", "account_read", "list_accounts"}:
         return result
     async with context.db.sessions() as session:
         agent = await agent_binding(session, context.owner_id, context.agent_id)
         if not fixed_market(agent):
             return result
         result = dict(result)
-        if name == "market_symbols":
-            result["symbols"] = [
-                symbol
-                for symbol in result.get("symbols", [])
-                if _kept(symbol, agent.trading_symbol)
-            ]
-        if name == "market_instruments":
-            result["instruments"] = [
-                item
-                for item in result.get("instruments", [])
-                if _kept(item.get("symbol"), agent.trading_symbol)
-            ]
-        if name == "chart_list":
-            result["charts"] = [
-                item
-                for item in result.get("charts", [])
-                if _kept(item.get("account_id"), agent.trading_account_id)
-                and _kept(item.get("symbol"), agent.trading_symbol)
-            ]
+        if name in {"market_symbols", "market_instruments", "account_read"}:
+            # The bound account's catalog and exposure are readable; trading is not widened.
+            result["execution_scope"] = {
+                "account_id": agent.trading_account_id,
+                "symbol": agent.trading_symbol,
+                "note": EXECUTION_SCOPE_NOTE,
+            }
         if name == "account_read":
+            bound = _kept((args or {}).get("account_id"), agent.trading_account_id)
             for key in ("positions", "orders"):
                 result[key] = [
-                    item
+                    {
+                        **item,
+                        "in_execution_scope": bound
+                        and _kept(item.get("symbol"), agent.trading_symbol),
+                    }
                     for item in result.get(key, [])
-                    if _kept(item.get("symbol"), agent.trading_symbol)
                 ]
-        if name == "account_history":
-            result["history"] = [
-                item
-                for item in result.get("history", [])
-                if _kept(item.get("symbol"), agent.trading_symbol)
-            ]
         if name == "list_accounts":
             result["accounts"] = [
-                item
+                {
+                    **item,
+                    "in_execution_scope": _kept(
+                        item.get("connection_id"), agent.trading_account_id
+                    ),
+                }
                 for item in result.get("accounts", [])
-                if _kept(item.get("connection_id"), agent.trading_account_id)
             ]
         return result

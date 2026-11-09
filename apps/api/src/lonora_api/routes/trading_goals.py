@@ -48,7 +48,7 @@ async def create(
     request: Request, body: GoalCreate, owner: OwnerIdentity = Depends(require_owner)
 ) -> dict[str, Any]:
     async with runtime(request).db.sessions() as session, session.begin():
-        return goal_data(await create_goal(session, owner.id, body, owner_authorized=True))
+        return goal_data(await create_goal(session, owner.id, body))
 
 
 @router.get("/{goal_id}")

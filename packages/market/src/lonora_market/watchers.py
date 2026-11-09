@@ -19,6 +19,7 @@ from lonora_db.agent_binding import agent_binding, assert_payload_binding, fixed
 from lonora_db.broker_sessions import BrokerSessionRepository
 from lonora_db.client import Database
 from lonora_db.events import emit
+from lonora_db.item_failures import ItemGuard, blocked
 from lonora_db.market_snapshots import snapshot_id
 from lonora_db.runs import create_run
 from lonora_db.schema import (
@@ -30,7 +31,8 @@ from lonora_db.schema import (
     RunRow,
 )
 from lonora_session.idempotency import request_hash, stable_id
-from sqlalchemy import select
+from sqlalchemy import or_, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from .broker import broker_market
 from .detectors import detector_inputs, evaluate_detector, relationship_detectors
@@ -45,6 +47,23 @@ from .relationships import measure_relationship, relationship_usable
 from .watch_control import watch_can_trigger
 from .watch_health import record_watch_health
 from .watch_lifecycle import advance_watch
+
+# A broker, calendar or detector observation on the poll path never holds the batch longer.
+WATCH_OBSERVATION_TIMEOUT_SECONDS = 20
+
+
+class WatchSkipped(Exception):
+    """This evaluation has nothing to observe yet (not a failure)."""
+
+
+async def disable_watch(session: AsyncSession, watch_id: str) -> bool:
+    """Quarantine: a watch that keeps failing is disabled until it is re-enabled."""
+    row = await session.get(MarketWatchRow, watch_id, with_for_update=True)
+    if row is not None:
+        row.payload = {**row.payload, "enabled": False}
+        row.state = {**row.state, "code": "watch_quarantined"}
+        row.version += 1
+    return True
 
 
 def source_observation_time(config: Watch, metadata: dict[str, Any]) -> datetime:
@@ -388,12 +407,33 @@ async def check_watches(
     connection_id: str | None = None,
     owner_id: str | None = None,
 ) -> int:
+    now = utcnow().isoformat()
+    next_check = MarketWatchRow.state["next_check"].as_string()
+    lifecycle = MarketWatchRow.state["lifecycle"].as_string()
+    expires_at = MarketWatchRow.payload["expires_at"].as_string()
     async with db.sessions() as session:
+        # Filter and order in SQL: retired, disabled and quarantined rows never take a
+        # slot in the batch, so new watches are not starved behind old ones.
         query = (
             select(MarketWatchRow)
             .join(AgentRow, AgentRow.id == MarketWatchRow.agent_id)
-            .where(AgentRow.paused.is_(False))
+            .where(
+                AgentRow.paused.is_(False),
+                MarketWatchRow.agent_id.is_not(None),
+                MarketWatchRow.thread_id.is_not(None),
+                MarketWatchRow.payload["enabled"].as_boolean().is_not(False),
+                or_(lifecycle.is_(None), lifecycle != "expired"),
+                ~blocked("watch", MarketWatchRow.id),
+            )
         )
+        if price_update is None and candle_update is None:
+            # Polling takes only watches that are due (or newly past their expiry),
+            # most overdue first; never-checked watches come first.
+            query = query.where(
+                or_(next_check.is_(None), next_check <= now, expires_at <= now)
+            ).order_by(next_check.asc().nulls_first(), MarketWatchRow.created_at)
+        else:
+            query = query.order_by(MarketWatchRow.created_at)
         if owner_id:
             query = query.where(MarketWatchRow.owner_id == owner_id)
         if price_update:
@@ -410,305 +450,334 @@ async def check_watches(
                 MarketWatchRow.payload["timeframe"].as_string() == candle_update.timeframe,
             )
         watches = list((await session.scalars(query.limit(200))).all())
+    # Each watch is isolated: one that raises backs off alone and is quarantined
+    # (disabled, with an owner attention item) after repeated failures.
+    guard = ItemGuard(db, "watch", quarantine=disable_watch)
+    await guard.prepare(row.id for row in watches)
     triggered = 0
     for original in watches:
-        config = Watch.model_validate(original.payload)
-        now = utcnow()
-        if not config.enabled or not original.agent_id or not original.thread_id:
-            continue
-        if original.state.get("lifecycle") == "expired":
-            continue
-        if config.expires_at is not None and now >= config.expires_at:
-            async with db.sessions() as session, session.begin():
-                expired = await session.get(MarketWatchRow, original.id, with_for_update=True)
-                if (
-                    expired
-                    and expired.version == original.version
-                    and expired.state.get("lifecycle") != "expired"
-                ):
-                    expired.state = {
-                        **expired.state,
-                        "lifecycle": "expired",
-                        "lifecycle_reason": "watch_expired",
-                        "lifecycle_updated_at": now.isoformat(),
-                    }
-                    emit(
-                        session,
-                        expired.owner_id,
-                        "watch.expired",
-                        agent_id=expired.agent_id,
-                        thread_id=expired.thread_id,
-                        payload={"watch_id": expired.id, "reason_code": "watch_expired"},
-                    )
-            continue
-        if config.goal_id:
-            from lonora_db.trading_goals import owned_goal
 
-            async with db.sessions() as session:
-                goal = await owned_goal(session, original.owner_id, config.goal_id)
+        async def check(original: MarketWatchRow = original) -> int:
+            try:
+                return await check_watch(db, brokers, original, price_update, candle_update)
+            except WatchSkipped:
+                return 0
+
+        triggered += await guard.run(original.id, original.owner_id, check) or 0
+    return triggered
+
+
+async def check_watch(
+    db: Database,
+    brokers: BrokerManager,
+    original: MarketWatchRow,
+    price_update: Quote | None,
+    candle_update: Candle | None,
+) -> int:
+    triggered = 0
+    config = Watch.model_validate(original.payload)
+    now = utcnow()
+    if not config.enabled or not original.agent_id or not original.thread_id:
+        return triggered
+    if original.state.get("lifecycle") == "expired":
+        return triggered
+    if config.expires_at is not None and now >= config.expires_at:
+        async with db.sessions() as session, session.begin():
+            expired = await session.get(MarketWatchRow, original.id, with_for_update=True)
             if (
-                goal.state.get("status") in {"cancelled", "completed"}
-                or config.goal_plan_version is not None
-                and config.goal_plan_version != goal.state.get("plan_version", 1)
+                expired
+                and expired.version == original.version
+                and expired.state.get("lifecycle") != "expired"
             ):
-                async with db.sessions() as session, session.begin():
-                    obsolete = await session.get(MarketWatchRow, original.id, with_for_update=True)
-                    if obsolete is not None:
-                        obsolete.payload = {**obsolete.payload, "enabled": False}
-                        obsolete.version += 1
-                continue
-            if goal.state.get("status") == "paused":
-                continue
+                expired.state = {
+                    **expired.state,
+                    "lifecycle": "expired",
+                    "lifecycle_reason": "watch_expired",
+                    "lifecycle_updated_at": now.isoformat(),
+                }
+                emit(
+                    session,
+                    expired.owner_id,
+                    "watch.expired",
+                    agent_id=expired.agent_id,
+                    thread_id=expired.thread_id,
+                    payload={"watch_id": expired.id, "reason_code": "watch_expired"},
+                )
+        return triggered
+    if config.goal_id:
+        from lonora_db.trading_goals import owned_goal
+
+        async with db.sessions() as session:
+            goal = await owned_goal(session, original.owner_id, config.goal_id)
         if (
-            price_update is None
-            and candle_update is None
-            and original.state.get("next_check")
-            and datetime.fromisoformat(original.state["next_check"]) > now
+            goal.state.get("status") in {"cancelled", "completed"}
+            or config.goal_plan_version is not None
+            and config.goal_plan_version != goal.state.get("plan_version", 1)
         ):
-            continue
-        try:
-            if config.kind == "dynamic":
-                if (
-                    config.detector
-                    and relationship_detectors(config.detector)
-                    and original.state.get("next_check")
-                    and datetime.fromisoformat(original.state["next_check"]) > now
-                ):
-                    continue
-                if price_update is not None and config.evaluation_mode in {
-                    "candle_update",
-                    "candle_close",
-                    "scheduled",
-                }:
-                    continue
-                current, observation, metadata = await observe_dynamic(
-                    db, brokers, original, config, price_update
-                )
-            elif price_update:
-                health = assess_quote(
-                    price_update,
-                    account_id=config.account_id,
-                    symbol=config.symbol,
-                    now=now,
-                    maximum_age_seconds=max(30, config.interval_seconds * 2),
-                )
-                require_healthy(health)
-                current, observation, metadata = (
-                    price_update.bid,
-                    price_update.observed_at.isoformat(),
-                    {
-                        "quote": price_update.model_dump(mode="json"),
-                        "health": health.model_dump(mode="json"),
-                    },
-                )
-            elif candle_update:
-                current, observation, metadata = await observe_stream_indicator(
-                    db, original, config
-                )
-            else:
-                current, observation, metadata = await observe(db, brokers, original, config)
-        except LonoraError as error:
             async with db.sessions() as session, session.begin():
-                row = await session.get(MarketWatchRow, original.id, with_for_update=True)
-                if row and row.version == original.version and row.payload.get("enabled", True):
-                    previous_health = row.state.get("health", {})
-                    health = HealthSnapshot(
-                        state="stale" if "stale" in error.code else "unavailable",
-                        reason_code=error.code,
-                        observed_at=now,
-                        account_id=config.account_id,
-                        symbol=config.symbol or None,
-                        timeframe=config.timeframe if config.kind == "indicator" else None,
-                        resource="watch",
-                        last_good_at=previous_health.get("last_good_at"),
-                    )
-                    row.state = record_watch_health(
-                        session,
-                        row,
-                        health,
-                        next_check=now + timedelta(seconds=config.interval_seconds),
-                    )
-            continue
-        # Account for time spent awaiting the broker before checking TTL. This
-        # remains processing time; evidence time is resolved independently below.
-        now = utcnow()
+                obsolete = await session.get(MarketWatchRow, original.id, with_for_update=True)
+                if obsolete is not None:
+                    obsolete.payload = {**obsolete.payload, "enabled": False}
+                    obsolete.version += 1
+            return triggered
+        if goal.state.get("status") == "paused":
+            return triggered
+    if (
+        price_update is None
+        and candle_update is None
+        and original.state.get("next_check")
+        and datetime.fromisoformat(original.state["next_check"]) > now
+    ):
+        return triggered
+    try:
+        # A hung broker or source never holds the batch: the watch records an
+        # unavailable observation and backs off like any other source failure.
+        async with asyncio.timeout(WATCH_OBSERVATION_TIMEOUT_SECONDS):
+            current, observation, metadata = await observe_watch(
+                db, brokers, original, config, now, price_update, candle_update
+            )
+    except (LonoraError, TimeoutError) as error:
+        code = error.code if isinstance(error, LonoraError) else "watch_observation_timeout"
         async with db.sessions() as session, session.begin():
             row = await session.get(MarketWatchRow, original.id, with_for_update=True)
-            if (
-                row is None
-                or row.version != original.version
-                or not row.payload.get("enabled", True)
-            ):
-                continue
-            if (
-                price_update is None
-                and candle_update is None
-                and row.state.get("next_check")
-                and datetime.fromisoformat(row.state["next_check"]) > now
-            ):
-                continue
-            if config.kind == "calendar" and not metadata.get("events"):
-                continue
-            evidence_at = source_observation_time(config, metadata)
-            previous_source = row.state.get("lifecycle_source_at")
-            if previous_source and evidence_at < datetime.fromisoformat(previous_source):
-                continue
-            recovering = (
-                bool(row.state.get("health")) and row.state["health"].get("state") != "healthy"
-            )
-            health_data = metadata.get("health")
-            if isinstance(health_data, dict):
+            if row and row.version == original.version and row.payload.get("enabled", True):
+                previous_health = row.state.get("health", {})
+                health = HealthSnapshot(
+                    state="stale" if "stale" in code else "unavailable",
+                    reason_code=code,
+                    observed_at=now,
+                    account_id=config.account_id,
+                    symbol=config.symbol or None,
+                    timeframe=config.timeframe if config.kind == "indicator" else None,
+                    resource="watch",
+                    last_good_at=previous_health.get("last_good_at"),
+                )
                 row.state = record_watch_health(
                     session,
                     row,
-                    HealthSnapshot.model_validate(health_data),
+                    health,
                     next_check=now + timedelta(seconds=config.interval_seconds),
                 )
-            quote_data = metadata.get("quote")
-            if config.kind == "price" and isinstance(quote_data, dict):
-                previous_time = row.state.get("quote_observed_at")
-                if previous_time and datetime.fromisoformat(
-                    previous_time
-                ) >= datetime.fromisoformat(observation):
-                    continue
-            previous = (
-                Decimal(str(row.state["last_value"]))
-                if row.state.get("last_value") is not None and not recovering
-                else None
+        return triggered
+    # Account for time spent awaiting the broker before checking TTL. This
+    # remains processing time; evidence time is resolved independently below.
+    now = utcnow()
+    async with db.sessions() as session, session.begin():
+        row = await session.get(MarketWatchRow, original.id, with_for_update=True)
+        if row is None or row.version != original.version or not row.payload.get("enabled", True):
+            return triggered
+        if (
+            price_update is None
+            and candle_update is None
+            and row.state.get("next_check")
+            and datetime.fromisoformat(row.state["next_check"]) > now
+        ):
+            return triggered
+        if config.kind == "calendar" and not metadata.get("events"):
+            return triggered
+        evidence_at = source_observation_time(config, metadata)
+        previous_source = row.state.get("lifecycle_source_at")
+        if previous_source and evidence_at < datetime.fromisoformat(previous_source):
+            return triggered
+        recovering = bool(row.state.get("health")) and row.state["health"].get("state") != "healthy"
+        health_data = metadata.get("health")
+        if isinstance(health_data, dict):
+            row.state = record_watch_health(
+                session,
+                row,
+                HealthSnapshot.model_validate(health_data),
+                next_check=now + timedelta(seconds=config.interval_seconds),
             )
-            last_triggered = (
-                datetime.fromisoformat(row.state["last_triggered"])
-                if row.state.get("last_triggered")
-                else None
-            )
-            state = {
-                **row.state,
-                "last_value": str(current),
-                "next_check": (now + timedelta(seconds=config.interval_seconds)).isoformat(),
-            }
-            if config.kind == "price":
-                state["quote_observed_at"] = observation
-            state.pop("code", None)
-            matched = (
-                current == 1
-                if config.kind == "dynamic"
-                else condition_met(config.condition, config.level, current, previous)
-            )
-            previous_lifecycle = state.get("lifecycle", "pending")
-            state, confirmed = advance_watch(
-                config,
-                state,
-                matched=matched,
-                observation_id=observation,
-                observed_at=evidence_at,
-                now=now,
-            )
-            if isinstance(metadata.get("observation"), dict):
-                state["observation"] = metadata["observation"]
-                detector_state = metadata["observation"].get("state")
-                if detector_state == "forming" and state["lifecycle"] == "pending":
-                    state["lifecycle"] = "forming"
-            if previous_lifecycle != state["lifecycle"]:
-                emit(
-                    session,
-                    row.owner_id,
-                    "watch." + state["lifecycle"],
-                    agent_id=row.agent_id,
-                    thread_id=row.thread_id,
-                    payload={
-                        "watch_id": row.id,
-                        "state": state["lifecycle"],
-                        "transition_id": stable_id(
-                            row.id,
-                            previous_lifecycle + ":" + state["lifecycle"] + ":" + observation,
-                        ),
-                        "account_id": config.account_id,
-                        "symbol": config.symbol,
-                        "observation": metadata.get("observation"),
-                    },
-                )
-            matched = confirmed and (config.kind != "dynamic" or previous_lifecycle != "confirmed")
-            if matched and watch_can_trigger(
-                config.enabled, last_triggered, config.cooldown_seconds, now
+        quote_data = metadata.get("quote")
+        if config.kind == "price" and isinstance(quote_data, dict):
+            previous_time = row.state.get("quote_observed_at")
+            if previous_time and datetime.fromisoformat(previous_time) >= datetime.fromisoformat(
+                observation
             ):
-                receipt_id = stable_id(row.id, observation + ":" + config.condition)
-                if await session.get(MarketWakeReceiptRow, receipt_id) is None:
-                    if config.goal_id:
-                        from lonora_db.trading_goals import owned_goal
-                        from lonora_db.transactions import owned_thread
+                return triggered
+        previous = (
+            Decimal(str(row.state["last_value"]))
+            if row.state.get("last_value") is not None and not recovering
+            else None
+        )
+        last_triggered = (
+            datetime.fromisoformat(row.state["last_triggered"])
+            if row.state.get("last_triggered")
+            else None
+        )
+        state = {
+            **row.state,
+            "last_value": str(current),
+            "next_check": (now + timedelta(seconds=config.interval_seconds)).isoformat(),
+        }
+        if config.kind == "price":
+            state["quote_observed_at"] = observation
+        state.pop("code", None)
+        matched = (
+            current == 1
+            if config.kind == "dynamic"
+            else condition_met(config.condition, config.level, current, previous)
+        )
+        previous_lifecycle = state.get("lifecycle", "pending")
+        state, confirmed = advance_watch(
+            config,
+            state,
+            matched=matched,
+            observation_id=observation,
+            observed_at=evidence_at,
+            now=now,
+        )
+        if isinstance(metadata.get("observation"), dict):
+            state["observation"] = metadata["observation"]
+            detector_state = metadata["observation"].get("state")
+            if detector_state == "forming" and state["lifecycle"] == "pending":
+                state["lifecycle"] = "forming"
+        if previous_lifecycle != state["lifecycle"]:
+            emit(
+                session,
+                row.owner_id,
+                "watch." + state["lifecycle"],
+                agent_id=row.agent_id,
+                thread_id=row.thread_id,
+                payload={
+                    "watch_id": row.id,
+                    "state": state["lifecycle"],
+                    "transition_id": stable_id(
+                        row.id,
+                        previous_lifecycle + ":" + state["lifecycle"] + ":" + observation,
+                    ),
+                    "account_id": config.account_id,
+                    "symbol": config.symbol,
+                    "observation": metadata.get("observation"),
+                },
+            )
+        matched = confirmed and (config.kind != "dynamic" or previous_lifecycle != "confirmed")
+        if matched and watch_can_trigger(
+            config.enabled, last_triggered, config.cooldown_seconds, now
+        ):
+            receipt_id = stable_id(row.id, observation + ":" + config.condition)
+            if await session.get(MarketWakeReceiptRow, receipt_id) is None:
+                if config.goal_id:
+                    from lonora_db.trading_goals import owned_goal
+                    from lonora_db.transactions import owned_thread
 
-                        await owned_thread(session, row.owner_id, row.thread_id or "", lock=True)
-                        goal = await owned_goal(session, row.owner_id, config.goal_id, True)
-                        if (
-                            config.goal_plan_version is not None
-                            and config.goal_plan_version != goal.state.get("plan_version", 1)
-                            or goal.state.get("status") not in {"active", "waiting"}
-                            or goal.state.get("current_step") != config.step_id
-                            or goal.state["steps"].get(config.step_id, {}).get("status")
-                            in {"completed", "blocked", "executing"}
-                        ):
-                            row.state = state
-                            continue
-                    # A Task-owned watch resumes that logical work through the
-                    # resident scheduler. Do not create a competing watch Run.
-                    task_run_id = row.state.get("task_run_id")
-                    task_run = await session.get(RunRow, task_run_id) if task_run_id else None
-                    if task_run_id and (
-                        task_run is None or task_run.status in {"completed", "failed", "cancelled"}
+                    await owned_thread(session, row.owner_id, row.thread_id or "", lock=True)
+                    goal = await owned_goal(session, row.owner_id, config.goal_id, True)
+                    if (
+                        config.goal_plan_version is not None
+                        and config.goal_plan_version != goal.state.get("plan_version", 1)
+                        or goal.state.get("status") not in {"active", "waiting"}
+                        or goal.state.get("current_step") != config.step_id
+                        or goal.state["steps"].get(config.step_id, {}).get("status")
+                        in {"completed", "blocked", "executing"}
                     ):
-                        row.payload = {**row.payload, "enabled": False}
-                        row.version += 1
-                        state["code"] = "task_terminal"
                         row.state = state
-                        continue
-                    run = (
-                        None
-                        if task_run_id
-                        else await create_run(
-                            session,
-                            row.owner_id,
-                            RunRequest(
-                                thread_id=row.thread_id or "",
-                                agent_id=row.agent_id or "",
-                                trigger="watch",
-                                prompt=config.prompt,
-                                metadata={
-                                    "watch_id": row.id,
-                                    "wake_receipt_id": receipt_id,
-                                    "previous_value": str(previous)
-                                    if previous is not None
-                                    else None,
-                                    "current_value": str(current),
-                                    **(
-                                        {"goal_id": config.goal_id, "step_id": config.step_id}
-                                        if config.goal_id
-                                        else {}
-                                    ),
-                                    "symbol": config.symbol,
-                                    "observation": observation,
-                                    **metadata,
-                                },
-                            ),
-                        )
-                    )
-                    session.add(
-                        MarketWakeReceiptRow(
-                            id=receipt_id,
-                            owner_id=row.owner_id,
-                            agent_id=row.agent_id,
-                            thread_id=row.thread_id,
-                            payload={
+                        return triggered
+                # A Task-owned watch resumes that logical work through the
+                # resident scheduler. Do not create a competing watch Run.
+                task_run_id = row.state.get("task_run_id")
+                task_run = await session.get(RunRow, task_run_id) if task_run_id else None
+                if task_run_id and (
+                    task_run is None or task_run.status in {"completed", "failed", "cancelled"}
+                ):
+                    row.payload = {**row.payload, "enabled": False}
+                    row.version += 1
+                    state["code"] = "task_terminal"
+                    row.state = state
+                    return triggered
+                run = (
+                    None
+                    if task_run_id
+                    else await create_run(
+                        session,
+                        row.owner_id,
+                        RunRequest(
+                            thread_id=row.thread_id or "",
+                            agent_id=row.agent_id or "",
+                            trigger="watch",
+                            prompt=config.prompt,
+                            metadata={
                                 "watch_id": row.id,
-                                "run_id": task_run_id or (run.id if run else None),
+                                "wake_receipt_id": receipt_id,
+                                "previous_value": str(previous) if previous is not None else None,
+                                "current_value": str(current),
+                                **(
+                                    {"goal_id": config.goal_id, "step_id": config.step_id}
+                                    if config.goal_id
+                                    else {}
+                                ),
+                                "symbol": config.symbol,
+                                "observation": observation,
+                                **metadata,
                             },
-                        )
+                        ),
                     )
-                    state["last_triggered"] = now.isoformat()
-                    if config.kind == "calendar":
-                        state["seen_events"] = (
-                            list(state.get("seen_events", []))
-                            + cast(list[str], metadata.get("event_ids", []))
-                        )[-1000:]
-                    triggered += 1
-            row.state = state
+                )
+                session.add(
+                    MarketWakeReceiptRow(
+                        id=receipt_id,
+                        owner_id=row.owner_id,
+                        agent_id=row.agent_id,
+                        thread_id=row.thread_id,
+                        payload={
+                            "watch_id": row.id,
+                            "run_id": task_run_id or (run.id if run else None),
+                        },
+                    )
+                )
+                state["last_triggered"] = now.isoformat()
+                if config.kind == "calendar":
+                    state["seen_events"] = (
+                        list(state.get("seen_events", []))
+                        + cast(list[str], metadata.get("event_ids", []))
+                    )[-1000:]
+                triggered += 1
+        row.state = state
     return triggered
+
+
+async def observe_watch(
+    db: Database,
+    brokers: BrokerManager,
+    original: MarketWatchRow,
+    config: Watch,
+    now: datetime,
+    price_update: Quote | None,
+    candle_update: Candle | None,
+) -> tuple[Decimal, str, dict[str, Any]]:
+    if config.kind == "dynamic":
+        if (
+            config.detector
+            and relationship_detectors(config.detector)
+            and original.state.get("next_check")
+            and datetime.fromisoformat(original.state["next_check"]) > now
+        ):
+            raise WatchSkipped
+        if price_update is not None and config.evaluation_mode in {
+            "candle_update",
+            "candle_close",
+            "scheduled",
+        }:
+            raise WatchSkipped
+        return await observe_dynamic(db, brokers, original, config, price_update)
+    elif price_update:
+        health = assess_quote(
+            price_update,
+            account_id=config.account_id,
+            symbol=config.symbol,
+            now=now,
+            maximum_age_seconds=max(30, config.interval_seconds * 2),
+        )
+        require_healthy(health)
+        return (
+            price_update.bid,
+            price_update.observed_at.isoformat(),
+            {
+                "quote": price_update.model_dump(mode="json"),
+                "health": health.model_dump(mode="json"),
+            },
+        )
+    elif candle_update:
+        return await observe_stream_indicator(db, original, config)
+    else:
+        return await observe(db, brokers, original, config)

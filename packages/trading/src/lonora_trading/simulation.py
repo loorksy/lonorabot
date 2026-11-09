@@ -3,7 +3,7 @@ from typing import Any
 
 from lonora_contracts.account import AccountState
 from lonora_contracts.domain import utcnow
-from lonora_contracts.market import Candle, Instrument, Quote
+from lonora_contracts.market import Candle, Instrument, Quote, TradingHours
 from lonora_core.user_error import LonoraError
 from lonora_db.client import Database
 from lonora_db.trading_accounts import TradingAccountRepository
@@ -27,6 +27,10 @@ async def import_simulation(
         key: [Candle.model_validate(item).model_dump(mode="json") for item in values]
         for key, values in snapshot.get("candles", {}).items()
     }
+    trading_hours = {
+        symbol: TradingHours.model_validate(item).model_dump(mode="json")
+        for symbol, item in snapshot.get("trading_hours", {}).items()
+    }
     payload = {
         "simulation": True,
         "currency": snapshot["currency"],
@@ -34,6 +38,7 @@ async def import_simulation(
         "instruments": instruments,
         "quotes": quotes,
         "candles": candles,
+        "trading_hours": trading_hours,
         "positions": [],
         "orders": [],
         "operations": {},

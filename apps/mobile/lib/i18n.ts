@@ -90,7 +90,11 @@ export const labels = {
   visualTrue: ["نعم", "Yes"],
   visualFalse: ["لا", "No"],
 
-  superBotEnabled: ["السوبر بوت مفعّل", "Super Bot enabled"],
+  tradesOnItsOwn: ["يتداول بنفسه", "Trades on its own"],
+  grantReviewFailed: [
+    "لم يكتمل فحص الجاهزية بعد توقيعك؛ ذلك الفحص لم يرسل شيئًا.",
+    "The readiness check after you signed did not finish; that check sent nothing.",
+  ],
   skills: ["المهارات", "Skills"],
   skillsAdd: ["إضافة مهارة", "Add a skill"],
   skillsCreate: ["إنشاء المهارة", "Create skill"],
@@ -242,7 +246,6 @@ export const labels = {
     "Record a fresh market decision before virtual entry.",
   ],
   shadowMode: ["تداول ظلي — أوامر افتراضية فقط", "Shadow trading — virtual orders only"],
-  superBot: ["سوبر بوت", "Super Bot"],
   input_answer_invalid: ["اختر إجابة متاحة", "Choose an available answer"],
   input_answer_expired: [
     "لم يعد هذا السؤال ينتظر إجابة",
@@ -255,12 +258,6 @@ export const labels = {
   questionPending: ["اختر إجابة أو اكتب ردك", "Choose an option or write your reply"],
   questionAnswered: ["تمت الإجابة", "Answered"],
   questionClosed: ["أُغلق السؤال", "Question closed"],
-  superBotActivationQuestion: ["تفعيل سوبر بوت؟", "Activate Super Bot?"],
-  superBotDeviceConfirmation: [
-    "الموافقة تؤكد هذه الخطة فقط عبر مصادقة جهازك.",
-    "Approval confirms only this plan through your device authentication.",
-  ],
-  superBotMaximumVolume: ["الحد الأقصى للحجم", "Maximum volume"],
   devicePending: ["بانتظار تفويض الجهاز", "Waiting for device authorization"],
   expired: ["منتهي الصلاحية", "Expired"],
   stopped: ["متوقف", "Stopped"],
@@ -277,7 +274,6 @@ export const labels = {
   reviewPlan: ["مراجعة الخطة", "Review plan"],
   deviceActivate: ["التفعيل بمصادقة الجهاز", "Activate with device authentication"],
   deviceRegister: ["تسجيل مفتاح مرور", "Register a passkey"],
-  superBotStop: ["إيقاف سوبر بوت", "Stop Super Bot"],
   confirmAccountPassword: ["تأكيد كلمة مرور الحساب", "Confirm account password"],
   registerThisDevice: ["تسجيل هذا الجهاز", "Register this device"],
   myDevice: ["جهازي", "My device"],
@@ -291,12 +287,8 @@ export const labels = {
     "Register a passkey before activating this request.",
   ],
   device_authorization_required: [
-    "راجع طلب سوبر بوت وفوّضه من جهازك.",
-    "Review the Super Bot request and authorize it with your device.",
-  ],
-  super_bot_authority_expansion: [
-    "توسيع الصلاحيات يحتاج تفويضًا جديدًا من جهازك.",
-    "Expanded permissions require new device authorization.",
+    "يلزم تفويض جديد توقّعه بمفتاح المرور من جهازك.",
+    "This needs a new grant you sign with your passkey.",
   ],
   device_authorization_cancelled: [
     "أُلغيت المصادقة ولم تُمنح أي صلاحيات.",
@@ -304,14 +296,6 @@ export const labels = {
   ],
   stopLoss: ["وقف الخسارة", "Stop loss"],
   takeProfit: ["جني الربح", "Take profit"],
-  super_bot_advisory_only: [
-    "هذه الخطة استشارية ولا يمكنها تنفيذ صفقات.",
-    "This plan is advisory and cannot execute trades.",
-  ],
-  super_bot_scope_changed: [
-    "تغير نطاق التفويض. راجع طلبًا جديدًا.",
-    "Authority scope changed. Review a new request.",
-  ],
   device_challenge_not_found: [
     "طلب المصادقة غير متاح لهذه الجلسة.",
     "This authorization challenge is unavailable for this session.",
@@ -324,10 +308,6 @@ export const labels = {
     "انتهى طلب التفويض أو استُخدم؛ راجع طلبًا جديدًا.",
     "This authorization expired or was used. Review a new request.",
   ],
-  super_bot_plan_changed: [
-    "تغيّرت الخطة؛ راجع طلب تفويض جديدًا.",
-    "The plan changed. Review a new authorization request.",
-  ],
   notifications: ["التنبيهات", "Notifications"],
   noNotifications: ["لا توجد تنبيهات جديدة", "No new notifications"],
   markAsRead: ["تحديد كمقروء", "Mark as read"],
@@ -335,7 +315,7 @@ export const labels = {
     "نبّهني بالفرص المؤكدة",
     "Notify me about confirmed opportunities",
   ],
-  attentionEmergency: ["الإيقاف الطارئ مفعّل", "Emergency Stop is active"],
+  attentionEmergency: ["التداول الجديد متوقف", "New trading stopped"],
   attentionApproval: ["بانتظار الموافقة", "Waiting for approval"],
   attentionRequestUpdated: ["تم تحديث الطلب", "Request updated"],
   attentionBrokerDegraded: ["اتصال الوسيط يحتاج مراجعة", "Broker connection needs review"],
@@ -350,8 +330,34 @@ export const labels = {
   attentionGoalChanged: ["تم تحديث هدف التداول", "Trading goal updated"],
   attentionCollaborationCompleted: ["نتيجة التعاون جاهزة", "Collaboration result is ready"],
   attentionTaskCompleted: ["اكتملت المهمة", "Task completed"],
+  attentionTaskDegraded: [
+    "المهمة تعيد المحاولة أثناء تعطل النموذج",
+    "Task is retrying through a model outage",
+  ],
   attentionUpdated: ["تم تحديث النشاط", "Activity updated"],
+  attentionItemQuarantined: [
+    "أُوقف عنصر في الخلفية بعد أخطاء متكررة؛ يستمر كل ما عداه في العمل",
+    "A background item was paused after repeated errors; everything else keeps running",
+  ],
+  attentionRunQuarantined: [
+    "توقف عمل بعد انقطاعات متكررة",
+    "Work stopped after repeated interruptions",
+  ],
+  attentionOperationUnresolved: [
+    "صفقة ما زالت بلا نتيجة مؤكدة من الوسيط",
+    "A trade still has no confirmed broker result",
+  ],
+  attentionOperationUncertain: [
+    "الوسيط لم يؤكد صفقة — أخبر لونورا هل نُفذت",
+    "The broker did not confirm a trade — tell Lonora whether it executed",
+  ],
+  attentionGatewayDegraded: ["خدمة الخلفية متأخرة", "Background service is running late"],
+  attentionAgentAlert: ["نبّهك وكيلك", "Your agent alerted you"],
   retryScheduled: ["إعادة المحاولة مجدولة", "Retry scheduled"],
+  modelRetryScheduled: [
+    "مزود النموذج غير متاح — إعادة المحاولة مجدولة",
+    "Model provider unavailable — retry scheduled",
+  ],
   waitingReconciliation: ["بانتظار التحقق من النتيجة", "Waiting for reconciliation"],
   taskNeedsReview: ["المهمة تحتاج مراجعة", "Task needs review"],
   task_reconciliation_required: [
@@ -390,11 +396,11 @@ export const labels = {
   chooseTradingPair: ["اختر زوج التداول", "Choose trading pair"],
   searchBrokerSymbols: ["ابحث في رموز الوسيط", "Search broker symbols"],
   immutableTradingPair: [
-    "هذا الزوج ثابت للبوت. أنشئ بوتًا آخر لاستخدام زوج مختلف.",
+    "هذا الزوج ثابت لهذا الوكيل. أنشئ وكيلًا آخر لاستخدام زوج مختلف.",
     "This pair is permanent for this agent. Create another agent to use a different pair.",
   ],
   connectBrokerFirst: [
-    "اربط حساب الوسيط قبل إنشاء بوت التداول.",
+    "اربط حساب الوسيط قبل إنشاء وكيل التداول.",
     "Connect a broker account before creating a trading agent.",
   ],
   callAgent: ["اتصل بالوكيل", "Call agent"],
@@ -406,8 +412,8 @@ export const labels = {
   callListening: ["يستمع", "Listening"],
   callSpeaking: ["يتحدث", "Speaking"],
   nativeCallHint: [
-    "ابدأ مكالمة من زر الاتصال أعلى محادثة البوت. تستخدم المكالمة ذاكرة البوت والمحادثة نفسها. تنتهي المكالمة عند انتقال التطبيق إلى الخلفية.",
-    "Start a call from the call button in your bot conversation. Calls use the same bot memory and thread. Calls end when the app enters the background.",
+    "ابدأ مكالمة من زر الاتصال أعلى محادثة الوكيل. تستخدم المكالمة ذاكرة الوكيل والمحادثة نفسها. تنتهي المكالمة عند انتقال التطبيق إلى الخلفية.",
+    "Start a call from the call button in your agent conversation. Calls use the same agent memory and thread. Calls end when the app enters the background.",
   ],
   voice_permission_denied: [
     "اسمح للتطبيق باستخدام الميكروفون لإجراء المكالمة.",
@@ -426,19 +432,12 @@ export const labels = {
     "الخدمة الصوتية غير مهيأة بعد.",
     "Voice service is not configured yet.",
   ],
-  brokerResult: ["نتيجة الوسيط", "Broker result"],
-  broker_reconciliation_required: [
-    "لم يُرسل الطلب؛ يلزم التحقق من نتيجة عملية سابقة لدى الوسيط.",
-    "The request was not sent; a previous broker operation still needs verification.",
-  ],
   tradeApproval: ["طلب تداول", "Trading request"],
   approve: ["موافقة", "Approve"],
   reject: ["رفض", "Reject"],
-  approved: ["تمت الموافقة — بانتظار الوسيط", "Approved — awaiting broker"],
   rejected: ["مرفوض", "Rejected"],
-  confirmed: ["مؤكد", "Confirmed"],
-  ambiguous: ["بانتظار التحقق من الوسيط", "Awaiting reconciliation"],
-  submitted: ["أُرسل", "Submitted"],
+  reserved: ["قيد التحضير — لم يُرسل", "Preparing — not sent"],
+  resolved: ["سُوّيت دون تأكيد من الوسيط", "Resolved without broker confirmation"],
   clearStopLoss: ["إزالة وقف الخسارة", "Remove stop loss"],
   clearTakeProfit: ["إزالة جني الربح", "Remove take profit"],
   reply: ["رد", "Reply"],
@@ -507,6 +506,7 @@ export const labels = {
   edit: ["تعديل", "Edit"],
 
   integrations: ["التكاملات", "Integrations"],
+  capabilities: ["القدرات", "Capabilities"],
   voice: ["الصوت", "Voice"],
   providers: ["المزودون", "Providers"],
   configured: ["تم الإعداد", "Configured"],
@@ -614,6 +614,31 @@ export const labels = {
     "اضبط توجيه النماذج من الإعدادات العامة في الويب.",
     "Configure model routing in the Web settings.",
   ],
+  model_access_denied: [
+    "لا يمكن لمفتاح API هذا استخدام النموذج المحدد. اختر نموذجًا آخر أو تحقق من صلاحيات النماذج في حساب المزود.",
+    "This API key cannot use the selected model. Choose another model or check the provider account’s model access.",
+  ],
+  model_billing_exhausted: [
+    "نفد رصيد حساب مزود النموذج أو تجاوز حد الإنفاق. أضف رصيدًا أو اختر مزودًا آخر.",
+    "Your model provider account is out of credits or over its spending limit. Add credit or choose another provider.",
+  ],
+  model_content_blocked: [
+    "حجب نظام الأمان لدى مزود النموذج هذه الإجابة.",
+    "The model provider’s safety system withheld this answer.",
+  ],
+  model_output_truncated: [
+    "انقطعت إجابة النموذج عند حد المخرجات. حاول مجددًا أو اطلب إجابة أقصر.",
+    "The model’s answer was cut off at its output limit. Try again or ask for a shorter answer.",
+  ],
+  model_endpoint_unavailable: [
+    "النموذج المحدد غير متاح لدى هذا المزود. اختر نموذجًا آخر من إعدادات الويب.",
+    "The selected model is not available from this provider. Choose another model in the Web settings.",
+  ],
+  model_provider_unavailable: [
+    "مزود النموذج غير متاح حاليًا. حاول مجددًا بعد قليل.",
+    "The model provider is unavailable right now. Try again shortly.",
+  ],
+  model_credentials_rejected: ["رفض المزود مفتاح API هذا.", "The provider rejected this API key."],
   attachment_too_large: ["أقصى حجم للمرفق 20 ميغابايت.", "Attachments must be smaller than 20 MB."],
   rate_limited: ["انتظر قليلًا ثم حاول مجددًا.", "Wait a moment and try again."],
   network: [
@@ -704,11 +729,10 @@ export const labels = {
   marketDataUnavailable: ["بيانات السوق غير متاحة", "Market data unavailable"],
   brokerNeedsAttention: ["اتصال الوسيط يحتاج إلى مراجعة", "Broker connection requires attention"],
   brokerVerificationPending: [
-    "التحقق من عمليات الوسيط معلّق. قد تبقى بيانات السوق متاحة؛ التداول محظور حتى اكتمال التحقق.",
-    "Broker verification pending. Market data may remain available; trading is blocked until verification finishes.",
+    "التحقق من عملية لدى الوسيط معلّق. تبقى بيانات السوق متاحة؛ الأوامر الجديدة على السوق المتأثر محظورة حتى اكتمال التحقق، ويبقى الإغلاق متاحًا.",
+    "Broker verification pending. Market data remains available; new orders on the affected market are blocked until verification finishes, and closing remains available.",
   ],
   live_paused: ["متوقف مؤقتًا", "Paused"],
-  activeWatches: ["المراقبات النشطة", "Active watches"],
 } as const;
 export type Label = keyof typeof labels;
 export function translate(locale: Locale, key: Label): string {

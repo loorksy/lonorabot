@@ -13,12 +13,14 @@ from lonora_core.user_error import LonoraError
 from lonora_db.runs import require_lease
 from lonora_db.schema import AgentRow, EffectReceiptRow, RunRow, SkillRow, ThreadRow
 from lonora_session.idempotency import request_hash
+from lonora_tools.base import run_scope
 from lonora_tools.context import ToolContext
 from lonora_tools.registry import ToolRegistry
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..context.skills import effective_skill_registry, pin_package_image
+from .provenance import LEGACY_LABEL, skill_provenance
 from .registry import SkillRegistry
 from .resolver import SkillSelection, SkillSignals, resolve_skills
 from .snapshot import MAX_SNAPSHOT_SKILLS, read_snapshot, write_snapshot
@@ -73,15 +75,11 @@ async def catalog_state(
     skills, rejected = await effective_skill_registry(
         session, context, registry, rows, run.model_metadata
     )
-    read_only = run.trigger == "subagent" or run.model_metadata.get("authority") == "observe_only"
+    scope = run_scope(run.trigger, run.model_metadata)
     return (
         skills,
         rejected,
-        SkillSignals(
-            trigger="",
-            read_only=read_only,
-            available_tools=frozenset(item.name for item in registry.definitions(read_only)),
-        ),
+        SkillSignals(trigger="", scope=scope, available_tools=frozenset(registry.names(scope))),
     )
 
 
@@ -139,7 +137,7 @@ def acknowledgment(skill_id: str, selection: SkillSelection) -> dict[str, Any]:
                 "id": item.manifest.id,
                 "version": item.manifest.version,
                 "source": item.manifest.source,
-                "provenance": "bundled" if item.manifest.source == "builtin" else "owner_supplied",
+                "provenance": skill_provenance(item.manifest.source),
                 "content_sha256": sha256(item.content.encode()).hexdigest(),
                 "content": item.content,
             }
@@ -151,13 +149,37 @@ def acknowledgment(skill_id: str, selection: SkillSelection) -> dict[str, Any]:
     }
 
 
+def same_acknowledgment(stored: Any, expected: dict[str, Any]) -> bool:
+    """Equal content identity; a receipt written before truthful provenance labels
+    may still say owner_supplied for a non-bundled skill of the same source."""
+    if stored == expected:
+        return True
+    if not isinstance(stored, dict):
+        return False
+    stored = cast(dict[str, Any], stored)
+    skills: Any = stored.get("skills")
+    if not isinstance(skills, list) or len(cast(list[Any], skills)) != len(expected["skills"]):
+        return False
+    relabelled: list[Any] = []
+    for item, wanted in zip(cast(list[Any], skills), expected["skills"], strict=True):
+        entry: Any = item
+        if (
+            isinstance(entry, dict)
+            and cast(dict[str, Any], entry).get("provenance") == LEGACY_LABEL
+            and wanted["provenance"] != "bundled"
+        ):
+            entry = {**cast(dict[str, Any], entry), "provenance": wanted["provenance"]}
+        relabelled.append(entry)
+    return {**stored, "skills": relabelled} == expected
+
+
 def verify_receipt(
     context: ToolContext, skill_id: str, receipt: EffectReceiptRow, expected: dict[str, Any]
 ) -> dict[str, Any]:
     if (
         receipt.result.get("kind") != VIEW_KIND
         or receipt.result.get("digest") != view_digest(context, skill_id)
-        or receipt.result.get("acknowledgment") != expected
+        or not same_acknowledgment(receipt.result.get("acknowledgment"), expected)
     ):
         raise LonoraError("skill_view_identity_conflict", 409)
     return expected
@@ -199,14 +221,20 @@ class RunSkillAccess:
     async def inspect_repository(
         self, context: ToolContext, repository_url: str, ref: str
     ) -> dict[str, Any]:
-        from .repository import inspect_repository
+        from lonora_db.trusted_sources import github_trusted
+
+        from .repository import inspect_repository, repository_identity
 
         async with context.db.sessions() as session, session.begin():
             await scoped_run(session, context)
         result = await inspect_repository(repository_url, ref)
+        owner, repository = repository_identity(repository_url)
         async with context.db.sessions() as session, session.begin():
             await scoped_run(session, context)
-        return result
+            # Inside the owner's trusted sources an import installs silently; outside
+            # it, the import raises one owner card first.
+            trusted = await github_trusted(session, context.owner_id, owner, repository)
+        return {**result, "source_trusted": trusted}
 
     async def catalog(self, context: ToolContext, offset: int, limit: int) -> dict[str, Any]:
         async with context.db.sessions() as session, session.begin():
@@ -232,6 +260,9 @@ class RunSkillAccess:
                         "title": definition.manifest.title if definition else identity[:160],
                         "description": definition.manifest.description[:300] if definition else "",
                         "source": definition.manifest.source if definition else None,
+                        "provenance": skill_provenance(definition.manifest.source)
+                        if definition
+                        else None,
                         "available": reason is None,
                         "code": reason,
                     }
@@ -304,6 +335,8 @@ async def admitted_view_ids(
         if receipt is None:
             raise LonoraError("skill_view_receipt_unavailable", 409)
         verify_receipt(scoped, skill_id, receipt, expected)
-        if {key: value for key, value in result.items() if key != "ok"} != expected:
+        if not same_acknowledgment(
+            {key: value for key, value in result.items() if key != "ok"}, expected
+        ):
             raise LonoraError("skill_view_identity_conflict", 409)
         return [cast(str, item["id"]) for item in expected["skills"]]

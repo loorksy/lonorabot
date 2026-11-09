@@ -107,10 +107,10 @@ async def checks() -> None:
             "PASS new creation requires real broker selection; all asset suffixes exact; PATCH cannot alter binding"
         )
         agent = agents[0]
-        # This fixture tests scoped financial proposals; opt in through the
-        # owner API while leaving creation's Analysis Only default intact.
+        # This fixture tests scoped financial proposals. A new trading agent starts at
+        # Ask me (W15-3); setting it again through the owner API keeps that level.
         permission = await fixture.request("GET", f"/agents/{agent['id']}/permissions")
-        assert permission["effective_level"] == "analysis"
+        assert permission["effective_level"] == "supervised"
         await fixture.request(
             "PUT",
             f"/agents/{agent['id']}/permissions",
@@ -128,25 +128,57 @@ async def checks() -> None:
             else:
                 raise AssertionError(name + " bypassed binding")
 
-        for name in (
-            "market_quote",
-            "market_instrument",
-            "market_candles",
-            "chart_indicator",
-            "chart_open",
-            "chart_snapshot",
-        ):
+        # Reading is open: market data reads cover every owned account and symbol.
+        # Persistent chart work, like every mutation, keeps the bound pair.
+        for name in ("market_quote", "market_instrument", "market_candles", "chart_indicator"):
             args: dict[str, Any] = {"account_id": primary, "symbol": symbols[1]}
-            if name in ("market_candles", "chart_indicator", "chart_snapshot"):
+            if name in ("market_candles", "chart_indicator"):
                 args["timeframe"] = "1h"
             if name == "chart_indicator":
                 args["name"] = "rsi"
-            await denied(name, args, "agent_trading_symbol_mismatch")
-        await denied(
-            "market_quote",
-            {"account_id": secondary, "symbol": symbols[0]},
-            "agent_trading_account_mismatch",
+            try:
+                await registry.execute(ToolCall(id=uuid4().hex, name=name, arguments=args), context)
+            except LonoraError as error:
+                # Simulation fixtures carry no bars for this pair; scope still passed.
+                assert error.code != "agent_trading_symbol_mismatch", (name, error.code)
+        related = await registry.execute(
+            ToolCall(
+                id=uuid4().hex,
+                name="market_quote",
+                arguments={"account_id": primary, "symbol": symbols[1]},
+            ),
+            context,
         )
+        assert related["symbol"] == symbols[1]
+        for name in ("chart_open", "chart_snapshot"):
+            args = {"account_id": primary, "symbol": symbols[1]}
+            if name == "chart_snapshot":
+                args["timeframe"] = "1h"
+            await denied(name, args, "agent_trading_symbol_mismatch")
+        for name, args in (
+            ("market_quote", {"account_id": secondary, "symbol": symbols[0]}),
+            ("account_read", {"account_id": secondary}),
+            ("list_accounts", {}),
+        ):
+            try:
+                read = await registry.execute(
+                    ToolCall(id=uuid4().hex, name=name, arguments=args), context
+                )
+            except LonoraError as error:
+                # Another owned account is readable; only fixture data may be missing.
+                assert error.code not in {
+                    "agent_trading_account_mismatch",
+                    "agent_trading_symbol_mismatch",
+                }, (name, error.code)
+            else:
+                if name == "list_accounts":
+                    listed = {item["connection_id"] for item in read["accounts"]}
+                    assert {primary, secondary} <= listed, listed
+                    scope = {
+                        item["connection_id"]: item["in_execution_scope"]
+                        for item in read["accounts"]
+                    }
+                    assert scope[primary] is True and scope[secondary] is False
         await denied(
             "trade_execute",
             {"account_id": primary, "symbol": symbols[1], "action": "buy", "volume": "0.1"},
@@ -203,9 +235,10 @@ async def checks() -> None:
             ToolCall(id="symbols", name="market_symbols", arguments={"account_id": primary}),
             context,
         )
-        assert catalog["symbols"] == [symbols[0]]
+        assert set(catalog["symbols"]) >= set(symbols[:2])
+        assert catalog["execution_scope"]["symbol"] == symbols[0]
         print(
-            "PASS generic tool boundary rejects cross-pair/account quote/candle/chart/trade/watch and nested goal steps"
+            "PASS generic tool boundary: related-pair reads on the bound account; cross-account reads and cross-pair chart/trade/watch/goal steps rejected"
         )
         async with fixture.runtime.db.sessions() as session, session.begin():
             snapshot = await session.get(TradingAccountRow, primary, with_for_update=True)
@@ -226,7 +259,10 @@ async def checks() -> None:
         account = await registry.execute(
             ToolCall(id="account", name="account_read", arguments={"account_id": primary}), context
         )
-        assert [p["symbol"] for p in account["positions"]] == [symbols[0]]
+        # Account-wide exposure is visible; only the bound pair is executable.
+        assert {p["symbol"]: p["in_execution_scope"] for p in account["positions"]} == {
+            s: s == symbols[0] for s in symbols
+        }
         proposal = await registry.execute(
             ToolCall(id="close", name="trade_close_positions", arguments={"account_id": primary}),
             context,
@@ -265,11 +301,24 @@ async def checks() -> None:
             row = await session.get(RunRow, child_context.lease.run_id)
             assert row is not None
             row.parent_run_id = context.lease.run_id
-        await denied(
-            "market_quote",
-            {"account_id": primary, "symbol": symbols[1]},
-            "agent_trading_symbol_mismatch",
-        )
+        try:
+            await registry.execute(
+                ToolCall(
+                    id=uuid4().hex,
+                    name="trade_execute",
+                    arguments={
+                        "account_id": primary,
+                        "symbol": symbols[1],
+                        "action": "buy",
+                        "volume": "0.1",
+                    },
+                ),
+                child_context,
+            )
+        except LonoraError as error:
+            assert error.code == "agent_trading_symbol_mismatch", error.code
+        else:
+            raise AssertionError("Child bypassed the inherited binding")
         async with fixture.runtime.db.sessions() as session:
             selected = await session.get(AgentRow, agent["id"])
             assert selected is not None
@@ -293,9 +342,14 @@ async def checks() -> None:
                 "payload": {"account_id": primary, "symbol": symbols[1], "timeframe": "1h"},
             },
         )
-        await denied(
-            "chart_inspect", {"chart_id": foreign_chart["id"]}, "agent_trading_symbol_mismatch"
+        # Reading another Agent's chart on another symbol is open; changing it is not.
+        inspected = await registry.execute(
+            ToolCall(
+                id=uuid4().hex, name="chart_inspect", arguments={"chart_id": foreign_chart["id"]}
+            ),
+            context,
         )
+        assert inspected["chart"]["id"] == foreign_chart["id"]
         for association in ({"agent_id": agent["id"]}, {"thread_id": thread["id"]}):
             response = await fixture.client.post(
                 "/api/charts",
@@ -355,7 +409,7 @@ async def checks() -> None:
             raise AssertionError("Peer delegated trade bypassed parent binding")
         await fixture.request("DELETE", "/charts/" + foreign_chart["id"])
         print(
-            "PASS persisted chart-ID/direct chart+goal APIs and peer financial ancestry cannot bypass binding"
+            "PASS reads open across charts and accounts; direct chart+goal APIs and peer financial ancestry cannot bypass binding"
         )
         from lonora_contracts.market_watch import Watch
         from lonora_db.schema import MarketWatchRow

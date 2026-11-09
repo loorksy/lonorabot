@@ -1,5 +1,7 @@
 import asyncio
 import logging
+from collections.abc import Callable
+from time import monotonic
 
 from lonora_contracts.domain import utcnow
 from lonora_core.user_error import LonoraError
@@ -15,19 +17,58 @@ from lonora_db.runs import (
     run_data,
 )
 from lonora_db.schema import MessageRow, SteeringRow, TradeApprovalRow
+from lonora_db.steering import user_interrupt_pending
 from lonora_db.streaming import settle_stream, stream_identity
 from lonora_db.task_wait_settlement import settle_task_wait
+from lonora_db.tasks import request_task_attention
 from lonora_logging.context import run_id as diagnostic_run_id
 from lonora_tools.context import ToolContext
 from lonora_tools.registry import ToolRegistry
 from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
 
 from .collaboration.outcome_return import return_outcome
 from .environment import ToolRetryScheduled
+from .model_recovery import RETRY_REASON
 from .tasks import TaskSuspended
 from .tool_loop import execute_tool_loop
 
 log = logging.getLogger("lonora.executor")
+
+# Database failures a lease renewal retries before it gives the lease up.
+TRANSIENT_RENEWAL_ERRORS = (SQLAlchemyError, OSError, TimeoutError)
+
+
+async def keep_lease(context: ToolContext, lease_seconds: int, lost: Callable[[], None]) -> None:
+    """Renew the Run's lease every third of its length.
+
+    A transient database error (a dropped connection, a failover, a timeout) is retried
+    until shortly before the lease would expire; only a fenced ``stale_lease``, an
+    unknown error or running out of lease time declares it lost and stops the Run.
+    """
+    renewed = monotonic()
+    margin = lease_seconds / 6
+    while True:
+        await asyncio.sleep(lease_seconds / 3)
+        while True:
+            try:
+                # A renewal that hangs is as transient as one that fails.
+                async with asyncio.timeout(max(1.0, margin)):
+                    async with context.db.sessions() as session, session.begin():
+                        await renew_lease(session, context.lease, lease_seconds)
+            except TRANSIENT_RENEWAL_ERRORS as error:
+                if monotonic() - renewed >= lease_seconds - margin:
+                    log.error("lease_lost reason=renewal_unavailable")
+                    lost()
+                    return
+                log.warning("lease_renewal_retry type=%s", type(error).__name__)
+                await asyncio.sleep(min(2.0, margin / 2))
+                continue
+            except Exception:
+                lost()
+                return
+            renewed = monotonic()
+            break
 
 
 async def execute_run(
@@ -37,19 +78,12 @@ async def execute_run(
     current = asyncio.current_task()
     lost_lease = asyncio.Event()
 
-    async def heartbeat() -> None:
-        while True:
-            await asyncio.sleep(lease_seconds / 3)
-            try:
-                async with context.db.sessions() as session, session.begin():
-                    await renew_lease(session, context.lease, lease_seconds)
-            except Exception:
-                lost_lease.set()
-                if current:
-                    current.cancel()
-                return
+    def lose() -> None:
+        lost_lease.set()
+        if current:
+            current.cancel()
 
-    heartbeat_task = asyncio.create_task(heartbeat())
+    heartbeat_task = asyncio.create_task(keep_lease(context, lease_seconds, lose))
     try:
         async with context.db.sessions() as session, session.begin():
             row = await require_lease(session, context.lease, lock=True)
@@ -176,6 +210,11 @@ async def execute_run(
                             run_id=row.id,
                             payload=message_data(message),
                         )
+                    attention = outcome.metadata.get("owner_attention")
+                    if isinstance(attention, str) and attention:
+                        # Unfinished Task work waits for its owner, resumable
+                        # from the same checkpoint, instead of failing the Run.
+                        await request_task_attention(session, row, attention)
                     row.status = "waiting_input"
                     row.lease_expires_at = None
                     emit(
@@ -198,6 +237,31 @@ async def execute_run(
             row.status = "queued"
             row.lease_expires_at = None
             row.updated_at = utcnow()
+            retry = row.execution_state["environment"]["retry"]
+            if retry.get("reason_code") == RETRY_REASON:
+                # The failed model turn left no reply: withdraw its preview so
+                # clients do not show a partial answer during the backoff.
+                snapshot = settle_stream(row, "discarded", text="")
+                if snapshot:
+                    emit(
+                        session,
+                        context.owner_id,
+                        "run.reply_committed",
+                        thread_id=context.thread_id,
+                        agent_id=context.agent_id,
+                        run_id=row.id,
+                        payload=stream_identity(snapshot),
+                    )
+                if await user_interrupt_pending(session, row.id):
+                    # The owner wrote while the failed turn was being retried.
+                    # Admission only clears the deadline of an already queued
+                    # Run, so clear it here: the new message is answered (or
+                    # the provider state reported) now, not after the backoff.
+                    # The failure streak is kept, so this cannot loop forever.
+                    environment = dict(row.execution_state["environment"])
+                    environment.pop("retry", None)
+                    row.execution_state = {**row.execution_state, "environment": environment}
+                    retry = {**retry, "not_before": row.updated_at.isoformat()}
             emit(
                 session,
                 context.owner_id,
@@ -206,10 +270,9 @@ async def execute_run(
                 agent_id=context.agent_id,
                 run_id=row.id,
                 payload={
-                    "reason_code": row.execution_state["environment"]["retry"].get(
-                        "reason_code", "tool_read_recovery"
-                    ),
-                    "retry_at": row.execution_state["environment"]["retry"]["not_before"],
+                    "reason_code": retry.get("reason_code", "tool_read_recovery"),
+                    "retry_at": retry["not_before"],
+                    **({"code": retry["code"]} if isinstance(retry.get("code"), str) else {}),
                 },
             )
     except TaskSuspended:

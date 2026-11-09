@@ -2,7 +2,7 @@ from typing import Any
 
 from lonora_contracts.shadow import PerformanceRead, ShadowCommand, ShadowRead
 from lonora_contracts.trading import TradeRequest
-from lonora_db.agent_binding import agent_binding, assert_market_binding
+from lonora_db.agent_binding import agent_binding
 from lonora_trading.shadow import execute_shadow, shadow_data, shadow_rows
 
 from .base import Tool
@@ -30,7 +30,6 @@ async def read(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     body = ShadowRead.model_validate(args)
     async with context.db.sessions() as session:
         agent = await agent_binding(session, context.owner_id, context.agent_id)
-        assert_market_binding(agent, body.account_id, body.symbol)
         symbol = body.symbol or (
             agent.trading_symbol
             if not body.account_id or body.account_id == agent.trading_account_id
@@ -52,7 +51,6 @@ async def performance(context: ToolContext, args: dict[str, Any]) -> dict[str, A
     body = PerformanceRead.model_validate(args)
     async with context.db.sessions() as session:
         agent = await agent_binding(session, context.owner_id, context.agent_id)
-        assert_market_binding(agent, body.account_id, body.symbol)
         body = body.model_copy(
             update={
                 "account_id": body.account_id or agent.trading_account_id,

@@ -94,7 +94,9 @@ def test_risk_scope_and_dependency_order_are_deterministic() -> None:
     result = select_skill_context(
         [financial],
         SkillSignals(
-            requested=frozenset({"financial"}), read_only=True, available_tools=frozenset(TOOLS)
+            requested=frozenset({"financial"}),
+            scope="observe_only",
+            available_tools=frozenset(TOOLS),
         ),
         TOOLS,
     )
@@ -128,6 +130,7 @@ class ContextSession:
 async def test_context_refresh_pins_content_after_catalog_update_and_honors_disable(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    from lonora_adapter_kit.context_sections import context_message
     from lonora_adapter_kit.types import ModelMessage
 
     owner = payload("owner-guide")
@@ -149,7 +152,10 @@ async def test_context_refresh_pins_content_after_catalog_update_and_honors_disa
     )
     monkeypatch.setattr(skills, "require_lease", AsyncMock(return_value=run))
     first = await skills.read_skill_context(session, context, agent, load_tools())  # type: ignore[arg-type]
-    assert "Original approved procedure." in first
+    assert "Original approved procedure." in first.text
+    # The body is context data, labelled with its truthful (owner) provenance.
+    assert "Original approved procedure." not in first.catalog
+    assert [section.trust for section in first.sections] == ["owner_supplied"]
     original_hash = run.model_metadata["skill_selection"]["skill_content_sha256"]["owner-guide"]
     # Simulate a restarted worker reading serialized metadata, with the catalog now updated.
     import json
@@ -160,13 +166,21 @@ async def test_context_refresh_pins_content_after_catalog_update_and_honors_disa
         "content": "Updated procedure must wait for a new Run.",
         "manifest": {**owner["manifest"], "version": "2.0.0"},
     }
+    data = context_message(first.sections)
+    assert data is not None
     messages = [
-        ModelMessage(role="system", content=first),
+        ModelMessage(role="system", content=first.catalog),
+        data,
         ModelMessage(role="user", content="[skill:owner-guide]"),
     ]
+
+    def rendered() -> str:
+        return "\n".join(message.content for message in messages)
+
     await skills.refresh_skill_context(context, load_tools(), messages)
-    assert "Original approved procedure." in messages[0].content
-    assert "Updated procedure" not in messages[0].content
+    assert "Original approved procedure." in rendered()
+    assert "Original approved procedure." not in messages[0].content
+    assert "Updated procedure" not in rendered()
     assert run.model_metadata["skill_selection"]["skill_versions"]["owner-guide"] == "1.0.0"
     assert (
         run.model_metadata["skill_selection"]["skill_content_sha256"]["owner-guide"]
@@ -174,7 +188,7 @@ async def test_context_refresh_pins_content_after_catalog_update_and_honors_disa
     )
     row.payload = {**row.payload, "enabled": False}
     await skills.refresh_skill_context(context, load_tools(), messages)
-    assert 'id="owner-guide"' not in messages[0].content
+    assert 'id="owner-guide"' not in rendered()
     assert (
         run.model_metadata["skill_selection"]["rejected_skills"]["owner-guide"] == "skill_disabled"
     )
@@ -186,11 +200,11 @@ async def test_context_refresh_pins_content_after_catalog_update_and_honors_disa
         run.model_metadata["skill_selection"]["rejected_skills"]["owner-guide"]
         == "skill_snapshot_source_changed"
     )
-    assert 'id="owner-guide"' not in messages[0].content
+    assert 'id="owner-guide"' not in rendered()
     # Removed owner data stays removed, even while historical instructions are retained.
     session.rows = []
     await skills.refresh_skill_context(context, load_tools(), messages)
-    assert 'id="owner-guide"' not in messages[0].content
+    assert 'id="owner-guide"' not in rendered()
     assert (
         run.model_metadata["skill_selection"]["rejected_skills"]["owner-guide"]
         == "skill_snapshot_unavailable"

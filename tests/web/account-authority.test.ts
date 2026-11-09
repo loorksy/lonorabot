@@ -45,7 +45,6 @@ const pending: AccountAuthority = {
   valid_until: draft.valid_until,
   created_at: new Date(now).toISOString(),
   updated_at: new Date(now).toISOString(),
-  monetary_stop_risk: "unavailable",
 };
 test("permission is absent until explicit exact scope and every limit are supplied", () => {
   assert.equal(authorityProposal(emptyAuthorityDraft(), scope, now), null);
@@ -134,7 +133,7 @@ test("full management is an explicit proposal without default quotas, markets or
   assert.equal(full.maximum_order_volume, null);
   assert.equal(full.maximum_actions, null);
   assert.equal(full.valid_until, null);
-  assert.equal(full.allow_manual_positions, true);
+  assert.equal(full.allow_manual_positions, false);
   const specialist = fullManagementProposal({ ...scope, symbol: "EXACT.suffix" });
   assert.deepEqual(specialist?.symbols, ["EXACT.suffix"]);
   assert.equal(specialist?.symbol_scope, "selected");

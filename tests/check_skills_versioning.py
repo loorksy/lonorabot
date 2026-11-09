@@ -58,9 +58,9 @@ async def main() -> None:
         async with f.runtime.db.sessions() as session:
             stored_agent = await session.get(AgentRow, agent["id"])
             assert stored_agent is not None
-            safe_block = await read_skill_context(
-                session, forged_context, stored_agent, load_tools()
-            )
+            safe_block = (
+                await read_skill_context(session, forged_context, stored_agent, load_tools())
+            ).text
         assert builtin.content in safe_block and "FORGED BUNDLED INSTRUCTIONS" not in safe_block
         name = "versioned-" + uuid4().hex[:12]
         owner_payload: dict[str, Any] = {
@@ -81,7 +81,7 @@ async def main() -> None:
                 "/api/skills", json={"agent_id": agent["id"], "payload": forged}
             )
             assert response.status_code == 422
-        # External/installed remain descriptive origins for owner-supplied instructions.
+        # External/installed are descriptive origins, labelled as such to the model.
         # They cannot claim bundled provenance or introduce unknown tools/capabilities.
         external = {
             **owner_payload,
@@ -125,7 +125,7 @@ async def main() -> None:
             async with f.runtime.db.sessions() as session:
                 stored_agent = await session.get(AgentRow, agent["id"])
                 assert stored_agent is not None
-                block = await read_skill_context(session, context, stored_agent, registry)
+                block = (await read_skill_context(session, context, stored_agent, registry)).text
             async with f.runtime.db.sessions() as session:
                 run = await session.get(RunRow, context.lease.run_id)
                 assert run is not None
@@ -135,7 +135,7 @@ async def main() -> None:
         block, metadata = await read(first)
         assert "Version one:" in block
         assert metadata["skill_selection"]["skill_sources"][name] == "external"
-        assert metadata["skill_selection"]["skill_provenance"][name] == "owner_supplied"
+        assert metadata["skill_selection"]["skill_provenance"][name] == "external"
         original_snapshot = metadata["skill_snapshot"]
         updated = {
             **external,
@@ -170,7 +170,7 @@ async def main() -> None:
                 session,
                 second.lease,
                 "model_provider_unavailable",
-                read_only_names={tool.name for tool in registry.definitions(read_only=True)},
+                read_only_names={tool.name for tool in registry.definitions(scope="helper")},
             )
             row = await get_task(session, f.owner, task["id"], lock=True)
             state = task_state(row)

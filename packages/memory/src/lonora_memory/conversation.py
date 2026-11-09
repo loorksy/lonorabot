@@ -24,12 +24,16 @@ class ConversationRecallScope:
 
     before_seq is inclusive (the last summarized sequence). Current history
     includes messages after that sequence, so they must not be retrieved twice.
+    unloaded_through is the server-verified last sequence that the current
+    history window cannot include although it is not summarized yet; recall may
+    then reach those messages too, instead of leaving them invisible.
     """
 
     thread_id: str
     input_seq: int
     before_seq: int
     include_neighbor: bool = False
+    unloaded_through: int | None = None
 
     def __post_init__(self) -> None:
         if (
@@ -38,6 +42,10 @@ class ConversationRecallScope:
             or type(self.before_seq) is not int
             or self.input_seq < 0
             or self.before_seq < 0
+            or (
+                self.unloaded_through is not None
+                and (type(self.unloaded_through) is not int or self.unloaded_through < 0)
+            )
         ):
             raise ValueError("invalid_conversation_recall_scope")
 
@@ -57,7 +65,8 @@ async def conversation_candidates(
     thread = await owned_thread(session, owner_id, scope.thread_id)
     if thread.agent_id != agent_id or thread.group_id or thread.purpose != "conversation":
         return [], "scope_unavailable", False
-    cutoff = min(scope.before_seq, thread.summary_seq, scope.input_seq - 1, thread.next_seq - 1)
+    covered = max(thread.summary_seq, scope.unloaded_through or 0)
+    cutoff = min(scope.before_seq, covered, scope.input_seq - 1, thread.next_seq - 1)
     if cutoff < 1:
         return [], "no_compacted_history", False
     statement = (

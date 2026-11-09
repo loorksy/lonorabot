@@ -8,6 +8,7 @@ from lonora_agent.workspace_access import RunWorkspaceAccess
 from lonora_agent.workspace_client import WorkspaceClient
 from lonora_charts.visual import ChartVisualRuntime
 from lonora_contracts.mcp import McpToolDeclaration
+from lonora_contracts.model_routing import ModelSelection
 from lonora_contracts.runs import Lease
 from lonora_db.client import Database
 from lonora_market.runtime import MarketRuntime
@@ -31,6 +32,7 @@ class OwnerServices:
     mcp_declarations: tuple[McpToolDeclaration, ...] = ()
     searxng_url: str | None = None
     browser_url: str | None = None
+    mcp_owner_trust: bool = True
 
     @classmethod
     def create(
@@ -44,6 +46,7 @@ class OwnerServices:
         mcp_declarations: tuple[McpToolDeclaration, ...] = (),
         searxng_url: str | None = None,
         browser_url: str | None = None,
+        mcp_owner_trust: bool = True,
     ) -> "OwnerServices":
         secrets = EncryptedSecretStore(db, key, owner_id)
         brokers = BrokerManager(db, secrets)
@@ -74,6 +77,7 @@ class OwnerServices:
             mcp_declarations,
             searxng_url,
             browser_url,
+            mcp_owner_trust,
         )
 
     def tool_context(
@@ -84,6 +88,7 @@ class OwnerServices:
         root: Path,
         depth: int = 0,
         maximum_subagents: int = 4,
+        run_model: ModelSelection | None = None,
     ) -> ToolContext:
         return ToolContext(
             self.db,
@@ -103,8 +108,10 @@ class OwnerServices:
                 WorkspaceClient(self.workspace_socket) if self.workspace_socket else None
             ),
             mcp_declarations=self.mcp_declarations,
+            mcp_owner_trust=self.mcp_owner_trust,
             searxng_url=self.searxng_url,
             browser_url=self.browser_url,
+            run_model=run_model,
         )
 
     async def close(self) -> None:

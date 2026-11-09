@@ -38,6 +38,19 @@ class ExportInput(RevisionInput):
     name: str | None = Field(default=None, min_length=1, max_length=160)
 
 
+async def workspace_available(context: ToolContext) -> str | None:
+    return None if context.workspace_access is not None else "workspace_unconfigured"
+
+
+async def execution_available(context: ToolContext) -> str | None:
+    """Isolated execution also needs the analysis host bridge configured."""
+    if context.workspace_access is None:
+        return "workspace_unconfigured"
+    # An access object that cannot report its executor is assumed able to try.
+    configured = getattr(context.workspace_access, "execution_configured", True)
+    return None if configured else "workspace_execution_unconfigured"
+
+
 def access(context: ToolContext) -> WorkspaceAccess:
     if context.workspace_access is None:
         raise LonoraError("workspace_unconfigured", 409)
@@ -72,6 +85,7 @@ def tools() -> list[Tool]:
             ExportInput,
             export,
             replay_safe=True,
+            availability=workspace_available,
         ),
         Tool(
             "workspace_inspect",
@@ -79,6 +93,7 @@ def tools() -> list[Tool]:
             InspectInput,
             inspect,
             read_only=True,
+            availability=workspace_available,
         ),
         Tool(
             "workspace_read",
@@ -86,6 +101,7 @@ def tools() -> list[Tool]:
             ReadInput,
             read,
             read_only=True,
+            availability=workspace_available,
         ),
         Tool(
             "workspace_update",
@@ -93,6 +109,7 @@ def tools() -> list[Tool]:
             UpdateInput,
             update,
             replay_safe=True,
+            availability=workspace_available,
         ),
         Tool(
             "workspace_execute",
@@ -100,5 +117,6 @@ def tools() -> list[Tool]:
             ExecuteInput,
             execute,
             replay_safe=True,
+            availability=execution_available,
         ),
     ]

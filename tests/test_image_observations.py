@@ -141,7 +141,14 @@ def test_all_provider_http_payloads_contain_pixels_after_tool_results(
                 assert base64.b64decode(blocks[-1]["source"]["data"]) == png
                 return httpx.Response(200, json={"content": [{"type": "text", "text": "seen"}]})
             wire = payload["messages"]
-            assert [m["role"] for m in wire] == ["assistant", "tool", "tool", "user", "user"]
+            # Both observations reach OpenAI-compatible wires as one user turn of parts.
+            assert [m["role"] for m in wire] == ["assistant", "tool", "tool", "user"]
+            assert [part["type"] for part in wire[-1]["content"]] == [
+                "text",
+                "image_url",
+                "text",
+                "image_url",
+            ]
             assert (
                 base64.b64decode(wire[-1]["content"][-1]["image_url"]["url"].split(",")[1]) == png
             )
@@ -334,7 +341,12 @@ def test_actual_router_fallback_preserves_owner_and_image_exchange_or_rejects() 
             assert selection.model == "small" and reply.text
             assert len(payloads) == 2
             wire = payloads[-1]["messages"]
-            assert any(m.get("content") == owner for m in wire)
+            # The omission notice and the owner's turn are adjacent user turns, joined.
+            assert any(
+                isinstance(m.get("content"), str) and owner in m["content"].split("\n\n")
+                for m in wire
+                if m["role"] == "user"
+            )
             assert [m["tool_call_id"] for m in wire if m["role"] == "tool"] == ["current"]
             image_messages = [m for m in wire if isinstance(m.get("content"), list)]
             assert len(image_messages) == 1

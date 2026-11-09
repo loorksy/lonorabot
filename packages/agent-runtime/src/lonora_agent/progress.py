@@ -33,6 +33,7 @@ async def progress(context: ToolContext, kind: str, payload: dict[str, Any]) -> 
                 "activity": {
                     "kind": kind,
                     "name": payload.get("name"),
+                    **{key: payload[key] for key in ("toolset", "effect") if key in payload},
                     "observed_at": utcnow().isoformat(),
                 },
             }

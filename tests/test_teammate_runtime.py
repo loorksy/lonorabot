@@ -262,7 +262,10 @@ async def test_all_actual_catalog_names_are_answered_unchanged_with_one_model_ca
     published, usage = model_boundary
     catalog = load_tools()
     names = sorted(catalog.tools)
-    assert len(names) == 106
+    # The complete live catalog, pinned to the generated policy manifest instead of a
+    # hand-maintained count that goes stale whenever a tool is added or removed.
+    manifest = json.loads((resources_root() / "system/manifest.json").read_text())
+    assert names == sorted(manifest["tool_policies"]) and len(names) > 100
     answer = "هذه أدواتي المتاحة: " + ", ".join(names) + "."
     complete = AsyncMock(
         return_value=(ModelReply(text=answer), ModelSelection(provider="openai", model="offline"))
@@ -270,9 +273,11 @@ async def test_all_actual_catalog_names_are_answered_unchanged_with_one_model_ca
     reply, _ = await model_runtime.model_turn(
         model_context(complete),
         [ModelMessage(role="user", content="طيب بدي منك قائمة جميع أدواتك")],
-        catalog.discovery_definitions(),
+        catalog.native_definitions(catalog.exposure(["core", "research"])[0]),
         Capability.CONVERSATION,
         capability_inventory=catalog.capability_inventory(),
+        resolve_calls=catalog.resolve_calls,
+        policy_tools=catalog.names(),
     )
     assert reply.text == answer
     assert complete.await_count == usage.await_count == 1
@@ -410,7 +415,7 @@ async def test_each_turn_gets_current_scoped_inventory_without_rewriting_checkpo
         ModelMessage(role="system", content="old context"),
         ModelMessage(role="user", content="احسب النتيجة"),
     ]
-    inventory = load_tools().capability_inventory(read_only=True)
+    inventory = load_tools().capability_inventory(scope="helper")
     complete = AsyncMock(
         return_value=(
             ModelReply(text="النتيجة تحتاج حسابًا أولًا."),
@@ -423,7 +428,9 @@ async def test_each_turn_gets_current_scoped_inventory_without_rewriting_checkpo
         context: Any, request: list[ModelMessage]
     ) -> tuple[list[ModelMessage], dict[str, Any]]:
         assert sum(m.content == inventory for m in request) == 1
-        assert "workspace_read" in inventory and "workspace_execute" not in inventory
+        # A helper computes in the sandbox but never edits files or memory directly.
+        assert "workspace_read" in inventory and "workspace_execute" in inventory
+        assert "workspace_update" not in inventory and "memory_write" not in inventory
         return request, {}
 
     monkeypatch.setattr(model_runtime, "prepare_image_observations", images)

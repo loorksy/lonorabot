@@ -1,4 +1,4 @@
-"""Bounded language evidence from canonical owner messages, not work prompts."""
+"""The owner profile's reply language, else bounded evidence from owner messages."""
 
 import re
 from typing import Literal
@@ -6,7 +6,7 @@ from typing import Literal
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .schema import MessageRow
+from .schema import MessageRow, OwnerProfileRow
 from .transactions import SettingsRepository, owned_thread
 
 
@@ -14,6 +14,10 @@ async def conversation_locale(
     session: AsyncSession, owner_id: str, thread_id: str
 ) -> Literal["ar", "en"]:
     await owned_thread(session, owner_id, thread_id)
+    # The owner profile's reply language wins; otherwise the owner's latest message.
+    profile = await session.get(OwnerProfileRow, owner_id)
+    if profile is not None and profile.reply_language in ("ar", "en"):
+        return "en" if profile.reply_language == "en" else "ar"
     messages = await session.scalars(
         select(MessageRow.content)
         .where(MessageRow.thread_id == thread_id, MessageRow.role == "user")

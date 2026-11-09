@@ -1,5 +1,18 @@
 export * from "./account-authority";
 export { accountAuthorityLabels } from "./account-authority-labels";
+export {
+  type AgentModelText,
+  agentModelLabels,
+  agentModelLines,
+  agentModelText,
+  type ModelCardSpec,
+  modelCard,
+  modelChoiceLine,
+  modelName,
+  offersDefaultModel,
+  tokenCount,
+  usageLine,
+} from "./agent-model";
 export * from "./agent-permission";
 export { agentPermissionError } from "./agent-permission-errors";
 export {
@@ -8,10 +21,29 @@ export {
   hasFixedMarket,
   marketScopeChange,
 } from "./agent-scope";
+export {
+  type AgentStatusText,
+  agentStatusLabels,
+  agentStatusLine,
+  agentStatusText,
+  liveAvatarState,
+  watchCondition,
+  watchUntil,
+} from "./agent-status";
 export { attachmentTooLarge, maxAttachmentBytes } from "./attachments";
 export * from "./avatar-geometry";
 export * from "./avatar-motion";
 export * from "./avatar-state";
+export {
+  builtInLine,
+  type CapabilityText,
+  capabilityLabels,
+  capabilityText,
+  integrationLine,
+  serverLine,
+  skillLine,
+  sourceLine,
+} from "./capabilities";
 export {
   type MentionAddress,
   type MentionRange,
@@ -26,6 +58,52 @@ export {
   nearConversationBottom,
 } from "./conversation-timeline";
 export { webDeviceProof, webDeviceSupported } from "./device-proof";
+export {
+  approvalStatusText,
+  brokerTicketLabel,
+  financialBoundaryError,
+  financialResultReason,
+  type OperationStatusKey,
+  operationStatusKey,
+  operationStatusText,
+  runStatusText,
+} from "./financial-boundary";
+export {
+  type CredentialField,
+  type CredentialForm,
+  type CredentialPost,
+  credentialForm,
+  mergeOwnerAction,
+  OWNER_ACTION_CHANGED,
+  type OwnerActionButton,
+  type OwnerActionOption,
+  type OwnerActionSpec,
+  type OwnerActionText,
+  ownerActionCard,
+  ownerActionChoices,
+  ownerActionChoose,
+  ownerActionError,
+  ownerActionLabels,
+  ownerActionText,
+  rereadOwnerAction,
+  submitCredential,
+} from "./owner-actions";
+export {
+  type OwnerProfileLabel,
+  ownerProfileError,
+  ownerProfileLabel,
+  ownerProfileLabelKeys,
+  preferenceFieldLabel,
+  preferenceValueText,
+  type ReachMe,
+  type ReplyLanguage,
+  reachMeChannels,
+  reachMeHint,
+  reachMeLabel,
+  replyLanguageLabel,
+  replyLanguages,
+} from "./owner-profile";
+export { peerOutcome } from "./peer-outcome";
 export { ReadRequestGate } from "./read-request-gate";
 export {
   accumulateStream,
@@ -36,12 +114,36 @@ export {
   streamText,
 } from "./reply-stream";
 export { activeStatuses, canCancel, canResume, isWorking } from "./run-state";
-export { mergeSuperBotRequest } from "./super-bot";
+export {
+  type SupervisionRow,
+  type SupervisionText,
+  supervisionError,
+  supervisionLabels,
+  supervisionRows,
+  supervisionText,
+  unsupervisedAgents,
+} from "./supervision";
 export { formatTimeSeparator, needsTimeSeparator, timeSeparatorIds } from "./time-separators";
 export * from "./trading-avatar-motion";
 export {
+  isolate,
+  listSeparator,
+  moneyLimitLabel,
+  moneyLimitsLine,
+  pauseClassLabel,
+  readinessTime,
+  type TradingSafetyText,
+  tradingBrake,
+  tradingReadinessLine,
+  tradingReadinessTone,
+  tradingSafetyLabels,
+  tradingSafetyText,
+} from "./trading-readiness";
+export {
   type ActivityCall,
+  type ActivityEffect,
   type ActivityPhase,
+  activityCallLabel,
   projectRunEvents,
   turnActivity,
 } from "./turn-activity";

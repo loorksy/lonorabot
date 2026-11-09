@@ -151,4 +151,4 @@ def test_import_validation_and_control_are_mutations_without_financial_power() -
     for name in ("skill_package_import", "skill_package_validate", "skill_package_control"):
         tool = registry.tools[name]
         assert tool.replay_safe and not tool.read_only and not tool.financial
-        assert name not in {item.name for item in registry.definitions(read_only=True)}
+        assert name not in {item.name for item in registry.definitions(scope="helper")}

@@ -15,10 +15,16 @@ from lonora_core.user_error import LonoraError
 from lonora_db.attention import mandatory_current
 from lonora_db.client import Database
 from lonora_db.events import emit
-from lonora_db.schema import AttentionRow, DeviceCredentialRow, VoiceSessionRow
-from lonora_db.transactions import SettingsRepository, owned_agent, owned_thread
+from lonora_db.owner_profile import (
+    reach_me_lock,
+    reach_me_policy,
+    save_owner_preferences,
+    verified_device,
+)
+from lonora_db.schema import AttentionRow, VoiceSessionRow
+from lonora_db.transactions import owned_agent, owned_thread
 from lonora_session.idempotency import stable_id
-from sqlalchemy import and_, or_, select, text
+from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 MODE = "incoming_request"
@@ -59,32 +65,21 @@ def call_data(row: VoiceSessionRow) -> dict[str, Any]:
 
 
 async def owner_lock(session: AsyncSession, owner_id: str) -> None:
-    if session.get_bind().dialect.name == "postgresql":
-        await session.execute(
-            text("SELECT pg_advisory_xact_lock(hashtextextended(:key,0))"),
-            {"key": "incoming-call:" + owner_id},
-        )
+    await reach_me_lock(session, owner_id)
 
 
 async def preferences(session: AsyncSession, owner_id: str) -> IncomingCallPolicy:
-    return IncomingCallPolicy.model_validate(
-        await SettingsRepository().get(session, "incoming-call-policy:" + owner_id)
-    )
+    """The owner's reach-me preference; it rings only when its channel is ``call``.
 
-
-async def verified_device(session: AsyncSession, owner_id: str, device_id: str) -> None:
-    device = await session.get(DeviceCredentialRow, device_id)
-    if device is None or device.owner_id != owner_id or device.revoked:
-        raise LonoraError("incoming_call_device_unavailable", 403)
+    Read afresh: the call gate reads it under owner_lock, and a copy this session
+    loaded earlier must not ring against a newer "message me instead".
+    """
+    return await reach_me_policy(session, owner_id, fresh=True)
 
 
 async def set_preferences(session: AsyncSession, owner_id: str, policy: IncomingCallPolicy) -> None:
-    await owner_lock(session, owner_id)
-    if policy.enabled:
-        await verified_device(session, owner_id, policy.device_id or "")
-    await SettingsRepository().put(
-        session, "incoming-call-policy:" + owner_id, policy.model_dump(mode="json")
-    )
+    """The owner's own change, kept as a revertible revision of the owner profile."""
+    await save_owner_preferences(session, owner_id, policy=policy, author="owner")
 
 
 def changed(session: AsyncSession, row: VoiceSessionRow, status: str) -> None:
@@ -110,8 +105,11 @@ async def current_attention(session: AsyncSession, row: VoiceSessionRow) -> Atte
     deadline = source.parameters.get("valid_until")
     if deadline and datetime.fromisoformat(deadline) <= utcnow():
         raise LonoraError("incoming_call_attention_expired", 409)
-    if source.importance in {"critical", "action_required"} and not await mandatory_current(
-        session, source
+    # An Agent's own alert stays current until its expiry or until the owner reads it.
+    if (
+        source.importance in {"critical", "action_required"}
+        and source.code != "agent_notification"
+        and not await mandatory_current(session, source)
     ):
         raise LonoraError("incoming_call_attention_superseded", 409)
     return source

@@ -20,10 +20,14 @@ class AgentLiveState(Contract):
     runtime_waits: list[dict[str, Any]] = Field(default_factory=list[dict[str, Any]], max_length=6)
     pending_approval_count: int = 0
     watch_count: int = 0
+    # The agent's active watches (condition, market, expiry), newest first; never prompts.
+    watches: list[dict[str, Any]] = Field(default_factory=list[dict[str, Any]], max_length=6)
     pending_authorization_count: int = 0
-    super_bot: list[dict[str, Any]] = Field(default_factory=list[dict[str, Any]], max_length=3)
     account_authorities: list[dict[str, Any]] = Field(
         default_factory=list[dict[str, Any]], max_length=3
     )
     collaborations: list[dict[str, Any]] = Field(default_factory=list[dict[str, Any]], max_length=3)
     health: list[dict[str, Any]] = Field(default_factory=list[dict[str, Any]], max_length=6)
+    # Presentation only (lonora_db.trading_readiness): can it trade now, and what stops
+    # it. Never consulted for enforcement; the executor re-checks at the moment of send.
+    trading_readiness: dict[str, Any] | None = None

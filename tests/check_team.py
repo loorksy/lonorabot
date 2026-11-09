@@ -46,9 +46,9 @@ async def main() -> None:
         run = await fixture.run(me, conversation)
         context = await fixture.lease(run)
         registry = load_tools()
-        assert any(tool.name == "list_agents" for tool in registry.definitions(read_only=True))
+        assert any(tool.name == "list_agents" for tool in registry.definitions(scope="helper"))
         result = await registry.execute(
-            ToolCall(id="directory-1", name="list_agents", arguments={}), context, read_only=True
+            ToolCall(id="directory-1", name="list_agents", arguments={}), context, scope="helper"
         )
         rows = {row["id"]: row for row in result["agents"]}
         assert rows[me["id"]]["is_self"]
@@ -64,7 +64,13 @@ async def main() -> None:
             "scope",
             "trading_account_id",
             "trading_symbol",
+            "template",
+            "reports_to",
+            "you_supervise",
+            "supervises_you",
         }
+        # An agent from before creation provenance has no template and no peer links.
+        assert rows[peer["id"]]["template"] is None and rows[peer["id"]]["reports_to"] == []
         assert rows[peer["id"]]["role"] == "legacy"
         assert rows[peer["id"]]["scope"]["visibility"] == "legacy"
         assert rows[peer["id"]]["title"] == "Market research"
@@ -87,7 +93,7 @@ async def main() -> None:
         filtered = await registry.execute(
             ToolCall(id="directory-2", name="list_agents", arguments={"name": "محلل الذهب"}),
             context,
-            read_only=True,
+            scope="helper",
         )
         assert peer["id"] in {row["id"] for row in filtered["agents"]}
         await fixture.request("PATCH", "/agents/" + peer["id"], {"name": "محلل محدث"})
@@ -188,7 +194,7 @@ async def main() -> None:
         assert len(bounded_json) <= DIRECTORY_CHAR_BUDGET and "full roster" in bounded
         assert any(row["id"] == me["id"] for row in json.loads(bounded_json))
         complete = await registry.execute(
-            ToolCall(id="directory-full", name="list_agents", arguments={}), context, read_only=True
+            ToolCall(id="directory-full", name="list_agents", arguments={}), context, scope="helper"
         )
         assert {agent.id for agent in extra_agents}.issubset(
             {row["id"] for row in complete["agents"]}

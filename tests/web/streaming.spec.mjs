@@ -35,9 +35,17 @@ test("header and turn avatars follow actual work while status reads are unavaila
       await expect(status).toHaveAttribute("data-activity-phase", state);
       await expect(status.getByRole("status")).toBeVisible();
     };
-    await observe("tool.started", { call_id: "lookup", name: "web_search" }, "searching");
+    // The server reports each tool's registry toolset and effect with tool.started.
+    const lookup = { call_id: "lookup", name: "web_search", toolset: "research", effect: "read" };
+    await observe("tool.started", lookup, "searching");
     await observe("tool.completed", { call_id: "lookup", name: "web_search" }, "thinking");
-    await observe("tool.started", { call_id: "execute", name: "workspace_execute" }, "executing");
+    const execute = {
+      call_id: "execute",
+      name: "workspace_execute",
+      toolset: "files",
+      effect: "change",
+    };
+    await observe("tool.started", execute, "executing");
     await observe("tool.completed", { call_id: "execute", name: "workspace_execute" }, "thinking");
     await observe("run.reply_started", { turn_id: "header-status-proof" }, "thinking");
     await observe(

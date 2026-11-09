@@ -2,7 +2,9 @@
 
 The existing market tools expose `market_structure`, a read-only measurement over
 the same account, exact broker symbol and candle history used by the Agent.
-Specialist scope remains unchanged. The result uses the existing `Observation`
+Every agent may measure any symbol on any owned account
+([readable scope](market-analysis.md#readable-and-executable-scope-of-fixed-market-agents)).
+The same strict swing rule feeds `market_snapshot`. The result uses the existing `Observation`
 contract and does not create another market runtime or grant execution authority.
 
 The caller chooses a timeframe, left/right windows and absolute-price tolerance.
@@ -31,4 +33,4 @@ sessions or holidays. These limitations remain visible in its result.
 The bounded history and output counts limit computation/context, not trading
 authority. Decimal prices are preserved. The same calculation supports forex,
 metals, indices and crypto without pair-specific rules or suffix removal. It is
-not a backtest, profitability proof, full formation catalog or financial approval.
+not a profitability proof, full formation catalog or financial approval.

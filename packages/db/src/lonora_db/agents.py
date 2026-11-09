@@ -10,7 +10,7 @@ from .schema import AgentRow, MemoryRow
 from .transactions import owned_agent
 
 
-def agent_data(row: AgentRow, *, super_bot_active: bool = False) -> dict[str, Any]:
+def agent_data(row: AgentRow, *, trades_on_its_own: bool = False) -> dict[str, Any]:
     return {
         "scope_mode": row.scope_mode,
         "scope_revision": row.scope_revision,
@@ -22,7 +22,7 @@ def agent_data(row: AgentRow, *, super_bot_active: bool = False) -> dict[str, An
         "color": row.color,
         "instructions": row.instructions,
         "paused": row.paused,
-        "super_bot_active": super_bot_active,
+        "trades_on_its_own": trades_on_its_own,
         "role": row.role,
         "execution_mode": row.execution_mode,
         "scope": scope_data(row),
@@ -82,6 +82,10 @@ async def create_agent(
     session.add(row)
     await session.flush()
     session.add(MemoryRow(agent_id=row.id))
+    from .supervision import grant_default
+
+    # Every new agent is supervised by the Personal Agent from the start (revocable).
+    await grant_default(session, owner_id, row)
     return row
 
 
@@ -105,11 +109,16 @@ async def update_agent(
     session: AsyncSession, owner_id: str, agent_id: str, request: AgentUpdate
 ) -> AgentRow:
     row = await owned_agent(session, owner_id, agent_id, lock=True)
+    was_paused = row.paused
     if "scope_mode" in request.model_fields_set:
         if row.parent_id or row.role in {"personal", "delegated"}:
             raise LonoraError("agent_scope_change_forbidden", 403)
         if request.expected_scope_revision != row.scope_revision:
             raise LonoraError("version_conflict", 409)
+        from .agent_permissions import pin_level
+
+        # Editing the focus pair never moves the agent on the trading ladder.
+        await pin_level(session, owner_id, row.id)
         row.scope_mode = "flexible"
         row.trading_account_id = request.trading_account_id
         row.trading_symbol = request.trading_symbol
@@ -120,4 +129,13 @@ async def update_agent(
         exclude={"scope_mode", "trading_account_id", "trading_symbol", "expected_scope_revision"},
     ).items():
         setattr(row, key, value)
+    if request.paused is not None and request.paused != was_paused:
+        from .supervision import owner_takes_over
+
+        # The owner's own pause or resume wins over a supervisor's hold on this agent.
+        # The settings form sends the switch with every save, so only a change counts:
+        # renaming a paused agent leaves a supervisor's pause the supervisor's.
+        await owner_takes_over(
+            session, owner_id, "agent", agent_id, paused=request.paused, agent_id=agent_id
+        )
     return row

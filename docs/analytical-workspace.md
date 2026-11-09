@@ -113,7 +113,8 @@ tables; Run deletion removes its operation receipts. Ownership is derived from
 the existing Agent, avoiding a second owner or permission system.
 
 Every access checks the current owned Agent, Thread, Run and lease. Mutations also
-respect paused Agents and the existing subagent/observe-only restriction. Reads
+respect paused Agents. An observe-only wake has no financial effects, so it keeps
+workspace writes; a temporary helper (subagent) may only run `workspace_execute`. Reads
 name an exact revision. Writes atomically compare that revision, apply bounded
 UTF-8 replacements/deletions and store a receipt under the canonical call identity.
 Duplicate identical calls return that receipt; reusing an identity with changed
@@ -128,6 +129,12 @@ repair failed analysis. A replacement worker abandons an interrupted reservation
 resuming that call returns its interrupted result instead of running it again.
 Late old-worker results cannot overwrite the replacement's files. Inspection
 projects whether a reservation is genuinely running or needs recovery.
+
+Broker candles can enter the workspace without passing through the conversation:
+`market_candles_to_workspace` writes a CSV through `RunWorkspaceAccess.write_generated`,
+which applies the same ownership, fence, path, quota and revision rules and stores a
+receipt keyed on the request rather than the bytes, so an interrupted call replays its
+original write. See [market-analysis.md](market-analysis.md#market_candles_to_workspace).
 
 ## Reproduce the actual container acceptance
 

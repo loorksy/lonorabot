@@ -16,7 +16,7 @@ from lonora_core.user_error import LonoraError
 from lonora_db.schema import AgentRow, RunRow, SkillRow
 from lonora_tools.base import Tool
 from lonora_tools.loader import load_tools
-from lonora_tools.registry import ToolRegistry
+from lonora_tools.registry import BRIDGE_TOOLS, ToolRegistry
 
 
 async def main() -> None:
@@ -70,7 +70,7 @@ async def main() -> None:
 
         registry = ToolRegistry(
             [
-                *[tool for tool in load_tools().tools.values() if tool.name != "tool_environment"],
+                *[tool for tool in load_tools().tools.values() if tool.name not in BRIDGE_TOOLS],
                 Tool("script_first", "Scripted effect", Contract, first),
                 Tool("script_second", "Scripted effect", Contract, second),
             ]
@@ -78,7 +78,7 @@ async def main() -> None:
         async with context.db.sessions() as session:
             stored_agent = await session.get(AgentRow, agent["id"])
             assert stored_agent is not None
-            block = await read_skill_context(session, context, stored_agent, registry)
+            block = (await read_skill_context(session, context, stored_agent, registry)).text
         assert "Pinned version one" in block
         async with context.db.sessions() as session:
             stored = await session.get(RunRow, run["id"])

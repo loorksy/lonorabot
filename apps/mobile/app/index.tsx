@@ -1,5 +1,5 @@
 import type { Agent, AttentionNotification, Group, Run, Thread } from "@lonora/contracts";
-import { activeStatuses } from "@lonora/core";
+import { activeStatuses, peerOutcome, runStatusText } from "@lonora/core";
 // Inbox structure adapted from Tampletgrok apps/mobile/app/index.tsx; see NOTICE.
 import { Redirect, useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -292,14 +292,14 @@ export default function Inbox() {
                     title={agent.name}
                     badge={<PersonalAgentBadge agent={agent} />}
                     badgeLabel={agent.role === "personal" ? t("personalAgent") : undefined}
-                    preview={t(run.status)}
+                    preview={runStatusText(run.status, locale)}
                     time={new Date(run.updated_at).toLocaleTimeString(locale, {
                       hour: "2-digit",
                       minute: "2-digit",
                     })}
                     avatar={
                       <BotAvatar
-                        superBot={agent.super_bot_active}
+                        tradesOnItsOwn={agent.trades_on_its_own}
                         identity={agent.id}
                         color={agent.color}
                         variant={agent.avatar}
@@ -387,7 +387,7 @@ export default function Inbox() {
                   : at.toLocaleDateString(locale, { month: "short", day: "numeric" });
               })()}
               preview={
-                entry?.last_message?.content ||
+                (entry?.last_message?.content && peerOutcome(entry.last_message.content).body) ||
                 (item.kind === "group"
                   ? item.value.payload.member_ids
                       .map((memberId) => agents.find((value) => value.id === memberId)?.name)
@@ -396,7 +396,7 @@ export default function Inbox() {
                   : item.value.paused
                     ? t("paused")
                     : run
-                      ? t(run.status)
+                      ? runStatusText(run.status, locale)
                       : item.value.title || item.value.description || "")
               }
             />

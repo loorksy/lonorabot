@@ -11,12 +11,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .schema import AgentRow
 
 BINDING_POLICY = (
-    "account_id and broker_symbol were chosen when this bot was created and cannot change. "
-    "Use these exact values in every market, chart, watch, goal and trade tool. "
-    "Never ask which pair, account, or symbol, and never ask the owner to repeat or retype it. "
-    "If the owner omits the pair, use this binding. Letter case is not a different symbol. "
-    "Never strip suffixes or use another market. A different market requires a different bot. "
-    "Child agents inherit this binding. Delegation cannot bypass financial authority. "
+    "account_id and broker_symbol are your focus pair: use these exact values when the owner "
+    "omits the market, and in every chart, watch, goal and decision you record. Never ask which "
+    "pair, account, or symbol, and never ask the owner to repeat or retype it. Letter case is "
+    "not a different symbol; never strip suffixes. "
+    "Reading is open: quotes, candles, instruments, accounts, full history, activity and "
+    "records of every owned account and symbol; reading never authorizes trading. Executing "
+    "follows your grant and stays on this pair. Child agents inherit this binding; delegation "
+    "cannot bypass financial authority. "
     "An active signed account grant may cover matching trades without per-order approval. Otherwise trade approval requires the real Approve or Reject controls in chat or voice. "
     "Never ask for a spoken or typed yes. Speech and chat text are not approval."
 )
@@ -66,6 +68,7 @@ def same_binding(value: object, bound: str | None) -> bool:
 def assert_market_binding(
     agent: AgentRow, account_id: str | None = None, symbol: str | None = None
 ) -> None:
+    """A fixed-market agent's mutations stay on its pair; callers never apply it to reads."""
     if flexible_scope(agent):
         return
     if agent.trading_account_id is None and agent.trading_symbol is None:

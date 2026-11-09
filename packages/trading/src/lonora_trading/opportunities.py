@@ -1,12 +1,12 @@
 """Shared thesis lifecycle and final execution linkage, without another scheduler."""
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal, cast
 
 from lonora_contracts.domain import ThreadCreate, utcnow
 from lonora_contracts.opportunity import OpportunityUpdate, ThesisDefinition
 from lonora_contracts.runs import RunRequest
-from lonora_contracts.trading import TradeRequest
+from lonora_contracts.trading import TERMINAL_STATUSES, TradeRequest
 from lonora_core.user_error import LonoraError
 from lonora_db.client import Database
 from lonora_db.runs import create_run
@@ -221,35 +221,81 @@ async def require_entry_thesis(session: AsyncSession, owner_id: str, request: Tr
     row.state = {**row.state, "pending_entry_operation_id": request.operation_id}
 
 
+def execution_outcome(journal: TradingJournalRow) -> Literal["executed", "not_executed", "unknown"]:
+    """What a settled journal row says about its own broker effect, for thesis linkage.
+
+    ``resolved`` is settled without broker confirmation: an owner attestation states an
+    outcome (or ``unknown``); a broker-state resolution (target gone or changed) never
+    establishes whether this operation applied.
+    """
+    if journal.status == "confirmed":
+        return "executed"
+    if journal.status == "failed":
+        return "not_executed"
+    resolution = journal.result.get("details", {}).get("resolution")
+    if isinstance(resolution, dict) and cast(dict[str, Any], resolution).get("source") == "owner":
+        outcome = cast(dict[str, Any], resolution).get("outcome")
+        if outcome in {"executed", "not_executed"}:
+            return outcome
+    return "unknown"
+
+
 async def sync_opportunity_execution(session: AsyncSession, journal: TradingJournalRow) -> None:
     if journal.execution_mode != "live":
         return
     identifier = journal.request.get("thesis_id")
-    if not identifier or journal.status not in {"confirmed", "failed"}:
+    if not identifier or journal.status not in TERMINAL_STATUSES:
         return
     row = await owned_opportunity(session, journal.owner_id, str(identifier), lock=True)
-    if journal.status == "failed":
+    outcome = execution_outcome(journal)
+    action = journal.request.get("action")
+    if outcome == "not_executed" or (outcome == "unknown" and action not in ENTRY_ACTIONS):
+        # Never sent, rejected, or a management outcome nobody can establish: release the
+        # pending link. Exposure is read from the broker again, never from this thesis.
         row.state = {
             **row.state,
+            **({"last_operation_id": journal.operation_id} if outcome == "unknown" else {}),
             **{
                 key: None
                 for key in ("pending_entry_operation_id", "pending_management_operation_id")
                 if row.state.get(key) == journal.operation_id
             },
         }
+        raw = journal.result.get("details", {}).get("resolution")
+        resolution = cast(dict[str, Any], raw) if isinstance(raw, dict) else {}
+        if (
+            outcome == "unknown"
+            and resolution.get("source") == "broker_state"
+            and resolution.get("basis") == "target_closed"
+            and row.state.get("entry_position_id")
+            and journal.request.get("position_id") == row.state.get("entry_position_id")
+            and row.status != "completed"
+        ):
+            # Whoever closed it, the thesis position is observed closed at the broker.
+            transition(
+                session,
+                row,
+                "completed",
+                "thesis_position_no_longer_open",
+                evidence={"operation_id": journal.operation_id, "resolution": resolution},
+            )
         return
-    action = journal.request.get("action")
     state = {**row.state, "last_operation_id": journal.operation_id}
     if state.get("pending_management_operation_id") == journal.operation_id:
         state["pending_management_operation_id"] = None
     details = journal.result.get("details", {})
     row.state = state
     if action in ENTRY_ACTIONS and row.state.get("entry_operation_id") != journal.operation_id:
+        # An entry that may have executed (attested, or of unknown outcome) still acts on
+        # the thesis: it must never authorize a second entry for the same setup.
+        attested = journal.status == "resolved"
         row.state = {
             **state,
             "entry_operation_id": journal.operation_id,
             "pending_entry_operation_id": None,
-            "entry_position_id": details.get("position_id")
+            "entry_position_id": None
+            if attested
+            else details.get("position_id")
             or (
                 journal.result.get("broker_id")
                 if details.get("simulation") and action in {"buy", "sell"}
@@ -260,10 +306,15 @@ async def sync_opportunity_execution(session: AsyncSession, journal: TradingJour
             session,
             row,
             "acted_on",
-            "thesis_entry_confirmed",
+            "thesis_entry_confirmed"
+            if not attested
+            else "thesis_entry_attested"
+            if outcome == "executed"
+            else "thesis_entry_outcome_unknown",
             evidence={
                 "operation_id": journal.operation_id,
                 "broker_id": journal.result.get("broker_id"),
+                **({"resolution": details.get("resolution")} if attested else {}),
             },
         )
     elif (
@@ -288,10 +339,12 @@ async def sync_opportunity_execution(session: AsyncSession, journal: TradingJour
 
 
 async def maintenance_opportunities(db: Database, owner_id: str) -> int:
-    async with db.sessions() as session, session.begin():
-        rows = list(
+    from lonora_db.item_failures import ItemGuard, blocked
+
+    async with db.sessions() as session:
+        identifiers = list(
             await session.scalars(
-                select(TradingOpportunityRow)
+                select(TradingOpportunityRow.id)
                 .where(
                     TradingOpportunityRow.owner_id == owner_id,
                     or_(
@@ -305,28 +358,52 @@ async def maintenance_opportunities(db: Database, owner_id: str) -> int:
                         .as_string()
                         .is_not(None),
                     ),
+                    ~blocked("opportunity", TradingOpportunityRow.id),
                 )
                 .order_by(TradingOpportunityRow.updated_at)
                 .limit(100)
-                .with_for_update(skip_locked=True)
             )
         )
-        for row in rows:
-            for key in ("pending_entry_operation_id", "pending_management_operation_id"):
-                operation_id = row.state.get(key)
-                if operation_id:
-                    journal = await session.get(TradingJournalRow, operation_id)
-                    if journal:
-                        await sync_opportunity_execution(session, journal)
-            await refresh_opportunity(session, row)
-            row.updated_at = (
-                utcnow()
-            )  # Fair bounded polling; not a new evidence timestamp or event.
-        return len(rows)
+    # Each opportunity refreshes in its own transaction. One that may track a pending
+    # operation backs off when it fails, but is never quarantined.
+    guard = ItemGuard(db, "opportunity", quarantine_after=None)
+    await guard.prepare(identifiers)
+    refreshed = 0
+    for identifier in identifiers:
+
+        async def refresh(identifier: str = identifier) -> bool:
+            async with db.sessions() as session, session.begin():
+                return await maintain_opportunity(session, identifier)
+
+        refreshed += int(bool(await guard.run(identifier, owner_id, refresh)))
+    return refreshed
+
+
+async def maintain_opportunity(session: AsyncSession, identifier: str) -> bool:
+    row = await session.scalar(
+        select(TradingOpportunityRow)
+        .where(TradingOpportunityRow.id == identifier)
+        .with_for_update(skip_locked=True)
+    )
+    if row is None:
+        return False
+    for key in ("pending_entry_operation_id", "pending_management_operation_id"):
+        operation_id = row.state.get(key)
+        if operation_id:
+            journal = await session.get(TradingJournalRow, operation_id)
+            if journal:
+                await sync_opportunity_execution(session, journal)
+    await refresh_opportunity(session, row)
+    row.updated_at = utcnow()  # Fair bounded polling; not a new evidence timestamp or event.
+    return True
 
 
 async def wake_opportunity(session: AsyncSession, row: TradingOpportunityRow) -> None:
-    """Meaningful durable transition only; reuse work lane, receipts and same Agent."""
+    """Meaningful durable transition only; reuse work lane, receipts and same Agent.
+
+    The opportunity is the Agent's own work, so the wake carries its normal authority:
+    its grant, the account limits and pauses still decide at the executor.
+    """
     agent = await session.get(AgentRow, row.agent_id)
     if agent is None or agent.paused or not row.thread_id:
         return
@@ -344,12 +421,11 @@ async def wake_opportunity(session: AsyncSession, row: TradingOpportunityRow) ->
             thread_id=work.id,
             agent_id=agent.id,
             trigger="watch",
-            prompt="Inspect the saved opportunity transition and its actual evidence, explain the material change and whether re-analysis is needed. This read-only wake grants no trading authority.",
+            prompt="Inspect the saved opportunity transition and its actual evidence, explain the material change and decide what to do next. Your normal authority applies; your grant, account limits and pauses decide at execution. Never resend an uncertain operation.",
             metadata={
                 "opportunity_id": row.id,
                 "opportunity_version": row.version,
                 "origin_thread_id": row.thread_id,
-                "authority": "observe_only",
                 "reason_code": row.state.get("reason_code"),
             },
         ),

@@ -20,8 +20,8 @@ export function CallPill() {
         <AgentAvatar
           name={name}
           shape={avatar}
-          superBot={voice.target?.super_bot_active}
-          superBotLabel={t`Super Bot enabled`}
+          tradesOnItsOwn={voice.target?.trades_on_its_own}
+          tradesOnItsOwnLabel={t`Trades on its own`}
           color={color}
           working={voice.phase === "speaking" && voice.connected}
           state={avatarState({ voice, error: voice.error != null })}

@@ -113,6 +113,15 @@ async def main() -> None:
             "PASS exact symbol validation, incomplete binding rejection and legacy rename compatibility"
         )
 
+        # A root trading agent starts at Ask me (W15-3); this check holds it at No trading,
+        # the owner's explicit choice, to show visibility never authorizes trading.
+        level = await f.request("GET", f"/agents/{flexible['id']}/permissions")
+        assert level["effective_level"] == "supervised", level
+        await f.request(
+            "PUT",
+            f"/agents/{flexible['id']}/permissions",
+            {"level": "analysis", "expected_revision": level["revision"]},
+        )
         registry = load_tools()
         thread = await f.conversation(flexible)
         context = await f.lease(await f.run(flexible, thread))
@@ -143,12 +152,30 @@ async def main() -> None:
         assert chart
         fixed_thread = await f.conversation(fixed)
         fixed_context = await f.lease(await f.run(fixed, fixed_thread))
-        try:
-            await call("market_quote", {"account_id": first, "symbol": "XAUUSDm"}, fixed_context)
-        except LonoraError as error:
-            assert error.code == "agent_trading_symbol_mismatch"
-        else:
-            raise AssertionError("Legacy scope widened implicitly")
+        # A legacy fixed-market agent reads every owned account and symbol; persistent
+        # chart work, like every mutation, stays on its bound pair.
+        related = await call(
+            "market_quote", {"account_id": first, "symbol": "XAUUSDm"}, fixed_context
+        )
+        assert related["symbol"] == "XAUUSDm"
+        other = await call(
+            "market_quote", {"account_id": second, "symbol": "XAUUSDm"}, fixed_context
+        )
+        assert other["symbol"] == "XAUUSDm"
+        for name, args, code in (
+            (
+                "chart_open",
+                {"account_id": second, "symbol": "XAUUSDm", "timeframe": "1h"},
+                "account",
+            ),
+            ("chart_open", {"account_id": first, "symbol": "XAUUSDm", "timeframe": "1h"}, "symbol"),
+        ):
+            try:
+                await call(name, args, fixed_context)
+            except LonoraError as error:
+                assert error.code == f"agent_trading_{code}_mismatch", (name, error.code)
+            else:
+                raise AssertionError("Legacy scope widened implicitly: " + name)
         print(
             "PASS default fill, explicit alternate market/account, full discovery, chart path and legacy rejection"
         )
@@ -208,24 +235,26 @@ async def main() -> None:
         assert opened["status"] == "confirmed", opened
         assert opened["details"]["verification"]["status"] == "verified"
         before = await (await context.brokers.get(f.owner, first)).positions()
-        try:
-            blocked = await call(
-                "trade_execute",
-                {
-                    "account_id": first,
-                    "symbol": "XAUUSDm",
-                    "action": "buy",
-                    "volume": "0.1",
-                    "stop_loss": "90",
-                },
-                fixed_context,
-            )
-            assert blocked.get("code") == "account_authority_scope_mismatch", blocked
-        except LonoraError as error:
-            assert error.code == "account_authority_scope_mismatch"
+        # Outside the grant the ladder is monotonic: the trade becomes the owner's
+        # approval card (W15-3), never a refusal, and nothing is sent before the tap.
+        asked = await call(
+            "trade_execute",
+            {
+                "account_id": first,
+                "symbol": "XAUUSDm",
+                "action": "buy",
+                "volume": "0.1",
+                "stop_loss": "90",
+            },
+            fixed_context,
+        )
+        assert asked.get("_runtime_wait") and asked.get("approval_id"), asked
         assert await (await context.brokers.get(f.owner, first)).positions() == before
+        await f.request(
+            "POST", f"/trading/approvals/{asked['approval_id']}/decision", {"decision": "reject"}
+        )
         print(
-            "PASS signed scope survives conversion unchanged; simulation confirms authorized execution and rejects default outside grant"
+            "PASS signed scope survives conversion unchanged; simulation confirms authorized execution and asks the owner for the new default outside the grant"
         )
 
         stale = await f.client.patch(

@@ -11,8 +11,5 @@ async def reply_context(session: AsyncSession, thread_id: str, input_seq: int) -
     if not message or not message.reply_to:
         return ""
     reply = await session.get(MessageRow, message.reply_to)
-    return (
-        "<quoted_reply>\n" + quote(reply.content) + "\n</quoted_reply>"
-        if reply and reply.thread_id == thread_id
-        else ""
-    )
+    # Raw quote: the builder labels and escapes it as conversation context data.
+    return quote(reply.content) if reply and reply.thread_id == thread_id else ""

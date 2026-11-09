@@ -1,14 +1,18 @@
+import { useLingui } from "@lingui/react";
 import { Trans } from "@lingui/react/macro";
 import type { Agent } from "@lonora/contracts";
+import { ownerProfileLabel } from "@lonora/core";
 import { useState } from "react";
 import { KnowledgeSection } from "./KnowledgeSection";
+import { OwnerProfileSection } from "./OwnerProfileSection";
 import { ScratchpadSection } from "./ScratchpadSection";
 import { SkillsSection } from "./SkillsSection";
 import { AgentPicker } from "./shell/bot-picker";
 
 export function Knowledge({ agents, initialAgent }: { agents: Agent[]; initialAgent: string }) {
   const [agent, setAgent] = useState(initialAgent || agents[0]?.id || "");
-  const [tab, setTab] = useState<"memory" | "skills" | "scratchpad">("memory");
+  const { i18n } = useLingui();
+  const [tab, setTab] = useState<"profile" | "memory" | "skills" | "scratchpad">("profile");
   return (
     <section>
       <div className="page-header">
@@ -18,6 +22,13 @@ export function Knowledge({ agents, initialAgent }: { agents: Agent[]; initialAg
         <AgentPicker agents={agents} value={agent} onChange={setAgent} />
       </div>
       <div className="tabs">
+        <button
+          type="button"
+          className={tab === "profile" ? "selected" : ""}
+          onClick={() => setTab("profile")}
+        >
+          {ownerProfileLabel("title", i18n.locale)}
+        </button>
         <button
           type="button"
           className={tab === "memory" ? "selected" : ""}
@@ -40,7 +51,10 @@ export function Knowledge({ agents, initialAgent }: { agents: Agent[]; initialAg
           <Trans>Scratchpad</Trans>
         </button>
       </div>
-      {agent ? (
+      {tab === "profile" ? (
+        // The owner profile is shared by every agent, whichever agent is selected.
+        <OwnerProfileSection />
+      ) : agent ? (
         tab === "memory" ? (
           <KnowledgeSection key={agent} agentId={agent} />
         ) : tab === "skills" ? (

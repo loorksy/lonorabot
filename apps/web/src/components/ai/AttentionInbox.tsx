@@ -44,7 +44,7 @@ export function AttentionInbox({
   }, [compact]);
   const labels = {
     watch_condition_met: t`Watch condition changed`,
-    emergency_stop: t`Emergency Stop is active`,
+    emergency_stop: t`New trading stopped`,
     approval_required: t`Waiting for approval`,
     approval_resolved: t`Request updated`,
     broker_degraded: t`Broker connection needs review`,
@@ -55,10 +55,18 @@ export function AttentionInbox({
     goal_changed: t`Trading goal updated`,
     collaboration_completed: t`Collaboration result is ready`,
     task_review: t`Task needs review`,
-    super_bot_authorization: t`Super Bot needs device authorization`,
-    super_bot_changed: t`Super Bot authority updated`,
+    task_degraded: t`Task is retrying through a model outage`,
+    // Retired Super Bot items still stored in the inbox; nothing raises them any more.
+    super_bot_authorization: t`Request updated`,
+    super_bot_changed: t`Request updated`,
     task_completed: t`Task completed`,
     internal_update: t`Activity updated`,
+    maintenance_item_quarantined: t`A background item was paused after repeated errors; everything else keeps running`,
+    run_quarantined: t`Work stopped after repeated interruptions`,
+    operation_unresolved: t`A trade still has no confirmed broker result`,
+    operation_uncertain: t`The broker did not confirm a trade — tell Lonora whether it executed`,
+    gateway_degraded: t`Background service is running late`,
+    agent_notification: t`Your agent alerted you`,
   };
   if (compact && !items.length) return null;
   return (
@@ -108,6 +116,11 @@ export function AttentionInbox({
           <div>
             <p>{labels[item.code]}</p>
             <p dir="auto">{agents.find((agent) => agent.id === item.agent_id)?.name}</p>
+            {item.code === "agent_notification" && item.parameters.summary && (
+              <p dir="auto" data-testid="attention-summary">
+                {item.parameters.summary}
+              </p>
+            )}
             {item.parameters.symbol && <bdi>{item.parameters.symbol}</bdi>}
           </div>
           <Link

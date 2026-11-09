@@ -21,7 +21,6 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 "/api/onboarding",
                 "/api/auth/devices/enrollment",
                 "/api/auth/devices/enrollment/verify",
-                "/api/super-bot/verify",
             }
             or request.method != "POST"
         ):

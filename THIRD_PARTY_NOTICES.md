@@ -14,9 +14,23 @@ c78ca093aa4b6759c055c3ed2bfbe7f741cf0292,
 tools/tool_search_catalog.py. Copyright (c) 2025 Nous Research, MIT.
 Adapted portions: BM25 corpus/scoring and bounded rare-term/coverage matching.
 Changes: Unicode normalization/tokenization, existing Lonora typed registry,
-native exact-name calls and current caller scope; no Hermes bridge, plugin
-runtime, English stemmer or new dependency. The full MIT permission/warranty
-notice is retained in lonora_tools/tool_discovery.py and ships in the wheel.
+native exact-name calls and current caller scope; no plugin runtime, English
+stemmer or new dependency. The full MIT permission/warranty notice is retained
+in lonora_tools/tool_discovery.py and ships in the wheel.
+
+Stable tool exposure adapts the Tool Search design of Hermes Agent at revision
+a9ff9799e273f525b82718cdc69fdec71b1dca5a: tools/tool_search.py (an eager core
+working set beside a stable bridge, so discovery never changes the tools array)
+and tools/tool_search_validation.py (normalize_tool_call_entries: single-shape
+name/arguments with JSON-string and empty arguments tolerated, bridge recursion
+refused). Changes: the eager set is declared as per-tool exposure profiles in
+Lonora's Tool metadata and frozen per Run in the fenced checkpoint; one
+tool_call bridge (no tool_search/tool_describe split, no batches, no connector
+routing) is resolved into the real call before every Lonora boundary observes
+it, so receipts, guardrails, approvals and financial checks are unchanged;
+used tools are remembered per agent in PostgreSQL. Copyright (c) 2025 Nous
+Research, MIT. The full permission/warranty notice is preserved in
+lonora_tools/registry.py and distributed in the Python wheel.
 
 Continuous-work stop gates also adapt Hermes Agent at that same pinned revision,
 agent/turn_stop_gates.py: the typed continue/stop verdict and bounded structural
@@ -25,6 +39,81 @@ checkpoints, finite/continuous work semantics, real wait admission, owner contro
 and market-wake recovery; no English intent classifier or separate Hermes engine.
 Copyright (c) 2025 Nous Research, MIT. The full permission/warranty notice is
 preserved in lonora_agent/stop_gates.py and distributed in the Python wheel.
+
+The agent tool-execution core adapts Hermes Agent,
+https://github.com/NousResearch/hermes-agent, revision
+a9ff9799e273f525b82718cdc69fdec71b1dca5a. Adapted portions:
+agent/tool_dispatch_helpers.py (_plan_tool_batch_segments) and
+agent/tool_executor.py (execute_tool_calls_segmented): ordered parallel/serial
+segments of one tool-call block with bounded concurrency; agent/tool_guardrails.py
+(ToolCallGuardrailController): exact-argument failure streaks, same-tool failure
+counts, identical no-progress results, identical-call streaks and short call
+cycles with warn/block/halt decisions; agent/chat_completion_helpers.py
+(handle_max_iterations): one final tool-less report at the iteration limit.
+Changes: admission to a parallel segment comes only from Lonora's server Tool
+registry (read-only, non-financial, parallel_safe) with per-call durable intent
+markers and checkpoint-ordered results; the guardrail state is pure JSON in the
+fenced Run checkpoint, pollers are flagged by the registry, and an added
+identical-effect streak ignores results so repeated financial effects stay
+bounded; the final report is checkpointed before it is committed, financial
+truth rules still apply, and unfinished Task work goes to owner attention. No
+path scoping, terminal heuristics, plugin runtime or new dependency was ported.
+Copyright (c) 2025 Nous Research, MIT. The full permission/warranty notice is
+preserved in lonora_agent/tool_batch.py, lonora_agent/tool_guardrails.py and
+lonora_agent/tool_loop.py and distributed in the Python wheel.
+
+In-run context compaction adapts Hermes Agent,
+https://github.com/NousResearch/hermes-agent, revision
+a9ff9799e273f525b82718cdc69fdec71b1dca5a: agent/context_compressor.py with
+agent/context_compressor_prune.py and agent/context_compressor_summary.py
+(deterministic pruning of old tool results outside a protected tail before any
+model call, then a structured, iteratively updated summary of the middle that
+never separates a tool call from its results, with a deterministic fallback),
+and agent/model_metadata.py (_longest_key_match over a model-family context
+window table). Changes: compaction is a view persisted in Lonora's fenced Run
+checkpoint and applied per request, so canonical messages, receipts, recovery
+and financial truth gates keep the complete record; placeholders keep effect
+identities and reference the existing tool-result artifact store; the summary
+uses Lonora-specific sections (open operations and commitments, evidence with
+timestamps), runs through the global model router and is never trusted for
+operational state, which is re-read from the database every turn; the family
+window table is Lonora's own and conservative. Copyright (c) 2025 Nous Research,
+MIT. The full permission/warranty notice is preserved in
+lonora_agent/context_engine.py and distributed in the Python wheel.
+
+Provider failure recovery adapts Hermes Agent,
+https://github.com/NousResearch/hermes-agent, revision
+a9ff9799e273f525b82718cdc69fdec71b1dca5a: agent/error_classifier.py
+(FailoverReason taxonomy and the ordered provider-type, HTTP-status and
+message classification with retry/fallback/compress hints),
+agent/fallback_cooldown.py (benching a failing provider until its declared
+reset, otherwise with exponential backoff) and agent/retry_utils.py
+(Retry-After parsing and decorrelated jittered backoff). Changes: a reduced
+reason set and pattern tables of Lonora's own, stable owner-visible error
+codes, an output-limit reason carrying the stated maximum, a process-local
+bench keyed by model or credential fingerprint, and Run-level backoff on the
+fenced checkpoint that never repeats an executed or uncertain effect; no
+credential pools, provider profiles or plugin hooks were ported. Copyright (c)
+2025 Nous Research, MIT. The full permission/warranty notice is preserved in
+lonora_adapter_kit/model_errors.py and lonora_providers/resilience.py and
+distributed in the Python wheel.
+
+Granular memory edits and session recall adapt Hermes Agent,
+https://github.com/NousResearch/hermes-agent, revision
+a9ff9799e273f525b82718cdc69fdec71b1dca5a: tools/memory_tool.py and
+tools/memory_tool_store.py (add/patch/remove operation batches applied
+atomically with the size limit checked on the final result, an overflow that
+reports the shortfall, overlapping-span uniqueness and closest-entry hints) and
+tools/session_search_tool.py (discovery, scroll around a hit, bounded read and
+recent-session browse over actual stored messages without a model call).
+Changes: Lonora keeps one versioned Markdown memory document with its USER.md /
+MEMORY.md views, lease fence, optimistic revision and effect receipts; recall
+uses PostgreSQL full-text search with a literal identifier match, scoped to the
+calling Agent's own threads, member groups and decisions; no SQLite/FTS5 store,
+threat scanner, approval staging or lineage walk was ported. Copyright (c) 2025
+Nous Research, MIT. The full permission/warranty notice is preserved in
+lonora_memory/edits.py and lonora_memory/sessions.py and distributed in the
+Python wheel.
 
 Source: https://github.com/elie222/rakazo
 Revision: 2d666c4e98db201c1f7988e09e76a52db20cea69

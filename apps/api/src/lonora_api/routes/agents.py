@@ -1,16 +1,17 @@
 from typing import Any
 
 from fastapi import APIRouter, Depends, Request
+from lonora_agent.collaboration.agent_create import delete_created_agent
 from lonora_auth.identity import OwnerIdentity
 from lonora_contracts.broker import BrokerConnection
 from lonora_contracts.domain import AgentCreate, AgentUpdate
 from lonora_core.user_error import LonoraError
-from lonora_db.agent_super_bot import active_super_bot_agents
+from lonora_db.agent_creation import record_owner_creation
+from lonora_db.agent_on_its_own import agents_on_their_own
 from lonora_db.agents import agent_data, create_agent, list_agents, update_agent
+from lonora_db.authority_lock import authority_lock
 from lonora_db.broker_sessions import BrokerSessionRepository
 from lonora_db.events import emit
-from lonora_db.skill_controls import delete_skill_controls
-from lonora_db.super_bot import authority_lock
 from lonora_db.threads import conversation_thread, thread_data
 from lonora_db.transactions import owned_agent
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -49,8 +50,8 @@ async def agents(
 ) -> list[dict[str, Any]]:
     async with runtime(request).db.sessions() as session:
         rows = await list_agents(session, owner.id)
-        active = await active_super_bot_agents(session, owner.id)
-        return [agent_data(row, super_bot_active=row.id in active) for row in rows]
+        active = await agents_on_their_own(session, owner.id)
+        return [agent_data(row, trades_on_its_own=row.id in active) for row in rows]
 
 
 @router.post("", status_code=201)
@@ -60,13 +61,17 @@ async def create(
     if not body.trading_account_id or not body.trading_symbol:
         if body.scope_mode == "flexible":
             async with runtime(request).db.sessions() as session, session.begin():
-                return agent_data(await create_agent(session, owner.id, body))
+                row = await create_agent(session, owner.id, body)
+                await record_owner_creation(session, owner.id, row)
+                return agent_data(row)
         raise LonoraError("agent_trading_binding_required", 422)
     rt = runtime(request)
     version = await validate_market(rt, owner.id, body.trading_account_id, body.trading_symbol)
     async with rt.db.sessions() as session, session.begin():
         await recheck_market(session, owner.id, body.trading_account_id, version)
-        return agent_data(await create_agent(session, owner.id, body))
+        row = await create_agent(session, owner.id, body)
+        await record_owner_creation(session, owner.id, row)
+        return agent_data(row)
 
 
 @router.get("/{agent_id}")
@@ -75,8 +80,8 @@ async def read(
 ) -> dict[str, Any]:
     async with runtime(request).db.sessions() as session:
         row = await owned_agent(session, owner.id, agent_id)
-        active = await active_super_bot_agents(session, owner.id)
-        return agent_data(row, super_bot_active=agent_id in active)
+        active = await agents_on_their_own(session, owner.id)
+        return agent_data(row, trades_on_its_own=agent_id in active)
 
 
 @router.post("/{agent_id}/conversation")
@@ -105,8 +110,8 @@ async def configure(
         if version is not None and body.trading_account_id:
             await recheck_market(session, owner.id, body.trading_account_id, version)
         row = await update_agent(session, owner.id, agent_id, body)
-        active = await active_super_bot_agents(session, owner.id)
-        data = agent_data(row, super_bot_active=agent_id in active)
+        active = await agents_on_their_own(session, owner.id)
+        data = agent_data(row, trades_on_its_own=agent_id in active)
         emit(session, owner.id, "agent.updated", agent_id=agent_id, payload=data)
         return data
 
@@ -116,9 +121,8 @@ async def delete(
     request: Request, agent_id: str, owner: OwnerIdentity = Depends(require_owner)
 ) -> dict[str, bool]:
     async with runtime(request).db.sessions() as session, session.begin():
-        agent = await owned_agent(session, owner.id, agent_id, lock=True)
-        if agent.role == "personal":
-            raise LonoraError("personal_agent_cannot_delete", 409)
-        await delete_skill_controls(session, owner.id, agent_id)
-        await session.delete(agent)
+        # Refused while its trade is uncertain; its grants and approvals are narrowed
+        # first, and its financial records outlive it. Lines its creation wrote into
+        # other agents' notes, and their links to it, go with it.
+        await delete_created_agent(session, owner.id, agent_id)
     return {"deleted": True}

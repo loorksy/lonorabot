@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .events import emit
 from .peer_messages import PeerMessageRepository
-from .runs import create_run
+from .runs import create_run, inherited_authority, outcome_status
 from .schema import CollaborationSessionRow, MessageRow, RunRow, ThreadRow
 from .threads import conversation_thread
 from .transactions import ResourceRepository, owned_agent, owned_thread, resource_data
@@ -232,14 +232,19 @@ async def record_outcome(session: AsyncSession, child: RunRow, message: MessageR
     participant = next((p for p in state.participants if child.id in p.run_ids), None)
     if participant is None or state.status == "cancelled" or participant.run_ids[-1] != child.id:
         return
-    if child.status == "completed":
+    outcome = outcome_status(child)
+    if outcome == "completed":
         participant.status = "completed"
-    elif child.status == "cancelled":
+    elif outcome == "cancelled":
         participant.status = "cancelled"
     else:
         participant.status = "failed"
     participant.result = (child.result or "")[:30000]
-    participant.error_code = child.error_code
+    participant.error_code = child.error_code or (
+        str(child.model_metadata.get("exit_reason") or "work_limit")
+        if outcome == "limited"
+        else None
+    )
     participant.source_message_id = message.id if message else None
     participant.observed_at = utcnow().isoformat()
     if all(p.status in {"completed", "failed", "cancelled"} for p in state.participants):
@@ -334,6 +339,7 @@ async def schedule_synthesis(
                         "collaboration_round_id": round.id,
                         "collaboration_synthesis": True,
                         "depth": host.model_metadata.get("depth", 0),
+                        **inherited_authority(host),
                     },
                 ),
                 run_id,

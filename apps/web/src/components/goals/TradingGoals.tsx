@@ -5,11 +5,18 @@ import { api, type Payload, type Resource } from "../../lib/api";
 import { goalStatusLabel as statusLabel } from "../../lib/goal-status";
 import { userError } from "../../lib/user_error";
 import { useClient } from "../../providers/ClientProvider";
-import { SuperBotCards } from "../trading/SuperBotCards";
 
 type GoalResource = Resource & { state: Payload };
 
-function GoalHistory({ id, revision }: { id: string; revision: number }) {
+function GoalHistory({
+  id,
+  revision,
+  stepTitles,
+}: {
+  id: string;
+  revision: number;
+  stepTitles: Record<string, string>;
+}) {
   const [open, setOpen] = useState(false);
   const [rows, setRows] = useState<Payload[]>([]);
   const [error, setError] = useState<unknown>();
@@ -52,23 +59,25 @@ function GoalHistory({ id, revision }: { id: string; revision: number }) {
         </p>
       )}
       {rows.map((row) => (
-        <article className="card stack" key={String(row.id)}>
+        <article className="card stack" key={String(row.id)} data-goal-decision={String(row.id)}>
           <p>
-            <bdi>{String(row.step_id)}</bdi> · {statusLabel(row.status)}
+            <bdi>{stepTitles[String(row.step_id)] ?? t`Plan step`}</bdi> · {statusLabel(row.status)}
           </p>
-          <p>
-            <Trans>Operation</Trans>: <bdi>{String(row.operation_id)}</bdi>
-          </p>
-          <details>
+          {/* Identifiers and raw records are for support, never the normal view. */}
+          <details className="technical-details">
             <summary>
+              <Trans>Technical details</Trans>
+            </summary>
+            <p>
+              <Trans>Operation</Trans>: <bdi dir="ltr">{String(row.operation_id)}</bdi>
+            </p>
+            <p>
               <Trans>Decision evidence</Trans>
-            </summary>
+            </p>
             <pre dir="ltr">{JSON.stringify(row.evidence, null, 2)}</pre>
-          </details>
-          <details>
-            <summary>
+            <p>
               <Trans>Broker result</Trans>
-            </summary>
+            </p>
             <pre dir="ltr">{JSON.stringify(row.result, null, 2)}</pre>
           </details>
         </article>
@@ -86,7 +95,6 @@ export function TradingGoals({ agentId }: { agentId: string }) {
   const currentAgent = useRef(agentId);
   currentAgent.current = agentId;
   const [busy, setBusy] = useState("");
-  const [limits, setLimits] = useState<Record<string, { volume?: string; actions?: string }>>({});
   const applyRows = useCallback(
     (rows: GoalResource[]) => {
       if (currentAgent.current !== agentId) return;
@@ -128,23 +136,13 @@ export function TradingGoals({ agentId }: { agentId: string }) {
       active = false;
     };
   }, [agentId, revision, applyRows]);
-  async function control(goal: GoalResource, action: string, autonomous?: boolean) {
+  async function control(goal: GoalResource, action: string) {
     setBusy(goal.id);
     setError(undefined);
     try {
-      await api.post(`/trading/goals/${goal.id}/control`, {
-        version: goal.version,
-        action,
-        ...(autonomous === undefined ? {} : { autonomous: false }),
-        ...(limits[goal.id]?.volume ? { maximum_volume: limits[goal.id].volume } : {}),
-        ...(limits[goal.id]?.actions ? { max_trade_actions: Number(limits[goal.id].actions) } : {}),
-      });
-      if (autonomous === true) {
-        await api.post(`/agents/${agentId}/super-bot/proposals`, {
-          goal_id: goal.id,
-          mode: "autonomous",
-        });
-      }
+      // A goal is a plan under the agent's trading level and grant: its owner controls
+      // pause, resume and cancel it, and never change authority.
+      await api.post(`/trading/goals/${goal.id}/control`, { version: goal.version, action });
       await reload();
       refresh();
     } catch (failure) {
@@ -191,7 +189,6 @@ export function TradingGoals({ agentId }: { agentId: string }) {
         .map((goal) => {
           const phase = String(goal.state.status ?? "planning").toLowerCase();
           const terminal = ["cancelled", "completed"].includes(phase);
-          const autonomous = goal.state.autonomous === true;
           const steps = Array.isArray(goal.payload.steps)
             ? (goal.payload.steps as Record<string, unknown>[])
             : [];
@@ -206,9 +203,7 @@ export function TradingGoals({ agentId }: { agentId: string }) {
                 <bdi>{String(goal.payload.symbol ?? "")}</bdi> · {statusLabel(phase)}
               </p>
               {typeof goal.state.code === "string" && (
-                <p role="status">
-                  {userError({ code: goal.state.code })} <bdi>{goal.state.code}</bdi>
-                </p>
+                <p role="status">{userError({ code: goal.state.code })}</p>
               )}
               <ol>
                 {steps.map((step) => {
@@ -238,67 +233,18 @@ export function TradingGoals({ agentId }: { agentId: string }) {
                   );
                 })}
               </ol>
-              <GoalHistory id={goal.id} revision={goal.version} />
-              <div className="form-grid">
-                <label>
-                  <Trans>Maximum volume</Trans>
-                  <input
-                    type="number"
-                    min="0"
-                    step="any"
-                    disabled={terminal || busy === goal.id}
-                    value={limits[goal.id]?.volume ?? String(goal.payload.maximum_volume ?? "")}
-                    onChange={(event) =>
-                      setLimits((previous) => ({
-                        ...previous,
-                        [goal.id]: { ...previous[goal.id], volume: event.target.value },
-                      }))
-                    }
-                  />
-                </label>
-                <label>
-                  <Trans>Maximum trade actions</Trans>
-                  <input
-                    type="number"
-                    min="1"
-                    max="40"
-                    step="1"
-                    disabled={terminal || busy === goal.id}
-                    value={limits[goal.id]?.actions ?? String(goal.payload.max_trade_actions ?? 1)}
-                    onChange={(event) =>
-                      setLimits((previous) => ({
-                        ...previous,
-                        [goal.id]: { ...previous[goal.id], actions: event.target.value },
-                      }))
-                    }
-                  />
-                </label>
-              </div>
-              <label className="row">
-                <input
-                  type="checkbox"
-                  role="switch"
-                  data-lonora-switch="true"
-                  aria-checked={autonomous}
-                  checked={autonomous}
-                  disabled={terminal || busy === goal.id}
-                  onChange={(event) =>
-                    void control(
-                      goal,
-                      phase === "paused" || (phase === "blocked" && !event.target.checked)
-                        ? "pause"
-                        : "resume",
-                      event.target.checked,
-                    )
-                  }
-                />
-                <Trans>Allow autonomous trading for this goal</Trans>
-              </label>
-              <SuperBotCards agentId={agentId} goalId={goal.id} />
+              <GoalHistory
+                id={goal.id}
+                revision={goal.version}
+                stepTitles={Object.fromEntries(
+                  steps.map((step) => [String(step.id), String(step.title ?? "")]),
+                )}
+              />
               <p className="muted">
                 <Trans>
-                  Global Trading and Emergency Stop still govern every financial operation. Pausing
-                  a goal does not close existing broker positions.
+                  This goal is a plan under the agent's trading level and signed grant. Stop new
+                  trading, your pauses and the account's money limits still apply to every order.
+                  Pausing a goal does not close existing broker positions.
                 </Trans>
               </p>
               <div className="row">

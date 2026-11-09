@@ -121,10 +121,8 @@ def test_observe_only_access_filters_financial_procedures() -> None:
             rejected,
             SkillSignals(
                 trigger="",
-                read_only=True,
-                available_tools=frozenset(
-                    tool.name for tool in load_tools().definitions(read_only=True)
-                ),
+                scope="observe_only",
+                available_tools=frozenset(load_tools().names("observe_only")),
             ),
             (),
             "financial",
@@ -158,3 +156,49 @@ def test_snapshot_capacity_rejects_new_admissions_without_eviction() -> None:
         admission_snapshot(metadata, incoming)
     assert len(metadata["skill_snapshot"]["skills"]) == 32
     assert "memory" not in metadata["skill_snapshot"]["skills"]
+
+
+@pytest.mark.parametrize(
+    ("source", "provenance", "trust"),
+    [
+        ("builtin", "bundled", "bundled_first_party"),
+        ("owner", "owner", "owner_supplied"),
+        ("legacy", "owner", "legacy_owner_skill"),
+        ("installed", "agent_authored", "agent_authored"),
+        ("external", "external", "external_import"),
+    ],
+)
+def test_every_skill_surface_labels_provenance_truthfully(
+    source: str, provenance: str, trust: str
+) -> None:
+    from lonora_agent.context.skills import catalog_label
+    from lonora_agent.skills.provenance import skill_provenance, skill_trust
+
+    assert skill_provenance(source) == provenance and skill_trust(source) == trust
+    assert catalog_label(source) == ("" if source == "builtin" else f" ({provenance})")
+    if source in {"builtin", "legacy"}:
+        return
+    _, selected = bundle([procedure("labelled", source=source)], "labelled")
+    view = acknowledgment("labelled", selected)
+    assert [item["provenance"] for item in view["skills"]] == [provenance]
+    assert selected.diagnostics()["skill_provenance"] == {"labelled": provenance}
+    # External or agent-written instructions are never presented as the owner's.
+    assert (provenance == "owner") == (source == "owner")
+
+
+def test_pre_upgrade_view_receipts_with_the_old_label_still_verify() -> None:
+    from lonora_agent.skills.access import same_acknowledgment
+
+    _, selected = bundle([procedure("labelled", source="installed")], "labelled")
+    expected = acknowledgment("labelled", selected)
+    legacy = {
+        **expected,
+        "skills": [{**item, "provenance": "owner_supplied"} for item in expected["skills"]],
+    }
+    assert same_acknowledgment(legacy, expected)
+    tampered = {
+        **legacy,
+        "skills": [{**item, "content": "changed"} for item in legacy["skills"]],
+    }
+    assert not same_acknowledgment(tampered, expected)
+    assert not same_acknowledgment({**expected, "skills": []}, expected)

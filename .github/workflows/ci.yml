@@ -174,6 +174,7 @@ jobs:
 
           import httpx
           import lonora_agent.tool_loop as loop_module
+          from lonora_adapter_kit.context import token_estimate
           from lonora_adapter_kit.types import ModelMessage, ModelReply, ToolCall
           from lonora_adapters.models.fake import ScriptedModelAdapter
           from lonora_agent.collaboration.outcome_return import return_outcome
@@ -202,6 +203,7 @@ jobs:
           from lonora_tools.base import Tool
           from lonora_tools.loader import load_tools
           from lonora_tools.registry import ToolRegistry
+          from lonora_agent.skills.registry import built_in_skills
           from sqlalchemy import select
 
           PASSED = []
@@ -442,13 +444,27 @@ jobs:
                   context = await new_context()
                   fixture = ScriptedModelAdapter([ModelReply(text="bounded response")])
                   services.router.factory = lambda provider, key, fixture=fixture: fixture
-                  await model_turn(context, source, load_tools().definitions(), Capability.CONVERSATION)
-                  size = sum(message_size(m) for m in fixture.requests[-1]) + sum(
-                      len(t.model_dump_json()) for t in load_tools().definitions()
+                  tools = load_tools().definitions()
+                  await model_turn(context, source, tools, Capability.CONVERSATION)
+                  # Budgets follow the resolved model's window (docs/context-engine.md):
+                  # the request plus every schema fits the admitted token budget, and
+                  # characters are only the transport safety net sized from it (never
+                  # below MAXIMUM_CONTEXT_CHARS). The whole catalog is a worst case: a
+                  # Run sends only its native working set.
+                  limits = await services.router.context_limits(
+                      Capability.CONVERSATION, owner_id=owner, agent_id=context.agent_id
+                  )
+                  request = fixture.requests[-1]
+                  sent = sum(message_size(m) for m in request)
+                  size = sent + sum(len(t.model_dump_json()) for t in tools)
+                  tokens = sum(token_estimate(m, count=limits.count) for m in request) + sum(
+                      limits.count(t.model_dump_json()) + 64 for t in tools
                   )
                   check(
                       "every model turn reserves room for tool schemas and governs new results",
-                      size <= MAXIMUM_CONTEXT_CHARS,
+                      size <= limits.transport_chars
+                      and tokens <= limits.input_tokens
+                      and sent < sum(message_size(m) for m in source),
                   )
                   await finish(context)
 
@@ -555,6 +571,23 @@ jobs:
                   class EmptyArguments(Contract):
                       pass
 
+                  # Built-in Skills name the tools they need; a fixture registry without
+                  # those names fails context build with skill_tool_unknown before any
+                  # provider call. Never-executed name stubs keep the fixtures minimal.
+                  async def skill_tool_stub(context, arguments):
+                      raise AssertionError("skill tool name stub executed")
+
+                  skill_tool_stubs = [
+                      Tool(name, "Skill tool name stub", EmptyArguments, skill_tool_stub, True)
+                      for name in sorted(
+                          {
+                              tool
+                              for skill in built_in_skills().values()
+                              for tool in skill.manifest.required_tools
+                          }
+                      )
+                  ]
+
                   executions = []
 
                   async def read(context, arguments):
@@ -563,6 +596,7 @@ jobs:
 
                   registry = ToolRegistry(
                       [Tool("fixture_read", "Explicit read fixture", EmptyArguments, read, True)]
+                      + skill_tool_stubs
                   )
                   context = await new_context(["original tool request"])
                   fixture = ScriptedModelAdapter(
@@ -621,12 +655,23 @@ jobs:
                   services.router.factory = lambda provider, key, fixture=fixture: fixture
                   await AgentRuntime(registry, 120, 24).execute(context)
                   request = fixture.requests[-1]
+                  # Reads run concurrently (E1), so either may start first; the next
+                  # provider call is bounded by the resolved window (E3), as above.
+                  limits = await services.router.context_limits(
+                      Capability.CONVERSATION, owner_id=owner, agent_id=context.agent_id
+                  )
+                  schemas = registry.definitions()
+                  tokens = sum(token_estimate(m, count=limits.count) for m in request) + sum(
+                      limits.count(t.model_dump_json()) + 64 for t in schemas
+                  )
                   check(
                       "multiple large tool outputs remain bounded before the next provider call",
-                      executions == ["one", "two"]
+                      sorted(executions) == ["one", "two"]
+                      and [m.tool_call_id for m in request if m.role == "tool"] == ["one", "two"]
                       and sum(message_size(m) for m in request)
-                      + sum(len(t.model_dump_json()) for t in registry.definitions())
-                      <= MAXIMUM_CONTEXT_CHARS,
+                      + sum(len(t.model_dump_json()) for t in schemas)
+                      <= limits.transport_chars
+                      and tokens <= limits.input_tokens,
                   )
 
                   context = await new_context(["first plain request"])
@@ -718,6 +763,7 @@ jobs:
 
                   registry = ToolRegistry(
                       [Tool("fixture_wait", "Explicit waiting fixture", EmptyArguments, waiting)]
+                      + skill_tool_stubs
                   )
                   fixture = ScriptedModelAdapter(
                       [
@@ -772,11 +818,14 @@ jobs:
           .venv/bin/python tests/check_chart_streaming.py
           .venv/bin/python tests/check_goals.py
           .venv/bin/python tests/check_agent_market.py
+          .venv/bin/python tests/check_agent_create.py
+          .venv/bin/python tests/check_supervision.py
+          .venv/bin/python tests/check_trusted_sources.py
 
       - name: Verify coherent shared foundations in isolated PostgreSQL databases
         run: .venv/bin/python tests/run_foundation_checks.py --isolated-databases
-      - name: Verify shared permission proposal construction
-        run: pnpm exec tsx --test tests/web/agent-permission.test.ts tests/web/account-authority.test.ts
+      - name: Verify shared permission proposal construction, financial-boundary, safety and owner-profile texts
+        run: pnpm exec tsx --test tests/web/agent-permission.test.ts tests/web/account-authority.test.ts tests/web/financial-boundary.test.ts tests/web/trading-readiness.test.ts tests/web/held-operation.test.ts tests/web/owner-actions.test.ts tests/web/owner-profile.test.ts tests/web/one-vocabulary.test.ts tests/web/agent-model.test.ts tests/web/agent-create.test.ts tests/web/supervision.test.ts tests/web/capabilities.test.ts
       - name: Verify native sessions and concurrent persistent conversations
         run: .venv/bin/python tests/check_clients.py
       - name: Verify durable reply streams and idempotent peer communication
@@ -791,7 +840,7 @@ jobs:
       - name: Verify signed mobile OTA service and safe client update lifecycle
         run: |
           .venv/bin/python -m pytest tests/test_mobile_updates.py -q
-          pnpm exec tsx --test tests/mobile/ota-checker.test.ts tests/mobile/voice-transport.test.ts tests/mobile/voice-readiness.test.ts tests/mobile/conversation-timeline.test.ts tests/mobile/mention-session.test.ts
+          pnpm exec tsx --test tests/mobile/ota-checker.test.ts tests/mobile/voice-transport.test.ts tests/mobile/voice-readiness.test.ts tests/mobile/conversation-timeline.test.ts tests/mobile/mention-session.test.ts tests/mobile/reach-me.test.ts tests/mobile/text-direction.test.ts
 
       - name: Verify GPT-Live admission and delegation with explicit API fixtures
         run: .venv/bin/python -m pytest tests/voice -q

@@ -1,6 +1,9 @@
+import { i18n } from "@lingui/core";
 import { Trans } from "@lingui/react/macro";
+import { financialBoundaryError } from "@lonora/core";
 import { useRef, useState } from "react";
 import type { Instrument, Payload } from "../../lib/api";
+import { operationStatusLabel, operationUnsettled } from "../../lib/operation-status";
 import { executeTrade } from "../../lib/trading";
 import { userError } from "../../lib/user_error";
 export function TradeActionCard({
@@ -44,7 +47,8 @@ export function TradeActionCard({
           });
           setResult(r);
           setError(undefined);
-          if (r.status !== "ambiguous" && r.status !== "submitted") operation.current = null;
+          // Keep the identity until the outcome is settled; never mint a resend.
+          if (!operationUnsettled(String(r.status))) operation.current = null;
           onChange();
         } catch (err) {
           setError(err);
@@ -155,12 +159,15 @@ export function TradeActionCard({
       {error != null && <p role="alert">{userError(error)}</p>}
       {result && (
         <p role="status">
-          {result.status === "confirmed" ? (
-            <Trans>Operation confirmed</Trans>
-          ) : result.status === "ambiguous" || result.status === "submitted" ? (
-            <Trans>Awaiting reconciliation. This operation will not be sent again.</Trans>
-          ) : (
-            <Trans>Operation failed</Trans>
+          {operationStatusLabel(String(result.status), result.details)}
+          {operationUnsettled(String(result.status)) && (
+            <>
+              {" "}
+              <Trans>This operation will not be sent again.</Trans>
+            </>
+          )}
+          {financialBoundaryError(String(result.code ?? ""), i18n.locale) && (
+            <> {financialBoundaryError(String(result.code ?? ""), i18n.locale)}</>
           )}
         </p>
       )}

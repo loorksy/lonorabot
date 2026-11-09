@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 from lonora_agent.context import builder
+from lonora_agent.context.run_evidence import RunEvidence
 from lonora_agent.skills.loader import load_constitution
 from lonora_agent.skills.registry import (
     SkillDefinition,
@@ -66,7 +67,10 @@ def test_resources_validate_and_policies_independent() -> None:
     assert "ambiguous-execution-recovery" in playbooks
     assert len(load_constitution()) == 7
     assert load_constitution()[0].startswith("<lonora_operating_policy>")
-    assert "Emergency Stop" in "\n".join(load_constitution())
+    # The one brake is named for what it does: it stops new trading and closes nothing.
+    assert "Stop new trading" in "\n".join(load_constitution())
+    assert "Emergency Stop" not in "\n".join(load_constitution())
+    assert "Super Bot" not in "\n".join(load_constitution())
     assert "MetaApi" not in "\n".join(load_constitution())
     assert len(built_in_skills()) == 9
 
@@ -89,7 +93,7 @@ def test_explicit_and_trigger_modes() -> None:
 
 
 def test_missing_tools_and_subagent_cannot_load_financial_skill() -> None:
-    read_only = {tool.name for tool in load_tools().definitions(read_only=True)}
+    read_only = load_tools().names("helper")
     result = select_skill_context(
         [],
         SkillSignals(
@@ -270,7 +274,12 @@ async def test_actual_context_builder_resolver_and_fenced_diagnostics(
         summary_seq=0,
     )
     run = SimpleNamespace(
-        trigger="user", input_seq=1, prompt="", model_metadata={"provider": "keep"}
+        id="run",
+        thread_id="thread",
+        trigger="user",
+        input_seq=1,
+        prompt="",
+        model_metadata={"provider": "keep"},
     )
     session = FakeSession(agent, thread)
     context: Any = SimpleNamespace(
@@ -295,14 +304,16 @@ async def test_actual_context_builder_resolver_and_fenced_diagnostics(
         "read_memory_context",
         "scratchpad_context",
         "reply_context",
-        "goal_context",
         "decision_context",
         "operational_context",
         "routing_frame",
     ):
         monkeypatch.setattr(builder, name, AsyncMock(return_value=""))
     monkeypatch.setattr(builder, "wake_context", empty_context)
-    monkeypatch.setattr(builder, "attachment_context", AsyncMock(return_value=("", [])))
+    monkeypatch.setattr(builder, "attachment_parts", AsyncMock(return_value=("", [])))
+    monkeypatch.setattr(builder, "history_gap", AsyncMock(return_value=None))
+    monkeypatch.setattr(builder, "goal_context_blocks", AsyncMock(return_value=("", "")))
+    monkeypatch.setattr(builder, "recent_tool_evidence", AsyncMock(return_value=RunEvidence()))
     monkeypatch.setattr(
         builder,
         "history_context",
@@ -327,7 +338,7 @@ async def test_actual_context_builder_resolver_and_fenced_diagnostics(
     assert '<skill id="memory"' not in messages[0].content
     assert "memory — Recall past conversations" in messages[0].content
     assert '<skill id="market-analysis"' not in messages[0].content
-    assert "Emergency Stop" in messages[0].content
+    assert "Stop new trading" in messages[0].content
     assert run.model_metadata["skill_selection"]["selected_skill_ids"] == []
     assert run.model_metadata["provider"] == "keep"
     cast(AsyncMock, skills.require_lease).assert_awaited_with(session, "lease", lock=True)
@@ -340,7 +351,7 @@ async def test_actual_context_builder_resolver_and_fenced_diagnostics(
     assert '<skill id="market-analysis"' not in messages[0].content
     assert "market-analysis — Analyze a broker market" in messages[0].content
     assert messages[-1].content == before
-    assert "Emergency Stop" in messages[0].content
+    assert "Stop new trading" in messages[0].content
     assert run.model_metadata["skill_selection"]["skill_versions"] == {}
 
 
@@ -408,7 +419,15 @@ async def test_postgres_builder_checkpoint_and_lease_recovery(
         await refresh_skill_context(
             context, load_tools(), messages, retained_ids=["market-analysis"]
         )
-        assert '<skill id="market-analysis"' in messages[0].content
+        # The catalog stays first-party system text; the procedure body is labelled
+        # context data with its truthful provenance, never in the system role.
+        assert '<skill id="market-analysis"' not in messages[0].content
+        assert "market-analysis (their procedures are in the labelled context data" in (
+            messages[0].content
+        )
+        data = next(m for m in messages if m.context_origin == "runtime_context")
+        assert data.role == "user"
+        assert 'source="skill:market-analysis" trust="bundled_first_party"' in data.content
         async with fixture.runtime.db.sessions() as session, session.begin():
             stored = await session.get(RunRow, run["id"], with_for_update=True)
             assert stored is not None

@@ -1,12 +1,29 @@
 import { i18n } from "@lingui/core";
 import { t } from "@lingui/core/macro";
-import { agentPermissionError, errorCode } from "@lonora/core";
+import {
+  agentPermissionError,
+  errorCode,
+  financialBoundaryError,
+  ownerActionError,
+  ownerProfileError,
+  supervisionError,
+} from "@lonora/core";
 import { isRequestCancelled } from "./api";
 export function userError(error: unknown) {
   if (isRequestCancelled(error)) return "";
   const code = errorCode(error);
   const permissionMessage = agentPermissionError(code, i18n.locale);
   if (permissionMessage) return permissionMessage;
+  // Stop new trading, restrictions, money limits and boundary blocks: why nothing was
+  // sent, in text shared with Mobile (@lonora/core).
+  const boundaryMessage = financialBoundaryError(code, i18n.locale);
+  if (boundaryMessage) return boundaryMessage;
+  const cardMessage = ownerActionError(code, i18n.locale);
+  if (cardMessage) return cardMessage;
+  const profileMessage = ownerProfileError(code, i18n.locale);
+  if (profileMessage) return profileMessage;
+  const supervisionMessage = supervisionError(code, i18n.locale);
+  if (supervisionMessage) return supervisionMessage;
   switch (code) {
     case "agent_scope_change_forbidden":
       return t`This agent’s market scope cannot be changed.`;
@@ -46,19 +63,14 @@ export function userError(error: unknown) {
       return t`Virtual monetary profit is unavailable without verified contract and currency valuation.`;
     case "shadow_decision_required":
       return t`Record a fresh market decision before virtual entry.`;
-    case "super_bot_advisory_only":
-      return t`This plan is advisory and cannot execute trades.`;
-    case "super_bot_scope_changed":
     case "device_challenge_not_found":
-    case "super_bot_manual_permission_required":
-      return t`Review a new Super Bot request and authorize it with your device.`;
+      return t`This passkey request is not available in this session. Start it again.`;
     case "device_secure_origin_required":
       return t`Use the configured secure website for device authentication.`;
     case "device_registration_required":
       return t`Register a passkey before activating this request.`;
     case "device_authorization_required":
-    case "super_bot_authority_expansion":
-      return t`Review a new Super Bot request and authorize it with your device.`;
+      return t`This needs a new grant you sign with your passkey.`;
     case "device_authorization_cancelled":
       return t`Device authentication was cancelled. No authority was granted.`;
     case "device_not_supported":
@@ -66,9 +78,6 @@ export function userError(error: unknown) {
     case "device_proof_invalid":
       return t`Device verification failed. No authority was granted.`;
     case "device_challenge_expired_or_used":
-    case "super_bot_request_expired_or_used":
-    case "super_bot_request_expired_or_changed":
-    case "super_bot_plan_changed":
       return t`This authorization request expired or changed. Review a new request.`;
     case "unauthorized":
       return t`Sign-in failed. Check your email and password.`;
@@ -80,19 +89,24 @@ export function userError(error: unknown) {
       return t`The model provider rate limit was reached. Try again shortly.`;
     case "model_credentials_rejected":
       return t`The provider rejected this API key.`;
-    case "trading_disabled":
-      return t`Trading is off.`;
-    case "emergency_stop":
-      return t`Emergency stop is active.`;
+    case "model_access_denied":
+      return t`This API key cannot use the selected model. Choose another model or check the provider account’s model access.`;
+    case "model_billing_exhausted":
+      return t`Your model provider account is out of credits or over its spending limit. Add credit or choose another provider.`;
+    case "model_content_blocked":
+      return t`The model provider’s safety system withheld this answer.`;
+    case "model_output_truncated":
+      return t`The model’s answer was cut off at its output limit. Try again or ask for a shorter answer.`;
+    case "model_endpoint_unavailable":
+      return t`The selected model is not available from this provider. Choose another model in Settings.`;
+    case "model_provider_unavailable":
+      return t`The model provider is unavailable right now. Try again shortly.`;
+    case "model_request_rejected":
+      return t`The model provider rejected this request.`;
+    case "model_response_invalid":
+      return t`The model provider returned an unreadable response. Try again.`;
     case "broker_trading_not_allowed":
       return t`This broker account does not permit trading. Check its trading permissions.`;
-    case "goal_autonomy_required":
-    case "goal_owner_control_required":
-      return t`Enable autonomous trading for this goal in its owner controls first.`;
-    case "goal_volume_limit_required":
-    case "goal_volume_limit":
-    case "goal_action_limit":
-      return t`Review this goal's volume and action limits before continuing.`;
     case "goal_reconciliation_required":
     case "goal_target_ambiguous":
     case "goal_owner_retry_required":
@@ -100,6 +114,8 @@ export function userError(error: unknown) {
     case "goal_not_active":
     case "goal_terminal":
       return t`This goal is paused, cancelled or completed. Reload its current state.`;
+    case "goal_origin_deleted":
+      return t`This goal stopped because its conversation or agent was deleted. Its history is kept.`;
     case "goal_condition_unmet":
     case "goal_condition_stale":
       return t`The current market no longer confirms this goal's condition. No trade was sent.`;
@@ -131,9 +147,10 @@ export function userError(error: unknown) {
       return t`Broker candles are unavailable for this symbol and timeframe.`;
     case "symbol_not_found":
       return t`This exact symbol is not available from your broker.`;
-    case "broker_reconciliation_pending":
-    case "broker_reconciliation_required":
-      return t`Broker verification pending. Market data may remain available; trading is blocked until verification finishes.`;
+    case "operation_in_progress":
+      return t`This operation is still in progress. Wait for its broker result before resolving it.`;
+    case "operation_already_settled":
+      return t`This operation already has a settled outcome. Reload the journal.`;
     case "broker_account_not_found":
       return t`Broker account not found.`;
     case "broker_account_already_connected":
@@ -185,7 +202,7 @@ export function userError(error: unknown) {
     case "rate_limited":
       return t`Too many attempts. Wait a minute and retry.`;
     case "stale_lease":
-      return t`This run was recovered by another worker.`;
+      return t`This step was interrupted and picked up again. Nothing was repeated.`;
     case "task_reconciliation_required":
       return t`This task is waiting for an uncertain external operation to be reconciled.`;
     case "task_cannot_resume":
@@ -194,13 +211,13 @@ export function userError(error: unknown) {
     case "context_limit_exceeded":
     case "history_message_too_large":
     case "history_summary_too_large":
-      return t`This conversation is too large to process. Shorten instructions, use fewer attachments, or start a new conversation.`;
+      return t`This message is too large to process, even after older history was summarized. Shorten it or send fewer attachments; the conversation is kept.`;
     case "history_summary_empty":
       return t`The model could not summarize this conversation. Retry or choose another global model.`;
     case "invalid_tool_exchange":
-      return t`This conversation could not be resumed. Start a new conversation.`;
+      return t`Part of this conversation's history could not be read, so this reply stopped. Send your message again; the conversation is kept.`;
     case "tool_round_limit":
-      return t`The agent reached the step limit for this run. Send another message to continue.`;
+      return t`I paused at this run's step budget. Send a message and I continue from here.`;
     default:
       return t`The request could not be completed. Try again.`;
   }

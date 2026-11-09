@@ -184,17 +184,16 @@ async def main() -> None:
                     arguments={"operation_id": close.operation_id},
                 ),
                 context,
-                read_only=True,
+                scope="helper",
             )
             history = await registry.execute(
                 ToolCall(id="past-list", name="trade_record_history", arguments={"limit": 10}),
                 context,
-                read_only=True,
+                scope="helper",
             )
-        assert record["result"]["details"]["execution_evidence"] == original_evidence | {
-            key: {**value, "projection_scope": {"symbol": symbol}}
-            for key, value in original_evidence.items()
-        }
+        # Trading records on owner accounts are shared operational records: a
+        # fixed-market Agent reads the whole immutable evidence, not a projection.
+        assert record["result"]["details"]["execution_evidence"] == original_evidence
         assert record["execution_authorized"] is False
         assert len(history["records"]) == 3 and all(
             item["symbol"] == symbol for item in history["records"]
@@ -205,7 +204,8 @@ async def main() -> None:
         from lonora_trading.performance import performance_snapshot
 
         permission = await fixture.request("GET", f"/agents/{agent['id']}/permissions")
-        assert permission["effective_level"] == "analysis"
+        # A root trading agent with no stored level starts at Ask me (W15-3).
+        assert permission["effective_level"] == "supervised"
         await fixture.request(
             "PUT",
             f"/agents/{agent['id']}/permissions",

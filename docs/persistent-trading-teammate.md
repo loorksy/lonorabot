@@ -29,7 +29,9 @@ messages remain history, scratchpad remains operational state, and existing
 compaction creates a replacement checkpoint using SNIP and retention tags.
 Compaction does not invent owner facts, rewrite financial authority, install
 procedures or run an unrestricted Dream process. Memory writes retain the same
-revision, owner, lease and effect identity checks as before.
+revision, owner, lease and effect identity checks as before; they can also be
+granular add/patch/remove batches, and recall of earlier work is scoped to the
+Agent's own threads (`docs/agent-memory-and-recall.md`).
 
 ## Description-first procedures
 
@@ -50,8 +52,8 @@ Owner documents can use the same frontmatter; old plain Markdown stays compatibl
 Sources of unwanted narration included generic skill output instructions asking
 for persisted IDs, raw Super Bot request status/IDs, private argument diagnostics
 and provisional provider deltas reaching the client before any final check.
-Procedures now describe useful business outcomes. Super Bot preparation includes
-an owned-language summary and marks its identifiers private.
+Procedures now describe useful business outcomes. Super Bot is retired (W15-9): a
+grant card the owner signs is the only way an agent trades on its own.
 
 The common text runtime checks a narrowly defined lexical disclosure policy
 before publishing provider text. Safe responses cost one normal model call.
@@ -72,6 +74,9 @@ confirmed mutation, under the existing account lock. It never resubmits. Exact
 target, side, volume, requested protections and management postconditions must
 match. Missing, delayed, netting-ambiguous or unavailable evidence stays pending;
 the financial receipt remains the broker acknowledgment and retains that nuance.
+The gateway's `verifications` step re-reads a pending verification until it is verified
+or, after fifteen minutes, ends as unverified; each change emits
+`trading.operation_updated` so clients show "Awaiting broker confirmation".
 That acknowledgment is committed before the verification read, so a process
 interruption there preserves the broker receipt and cannot authorize a resend.
 Unverified acknowledgments cannot become a public completion claim in that turn.

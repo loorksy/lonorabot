@@ -1,5 +1,5 @@
 import type { Agent, Event, Run } from "@lonora/contracts";
-import { isWorking, turnActivity } from "@lonora/core";
+import { activityCallLabel, isWorking, turnActivity } from "@lonora/core";
 import { useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import type { EventConnection } from "../lib/events";
@@ -72,7 +72,7 @@ export function TurnActivity({
           <BotAvatar
             color={agent.color}
             identity={agent.id}
-            superBot={agent.super_bot_active}
+            tradesOnItsOwn={agent.trades_on_its_own}
             state={reconnecting ? "connecting" : activity.avatar}
             size={42}
           />
@@ -138,8 +138,11 @@ export function TurnActivity({
               key={call.id}
               style={{ flexDirection: rtl ? "row-reverse" : "row", gap: 8, alignItems: "center" }}
             >
-              <Text selectable style={{ color: colors.foreground, fontSize: 12, flex: 1 }}>
-                {call.name}
+              <Text
+                testID={`turn-step-${call.name}`}
+                style={{ color: colors.foreground, fontSize: 12, flex: 1 }}
+              >
+                {activityCallLabel(call, locale)}
               </Text>
               <Text
                 style={{

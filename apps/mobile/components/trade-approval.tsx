@@ -1,4 +1,10 @@
 import type { TradeApproval } from "@lonora/contracts";
+import {
+  approvalStatusText,
+  brokerTicketLabel,
+  financialResultReason,
+  operationStatusText,
+} from "@lonora/core";
 import { useRef, useState } from "react";
 import { Text, View } from "react-native";
 import { api } from "../lib/api";
@@ -12,7 +18,7 @@ export function TradeApprovalCard({
   row: TradeApproval;
   onChange: (value: TradeApproval) => void;
 }) {
-  const { t, errorText, rtl } = useSession();
+  const { t, errorText, rtl, locale } = useSession();
   const [busy, setBusy] = useState(false);
   const pending = useRef(false);
   const [error, setError] = useState<string>();
@@ -75,25 +81,39 @@ export function TradeApprovalCard({
           />
         </View>
       ) : (
-        <Text style={{ color: colors.secondary }}>
-          {t(row.status === "completed" ? "brokerResult" : row.status)}
-        </Text>
+        <Text style={{ color: colors.secondary }}>{approvalStatusText(row.status, locale)}</Text>
       )}
-      {row.results.map((result) => (
-        <View key={result.operation_id}>
-          <Text style={{ color: colors.foreground }}>{t(result.status)}</Text>
-          {result.code === "broker_reconciliation_required" && (
-            <Text style={{ color: colors.foreground, textAlign: rtl ? "right" : "left" }}>
-              {t("broker_reconciliation_required")}
+      {row.results.map((result) => {
+        // Shared with Web: the evidence-backed stage ("Not sent" when it never reached
+        // the broker) and why, in the owner's language instead of a raw code. An
+        // uncertain result always says it will not be sent again.
+        const reason = financialResultReason(result.status, result.code, locale);
+        return (
+          <View key={result.operation_id}>
+            <Text style={{ color: colors.foreground }}>
+              {operationStatusText(result.status, result.details, locale)}
             </Text>
-          )}
-          <Text style={{ color: colors.foreground, writingDirection: "ltr" }}>
-            {[result.broker_id, result.code, result.details.price, result.details.description]
-              .filter((value) => value != null)
-              .join(" · ")}
-          </Text>
-        </View>
-      ))}
+            {reason && (
+              <Text style={{ color: colors.foreground, textAlign: rtl ? "right" : "left" }}>
+                {reason}
+              </Text>
+            )}
+            {result.broker_id != null && (
+              <Text style={{ color: colors.foreground, textAlign: rtl ? "right" : "left" }}>
+                {brokerTicketLabel(locale)}:{" "}
+                <Text style={{ writingDirection: "ltr" }}>{result.broker_id}</Text>
+              </Text>
+            )}
+            {[result.details.price, result.details.description].some((value) => value != null) && (
+              <Text style={{ color: colors.foreground, writingDirection: "ltr" }}>
+                {[result.details.price, result.details.description]
+                  .filter((value) => value != null)
+                  .join(" · ")}
+              </Text>
+            )}
+          </View>
+        );
+      })}
       <ErrorNotice text={error} />
     </View>
   );

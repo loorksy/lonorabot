@@ -15,9 +15,24 @@ from .schema import AgentRow, GroupRow, MessageRow, RunRow, SteeringRow, ThreadR
 from .streaming import STREAM_KEY, settle_stream, stream_data, stream_identity
 from .transactions import owned_agent, owned_thread
 
+# Crash recoveries a Run gets before the watchdog quarantines it instead of re-leasing it.
+MAX_RUN_RECOVERIES = 5
+
 
 def aware(value: datetime) -> datetime:
     return value if value.tzinfo else value.replace(tzinfo=UTC)
+
+
+def outcome_status(row: RunRow) -> str:
+    """The Run's outcome as projected to tickets, parents, peers and collaborations.
+
+    A Run that stopped at its work limit (tool rounds, identical-effect halt) completes
+    with an honest report so the owner sees it, but its work is unfinished: consumers
+    read it as ``limited``, never as ``completed``.
+    """
+    if row.status == "completed" and row.model_metadata.get("reply_outcome") == "limited":
+        return "limited"
+    return row.status
 
 
 def run_data(row: RunRow) -> dict[str, Any]:
@@ -59,6 +74,21 @@ def run_data(row: RunRow) -> dict[str, Any]:
         "stream": stream_data(row),
         "created_at": row.created_at.isoformat(),
         "updated_at": row.updated_at.isoformat(),
+    }
+
+
+def inherited_authority(starter: RunRow | None) -> dict[str, str]:
+    """Run metadata that carries an observe-only Run's narrowing into work it starts.
+
+    A Task or ticket started from an observe-only wake runs observe-only too, so
+    neither it nor anything it delegates can send a broker mutation. Watches,
+    routines and Goals are the Agent's own later work and are not narrowed.
+    """
+    if starter is None or starter.model_metadata.get("authority") != "observe_only":
+        return {}
+    return {
+        "authority": "observe_only",
+        "authority_run_id": str(starter.model_metadata.get("authority_run_id") or starter.id),
     }
 
 
@@ -131,7 +161,12 @@ async def claim_next(
     now = utcnow()
     eligible = or_(
         RunRow.status == "queued",
-        and_(RunRow.status.in_(["leased", "running"]), RunRow.lease_expires_at <= now),
+        and_(
+            RunRow.status.in_(["leased", "running"]),
+            RunRow.lease_expires_at <= now,
+            # Past the cap the watchdog decides: quarantine, or hold for reconciliation.
+            RunRow.recovery_count < MAX_RUN_RECOVERIES,
+        ),
     )
     # Server-owned checkpoint deadline reuses this claimant, not another timer
     # service. ISO UTC values are written only by the runtime under its fence.
@@ -180,6 +215,9 @@ async def claim_next(
     if row is None:
         return None
     recovered = row.status != "queued"
+    # Consecutive crash recoveries; a claim from the queue means the last attempt ended
+    # cleanly (completed a step, waited, or was released on drain).
+    row.recovery_count = row.recovery_count + 1 if recovered else 0
     if thread.group_id and not row.execution_state:
         row.input_seq = max(row.input_seq, thread.next_seq - 1)
     row.status = "leased"
@@ -355,3 +393,89 @@ async def fail_run(
             run_id=row.id,
             payload={"code": code},
         )
+
+
+async def release_leases(session: AsyncSession, owner: str) -> list[str]:
+    """Graceful drain: this process's leased Runs go back to the queue at once.
+
+    The fence is kept (the next claim increments it), so a late write from the old
+    lease is still rejected; the checkpoint and its in-flight markers stay untouched.
+    """
+    identifiers = list(
+        await session.scalars(
+            select(RunRow.id).where(
+                RunRow.lease_owner == owner, RunRow.status.in_(["leased", "running"])
+            )
+        )
+    )
+    released: list[str] = []
+    for identifier in identifiers:
+        candidate = await session.get(RunRow, identifier)
+        if candidate is None:
+            continue
+        thread = await session.get(
+            ThreadRow, candidate.thread_id, with_for_update=True, populate_existing=True
+        )
+        row = await session.get(RunRow, identifier, with_for_update=True, populate_existing=True)
+        if row is None or row.lease_owner != owner or row.status not in {"leased", "running"}:
+            continue
+        row.status, row.lease_expires_at, row.updated_at = "queued", None, utcnow()
+        released.append(row.id)
+        if thread:
+            emit(
+                session,
+                thread.owner_id,
+                "run.queued",
+                thread_id=row.thread_id,
+                agent_id=row.agent_id,
+                run_id=row.id,
+                payload={"reason_code": "gateway_drained", "run": run_data(row)},
+            )
+    return released
+
+
+async def quarantine_run(
+    session: AsyncSession, run_id: str, read_only_names: set[str]
+) -> str | None:
+    """A Run that crashed its worker too often is failed instead of re-leased forever.
+
+    Returns ``"failed"``, ``"held"`` when an unresolved financial operation of the Run
+    must be reconciled first (it is never failed silently over an uncertain trade), or
+    None when the Run is no longer over the cap.
+    """
+    from .task_recovery import record_failure, unresolved_financial
+
+    candidate = await session.get(RunRow, run_id)
+    if candidate is None:
+        return None
+    thread = await session.get(
+        ThreadRow, candidate.thread_id, with_for_update=True, populate_existing=True
+    )
+    row = await session.get(RunRow, run_id, with_for_update=True, populate_existing=True)
+    if (
+        row is None
+        or row.status not in {"leased", "running"}
+        or row.recovery_count < MAX_RUN_RECOVERIES
+        or (row.lease_expires_at is not None and aware(row.lease_expires_at) > utcnow())
+    ):
+        return None
+    if await unresolved_financial(session, row.id):
+        return "held"
+    row.status = "failed"
+    settle_stream(row, "failed")
+    row.error_code = "run_recovery_limit"
+    row.updated_at = utcnow()
+    row.lease_expires_at = None
+    if row.model_metadata.get("task_id"):
+        await record_failure(session, row, read_only_names)
+    if thread:
+        emit(
+            session,
+            thread.owner_id,
+            "run.failed",
+            thread_id=row.thread_id,
+            agent_id=row.agent_id,
+            run_id=row.id,
+            payload={"code": "run_recovery_limit"},
+        )
+    return "failed"

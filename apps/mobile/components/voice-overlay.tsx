@@ -56,7 +56,7 @@ export function VoiceOverlay() {
         }}
       >
         <BotAvatar
-          superBot={agent.super_bot_active}
+          tradesOnItsOwn={agent.trades_on_its_own}
           identity={agent.id}
           variant={agent.avatar}
           color={agent.color}
@@ -98,7 +98,7 @@ export function VoiceOverlay() {
           style={{ transform: [{ scale: 1 + call.activity.level * 0.12 }] }}
         >
           <BotAvatar
-            superBot={agent.super_bot_active}
+            tradesOnItsOwn={agent.trades_on_its_own}
             identity={agent.id}
             variant={agent.avatar}
             color={agent.color}

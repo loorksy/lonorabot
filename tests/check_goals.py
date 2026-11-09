@@ -150,7 +150,6 @@ async def checks() -> None:
             "objective": "Scripted lifecycle, no promised return",
             "account_id": account_id,
             "symbol": "FIXTURE",
-            "autonomous": True,
             "maximum_volume": "0.1",
             "max_trade_actions": 3,
             "steps": [
@@ -217,7 +216,7 @@ async def checks() -> None:
         )
         goal_id = created["id"]
         goals.append(goal_id)
-        assert created["state"]["autonomous"] is False  # model cannot self-enable
+        assert "autonomous" not in created["state"]  # a goal carries no authority
         assert created["thread_id"] == thread["id"] and created["agent_id"] == agent["id"]
 
         async def tool(context: ToolContext, name: str, args: dict[str, Any]) -> dict[str, Any]:
@@ -280,29 +279,13 @@ async def checks() -> None:
         except LonoraError as error:
             assert error.code == "agent_analysis_only"
         device = await Device.enroll(fixture)
-        await device.authorize_goal_service(
-            fixture, await fixture.request("GET", "/trading/goals/" + goal_id)
-        )
-        # Historical Goal signatures are analytical state, not a bypass around
-        # the Agent's currently selected financial permission.
+        # A goal is a plan under the agent's level: no goal switch can bypass No trading.
+        saved_goal = await fixture.request("GET", "/trading/goals/" + goal_id)
+        assert "autonomous" not in saved_goal["state"]
         permission = await fixture.request("GET", f"/agents/{agent['id']}/permissions")
         assert permission["effective_level"] == "analysis"
-        try:
-            await execute_goal_step(
-                db,
-                brokers,
-                executor,
-                fixture.owner,
-                goal_id,
-                "entry",
-                entry_context.lease,
-            )
-        except LonoraError as error:
-            assert error.code == "agent_analysis_only"
-        else:
-            raise AssertionError("Legacy Goal signature bypassed Analysis Only")
 
-        async def authorize_account() -> None:
+        async def authorize_account(actions: list[str] | None = None) -> None:
             permission = await fixture.request("GET", f"/agents/{agent['id']}/permissions")
             proposal = await fixture.request(
                 "POST",
@@ -311,7 +294,8 @@ async def checks() -> None:
                     "thread_id": thread["id"],
                     "account_id": account_id,
                     "symbols": ["FIXTURE"],
-                    "actions": [
+                    "actions": actions
+                    or [
                         "buy",
                         "sell",
                         "buy_limit",
@@ -360,7 +344,7 @@ async def checks() -> None:
                 session,
                 fixture.owner,
                 goal_id,
-                GoalControl(version=goal.version, action="resume", autonomous=True),
+                GoalControl(version=goal.version, action="resume"),
             )
         try:
             await executor.execute(
@@ -402,7 +386,8 @@ async def checks() -> None:
         monitor_context = await newest_context()
         async with db.sessions() as session:
             block = await goal_context(session, fixture.owner, agent["id"], thread["id"], goal_id)
-            assert "target_step_id" in block and position_id in block and "autonomy" in block
+            assert "target_step_id" in block and position_id in block
+            assert "carries no authority of its own" in block
         requested_step = await tool(
             monitor_context, "goal_read", {"goal_id": goal_id, "step_id": "protect"}
         )
@@ -449,7 +434,6 @@ async def checks() -> None:
                     "objective": "Explicit scripted goal safety",
                     "account_id": account_id,
                     "symbol": "FIXTURE",
-                    "autonomous": False,
                     "maximum_volume": "0.1",
                     "max_trade_actions": 3,
                     "steps": steps
@@ -464,8 +448,6 @@ async def checks() -> None:
                 },
             )
             goals.append(row["id"])
-            await device.authorize_goal_service(fixture, row, allow_manual_positions=True)
-            row = await fixture.request("GET", "/trading/goals/" + row["id"])
             return row
 
         async def goal_lease(row: dict[str, Any]) -> ToolContext:
@@ -511,23 +493,6 @@ async def checks() -> None:
         assert approved["result"]["status"] == "confirmed" and gate.sent == sent + 1
         await finish(context)
         advisory = await make_goal()
-        async with db.sessions() as session:
-            saved = await owned_goal(session, fixture.owner, advisory["id"])
-            grant_id = saved.state["super_bot_request_id"]
-        await fixture.request(
-            "POST", "/super-bot/control", {"request_id": grant_id, "action": "advisory"}
-        )
-        advisory = await fixture.request("GET", "/trading/goals/" + advisory["id"])
-        await fixture.request(
-            "POST",
-            "/trading/goals/" + advisory["id"] + "/control",
-            {"version": advisory["version"], "action": "resume", "autonomous": False},
-        )
-        async with db.sessions() as session:
-            from lonora_db.schema import SuperBotRequestRow
-
-            grant = await session.get(SuperBotRequestRow, grant_id)
-            assert grant and grant.mode == "advisory"
         await select_permission("analysis")
         context = await goal_lease(advisory)
         sent = gate.sent
@@ -542,7 +507,31 @@ async def checks() -> None:
         assert gate.sent == sent
         await finish(context)
         print(
-            "PASS current Agent supervision waits for exact owner approval; legacy Goal signatures cannot bypass Analysis Only"
+            "PASS current Agent supervision waits for exact owner approval; a goal cannot bypass No trading"
+        )
+
+        # Under "On its own", a step the signed grant does not cover asks instead of refusing.
+        await authorize_account(["close_position", "modify_position"])
+        outside = await make_goal()
+        context = await goal_lease(outside)
+        call = ToolCall(
+            id=uuid4().hex,
+            name="goal_step_execute",
+            arguments={"goal_id": outside["id"], "step_id": "entry", "note": "Outside the grant"},
+        )
+        sent = gate.sent
+        pending = await registry.execute(call, context)
+        assert pending["_runtime_wait"] and gate.sent == sent, pending
+        async with db.sessions() as session, session.begin():
+            from lonora_db.trade_approvals import decide
+
+            await decide(session, fixture.owner, pending["approval_id"], "approve")
+        approved = await registry.execute(call, context)
+        assert approved["result"]["status"] == "confirmed" and gate.sent == sent + 1, approved
+        await finish(context)
+        print(
+            "PASS under On its own a goal step outside the signed grant becomes one approval "
+            "card and sends once after the owner's tap"
         )
         await authorize_account()
 
@@ -581,8 +570,6 @@ async def checks() -> None:
                     {"version": actual_goal["version"], "action": "resume"},
                 )
                 assert resumed["state"]["steps"]["entry"]["attempt"] == 2
-                assert resumed["state"]["autonomous"] is False
-                await device.authorize_goal_service(fixture, resumed, allow_manual_positions=True)
                 gate.before = None
                 result = await execute_goal_step(
                     db, brokers, executor, fixture.owner, row["id"], "entry", context.lease
@@ -594,7 +581,7 @@ async def checks() -> None:
             gate.before = None
             await finish(context)
 
-        # Emergency stop is independent of per-goal owner autonomy.
+        # Stop new trading holds every goal step, whatever the agent's level.
         row = await make_goal()
         context = await goal_lease(row)
 
@@ -938,7 +925,7 @@ async def checks() -> None:
                 "steps": [{**old_steps[0], "title": "Revised plan"}],
             },
         )
-        assert revised["state"]["plan_version"] == 2 and not revised["state"]["autonomous"]
+        assert revised["state"]["plan_version"] == 2 and "autonomous" not in revised["state"]
         assert (
             await check_watches(
                 db,
@@ -1098,11 +1085,16 @@ async def checks() -> None:
                         ]
                     )
                 if adapter_rounds == 2:
-                    assert any(tool.name == "goal_create" for tool in tools)
+                    # Discovery never changes the Run's frozen tools array; the
+                    # stable bridge resolves into the real goal_create call.
+                    assert not any(tool.name == "goal_create" for tool in tools)
+                    assert any(tool.name == "tool_call" for tool in tools)
                     return ModelReply(
                         tool_calls=[
                             ToolCall(
-                                id="gateway-goal-create", name="goal_create", arguments=proposal
+                                id="gateway-goal-create",
+                                name="tool_call",
+                                arguments={"name": "goal_create", "arguments": proposal},
                             )
                         ]
                     )
@@ -1114,7 +1106,7 @@ async def checks() -> None:
                             if message.role == "tool"
                         )
                     )
-                    assert result["ok"] and result["state"]["autonomous"] is False
+                    assert result["ok"] and "autonomous" not in result["state"]
                     identifier = str(result["id"])
                     gateway_goal = identifier
                     goals.append(identifier)
@@ -1128,13 +1120,16 @@ async def checks() -> None:
                         ]
                     )
                 if adapter_rounds == 4:
-                    assert any(tool.name == "goal_read" for tool in tools)
+                    assert not any(tool.name == "goal_read" for tool in tools)
                     return ModelReply(
                         tool_calls=[
                             ToolCall(
                                 id="gateway-goal-read",
-                                name="goal_read",
-                                arguments={"goal_id": gateway_goal},
+                                name="tool_call",
+                                arguments={
+                                    "name": "goal_read",
+                                    "arguments": {"goal_id": gateway_goal},
+                                },
                             )
                         ]
                     )
@@ -1195,7 +1190,9 @@ async def checks() -> None:
             assert run.model_metadata["goal_id"] == gateway_goal
             goal = await session.get(TradingGoalRow, gateway_goal)
             assert (
-                goal is not None and goal.thread_id == thread["id"] and not goal.state["autonomous"]
+                goal is not None
+                and goal.thread_id == thread["id"]
+                and "autonomous" not in goal.state
             )
             answer = await session.scalar(
                 select(MessageRow)

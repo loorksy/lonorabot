@@ -1,13 +1,15 @@
+from collections.abc import Callable, Collection, Sequence
 from time import monotonic
 from typing import Any
 
-from lonora_adapter_kit.types import ModelMessage, ModelReply, ToolDefinition
+from lonora_adapter_kit.types import ModelMessage, ModelReply, ToolCall, ToolDefinition
 from lonora_contracts.domain import new_id
 from lonora_contracts.model_routing import Capability, ModelSelection
 from lonora_core.public_reply import redact_private_reply
 from lonora_llm_usage.models import UsageRecord
 from lonora_llm_usage.store import save_usage
 from lonora_tools.context import ToolContext
+from lonora_tools.registry import proposed_names
 
 from .context.financial_result import (
     FINANCIAL_CALLS,
@@ -31,7 +33,21 @@ async def model_turn(
     capability: Capability,
     *,
     capability_inventory: str = "",
+    resolve_calls: Callable[[Sequence[ToolCall]], list[ToolCall]] | None = None,
+    policy_tools: Collection[str] | None = None,
+    context_view: Callable[[list[ModelMessage]], list[ModelMessage]] | None = None,
+    input_scale: float = 1.0,
 ) -> tuple[ModelReply, ModelSelection]:
+    """One model request. ``resolve_calls`` turns stable bridge calls into the
+    real calls before the financial-truth gates below and before the loop sees
+    them; ``policy_tools`` are the permitted names whose recent calls select
+    domain guidance (a bridged call need not be in the native ``tools``).
+    ``context_view`` projects the persisted in-run compaction onto the request
+    only; every gate below still reads the complete canonical ``messages``.
+    The router tries the Run's chosen model, then this Agent's own model choice;
+    ``input_scale`` is the Run's admission scale after a provider-proven context
+    overflow.
+    """
     preparation_started = monotonic()
     stage_started = preparation_started
     preparation_ms: dict[str, float] = {}
@@ -44,14 +60,25 @@ async def model_turn(
 
     await refresh_routing_context(context, messages)
     prepared("routing_context")
-    request_messages = apply_operating_policy(messages, tools)
+    request_messages = apply_operating_policy(messages, tools, available=policy_tools)
     if capability_inventory:
         # Fresh projection on every model turn, including restored checkpoints.
         # This is the actual permitted registry, not remembered self-description.
-        request_messages.insert(1, ModelMessage(role="system", content=capability_inventory))
+        # Optional first-party guidance: admission sheds it before failing a request.
+        request_messages.insert(
+            1,
+            ModelMessage(
+                role="system", context_origin="runtime_context", content=capability_inventory
+            ),
+        )
     observations = visual_observation_catalog(messages)
     if observations:
-        request_messages.append(ModelMessage(role="system", content=observations))
+        request_messages.append(
+            ModelMessage(role="system", context_origin="runtime_context", content=observations)
+        )
+    if context_view is not None:
+        # Pruned results and summarized spans are omitted before images resolve.
+        request_messages = context_view(request_messages)
     prepared("policy_and_observation_catalog")
     request_messages, image_diagnostics = await prepare_image_observations(
         context, request_messages
@@ -133,7 +160,16 @@ async def model_turn(
 
     try:
         reply, selection = await context.router.complete(
-            capability, request_messages, tools, on_delta=delta, on_attempt=attempt
+            capability,
+            request_messages,
+            tools,
+            on_delta=delta,
+            on_attempt=attempt,
+            owner_id=context.owner_id,
+            agent_id=context.agent_id,
+            input_scale=input_scale,
+            # A subagent started on a chosen model asks it first.
+            run_choice=getattr(context, "run_model", None),
         )
         provider_total_ms = round((monotonic() - request_started) * 1000, 2)
         await publication.finish()
@@ -143,6 +179,8 @@ async def model_turn(
     # Providers cannot inject compiled display data. Only this request's output
     # can be compiled against its actual observations and owned resources.
     reply = reply.model_copy(update={"rich_content": None})
+    if resolve_calls is not None and reply.tool_calls:
+        reply = reply.model_copy(update={"tool_calls": resolve_calls(reply.tool_calls)})
     await save_usage(
         context.db,
         context.owner_id,
@@ -158,7 +196,10 @@ async def model_turn(
     )
     public_ids = public_broker_ids(messages)
     unverified = unverified_financial_result(messages)
-    if any(call.name in FINANCIAL_CALLS for call in reply.tool_calls):
+    # The gates read every proposed target, including a bridge call that did
+    # not resolve (it fails without dispatching) and calls in a tool-less turn.
+    proposed = set[str]().union(*(proposed_names(call) for call in reply.tool_calls))
+    if proposed & FINANCIAL_CALLS:
         # Proposed mutations have no broker outcome yet. Keep their execution
         # once, but do not publish premature success beside the proposal.
         reply = reply.model_copy(update={"text": ""})
@@ -166,7 +207,7 @@ async def model_turn(
         # A wait may carry an owner update as well as tool calls. That prose
         # has the same independent-verification boundary as a final answer.
         reply = reply.model_copy(update={"text": unverified})
-    elif any(call.name == "task_wait" for call in reply.tool_calls):
+    elif "task_wait" in proposed:
         # Continuous work still reports real failures before suspending. Never
         # replace an uncertain result with a premature success or silent wait.
         result_summary = unsettled_wait_result(messages)

@@ -6,6 +6,7 @@ from typing import cast
 from uuid import uuid4
 
 from check_streaming import Fixture
+from lonora_adapter_kit.context_sections import is_context_message, unescape_context_text
 from lonora_agent.context.builder import build_context
 from lonora_core.user_error import LonoraError
 from lonora_db.schema import MessageRow, RunRow, ThreadRow
@@ -103,10 +104,15 @@ async def main() -> None:
             await session.execute(update(RunRow).where(RunRow.id == run["id"]).values(input_seq=12))
         context = await fixture.lease(run)
         messages = await build_context(context)
-        system = messages[0].content
+        # Recall is labelled, escaped context data, never system-role text.
         marker = "Historical memory does not establish current broker state.\n"
-        assert marker in system
-        actual_evidence, _ = json.JSONDecoder().raw_decode(system.split(marker, 1)[1])
+        assert all(marker not in item.content for item in messages if item.role == "system")
+        data = next(item for item in messages if is_context_message(item))
+        assert 'name="recalled_evidence" source="memory_recall" trust="retrieved_untrusted"' in (
+            data.content
+        )
+        evidence_text = unescape_context_text(data.content.split(marker, 1)[1])
+        actual_evidence, _ = json.JSONDecoder().raw_decode(evidence_text)
         actual_items = actual_evidence["items"]
         assert [item["provenance"]["seq"] for item in actual_items] == [1, 2]
         assert actual_items[1]["provenance"]["neighbor_of_seq"] == 1

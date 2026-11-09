@@ -34,7 +34,7 @@ The result includes exact account/currency/symbol, tick basis, source timestamps
 instrument, entry, stop, volume and estimated loss. It explicitly grants no
 execution authority. It excludes gaps, slippage, commission, swap and margin
 validation: it is not a guaranteed maximum loss. Current quote economics are not
-historical backtest costs or a valuation of the entire portfolio.
+historical execution costs or a valuation of the entire portfolio.
 
 The existing immutable proposal, approval or signed authority, final preflight,
 controls, journal and independent broker verification still govern every actual
@@ -50,3 +50,8 @@ the simulation adapter, never live funds. The integration check verifies real
 tool admission, symbol isolation, currency mismatch, absent economics and no
 financial journal/approval effects. Production acceptance may inspect current
 read-only broker metadata; an estimate must not be described as a submitted order.
+
+The same arithmetic values risk at the stop when the owner's monetary limits
+(`ExecutionPolicy.risk`) are enforced at the execution boundary; see
+`account-authority.md`. Enforcement uses fresh economics inside the send boundary,
+never a sizing result produced earlier.

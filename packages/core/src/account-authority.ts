@@ -34,7 +34,8 @@ export function fullManagementProposal(scope: {
     maximum_actions: null,
     minimum_equity: null,
     valid_until: null,
-    allow_manual_positions: true,
+    // Owner decision D1: the owner's own positions are excluded unless switched on.
+    allow_manual_positions: false,
   };
 }
 

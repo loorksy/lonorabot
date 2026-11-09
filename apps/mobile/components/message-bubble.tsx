@@ -1,5 +1,5 @@
 import type { Agent, Artifact, Message } from "@lonora/contracts";
-import { validateRichContent } from "@lonora/core";
+import { peerOutcome, validateRichContent } from "@lonora/core";
 import { type ReactNode, useMemo, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { isOutgoingMessage } from "../lib/outgoing-messages";
@@ -71,7 +71,7 @@ export function MessageBubble({
         <View style={{ flexDirection: rtl ? "row-reverse" : "row", alignItems: "center", gap: 8 }}>
           {agent ? (
             <BotAvatar
-              superBot={agent.super_bot_active}
+              tradesOnItsOwn={agent.trades_on_its_own}
               identity={agent.id}
               color={agent.color}
               variant={agent.avatar}
@@ -149,7 +149,7 @@ export function MessageBubble({
             onChartLink={onChartLink}
           />
         ) : message.content ? (
-          <Markdown content={message.content} onChartLink={onChartLink} />
+          <Markdown content={peerOutcome(message.content).body} onChartLink={onChartLink} />
         ) : null))
       )}
       {isOutgoingMessage(message) ? (

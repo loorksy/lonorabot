@@ -13,7 +13,7 @@ from lonora_trading.controls import read_controls
 from pydantic import Field, model_validator
 from sqlalchemy import select
 
-from .base import Tool
+from .base import Tool, eager_for
 from .context import ToolContext
 from .memory import Empty
 
@@ -187,12 +187,14 @@ def tools() -> list[Tool]:
             Empty,
             status,
             True,
+            poller=True,
         ),
         Tool(
             "wait_for_input",
-            "Use this whenever a genuinely missing owner decision blocks progress; do not write numbered menus or ask for numeric/letter replies in plain chat. First recover previous answers and continue work already requested. Generate optional question-specific choices in the user's language; free text is always allowed. If a trade already has its required parameters, call trade_execute directly instead of asking whether the owner wants execution. Never use Approve/Reject questions as financial consent. These answers cannot activate Super Bot, approve trades or transfer authority. Do not ask again while real trade confirmation is pending. In user-facing prose, ask naturally without mentioning tools, cards or internal processing.",
+            "Use this whenever a genuinely missing owner decision blocks progress; do not write numbered menus or ask for numeric/letter replies in plain chat. First recover previous answers and continue work already requested. Generate optional question-specific choices in the user's language; free text is always allowed. If a trade already has its required parameters, call trade_execute directly instead of asking whether the owner wants execution. Never use Approve/Reject questions as financial consent. These answers cannot grant or transfer authority or approve trades. Do not ask again while real trade confirmation is pending. In user-facing prose, ask naturally without mentioning tools, cards or internal processing.",
             WaitInput,
             wait,
+            eager=eager_for("core"),
         ),
         Tool(
             "group_silence",
@@ -200,5 +202,6 @@ def tools() -> list[Tool]:
             Empty,
             silence,
             True,
+            parallel_safe=False,
         ),
     ]

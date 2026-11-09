@@ -1,258 +1,352 @@
-"""Actual signed WebAuthn assertions bind owner/session/goal/permissions."""
+"""Super Bot is retired: one signed grant is the only authority, and devices bind it.
+
+Runs on a fresh migrated PostgreSQL database (LONORA_DATABASE_URL):
+
+1. No Super Bot tool or route remains, and a goal has no autonomy switch.
+2. A grant signed from the trading-level controls is confirmed by one line in the
+   conversation (a lost-response replay adds none), and the agent shows "trades on its
+   own" only while that grant is in force: pausing the agent or revoking the passkey
+   device ends it, and replaying the old proof never restores it.
+3. Migration 0040_retire_super_bot_requests marks pending and activated requests
+   retired, withdraws their open inbox items, removes the retired autonomy keys from
+   goals and gives grants signed before the readiness review a skipped review; the
+   downgrade restores exactly those rows and the upgrade is repeatable. A retired
+   request grants nothing.
+"""
 
 import asyncio
-from dataclasses import replace
+import subprocess
+import sys
 from datetime import timedelta
+from pathlib import Path
 from typing import Any, cast
 
 from check_streaming import Fixture
 from device_fixture import Device
-from lonora_adapter_kit.types import ToolCall
-from lonora_auth.devices import begin_activation, finish_activation
-from lonora_auth.sessions import read_session
+from lonora_bus.attention import attention_text
 from lonora_contracts.domain import utcnow
-from lonora_contracts.super_bot import DeviceProof, SuperBotProposal
-from lonora_core.user_error import LonoraError
-from lonora_db.attention import mandatory_current
-from lonora_db.schema import AttentionRow, DeviceChallengeRow, SuperBotRequestRow
-from lonora_db.super_bot import propose, require_goal_authority
-from lonora_db.trading_goals import owned_goal
-from lonora_gateway.attention import attention_tick
+from lonora_db.activation_review import dispatch_activation_reviews
+from lonora_db.schema import (
+    AgentRow,
+    AttentionRow,
+    EffectReceiptRow,
+    MessageRow,
+    SuperBotRequestRow,
+    TradingGoalRow,
+)
+from lonora_db.trading_goals import goal_data
 from lonora_tools.loader import load_tools
 from sqlalchemy import select
 
+ROOT = Path(__file__).resolve().parents[1]
+BEFORE = "0040_explicit_agent_permission_rows"
 
-async def main():
-    f = await Fixture().open()
-    try:
-        account = (
-            await f.request(
-                "POST",
-                "/trading/connections",
-                {"provider": "simulation", "account_id": "device-authority", "enabled": True},
+
+async def alembic(action: str, revision: str) -> None:
+    await asyncio.to_thread(
+        subprocess.run,
+        [sys.executable, "-m", "alembic", "-c", "packages/db/alembic.ini", action, revision],
+        check=True,
+        cwd=ROOT,
+        stdout=subprocess.DEVNULL,
+    )
+
+
+async def simulated_account(f: Fixture, name: str) -> str:
+    account = (
+        await f.request(
+            "POST",
+            "/trading/connections",
+            {"provider": "simulation", "account_id": name, "enabled": True},
+        )
+    )["id"]
+    await f.request(
+        "POST",
+        f"/trading/connections/{account}/simulation",
+        {
+            "snapshot": {
+                "balance": "2500",
+                "equity": "2500",
+                "currency": "USD",
+                "instruments": [
+                    {
+                        "symbol": "EURUSDm",
+                        "digits": 5,
+                        "tick_size": "0.00001",
+                        "volume_min": "0.01",
+                        "volume_max": "10",
+                        "volume_step": "0.01",
+                    }
+                ],
+                "quotes": {},
+                "positions": [],
+                "orders": [],
+            }
+        },
+    )
+    return account
+
+
+def bounded_grant(thread_id: str, account: str) -> dict[str, Any]:
+    return {
+        "thread_id": thread_id,
+        "account_id": account,
+        "symbols": ["EURUSDm"],
+        "actions": ["buy", "sell", "close_position", "modify_position"],
+        "maximum_order_volume": "0.1",
+        "maximum_symbol_volume": "0.2",
+        "maximum_positions": 2,
+        "maximum_pending_orders": 0,
+        "maximum_actions": 10,
+        "minimum_equity": "1000",
+        "valid_until": (utcnow() + timedelta(days=1)).isoformat(),
+    }
+
+
+async def assistant_lines(f: Fixture, thread_id: str) -> list[str]:
+    async with f.runtime.db.sessions() as session:
+        return [
+            row.content
+            for row in await session.scalars(
+                select(MessageRow)
+                .where(MessageRow.thread_id == thread_id, MessageRow.role == "assistant")
+                .order_by(MessageRow.seq)
             )
-        )["id"]
-        agent = await f.agent("Device authority")
-        thread = await f.conversation(agent)
-        body = {
+        ]
+
+
+async def on_its_own(f: Fixture, agent_id: str) -> bool:
+    return bool((await f.request("GET", f"/agents/{agent_id}"))["trades_on_its_own"])
+
+
+async def retired_surface(f: Fixture, agent: dict[str, Any], thread: dict[str, Any]) -> None:
+    names = {tool.name for tool in load_tools().definitions()}
+    assert not {name for name in names if name.startswith("super_bot")}, names
+    for method, path in (
+        ("GET", f"/api/agents/{agent['id']}/super-bot"),
+        ("POST", f"/api/agents/{agent['id']}/super-bot/proposals"),
+        ("POST", "/api/super-bot/verify"),
+        ("POST", "/api/super-bot/control"),
+    ):
+        response = await f.client.request(method, path, json={})
+        assert response.status_code in {404, 405}, (path, response.status_code)
+    account = await simulated_account(f, "retired-surface")
+    goal = await f.request(
+        "POST",
+        "/trading/goals",
+        {
             "agent_id": agent["id"],
             "thread_id": thread["id"],
-            "title": "Bound signed goal",
-            "objective": "Observe and manage only this reviewed plan",
+            "title": "A plan, never authority",
+            "objective": "Observe the reviewed plan",
             "account_id": account,
             "symbol": "EURUSDm",
-            "maximum_volume": "0.1",
-            "max_trade_actions": 1,
             "steps": [{"id": "read", "title": "Read source", "kind": "analysis"}],
-        }
-        goal = await f.request("POST", "/trading/goals", body)
-        rejected = await f.client.post(
+        },
+    )
+    assert "autonomous" not in goal["state"], goal["state"]
+    for extra in ({"autonomous": True}, {"maximum_volume": "0.2"}):
+        refused = await f.client.post(
             f"/api/trading/goals/{goal['id']}/control",
-            json={"version": goal["version"], "action": "resume", "autonomous": True},
+            json={"version": goal["version"], "action": "resume", **extra},
         )
-        assert (
-            rejected.status_code == 403
-            and rejected.json()["code"] == "device_authorization_required"
-        )
-        device = await Device.enroll(f)
-        context = await f.lease(await f.run(agent, thread))
-        registry = load_tools()
-        proposal_call = ToolCall(
-            id="signed-proposal-fixture",
-            name="super_bot_propose",
-            arguments={"goal_id": goal["id"], "mode": "autonomous"},
-        )
-        proposal = await registry.execute(proposal_call, context)
-        from lonora_db.activation_review import dispatch_activation_reviews
+        assert refused.status_code == 422, (extra, refused.status_code)
+    paused = await f.request(
+        "POST",
+        f"/trading/goals/{goal['id']}/control",
+        {"version": goal["version"], "action": "pause"},
+    )
+    assert paused["state"]["status"] == "paused"
+    print(
+        "PASS no Super Bot tool or route remains; a goal has no autonomy switch or limit knobs "
+        "and its owner controls only pause, resume and cancel"
+    )
 
-        assert await dispatch_activation_reviews(f.runtime.db) == 0
-        assert proposal["status"] == "pending"
-        projected = cast(
-            list[dict[str, Any]], await f.request("GET", f"/agents/{agent['id']}/super-bot")
-        )
-        anchored = next(item for item in projected if item["id"] == proposal["id"])
-        assert anchored["created_at"] == proposal["created_at"]
-        assert isinstance(anchored["timeline_seq"], int) and anchored["timeline_seq"] >= 1
-        live = await f.request("GET", f"/agents/{agent['id']}/state")
-        assert live["state"] == "action_required" and live["pending_authorization_count"] == 1
-        assert (
-            live["super_bot"][0]["authorization_status"] == "pending"
-            and live["super_bot"][0]["autonomous"] is False
-        )
-        assert (await f.request("GET", "/trading/goals/" + goal["id"]))["state"][
-            "autonomous"
-        ] is False
 
-        duplicate = await f.request(
-            "POST",
-            f"/agents/{agent['id']}/super-bot/proposals",
-            {"goal_id": goal["id"], "mode": "autonomous"},
-        )
-        assert duplicate["id"] == proposal["id"] and proposal["status"] == "pending"
-        await attention_tick(f.runtime.db, f.runtime.services(f.owner).brokers, f.owner)
-        async with f.runtime.db.sessions() as session:
-            notice = await session.scalar(
-                select(AttentionRow).where(AttentionRow.code == "super_bot_authorization")
-            )
-            assert (
-                notice
-                and notice.importance == "action_required"
-                and await mandatory_current(session, notice)
-            )
-            notice_id = notice.id
-        challenge = await f.request("POST", f"/super-bot/{proposal['id']}/challenge", {})
-        proof = device.assertion(challenge, f.settings.allowed_origin)
-        result = await f.request("POST", "/super-bot/verify", proof)
-        assert result["status"] == "activated"
-        projected = cast(
-            list[dict[str, Any]], await f.request("GET", f"/agents/{agent['id']}/super-bot")
-        )
-        resolved_anchor = next(item for item in projected if item["id"] == proposal["id"])
-        assert resolved_anchor["timeline_seq"] == anchored["timeline_seq"]
-        assert resolved_anchor["created_at"] == anchored["created_at"]
-        live = await f.request("GET", f"/agents/{agent['id']}/state")
-        assert (
-            live["pending_authorization_count"] == 0 and live["super_bot"][0]["autonomous"] is True
-        )
-        replayed_tool = await registry.execute(proposal_call, context)
-        assert replayed_tool["id"] == proposal["id"] and replayed_tool["status"] == "activated"
+async def signed_grant_and_devices(f: Fixture, device: Device) -> None:
+    agent = await f.agent("Device authority", supervised=True)
+    thread = await f.conversation(agent)
+    account = await simulated_account(f, "device-authority")
+    assert not await on_its_own(f, agent["id"])
+    proposal = await f.request(
+        "POST", f"/agents/{agent['id']}/account-authorities", bounded_grant(thread["id"], account)
+    )
+    challenge = await f.request("POST", f"/account-authorities/{proposal['id']}/challenge", {})
+    proof = device.assertion(challenge, f.settings.allowed_origin)
+    grant = await f.request("POST", "/account-authorities/verify", proof)
+    assert grant["status"] == "active"
+    # The conversation has no owner text yet, so the line is in Arabic, Lonora's default.
+    confirmation = attention_text("grant_activated", "ar")
+    assert await assistant_lines(f, thread["id"]) == [confirmation]
+    assert (await f.request("POST", "/account-authorities/verify", proof))["id"] == grant["id"]
+    assert await assistant_lines(f, thread["id"]) == [confirmation]
+    assert await on_its_own(f, agent["id"])
+    roster = cast(list[dict[str, Any]], await f.request("GET", "/agents"))
+    assert next(item for item in roster if item["id"] == agent["id"])["trades_on_its_own"]
+    live = await f.request("GET", f"/agents/{agent['id']}/state")
+    assert "super_bot" not in live and live["account_authorities"][0]["status"] == "active"
+    async with f.runtime.db.sessions() as session, session.begin():
+        row = await session.get(AgentRow, agent["id"])
+        assert row
+        row.paused = True
+    assert not await on_its_own(f, agent["id"])
+    async with f.runtime.db.sessions() as session, session.begin():
+        row = await session.get(AgentRow, agent["id"])
+        assert row
+        row.paused = False
+    assert await on_its_own(f, agent["id"])
+    print(
+        "PASS a grant signed from the trading-level controls is confirmed by one line in the "
+        "conversation, a lost-response replay adds none, and the agent trades on its own only "
+        "while it is not paused"
+    )
 
-        async with f.runtime.db.sessions() as session:
-            notice = await session.get(AttentionRow, notice_id)
-            assert notice and not await mandatory_current(session, notice)
+    devices = cast(list[dict[str, Any]], await f.request("GET", "/auth/devices"))
+    await f.request("DELETE", "/auth/devices/" + devices[0]["id"])
+    stopped = cast(
+        list[dict[str, Any]], await f.request("GET", f"/agents/{agent['id']}/account-authorities")
+    )
+    assert next(item for item in stopped if item["id"] == grant["id"])["status"] == "revoked"
+    assert not await on_its_own(f, agent["id"])
+    replay = await f.client.post("/api/account-authorities/verify", json=proof)
+    assert replay.status_code == 403, replay.status_code
+    assert not await on_its_own(f, agent["id"])
+    print(
+        "PASS revoking the passkey device revokes its grants, and replaying the old proof never "
+        "restores authority"
+    )
 
-        assert (await f.request("POST", "/super-bot/verify", proof))["id"] == result["id"]
-        async with f.runtime.db.sessions() as session:
-            saved = await owned_goal(session, f.owner, goal["id"])
-            assert saved.state["autonomous"] is True
-            await require_goal_authority(session, saved)
-        assert (await f.request("GET", "/trading/controls"))["enabled"] is False
-        print(
-            "PASS password-confirmed credential enrollment, signed UV activation, exact frozen scope, pending dedup and lost-response replay; global trading stays OFF"
-        )
 
-        goal = await f.request("GET", "/trading/goals/" + goal["id"])
-        expanded = await f.client.post(
-            f"/api/trading/goals/{goal['id']}/control",
-            json={"version": goal["version"], "action": "resume", "maximum_volume": "0.2"},
-        )
-        assert expanded.status_code == 403
+async def migration_round_trip(f: Fixture) -> None:
+    owner = f.owner
+    agent = await f.agent("Retired request", supervised=True)
+    thread = await f.conversation(agent)
+    signer = await f.agent("Signed before review", supervised=True)
+    signer_thread = await f.conversation(signer)
+    account = await simulated_account(f, "retire-migration")
+    device = await Device.enroll(f)
+    grant = await device.sign_grant(
+        f,
         await f.request(
-            "POST", "/super-bot/control", {"request_id": proposal["id"], "action": "pause"}
-        )
-        assert (await f.request("POST", "/super-bot/verify", proof))["status"] == "paused"
-        assert (await f.request("GET", "/trading/goals/" + goal["id"]))["state"][
-            "autonomous"
-        ] is False
-        print(
-            "PASS authority expansion is blocked; pause requires no new device proof and replay cannot reactivate paused authority"
-        )
-
-        # Use the same real verification function for adversarial cases without
-        # consuming the unrelated per-process HTTP password rate-limit budget.
-        async with f.runtime.db.sessions() as session:
-            identity = await read_session(session, f.client.cookies.get("lonora_session"))
-        new = await f.request(
             "POST",
-            f"/agents/{agent['id']}/super-bot/proposals",
-            {"goal_id": goal["id"], "mode": "autonomous"},
-        )
-
-        async def denied(payload: dict[str, Any], code: str):
-            try:
-                async with f.runtime.db.sessions() as session, session.begin():
-                    await finish_activation(
-                        session,
-                        identity,
-                        DeviceProof.model_validate(payload),
-                        f.settings.allowed_origin,
-                    )
-            except LonoraError as error:
-                assert error.code == code, error.code
-            else:
-                raise AssertionError("invalid authority accepted")
-
-        missing_uv = await f.request("POST", f"/super-bot/{new['id']}/challenge", {})
-        await denied(
-            device.assertion(missing_uv, f.settings.allowed_origin, verified=False),
-            "device_proof_invalid",
-        )
-        wrong_origin = device.assertion(missing_uv, "https://different.example")
-        await denied(wrong_origin, "device_proof_invalid")
-        forged = device.assertion(missing_uv, f.settings.allowed_origin)
-        forged["credential"]["response"]["signature"] = "AAAA"
-        await denied(forged, "device_proof_invalid")
-        async with f.runtime.db.sessions() as session, session.begin():
-            row = await session.get(DeviceChallengeRow, missing_uv["challenge_id"])
-            assert row
-            row.expires_at = utcnow() - timedelta(seconds=1)
-        await denied(
-            device.assertion(missing_uv, f.settings.allowed_origin),
-            "device_challenge_expired_or_used",
-        )
-        fresh = await f.request("POST", f"/super-bot/{new['id']}/challenge", {})
-        async with f.runtime.db.sessions() as session, session.begin():
-            request = await session.get(SuperBotRequestRow, new["id"])
-            assert request
-            request.envelope = {**request.envelope, "max_trade_actions": 40}
-        await denied(
-            device.assertion(fresh, f.settings.allowed_origin),
-            "super_bot_request_expired_or_changed",
-        )
-        print(
-            "PASS missing signed UV, wrong origin/RP, forged signature, expired challenge and changed permission envelope fail closed"
-        )
-
-        async with f.runtime.db.sessions() as session, session.begin():
-            corrupted = await session.get(SuperBotRequestRow, new["id"])
-            assert corrupted
-            corrupted.status = "rejected"
-            await session.flush()
-            row = await propose(
-                session,
-                f.owner,
-                agent["id"],
-                SuperBotProposal(goal_id=goal["id"], mode="autonomous"),
-            )
-            challenge = await begin_activation(session, identity, row.id, f.settings.allowed_origin)
-        valid = device.assertion(challenge, f.settings.allowed_origin)
-        try:
-            async with f.runtime.db.sessions() as session, session.begin():
-                await finish_activation(
-                    session,
-                    replace(identity, token_hash="different-session"),
-                    DeviceProof.model_validate(valid),
-                    f.settings.allowed_origin,
+            f"/agents/{signer['id']}/account-authorities",
+            bounded_grant(signer_thread["id"], account),
+        ),
+    )
+    review = "activation-review:" + grant["id"]
+    await alembic("downgrade", BEFORE)
+    now = utcnow()
+    goal_id = "retired-goal-" + owner[:8]
+    goal_state: dict[str, Any] = {"status": "paused", "plan_version": 1, "steps": {}}
+    autonomy = {"autonomous": True, "super_bot_request_id": "sb-activated-" + owner[:8]}
+    statuses = {"sb-pending": "pending", "sb-activated": "activated", "sb-paused": "paused"}
+    async with f.runtime.db.sessions() as session, session.begin():
+        for identifier, status in statuses.items():
+            session.add(
+                SuperBotRequestRow(
+                    id=identifier + "-" + owner[:8],
+                    owner_id=owner,
+                    agent_id=agent["id"],
+                    thread_id=thread["id"],
+                    goal_id="retired-goal",
+                    mode="autonomous",
+                    status=status,
+                    envelope={"symbol": "EURUSDm", "account_id": account},
+                    envelope_hash="hash",
+                    expires_at=now + timedelta(minutes=10),
+                    created_at=now,
+                    updated_at=now,
                 )
-        except LonoraError as error:
-            assert error.code == "device_challenge_not_found"
-        else:
-            raise AssertionError("cross-session device proof accepted")
-        async with f.runtime.db.sessions() as session, session.begin():
-            activated = await finish_activation(
-                session, identity, DeviceProof.model_validate(valid), f.settings.allowed_origin
             )
-            activated_id = activated.id
-        devices = cast(list[dict[str, Any]], await f.request("GET", "/auth/devices"))
-        await f.request("DELETE", "/auth/devices/" + devices[0]["id"])
-        async with f.runtime.db.sessions() as session:
-            saved = await owned_goal(session, f.owner, goal["id"])
-            assert saved.state["autonomous"] is False
-            try:
-                await require_goal_authority(session, saved)
-            except LonoraError as error:
-                assert error.code == "device_authorization_required"
-            else:
-                raise AssertionError("revoked credential retained authority")
-        async with f.runtime.db.sessions() as session, session.begin():
-            replay = await finish_activation(
-                session, identity, DeviceProof.model_validate(valid), f.settings.allowed_origin
+        session.add(
+            AttentionRow(
+                id="sb-attention-" + owner[:8],
+                owner_id=owner,
+                agent_id=agent["id"],
+                thread_id=thread["id"],
+                logical_key="sb-attention-" + owner[:8],
+                coalesce_key="sb-attention",
+                importance="action_required",
+                code="super_bot_authorization",
+                status="ready",
+                parameters={},
+                due_at=now,
             )
-            assert replay.id == activated_id and replay.status == "disabled"
-        print(
-            "PASS cross-session proof isolation, device revocation and replay after revocation cannot restore authority"
+        )
+        # A goal created under goal autonomy carries the retired keys in its state.
+        session.add(
+            TradingGoalRow(
+                id=goal_id,
+                owner_id=owner,
+                agent_id=agent["id"],
+                thread_id=thread["id"],
+                payload={"objective": "Old plan", "steps": []},
+                state={**goal_state, **autonomy},
+            )
         )
 
+    async def goal_state_now() -> dict[str, Any]:
+        async with f.runtime.db.sessions() as session:
+            row = await session.get(TradingGoalRow, goal_id, populate_existing=True)
+            assert row and row.version == 1
+            assert goal_data(row)["state"] == row.state
+            return dict(row.state)
+
+    async def observed() -> tuple[dict[str, str], str, dict[str, Any] | None]:
+        async with f.runtime.db.sessions() as session:
+            rows = {
+                row.id.rsplit("-", 1)[0]: row.status
+                for row in await session.scalars(
+                    select(SuperBotRequestRow)
+                    .where(SuperBotRequestRow.owner_id == owner)
+                    .execution_options(populate_existing=True)
+                )
+            }
+            item = await session.get(
+                AttentionRow, "sb-attention-" + owner[:8], populate_existing=True
+            )
+            receipt = await session.get(EffectReceiptRow, review, populate_existing=True)
+            assert item
+            return rows, item.status, receipt.result if receipt else None
+
+    retired = {"sb-pending": "retired", "sb-activated": "retired", "sb-paused": "paused"}
+    for attempt in range(2):
+        await alembic("upgrade", "head")
+        rows, item, receipt = await observed()
+        assert rows == retired, rows
+        assert item == "suppressed" and receipt == {"skipped": "granted_before_review"}, receipt
+        # No agent is woken for a grant signed before the review existed.
+        assert await dispatch_activation_reviews(f.runtime.db) == 0
+        # No goal read (tools, API) tells the model it trades autonomously any more.
+        stripped = await goal_state_now()
+        assert not set(autonomy) & set(stripped), stripped
+        assert {key: stripped[key] for key in goal_state} == goal_state, stripped
+        if attempt == 0:
+            await alembic("downgrade", BEFORE)
+            rows, item, receipt = await observed()
+            assert rows == statuses and item == "ready" and receipt is None, (rows, receipt)
+            restored = await goal_state_now()
+            assert {key: restored[key] for key in autonomy} == autonomy, restored
+    assert not await on_its_own(f, agent["id"])
+    live = await f.request("GET", f"/agents/{agent['id']}/state")
+    assert live["pending_authorization_count"] == 0 and "super_bot" not in live
+    print(
+        "PASS migration 0040 retires pending and activated Super Bot requests and withdraws "
+        "their inbox items without deleting a row, removes goal autonomy keys from goals, "
+        "skips the review for grants signed before "
+        "it, restores exactly those rows on downgrade and repeats cleanly; a retired request "
+        "grants nothing"
+    )
+
+
+async def main() -> None:
+    f = await Fixture().open()
+    try:
+        agent = await f.agent("Retired surface")
+        thread = await f.conversation(agent)
+        await retired_surface(f, agent, thread)
+        await signed_grant_and_devices(f, await Device.enroll(f))
+        await migration_round_trip(f)
     finally:
         await f.close()
 

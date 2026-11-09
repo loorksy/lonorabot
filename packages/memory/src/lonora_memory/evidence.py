@@ -18,6 +18,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.exc import SQLAlchemyError
 
 from .conversation import ConversationRecallScope, conversation_candidates
+from .profile import agent_memory_view
 from .retrieval import (
     MAX_QUERY_CHARS,
     document_chunks,
@@ -191,7 +192,8 @@ async def _retrieve_evidence(
         memory = await session.get(MemoryRow, agent_id)
         if memory:
             provenance = await memory_provenance(session, agent_id, memory.version)
-            for offset, text in document_chunks(memory.content):
+            # The Agent's own view: retired owner sections now live in the owner profile.
+            for offset, text in document_chunks(agent_memory_view(memory.content)):
                 candidates.append(
                     Evidence(
                         id=f"memory:{agent_id}:v{memory.version}:{offset}",

@@ -19,11 +19,11 @@ from lonora_contracts.trading_decision import (
 from lonora_core.chart_controller import validate_timeframe
 from lonora_core.runtime_failure import TRANSIENT_READ_CODES
 from lonora_core.user_error import LonoraError
-from lonora_db.agent_binding import agent_binding, assert_market_binding, fixed_market
+from lonora_db.agent_binding import agent_binding, assert_market_binding
 from lonora_db.broker_sessions import BrokerSessionRepository
 from lonora_db.relationships import read_relationship
 from lonora_db.runs import require_lease
-from lonora_db.schema import EffectReceiptRow
+from lonora_db.schema import AgentRow, EffectReceiptRow
 from lonora_db.trading_decisions import (
     decision_changes,
     decision_excerpt,
@@ -35,9 +35,12 @@ from lonora_db.trading_decisions import (
 from lonora_db.transactions import SettingsRepository
 from lonora_market.health import assess_account, assess_candles, assess_quote, timeframe_age_seconds
 from lonora_market.relationships import relationship_usable
+from lonora_trading.admission import entry_recovery_status
 from lonora_trading.decision_readiness import decision_readiness
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from .base import Tool
+from .base import Tool, eager_for
 from .context import ToolContext
 
 
@@ -116,9 +119,6 @@ async def record(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         evidence.missing_codes.append(
             error.code if isinstance(error, LonoraError) else "decision_evidence_timeout"
         )
-    if fixed_market(agent) and agent.trading_symbol:
-        evidence.positions = [p for p in evidence.positions if p.symbol == agent.trading_symbol]
-        evidence.orders = [o for o in evidence.orders if o.symbol == agent.trading_symbol]
     now = utcnow()
     health: list[HealthSnapshot] = [
         assess_quote(
@@ -171,7 +171,9 @@ async def record(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             evidence,
             controls=controls,
             broker_enabled=config.enabled,
-            broker_recovery_status=recovery.get("status") if recovery else None,
+            broker_recovery_status=await entry_recovery_status(
+                session, context.owner_id, params.account_id, params.symbol, recovery
+            ),
             connection_changed=current_connection.version != connection_version,
         )
     decision = TradingDecision(
@@ -200,11 +202,31 @@ async def record(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         )
 
 
+async def authors(
+    session: AsyncSession, context: ToolContext, agent_ids: set[str]
+) -> dict[str, Any]:
+    """Who recorded each decision: decisions on owner accounts are shared operational records."""
+    names: dict[str, str] = {}
+    if agent_ids:
+        query = select(AgentRow).where(
+            AgentRow.owner_id == context.owner_id, AgentRow.id.in_(agent_ids)
+        )
+        for row in await session.scalars(query):
+            names[row.id] = row.name
+    return {
+        identifier: {
+            "agent_id": identifier,
+            "name": names.get(identifier),
+            "you": identifier == context.agent_id,
+        }
+        for identifier in agent_ids
+    }
+
+
 async def history(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     params = DecisionHistory.model_validate(args)
     async with context.db.sessions() as session:
         agent = await agent_binding(session, context.owner_id, context.agent_id)
-        assert_market_binding(agent, params.account_id, params.symbol)
         rows = await decision_history(
             session,
             context.owner_id,
@@ -217,59 +239,35 @@ async def history(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             ),
             limit=params.limit,
         )
-        return {"decisions": [decision_summary(row) for row in rows]}
+        recorded_by = await authors(session, context, {row.agent_id for row in rows})
+        return {
+            "decisions": [
+                {**decision_summary(row), "recorded_by": recorded_by[row.agent_id]} for row in rows
+            ]
+        }
 
 
 async def read(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     params = DecisionReference.model_validate(args)
     async with context.db.sessions() as session:
-        agent = await agent_binding(session, context.owner_id, context.agent_id)
         row = await read_decision(session, context.owner_id, params.decision_id)
-        assert_market_binding(agent, row.account_id, row.symbol)
-        result = decision_excerpt(row)
-        # A specialist cannot use a Personal decision to inspect other symbols.
-        if fixed_market(agent) and agent.trading_symbol:
-            result["evidence"]["positions"] = [
-                p for p in result["evidence"]["positions"] if p["symbol"] == agent.trading_symbol
-            ]
-            result["evidence"]["orders"] = [
-                o for o in result["evidence"]["orders"] if o["symbol"] == agent.trading_symbol
-            ]
-        return result
+        recorded_by = await authors(session, context, {row.agent_id})
+        return {**decision_excerpt(row), "recorded_by": recorded_by[row.agent_id]}
 
 
 async def compare(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     params = DecisionCompare.model_validate(args)
     async with context.db.sessions() as session:
-        agent = await agent_binding(session, context.owner_id, context.agent_id)
         before = await read_decision(session, context.owner_id, params.earlier_id)
         after = await read_decision(session, context.owner_id, params.later_id)
-        for item in (before, after):
-            assert_market_binding(agent, item.account_id, item.symbol)
-        if fixed_market(agent) and agent.trading_symbol:
-
-            def scoped(item: TradingDecision) -> TradingDecision:
-                return item.model_copy(
-                    update={
-                        "evidence": item.evidence.model_copy(
-                            update={
-                                "positions": [
-                                    p
-                                    for p in item.evidence.positions
-                                    if p.symbol == agent.trading_symbol
-                                ],
-                                "orders": [
-                                    o
-                                    for o in item.evidence.orders
-                                    if o.symbol == agent.trading_symbol
-                                ],
-                            }
-                        )
-                    }
-                )
-
-            before, after = scoped(before), scoped(after)
-        return decision_changes(before, after)
+        recorded_by = await authors(session, context, {before.agent_id, after.agent_id})
+        return {
+            **decision_changes(before, after),
+            "recorded_by": {
+                "earlier": recorded_by[before.agent_id],
+                "later": recorded_by[after.agent_id],
+            },
+        }
 
 
 def tools() -> list[Tool]:
@@ -286,13 +284,15 @@ def tools() -> list[Tool]:
             "Record your BUY, SELL or CONDITIONAL_ENTRY decision with current broker evidence and rationale; WAIT remains explicit abstention. Optional detector observations assist your analysis, never choose the side. Conditional entry stores your condition, invalidation and review instruction; create a durable Task watch/wait separately before claiming monitoring. Operational failures remain separate from your decision. This never authorizes or executes a trade.",
             DecisionRequest,
             record,
+            eager=eager_for("market"),
         ),
         Tool(
             "market_decision_history",
-            "Retrieve immutable historical decisions/evidence for why/what-was-known questions; never replace them with current market data.",
+            "Retrieve immutable historical decisions/evidence on any owned account for why/what-was-known questions, each with the Agent that recorded it; never replace them with current market data.",
             DecisionHistory,
             history,
             True,
+            eager=eager_for("market"),
         ),
         Tool(
             "market_decision_compare",

@@ -3,6 +3,7 @@
 import asyncio
 import hashlib
 import re
+from collections.abc import Awaitable, Callable
 from typing import Any, Protocol
 
 from lonora_contracts.domain import utcnow
@@ -11,6 +12,7 @@ from lonora_db.runs import aware, require_lease
 from lonora_db.schema import AnalyticalWorkspaceRow, RunRow, ThreadRow, WorkspaceOperationRow
 from lonora_db.transactions import owned_agent
 from lonora_session.idempotency import request_hash
+from lonora_tools.base import run_scope
 from lonora_tools.context import ToolContext
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -31,8 +33,14 @@ class WorkspaceExecutor(Protocol):
 
 
 async def scoped_run(
-    session: AsyncSession, context: ToolContext, *, mutate: bool = False
+    session: AsyncSession, context: ToolContext, *, mutate: bool = False, helper: bool = False
 ) -> RunRow:
+    """The current Run of this Agent's workspace call.
+
+    ``mutate`` writes are refused for a paused Agent. A temporary helper may
+    only compute (``helper``); an observe-only wake has no financial effects,
+    so it keeps every workspace write.
+    """
     agent = await owned_agent(session, context.owner_id, context.agent_id, lock=mutate)
     run = await require_lease(session, context.lease, lock=mutate)
     thread = await session.get(ThreadRow, run.thread_id)
@@ -45,9 +53,7 @@ async def scoped_run(
     ):
         raise LonoraError("workspace_scope_mismatch", 409)
     if mutate and (
-        agent.paused
-        or run.trigger == "subagent"
-        or run.model_metadata.get("authority") == "observe_only"
+        agent.paused or (run_scope(run.trigger, run.model_metadata) == "helper" and not helper)
     ):
         raise LonoraError("tool_not_allowed", 403)
     return run
@@ -63,8 +69,10 @@ def manifest(revision: int, files: dict[str, bytes]) -> dict[str, Any]:
     }
 
 
-async def locked_workspace(session: AsyncSession, context: ToolContext) -> AnalyticalWorkspaceRow:
-    await scoped_run(session, context, mutate=True)
+async def locked_workspace(
+    session: AsyncSession, context: ToolContext, *, helper: bool = False
+) -> AnalyticalWorkspaceRow:
+    await scoped_run(session, context, mutate=True, helper=helper)
     row = await session.get(AnalyticalWorkspaceRow, context.agent_id, with_for_update=True)
     if row is None:
         row = AnalyticalWorkspaceRow(agent_id=context.agent_id, revision=0, snapshot=b"{}")
@@ -126,6 +134,11 @@ def require_revision(row: AnalyticalWorkspaceRow, revision: int) -> None:
 class RunWorkspaceAccess:
     def __init__(self, executor: WorkspaceExecutor | None = None) -> None:
         self.executor = executor
+
+    @property
+    def execution_configured(self) -> bool:
+        """Capability availability only; every operation still checks itself."""
+        return self.executor is not None
 
     async def profile(self, context: ToolContext) -> str:
         async with context.db.sessions() as session, session.begin():
@@ -249,6 +262,67 @@ class RunWorkspaceAccess:
             )
             return result
 
+    async def write_generated(
+        self,
+        context: ToolContext,
+        revision: int,
+        path: str,
+        intent: dict[str, Any],
+        produce: Callable[[], Awaitable[tuple[bytes, dict[str, Any]]]],
+    ) -> dict[str, Any]:
+        """Write one server-produced file (e.g. broker candles) without model transfer.
+
+        The receipt identity is the request, not the bytes: a replay after an
+        interruption returns the original write even if the source data moved on.
+        No database lock is held while the producer reads the broker.
+        """
+        encode_snapshot({path: b""})
+        digest = request_hash(
+            {"kind": "workspace_generated_v1", "revision": revision, "path": path, **intent}
+        )
+        async with context.db.sessions() as session, session.begin():
+            await scoped_run(session, context, mutate=True)
+            prior = await receipt(session, context, digest)
+            if prior is not None:
+                return prior
+            current = await session.get(AnalyticalWorkspaceRow, context.agent_id)
+            if (current.revision if current else 0) != revision:
+                raise LonoraError("workspace_revision_conflict", 409)
+        body, summary = await produce()
+        async with context.db.sessions() as session, session.begin():
+            row = await locked_workspace(session, context)
+            prior = await receipt(session, context, digest)
+            if prior is not None:
+                return prior
+            require_revision(row, revision)
+            snapshot = read_snapshot(row.snapshot)
+            snapshot[path] = body
+            # Quotas (file size, total size, file count) are enforced here as for any write.
+            row.snapshot = encode_snapshot(snapshot)
+            row.revision += 1
+            row.updated_at = utcnow()
+            result = {
+                "operation_id": context.resource_id,
+                "revision": row.revision,
+                "path": path,
+                "size": len(body),
+                "sha256": hashlib.sha256(body).hexdigest(),
+                **summary,
+            }
+            session.add(
+                WorkspaceOperationRow(
+                    id=context.resource_id,
+                    agent_id=context.agent_id,
+                    run_id=context.lease.run_id,
+                    lease_fence=context.lease.fence,
+                    request_hash=digest,
+                    base_revision=revision,
+                    status="completed",
+                    result=result,
+                )
+            )
+            return result
+
     async def execute(
         self, context: ToolContext, revision: int, command: str, deadline_seconds: int
     ) -> dict[str, Any]:
@@ -268,7 +342,7 @@ class RunWorkspaceAccess:
             }
         )
         async with context.db.sessions() as session, session.begin():
-            row = await locked_workspace(session, context)
+            row = await locked_workspace(session, context, helper=True)
             prior = await receipt(session, context, digest)
             if prior is not None:
                 return prior
@@ -308,7 +382,7 @@ class RunWorkspaceAccess:
                 raise LonoraError("workspace_profile_changed", 409)
             encoded = encode_snapshot(outcome.files)
             async with context.db.sessions() as session, session.begin():
-                row = await locked_workspace(session, context)
+                row = await locked_workspace(session, context, helper=True)
                 if row.active_operation_id != context.resource_id or row.revision != revision:
                     raise LonoraError("workspace_operation_superseded", 409)
                 operation = await session.get(WorkspaceOperationRow, context.resource_id)

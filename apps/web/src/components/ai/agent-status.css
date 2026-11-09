@@ -114,6 +114,26 @@
 .lonora-background-status > summary::-webkit-details-marker {
   display: none;
 }
+.lonora-watch-list {
+  display: grid;
+  gap: 6px;
+  margin: 8px 0;
+  padding: 0;
+  list-style: none;
+}
+.lonora-watch-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--foreground);
+  font-size: 12px;
+}
+.lonora-watch-list li span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
 @keyframes lonora-status-breathe {
   0%,
   100% {

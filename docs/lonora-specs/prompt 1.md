@@ -1354,3 +1354,26 @@ Prefer fewer coherent components over larger collections of overlapping managers
 Preserve operational reliability, financial safety, maintainability, and real-world testability.
 
 The objective is not to maximize the number of features or files. The objective is to deliver the simplest working architecture that satisfies the required capabilities.
+
+---
+
+> **Superseded: backtesting is excluded by the owner mandate (editorial note, 2026-11-07).**
+> The owner's current mandate (section 5, "Explicit Exclusion: Backtesting") excludes strategy
+> backtesting from Lonora: no historical strategy backtesting engine, workflow, interface or
+> dependency, and no backtest as a prerequisite for strategy creation, modification or agent
+> autonomy. Lonora's bounded SMA-cross research engine was removed accordingly.
+>
+> These requirements in this document are no longer requirements: Advanced Backtesting,
+> Walk-Forward Optimization, Monte Carlo Simulation and the single-backtest promotion rule in
+> section 8 (lines 147-149 and 155); step 5 of the end-to-end flow (line 208); "Develop and
+> backtest strategies" (line 565); "Backtest." (line 711); "Historical backtests" and
+> "Out-of-sample validation" in section 17 (lines 944-945); "Strategy and backtest history"
+> (line 1008); and the backtesting part of "strategy research" in Phase D (line 1144). Strategy
+> research, import, comparison, monitoring and improvement that remain in scope rely on market
+> evidence and real recorded outcomes, never on backtest results. Likewise, "strategy
+> validation" in the parity capabilities (line 1203) and in the final report checklist (line
+> 1226) means evaluation from real recorded live or Shadow outcomes, not backtest validation.
+>
+> Historical market observations used to understand the market, and real recorded live or
+> Shadow outcomes, remain in scope. The original text above is unchanged; this note is appended
+> so existing line references stay valid. See [decision readiness](../decision-readiness.md#strategy-backtesting-is-excluded).

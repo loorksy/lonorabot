@@ -6,6 +6,10 @@ financial permission system.
 
 ## Import and adaptation
 
+An import first checks the owner's trusted sources (`docs/trusted-sources.md`): inside
+them (github.com by default) it goes on silently; outside them it raises one owner card
+and fetches nothing. Instructions-only packages need no analysis host.
+
 `skill_repository_inspect` discovers documents, utility hashes, Python imports,
 dependency filenames and licensing without executing source. `skill_package_import`
 then accepts one compatible `SKILL.md` at a full immutable Git commit, an adapted
@@ -72,7 +76,7 @@ non-execution of hooks, immutable revisions and tool-effect contracts.
 workspace and catalog lifecycle. Supplying `LONORA_SKILL_TEST_IMAGE` as a full
 local image ID selects real networkless containers rather than the offline fake.
 The real-container check covers import/validation/activation/view, immutable
-updates, replay, rollback, ownership, observe-only denial, revocation/relabel
+updates, replay, rollback, ownership, helper (subagent) denial, revocation/relabel
 denial, removal, stale leases, missing dependencies and self-modifying source.
 Financial journal and approval counts remain unchanged.
 

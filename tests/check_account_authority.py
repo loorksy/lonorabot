@@ -13,9 +13,9 @@ from lonora_adapter_kit.types import ToolCall
 from lonora_adapters.brokers.simulation import SimulationBroker
 from lonora_auth.account_authority import finish_activation
 from lonora_auth.sessions import read_session
+from lonora_contracts.devices import DeviceProof
 from lonora_contracts.domain import utcnow
-from lonora_contracts.super_bot import DeviceProof
-from lonora_contracts.trading import TradeResult, TradingControl
+from lonora_contracts.trading import TradeRequest, TradeResult, TradingControl
 from lonora_core.user_error import LonoraError
 from lonora_db.account_authority import authority_data, require_authority
 from lonora_db.client import Database
@@ -28,6 +28,7 @@ from lonora_db.schema import (
 )
 from lonora_tools.loader import load_tools
 from lonora_trading.controls import read_controls, save_controls
+from lonora_trading.manual_activity import material_state
 
 
 async def main() -> None:
@@ -129,6 +130,50 @@ async def main() -> None:
         ) -> dict[str, Any]:
             return await registry.execute(trade(action, symbol, **params), context)
 
+        async def outside_grant(
+            grant_id: str, code: str, action: str = "buy", **params: Any
+        ) -> None:
+            """A request outside the signed grant's own terms asks the owner (correction 6)
+            and sends nothing; the executor itself still refuses it under the grant."""
+            before = await broker.snapshot()
+            asked = await operation(action, **params)
+            if asked.get("_runtime_wait"):
+                assert asked["approval_id"], asked
+                await f.request(
+                    "POST",
+                    f"/trading/approvals/{asked['approval_id']}/decision",
+                    {"decision": "reject"},
+                )
+            else:
+                # The owner already refused this exact request in this Run.
+                assert asked.get("status") == "rejected", asked
+            assert await broker.snapshot() == before
+            request = TradeRequest.model_validate(
+                {
+                    "action": action,
+                    "account_id": account,
+                    "symbol": symbols[0],
+                    "operation_id": "outside-" + uuid4().hex,
+                    **params,
+                }
+            )
+            target = next(
+                (p for p in await broker.positions() if p.id == params.get("position_id")), None
+            )
+            try:
+                await context.trading.execute(
+                    f.owner,
+                    request,
+                    context.lease,
+                    account_authority_id=grant_id,
+                    expected_target=material_state(target) if target else None,
+                )
+            except LonoraError as error:
+                assert error.code == code, error.code
+            else:
+                raise AssertionError("the executor sent a request outside the grant")
+            assert await broker.snapshot() == before
+
         before = await broker.snapshot()
         no_grant = await operation(volume="0.1", stop_loss="90")
         assert no_grant["_runtime_wait"] and await broker.snapshot() == before
@@ -172,9 +217,16 @@ async def main() -> None:
         proposal = await propose()
         assert proposal["status"] == "pending"
         assert (await propose())["id"] == proposal["id"]
-        assert proposal["monetary_stop_risk"] == "unavailable"
+        # The grant summary reports the account's T3 money limits; none is set here.
+        assert "monetary_stop_risk" not in proposal
+        assert proposal["money_limits"]["configured"] is False
+        assert proposal["money_limits"]["limits"] == {}
         before = await broker.snapshot()
-        pending = await operation(volume="0.1", stop_loss="90")
+        # The trade the owner just refused, asked again in this Run, returns that refusal.
+        refused = await operation(volume="0.1", stop_loss="90")
+        assert refused["status"] == "rejected", refused
+        assert refused["approval_id"] == no_grant["approval_id"], refused
+        pending = await operation(volume="0.2", stop_loss="90")
         assert pending["_runtime_wait"] and await broker.snapshot() == before
         await f.request(
             "POST", f"/trading/approvals/{pending['approval_id']}/decision", {"decision": "reject"}
@@ -284,28 +336,41 @@ async def main() -> None:
             "PASS repeated signed account trades across exact forex/metal/index/crypto symbols; pending and management use one verified executor"
         )
 
-        denied_manual = await operation("close_position", position_id="manual-ticket")
-        assert denied_manual["code"] == "account_authority_manual_permission_required", (
-            denied_manual
+        # The grant excludes the owner's own position: closing it asks the owner with an
+        # approval card (the ladder is monotonic) and sends nothing before the tap.
+        before = await broker.snapshot()
+        asked_manual = await operation("close_position", position_id="manual-ticket")
+        assert asked_manual["_runtime_wait"], asked_manual
+        assert await broker.snapshot() == before
+        await f.request(
+            "POST",
+            f"/trading/approvals/{asked_manual['approval_id']}/decision",
+            {"decision": "reject"},
         )
-        for params, code in (
-            ({"volume": "0.6", "stop_loss": "90"}, "account_authority_volume_limit"),
-            ({"volume": "0.1"}, "account_authority_stop_loss_required"),
-        ):
-            blocked = await operation(**params)
-            assert blocked["code"] == code, blocked
-        widened = await operation(
-            "modify_position", position_id=opened["broker_id"], stop_loss="80"
+        # A request outside the grant's own terms asks the owner too (correction 6) and
+        # sends nothing; the executor itself still refuses it under the grant.
+        await outside_grant(
+            grant["id"], "account_authority_volume_limit", volume="0.6", stop_loss="90"
         )
-        assert widened["code"] == "account_authority_protection_expansion_forbidden", widened
-        print("PASS scope volume/protection/manual ownership limits remain server authoritative")
+        await outside_grant(grant["id"], "account_authority_stop_loss_required", volume="0.1")
+        await outside_grant(
+            grant["id"],
+            "account_authority_protection_expansion_forbidden",
+            "modify_position",
+            position_id=opened["broker_id"],
+            stop_loss="80",
+        )
+        print(
+            "PASS scope volume/protection limits remain server authoritative at the executor; outside them, and on the owner's own position, the agent asks for approval"
+        )
 
         async with f.runtime.db.sessions() as session, session.begin():
             row = await session.get(RunRow, context.lease.run_id)
             assert row
             row.model_metadata = {**row.model_metadata, "voice_handoff": {"finalized": False}}
-        partial = await operation(volume="0.1", stop_loss="90")
-        assert partial["_runtime_wait"]
+        # Not the trade the owner refused above (that one returns the refusal).
+        partial = await operation(volume="0.3", stop_loss="90")
+        assert partial["_runtime_wait"], partial
         await f.request(
             "POST", f"/trading/approvals/{partial['approval_id']}/decision", {"decision": "reject"}
         )
@@ -315,23 +380,60 @@ async def main() -> None:
             row.model_metadata = {
                 key: value for key, value in row.model_metadata.items() if key != "voice_handoff"
             }
+        resting = await operation("buy_limit", symbols[1], volume="0.1", price="99", stop_loss="90")
+        assert resting["status"] == "confirmed", resting
+        own = {p.symbol: p for p in await broker.positions()}
         await save_controls(f.runtime.db, TradingControl(enabled=False))
         stopped = await operation(volume="0.1", stop_loss="90")
         assert stopped["status"] == "failed" and stopped["code"] == "trading_disabled", stopped
+        # Exits stay admissible for the signed grant: global controls stop new risk only.
+        tightened = await operation(
+            "modify_position", symbols[2], position_id=own[symbols[2]].id, stop_loss="95"
+        )
+        assert tightened["status"] == "confirmed", tightened
+        assert tightened["details"]["execution"]["risk_reducing"] is True
+        assert tightened["details"]["execution"]["account_authority_id"] == grant["id"]
+        # Moving the stop further away is new risk the bounded grant does not cover: under
+        # Stop new trading it is refused with the brake's code before any approval card.
+        before = await broker.snapshot()
+        try:
+            await operation(
+                "modify_position", symbols[2], position_id=own[symbols[2]].id, stop_loss="94"
+            )
+        except LonoraError as error:
+            assert error.code == "trading_disabled", error.code
+        else:
+            raise AssertionError("a widened stop under Stop new trading was not refused")
+        assert await broker.snapshot() == before
+        closed = await operation("close_position", symbols[3], position_id=own[symbols[3]].id)
+        assert closed["status"] == "confirmed", closed
+        assert closed["details"]["execution"]["account_authority_id"] == grant["id"]
+        assert not any(p.symbol == symbols[3] for p in await broker.positions())
         await save_controls(f.runtime.db, TradingControl(enabled=True, emergency_stop=True))
         stopped = await operation(volume="0.1", stop_loss="90")
         assert stopped["status"] == "failed" and stopped["code"] == "emergency_stop", stopped
+        cancelled = await operation("cancel_order", symbols[1], order_id=resting["broker_id"])
+        assert cancelled["status"] == "confirmed", cancelled
+        tighter = await operation(
+            "modify_position", symbols[2], position_id=own[symbols[2]].id, stop_loss="96"
+        )
+        assert tighter["status"] == "confirmed", tighter
+        reopened = await operation(
+            "buy_limit", symbols[1], volume="0.1", price="98", stop_loss="90"
+        )
+        assert reopened["status"] == "failed" and reopened["code"] == "emergency_stop", reopened
         await save_controls(f.runtime.db, TradingControl(enabled=True))
         print(
-            "PASS provisional voice requires real confirmation; global OFF and Emergency Stop dominate grants"
+            "PASS provisional voice requires real confirmation; global OFF and Emergency Stop dominate grants for new risk, while the signed grant still closes, cancels and tightens"
         )
 
         async with f.runtime.db.sessions() as session, session.begin():
             row = await session.get(TradingAccountRow, account, with_for_update=True)
             assert row
             row.payload = {**row.payload, "equity": "8900"}
-        floor = await operation(volume="0.1", stop_loss="90")
-        assert floor["code"] == "account_authority_equity_floor", floor
+        await outside_grant(
+            grant["id"], "account_authority_equity_floor", volume="0.1", stop_loss="90"
+        )
         async with f.runtime.db.sessions() as session, session.begin():
             row = await session.get(TradingAccountRow, account, with_for_update=True)
             assert row
@@ -352,15 +454,26 @@ async def main() -> None:
 
         # Replacement scope needs another genuine signature. Older signed
         # requests remain revoked and cannot enlarge the replacement.
-        await activate(maximum_order_volume="0.3", maximum_symbol_volume="0.3")
-        limited = await operation(volume="0.1", stop_loss="90")
-        assert limited["code"] == "account_authority_symbol_volume_limit", limited
-        await activate(maximum_positions=len(await broker.positions()))
-        limited = await operation(volume="0.1", stop_loss="90")
-        assert limited["code"] == "account_authority_position_limit", limited
-        await activate(maximum_pending_orders=0)
-        limited = await operation("buy_limit", volume="0.2", price="98", stop_loss="90")
-        assert limited["code"] == "account_authority_pending_limit", limited
+        replaced = await activate(maximum_order_volume="0.3", maximum_symbol_volume="0.3")
+        await outside_grant(
+            replaced["id"],
+            "account_authority_symbol_volume_limit",
+            volume="0.1",
+            stop_loss="90",
+        )
+        replaced = await activate(maximum_positions=len(await broker.positions()))
+        await outside_grant(
+            replaced["id"], "account_authority_position_limit", volume="0.1", stop_loss="90"
+        )
+        replaced = await activate(maximum_pending_orders=0)
+        await outside_grant(
+            replaced["id"],
+            "account_authority_pending_limit",
+            "buy_limit",
+            volume="0.2",
+            price="98",
+            stop_loss="90",
+        )
 
         limited_grant = await activate(maximum_actions=1)
         before_count = len(await broker.positions())
@@ -376,8 +489,9 @@ async def main() -> None:
             in {"account_authority_action_limit", "broker_reconciliation_required"}
             for item in attempts
         ), attempts
-        limited = await operation(volume="0.4", stop_loss="90")
-        assert limited["code"] == "account_authority_action_limit", limited
+        await outside_grant(
+            limited_grant["id"], "account_authority_action_limit", volume="0.4", stop_loss="90"
+        )
         fresh_db = Database.connect(f.settings.database_url)
         try:
             async with fresh_db.sessions() as session:
@@ -422,8 +536,9 @@ async def main() -> None:
                 journal.result["details"]["execution"]["account_authority_id"]
                 == rejected_grant["id"]
             )
-        limited = await operation(volume="0.2", stop_loss="90")
-        assert limited["code"] == "account_authority_action_limit", limited
+        await outside_grant(
+            rejected_grant["id"], "account_authority_action_limit", volume="0.2", stop_loss="90"
+        )
         print(
             "PASS broker rejection retains server submission attribution and cannot refund standing action budget"
         )
@@ -507,15 +622,15 @@ async def main() -> None:
                 and journal.result["details"]["execution"]["account_authority_id"] == grant["id"]
             )
         print(
-            "PASS lost acknowledgement persists grant provenance, replay never resends, unresolved account blocks subsequent autonomous operations"
+            "PASS lost acknowledgement persists grant provenance, replay never resends, the unresolved market blocks subsequent autonomous risk"
         )
 
         revoked = await f.request("POST", f"/account-authorities/{grant['id']}/revoke", {})
         assert revoked["status"] == "revoked"
         replay = await f.client.post("/api/account-authorities/verify", json=proof)
         assert replay.status_code == 403
-        needs_approval = await operation(volume="0.1", stop_loss="90")
-        assert needs_approval["_runtime_wait"]
+        needs_approval = await operation(volume="0.4", stop_loss="90")
+        assert needs_approval["_runtime_wait"], needs_approval
         print(
             "PASS revocation and lost-response proof replay cannot restore grant; absent authority returns to explicit approval"
         )
@@ -539,6 +654,41 @@ async def main() -> None:
             "device_challenge_expired_or_used",
         )
         print("PASS persisted envelope tampering and expired challenges cannot activate authority")
+
+        # Deleting the agent while its trade is uncertain is refused; the owner settles
+        # it first (an attestation, never a resend), and the fixture cleanup then deletes.
+        blocked = await f.client.delete("/api/agents/" + agent["id"])
+        assert blocked.status_code == 409
+        assert blocked.json()["code"] == "delete_blocked_unresolved_operation"
+        settled = await f.request(
+            "POST",
+            f"/trading/journal/{ambiguous['operation_id']}/resolve",
+            {"outcome": "executed", "statement": "Checked the broker terminal: it executed."},
+        )
+        assert settled["status"] == "resolved", settled
+        print("PASS an agent with an uncertain trade cannot be deleted until the owner settles it")
+
+        # Deleting the conversation a grant was signed in revokes that grant visibly:
+        # its record, the permission frame and the trade path agree.
+        # A distinct scope: the identical request still names the tampered pending one.
+        doomed = await activate(maximum_actions=50)
+        assert doomed["status"] == "active" and doomed["thread_id"] == thread["id"]
+        removed = await f.client.delete("/api/threads/" + thread["id"])
+        assert removed.status_code == 200, removed.text
+        listed = cast(
+            list[dict[str, Any]],
+            await f.request("GET", f"/agents/{agent['id']}/account-authorities"),
+        )
+        assert next(item for item in listed if item["id"] == doomed["id"])["status"] == "revoked"
+        frame = await f.request("GET", f"/agents/{agent['id']}/permissions")
+        assert frame["status"] == "autonomous_stopped", frame
+        assert frame["effective_level"] != "autonomous" and not frame["active_authorities"]
+        context = await f.lease(await f.run(agent, await f.conversation(agent)))
+        after_delete = await operation(volume="0.1", stop_loss="90")
+        assert after_delete["_runtime_wait"], after_delete
+        print(
+            "PASS deleting a grant's conversation revokes it: records, permission frame and trades agree"
+        )
     finally:
         await save_controls(f.runtime.db, controls)
         await f.close()

@@ -5,8 +5,9 @@ from lonora_contracts.skills import SkillId, SkillVersion
 from lonora_core.user_error import LonoraError
 from pydantic import Field
 
-from .base import Tool
+from .base import Tool, eager_for
 from .context import ToolContext
+from .workspace import execution_available
 
 
 class SkillsListInput(Contract):
@@ -127,7 +128,7 @@ def tools() -> list[Tool]:
         ),
         Tool(
             "skill_package_import",
-            "Import one reviewed public Skill at a full immutable Git commit into this Agent's existing workspace and disabled catalog. Supply adapted SKILL.md plus explicit source behavior, adapted behavior, assumptions and limitations. New installation uses expected_version=0; updates require current resource_version and a fresh semantic version. No setup hooks run; imported instructions grant no tools or financial authority. Bounded text-only packages; semantic equivalence is not implied.",
+            "Import one reviewed public Skill at a full immutable Git commit into this Agent's workspace and disabled catalog. From a repository outside the owner's trusted sources it raises one owner card instead (status owner_trust_required); inside them it installs without asking. Instructions-only packages need no analysis host. Supply adapted SKILL.md plus explicit source behavior, adapted behavior, assumptions and limitations. New installation uses expected_version=0; updates require current resource_version and a fresh semantic version. No setup hooks run; imported instructions grant no tools or financial authority. Bounded text-only packages; semantic equivalence is not implied.",
             SkillPackageImportInput,
             import_package,
             replay_safe=True,
@@ -138,6 +139,7 @@ def tools() -> list[Tool]:
             SkillPackageValidateInput,
             validate_package,
             replay_safe=True,
+            availability=execution_available,
         ),
         Tool(
             "skill_package_control",
@@ -152,6 +154,8 @@ def tools() -> list[Tool]:
             SkillsListInput,
             catalog,
             read_only=True,
+            parallel_safe=False,
+            eager=eager_for("core"),
         ),
         Tool(
             "skill_view",
@@ -160,13 +164,16 @@ def tools() -> list[Tool]:
             view,
             read_only=True,
             replay_safe=True,
+            parallel_safe=False,
+            eager=eager_for("core"),
         ),
         Tool(
             "skill_repository_inspect",
-            "Inspect a public GitHub Skill repository at an immutable resolved commit. Enumerate SKILL.md instructions, utility hashes, Python imports and dependency files without running code, installing anything, changing instructions or granting authority. Static compatibility is not security approval; adaptation and isolated execution remain separate requirements.",
+            "Inspect a public GitHub Skill repository at an immutable resolved commit. Enumerate SKILL.md instructions, utility hashes, Python imports and dependency files without running code, installing anything, changing instructions or granting authority. Static compatibility is not security approval; adaptation and isolated execution remain separate requirements. source_trusted says whether an import installs without asking.",
             SkillRepositoryInput,
             inspect_repository,
             read_only=True,
             replay_safe=True,
+            parallel_safe=False,
         ),
     ]

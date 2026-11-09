@@ -78,11 +78,18 @@ class DeviceChallengeRow(Base):
 
 
 class SuperBotRequestRow(Base):
+    """Retired goal-autonomy requests, kept only as audit history.
+
+    Nothing reads them for authority: a signed AccountAuthority is the only grant. Rows
+    that were pending or activated when the feature was retired have status 'retired'.
+    """
+
     __tablename__ = "ln_super_bot_requests"
     __table_args__ = (
         CheckConstraint("mode IN ('advisory','supervised','autonomous')", name="ln_super_bot_mode"),
         CheckConstraint(
-            "status IN ('pending','activated','rejected','expired','cancelled','paused','disabled')",
+            "status IN ('pending','activated','rejected','expired','cancelled','paused',"
+            "'disabled','retired')",
             name="ln_super_bot_status",
         ),
         Index(
@@ -97,13 +104,10 @@ class SuperBotRequestRow(Base):
     owner_id: Mapped[str] = mapped_column(
         ForeignKey("ln_owners.id", ondelete="CASCADE"), index=True
     )
-    agent_id: Mapped[str] = mapped_column(
-        ForeignKey("ln_agents.id", ondelete="CASCADE"), index=True
-    )
-    thread_id: Mapped[str] = mapped_column(ForeignKey("ln_threads.id", ondelete="CASCADE"))
-    goal_id: Mapped[str] = mapped_column(
-        ForeignKey("ln_trading_goals.id", ondelete="CASCADE"), index=True
-    )
+    # Durable record: the agent and goal ids are kept as values, never cascaded away.
+    agent_id: Mapped[str] = mapped_column(String(36), index=True)
+    thread_id: Mapped[str | None] = mapped_column(ForeignKey("ln_threads.id", ondelete="SET NULL"))
+    goal_id: Mapped[str] = mapped_column(String(36), index=True)
     mode: Mapped[str] = mapped_column(String(16))
     status: Mapped[str] = mapped_column(String(16), default="pending")
     envelope: Mapped[dict[str, Any]] = mapped_column(JSON)
@@ -137,13 +141,10 @@ class AccountAuthorityRow(Base):
     owner_id: Mapped[str] = mapped_column(
         ForeignKey("ln_owners.id", ondelete="CASCADE"), index=True
     )
-    agent_id: Mapped[str] = mapped_column(
-        ForeignKey("ln_agents.id", ondelete="CASCADE"), index=True
-    )
-    thread_id: Mapped[str] = mapped_column(ForeignKey("ln_threads.id", ondelete="CASCADE"))
-    account_id: Mapped[str] = mapped_column(
-        ForeignKey("ln_broker_sessions.id", ondelete="CASCADE"), index=True
-    )
+    # Durable record: the agent and account ids are kept as values, never cascaded away.
+    agent_id: Mapped[str] = mapped_column(String(36), index=True)
+    thread_id: Mapped[str | None] = mapped_column(ForeignKey("ln_threads.id", ondelete="SET NULL"))
+    account_id: Mapped[str] = mapped_column(String(36), index=True)
     status: Mapped[str] = mapped_column(String(16), default="pending", server_default="pending")
     envelope: Mapped[dict[str, Any]] = mapped_column(JSON)
     envelope_hash: Mapped[str] = mapped_column(String(64))
@@ -277,6 +278,8 @@ class RunRow(Base):
     lease_owner: Mapped[str | None] = mapped_column(String(120))
     lease_fence: Mapped[int] = mapped_column(Integer, default=0)
     lease_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Crash recoveries since the last clean claim; the watchdog quarantines a run past the cap.
+    recovery_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     execution_state: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     model_metadata: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     error_code: Mapped[str | None] = mapped_column(String(80))
@@ -322,6 +325,21 @@ class EventRow(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class AgentToolUsageRow(Base):
+    """Bounded per-agent recency of long-tail tools; presentation only, never authority."""
+
+    __tablename__ = "ln_agent_tool_usage"
+    agent_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_agents.id", ondelete="CASCADE"), primary_key=True
+    )
+    tool_name: Mapped[str] = mapped_column(String(100), primary_key=True)
+    owner_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_owners.id", ondelete="CASCADE"), index=True
+    )
+    uses: Mapped[int] = mapped_column(Integer, default=1)
+    last_used_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class MemoryRow(Base):
     __tablename__ = "ln_memory"
     agent_id: Mapped[str] = mapped_column(
@@ -330,6 +348,63 @@ class MemoryRow(Base):
     content: Mapped[str] = mapped_column(Text, default="")
     version: Mapped[int] = mapped_column(Integer, default=1)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class OwnerProfileRow(Base):
+    """The one owner profile (USER.md) every agent reads; owner-attributed, never authority."""
+
+    __tablename__ = "ln_owner_profile"
+    __table_args__ = (
+        CheckConstraint(
+            "reply_language IS NULL OR reply_language IN ('ar','en')",
+            name="ln_owner_profile_reply_language",
+        ),
+    )
+    owner_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_owners.id", ondelete="CASCADE"), primary_key=True
+    )
+    content: Mapped[str] = mapped_column(Text, default="")
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    # None follows the language of the owner's latest message.
+    reply_language: Mapped[str | None] = mapped_column(String(8))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class MemoryRevisionRow(Base):
+    """One commit's prior and resulting text and its author; revert restores the prior text."""
+
+    __tablename__ = "ln_memory_revisions"
+    __table_args__ = (
+        CheckConstraint(
+            "document IN ('owner_profile','owner_preferences','agent_memory')",
+            name="ln_memory_revision_document",
+        ),
+        CheckConstraint(
+            "(document = 'agent_memory') = (agent_id IS NOT NULL)",
+            name="ln_memory_revision_agent",
+        ),
+        CheckConstraint("author IN ('owner','agent','system')", name="ln_memory_revision_author"),
+        Index("ix_ln_memory_revisions_document", "owner_id", "document", "agent_id", "created_at"),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    owner_id: Mapped[str] = mapped_column(ForeignKey("ln_owners.id", ondelete="CASCADE"))
+    document: Mapped[str] = mapped_column(String(24))
+    agent_id: Mapped[str | None] = mapped_column(ForeignKey("ln_agents.id", ondelete="CASCADE"))
+    version: Mapped[int] = mapped_column(Integer)
+    previous_content: Mapped[str] = mapped_column(Text, default="")
+    content: Mapped[str] = mapped_column(Text, default="")
+    author: Mapped[str] = mapped_column(String(8))
+    author_agent_id: Mapped[str | None] = mapped_column(
+        ForeignKey("ln_agents.id", ondelete="SET NULL")
+    )
+    source_message_id: Mapped[str | None] = mapped_column(
+        ForeignKey("ln_messages.id", ondelete="SET NULL")
+    )
+    source_run_id: Mapped[str | None] = mapped_column(String(36))
+    # operations | document | revert | merge | preferences
+    change: Mapped[str] = mapped_column(String(16))
+    reverted_revision_id: Mapped[str | None] = mapped_column(String(36))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
 class RoutineRow(Base):
@@ -403,6 +478,24 @@ class GatewayRow(Base):
     id: Mapped[str] = mapped_column(String(120), primary_key=True)
     state: Mapped[str] = mapped_column(String(24))
     heartbeat_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    # Per-step liveness written by the heartbeat step; readiness needs every critical step live.
+    liveness: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, server_default="{}")
+
+
+class ItemFailureRow(Base):
+    """One maintenance item that failed: it backs off, then is quarantined; others keep running."""
+
+    __tablename__ = "ln_item_failures"
+    __table_args__ = (Index("ln_item_failure_due", "kind", "next_attempt_at"),)
+    kind: Mapped[str] = mapped_column(String(40), primary_key=True)
+    item_id: Mapped[str] = mapped_column(String(160), primary_key=True)
+    owner_id: Mapped[str | None] = mapped_column(ForeignKey("ln_owners.id", ondelete="CASCADE"))
+    failures: Mapped[int] = mapped_column(Integer, default=1)
+    code: Mapped[str] = mapped_column(String(120))
+    first_failed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    last_failed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    next_attempt_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    quarantined_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class EffectReceiptRow(Base):
@@ -598,15 +691,17 @@ class MarketSnapshotRow(Base):
 
 class TradingGoalRow(ResourceRow):
     __tablename__ = "ln_trading_goals"
+    # Durable record: deleting the agent or conversation never deletes a goal's history.
+    agent_id: Mapped[str | None] = mapped_column(String(36))
+    thread_id: Mapped[str | None] = mapped_column(ForeignKey("ln_threads.id", ondelete="SET NULL"))
 
 
 class GoalDecisionRow(Base):
     __tablename__ = "ln_goal_decisions"
     __table_args__ = (UniqueConstraint("goal_id", "step_id", "attempt", name="goal_step_attempt"),)
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
-    goal_id: Mapped[str] = mapped_column(
-        ForeignKey("ln_trading_goals.id", ondelete="CASCADE"), index=True
-    )
+    # Durable record: the goal id is kept as a value, never cascaded away.
+    goal_id: Mapped[str] = mapped_column(String(36), index=True)
     owner_id: Mapped[str] = mapped_column(ForeignKey("ln_owners.id", ondelete="CASCADE"))
     step_id: Mapped[str] = mapped_column(String(64))
     attempt: Mapped[int] = mapped_column(Integer, default=1)
@@ -628,11 +723,15 @@ class TradeApprovalRow(Base):
     owner_id: Mapped[str] = mapped_column(
         ForeignKey("ln_owners.id", ondelete="CASCADE"), index=True
     )
-    run_id: Mapped[str] = mapped_column(ForeignKey("ln_runs.id", ondelete="CASCADE"), index=True)
-    thread_id: Mapped[str] = mapped_column(
-        ForeignKey("ln_threads.id", ondelete="CASCADE"), index=True
+    # Durable record: the owner's decision and broker snapshot survive the Run, the
+    # conversation and the agent; the agent id is kept as a value.
+    run_id: Mapped[str | None] = mapped_column(
+        ForeignKey("ln_runs.id", ondelete="SET NULL"), index=True
     )
-    agent_id: Mapped[str] = mapped_column(ForeignKey("ln_agents.id", ondelete="CASCADE"))
+    thread_id: Mapped[str | None] = mapped_column(
+        ForeignKey("ln_threads.id", ondelete="SET NULL"), index=True
+    )
+    agent_id: Mapped[str] = mapped_column(String(36))
     call_id: Mapped[str] = mapped_column(String(120))
     requests: Mapped[list[dict[str, Any]]] = mapped_column(JSON)
     status: Mapped[str] = mapped_column(String(24), default="pending")
@@ -674,3 +773,279 @@ class ShadowTradeRow(ResourceRow):
     status: Mapped[str] = mapped_column(String(16), index=True)
     decision_id: Mapped[str | None] = mapped_column(String(36))
     thesis_id: Mapped[str | None] = mapped_column(String(36))
+
+
+class TradingRestrictionRow(Base):
+    """Owner restriction narrowing financial admission; enforced at the send boundary."""
+
+    __tablename__ = "ln_trading_restrictions"
+    __table_args__ = (
+        CheckConstraint(
+            "action_class IN ('no_new_entries','no_risk_increase','all_mutations')",
+            name="ln_trading_restriction_action_class",
+        ),
+        CheckConstraint(
+            "source IN ('owner_ui','owner_message','agent')", name="ln_trading_restriction_source"
+        ),
+        CheckConstraint("created_by IN ('owner','agent')", name="ln_trading_restriction_creator"),
+        CheckConstraint(
+            "valid_until IS NULL OR valid_until > valid_from",
+            name="ln_trading_restriction_window",
+        ),
+        Index("ln_trading_restriction_scope", "owner_id", "account_id", "revoked_at"),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    owner_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_owners.id", ondelete="CASCADE"), index=True
+    )
+    # Durable brake record: ids are kept as values. NULL agent means "every agent", so a
+    # deleted agent must never turn its restriction into an account-wide one.
+    account_id: Mapped[str] = mapped_column(String(36))
+    agent_id: Mapped[str | None] = mapped_column(String(36))
+    symbol: Mapped[str | None] = mapped_column(String(80))
+    # False when the broker catalog could not be read and the symbol was kept as given.
+    symbol_verified: Mapped[bool] = mapped_column(default=True)
+    action_class: Mapped[str] = mapped_column(String(24))
+    valid_from: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    valid_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    source: Mapped[str] = mapped_column(String(16))
+    source_message_id: Mapped[str | None] = mapped_column(
+        ForeignKey("ln_messages.id", ondelete="SET NULL")
+    )
+    source_run_id: Mapped[str | None] = mapped_column(String(36))
+    reason: Mapped[str] = mapped_column(Text, default="")
+    created_by: Mapped[str] = mapped_column(String(8))
+    created_by_agent_id: Mapped[str | None] = mapped_column(
+        ForeignKey("ln_agents.id", ondelete="SET NULL")
+    )
+    applies_to_owner_manual: Mapped[bool] = mapped_column(default=False)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    revoked_reason: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class OwnerActionRow(Base):
+    """One owner-only action offered as a card in the conversation; single use, expiring.
+
+    The payload is the exact, server-validated effect the card performs and is hashed:
+    a confirmation runs it through the existing owner function, never anything else, and
+    a card cannot be replayed once it is no longer pending. Title and facts shown to the
+    owner are derived from the records it names, never from model text.
+    """
+
+    __tablename__ = "ln_owner_actions"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('pending','confirmed','cancelled','expired','superseded')",
+            name="ln_owner_action_status",
+        ),
+        CheckConstraint("source IN ('agent','system')", name="ln_owner_action_source"),
+        Index("ln_owner_action_owner_status", "owner_id", "status"),
+        Index("ln_owner_action_thread", "thread_id", "created_at"),
+        Index("ln_owner_action_subject", "owner_id", "kind", "subject"),
+        # One live card per agent and exact effect: a repeated proposal returns it.
+        Index(
+            "ln_owner_action_pending_effect",
+            "agent_id",
+            "kind",
+            "payload_hash",
+            unique=True,
+            postgresql_where=text("status = 'pending'"),
+            sqlite_where=text("status = 'pending'"),
+        ),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    owner_id: Mapped[str] = mapped_column(ForeignKey("ln_owners.id", ondelete="CASCADE"))
+    # Durable record: the agent and run ids are kept as values, never cascaded away.
+    agent_id: Mapped[str] = mapped_column(String(36))
+    thread_id: Mapped[str | None] = mapped_column(ForeignKey("ln_threads.id", ondelete="SET NULL"))
+    run_id: Mapped[str | None] = mapped_column(String(36))
+    # agent: proposed by an agent's tool call; system: raised from a runtime event.
+    source: Mapped[str] = mapped_column(String(8))
+    kind: Mapped[str] = mapped_column(String(32))
+    # The record the card acts on ("trading", "restriction:<id>", "operation:<id>", ...).
+    subject: Mapped[str] = mapped_column(String(160))
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON)
+    payload_hash: Mapped[str] = mapped_column(String(64))
+    status: Mapped[str] = mapped_column(String(16), default="pending")
+    status_reason: Mapped[str | None] = mapped_column(String(64))
+    result: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    timeline_seq: Mapped[int | None] = mapped_column(Integer)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # tap (one owner tap), passkey (owner tap plus a verified device assertion).
+    decided_via: Mapped[str | None] = mapped_column(String(16))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class SupervisionGrantRow(Base):
+    """One agent may read and steer another's work: visible, revocable, never money.
+
+    The Personal Agent holds a ``default`` grant over every agent; the owner revokes any
+    grant with one tap. A grant lets the supervisor read the supervised agent's threads,
+    runs, memory and records, message it, pause or resume its work and add narrowing
+    pauses. It never trades for it, never uses its grant and never lifts a brake.
+    """
+
+    __tablename__ = "ln_supervision_grants"
+    __table_args__ = (
+        CheckConstraint(
+            "created_via IN ('default','owner_ui','owner_message','owner_card')",
+            name="ln_supervision_grant_created_via",
+        ),
+        CheckConstraint(
+            "revoked_via IS NULL OR revoked_via IN ('owner_ui','owner_card','owner_message')",
+            name="ln_supervision_grant_revoked_via",
+        ),
+        CheckConstraint(
+            "supervisor_agent_id <> supervised_agent_id", name="ln_supervision_grant_distinct"
+        ),
+        Index("ln_supervision_grant_supervisor", "owner_id", "supervisor_agent_id", "revoked_at"),
+        Index("ln_supervision_grant_supervised", "owner_id", "supervised_agent_id", "revoked_at"),
+        # One active grant per pair; a revoked one stays as the record of what was allowed.
+        Index(
+            "ln_supervision_grant_active_pair",
+            "supervisor_agent_id",
+            "supervised_agent_id",
+            unique=True,
+            postgresql_where=text("revoked_at IS NULL"),
+            sqlite_where=text("revoked_at IS NULL"),
+        ),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    owner_id: Mapped[str] = mapped_column(ForeignKey("ln_owners.id", ondelete="CASCADE"))
+    supervisor_agent_id: Mapped[str] = mapped_column(ForeignKey("ln_agents.id", ondelete="CASCADE"))
+    supervised_agent_id: Mapped[str] = mapped_column(ForeignKey("ln_agents.id", ondelete="CASCADE"))
+    created_via: Mapped[str] = mapped_column(String(16))
+    source_message_id: Mapped[str | None] = mapped_column(
+        ForeignKey("ln_messages.id", ondelete="SET NULL")
+    )
+    # The agent whose tool call or card recorded it; a value, never cascaded away.
+    created_by_agent_id: Mapped[str | None] = mapped_column(String(36))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    revoked_via: Mapped[str | None] = mapped_column(String(16))
+
+
+class SupervisionHoldRow(Base):
+    """A pause on an agent's work (the agent itself, one of its Tasks, routines or
+    watches), put there by a supervising agent or by the owner. On its own initiative
+    only the agent that set it (still supervising) lifts it; a run that answers the
+    owner's message lifts it too. The owner pausing the same work makes it the owner's
+    (``source='owner'``, the holder kept for attribution), lifted only by the owner; the
+    owner resuming the work releases it. The owner's own pause with no supervisor is a
+    hold with no holder, and a deleted supervisor's hold stays as the owner's."""
+
+    __tablename__ = "ln_supervision_holds"
+    __table_args__ = (
+        CheckConstraint(
+            "target_kind IN ('agent','task','routine','watch')",
+            name="ln_supervision_hold_target_kind",
+        ),
+        CheckConstraint(
+            "source IN ('agent','owner_message','owner')", name="ln_supervision_hold_source"
+        ),
+        CheckConstraint(
+            "released_by IS NULL OR released_by IN ('holder','owner','stale')",
+            name="ln_supervision_hold_released_by",
+        ),
+        Index("ln_supervision_hold_agent", "owner_id", "agent_id", "released_at"),
+        Index("ln_supervision_hold_holder", "owner_id", "holder_agent_id", "released_at"),
+        # At most one live hold per paused item.
+        Index(
+            "ln_supervision_hold_live_target",
+            "target_kind",
+            "target_id",
+            unique=True,
+            postgresql_where=text("released_at IS NULL"),
+            sqlite_where=text("released_at IS NULL"),
+        ),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    owner_id: Mapped[str] = mapped_column(ForeignKey("ln_owners.id", ondelete="CASCADE"))
+    # The supervising agent that set it; None for the owner's own pause, or once that
+    # supervisor is deleted (its hold is then the owner's).
+    holder_agent_id: Mapped[str | None] = mapped_column(
+        ForeignKey("ln_agents.id", ondelete="SET NULL")
+    )
+    # The agent whose work is paused.
+    agent_id: Mapped[str] = mapped_column(ForeignKey("ln_agents.id", ondelete="CASCADE"))
+    target_kind: Mapped[str] = mapped_column(String(8))
+    target_id: Mapped[str] = mapped_column(String(36))
+    source: Mapped[str] = mapped_column(String(16))
+    source_message_id: Mapped[str | None] = mapped_column(
+        ForeignKey("ln_messages.id", ondelete="SET NULL")
+    )
+    source_run_id: Mapped[str | None] = mapped_column(String(36))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    released_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    released_by: Mapped[str | None] = mapped_column(String(8))
+
+
+class TrustedSourceRow(Base):
+    """One source the owner trusts: inside the list, agents install and use capabilities
+    without asking; outside it, one owner card. Visible and removable in Capabilities.
+
+    ``github`` (github.com, every public repository; the default, trusted as before),
+    ``github_owner`` and ``github_repo`` admit Skill imports; ``mcp_server`` pins one saved
+    connection's endpoint and the exact input schema of each tool the owner reviewed;
+    ``feed_domain`` admits news feed subscriptions. A trusted source never carries money
+    authority: no tool that can trade or move money is ever pinned.
+    """
+
+    __tablename__ = "ln_trusted_sources"
+    __table_args__ = (
+        CheckConstraint(
+            "kind IN ('github','github_owner','github_repo','mcp_server','feed_domain')",
+            name="ln_trusted_source_kind",
+        ),
+        CheckConstraint(
+            "effect_tier IN ('read','write_nonfinancial')", name="ln_trusted_source_tier"
+        ),
+        CheckConstraint(
+            "added_via IN ('default','operator','owner_ui','owner_card')",
+            name="ln_trusted_source_added_via",
+        ),
+        CheckConstraint(
+            "revoked_via IS NULL OR revoked_via IN ('owner_ui','owner_card')",
+            name="ln_trusted_source_revoked_via",
+        ),
+        Index("ln_trusted_source_owner_kind", "owner_id", "kind", "revoked_at"),
+        # One active entry per source; a removed one stays as the record and can be restored.
+        Index(
+            "ln_trusted_source_active",
+            "owner_id",
+            "kind",
+            "identifier",
+            unique=True,
+            postgresql_where=text("revoked_at IS NULL"),
+            sqlite_where=text("revoked_at IS NULL"),
+        ),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    owner_id: Mapped[str] = mapped_column(ForeignKey("ln_owners.id", ondelete="CASCADE"))
+    kind: Mapped[str] = mapped_column(String(16))
+    # github.com, an owner name, owner/repository (case-folded), a connection id or a host.
+    identifier: Mapped[str] = mapped_column(String(300))
+    effect_tier: Mapped[str] = mapped_column(String(24), default="read")
+    # mcp_server: the reviewed endpoint and {tool name: input schema sha256}.
+    endpoint_sha256: Mapped[str | None] = mapped_column(String(64))
+    tool_hashes: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    # The pinned tools the server marked read-only at review: the only ones the read tier
+    # runs (a later hint can narrow this, never widen it).
+    read_only_tools: Mapped[list[Any]] = mapped_column(JSON, default=list)
+    # Tools seen at review that can trade or move money; never pinned, shown as blocked.
+    blocked_tools: Mapped[list[Any]] = mapped_column(JSON, default=list)
+    # operator: copied from LONORA_MCP_DECLARATIONS; it authorizes nothing by itself (only
+    # while that declaration stands) until the owner reviews it.
+    added_via: Mapped[str] = mapped_column(String(16))
+    # The agent whose card the owner confirmed; a value, never cascaded away.
+    added_by_agent_id: Mapped[str | None] = mapped_column(String(36))
+    card_id: Mapped[str | None] = mapped_column(String(36))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    revoked_via: Mapped[str | None] = mapped_column(String(16))

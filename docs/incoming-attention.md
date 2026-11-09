@@ -19,6 +19,73 @@ Owner-wide voice admission separately prevents concurrent paid calls with distin
 client receipts. Same-receipt reconnect remains available. An abandoned unanswered
 allocation can expire; a known remote session must close before replacement.
 
+## Reach-me preference
+
+The incoming-call policy record is the owner's single reach-me preference, part
+of the owner profile every Agent reads (`docs/agent-memory-and-recall.md`). Its
+`channel` is one of `activity` (no interruption: Agents raise no alerts or calls and
+report in their replies, which reach their conversation and the Activity list),
+`notify` (the inbox; see below), `message` (a message in the Agent's conversation) or
+`call` (an incoming invitation). The channel governs how Agents reach the owner
+(`owner_notify`, `owner_call_request`); Lonora's own alerts (approvals, Stop new
+trading, broker health, Task review) follow the notification settings, whatever the
+channel, so a safety alert is never hidden by a reach-me choice. `enabled` is derived: invitations are possible exactly
+when the channel is `call`, so the two can never disagree. A stored policy or a
+client from before the channel existed keeps its meaning (`enabled` true reads as
+`call`); a request that states both and contradicts itself is refused
+(`incoming_call_channel_conflict`). These checks keep their own code in the API
+response (`incoming_call_channel_conflict`, `incoming_call_device_required`,
+`incoming_call_quiet_hours_incomplete`, `invalid_timezone`) instead of a generic
+`invalid_request`, and Web and Mobile show the same Arabic or English text for each.
+`notify` means the inbox: the alerts Lonora raises and the alerts an Agent raises
+itself with `owner_notify` (below).
+
+The owner sets it in Web Knowledge (About you) or Mobile Voice settings
+(`PUT /api/owner/preferences`), or in chat: "Send me a message instead of
+calling" makes the Agent call `owner_preferences_update`, which needs a Run that
+answers the owner's message and records a revertible, attributed revision. Choosing
+`call` from chat uses the selected enrolled device, otherwise the most recently
+enrolled one, and turns on calls when the owner's decision is needed. While the
+channel is not `call`, `owner_call_request` returns `owner_prefers_other_channel`
+with the channel to use and creates no invitation (it and the call gate read the
+channel afresh under the same owner lock a change takes, so a call never rings
+against a newer "message me instead"); the device choice is kept for
+a later "call me". Delivery is in-app only: none of this proves a device rang.
+
+## Agent alerts (`owner_notify`)
+
+An Agent can start contact itself. `owner_notify` (`lonora_tools/incoming_call.py`,
+`notify_owner` in `lonora_db/attention.py`) takes an importance (`critical`,
+`action_required`, `important_change` or `informational`; an opportunity needs the
+server's evidence revalidation, so an Agent reports it as an important change), a
+plain summary in the owner's language (8-400 characters, no ids or JSON), up to 8
+evidence references, a `dedupe_key` and an optional `expires_at` (at most 31 days
+ahead). It creates one attention item with code `agent_notification` through the
+same `decide_attention` path as server alerts, in the Agent's own conversation (a
+wake in the work lane reports to the conversation it came from, `report_thread` in
+`lonora_db/threads.py`). The rules:
+
+- One item per Agent and `dedupe_key`, whatever happens later: a repeat returns the
+  first result with `deduplicated: true`.
+- At most 6 alerts per Agent per rolling hour (`owner_notify_rate_limited`).
+- Quiet hours (the reach-me preference) hold everything but `critical` until they end
+  (`held_for_quiet_hours`, with `held_until`); the gateway's `ready_attention` then
+  publishes it (`publish_ready`, shared with server alerts).
+- Reach-me `activity` raises no item for a non-critical alert (`activity_only`, no
+  `attention_id`); the tool tells the Agent to say it once in its reply instead, and
+  that reply (a wake's included) is the record in its conversation and the Activity
+  list. The owner's informational preference applies as for server alerts.
+- `critical` and `action_required` alerts are ready at once; others within seconds.
+- Delivery is in-app only (`delivery: "in_app"`): Web and Mobile show the label
+  "Your agent alerted you" / «نبّهك وكيلك» with the summary in its own text direction.
+  Off-app channels skip these items until Wave 3.
+
+`owner_call_request` can target the returned `attention_id` (the Agent's own alert
+stays current until it expires or the owner reads it), still under reach-me `call`,
+the enrolled device, the allowed category, quiet hours and the call rate.
+`owner_attention_list` and `owner_call_request` scope to the same report thread, so
+a wake can call about the alert it raised. Nothing here grants authority.
+
 ## Delivery boundary
 
 Foreground Mobile presentation is implemented. The optional provider protocol
@@ -72,7 +139,9 @@ acceptance; deterministic recovery is not a claim of model-quality verification.
 
 ## Verification
 
-`check_incoming_calls.py` covers disposable PostgreSQL concurrency, restart,
+`check_owner_profile.py` proves that "send me a message instead of calling",
+said in chat, makes the next qualifying event ring nothing and produce exactly one
+message. `check_incoming_calls.py` covers disposable PostgreSQL concurrency, restart,
 provider lost acknowledgement without blind retry, a committed pre-IO fence,
 concurrent dispatch, cancellation/restart, provider acknowledgement versus device
 presentation, legacy state recovery, ownership, current policy, quiet hours,

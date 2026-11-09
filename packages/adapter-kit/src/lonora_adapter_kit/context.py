@@ -1,12 +1,27 @@
 import json
-from collections.abc import Callable
+import re
+from collections.abc import Callable, Sequence
 from typing import Any, cast
 
 from lonora_core.user_error import LonoraError
 
+from lonora_adapter_kit.context_sections import is_context_message, shed_context
 from lonora_adapter_kit.types import ModelMessage
 
+# Transport guard when no admitted token limit is known. Token budgets come from
+# the resolved model window; characters are only a safety net sized from them.
 MAXIMUM_CONTEXT_CHARS = 120000
+# Generous ceiling of characters per estimated token, so the guard never binds
+# before a realistic token budget does (Arabic and JSON are denser than prose).
+TRANSPORT_CHARS_PER_TOKEN = 6
+OMISSION_RESERVE = 640
+
+
+def transport_char_limit(input_tokens: int | None) -> int:
+    """Character safety net for one request, sized from its admitted token budget."""
+    if input_tokens is None or input_tokens <= 0:
+        return MAXIMUM_CONTEXT_CHARS
+    return max(MAXIMUM_CONTEXT_CHARS, input_tokens * TRANSPORT_CHARS_PER_TOKEN)
 
 
 def message_size(message: ModelMessage) -> int:
@@ -30,6 +45,10 @@ def context_blocks(history: list[ModelMessage]) -> list[list[ModelMessage]]:
             raise LonoraError("invalid_tool_exchange", 500)
         if message.role == "tool":
             raise LonoraError("invalid_tool_exchange", 500)
+        if message.context_origin == "runtime_context" and (
+            message.role not in {"user", "system"} or message.tool_calls or message.tool_call_id
+        ):
+            raise LonoraError("invalid_tool_exchange", 500)
         block = [message]
         index += 1
         if message.tool_calls:
@@ -45,12 +64,14 @@ def context_blocks(history: list[ModelMessage]) -> list[list[ModelMessage]]:
                 pending.remove(result.tool_call_id)
                 block.append(result)
                 index += 1
-            while index < len(history) and history[index].context_origin == "tool_observation":
-                observation = history[index]
-                if observation.role != "user" or observation.tool_calls or observation.tool_call_id:
-                    raise LonoraError("invalid_tool_exchange", 500)
-                block.append(observation)
-                index += 1
+        # Runtime observations and notices stay bound to the complete block that
+        # precedes them, so they are never retained, dropped or anchored alone.
+        while index < len(history) and history[index].context_origin == "tool_observation":
+            observation = history[index]
+            if observation.role != "user" or observation.tool_calls or observation.tool_call_id:
+                raise LonoraError("invalid_tool_exchange", 500)
+            block.append(observation)
+            index += 1
         blocks.append(block)
     return blocks
 
@@ -160,6 +181,38 @@ def bound_exchange(
     ]
 
 
+def guidance_label(message: ModelMessage) -> str:
+    match = re.match(r"\s*<([a-z_]{1,60})[ >\n]", message.content)
+    return match.group(1) if match else "first_party_guidance"
+
+
+def omission_notice(messages: int, exchanges: int, *, guidance: Sequence[str] = ()) -> ModelMessage:
+    """Tell the model, in place, that history or guidance was left out of this request."""
+    payload: dict[str, Any] = {"source": "lonora_runtime", "reason": "context_budget"}
+    if guidance:
+        payload["omitted_guidance"] = list(guidance)
+        payload["note"] = (
+            "Optional first-party guidance or server record listings were left out of this "
+            "request to fit the model's context window. Server-side controls are unchanged; "
+            "read what you need on demand (tool_environment for tools, goal_read for goal "
+            "plans, market_decision_history for decisions)."
+        )
+    else:
+        payload["omitted_messages"] = messages
+        payload["omitted_tool_exchanges"] = exchanges
+        payload["note"] = (
+            "These earlier messages were left out of this request to fit the model's "
+            "context window. They still exist; do not assume they said nothing. Re-read stored "
+            "results or call the tools again when exact earlier data matters."
+        )
+    body = json.dumps(payload, ensure_ascii=False)
+    return ModelMessage(
+        role="user",
+        context_origin="runtime_context",
+        content="<context_omitted>" + body.replace("<", "\\u003c") + "</context_omitted>",
+    )
+
+
 def govern_context(
     messages: list[ModelMessage],
     maximum_chars: int = MAXIMUM_CONTEXT_CHARS,
@@ -168,11 +221,35 @@ def govern_context(
     image_tokens: int = 8192,
     count: Callable[[str], int] = lambda text: len(text.encode("utf-8")),
 ) -> list[ModelMessage]:
-    """Admit complete exchanges under both transport and estimated token limits."""
+    """Admit complete exchanges under both transport and estimated token limits.
+
+    Order of admission: first-party system messages and the newest owner request
+    (mandatory), the newest exchange (bounded, never dropped), optional
+    first-party guidance (each block whole), the leading context data shed
+    section by section in priority order, then older history newest first. Each
+    run of omitted history and any shed guidance is replaced by an explicit
+    notice, so the model is told when it does not see something.
+    """
     if not messages:
         raise LonoraError("empty_model_context", 500)
-    system = [message for message in messages if message.role == "system"]
-    blocks = context_blocks([message for message in messages if message.role != "system"])
+    # Optional first-party guidance (role system, origin runtime_context) is shed
+    # whole, and reported, before a request would fail; other system text is
+    # mandatory.
+    system = [
+        message
+        for message in messages
+        if message.role == "system" and message.context_origin != "runtime_context"
+    ]
+    optional = [
+        message
+        for message in messages
+        if message.role == "system" and message.context_origin == "runtime_context"
+    ]
+    rest = [message for message in messages if message.role != "system"]
+    prelude: list[ModelMessage] = []
+    while rest and is_context_message(rest[0]):
+        prelude.append(rest.pop(0))
+    blocks = context_blocks(rest)
     budget = maximum_chars - sum(message_size(message) for message in system)
     tokens = (
         maximum_tokens - sum(token_estimate(message, image_tokens, count) for message in system)
@@ -182,6 +259,19 @@ def govern_context(
 
     def exceeded() -> bool:
         return budget < 0 or (tokens is not None and tokens < 0)
+
+    def spend(candidate: list[ModelMessage]) -> None:
+        nonlocal budget, tokens
+        budget -= sum(message_size(row) for row in candidate)
+        if tokens is not None:
+            tokens -= sum(token_estimate(row, image_tokens, count) for row in candidate)
+
+    def fits(candidate: list[ModelMessage], reserve: int = 0) -> bool:
+        return sum(message_size(row) for row in candidate) <= budget - reserve and (
+            tokens is None
+            or sum(token_estimate(row, image_tokens, count) for row in candidate)
+            <= tokens - reserve
+        )
 
     if exceeded():
         raise LonoraError("context_limit_exceeded", 413)
@@ -197,34 +287,74 @@ def govern_context(
     retained: dict[int, list[ModelMessage]] = {}
     if anchor is not None:
         retained[anchor] = blocks[anchor]
-        budget -= sum(message_size(message) for message in blocks[anchor])
-        if tokens is not None:
-            tokens -= sum(
-                token_estimate(message, image_tokens, count) for message in blocks[anchor]
-            )
+        spend(blocks[anchor])
     if exceeded():
         raise LonoraError("context_limit_exceeded", 413)
-
-    def fits(candidate: list[ModelMessage]) -> bool:
-        return sum(message_size(row) for row in candidate) <= budget and (
-            tokens is None
-            or sum(token_estimate(row, image_tokens, count) for row in candidate) <= tokens
-        )
-
-    for index in range(len(blocks) - 1, -1, -1):
-        if index == anchor:
-            continue
-        block = blocks[index]
+    newest = len(blocks) - 1
+    if newest >= 0 and newest != anchor:
+        block = blocks[newest]
         if not fits(block):
             # The newest tool exchange must remain available and protocol-complete.
-            if not any(key != anchor for key in retained):
-                block = bound_exchange(block, budget, tokens, image_tokens, count)
-                if not fits(block) and block[0].tool_calls:
-                    raise LonoraError("context_limit_exceeded", 413)
-            if not fits(block):
+            block = bound_exchange(block, budget, tokens, image_tokens, count)
+            if not fits(block) and block[0].tool_calls:
+                raise LonoraError("context_limit_exceeded", 413)
+        if fits(block):
+            retained[newest] = block
+            spend(block)
+    admitted_optional: list[ModelMessage] = []
+    shed_guidance: list[str] = []
+    for message in optional:
+        if fits([message], OMISSION_RESERVE):
+            admitted_optional.append(message)
+            spend([message])
+        else:
+            shed_guidance.append(guidance_label(message))
+    admitted_prelude: list[ModelMessage] = []
+    for message in prelude:
+        # Context data is optional enrichment: shed sections, never fail the request.
+        admitted = shed_context(message, lambda candidate: fits([candidate], OMISSION_RESERVE))
+        if admitted is not None:
+            admitted_prelude.append(admitted)
+            spend([admitted])
+    if newest in retained or newest == anchor:
+        for index in range(newest - 1, -1, -1):
+            if index == anchor:
+                continue
+            block = blocks[index]
+            # Keep room for the notices that replace omitted runs of history;
+            # admitting the oldest block means nothing is omitted at all.
+            if not fits(block, 2 * OMISSION_RESERVE if index else 0):
                 break
-        retained[index] = block
-        budget -= sum(message_size(message) for message in block)
-        if tokens is not None:
-            tokens -= sum(token_estimate(message, image_tokens, count) for message in block)
-    return system + [message for index in sorted(retained) for message in retained[index]]
+            retained[index] = block
+            spend(block)
+    history: list[ModelMessage] = []
+    omitted_messages = omitted_exchanges = 0
+    for index, block in enumerate(blocks):
+        if index in retained:
+            if omitted_messages:
+                notice = omission_notice(omitted_messages, omitted_exchanges)
+                if fits([notice]):
+                    history.append(notice)
+                    spend([notice])
+                omitted_messages = omitted_exchanges = 0
+            history.extend(retained[index])
+            continue
+        omitted_messages += len(block)
+        omitted_exchanges += 1 if block[0].tool_calls else 0
+    if omitted_messages:
+        notice = omission_notice(omitted_messages, omitted_exchanges)
+        if fits([notice]):
+            history.append(notice)
+            spend([notice])
+    if shed_guidance:
+        notice = omission_notice(0, 0, guidance=shed_guidance)
+        if fits([notice]):
+            admitted_prelude.append(notice)
+    kept = {id(message) for message in admitted_optional}
+    ordered_system = [
+        message
+        for message in messages
+        if message.role == "system"
+        and (message.context_origin != "runtime_context" or id(message) in kept)
+    ]
+    return ordered_system + admitted_prelude + history

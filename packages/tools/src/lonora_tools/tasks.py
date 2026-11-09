@@ -7,8 +7,9 @@ from lonora_db.schema import TicketRow
 from lonora_db.tasks import control_task, create_task, get_task, snapshot
 from sqlalchemy import select
 
-from .base import Tool
+from .base import Tool, eager_for
 from .context import ToolContext
+from .restrictions import owner_message_id
 
 
 async def step_update(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
@@ -23,7 +24,7 @@ async def step_update(context: ToolContext, args: dict[str, Any]) -> dict[str, A
 
 async def start(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     async with context.db.sessions() as session, session.begin():
-        await require_lease(session, context.lease)
+        run = await require_lease(session, context.lease)
         row = await create_task(
             session,
             context.owner_id,
@@ -31,6 +32,7 @@ async def start(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             context.thread_id,
             TaskCreate.model_validate(args),
             context.resource_id,
+            starter=run,
         )
         return await snapshot(session, row)
 
@@ -58,9 +60,13 @@ async def inspect(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
 
 async def control(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     async with context.db.sessions() as session, session.begin():
-        await require_lease(session, context.lease)
+        run = await require_lease(session, context.lease)
         row = await control_task(
-            session, context.owner_id, TaskControl.model_validate(args), agent_id=context.agent_id
+            session,
+            context.owner_id,
+            TaskControl.model_validate(args),
+            agent_id=context.agent_id,
+            owner_message=await owner_message_id(session, run) is not None,
         )
         return await snapshot(session, row)
 
@@ -83,6 +89,7 @@ def tools() -> list[Tool]:
             TaskWait,
             wait,
             replay_safe=True,
+            eager=eager_for("task"),
         ),
         Tool(
             "task_step_update",
@@ -90,6 +97,7 @@ def tools() -> list[Tool]:
             TaskStepUpdate,
             step_update,
             replay_safe=True,
+            eager=eager_for("task"),
         ),
         Tool(
             "task_start",
@@ -104,6 +112,7 @@ def tools() -> list[Tool]:
             TaskInspect,
             inspect,
             True,
+            poller=True,
         ),
         Tool(
             "task_control",

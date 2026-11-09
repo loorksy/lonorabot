@@ -23,7 +23,7 @@ from lonora_db.tasks import control_task, create_task, get_task, task_state
 from lonora_tools.base import Tool
 from lonora_tools.context import ToolContext
 from lonora_tools.loader import load_tools
-from lonora_tools.registry import ToolRegistry
+from lonora_tools.registry import BRIDGE_TOOLS, ToolRegistry
 
 
 class Probe(Contract):
@@ -91,7 +91,7 @@ async def main() -> None:
             return result
 
         registry = ToolRegistry(
-            [t for n, t in load_tools().tools.items() if n != "tool_environment"]
+            [t for n, t in load_tools().tools.items() if n not in BRIDGE_TOOLS]
             + [
                 Tool(
                     "continuation_probe",
@@ -115,9 +115,15 @@ async def main() -> None:
                     )
                 )
             if model_count == 2:
-                assert "continuation_probe" in {tool.name for tool in tools}
+                # Discovery leaves the Run's tools array frozen; the bridge
+                # resolves into the real receipt-backed call under this id.
+                assert "continuation_probe" not in {tool.name for tool in tools}
                 return response(
-                    ToolCall(id="stable-effect", name="continuation_probe", arguments={"value": 7})
+                    ToolCall(
+                        id="stable-effect",
+                        name="tool_call",
+                        arguments={"name": "continuation_probe", "arguments": {"value": 7}},
+                    )
                 )
             assert model_count == 3 and effect_count == 1
             assert any(
@@ -181,12 +187,16 @@ async def main() -> None:
             "PASS same Task/Run continues exact last-round calls across worker replacement; receipt-backed effect survives crash exactly once"
         )
 
-        ctx, _ = await task_context(f, "Finite unfinished work")
+        ctx, identifier = await task_context(f, "Finite unfinished work")
         turns = 0
+        offered: list[int] = []
+        effects_before = effect_count
 
         async def endless(_: Any, messages: Any, tools: Any, **kwargs: Any):
             nonlocal turns
             turns += 1
+            offered.append(len(tools))
+            # A misbehaving provider may propose a call even when offered none.
             return response(
                 ToolCall(
                     id="bounded-" + str(turns),
@@ -204,12 +214,27 @@ async def main() -> None:
                     if index + 1 < MAXIMUM_SLICES:
                         assert row.status == "queued"
                     else:
-                        assert row.status == "failed" and row.error_code == "tool_round_limit"
+                        # The exhausted budget no longer fails the Run: one
+                        # tool-less report is held for the owner instead.
+                        assert row.status == "waiting_input" and row.error_code is None
                         assert row.execution_state["task_continuation"]["slice"] == MAXIMUM_SLICES
-                        assert row.execution_state["pending"][0]["id"] == "bounded-4"
+                        assert row.execution_state["exit_reason"] == "tool_round_limit"
+                        assert row.execution_state["pending"] == []
+                        # The report turn's ignored proposal never joins the transcript.
+                        assert not any(
+                            call.get("id") == "bounded-4"
+                            for item in row.execution_state["messages"]
+                            for call in item.get("tool_calls", [])
+                        )
+                        task = await session.get(TicketRow, identifier)
+                        assert task and task_state(task).status == "waiting"
+                        assert task_state(task).waiting_reason == "owner_attention"
                 if index + 1 < MAXIMUM_SLICES:
                     ctx = await reclaim(f, ctx)
-        assert turns == MAXIMUM_SLICES
+        # The total model budget is unchanged: the last budgeted turn is the
+        # tool-less report. Every turn offered tools ran its call exactly once.
+        assert turns == MAXIMUM_SLICES and offered[-1] == 0 and min(offered[:-1]) > 0
+        assert effect_count == effects_before + MAXIMUM_SLICES - 1
         print(
             "PASS total model budget stays finite across slices; unfinished work is never reported complete"
         )

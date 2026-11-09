@@ -5,7 +5,12 @@ from typing import Any
 
 import pytest
 from lonora_adapter_kit.types import ModelMessage, ToolCall
-from lonora_agent.stop_gates import MAXIMUM_STOP_NUDGES, apply_stop_gates, reset_stop_gate
+from lonora_agent.stop_gates import (
+    MAXIMUM_STOP_NUDGES,
+    StopGateVerdict,
+    apply_stop_gates,
+    reset_stop_gate,
+)
 from lonora_agent.tool_loop import external_wait_outcome, supersede_wait_siblings, wait_update
 from lonora_core.user_error import LonoraError
 
@@ -32,8 +37,26 @@ def test_process_restart_and_compute_slice_do_not_reset_stop_budget() -> None:
         assert apply_stop_gates(state, continuous=True).continue_turn
         state = json.loads(json.dumps(state))
         state["task_continuation"] = {"version": 1, "slice": 2, "rounds_per_slice": 24}
-    with pytest.raises(LonoraError, match="task_wait_required"):
-        apply_stop_gates(state, continuous=True)
+    # Exhaustion no longer fails the Run: it hands the held answer to the owner.
+    verdict = apply_stop_gates(state, continuous=True)
+    assert not verdict.continue_turn and verdict.exhausted == "task_wait_required"
+    # Further attempts in the same epoch stay exhausted instead of nudging again.
+    assert apply_stop_gates(state, continuous=True).exhausted == "task_wait_required"
+
+
+def test_finite_task_with_unfinished_steps_gets_bounded_nudges_then_owner_attention() -> None:
+    state: dict[str, Any] = {"task_plan_revision": 1}
+    steps = [("verify", "Verify broker evidence"), ("report", "Report")]
+    for _ in range(MAXIMUM_STOP_NUDGES):
+        verdict = apply_stop_gates(state, continuous=False, incomplete_steps=steps)
+        assert verdict.continue_turn and "verify: Verify broker evidence" in (verdict.nudge or "")
+        assert "task_step_update" in (verdict.nudge or "")
+    exhausted = apply_stop_gates(state, continuous=False, incomplete_steps=steps)
+    assert not exhausted.continue_turn and exhausted.exhausted == "task_steps_incomplete"
+    # Completed declared steps leave ordinary completion untouched.
+    assert apply_stop_gates({}, continuous=False, incomplete_steps=()) == StopGateVerdict(False)
+    reset_stop_gate(state)
+    assert apply_stop_gates(state, continuous=False, incomplete_steps=steps).continue_turn
 
 
 def test_real_external_review_epoch_can_reset_bounded_stop_budget() -> None:
@@ -49,8 +72,7 @@ def test_actual_plan_revision_allows_another_review_but_unchanged_resume_does_no
     state: dict[str, Any] = {"task_plan_revision": 1}
     for _ in range(MAXIMUM_STOP_NUDGES):
         apply_stop_gates(state, continuous=True)
-    with pytest.raises(LonoraError, match="task_wait_required"):
-        apply_stop_gates(state, continuous=True)
+    assert apply_stop_gates(state, continuous=True).exhausted == "task_wait_required"
     state["task_plan_revision"] = 2
     assert apply_stop_gates(state, continuous=True).continue_turn
     assert state["continuous_stop_gate"]["attempts"] == 1

@@ -127,6 +127,7 @@ def tools() -> list[Tool]:
             CollaborationReference,
             inspect,
             True,
+            poller=True,
         ),
         Tool(
             "collaboration_finish",

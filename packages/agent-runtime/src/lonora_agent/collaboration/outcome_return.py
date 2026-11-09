@@ -4,9 +4,10 @@ from lonora_contracts.domain import utcnow
 from lonora_contracts.runs import RunRequest
 from lonora_db.client import Database
 from lonora_db.events import emit
+from lonora_db.item_failures import ItemGuard, blocked
 from lonora_db.messages import message_data
 from lonora_db.rich_response import validated_rich_content
-from lonora_db.runs import create_run
+from lonora_db.runs import create_run, inherited_authority, outcome_status
 from lonora_db.schema import (
     EffectReceiptRow,
     MessageRow,
@@ -16,7 +17,7 @@ from lonora_db.schema import (
     ThreadRow,
     TicketRow,
 )
-from lonora_db.trading_goals import goal_read_thread
+from lonora_db.trading_goals import goal_read_threads
 from sqlalchemy import String, exists, literal, or_, select
 from sqlalchemy import cast as sql_cast
 
@@ -47,6 +48,9 @@ async def return_outcome(db: Database, run_id: str) -> None:
         if child is None or child.status not in {"completed", "failed", "cancelled"}:
             return
         rich_content = validated_rich_content(child.model_metadata.get("rich_content"))
+        # A Run stopped at its work limit completed with a report, but its work did not:
+        # every consumer below reads "limited", never "completed".
+        status = outcome_status(child)
         receipt = outcome_receipt(run_id, child.lease_fence)
         if await session.get(EffectReceiptRow, receipt):
             return
@@ -62,7 +66,7 @@ async def return_outcome(db: Database, run_id: str) -> None:
             if row and row.agent_id == child.agent_id and row.thread_id == child.thread_id:
                 state = CollaborationState.model_validate(row.state)
                 if (
-                    child.status == "completed"
+                    status == "completed"
                     and state.status not in {"completed", "cancelled"}
                     and state.rounds
                     and state.rounds[-1].id == child.model_metadata.get("collaboration_round_id")
@@ -95,9 +99,17 @@ async def return_outcome(db: Database, run_id: str) -> None:
                 if not ticket.state.get("task"):
                     ticket.payload = {
                         **ticket.payload,
-                        "status": "done" if child.status == "completed" else child.status,
+                        # Unfinished work waits to be started again; it is never done.
+                        "status": {"completed": "done", "limited": "waiting"}.get(
+                            status, child.status
+                        ),
                     }
-                ticket.state = {**ticket.state, "result": child.result}
+                ticket_state = {
+                    key: value for key, value in ticket.state.items() if key != "exit_reason"
+                }
+                if status == "limited":
+                    ticket_state["exit_reason"] = child.model_metadata.get("exit_reason")
+                ticket.state = {**ticket_state, "result": child.result}
                 ticket.version += 1
                 if ticket.state.get("task"):
                     from typing import Literal
@@ -143,7 +155,7 @@ async def return_outcome(db: Database, run_id: str) -> None:
         activation_ack = (
             await session.get(
                 EffectReceiptRow,
-                "activation-ack:" + str(child.model_metadata.get("super_bot_request_id", "")),
+                "activation-ack:" + str(child.model_metadata.get("account_authority_id", "")),
             )
             if child.trigger == "activation"
             else None
@@ -167,7 +179,7 @@ async def return_outcome(db: Database, run_id: str) -> None:
                     origin.agent_id == child.agent_id
                     or (
                         child.trigger == "activation"
-                        and await goal_read_thread(session, child) == origin.id
+                        and origin.id in await goal_read_threads(session, child)
                     )
                 )
             ):
@@ -179,7 +191,7 @@ async def return_outcome(db: Database, run_id: str) -> None:
                     from lonora_bus.attention import attention_text
 
                     public_result = attention_text(
-                        "super_bot_review_unavailable", activation_ack.result.get("locale", "ar")
+                        "grant_review_unavailable", activation_ack.result.get("locale", "ar")
                     )
                 final = MessageRow(
                     thread_id=origin.id,
@@ -202,7 +214,7 @@ async def return_outcome(db: Database, run_id: str) -> None:
                     payload=message_data(final),
                 )
         if parent and thread:
-            outcome = f"<peer_outcome run_id='{child.id}' status='{child.status}'>\n{child.result or child.error_code or child.status}\n</peer_outcome>"
+            outcome = f"<peer_outcome run_id='{child.id}' status='{status}'>\n{child.result or child.error_code or status}\n</peer_outcome>"
             message = MessageRow(
                 thread_id=thread.id,
                 agent_id=child.agent_id,
@@ -245,7 +257,12 @@ async def return_outcome(db: Database, run_id: str) -> None:
                         trigger="follow_up",
                         parent_run_id=parent.id,
                         prompt="Use the returned peer outcome to complete the owner's request.",
-                        metadata={"depth": parent.model_metadata.get("depth", 0)},
+                        # A follow-up keeps an observe-only requester's narrowing, so it
+                        # never asks the owner to approve a trade the executor refuses.
+                        metadata={
+                            "depth": parent.model_metadata.get("depth", 0),
+                            **inherited_authority(parent),
+                        },
                     ),
                 )
         from lonora_db.collaboration import record_outcome
@@ -272,7 +289,7 @@ async def return_outcome(db: Database, run_id: str) -> None:
                 identifiers.append(returned_message.id)
             peer.payload = {
                 **peer.payload,
-                "status": child.status,
+                "status": status,
                 "result": child.result or "",
                 "error_code": child.error_code,
                 "source_outcome_message_id": returned_message.id if returned_message else None,
@@ -308,8 +325,9 @@ async def return_pending_outcomes(db: Database, limit: int = 20) -> int:
     receipt = literal("outcome:") + RunRow.id + literal(":") + sql_cast(RunRow.lease_fence, String)
     async with db.sessions() as session:
         identifiers = list(
-            await session.scalars(
-                select(RunRow.id)
+            await session.execute(
+                select(RunRow.id, ThreadRow.owner_id)
+                .join(ThreadRow, ThreadRow.id == RunRow.thread_id)
                 .where(
                     RunRow.status.in_(["completed", "failed", "cancelled"]),
                     or_(
@@ -318,11 +336,19 @@ async def return_pending_outcomes(db: Database, limit: int = 20) -> int:
                         RunRow.model_metadata["opportunity_id"].as_string().is_not(None),
                     ),
                     ~exists(select(EffectReceiptRow.key).where(EffectReceiptRow.key == receipt)),
+                    ~blocked("outcome", RunRow.id),
                 )
                 .order_by(RunRow.updated_at, RunRow.id)
                 .limit(min(max(limit, 1), 20))
             )
         )
-    for identifier in identifiers:
-        await return_outcome(db, identifier)
-    return len(identifiers)
+    # One outcome that cannot be returned backs off alone; the others still return.
+    guard = ItemGuard(db, "outcome")
+    await guard.prepare(identifier for identifier, _ in identifiers)
+    for identifier, owner_id in identifiers:
+
+        async def deliver(identifier: str = identifier) -> None:
+            await return_outcome(db, identifier)
+
+        await guard.run(identifier, owner_id, deliver)
+    return len(identifiers) - guard.errors

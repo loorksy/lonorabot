@@ -22,9 +22,12 @@ export type BrokerPair = { trading_account_id: string; trading_symbol: string };
 export function BrokerPairPicker({
   value,
   onChange,
+  permanent = false,
 }: {
   value: BrokerPair;
   onChange: (pair: BrokerPair) => void;
+  /** Only a legacy fixed-market agent's pair is permanent; a focus pair is a preference. */
+  permanent?: boolean;
 }) {
   const { revision } = useClient();
   const [connections, setConnections] = useState<Resource[]>([]);
@@ -136,11 +139,13 @@ export function BrokerPairPicker({
           </Command>
         </PopoverContent>
       </Popover>
-      <p className="muted">
-        <Trans>
-          This pair is permanent for this agent. Create another agent to use a different pair.
-        </Trans>
-      </p>
+      {permanent && (
+        <p className="muted">
+          <Trans>
+            This pair is permanent for this agent. Create another agent to use a different pair.
+          </Trans>
+        </p>
+      )}
       {!connections.length && (
         <p>
           <Trans>Connect a broker account before creating a trading agent.</Trans>{" "}
