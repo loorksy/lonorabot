@@ -59,6 +59,7 @@ STEPS = (
     StepSpec("channels", 2, 120),
     StepSpec("attention", 2, 120),
     StepSpec("incoming", 2, 60, critical=False),
+    StepSpec("thread_prefs", 2, 60, critical=False),
     StepSpec("watchdog", 30, 120),
 )
 

@@ -30,6 +30,7 @@ broken routine can no longer stop broker reconciliation.
 | `history` | 10 s | 600 s | no |
 | `voice` | 0.5 s | 60 s | no |
 | `incoming` (incoming calls) | 2 s | 60 s | no |
+| `thread_prefs` (keep-archived off: a new message unarchives) | 2 s | 60 s | no |
 
 Each run worker has a liveness record too. A worker running a Run is busy, never
 stalled; the Run's lease covers it. Only a poll that returns counts as liveness: a
