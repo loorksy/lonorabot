@@ -1,5 +1,6 @@
 // biome-ignore-all lint/suspicious/noUndeclaredEnvVars: Playwright runs without Turborepo caching.
 import { execFileSync } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
 
 function fixture(data) {
@@ -195,6 +196,107 @@ test("resident live OHLC updates the selected chart through SSE without catalog 
       .toBeGreaterThanOrEqual(published.scene_version);
     expect(errors).toEqual([]);
   } finally {
+    fixture({ ...data, action: "cleanup" });
+  }
+});
+
+test("an answer's chart button opens the chart it names, each time", async ({ page, context }) => {
+  const data = fixture({ action: "init" });
+  const headers = {
+    "X-CSRF-Token": data.cookies.find((cookie) => cookie.name === "lonora_csrf").value,
+  };
+  let agent;
+  let second;
+  try {
+    await context.addCookies(
+      data.cookies.map((cookie) => ({
+        ...cookie,
+        url: test.info().project.use.baseURL,
+        httpOnly: cookie.name === "lonora_session",
+        sameSite: "Strict",
+      })),
+    );
+    await context.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
+    const saved = await context.request.post("/api/charts", {
+      headers,
+      data: {
+        payload: {
+          account_id: data.account,
+          symbol: data.symbol,
+          timeframe: "1h",
+          indicators: [],
+          annotations: [],
+        },
+      },
+    });
+    expect(saved.ok()).toBeTruthy();
+    second = await saved.json();
+    const created = await context.request.post("/api/agents", {
+      headers,
+      data: {
+        name: `Chart buttons ${randomUUID()}`,
+        trading_account_id: data.account,
+        trading_symbol: data.symbol,
+      },
+    });
+    expect(created.status()).toBe(201);
+    agent = await created.json();
+    const thread = await (
+      await context.request.post(`/api/agents/${agent.id}/conversation`, { headers, data: {} })
+    ).json();
+    // The panel lists the agent's charts in this order and shows the first by default.
+    const ids = [data.chart, second.id];
+    const [first, later] = (await (await context.request.get("/api/charts")).json())
+      .map((row) => row.id)
+      .filter((id) => ids.includes(id));
+    const button = (id, label) => ({
+      id: label.toLowerCase().replace(" ", "-"),
+      type: "button",
+      label,
+      action: { kind: "open_chart", resource_id: id },
+    });
+    const message = {
+      id: randomUUID(),
+      thread_id: thread.id,
+      agent_id: agent.id,
+      seq: 1,
+      role: "assistant",
+      content: "Two saved charts.",
+      rich_content: {
+        version: 1,
+        parts: [
+          {
+            type: "ui",
+            document: {
+              version: 1,
+              mode: "example",
+              root: {
+                id: "charts",
+                type: "row",
+                children: [button(first, "Open first"), button(later, "Open later")],
+              },
+            },
+          },
+        ],
+      },
+      reply_to: null,
+      attachment_ids: [],
+      created_at: "2026-10-25T10:00:00Z",
+    };
+    await page.route(`**/api/threads/${thread.id}/messages*`, (route) =>
+      route.request().method() === "GET" ? route.fulfill({ json: [message] }) : route.continue(),
+    );
+    await page.goto(`/app/${agent.id}`);
+    const sheet = page.locator("#dialog");
+    await page.getByRole("button", { name: "Open later", exact: true }).click();
+    await expect(sheet.locator(`[data-chart-id='${later}']`)).toBeVisible();
+    await sheet.getByRole("button", { name: "Close", exact: true }).click();
+    await expect(sheet).not.toBeVisible();
+    await page.getByRole("button", { name: "Open first", exact: true }).click();
+    await expect(sheet.locator(`[data-chart-id='${first}']`)).toBeVisible();
+  } finally {
+    if (agent) await context.request.delete(`/api/agents/${agent.id}`, { headers });
+    if (second) await context.request.delete(`/api/charts/${second.id}`, { headers });
     fixture({ ...data, action: "cleanup" });
   }
 });

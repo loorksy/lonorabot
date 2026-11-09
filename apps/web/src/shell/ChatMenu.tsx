@@ -47,42 +47,44 @@ export function useChatMenu({
   agent,
   group,
   memberAgents,
-  preferredChartId,
 }: {
   agent?: Agent;
   group?: Resource;
   memberAgents: Agent[];
-  preferredChartId?: string;
 }) {
   const sheets = useSheets();
   const nav = useNavigation();
   const data = useShellData();
   const { refresh } = useClient();
-  const openChart = useCallback(() => {
-    const title = t`Chart`;
-    sheets.open({
-      id: "chart",
-      expand: true,
-      title,
-      label: title,
-      body: (
-        <div className="grow legacy-surface">
-          <ConversationCharts
-            key={agent?.id ?? group?.id}
-            preferredChartId={preferredChartId}
-            agentId={agent?.id}
-            binding={
-              agent?.trading_account_id && agent.trading_symbol
-                ? { accountId: agent.trading_account_id, symbol: agent.trading_symbol }
-                : undefined
-            }
-            threadId={group?.state?.thread_id ? String(group.state.thread_id) : undefined}
-            onOpenMarket={() => nav.go("/app/market")}
-          />
-        </div>
-      ),
-    });
-  }, [sheets, nav, agent, group, preferredChartId]);
+  // The sheet keeps the body it was opened with: the chart an answer asks for goes in here.
+  const openChart = useCallback(
+    (chartId?: string) => {
+      const title = t`Chart`;
+      sheets.open({
+        id: "chart",
+        expand: true,
+        title,
+        label: title,
+        body: (
+          <div className="grow legacy-surface">
+            <ConversationCharts
+              key={agent?.id ?? group?.id}
+              preferredChartId={chartId}
+              agentId={agent?.id}
+              binding={
+                agent?.trading_account_id && agent.trading_symbol
+                  ? { accountId: agent.trading_account_id, symbol: agent.trading_symbol }
+                  : undefined
+              }
+              threadId={group?.state?.thread_id ? String(group.state.thread_id) : undefined}
+              onOpenMarket={() => nav.go("/app/market")}
+            />
+          </div>
+        ),
+      });
+    },
+    [sheets, nav, agent, group],
+  );
   const openPage = useCallback(
     (page: MenuPage, dir?: "fwd" | "back") => {
       const title =

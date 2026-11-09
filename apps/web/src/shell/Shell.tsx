@@ -335,8 +335,7 @@ function ShellBody() {
   const conversation = route.kind === "chat" || route.kind === "group";
   const home = desktop && route.kind === "root" && route.root === "chats";
   const net = useNetworkPhase(connected);
-  const [preferredChartId, setPreferredChartId] = useState<string>();
-  const menu = useChatMenu({ agent, group, memberAgents, preferredChartId });
+  const menu = useChatMenu({ agent, group, memberAgents });
   const [maintenance, setMaintenance] = useState(false);
   const [forcedUpdate, setForcedUpdate] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
@@ -641,13 +640,7 @@ function ShellBody() {
 
   const title = routeTitle(route, agent, group);
   const onNewTask = useCallback(() => nav.go("/app/tasks?new=1"), [nav]);
-  const onOpenChart = useCallback(
-    (id: string) => {
-      setPreferredChartId(id);
-      menu.openChart();
-    },
-    [menu],
-  );
+  const onOpenChart = useCallback((id: string) => menu.openChart(id), [menu]);
   const header = conversation ? (
     <ChatHeader
       agent={agent}
