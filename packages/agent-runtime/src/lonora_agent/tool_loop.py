@@ -33,7 +33,6 @@ SOFTWARE.
 import json
 import logging
 from collections.abc import Awaitable, Callable, Collection
-from dataclasses import dataclass
 from typing import Any, cast
 
 from lonora_adapter_kit.types import ModelMessage, ModelReply, ToolCall, ToolDefinition
@@ -43,7 +42,7 @@ from lonora_core.run_state import is_conversational
 from lonora_core.user_error import LonoraError
 from lonora_db.runs import checkpoint, require_lease
 from lonora_db.schema import RunRow
-from lonora_db.tasks import report_task_degraded
+from lonora_db.tasks import ATTENTION_RESUMED, report_task_degraded
 from lonora_session.idempotency import request_hash
 from lonora_tools.base import Tool, ToolScope, run_scope
 from lonora_tools.context import ToolContext
@@ -72,6 +71,18 @@ from .environment import (
     retry_pending,
     schedule_retry,
 )
+from .loop_outcomes import (
+    LoopOutcome,
+    external_wait_outcome,
+    final_answer,
+    limit_outcome,
+    question_outcome,
+    report_wait_superseded,
+    request_owner_attention,
+    rich_metadata,
+    supersede_wait_siblings,
+    wait_update,
+)
 from .model_recovery import (
     ATTENTION_REASON,
     CONTINUOUS,
@@ -92,11 +103,8 @@ from .runtime_notices import (
     NO_ANSWER,
     append_notice,
     attach_notice,
-    attention_message,
-    attention_notice,
     budget_warning,
     finish_instruction,
-    is_owner_message,
     is_runtime_notice,
     limit_fallback,
     notice_message,
@@ -106,7 +114,7 @@ from .runtime_notices import (
 from .skills.access import admitted_view_ids
 from .skills.snapshot import read_snapshot
 from .steering import merge_steering, owner_steering_pending
-from .stop_gates import reset_stop_gate, task_progress, task_stop_gate
+from .stop_gates import reset_stop_gate, task_progress
 from .tasks import task_checkpoint
 from .tool_batch import Segment, gather_bounded, next_segment
 from .tool_dispatch import dispatch_call
@@ -131,18 +139,6 @@ log = logging.getLogger("lonora.tool_loop")
 
 # Executable model rounds left before the final limit at which the model is told.
 BUDGET_WARNING_ROUNDS = 2
-OWNER_ATTENTION = "owner_attention"
-# Set by Task controls when the owner resumes or revises work held for attention.
-ATTENTION_RESUMED = "owner_attention_resumed"
-
-
-@dataclass
-class LoopOutcome:
-    text: str
-    metadata: dict[str, Any]
-    waiting: bool = False
-    external_wait: bool = False
-    input_request: dict[str, Any] | None = None
 
 
 async def persist(
@@ -200,63 +196,6 @@ async def compact_for_turn(
     except Exception as error:
         log.warning("context_compaction_failed type=%s", type(error).__name__)
     return lambda request: compacted_view(request, state)
-
-
-def rich_metadata(state: dict[str, Any]) -> dict[str, Any]:
-    value = state.get("rich_content")
-    return {"rich_content": value} if isinstance(value, dict) else {}
-
-
-def wait_update(messages: list[ModelMessage], call_id: str) -> dict[str, Any]:
-    """Only display content attached to this exact accepted wait describes it."""
-    message = next(
-        (
-            message
-            for message in reversed(messages)
-            if message.role == "assistant"
-            and any(call.id == call_id for call in message.tool_calls)
-        ),
-        None,
-    )
-    result: dict[str, Any] = {
-        "call_id": call_id,
-        "text": message.content.strip() if message else "",
-    }
-    if message and message.rich_content is not None:
-        result["rich_content"] = message.rich_content
-    return result
-
-
-def external_wait_outcome(state: dict[str, Any]) -> LoopOutcome:
-    environment = environment_state(state)
-    identifier = environment["wait"].get("call_id")
-    if not isinstance(identifier, str) or not identifier:
-        raise LonoraError("task_wait_identity_invalid", 409)
-    update = environment.get("wait_update")
-    # Legacy checkpoints never published this narration. Keep them silent rather
-    # than promoting old private prose through a newer disclosure boundary.
-    rich_content: dict[str, Any] | None = None
-    if update is None:
-        text = ""
-    elif not isinstance(update, dict):
-        raise LonoraError("task_wait_identity_invalid", 409)
-    else:
-        saved = cast(dict[str, Any], update)
-        if saved.get("call_id") != identifier or not isinstance(saved.get("text"), str):
-            raise LonoraError("task_wait_identity_invalid", 409)
-        text = cast(str, saved["text"])
-        raw_rich = saved.get("rich_content")
-        if isinstance(raw_rich, dict):
-            rich_content = cast(dict[str, Any], raw_rich)
-    return LoopOutcome(
-        text,
-        {
-            **state.get("selection", {}),
-            "external_wait_call_id": identifier,
-            **({"rich_content": rich_content} if rich_content is not None else {}),
-        },
-        external_wait=True,
-    )
 
 
 def close_pending(
@@ -324,34 +263,6 @@ async def report_closed(
             )
 
 
-def supersede_wait_siblings(messages: list[ModelMessage], pending: list[ToolCall]) -> None:
-    """Close the current tool block without carrying stale actions across a wait.
-
-    Their identities remain durable observations, just as for owner steering.
-    After waking, the model must decide again from current external evidence.
-    """
-    close_unexecuted(messages, pending, "task_wait_requires_fresh_analysis_after_wake")
-
-
-async def report_wait_superseded(context: ToolContext, superseded: list[ToolCall]) -> None:
-    for sibling in superseded:
-        await progress(
-            context,
-            "tool.cancelled",
-            {"name": sibling.name, "call_id": sibling.id, "code": "tool_call_superseded"},
-        )
-
-
-def latest_answer(messages: list[ModelMessage]) -> str:
-    """The best held answer: the newest assistant prose since the owner's request."""
-    for message in reversed(messages):
-        if is_owner_message(message):
-            break
-        if message.role == "assistant" and message.content.strip():
-            return message.content.strip()
-    return ""
-
-
 # Subagents delegate at most two levels deep; a few extra hops guard bad data.
 _MAXIMUM_DELEGATION_HOPS = 4
 
@@ -380,87 +291,6 @@ async def recovery_profile(context: ToolContext, task_run: bool) -> BackoffProfi
                 return WORK
             trigger, parent_id = parent.trigger, parent.parent_run_id
     return WORK if trigger in WORK_TRIGGERS else CONVERSATION
-
-
-async def request_owner_attention(
-    context: ToolContext,
-    state: dict[str, Any],
-    messages: list[ModelMessage],
-    reason: str,
-    text: str,
-) -> LoopOutcome:
-    """Hand unfinished Task work to its owner as a resumable question.
-
-    The Run is not failed and the Task is not completed: the checkpoint stays
-    intact and the owner's reply continues it. Prose already passed the model
-    runtime's financial-truth gate, so no unverified effect becomes success,
-    and the runtime's own account of what is unfinished leads the message so a
-    held answer claiming completion is never the owner's only report.
-    """
-    arabic = prefers_arabic(messages)
-    completion = await task_progress(context)
-    notice = attention_notice(
-        reason, arabic, [title for _, title in completion.incomplete] if completion else ()
-    )
-    # Every escalation gets its own question id. A Task-control resume cancels the
-    # previous question without adding a message (its notice joins the last tool
-    # result), so the transcript length alone would repeat the cancelled id.
-    taken = {
-        str(cast(dict[str, Any], item).get("id"))
-        for item in cast(list[Any], state.get("input_requests", []))
-        if isinstance(item, dict)
-    }
-    sequence = int(state.get("attention_sequence", 0)) + 1
-    while f"attention-{len(messages)}-{sequence}" in taken:
-        sequence += 1
-    state["attention_sequence"] = sequence
-    question: dict[str, Any] = {
-        "id": f"attention-{len(messages)}-{sequence}",
-        "question": attention_message(notice, text, arabic),
-        "choices": [],
-        "kind": OWNER_ATTENTION,
-        "reason": reason,
-    }
-    state["pending_input_request"] = question
-    state["exit_reason"] = reason
-    await persist(context, state, messages, [])
-    return attention_outcome(state, question)
-
-
-def attention_outcome(state: dict[str, Any], question: dict[str, Any]) -> LoopOutcome:
-    reason = str(question.get("reason") or "task_attention")
-    return LoopOutcome(
-        str(question["question"]),
-        {
-            **state.get("selection", {}),
-            **rich_metadata(state),
-            "exit_reason": reason,
-            OWNER_ATTENTION: reason,
-            "reply_outcome": "needs_owner_attention",
-        },
-        True,
-        input_request=question,
-    )
-
-
-async def final_answer(
-    context: ToolContext,
-    state: dict[str, Any],
-    messages: list[ModelMessage],
-    text: str,
-    metadata: dict[str, Any],
-) -> LoopOutcome | None:
-    """Apply the bounded task stop gates; ``None`` means the turn continues."""
-    verdict = await task_stop_gate(context, state)
-    if verdict.continue_turn:
-        append_notice(messages, "completion_check", verdict.nudge or "")
-        await persist(context, state, messages, [])
-        return None
-    if verdict.exhausted:
-        return await request_owner_attention(
-            context, state, messages, verdict.exhausted, text or latest_answer(messages)
-        )
-    return LoopOutcome(text, metadata)
 
 
 def started_payload(call: ToolCall, tool: Tool | None) -> dict[str, Any]:
@@ -571,6 +401,7 @@ async def finish_turn(
     messages: list[ModelMessage],
     pending: list[ToolCall],
     capability: Capability,
+    save: Callable[[], Awaitable[None]],
     *,
     reason: str,
     task_run: bool,
@@ -600,7 +431,7 @@ async def finish_turn(
             messages.append(notice)
         state["exit_reason"] = reason
         clear_inflight(environment_state(state), {call.id for call in superseded})
-        await persist(context, state, messages, pending)
+        await save()
         await report_closed(context, superseded, uncertain, "tool_call_not_executed")
         turn_capability = (
             Capability.VISION if any(message.images for message in messages) else capability
@@ -653,36 +484,9 @@ async def finish_turn(
             )
         )
         state["limit_exit"] = {"reason": reason, "text": text}
-        await persist(context, state, messages, pending)
-    if task_run:
-        question = state.get("pending_input_request")
-        if isinstance(question, dict) and cast(dict[str, Any], question).get("kind") == (
-            OWNER_ATTENTION
-        ):
-            return attention_outcome(state, cast(dict[str, Any], question))
-        completion = await task_progress(context)
-        if completion is None or not completion.contract_satisfied():
-            # Never mark unfinished Task work completed; the owner decides next.
-            return await request_owner_attention(context, state, messages, reason, text)
-        # Every declared step is recorded complete with evidence, so the report
-        # completes the Task; complete_run still enforces that contract.
-        return LoopOutcome(
-            text,
-            {
-                **state.get("selection", {}),
-                **rich_metadata(state),
-                "exit_reason": reason,
-                "reply_outcome": "answered",
-            },
-        )
-    return LoopOutcome(
-        text,
-        {
-            **state.get("selection", {}),
-            **rich_metadata(state),
-            "exit_reason": reason,
-            "reply_outcome": "limited",
-        },
+        await save()
+    return await limit_outcome(
+        context, state, messages, text, save, reason=reason, task_run=task_run
     )
 
 
@@ -719,6 +523,10 @@ async def execute_tool_loop(
     exposure = await ensure_exposure(
         context, registry, state, messages, pending, scope=scope, task_run=task_run
     )
+
+    async def save() -> None:
+        await persist(context, state, messages, pending)
+
     resumed = state.pop(ATTENTION_RESUMED, None)
     if isinstance(resumed, dict):
         # A Task control resumed work held for owner attention: that is owner
@@ -746,14 +554,7 @@ async def execute_tool_loop(
                 # evidence for the answer; otherwise the outstanding steering row
                 # would make the executor re-enter this wait indefinitely.
                 await persist(context, state, messages, pending)
-            if question.get("kind") == OWNER_ATTENTION:
-                return attention_outcome(state, question)
-            return LoopOutcome(
-                str(question["question"]),
-                {**state.get("selection", {}), **rich_metadata(state)},
-                True,
-                input_request=question,
-            )
+            return question_outcome(state, question)
         # A new owner message supersedes an unpublished question before it reaches chat.
         state.pop("pending_input_request", None)
         await persist(context, state, messages, pending)
@@ -853,6 +654,7 @@ async def execute_tool_loop(
                 messages,
                 pending,
                 capability,
+                save,
                 reason=reason,
                 task_run=task_run,
             )
@@ -991,12 +793,7 @@ async def execute_tool_loop(
                     await report_wait_superseded(context, superseded)
                     return external_wait_outcome(state)
                 if result.get("_runtime_wait"):
-                    return LoopOutcome(
-                        str(result["question"]),
-                        {**state.get("selection", {}), **rich_metadata(state)},
-                        True,
-                        input_request=state["pending_input_request"],
-                    )
+                    return question_outcome(state, state["pending_input_request"])
                 if result.get("_runtime_silence") and not pending:
                     prose = next(
                         (
@@ -1018,6 +815,7 @@ async def execute_tool_loop(
                             else "silent",
                             **rich_metadata(state),
                         },
+                        save,
                     )
                     if outcome is not None:
                         return outcome
@@ -1048,6 +846,7 @@ async def execute_tool_loop(
                 messages,
                 pending,
                 capability,
+                save,
                 reason="tool_round_limit",
                 task_run=task_run,
             )
@@ -1124,7 +923,7 @@ async def execute_tool_loop(
                 if task_run:
                     # The Task waits for its owner, resumable from this checkpoint.
                     return await request_owner_attention(
-                        context, state, messages, ATTENTION_REASON, ""
+                        context, state, messages, ATTENTION_REASON, "", save
                     )
             raise
         record_success(state)
@@ -1180,6 +979,7 @@ async def execute_tool_loop(
                 if reply.text.strip() or reply.rich_content
                 else "silent",
             },
+            save,
         )
         if outcome is not None:
             return outcome
