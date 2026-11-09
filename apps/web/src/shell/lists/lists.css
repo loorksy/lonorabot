@@ -17,6 +17,9 @@
   font-size: var(--fs-sm);
   white-space: nowrap;
   box-shadow: var(--hi);
+  transition:
+    background 0.15s,
+    border-color 0.15s;
 }
 .chip svg {
   width: 18px;
@@ -71,7 +74,6 @@
 .list-filters .chip-add {
   width: 40px;
   min-width: 40px;
-  padding: 0;
   justify-content: center;
 }
 .list-filters .chip-add svg {
@@ -86,7 +88,7 @@
 }
 .desktop-threads .list-filters {
   margin-inline: -8px;
-  padding: 0 14px;
+  padding: 0 14px 10px;
   scroll-padding-inline: 14px;
 }
 
@@ -112,11 +114,6 @@
   width: 50px;
   height: 50px;
   transition: transform 0.25s var(--spring);
-}
-.thread .group-av .lonora-agent-avatar {
-  width: 34px;
-  height: 34px;
-  margin-inline-end: -12px;
 }
 .thread .av-wrap > .avatar.icon-av {
   width: 50px;
@@ -176,6 +173,9 @@
 .thread .pv .fail {
   display: grid;
   color: var(--red);
+}
+.row.unread strong {
+  font-weight: 700;
 }
 .thread.unread .line1 time {
   color: var(--accent-ink);
@@ -296,7 +296,7 @@
 .archive-row .arch-n.on {
   color: var(--accent-ink);
 }
-.app-shell .arch-note {
+.arch-note {
   display: flex;
   align-items: flex-start;
   gap: 8px;
@@ -369,7 +369,9 @@
 }
 
 /* The header while selecting */
-.sel-bar {
+/* The phone's toolbar replaces the chats header: beat .topbar header's gap and padding. */
+.sel-bar,
+.topbar header.sel-bar {
   gap: 2px;
   padding-inline: 6px;
   animation: sel-in 0.22s var(--ease) both;
@@ -537,8 +539,7 @@
   gap: 10px;
   padding: 14px 16px 6px;
 }
-/* Inside the shell, beat its h2/p defaults (.app-shell :where(h2, p)). */
-.app-shell .search-section-head h2 {
+.search-section-head h2 {
   margin: 0;
   color: var(--muted);
   font-size: var(--fs-xs);
@@ -572,11 +573,6 @@
   width: 44px;
   height: 44px;
   flex: none;
-}
-.search-hit-row .group-av .lonora-agent-avatar {
-  width: 30px;
-  height: 30px;
-  margin-inline-end: -10px;
 }
 .search-hit-icon {
   width: 44px;
@@ -663,12 +659,12 @@
   margin-bottom: 12px;
   opacity: 0.7;
 }
-.app-shell .search-empty h2 {
+.search-empty h2 {
   margin: 0 0 6px;
   color: var(--text);
   font-size: var(--fs-md);
 }
-.app-shell .search-empty p {
+.search-empty p {
   max-width: 360px;
   margin: 0 auto;
   font-size: var(--fs-xs);
@@ -1129,11 +1125,6 @@
   width: 40px;
   height: 40px;
   flex: none;
-}
-.hu-main .group-av .lonora-agent-avatar {
-  width: 28px;
-  height: 28px;
-  margin-inline-end: -10px;
 }
 .hu-t {
   min-width: 0;

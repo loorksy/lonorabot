@@ -6,15 +6,6 @@ import { api } from "../../lib/api";
 import { userError } from "../../lib/user_error";
 import { useAttention } from "../../providers/AttentionProvider";
 
-export function AttentionCount() {
-  const { items } = useAttention();
-  return items.length > 0 ? (
-    <span className="tpl-unread-badge">
-      {items.length}
-      {items.length === 50 ? "+" : ""}
-    </span>
-  ) : null;
-}
 /** What each attention item says (the inbox and the heads-up banner). */
 export function useAttentionLabels(): Record<AttentionCode, string> {
   const { t } = useLingui();

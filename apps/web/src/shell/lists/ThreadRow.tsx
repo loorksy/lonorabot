@@ -24,6 +24,13 @@ const kindIcon: Partial<Record<InboxMessageKind, IconName>> = {
   card: "shield",
 };
 
+/** An agent's role line: its title or description; the personal agent's is the reference's
+ * «مساعدك الشخصي» until the owner gives it one. */
+export const agentRole = (agent: Agent) =>
+  agent.title || agent.description || (agent.role === "personal" ? t`Your personal assistant` : "");
+/** What line 2 says before anything was said: the role, or the group's purpose. */
+export const rowSubtitle = (row: ChatRow) => (row.agent ? agentRole(row.agent) : row.subtitle);
+
 /** A group's faces, the lead first (the reference's cluster; Lonora's avatar). */
 export function groupMembers(row: ChatRow, agents: readonly Agent[]) {
   const ids = (row.group?.payload.member_ids ?? []) as string[];
@@ -83,12 +90,19 @@ function Preview({
         >
           <Icon name={failed ? "alert" : "clock"} />
         </span>
-        <span dir="auto">{t`You: ${outgoing.message.content}`}</span>
+        <span>
+          <bdi>{t`You: ${outgoing.message.content}`}</bdi>
+        </span>
       </>
     );
   }
   const last = row.entry?.last_message;
-  if (!last) return <span dir="auto">{row.subtitle || t`Start a chat`}</span>;
+  if (!last)
+    return (
+      <span>
+        <bdi>{rowSubtitle(row) || t`Start a chat`}</bdi>
+      </span>
+    );
   const mine = last.role === "user";
   const speaker =
     !mine && row.kind === "group" && last.agent_id
@@ -109,7 +123,9 @@ function Preview({
           </span>
         ))}
       {icon && <Icon name={icon} />}
-      <span dir="auto">{mine ? t`You: ${text}` : speaker ? `${speaker}: ${text}` : text}</span>
+      <span>
+        <bdi>{mine ? t`You: ${text}` : speaker ? `${speaker}: ${text}` : text}</bdi>
+      </span>
     </>
   );
 }
@@ -167,12 +183,10 @@ export const ThreadRow = memo(function ThreadRow({
       </span>
       <span className="body">
         <span className="line1">
-          <strong dir="auto">{row.name}</strong>
-          {at && (
-            <time className="ltr" dateTime={at}>
-              {clockTime(at)}
-            </time>
-          )}
+          <strong>
+            <bdi>{row.name}</bdi>
+          </strong>
+          {at && <time dateTime={at}>{clockTime(at)}</time>}
         </span>
         <span className="line2">
           <span className="pv">

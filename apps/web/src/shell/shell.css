@@ -19,7 +19,12 @@
 [data-theme="light"] .app-shell ::selection {
   background: color-mix(in srgb, var(--accent) 42%, transparent);
 }
-/* The reference's button and heading defaults, for the chrome only (legacy screens keep theirs). */
+/* The reference's element defaults (its lines 62-72 and 147-151), for the chrome only: legacy
+   screens keep theirs. Zero specificity, as in the reference, so every component rule wins. */
+:where(.app-shell :is(button, input, select, textarea):not(.legacy-surface *)) {
+  font: inherit;
+  color: inherit;
+}
 :where(.app-shell button:not(.legacy-surface *)) {
   display: inline-block;
   border: 0;
@@ -27,8 +32,6 @@
   gap: 0;
   padding: 0;
   background: none;
-  color: inherit;
-  font: inherit;
   cursor: pointer;
   transition: none;
 }
@@ -39,31 +42,65 @@
   opacity: 0.45;
   cursor: default;
 }
-.app-shell
-  :where(button, a, input, textarea, select, [tabindex]):not(.legacy-surface *):focus-visible {
+:where(
+  .app-shell :is(button, a, input, textarea, select, [tabindex]):not(.legacy-surface *)
+):focus-visible {
   outline: 2px solid var(--text);
   outline-offset: 2px;
 }
-.app-shell :where(h1, h2, h3):not(.legacy-surface *) {
+:where(.app-shell :is(h1, h2, h3):not(.legacy-surface *)) {
   margin: 0;
 }
-.app-shell :where(h2):not(.legacy-surface *) {
+:where(.app-shell h2:not(.legacy-surface *)) {
   font-size: var(--fs-lg);
   font-weight: 700;
   line-height: 1.4;
   margin: 4px 0 12px;
 }
-.app-shell :where(h3):not(.legacy-surface *) {
+:where(.app-shell h3:not(.legacy-surface *)) {
   font-size: var(--fs-xs);
   font-weight: 600;
   color: var(--muted);
   margin: 24px 4px 8px;
 }
-.app-shell :where(p):not(.legacy-surface *) {
+:where(.app-shell p:not(.legacy-surface *)) {
   margin: 8px 0 16px;
 }
-.app-shell :where(small, .muted):not(.legacy-surface *) {
+:where(.app-shell :is(small, .muted):not(.legacy-surface *)) {
   color: var(--muted);
+}
+:where(.app-shell :is(input, textarea, select):not(.legacy-surface *)) {
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  font-size: var(--fs-md);
+  transition: border-color 0.15s;
+}
+:where(.app-shell :is(input, textarea, select):not(.legacy-surface *)):focus {
+  border-color: var(--muted);
+  outline: none;
+}
+:where(.app-shell :is(input, textarea):not(.legacy-surface *))::placeholder {
+  color: var(--muted);
+}
+:where(.app-shell textarea:not(.legacy-surface *)) {
+  min-height: 120px;
+  resize: vertical;
+  line-height: 1.7;
+}
+:where(
+  .app-shell
+    :is(input[type="radio"], input[type="checkbox"]:not([role="switch"])):not(.legacy-surface *)
+) {
+  width: 20px;
+  height: 20px;
+  min-height: 20px;
+  padding: 0;
+  accent-color: var(--primary);
+  flex-shrink: 0;
 }
 .app-shell .ltr {
   direction: ltr;
@@ -219,8 +256,8 @@
   text-overflow: ellipsis;
   padding-inline: 6px;
 }
-#app > main,
-.desktop-content > main {
+/* The reference's plain main (0,0,1), so main.root.bare and main.detail.bare set the top. */
+:where(#app, .desktop-content) > main {
   flex: 1 1 auto;
   min-height: 0;
   min-width: 0;
@@ -279,20 +316,25 @@ nav.tabbar {
   display: flex;
   align-items: stretch;
   padding: 5px;
+  border: 1px solid transparent;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+/* The glass pill is its own layer: the fold moves it with transforms (flip.ts), never the bar's
+   geometry. */
+nav.tabbar::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  z-index: -1;
   border-radius: var(--r-bar);
   background: var(--glass-bar);
   -webkit-backdrop-filter: var(--blur);
   backdrop-filter: var(--blur);
   border: 1px solid var(--glass-line);
   box-shadow: var(--float-shadow), var(--hi);
-  touch-action: none;
-  user-select: none;
-  -webkit-user-select: none;
-  transition:
-    left 0.32s var(--ease),
-    right 0.32s var(--ease),
-    height 0.32s var(--ease),
-    bottom 0.32s var(--ease);
+  pointer-events: none;
 }
 nav.tabbar button {
   position: relative;
@@ -324,9 +366,7 @@ nav.tabbar .nav-label {
   white-space: nowrap;
   max-height: 18px;
   overflow: hidden;
-  transition:
-    opacity 0.2s,
-    max-height 0.3s var(--ease);
+  transition: opacity 0.2s;
 }
 nav.tabbar .active,
 nav.tabbar button.peek {
@@ -355,9 +395,9 @@ nav.tabbar.paging .active.unpeek {
   box-shadow:
     var(--hi),
     0 4px 14px rgba(0, 0, 0, 0.22);
-  transition:
-    transform 0.42s var(--spring),
-    width 0.32s var(--ease);
+  /* Its width is set at once; the stretch while paging is a scaleX from the leading edge. */
+  transform-origin: 0 50%;
+  transition: transform 0.42s var(--spring);
 }
 nav.tabbar.dragging .nav-lens {
   background: color-mix(in srgb, var(--text) 14%, transparent);
@@ -369,9 +409,13 @@ nav.tabbar.compact {
   height: 54px;
   bottom: calc(env(safe-area-inset-bottom) + 10px);
 }
+/* Folded, the labels leave the flow where they were and fade. */
 nav.tabbar.compact .nav-label {
+  position: absolute;
+  inset-inline: 0;
+  top: calc(50% + 14px);
   opacity: 0;
-  max-height: 0;
+  pointer-events: none;
 }
 .nav-badge {
   position: absolute;
@@ -591,11 +635,59 @@ button.row:hover {
     var(--hi),
     0 1px 2px rgba(0, 0, 0, 0.18);
 }
-.group > .row {
+.group > .row,
+.group > .check {
   padding-inline: 14px;
 }
-.group > .row:last-child {
+.group > .row:last-child,
+.group > .check:last-child {
   border-bottom: 0;
+}
+/* Form rows of the reference (field, check, hero), for the pages the shell itself draws. */
+.field {
+  display: block;
+  margin: 16px 0;
+}
+.field > span {
+  display: block;
+  margin-bottom: 6px;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+.field small {
+  display: block;
+  margin-top: 6px;
+  font-size: var(--fs-xs);
+}
+.check {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 4px;
+  border-bottom: 1px solid var(--line);
+}
+.check > span {
+  flex: 1;
+  min-width: 0;
+}
+.check strong {
+  font-weight: 600;
+}
+.check > svg {
+  color: var(--muted);
+}
+.hero {
+  text-align: center;
+  padding: 16px 0 24px;
+}
+.tpl-row .tpl-sub {
+  display: block;
+}
+.tpl-row .tpl-code {
+  display: block;
+  margin-top: 2px;
+  color: var(--faint);
+  font-size: 11px;
 }
 .group > .btn.full {
   margin: 0;
@@ -682,13 +774,13 @@ button.row:hover {
   display: inline-flex;
   width: 44px;
   height: 44px;
-  align-items: center;
-  overflow: visible;
 }
-.row .group-av .lonora-agent-avatar {
-  width: 30px;
-  height: 30px;
-  margin-inline-end: -8px;
+.group-av > .lonora-group-avatar {
+  width: 100%;
+  height: 100%;
+}
+.row.thread.selected .lonora-group-avatar {
+  --av-ring: var(--raised);
 }
 
 /* Brand mark (3D bars) */
@@ -712,6 +804,11 @@ button.row:hover {
     0 0 0 1px var(--glass-line);
   transform: perspective(700px) rotateX(10deg) rotateY(-12deg);
   animation: float3d 7s ease-in-out infinite;
+}
+/* The reference's global svg size (22px) holds for its logoMark(64) in the hero too. */
+.logo-hero > .logo-mark {
+  width: 22px;
+  height: 22px;
 }
 [data-theme="light"] .logo-hero {
   background: linear-gradient(160deg, var(--surface), var(--fill));
@@ -778,19 +875,32 @@ button.row:hover {
   box-shadow: none;
 }
 
-/* Chats list header (WhatsApp structure): the title folds away, the search field takes the width */
+/* Chats list header (WhatsApp structure): the title folds away, the search field takes the width.
+   The boxes change at once (Shell flips them); the title and the + leave the flow and fade. */
 header.chats-header h1 {
   flex: 0 1 auto;
   max-width: 160px;
   transition:
-    max-width 0.34s var(--ease),
     opacity 0.2s,
-    padding 0.34s var(--ease);
+    visibility 0s;
 }
-header.chats-header.title-off h1 {
-  max-width: 0;
+header.chats-header.title-off h1,
+header.chats-header.search-active h1,
+header.chats-header.search-active > button.icon {
+  position: absolute;
   opacity: 0;
-  padding-inline: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    opacity 0.2s,
+    visibility 0s linear 0.2s;
+}
+header.chats-header.search-active > button.icon {
+  inset-inline-end: 10px;
+}
+/* The folded title keeps its gap, as a zero-width item would. */
+header.chats-header.title-off .header-search {
+  margin-inline-start: 6px;
 }
 .header-search {
   position: relative;
@@ -804,9 +914,6 @@ header.chats-header.title-off h1 {
   background: var(--fill);
   box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.25);
   overflow: hidden;
-  transition:
-    flex-basis 0.2s var(--ease),
-    max-width 0.2s var(--ease);
 }
 .header-search:focus-within {
   box-shadow:
@@ -861,9 +968,7 @@ header.chats-header.title-off h1 {
   opacity: 0;
   pointer-events: none;
   color: var(--muted);
-  transition:
-    flex-basis 0.18s,
-    opacity 0.15s;
+  transition: opacity 0.15s;
 }
 .header-search.is-searching .search-clear,
 .header-search.has-query .search-clear {
@@ -879,17 +984,6 @@ header.chats-header.title-off h1 {
 }
 header.chats-header.search-active {
   gap: 0;
-}
-header.chats-header.search-active h1,
-header.chats-header.search-active > button.icon {
-  flex: 0 0 0;
-  width: 0;
-  max-width: 0;
-  padding: 0;
-  opacity: 0;
-  overflow: hidden;
-  visibility: hidden;
-  pointer-events: none;
 }
 header.chats-header.search-active .header-search {
   flex: 1 1 100%;
@@ -916,13 +1010,16 @@ header.chats-header.search-active .header-search {
 }
 .head-avatar .group-av {
   display: inline-flex;
-  align-items: center;
+  width: 40px;
   height: 40px;
 }
-.head-avatar .group-av .lonora-agent-avatar {
-  width: 28px;
-  height: 28px;
-  margin-inline-end: -8px;
+.chat-head .lonora-group-avatar,
+.hu-main .lonora-group-avatar {
+  --av-ring: var(--surface);
+}
+[data-theme="light"] .chat-head .lonora-group-avatar,
+[data-theme="light"] .hu-main .lonora-group-avatar {
+  --av-ring: #fff;
 }
 .chat-title {
   flex: 1;
@@ -1176,7 +1273,14 @@ html[dir="ltr"] .sheet-page.go-back {
   max-height: none;
 }
 #dialog.expandable.resizing {
+  height: var(--hf);
   overflow: hidden;
+}
+#dialog.morphing {
+  box-shadow:
+    0 -12px 60px rgba(0, 0, 0, 0.45),
+    var(--hi),
+    0 var(--skirt, 0px) 0 0 var(--glass-pop);
 }
 #dialog.expandable.expanded {
   height: calc(var(--app-height, 100dvh) - 8px - env(safe-area-inset-top));
@@ -1527,19 +1631,28 @@ html[dir="ltr"] .sheet-page.go-back {
 }
 
 /* Skeletons: the shapes of the page they stand in for */
+/* The shimmer is the reference's 300% gradient sweeping across, moved with a transform. */
 .sk {
+  position: relative;
   display: block;
-  background: linear-gradient(90deg, var(--fill) 25%, var(--fill-2) 50%, var(--fill) 75%);
-  background-size: 300% 100%;
-  animation: sk 1.3s ease-in-out infinite;
+  overflow: hidden;
+  background: var(--fill);
   border-radius: 8px;
+}
+.sk::after {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 300%;
+  background: linear-gradient(90deg, var(--fill) 25%, var(--fill-2) 50%, var(--fill) 75%);
+  animation: sk 1.3s ease-in-out infinite;
 }
 @keyframes sk {
   from {
-    background-position: 100% 0;
+    transform: translateX(-66.6667%);
   }
   to {
-    background-position: 0 0;
+    transform: none;
   }
 }
 .sk-page {
@@ -1684,7 +1797,6 @@ html[dir="ltr"] .sheet-page.go-back {
     border: 1px solid var(--line);
     border-radius: var(--r-md);
     box-shadow: 0 12px 60px rgba(0, 0, 0, 0.5);
-    transition: grid-template-columns 0.22s ease;
   }
   .desktop-rail {
     display: flex;
@@ -1923,8 +2035,9 @@ html[dir="ltr"] .sheet-page.go-back {
     margin: 0 0 12px;
     color: var(--muted);
   }
-  .welcome .group {
-    width: 100%;
+  .welcome .welcome-list {
+    width: min(100%, 360px);
+    margin: 16px auto 12px;
     text-align: start;
   }
   .welcome small {
@@ -1946,12 +2059,13 @@ html[dir="ltr"] .sheet-page.go-back {
     visibility: hidden;
     overflow: hidden;
   }
+  /* The reference's later dialog rule (bottom: --kb, max-height min(88dvh, 780px, …)) still
+     holds on desktop: the modal sits above an on-screen keyboard and grows to 88dvh. */
   #dialog {
     --sheet-px: 24px;
-    inset: 0;
+    inset: 0 0 var(--kb, 0px);
     margin: auto;
     width: min(560px, calc(100vw - 64px));
-    max-height: 85dvh;
     padding: 20px 24px;
     border: 1px solid var(--glass-line);
     border-radius: var(--r-lg);
@@ -2078,7 +2192,7 @@ html[dir="ltr"] .sheet-page.go-back {
     transition: none !important;
     scroll-behavior: auto !important;
   }
-  .sk {
+  .sk::after {
     animation: none !important;
   }
   .spin {

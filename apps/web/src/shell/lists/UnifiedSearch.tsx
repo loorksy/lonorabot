@@ -12,7 +12,7 @@ import { SkPage, SkPill, SkRows } from "../Skeleton";
 import { useToast } from "../Toast";
 import { chatPath } from "./ChatList";
 import { useLists } from "./state";
-import { clockTime, RowAvatar } from "./ThreadRow";
+import { clockTime, RowAvatar, rowSubtitle } from "./ThreadRow";
 
 /* UnifiedSearch: one engine (GET /api/search, owner-wide, never an agent's) behind the
    header field on phones and the list pane's field on desktop. An empty query browses
@@ -130,7 +130,7 @@ function Hit({
         icon(item.kind === "group" ? "users" : "bot")
       );
       title = <Highlight text={item.title} query={query} />;
-      sub = <Highlight text={item.snippet} query={query} />;
+      sub = <Highlight text={item.snippet || (row ? rowSubtitle(row) : "")} query={query} />;
       meta = at ? (
         <time className="search-hit-meta" dir="ltr" dateTime={at}>
           {clockTime(at)}
@@ -206,8 +206,8 @@ function Hit({
       {lead}
       <span className="search-hit-body">
         <span className="search-hit-title">{title}</span>
-        <span className="search-hit-sub" dir="auto">
-          {sub}
+        <span className="search-hit-sub">
+          <bdi>{sub}</bdi>
         </span>
       </span>
       {meta}

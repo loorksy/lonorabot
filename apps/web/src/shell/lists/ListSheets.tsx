@@ -13,7 +13,7 @@ import { listsApi } from "./api";
 import { EmojiPanel } from "./EmojiPanel";
 import { PopItem, PopSep, usePopover } from "./Popover";
 import { useLists } from "./state";
-import { RowAvatar } from "./ThreadRow";
+import { RowAvatar, rowSubtitle } from "./ThreadRow";
 import { chatsWord, listSize } from "./words";
 
 /* Custom lists (WhatsApp «القوائم»): «قائمة جديدة» is a full-height sheet in two pages, the
@@ -155,9 +155,9 @@ function PickStep({
   const shown = choices.filter(
     (row) =>
       !q ||
-      foldSearch(`${row.name} ${row.subtitle || (row.kind === "group" ? t`Group` : "")}`).includes(
-        q,
-      ),
+      foldSearch(
+        `${row.name} ${rowSubtitle(row) || (row.kind === "group" ? t`Group` : "")}`,
+      ).includes(q),
   );
   const count = keys.size;
   return (
@@ -195,8 +195,12 @@ function PickStep({
           >
             <RowAvatar row={row} agents={agents} />
             <span className="body">
-              <strong dir="auto">{row.name}</strong>
-              <small dir="auto">{row.subtitle || (row.kind === "group" ? t`Group` : "")}</small>
+              <strong>
+                <bdi>{row.name}</bdi>
+              </strong>
+              <small>
+                <bdi>{rowSubtitle(row) || (row.kind === "group" ? t`Group` : "")}</bdi>
+              </small>
             </span>
             <span className="list-box" aria-hidden="true">
               <Icon name="check" />
@@ -438,7 +442,9 @@ export function useListSheets() {
               <Icon name="layers" />
             </span>
             <span className="body">
-              <strong dir="auto">{list.name}</strong>
+              <strong>
+                <bdi>{list.name}</bdi>
+              </strong>
               <small>{listSize(listMemberRows(lists.rows, list).length)}</small>
             </span>
           </button>

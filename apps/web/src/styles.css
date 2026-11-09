@@ -84,10 +84,12 @@ body {
   font-size: 14px;
   line-height: 1.65;
 }
-:where(button, input, textarea, select) {
+/* The legacy element and component styles reach screens outside the reference shell and the
+   legacy screens it still mounts (.legacy-surface); the shell's chrome keeps its own defaults. */
+:where(button, input, textarea, select):where(:not(.app-shell *), .legacy-surface *) {
   font: inherit;
 }
-:where(button, .button) {
+:where(button, .button):where(:not(.app-shell *), .legacy-surface *) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -101,35 +103,35 @@ body {
   cursor: pointer;
   transition: background 150ms;
 }
-:where(button:hover, .button:hover) {
+:where(button:hover, .button:hover):where(:not(.app-shell *), .legacy-surface *) {
   background: var(--accent);
 }
-:where(button:focus-visible, a:focus-visible) {
+:where(button:focus-visible, a:focus-visible):where(:not(.app-shell *), .legacy-surface *) {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
 }
-:where(button:disabled) {
+:where(button:disabled):where(:not(.app-shell *), .legacy-surface *) {
   opacity: 0.45;
   cursor: default;
 }
-:where(button.primary) {
+:where(button.primary):where(:not(.app-shell *), .legacy-surface *) {
   background: var(--primary);
   color: var(--primary-foreground);
   border-color: transparent;
   font-weight: 550;
 }
-:where(button.danger) {
+:where(button.danger):where(:not(.app-shell *), .legacy-surface *) {
   color: var(--destructive);
 }
-:where(button.selected) {
+:where(button.selected):where(:not(.app-shell *), .legacy-surface *) {
   background: var(--accent);
 }
-:where(button svg) {
+:where(button svg):where(:not(.app-shell *), .legacy-surface *) {
   width: 17px;
   height: 17px;
   flex-shrink: 0;
 }
-:where(input, textarea, select) {
+:where(input, textarea, select):where(:not(.app-shell *), .legacy-surface *) {
   width: 100%;
   min-width: 0;
   border: 1px solid var(--border);
@@ -138,154 +140,154 @@ body {
   background: var(--input);
   color: var(--foreground);
 }
-:where(textarea) {
+:where(textarea):where(:not(.app-shell *), .legacy-surface *) {
   resize: vertical;
   line-height: 1.65;
 }
-:where(input:focus, textarea:focus, select:focus) {
+:where(input:focus, textarea:focus, select:focus):where(:not(.app-shell *), .legacy-surface *) {
   outline: 2px solid var(--ring);
   outline-offset: 1px;
 }
-:where(input[type="checkbox"]) {
+:where(input[type="checkbox"]):where(:not(.app-shell *), .legacy-surface *) {
   width: 16px;
   height: 16px;
   accent-color: var(--primary);
 }
-:where(input[type="color"]) {
+:where(input[type="color"]):where(:not(.app-shell *), .legacy-surface *) {
   height: 42px;
   padding: 4px;
 }
-:where(label) {
+:where(label):where(:not(.app-shell *), .legacy-surface *) {
   display: flex;
   flex-direction: column;
   gap: 7px;
   margin: 12px 0;
   font-weight: 500;
 }
-:where(label.check) {
+:where(label.check):where(:not(.app-shell *), .legacy-surface *) {
   flex-direction: row;
   align-items: center;
 }
-:where(h1) {
+:where(h1):where(:not(.app-shell *), .legacy-surface *) {
   margin: 0 0 20px;
   font-size: 23px;
   font-weight: 550;
   line-height: 1.4;
   letter-spacing: -0.3px;
 }
-:where(h2) {
+:where(h2):where(:not(.app-shell *), .legacy-surface *) {
   margin: 0 0 14px;
   font-size: 17px;
   font-weight: 550;
   line-height: 1.4;
 }
-:where(h3) {
+:where(h3):where(:not(.app-shell *), .legacy-surface *) {
   margin: 0;
   font-size: 14px;
   font-weight: 550;
 }
-:where(p) {
+:where(p):where(:not(.app-shell *), .legacy-surface *) {
   margin: 10px 0;
 }
-:where(a) {
+:where(a):where(:not(.app-shell *), .legacy-surface *) {
   color: var(--link);
 }
-:where(small, time, .muted) {
+:where(small, time, .muted):where(:not(.app-shell *), .legacy-surface *) {
   color: var(--muted-foreground);
 }
-:where(pre, code) {
+:where(pre, code):where(:not(.app-shell *), .legacy-surface *) {
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
 }
-:where(pre.wrap, .wrap) {
+:where(pre.wrap, .wrap):where(:not(.app-shell *), .legacy-surface *) {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   font-size: 12px;
 }
-:where(details > summary) {
+:where(details > summary):where(:not(.app-shell *), .legacy-surface *) {
   cursor: pointer;
   font-weight: 500;
 }
-:where(details[open] > summary) {
+:where(details[open] > summary):where(:not(.app-shell *), .legacy-surface *) {
   margin-bottom: 14px;
 }
-:where([role="alert"]) {
+:where([role="alert"]):where(:not(.app-shell *), .legacy-surface *) {
   padding: 8px 0;
   color: var(--destructive);
 }
-:where(.card) {
+:where(.card):where(:not(.app-shell *), .legacy-surface *) {
   border: 1px solid var(--border);
   border-radius: 12px;
   padding: 18px;
   margin: 16px 0;
   background: var(--card);
 }
-:where(.page-header) {
+:where(.page-header):where(:not(.app-shell *), .legacy-surface *) {
   display: flex;
   align-items: center;
   gap: 16px;
   margin-bottom: 22px;
   flex-wrap: wrap;
 }
-:where(.page-header h1) {
+:where(.page-header h1):where(:not(.app-shell *), .legacy-surface *) {
   flex: 1;
   margin: 0;
 }
-:where(.page-header select) {
+:where(.page-header select):where(:not(.app-shell *), .legacy-surface *) {
   width: auto;
   max-width: 100%;
 }
-:where(.row, .actions, .chips) {
+:where(.row, .actions, .chips):where(:not(.app-shell *), .legacy-surface *) {
   display: flex;
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
 }
-:where(.row h2, .row h3, .row label) {
+:where(.row h2, .row h3, .row label):where(:not(.app-shell *), .legacy-surface *) {
   flex: 1;
   margin: 0;
 }
-:where(.actions) {
+:where(.actions):where(:not(.app-shell *), .legacy-surface *) {
   justify-content: flex-end;
   margin-top: 15px;
 }
-:where(.form-grid, .columns) {
+:where(.form-grid, .columns):where(:not(.app-shell *), .legacy-surface *) {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 18px;
 }
-:where(.columns > .card) {
+:where(.columns > .card):where(:not(.app-shell *), .legacy-surface *) {
   min-width: 0;
 }
-:where(.inline-form) {
+:where(.inline-form):where(:not(.app-shell *), .legacy-surface *) {
   display: flex;
   align-items: flex-end;
   gap: 12px;
   flex-wrap: wrap;
 }
-:where(.inline-form label) {
+:where(.inline-form label):where(:not(.app-shell *), .legacy-surface *) {
   flex: 1;
   margin: 10px 0;
   min-width: 140px;
 }
-:where(.inline-form button) {
+:where(.inline-form button):where(:not(.app-shell *), .legacy-surface *) {
   margin: 10px 0;
 }
-:where(.stats) {
+:where(.stats):where(:not(.app-shell *), .legacy-surface *) {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
   gap: 20px;
 }
-:where(.stats dt) {
+:where(.stats dt):where(:not(.app-shell *), .legacy-surface *) {
   color: var(--muted-foreground);
   font-size: 12px;
 }
-:where(.stats dd) {
+:where(.stats dd):where(:not(.app-shell *), .legacy-surface *) {
   margin: 8px 0 0;
   font-size: 23px;
   line-height: 1.5;
   font-variant-numeric: tabular-nums;
 }
-:where(.badge) {
+:where(.badge):where(:not(.app-shell *), .legacy-surface *) {
   display: inline-flex;
   align-items: center;
   border-radius: 5px;
@@ -294,7 +296,7 @@ body {
   color: var(--muted-foreground);
   font-size: 11px;
 }
-:where(.empty) {
+:where(.empty):where(:not(.app-shell *), .legacy-surface *) {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -304,24 +306,24 @@ body {
   text-align: center;
   color: var(--muted-foreground);
 }
-:where(.thread-view) {
+:where(.thread-view):where(:not(.app-shell *), .legacy-surface *) {
   display: flex;
   flex-direction: column;
   min-height: 0;
   flex: 1;
 }
-:where(.thread-status) {
+:where(.thread-status):where(:not(.app-shell *), .legacy-surface *) {
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 12px;
   min-height: 30px;
 }
-:where(.working) {
+:where(.working):where(:not(.app-shell *), .legacy-surface *) {
   color: var(--muted-foreground);
   font-size: 12px;
 }
-:where(.working.active)::before {
+:where(.working.active):where(:not(.app-shell *), .legacy-surface *)::before {
   content: "";
   display: inline-block;
   width: 6px;
@@ -331,24 +333,24 @@ body {
   background: var(--status-working);
   animation: pulse 1.3s infinite;
 }
-:where(.thread-progress) {
+:where(.thread-progress):where(:not(.app-shell *), .legacy-surface *) {
   font-size: 12px;
   flex-shrink: 0;
 }
-:where(.thread-progress details) {
+:where(.thread-progress details):where(:not(.app-shell *), .legacy-surface *) {
   padding: 3px 12px;
 }
-:where(.thread-progress .row) {
+:where(.thread-progress .row):where(:not(.app-shell *), .legacy-surface *) {
   padding: 4px;
 }
-:where(.progress) {
+:where(.progress):where(:not(.app-shell *), .legacy-surface *) {
   padding-inline: 12px;
   color: var(--muted-foreground);
 }
-:where(.progress p) {
+:where(.progress p):where(:not(.app-shell *), .legacy-surface *) {
   margin: 3px 0;
 }
-:where(.voice-card) {
+:where(.voice-card):where(:not(.app-shell *), .legacy-surface *) {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -356,23 +358,23 @@ body {
   margin: 4px 0 10px;
   font-size: 12px;
 }
-:where(.voice-card button) {
+:where(.voice-card button):where(:not(.app-shell *), .legacy-surface *) {
   padding: 4px 9px;
 }
-:where(.reply-preview) {
+:where(.reply-preview):where(:not(.app-shell *), .legacy-surface *) {
   display: flex;
   gap: 12px;
   border-inline-start: 3px solid var(--border);
   padding: 5px 10px;
   font-size: 12px;
 }
-:where(.reply-preview span) {
+:where(.reply-preview span):where(:not(.app-shell *), .legacy-surface *) {
   flex: 1;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
-:where(.attachment) {
+:where(.attachment):where(:not(.app-shell *), .legacy-surface *) {
   display: flex;
   align-items: center;
   gap: 14px;
@@ -381,32 +383,32 @@ body {
   padding: 12px;
   margin: 10px 0;
 }
-:where(.attachment > div) {
+:where(.attachment > div):where(:not(.app-shell *), .legacy-surface *) {
   display: flex;
   flex: 1;
   flex-direction: column;
   min-width: 0;
   overflow-wrap: anywhere;
 }
-:where(.attachment small) {
+:where(.attachment small):where(:not(.app-shell *), .legacy-surface *) {
   font-size: 10px;
 }
-:where(.attachment button, .attachment .button) {
+:where(.attachment button, .attachment .button):where(:not(.app-shell *), .legacy-surface *) {
   font-size: 11px;
 }
-:where(.image-preview) {
+:where(.image-preview):where(:not(.app-shell *), .legacy-surface *) {
   display: block;
   max-width: 100%;
   max-height: 70vh;
   margin: auto;
 }
-:where(.document-preview) {
+:where(.document-preview):where(:not(.app-shell *), .legacy-surface *) {
   width: 100%;
   height: 65vh;
   border: 1px solid var(--border);
   background: #fff;
 }
-:where(.modal-backdrop) {
+:where(.modal-backdrop):where(:not(.app-shell *), .legacy-surface *) {
   position: fixed;
   inset: 0;
   z-index: 70;
@@ -415,7 +417,7 @@ body {
   background: var(--overlay);
   padding: 24px;
 }
-:where(.modal) {
+:where(.modal):where(:not(.app-shell *), .legacy-surface *) {
   width: 100%;
   max-width: 550px;
   max-height: 92dvh;
@@ -426,126 +428,126 @@ body {
   background: var(--popover);
   box-shadow: 0 30px 100px #0005;
 }
-:where(.modal.wide) {
+:where(.modal.wide):where(:not(.app-shell *), .legacy-surface *) {
   max-width: 950px;
 }
-:where(.auth-card) {
+:where(.auth-card):where(:not(.app-shell *), .legacy-surface *) {
   width: calc(100% - 40px);
   max-width: 420px;
   margin: 10vh auto;
   padding: 30px;
 }
-:where(.auth-card > p) {
+:where(.auth-card > p):where(:not(.app-shell *), .legacy-surface *) {
   color: var(--muted-foreground);
 }
-:where(.auth-card button.primary) {
+:where(.auth-card button.primary):where(:not(.app-shell *), .legacy-surface *) {
   width: 100%;
   margin-top: 10px;
 }
-:where(.brand-mark) {
+:where(.brand-mark):where(:not(.app-shell *), .legacy-surface *) {
   display: block;
   width: 54px;
   height: 54px;
   object-fit: contain;
   margin-bottom: 24px;
 }
-:where(.settings-layout) {
+:where(.settings-layout):where(:not(.app-shell *), .legacy-surface *) {
   display: grid;
   grid-template-columns: 170px minmax(0, 1fr);
   gap: 28px;
 }
-:where(.settings-nav) {
+:where(.settings-nav):where(:not(.app-shell *), .legacy-surface *) {
   display: flex;
   flex-direction: column;
   gap: 5px;
   padding: 15px 0;
 }
-:where(.settings-nav button) {
+:where(.settings-nav button):where(:not(.app-shell *), .legacy-surface *) {
   justify-content: flex-start;
   border: 0;
   background: transparent;
 }
-:where(.settings-nav button.selected) {
+:where(.settings-nav button.selected):where(:not(.app-shell *), .legacy-surface *) {
   background: var(--accent);
 }
-:where(.tabs) {
+:where(.tabs):where(:not(.app-shell *), .legacy-surface *) {
   display: flex;
   gap: 8px;
   margin-bottom: 20px;
   flex-wrap: wrap;
 }
-:where(.tabs button) {
+:where(.tabs button):where(:not(.app-shell *), .legacy-surface *) {
   border: 0;
 }
-:where(.group-members) {
+:where(.group-members):where(:not(.app-shell *), .legacy-surface *) {
   display: flex;
   align-items: center;
   gap: 14px;
   flex-wrap: wrap;
 }
-:where(.group-members > span) {
+:where(.group-members > span):where(:not(.app-shell *), .legacy-surface *) {
   display: flex;
   align-items: center;
   gap: 7px;
 }
-:where(.notice) {
+:where(.notice):where(:not(.app-shell *), .legacy-surface *) {
   border-radius: 8px;
   padding: 10px 15px;
   background: var(--accent);
   font-size: 12px;
 }
-:where(.quote-card) {
+:where(.quote-card):where(:not(.app-shell *), .legacy-surface *) {
   padding: 22px 0;
 }
-:where(.trading-control) {
+:where(.trading-control):where(:not(.app-shell *), .legacy-surface *) {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 20px;
   flex-wrap: wrap;
 }
-:where(.trading-control .actions) {
+:where(.trading-control .actions):where(:not(.app-shell *), .legacy-surface *) {
   margin: 0;
 }
-:where(.table-wrap) {
+:where(.table-wrap):where(:not(.app-shell *), .legacy-surface *) {
   max-width: 100%;
   overflow: auto;
 }
-:where(table) {
+:where(table):where(:not(.app-shell *), .legacy-surface *) {
   width: 100%;
   border-collapse: collapse;
   text-align: start;
   font-size: 12px;
 }
-:where(th) {
+:where(th):where(:not(.app-shell *), .legacy-surface *) {
   color: var(--muted-foreground);
   font-weight: 500;
 }
-:where(td, th) {
+:where(td, th):where(:not(.app-shell *), .legacy-surface *) {
   border-bottom: 1px solid var(--border);
   padding: 10px;
   text-align: start;
   white-space: nowrap;
 }
-:where(td button) {
+:where(td button):where(:not(.app-shell *), .legacy-surface *) {
   font-size: 11px;
 }
-:where(.run-item) {
+:where(.run-item):where(:not(.app-shell *), .legacy-surface *) {
   border-bottom: 1px solid var(--border);
   padding: 14px 0;
 }
-:where(.run-item > summary) {
+:where(.run-item > summary):where(:not(.app-shell *), .legacy-surface *) {
   display: flex;
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
   font-size: 12px;
 }
-:where(.run-item time) {
+:where(.run-item time):where(:not(.app-shell *), .legacy-surface *) {
   margin-inline-start: auto;
   font-size: 10px;
 }
-:where(.calendar-row) {
+:where(.calendar-row):where(:not(.app-shell *), .legacy-surface *) {
   display: grid;
   grid-template-columns: 150px 60px 1fr 80px;
   gap: 12px;
@@ -553,15 +555,15 @@ body {
   padding: 12px 0;
   font-size: 12px;
 }
-:where(.chart-workspace details) {
+:where(.chart-workspace details):where(:not(.app-shell *), .legacy-surface *) {
   border-top: 1px solid var(--border);
   padding: 10px 0;
 }
-:where(.chart-renderer) {
+:where(.chart-renderer):where(:not(.app-shell *), .legacy-surface *) {
   height: 420px;
   margin: 14px -8px;
 }
-:where(.streaming-reply) {
+:where(.streaming-reply):where(:not(.app-shell *), .legacy-surface *) {
   max-height: 24vh;
   overflow: auto;
   border-inline-start: 2px solid var(--status-working);
