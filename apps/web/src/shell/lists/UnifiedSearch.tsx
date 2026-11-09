@@ -140,7 +140,13 @@ function Hit({
       break;
     }
     case "messages": {
-      const row = rows.find((candidate) => candidate.threadId === item.thread_id);
+      // A hit in one of an agent's other conversations (a subagent run, a ticket, a new
+      // thread) belongs to that agent's row; a group shows only its own thread.
+      const row =
+        rows.find((candidate) => candidate.threadId === item.thread_id) ??
+        (!item.group_id && item.agent_id
+          ? rows.find((candidate) => candidate.key === rowKey("agent", item.agent_id as string))
+          : undefined);
       const speaker = item.role === "user" ? t`You` : agentName(item.agent_id) || row?.name || "";
       lead = icon("chat");
       title = (
@@ -155,8 +161,12 @@ function Hit({
         </time>
       ) : null;
       open = () => {
-        if (!row || item.seq == null) return gone();
-        const path = chatPath(row);
+        if (!row || item.seq == null || !item.thread_id) return gone();
+        // The hit's own conversation, not the row's main one.
+        const path =
+          row.kind === "agent"
+            ? `/app/${row.id}?thread=${encodeURIComponent(item.thread_id)}`
+            : chatPath(row);
         nav.go(`${path}${path.includes("?") ? "&" : "?"}around=${item.seq}`);
       };
       break;

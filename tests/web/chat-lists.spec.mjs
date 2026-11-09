@@ -400,6 +400,31 @@ test("unified search: categories with counts, the latest query only, and the jum
   await expect(page.locator(".desktop-list .thread[data-key]").first()).toBeVisible();
 });
 
+test("a message hit from an agent's other conversation opens that conversation", async ({
+  page,
+  context,
+}) => {
+  const fixture = seed({ action: "init" });
+  const headers = await signIn(context, fixture);
+  const beta = fixture.agents[1];
+  const side = await (
+    await context.request.post("/api/threads", {
+      headers,
+      data: { agent_id: beta.id, title: "Side" },
+    })
+  ).json();
+  const answer = `Side branch answer ${side.id.slice(0, 8)}`;
+  seed({ action: "message", thread: side.id, agent: beta.id, content: answer });
+  await page.goto("/app");
+  await page.locator("#desktop-search").fill(answer);
+  await page.getByRole("tab", { name: "Messages" }).click();
+  const hit = page.locator("#search-results [data-search-hit='messages']").first();
+  await expect(hit).toContainText(beta.name);
+  await hit.click();
+  await expect(page).toHaveURL(new RegExp(`/app/${beta.id}\\?thread=${side.id}&around=\\d+`));
+  await expect(page.getByTestId("transcript").getByText(answer)).toBeInViewport();
+});
+
 test("phone search browses recent content when the query is empty", async ({ page, context }) => {
   const fixture = seed({ action: "init" });
   await signIn(context, fixture, "ar");
