@@ -277,16 +277,20 @@ test("ticket modal and profile creation remain usable under StrictMode and Back"
     .click();
   await expect(page).toHaveURL(/\/app\/new-agent$/);
   await expect(page.locator("#dialog")).not.toHaveAttribute("open", "");
-  await page.getByTestId("agent-market-mode").selectOption("market");
   const form = page.locator("main");
-  await form.getByLabel("Name", { exact: true }).fill(`${prefix} teammate`);
+  // Owner decision Q9: a template first, then the agent's name, role and pair.
+  await form.getByRole("radio", { name: /^Trading agent/ }).check();
+  await form.getByRole("button", { name: "Next", exact: true }).click();
+  await form.getByLabel("Agent name", { exact: true }).fill(`${prefix} teammate`);
+  await form.getByLabel("Description", { exact: true }).fill("Teammate on the same pair");
   await form.getByLabel("Broker account", { exact: true }).selectOption(agent.trading_account_id);
   await page.getByRole("button", { name: "Choose trading pair", exact: true }).click();
   await page.getByRole("option", { name: agent.trading_symbol, exact: true }).click();
   const created = page.waitForResponse(
-    (response) => response.url().endsWith("/api/agents") && response.request().method() === "POST",
+    (response) =>
+      response.url().endsWith("/api/agents/create") && response.request().method() === "POST",
   );
-  await form.getByRole("button", { name: "Create agent", exact: true }).click();
+  await form.getByRole("button", { name: "Create the agent", exact: true }).click();
   const teammate = remember("agents", await (await created).json());
   await expect(page).toHaveURL(new RegExp(`/app/${teammate.id}$`));
   await page

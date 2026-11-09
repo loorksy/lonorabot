@@ -108,6 +108,7 @@ test("«وكيل جديد» persists its template and the new chat sorts below t
   expect(posts).toEqual(["/api/agents/create"]);
   await expect(page).toHaveURL(new RegExp(`/app/${agent.id}$`));
   // Nothing said yet: below every seeded chat that has a message (the reference's lastAt).
+  await expect(page.locator(`.desktop-list .thread[data-key="agent:${agent.id}"]`)).toBeVisible();
   const keys = await page
     .locator(".desktop-list .thread[data-key]")
     .evaluateAll((rows) => rows.map((row) => row.getAttribute("data-key")));

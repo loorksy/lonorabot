@@ -128,17 +128,20 @@ test("conversation shows safe generated SVG, cloud chart side panel and persiste
         response.request().method() === "POST",
     );
     await form.getByRole("button", { name: "Create the agent", exact: true }).click();
-    const created = await (await creation).json();
+    const response = await creation;
+    const created = await response.json();
+    expect(response.status(), JSON.stringify(created)).toBe(201);
     data.extra_agents.push(created.id);
     expect(created.template).toBe("trading");
     expect(created.trading_symbol).toBe(data.symbol);
     expect(created.description).toBe("Review exposure before trading.");
+    await expect(page).toHaveURL(new RegExp(`/app/${created.id}$`));
     await page.reload();
     await expect(page.locator(".chat-head .chat-name")).toContainText("Role parity fixture");
     await page.getByRole("button", { name: "Agent info", exact: true }).click();
-    await expect(page.locator("#dialog").getByLabel("Description", { exact: true })).toHaveValue(
-      "Review exposure before trading.",
-    );
+    await expect(
+      page.locator("#dialog").getByRole("textbox", { name: "Description", exact: true }),
+    ).toHaveValue("Review exposure before trading.");
     expect(errors).toEqual([]);
   } finally {
     fixture({ ...data, action: "cleanup" });

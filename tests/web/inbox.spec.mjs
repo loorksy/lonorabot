@@ -84,10 +84,14 @@ for (const locale of ["en", "ar"]) {
           "Latest actual conversation preview",
         );
         await expect(home.locator(`[data-inbox-group-id="${group.id}"]`)).toBeVisible();
-        // The reference's order: pins, then the latest activity; the newest chat leads.
-        await expect(home.locator(".thread[data-key]").first()).toHaveAttribute(
-          "data-key",
-          `group:${group.id}`,
+        // The reference's order: pins, then the latest message; the group, newer but with
+        // nothing said yet, comes after the agent's chat.
+        const keys = await home
+          .locator(".thread[data-key]")
+          .evaluateAll((rows) => rows.map((row) => row.getAttribute("data-key")));
+        expect(keys.indexOf(`agent:${agent.id}`)).toBeGreaterThan(-1);
+        expect(keys.indexOf(`group:${group.id}`)).toBeGreaterThan(
+          keys.indexOf(`agent:${agent.id}`),
         );
       }
       expect(openedThread).toBe(0);
