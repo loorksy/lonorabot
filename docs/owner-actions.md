@@ -166,6 +166,89 @@ only what the owner said; the tool resolves the rest on the server into a stored
 | `allow_manual_positions` | false: positions the owner opened are excluded unless switched on |
 | `daily_loss` | the owner's amount or percentage; else, only when the account has no daily loss limit, a suggested 3% of current equity (rounded down to cents, in the account currency). An account that has its own limit keeps it: nothing is suggested over it |
 
+### Custom or Full delegation
+
+The card's list of options starts with one choice, never a separate button: **مخصص /
+Custom** (selected by default) or **تفويض كامل / Full delegation**. The choice is part of
+the stored draft (`GrantDraft.delegation`):
+
+| Choice | What the card signs |
+| --- | --- |
+| Custom | The draft above with its D1 defaults: the markets, actions and duration the owner's sentence gave, the daily loss line, and the owner's own positions only when switched on |
+| Full delegation | Every pair on the account (`symbol_scope` account), every action (open, close fully or partly, pending orders, change stop loss and take profit, cancel), until the owner stops it (no expiry), the owner's own positions included, no cap of its own and no daily loss limit from the card (`FULL_TERMS`) |
+
+Under the selected choice the card says plainly, in Arabic and English, what it means
+(`customMeaning`, `fullMeaning`); for Full it also says that money limits the owner set on
+the account elsewhere stay in force and that removing them is a separate step with the
+passkey (`fullLimits`). Under Full the own-positions switch and the daily loss opt-out are
+gone (a line says the owner's positions are included; the card sets no daily loss limit).
+
+Switching is the owner's decision on the card: `POST /owner-actions/{id}/decision` with
+`{"decision": "choose", "delegation": "full" | "custom"}` (owner session only, the same
+locks as any decision). It rewrites the stored draft and its hash: Full stores
+`FULL_TERMS` and keeps the Custom terms in `custom`, so switching back restores them
+exactly. It settles nothing and signs nothing, withdraws a proposal an earlier challenge
+prepared for the other choice (its assertion then never confirms the card:
+`owner_action_challenge_required`), and settles another pending card of the same agent
+that already asks for exactly the chosen draft (`same_choice_on_another_card`). The next
+challenge builds the envelope from the stored draft only, and confirming still needs the
+same passkey ceremony; nothing about Full is weaker.
+
+The challenge is bound to what the owner's screen shows. It names the choice the card
+showed (`OwnerActionChallenge.delegation`, which Web and Mobile always send; the
+own-positions switch, which only Custom shows, also means Custom). When the stored choice
+differs, because the owner chose the other one on another screen or the answer to a choice
+was lost, the challenge is refused with `owner_action_card_changed` (409) before anything
+is prepared, and Web and Mobile read the card again (`rereadOwnerAction`) so it shows the
+current choice, with the shared Arabic and English line saying so. The passkey therefore
+never signs Full while the card shows Custom, or the reverse. Under Full the card shows no
+own-positions switch, so a challenge that sends one is refused
+(`owner_action_full_delegation_terms_fixed`). The choice is the only part of a grant
+card's draft that changes after it is raised, and Custom is restored exactly, so the
+choice binds the whole draft.
+
+Full is offered only to an agent whose grant may cover every pair on the account (Lonora
+or a flexible root agent; `full_available`). A fixed-market agent's card shows no choice,
+and choosing Full for it is refused (`owner_action_full_delegation_unavailable`).
+
+An agent may preselect Full with `delegation: "full"` only when the owner's own message
+asked for full delegation, and the server checks it rather than leaving it to the model:
+it preselects Full only in a Run that answers the owner's message and has read nothing
+anyone else wrote (`owner_message_id`), only when the owner's words (that message, or one
+he added while the Run worked, as W15-10 reads them for a model switch) ask for full
+delegation, and only for an agent that can hold it. The words check
+(`lonora_core.delegation_words.asks_full_delegation`) looks, in Arabic and English, for a
+delegation word (تفويض, فوّض, صلاحيات, تحكم, delegate, control, authority, ...) within two
+words of a fullness word (كامل, بالكامل, مطلق, كل, full, fully, complete, everything,
+...): "تفويض كامل", "كل الصلاحيات", "full delegation" and "delegate everything" count;
+"trade gold for me" and "تحليل كامل للذهب" do not. It is a word check, not a reading of
+intent; a message it does not recognize only opens the card on Custom, where the owner
+can still pick Full. Otherwise the card opens on Custom and the tool result says why
+(`full_delegation_not_preselected`: `owner_message_required`,
+`owner_did_not_ask_full_delegation` or `fixed_market_agent`). When the owner also named a
+daily loss, a card opened on Full does not carry it (Full sets no daily loss limit; the
+Custom choice keeps it), and the result says `requested_daily_loss_needs_limits_card` so
+the agent proposes a `set_account_limits` card for it (adding a limit is one tap) or tells
+the owner that Custom carries it. The owner still sees both choices and signs. Cards
+stored before the choice existed read as Custom, and grants already signed are never
+changed by it.
+
+Signed Full delegation reads as such everywhere: the confirmation line adds
+`owner_action_grant_full`, the settled card's first line is "Full delegation", the
+readiness line reads "Trades on its own · Full delegation · until you stop it" with the
+account's daily loss limit or "No money limit set", the safety sheet names the grant "Full
+delegation", and the permission frame marks the scope `full_delegation` (every pair, every
+action and the owner's positions until stopped; the account's limits, pauses and Stop
+still bind it). It is recognized from the signed terms (`full_delegation` in
+`lonora_contracts.account_authority`), so the envelope format is unchanged. The label
+follows those terms, not the name of the choice: a grant signed from Custom with exactly
+Full's terms (every pair, every action, until stopped, the owner's own positions switched
+on), including one signed before the choice existed, reads as Full delegation on the
+readiness line, the safety sheet, the permission frame and its own settled card alike.
+What it may do is exactly what it signed; only the label is shared. Its confirmation line
+still says what that card did (for Custom, the daily loss limit it set), and a Custom card
+the owner dismissed shows no such line.
+
 A card is raised only when authority is missing: a draft an active grant already covers
 (same or wider markets and actions, full management without numerical limits, a validity
 at least as long) is refused with `owner_action_not_needed_grant_already_active`. The
@@ -280,7 +363,10 @@ asks to resume (the tool description says the same).
 - A grant card signs one account at a time; several accounts take one card each (a
   combined multi-account signature is Wave 2).
 - A grant card's daily loss limit never raises or removes an existing one; that stays a
-  limits card with the passkey, which the agent proposes separately.
+  limits card with the passkey, which the agent proposes separately. Full delegation sets
+  none and removes none: the account's own limits stay in force.
+- Full delegation is offered only to Lonora and flexible root agents; a fixed-market
+  agent's grant stays on its pair.
 - A runtime card is raised by the gateway's attention projection, so it appears when the
   gateway runs (within a tick); the API alone never raises one.
 
@@ -315,3 +401,19 @@ asks to resume (the tool description says the same).
   `tests/test_grant_card.py` the pure rules; `tests/web/owner-actions.test.ts` the shared
   spec and switches; Playwright signs a grant card with a virtual authenticator on Web
   (Arabic and English, registering the device inline) and renders it on Mobile.
+- Full delegation: `tests/check_full_delegation.py` (PostgreSQL, simulation broker,
+  scripted authenticator) covers Custom with D1 defaults by default, switching back and
+  forth through the decision route, the passkey still required, the account-wide
+  envelope (every action, own positions, no expiry, no caps, no card daily loss),
+  withdrawal of a prepared proposal on switching, a challenge for the other choice than
+  the stored one refused both ways (`owner_action_card_changed`, nothing prepared), the
+  readiness line and permission frame, the account's per-trade risk limit, position cap
+  and a daily loss limit the owner set elsewhere still refusing under Full (exits still
+  allowed), the preselection only from the owner's own words (a message that asks only
+  for trading opens on Custom), the requested daily loss flagged on a Full card, the
+  fixed-market refusal and a card stored before the choice; `tests/test_grant_card.py`
+  the draft rules and the Arabic and English words check;
+  `tests/web/owner-actions.test.ts` the shared choice, texts, the challenge naming the
+  choice, re-reading a changed card, the settled label following the signed terms and
+  Web/Mobile parity; Playwright chooses and signs Full on Web, chooses on Mobile, and on
+  both refuses a stale card's tap and shows the current choice, in Arabic and English.

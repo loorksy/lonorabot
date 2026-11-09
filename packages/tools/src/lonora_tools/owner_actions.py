@@ -12,18 +12,27 @@ from typing import Any
 
 from lonora_adapter_kit.broker import BrokerAdapter
 from lonora_contracts.owner_actions import DailyLossDraft, GrantDraft, OwnerActionProposal
+from lonora_core.delegation_words import asks_full_delegation
 from lonora_core.user_error import LonoraError
 from lonora_db.agent_binding import account_wide_scope, agent_binding, require_financial_agent
 from lonora_db.owner_actions import ALL_ACTIONS, account_policy, card_facts, live_status, propose
 from lonora_db.runs import require_lease
-from lonora_db.schema import BrokerSessionRow, OwnerActionRow, RunRow, ThreadRow
+from lonora_db.schema import (
+    BrokerSessionRow,
+    MessageRow,
+    OwnerActionRow,
+    RunRow,
+    SteeringRow,
+    ThreadRow,
+)
 from lonora_db.transactions import owned_thread
 from lonora_session.idempotency import stable_id
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .base import Tool
 from .context import ToolContext
+from .restrictions import owner_message_id
 from .symbols import canonical_broker_symbol
 
 # The daily loss limit a grant card suggests when the owner named none (owner decision D1).
@@ -120,6 +129,42 @@ async def daily_loss_draft(
     )
 
 
+async def owner_asked_full(session: AsyncSession, run: RunRow, message_id: str) -> bool:
+    """Whether the owner's words this Run answers ask for full delegation: the message it
+    started on, or one the owner added while it worked (the same words W15-10 reads for a
+    model switch)."""
+    added = select(SteeringRow.message_id).where(SteeringRow.run_id == run.id)
+    said = await session.scalars(
+        select(MessageRow.content).where(
+            MessageRow.thread_id == run.thread_id,
+            MessageRow.role == "user",
+            or_(MessageRow.id == message_id, MessageRow.id.in_(added)),
+        )
+    )
+    return any(asks_full_delegation(text) for text in said)
+
+
+async def preselect_full(
+    session: AsyncSession, context: ToolContext, run: RunRow, grant: GrantDraft
+) -> tuple[GrantDraft, str | None]:
+    """Full delegation preselected on the card, when the owner's own message asked for
+    it: only in a Run that answers the owner's message and has read nothing anyone else
+    wrote, only when the owner's words ask for full delegation (checked here, not left to
+    the model), and only for an agent whose grant may cover every pair on the account.
+    The owner still sees both choices and signs with the passkey. Returns the draft and
+    why Full was not preselected (None when it was)."""
+    agent = await agent_binding(session, context.owner_id, grant.agent_id)
+    # Every pair on the account: the same rule the card and the signed envelope use.
+    if not account_wide_scope(agent):
+        return grant, "fixed_market_agent"
+    message_id = await owner_message_id(session, run)
+    if message_id is None:
+        return grant, "owner_message_required"
+    if not await owner_asked_full(session, run, message_id):
+        return grant, "owner_did_not_ask_full_delegation"
+    return grant.with_delegation("full"), None
+
+
 def card_summary(
     row: OwnerActionRow, created: bool, thread_id: str, passkey: bool
 ) -> dict[str, Any]:
@@ -185,6 +230,9 @@ async def propose_card(context: ToolContext, args: dict[str, Any]) -> dict[str, 
     grant = await grant_draft(context, proposal) if proposal.kind == "grant_authority" else None
     async with context.db.sessions() as session, session.begin():
         run, thread = await card_scope(context, session)
+        not_preselected: str | None = None
+        if grant is not None and proposal.delegation == "full":
+            grant, not_preselected = await preselect_full(session, context, run, grant)
         row, created = await propose(
             session,
             context.owner_id,
@@ -203,6 +251,20 @@ async def propose_card(context: ToolContext, args: dict[str, Any]) -> dict[str, 
             # A grant card never raises the account's daily loss limit; the owner asked
             # for more, so a set_account_limits card is the way to raise it.
             summary["daily_loss_above_current_needs_limits_card"] = True
+        if row.kind == "grant_authority":
+            # Which choice the card shows selected now; the owner may switch it.
+            shown = GrantDraft.model_validate(row.payload).delegation
+            summary["delegation"] = shown
+            if not_preselected is not None:
+                summary["full_delegation_not_preselected"] = not_preselected
+            named = (
+                proposal.daily_loss_amount is not None or proposal.daily_loss_percent is not None
+            )
+            if shown == "full" and named:
+                # Full delegation sets no daily loss limit: the one the owner named is not
+                # on this card (Custom carries it). A set_account_limits card sets it on
+                # the account, where it binds Full too.
+                summary["requested_daily_loss_needs_limits_card"] = True
         return summary
 
 
@@ -223,7 +285,14 @@ def tools() -> list[Tool]:
             "or all_pairs, actions, duration, allow_manual_positions, and the owner's daily "
             "loss as daily_loss_percent or daily_loss_amount, which the card only sets or "
             "lowers; omit what the owner did not say and the server fills the obvious "
-            "defaults), trust_source (source_kind mcp_server with connection_id: "
+            "defaults; delegation full only when the owner's own words ask for full "
+            "delegation, which the server checks: the card then preselects it (every pair, "
+            "every action, the owner's own positions, until stopped, no daily loss limit "
+            "from the card) and the owner still chooses Custom or Full and signs; a daily "
+            "loss the owner named is then not on the card "
+            "(requested_daily_loss_needs_limits_card): propose set_account_limits for it "
+            "or tell the owner Custom carries it), trust_source (source_kind mcp_server "
+            "with connection_id: "
             "the card lists its tools for the owner to trust; github_owner, github_repo or "
             "feed_domain with identifier) and connect_credential (target mcp_server, "
             "news_feed, brave_search, economic_calendar or broker; service x for an X MCP "

@@ -6,7 +6,7 @@ from types import SimpleNamespace
 from typing import Any, cast
 
 import pytest
-from lonora_contracts.account_authority import AccountAuthorityEnvelope
+from lonora_contracts.account_authority import AccountAuthorityEnvelope, full_delegation
 from lonora_contracts.domain import utcnow
 from lonora_contracts.owner_actions import (
     DailyLossDraft,
@@ -15,6 +15,7 @@ from lonora_contracts.owner_actions import (
     OwnerActionProposal,
 )
 from lonora_contracts.risk_limits import MonetaryRiskLimits
+from lonora_core.delegation_words import asks_full_delegation
 from lonora_db.agent_permissions import default_level
 from lonora_db.owner_actions import (
     ALL_ACTIONS,
@@ -193,3 +194,139 @@ def test_grant_fields_belong_to_grant_cards_and_decisions_default_to_narrowing()
     decision = OwnerActionDecision(decision="confirm")
     assert decision.money_limit == "apply"
     assert decision.resume_trading is False and decision.stop_authorities == []
+
+
+def test_full_delegation_signs_every_pair_action_and_own_position_with_no_card_limit() -> None:
+    custom = draft()
+    full = custom.with_delegation("full")
+    assert full.delegation == "full" and full.custom == custom.terms()
+    signed = grant_proposal(full, "thread", utcnow())
+    assert signed.model_dump(mode="json") == {
+        "thread_id": "thread",
+        "account_id": "acct",
+        "management_mode": "full",
+        "symbol_scope": "account",
+        "symbols": [],
+        "actions": list(ALL_ACTIONS),
+        "maximum_order_volume": None,
+        "maximum_symbol_volume": None,
+        "maximum_positions": None,
+        "maximum_pending_orders": None,
+        "maximum_actions": None,
+        "minimum_equity": None,
+        # No expiry: until the owner stops it.
+        "valid_until": None,
+        "allow_manual_positions": True,
+    }
+    assert full_delegation(signed.model_dump(mode="json"))
+    # The card sets no daily loss limit under Full, so it never touches the account's.
+    assert full.daily_loss is None
+    assert daily_loss_change(MonetaryRiskLimits(), full) is None
+    own = MonetaryRiskLimits(currency="USD", max_daily_loss=Decimal(500))
+    assert daily_loss_change(own, full) is None and requested_above(own, full) is None
+
+
+def test_switching_back_restores_custom_exactly_with_the_d1_defaults() -> None:
+    custom = draft()
+    assert custom.delegation == "custom" and custom.custom is None
+    assert custom.allow_manual_positions is False and custom.daily_loss is not None
+    there = custom.with_delegation("full")
+    back = there.with_delegation("custom")
+    assert back == custom and back.model_dump(mode="json") == custom.model_dump(mode="json")
+    # Back and forth again changes nothing, and the stored JSON round-trips.
+    assert back.with_delegation("full") == there
+    assert GrantDraft.model_validate(there.model_dump(mode="json")) == there
+    assert custom.with_delegation("custom") is custom
+    # A stored Full draft is always exactly the Full terms, with the Custom ones kept.
+    with pytest.raises(ValidationError):
+        GrantDraft.model_validate({**there.model_dump(mode="json"), "custom": None})
+    with pytest.raises(ValidationError):
+        GrantDraft.model_validate({**there.model_dump(mode="json"), "duration": "24h"})
+    with pytest.raises(ValidationError):
+        GrantDraft.model_validate(
+            {**there.model_dump(mode="json"), "allow_manual_positions": False}
+        )
+    with pytest.raises(ValidationError):
+        GrantDraft.model_validate(
+            {**custom.model_dump(mode="json"), "custom": custom.terms().model_dump(mode="json")}
+        )
+    # A draft stored before the choice existed reads as Custom.
+    legacy = custom.model_dump(mode="json")
+    del legacy["delegation"], legacy["custom"]
+    assert GrantDraft.model_validate(legacy) == custom
+
+
+def test_full_delegation_is_recognized_only_with_every_term() -> None:
+    full = envelope(symbol_scope="account", symbols=[], allow_manual_positions=True).model_dump(
+        mode="json"
+    )
+    assert full_delegation(full)
+    for changes in (
+        {"allow_manual_positions": False},
+        {"actions": ["buy", "sell"]},
+        {"valid_until": (utcnow() + timedelta(days=1)).isoformat()},
+        {"maximum_positions": 3},
+        {"symbol_scope": "selected", "symbols": ["XAUUSD"]},
+        {"management_mode": "bounded"},
+    ):
+        assert not full_delegation({**full, **changes}), changes
+    # A signed Full grant covers both choices; a Custom grant never covers Full.
+    signed_full = envelope(symbol_scope="account", symbols=[], allow_manual_positions=True)
+    assert covers_draft(signed_full, draft().with_delegation("full"))
+    assert covers_draft(signed_full, draft())
+    assert not covers_draft(envelope(), draft().with_delegation("full"))
+    assert grant_terms(signed_full)["full_delegation"] is True
+    assert grant_terms(envelope())["full_delegation"] is False
+
+
+def test_the_choice_is_a_grant_field_and_a_decision_that_signs_nothing() -> None:
+    proposal = OwnerActionProposal.model_validate({"kind": "grant_authority", "delegation": "full"})
+    assert proposal.delegation == "full" and proposal.grant_fields()
+    with pytest.raises(ValidationError):
+        OwnerActionProposal.model_validate({"kind": "resume_trading", "delegation": "full"})
+    choose = OwnerActionDecision.model_validate({"decision": "choose", "delegation": "full"})
+    assert choose.proof is None and choose.delegation == "full"
+    with pytest.raises(ValidationError):
+        OwnerActionDecision.model_validate({"decision": "choose", "delegation": "everything"})
+
+
+@pytest.mark.parametrize(
+    "words",
+    [
+        "فوّض وكيل الفضة تفويضًا كاملًا على حسابي",
+        "أعطه تفويض كامل",
+        "التفويض الكامل لوكيل الذهب",
+        "فوضه بالكامل",
+        "أعطِ لونورا كل الصلاحيات على حسابي",
+        "صلاحيات التداول الكاملة",
+        "صلاحية مطلقة على الحساب",
+        "تحكم كامل بحسابي",
+        "Give the gold agent full delegation",
+        "I want to fully delegate my account",
+        "delegate everything to it",
+        "give it complete control",
+        "full trading authority please",
+        "carte blanche on my account",
+    ],
+)
+def test_owner_words_asking_for_full_delegation(words: str) -> None:
+    assert asks_full_delegation(words)
+
+
+@pytest.mark.parametrize(
+    "words",
+    [
+        "trade gold for me",
+        "تداول الذهب عني من الآن",
+        "give me a full analysis of gold",
+        "تحليل كامل للذهب",
+        "trade all pairs for me until I stop you",
+        "إدارة المخاطر بشكل كامل",
+        "open a full position on EURUSD",
+        "خله يتداول بنفسه على الذهب",
+        "",
+    ],
+)
+def test_owner_words_not_asking_for_full_delegation(words: str) -> None:
+    """A Full card opens only from the owner's words; anything else opens on Custom."""
+    assert not asks_full_delegation(words)

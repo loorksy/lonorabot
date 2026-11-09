@@ -3,10 +3,14 @@ import type { DeviceChallenge, OwnerAction, OwnerActionDecision } from "@lonora/
 import {
   type CredentialForm,
   mergeOwnerAction,
+  OWNER_ACTION_CHANGED,
   type OwnerActionButton,
+  type OwnerActionOption,
   ownerActionCard,
   ownerActionChoices,
+  ownerActionChoose,
   ownerActionText,
+  rereadOwnerAction,
   submitCredential,
   webDeviceProof,
   webDeviceSupported,
@@ -76,6 +80,8 @@ export function OwnerActionCard({
   const [enroll, setEnroll] = useState(false);
   const [password, setPassword] = useState("");
   const [chosen, setChosen] = useState<Record<string, boolean>>({});
+  // The choice being stored: shown selected until the server's card says so.
+  const [choosing, setChoosing] = useState<string | null>(null);
   const mounted = useRef(true);
   useEffect(() => {
     mounted.current = true;
@@ -96,9 +102,19 @@ export function OwnerActionCard({
       if (!mounted.current) return;
       if (cause instanceof ApiError && cause.code === "device_registration_required")
         setEnroll(true);
+      if (cause instanceof ApiError && cause.code === OWNER_ACTION_CHANGED) await reread();
       setError(cause);
     } finally {
       if (mounted.current) setBusy(false);
+    }
+  }
+  /** The card changed on another screen: show it as it is now before another tap. */
+  async function reread() {
+    try {
+      const current = await rereadOwnerAction((path) => api.get<OwnerAction[]>(path), row);
+      if (current && mounted.current) onChanged(current);
+    } catch {
+      // The next runtime revision reads the conversation's cards again.
     }
   }
   async function submit(button: OwnerActionButton) {
@@ -123,6 +139,26 @@ export function OwnerActionCard({
     const updated = await api.post<OwnerAction>(`/owner-actions/${row.id}/decision`, body);
     waiting.current = null;
     if (mounted.current) onChanged(updated);
+  }
+  /** A grant card's Custom or Full delegation: the server stores the choice in the
+   * card's draft and answers with the card as it now reads; nothing is signed. */
+  async function choose(option: OwnerActionOption) {
+    const body = ownerActionChoose(option);
+    if (!body || option.initial) return;
+    setBusy(true);
+    setChoosing(option.key);
+    setError(undefined);
+    try {
+      const updated = await api.post<OwnerAction>(`/owner-actions/${row.id}/decision`, body);
+      if (mounted.current) onChanged(updated);
+    } catch (cause) {
+      if (mounted.current) setError(cause);
+    } finally {
+      if (mounted.current) {
+        setChoosing(null);
+        setBusy(false);
+      }
+    }
   }
   async function connect(form: CredentialForm, values: Record<string, string>) {
     setBusy(true);
@@ -187,20 +223,41 @@ export function OwnerActionCard({
       )}
       {spec.options.length > 0 && (
         <div className="lonora-owner-action-options">
-          {spec.options.map((option) => (
-            <label key={option.key} className="check" dir="auto">
-              <input
-                type="checkbox"
-                data-owner-action-option={option.key.split(":")[0]}
-                checked={chosen[option.key] ?? option.initial}
-                disabled={busy}
-                onChange={(event) =>
-                  setChosen((old) => ({ ...old, [option.key]: event.target.checked }))
-                }
-              />
-              <span>{option.label}</span>
-            </label>
-          ))}
+          {spec.options.map((option) =>
+            option.choice ? (
+              <div key={option.key} className="lonora-owner-action-choice">
+                <label className="check" dir="auto">
+                  <input
+                    type="radio"
+                    name={`owner-action-${row.id}-${option.choice.group}`}
+                    data-owner-action-choice={option.choice.value}
+                    checked={choosing ? choosing === option.key : option.initial}
+                    disabled={busy}
+                    onChange={() => void choose(option)}
+                  />
+                  <span>{option.label}</span>
+                </label>
+                {option.detail && (
+                  <p className="muted" dir="auto" data-owner-action-choice-detail>
+                    {option.detail}
+                  </p>
+                )}
+              </div>
+            ) : (
+              <label key={option.key} className="check" dir="auto">
+                <input
+                  type="checkbox"
+                  data-owner-action-option={option.key.split(":")[0]}
+                  checked={chosen[option.key] ?? option.initial}
+                  disabled={busy}
+                  onChange={(event) =>
+                    setChosen((old) => ({ ...old, [option.key]: event.target.checked }))
+                  }
+                />
+                <span>{option.label}</span>
+              </label>
+            ),
+          )}
         </div>
       )}
       {spec.notes && (

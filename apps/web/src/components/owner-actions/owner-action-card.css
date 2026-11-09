@@ -44,3 +44,19 @@
 .lonora-owner-action-options input {
   flex: none;
 }
+/* A grant card's one choice (Custom or Full delegation) in the same list: what the
+   selected choice means sits right under it. */
+.lonora-owner-action-choice {
+  display: grid;
+  gap: 2px;
+}
+.lonora-owner-action-choice input[type="radio"] {
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  accent-color: var(--primary);
+}
+.lonora-owner-action-choice p {
+  padding-inline-start: 24px;
+  font-size: 12px;
+}

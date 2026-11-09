@@ -13,6 +13,7 @@ projection can at most show the owner an outdated line; it can never admit a tra
 from datetime import datetime
 from typing import Any, cast
 
+from lonora_contracts.account_authority import full_delegation
 from lonora_contracts.domain import utcnow
 from lonora_contracts.execution_quality import ExecutionPolicy
 from lonora_contracts.trading import UNRESOLVED_STATUSES, TradingControl
@@ -115,6 +116,8 @@ async def trading_readiness(
                 "actions": list(envelope.get("actions", []))[:10],
                 "allow_manual_positions": bool(envelope.get("allow_manual_positions")),
                 "valid_until": row["valid_until"],
+                # Every pair, every action and the owner's own positions, until stopped.
+                "full_delegation": full_delegation(envelope),
             }
         )
     trading = await global_trading(session)
@@ -297,6 +300,7 @@ def _headline(
     )
     return "on_its_own", {
         "symbol_scope": first_grant["symbol_scope"] if first_grant else "selected",
+        "full_delegation": bool(first_grant and first_grant["full_delegation"]),
         "symbols": first_grant["symbols"][:3] if first_grant else [],
         "valid_until": first_grant["valid_until"] if first_grant else None,
         "grant_count": len(grants),

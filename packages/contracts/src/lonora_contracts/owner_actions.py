@@ -12,7 +12,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import Field, model_validator
 
-from .account_authority import AuthorityAction
+from .account_authority import ALL_AUTHORITY_ACTIONS, AuthorityAction
 from .devices import DeviceProof
 from .domain import Contract
 
@@ -31,6 +31,11 @@ OwnerActionKind = Literal[
 ModelCardKind = Literal["agent_model", "agent_model_changed"]
 MODEL_CARD_KINDS: tuple[ModelCardKind, ...] = ("agent_model", "agent_model_changed")
 GrantDuration = Literal["until_stopped", "12h", "24h", "7d"]
+# A grant card's one choice: Custom (the markets, actions, duration, daily loss limit and
+# own positions the card shows; owner decision D1 defaults) or Full delegation (every
+# pair on the account, every action and the owner's own positions, until stopped, with
+# no daily loss limit from the card). The account's own money limits bind both.
+GrantDelegation = Literal["custom", "full"]
 # trust_source: what the owner adds to the trusted list (an MCP server with the tools it
 # advertises now, a GitHub owner or repository, or a news feed's domain).
 TrustSourceKind = Literal["mcp_server", "github_owner", "github_repo", "feed_domain"]
@@ -78,6 +83,9 @@ class OwnerActionProposal(Contract):
     allow_manual_positions: bool | None = None
     daily_loss_percent: Decimal | None = Field(default=None, gt=0, le=100)
     daily_loss_amount: Decimal | None = Field(default=None, gt=0)
+    # "full" preselects Full delegation when the owner's own message asked for it; the
+    # other fields still shape the Custom choice the owner can switch back to.
+    delegation: GrantDelegation | None = None
     # trust_source: mcp_server takes connection_id (its tools are read from the server);
     # the others take identifier ("owner", "owner/repository" or a feed domain).
     source_kind: TrustSourceKind | None = None
@@ -151,6 +159,7 @@ class OwnerActionProposal(Contract):
                 self.allow_manual_positions,
                 self.daily_loss_percent,
                 self.daily_loss_amount,
+                self.delegation,
             )
         )
 
@@ -213,12 +222,10 @@ class DailyLossDraft(Contract):
     equity: Decimal | None = Field(default=None, gt=0)
 
 
-class GrantDraft(Contract):
-    """A grant card's stored, server-resolved draft. The signed envelope is built only
-    from this and the owner's own choices on the card, never from model text."""
+class GrantTerms(Contract):
+    """What a grant card signs on its account: the markets, actions, duration, the
+    owner's own positions and the daily loss limit the card sets."""
 
-    agent_id: str = Field(min_length=1, max_length=36)
-    account_id: str = Field(min_length=1, max_length=120)
     symbol_scope: Literal["selected", "account"]
     symbols: list[str] = Field(default_factory=list[str], max_length=100)
     actions: list[AuthorityAction] = Field(min_length=1, max_length=10)
@@ -227,16 +234,79 @@ class GrantDraft(Contract):
     daily_loss: DailyLossDraft | None = None
 
     @model_validator(mode="after")
-    def scope(self) -> "GrantDraft":
+    def scope(self) -> "GrantTerms":
         if (self.symbol_scope == "selected") != bool(self.symbols):
             raise ValueError("authority_exact_symbols_required")
         return self
 
+    def terms(self) -> "GrantTerms":
+        return GrantTerms.model_validate(self.model_dump(include=set(GrantTerms.model_fields)))
+
+
+# Full delegation: every pair on the account, every action, until the owner stops it,
+# the owner's own positions too, and no daily loss limit set by the card.
+FULL_TERMS = GrantTerms(
+    symbol_scope="account",
+    actions=list(ALL_AUTHORITY_ACTIONS),
+    duration="until_stopped",
+    allow_manual_positions=True,
+)
+
+
+class GrantDraft(GrantTerms):
+    """A grant card's stored, server-resolved draft. The signed envelope is built only
+    from this and the owner's own choices on the card, never from model text.
+
+    ``delegation`` is the owner's choice on the card. Under Full the draft's own terms
+    are exactly ``FULL_TERMS`` (what is signed) and ``custom`` keeps the Custom terms,
+    so switching back restores them as they were."""
+
+    agent_id: str = Field(min_length=1, max_length=36)
+    account_id: str = Field(min_length=1, max_length=120)
+    delegation: GrantDelegation = "custom"
+    custom: GrantTerms | None = None
+
+    @model_validator(mode="after")
+    def delegation_terms(self) -> "GrantDraft":
+        if self.delegation == "full":
+            if self.custom is None or not same_terms(self.terms(), FULL_TERMS):
+                raise ValueError("owner_action_delegation_invalid")
+        elif self.custom is not None:
+            raise ValueError("owner_action_delegation_invalid")
+        return self
+
+    def with_delegation(self, choice: GrantDelegation) -> "GrantDraft":
+        """The same card with the owner's other choice: Full signs ``FULL_TERMS``;
+        Custom restores the terms the card had before Full was chosen."""
+        if choice == self.delegation:
+            return self
+        owner = {"agent_id": self.agent_id, "account_id": self.account_id}
+        if choice == "full":
+            return GrantDraft(
+                **owner, **FULL_TERMS.model_dump(), delegation="full", custom=self.terms()
+            )
+        assert self.custom is not None
+        return GrantDraft(**owner, **self.custom.model_dump(), delegation="custom")
+
+
+def same_terms(left: GrantTerms, right: GrantTerms) -> bool:
+    """Equal terms, with actions compared as a set."""
+    return left.model_dump(exclude={"actions"}) == right.model_dump(exclude={"actions"}) and set(
+        left.actions
+    ) == set(right.actions)
+
 
 class OwnerActionChallenge(Contract):
     """The owner's choice on a grant card that changes what is signed: including the
-    positions the owner opened manually. Sent with the passkey challenge."""
+    positions the owner opened manually (Custom only; Full delegation always includes
+    them). Sent with the passkey challenge.
 
+    ``delegation`` is the choice the owner's card showed when he tapped (Web and Mobile
+    always send it). The challenge is refused when it differs from the card's stored
+    draft, so the passkey never signs a choice his screen did not show; the card is
+    read again instead."""
+
+    delegation: GrantDelegation | None = None
     allow_manual_positions: bool | None = None
 
 
@@ -253,12 +323,17 @@ class OwnerActionDecision(Contract):
     what the owner trusts an MCP server for; ``connected`` names what a credential card's
     form created.
 
+    ``choose`` changes a pending grant card's own choice (``delegation``: Custom or Full
+    delegation) in its stored draft and settles nothing; signing still needs the
+    confirmation with the passkey.
+
     A grant card's own choices narrow or widen nothing that needs another signature:
     leaving the account without the suggested daily loss limit (``money_limit``
     "none"), resuming new trading, and stopping other agents' grants on that market.
     """
 
-    decision: Literal["confirm", "cancel"]
+    decision: Literal["confirm", "cancel", "choose"]
+    delegation: GrantDelegation | None = None
     tier: Literal["read", "write_nonfinancial"] | None = None
     connected: ConnectedResource | None = None
     outcome: AttestedOutcome | None = None

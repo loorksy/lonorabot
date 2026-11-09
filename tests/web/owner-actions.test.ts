@@ -6,10 +6,13 @@ import { conversationTimeline } from "../../packages/core/src/conversation-timel
 import { financialBoundaryError } from "../../packages/core/src/financial-boundary";
 import {
   mergeOwnerAction,
+  OWNER_ACTION_CHANGED,
   ownerActionCard,
   ownerActionChoices,
+  ownerActionChoose,
   ownerActionError,
   ownerActionLabels,
+  rereadOwnerAction,
 } from "../../packages/core/src/owner-actions";
 import { readinessTime } from "../../packages/core/src/trading-readiness";
 
@@ -462,6 +465,225 @@ test("a grant card shows exactly what is signed, with the D1 defaults, in both l
   assert.equal(stopped.options.find((option) => option.key === "resume")?.initial, false);
 });
 
+const fullCard = (overrides: Partial<OwnerAction["facts"]> = {}): OwnerAction => {
+  const custom = grantCard().facts.grant ?? (undefined as never);
+  return grantCard({
+    grant: {
+      ...custom,
+      symbol_scope: "account",
+      symbols: [],
+      allow_manual_positions: true,
+      delegation: "full",
+      full_available: true,
+    },
+    money: {
+      limits: {
+        account_id: "acct",
+        configured: true,
+        currency: "USD",
+        limits: { max_open_risk: "400" },
+        not_configured: [],
+      },
+      daily_loss: {
+        current: null,
+        proposed: null,
+        currency: "USD",
+        basis: null,
+        percent: null,
+      },
+    },
+    conflicts: [],
+    ...overrides,
+  });
+};
+
+test("a grant card offers Custom or Full delegation in the same list, Custom selected", () => {
+  const card = grantCard({
+    grant: {
+      ...(grantCard().facts.grant ?? (undefined as never)),
+      delegation: "custom",
+      full_available: true,
+    },
+  });
+  const en = ownerActionCard(card, "en", now);
+  // One choice inside the card's own list of options, never a separate button.
+  assert.deepEqual(
+    en.options.map((option) => [option.key, option.label, option.initial]),
+    [
+      ["delegation:custom", "Custom", true],
+      ["delegation:full", "Full delegation", false],
+      ["manual", "Include positions I opened myself", false],
+      ["no_money_limit", "No money limit (my choice)", false],
+      ["resume", "Resume trading too", true],
+      ["stop:other-grant", "Stop ⁨Silver agent⁩ trading on its own on this account", false],
+    ],
+  );
+  assert.deepEqual(
+    en.buttons.map((button) => button.key),
+    ["confirm", "cancel"],
+  );
+  // The selected choice says plainly what it means; the other one does not.
+  assert.equal(en.options[0]?.detail, ownerActionLabels.en.customMeaning);
+  assert.equal(en.options[1]?.detail, undefined);
+  assert.deepEqual(ownerActionChoose(en.options[1] as never), {
+    decision: "choose",
+    delegation: "full",
+  });
+  assert.equal(ownerActionChoose(en.options[2] as never), null);
+  // Custom keeps the D1 card exactly: the 2% daily loss line and the own-positions switch.
+  assert.ok(en.lines.includes("Daily loss limit: ⁨200.00 USD⁩ (⁨2%⁩ of equity)"));
+  // The challenge names the choice the card shows, so a changed card never signs it.
+  assert.deepEqual(ownerActionChoices(card, {}).challenge, {
+    delegation: "custom",
+    allow_manual_positions: false,
+  });
+  const ar = ownerActionCard(card, "ar", now);
+  assert.deepEqual(
+    ar.options.slice(0, 2).map((option) => [option.label, option.initial]),
+    [
+      ["مخصص", true],
+      ["تفويض كامل", false],
+    ],
+  );
+  assert.match(ar.options[0]?.detail ?? "", /^مخصص: /);
+  // A fixed-market agent's grant never covers every pair: no choice is offered.
+  const fixed = grantCard({
+    grant: { ...(card.facts.grant ?? (undefined as never)), full_available: false },
+  });
+  assert.ok(!ownerActionCard(fixed, "en", now).options.some((option) => option.choice));
+});
+
+test("Full delegation states what it means and that the account's limits stay", () => {
+  const card = fullCard();
+  const en = ownerActionCard(card, "en", now);
+  const full = en.options.find((option) => option.key === "delegation:full");
+  assert.equal(full?.initial, true);
+  assert.equal(
+    full?.detail,
+    "Full delegation: every pair on this account and every action (open, close fully or partly, pending orders, change stop loss and take profit, cancel), positions you opened yourself too, until you stop it. This card sets no daily loss limit. Money limits you set on this account elsewhere stay in force; removing them is a separate step with your passkey.",
+  );
+  assert.equal(en.options.find((option) => option.key === "delegation:custom")?.initial, false);
+  // Full always includes the owner's own positions: a line, never a switch; and the card
+  // sets no daily loss limit, so it offers no opt-out of one.
+  assert.ok(!en.options.some((option) => option.key === "manual"));
+  assert.ok(!en.options.some((option) => option.key === "no_money_limit"));
+  assert.ok(en.lines.includes("Markets: All pairs on this account"));
+  assert.ok(en.lines.includes("Opens, closes and manages trades"));
+  assert.ok(en.lines.includes("Until you stop it"));
+  assert.ok(en.lines.includes("Positions you opened yourself are included"));
+  assert.ok(!en.lines.some((line) => line.startsWith("Daily loss limit")));
+  assert.ok(en.lines.includes(`Account money limits: Total open risk ${"⁨400 USD⁩"}`));
+  // The passkey still signs it; the challenge names Full and sends no own-positions switch.
+  assert.equal(en.passkey, true);
+  assert.equal(en.buttons[0]?.label, "Authorize with passkey");
+  assert.deepEqual(ownerActionChoices(card, { manual: false }).challenge, { delegation: "full" });
+  // A switch ticked under Custom says nothing once Full is chosen.
+  assert.equal(
+    ownerActionChoices(card, { no_money_limit: true, keep_limit: true }).decision.money_limit,
+    "apply",
+  );
+  const ar = ownerActionCard(card, "ar", now);
+  const arFull = ar.options.find((option) => option.key === "delegation:full");
+  assert.match(arFull?.detail ?? "", /^تفويض كامل: كل أزواج هذا الحساب/);
+  assert.match(arFull?.detail ?? "", /خطوة منفصلة بمفتاح المرور\.$/);
+  assert.ok(ar.lines.includes("يشمل المراكز التي فتحتها بنفسك"));
+  // A signed Full delegation card says so in a line.
+  const settled = ownerActionCard(
+    { ...card, status: "confirmed", result: { delegation: "full", resumed: true } },
+    "en",
+    now,
+  );
+  assert.equal(settled.lines[0], "Full delegation");
+  assert.deepEqual(settled.options, []);
+  assert.equal(
+    ownerActionCard(
+      { ...card, status: "superseded", status_reason: "same_choice_on_another_card" },
+      "ar",
+      now,
+    ).outcome,
+    "التفويض نفسه ينتظر في بطاقة أخرى. لم يتغير شيء.",
+  );
+  for (const code of [
+    "owner_action_full_delegation_unavailable",
+    "owner_action_full_delegation_terms_fixed",
+    "owner_action_delegation_required",
+    OWNER_ACTION_CHANGED,
+  ]) {
+    assert.ok(ownerActionError(code, "en"));
+    assert.match(ownerActionError(code, "ar") ?? "", /[؀-ۿ]/);
+  }
+});
+
+test("a signed grant reads as Full delegation by its terms, as the readiness line does", () => {
+  const custom = grantCard().facts.grant ?? (undefined as never);
+  const terms = {
+    ...custom,
+    symbol_scope: "account" as const,
+    symbols: [],
+    all_actions: true,
+    duration: "until_stopped" as const,
+    allow_manual_positions: true,
+    delegation: "custom" as const,
+  };
+  const signed = (grant: typeof terms, status: OwnerAction["status"]) =>
+    ownerActionCard(
+      { ...grantCard({ grant }), status, result: { delegation: "custom", resumed: true } },
+      "en",
+      now,
+    ).lines;
+  // Signed as Custom with exactly Full's terms: the card agrees with the status line.
+  assert.equal(signed(terms, "confirmed")[0], "Full delegation");
+  // Anything narrower is not Full delegation: one pair, own positions excluded, a time limit.
+  for (const narrower of [
+    { ...terms, symbol_scope: "selected" as const, symbols: ["XAUUSD"] },
+    { ...terms, allow_manual_positions: false },
+    { ...terms, duration: "24h" as const },
+    { ...terms, all_actions: false, actions: ["close_position" as const] },
+  ])
+    assert.ok(!signed(narrower, "confirmed").includes("Full delegation"), JSON.stringify(narrower));
+  // A Custom card the owner dismissed signed nothing: no Full delegation line.
+  assert.ok(!signed(terms, "cancelled").includes("Full delegation"));
+});
+
+test("Web and Mobile send the delegation choice through the same decision route", () => {
+  for (const path of [
+    "apps/web/src/components/owner-actions/OwnerActionCard.tsx",
+    "apps/mobile/components/owner-action-card.tsx",
+  ]) {
+    const source = readFileSync(new URL(`../../${path}`, import.meta.url), "utf8");
+    assert.match(source, /ownerActionChoose\(option\)/, path);
+    assert.match(source, /option\.detail/, path);
+    // A card changed on another screen is read again before the owner taps again.
+    assert.match(source, /code === OWNER_ACTION_CHANGED\) await reread\(\)/, path);
+    assert.match(source, /rereadOwnerAction\(/, path);
+  }
+});
+
+test("a card changed on another screen is read again from the conversation's cards", async () => {
+  const stale = fullCard({
+    grant: { ...(grantCard().facts.grant ?? (undefined as never)), delegation: "custom" },
+  });
+  const current = fullCard();
+  const asked: string[] = [];
+  const read = await rereadOwnerAction(async (path) => {
+    asked.push(path);
+    return [{ ...base, id: "other" }, current];
+  }, stale);
+  assert.deepEqual(asked, ["/owner-actions?thread_id=thread"]);
+  assert.equal(read?.facts.grant?.delegation, "full");
+  assert.equal(await rereadOwnerAction(async () => [], stale), null);
+  // A card outside any conversation has nothing to read again from.
+  assert.equal(await rereadOwnerAction(async () => [current], { ...stale, thread_id: null }), null);
+  assert.equal(
+    ownerActionError(OWNER_ACTION_CHANGED, "en"),
+    "This card changed on another screen. It now shows the current choice; check it and tap again.",
+  );
+  assert.equal(
+    ownerActionError(OWNER_ACTION_CHANGED, "ar"),
+    "تغيّرت هذه البطاقة من شاشة أخرى، وهي تعرض الآن الاختيار الحالي؛ راجعها ثم اضغط مجددًا.",
+  );
+});
+
 test("Lonora's grant card preselects all pairs; an existing limit is shown, never widened", () => {
   const card = grantCard({
     grant: {
@@ -506,7 +728,7 @@ test("Lonora's grant card preselects all pairs; an existing limit is shown, neve
 test("a grant card's switches map to the signed challenge and the decision", () => {
   const card = grantCard();
   const initial = ownerActionChoices(card, {});
-  assert.deepEqual(initial.challenge, { allow_manual_positions: false });
+  assert.deepEqual(initial.challenge, { delegation: "custom", allow_manual_positions: false });
   assert.deepEqual(initial.decision, {
     money_limit: "apply",
     resume_trading: true,
@@ -518,7 +740,7 @@ test("a grant card's switches map to the signed challenge and the decision", () 
     resume: false,
     "stop:other-grant": true,
   });
-  assert.deepEqual(chosen.challenge, { allow_manual_positions: true });
+  assert.deepEqual(chosen.challenge, { delegation: "custom", allow_manual_positions: true });
   assert.deepEqual(chosen.decision, {
     money_limit: "none",
     resume_trading: false,

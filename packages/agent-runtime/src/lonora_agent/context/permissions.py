@@ -3,6 +3,7 @@
 import json
 from typing import Any
 
+from lonora_contracts.account_authority import full_delegation
 from lonora_db.agent_binding import agent_binding
 from lonora_db.agent_permissions import permission_state
 from lonora_db.schema import RunRow
@@ -76,22 +77,25 @@ def permission_guidance(
         envelope: dict[str, Any] = row["envelope"]
         scopes.append(
             {
-                key: envelope.get(key)
-                for key in (
-                    "account_id",
-                    "symbol_scope",
-                    "symbols",
-                    "actions",
-                    "management_mode",
-                    "allow_manual_positions",
-                    "maximum_order_volume",
-                    "maximum_symbol_volume",
-                    "maximum_positions",
-                    "maximum_pending_orders",
-                    "maximum_actions",
-                    "minimum_equity",
-                    "valid_until",
-                )
+                **{
+                    key: envelope.get(key)
+                    for key in (
+                        "account_id",
+                        "symbol_scope",
+                        "symbols",
+                        "actions",
+                        "management_mode",
+                        "allow_manual_positions",
+                        "maximum_order_volume",
+                        "maximum_symbol_volume",
+                        "maximum_positions",
+                        "maximum_pending_orders",
+                        "maximum_actions",
+                        "minimum_equity",
+                        "valid_until",
+                    )
+                },
+                "full_delegation": full_delegation(envelope),
             }
         )
     snapshot = {
@@ -138,7 +142,10 @@ def permission_guidance(
             "signed scopes below. Matching actions need no repeated per-operation approval. "
             "Any other action, a goal step included, becomes the owner's approval card "
             "(trade_execute does it); never enlarge scope yourself. Optional "
-            "numerical limits do not turn full management into supervised mode."
+            "numerical limits do not turn full management into supervised mode. A "
+            "full_delegation scope covers every pair on its account, every action and the "
+            "owner's own positions until the owner stops it; the account's monetary limits, "
+            "owner restrictions and global_trading still bind it."
         ),
     }[level]
     return (
@@ -158,7 +165,9 @@ def permission_guidance(
         "trade_restriction_create. An unset monetary limit is not enforced. Only the owner "
         "signs a grant, lifts a restriction, resumes trading, attests an uncertain outcome "
         "or changes a limit; when the owner asks for one, propose the matching owner action "
-        "card (owner_action_propose), a grant only when no active scope covers it."
+        "card (owner_action_propose), a grant only when no active scope covers it, with "
+        "delegation full only when the owner asked for full delegation; the owner chooses "
+        "Custom or Full on the card and signs it."
         + " A pending review, customization draft, chat agreement, task delegation or "
         "running global_trading grants no authority. global_trading, binding, preflight, "
         "manual intervention and reconciliation remain authoritative. While global_trading "

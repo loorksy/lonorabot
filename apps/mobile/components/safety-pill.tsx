@@ -205,7 +205,7 @@ export function SafetyPill({
               {readiness.grants.map((grant) => (
                 <Text key={`${grant.account_id}:${grant.symbols.join(",")}`} style={body}>
                   {[
-                    text.grants,
+                    grant.full_delegation ? text.fullDelegation : text.grants,
                     accountName(grant.account_id),
                     grant.symbol_scope === "account"
                       ? text.allPairs

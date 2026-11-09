@@ -11,6 +11,7 @@ import type {
   AttestedOutcome,
   CredentialTarget,
   EffectTier,
+  GrantDelegation,
   OwnerAction,
   OwnerActionAccount,
   OwnerActionAgent,
@@ -107,6 +108,7 @@ export const ownerActionLabels = {
     alreadyRunning: "Trading is already running.",
     alreadySet: "These limits are already set.",
     doneElsewhere: "Done from another card.",
+    sameOnAnotherCard: "The same grant waits on another card. Nothing changed.",
     noLongerApplies: "This no longer applies. Nothing changed.",
     passkeyUnsupported:
       "Passkey signing is unavailable here. Open Lonora in a supported browser or the app.",
@@ -157,6 +159,14 @@ export const ownerActionLabels = {
     for12hShort: "for 12 hours",
     for24hShort: "for 24 hours",
     for7dShort: "for 7 days",
+    delegationCustom: "Custom",
+    delegationFull: "Full delegation",
+    customMeaning:
+      "Custom: only the markets, actions and time shown here, with the daily loss limit shown; positions you opened yourself only if you switch them on.",
+    fullMeaning:
+      "Full delegation: every pair on this account and every action (open, close fully or partly, pending orders, change stop loss and take profit, cancel), positions you opened yourself too, until you stop it. This card sets no daily loss limit.",
+    fullLimits:
+      "Money limits you set on this account elsewhere stay in force; removing them is a separate step with your passkey.",
     grantHint:
       "Confirm with your passkey. Anything outside this grant still comes to you as an approval card.",
     oneRule:
@@ -349,6 +359,7 @@ export const ownerActionLabels = {
     alreadyRunning: "التداول يعمل بالفعل.",
     alreadySet: "هذه الحدود مضبوطة بالفعل.",
     doneElsewhere: "نُفذ من بطاقة أخرى.",
+    sameOnAnotherCard: "التفويض نفسه ينتظر في بطاقة أخرى. لم يتغير شيء.",
     noLongerApplies: "لم يعد هذا ساريًا. لم يتغير شيء.",
     passkeyUnsupported: "توقيع مفتاح المرور غير متاح هنا. افتح لونورا بمتصفح مدعوم أو التطبيق.",
     registerDevice: "سجّل هذا الجهاز أولًا",
@@ -397,6 +408,14 @@ export const ownerActionLabels = {
     for12hShort: "لمدة ١٢ ساعة",
     for24hShort: "لمدة ٢٤ ساعة",
     for7dShort: "لمدة ٧ أيام",
+    delegationCustom: "مخصص",
+    delegationFull: "تفويض كامل",
+    customMeaning:
+      "مخصص: الأسواق والعمليات والمدة الظاهرة هنا فقط، مع حد الخسارة اليومية الظاهر؛ ولا تُشمل المراكز التي فتحتها بنفسك إلا إذا فعّلتها.",
+    fullMeaning:
+      "تفويض كامل: كل أزواج هذا الحساب وكل العمليات (الفتح، والإغلاق الكلي أو الجزئي، والأوامر المعلّقة، وتعديل وقف الخسارة وجني الربح، والإلغاء)، والمراكز التي فتحتها بنفسك أيضًا، حتى توقفه. لا تضع هذه البطاقة حدًا للخسارة اليومية.",
+    fullLimits:
+      "تبقى الحدود المالية التي ضبطتها لهذا الحساب في مكان آخر نافذة؛ وإزالتها خطوة منفصلة بمفتاح المرور.",
     grantHint: "أكّد بمفتاح المرور. ما يخرج عن هذا التفويض يصلك كبطاقة موافقة.",
     oneRule:
       "كل وكيل يرى ويستخدم كل ما وصلته بلونورا، لكنه لا ينفّذ صفقة حقيقية إلا ضمن التفويض الذي وقّعته له بمفتاح المرور وضمن حدود حسابك؛ وما يحتاجك يصلك كبطاقة في المحادثة بلمسة واحدة، وتستطيع إيقاف أي شيء بلمسة، ولا يستطيع أي وكيل أو مهارة أو إضافة توسيع صلاحياتك المالية.",
@@ -537,8 +556,18 @@ export type OwnerActionButton = {
   primary: boolean;
 };
 /** An owner switch on a card (a grant card's own positions, money limit, Resume, a
- * conflict); the client keeps its state and ``ownerActionChoices`` sends it. */
-export type OwnerActionOption = { key: string; label: string; initial: boolean };
+ * conflict); the client keeps its state and ``ownerActionChoices`` sends it. An option
+ * with ``choice`` is one of a group of which exactly one is selected (a grant card's
+ * Custom or Full delegation): it is shown as a radio, ``initial`` is the server's stored
+ * choice, and selecting it sends ``ownerActionChoose`` at once. ``detail`` says plainly
+ * what the selected choice means. */
+export type OwnerActionOption = {
+  key: string;
+  label: string;
+  initial: boolean;
+  choice?: { group: "delegation"; value: GrantDelegation };
+  detail?: string;
+};
 /** One field of a credential card's secure form; its value goes only to the owner API. */
 export type CredentialField = {
   key: "name" | "url" | "secret" | "account";
@@ -654,6 +683,8 @@ function settledLine(card: OwnerAction, text: OwnerActionText, lang: Language): 
       return text.alreadySet;
     case "done_by_another_card":
       return text.doneElsewhere;
+    case "same_choice_on_another_card":
+      return text.sameOnAnotherCard;
     case "grant_already_active":
       return text.alreadySigned;
     case "agent_already_removed":
@@ -809,7 +840,29 @@ function grantCard(card: OwnerAction, locale: string, lang: Language, now: Date)
   const lines: string[] = [];
   const options: OwnerActionOption[] = [];
   const hints: string[] = [];
+  const delegation = grantDelegation(card);
+  const pending = card.status === "pending";
+  if (grant && pending && grant.full_available === true)
+    // One choice in the card's list, Custom selected unless the card says otherwise; the
+    // selected one says plainly what it means.
+    for (const value of ["custom", "full"] as const)
+      options.push({
+        key: `delegation:${value}`,
+        label: value === "full" ? text.delegationFull : text.delegationCustom,
+        initial: delegation === value,
+        choice: { group: "delegation", value },
+        ...(delegation === value
+          ? {
+              detail:
+                value === "full" ? `${text.fullMeaning} ${text.fullLimits}` : text.customMeaning,
+            }
+          : {}),
+      });
   if (grant) {
+    // Signed: the label follows the signed terms, as the readiness line and safety sheet
+    // read them, so a Custom card that signed exactly Full's terms says so too.
+    if (!pending && (delegation === "full" || (card.status === "confirmed" && fullTerms(grant))))
+      lines.push(text.delegationFull);
     const account = accountLabel(facts.account, text);
     if (account) lines.push(`${text.account}: ${account}`);
     lines.push(`${text.markets}: ${marketsLabel(grant.symbol_scope, grant.symbols, text, lang)}`);
@@ -827,13 +880,14 @@ function grantCard(card: OwnerAction, locale: string, lang: Language, now: Date)
             ? text.for7d
             : text.untilStopped,
     );
-    if (card.status === "pending")
+    if (pending && delegation === "custom")
       // The switch states it; a fixed line beside it would contradict a ticked switch.
       options.push({
         key: "manual",
         label: text.includeOwn,
         initial: grant.allow_manual_positions,
       });
+    // Full delegation always includes them: a line, never a switch.
     else lines.push(grant.allow_manual_positions ? text.ownIncluded : text.ownExcluded);
   }
   const money = facts.money;
@@ -923,15 +977,44 @@ function grantCard(card: OwnerAction, locale: string, lang: Language, now: Date)
   };
 }
 
-/** What a grant card's switches send: the passkey challenge carries the owner's own
- * positions choice (it is signed); the decision carries the rest. */
+/** A card's grant terms are Full delegation's (``full_delegation`` in
+ * lonora_contracts.account_authority reads a card's envelope the same way: a card signs no
+ * cap of its own): every pair on the account, every action, until stopped, the owner's own
+ * positions too. */
+function fullTerms(grant: NonNullable<OwnerAction["facts"]["grant"]>): boolean {
+  return (
+    grant.symbol_scope === "account" &&
+    grant.all_actions &&
+    grant.duration === "until_stopped" &&
+    grant.allow_manual_positions
+  );
+}
+
+/** A grant card's stored choice: Custom unless the server's draft says Full. */
+function grantDelegation(card: OwnerAction): GrantDelegation {
+  return card.facts.grant?.delegation === "full" ? "full" : "custom";
+}
+
+/** What selecting a choice option sends at once (the card's stored draft changes on the
+ * server and nothing is signed); null for any other option. */
+export function ownerActionChoose(option: OwnerActionOption): OwnerActionDecision | null {
+  return option.choice ? { decision: "choose", delegation: option.choice.value } : null;
+}
+
+/** What a grant card's switches send: the passkey challenge carries the choice the card
+ * shows (the server refuses it if the stored choice changed meanwhile) and the owner's
+ * own positions switch under Custom (it is signed; Full always includes them); the
+ * decision carries the rest. */
 export function ownerActionChoices(
   card: OwnerAction,
   chosen: Readonly<Record<string, boolean>>,
 ): { challenge: OwnerActionChallenge; decision: Partial<OwnerActionDecision> } {
   if (card.kind !== "grant_authority") return { challenge: {}, decision: {} };
-  const value = (key: string, initial: boolean) => chosen[key] ?? initial;
   const options = grantCard(card, "en", "en", new Date()).options;
+  // Only switches the card shows now count: one ticked under Custom says nothing after
+  // the owner chose Full delegation, which has no daily loss line to opt out of.
+  const value = (key: string, initial: boolean) =>
+    options.some((item) => item.key === key) && (chosen[key] ?? initial);
   const initial = (key: string) => options.find((item) => item.key === key)?.initial ?? false;
   const decision: Partial<OwnerActionDecision> = {
     // Either opt-out leaves the account's daily loss limit exactly as it is.
@@ -944,7 +1027,10 @@ export function ownerActionChoices(
       .map((item) => item.key.slice("stop:".length)),
   };
   return {
-    challenge: { allow_manual_positions: value("manual", initial("manual")) },
+    challenge:
+      grantDelegation(card) === "full"
+        ? { delegation: "full" }
+        : { delegation: "custom", allow_manual_positions: value("manual", initial("manual")) },
     decision,
   };
 }
@@ -1500,6 +1586,21 @@ export function ownerActionCard(
   };
 }
 
+/** A refusal that means the card changed on another screen (a grant card's choice): the
+ * client reads the card again so it shows what the passkey would sign now. */
+export const OWNER_ACTION_CHANGED = "owner_action_card_changed";
+
+/** The card as the server reads it now (null when it is gone), through the same list
+ * route Web and Mobile already read their conversation's cards from. */
+export async function rereadOwnerAction(
+  get: (path: string) => Promise<OwnerAction[]>,
+  row: OwnerAction,
+): Promise<OwnerAction | null> {
+  if (!row.thread_id) return null;
+  const rows = await get(`/owner-actions?thread_id=${encodeURIComponent(row.thread_id)}`);
+  return rows.find((item) => item.id === row.id) ?? null;
+}
+
 /** A newer status never goes back to pending when an older read arrives late. */
 export function mergeOwnerAction(previous: OwnerAction, next: OwnerAction): OwnerAction {
   if (previous.status !== "pending" && next.status === "pending") return previous;
@@ -1550,6 +1651,26 @@ const errors: Readonly<Record<string, { en: string; ar: string }>> = {
   owner_action_not_needed_grant_already_active: {
     en: "This is already signed.",
     ar: "هذا موقّع بالفعل.",
+  },
+  owner_action_full_delegation_unavailable: {
+    en: "Full delegation covers every pair on the account; this agent trades only its own pair. Use Custom.",
+    ar: "التفويض الكامل يشمل كل أزواج الحساب، وهذا الوكيل يتداول زوجه فقط. استخدم مخصص.",
+  },
+  owner_action_full_delegation_terms_fixed: {
+    en: "Full delegation always includes positions you opened yourself. Choose Custom to exclude them.",
+    ar: "التفويض الكامل يشمل دائمًا المراكز التي فتحتها بنفسك. اختر مخصص لاستثنائها.",
+  },
+  owner_action_delegation_required: {
+    en: "Choose Custom or Full delegation.",
+    ar: "اختر مخصص أو تفويض كامل.",
+  },
+  owner_action_card_changed: {
+    en: "This card changed on another screen. It now shows the current choice; check it and tap again.",
+    ar: "تغيّرت هذه البطاقة من شاشة أخرى، وهي تعرض الآن الاختيار الحالي؛ راجعها ثم اضغط مجددًا.",
+  },
+  owner_action_choice_unsupported: {
+    en: "This card has no such choice.",
+    ar: "لا يوجد هذا الخيار في هذه البطاقة.",
   },
   execution_policy_passkey_required: {
     en: "Raising or removing a money limit needs your passkey.",

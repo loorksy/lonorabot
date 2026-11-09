@@ -52,6 +52,7 @@ export const tradingSafetyLabels = {
     supervised: "Ask me",
     autonomous: "On its own (signed)",
     grants: "Signed grant",
+    fullDelegation: "Full delegation",
     allPairs: "All pairs on this account",
     untilStopped: "until you stop it",
     until: "until",
@@ -98,6 +99,7 @@ export const tradingSafetyLabels = {
     supervised: "يسألني أولًا",
     autonomous: "مستقل ضمن تفويضي الموقّع",
     grants: "تفويض موقّع",
+    fullDelegation: "تفويض كامل",
     allPairs: "كل أزواج هذا الحساب",
     untilStopped: "حتى توقفه",
     until: "حتى",
@@ -266,8 +268,10 @@ export function tradingReadinessLine(
           ? `يتداول باستقلال على ${isolate(String(accounts))} حسابات`
           : `Trades on its own on ${accounts} accounts`;
       const account = params.account_id ? accountName(params.account_id) : null;
-      const markets =
-        params.symbol_scope === "account"
+      // Full delegation already says every pair, every action and the owner's positions.
+      const markets = params.full_delegation
+        ? tradingSafetyLabels[lang].fullDelegation
+        : params.symbol_scope === "account"
           ? tradingSafetyLabels[lang].allPairs
           : (params.symbols ?? []).map(isolate).join(listSeparator(locale));
       const end = until(params.valid_until, { en: "until you stop it", ar: "حتى توقفه" });
