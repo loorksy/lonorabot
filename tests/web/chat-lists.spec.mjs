@@ -467,6 +467,32 @@ test("«حذف» and «مسح» hide the history for the owner; agents and group
   expect(deletes).toEqual([]);
 });
 
+test("a cleared conversation leaves the open chat and stays hidden when it is reopened", async ({
+  page,
+  context,
+}) => {
+  const fixture = seed({ action: "init" });
+  await signIn(context, fixture);
+  const [alpha, beta] = fixture.agents;
+  await page.goto(`/app/${beta.id}?thread=${fixture.threads[1].id}`);
+  const cleared = page.locator("article", { hasText: "Second update" });
+  await expect(cleared.first()).toBeVisible();
+  await desktopRow(page, key(beta)).click({ button: "right" });
+  await toolbar(page).getByRole("button", { name: "Delete", exact: true }).click();
+  await page.locator("#dialog").getByRole("button", { name: "Delete", exact: true }).click();
+  await expect(page.locator("#toast")).toHaveText("one chat deleted");
+  // Q1 in the same session: the open conversation hides what the server hides, no reload.
+  await expect(cleared).toHaveCount(0);
+  await desktopRow(page, key(alpha)).click();
+  await expect(page).toHaveURL(new RegExp(`/app/${alpha.id}`));
+  await expect(page.getByTestId("transcript").getByText("Yes, it opened.")).toBeVisible();
+  // Reopened from this session's conversation cache.
+  await desktopRow(page, key(beta)).click();
+  await expect(page).toHaveURL(new RegExp(`/app/${beta.id}`));
+  await expect(page.getByTestId("transcript")).toBeVisible();
+  await expect(cleared).toHaveCount(0);
+});
+
 test("offline: a plain message waits and goes out by itself; an answer stays failed for a manual retry", async ({
   page,
   context,

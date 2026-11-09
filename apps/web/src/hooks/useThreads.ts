@@ -22,7 +22,13 @@ function mergeMessages(...groups: Message[][]) {
   return [...messages.values()].sort((a, b) => a.seq - b.seq);
 }
 
-export function useThreads(agentId?: string, threadId?: string, knownRuns: Run[] = noKnownRuns) {
+export function useThreads(
+  agentId?: string,
+  threadId?: string,
+  knownRuns: Run[] = noKnownRuns,
+  /** The owner's «مسح» cursor (Q1): the server hides these; the session's cache does too. */
+  hiddenBefore = 0,
+) {
   const { owner, revision, refresh, events } = useClient();
   const [threads, setThreads] = useState<Thread[]>([]);
   const messageKey = conversationKey(owner.id, `/threads/${threadId}/messages`);
@@ -110,7 +116,7 @@ export function useThreads(agentId?: string, threadId?: string, knownRuns: Run[]
     void outgoing;
     const visible = new Map(
       mergeMessages(readConversation<Message[]>(messageKey) ?? [], messages)
-        .filter((message) => message.thread_id === threadId)
+        .filter((message) => message.thread_id === threadId && message.seq > hiddenBefore)
         .map((message) => [message.id, message]),
     );
     for (const event of events) {
@@ -124,6 +130,7 @@ export function useThreads(agentId?: string, threadId?: string, knownRuns: Run[]
         typeof payload.id !== "string" ||
         typeof payload.content !== "string" ||
         typeof payload.seq !== "number" ||
+        payload.seq <= hiddenBefore ||
         typeof payload.created_at !== "string" ||
         !Array.isArray(payload.attachment_ids) ||
         !["user", "assistant", "system", "tool"].includes(String(payload.role))
@@ -132,7 +139,7 @@ export function useThreads(agentId?: string, threadId?: string, knownRuns: Run[]
       visible.set(payload.id, payload as unknown as Message);
     }
     return [...visible.values()].sort((a, b) => a.seq - b.seq);
-  }, [messages, events, threadId, messageKey, outgoing]);
+  }, [messages, events, threadId, messageKey, outgoing, hiddenBefore]);
   useEffect(() => {
     retainConversation(messageKey, canonicalMessages.slice(-500));
     acknowledgeOutgoing(key, canonicalMessages);

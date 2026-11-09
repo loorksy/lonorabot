@@ -66,6 +66,7 @@ import { streamForRun } from "../../lib/response_streaming";
 import { activityTimeline, type StreamRow, streamVisible } from "../../lib/stream-timeline";
 import { userError } from "../../lib/user_error";
 import { useClient } from "../../providers/ClientProvider";
+import { useShellData } from "../../shell/data";
 import { useToast } from "../../shell/Toast";
 import {
   FailedReplyNotice,
@@ -94,7 +95,9 @@ export function ThreadViewport({
   aroundSeq?: number;
 }) {
   const agent = agents.find((item) => item.id === agentId);
-  const thread = useThreads(undefined, threadId, knownRuns);
+  const hiddenBefore =
+    useShellData().inbox.find((entry) => entry.thread_id === threadId)?.hidden_before_seq ?? 0;
+  const thread = useThreads(undefined, threadId, knownRuns, hiddenBefore);
   const toast = useToast();
   const [jump, setJump] = useState<string | null>(null);
   const loadAround = useRef(thread.around);
