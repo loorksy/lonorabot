@@ -47,7 +47,7 @@ export function parseRoute(pathname: string): ShellRoute {
   if (segments.length === 1) return { kind: "root", root: "chats" };
   const [, head, item, extra] = segments;
   if (head === "g" && item && !extra) return { kind: "group", groupId: item };
-  if (head in ALIASES && !item) return { kind: "alias", to: ALIASES[head] };
+  if (Object.hasOwn(ALIASES, head) && !item) return { kind: "alias", to: ALIASES[head] };
   if (rootNames.has(head) && !item) return { kind: "root", root: head as Root };
   if (pageNames.has(head)) {
     if (extra || (item && head !== "artifacts")) return { kind: "not-found" };
