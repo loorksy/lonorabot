@@ -12,7 +12,10 @@ export type SearchResult = {
   thread_id?: string | null;
   seq?: number;
   role?: Message["role"];
+  /** messages: the speaker; the hit's conversation is `thread_agent_id` or `group_id`. */
   agent_id?: string | null;
+  /** messages: the agent whose thread holds the hit (null in a group's thread). */
+  thread_agent_id?: string | null;
   group_id?: string | null;
   /** chats: agent | group; knowledge: memory | note. */
   kind?: string;

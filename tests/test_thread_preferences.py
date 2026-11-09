@@ -601,3 +601,25 @@ async def test_unified_search_folds_arabic_pages_and_browses_recent_items():
         assert [item["seq"] for item in window] == [2, 3, 4, 5]
     finally:
         await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_a_message_hit_routes_by_the_thread_owner_and_titles_by_the_speaker():
+    database()
+    from check_streaming import Fixture
+
+    fixture = await Fixture().open()
+    marker = uuid4().hex[:8]
+    try:
+        alpha = await fixture.agent(f"Alpha {marker}")
+        beta = await fixture.agent(f"Beta {marker}")
+        side = await fixture.request("POST", "/threads", {"agent_id": alpha["id"], "title": "Side"})
+        # A peer's outcome lands in the asking agent's thread under the peer's id.
+        await agent_reply(fixture, side["id"], beta["id"], f"Peer outcome {marker}")
+        found = await fixture.request("GET", f"/search?q=outcome {marker}&category=messages")
+        hit = found["results"]["messages"][0]
+        assert hit["thread_id"] == side["id"]
+        assert hit["agent_id"] == beta["id"]
+        assert hit["thread_agent_id"] == alpha["id"] and hit["group_id"] is None
+    finally:
+        await fixture.close()

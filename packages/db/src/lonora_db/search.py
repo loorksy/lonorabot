@@ -274,7 +274,10 @@ async def search_messages(
             thread_id=message.thread_id,
             seq=message.seq,
             role=message.role,
+            # The speaker titles the hit; the thread's own agent or group routes it (a
+            # peer's outcome is written into the asking agent's thread under its own id).
             agent_id=message.agent_id or thread_agent_id,
+            thread_agent_id=thread_agent_id,
             group_id=group_id,
         )
         for message, thread_agent_id, group_id in rows

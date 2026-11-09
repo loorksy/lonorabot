@@ -66,8 +66,10 @@ tatweel removed); messages are served by a pg_trgm index on that expression (cre
 `0045_chat_lists`, which installs the trusted `pg_trgm` extension). Score: exact 6, prefix
 5, contains 4, a detail field 3, then recency. Files are artifacts, knowledge is every
 agent's memory and semantic notes labelled by agent, skills the installed skills (Q5).
-Message hits carry `thread_id`, `seq`, `created_at`, `role`, `agent_id`, `group_id` and a
-160-character snippet; `GET /api/threads/{id}/messages?around=seq` centres a page on a
+Message hits carry `thread_id`, `seq`, `created_at`, `role`, `agent_id` (the speaker),
+`thread_agent_id` and `group_id` (the thread's own agent or group, which routes the hit: a
+peer's outcome sits in the asking agent's thread) and a 160-character snippet;
+`GET /api/threads/{id}/messages?around=seq` centres a page on a
 hit. An empty `q` is the browse feed: the same categories by recency, tasks active first.
 The search is owner-wide and served to the owner API only; agents keep their scoped
 `search_internal` and `session_search` tools. The response is `q`, `category`, `limit`,

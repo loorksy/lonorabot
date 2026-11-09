@@ -425,6 +425,33 @@ test("a message hit from an agent's other conversation opens that conversation",
   await expect(page.getByTestId("transcript").getByText(answer)).toBeInViewport();
 });
 
+test("a peer's outcome in an agent's side conversation opens that agent's conversation", async ({
+  page,
+  context,
+}) => {
+  const fixture = seed({ action: "init" });
+  const headers = await signIn(context, fixture);
+  const [alpha, beta] = fixture.agents;
+  const side = await (
+    await context.request.post("/api/threads", {
+      headers,
+      data: { agent_id: alpha.id, title: "Side" },
+    })
+  ).json();
+  // A peer's outcome is written into the asking agent's thread under the peer's id.
+  const answer = `Peer outcome ${side.id.slice(0, 8)}`;
+  seed({ action: "message", thread: side.id, agent: beta.id, content: answer });
+  await page.goto("/app");
+  await page.locator("#desktop-search").fill(answer);
+  await page.getByRole("tab", { name: "Messages" }).click();
+  const hit = page.locator("#search-results [data-search-hit='messages']").first();
+  // The conversation is alpha's; the peer is the speaker.
+  await expect(hit.locator(".search-hit-title")).toHaveText(`${alpha.name} · ${beta.name}`);
+  await hit.click();
+  await expect(page).toHaveURL(new RegExp(`/app/${alpha.id}\\?thread=${side.id}&around=\\d+`));
+  await expect(page.getByTestId("transcript").getByText(answer)).toBeInViewport();
+});
+
 test("phone search browses recent content when the query is empty", async ({ page, context }) => {
   const fixture = seed({ action: "init" });
   await signIn(context, fixture, "ar");

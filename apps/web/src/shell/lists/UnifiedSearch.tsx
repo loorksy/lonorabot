@@ -141,11 +141,13 @@ function Hit({
     }
     case "messages": {
       // A hit in one of an agent's other conversations (a subagent run, a ticket, a new
-      // thread) belongs to that agent's row; a group shows only its own thread.
+      // thread) belongs to that agent's row; a group shows only its own thread. The thread's
+      // agent routes it, not the speaker: a peer's outcome sits in the asking agent's thread.
+      const owner = item.thread_agent_id;
       const row =
         rows.find((candidate) => candidate.threadId === item.thread_id) ??
-        (!item.group_id && item.agent_id
-          ? rows.find((candidate) => candidate.key === rowKey("agent", item.agent_id as string))
+        (!item.group_id && owner
+          ? rows.find((candidate) => candidate.key === rowKey("agent", owner))
           : undefined);
       const speaker = item.role === "user" ? t`You` : agentName(item.agent_id) || row?.name || "";
       lead = icon("chat");
