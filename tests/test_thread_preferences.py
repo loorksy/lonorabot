@@ -7,6 +7,7 @@ lead, the persisted template, chat lists, folded search with paging and ``around
 """
 
 import os
+from pathlib import Path
 from typing import Any, cast
 from uuid import uuid4
 
@@ -95,6 +96,12 @@ def test_contracts_refuse_empty_changes_and_a_lead_outside_the_group():
     assert ChatListCreate.model_validate({"name": "  عملي   ١ "}).name == "عملي ١"
     with pytest.raises(ValidationError):
         ChatListCreate.model_validate({"name": "x" * 31})
+
+
+def test_search_doc_matches_the_categories_only_response():
+    doc = (Path(__file__).resolve().parents[1] / "docs/thread-preferences.md").read_text()
+    section = doc.split("## Unified search", 1)[1].split("\n## ", 1)[0]
+    assert "`agents`, `messages` and `memory` lists" not in section
 
 
 # --- PostgreSQL: the owner API on the migrated schema -----------------------------------

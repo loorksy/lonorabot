@@ -70,9 +70,8 @@ Message hits carry `thread_id`, `seq`, `created_at`, `role`, `agent_id`, `group_
 160-character snippet; `GET /api/threads/{id}/messages?around=seq` centres a page on a
 hit. An empty `q` is the browse feed: the same categories by recency, tasks active first.
 The search is owner-wide and served to the owner API only; agents keep their scoped
-`search_internal` and `session_search` tools. Until the phase-2 UI lands, the
-uncategorised response also carries the `agents`, `messages` and `memory` lists the
-current web search page reads.
+`search_internal` and `session_search` tools. The response is `q`, `category`, `limit`,
+`offset`, `counts` and `results` (by category), with or without a category.
 
 ## Contracts and clients
 
