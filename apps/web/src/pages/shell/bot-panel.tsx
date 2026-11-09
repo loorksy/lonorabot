@@ -95,9 +95,11 @@ export function AgentCreatePanel({ onCreated }: { onCreated: (agent: Agent) => v
               ? { market: pair.trading_symbol, account_id: pair.trading_account_id }
               : {}),
           });
-          // The appearance is the agent's own setting, saved on it right after.
+          // The appearance is the agent's own setting, saved on it right after. The agent
+          // exists either way: a failed save is not a failed creation (a retry would make a
+          // second agent); the appearance stays editable in the agent's settings.
           if (avatar !== agent.avatar || color !== agent.color)
-            await api.patch(`/agents/${agent.id}`, { avatar, color });
+            await api.patch(`/agents/${agent.id}`, { avatar, color }).catch(() => undefined);
           onCreated(agent);
         } catch (failure) {
           setError(failure);

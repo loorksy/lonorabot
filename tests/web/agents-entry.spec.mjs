@@ -117,3 +117,44 @@ test("«وكيل جديد» persists its template and the new chat sorts below t
   for (const seeded of fixture.agents.slice(0, 2))
     expect(keys.indexOf(`agent:${seeded.id}`)).toBeLessThan(position);
 });
+
+test("a failed appearance save never reads as a failed creation (no second agent on retry)", async ({
+  page,
+  context,
+}) => {
+  const fixture = seed({ action: "init" });
+  const state = await signIn(context, fixture);
+  await page.route("**/api/agents/*", (route) =>
+    route.request().method() === "PATCH"
+      ? route.fulfill({
+          status: 500,
+          contentType: "application/json",
+          body: JSON.stringify({ code: "request_failed" }),
+        })
+      : route.continue(),
+  );
+  const posts = [];
+  page.on("request", (request) => {
+    if (request.method() === "POST" && new URL(request.url()).pathname.startsWith("/api/agents"))
+      posts.push(new URL(request.url()).pathname);
+  });
+  await page.goto("/app/new-agent");
+  const main = page.locator("main");
+  await main.getByRole("radio", { name: /^General agent/ }).check();
+  await main.getByRole("button", { name: "Next", exact: true }).click();
+  await main
+    .getByLabel("Agent name", { exact: true })
+    .fill(`Helper ${fixture.group.id.slice(0, 6)}`);
+  await main.getByLabel("Description", { exact: true }).fill("Answers the owner's questions");
+  const creation = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === "/api/agents/create" &&
+      response.request().method() === "POST",
+  );
+  await main.getByRole("button", { name: "Create the agent", exact: true }).click();
+  const agent = await (await creation).json();
+  state.extra.push(agent.id);
+  await expect(page).toHaveURL(new RegExp(`/app/${agent.id}$`));
+  await expect(main.getByRole("alert")).toHaveCount(0);
+  expect(posts).toEqual(["/api/agents/create"]);
+});
