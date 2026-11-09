@@ -224,6 +224,8 @@ function Filters() {
             onPointerDown={(event) => {
               const chip = event.currentTarget;
               endPress();
+              // A right-click opens the menu through contextmenu; only a held press waits.
+              if (event.button > 0) return;
               press.current = {
                 x: event.clientX,
                 y: event.clientY,

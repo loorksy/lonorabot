@@ -65,15 +65,15 @@ msgstr "{sent, plural, one {One waiting message was sent} two {Two waiting messa
 msgid "A background item was paused after repeated errors; everything else keeps running"
 msgstr "A background item was paused after repeated errors; everything else keeps running"
 
-#: src/shell/lists/ChatList.tsx:410
+#: src/shell/lists/ChatList.tsx:412
 msgid "A chat does not return to the list when a new message arrives."
 msgstr "A chat does not return to the list when a new message arrives."
 
-#: src/shell/lists/ChatList.tsx:412
+#: src/shell/lists/ChatList.tsx:414
 msgid "A chat returns to the list when a new message arrives."
 msgstr "A chat returns to the list when a new message arrives."
 
-#: src/shell/lists/ChatList.tsx:430
+#: src/shell/lists/ChatList.tsx:432
 msgid "A chat will return when a new message arrives"
 msgstr "A chat will return when a new message arrives"
 
@@ -194,11 +194,11 @@ msgstr "Add board"
 msgid "Add broker connection"
 msgstr "Add broker connection"
 
-#: src/shell/lists/ChatList.tsx:373
+#: src/shell/lists/ChatList.tsx:375
 msgid "Add chats"
 msgstr "Add chats"
 
-#: src/shell/lists/ChatList.tsx:334
+#: src/shell/lists/ChatList.tsx:336
 msgid "Add chats to your favourites: press and hold a chat, then ⋮."
 msgstr "Add chats to your favourites: press and hold a chat, then ⋮."
 
@@ -407,7 +407,7 @@ msgid "Archive"
 msgstr "Archive"
 
 #: src/shell/DesktopList.tsx:63
-#: src/shell/lists/ChatList.tsx:290
+#: src/shell/lists/ChatList.tsx:292
 #: src/shell/pages.tsx:61
 msgid "Archived"
 msgstr "Archived"
@@ -816,7 +816,7 @@ msgstr "Chats returned to the list"
 msgid "Chats unpinned"
 msgstr "Chats unpinned"
 
-#: src/shell/lists/ChatList.tsx:429
+#: src/shell/lists/ChatList.tsx:431
 msgid "Chats will stay archived"
 msgstr "Chats will stay archived"
 
@@ -1123,7 +1123,7 @@ msgstr "Conversation history"
 msgid "Conversation transcript"
 msgstr "Conversation transcript"
 
-#: src/shell/lists/ChatList.tsx:343
+#: src/shell/lists/ChatList.tsx:345
 msgid "Conversations"
 msgstr "Conversations"
 
@@ -1832,8 +1832,8 @@ msgstr "Its own role, model and permissions"
 msgid "Jump to latest"
 msgstr "Jump to latest"
 
-#: src/shell/lists/ChatList.tsx:406
-#: src/shell/lists/ChatList.tsx:421
+#: src/shell/lists/ChatList.tsx:408
+#: src/shell/lists/ChatList.tsx:423
 msgid "Keep chats archived"
 msgstr "Keep chats archived"
 
@@ -2257,8 +2257,8 @@ msgstr "New chat"
 msgid "New group"
 msgstr "New group"
 
-#: src/shell/lists/ChatList.tsx:263
-#: src/shell/lists/ChatList.tsx:264
+#: src/shell/lists/ChatList.tsx:265
+#: src/shell/lists/ChatList.tsx:266
 #: src/shell/lists/ListSheets.tsx:316
 #: src/shell/lists/ListSheets.tsx:452
 msgid "New list"
@@ -2309,7 +2309,7 @@ msgstr "Next: the chats"
 #~ msgid "No agents match"
 #~ msgstr "No agents match"
 
-#: src/shell/lists/ChatList.tsx:444
+#: src/shell/lists/ChatList.tsx:446
 msgid "No archived chats. Press and hold a chat in the list, then choose «Archive»."
 msgstr "No archived chats. Press and hold a chat in the list, then choose «Archive»."
 
@@ -2330,11 +2330,11 @@ msgid "No chats are available yet."
 msgstr "No chats are available yet."
 
 #. placeholder {0}: activeList.name
-#: src/shell/lists/ChatList.tsx:364
+#: src/shell/lists/ChatList.tsx:366
 msgid "No chats in «{0}» yet."
 msgstr "No chats in «{0}» yet."
 
-#: src/shell/lists/ChatList.tsx:336
+#: src/shell/lists/ChatList.tsx:338
 msgid "No chats."
 msgstr "No chats."
 
@@ -2434,7 +2434,7 @@ msgstr "No tickets yet"
 msgid "No trading goals yet."
 msgstr "No trading goals yet."
 
-#: src/shell/lists/ChatList.tsx:332
+#: src/shell/lists/ChatList.tsx:334
 msgid "No unread messages."
 msgstr "No unread messages."
 
@@ -2710,7 +2710,7 @@ msgstr "Preparing"
 #~ msgid "Preparing — not sent"
 #~ msgstr "Preparing — not sent"
 
-#: src/shell/lists/ChatList.tsx:459
+#: src/shell/lists/ChatList.tsx:461
 msgid "Press and hold a chat to unarchive, mute or delete it."
 msgstr "Press and hold a chat to unarchive, mute or delete it."
 
@@ -3024,7 +3024,7 @@ msgstr "Resume"
 #: src/pages/Board.tsx:124
 #: src/pages/Routines.tsx:169
 #: src/pages/shell/message-cards.tsx:185
-#: src/shell/lists/ChatList.tsx:351
+#: src/shell/lists/ChatList.tsx:353
 #: src/shell/pages.tsx:304
 #: src/shell/pages.tsx:315
 msgid "Retry"

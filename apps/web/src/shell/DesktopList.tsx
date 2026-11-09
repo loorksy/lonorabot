@@ -98,7 +98,7 @@ export function DesktopList({
           </>
         )}
       </div>
-      <search className={`list-search${query.trim() ? " has-query" : ""}`}>
+      <label className={`list-search${query.trim() ? " has-query" : ""}`}>
         <Icon name="search" />
         <input
           id="desktop-search"
@@ -124,7 +124,7 @@ export function DesktopList({
         >
           <Icon name="close" />
         </button>
-      </search>
+      </label>
       <div className="desktop-threads" id="desktop-threads">
         {query.trim() ? (
           <UnifiedSearch query={query} tab={tab} onTab={onTab} />

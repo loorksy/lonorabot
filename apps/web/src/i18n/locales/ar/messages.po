@@ -65,15 +65,15 @@ msgstr "{sent, plural, one {أُرسلت رسالة واحدة كانت تنتظ
 msgid "A background item was paused after repeated errors; everything else keeps running"
 msgstr "أُوقف عنصر في الخلفية بعد أخطاء متكررة؛ يستمر كل ما عداه في العمل"
 
-#: src/shell/lists/ChatList.tsx:410
+#: src/shell/lists/ChatList.tsx:412
 msgid "A chat does not return to the list when a new message arrives."
 msgstr "لا تعود المحادثة إلى القائمة عند وصول رسالة جديدة."
 
-#: src/shell/lists/ChatList.tsx:412
+#: src/shell/lists/ChatList.tsx:414
 msgid "A chat returns to the list when a new message arrives."
 msgstr "تعود المحادثة إلى القائمة عند وصول رسالة جديدة."
 
-#: src/shell/lists/ChatList.tsx:430
+#: src/shell/lists/ChatList.tsx:432
 msgid "A chat will return when a new message arrives"
 msgstr "ستعود المحادثة عند وصول رسالة جديدة"
 
@@ -194,11 +194,11 @@ msgstr "إضافة لوحة"
 msgid "Add broker connection"
 msgstr "إضافة اتصال بالوسيط"
 
-#: src/shell/lists/ChatList.tsx:373
+#: src/shell/lists/ChatList.tsx:375
 msgid "Add chats"
 msgstr "إضافة محادثات"
 
-#: src/shell/lists/ChatList.tsx:334
+#: src/shell/lists/ChatList.tsx:336
 msgid "Add chats to your favourites: press and hold a chat, then ⋮."
 msgstr "أضف محادثات إلى المفضلة: اضغط مطولًا على محادثة ثم ⋮."
 
@@ -407,7 +407,7 @@ msgid "Archive"
 msgstr "أرشفة"
 
 #: src/shell/DesktopList.tsx:63
-#: src/shell/lists/ChatList.tsx:290
+#: src/shell/lists/ChatList.tsx:292
 #: src/shell/pages.tsx:61
 msgid "Archived"
 msgstr "المؤرشفة"
@@ -816,7 +816,7 @@ msgstr "أُعيدت المحادثات إلى القائمة"
 msgid "Chats unpinned"
 msgstr "أُلغي تثبيت المحادثات"
 
-#: src/shell/lists/ChatList.tsx:429
+#: src/shell/lists/ChatList.tsx:431
 msgid "Chats will stay archived"
 msgstr "ستبقى المحادثات مؤرشفة"
 
@@ -1123,7 +1123,7 @@ msgstr "سجل المحادثات"
 msgid "Conversation transcript"
 msgstr "نص المحادثة"
 
-#: src/shell/lists/ChatList.tsx:343
+#: src/shell/lists/ChatList.tsx:345
 msgid "Conversations"
 msgstr "المحادثات"
 
@@ -1832,8 +1832,8 @@ msgstr "دور ونموذج وصلاحيات خاصة به"
 msgid "Jump to latest"
 msgstr "الانتقال إلى الأحدث"
 
-#: src/shell/lists/ChatList.tsx:406
-#: src/shell/lists/ChatList.tsx:421
+#: src/shell/lists/ChatList.tsx:408
+#: src/shell/lists/ChatList.tsx:423
 msgid "Keep chats archived"
 msgstr "إبقاء المحادثات مؤرشفة"
 
@@ -2257,8 +2257,8 @@ msgstr "محادثة جديدة"
 msgid "New group"
 msgstr "مجموعة جديدة"
 
-#: src/shell/lists/ChatList.tsx:263
-#: src/shell/lists/ChatList.tsx:264
+#: src/shell/lists/ChatList.tsx:265
+#: src/shell/lists/ChatList.tsx:266
 #: src/shell/lists/ListSheets.tsx:316
 #: src/shell/lists/ListSheets.tsx:452
 msgid "New list"
@@ -2309,7 +2309,7 @@ msgstr "التالي: المحادثات"
 #~ msgid "No agents match"
 #~ msgstr "لا يوجد وكلاء مطابقون"
 
-#: src/shell/lists/ChatList.tsx:444
+#: src/shell/lists/ChatList.tsx:446
 msgid "No archived chats. Press and hold a chat in the list, then choose «Archive»."
 msgstr "لا توجد محادثات مؤرشفة. اضغط مطولًا على محادثة في القائمة ثم اختر «أرشفة»."
 
@@ -2330,11 +2330,11 @@ msgid "No chats are available yet."
 msgstr "لا توجد محادثات متاحة بعد."
 
 #. placeholder {0}: activeList.name
-#: src/shell/lists/ChatList.tsx:364
+#: src/shell/lists/ChatList.tsx:366
 msgid "No chats in «{0}» yet."
 msgstr "لا محادثات في «{0}» بعد."
 
-#: src/shell/lists/ChatList.tsx:336
+#: src/shell/lists/ChatList.tsx:338
 msgid "No chats."
 msgstr "لا توجد محادثات."
 
@@ -2434,7 +2434,7 @@ msgstr "لا توجد مهام بعد"
 msgid "No trading goals yet."
 msgstr "لا توجد أهداف تداول بعد."
 
-#: src/shell/lists/ChatList.tsx:332
+#: src/shell/lists/ChatList.tsx:334
 msgid "No unread messages."
 msgstr "لا توجد رسائل غير مقروءة."
 
@@ -2710,7 +2710,7 @@ msgstr "يجهّز"
 #~ msgid "Preparing — not sent"
 #~ msgstr "قيد التحضير — لم يُرسل"
 
-#: src/shell/lists/ChatList.tsx:459
+#: src/shell/lists/ChatList.tsx:461
 msgid "Press and hold a chat to unarchive, mute or delete it."
 msgstr "اضغط مطولًا على محادثة لإلغاء أرشفتها أو كتمها أو حذفها."
 
@@ -3024,7 +3024,7 @@ msgstr "استئناف"
 #: src/pages/Board.tsx:124
 #: src/pages/Routines.tsx:169
 #: src/pages/shell/message-cards.tsx:185
-#: src/shell/lists/ChatList.tsx:351
+#: src/shell/lists/ChatList.tsx:353
 #: src/shell/pages.tsx:304
 #: src/shell/pages.tsx:315
 msgid "Retry"
