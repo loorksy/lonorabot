@@ -24,6 +24,10 @@ export * from "./components/ui/textarea";
 export * from "./components/ui/toggle";
 export * from "./components/ui/tooltip";
 export { GroupAvatar } from "./group-avatar";
+export { Icon, type IconProps } from "./icons/icon";
+export { PairIcon, type PairIconProps, pairCodes } from "./icons/pair-icon";
+export { PAIR_IMAGES } from "./icons/pair-images";
+export { ICON_PATHS, type IconName } from "./icons/paths";
 export { cn } from "./lib/utils";
 export {
   TRADING_AVATAR_STATES,

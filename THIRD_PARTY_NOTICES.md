@@ -264,3 +264,16 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
+
+## Pair icons (nvstly/icons)
+
+Source: https://github.com/nvstly/icons ("Ticker Logos (Stocks, Cryptocurrencies, & Forex)"),
+gathered, cropped, edited and compiled by the team at NVSTly (https://nvstly.com) and
+contributors. Used: eleven marks, the country flags for USD, EUR, GBP, JPY, CHF, AUD, CAD and
+NZD, gold (XAU), silver (XAG) and Bitcoin (BTC), reduced to 64x64 PNG and embedded as data URIs in
+packages/ui-web/src/icons/pair-images.ts, as embedded in docs/ui-reference/Lonora-Desktop-37.html.
+Licence: as of 2026-11-09 the upstream repository publishes no licence file (LICENSE, LICENSE.md,
+LICENSE.txt, LICENCE, COPYING and License are absent on main) and its README states no licence
+terms, so no licence is claimed here; this attribution is kept, and the terms of use are an open
+owner question recorded in packages/ui-tokens/TOKENS.md. National flags are generally not subject
+to copyright; the gold, silver and Bitcoin marks and the crops are NVSTly's compilation.

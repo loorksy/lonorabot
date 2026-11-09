@@ -605,9 +605,22 @@ Verification on the final code tree (`2c5092c`; the documentation commit that fo
 
 ## Next, after PR #30 is merged (separate branches and PRs)
 
-- **Reference UI for `apps/web`** from `docs/ui-reference/Lonora-Desktop-32.html`, in six phases, one PR each: capability map and tokens; layout and sheets; conversation; agent and domain pages; settings and onboarding; calls.
+- **Reference UI for `apps/web`** from `docs/ui-reference/Lonora-Desktop-37.html`, in six phases, one PR each (see «Reference UI» below and `docs/ui-reference/CAPABILITY_MAP.md`).
 - **Agent computer and domain scope** (D5–D7). Each agent gets a persistent isolated environment: a terminal, controlled internet through the SSRF-safe proxy, long jobs, Lonora tools callable from code, and server-injected credentials that the agent never sees, including OAuth connections. It gets no interactive browser, no hosting and no inbound ports, and broker or financial hosts are refused. A domain-scope rule sits in the protected core, with a permanent refusal test set.
 - **More brokers** as adapters behind the single executor, starting with Alpaca (paper trading for safe tests), then Interactive Brokers.
+
+## Reference UI
+
+`docs/ui-reference/Lonora-Desktop-37.html` is the single source of truth for the look and behaviour of the new `apps/web` (phone under 900px, desktop at 900px and above, dark and light, motion, gestures, loading, empty and error states). The backend is changed to serve it, not the other way round; nothing is faked or hidden behind a capability flag; the avatar stays Lonora's. `docs/ui-reference/CAPABILITY_MAP.md` maps every element of the reference to its backend source at `ab16645`, groups the missing backend into work packages (WP-A to WP-I), and records the contradictions and owner questions (money-safety invariants and owner decisions D1–D7 are never resolved silently). The owner's answers to the map's questions are recorded in `docs/ui-reference/OWNER_DECISIONS.md`; they are binding for phases 2–6 and supersede conflicting map recommendations. Six phases, one PR each:
+
+1. Capability map, tokens and icons (`packages/ui-tokens/src/reference.{ts,css}`, `packages/ui-web/src/icons`, the map).
+2. Layout, lists and sheets: glass top bar, floating tab bar and pager, desktop rail and panes, chat list with per-owner read state, pins, mute, archive and custom lists (WP-A, WP-B), unified search (WP-C), the sheet system, skeletons and interface states.
+3. Conversation: header with status and alert capsule, one Message component with every kind, composer with the permission menu, mandate, limits and lift sheets, cards (approval, resolve, order line, undo notices, question, task), generative UI mapped to `RichContent` (WP-D to WP-G).
+4. Agent and domain pages: agent page and sheets, identity and templates, groups, goals, knowledge, skills, schedules, tasks, files, activity, trades, the market chart sheet, the updates page.
+5. Settings, onboarding and usage: settings root, owner profile with change log, notifications and reach-me, integrations (accounts, providers, MCP, feeds, skills), usage dashboard (WP-I), storage, privacy, help, legal, install, the authentication screens that exist on the server.
+6. Calls: call screen, header capsule and strip, incoming call, call log messages (WP-E).
+
+Each phase passes when the reference and the app match side by side (Playwright, 390x844 and 1280x800, dark and light) and the contradictions it touches are answered by the owner or left out of the build.
 
 ## Wave 2 — durable responsibilities and the always-on gateway
 
