@@ -579,6 +579,52 @@ test("offline: a plain message waits and goes out by itself; an answer stays fai
   expect(sent[0].input_answer).toBeUndefined();
 });
 
+test("offline: a gateway's empty 502 during the flush keeps the message waiting for the next flush", async ({
+  page,
+  context,
+}) => {
+  const fixture = seed({ action: "init" });
+  await signIn(context, fixture);
+  const gamma = fixture.agents[2];
+  const thread = fixture.threads[2];
+  let network = "offline";
+  const attempts = [];
+  await page.route(`**/api/threads/${thread.id}/messages`, async (route) => {
+    if (route.request().method() !== "POST") return route.continue();
+    if (network === "offline") return route.abort("internetdisconnected");
+    attempts.push({ network, nonce: route.request().postDataJSON().client_nonce });
+    // A proxy in front of the API: no Lonora error code, no body.
+    if (network === "gateway") return route.fulfill({ status: 502, body: "" });
+    return route.continue();
+  });
+  await page.goto(`/app/${gamma.id}?thread=${thread.id}`);
+  const composer = page.getByRole("combobox", { name: "Message", exact: true });
+  await composer.fill("Behind the gateway");
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+  const waiting = page.locator("article[data-delivery='queued']");
+  await expect(waiting).toContainText("Behind the gateway");
+  network = "gateway";
+  await page.evaluate(() => window.dispatchEvent(new Event("online")));
+  await expect.poll(() => attempts.length).toBeGreaterThan(0);
+  // The API never answered: the message waits again instead of failing.
+  await expect(page.locator("article[data-delivery='sending']")).toHaveCount(0);
+  await expect(waiting.getByRole("status", { name: "Waiting for the network…" })).toBeVisible();
+  await expect(page.locator("article[data-delivery='failed']")).toHaveCount(0);
+  network = "online";
+  await page.evaluate(() => window.dispatchEvent(new Event("online")));
+  await expect(page.locator("#toast")).toHaveText("One waiting message was sent");
+  await expect(page.locator("article[data-delivery]")).toHaveCount(0);
+  await expect(
+    page.getByTestId("transcript").getByText("Behind the gateway", { exact: true }),
+  ).toHaveCount(1);
+  // The same receipt each time; only the last attempt reached the API.
+  expect(new Set(attempts.map((attempt) => attempt.nonce)).size).toBe(1);
+  expect(attempts.map((attempt) => attempt.network)).toEqual([
+    ...attempts.slice(0, -1).map(() => "gateway"),
+    "online",
+  ]);
+});
+
 test("offline: an owner's answer is never sent later by itself", async ({ page, context }) => {
   const fixture = JSON.parse(
     execFileSync(".venv/bin/python", ["tests/check_question_browser.py"], {

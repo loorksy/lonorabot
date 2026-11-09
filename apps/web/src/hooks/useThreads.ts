@@ -1,7 +1,7 @@
 import type { InputAnswer } from "@lonora/contracts";
 import { isPlainOutgoing, type MentionAddress, projectRunEvents } from "@lonora/core";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { ApiError, api, isRequestCancelled, type Message, type Run, type Thread } from "../lib/api";
+import { api, isRequestCancelled, type Message, type Run, type Thread } from "../lib/api";
 import { conversationKey, readConversation, retainConversation } from "../lib/conversation-cache";
 import {
   acknowledgeOutgoing,
@@ -10,6 +10,7 @@ import {
   type OutgoingIntent,
   outgoingKey,
   outgoingMessages,
+  serverAnswered,
   subscribeOutgoing,
 } from "../lib/outgoing-messages";
 import { useClient } from "../providers/ClientProvider";
@@ -214,8 +215,9 @@ export function useThreads(
           return;
         }
         if (isRequestCancelled(caught)) throw caught;
-        // No answer at all from the server: the plain message waits for the network.
-        const unanswered = !(caught instanceof ApiError);
+        // No answer from the API (no network, or a gateway's bare 502/504): the plain
+        // message waits for the network.
+        const unanswered = !serverAnswered(caught);
         failOutgoing(key, intent.nonce, unanswered && plain ? "queued" : "failed");
         if (unanswered && plain) return;
         throw caught;

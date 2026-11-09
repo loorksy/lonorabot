@@ -1,10 +1,22 @@
-import type { Message } from "./api";
+import { ApiError, type Message } from "./api";
 
 export type OutgoingMessage = Message & {
   /** queued: offline, never answered by the server; flushes by itself (owner decision Q6). */
   delivery: "sending" | "queued" | "failed";
   retry_nonce: string;
 };
+/**
+ * Whether the API itself answered a send (owner decision Q6). A proxy's 502 or 504 with no
+ * Lonora error code means the API never saw it: a plain message waits for the next flush
+ * under its own client_nonce, which the server deduplicates. Every 4xx and every 503 (the
+ * app's own maintenance and database errors) is an answer.
+ */
+export function serverAnswered(error: unknown): boolean {
+  return (
+    error instanceof ApiError &&
+    !((error.status === 502 || error.status === 504) && error.code === "request_failed")
+  );
+}
 export type OutgoingIntent = {
   fingerprint: string;
   nonce: string;

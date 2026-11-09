@@ -35,7 +35,7 @@ import {
   type ThreadSettings,
 } from "../lib/api";
 import { auth } from "../lib/auth";
-import { flushQueued } from "../lib/outgoing-messages";
+import { flushQueued, serverAnswered } from "../lib/outgoing-messages";
 import { useAttention } from "../providers/AttentionProvider";
 import { useClient } from "../providers/ClientProvider";
 import { VoiceProvider } from "../providers/VoiceProvider";
@@ -379,7 +379,7 @@ function ShellBody() {
         api
           .post<{ message: Message }>(`/threads/${threadId}/messages`, body)
           .then((accepted) => accepted.message),
-      (error) => error instanceof ApiError,
+      serverAnswered,
     );
     if (!sent) return;
     refresh();

@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { runInNewContext } from "node:vm";
 import ts from "typescript";
-import type { Message } from "../../apps/web/src/lib/api";
+import { ApiError, type Message } from "../../apps/web/src/lib/api";
 
 type Outbox = typeof import("../../apps/web/src/lib/outgoing-messages");
 function fixture() {
@@ -17,7 +17,15 @@ function fixture() {
   const { outputText } = ts.transpileModule(source, {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
   });
-  runInNewContext(outputText, { exports, window, crypto: webcrypto });
+  runInNewContext(outputText, {
+    exports,
+    window,
+    crypto: webcrypto,
+    require(name: string) {
+      if (name === "./api") return { ApiError };
+      throw new Error(`Unexpected module ${name}`);
+    },
+  });
   const key = exports.outgoingKey("owner", "thread");
   return { outbox: exports, window, key };
 }
@@ -76,6 +84,19 @@ test("a durable event settles a lost HTTP receipt; a later intentional send gets
   const next = outbox.enqueueOutgoing(key, "thread", "same text", intent.body);
   assert.notEqual(next.nonce, intent.nonce);
   assert.equal(next.body.client_nonce, next.nonce);
+});
+
+test("only a gateway's 502 or 504 without a Lonora code counts as no answer from the API", () => {
+  const { outbox } = fixture();
+  assert.equal(outbox.serverAnswered(new ApiError("request_failed", 502)), false);
+  assert.equal(outbox.serverAnswered(new ApiError("request_failed", 504)), false);
+  assert.equal(outbox.serverAnswered(new TypeError("Failed to fetch")), false);
+  // The API's own refusals: maintenance and the database (503), every 4xx, a named 502.
+  assert.equal(outbox.serverAnswered(new ApiError("request_failed", 503)), true);
+  assert.equal(outbox.serverAnswered(new ApiError("database_unavailable", 503)), true);
+  assert.equal(outbox.serverAnswered(new ApiError("request_failed", 400)), true);
+  assert.equal(outbox.serverAnswered(new ApiError("thread_not_found", 404)), true);
+  assert.equal(outbox.serverAnswered(new ApiError("broker_unavailable", 502)), true);
 });
 
 test("navigation and other owners cannot consume another conversation's outbox", () => {
