@@ -14,7 +14,7 @@ Recorded 2026-11-09 from the owner's answers to the questions in `CAPABILITY_MAP
 
 | # | Decision |
 |---|---|
-| Q1 (OQ2) | «مسح» / «حذف» on a conversation = hide the history for the owner on the server (visibility cursor), keeping the thread, grants and ledger. Groups: «حذف» removes the group. No agent deletion anywhere. |
+| Q1 (OQ2) | «مسح» / «حذف» on an agent conversation = hide the history for the owner on the server (visibility cursor), keeping the thread, grants and ledger; the agent stays. Groups: «حذف» removes the group together with its conversation thread (the server's group delete also deletes the thread, under the same rules as `DELETE /api/threads/{id}`: grants signed in that conversation are revoked and the delete is refused while a trade from it is uncertain, surfaced in the confirm sheet); the member agents stay. No agent deletion anywhere. |
 | Q2 (OQ3) | One grey tick = accepted by the server. Two accent ticks = the agent's run started on that message. Exposed per message and on the inbox `last_message`. |
 | Q3 (OQ7) | Pins, mute, archive, favourites, marked-unread, custom lists and keep-archived live on the server per owner (`ln_thread_prefs`, `ln_chat_lists`), shared by web and mobile. |
 | Q4 (OQ6) | Mute suppresses message heads-ups, sounds and the badge only. Critical / action_required attention items always show. Archive behaves the same. |

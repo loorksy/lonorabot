@@ -305,7 +305,7 @@ Recorded, not decided. «Inside» = within the reference itself; «safety» = ag
 
 ## Owner questions
 
-Numbered for reference from the tables above. Each records why it matters and a recommendation; none is decided here.
+Numbered for reference from the tables above. Each records why it matters and a recommendation; none is decided here. The binding answers are in `docs/ui-reference/OWNER_DECISIONS.md` and supersede any conflicting recommendation below.
 
 | # | Question | Why it matters | Recommendation |
 | --- | --- | --- | --- |
