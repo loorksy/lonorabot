@@ -304,6 +304,36 @@ test("ticket modal and profile creation remain usable under StrictMode and Back"
   await expect(page).toHaveURL(new RegExp(`/app/${teammate.id}$`));
 });
 
+test("New task from the welcome pane opens a ticket dialog that can be saved", async ({
+  page,
+  workspace,
+}) => {
+  const { agent, prefix, post, remember } = workspace;
+  remember("boards", await post("/boards", { payload: { title: prefix } }));
+  // The boards arrive after the dialog would open: it must still know its board.
+  await page.route("**/api/boards", async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    await route.continue();
+  });
+  await page.goto("/app");
+  await page.getByRole("button", { name: "New task", exact: true }).click();
+  await expect(page).toHaveURL(/\/app\/tasks$/);
+  const dialog = page.getByRole("dialog", { name: "New ticket", exact: true });
+  await expect(dialog).toBeVisible();
+  await dialog.getByLabel("Task", { exact: true }).fill(`${prefix} task`);
+  await dialog.getByLabel("Agent", { exact: true }).selectOption(agent.id);
+  // The Board is left as shown: choosing the option already shown fires no change event.
+  const shown = await dialog.getByLabel("Board", { exact: true }).inputValue();
+  const save = dialog.getByRole("button", { name: "Save", exact: true });
+  await expect(save).toBeEnabled();
+  const saved = page.waitForResponse(
+    (response) => response.url().endsWith("/api/tickets") && response.request().method() === "POST",
+  );
+  await save.click();
+  const ticket = remember("tickets", await (await saved).json());
+  expect(ticket.payload.board_id).toBe(shown);
+});
+
 test("tablet and Arabic phone layouts preserve navigation and unknown-route recovery", async ({
   page,
   workspace,
