@@ -5,13 +5,14 @@ from typing import Any
 
 import pytest
 from lonora_adapter_kit.types import ModelMessage, ToolCall
-from lonora_agent.loop_outcomes import external_wait_outcome, supersede_wait_siblings, wait_update
+from lonora_agent.loop_outcomes import external_wait_outcome
 from lonora_agent.stop_gates import (
     MAXIMUM_STOP_NUDGES,
     StopGateVerdict,
     apply_stop_gates,
     reset_stop_gate,
 )
+from lonora_agent.tool_block import supersede_wait_siblings, wait_update
 from lonora_core.user_error import LonoraError
 
 

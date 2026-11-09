@@ -1,11 +1,4 @@
-"""Execute an assistant tool-call block and record its results in call order.
-
-Segments come from ``tool_batch``, every call runs under ``tool_dispatch``'s
-receipt, reconciliation and crash-replay rules, and ``tool_intent`` marks the
-intent before an effect. Results are observed, appended and checkpointed in
-the original call order through the loop's ``save``. A read retry, a trade
-approval and the waits suspend the block exactly where their call left it.
-"""
+"""Execute an assistant tool-call block, then record its results in call order and route waits."""
 
 import json
 import logging
@@ -35,8 +28,6 @@ from .loop_outcomes import (
     final_answer,
     question_outcome,
     rich_metadata,
-    supersede_wait_siblings,
-    wait_update,
 )
 from .progress import progress
 from .runtime_notices import attach_notice
@@ -123,6 +114,35 @@ async def report_closed(
             await progress(
                 context, "tool.cancelled", {"name": call.name, "call_id": call.id, "code": code}
             )
+
+
+def supersede_wait_siblings(messages: list[ModelMessage], pending: list[ToolCall]) -> None:
+    """Close the current tool block without carrying stale actions across a wait.
+
+    Their identities remain durable observations, just as for owner steering.
+    After waking, the model must decide again from current external evidence.
+    """
+    close_unexecuted(messages, pending, "task_wait_requires_fresh_analysis_after_wake")
+
+
+def wait_update(messages: list[ModelMessage], call_id: str) -> dict[str, Any]:
+    """Only display content attached to this exact accepted wait describes it."""
+    message = next(
+        (
+            message
+            for message in reversed(messages)
+            if message.role == "assistant"
+            and any(call.id == call_id for call in message.tool_calls)
+        ),
+        None,
+    )
+    result: dict[str, Any] = {
+        "call_id": call_id,
+        "text": message.content.strip() if message else "",
+    }
+    if message and message.rich_content is not None:
+        result["rich_content"] = message.rich_content
+    return result
 
 
 def started_payload(call: ToolCall, tool: Tool | None) -> dict[str, Any]:
@@ -256,7 +276,7 @@ async def result_content(context: ToolContext, call: ToolCall, result: dict[str,
     return json.dumps(summary, ensure_ascii=False)
 
 
-async def execute_next_segment(
+async def run_and_record_segment(
     context: ToolContext,
     registry: ToolRegistry,
     state: dict[str, Any],
@@ -266,10 +286,11 @@ async def execute_next_segment(
     scope: ToolScope,
     save: Callable[[], Awaitable[None]],
 ) -> LoopOutcome | None:
-    """Execute the block's next segment and record each result, removing it from ``pending``.
+    """Record the results of the block's next segment in call order and route its waits.
 
-    Returns the outcome that ends this pass (an approval, a wait or a silent
-    final answer), or ``None`` when the block continues.
+    ``execute_segment`` runs the segment; each recorded call leaves ``pending``. A read
+    retry, a trade approval, an external or owner wait, or a silent final answer returns
+    the outcome that ends this pass; ``None`` means the block continues.
     """
     segment = next_segment(pending, registry.tools)
     results = await execute_segment(context, registry, state, segment, scope, save)

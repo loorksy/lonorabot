@@ -10,9 +10,10 @@ from lonora_adapters.models.anthropic import anthropic_messages
 from lonora_adapters.models.openai_compatible import wire_message
 from lonora_agent.collaboration.outcome_return import return_outcome
 from lonora_agent.executor import execute_run
-from lonora_agent.loop_outcomes import external_wait_outcome, wait_update
+from lonora_agent.loop_outcomes import external_wait_outcome
 from lonora_agent.progress import DELTA_CHUNK_CHARS, progress
 from lonora_agent.recovery import restore_execution
+from lonora_agent.tool_block import wait_update
 from lonora_contracts.domain import MessageCreate
 from lonora_contracts.model_routing import ModelSelection
 from lonora_contracts.runs import Lease, RunRequest

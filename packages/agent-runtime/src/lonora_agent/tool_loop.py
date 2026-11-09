@@ -1,12 +1,7 @@
 """The durable agent tool loop: the one loop that drives every Run's model.
 
-Every trigger reaches ``execute_tool_loop`` through ``executor.execute_run``,
-and ``model_turn`` is called only here: once per round, and once more for the
-final report at a limit. A pass restores the checkpoint (``loop_restore``),
-then alternates the pending tool block (``tool_block``) with the next model
-turn until a final reply, a wait or a limit ends it (``loop_outcomes``). Every
-checkpoint is written by ``persist``; the phase modules write through the
-``save`` closure the loop gives them.
+Every trigger reaches ``execute_tool_loop`` through ``executor.execute_run``, ``model_turn``
+is called only here, and every checkpoint is written by ``persist`` (through ``save``).
 
 The final tool-less report at a limit (``finish_turn``) adapts the
 iteration-budget grace call of Hermes Agent
@@ -50,7 +45,7 @@ from lonora_core.run_state import is_conversational
 from lonora_core.user_error import LonoraError
 from lonora_db.runs import checkpoint, require_lease
 from lonora_db.schema import RunRow
-from lonora_db.tasks import report_task_degraded
+from lonora_db.tasks import OWNER_ATTENTION, report_task_degraded
 from lonora_tools.base import run_scope
 from lonora_tools.context import ToolContext
 from lonora_tools.registry import ToolRegistry
@@ -68,18 +63,14 @@ from .continuation import MAXIMUM_SLICES, schedule_task_continuation, slice_limi
 from .environment import ToolRetryScheduled, environment_state, retry_pending
 from .loop_outcomes import (
     LoopOutcome,
+    attention_outcome,
+    external_wait_outcome,
     final_answer,
-    limit_outcome,
     question_outcome,
     request_owner_attention,
     rich_metadata,
 )
-from .loop_restore import (
-    consume_wake,
-    reenter_external_wait,
-    restore_checkpoint,
-    resume_after_attention,
-)
+from .loop_restore import consume_wake, restore_checkpoint, resume_after_attention
 from .model_recovery import (
     ATTENTION_REASON,
     CONTINUOUS,
@@ -106,7 +97,12 @@ from .runtime_notices import (
 from .steering import merge_steering, owner_steering_pending
 from .stop_gates import task_progress
 from .tasks import task_checkpoint
-from .tool_block import close_pending, execute_next_segment, report_closed
+from .tool_block import (
+    close_pending,
+    report_closed,
+    run_and_record_segment,
+    supersede_wait_siblings,
+)
 from .tool_exposure import inventory, native_definitions
 from .tool_guardrails import halt_reason
 from .tool_intent import start_budget_epoch
@@ -299,8 +295,26 @@ async def finish_turn(
         )
         state["limit_exit"] = {"reason": reason, "text": text}
         await save()
-    return await limit_outcome(
-        context, state, messages, text, save, reason=reason, task_run=task_run
+    if task_run:
+        question = state.get("pending_input_request")
+        if isinstance(question, dict) and cast(dict[str, Any], question).get("kind") == (
+            OWNER_ATTENTION
+        ):
+            return attention_outcome(state, cast(dict[str, Any], question))
+        completion = await task_progress(context)
+        if completion is None or not completion.contract_satisfied():
+            # Never mark unfinished Task work completed; the owner decides next.
+            return await request_owner_attention(context, state, messages, reason, text, save)
+    # A Task here has every declared step recorded complete with evidence, so
+    # the report completes it; complete_run still enforces that contract.
+    return LoopOutcome(
+        text,
+        {
+            **state.get("selection", {}),
+            **rich_metadata(state),
+            "exit_reason": reason,
+            "reply_outcome": "answered" if task_run else "limited",
+        },
     )
 
 
@@ -360,7 +374,15 @@ async def execute_tool_loop(
         state.pop("pending_input_request", None)
         await save()
     if environment_state(state).get("wait"):
-        return await reenter_external_wait(context, state, messages, pending, save)
+        if pending:
+            # Older checkpoints could suspend halfway through a tool block.
+            # Repair their unexecuted siblings before any future wake can run
+            # stale financial intent or insert a user message into that block.
+            superseded = list(pending)
+            supersede_wait_siblings(messages, pending)
+            await save()
+            await report_closed(context, superseded, [], "tool_call_superseded")
+        return external_wait_outcome(state)
     woken = consume_wake(state, messages, pending)
     await save()
     await report_closed(context, woken, [], "tool_call_superseded")
@@ -419,7 +441,7 @@ async def execute_tool_loop(
                 break
             if retry_pending(state, pending[0]):
                 raise ToolRetryScheduled()
-            outcome = await execute_next_segment(
+            outcome = await run_and_record_segment(
                 context, registry, state, messages, pending, exposure, scope, save
             )
             if outcome is not None:

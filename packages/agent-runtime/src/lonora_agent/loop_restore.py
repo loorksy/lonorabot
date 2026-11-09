@@ -1,14 +1,7 @@
-"""Resume a Run where its checkpoint left it, before the loop's first round.
-
-Checkpoints written by earlier releases resume unchanged: one without
-``instruction_skill_ids`` checks every retained skill version, one without
-``environment`` gives its pending calls no new replay permission, a wait saved
-halfway through a tool block closes the unexecuted siblings, and a wake
-committed by an older worker closes the proposals made before the wait.
-"""
+"""Restore a Run's checkpoint before the loop's first round, including checkpoints written
+by earlier releases, and apply the owner resume or external wake it carries."""
 
 import json
-from collections.abc import Awaitable, Callable
 from typing import Any, cast
 
 from lonora_adapter_kit.types import ModelMessage, ToolCall
@@ -23,13 +16,12 @@ from .context.skills import selected_skill_ids
 from .context_engine import DELEGATED_KEY, DELEGATED_TRIGGERS
 from .continuation import slice_limit
 from .environment import environment_state
-from .loop_outcomes import LoopOutcome, external_wait_outcome, supersede_wait_siblings
 from .model_recovery import reset_streak
 from .recovery import restore_execution
 from .runtime_notices import append_notice, resumed_notice
 from .skills.snapshot import read_snapshot
 from .stop_gates import reset_stop_gate
-from .tool_block import report_closed
+from .tool_block import supersede_wait_siblings
 from .tool_exposure import ensure_exposure
 from .tool_guardrails import reset_guardrails
 from .tool_intent import start_budget_epoch
@@ -91,24 +83,6 @@ def resume_after_attention(
         resumed_notice(str(cast(dict[str, Any], resumed).get("action") or "")),
     )
     return True
-
-
-async def reenter_external_wait(
-    context: ToolContext,
-    state: dict[str, Any],
-    messages: list[ModelMessage],
-    pending: list[ToolCall],
-    save: Callable[[], Awaitable[None]],
-) -> LoopOutcome:
-    if pending:
-        # Older checkpoints could suspend halfway through a tool block.
-        # Repair their unexecuted siblings before any future wake can run
-        # stale financial intent or insert a user message into that block.
-        superseded = list(pending)
-        supersede_wait_siblings(messages, pending)
-        await save()
-        await report_closed(context, superseded, [], "tool_call_superseded")
-    return external_wait_outcome(state)
 
 
 def consume_wake(

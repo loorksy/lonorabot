@@ -13,7 +13,6 @@ from lonora_tools.registry import ToolRegistry
 from lonora_tools.schema import ToolArgumentsError
 from lonora_tools.tool_results import stored_result
 
-from .context_engine import FENCE_CODES
 from .environment import blocked_route, environment_state
 from .skills.access import RunSkillAccess
 
@@ -36,19 +35,31 @@ async def dispatch_call(
     an effect boundary; a parallel read segment persists it once beforehand.
     """
     tool = registry.tools.get(call.name)
-    # The financial handler owns its durable journal and reconciles the SAME operation.
-    reconciles = bool(tool and tool.financial and tool.replay_safe)
     blocked = blocked_route(state, call)
     environment = environment_state(state)
     result: dict[str, Any]
     try:
         receipt = await stored_result(context, call)
-        if receipt is not None and receipt.get("status") == "ambiguous" and reconciles:
-            # An observation receipt must not freeze the financial reconciliation.
+        if (
+            receipt is not None
+            and receipt.get("status") == "ambiguous"
+            and tool
+            and tool.financial
+            and tool.replay_safe
+        ):
+            # The financial handler owns its durable journal and reconciles
+            # the SAME operation. An observation receipt must not freeze it.
             receipt = None
         if receipt is not None:
             result = receipt
-        elif blocked and blocked.get("ambiguous") and blocked.get("receipt_replay") and reconciles:
+        elif (
+            blocked
+            and blocked.get("ambiguous")
+            and blocked.get("receipt_replay")
+            and tool
+            and tool.financial
+            and tool.replay_safe
+        ):
             # Inspect/reconcile the SAME durable financial operation,
             # even if the model invents a new call ID. Never mint a new
             # approval/operation merely to learn the previous outcome.
@@ -97,7 +108,7 @@ async def dispatch_call(
             )
         result = {"ok": True, **result}
     except LonoraError as error:
-        if error.code in FENCE_CODES:
+        if error.code in {"stale_lease", "skill_continuation_unavailable"}:
             raise
         error_result: dict[str, Any] = {"ok": False, "code": error.code}
         if isinstance(error, ToolArgumentsError):
