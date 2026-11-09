@@ -48,6 +48,7 @@ Recorded 2026-11-09 from the owner's answers to the questions in `CAPABILITY_MAP
 | Q25 (OQ24) | Dictation: browser speech API first; a professional server-side transcription path (provider-based, inspired by Hermes/Rakazo-grade open-source approaches) as the upgrade. |
 | Q26 (OQ25) | Reactions: owner and agent. The agent reacts only when it judges it fitting, not on every message (needs a `message_react` tool with that policy). |
 | Q27 (OQ26) | Generative UI: add `why` and a non-financial `submit {intent, data}` action rendered as a quoted user message; Quiz/Timer count as light personal tasks. |
+| Q59 (2026-11-09) | Generated-UI choices (Chips) render as the current reference's rows (`.ux-picks` / `.ux-pick`, radio or check rows), not the older pill chips; segmented controls stay. Owner: "B اعتمد المرجع الحالي". |
 | Q28 (OQ27) | No emoji button in the composer; quick reactions keep the six fixed emojis; the emoji panel lives only in the new-list sheet. |
 | Q29 (OQ28) | An @mention of another agent in a direct chat starts a collaboration session; the guest answers under its own name and colour. |
 | Q30 (OQ29) | Order timeline shows the server's operation states under the reference's names, with partial quantity from the result. The owner's own modify/close buttons are the owner's direct order through the executor. |
