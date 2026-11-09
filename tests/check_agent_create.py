@@ -452,6 +452,13 @@ async def main() -> None:
             == "agent_limit_reached"
         )
         print("PASS the per-owner cap of active agents is enforced")
+        # The owner's own «وكيل جديد» form is not capped (POST /api/agents never was).
+        mine = await fixture.request(
+            "POST", "/agents/create", {"template": "general", "name": "Owner's own"}
+        )
+        assert mine["template"] == "general" and mine["created"] is True
+        created_ids.append(mine["id"])
+        print("PASS the owner's own form creates past the cap")
 
         # 10. Steering watches: only your own; cancel, resume, move the expiry.
         async with db.sessions() as session, session.begin():
