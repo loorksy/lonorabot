@@ -18,8 +18,8 @@ from lonora_agent.model_runtime import model_turn
 from lonora_contracts.model_routing import Capability, ModelSelection
 from lonora_db.agent_directory import agent_directory
 from lonora_db.schema import AgentRow
+from lonora_db.search import owner_search
 from lonora_tools.loader import load_tools
-from lonora_tools.search import internal_search
 
 
 def system_text(messages: list[ModelMessage]) -> str:
@@ -88,7 +88,8 @@ async def main() -> None:
         assert peer["id"] in system_text(messages)
         assert "محلل الذهب" in system_text(messages)
         print("PASS actual model context contains colleagues without keyword search")
-        search = await internal_search(fixture.runtime.db, fixture.owner, "اعطني اسماء زملائك")
+        async with fixture.runtime.db.sessions() as session:
+            search = await owner_search(session, fixture.owner, "اعطني اسماء زملائك")
         assert search["agents"] == []
         filtered = await registry.execute(
             ToolCall(id="directory-2", name="list_agents", arguments={"name": "محلل الذهب"}),
