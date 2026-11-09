@@ -99,12 +99,13 @@ for (const locale of ["en", "ar"]) {
         .click();
       await expect(page).toHaveURL(new RegExp(`/app/${agent.id}\\?thread=${thread.id}$`));
       await expect(page.getByTestId("transcript")).toBeVisible();
-      await page
-        .getByRole("button", {
-          name: locale === "ar" ? "العودة إلى المحادثات" : "Back to conversations",
-          exact: true,
-        })
-        .click();
+      // Phones: the chat header's back button; desktop: the rail's chats section.
+      if (locale === "ar") await page.getByRole("button", { name: "رجوع", exact: true }).click();
+      else
+        await page
+          .locator(".desktop-rail")
+          .getByRole("button", { name: "Chats", exact: true })
+          .click();
       await expect(page.getByTestId("conversation-inbox")).toBeVisible();
       await expect(
         page.getByTestId("conversation-inbox").locator(`[data-inbox-agent-id="${agent.id}"]`),
@@ -230,7 +231,7 @@ test("returning to a cached conversation stays visible while fresh reads wait, t
   try {
     await page.goto(`/app/${agent.id}?thread=${thread.id}`);
     await expect(page.getByTestId("transcript")).toContainText(messages[0].content);
-    await page.getByRole("button", { name: "Back to conversations", exact: true }).click();
+    await page.locator(".desktop-rail").getByRole("button", { name: "Chats", exact: true }).click();
     await expect(page.getByTestId("conversation-inbox")).toBeVisible();
     hold = true;
     await page
@@ -246,9 +247,11 @@ test("returning to a cached conversation stays visible while fresh reads wait, t
     releaseThreads();
     releaseMessages();
     await expect(page.getByTestId("transcript")).toContainText(messages[1].content);
-    // Opening and closing agent settings leaves the same authoritative timeline.
-    await page.getByRole("button", { name: `Agent settings: ${agent.name}`, exact: true }).click();
-    await page.getByRole("button", { name: "Close context panel", exact: true }).click();
+    // Opening and closing agent info leaves the same authoritative timeline.
+    await page.getByRole("button", { name: "Agent info", exact: true }).click();
+    await expect(page.locator("#dialog")).toHaveAttribute("open", "");
+    await page.keyboard.press("Escape");
+    await expect(page.locator("#dialog")).not.toHaveAttribute("open", "");
     await expect(page.getByTestId("transcript")).toContainText(messages[1].content);
     let backgroundStarted = false;
     const backgroundGate = new Promise((resolve) => {
@@ -261,8 +264,11 @@ test("returning to a cached conversation stays visible while fresh reads wait, t
     });
     await page.evaluate(() => window.dispatchEvent(new Event("online")));
     await expect.poll(() => backgroundStarted).toBe(true);
-    await page.locator(".tpl-account-trigger").click();
-    await page.getByRole("menuitem", { name: "Sign out", exact: true }).click();
+    await page
+      .locator(".desktop-rail")
+      .getByRole("button", { name: "Settings", exact: true })
+      .click();
+    await page.getByRole("button", { name: "Sign out", exact: true }).click();
     await expect(page.getByRole("button", { name: "Sign in", exact: true })).toBeVisible();
     await expect(page.getByRole("alert")).toHaveCount(0);
     await expect(page).toHaveURL(/\/app$/);

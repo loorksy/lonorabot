@@ -40,23 +40,22 @@ test("conversation shows safe generated SVG, cloud chart side panel and persiste
       .poll(() => image.evaluate((element) => element.complete && element.naturalWidth > 0))
       .toBe(true);
     expect(await page.evaluate(() => window.svgProbe)).toBeUndefined();
-    await expect(page.locator(".tpl-chat-identity")).toContainText("Market research");
-    await page.getByRole("button", { name: "Activity", exact: true }).click();
-    const activity = page.locator(".tpl-sidebar-activity");
+    await expect(page.locator(".chat-head .chat-name")).toContainText(data.name);
+    // The runs live on the Updates tab (the reference's المستجدات); the rail opens it.
+    await page
+      .locator(".desktop-rail")
+      .getByRole("button", { name: "Updates", exact: true })
+      .click();
+    const activity = page.getByTestId("workspace-activity");
     await expect(activity).toBeVisible();
-    await expect(activity.locator(`[data-sidebar-run-id='${data.run}']`)).toContainText(data.name);
-    await activity
-      .getByRole("searchbox", { name: "Search runs", exact: true })
-      .fill("NO MATCHING RUN FIXTURE");
+    await activity.getByLabel("Search activity", { exact: true }).fill("NO MATCHING RUN FIXTURE");
     await expect(activity.getByText("No runs match these filters.", { exact: true })).toBeVisible();
-    await activity.getByRole("searchbox", { name: "Search runs", exact: true }).fill(data.name);
+    await activity.getByLabel("Search activity", { exact: true }).fill(data.name);
     await activity.getByRole("combobox", { name: "Status", exact: true }).selectOption("completed");
-    await activity.locator(`[data-sidebar-run-id='${data.run}']`).click();
-    await expect(page).toHaveURL(new RegExp(`/app/${data.agent}\\?thread=${data.thread}$`));
-    await page.getByRole("button", { name: "Activity", exact: true }).click();
-    await expect(activity).toHaveCount(0);
-    await page.locator(".tpl-chat-identity").click();
-    const profile = page.getByTestId("side-panel");
+    await expect(activity).toContainText(data.name);
+    await page.goto(`/app/${data.agent}?thread=${data.thread}`);
+    await page.getByRole("button", { name: "Agent info", exact: true }).click();
+    const profile = page.locator("#dialog");
     await expect(profile.getByLabel("Instructions", { exact: true })).not.toBeVisible();
     await profile.getByText("Advanced", { exact: true }).click();
     await profile
@@ -74,8 +73,10 @@ test("conversation shows safe generated SVG, cloud chart side panel and persiste
     expect((await savedAgents.json()).find((agent) => agent.id === data.agent).instructions).toBe(
       "Actual persisted analysis instructions.",
     );
-    await page.getByRole("button", { name: "Charts", exact: true }).click();
-    const panel = page.getByTestId("side-panel");
+    await page.keyboard.press("Escape");
+    await page.getByRole("button", { name: "Chat menu", exact: true }).click();
+    await page.locator("#dialog").getByRole("button", { name: "Chart", exact: true }).click();
+    const panel = page.locator("#dialog");
     await expect(
       panel
         .locator(`[data-chart-id='${data.chart}']`)
@@ -89,7 +90,8 @@ test("conversation shows safe generated SVG, cloud chart side panel and persiste
       () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
     );
     await page.screenshot({ path: ".runtime/rakazo-parity/web-chat-chart.png", fullPage: true });
-    await page.getByRole("button", { name: "Close context panel", exact: true }).click();
+    await page.keyboard.press("Escape");
+    await expect(panel).not.toHaveAttribute("open", "");
     await page.getByRole("button", { name: "Preview analysis.svg", exact: true }).click();
     const preview = page.getByRole("dialog", { name: "analysis.svg", exact: true });
     await expect(preview.locator("img")).toBeVisible();
@@ -105,14 +107,15 @@ test("conversation shows safe generated SVG, cloud chart side panel and persiste
     await expect(
       literal.getByRole("link", { name: "https://example.com", exact: true }),
     ).toHaveAttribute("href", "https://example.com");
-    await page.getByRole("button", { name: "Create", exact: true }).click();
-    await expect(page.getByTestId("new-conversation-picker")).toBeVisible();
-    await page.getByTestId("create-new-agent").click();
+    await page.getByRole("button", { name: "New chat", exact: true }).first().click();
+    await page.locator("#dialog").getByRole("button", { name: "New agent", exact: true }).click();
+    await expect(page).toHaveURL(/\/app\/new-agent$/);
+    const form = page.locator("main");
     await page.getByTestId("agent-market-mode").selectOption("market");
-    await panel.getByLabel("Name", { exact: true }).fill("Role parity fixture");
-    await panel.getByLabel("Title", { exact: true }).fill("Risk analyst");
-    await panel.getByLabel("Description", { exact: true }).fill("Review exposure before trading.");
-    await panel.getByLabel("Broker account", { exact: true }).selectOption(data.account);
+    await form.getByLabel("Name", { exact: true }).fill("Role parity fixture");
+    await form.getByLabel("Title", { exact: true }).fill("Risk analyst");
+    await form.getByLabel("Description", { exact: true }).fill("Review exposure before trading.");
+    await form.getByLabel("Broker account", { exact: true }).selectOption(data.account);
     await page.getByRole("button", { name: "Choose trading pair", exact: true }).click();
     await page.getByRole("option", { name: data.symbol, exact: true }).click();
     const creation = page.waitForResponse(
@@ -120,13 +123,17 @@ test("conversation shows safe generated SVG, cloud chart side panel and persiste
         new URL(response.url()).pathname === "/api/agents" &&
         response.request().method() === "POST",
     );
-    await panel.getByRole("button", { name: "Create agent", exact: true }).click();
+    await form.getByRole("button", { name: "Create agent", exact: true }).click();
     const created = await (await creation).json();
     data.extra_agents.push(created.id);
     expect(created.title).toBe("Risk analyst");
     expect(created.description).toBe("Review exposure before trading.");
     await page.reload();
-    await expect(page.locator(".tpl-chat-identity")).toContainText("Risk analyst");
+    await expect(page.locator(".chat-head .chat-name")).toContainText("Role parity fixture");
+    await page.getByRole("button", { name: "Agent info", exact: true }).click();
+    await expect(page.locator("#dialog").getByLabel("Title", { exact: true })).toHaveValue(
+      "Risk analyst",
+    );
     expect(errors).toEqual([]);
   } finally {
     fixture({ ...data, action: "cleanup" });

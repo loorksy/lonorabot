@@ -185,23 +185,14 @@ test("drafts stay with their conversation across switches and reload", async ({
     await page.goto(`/app/${a.agent.id}`);
     const field = page.getByRole("combobox", { name: "Message", exact: true });
     await field.fill("Unsent draft A");
-    await page
-      .locator(".tpl-sidebar")
-      .getByRole("button", { name: b.agent.name, exact: true })
-      .click();
+    await page.locator(`.desktop-list [data-inbox-agent-id="${b.agent.id}"]`).click();
     await expect(field).toHaveValue("");
     await field.fill("Unsent draft B");
-    await page
-      .locator(".tpl-sidebar")
-      .getByRole("button", { name: a.agent.name, exact: true })
-      .click();
+    await page.locator(`.desktop-list [data-inbox-agent-id="${a.agent.id}"]`).click();
     await expect(field).toHaveValue("Unsent draft A");
     await page.reload();
     await expect(field).toHaveValue("Unsent draft A");
-    await page
-      .locator(".tpl-sidebar")
-      .getByRole("button", { name: b.agent.name, exact: true })
-      .click();
+    await page.locator(`.desktop-list [data-inbox-agent-id="${b.agent.id}"]`).click();
     await expect(field).toHaveValue("Unsent draft B");
   } finally {
     await context.request.delete(`/api/agents/${a.agent.id}`, { headers: a.headers });

@@ -49,7 +49,7 @@ test("idle avatars use smooth signal capsules for every saved shape profile", as
       const agent = await response.json();
       ids.push(agent.id);
       await page.goto(`/app/${agent.id}`);
-      const glyph = page.locator(".tpl-chat-identity .mta-avatar");
+      const glyph = page.locator(".chat-head .head-avatar .mta-avatar");
       await expect(glyph).toBeVisible();
       await expect(glyph.locator("[data-mta-bar]")).toHaveCount(8);
       await expect(glyph).toHaveAttribute("data-state", "waiting");
@@ -94,7 +94,7 @@ test("idle avatars use smooth signal capsules for every saved shape profile", as
     await page.goto(`/app/${ids.at(-1)}`);
     await page.setViewportSize({ width: 390, height: 844 });
     await page.emulateMedia({ reducedMotion: "reduce" });
-    await expect(page.locator(".tpl-chat-identity .mta-avatar")).toBeVisible();
+    await expect(page.locator(".chat-head .head-avatar .mta-avatar")).toBeVisible();
     await page.screenshot({ path: ".runtime/liquid-lonora-web.png", fullPage: true });
     const svgIds = await page
       .locator(".mta-avatar clipPath")

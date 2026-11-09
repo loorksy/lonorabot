@@ -110,7 +110,7 @@ test("refresh waits for the real session without flashing sign-in or workspace s
     await expect(page.getByTestId("workspace-loading")).toBeVisible();
     await expect(page.getByRole("button", { name: "Sign in", exact: true })).toHaveCount(0);
     await expect(page.getByTestId("transcript")).toHaveCount(0);
-    await expect(page.locator(".tpl-shell")).toHaveCount(0);
+    await expect(page.locator("#app")).toHaveCount(0);
     await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
     release();
     await expect(page.getByTestId("transcript")).toHaveCount(1);
@@ -129,7 +129,7 @@ test("owner shadow mode persists through reload without enabling live trading", 
 }) => {
   const { agent } = workspace;
   await page.goto(`/app/${agent.id}`);
-  await page.getByRole("button", { name: `Agent settings: ${agent.name}`, exact: true }).click();
+  await page.getByRole("button", { name: "Agent info", exact: true }).click();
   let control = page.getByRole("switch", {
     name: "Shadow trading — virtual orders only",
     exact: true,
@@ -147,7 +147,7 @@ test("owner shadow mode persists through reload without enabling live trading", 
     .toBe("shadow");
   await expect(page.getByText("Shadow observations", { exact: false })).toBeVisible();
   await page.reload();
-  await page.getByRole("button", { name: `Agent settings: ${agent.name}`, exact: true }).click();
+  await page.getByRole("button", { name: "Agent info", exact: true }).click();
   control = page.getByRole("switch", {
     name: "Shadow trading — virtual orders only",
     exact: true,
@@ -266,38 +266,33 @@ test("ticket modal and profile creation remain usable under StrictMode and Back"
   await expect(dialog).toHaveCount(0);
   await expect(page).toHaveURL(/\/app\/board$/);
   await page.goto(`/app/${agent.id}`);
-  await page.locator(".tpl-chat-identity").click();
-  await expect(page.getByTestId("side-panel")).toBeVisible();
-  await page.getByRole("button", { name: "Create", exact: true }).click();
-  await page.getByTestId("create-new-agent").click();
+  await page.getByRole("button", { name: "Agent info", exact: true }).click();
+  await expect(page.locator("#dialog")).toHaveAttribute("open", "");
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "New chat", exact: true }).first().click();
+  await page.locator("#dialog").getByRole("button", { name: "New agent", exact: true }).click();
+  await expect(page).toHaveURL(/\/app\/new-agent$/);
+  await expect(page.locator("#dialog")).not.toHaveAttribute("open", "");
   await page.getByTestId("agent-market-mode").selectOption("market");
-  await expect(page.getByTestId("new-conversation-picker")).toHaveCount(0);
-  await page
-    .getByTestId("side-panel")
-    .getByLabel("Name", { exact: true })
-    .fill(`${prefix} teammate`);
-  await page
-    .getByTestId("side-panel")
-    .getByLabel("Broker account", { exact: true })
-    .selectOption(agent.trading_account_id);
+  const form = page.locator("main");
+  await form.getByLabel("Name", { exact: true }).fill(`${prefix} teammate`);
+  await form.getByLabel("Broker account", { exact: true }).selectOption(agent.trading_account_id);
   await page.getByRole("button", { name: "Choose trading pair", exact: true }).click();
   await page.getByRole("option", { name: agent.trading_symbol, exact: true }).click();
   const created = page.waitForResponse(
     (response) => response.url().endsWith("/api/agents") && response.request().method() === "POST",
   );
-  await page
-    .getByTestId("side-panel")
-    .getByRole("button", { name: "Create agent", exact: true })
-    .click();
+  await form.getByRole("button", { name: "Create agent", exact: true }).click();
   const teammate = remember("agents", await (await created).json());
   await expect(page).toHaveURL(new RegExp(`/app/${teammate.id}$`));
-  await page.locator(".tpl-account-trigger").click();
-  await page.getByRole("menuitem", { name: "Settings", exact: true }).click();
-  await expect(page.getByRole("dialog", { name: "Workspace settings", exact: true })).toBeVisible();
+  await page
+    .locator(".desktop-rail")
+    .getByRole("button", { name: "Settings", exact: true })
+    .click();
+  await expect(page).toHaveURL(/\/app\/settings$/);
+  await expect(page.locator(".settings-nav")).toBeVisible();
   await page.goBack();
-  await expect(page.getByRole("dialog", { name: "Workspace settings", exact: true })).toHaveCount(
-    0,
-  );
+  await expect(page.locator(".settings-nav")).toHaveCount(0);
   await expect(page).toHaveURL(new RegExp(`/app/${teammate.id}$`));
 });
 
@@ -308,22 +303,22 @@ test("tablet and Arabic phone layouts preserve navigation and unknown-route reco
   const { agent } = workspace;
   await page.setViewportSize({ width: 800, height: 900 });
   await page.goto(`/app/${agent.id}`);
-  await page.locator(".tpl-chat-identity").click();
-  const panel = page.getByTestId("side-panel");
-  await expect(panel).toBeVisible();
+  await page.getByRole("button", { name: "Agent info", exact: true }).click();
+  const panel = page.locator("#dialog");
+  await expect(panel).toHaveAttribute("open", "");
   expect((await panel.boundingBox()).width).toBeGreaterThan(350);
-  const close = panel.getByRole("button", { name: "Close context panel", exact: true });
-  await close.click();
-  await expect(panel).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await expect(panel).not.toHaveAttribute("open", "");
   expect((await page.getByTestId("transcript").boundingBox()).width).toBeGreaterThan(350);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.evaluate(() => localStorage.setItem("lonora.locale", "ar"));
   await page.reload();
   await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
-  await page.getByRole("button", { name: "فتح قائمة التنقل", exact: true }).click();
-  await expect(page.locator(".tpl-sidebar")).toHaveAttribute("data-mobile-open", "true");
-  await page.goBack();
-  await expect(page.locator(".tpl-sidebar")).toHaveAttribute("data-mobile-open", "false");
+  // Back from a conversation on a phone returns to the list; forward history restores it.
+  await page.getByRole("button", { name: "رجوع", exact: true }).click();
+  await expect(page).toHaveURL(/\/app$/);
+  await expect(page.locator("nav.tabbar")).toBeVisible();
+  await page.goForward();
   await expect(page).toHaveURL(new RegExp(`/app/${agent.id}$`));
   const dimensions = await page.evaluate(() => ({
     width: document.documentElement.clientWidth,
@@ -331,8 +326,8 @@ test("tablet and Arabic phone layouts preserve navigation and unknown-route reco
   }));
   expect(dimensions.scroll).toBeLessThanOrEqual(dimensions.width + 1);
   await page.goto("/app/unavailable/regression-route");
-  await expect(page.locator("main h1")).toBeVisible();
-  await page.locator("main a[href='/app']").click();
+  await expect(page.locator("main .state-page h2")).toHaveText("الصفحة غير موجودة");
+  await page.getByRole("button", { name: "العودة إلى المحادثات", exact: true }).click();
   await expect(page.getByTestId("conversation-inbox")).toBeVisible();
   await expect(page.getByTestId("transcript")).toHaveCount(0);
   await page.locator(`[data-inbox-agent-id="${agent.id}"]`).click();
@@ -423,12 +418,9 @@ test("knowledge and recurring trading work use durable API edits", async ({
 }) => {
   const { agent, prefix, remember, headers } = workspace;
   await page.goto(`/app/${agent.id}`);
-  await page.locator(".tpl-chat-identity").click();
-  await page
-    .getByTestId("side-panel")
-    .getByRole("button", { name: "Knowledge", exact: true })
-    .click();
-  const panel = page.getByTestId("side-panel");
+  await page.getByRole("button", { name: "Chat menu", exact: true }).click();
+  await page.locator("#dialog").getByRole("button", { name: "Knowledge", exact: true }).click();
+  const panel = page.locator("#dialog");
   await panel.getByRole("button", { name: "Skills", exact: true }).click();
   const skillForm = panel.locator(".skill-create");
   await skillForm.locator("summary", { hasText: "Add owner instructions" }).click();
@@ -512,8 +504,8 @@ test("knowledge and recurring trading work use durable API edits", async ({
   await row.locator("summary", { hasText: "Execution history" }).click();
   await expect(row.getByText("No executions yet", { exact: true })).toBeVisible();
   await page.goto(`/app/${agent.id}?settings=trading`);
-  await expect(page.getByRole("dialog", { name: "Workspace settings", exact: true })).toBeVisible();
-  await expect(page).toHaveURL(new RegExp(`/app/${agent.id}$`));
+  await expect(page).toHaveURL(/\/app\/settings\?tab=trading$/);
+  await expect(page.locator(".settings-nav button.selected")).toHaveText("Trading");
   // The test owns this routine; no scheduler or provider credentials are needed.
   const durable = await context.request.get(`/api/skills/${skill.id}`, { headers });
   expect((await durable.json()).payload.content).toContain("economic calendar");
@@ -672,10 +664,10 @@ test("agent deletion requires confirmation and Personal Agent keeps its gold rol
   await page.goto(`/app/${personal.id}`);
   await expect(
     page
-      .locator(`[data-roster-agent-id="${personal.id}"]`)
+      .locator(`.desktop-list [data-inbox-agent-id="${personal.id}"]`)
       .getByRole("img", { name: "Personal Agent", exact: true }),
   ).toBeVisible();
-  await page.getByRole("button", { name: `Agent settings: ${personal.name}`, exact: true }).click();
+  await page.getByRole("button", { name: "Agent info", exact: true }).click();
   await expect(
     page.getByText("Your Personal Agent cannot be deleted.", { exact: true }),
   ).toBeVisible();
@@ -684,10 +676,10 @@ test("agent deletion requires confirmation and Personal Agent keeps its gold rol
   await page.goto(`/app/${agent.id}`);
   await expect(
     page
-      .locator(`[data-roster-agent-id="${agent.id}"]`)
+      .locator(`.desktop-list [data-inbox-agent-id="${agent.id}"]`)
       .getByRole("img", { name: "Personal Agent", exact: true }),
   ).toHaveCount(0);
-  await page.getByRole("button", { name: `Agent settings: ${agent.name}`, exact: true }).click();
+  await page.getByRole("button", { name: "Agent info", exact: true }).click();
   await page.getByRole("button", { name: "Delete agent", exact: true }).click();
   const confirmation = page.getByRole("alertdialog", {
     name: "Delete agent permanently?",
@@ -722,10 +714,10 @@ test("agent deletion requires confirmation and Personal Agent keeps its gold rol
   await confirmation.getByRole("button", { name: "Delete permanently", exact: true }).click();
   expect((await deleted).ok()).toBe(true);
   await expect(page).toHaveURL(new RegExp(`/app/${personal.id}$`));
-  await expect(page.locator(`[data-roster-agent-id="${agent.id}"]`)).toHaveCount(0);
+  await expect(page.locator(`.desktop-list [data-inbox-agent-id="${agent.id}"]`)).toHaveCount(0);
   await page.reload();
   expect(
     (await (await context.request.get("/api/agents")).json()).some((row) => row.id === agent.id),
   ).toBe(false);
-  await expect(page.locator(`[data-roster-agent-id="${agent.id}"]`)).toHaveCount(0);
+  await expect(page.locator(`.desktop-list [data-inbox-agent-id="${agent.id}"]`)).toHaveCount(0);
 });

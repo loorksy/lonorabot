@@ -128,9 +128,9 @@ for (const variant of [
       expect(geometry.content).toBeCloseTo(728, 0);
       expect(geometry.composer).toBeCloseTo(geometry.content, 0);
       expect(await composer.evaluate((input) => document.activeElement === input)).toBe(true);
-      expect(
-        await page.locator(".tpl-main").evaluate((main) => getComputedStyle(main).borderRadius),
-      ).toBe("22px");
+      expect(await page.locator("#app").evaluate((app) => getComputedStyle(app).borderRadius)).toBe(
+        "16px",
+      );
     } else {
       expect(geometry.composer).toBeLessThanOrEqual(variant.width - 24);
       expect(await composer.evaluate((input) => document.activeElement === input)).toBe(false);

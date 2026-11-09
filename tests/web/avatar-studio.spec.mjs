@@ -39,14 +39,16 @@ for (const locale of ["en", "ar"])
     try {
       await page.goto("/app/");
       await page
-        .getByRole("button", {
-          name: locale === "ar" ? "إنشاء محادثة" : "Create conversation",
-          exact: true,
-        })
+        .getByRole("button", { name: locale === "ar" ? "محادثة جديدة" : "New chat", exact: true })
         .first()
         .click();
-      await page.getByTestId("create-new-agent").click();
-      const panel = page.getByTestId("side-panel");
+      await page
+        .locator("#dialog")
+        .getByRole("button", { name: locale === "ar" ? "وكيل جديد" : "New agent", exact: true })
+        .click();
+      await expect(page).toHaveURL(/\/app\/new-agent$/);
+      // The creation form is a page; the agent's info opens as a sheet from the chat header.
+      let panel = page.locator("main");
       await panel
         .getByLabel(locale === "ar" ? "الاسم" : "Name", { exact: true })
         .fill(`Avatar Studio ${randomUUID()}`);
@@ -76,7 +78,13 @@ for (const locale of ["en", "ar"])
       expect(agent.avatar).toBe("face-wink");
       expect(agent.color).toBe("#06B6D4");
       await page.goto(`/app/${agent.id}`);
-      await page.locator(".tpl-chat-identity").click();
+      await page
+        .getByRole("button", {
+          name: locale === "ar" ? "معلومات الوكيل" : "Agent info",
+          exact: true,
+        })
+        .click();
+      panel = page.locator("#dialog");
       const nameField = panel.getByLabel(locale === "ar" ? "الاسم" : "Name", { exact: true });
       const persistedName = agent.name;
       const unsavedName = `${persistedName} draft`;
@@ -149,7 +157,12 @@ for (const locale of ["en", "ar"])
       expect(patches.at(-1)).not.toHaveProperty("avatar");
       expect(patches.at(-1)).not.toHaveProperty("color");
       await page.reload();
-      await page.locator(".tpl-chat-identity").click();
+      await page
+        .getByRole("button", {
+          name: locale === "ar" ? "معلومات الوكيل" : "Agent info",
+          exact: true,
+        })
+        .click();
       await panel.getByTestId("avatar-studio-trigger").click();
       await expect(studio.locator('[data-face-option="orb"]')).toHaveAttribute(
         "aria-pressed",

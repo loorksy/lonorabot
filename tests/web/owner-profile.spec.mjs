@@ -49,8 +49,8 @@ const test = base.extend({
 
 async function openProfile(page, agent) {
   await page.goto(`/app/${agent.id}`);
-  await page.locator(".tpl-chat-identity").click();
-  const panel = page.getByTestId("side-panel");
+  await page.getByRole("button", { name: /^(Chat menu|قائمة المحادثة)$/ }).click();
+  const panel = page.locator("#dialog");
   await panel.getByRole("button", { name: /^(Knowledge|المعرفة)$/ }).click();
   return panel;
 }
