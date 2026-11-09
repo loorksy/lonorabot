@@ -142,19 +142,7 @@ export function useChatMenu({
         );
       else if (page === "info")
         body = agent ? (
-          <AgentSettings
-            key={agent.id}
-            agent={agent}
-            onClose={() => sheets.close()}
-            onDelete={async () => {
-              await data.removeAgent(agent.id);
-              sheets.close(true);
-              const next =
-                data.agents.find((row) => row.id !== agent.id && row.role === "personal") ??
-                data.agents.find((row) => row.id !== agent.id);
-              nav.go(next ? `/app/${next.id}` : "/app", { replace: true });
-            }}
-          />
+          <AgentSettings key={agent.id} agent={agent} onClose={() => sheets.close()} />
         ) : group ? (
           <GroupSettings
             key={group.id}

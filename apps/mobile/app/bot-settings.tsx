@@ -33,7 +33,6 @@ export default function BotSettings() {
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
   const [avatarSaving, setAvatarSaving] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState(false);
   useEffect(() => {
     if (!owner || !botId) return;
     let live = true;
@@ -69,7 +68,7 @@ export default function BotSettings() {
     };
   }, [botId, owner, errorText, t]);
   const save = async () => {
-    if (!agent || busy || avatarSaving || confirmDelete) return;
+    if (!agent || busy || avatarSaving) return;
     setBusy(true);
     setError(null);
     setSaved(false);
@@ -115,7 +114,6 @@ export default function BotSettings() {
         disabled={
           busy ||
           avatarSaving ||
-          confirmDelete ||
           !agent?.name.trim() ||
           (mode === "market" && (!pair.trading_account_id || !pair.trading_symbol))
         }
@@ -249,64 +247,6 @@ export default function BotSettings() {
               </Text>
             </View>
           ) : null}
-          {agent.role === "personal" ? (
-            <Text style={{ color: colors.secondary, textAlign: rtl ? "right" : "left" }}>
-              {t("personal_agent_cannot_delete")}
-            </Text>
-          ) : (
-            <View style={{ gap: 12 }}>
-              {confirmDelete ? (
-                <>
-                  <Text
-                    accessibilityRole="header"
-                    style={{
-                      color: colors.foreground,
-                      fontSize: 17,
-                      textAlign: rtl ? "right" : "left",
-                    }}
-                  >
-                    {t("deleteAgentConfirm")}
-                  </Text>
-                  <Text style={{ color: colors.secondary, textAlign: rtl ? "right" : "left" }}>
-                    {agent.name}
-                    {"\n"}
-                    {t("deleteAgentWarning")}
-                  </Text>
-                </>
-              ) : null}
-              <SettingsGroup>
-                {confirmDelete ? (
-                  <SettingsRow
-                    title={t("deleteAgentCancel")}
-                    disabled={busy}
-                    onPress={() => setConfirmDelete(false)}
-                  />
-                ) : null}
-                <SettingsRow
-                  title={t(confirmDelete ? "deleteAgentPermanently" : "deleteAgent")}
-                  destructive
-                  disabled={busy}
-                  onPress={async () => {
-                    if (busy || agent.role === "personal") return;
-                    if (!confirmDelete) {
-                      setConfirmDelete(true);
-                      return;
-                    }
-                    setBusy(true);
-                    setError(null);
-                    try {
-                      await agents.remove(agent.id);
-                      router.dismissAll();
-                      router.replace("/");
-                    } catch (reason) {
-                      setError(errorText(reason));
-                      setBusy(false);
-                    }
-                  }}
-                />
-              </SettingsGroup>
-            </View>
-          )}
           {saved ? (
             <Text style={{ color: colors.success, textAlign: "center" }}>{t("saved")}</Text>
           ) : null}

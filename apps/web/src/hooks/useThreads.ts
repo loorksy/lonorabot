@@ -301,9 +301,5 @@ export function useThreads(agentId?: string, threadId?: string, knownRuns: Run[]
       setMessages((old) => mergeMessages(old, rows));
       return rows;
     },
-    remove: async (id: string) => {
-      await api.delete(`/threads/${id}`);
-      refresh();
-    },
   };
 }

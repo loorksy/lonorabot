@@ -221,14 +221,6 @@ export const labels = {
     "Your Personal Agent cannot be deleted.",
   ],
   cancelAction: ["إلغاء", "Cancel"],
-  deleteAgentCancel: ["إلغاء", "Cancel"],
-  deleteAgent: ["حذف المساعد", "Delete agent"],
-  deleteAgentConfirm: ["حذف المساعد نهائيًا؟", "Delete agent permanently?"],
-  deleteAgentWarning: [
-    "سيُحذف هذا المساعد نهائيًا. لا يمكن التراجع عن هذا الإجراء.",
-    "This agent will be permanently deleted. This cannot be undone.",
-  ],
-  deleteAgentPermanently: ["حذف نهائي", "Delete permanently"],
   execution_mode_changed: [
     "تغير وضع التنفيذ. راجع الخطة المحفوظة قبل المتابعة.",
     "Execution mode changed. Review the saved plan before continuing.",
