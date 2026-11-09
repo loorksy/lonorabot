@@ -2,6 +2,7 @@
 @import "tailwindcss";
 @import "@lonora/ui-web/styles.css";
 @import "@lonora/ui-tokens/tokens.css";
+@import "@lonora/ui-tokens/reference.css";
 @import "@fontsource-variable/geist/wght.css";
 @import "./pages/shell/shell.css";
 @import "./theme.overrides.css";

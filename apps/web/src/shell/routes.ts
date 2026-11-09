@@ -1,0 +1,66 @@
+/** The shell's route model: four root tabs, the two conversation routes and the inner pages. */
+export const ROOTS = ["chats", "updates", "tasks", "settings"] as const;
+export type Root = (typeof ROOTS)[number];
+export const PAGES = [
+  "artifacts",
+  "search",
+  "market",
+  "trading",
+  "routines",
+  "knowledge",
+  "new-agent",
+  "new-group",
+  "owner",
+  "lab",
+] as const;
+export type Page = (typeof PAGES)[number];
+export type ShellRoute =
+  | { kind: "root"; root: Root }
+  | { kind: "chat"; agentId: string }
+  | { kind: "group"; groupId: string }
+  | { kind: "page"; page: Page; item?: string }
+  | { kind: "alias"; to: string }
+  | { kind: "not-found" };
+
+/** Out of production: the lab (plans and the gallery arrive with their pages). */
+export const DEV_ROUTES: ReadonlySet<Page> = new Set<Page>(["lab"]);
+/** Old names that still reach their merged page (the reference's ROUTE_ALIAS, plus ours). */
+const ALIASES: Readonly<Record<string, string>> = {
+  board: "/app/tasks",
+  activity: "/app/updates",
+  notifications: "/app/updates",
+  account: "/app/settings",
+  capabilities: "/app/settings?tab=capabilities",
+};
+const rootNames = new Set<string>(ROOTS);
+const pageNames = new Set<string>(PAGES);
+
+export const rootPath = (root: Root) => (root === "chats" ? "/app" : `/app/${root}`);
+
+export function parseRoute(pathname: string): ShellRoute {
+  const segments = pathname.split("/").filter(Boolean);
+  if (segments[0] !== "app")
+    return segments.length ? { kind: "not-found" } : { kind: "alias", to: "/app" };
+  if (segments.length === 1) return { kind: "root", root: "chats" };
+  const [, head, item, extra] = segments;
+  if (head === "g" && item && !extra) return { kind: "group", groupId: item };
+  if (head in ALIASES && !item) return { kind: "alias", to: ALIASES[head] };
+  if (rootNames.has(head) && !item) return { kind: "root", root: head as Root };
+  if (pageNames.has(head)) {
+    if (extra || (item && head !== "artifacts")) return { kind: "not-found" };
+    return item ? { kind: "page", page: head as Page, item } : { kind: "page", page: head as Page };
+  }
+  if (!item) return { kind: "chat", agentId: head };
+  return { kind: "not-found" };
+}
+
+export function sectionOf(route: ShellRoute): Root {
+  if (route.kind === "root") return route.root;
+  if (route.kind === "page" && route.page === "owner") return "settings";
+  return "chats";
+}
+/** A route the pager can slide between: only the four roots on phones. */
+export const isRoot = (route: ShellRoute): route is { kind: "root"; root: Root } =>
+  route.kind === "root";
+export const isConversation = (route: ShellRoute) =>
+  route.kind === "chat" || route.kind === "group";

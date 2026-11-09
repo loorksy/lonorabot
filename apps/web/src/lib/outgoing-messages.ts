@@ -57,6 +57,28 @@ export function outgoingMessages(key: string): OutgoingIntent[] {
   }
   return entries.get(key) ?? empty;
 }
+/** Every message of this owner still waiting to go out, over all threads (the network strip). */
+export function queuedOutgoingCount(ownerId: string) {
+  const keys = new Set(entries.keys());
+  try {
+    for (let index = 0; index < localStorage.length; index++) {
+      const name = localStorage.key(index);
+      if (name?.startsWith(prefix)) keys.add(name.slice(prefix.length));
+    }
+  } catch {
+    /* Closed storage: the in-memory queue still counts. */
+  }
+  let count = 0;
+  for (const key of keys) {
+    try {
+      if (JSON.parse(key)[0] !== ownerId) continue;
+    } catch {
+      continue;
+    }
+    count += outgoingMessages(key).length;
+  }
+  return count;
+}
 function save(key: string, rows: OutgoingIntent[]) {
   if (rows.length) entries.set(key, rows);
   else entries.delete(key);

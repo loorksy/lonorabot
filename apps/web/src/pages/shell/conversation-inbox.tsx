@@ -17,7 +17,34 @@ export type InboxEntry = {
   last_activity_at: string;
 };
 
-type Row = { kind: "agent"; value: Agent } | { kind: "group"; value: Resource };
+export type Row = { kind: "agent"; value: Agent } | { kind: "group"; value: Resource };
+
+/** The list's order: the Personal Agent first, then the latest activity. */
+export function inboxRows(agents: Agent[], groups: Resource[], entries: InboxEntry[]) {
+  const byEntity = new Map(
+    entries.map((entry) => [
+      entry.agent_id ? `agent:${entry.agent_id}` : `group:${entry.group_id}`,
+      entry,
+    ]),
+  );
+  const rows: Row[] = [
+    ...agents.map((value) => ({ kind: "agent" as const, value })),
+    ...groups.map((value) => ({ kind: "group" as const, value })),
+  ];
+  const time = (row: Row) =>
+    byEntity.get(`${row.kind}:${row.value.id}`)?.last_activity_at ?? row.value.created_at;
+  rows.sort((a, b) => {
+    const personalA = a.kind === "agent" && a.value.role === "personal";
+    const personalB = b.kind === "agent" && b.value.role === "personal";
+    if (personalA !== personalB) return personalA ? -1 : 1;
+    return time(b).localeCompare(time(a)) || a.value.id.localeCompare(b.value.id);
+  });
+  return { rows, byEntity, time };
+}
+export const inboxPath = (row: Row, entry?: InboxEntry) =>
+  row.kind === "group"
+    ? `/app/g/${row.value.id}`
+    : `/app/${row.value.id}${entry ? `?thread=${encodeURIComponent(entry.thread_id)}` : ""}`;
 
 /** A projection of existing conversations; opening home never creates a Thread. */
 export function ConversationInbox({
@@ -33,6 +60,7 @@ export function ConversationInbox({
   query,
   searching,
   onQueryChange,
+  selected,
 }: {
   agents: Agent[];
   groups: Resource[];
@@ -46,34 +74,19 @@ export function ConversationInbox({
   query: string;
   searching: boolean;
   onQueryChange: (query: string) => void;
+  /** The open conversation's key (`agent:id` / `group:id`), marked as current in the list. */
+  selected?: string;
 }) {
   const { i18n } = useLingui();
   const searchInput = useRef<HTMLInputElement>(null);
   useEffect(() => {
     if (searching) searchInput.current?.focus();
   }, [searching]);
-  const byEntity = new Map(
-    entries.map((entry) => [
-      entry.agent_id ? `agent:${entry.agent_id}` : `group:${entry.group_id}`,
-      entry,
-    ]),
-  );
+  const { rows, byEntity, time } = inboxRows(agents, groups, entries);
   const needle = query.trim().toLocaleLowerCase();
-  const rows: Row[] = [
-    ...agents.map((value) => ({ kind: "agent" as const, value })),
-    ...groups.map((value) => ({ kind: "group" as const, value })),
-  ];
   const name = (row: Row) =>
     row.kind === "agent" ? row.value.name : String(row.value.payload.name);
-  const time = (row: Row) =>
-    byEntity.get(`${row.kind}:${row.value.id}`)?.last_activity_at ?? row.value.created_at;
   const visible = rows.filter((row) => name(row).toLocaleLowerCase().includes(needle));
-  visible.sort((a, b) => {
-    const personalA = a.kind === "agent" && a.value.role === "personal";
-    const personalB = b.kind === "agent" && b.value.role === "personal";
-    if (personalA !== personalB) return personalA ? -1 : 1;
-    return time(b).localeCompare(time(a)) || a.value.id.localeCompare(b.value.id);
-  });
   return (
     <section
       className="tpl-inbox lonora-scroll"
@@ -120,20 +133,16 @@ export function ConversationInbox({
             (row.kind === "agent"
               ? row.value.title || row.value.description || (row.value.paused ? t`Paused` : "")
               : members.map((agent) => agent.name).join(" · "));
+          const key = `${row.kind}:${row.value.id}`;
           return (
             <button
               type="button"
-              className="tpl-inbox-row"
+              className={`tpl-inbox-row${selected === key ? " selected" : ""}`}
+              aria-current={selected === key ? "true" : undefined}
               data-inbox-agent-id={row.kind === "agent" ? row.value.id : undefined}
               data-inbox-group-id={row.kind === "group" ? row.value.id : undefined}
-              key={`${row.kind}:${row.value.id}`}
-              onClick={() =>
-                onOpen(
-                  row.kind === "group"
-                    ? `/app/g/${row.value.id}`
-                    : `/app/${row.value.id}${entry ? `?thread=${encodeURIComponent(entry.thread_id)}` : ""}`,
-                )
-              }
+              key={key}
+              onClick={() => onOpen(inboxPath(row, entry))}
             >
               <span className="tpl-inbox-avatar">
                 {row.kind === "agent" ? (

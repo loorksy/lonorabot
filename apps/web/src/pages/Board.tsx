@@ -2,7 +2,7 @@
 import { Trans, useLingui } from "@lingui/react/macro";
 import { ClipboardList, Plus } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { AgentAvatar } from "../components/ai/AgentAvatar";
 import { useOverlayHistory } from "../hooks/useOverlayHistory";
 import { type Agent, api, type Resource } from "../lib/api";
@@ -43,6 +43,20 @@ export function BoardPage({ agents }: { agents: Agent[] }) {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>();
+  const [params, setParams] = useSearchParams();
+  // «مهمة جديدة» from the shell (the tasks tab's floating «+», the welcome pane, the chat menu).
+  const wantsNew = params.get("new") === "1";
+  useEffect(() => {
+    if (!wantsNew) return;
+    setSelected("new");
+    setParams(
+      (next) => {
+        next.delete("new");
+        return next;
+      },
+      { replace: true },
+    );
+  }, [wantsNew, setParams]);
   useEffect(() => {
     void revision;
     let active = true;
