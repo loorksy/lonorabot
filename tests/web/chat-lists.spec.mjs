@@ -14,6 +14,17 @@ function seed(data) {
     }),
   );
 }
+/* The agents and the group a test seeded leave with it: their queued runs (a message
+   sent here) must not reach a later spec's scripted worker. API cleanup, not the UI. */
+let seeded = null;
+test.afterEach(async ({ context }) => {
+  if (!seeded) return;
+  const { fixture, headers } = seeded;
+  seeded = null;
+  await context.request.delete(`/api/groups/${fixture.group.id}`, { headers });
+  for (const agent of fixture.agents)
+    await context.request.delete(`/api/agents/${agent.id}`, { headers });
+});
 async function signIn(context, fixture, locale = "en") {
   await context.addCookies(
     fixture.cookies.map((cookie) => ({
@@ -24,9 +35,11 @@ async function signIn(context, fixture, locale = "en") {
     })),
   );
   await context.addInitScript((value) => localStorage.setItem("lonora.locale", value), locale);
-  return {
+  const headers = {
     "X-CSRF-Token": fixture.cookies.find((cookie) => cookie.name === "lonora_csrf").value,
   };
+  if (fixture.agents && fixture.group) seeded = { fixture, headers };
+  return headers;
 }
 const key = (agent) => `agent:${agent.id}`;
 const desktopRow = (page, rowKey) => page.locator(`.desktop-list .thread[data-key="${rowKey}"]`);
@@ -157,12 +170,16 @@ test("mute silences a chat's heads-up and badge; critical attention always shows
   await desktopRow(page, key(personal)).click({ button: "right" });
   await toolbar(page).getByRole("button", { name: "Mute notifications" }).click();
   await expect(desktopRow(page, key(personal)).getByRole("img", { name: "Muted" })).toBeVisible();
+  const controls = await (await context.request.get("/api/trading/controls")).json();
   try {
     const alert = seed({ action: "attention" });
     expect(alert.importance).toBe("critical");
     await expect(page.locator("#headsup")).toContainText(personal.name, { timeout: 15_000 });
   } finally {
-    seed({ action: "resume" });
+    seed({
+      action: "restore",
+      controls: { enabled: controls.enabled, emergency_stop: controls.emergency_stop },
+    });
     const inbox = await (await context.request.get("/api/threads/inbox")).json();
     await context.request.post("/api/threads/prefs", {
       headers,
@@ -321,7 +338,9 @@ test("a custom list is created with the emoji panel, filters the rows and delete
   expect(saved.thread_ids.sort()).toEqual(
     [fixture.threads[0].id, fixture.group.state.thread_id].sort(),
   );
-  // Right-click the chip: delete, then undo restores it.
+  // Right-click the chip (once it has scrolled into view): delete, then undo restores it.
+  await expect(chip).toBeInViewport();
+  await page.waitForTimeout(400);
   await chip.click({ button: "right" });
   await page.getByRole("menuitem", { name: "Delete the list" }).click();
   await expect(chip).toHaveCount(0);

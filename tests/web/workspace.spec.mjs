@@ -673,10 +673,10 @@ test("agent deletion requires confirmation and Personal Agent keeps its gold rol
   const personal = agents.find((row) => row.role === "personal");
   expect(personal).toBeTruthy();
   await page.goto(`/app/${personal.id}`);
+  // The reference's list rows carry no role badge; the chat header keeps it.
+  await expect(page.locator(`.desktop-list [data-inbox-agent-id="${personal.id}"]`)).toBeVisible();
   await expect(
-    page
-      .locator(`.desktop-list [data-inbox-agent-id="${personal.id}"]`)
-      .getByRole("img", { name: "Personal Agent", exact: true }),
+    page.locator(".chat-head").getByRole("img", { name: "Personal Agent", exact: true }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Agent info", exact: true }).click();
   await expect(
@@ -685,10 +685,9 @@ test("agent deletion requires confirmation and Personal Agent keeps its gold rol
   await expect(page.getByRole("button", { name: "Delete agent", exact: true })).toHaveCount(0);
 
   await page.goto(`/app/${agent.id}`);
+  await expect(page.locator(`.desktop-list [data-inbox-agent-id="${agent.id}"]`)).toBeVisible();
   await expect(
-    page
-      .locator(`.desktop-list [data-inbox-agent-id="${agent.id}"]`)
-      .getByRole("img", { name: "Personal Agent", exact: true }),
+    page.locator(".chat-head").getByRole("img", { name: "Personal Agent", exact: true }),
   ).toHaveCount(0);
   await page.getByRole("button", { name: "Agent info", exact: true }).click();
   await page.getByRole("button", { name: "Delete agent", exact: true }).click();

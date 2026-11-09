@@ -3,9 +3,9 @@
 ``init`` creates agents with canonical conversations and a group, then writes messages
 straight into their history: unread agent answers, an owner message the server accepted
 (one grey tick) and one whose run started (two accent ticks). ``message`` adds an agent
-answer and publishes ``message.created`` (the heads-up); ``attention`` raises a critical
-item (new trading stopped) and ``resume`` lifts it again. Agents are kept: the browser
-uses them after this process exits.
+answer and publishes ``message.created`` (the heads-up); ``attention`` raises a fresh
+critical item (new trading stopped) and ``restore`` puts the trading controls back as the
+spec found them. Agents are kept: the browser uses them after this process exits.
 """
 
 import asyncio
@@ -96,18 +96,29 @@ async def action(data: dict[str, Any]) -> dict[str, Any]:
                 fixture, data["thread"], "assistant", data["agent"], data["content"], True
             )
         if data["action"] == "attention":
+            # A fresh transition: an earlier stop (another spec) is lifted first, so the
+            # critical item raised here is new.
+            controls = await fixture.request("GET", "/trading/controls")
+            brokers = fixture.runtime.services(fixture.owner).brokers
+            if controls["emergency_stop"]:
+                await fixture.request(
+                    "PUT",
+                    "/trading/controls",
+                    {"enabled": controls["enabled"], "emergency_stop": False},
+                )
+                await attention_tick(fixture.runtime.db, brokers, fixture.owner)
             await fixture.request(
                 "PUT", "/trading/controls", {"enabled": False, "emergency_stop": True}
             )
-            await attention_tick(
-                fixture.runtime.db, fixture.runtime.services(fixture.owner).brokers, fixture.owner
-            )
+            await attention_tick(fixture.runtime.db, brokers, fixture.owner)
             notifications = (await fixture.client.get("/api/attention")).json()
-            return next(row for row in notifications if row["code"] == "emergency_stop")
-        if data["action"] == "resume":
-            return await fixture.request(
-                "PUT", "/trading/controls", {"enabled": True, "emergency_stop": False}
+            return max(
+                (row for row in notifications if row["code"] == "emergency_stop"),
+                key=lambda row: row["created_at"],
             )
+        if data["action"] == "restore":
+            # The trading controls exactly as the spec found them.
+            return await fixture.request("PUT", "/trading/controls", data["controls"])
         raise ValueError("Unknown chat list fixture action")
     finally:
         await fixture.close(cleanup=False)
