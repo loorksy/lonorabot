@@ -21,7 +21,7 @@ still cascades its work in Wave 1, so it never deletes work).
 from hashlib import sha256
 from typing import Any, Literal, cast
 
-from lonora_contracts.agent_creation import TEMPLATE_LEVEL
+from lonora_contracts.agent_creation import TEMPLATE_LEVEL, AgentTemplate
 from lonora_contracts.domain import AgentCreate, utcnow
 from lonora_contracts.model_routing import AgentModelChange, ModelSelection
 from lonora_core.user_error import LonoraError
@@ -225,6 +225,7 @@ async def create_root_agent(
         session,
         owner_id,
         AgentCreate(
+            template=cast(AgentTemplate, template),
             scope_mode="flexible",
             trading_account_id=account_id,
             trading_symbol=symbol,

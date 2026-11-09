@@ -45,15 +45,59 @@ async def history(
     thread_id: str,
     limit: int = 100,
     before: int | None = None,
+    *,
+    floor: int = 0,
 ) -> list[MessageRow]:
+    """The latest messages before ``before``; ``floor`` is the owner's «مسح» cursor
+    (``lonora_db.thread_prefs.hidden_floor``): nothing at or before it is returned."""
     await owned_thread(session, owner_id, thread_id)
-    query = select(MessageRow).where(MessageRow.thread_id == thread_id)
+    query = select(MessageRow).where(MessageRow.thread_id == thread_id, MessageRow.seq > floor)
     if before:
         query = query.where(MessageRow.seq < before)
     rows = list(
         (await session.scalars(query.order_by(MessageRow.seq.desc()).limit(min(limit, 200)))).all()
     )
     return list(reversed(rows))
+
+
+async def history_around(
+    session: AsyncSession,
+    owner_id: str,
+    thread_id: str,
+    seq: int,
+    limit: int = 100,
+    *,
+    floor: int = 0,
+) -> list[MessageRow]:
+    """A page centred on one message (a search hit): the message, up to half the page
+    before it and the rest after it, in order. A hidden or missing message is
+    ``message_not_found``."""
+    await owned_thread(session, owner_id, thread_id)
+    limit = min(limit, 200)
+    target = await session.scalar(
+        select(MessageRow).where(
+            MessageRow.thread_id == thread_id, MessageRow.seq == seq, MessageRow.seq > floor
+        )
+    )
+    if target is None:
+        raise LonoraError("message_not_found", 404)
+    before = list(
+        await session.scalars(
+            select(MessageRow)
+            .where(MessageRow.thread_id == thread_id, MessageRow.seq < seq, MessageRow.seq > floor)
+            .order_by(MessageRow.seq.desc())
+            .limit(limit // 2)
+        )
+    )
+    after = list(
+        await session.scalars(
+            select(MessageRow)
+            .where(MessageRow.thread_id == thread_id, MessageRow.seq > seq)
+            .order_by(MessageRow.seq)
+            .limit(max(limit - len(before) - 1, 0))
+        )
+    )
+    return [*reversed(before), target, *after]
 
 
 async def acknowledged_runs(session: AsyncSession, run_ids: list[str]) -> list[dict[str, Any]]:
@@ -258,8 +302,10 @@ async def send_message(
             if not targets and request.reply_to and reply and reply.agent_id:
                 targets = [a.id for a in agents if a.id == reply.agent_id]
             if not targets:
+                # Nobody mentioned: the group's lead answers, else the first available member.
                 available = {a.id for a in agents if not a.paused}
-                for member_id in member_ids:
+                lead = group.payload.get("lead_agent_id")
+                for member_id in [lead, *member_ids]:
                     if member_id in available:
                         targets = [member_id]
                         break

@@ -31,6 +31,8 @@ async def ensure_personal_agent(session: AsyncSession, owner_id: str) -> AgentRo
     agent_id = str(uuid5(NAMESPACE_URL, f"lonora:personal-agent:{owner_id}"))
     row = await create_agent(session, owner_id, AgentCreate(name="Lonora"), agent_id=agent_id)
     row.role = "personal"
+    # Lonora is the personal agent, not an agent of a template.
+    row.template = None
     await session.flush()
     from .supervision import seed_personal_grants
 
