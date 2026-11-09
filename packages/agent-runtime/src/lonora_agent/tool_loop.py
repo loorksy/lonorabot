@@ -42,17 +42,14 @@ from lonora_core.run_state import is_conversational
 from lonora_core.user_error import LonoraError
 from lonora_db.runs import checkpoint, require_lease
 from lonora_db.schema import RunRow
-from lonora_db.tasks import ATTENTION_RESUMED, report_task_degraded
+from lonora_db.tasks import report_task_degraded
 from lonora_tools.base import run_scope
 from lonora_tools.context import ToolContext
 from lonora_tools.registry import ToolRegistry
 
 from .cancellation import cancellation_checkpoint
-from .context.builder import build_context
-from .context.skills import assert_skill_authority, refresh_skill_context, selected_skill_ids
+from .context.skills import assert_skill_authority, refresh_skill_context
 from .context_engine import (
-    DELEGATED_KEY,
-    DELEGATED_TRIGGERS,
     FENCE_CODES,
     compact_context,
     compacted_view,
@@ -67,14 +64,18 @@ from .environment import (
 )
 from .loop_outcomes import (
     LoopOutcome,
-    external_wait_outcome,
     final_answer,
     limit_outcome,
     question_outcome,
     report_wait_superseded,
     request_owner_attention,
     rich_metadata,
-    supersede_wait_siblings,
+)
+from .loop_restore import (
+    consume_wake,
+    reenter_external_wait,
+    restore_checkpoint,
+    resume_after_attention,
 )
 from .model_recovery import (
     ATTENTION_REASON,
@@ -87,10 +88,8 @@ from .model_recovery import (
     input_scale,
     plan_failure,
     record_success,
-    reset_streak,
 )
 from .model_runtime import model_turn
-from .recovery import restore_execution
 from .runtime_notices import (
     NO_ANSWER,
     append_notice,
@@ -100,17 +99,14 @@ from .runtime_notices import (
     limit_fallback,
     notice_message,
     prefers_arabic,
-    resumed_notice,
 )
-from .skills.snapshot import read_snapshot
 from .steering import merge_steering, owner_steering_pending
-from .stop_gates import reset_stop_gate, task_progress
+from .stop_gates import task_progress
 from .tasks import task_checkpoint
 from .tool_block import close_pending, execute_next_segment, report_closed
-from .tool_exposure import ensure_exposure, inventory, native_definitions
+from .tool_exposure import inventory, native_definitions
 from .tool_guardrails import (
     halt_reason,
-    reset_guardrails,
 )
 from .tool_intent import (
     start_budget_epoch,
@@ -313,49 +309,14 @@ async def execute_tool_loop(
             Capability.BACKGROUND if run.trigger in WORK_TRIGGERS else Capability.CONVERSATION
         )
         task_run = bool(run.model_metadata.get("task_id"))
-    # Compaction must not label another Agent's request as the owner's.
-    state[DELEGATED_KEY] = run.trigger in DELEGATED_TRIGGERS
-    messages, pending = restore_execution(state)
-    if messages and "instruction_skill_ids" not in state:
-        # Legacy checkpoints have no binding between saved instructions and the
-        # latest metadata selection. Conservatively check all retained versions.
-        state["instruction_skill_ids"] = list(
-            read_snapshot(run.model_metadata.get("skill_snapshot"))
-        ) or await selected_skill_ids(context)
-    if "environment" not in state and pending:
-        # Older checkpoints did not distinguish proposed from in-flight calls.
-        # Unknown legacy mutations must not acquire a new replay permission.
-        environment_state(state)["legacy_pending"] = [call.id for call in pending]
-    if not messages:
-        messages = await build_context(context, registry)
-        state["instruction_skill_ids"] = await selected_skill_ids(context)
-    # Chosen once per Run and frozen in the checkpoint: the native tools array
-    # is identical on every model turn, so discovery never invalidates the
-    # reusable prompt prefix. Exposure is presentation, never authority.
-    exposure = await ensure_exposure(
-        context, registry, state, messages, pending, scope=scope, task_run=task_run
+    messages, pending, exposure = await restore_checkpoint(
+        context, registry, run, state, scope=scope, task_run=task_run
     )
 
     async def save() -> None:
         await persist(context, state, messages, pending)
 
-    resumed = state.pop(ATTENTION_RESUMED, None)
-    if isinstance(resumed, dict):
-        # A Task control resumed work held for owner attention: that is owner
-        # input, so it starts a new review epoch, and at a limit a new budget.
-        reset_stop_gate(state)
-        reset_guardrails(state)
-        reset_streak(state)
-        if state.get("limit_exit") or int(state.get("rounds", 0)) >= slice_limit(
-            state, maximum_rounds
-        ):
-            start_budget_epoch(state)
-        state.pop("exit_reason", None)
-        append_notice(
-            messages,
-            "owner_resumed",
-            resumed_notice(str(cast(dict[str, Any], resumed).get("action") or "")),
-        )
+    if resume_after_attention(state, messages, maximum_rounds):
         await persist(context, state, messages, pending)
     question = state.get("pending_input_request")
     if isinstance(question, dict):
@@ -370,37 +331,11 @@ async def execute_tool_loop(
         # A new owner message supersedes an unpublished question before it reaches chat.
         state.pop("pending_input_request", None)
         await persist(context, state, messages, pending)
-    environment = environment_state(state)
-    if environment.get("wait"):
-        if pending:
-            # Older checkpoints could suspend halfway through a tool block.
-            # Repair their unexecuted siblings before any future wake can run
-            # stale financial intent or insert a user message into that block.
-            superseded = list(pending)
-            supersede_wait_siblings(messages, pending)
-            await persist(context, state, messages, pending)
-            await report_wait_superseded(context, superseded)
-        return external_wait_outcome(state)
-    wake = environment.get("last_wake")
-    wake_superseded: list[ToolCall] = []
-    if wake and environment.get("consumed_wake") != wake:
-        # A previous release may have committed the wake before upgrading its
-        # worker. Close its pre-wait proposals before adding the new observation.
-        wake_superseded = list(pending)
-        supersede_wait_siblings(messages, pending)
-        reset_stop_gate(state)
-        reset_guardrails(state)
-        messages.append(
-            ModelMessage(
-                role="user",
-                content="<runtime_wake>"
-                + json.dumps(wake, ensure_ascii=False).replace("<", "\\u003c")
-                + "</runtime_wake>",
-            )
-        )
-        environment["consumed_wake"] = wake
+    if environment_state(state).get("wait"):
+        return await reenter_external_wait(context, state, messages, pending, save)
+    woken = consume_wake(state, messages, pending)
     await persist(context, state, messages, pending)
-    await report_wait_superseded(context, wake_superseded)
+    await report_wait_superseded(context, woken)
 
     async def refresh_after_steering() -> None:
         updated_skills = await refresh_skill_context(
