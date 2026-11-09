@@ -45,6 +45,34 @@ export {
   sourceLine,
 } from "./capabilities";
 export {
+  archivedRowSummary,
+  archivedRows,
+  attentionAlwaysShows,
+  BUILTIN_FILTERS,
+  type ChatRow,
+  type ChatRowKind,
+  chatRows,
+  filterRows,
+  groupDraftName,
+  headsUpAllowed,
+  isArchived,
+  isFavourite,
+  isMuted,
+  isPinned,
+  isPlainOutgoing,
+  type ListFilter,
+  listIdOf,
+  listMemberRows,
+  PIN_LIMIT,
+  pinsAfter,
+  rowCount,
+  rowIsUnread,
+  rowKey,
+  rowMarkedOnly,
+  rowUnread,
+  selectionSummary,
+} from "./chat-rows";
+export {
   type MentionAddress,
   type MentionRange,
   mentionAddress,
@@ -115,6 +143,7 @@ export {
   streamText,
 } from "./reply-stream";
 export { activeStatuses, canCancel, canResume, isWorking } from "./run-state";
+export { foldSearch, highlightRange } from "./search-fold";
 export {
   type SupervisionRow,
   type SupervisionText,
