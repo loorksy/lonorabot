@@ -9,7 +9,10 @@ boundaries.
 
 | Module | Responsibility |
 | --- | --- |
-| `tool_loop.py` | Orchestration, checkpoints, steering, waits, limits |
+| `tool_loop.py` | The one loop: its phases in order, checkpoints, steering, model turns, limits and the final report |
+| `loop_restore.py` | Checkpoint restore and resume, including checkpoints written by earlier releases |
+| `tool_block.py` | One tool-call block: segments, intent, receipts, approval and wait routing, results in call order |
+| `loop_outcomes.py` | Outcomes that end a pass: final answers after the stop gates, waits, owner attention |
 | `tool_dispatch.py` | One call under the receipt, reconciliation and crash-replay rules |
 | `tool_intent.py` | Per-call intent markers and closing of unexecuted proposals |
 | `tool_batch.py` | Ordered parallel/serial segments and bounded concurrent execution |
