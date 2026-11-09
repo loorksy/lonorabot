@@ -320,8 +320,8 @@ msgid "Agents"
 msgstr "Agents"
 
 #: src/shell/lists/ListSheets.tsx:178
-#: src/shell/lists/UnifiedSearch.tsx:302
-#: src/shell/lists/UnifiedSearch.tsx:309
+#: src/shell/lists/UnifiedSearch.tsx:304
+#: src/shell/lists/UnifiedSearch.tsx:311
 msgid "Agents and groups"
 msgstr "Agents and groups"
 
@@ -330,7 +330,7 @@ msgctxt "chat filter"
 msgid "All"
 msgstr "All"
 
-#: src/shell/lists/UnifiedSearch.tsx:266
+#: src/shell/lists/UnifiedSearch.tsx:268
 msgctxt "search tab"
 msgid "All"
 msgstr "All"
@@ -667,7 +667,7 @@ msgstr "Broker ticket"
 msgid "Broker verification pending. Market data remains available; new orders on the affected market are blocked until verification finishes, and closing remains available."
 msgstr "Broker verification pending. Market data remains available; new orders on the affected market are blocked until verification finishes, and closing remains available."
 
-#: src/shell/lists/UnifiedSearch.tsx:392
+#: src/shell/lists/UnifiedSearch.tsx:394
 msgid "Browse Lonora's content"
 msgstr "Browse Lonora's content"
 
@@ -815,7 +815,7 @@ msgstr "Chat unpinned"
 
 #: src/shell/DesktopList.tsx:88
 #: src/shell/FloatingTabBar.tsx:19
-#: src/shell/lists/UnifiedSearch.tsx:267
+#: src/shell/lists/UnifiedSearch.tsx:269
 msgid "Chats"
 msgstr "Chats"
 
@@ -1601,9 +1601,9 @@ msgstr "Feed or webhook URL"
 msgid "Fibonacci"
 msgstr "Fibonacci"
 
-#: src/shell/lists/UnifiedSearch.tsx:270
-#: src/shell/lists/UnifiedSearch.tsx:305
-#: src/shell/lists/UnifiedSearch.tsx:312
+#: src/shell/lists/UnifiedSearch.tsx:272
+#: src/shell/lists/UnifiedSearch.tsx:307
+#: src/shell/lists/UnifiedSearch.tsx:314
 #: src/shell/pages.tsx:62
 msgid "Files"
 msgstr "Files"
@@ -1621,7 +1621,7 @@ msgstr "Filter by date"
 msgid "Filter chats"
 msgstr "Filter chats"
 
-#: src/shell/lists/UnifiedSearch.tsx:274
+#: src/shell/lists/UnifiedSearch.tsx:276
 msgid "Filter the search results"
 msgstr "Filter the search results"
 
@@ -1914,14 +1914,14 @@ msgstr "Keyboard shortcuts"
 msgid "Knowledge"
 msgstr "Knowledge"
 
-#: src/shell/lists/UnifiedSearch.tsx:200
+#: src/shell/lists/UnifiedSearch.tsx:202
 msgctxt "search hit"
 msgid "Knowledge"
 msgstr "Knowledge"
 
-#: src/shell/lists/UnifiedSearch.tsx:271
-#: src/shell/lists/UnifiedSearch.tsx:306
-#: src/shell/lists/UnifiedSearch.tsx:313
+#: src/shell/lists/UnifiedSearch.tsx:273
+#: src/shell/lists/UnifiedSearch.tsx:308
+#: src/shell/lists/UnifiedSearch.tsx:315
 msgid "Knowledge and skills"
 msgstr "Knowledge and skills"
 
@@ -2142,7 +2142,7 @@ msgstr "Market sell"
 msgid "Market watches"
 msgstr "Market watches"
 
-#: src/shell/lists/UnifiedSearch.tsx:303
+#: src/shell/lists/UnifiedSearch.tsx:305
 msgid "Matching messages"
 msgstr "Matching messages"
 
@@ -2197,7 +2197,7 @@ msgstr "Message composer"
 msgid "Message your agent…"
 msgstr "Message your agent…"
 
-#: src/shell/lists/UnifiedSearch.tsx:268
+#: src/shell/lists/UnifiedSearch.tsx:270
 msgid "Messages"
 msgstr "Messages"
 
@@ -2379,7 +2379,7 @@ msgstr "No candle history was found for this symbol and timeframe."
 msgid "No candles available for this instrument and timeframe."
 msgstr "No candles available for this instrument and timeframe."
 
-#: src/shell/lists/UnifiedSearch.tsx:383
+#: src/shell/lists/UnifiedSearch.tsx:385
 msgid "No chats are available yet."
 msgstr "No chats are available yet."
 
@@ -2396,7 +2396,7 @@ msgstr "No chats."
 msgid "No executions yet"
 msgstr "No executions yet"
 
-#: src/shell/lists/UnifiedSearch.tsx:386
+#: src/shell/lists/UnifiedSearch.tsx:388
 msgid "No files are available yet."
 msgstr "No files are available yet."
 
@@ -2444,11 +2444,11 @@ msgstr "No pending orders"
 msgid "No reply needed"
 msgstr "No reply needed"
 
-#: src/shell/lists/UnifiedSearch.tsx:399
+#: src/shell/lists/UnifiedSearch.tsx:401
 msgid "No results"
 msgstr "No results"
 
-#: src/shell/lists/UnifiedSearch.tsx:409
+#: src/shell/lists/UnifiedSearch.tsx:411
 msgid "No results in this category"
 msgstr "No results in this category"
 
@@ -2464,15 +2464,15 @@ msgstr "No runs match these filters."
 msgid "No saved chart in this conversation"
 msgstr "No saved chart in this conversation"
 
-#: src/shell/lists/UnifiedSearch.tsx:387
+#: src/shell/lists/UnifiedSearch.tsx:389
 msgid "No saved knowledge or skills yet."
 msgstr "No saved knowledge or skills yet."
 
-#: src/shell/lists/UnifiedSearch.tsx:384
+#: src/shell/lists/UnifiedSearch.tsx:386
 msgid "No saved messages yet. They appear here once a chat starts."
 msgstr "No saved messages yet. They appear here once a chat starts."
 
-#: src/shell/lists/UnifiedSearch.tsx:385
+#: src/shell/lists/UnifiedSearch.tsx:387
 msgid "No saved tasks yet."
 msgstr "No saved tasks yet."
 
@@ -2888,11 +2888,11 @@ msgstr "Reasoning"
 msgid "Recent"
 msgstr "Recent"
 
-#: src/shell/lists/UnifiedSearch.tsx:309
+#: src/shell/lists/UnifiedSearch.tsx:311
 msgid "Recent chats"
 msgstr "Recent chats"
 
-#: src/shell/lists/UnifiedSearch.tsx:310
+#: src/shell/lists/UnifiedSearch.tsx:312
 msgid "Recent messages"
 msgstr "Recent messages"
 
@@ -3200,7 +3200,7 @@ msgstr "Saved"
 msgid "Saved chart"
 msgstr "Saved chart"
 
-#: src/shell/lists/UnifiedSearch.tsx:188
+#: src/shell/lists/UnifiedSearch.tsx:190
 msgid "Saved file"
 msgstr "Saved file"
 
@@ -3288,7 +3288,7 @@ msgid "Search in Lonora"
 msgstr "Search in Lonora"
 
 #: src/shell/lists/EmojiPanel.tsx:448
-#: src/shell/lists/UnifiedSearch.tsx:392
+#: src/shell/lists/UnifiedSearch.tsx:394
 msgid "Search results"
 msgstr "Search results"
 
@@ -3429,16 +3429,16 @@ msgstr "Show Agent analysis"
 #~ msgid "Show agents"
 #~ msgstr "Show agents"
 
-#: src/shell/lists/UnifiedSearch.tsx:373
+#: src/shell/lists/UnifiedSearch.tsx:375
 msgid "Show all"
 msgstr "Show all"
 
 #. placeholder {0}: section.count
-#: src/shell/lists/UnifiedSearch.tsx:372
+#: src/shell/lists/UnifiedSearch.tsx:374
 msgid "Show all results ({0})"
 msgstr "Show all results ({0})"
 
-#: src/shell/lists/UnifiedSearch.tsx:374
+#: src/shell/lists/UnifiedSearch.tsx:376
 msgid "Show more"
 msgstr "Show more"
 
@@ -3495,7 +3495,7 @@ msgstr "Simulation with an imported snapshot"
 msgid "Skeptical"
 msgstr "Skeptical"
 
-#: src/shell/lists/UnifiedSearch.tsx:200
+#: src/shell/lists/UnifiedSearch.tsx:202
 msgid "Skill"
 msgstr "Skill"
 
@@ -3585,7 +3585,7 @@ msgstr "Spread"
 msgid "Start a chat"
 msgstr "Start a chat"
 
-#: src/shell/lists/UnifiedSearch.tsx:382
+#: src/shell/lists/UnifiedSearch.tsx:384
 msgid "Start a chat or add a task for it to appear here."
 msgstr "Start a chat or add a task for it to appear here."
 
@@ -3747,9 +3747,9 @@ msgid "Task when triggered"
 msgstr "Task when triggered"
 
 #: src/shell/FloatingTabBar.tsx:23
-#: src/shell/lists/UnifiedSearch.tsx:269
-#: src/shell/lists/UnifiedSearch.tsx:304
-#: src/shell/lists/UnifiedSearch.tsx:311
+#: src/shell/lists/UnifiedSearch.tsx:271
+#: src/shell/lists/UnifiedSearch.tsx:306
+#: src/shell/lists/UnifiedSearch.tsx:313
 msgid "Tasks"
 msgstr "Tasks"
 
@@ -3959,7 +3959,7 @@ msgstr "The voice connection failed. Retry the call."
 msgid "Theme"
 msgstr "Theme"
 
-#: src/shell/lists/UnifiedSearch.tsx:419
+#: src/shell/lists/UnifiedSearch.tsx:421
 msgid "There is no content in this section yet"
 msgstr "There is no content in this section yet"
 
@@ -4271,7 +4271,7 @@ msgstr "Try again"
 msgid "Type"
 msgstr "Type"
 
-#: src/shell/lists/UnifiedSearch.tsx:429
+#: src/shell/lists/UnifiedSearch.tsx:431
 msgid "Type a word to search chats, messages, tasks and files."
 msgstr "Type a word to search chats, messages, tasks and files."
 
@@ -4477,7 +4477,7 @@ msgstr "Watch source"
 msgid "We are making quick improvements to the service. Your chats are saved and we will be back in minutes."
 msgstr "We are making quick improvements to the service. Your chats are saved and we will be back in minutes."
 
-#: src/shell/lists/UnifiedSearch.tsx:402
+#: src/shell/lists/UnifiedSearch.tsx:404
 msgid "We found no results for «{q}». Try a shorter word or a different term."
 msgstr "We found no results for «{q}». Try a shorter word or a different term."
 
@@ -4540,11 +4540,11 @@ msgid "Yesterday"
 msgstr "Yesterday"
 
 #: src/components/charts/ChartAnnotations.tsx:81
-#: src/shell/lists/UnifiedSearch.tsx:150
+#: src/shell/lists/UnifiedSearch.tsx:152
 msgid "You"
 msgstr "You"
 
-#: src/shell/lists/UnifiedSearch.tsx:412
+#: src/shell/lists/UnifiedSearch.tsx:414
 msgid "You can choose «All» to search the other sections."
 msgstr "You can choose «All» to search the other sections."
 

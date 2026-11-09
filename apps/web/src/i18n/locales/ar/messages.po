@@ -320,8 +320,8 @@ msgid "Agents"
 msgstr "الوكلاء"
 
 #: src/shell/lists/ListSheets.tsx:178
-#: src/shell/lists/UnifiedSearch.tsx:302
-#: src/shell/lists/UnifiedSearch.tsx:309
+#: src/shell/lists/UnifiedSearch.tsx:304
+#: src/shell/lists/UnifiedSearch.tsx:311
 msgid "Agents and groups"
 msgstr "الوكلاء والمجموعات"
 
@@ -330,7 +330,7 @@ msgctxt "chat filter"
 msgid "All"
 msgstr "الكل"
 
-#: src/shell/lists/UnifiedSearch.tsx:266
+#: src/shell/lists/UnifiedSearch.tsx:268
 msgctxt "search tab"
 msgid "All"
 msgstr "الكل"
@@ -667,7 +667,7 @@ msgstr "رقم العملية لدى الوسيط"
 msgid "Broker verification pending. Market data remains available; new orders on the affected market are blocked until verification finishes, and closing remains available."
 msgstr "التحقق من عملية لدى الوسيط معلّق. تبقى بيانات السوق متاحة؛ الأوامر الجديدة على السوق المتأثر محظورة حتى اكتمال التحقق، ويبقى الإغلاق متاحًا."
 
-#: src/shell/lists/UnifiedSearch.tsx:392
+#: src/shell/lists/UnifiedSearch.tsx:394
 msgid "Browse Lonora's content"
 msgstr "تصفح محتوى Lonora"
 
@@ -815,7 +815,7 @@ msgstr "أُلغي تثبيت المحادثة"
 
 #: src/shell/DesktopList.tsx:88
 #: src/shell/FloatingTabBar.tsx:19
-#: src/shell/lists/UnifiedSearch.tsx:267
+#: src/shell/lists/UnifiedSearch.tsx:269
 msgid "Chats"
 msgstr "المحادثات"
 
@@ -1601,9 +1601,9 @@ msgstr "رابط المصدر أو Webhook"
 msgid "Fibonacci"
 msgstr "فيبوناتشي"
 
-#: src/shell/lists/UnifiedSearch.tsx:270
-#: src/shell/lists/UnifiedSearch.tsx:305
-#: src/shell/lists/UnifiedSearch.tsx:312
+#: src/shell/lists/UnifiedSearch.tsx:272
+#: src/shell/lists/UnifiedSearch.tsx:307
+#: src/shell/lists/UnifiedSearch.tsx:314
 #: src/shell/pages.tsx:62
 msgid "Files"
 msgstr "الملفات"
@@ -1621,7 +1621,7 @@ msgstr "التصفية حسب التاريخ"
 msgid "Filter chats"
 msgstr "تصفية المحادثات"
 
-#: src/shell/lists/UnifiedSearch.tsx:274
+#: src/shell/lists/UnifiedSearch.tsx:276
 msgid "Filter the search results"
 msgstr "تصفية نتائج البحث"
 
@@ -1914,14 +1914,14 @@ msgstr "اختصارات لوحة المفاتيح"
 msgid "Knowledge"
 msgstr "المعرفة"
 
-#: src/shell/lists/UnifiedSearch.tsx:200
+#: src/shell/lists/UnifiedSearch.tsx:202
 msgctxt "search hit"
 msgid "Knowledge"
 msgstr "معرفة"
 
-#: src/shell/lists/UnifiedSearch.tsx:271
-#: src/shell/lists/UnifiedSearch.tsx:306
-#: src/shell/lists/UnifiedSearch.tsx:313
+#: src/shell/lists/UnifiedSearch.tsx:273
+#: src/shell/lists/UnifiedSearch.tsx:308
+#: src/shell/lists/UnifiedSearch.tsx:315
 msgid "Knowledge and skills"
 msgstr "المعرفة والمهارات"
 
@@ -2142,7 +2142,7 @@ msgstr "بيع بسعر السوق"
 msgid "Market watches"
 msgstr "مراقبة السوق"
 
-#: src/shell/lists/UnifiedSearch.tsx:303
+#: src/shell/lists/UnifiedSearch.tsx:305
 msgid "Matching messages"
 msgstr "الرسائل المطابقة"
 
@@ -2197,7 +2197,7 @@ msgstr "محرر الرسالة"
 msgid "Message your agent…"
 msgstr "اكتب رسالة لوكيلك…"
 
-#: src/shell/lists/UnifiedSearch.tsx:268
+#: src/shell/lists/UnifiedSearch.tsx:270
 msgid "Messages"
 msgstr "الرسائل"
 
@@ -2379,7 +2379,7 @@ msgstr "لم يتم العثور على شموع تاريخية لهذا الر�
 msgid "No candles available for this instrument and timeframe."
 msgstr "لا تتوفر شموع لهذه الأداة والفترة الزمنية."
 
-#: src/shell/lists/UnifiedSearch.tsx:383
+#: src/shell/lists/UnifiedSearch.tsx:385
 msgid "No chats are available yet."
 msgstr "لا توجد محادثات متاحة بعد."
 
@@ -2396,7 +2396,7 @@ msgstr "لا توجد محادثات."
 msgid "No executions yet"
 msgstr "لا توجد عمليات تنفيذ بعد"
 
-#: src/shell/lists/UnifiedSearch.tsx:386
+#: src/shell/lists/UnifiedSearch.tsx:388
 msgid "No files are available yet."
 msgstr "لا توجد ملفات متاحة بعد."
 
@@ -2444,11 +2444,11 @@ msgstr "لا توجد أوامر معلقة"
 msgid "No reply needed"
 msgstr "لا حاجة للرد"
 
-#: src/shell/lists/UnifiedSearch.tsx:399
+#: src/shell/lists/UnifiedSearch.tsx:401
 msgid "No results"
 msgstr "لا توجد نتائج"
 
-#: src/shell/lists/UnifiedSearch.tsx:409
+#: src/shell/lists/UnifiedSearch.tsx:411
 msgid "No results in this category"
 msgstr "لا توجد نتائج في هذه الفئة"
 
@@ -2464,15 +2464,15 @@ msgstr "لا توجد عمليات تنفيذ تطابق هذه المرشحات
 msgid "No saved chart in this conversation"
 msgstr "لا يوجد رسم بياني محفوظ في هذه المحادثة"
 
-#: src/shell/lists/UnifiedSearch.tsx:387
+#: src/shell/lists/UnifiedSearch.tsx:389
 msgid "No saved knowledge or skills yet."
 msgstr "لا توجد معرفة أو مهارات محفوظة بعد."
 
-#: src/shell/lists/UnifiedSearch.tsx:384
+#: src/shell/lists/UnifiedSearch.tsx:386
 msgid "No saved messages yet. They appear here once a chat starts."
 msgstr "لا توجد رسائل محفوظة بعد. ستظهر هنا بعد بدء المحادثة."
 
-#: src/shell/lists/UnifiedSearch.tsx:385
+#: src/shell/lists/UnifiedSearch.tsx:387
 msgid "No saved tasks yet."
 msgstr "لا توجد مهام محفوظة بعد."
 
@@ -2888,11 +2888,11 @@ msgstr "الاستدلال"
 msgid "Recent"
 msgstr "حديثًا"
 
-#: src/shell/lists/UnifiedSearch.tsx:309
+#: src/shell/lists/UnifiedSearch.tsx:311
 msgid "Recent chats"
 msgstr "المحادثات الأخيرة"
 
-#: src/shell/lists/UnifiedSearch.tsx:310
+#: src/shell/lists/UnifiedSearch.tsx:312
 msgid "Recent messages"
 msgstr "الرسائل الأخيرة"
 
@@ -3200,7 +3200,7 @@ msgstr "تم الحفظ"
 msgid "Saved chart"
 msgstr "الشارت المحفوظ"
 
-#: src/shell/lists/UnifiedSearch.tsx:188
+#: src/shell/lists/UnifiedSearch.tsx:190
 msgid "Saved file"
 msgstr "ملف محفوظ"
 
@@ -3288,7 +3288,7 @@ msgid "Search in Lonora"
 msgstr "بحث في Lonora"
 
 #: src/shell/lists/EmojiPanel.tsx:448
-#: src/shell/lists/UnifiedSearch.tsx:392
+#: src/shell/lists/UnifiedSearch.tsx:394
 msgid "Search results"
 msgstr "نتائج البحث"
 
@@ -3429,16 +3429,16 @@ msgstr "عرض تحليل الوكيل"
 #~ msgid "Show agents"
 #~ msgstr "إظهار الوكلاء"
 
-#: src/shell/lists/UnifiedSearch.tsx:373
+#: src/shell/lists/UnifiedSearch.tsx:375
 msgid "Show all"
 msgstr "عرض الكل"
 
 #. placeholder {0}: section.count
-#: src/shell/lists/UnifiedSearch.tsx:372
+#: src/shell/lists/UnifiedSearch.tsx:374
 msgid "Show all results ({0})"
 msgstr "عرض جميع النتائج ({0})"
 
-#: src/shell/lists/UnifiedSearch.tsx:374
+#: src/shell/lists/UnifiedSearch.tsx:376
 msgid "Show more"
 msgstr "عرض المزيد"
 
@@ -3495,7 +3495,7 @@ msgstr "محاكاة باستخدام بيانات مستوردة"
 msgid "Skeptical"
 msgstr "متشكك"
 
-#: src/shell/lists/UnifiedSearch.tsx:200
+#: src/shell/lists/UnifiedSearch.tsx:202
 msgid "Skill"
 msgstr "مهارة"
 
@@ -3585,7 +3585,7 @@ msgstr "فارق السعر"
 msgid "Start a chat"
 msgstr "ابدأ محادثة"
 
-#: src/shell/lists/UnifiedSearch.tsx:382
+#: src/shell/lists/UnifiedSearch.tsx:384
 msgid "Start a chat or add a task for it to appear here."
 msgstr "ابدأ محادثة أو أضف مهمة لتظهر هنا."
 
@@ -3747,9 +3747,9 @@ msgid "Task when triggered"
 msgstr "المهمة عند تحقق الشرط"
 
 #: src/shell/FloatingTabBar.tsx:23
-#: src/shell/lists/UnifiedSearch.tsx:269
-#: src/shell/lists/UnifiedSearch.tsx:304
-#: src/shell/lists/UnifiedSearch.tsx:311
+#: src/shell/lists/UnifiedSearch.tsx:271
+#: src/shell/lists/UnifiedSearch.tsx:306
+#: src/shell/lists/UnifiedSearch.tsx:313
 msgid "Tasks"
 msgstr "المهام"
 
@@ -3959,7 +3959,7 @@ msgstr "تعذر اتصال الصوت. أعد محاولة المكالمة."
 msgid "Theme"
 msgstr "المظهر"
 
-#: src/shell/lists/UnifiedSearch.tsx:419
+#: src/shell/lists/UnifiedSearch.tsx:421
 msgid "There is no content in this section yet"
 msgstr "لا يوجد محتوى في هذا القسم بعد"
 
@@ -4271,7 +4271,7 @@ msgstr "إعادة المحاولة"
 msgid "Type"
 msgstr "النوع"
 
-#: src/shell/lists/UnifiedSearch.tsx:429
+#: src/shell/lists/UnifiedSearch.tsx:431
 msgid "Type a word to search chats, messages, tasks and files."
 msgstr "اكتب كلمة للبحث في المحادثات والرسائل والمهام والملفات."
 
@@ -4477,7 +4477,7 @@ msgstr "مصدر المراقبة"
 msgid "We are making quick improvements to the service. Your chats are saved and we will be back in minutes."
 msgstr "نجري تحسينات سريعة على الخدمة. محادثاتك محفوظة وسنعود خلال دقائق."
 
-#: src/shell/lists/UnifiedSearch.tsx:402
+#: src/shell/lists/UnifiedSearch.tsx:404
 msgid "We found no results for «{q}». Try a shorter word or a different term."
 msgstr "لم نعثر على نتائج لـ «{q}». جرّب كلمة أقصر أو مصطلحًا مختلفًا."
 
@@ -4540,11 +4540,11 @@ msgid "Yesterday"
 msgstr "أمس"
 
 #: src/components/charts/ChartAnnotations.tsx:81
-#: src/shell/lists/UnifiedSearch.tsx:150
+#: src/shell/lists/UnifiedSearch.tsx:152
 msgid "You"
 msgstr "أنت"
 
-#: src/shell/lists/UnifiedSearch.tsx:412
+#: src/shell/lists/UnifiedSearch.tsx:414
 msgid "You can choose «All» to search the other sections."
 msgstr "يمكنك اختيار «الكل» للبحث في بقية الأقسام."
 
