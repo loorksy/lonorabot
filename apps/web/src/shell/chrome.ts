@@ -1,4 +1,6 @@
 import { type RefObject, useEffect, useLayoutEffect } from "react";
+import { flip } from "./flip";
+import { foldNav } from "./lens";
 import { isDesktop, layoutOverlays, reducedMotion } from "./motion";
 import { rememberedScroll } from "./navigation";
 
@@ -70,13 +72,16 @@ export type EdgeOptions = {
 };
 export function syncEdge(main: HTMLElement, top: HTMLElement | null, options: EdgeOptions) {
   if (!top) return;
-  if (options.chats)
-    top
-      .querySelector("header.chats-header")
-      ?.classList.toggle(
-        "title-off",
-        !options.searchExpanded && !isDesktop() && main.scrollTop > chatsRest(main) + 20,
-      );
+  const header = options.chats ? top.querySelector<HTMLElement>("header.chats-header") : null;
+  const off = !options.searchExpanded && !isDesktop() && main.scrollTop > chatsRest(main) + 20;
+  if (header && header.classList.contains("title-off") !== off)
+    flip(
+      [...header.querySelectorAll<HTMLElement>(":scope > h1, :scope > .header-search")].map(
+        (el) => ({ el, scale: el.classList.contains("header-search") }),
+      ),
+      () => header.classList.toggle("title-off", off),
+      { duration: 340 },
+    );
   if (isDesktop() || !options.edge || (options.chats && options.searchExpanded)) {
     top.style.removeProperty("--edge");
     return;
@@ -123,15 +128,15 @@ export function useScrollChrome({
     layoutOverlays(h);
     syncEdge(m, top.current, options);
     syncTitle(m);
+    // The top bar is watched; the tab bar is not (as in the reference): its fold leaves the
+    // page's bottom inset where it was, so a list scrolled to its end stays put.
     const observer = new ResizeObserver(() => {
       layoutOverlays(h);
     });
     const t = top.current;
-    const n = nav.current;
     if (t) observer.observe(t);
-    if (n) observer.observe(n);
     return () => observer.disconnect();
-  }, [host, main, top, nav, options, viewKey]);
+  }, [host, main, top, options, viewKey]);
   useEffect(() => {
     const m = main.current;
     if (!m) return;
@@ -152,9 +157,12 @@ export function useScrollChrome({
       const y = m.scrollTop;
       const d = y - lastY;
       lastY = y;
-      if (y < chatsRest(m) + 30) n.classList.remove("compact");
-      else if (d > 6) n.classList.add("compact");
-      else if (d < -8) n.classList.remove("compact");
+      // Folding the bar shortens the page's bottom inset at once, and the browser pulls a page
+      // scrolled to its end back up: that clamp is not the owner scrolling up.
+      if (d < 0 && y + m.clientHeight >= m.scrollHeight - 1) return;
+      if (y < chatsRest(m) + 30) foldNav(n, false);
+      else if (d > 6) foldNav(n, true);
+      else if (d < -8) foldNav(n, false);
     };
     m.addEventListener("scroll", onScroll, { passive: true });
     return () => {

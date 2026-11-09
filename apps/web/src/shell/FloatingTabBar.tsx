@@ -2,7 +2,7 @@ import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
 import { Icon, type IconName } from "@lonora/ui-web";
 import { type RefObject, useEffect, useRef } from "react";
-import { type LensRect, lensRect, placeLens } from "./lens";
+import { foldNav, type LensRect, lensRect, placeLens } from "./lens";
 import { ROOTS, type Root } from "./routes";
 import { suppressClicks } from "./sheets/SheetHost";
 import { haptic } from "./spring";
@@ -70,7 +70,7 @@ export function FloatingTabBar({
     const buttons = () => [...nav.querySelectorAll<HTMLElement>("button")];
     const down = (event: PointerEvent) => {
       if (event.pointerType === "mouse" || dragging.current) return;
-      nav.classList.remove("compact");
+      foldNav(nav, false);
       drag.current = { id: event.pointerId, x0: event.clientX, moved: false, idx: -1 };
       try {
         nav.setPointerCapture(event.pointerId);

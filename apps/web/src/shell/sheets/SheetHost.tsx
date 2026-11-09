@@ -12,6 +12,7 @@ import {
   useState,
 } from "react";
 import { useOverlayHistory } from "../../hooks/useOverlayHistory";
+import { EASE } from "../flip";
 import { isDesktop, reducedMotion } from "../motion";
 import { haptic, type Spring, type SpringHandle, springTo } from "../spring";
 
@@ -76,6 +77,9 @@ type Drag = {
 /** The gesture and spring state of the one dialog; classes it toggles are never set by React. */
 class SheetMotion {
   y = 0;
+  /** While an expandable sheet resizes it is laid out at its full height and lowered by this
+   * much (transform only); 0 at rest. */
+  lift = 0;
   anim: SpringHandle | null = null;
   drag: Drag | null = null;
   g: Range | null = null;
@@ -87,9 +91,10 @@ class SheetMotion {
     readonly hooks: { dismissed: () => void; expanded: (on: boolean) => void },
   ) {}
   paint(y: number) {
-    const H = this.d.offsetHeight || 1;
+    const H = this.d.offsetHeight - this.lift || 1;
     this.y = y;
-    this.d.style.transform = Math.abs(y) < 0.5 ? "" : `translate3d(0,${y.toFixed(1)}px,0)`;
+    const ty = y + this.lift;
+    this.d.style.transform = Math.abs(ty) < 0.5 ? "" : `translate3d(0,${ty.toFixed(1)}px,0)`;
     // The backdrop is the dialog's sibling: the layer around both carries the variable.
     (this.d.parentElement ?? this.d).style.setProperty(
       "--bd",
@@ -165,9 +170,7 @@ class SheetMotion {
     const d = this.d;
     const ex = d.classList.contains("expanded");
     const rs = d.classList.contains("resizing");
-    const h = d.style.height;
     d.classList.remove("expanded", "resizing");
-    d.style.height = "";
     const hn = d.offsetHeight;
     const grow = d.querySelector<HTMLElement>(".grow");
     if (grow) d.style.setProperty("--grow-min", `${grow.clientHeight}px`);
@@ -175,7 +178,6 @@ class SheetMotion {
     const hf = d.offsetHeight;
     d.classList.toggle("expanded", ex);
     d.classList.toggle("resizing", rs);
-    d.style.height = h;
     return { hn, hf, range: Math.max(0, hf - hn) };
   }
   extent(x: number) {
@@ -184,7 +186,8 @@ class SheetMotion {
     this.e = x;
     const over = x - g.range;
     const h = x <= 0 ? g.hn : over <= 0 ? g.hn + x : g.hf + Math.min(28, over * 0.25);
-    this.d.style.height = `${h.toFixed(1)}px`;
+    // Laid out at the full height (.resizing), the sheet shows its top h pixels.
+    this.lift = g.hf - h;
     this.paint(x < 0 ? -x : 0);
   }
   growStart() {
@@ -192,6 +195,7 @@ class SheetMotion {
     const ex = d.classList.contains("expanded");
     this.g = this.range();
     this.to = ex;
+    d.style.setProperty("--hf", `${this.g.hf}px`);
     d.classList.remove("expanded");
     d.classList.add("resizing");
     const x = ex ? this.g.range : -this.y;
@@ -207,9 +211,10 @@ class SheetMotion {
     const d = this.d;
     d.classList.remove("resizing");
     d.classList.toggle("expanded", expand);
-    d.style.removeProperty("height");
+    d.style.removeProperty("--hf");
     this.g = null;
     this.e = 0;
+    this.lift = 0;
     this.to = expand;
     this.paint(0);
     this.sync();
@@ -221,9 +226,10 @@ class SheetMotion {
       this.anim = null;
     }
     this.d.classList.remove("resizing", "expanded");
-    this.d.style.removeProperty("height");
+    this.d.style.removeProperty("--hf");
     this.g = null;
     this.e = 0;
+    this.lift = 0;
     this.to = false;
   }
   growTo(expand: boolean, v = 0) {
@@ -532,20 +538,19 @@ export function SheetProvider({ children }: { children: ReactNode }) {
     morphFrom.current = null;
     if (h0 === null || opening) return;
     const h1 = d.offsetHeight;
-    if (Math.abs(h1 - h0) < 2 || reducedMotion()) return;
-    d.style.transition = "none";
-    d.style.height = `${h0}px`;
-    void d.offsetHeight;
-    d.style.transition = "height .32s cubic-bezier(.2,.8,.2,1)";
-    d.style.height = `${h1}px`;
-    const end = () => {
-      clearTimeout(timer);
-      d.removeEventListener("transitionend", end);
-      d.style.height = "";
-      d.style.transition = "";
+    if (Math.abs(h1 - h0) < 2 || reducedMotion() || isDesktop()) return;
+    // The new page's box is in place at once; its top edge travels from where the old one was
+    // (transform only). A shorter page is lifted first, so a skirt of the sheet's own glass
+    // covers what opens below it.
+    d.style.setProperty("--skirt", `${Math.max(0, h0 - h1)}px`);
+    d.classList.add("morphing");
+    d.animate([{ transform: `translate3d(0,${h1 - h0}px,0)` }, { transform: "none" }], {
+      duration: 320,
+      easing: EASE,
+    }).onfinish = () => {
+      d.classList.remove("morphing");
+      d.style.removeProperty("--skirt");
     };
-    const timer = setTimeout(end, 420);
-    d.addEventListener("transitionend", end);
   }, [sheet]);
   useOverlayHistory(sheet !== null, () => close());
 
