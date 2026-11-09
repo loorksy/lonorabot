@@ -9,6 +9,7 @@ search as from the history. An empty query is the browse feed: the same categori
 recency, tasks active first.
 """
 
+import re
 from typing import Any, cast
 
 from lonora_contracts.search import SEARCH_CATEGORIES, SearchCategory
@@ -16,7 +17,7 @@ from lonora_core.search_fold import SearchColumn, fold, folded
 from sqlalchemy import Select, case, func, literal, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .memory import memory_view
+from .memory import VIEW_HEADING, memory_view
 from .schema import (
     AgentRow,
     ArtifactRow,
@@ -30,8 +31,12 @@ from .schema import (
     TicketRow,
 )
 
-SNIPPET_CHARS = 160
+SNIPPET_CHARS = 145
 ACTIVE_TASK_STATUSES = ("queued", "running", "waiting", "paused")
+MARKDOWN_HEADING = re.compile(r"^#{1,6}\s+(.*?)\s*#*\s*$")
+MARKDOWN_PREFIX = re.compile(r"^\s*(?:>\s*)*(?:[-*+]\s+(?:\[[ xX]\]\s+)?|\d+[.)]\s+)?")
+MARKDOWN_LINK = re.compile(r"!?\[([^\]]*)\]\([^)]*\)")
+MARKDOWN_MARKS = re.compile(r"(\*\*|__|\*|`+|~~)")
 
 
 def escape_like(value: str) -> str:
@@ -39,22 +44,55 @@ def escape_like(value: str) -> str:
 
 
 def snippet(text: str, query: str) -> str:
-    """Up to 160 characters of the text centred on the folded hit; the start when the
-    hit is elsewhere (a detail field)."""
+    """The reference's previewSearch: the whole text when it fits in 145 characters;
+    otherwise 145 characters, starting 45 before the folded hit when the hit lies past
+    the 55th character, with «…» where the text was cut."""
+    text = " ".join(text.split())
+    if len(text) <= SNIPPET_CHARS:
+        return text
     folded_chars: list[str] = []
     origins: list[int] = []
     for index, char in enumerate(text):
         for out in fold(char) if not char.isspace() else char:
             folded_chars.append(out)
             origins.append(index)
-    haystack = "".join(folded_chars)
-    position = haystack.find(fold(query)) if query else -1
-    if position < 0:
-        start = 0
-    else:
-        start = max(0, origins[position] - SNIPPET_CHARS // 3)
-    piece = " ".join(text[start : start + SNIPPET_CHARS].split())
-    return ("…" if start else "") + piece
+    position = "".join(folded_chars).find(fold(query)) if query else -1
+    hit = origins[position] if position >= 0 else -1
+    begin = max(0, hit - 45) if hit > 55 else 0
+    end = begin + SNIPPET_CHARS
+    return ("…" if begin else "") + text[begin:end] + ("…" if end < len(text) else "")
+
+
+def plain(markdown: str) -> str:
+    """One line of readable text: list marks, quotes, emphasis and link targets removed."""
+    lines = [MARKDOWN_PREFIX.sub("", line, count=1) for line in markdown.splitlines()]
+    text = MARKDOWN_MARKS.sub("", MARKDOWN_LINK.sub(r"\1", " ".join(lines)))
+    return " ".join(text.split())
+
+
+def knowledge_sections(view: str) -> list[tuple[str, str]]:
+    """A memory document as titled knowledge: (heading, plain text) per section. The
+    view headings (# MEMORY.md, # OPERATING.md) name files, not knowledge: they give
+    no title."""
+    sections: list[tuple[str, str]] = []
+    title = ""
+    lines: list[str] = []
+
+    def flush() -> None:
+        text = plain("\n".join(lines))
+        if text:
+            sections.append((title, text))
+
+    for line in view.splitlines():
+        heading = MARKDOWN_HEADING.match(line)
+        if heading is None:
+            lines.append(line)
+            continue
+        flush()
+        title = "" if VIEW_HEADING.match(line + "\n") else plain(heading[1])
+        lines = []
+    flush()
+    return sections
 
 
 class Match:
@@ -121,10 +159,16 @@ async def last_activity(session: AsyncSession, owner_id: str) -> dict[str, Any]:
 async def search_chats(
     session: AsyncSession, owner_id: str, q: str, limit: int, offset: int
 ) -> tuple[int, list[dict[str, Any]]]:
-    """Agents (name; title, description) and groups (name; purpose), together, by score
-    then latest activity."""
+    """Agents (name; title, description, pair) and groups (name; purpose), together, by score
+    then the latest message; chats with no message last (the reference's list order)."""
     if q:
-        agent_match = Match(q, AgentRow.name, AgentRow.title, AgentRow.description)
+        agent_match = Match(
+            q,
+            AgentRow.name,
+            AgentRow.title,
+            AgentRow.description,
+            func.coalesce(AgentRow.trading_symbol, ""),
+        )
         group_match = Match(
             q, GroupRow.payload["name"].as_string(), GroupRow.payload["purpose"].as_string()
         )
@@ -140,16 +184,23 @@ async def search_chats(
     activity = await last_activity(session, owner_id)
     items: list[tuple[int, float, dict[str, Any]]] = []
     for agent, score in await session.execute(agents):
-        at = activity.get(agent.id) or agent.created_at
+        said = activity.get(agent.id)
+        at = said or agent.created_at
         items.append(
             (
                 int(score),
-                -at.timestamp(),
+                # A chat with nothing said yet comes after every chat with a message.
+                -said.timestamp() if said else float("inf"),
                 result(
                     "chats",
                     agent.id,
                     agent.name,
-                    agent.title or agent.description,
+                    # The reference's chat line: the role, then the pair it trades.
+                    " · ".join(
+                        part
+                        for part in (agent.title or agent.description, agent.trading_symbol)
+                        if part
+                    ),
                     q,
                     created_at=at.isoformat(),
                     kind="agent",
@@ -159,11 +210,12 @@ async def search_chats(
             )
         )
     for group, score in await session.execute(groups):
-        at = activity.get(group.id) or group.created_at
+        said = activity.get(group.id)
+        at = said or group.created_at
         items.append(
             (
                 int(score),
-                -at.timestamp(),
+                -said.timestamp() if said else float("inf"),
                 result(
                     "chats",
                     group.id,
@@ -317,12 +369,20 @@ async def search_knowledge(
         notes = notes.where(Match(q, SemanticMemoryRow.payload["text"].as_string()).filter)
     folded_query = fold(q)
     for document, agent_name in await session.execute(memory):
-        view = memory_view(document.content)
-        # The retired owner section stays out of every view, the owner's included.
-        if q and folded_query not in fold(view):
+        # The retired owner section stays out of every view, the owner's included. A hit
+        # is the first section that matches: its heading titles it (the agent's name when
+        # it has none) and its plain text is the snippet; the file names never show.
+        section = next(
+            (
+                (title, text)
+                for title, text in knowledge_sections(memory_view(document.content))
+                if not q or folded_query in fold(f"{title} {text}")
+            ),
+            None,
+        )
+        if section is None:
             continue
-        if not view.strip():
-            continue
+        title, text = section
         items.append(
             (
                 4 if q else 0,
@@ -330,8 +390,8 @@ async def search_knowledge(
                 result(
                     "knowledge",
                     document.agent_id,
-                    str(agent_name),
-                    view,
+                    title or str(agent_name),
+                    text,
                     q,
                     created_at=document.updated_at.isoformat(),
                     kind="memory",

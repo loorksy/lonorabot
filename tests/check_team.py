@@ -90,7 +90,7 @@ async def main() -> None:
         print("PASS actual model context contains colleagues without keyword search")
         async with fixture.runtime.db.sessions() as session:
             search = await owner_search(session, fixture.owner, "اعطني اسماء زملائك")
-        assert search["agents"] == []
+        assert search["results"]["chats"] == []
         filtered = await registry.execute(
             ToolCall(id="directory-2", name="list_agents", arguments={"name": "محلل الذهب"}),
             context,

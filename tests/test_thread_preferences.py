@@ -16,7 +16,7 @@ from lonora_contracts.groups import GroupCreate
 from lonora_contracts.thread_prefs import ThreadPrefsUpdate
 from lonora_core.message_preview import message_kind, message_preview
 from lonora_core.search_fold import FOLD_FROM, FOLD_TO, fold
-from lonora_db.search import snippet
+from lonora_db.search import knowledge_sections, snippet
 from lonora_db.thread_prefs import consumed
 from pydantic import ValidationError
 
@@ -32,11 +32,33 @@ def test_folding_normalises_alef_ya_ta_marbuta_and_strips_tashkeel():
     assert len(FOLD_FROM) > len(FOLD_TO) and FOLD_TO == "اااايه"
 
 
-def test_snippet_is_centred_on_the_folded_hit():
+def test_snippet_is_the_reference_preview_window():
     text = "كلمة " * 60 + "هنا أَحْمَد يظهر" + " كلمة" * 60
     piece = snippet(text, "احمد")
-    assert piece.startswith("…") and "أَحْمَد" in piece and len(piece) <= 162
+    # Past the 55th character the window starts 45 characters before the hit.
+    assert piece.startswith("…") and piece.endswith("…") and "أَحْمَد" in piece
+    assert len(piece) == 145 + 2 and piece[1:].index("أَحْمَد") == 45
     assert snippet("short text", "zzz") == "short text"
+    # A message that fits is never cut, wherever the hit is.
+    briefing = "صباح الخير أحمد! موجز اليوم جاهز: " + " ".join(
+        ["الذهب يرتفع قبل بيانات التضخم"] * 2
+    )
+    assert len(briefing) <= 145 and snippet(briefing, "الذهب") == briefing
+    # A hit near the start keeps the start.
+    early = "الذهب " + "نص " * 80
+    assert snippet(early, "الذهب").startswith("الذهب") and snippet(early, "الذهب").endswith("…")
+
+
+def test_knowledge_sections_are_titled_plain_text_without_file_names():
+    view = (
+        "# MEMORY.md\n## خطة الذهب\n- **الدخول** عند [الدعم](https://x.test)\n"
+        "> ملاحظة `مهمة`\n\n# OPERATING.md\nGeneral agent: no pair.\n"
+    )
+    assert knowledge_sections(view) == [
+        ("خطة الذهب", "الدخول عند الدعم ملاحظة مهمة"),
+        ("", "General agent: no pair."),
+    ]
+    assert knowledge_sections("# MEMORY.md\n\n") == []
 
 
 def test_preview_and_kind_follow_text_rich_parts_and_attachments():
@@ -519,7 +541,9 @@ async def test_unified_search_folds_arabic_pages_and_browses_recent_items():
         async with fixture.runtime.db.sessions() as session, session.begin():
             memory = await session.get(MemoryRow, agent["id"])
             assert memory is not None
-            memory.content = f"# MEMORY.md\n- {marker} ملاحظة عن الذّهب\n"
+            memory.content = (
+                f"# MEMORY.md\n- {marker} ملاحظة عن الذّهب\n## خطة\n- **دخول** {marker[::-1]}\n"
+            )
             session.add(
                 ArtifactRow(
                     owner_id=fixture.owner,
@@ -543,7 +567,13 @@ async def test_unified_search_folds_arabic_pages_and_browses_recent_items():
         assert len(everything["results"]["messages"]) == 3
         knowledge = everything["results"]["knowledge"][0]
         assert knowledge["kind"] == "memory" and knowledge["agent_id"] == agent["id"]
+        # The first matching section: no heading of its own, so the agent's name titles it;
+        # its text is plain, without the list mark or the file name.
         assert knowledge["title"] == agent["name"]
+        assert knowledge["snippet"] == f"{marker} ملاحظة عن الذّهب"
+        titled = await fixture.request("GET", f"/search?q={marker[::-1]}&category=knowledge")
+        assert titled["results"]["knowledge"][0]["title"] == "خطة"
+        assert titled["results"]["knowledge"][0]["snippet"] == f"دخول {marker[::-1]}"
         assert everything["results"]["skills"][0]["id"] == skill["id"]
         # The reference UI reads the categories only; the old page's lists are gone.
         assert "memory" not in everything and "agents" not in everything
@@ -552,7 +582,13 @@ async def test_unified_search_folds_arabic_pages_and_browses_recent_items():
         assert recent["results"]["messages"][0]["id"] == hit["id"]
         assert recent["counts"]["messages"] >= 6
         chats = await fixture.request("GET", "/search?category=chats&limit=50")
-        assert chats["results"]["chats"][0]["id"] == agent["id"]  # latest activity first
+        assert chats["results"]["chats"][0]["id"] == agent["id"]  # latest message first
+        # A chat with nothing said comes after one with a message, even when it is newer.
+        talker = await fixture.agent(f"Talker {marker}")
+        await owner_message(fixture, (await fixture.conversation(talker))["id"], "hello")
+        quiet = await fixture.agent(f"Quiet {marker}")
+        pair = await fixture.request("GET", f"/search?q={marker}&category=chats")
+        assert [item["id"] for item in pair["results"]["chats"]] == [talker["id"], quiet["id"]]
         # around=seq centres a page on the hit.
         window = await listing(fixture, f"/threads/{thread['id']}/messages?around=4&limit=4")
         assert [item["seq"] for item in window] == [2, 3, 4, 5]
