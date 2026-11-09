@@ -19,6 +19,7 @@ import {
   useRef,
   useSyncExternalStore,
 } from "react";
+import { useLocation } from "react-router-dom";
 import {
   type OutgoingIntent,
   outgoingKey,
@@ -31,13 +32,15 @@ import { useClient } from "../../providers/ClientProvider";
 import { hideFiltersInitially, syncFilters } from "../chrome";
 import { useShellData } from "../data";
 import { isDesktop } from "../motion";
-import { rememberedScroll, useNavigation } from "../navigation";
+import { useNavigation } from "../navigation";
 import { SkPage, SkRows } from "../Skeleton";
 import { useToast } from "../Toast";
 import { listsApi } from "./api";
 import { useListSheets } from "./ListSheets";
 import { useLists } from "./state";
 import { ThreadRow } from "./ThreadRow";
+
+const placed = new Set<string>();
 
 export const chatPath = (row: ChatRow) =>
   row.kind === "group"
@@ -306,13 +309,18 @@ export function ChatList({ selectedKey }: { selectedKey?: string }) {
   );
   const listId = listIdOf(lists.filter);
   const activeList = listId ? data.chatLists.find((list) => list.id === listId) : undefined;
+  // A history entry the list has not been placed in yet rests with its filters hidden;
+  // returning to one keeps where it was (the scroll memory restores it).
+  const entry = useLocation().key;
   useLayoutEffect(() => {
     const main = host.current?.closest("main");
     if (!main || isDesktop()) return;
-    const key = location.pathname + location.search;
-    if (rememberedScroll(key) === undefined) hideFiltersInitially(main);
+    if (!placed.has(entry)) {
+      placed.add(entry);
+      hideFiltersInitially(main);
+    }
     syncFilters(main);
-  }, []);
+  }, [entry]);
   useLayoutEffect(() => {
     // A filter other than الكل keeps the filters in view.
     void lists.filter;

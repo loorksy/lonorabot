@@ -4,17 +4,17 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 
 #. placeholder {0}: list.name
-#: src/shell/lists/ListSheets.tsx:324
+#: src/shell/lists/ListSheets.tsx:363
 msgid "«{0}» deleted"
 msgstr "«{0}» deleted"
 
-#: src/shell/lists/ListSheets.tsx:260
+#: src/shell/lists/ListSheets.tsx:284
 msgid "«{name}» saved"
 msgstr "«{name}» saved"
 
 #. placeholder {0}: chatsWord(added.length)
 #. placeholder {1}: list.name
-#: src/shell/lists/ListSheets.tsx:386
+#: src/shell/lists/ListSheets.tsx:425
 msgid "{0} added to «{1}»"
 msgstr "{0} added to «{1}»"
 
@@ -29,7 +29,7 @@ msgid "{0} deleted"
 msgstr "{0} deleted"
 
 #. placeholder {0}: chatsWord(rows.length)
-#: src/shell/lists/ListSheets.tsx:415
+#: src/shell/lists/ListSheets.tsx:454
 msgid "{0} will be added to it"
 msgstr "{0} will be added to it"
 
@@ -65,15 +65,15 @@ msgstr "{sent, plural, one {One waiting message was sent} two {Two waiting messa
 msgid "A background item was paused after repeated errors; everything else keeps running"
 msgstr "A background item was paused after repeated errors; everything else keeps running"
 
-#: src/shell/lists/ChatList.tsx:402
+#: src/shell/lists/ChatList.tsx:410
 msgid "A chat does not return to the list when a new message arrives."
 msgstr "A chat does not return to the list when a new message arrives."
 
-#: src/shell/lists/ChatList.tsx:404
+#: src/shell/lists/ChatList.tsx:412
 msgid "A chat returns to the list when a new message arrives."
 msgstr "A chat returns to the list when a new message arrives."
 
-#: src/shell/lists/ChatList.tsx:422
+#: src/shell/lists/ChatList.tsx:430
 msgid "A chat will return when a new message arrives"
 msgstr "A chat will return when a new message arrives"
 
@@ -81,7 +81,7 @@ msgstr "A chat will return when a new message arrives"
 msgid "A different answer was already recorded."
 msgstr "A different answer was already recorded."
 
-#: src/shell/lists/ListSheets.tsx:226
+#: src/shell/lists/ListSheets.tsx:250
 msgid "A list named «{name}» already exists"
 msgstr "A list named «{name}» already exists"
 
@@ -152,7 +152,7 @@ msgstr "Active"
 #~ msgid "Active watches"
 #~ msgstr "Active watches"
 
-#: src/shell/lists/EmojiPanel.tsx:18
+#: src/shell/lists/EmojiPanel.tsx:17
 msgid "Activities"
 msgstr "Activities"
 
@@ -173,7 +173,7 @@ msgstr "Add"
 msgid "Add a provider credential"
 msgstr "Add a provider credential"
 
-#: src/shell/lists/ListSheets.tsx:106
+#: src/shell/lists/ListSheets.tsx:118
 msgid "Add agents or groups"
 msgstr "Add agents or groups"
 
@@ -181,7 +181,7 @@ msgstr "Add agents or groups"
 msgid "Add an economic calendar feed in Integrations to load events."
 msgstr "Add an economic calendar feed in Integrations to load events."
 
-#: src/shell/lists/ListSheets.tsx:85
+#: src/shell/lists/ListSheets.tsx:97
 msgid "Add an emoji"
 msgstr "Add an emoji"
 
@@ -194,11 +194,11 @@ msgstr "Add board"
 msgid "Add broker connection"
 msgstr "Add broker connection"
 
-#: src/shell/lists/ChatList.tsx:365
+#: src/shell/lists/ChatList.tsx:373
 msgid "Add chats"
 msgstr "Add chats"
 
-#: src/shell/lists/ChatList.tsx:326
+#: src/shell/lists/ChatList.tsx:334
 msgid "Add chats to your favourites: press and hold a chat, then ⋮."
 msgstr "Add chats to your favourites: press and hold a chat, then ⋮."
 
@@ -223,11 +223,11 @@ msgid "Add owner instructions"
 msgstr "Add owner instructions"
 
 #. placeholder {0}: draft.name.trim()
-#: src/shell/lists/ListSheets.tsx:268
+#: src/shell/lists/ListSheets.tsx:292
 msgid "Add to «{0}»"
 msgstr "Add to «{0}»"
 
-#: src/shell/lists/ListSheets.tsx:374
+#: src/shell/lists/ListSheets.tsx:413
 #: src/shell/lists/Selection.tsx:229
 msgid "Add to a list"
 msgstr "Add to a list"
@@ -299,23 +299,23 @@ msgstr "Agent name"
 #~ msgid "Agent workspace"
 #~ msgstr "Agent workspace"
 
-#: src/shell/lists/ChatList.tsx:182
+#: src/shell/lists/ChatList.tsx:185
 #: src/shell/NewChatSheet.tsx:52
 msgid "Agents"
 msgstr "Agents"
 
-#: src/shell/lists/ListSheets.tsx:154
-#: src/shell/lists/UnifiedSearch.tsx:290
-#: src/shell/lists/UnifiedSearch.tsx:297
+#: src/shell/lists/ListSheets.tsx:178
+#: src/shell/lists/UnifiedSearch.tsx:292
+#: src/shell/lists/UnifiedSearch.tsx:299
 msgid "Agents and groups"
 msgstr "Agents and groups"
 
-#: src/shell/lists/ChatList.tsx:179
+#: src/shell/lists/ChatList.tsx:182
 msgctxt "chat filter"
 msgid "All"
 msgstr "All"
 
-#: src/shell/lists/UnifiedSearch.tsx:254
+#: src/shell/lists/UnifiedSearch.tsx:256
 msgctxt "search tab"
 msgid "All"
 msgstr "All"
@@ -325,7 +325,7 @@ msgstr "All"
 #~ msgstr "All activity"
 
 #. placeholder {0}: list.name
-#: src/shell/lists/ListSheets.tsx:387
+#: src/shell/lists/ListSheets.tsx:426
 msgid "All already in «{0}»"
 msgstr "All already in «{0}»"
 
@@ -374,7 +374,7 @@ msgstr "Analyzing"
 msgid "Angry"
 msgstr "Angry"
 
-#: src/shell/lists/EmojiPanel.tsx:16
+#: src/shell/lists/EmojiPanel.tsx:15
 msgid "Animals & nature"
 msgstr "Animals & nature"
 
@@ -407,7 +407,7 @@ msgid "Archive"
 msgstr "Archive"
 
 #: src/shell/DesktopList.tsx:63
-#: src/shell/lists/ChatList.tsx:287
+#: src/shell/lists/ChatList.tsx:290
 #: src/shell/pages.tsx:61
 msgid "Archived"
 msgstr "Archived"
@@ -651,7 +651,7 @@ msgstr "Broker ticket"
 msgid "Broker verification pending. Market data remains available; new orders on the affected market are blocked until verification finishes, and closing remains available."
 msgstr "Broker verification pending. Market data remains available; new orders on the affected market are blocked until verification finishes, and closing remains available."
 
-#: src/shell/lists/UnifiedSearch.tsx:380
+#: src/shell/lists/UnifiedSearch.tsx:382
 msgid "Browse Lonora's content"
 msgstr "Browse Lonora's content"
 
@@ -800,7 +800,7 @@ msgstr "Chat unpinned"
 
 #: src/shell/DesktopList.tsx:83
 #: src/shell/FloatingTabBar.tsx:19
-#: src/shell/lists/UnifiedSearch.tsx:255
+#: src/shell/lists/UnifiedSearch.tsx:257
 msgid "Chats"
 msgstr "Chats"
 
@@ -816,7 +816,7 @@ msgstr "Chats returned to the list"
 msgid "Chats unpinned"
 msgstr "Chats unpinned"
 
-#: src/shell/lists/ChatList.tsx:421
+#: src/shell/lists/ChatList.tsx:429
 msgid "Chats will stay archived"
 msgstr "Chats will stay archived"
 
@@ -970,7 +970,7 @@ msgid "Close position"
 msgstr "Close position"
 
 #: src/shell/HeaderSearch.tsx:47
-#: src/shell/lists/EmojiPanel.tsx:414
+#: src/shell/lists/EmojiPanel.tsx:415
 msgid "Close search"
 msgstr "Close search"
 
@@ -1123,7 +1123,7 @@ msgstr "Conversation history"
 msgid "Conversation transcript"
 msgstr "Conversation transcript"
 
-#: src/shell/lists/ChatList.tsx:335
+#: src/shell/lists/ChatList.tsx:343
 msgid "Conversations"
 msgstr "Conversations"
 
@@ -1199,11 +1199,11 @@ msgstr "Create routine"
 msgid "Create task"
 msgstr "Create task"
 
-#: src/shell/lists/ListSheets.tsx:208
+#: src/shell/lists/ListSheets.tsx:232
 msgid "Create the list"
 msgstr "Create the list"
 
-#: src/shell/lists/ListSheets.tsx:207
+#: src/shell/lists/ListSheets.tsx:231
 msgid "Create the list · {count}"
 msgstr "Create the list · {count}"
 
@@ -1253,7 +1253,7 @@ msgstr "Dark"
 msgid "Decision evidence"
 msgstr "Decision evidence"
 
-#: src/shell/lists/EmojiPanel.tsx:511
+#: src/shell/lists/EmojiPanel.tsx:512
 msgid "Default"
 msgstr "Default"
 
@@ -1271,7 +1271,7 @@ msgstr "Delegated task"
 #: src/pages/McpServersOverlay.tsx:102
 #: src/pages/RoutineEditor.tsx:122
 #: src/pages/ScratchpadSection.tsx:203
-#: src/shell/lists/EmojiPanel.tsx:404
+#: src/shell/lists/EmojiPanel.tsx:405
 #: src/shell/lists/Selection.tsx:99
 #: src/shell/lists/Selection.tsx:273
 msgid "Delete"
@@ -1298,7 +1298,7 @@ msgstr "Delete permanently"
 msgid "Delete the chats?"
 msgstr "Delete the chats?"
 
-#: src/shell/lists/ListSheets.tsx:365
+#: src/shell/lists/ListSheets.tsx:404
 msgid "Delete the list"
 msgstr "Delete the list"
 
@@ -1413,8 +1413,8 @@ msgstr "Edit"
 msgid "Edit routine"
 msgstr "Edit routine"
 
-#: src/shell/lists/ListSheets.tsx:284
-#: src/shell/lists/ListSheets.tsx:355
+#: src/shell/lists/ListSheets.tsx:316
+#: src/shell/lists/ListSheets.tsx:394
 msgid "Edit the list"
 msgstr "Edit the list"
 
@@ -1439,11 +1439,11 @@ msgstr "Email"
 #~ msgid "Emergency stop is active."
 #~ msgstr "Emergency stop is active."
 
-#: src/shell/lists/EmojiPanel.tsx:476
+#: src/shell/lists/EmojiPanel.tsx:477
 msgid "Emoji sections"
 msgstr "Emoji sections"
 
-#: src/shell/lists/EmojiPanel.tsx:305
+#: src/shell/lists/EmojiPanel.tsx:306
 msgid "Emojis"
 msgstr "Emojis"
 
@@ -1501,7 +1501,7 @@ msgstr "Every · minutes"
 msgid "Every agent reads this feed. Follow X analysts through their feeds, web search or a trusted X MCP server; Lonora never uses your X account."
 msgstr "Every agent reads this feed. Follow X analysts through their feeds, web search or a trusted X MCP server; Lonora never uses your X account."
 
-#: src/shell/lists/ListSheets.tsx:101
+#: src/shell/lists/ListSheets.tsx:113
 msgid "Every list you create becomes a filter above the chat list."
 msgstr "Every list you create becomes a filter above the chat list."
 
@@ -1568,7 +1568,7 @@ msgstr "Face"
 msgid "Failed"
 msgstr "Failed"
 
-#: src/shell/lists/ChatList.tsx:181
+#: src/shell/lists/ChatList.tsx:184
 msgctxt "chat filter"
 msgid "Favourites"
 msgstr "Favourites"
@@ -1581,9 +1581,9 @@ msgstr "Feed or webhook URL"
 msgid "Fibonacci"
 msgstr "Fibonacci"
 
-#: src/shell/lists/UnifiedSearch.tsx:258
-#: src/shell/lists/UnifiedSearch.tsx:293
-#: src/shell/lists/UnifiedSearch.tsx:300
+#: src/shell/lists/UnifiedSearch.tsx:260
+#: src/shell/lists/UnifiedSearch.tsx:295
+#: src/shell/lists/UnifiedSearch.tsx:302
 #: src/shell/pages.tsx:59
 msgid "Files"
 msgstr "Files"
@@ -1597,11 +1597,11 @@ msgstr "Files and outputs from your agents will appear here."
 msgid "Filter by date"
 msgstr "Filter by date"
 
-#: src/shell/lists/ChatList.tsx:198
+#: src/shell/lists/ChatList.tsx:201
 msgid "Filter chats"
 msgstr "Filter chats"
 
-#: src/shell/lists/UnifiedSearch.tsx:262
+#: src/shell/lists/UnifiedSearch.tsx:264
 msgid "Filter the search results"
 msgstr "Filter the search results"
 
@@ -1609,7 +1609,7 @@ msgstr "Filter the search results"
 msgid "Filters"
 msgstr "Filters"
 
-#: src/shell/lists/EmojiPanel.tsx:22
+#: src/shell/lists/EmojiPanel.tsx:21
 msgid "Flags"
 msgstr "Flags"
 
@@ -1629,11 +1629,11 @@ msgstr "Follow live"
 msgid "Follow your agents’ runs and pick up unfinished work."
 msgstr "Follow your agents’ runs and pick up unfinished work."
 
-#: src/shell/lists/EmojiPanel.tsx:17
+#: src/shell/lists/EmojiPanel.tsx:16
 msgid "Food & drink"
 msgstr "Food & drink"
 
-#: src/shell/lists/ListSheets.tsx:74
+#: src/shell/lists/ListSheets.tsx:86
 msgid "For example: Work, Friends"
 msgstr "For example: Work, Friends"
 
@@ -1696,8 +1696,8 @@ msgstr "GPT-Live connects directly over WebRTC using your server-stored OpenAI c
 msgid "GPT-Live is not available for this OpenAI project. Check its API access."
 msgstr "GPT-Live is not available for this OpenAI project. Check its API access."
 
-#: src/shell/lists/ListSheets.tsx:134
-#: src/shell/lists/ListSheets.tsx:175
+#: src/shell/lists/ListSheets.tsx:158
+#: src/shell/lists/ListSheets.tsx:199
 msgid "Group"
 msgstr "Group"
 
@@ -1720,7 +1720,7 @@ msgstr "Group name"
 #~ msgid "Group settings"
 #~ msgstr "Group settings"
 
-#: src/shell/lists/ChatList.tsx:183
+#: src/shell/lists/ChatList.tsx:186
 #: src/shell/NewChatSheet.tsx:77
 msgid "Groups"
 msgstr "Groups"
@@ -1832,8 +1832,8 @@ msgstr "Its own role, model and permissions"
 msgid "Jump to latest"
 msgstr "Jump to latest"
 
-#: src/shell/lists/ChatList.tsx:398
-#: src/shell/lists/ChatList.tsx:413
+#: src/shell/lists/ChatList.tsx:406
+#: src/shell/lists/ChatList.tsx:421
 msgid "Keep chats archived"
 msgstr "Keep chats archived"
 
@@ -1849,7 +1849,7 @@ msgstr "Keep editing"
 #~ msgid "Keep working beside the conversation."
 #~ msgstr "Keep working beside the conversation."
 
-#: src/shell/lists/ListSheets.tsx:85
+#: src/shell/lists/ListSheets.tsx:97
 msgid "Keyboard"
 msgstr "Keyboard"
 
@@ -1865,14 +1865,14 @@ msgstr "Keyboard shortcuts"
 msgid "Knowledge"
 msgstr "Knowledge"
 
-#: src/shell/lists/UnifiedSearch.tsx:186
+#: src/shell/lists/UnifiedSearch.tsx:190
 msgctxt "search hit"
 msgid "Knowledge"
 msgstr "Knowledge"
 
-#: src/shell/lists/UnifiedSearch.tsx:259
-#: src/shell/lists/UnifiedSearch.tsx:294
-#: src/shell/lists/UnifiedSearch.tsx:301
+#: src/shell/lists/UnifiedSearch.tsx:261
+#: src/shell/lists/UnifiedSearch.tsx:296
+#: src/shell/lists/UnifiedSearch.tsx:303
 msgid "Knowledge and skills"
 msgstr "Knowledge and skills"
 
@@ -1918,11 +1918,11 @@ msgstr "Legacy instructions"
 msgid "Light"
 msgstr "Light"
 
-#: src/shell/lists/ListSheets.tsx:260
+#: src/shell/lists/ListSheets.tsx:284
 msgid "List «{name}» created"
 msgstr "List «{name}» created"
 
-#: src/shell/lists/ListSheets.tsx:64
+#: src/shell/lists/ListSheets.tsx:76
 msgid "List name"
 msgstr "List name"
 
@@ -2088,7 +2088,7 @@ msgstr "Market sell"
 msgid "Market watches"
 msgstr "Market watches"
 
-#: src/shell/lists/UnifiedSearch.tsx:291
+#: src/shell/lists/UnifiedSearch.tsx:293
 msgid "Matching messages"
 msgstr "Matching messages"
 
@@ -2143,7 +2143,7 @@ msgstr "Message composer"
 msgid "Message your agent…"
 msgstr "Message your agent…"
 
-#: src/shell/lists/UnifiedSearch.tsx:256
+#: src/shell/lists/UnifiedSearch.tsx:258
 msgid "Messages"
 msgstr "Messages"
 
@@ -2257,10 +2257,10 @@ msgstr "New chat"
 msgid "New group"
 msgstr "New group"
 
-#: src/shell/lists/ChatList.tsx:260
-#: src/shell/lists/ChatList.tsx:261
-#: src/shell/lists/ListSheets.tsx:284
-#: src/shell/lists/ListSheets.tsx:413
+#: src/shell/lists/ChatList.tsx:263
+#: src/shell/lists/ChatList.tsx:264
+#: src/shell/lists/ListSheets.tsx:316
+#: src/shell/lists/ListSheets.tsx:452
 msgid "New list"
 msgstr "New list"
 
@@ -2298,7 +2298,7 @@ msgstr "Next"
 msgid "Next run"
 msgstr "Next run"
 
-#: src/shell/lists/ListSheets.tsx:106
+#: src/shell/lists/ListSheets.tsx:118
 msgid "Next: the chats"
 msgstr "Next: the chats"
 
@@ -2309,7 +2309,7 @@ msgstr "Next: the chats"
 #~ msgid "No agents match"
 #~ msgstr "No agents match"
 
-#: src/shell/lists/ChatList.tsx:436
+#: src/shell/lists/ChatList.tsx:444
 msgid "No archived chats. Press and hold a chat in the list, then choose «Archive»."
 msgstr "No archived chats. Press and hold a chat in the list, then choose «Archive»."
 
@@ -2325,16 +2325,16 @@ msgstr "No candle history was found for this symbol and timeframe."
 msgid "No candles available for this instrument and timeframe."
 msgstr "No candles available for this instrument and timeframe."
 
-#: src/shell/lists/UnifiedSearch.tsx:371
+#: src/shell/lists/UnifiedSearch.tsx:373
 msgid "No chats are available yet."
 msgstr "No chats are available yet."
 
 #. placeholder {0}: activeList.name
-#: src/shell/lists/ChatList.tsx:356
+#: src/shell/lists/ChatList.tsx:364
 msgid "No chats in «{0}» yet."
 msgstr "No chats in «{0}» yet."
 
-#: src/shell/lists/ChatList.tsx:328
+#: src/shell/lists/ChatList.tsx:336
 msgid "No chats."
 msgstr "No chats."
 
@@ -2342,7 +2342,7 @@ msgstr "No chats."
 msgid "No executions yet"
 msgstr "No executions yet"
 
-#: src/shell/lists/UnifiedSearch.tsx:374
+#: src/shell/lists/UnifiedSearch.tsx:376
 msgid "No files are available yet."
 msgstr "No files are available yet."
 
@@ -2362,7 +2362,7 @@ msgstr "No matching artifacts"
 msgid "No matching broker symbols"
 msgstr "No matching broker symbols"
 
-#: src/shell/lists/EmojiPanel.tsx:451
+#: src/shell/lists/EmojiPanel.tsx:452
 msgid "No matching emojis"
 msgstr "No matching emojis"
 
@@ -2386,15 +2386,15 @@ msgstr "No pending orders"
 msgid "No reply needed"
 msgstr "No reply needed"
 
-#: src/shell/lists/UnifiedSearch.tsx:387
+#: src/shell/lists/UnifiedSearch.tsx:389
 msgid "No results"
 msgstr "No results"
 
-#: src/shell/lists/UnifiedSearch.tsx:397
+#: src/shell/lists/UnifiedSearch.tsx:399
 msgid "No results in this category"
 msgstr "No results in this category"
 
-#: src/shell/lists/ListSheets.tsx:184
+#: src/shell/lists/ListSheets.tsx:208
 msgid "No results."
 msgstr "No results."
 
@@ -2406,15 +2406,15 @@ msgstr "No runs match these filters."
 msgid "No saved chart in this conversation"
 msgstr "No saved chart in this conversation"
 
-#: src/shell/lists/UnifiedSearch.tsx:375
+#: src/shell/lists/UnifiedSearch.tsx:377
 msgid "No saved knowledge or skills yet."
 msgstr "No saved knowledge or skills yet."
 
-#: src/shell/lists/UnifiedSearch.tsx:372
+#: src/shell/lists/UnifiedSearch.tsx:374
 msgid "No saved messages yet. They appear here once a chat starts."
 msgstr "No saved messages yet. They appear here once a chat starts."
 
-#: src/shell/lists/UnifiedSearch.tsx:373
+#: src/shell/lists/UnifiedSearch.tsx:375
 msgid "No saved tasks yet."
 msgstr "No saved tasks yet."
 
@@ -2434,7 +2434,7 @@ msgstr "No tickets yet"
 msgid "No trading goals yet."
 msgstr "No trading goals yet."
 
-#: src/shell/lists/ChatList.tsx:324
+#: src/shell/lists/ChatList.tsx:332
 msgid "No unread messages."
 msgstr "No unread messages."
 
@@ -2467,7 +2467,7 @@ msgstr "Notify me about confirmed opportunities"
 msgid "Now"
 msgstr "Now"
 
-#: src/shell/lists/EmojiPanel.tsx:20
+#: src/shell/lists/EmojiPanel.tsx:19
 msgid "Objects"
 msgstr "Objects"
 
@@ -2710,7 +2710,7 @@ msgstr "Preparing"
 #~ msgid "Preparing — not sent"
 #~ msgstr "Preparing — not sent"
 
-#: src/shell/lists/ChatList.tsx:451
+#: src/shell/lists/ChatList.tsx:459
 msgid "Press and hold a chat to unarchive, mute or delete it."
 msgstr "Press and hold a chat to unarchive, mute or delete it."
 
@@ -2825,15 +2825,15 @@ msgstr "Reasoning"
 msgid "Recent"
 msgstr "Recent"
 
-#: src/shell/lists/UnifiedSearch.tsx:297
+#: src/shell/lists/UnifiedSearch.tsx:299
 msgid "Recent chats"
 msgstr "Recent chats"
 
-#: src/shell/lists/UnifiedSearch.tsx:298
+#: src/shell/lists/UnifiedSearch.tsx:300
 msgid "Recent messages"
 msgstr "Recent messages"
 
-#: src/shell/lists/EmojiPanel.tsx:296
+#: src/shell/lists/EmojiPanel.tsx:297
 msgid "Recently used"
 msgstr "Recently used"
 
@@ -3024,7 +3024,7 @@ msgstr "Resume"
 #: src/pages/Board.tsx:124
 #: src/pages/Routines.tsx:169
 #: src/pages/shell/message-cards.tsx:185
-#: src/shell/lists/ChatList.tsx:343
+#: src/shell/lists/ChatList.tsx:351
 #: src/shell/pages.tsx:304
 #: src/shell/pages.tsx:315
 msgid "Retry"
@@ -3114,11 +3114,11 @@ msgstr "Save members"
 msgid "Save memory"
 msgstr "Save memory"
 
-#: src/shell/lists/ListSheets.tsx:205
+#: src/shell/lists/ListSheets.tsx:229
 msgid "Save the list"
 msgstr "Save the list"
 
-#: src/shell/lists/ListSheets.tsx:204
+#: src/shell/lists/ListSheets.tsx:228
 msgid "Save the list · {count}"
 msgstr "Save the list · {count}"
 
@@ -3133,7 +3133,7 @@ msgstr "Saved"
 msgid "Saved chart"
 msgstr "Saved chart"
 
-#: src/shell/lists/UnifiedSearch.tsx:174
+#: src/shell/lists/UnifiedSearch.tsx:178
 msgid "Saved file"
 msgstr "Saved file"
 
@@ -3163,7 +3163,7 @@ msgstr "Schedule recurring work for your agents."
 msgid "Scratchpad"
 msgstr "Scratchpad"
 
-#: src/shell/lists/ListSheets.tsx:146
+#: src/shell/lists/ListSheets.tsx:170
 msgid "Search"
 msgstr "Search"
 
@@ -3178,7 +3178,7 @@ msgstr "Search activity"
 #~ msgid "Search agents"
 #~ msgstr "Search agents"
 
-#: src/shell/lists/ListSheets.tsx:148
+#: src/shell/lists/ListSheets.tsx:172
 msgid "Search agents and groups"
 msgstr "Search agents and groups"
 
@@ -3207,9 +3207,9 @@ msgstr "Search chats"
 msgid "Search chats, messages and tasks"
 msgstr "Search chats, messages and tasks"
 
-#: src/shell/lists/EmojiPanel.tsx:393
-#: src/shell/lists/EmojiPanel.tsx:431
+#: src/shell/lists/EmojiPanel.tsx:394
 #: src/shell/lists/EmojiPanel.tsx:432
+#: src/shell/lists/EmojiPanel.tsx:433
 msgid "Search for an emoji"
 msgstr "Search for an emoji"
 
@@ -3220,8 +3220,8 @@ msgstr "Search for an emoji"
 msgid "Search in Lonora"
 msgstr "Search in Lonora"
 
-#: src/shell/lists/EmojiPanel.tsx:447
-#: src/shell/lists/UnifiedSearch.tsx:380
+#: src/shell/lists/EmojiPanel.tsx:448
+#: src/shell/lists/UnifiedSearch.tsx:382
 msgid "Search results"
 msgstr "Search results"
 
@@ -3362,16 +3362,16 @@ msgstr "Show Agent analysis"
 #~ msgid "Show agents"
 #~ msgstr "Show agents"
 
-#: src/shell/lists/UnifiedSearch.tsx:361
+#: src/shell/lists/UnifiedSearch.tsx:363
 msgid "Show all"
 msgstr "Show all"
 
 #. placeholder {0}: section.count
-#: src/shell/lists/UnifiedSearch.tsx:360
+#: src/shell/lists/UnifiedSearch.tsx:362
 msgid "Show all results ({0})"
 msgstr "Show all results ({0})"
 
-#: src/shell/lists/UnifiedSearch.tsx:362
+#: src/shell/lists/UnifiedSearch.tsx:364
 msgid "Show more"
 msgstr "Show more"
 
@@ -3428,7 +3428,7 @@ msgstr "Simulation with an imported snapshot"
 msgid "Skeptical"
 msgstr "Skeptical"
 
-#: src/shell/lists/UnifiedSearch.tsx:186
+#: src/shell/lists/UnifiedSearch.tsx:190
 msgid "Skill"
 msgstr "Skill"
 
@@ -3453,11 +3453,11 @@ msgstr "Skills"
 msgid "Skills guide how this agent works. They do not grant trading permissions. This catalog shows current instructions; active tasks keep their pinned versions."
 msgstr "Skills guide how this agent works. They do not grant trading permissions. This catalog shows current instructions; active tasks keep their pinned versions."
 
-#: src/shell/lists/EmojiPanel.tsx:500
+#: src/shell/lists/EmojiPanel.tsx:501
 msgid "Skin tone"
 msgstr "Skin tone"
 
-#: src/shell/lists/EmojiPanel.tsx:511
+#: src/shell/lists/EmojiPanel.tsx:512
 msgid "Skin tone {tone}"
 msgstr "Skin tone {tone}"
 
@@ -3469,7 +3469,7 @@ msgstr "Sleepy"
 msgid "Smile"
 msgstr "Smile"
 
-#: src/shell/lists/EmojiPanel.tsx:15
+#: src/shell/lists/EmojiPanel.tsx:14
 msgid "Smileys & people"
 msgstr "Smileys & people"
 
@@ -3510,7 +3510,7 @@ msgstr "Spread"
 msgid "Start a chat"
 msgstr "Start a chat"
 
-#: src/shell/lists/UnifiedSearch.tsx:370
+#: src/shell/lists/UnifiedSearch.tsx:372
 msgid "Start a chat or add a task for it to appear here."
 msgstr "Start a chat or add a task for it to appear here."
 
@@ -3622,7 +3622,7 @@ msgstr "Surprised"
 msgid "Symbol"
 msgstr "Symbol"
 
-#: src/shell/lists/EmojiPanel.tsx:21
+#: src/shell/lists/EmojiPanel.tsx:20
 msgid "Symbols"
 msgstr "Symbols"
 
@@ -3672,9 +3672,9 @@ msgid "Task when triggered"
 msgstr "Task when triggered"
 
 #: src/shell/FloatingTabBar.tsx:23
-#: src/shell/lists/UnifiedSearch.tsx:257
-#: src/shell/lists/UnifiedSearch.tsx:292
-#: src/shell/lists/UnifiedSearch.tsx:299
+#: src/shell/lists/UnifiedSearch.tsx:259
+#: src/shell/lists/UnifiedSearch.tsx:294
+#: src/shell/lists/UnifiedSearch.tsx:301
 msgid "Tasks"
 msgstr "Tasks"
 
@@ -3757,7 +3757,7 @@ msgstr "The chat history of {0} is hidden for you. The agents and groups stay."
 msgid "The chat history of {0} is hidden for you. The agents stay in the agents list."
 msgstr "The chat history of {0} is hidden for you. The agents stay in the agents list."
 
-#: src/shell/lists/ListSheets.tsx:358
+#: src/shell/lists/ListSheets.tsx:397
 msgid "The chats"
 msgstr "The chats"
 
@@ -3884,7 +3884,7 @@ msgstr "The voice connection failed. Retry the call."
 msgid "Theme"
 msgstr "Theme"
 
-#: src/shell/lists/UnifiedSearch.tsx:407
+#: src/shell/lists/UnifiedSearch.tsx:409
 msgid "There is no content in this section yet"
 msgstr "There is no content in this section yet"
 
@@ -4167,7 +4167,7 @@ msgstr "Trading request"
 #~ msgid "Transcript"
 #~ msgstr "Transcript"
 
-#: src/shell/lists/EmojiPanel.tsx:19
+#: src/shell/lists/EmojiPanel.tsx:18
 msgid "Travel & places"
 msgstr "Travel & places"
 
@@ -4192,7 +4192,7 @@ msgstr "Try again"
 msgid "Type"
 msgstr "Type"
 
-#: src/shell/lists/UnifiedSearch.tsx:417
+#: src/shell/lists/UnifiedSearch.tsx:419
 msgid "Type a word to search chats, messages, tasks and files."
 msgstr "Type a word to search chats, messages, tasks and files."
 
@@ -4204,7 +4204,7 @@ msgstr "Unarchive"
 msgid "Unavailable"
 msgstr "Unavailable"
 
-#: src/shell/lists/ListSheets.tsx:326
+#: src/shell/lists/ListSheets.tsx:365
 #: src/shell/lists/Selection.tsx:142
 msgid "Undo"
 msgstr "Undo"
@@ -4226,7 +4226,7 @@ msgstr "Unmute microphone"
 msgid "Unpin"
 msgstr "Unpin"
 
-#: src/shell/lists/ChatList.tsx:180
+#: src/shell/lists/ChatList.tsx:183
 msgctxt "chat filter"
 msgid "Unread"
 msgstr "Unread"
@@ -4398,7 +4398,7 @@ msgstr "Watch source"
 msgid "We are making quick improvements to the service. Your chats are saved and we will be back in minutes."
 msgstr "We are making quick improvements to the service. Your chats are saved and we will be back in minutes."
 
-#: src/shell/lists/UnifiedSearch.tsx:390
+#: src/shell/lists/UnifiedSearch.tsx:392
 msgid "We found no results for «{q}». Try a shorter word or a different term."
 msgstr "We found no results for «{q}». Try a shorter word or a different term."
 
@@ -4465,7 +4465,7 @@ msgstr "Yesterday"
 msgid "You"
 msgstr "You"
 
-#: src/shell/lists/UnifiedSearch.tsx:400
+#: src/shell/lists/UnifiedSearch.tsx:402
 msgid "You can choose «All» to search the other sections."
 msgstr "You can choose «All» to search the other sections."
 
@@ -4478,7 +4478,7 @@ msgstr "You can keep editing or discard the changes."
 msgid "You can pin 3 chats only"
 msgstr "You can pin 3 chats only"
 
-#: src/shell/lists/EmojiPanel.tsx:203
+#: src/shell/lists/ListSheets.tsx:330
 msgid "You reached the name's maximum length"
 msgstr "You reached the name's maximum length"
 

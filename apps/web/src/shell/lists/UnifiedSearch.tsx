@@ -143,7 +143,11 @@ function Hit({
       const row = rows.find((candidate) => candidate.threadId === item.thread_id);
       const speaker = item.role === "user" ? t`You` : agentName(item.agent_id) || row?.name || "";
       lead = icon("chat");
-      title = `${row?.name ?? ""} · ${speaker}`;
+      title = (
+        <>
+          <bdi>{row?.name ?? ""}</bdi> · <bdi>{speaker}</bdi>
+        </>
+      );
       sub = <Highlight text={item.snippet} query={query} />;
       meta = item.created_at ? (
         <time className="search-hit-meta" dir="ltr" dateTime={item.created_at}>
@@ -201,9 +205,7 @@ function Hit({
     <button type="button" className="search-hit-row" data-search-hit={item.category} onClick={open}>
       {lead}
       <span className="search-hit-body">
-        <span className="search-hit-title" dir="auto">
-          {title}
-        </span>
+        <span className="search-hit-title">{title}</span>
         <span className="search-hit-sub" dir="auto">
           {sub}
         </span>

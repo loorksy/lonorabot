@@ -4,17 +4,17 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 
 #. placeholder {0}: list.name
-#: src/shell/lists/ListSheets.tsx:324
+#: src/shell/lists/ListSheets.tsx:363
 msgid "«{0}» deleted"
 msgstr "حُذفت «{0}»"
 
-#: src/shell/lists/ListSheets.tsx:260
+#: src/shell/lists/ListSheets.tsx:284
 msgid "«{name}» saved"
 msgstr "حُفظت «{name}»"
 
 #. placeholder {0}: chatsWord(added.length)
 #. placeholder {1}: list.name
-#: src/shell/lists/ListSheets.tsx:386
+#: src/shell/lists/ListSheets.tsx:425
 msgid "{0} added to «{1}»"
 msgstr "أُضيفت {0} إلى «{1}»"
 
@@ -29,7 +29,7 @@ msgid "{0} deleted"
 msgstr "حُذفت {0}"
 
 #. placeholder {0}: chatsWord(rows.length)
-#: src/shell/lists/ListSheets.tsx:415
+#: src/shell/lists/ListSheets.tsx:454
 msgid "{0} will be added to it"
 msgstr "{0} ستُضاف إليها"
 
@@ -65,15 +65,15 @@ msgstr "{sent, plural, one {أُرسلت رسالة واحدة كانت تنتظ
 msgid "A background item was paused after repeated errors; everything else keeps running"
 msgstr "أُوقف عنصر في الخلفية بعد أخطاء متكررة؛ يستمر كل ما عداه في العمل"
 
-#: src/shell/lists/ChatList.tsx:402
+#: src/shell/lists/ChatList.tsx:410
 msgid "A chat does not return to the list when a new message arrives."
 msgstr "لا تعود المحادثة إلى القائمة عند وصول رسالة جديدة."
 
-#: src/shell/lists/ChatList.tsx:404
+#: src/shell/lists/ChatList.tsx:412
 msgid "A chat returns to the list when a new message arrives."
 msgstr "تعود المحادثة إلى القائمة عند وصول رسالة جديدة."
 
-#: src/shell/lists/ChatList.tsx:422
+#: src/shell/lists/ChatList.tsx:430
 msgid "A chat will return when a new message arrives"
 msgstr "ستعود المحادثة عند وصول رسالة جديدة"
 
@@ -81,7 +81,7 @@ msgstr "ستعود المحادثة عند وصول رسالة جديدة"
 msgid "A different answer was already recorded."
 msgstr "سُجّلت إجابة مختلفة مسبقًا."
 
-#: src/shell/lists/ListSheets.tsx:226
+#: src/shell/lists/ListSheets.tsx:250
 msgid "A list named «{name}» already exists"
 msgstr "توجد قائمة باسم «{name}»"
 
@@ -152,7 +152,7 @@ msgstr "نشط"
 #~ msgid "Active watches"
 #~ msgstr "المراقبات النشطة"
 
-#: src/shell/lists/EmojiPanel.tsx:18
+#: src/shell/lists/EmojiPanel.tsx:17
 msgid "Activities"
 msgstr "أنشطة"
 
@@ -173,7 +173,7 @@ msgstr "إضافة"
 msgid "Add a provider credential"
 msgstr "أضف مفتاح المزود"
 
-#: src/shell/lists/ListSheets.tsx:106
+#: src/shell/lists/ListSheets.tsx:118
 msgid "Add agents or groups"
 msgstr "إضافة وكلاء أو مجموعات"
 
@@ -181,7 +181,7 @@ msgstr "إضافة وكلاء أو مجموعات"
 msgid "Add an economic calendar feed in Integrations to load events."
 msgstr "أضف مصدرًا للتقويم الاقتصادي في التكاملات لتحميل الأحداث."
 
-#: src/shell/lists/ListSheets.tsx:85
+#: src/shell/lists/ListSheets.tsx:97
 msgid "Add an emoji"
 msgstr "إضافة رمز تعبيري"
 
@@ -194,11 +194,11 @@ msgstr "إضافة لوحة"
 msgid "Add broker connection"
 msgstr "إضافة اتصال بالوسيط"
 
-#: src/shell/lists/ChatList.tsx:365
+#: src/shell/lists/ChatList.tsx:373
 msgid "Add chats"
 msgstr "إضافة محادثات"
 
-#: src/shell/lists/ChatList.tsx:326
+#: src/shell/lists/ChatList.tsx:334
 msgid "Add chats to your favourites: press and hold a chat, then ⋮."
 msgstr "أضف محادثات إلى المفضلة: اضغط مطولًا على محادثة ثم ⋮."
 
@@ -223,11 +223,11 @@ msgid "Add owner instructions"
 msgstr "إضافة تعليمات خاصة"
 
 #. placeholder {0}: draft.name.trim()
-#: src/shell/lists/ListSheets.tsx:268
+#: src/shell/lists/ListSheets.tsx:292
 msgid "Add to «{0}»"
 msgstr "إضافة إلى «{0}»"
 
-#: src/shell/lists/ListSheets.tsx:374
+#: src/shell/lists/ListSheets.tsx:413
 #: src/shell/lists/Selection.tsx:229
 msgid "Add to a list"
 msgstr "إضافة إلى قائمة"
@@ -299,23 +299,23 @@ msgstr "اسم الوكيل"
 #~ msgid "Agent workspace"
 #~ msgstr "مساحة عمل الوكيل"
 
-#: src/shell/lists/ChatList.tsx:182
+#: src/shell/lists/ChatList.tsx:185
 #: src/shell/NewChatSheet.tsx:52
 msgid "Agents"
 msgstr "الوكلاء"
 
-#: src/shell/lists/ListSheets.tsx:154
-#: src/shell/lists/UnifiedSearch.tsx:290
-#: src/shell/lists/UnifiedSearch.tsx:297
+#: src/shell/lists/ListSheets.tsx:178
+#: src/shell/lists/UnifiedSearch.tsx:292
+#: src/shell/lists/UnifiedSearch.tsx:299
 msgid "Agents and groups"
 msgstr "الوكلاء والمجموعات"
 
-#: src/shell/lists/ChatList.tsx:179
+#: src/shell/lists/ChatList.tsx:182
 msgctxt "chat filter"
 msgid "All"
 msgstr "الكل"
 
-#: src/shell/lists/UnifiedSearch.tsx:254
+#: src/shell/lists/UnifiedSearch.tsx:256
 msgctxt "search tab"
 msgid "All"
 msgstr "الكل"
@@ -325,7 +325,7 @@ msgstr "الكل"
 #~ msgstr "كل النشاط"
 
 #. placeholder {0}: list.name
-#: src/shell/lists/ListSheets.tsx:387
+#: src/shell/lists/ListSheets.tsx:426
 msgid "All already in «{0}»"
 msgstr "كلها موجودة في «{0}»"
 
@@ -374,7 +374,7 @@ msgstr "يحلل"
 msgid "Angry"
 msgstr "غاضب"
 
-#: src/shell/lists/EmojiPanel.tsx:16
+#: src/shell/lists/EmojiPanel.tsx:15
 msgid "Animals & nature"
 msgstr "حيوانات وطبيعة"
 
@@ -407,7 +407,7 @@ msgid "Archive"
 msgstr "أرشفة"
 
 #: src/shell/DesktopList.tsx:63
-#: src/shell/lists/ChatList.tsx:287
+#: src/shell/lists/ChatList.tsx:290
 #: src/shell/pages.tsx:61
 msgid "Archived"
 msgstr "المؤرشفة"
@@ -651,7 +651,7 @@ msgstr "رقم العملية لدى الوسيط"
 msgid "Broker verification pending. Market data remains available; new orders on the affected market are blocked until verification finishes, and closing remains available."
 msgstr "التحقق من عملية لدى الوسيط معلّق. تبقى بيانات السوق متاحة؛ الأوامر الجديدة على السوق المتأثر محظورة حتى اكتمال التحقق، ويبقى الإغلاق متاحًا."
 
-#: src/shell/lists/UnifiedSearch.tsx:380
+#: src/shell/lists/UnifiedSearch.tsx:382
 msgid "Browse Lonora's content"
 msgstr "تصفح محتوى Lonora"
 
@@ -800,7 +800,7 @@ msgstr "أُلغي تثبيت المحادثة"
 
 #: src/shell/DesktopList.tsx:83
 #: src/shell/FloatingTabBar.tsx:19
-#: src/shell/lists/UnifiedSearch.tsx:255
+#: src/shell/lists/UnifiedSearch.tsx:257
 msgid "Chats"
 msgstr "المحادثات"
 
@@ -816,7 +816,7 @@ msgstr "أُعيدت المحادثات إلى القائمة"
 msgid "Chats unpinned"
 msgstr "أُلغي تثبيت المحادثات"
 
-#: src/shell/lists/ChatList.tsx:421
+#: src/shell/lists/ChatList.tsx:429
 msgid "Chats will stay archived"
 msgstr "ستبقى المحادثات مؤرشفة"
 
@@ -970,7 +970,7 @@ msgid "Close position"
 msgstr "إغلاق الصفقة"
 
 #: src/shell/HeaderSearch.tsx:47
-#: src/shell/lists/EmojiPanel.tsx:414
+#: src/shell/lists/EmojiPanel.tsx:415
 msgid "Close search"
 msgstr "إغلاق البحث"
 
@@ -1123,7 +1123,7 @@ msgstr "سجل المحادثات"
 msgid "Conversation transcript"
 msgstr "نص المحادثة"
 
-#: src/shell/lists/ChatList.tsx:335
+#: src/shell/lists/ChatList.tsx:343
 msgid "Conversations"
 msgstr "المحادثات"
 
@@ -1199,11 +1199,11 @@ msgstr "إنشاء مهمة مجدولة"
 msgid "Create task"
 msgstr "إنشاء مهمة"
 
-#: src/shell/lists/ListSheets.tsx:208
+#: src/shell/lists/ListSheets.tsx:232
 msgid "Create the list"
 msgstr "إنشاء القائمة"
 
-#: src/shell/lists/ListSheets.tsx:207
+#: src/shell/lists/ListSheets.tsx:231
 msgid "Create the list · {count}"
 msgstr "إنشاء القائمة · {count}"
 
@@ -1253,7 +1253,7 @@ msgstr "داكن"
 msgid "Decision evidence"
 msgstr "أدلة القرار"
 
-#: src/shell/lists/EmojiPanel.tsx:511
+#: src/shell/lists/EmojiPanel.tsx:512
 msgid "Default"
 msgstr "الافتراضي"
 
@@ -1271,7 +1271,7 @@ msgstr "مهمة مفوّضة"
 #: src/pages/McpServersOverlay.tsx:102
 #: src/pages/RoutineEditor.tsx:122
 #: src/pages/ScratchpadSection.tsx:203
-#: src/shell/lists/EmojiPanel.tsx:404
+#: src/shell/lists/EmojiPanel.tsx:405
 #: src/shell/lists/Selection.tsx:99
 #: src/shell/lists/Selection.tsx:273
 msgid "Delete"
@@ -1298,7 +1298,7 @@ msgstr "حذف نهائي"
 msgid "Delete the chats?"
 msgstr "حذف المحادثات؟"
 
-#: src/shell/lists/ListSheets.tsx:365
+#: src/shell/lists/ListSheets.tsx:404
 msgid "Delete the list"
 msgstr "حذف القائمة"
 
@@ -1413,8 +1413,8 @@ msgstr "تعديل"
 msgid "Edit routine"
 msgstr "تعديل المهمة المجدولة"
 
-#: src/shell/lists/ListSheets.tsx:284
-#: src/shell/lists/ListSheets.tsx:355
+#: src/shell/lists/ListSheets.tsx:316
+#: src/shell/lists/ListSheets.tsx:394
 msgid "Edit the list"
 msgstr "تعديل القائمة"
 
@@ -1439,11 +1439,11 @@ msgstr "البريد الإلكتروني"
 #~ msgid "Emergency stop is active."
 #~ msgstr "الإيقاف الطارئ مفعّل."
 
-#: src/shell/lists/EmojiPanel.tsx:476
+#: src/shell/lists/EmojiPanel.tsx:477
 msgid "Emoji sections"
 msgstr "أقسام الرموز"
 
-#: src/shell/lists/EmojiPanel.tsx:305
+#: src/shell/lists/EmojiPanel.tsx:306
 msgid "Emojis"
 msgstr "الرموز التعبيرية"
 
@@ -1501,7 +1501,7 @@ msgstr "التكرار · بالدقائق"
 msgid "Every agent reads this feed. Follow X analysts through their feeds, web search or a trusted X MCP server; Lonora never uses your X account."
 msgstr "يقرأ كل وكيل هذا الموجز. تابع محللي X عبر موجزاتهم أو البحث على الويب أو خادم MCP لـ X تثق به؛ لا تستخدم لونورا حسابك على X أبدًا."
 
-#: src/shell/lists/ListSheets.tsx:101
+#: src/shell/lists/ListSheets.tsx:113
 msgid "Every list you create becomes a filter above the chat list."
 msgstr "أي قائمة تنشئها تصير فلترًا أعلى قائمة المحادثات."
 
@@ -1568,7 +1568,7 @@ msgstr "الوجه"
 msgid "Failed"
 msgstr "فشل"
 
-#: src/shell/lists/ChatList.tsx:181
+#: src/shell/lists/ChatList.tsx:184
 msgctxt "chat filter"
 msgid "Favourites"
 msgstr "المفضلة"
@@ -1581,9 +1581,9 @@ msgstr "رابط المصدر أو Webhook"
 msgid "Fibonacci"
 msgstr "فيبوناتشي"
 
-#: src/shell/lists/UnifiedSearch.tsx:258
-#: src/shell/lists/UnifiedSearch.tsx:293
-#: src/shell/lists/UnifiedSearch.tsx:300
+#: src/shell/lists/UnifiedSearch.tsx:260
+#: src/shell/lists/UnifiedSearch.tsx:295
+#: src/shell/lists/UnifiedSearch.tsx:302
 #: src/shell/pages.tsx:59
 msgid "Files"
 msgstr "الملفات"
@@ -1597,11 +1597,11 @@ msgstr "ستظهر ملفات وكلائك ومخرجاتهم هنا."
 msgid "Filter by date"
 msgstr "التصفية حسب التاريخ"
 
-#: src/shell/lists/ChatList.tsx:198
+#: src/shell/lists/ChatList.tsx:201
 msgid "Filter chats"
 msgstr "تصفية المحادثات"
 
-#: src/shell/lists/UnifiedSearch.tsx:262
+#: src/shell/lists/UnifiedSearch.tsx:264
 msgid "Filter the search results"
 msgstr "تصفية نتائج البحث"
 
@@ -1609,7 +1609,7 @@ msgstr "تصفية نتائج البحث"
 msgid "Filters"
 msgstr "عوامل التصفية"
 
-#: src/shell/lists/EmojiPanel.tsx:22
+#: src/shell/lists/EmojiPanel.tsx:21
 msgid "Flags"
 msgstr "أعلام"
 
@@ -1629,11 +1629,11 @@ msgstr "متابعة السعر المباشر"
 msgid "Follow your agents’ runs and pick up unfinished work."
 msgstr "تابع تنفيذ وكلائك واستكمل العمل غير المنجز."
 
-#: src/shell/lists/EmojiPanel.tsx:17
+#: src/shell/lists/EmojiPanel.tsx:16
 msgid "Food & drink"
 msgstr "طعام وشراب"
 
-#: src/shell/lists/ListSheets.tsx:74
+#: src/shell/lists/ListSheets.tsx:86
 msgid "For example: Work, Friends"
 msgstr "مثال: العمل، الأصدقاء"
 
@@ -1696,8 +1696,8 @@ msgstr "يتصل GPT-Live مباشرة عبر WebRTC باستخدام مفتاح
 msgid "GPT-Live is not available for this OpenAI project. Check its API access."
 msgstr "GPT-Live غير متاح لمشروع OpenAI هذا. تحقق من صلاحية الوصول إلى واجهته."
 
-#: src/shell/lists/ListSheets.tsx:134
-#: src/shell/lists/ListSheets.tsx:175
+#: src/shell/lists/ListSheets.tsx:158
+#: src/shell/lists/ListSheets.tsx:199
 msgid "Group"
 msgstr "مجموعة"
 
@@ -1720,7 +1720,7 @@ msgstr "اسم المجموعة"
 #~ msgid "Group settings"
 #~ msgstr "إعدادات المجموعة"
 
-#: src/shell/lists/ChatList.tsx:183
+#: src/shell/lists/ChatList.tsx:186
 #: src/shell/NewChatSheet.tsx:77
 msgid "Groups"
 msgstr "المجموعات"
@@ -1832,8 +1832,8 @@ msgstr "دور ونموذج وصلاحيات خاصة به"
 msgid "Jump to latest"
 msgstr "الانتقال إلى الأحدث"
 
-#: src/shell/lists/ChatList.tsx:398
-#: src/shell/lists/ChatList.tsx:413
+#: src/shell/lists/ChatList.tsx:406
+#: src/shell/lists/ChatList.tsx:421
 msgid "Keep chats archived"
 msgstr "إبقاء المحادثات مؤرشفة"
 
@@ -1849,7 +1849,7 @@ msgstr "متابعة التعديل"
 #~ msgid "Keep working beside the conversation."
 #~ msgstr "واصل العمل بجانب المحادثة."
 
-#: src/shell/lists/ListSheets.tsx:85
+#: src/shell/lists/ListSheets.tsx:97
 msgid "Keyboard"
 msgstr "لوحة المفاتيح"
 
@@ -1865,14 +1865,14 @@ msgstr "اختصارات لوحة المفاتيح"
 msgid "Knowledge"
 msgstr "المعرفة"
 
-#: src/shell/lists/UnifiedSearch.tsx:186
+#: src/shell/lists/UnifiedSearch.tsx:190
 msgctxt "search hit"
 msgid "Knowledge"
 msgstr "معرفة"
 
-#: src/shell/lists/UnifiedSearch.tsx:259
-#: src/shell/lists/UnifiedSearch.tsx:294
-#: src/shell/lists/UnifiedSearch.tsx:301
+#: src/shell/lists/UnifiedSearch.tsx:261
+#: src/shell/lists/UnifiedSearch.tsx:296
+#: src/shell/lists/UnifiedSearch.tsx:303
 msgid "Knowledge and skills"
 msgstr "المعرفة والمهارات"
 
@@ -1918,11 +1918,11 @@ msgstr "تعليمات قديمة"
 msgid "Light"
 msgstr "فاتح"
 
-#: src/shell/lists/ListSheets.tsx:260
+#: src/shell/lists/ListSheets.tsx:284
 msgid "List «{name}» created"
 msgstr "أُنشئت قائمة «{name}»"
 
-#: src/shell/lists/ListSheets.tsx:64
+#: src/shell/lists/ListSheets.tsx:76
 msgid "List name"
 msgstr "اسم القائمة"
 
@@ -2088,7 +2088,7 @@ msgstr "بيع بسعر السوق"
 msgid "Market watches"
 msgstr "مراقبة السوق"
 
-#: src/shell/lists/UnifiedSearch.tsx:291
+#: src/shell/lists/UnifiedSearch.tsx:293
 msgid "Matching messages"
 msgstr "الرسائل المطابقة"
 
@@ -2143,7 +2143,7 @@ msgstr "محرر الرسالة"
 msgid "Message your agent…"
 msgstr "اكتب رسالة لوكيلك…"
 
-#: src/shell/lists/UnifiedSearch.tsx:256
+#: src/shell/lists/UnifiedSearch.tsx:258
 msgid "Messages"
 msgstr "الرسائل"
 
@@ -2257,10 +2257,10 @@ msgstr "محادثة جديدة"
 msgid "New group"
 msgstr "مجموعة جديدة"
 
-#: src/shell/lists/ChatList.tsx:260
-#: src/shell/lists/ChatList.tsx:261
-#: src/shell/lists/ListSheets.tsx:284
-#: src/shell/lists/ListSheets.tsx:413
+#: src/shell/lists/ChatList.tsx:263
+#: src/shell/lists/ChatList.tsx:264
+#: src/shell/lists/ListSheets.tsx:316
+#: src/shell/lists/ListSheets.tsx:452
 msgid "New list"
 msgstr "قائمة جديدة"
 
@@ -2298,7 +2298,7 @@ msgstr "التالي"
 msgid "Next run"
 msgstr "التنفيذ القادم"
 
-#: src/shell/lists/ListSheets.tsx:106
+#: src/shell/lists/ListSheets.tsx:118
 msgid "Next: the chats"
 msgstr "التالي: المحادثات"
 
@@ -2309,7 +2309,7 @@ msgstr "التالي: المحادثات"
 #~ msgid "No agents match"
 #~ msgstr "لا يوجد وكلاء مطابقون"
 
-#: src/shell/lists/ChatList.tsx:436
+#: src/shell/lists/ChatList.tsx:444
 msgid "No archived chats. Press and hold a chat in the list, then choose «Archive»."
 msgstr "لا توجد محادثات مؤرشفة. اضغط مطولًا على محادثة في القائمة ثم اختر «أرشفة»."
 
@@ -2325,16 +2325,16 @@ msgstr "لم يتم العثور على شموع تاريخية لهذا الر�
 msgid "No candles available for this instrument and timeframe."
 msgstr "لا تتوفر شموع لهذه الأداة والفترة الزمنية."
 
-#: src/shell/lists/UnifiedSearch.tsx:371
+#: src/shell/lists/UnifiedSearch.tsx:373
 msgid "No chats are available yet."
 msgstr "لا توجد محادثات متاحة بعد."
 
 #. placeholder {0}: activeList.name
-#: src/shell/lists/ChatList.tsx:356
+#: src/shell/lists/ChatList.tsx:364
 msgid "No chats in «{0}» yet."
 msgstr "لا محادثات في «{0}» بعد."
 
-#: src/shell/lists/ChatList.tsx:328
+#: src/shell/lists/ChatList.tsx:336
 msgid "No chats."
 msgstr "لا توجد محادثات."
 
@@ -2342,7 +2342,7 @@ msgstr "لا توجد محادثات."
 msgid "No executions yet"
 msgstr "لا توجد عمليات تنفيذ بعد"
 
-#: src/shell/lists/UnifiedSearch.tsx:374
+#: src/shell/lists/UnifiedSearch.tsx:376
 msgid "No files are available yet."
 msgstr "لا توجد ملفات متاحة بعد."
 
@@ -2362,7 +2362,7 @@ msgstr "لا توجد ملفات مطابقة"
 msgid "No matching broker symbols"
 msgstr "لا توجد رموز مطابقة"
 
-#: src/shell/lists/EmojiPanel.tsx:451
+#: src/shell/lists/EmojiPanel.tsx:452
 msgid "No matching emojis"
 msgstr "لا توجد رموز مطابقة"
 
@@ -2386,15 +2386,15 @@ msgstr "لا توجد أوامر معلقة"
 msgid "No reply needed"
 msgstr "لا حاجة للرد"
 
-#: src/shell/lists/UnifiedSearch.tsx:387
+#: src/shell/lists/UnifiedSearch.tsx:389
 msgid "No results"
 msgstr "لا توجد نتائج"
 
-#: src/shell/lists/UnifiedSearch.tsx:397
+#: src/shell/lists/UnifiedSearch.tsx:399
 msgid "No results in this category"
 msgstr "لا توجد نتائج في هذه الفئة"
 
-#: src/shell/lists/ListSheets.tsx:184
+#: src/shell/lists/ListSheets.tsx:208
 msgid "No results."
 msgstr "لا نتائج."
 
@@ -2406,15 +2406,15 @@ msgstr "لا توجد عمليات تنفيذ تطابق هذه المرشحات
 msgid "No saved chart in this conversation"
 msgstr "لا يوجد رسم بياني محفوظ في هذه المحادثة"
 
-#: src/shell/lists/UnifiedSearch.tsx:375
+#: src/shell/lists/UnifiedSearch.tsx:377
 msgid "No saved knowledge or skills yet."
 msgstr "لا توجد معرفة أو مهارات محفوظة بعد."
 
-#: src/shell/lists/UnifiedSearch.tsx:372
+#: src/shell/lists/UnifiedSearch.tsx:374
 msgid "No saved messages yet. They appear here once a chat starts."
 msgstr "لا توجد رسائل محفوظة بعد. ستظهر هنا بعد بدء المحادثة."
 
-#: src/shell/lists/UnifiedSearch.tsx:373
+#: src/shell/lists/UnifiedSearch.tsx:375
 msgid "No saved tasks yet."
 msgstr "لا توجد مهام محفوظة بعد."
 
@@ -2434,7 +2434,7 @@ msgstr "لا توجد مهام بعد"
 msgid "No trading goals yet."
 msgstr "لا توجد أهداف تداول بعد."
 
-#: src/shell/lists/ChatList.tsx:324
+#: src/shell/lists/ChatList.tsx:332
 msgid "No unread messages."
 msgstr "لا توجد رسائل غير مقروءة."
 
@@ -2467,7 +2467,7 @@ msgstr "أبلغني بالفرص المؤكدة"
 msgid "Now"
 msgstr "الآن"
 
-#: src/shell/lists/EmojiPanel.tsx:20
+#: src/shell/lists/EmojiPanel.tsx:19
 msgid "Objects"
 msgstr "أشياء"
 
@@ -2710,7 +2710,7 @@ msgstr "يجهّز"
 #~ msgid "Preparing — not sent"
 #~ msgstr "قيد التحضير — لم يُرسل"
 
-#: src/shell/lists/ChatList.tsx:451
+#: src/shell/lists/ChatList.tsx:459
 msgid "Press and hold a chat to unarchive, mute or delete it."
 msgstr "اضغط مطولًا على محادثة لإلغاء أرشفتها أو كتمها أو حذفها."
 
@@ -2825,15 +2825,15 @@ msgstr "الاستدلال"
 msgid "Recent"
 msgstr "حديثًا"
 
-#: src/shell/lists/UnifiedSearch.tsx:297
+#: src/shell/lists/UnifiedSearch.tsx:299
 msgid "Recent chats"
 msgstr "المحادثات الأخيرة"
 
-#: src/shell/lists/UnifiedSearch.tsx:298
+#: src/shell/lists/UnifiedSearch.tsx:300
 msgid "Recent messages"
 msgstr "الرسائل الأخيرة"
 
-#: src/shell/lists/EmojiPanel.tsx:296
+#: src/shell/lists/EmojiPanel.tsx:297
 msgid "Recently used"
 msgstr "المستخدمة مؤخرًا"
 
@@ -3024,7 +3024,7 @@ msgstr "استئناف"
 #: src/pages/Board.tsx:124
 #: src/pages/Routines.tsx:169
 #: src/pages/shell/message-cards.tsx:185
-#: src/shell/lists/ChatList.tsx:343
+#: src/shell/lists/ChatList.tsx:351
 #: src/shell/pages.tsx:304
 #: src/shell/pages.tsx:315
 msgid "Retry"
@@ -3114,11 +3114,11 @@ msgstr "حفظ الأعضاء"
 msgid "Save memory"
 msgstr "حفظ الذاكرة"
 
-#: src/shell/lists/ListSheets.tsx:205
+#: src/shell/lists/ListSheets.tsx:229
 msgid "Save the list"
 msgstr "حفظ القائمة"
 
-#: src/shell/lists/ListSheets.tsx:204
+#: src/shell/lists/ListSheets.tsx:228
 msgid "Save the list · {count}"
 msgstr "حفظ القائمة · {count}"
 
@@ -3133,7 +3133,7 @@ msgstr "تم الحفظ"
 msgid "Saved chart"
 msgstr "الشارت المحفوظ"
 
-#: src/shell/lists/UnifiedSearch.tsx:174
+#: src/shell/lists/UnifiedSearch.tsx:178
 msgid "Saved file"
 msgstr "ملف محفوظ"
 
@@ -3163,7 +3163,7 @@ msgstr "جدول العمل المتكرر لوكلائك."
 msgid "Scratchpad"
 msgstr "مسودة العمل"
 
-#: src/shell/lists/ListSheets.tsx:146
+#: src/shell/lists/ListSheets.tsx:170
 msgid "Search"
 msgstr "بحث"
 
@@ -3178,7 +3178,7 @@ msgstr "البحث في النشاط"
 #~ msgid "Search agents"
 #~ msgstr "البحث عن الوكلاء"
 
-#: src/shell/lists/ListSheets.tsx:148
+#: src/shell/lists/ListSheets.tsx:172
 msgid "Search agents and groups"
 msgstr "بحث في الوكلاء والمجموعات"
 
@@ -3207,9 +3207,9 @@ msgstr "البحث في المحادثات"
 msgid "Search chats, messages and tasks"
 msgstr "ابحث في المحادثات والرسائل والمهام"
 
-#: src/shell/lists/EmojiPanel.tsx:393
-#: src/shell/lists/EmojiPanel.tsx:431
+#: src/shell/lists/EmojiPanel.tsx:394
 #: src/shell/lists/EmojiPanel.tsx:432
+#: src/shell/lists/EmojiPanel.tsx:433
 msgid "Search for an emoji"
 msgstr "البحث عن رمز تعبيري"
 
@@ -3220,8 +3220,8 @@ msgstr "البحث عن رمز تعبيري"
 msgid "Search in Lonora"
 msgstr "بحث في Lonora"
 
-#: src/shell/lists/EmojiPanel.tsx:447
-#: src/shell/lists/UnifiedSearch.tsx:380
+#: src/shell/lists/EmojiPanel.tsx:448
+#: src/shell/lists/UnifiedSearch.tsx:382
 msgid "Search results"
 msgstr "نتائج البحث"
 
@@ -3362,16 +3362,16 @@ msgstr "عرض تحليل الوكيل"
 #~ msgid "Show agents"
 #~ msgstr "إظهار الوكلاء"
 
-#: src/shell/lists/UnifiedSearch.tsx:361
+#: src/shell/lists/UnifiedSearch.tsx:363
 msgid "Show all"
 msgstr "عرض الكل"
 
 #. placeholder {0}: section.count
-#: src/shell/lists/UnifiedSearch.tsx:360
+#: src/shell/lists/UnifiedSearch.tsx:362
 msgid "Show all results ({0})"
 msgstr "عرض جميع النتائج ({0})"
 
-#: src/shell/lists/UnifiedSearch.tsx:362
+#: src/shell/lists/UnifiedSearch.tsx:364
 msgid "Show more"
 msgstr "عرض المزيد"
 
@@ -3428,7 +3428,7 @@ msgstr "محاكاة باستخدام بيانات مستوردة"
 msgid "Skeptical"
 msgstr "متشكك"
 
-#: src/shell/lists/UnifiedSearch.tsx:186
+#: src/shell/lists/UnifiedSearch.tsx:190
 msgid "Skill"
 msgstr "مهارة"
 
@@ -3453,11 +3453,11 @@ msgstr "المهارات"
 msgid "Skills guide how this agent works. They do not grant trading permissions. This catalog shows current instructions; active tasks keep their pinned versions."
 msgstr "توجّه المهارات طريقة عمل الوكيل ولا تمنحه صلاحيات تداول. تعرض هذه المكتبة التعليمات الحالية، وتحتفظ المهام النشطة بإصداراتها المثبتة."
 
-#: src/shell/lists/EmojiPanel.tsx:500
+#: src/shell/lists/EmojiPanel.tsx:501
 msgid "Skin tone"
 msgstr "لون البشرة"
 
-#: src/shell/lists/EmojiPanel.tsx:511
+#: src/shell/lists/EmojiPanel.tsx:512
 msgid "Skin tone {tone}"
 msgstr "درجة لون {tone}"
 
@@ -3469,7 +3469,7 @@ msgstr "نعسان"
 msgid "Smile"
 msgstr "مبتسم"
 
-#: src/shell/lists/EmojiPanel.tsx:15
+#: src/shell/lists/EmojiPanel.tsx:14
 msgid "Smileys & people"
 msgstr "وجوه ضاحكة وأشخاص"
 
@@ -3510,7 +3510,7 @@ msgstr "فارق السعر"
 msgid "Start a chat"
 msgstr "ابدأ محادثة"
 
-#: src/shell/lists/UnifiedSearch.tsx:370
+#: src/shell/lists/UnifiedSearch.tsx:372
 msgid "Start a chat or add a task for it to appear here."
 msgstr "ابدأ محادثة أو أضف مهمة لتظهر هنا."
 
@@ -3622,7 +3622,7 @@ msgstr "متفاجئ"
 msgid "Symbol"
 msgstr "الرمز"
 
-#: src/shell/lists/EmojiPanel.tsx:21
+#: src/shell/lists/EmojiPanel.tsx:20
 msgid "Symbols"
 msgstr "رموز"
 
@@ -3672,9 +3672,9 @@ msgid "Task when triggered"
 msgstr "المهمة عند تحقق الشرط"
 
 #: src/shell/FloatingTabBar.tsx:23
-#: src/shell/lists/UnifiedSearch.tsx:257
-#: src/shell/lists/UnifiedSearch.tsx:292
-#: src/shell/lists/UnifiedSearch.tsx:299
+#: src/shell/lists/UnifiedSearch.tsx:259
+#: src/shell/lists/UnifiedSearch.tsx:294
+#: src/shell/lists/UnifiedSearch.tsx:301
 msgid "Tasks"
 msgstr "المهام"
 
@@ -3757,7 +3757,7 @@ msgstr "يُحذف سجل الدردشات في {0} من عندك فقط. يبق
 msgid "The chat history of {0} is hidden for you. The agents stay in the agents list."
 msgstr "يُحذف سجل الدردشات في {0} من عندك فقط. يبقى الوكلاء في قائمة الوكلاء."
 
-#: src/shell/lists/ListSheets.tsx:358
+#: src/shell/lists/ListSheets.tsx:397
 msgid "The chats"
 msgstr "المحادثات"
 
@@ -3884,7 +3884,7 @@ msgstr "تعذر اتصال الصوت. أعد محاولة المكالمة."
 msgid "Theme"
 msgstr "المظهر"
 
-#: src/shell/lists/UnifiedSearch.tsx:407
+#: src/shell/lists/UnifiedSearch.tsx:409
 msgid "There is no content in this section yet"
 msgstr "لا يوجد محتوى في هذا القسم بعد"
 
@@ -4167,7 +4167,7 @@ msgstr "طلب تداول"
 #~ msgid "Transcript"
 #~ msgstr "نص المكالمة"
 
-#: src/shell/lists/EmojiPanel.tsx:19
+#: src/shell/lists/EmojiPanel.tsx:18
 msgid "Travel & places"
 msgstr "سفر وأماكن"
 
@@ -4192,7 +4192,7 @@ msgstr "إعادة المحاولة"
 msgid "Type"
 msgstr "النوع"
 
-#: src/shell/lists/UnifiedSearch.tsx:417
+#: src/shell/lists/UnifiedSearch.tsx:419
 msgid "Type a word to search chats, messages, tasks and files."
 msgstr "اكتب كلمة للبحث في المحادثات والرسائل والمهام والملفات."
 
@@ -4204,7 +4204,7 @@ msgstr "إلغاء الأرشفة"
 msgid "Unavailable"
 msgstr "غير متاحة"
 
-#: src/shell/lists/ListSheets.tsx:326
+#: src/shell/lists/ListSheets.tsx:365
 #: src/shell/lists/Selection.tsx:142
 msgid "Undo"
 msgstr "تراجع"
@@ -4226,7 +4226,7 @@ msgstr "إلغاء كتم الميكروفون"
 msgid "Unpin"
 msgstr "إلغاء التثبيت"
 
-#: src/shell/lists/ChatList.tsx:180
+#: src/shell/lists/ChatList.tsx:183
 msgctxt "chat filter"
 msgid "Unread"
 msgstr "غير مقروءة"
@@ -4398,7 +4398,7 @@ msgstr "مصدر المراقبة"
 msgid "We are making quick improvements to the service. Your chats are saved and we will be back in minutes."
 msgstr "نجري تحسينات سريعة على الخدمة. محادثاتك محفوظة وسنعود خلال دقائق."
 
-#: src/shell/lists/UnifiedSearch.tsx:390
+#: src/shell/lists/UnifiedSearch.tsx:392
 msgid "We found no results for «{q}». Try a shorter word or a different term."
 msgstr "لم نعثر على نتائج لـ «{q}». جرّب كلمة أقصر أو مصطلحًا مختلفًا."
 
@@ -4465,7 +4465,7 @@ msgstr "أمس"
 msgid "You"
 msgstr "أنت"
 
-#: src/shell/lists/UnifiedSearch.tsx:400
+#: src/shell/lists/UnifiedSearch.tsx:402
 msgid "You can choose «All» to search the other sections."
 msgstr "يمكنك اختيار «الكل» للبحث في بقية الأقسام."
 
@@ -4478,7 +4478,7 @@ msgstr "يمكنك متابعة التعديل أو تجاهل التغييرا�
 msgid "You can pin 3 chats only"
 msgstr "يمكنك تثبيت 3 محادثات فقط"
 
-#: src/shell/lists/EmojiPanel.tsx:203
+#: src/shell/lists/ListSheets.tsx:330
 msgid "You reached the name's maximum length"
 msgstr "وصلت إلى الحد الأقصى للاسم"
 

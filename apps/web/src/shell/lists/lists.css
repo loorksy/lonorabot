@@ -296,7 +296,7 @@
 .archive-row .arch-n.on {
   color: var(--accent-ink);
 }
-.arch-note {
+.app-shell .arch-note {
   display: flex;
   align-items: flex-start;
   gap: 8px;
@@ -537,7 +537,8 @@
   gap: 10px;
   padding: 14px 16px 6px;
 }
-.search-section-head h2 {
+/* Inside the shell, beat its h2/p defaults (.app-shell :where(h2, p)). */
+.app-shell .search-section-head h2 {
   margin: 0;
   color: var(--muted);
   font-size: var(--fs-xs);
@@ -662,12 +663,12 @@
   margin-bottom: 12px;
   opacity: 0.7;
 }
-.search-empty h2 {
+.app-shell .search-empty h2 {
   margin: 0 0 6px;
   color: var(--text);
   font-size: var(--fs-md);
 }
-.search-empty p {
+.app-shell .search-empty p {
   max-width: 360px;
   margin: 0 auto;
   font-size: var(--fs-xs);
