@@ -38,6 +38,14 @@ Runtime variables the reference sets from JavaScript (`--kb`, `--edge`, `--top-h
 `--p`, `--lvl`, `--mp-*`, `--pair-ring`) are component state, not tokens; only `--app-height` has an
 initial value and is included.
 
+## Legacy screens inside the ported shell
+
+Phase 2 imports `reference.css` after `tokens.css`, so the reference set wins at the root and the
+three colliding names (`--primary`, `--accent`, `--muted`) carry the reference's roles everywhere
+the shell is drawn. Screens not yet ported are wrapped in `.legacy-surface`, where `tokens.css`
+(generated) re-declares those three with their legacy values for both themes; the wrapper goes
+away with the phase that ports each screen.
+
 ## Mapping to the legacy set
 
 Where a legacy token plays the same role, the reference name is canonical and the legacy name
