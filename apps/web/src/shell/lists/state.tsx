@@ -10,10 +10,18 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
 } from "react";
 import { useOverlayHistory } from "../../hooks/useOverlayHistory";
 import { ApiError } from "../../lib/api";
+import {
+  outgoingKey,
+  outgoingMessages,
+  outgoingVersion,
+  subscribeOutgoing,
+} from "../../lib/outgoing-messages";
 import { userError } from "../../lib/user_error";
+import { useClient } from "../../providers/ClientProvider";
 import { useShellData } from "../data";
 import { useToast } from "../Toast";
 import { ensureThread, listsApi } from "./api";
@@ -51,10 +59,18 @@ export function ListsProvider({
 }) {
   const data = useShellData();
   const toast = useToast();
-  const rows = useMemo(
-    () => chatRows(data.agents, data.groups, data.inbox),
-    [data.agents, data.groups, data.inbox],
-  );
+  const { owner } = useClient();
+  // A message written here (queued offline, sending, failed) moves its chat up at once.
+  const outbox = useSyncExternalStore(subscribeOutgoing, outgoingVersion);
+  const rows = useMemo(() => {
+    void outbox;
+    return chatRows(
+      data.agents,
+      data.groups,
+      data.inbox,
+      (thread) => outgoingMessages(outgoingKey(owner.id, thread)).at(-1)?.message.created_at,
+    );
+  }, [data.agents, data.groups, data.inbox, owner.id, outbox]);
   const [filter, setFilterState] = useState<ListFilter>("all");
   const [selected, setSelected] = useState<ReadonlySet<string> | null>(null);
   const end = useCallback(() => setSelected(null), []);

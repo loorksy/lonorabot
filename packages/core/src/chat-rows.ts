@@ -2,8 +2,9 @@
  * The conversation list's rows, filters and selection arithmetic, shared by Web and
  * Mobile. A row is every agent and every group, with the owner's state of its canonical
  * conversation when one exists (the inbox projection). The order is the reference's:
- * pinned first in pin order, then the latest activity, then the agents before the groups
- * as the server lists them. Nothing here is stored or fetched.
+ * pinned first in pin order, then the latest message (one still in this device's outbox
+ * counts the moment it is written; a chat with no visible message sorts last), then the
+ * agents before the groups as the server lists them. Nothing here is stored or fetched.
  */
 import type { Agent, AttentionImportance, ChatList, InboxEntry, Resource } from "@lonora/contracts";
 import { inboxUnread, isUnread } from "./inbox";
@@ -29,17 +30,24 @@ export type ChatRow = {
   /** What line 2 says before anything was said: the agent's role or the group's purpose. */
   subtitle: string;
   paused: boolean;
+  /** The latest message's time; "" when the chat has none to show. */
   lastActivityAt: string;
 };
+/** The newest message this device still holds in its outbox for a thread, if any. */
+export type OutboxLatest = (threadId: string) => string | undefined;
 
 export const rowKey = (kind: ChatRowKind, id: string) => `${kind}:${id}`;
 
 const text = (value: unknown) => (typeof value === "string" ? value : "");
 
+const latest = (...times: (string | undefined)[]) =>
+  times.reduce<string>((max, time) => (time && time > max ? time : max), "");
+
 export function chatRows(
   agents: readonly Agent[],
   groups: readonly Resource[],
   entries: readonly InboxEntry[],
+  outbox?: OutboxLatest,
 ): ChatRow[] {
   const byEntity = new Map<string, InboxEntry>();
   for (const entry of entries) {
@@ -64,24 +72,28 @@ export function chatRows(
         name: agent.name,
         subtitle: agent.title || agent.description || "",
         paused: agent.paused,
-        lastActivityAt: entry?.last_activity_at ?? agent.created_at,
+        lastActivityAt: latest(entry?.last_message?.created_at, entry && outbox?.(entry.thread_id)),
       };
     }),
     ...groups.map((group): ChatRow => {
       const key = rowKey("group", group.id);
       const entry = byEntity.get(key);
       const stateThread = text(group.state?.thread_id);
+      const threadId = entry?.thread_id ?? (stateThread || undefined);
       return {
         key,
         kind: "group",
         id: group.id,
         group,
         entry,
-        threadId: entry?.thread_id ?? (stateThread || undefined),
+        threadId,
         name: text(group.payload.name),
         subtitle: text(group.payload.purpose),
         paused: false,
-        lastActivityAt: entry?.last_activity_at ?? group.created_at,
+        lastActivityAt: latest(
+          entry?.last_message?.created_at,
+          threadId ? outbox?.(threadId) : undefined,
+        ),
       };
     }),
   ];
@@ -198,5 +210,32 @@ export function isPlainOutgoing(body: Readonly<Record<string, unknown>>): boolea
  * and badge); a critical or action_required attention item always shows.
  */
 export const headsUpAllowed = (entry: InboxEntry | undefined) => !entry?.muted && !entry?.archived;
+/** The owner's quiet hours (the reach-me policy): whole hours in the owner's time zone,
+ * crossing midnight when the start is later than the end. No hours set, no quiet. */
+export type QuietHours = {
+  quiet_start_hour: number | null;
+  quiet_end_hour: number | null;
+  timezone: string;
+};
+export function inQuietHours(policy: QuietHours | null | undefined, now: Date): boolean {
+  if (!policy || policy.quiet_start_hour == null || policy.quiet_end_hour == null) return false;
+  const start = policy.quiet_start_hour;
+  const end = policy.quiet_end_hour;
+  if (start === end) return false;
+  let hour: number;
+  try {
+    hour =
+      Number(
+        new Intl.DateTimeFormat("en-GB", {
+          hour: "numeric",
+          hourCycle: "h23",
+          timeZone: policy.timezone,
+        }).format(now),
+      ) % 24;
+  } catch {
+    hour = now.getUTCHours();
+  }
+  return start < end ? hour >= start && hour < end : hour >= start || hour < end;
+}
 export const attentionAlwaysShows = (importance: AttentionImportance) =>
   importance === "critical" || importance === "action_required";

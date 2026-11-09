@@ -1,8 +1,16 @@
 import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
-import { attentionAlwaysShows, type ChatRow, headsUpAllowed, rowKey } from "@lonora/core";
+import {
+  attentionAlwaysShows,
+  type ChatRow,
+  headsUpAllowed,
+  inQuietHours,
+  type QuietHours,
+  rowKey,
+} from "@lonora/core";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAttentionLabels } from "../../components/ai/AttentionInbox";
+import { api, isRequestCancelled } from "../../lib/api";
 import { useAttention } from "../../providers/AttentionProvider";
 import { useClient } from "../../providers/ClientProvider";
 import { useShellData } from "../data";
@@ -13,8 +21,9 @@ import { useLists } from "./state";
 import { RowAvatar } from "./ThreadRow";
 
 /* HeadsUp: an answer that arrives in another chat shows at the top for 5.2s with «رد»; a
-   swipe up hides it. Mute and archive suppress it and its tone (owner decision Q4); a
-   critical or action_required attention item always shows. */
+   swipe up hides it. Mute, archive and the owner's quiet hours suppress it and its tone
+   (owner decision Q4, the reach-me policy); a critical or action_required attention item
+   always shows. */
 type Banner = { row: ChatRow; text: string; serial: number };
 
 let audio: AudioContext | null = null;
@@ -37,8 +46,31 @@ function tone() {
   }
 }
 
+/** The quiet hours of the owner's reach-me policy, read again when anything changes. */
+function useQuietHours() {
+  const { revision } = useClient();
+  const [quiet, setQuiet] = useState<QuietHours | null>(null);
+  useEffect(() => {
+    void revision;
+    let live = true;
+    api
+      .get<{ reach_me: QuietHours }>("/owner/profile")
+      .then((profile) => {
+        if (live) setQuiet(profile.reach_me);
+      })
+      .catch((error) => {
+        if (!isRequestCancelled(error)) console.warn("quiet_hours_unavailable", error);
+      });
+    return () => {
+      live = false;
+    };
+  }, [revision]);
+  return quiet;
+}
+
 export function HeadsUp({ currentThreadId }: { currentThreadId?: string }) {
   const { events } = useClient();
+  const quiet = useQuietHours();
   const data = useShellData();
   const lists = useLists();
   const attention = useAttention();
@@ -51,8 +83,14 @@ export function HeadsUp({ currentThreadId }: { currentThreadId?: string }) {
   const announced = useRef(new Set<string>());
   const serial = useRef(0);
   const startY = useRef(0);
-  const live = useRef({ rows: lists.rows, agents: data.agents, current: currentThreadId, labels });
-  live.current = { rows: lists.rows, agents: data.agents, current: currentThreadId, labels };
+  const live = useRef({
+    rows: lists.rows,
+    agents: data.agents,
+    current: currentThreadId,
+    labels,
+    quiet,
+  });
+  live.current = { rows: lists.rows, agents: data.agents, current: currentThreadId, labels, quiet };
   const show = useCallback((row: ChatRow, text: string) => {
     serial.current += 1;
     setBanner({ row, text, serial: serial.current });
@@ -68,7 +106,8 @@ export function HeadsUp({ currentThreadId }: { currentThreadId?: string }) {
     }
     if (!fresh.length) return;
     cursor.current = Math.max(...fresh.map((event) => event.cursor));
-    const { rows, agents, current } = live.current;
+    const { rows, agents, current, quiet } = live.current;
+    if (inQuietHours(quiet, new Date())) return;
     for (const event of fresh) {
       const payload = event.payload as Record<string, unknown>;
       if (event.kind !== "message.created" || payload.role !== "assistant") continue;
@@ -140,8 +179,12 @@ export function HeadsUp({ currentThreadId }: { currentThreadId?: string }) {
       <button type="button" className="hu-main" onClick={open}>
         <RowAvatar row={banner.row} agents={data.agents} />
         <span className="hu-t">
-          <strong dir="auto">{banner.row.name}</strong>
-          <small dir="auto">{banner.text}</small>
+          <strong>
+            <bdi>{banner.row.name}</bdi>
+          </strong>
+          <small>
+            <bdi>{banner.text}</bdi>
+          </small>
         </span>
       </button>
       <button type="button" className="btn small outline hu-reply" onClick={open}>
