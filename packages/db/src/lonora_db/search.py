@@ -423,7 +423,7 @@ async def owner_search(
     results: dict[str, list[dict[str, Any]]] = {}
     for name in categories:
         counts[name], results[name] = await SEARCHERS[name](session, owner_id, q, limit, offset)
-    response: dict[str, Any] = {
+    return {
         "q": q,
         "category": category,
         "limit": limit,
@@ -431,21 +431,3 @@ async def owner_search(
         "counts": counts,
         "results": results,
     }
-    if category is None and q:
-        # The current web search page reads these three lists; the reference UI (phase 2)
-        # replaces it with the categories above.
-        response["agents"] = [
-            {"id": item["id"], "name": item["title"]}
-            for item in results["chats"]
-            if item["kind"] == "agent"
-        ]
-        response["messages"] = [
-            {"id": item["id"], "thread_id": item["thread_id"], "content": item["snippet"]}
-            for item in results["messages"]
-        ]
-        response["memory"] = [
-            {"agent_id": item["agent_id"], "content": item["snippet"]}
-            for item in results["knowledge"]
-            if item["kind"] == "memory"
-        ]
-    return response

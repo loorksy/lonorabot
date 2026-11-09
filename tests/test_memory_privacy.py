@@ -425,8 +425,9 @@ async def test_agents_cannot_read_each_others_memory_threads_groups_or_decisions
         assert seen["decisions"] == []
 
         # The owner API remains owner-wide by design.
-        owner = await fixture.request("GET", "/search?q=sentinel")
-        assert {item["agent_id"] for item in owner["memory"]} >= {alpha["id"], bravo["id"]}
+        owner = await fixture.request("GET", "/search?q=sentinel&category=knowledge")
+        memory = [item for item in owner["results"]["knowledge"] if item["kind"] == "memory"]
+        assert {item["agent_id"] for item in memory} >= {alpha["id"], bravo["id"]}
     finally:
         await fixture.close()
 

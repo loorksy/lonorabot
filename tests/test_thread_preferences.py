@@ -545,9 +545,8 @@ async def test_unified_search_folds_arabic_pages_and_browses_recent_items():
         assert knowledge["kind"] == "memory" and knowledge["agent_id"] == agent["id"]
         assert knowledge["title"] == agent["name"]
         assert everything["results"]["skills"][0]["id"] == skill["id"]
-        # The current web search page's lists stay readable until phase 2 replaces them.
-        assert everything["memory"][0]["agent_id"] == agent["id"]
-        assert everything["messages"][0]["thread_id"] == thread["id"]
+        # The reference UI reads the categories only; the old page's lists are gone.
+        assert "memory" not in everything and "agents" not in everything
         # An empty query is the recent feed: the newest messages across conversations.
         recent = await fixture.request("GET", "/search?category=messages&limit=2")
         assert recent["results"]["messages"][0]["id"] == hit["id"]
