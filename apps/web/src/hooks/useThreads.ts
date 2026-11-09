@@ -1,7 +1,7 @@
 import type { InputAnswer } from "@lonora/contracts";
-import { type MentionAddress, projectRunEvents } from "@lonora/core";
+import { isPlainOutgoing, type MentionAddress, projectRunEvents } from "@lonora/core";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { api, isRequestCancelled, type Message, type Run, type Thread } from "../lib/api";
+import { ApiError, api, isRequestCancelled, type Message, type Run, type Thread } from "../lib/api";
 import { conversationKey, readConversation, retainConversation } from "../lib/conversation-cache";
 import {
   acknowledgeOutgoing,
@@ -168,6 +168,14 @@ export function useThreads(agentId?: string, threadId?: string, knownRuns: Run[]
     const existing = inFlightSends.get(flightKey);
     if (existing) return existing;
     const operation = (async () => {
+      // Owner decision Q6: a plain message written offline waits (clock) and goes out by
+      // itself when the network returns; an answer or a decision is never sent later.
+      const plain = isPlainOutgoing(intent.body);
+      if (!navigator.onLine) {
+        failOutgoing(key, intent.nonce, plain ? "queued" : "failed");
+        if (plain) return;
+        throw new Error("offline");
+      }
       try {
         const accepted = await api.post<{ message: Message; run_ids: string[]; runs?: Run[] }>(
           `/threads/${threadId}/messages`,
@@ -198,7 +206,11 @@ export function useThreads(agentId?: string, threadId?: string, knownRuns: Run[]
           refresh();
           return;
         }
-        if (!isRequestCancelled(caught)) failOutgoing(key, intent.nonce);
+        if (isRequestCancelled(caught)) throw caught;
+        // No answer at all from the server: the plain message waits for the network.
+        const unanswered = !(caught instanceof ApiError);
+        failOutgoing(key, intent.nonce, unanswered && plain ? "queued" : "failed");
+        if (unanswered && plain) return;
         throw caught;
       }
     })().finally(() => inFlightSends.delete(flightKey));
@@ -281,6 +293,13 @@ export function useThreads(agentId?: string, threadId?: string, knownRuns: Run[]
         for (const message of rows) merged.set(message.id, message);
         return [...merged.values()].sort((a, b) => a.seq - b.seq);
       });
+    },
+    /** The page centred on one message (a search hit); merged into what is loaded. */
+    around: async (seq: number) => {
+      if (!threadId) return [];
+      const rows = await api.get<Message[]>(`/threads/${threadId}/messages?around=${seq}`);
+      setMessages((old) => mergeMessages(old, rows));
+      return rows;
     },
     remove: async (id: string) => {
       await api.delete(`/threads/${id}`);
