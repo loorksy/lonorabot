@@ -45,7 +45,7 @@ msgstr "{count, plural, one {وكيل واحد} two {وكيلان} few {# وكل
 msgid "{count, plural, one {one chat} two {two chats} few {# chats} many {# chats} other {# chats}}"
 msgstr "{count, plural, one {محادثة واحدة} two {محادثتان} few {# محادثات} many {# محادثة} other {# محادثة}}"
 
-#: src/shell/lists/ThreadRow.tsx:215
+#: src/shell/lists/ThreadRow.tsx:211
 msgid "{count} unread"
 msgstr "{count} غير مقروءة"
 
@@ -294,7 +294,7 @@ msgstr "معلومات الوكيل"
 msgid "Agent market scope"
 msgstr "نطاق الوكيل"
 
-#: src/pages/shell/bot-panel.tsx:119
+#: src/pages/shell/bot-panel.tsx:121
 msgid "Agent name"
 msgstr "اسم الوكيل"
 
@@ -492,7 +492,7 @@ msgstr "استوديو الأفاتار"
 #~ msgid "Awaiting reconciliation. This operation will not be sent again."
 #~ msgstr "بانتظار مطابقة التنفيذ. لن تُرسل هذه العملية مرة أخرى."
 
-#: src/pages/shell/bot-panel.tsx:162
+#: src/pages/shell/bot-panel.tsx:164
 #: src/shell/ChatHeader.tsx:57
 #: src/shell/sheets/SheetHost.tsx:580
 #: src/shell/StatePage.tsx:47
@@ -1215,7 +1215,7 @@ msgstr "إنشاء مهمة مجدولة"
 msgid "Create task"
 msgstr "إنشاء مهمة"
 
-#: src/pages/shell/bot-panel.tsx:174
+#: src/pages/shell/bot-panel.tsx:176
 msgid "Create the agent"
 msgstr "إنشاء الوكيل"
 
@@ -1344,7 +1344,7 @@ msgstr "اعتمادية غير متاحة"
 
 #: src/pages/Board.tsx:375
 #: src/pages/Board.tsx:377
-#: src/pages/shell/bot-panel.tsx:130
+#: src/pages/shell/bot-panel.tsx:132
 #: src/pages/shell/bot-settings.tsx:114
 msgid "Description"
 msgstr "الوصف"
@@ -1733,7 +1733,7 @@ msgstr "يتصل GPT-Live مباشرة عبر WebRTC باستخدام مفتاح
 msgid "GPT-Live is not available for this OpenAI project. Check its API access."
 msgstr "GPT-Live غير متاح لمشروع OpenAI هذا. تحقق من صلاحية الوصول إلى واجهته."
 
-#: src/shell/lists/ListSheets.tsx:158
+#: src/shell/lists/ListSheets.tsx:159
 #: src/shell/lists/ListSheets.tsx:202
 msgid "Group"
 msgstr "مجموعة"
@@ -1853,15 +1853,15 @@ msgstr "فاصل زمني"
 msgid "Isolated document preview"
 msgstr "معاينة المستند المعزولة"
 
-#: src/pages/shell/bot-panel.tsx:156
+#: src/pages/shell/bot-panel.tsx:158
 msgid "It gathers information and summarises it, and needs no permissions."
 msgstr "يجمع المعلومات ويلخّصها، ولا يحتاج إلى صلاحيات."
 
-#: src/pages/shell/bot-panel.tsx:154
+#: src/pages/shell/bot-panel.tsx:156
 msgid "It starts at «Ask me»: every order is shown to you before it is sent. The level is changed from its chat."
 msgstr "يبدأ بمستوى «تنفيذ بموافقة»: يُعرض عليك كل أمر قبل إرساله. يُغيَّر المستوى من محادثته."
 
-#: src/pages/shell/bot-panel.tsx:157
+#: src/pages/shell/bot-panel.tsx:159
 msgid "It starts at «No trading». The level is changed from its chat."
 msgstr "يبدأ بمستوى «دون تنفيذ». يُغيَّر المستوى من محادثته."
 
@@ -2076,7 +2076,7 @@ msgstr "يحتاج Lonora إلى الميكروفون للإملاء والرس�
 msgid "Main navigation"
 msgstr "التنقل الرئيسي"
 
-#: src/shell/Shell.tsx:490
+#: src/shell/Shell.tsx:492
 msgid "Maintenance is still in progress. Try again shortly"
 msgstr "ما زالت الصيانة جارية. حاول بعد قليل"
 
@@ -2268,8 +2268,8 @@ msgstr "كتم الميكروفون"
 msgid "Mute notifications"
 msgstr "كتم الإشعارات"
 
-#: src/shell/lists/ThreadRow.tsx:203
-#: src/shell/lists/ThreadRow.tsx:203
+#: src/shell/lists/ThreadRow.tsx:199
+#: src/shell/lists/ThreadRow.tsx:199
 msgid "Muted"
 msgstr "مكتومة"
 
@@ -2678,7 +2678,7 @@ msgid "Paused"
 msgstr "متوقف مؤقتًا"
 
 #: src/shell/AgentsPage.tsx:48
-#: src/shell/lists/ThreadRow.tsx:200
+#: src/shell/lists/ThreadRow.tsx:196
 #: src/shell/NewChatSheet.tsx:74
 msgctxt "agent badge"
 msgid "Paused"
@@ -2727,8 +2727,8 @@ msgstr "اختر قالبًا؛ يُشتق نوع الوكيل من دوره و�
 msgid "Pin"
 msgstr "تثبيت"
 
-#: src/shell/lists/ThreadRow.tsx:208
-#: src/shell/lists/ThreadRow.tsx:208
+#: src/shell/lists/ThreadRow.tsx:204
+#: src/shell/lists/ThreadRow.tsx:204
 msgid "Pinned"
 msgstr "مثبّتة"
 
@@ -4267,7 +4267,7 @@ msgstr "إعادة المحاولة"
 #~ msgstr "تفعيل التداول"
 
 #: src/components/integrations/IntegrationSetup.tsx:73
-#: src/pages/shell/bot-panel.tsx:142
+#: src/pages/shell/bot-panel.tsx:144
 msgid "Type"
 msgstr "النوع"
 
@@ -4310,7 +4310,7 @@ msgctxt "chat filter"
 msgid "Unread"
 msgstr "غير مقروءة"
 
-#: src/shell/lists/ThreadRow.tsx:221
+#: src/shell/lists/ThreadRow.tsx:217
 msgctxt "marked"
 msgid "Unread"
 msgstr "غير مقروءة"
@@ -4514,7 +4514,7 @@ msgstr "توقف عمل بعد انقطاعات متكررة"
 msgid "Working"
 msgstr "جارٍ العمل"
 
-#: src/shell/Shell.tsx:809
+#: src/shell/Shell.tsx:811
 msgid "Workspace"
 msgstr "مساحة العمل"
 

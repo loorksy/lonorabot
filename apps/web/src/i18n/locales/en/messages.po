@@ -45,7 +45,7 @@ msgstr "{count, plural, one {one agent} two {two agents} few {# agents} many {# 
 msgid "{count, plural, one {one chat} two {two chats} few {# chats} many {# chats} other {# chats}}"
 msgstr "{count, plural, one {one chat} two {two chats} few {# chats} many {# chats} other {# chats}}"
 
-#: src/shell/lists/ThreadRow.tsx:215
+#: src/shell/lists/ThreadRow.tsx:211
 msgid "{count} unread"
 msgstr "{count} unread"
 
@@ -294,7 +294,7 @@ msgstr "Agent info"
 msgid "Agent market scope"
 msgstr "Agent market scope"
 
-#: src/pages/shell/bot-panel.tsx:119
+#: src/pages/shell/bot-panel.tsx:121
 msgid "Agent name"
 msgstr "Agent name"
 
@@ -492,7 +492,7 @@ msgstr "Avatar Studio"
 #~ msgid "Awaiting reconciliation. This operation will not be sent again."
 #~ msgstr "Awaiting reconciliation. This operation will not be sent again."
 
-#: src/pages/shell/bot-panel.tsx:162
+#: src/pages/shell/bot-panel.tsx:164
 #: src/shell/ChatHeader.tsx:57
 #: src/shell/sheets/SheetHost.tsx:580
 #: src/shell/StatePage.tsx:47
@@ -1215,7 +1215,7 @@ msgstr "Create routine"
 msgid "Create task"
 msgstr "Create task"
 
-#: src/pages/shell/bot-panel.tsx:174
+#: src/pages/shell/bot-panel.tsx:176
 msgid "Create the agent"
 msgstr "Create the agent"
 
@@ -1344,7 +1344,7 @@ msgstr "Dependency unavailable"
 
 #: src/pages/Board.tsx:375
 #: src/pages/Board.tsx:377
-#: src/pages/shell/bot-panel.tsx:130
+#: src/pages/shell/bot-panel.tsx:132
 #: src/pages/shell/bot-settings.tsx:114
 msgid "Description"
 msgstr "Description"
@@ -1733,7 +1733,7 @@ msgstr "GPT-Live connects directly over WebRTC using your server-stored OpenAI c
 msgid "GPT-Live is not available for this OpenAI project. Check its API access."
 msgstr "GPT-Live is not available for this OpenAI project. Check its API access."
 
-#: src/shell/lists/ListSheets.tsx:158
+#: src/shell/lists/ListSheets.tsx:159
 #: src/shell/lists/ListSheets.tsx:202
 msgid "Group"
 msgstr "Group"
@@ -1853,15 +1853,15 @@ msgstr "Interval"
 msgid "Isolated document preview"
 msgstr "Isolated document preview"
 
-#: src/pages/shell/bot-panel.tsx:156
+#: src/pages/shell/bot-panel.tsx:158
 msgid "It gathers information and summarises it, and needs no permissions."
 msgstr "It gathers information and summarises it, and needs no permissions."
 
-#: src/pages/shell/bot-panel.tsx:154
+#: src/pages/shell/bot-panel.tsx:156
 msgid "It starts at «Ask me»: every order is shown to you before it is sent. The level is changed from its chat."
 msgstr "It starts at «Ask me»: every order is shown to you before it is sent. The level is changed from its chat."
 
-#: src/pages/shell/bot-panel.tsx:157
+#: src/pages/shell/bot-panel.tsx:159
 msgid "It starts at «No trading». The level is changed from its chat."
 msgstr "It starts at «No trading». The level is changed from its chat."
 
@@ -2076,7 +2076,7 @@ msgstr "Lonora needs the microphone for dictation, voice messages and calls. Not
 msgid "Main navigation"
 msgstr "Main navigation"
 
-#: src/shell/Shell.tsx:490
+#: src/shell/Shell.tsx:492
 msgid "Maintenance is still in progress. Try again shortly"
 msgstr "Maintenance is still in progress. Try again shortly"
 
@@ -2268,8 +2268,8 @@ msgstr "Mute microphone"
 msgid "Mute notifications"
 msgstr "Mute notifications"
 
-#: src/shell/lists/ThreadRow.tsx:203
-#: src/shell/lists/ThreadRow.tsx:203
+#: src/shell/lists/ThreadRow.tsx:199
+#: src/shell/lists/ThreadRow.tsx:199
 msgid "Muted"
 msgstr "Muted"
 
@@ -2678,7 +2678,7 @@ msgid "Paused"
 msgstr "Paused"
 
 #: src/shell/AgentsPage.tsx:48
-#: src/shell/lists/ThreadRow.tsx:200
+#: src/shell/lists/ThreadRow.tsx:196
 #: src/shell/NewChatSheet.tsx:74
 msgctxt "agent badge"
 msgid "Paused"
@@ -2727,8 +2727,8 @@ msgstr "Pick a template; the agent's type follows from its role and scope."
 msgid "Pin"
 msgstr "Pin"
 
-#: src/shell/lists/ThreadRow.tsx:208
-#: src/shell/lists/ThreadRow.tsx:208
+#: src/shell/lists/ThreadRow.tsx:204
+#: src/shell/lists/ThreadRow.tsx:204
 msgid "Pinned"
 msgstr "Pinned"
 
@@ -4267,7 +4267,7 @@ msgstr "Try again"
 #~ msgstr "Turn trading ON"
 
 #: src/components/integrations/IntegrationSetup.tsx:73
-#: src/pages/shell/bot-panel.tsx:142
+#: src/pages/shell/bot-panel.tsx:144
 msgid "Type"
 msgstr "Type"
 
@@ -4310,7 +4310,7 @@ msgctxt "chat filter"
 msgid "Unread"
 msgstr "Unread"
 
-#: src/shell/lists/ThreadRow.tsx:221
+#: src/shell/lists/ThreadRow.tsx:217
 msgctxt "marked"
 msgid "Unread"
 msgstr "Unread"
@@ -4514,7 +4514,7 @@ msgstr "Work stopped after repeated interruptions"
 msgid "Working"
 msgstr "Working"
 
-#: src/shell/Shell.tsx:809
+#: src/shell/Shell.tsx:811
 msgid "Workspace"
 msgstr "Workspace"
 
