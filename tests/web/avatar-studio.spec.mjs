@@ -44,7 +44,7 @@ for (const locale of ["en", "ar"])
         .click();
       await page
         .locator("#dialog")
-        .getByRole("button", { name: locale === "ar" ? "وكيل جديد" : "New agent", exact: true })
+        .getByRole("button", { name: locale === "ar" ? /^وكيل جديد/ : /^New agent/ })
         .click();
       await expect(page).toHaveURL(/\/app\/new-agent$/);
       // The creation form is a page; the agent's info opens as a sheet from the chat header.

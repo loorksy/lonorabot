@@ -107,9 +107,7 @@ export function useChatMenu({
                 label={group ? <Trans>Group info</Trans> : <Trans>Agent info</Trans>}
                 onClick={() => openPage("info", "fwd")}
               />
-              {(group || agent?.trading_symbol) && (
-                <MenuRow icon="chart" label={<Trans>Chart</Trans>} onClick={() => openChart()} />
-              )}
+              <MenuRow icon="chart" label={<Trans>Chart</Trans>} onClick={() => openChart()} />
               <MenuRow
                 icon="book"
                 label={<Trans>Knowledge</Trans>}

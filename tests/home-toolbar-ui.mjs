@@ -86,10 +86,7 @@ export function homeToolbarUi(mobile) {
         });
         await create.click();
         await expect(
-          page.getByRole("button", {
-            name: locale === "ar" ? "وكيل جديد" : "New agent",
-            exact: true,
-          }),
+          page.getByRole("button", { name: locale === "ar" ? /^وكيل جديد/ : /^New agent/ }),
         ).toBeVisible();
       } finally {
         fixture({ ...data, action: "cleanup" });

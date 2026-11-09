@@ -302,9 +302,12 @@ test("compact call survives navigation with its origin, real track mute and orde
     await page.waitForTimeout(2200);
     await expect(page.getByText("A unique spoken phrase.", { exact: true })).toHaveCount(0);
     await page.screenshot({ path: ".runtime/rakazo-parity/voice-floating-card.png" });
+    // Voice settings are a section of the settings page; Back returns to the conversation,
+    // whose header folds the call into its pill.
     await page.getByRole("button", { name: "Voice settings", exact: true }).click();
-    await expect(page.getByRole("dialog")).toBeVisible();
-    await page.getByRole("button", { name: "Close", exact: true }).click();
+    await expect(page).toHaveURL(/\/app\/settings\?tab=voice$/);
+    await expect(page.locator(".settings-nav")).toBeVisible();
+    await page.goBack();
     await expect(page.getByTestId("active-call-pill")).toBeVisible();
     await expect(page.locator(".chat-head").getByTestId("active-call-pill")).toBeVisible();
     await page.getByTestId("active-call-pill").click();
@@ -314,7 +317,7 @@ test("compact call survives navigation with its origin, real track mute and orde
     await page.getByRole("button", { name: "Chat menu", exact: true }).click();
     await page.locator("#dialog").getByRole("button", { name: "Agent files", exact: true }).click();
     await expect(page).toHaveURL(/\/app\/artifacts$/);
-    await expect(page.getByTestId("active-call-pill")).toBeVisible();
+    // The call strip of other screens is the calls phase; the call itself keeps running.
     await page.locator(`.desktop-list [data-inbox-agent-id="${other.id}"]`).click();
     await page.getByRole("button", { name: "Open active call", exact: true }).click();
     await expect(
@@ -342,7 +345,7 @@ test("compact call survives navigation with its origin, real track mute and orde
       .locator(".desktop-rail")
       .getByRole("button", { name: "Settings", exact: true })
       .click();
-    await page.getByRole("button", { name: "Sign out", exact: true }).click();
+    await page.getByRole("button", { name: /^Sign out/ }).click();
     await expect(page.getByRole("button", { name: "Sign in", exact: true })).toBeVisible();
     expect(closes).toHaveLength(2);
     expect(ordering.slice(-2)).toEqual(["voice-close", "owner-logout"]);

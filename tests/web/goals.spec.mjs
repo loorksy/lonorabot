@@ -83,6 +83,9 @@ test("a goal is a plan under the agent's level: pause, same-thread wake and canc
     await card.getByRole("button", { name: "Pause", exact: true }).click();
     await expect(card.getByRole("button", { name: "Resume", exact: true })).toBeVisible();
     await page.reload();
+    // Sheets are not remembered across a reload: open the goals again from the chat menu.
+    await page.getByRole("button", { name: "Chat menu", exact: true }).click();
+    await page.locator("#dialog").getByRole("button", { name: "Goals", exact: true }).click();
     await expect(card.getByRole("button", { name: "Resume", exact: true })).toBeVisible();
     await card.getByRole("button", { name: "Resume", exact: true }).click();
     await expect(card.getByRole("button", { name: "Pause", exact: true })).toBeVisible();
@@ -197,6 +200,8 @@ test("a Shadow goal is visibly virtual, needs no goal autonomy and pauses when t
       ).ok(),
     ).toBeTruthy();
     await page.reload();
+    await page.getByRole("button", { name: "Chat menu", exact: true }).click();
+    await page.locator("#dialog").getByRole("button", { name: "Goals", exact: true }).click();
     await expect(
       card.getByText("Shadow trading — virtual orders only", { exact: true }),
     ).toBeVisible();

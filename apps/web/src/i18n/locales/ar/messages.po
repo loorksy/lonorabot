@@ -174,7 +174,7 @@ msgstr "الوكيل"
 msgid "Agent collaboration"
 msgstr "تعاون الوكلاء"
 
-#: src/shell/ChatMenu.tsx:139
+#: src/shell/ChatMenu.tsx:137
 msgid "Agent files"
 msgstr "ملفات الوكيل"
 
@@ -351,7 +351,7 @@ msgstr "استوديو الأفاتار"
 #~ msgstr "بانتظار مطابقة التنفيذ. لن تُرسل هذه العملية مرة أخرى."
 
 #: src/shell/ChatHeader.tsx:57
-#: src/shell/sheets/SheetHost.tsx:554
+#: src/shell/sheets/SheetHost.tsx:568
 #: src/shell/StatePage.tsx:47
 #: src/shell/StatePage.tsx:72
 #: src/shell/TopBar.tsx:53
@@ -623,7 +623,7 @@ msgid "Channel"
 msgstr "قناة"
 
 #: src/shell/ChatMenu.tsx:62
-#: src/shell/ChatMenu.tsx:111
+#: src/shell/ChatMenu.tsx:110
 msgid "Chart"
 msgstr "الشارت"
 
@@ -765,8 +765,8 @@ msgstr "مسح البحث وإغلاقه"
 #: src/pages/Board.tsx:522
 #: src/pages/RoutineEditor.tsx:103
 #: src/pages/shell/bot-settings.tsx:169
-#: src/shell/sheets/SheetHost.tsx:561
-#: src/shell/sheets/SheetHost.tsx:586
+#: src/shell/sheets/SheetHost.tsx:575
+#: src/shell/sheets/SheetHost.tsx:603
 msgid "Close"
 msgstr "إغلاق"
 
@@ -932,8 +932,8 @@ msgstr "المحتوى"
 msgid "Conversation"
 msgstr "المحادثة"
 
-#: src/shell/pages.tsx:336
-#: src/shell/pages.tsx:338
+#: src/shell/pages.tsx:335
+#: src/shell/pages.tsx:337
 msgid "Conversation history"
 msgstr "سجل المحادثات"
 
@@ -983,7 +983,7 @@ msgid "Create a routine to schedule recurring work."
 msgstr "أنشئ مهمة لجدولة العمل المتكرر."
 
 #: src/pages/shell/bot-panel.tsx:125
-#: src/shell/pages.tsx:72
+#: src/shell/pages.tsx:71
 msgid "Create agent"
 msgstr "إنشاء وكيل"
 
@@ -1003,7 +1003,7 @@ msgstr "إنشاء محادثة"
 msgid "Create group"
 msgstr "إنشاء المجموعة"
 
-#: src/shell/pages.tsx:74
+#: src/shell/pages.tsx:73
 msgctxt "page title"
 msgid "Create group"
 msgstr "إنشاء مجموعة"
@@ -1358,7 +1358,7 @@ msgstr "رابط المصدر أو Webhook"
 msgid "Fibonacci"
 msgstr "فيبوناتشي"
 
-#: src/shell/pages.tsx:60
+#: src/shell/pages.tsx:59
 msgid "Files"
 msgstr "الملفات"
 
@@ -1409,7 +1409,7 @@ msgstr "الهامش المتاح"
 msgid "From"
 msgstr "من"
 
-#: src/shell/sheets/SheetHost.tsx:529
+#: src/shell/sheets/SheetHost.tsx:557
 msgid "Full screen"
 msgstr "ملء الشاشة"
 
@@ -1442,7 +1442,7 @@ msgid "Global trading settings"
 msgstr "إعدادات التداول العالمية"
 
 #: src/shell/ChatMenu.tsx:98
-#: src/shell/ChatMenu.tsx:121
+#: src/shell/ChatMenu.tsx:119
 msgid "Goals"
 msgstr "الأهداف"
 
@@ -1592,15 +1592,15 @@ msgstr "متابعة التعديل"
 #~ msgid "Keep working beside the conversation."
 #~ msgstr "واصل العمل بجانب المحادثة."
 
-#: src/shell/pages.tsx:151
+#: src/shell/pages.tsx:150
 #: src/shell/ShortcutsSheet.tsx:21
 msgid "Keyboard shortcuts"
 msgstr "اختصارات لوحة المفاتيح"
 
 #: src/pages/Knowledge.tsx:20
 #: src/shell/ChatMenu.tsx:96
-#: src/shell/ChatMenu.tsx:115
-#: src/shell/pages.tsx:70
+#: src/shell/ChatMenu.tsx:113
+#: src/shell/pages.tsx:69
 msgid "Knowledge"
 msgstr "المعرفة"
 
@@ -1608,7 +1608,7 @@ msgstr "المعرفة"
 msgid "Knowledge note"
 msgstr "ملاحظة معرفية"
 
-#: src/shell/pages.tsx:78
+#: src/shell/pages.tsx:77
 msgid "Lab"
 msgstr "مختبر الحالات"
 
@@ -1721,7 +1721,7 @@ msgstr "جارٍ تحميل المعاينة…"
 #: src/pages/ScratchpadSection.tsx:94
 #: src/pages/shell/chat-context.tsx:1061
 #: src/pages/SkillsSection.tsx:101
-#: src/shell/pages.tsx:49
+#: src/shell/pages.tsx:48
 msgid "Loading…"
 msgstr "جارٍ التحميل…"
 
@@ -1769,7 +1769,7 @@ msgid "Mark as read"
 msgstr "تحديد كمقروء"
 
 #: src/pages/Market.tsx:23
-#: src/shell/pages.tsx:64
+#: src/shell/pages.tsx:63
 msgid "Market"
 msgstr "السوق"
 
@@ -1870,7 +1870,7 @@ msgstr "الميكروفون مكتوم"
 msgid "Microphone not allowed"
 msgstr "الميكروفون غير مسموح"
 
-#: src/shell/sheets/SheetHost.tsx:529
+#: src/shell/sheets/SheetHost.tsx:557
 msgid "Minimize"
 msgstr "تصغير"
 
@@ -1948,7 +1948,7 @@ msgstr "مجموعة جديدة"
 msgid "New owner skills use explicit activation and read-only metadata. They do not install code or grant permissions."
 msgstr "تستخدم المهارات الخاصة الجديدة التفعيل الصريح وبيانات وصفية للقراءة فقط. لا تثبّت أكوادًا ولا تمنح صلاحيات."
 
-#: src/shell/ChatMenu.tsx:134
+#: src/shell/ChatMenu.tsx:132
 #: src/shell/Welcome.tsx:57
 msgid "New task"
 msgstr "مهمة جديدة"
@@ -2356,7 +2356,7 @@ msgstr "منطقة سعرية"
 #~ msgid "Profile"
 #~ msgstr "الهوية"
 
-#: src/shell/pages.tsx:76
+#: src/shell/pages.tsx:75
 msgctxt "owner"
 msgid "Profile"
 msgstr "الملف الشخصي"
@@ -2602,8 +2602,8 @@ msgstr "استئناف"
 #: src/pages/Routines.tsx:169
 #: src/pages/shell/conversation-inbox.tsx:111
 #: src/pages/shell/message-cards.tsx:184
-#: src/shell/pages.tsx:318
-#: src/shell/pages.tsx:329
+#: src/shell/pages.tsx:317
+#: src/shell/pages.tsx:328
 msgid "Retry"
 msgstr "إعادة المحاولة"
 
@@ -2647,8 +2647,8 @@ msgstr "التوجيه حسب القدرة"
 
 #: src/pages/Routines.tsx:24
 #: src/shell/ChatMenu.tsx:99
-#: src/shell/ChatMenu.tsx:127
-#: src/shell/pages.tsx:68
+#: src/shell/ChatMenu.tsx:125
+#: src/shell/pages.tsx:67
 msgid "Routines"
 msgstr "المهام المجدولة"
 
@@ -2729,7 +2729,7 @@ msgid "Scratchpad"
 msgstr "مسودة العمل"
 
 #: src/pages/SpaceSearch.tsx:124
-#: src/shell/pages.tsx:62
+#: src/shell/pages.tsx:61
 msgid "Search"
 msgstr "بحث"
 
@@ -2933,7 +2933,7 @@ msgstr "تسجيل الدخول"
 msgid "Sign in to your persistent workspace"
 msgstr "سجّل دخولك إلى مساحة عملك الدائمة"
 
-#: src/shell/pages.tsx:165
+#: src/shell/pages.tsx:164
 msgid "Sign out"
 msgstr "تسجيل الخروج"
 
@@ -3587,7 +3587,7 @@ msgstr "نشاط الأدوات"
 msgid "Trade action"
 msgstr "عملية تداول"
 
-#: src/shell/pages.tsx:66
+#: src/shell/pages.tsx:65
 msgid "Trades"
 msgstr "الصفقات"
 

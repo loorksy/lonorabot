@@ -108,12 +108,12 @@ test.describe("phone shell (390×844, Arabic)", () => {
       await page.screenshot({ path: ".runtime/shell/phone-chats-dark.png" });
 
       // Tap: المستجدات slides in; the bare tab has no title bar, the title lives in the page.
-      await nav.getByRole("button", { name: "المستجدات", exact: true }).click();
+      await nav.getByRole("button", { name: /^المستجدات/ }).click();
       await expect(page).toHaveURL(/\/app\/updates$/);
       await expect(page.locator(".topbar")).toHaveClass(/bare/);
       const title = page.locator("main > .large-title");
       await expect(title).toHaveText(/المستجدات/);
-      await expect(nav.getByRole("button", { name: "المستجدات", exact: true })).toHaveAttribute(
+      await expect(nav.getByRole("button", { name: /^المستجدات/ })).toHaveAttribute(
         "aria-current",
         "page",
       );
@@ -145,21 +145,26 @@ test.describe("phone shell (390×844, Arabic)", () => {
           };
         });
       };
+      // The browser serialises inline numbers (1.000 → 1); the custom property keeps its text.
+      const num = (value) => Number.parseFloat(value);
       const rest = await read(0);
       expect(rest.edge).toBe("0.000");
-      expect(rest.opacity).toBe("1.000");
+      expect(num(rest.opacity)).toBe(1);
       expect(rest.transform).toBe("");
       expect(rest.filter).toBe("");
       const half = await read(20); // p = 0.5 of a 40px title
-      expect(half.opacity).toBe("0.350");
-      expect(half.transform).toBe("translateY(9.0px) scale(0.960)");
-      expect(half.crisp).toBe("0.500");
-      expect(half.blur).toBe("0.500");
+      expect(num(half.opacity)).toBeCloseTo(0.35, 3);
+      const moved = half.transform.match(/^translateY\(([\d.]+)px\) scale\(([\d.]+)\)$/);
+      expect(moved).not.toBeNull();
+      expect(num(moved[1])).toBeCloseTo(9, 1); // parallax 0.45 of 20px
+      expect(num(moved[2])).toBeCloseTo(0.96, 3); // −8% at p = 1
+      expect(num(half.crisp)).toBeCloseTo(0.5, 3);
+      expect(num(half.blur)).toBeCloseTo(0.5, 3);
       expect(half.edge).toBe("0.000"); // rest = 60% of the title: 24px
       const edge = await read(28);
       expect(edge.edge).toBe("0.250");
       const gone = await read(60);
-      expect(gone.opacity).toBe("0.000");
+      expect(num(gone.opacity)).toBe(0);
       expect(gone.edge).toBe("1.000");
       // Scrolling down folds the tab bar to icons; a touch unfolds it.
       await main.evaluate((element) => {
@@ -192,8 +197,11 @@ test.describe("phone shell (390×844, Arabic)", () => {
       await swipe(page, "#view-scroll", { x: 200, y: 500 }, { x: 240, y: 500 }, { steps: 4 });
       await expect(page).toHaveURL(/\/app\/tasks$/);
       await expect.poll(() => page.locator(".pager-ghost").count()).toBe(0);
-      // Light theme: the frame takes the reference's ivory background.
-      await page.evaluate(() => localStorage.setItem("lonora.theme", JSON.stringify("light")));
+      // Light theme: the frame takes the reference's ivory background (the sign-in init script
+      // writes the theme on every load, so a later init script switches it).
+      await context.addInitScript(() =>
+        localStorage.setItem("lonora.theme", JSON.stringify("light")),
+      );
       await page.reload();
       await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
       expect(
@@ -211,9 +219,11 @@ test.describe("phone shell (390×844, Arabic)", () => {
     context,
   }) => {
     const data = fixture({ action: "init", empty: true });
-    const { agent, headers } = await tradingAgent(context, data);
+    let trading;
     try {
       await signIn(context, data);
+      trading = await tradingAgent(context, data);
+      const { agent } = trading;
       await page.setViewportSize({ width: 390, height: 844 });
       await page.goto("/app");
       const dialog = page.locator("#dialog");
@@ -278,7 +288,10 @@ test.describe("phone shell (390×844, Arabic)", () => {
       await expect(page).toHaveURL(/\/app$/);
       await expect(page.getByTestId("conversation-inbox")).toBeVisible();
     } finally {
-      await context.request.delete(`/api/agents/${agent.id}`, { headers });
+      if (trading)
+        await context.request.delete(`/api/agents/${trading.agent.id}`, {
+          headers: trading.headers,
+        });
       fixture({ ...data, action: "cleanup" });
     }
   });

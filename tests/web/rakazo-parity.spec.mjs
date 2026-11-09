@@ -108,7 +108,10 @@ test("conversation shows safe generated SVG, cloud chart side panel and persiste
       literal.getByRole("link", { name: "https://example.com", exact: true }),
     ).toHaveAttribute("href", "https://example.com");
     await page.getByRole("button", { name: "New chat", exact: true }).first().click();
-    await page.locator("#dialog").getByRole("button", { name: "New agent", exact: true }).click();
+    await page
+      .locator("#dialog")
+      .getByRole("button", { name: /^New agent/ })
+      .click();
     await expect(page).toHaveURL(/\/app\/new-agent$/);
     const form = page.locator("main");
     await page.getByTestId("agent-market-mode").selectOption("market");

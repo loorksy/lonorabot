@@ -608,8 +608,11 @@ for (const locale of ["en", "ar"])
       expect(await state.read()).toEqual({ enabled: true, emergency_stop: false });
       // The conversation confirms the change in one server-written line.
       await expect(
-        // Written in the conversation's language (Arabic until the owner writes in English).
-        page.getByText(/Trading resumed\. Each agent|استؤنف التداول\. يبقى/),
+        // Written in the conversation's language (Arabic until the owner writes in English); the
+        // chat list beside the conversation previews the same line, so look in the transcript.
+        page
+          .getByTestId("transcript")
+          .getByText(/Trading resumed\. Each agent|استؤنف التداول\. يبقى/),
       ).toBeVisible();
     } finally {
       await state.cleanup();

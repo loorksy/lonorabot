@@ -19,7 +19,10 @@ import { haptic, type Spring, type SpringHandle, springTo } from "../spring";
    from the handle row, the title or content scrolled to its top; release past 30% of its height
    (max 240px) or a downward flick closes it on a spring from the finger's speed, else it springs
    back; the backdrop fades with the travel. Expandable sheets rest at their content's height and
-   rise to the top of the screen (drag, flick or ⤢). ≥900px: a centred modal that fades. */
+   rise to the top of the screen (drag, flick or ⤢). ≥900px: a centred modal that fades.
+   The dialog is shown without the top layer (show(), a sibling backdrop, inert on #app, Escape
+   on the dialog) so the Base UI popups of the screens inside it, which portal to body, paint and
+   receive the pointer above it; a modal top-layer dialog would cover them. */
 export type SheetOptions = {
   /** Re-rendering a sheet with the same id keeps it open and in place. */
   id: string;
@@ -87,7 +90,11 @@ class SheetMotion {
     const H = this.d.offsetHeight || 1;
     this.y = y;
     this.d.style.transform = Math.abs(y) < 0.5 ? "" : `translate3d(0,${y.toFixed(1)}px,0)`;
-    this.d.style.setProperty("--bd", Math.max(0, Math.min(1, 1 - y / H)).toFixed(3));
+    // The backdrop is the dialog's sibling: the layer around both carries the variable.
+    (this.d.parentElement ?? this.d).style.setProperty(
+      "--bd",
+      Math.max(0, Math.min(1, 1 - y / H)).toFixed(3),
+    );
   }
   sync() {
     const d = this.d;
@@ -142,7 +149,7 @@ class SheetMotion {
       if (d.open) d.close();
       this.growReset();
       this.paint(0);
-      d.style.removeProperty("--bd");
+      (d.parentElement ?? d).style.removeProperty("--bd");
       this.hooks.dismissed();
     };
     if (instant || reducedMotion()) return done();
@@ -414,6 +421,9 @@ document.addEventListener(
 
 export function SheetProvider({ children }: { children: ReactNode }) {
   const dialog = useRef<HTMLDialogElement>(null);
+  const backdrop = useRef<HTMLDivElement>(null);
+  /** The element focused when the sheet opened; focus returns to it when the sheet closes. */
+  const opener = useRef<Element | null>(null);
   const motion = useRef<SheetMotion | null>(null);
   const [sheet, setSheet] = useState<Sheet | null>(null);
   const [expanded, setExpanded] = useState(false);
@@ -429,6 +439,11 @@ export function SheetProvider({ children }: { children: ReactNode }) {
     const m = new SheetMotion(d, {
       dismissed: () => {
         const closed = sheetRef.current;
+        document.getElementById("app")?.removeAttribute("inert");
+        const back = opener.current;
+        opener.current = null;
+        if (back instanceof HTMLElement && back.isConnected && !d.contains(back))
+          back.focus({ preventScroll: true });
         setSheet(null);
         setExpanded(false);
         previous.current = null;
@@ -438,13 +453,31 @@ export function SheetProvider({ children }: { children: ReactNode }) {
     });
     motion.current = m;
     const scrolled = () => m.sync();
+    // A tap on the backdrop, or Escape inside an embedded chart (its own document), dismisses.
+    const dismiss = () => {
+      if (d.open) m.out(false);
+    };
+    // Not a modal dialog: Escape reaches it from the focus inside instead of a cancel event.
+    const onEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented || !d.open) return;
+      event.preventDefault();
+      m.out(false);
+    };
+    const shade = backdrop.current;
     d.addEventListener("scroll", scrolled, { passive: true });
+    d.addEventListener("keydown", onEscape);
+    shade?.addEventListener("click", dismiss);
+    window.addEventListener("lonora:chart-escape", dismiss);
     document.addEventListener("pointerdown", m.pointerDown, { passive: true });
     document.addEventListener("pointermove", m.pointerMove, { passive: true });
     document.addEventListener("pointerup", m.pointerUp);
     document.addEventListener("pointercancel", m.pointerCancel);
     return () => {
       d.removeEventListener("scroll", scrolled);
+      d.removeEventListener("keydown", onEscape);
+      shade?.removeEventListener("click", dismiss);
+      window.removeEventListener("lonora:chart-escape", dismiss);
+      document.getElementById("app")?.removeAttribute("inert");
       document.removeEventListener("pointerdown", m.pointerDown);
       document.removeEventListener("pointermove", m.pointerMove);
       document.removeEventListener("pointerup", m.pointerUp);
@@ -483,8 +516,10 @@ export function SheetProvider({ children }: { children: ReactNode }) {
     d.classList.toggle("bar-sheet", !!sheet.bar);
     d.classList.toggle("full-sheet", !!sheet.full);
     if (opening) {
+      opener.current = document.activeElement;
       d.scrollTop = 0;
-      d.showModal();
+      d.show();
+      document.getElementById("app")?.setAttribute("inert", "");
       d.querySelector<HTMLElement>(".sheet-top")?.focus({ preventScroll: true });
     }
     m.sync();
@@ -530,31 +565,45 @@ export function SheetProvider({ children }: { children: ReactNode }) {
   return (
     <Context.Provider value={api}>
       {children}
-      {/* biome-ignore lint/a11y/useKeyWithClickEvents: Escape closes through the dialog's cancel event */}
-      <dialog
-        id="dialog"
-        ref={dialog}
-        aria-label={label}
-        onCancel={(event) => {
-          event.preventDefault();
-          close();
-        }}
-        onClick={(event) => {
-          const d = dialog.current;
-          if (!d || event.target !== d) return;
-          const r = d.getBoundingClientRect();
-          if (event.clientY < r.top || event.clientX < r.left || event.clientX > r.right) close();
-        }}
-      >
-        {sheet?.bar ? (
-          <div className="sheet-top bar" tabIndex={-1}>
-            <div className="handle" aria-hidden="true" />
-            <div className="sheet-bar">
-              {sheet.back ? (
-                <button type="button" className="icon" aria-label={t`Back`} onClick={sheet.back}>
-                  <Icon name="back" />
-                </button>
-              ) : (
+      <div className="sheet-layer">
+        <dialog id="dialog" ref={dialog} aria-label={label}>
+          {sheet?.bar ? (
+            <div className="sheet-top bar" tabIndex={-1}>
+              <div className="handle" aria-hidden="true" />
+              <div className="sheet-bar">
+                {sheet.back ? (
+                  <button type="button" className="icon" aria-label={t`Back`} onClick={sheet.back}>
+                    <Icon name="back" />
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="icon"
+                    aria-label={t`Close`}
+                    onClick={() => close()}
+                  >
+                    <Icon name="close" />
+                  </button>
+                )}
+                <h2>{sheet.title}</h2>
+                <span aria-hidden="true" />
+              </div>
+            </div>
+          ) : (
+            sheet && (
+              <div className="sheet-top" tabIndex={-1}>
+                <div className="handle" aria-hidden="true" />
+                {sheet.expand && (
+                  <button
+                    type="button"
+                    className="icon sheet-expand"
+                    aria-label={expandLabel}
+                    title={expandLabel}
+                    onClick={() => motion.current?.expandToggle()}
+                  >
+                    <Icon name={expanded ? "collapse" : "expand"} />
+                  </button>
+                )}
                 <button
                   type="button"
                   className="icon"
@@ -563,47 +612,26 @@ export function SheetProvider({ children }: { children: ReactNode }) {
                 >
                   <Icon name="close" />
                 </button>
-              )}
-              <h2>{sheet.title}</h2>
-              <span aria-hidden="true" />
-            </div>
-          </div>
-        ) : (
-          sheet && (
-            <div className="sheet-top" tabIndex={-1}>
-              <div className="handle" aria-hidden="true" />
-              {sheet.expand && (
-                <button
-                  type="button"
-                  className="icon sheet-expand"
-                  aria-label={expandLabel}
-                  title={expandLabel}
-                  onClick={() => motion.current?.expandToggle()}
-                >
-                  <Icon name={expanded ? "collapse" : "expand"} />
-                </button>
-              )}
-              <button type="button" className="icon" aria-label={t`Close`} onClick={() => close()}>
-                <Icon name="close" />
-              </button>
-            </div>
-          )
-        )}
-        {sheet?.bar ? (
-          <div key={sheet.page} className={`sheet-page${sheet.dir ? ` go-${sheet.dir}` : ""}`}>
-            {sheet.body}
-          </div>
-        ) : (
-          sheet && (
-            <>
-              <div className="sheet-head">
-                <h2>{sheet.title}</h2>
               </div>
+            )
+          )}
+          {sheet?.bar ? (
+            <div key={sheet.page} className={`sheet-page${sheet.dir ? ` go-${sheet.dir}` : ""}`}>
               {sheet.body}
-            </>
-          )
-        )}
-      </dialog>
+            </div>
+          ) : (
+            sheet && (
+              <>
+                <div className="sheet-head">
+                  <h2>{sheet.title}</h2>
+                </div>
+                {sheet.body}
+              </>
+            )
+          )}
+        </dialog>
+        <div className="sheet-backdrop" ref={backdrop} aria-hidden="true" />
+      </div>
     </Context.Provider>
   );
 }

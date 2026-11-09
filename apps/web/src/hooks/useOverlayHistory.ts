@@ -177,6 +177,8 @@ function listen() {
     if (closedEntry || inactiveBase) {
       // Only user-initiated traversal consumes old entries. UI cleanup never
       // issues an asynchronous Back that could race a new dialog or navigation.
+      // One Back leaves one page: the base before it, with its own closed layers, stays.
+      if (inactiveBase) traversal.skipBase = false;
       window.history.go(traversal.direction);
       if (traversalTimer !== undefined) clearTimeout(traversalTimer);
       // At the end of Forward history there may be no further popstate.

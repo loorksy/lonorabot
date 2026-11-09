@@ -174,7 +174,7 @@ msgstr "Agent"
 msgid "Agent collaboration"
 msgstr "Agent collaboration"
 
-#: src/shell/ChatMenu.tsx:139
+#: src/shell/ChatMenu.tsx:137
 msgid "Agent files"
 msgstr "Agent files"
 
@@ -351,7 +351,7 @@ msgstr "Avatar Studio"
 #~ msgstr "Awaiting reconciliation. This operation will not be sent again."
 
 #: src/shell/ChatHeader.tsx:57
-#: src/shell/sheets/SheetHost.tsx:554
+#: src/shell/sheets/SheetHost.tsx:568
 #: src/shell/StatePage.tsx:47
 #: src/shell/StatePage.tsx:72
 #: src/shell/TopBar.tsx:53
@@ -623,7 +623,7 @@ msgid "Channel"
 msgstr "Channel"
 
 #: src/shell/ChatMenu.tsx:62
-#: src/shell/ChatMenu.tsx:111
+#: src/shell/ChatMenu.tsx:110
 msgid "Chart"
 msgstr "Chart"
 
@@ -765,8 +765,8 @@ msgstr "Clear search and close"
 #: src/pages/Board.tsx:522
 #: src/pages/RoutineEditor.tsx:103
 #: src/pages/shell/bot-settings.tsx:169
-#: src/shell/sheets/SheetHost.tsx:561
-#: src/shell/sheets/SheetHost.tsx:586
+#: src/shell/sheets/SheetHost.tsx:575
+#: src/shell/sheets/SheetHost.tsx:603
 msgid "Close"
 msgstr "Close"
 
@@ -932,8 +932,8 @@ msgstr "Content"
 msgid "Conversation"
 msgstr "Conversation"
 
-#: src/shell/pages.tsx:336
-#: src/shell/pages.tsx:338
+#: src/shell/pages.tsx:335
+#: src/shell/pages.tsx:337
 msgid "Conversation history"
 msgstr "Conversation history"
 
@@ -983,7 +983,7 @@ msgid "Create a routine to schedule recurring work."
 msgstr "Create a routine to schedule recurring work."
 
 #: src/pages/shell/bot-panel.tsx:125
-#: src/shell/pages.tsx:72
+#: src/shell/pages.tsx:71
 msgid "Create agent"
 msgstr "Create agent"
 
@@ -1003,7 +1003,7 @@ msgstr "Create conversation"
 msgid "Create group"
 msgstr "Create group"
 
-#: src/shell/pages.tsx:74
+#: src/shell/pages.tsx:73
 msgctxt "page title"
 msgid "Create group"
 msgstr "Create group"
@@ -1358,7 +1358,7 @@ msgstr "Feed or webhook URL"
 msgid "Fibonacci"
 msgstr "Fibonacci"
 
-#: src/shell/pages.tsx:60
+#: src/shell/pages.tsx:59
 msgid "Files"
 msgstr "Files"
 
@@ -1409,7 +1409,7 @@ msgstr "Free margin"
 msgid "From"
 msgstr "From"
 
-#: src/shell/sheets/SheetHost.tsx:529
+#: src/shell/sheets/SheetHost.tsx:557
 msgid "Full screen"
 msgstr "Full screen"
 
@@ -1442,7 +1442,7 @@ msgid "Global trading settings"
 msgstr "Global trading settings"
 
 #: src/shell/ChatMenu.tsx:98
-#: src/shell/ChatMenu.tsx:121
+#: src/shell/ChatMenu.tsx:119
 msgid "Goals"
 msgstr "Goals"
 
@@ -1592,15 +1592,15 @@ msgstr "Keep editing"
 #~ msgid "Keep working beside the conversation."
 #~ msgstr "Keep working beside the conversation."
 
-#: src/shell/pages.tsx:151
+#: src/shell/pages.tsx:150
 #: src/shell/ShortcutsSheet.tsx:21
 msgid "Keyboard shortcuts"
 msgstr "Keyboard shortcuts"
 
 #: src/pages/Knowledge.tsx:20
 #: src/shell/ChatMenu.tsx:96
-#: src/shell/ChatMenu.tsx:115
-#: src/shell/pages.tsx:70
+#: src/shell/ChatMenu.tsx:113
+#: src/shell/pages.tsx:69
 msgid "Knowledge"
 msgstr "Knowledge"
 
@@ -1608,7 +1608,7 @@ msgstr "Knowledge"
 msgid "Knowledge note"
 msgstr "Knowledge note"
 
-#: src/shell/pages.tsx:78
+#: src/shell/pages.tsx:77
 msgid "Lab"
 msgstr "Lab"
 
@@ -1721,7 +1721,7 @@ msgstr "Loading preview…"
 #: src/pages/ScratchpadSection.tsx:94
 #: src/pages/shell/chat-context.tsx:1061
 #: src/pages/SkillsSection.tsx:101
-#: src/shell/pages.tsx:49
+#: src/shell/pages.tsx:48
 msgid "Loading…"
 msgstr "Loading…"
 
@@ -1769,7 +1769,7 @@ msgid "Mark as read"
 msgstr "Mark as read"
 
 #: src/pages/Market.tsx:23
-#: src/shell/pages.tsx:64
+#: src/shell/pages.tsx:63
 msgid "Market"
 msgstr "Market"
 
@@ -1870,7 +1870,7 @@ msgstr "Microphone muted"
 msgid "Microphone not allowed"
 msgstr "Microphone not allowed"
 
-#: src/shell/sheets/SheetHost.tsx:529
+#: src/shell/sheets/SheetHost.tsx:557
 msgid "Minimize"
 msgstr "Minimize"
 
@@ -1948,7 +1948,7 @@ msgstr "New group"
 msgid "New owner skills use explicit activation and read-only metadata. They do not install code or grant permissions."
 msgstr "New owner skills use explicit activation and read-only metadata. They do not install code or grant permissions."
 
-#: src/shell/ChatMenu.tsx:134
+#: src/shell/ChatMenu.tsx:132
 #: src/shell/Welcome.tsx:57
 msgid "New task"
 msgstr "New task"
@@ -2356,7 +2356,7 @@ msgstr "Price zone"
 #~ msgid "Profile"
 #~ msgstr "Profile"
 
-#: src/shell/pages.tsx:76
+#: src/shell/pages.tsx:75
 msgctxt "owner"
 msgid "Profile"
 msgstr "Profile"
@@ -2602,8 +2602,8 @@ msgstr "Resume"
 #: src/pages/Routines.tsx:169
 #: src/pages/shell/conversation-inbox.tsx:111
 #: src/pages/shell/message-cards.tsx:184
-#: src/shell/pages.tsx:318
-#: src/shell/pages.tsx:329
+#: src/shell/pages.tsx:317
+#: src/shell/pages.tsx:328
 msgid "Retry"
 msgstr "Retry"
 
@@ -2647,8 +2647,8 @@ msgstr "Route by capability"
 
 #: src/pages/Routines.tsx:24
 #: src/shell/ChatMenu.tsx:99
-#: src/shell/ChatMenu.tsx:127
-#: src/shell/pages.tsx:68
+#: src/shell/ChatMenu.tsx:125
+#: src/shell/pages.tsx:67
 msgid "Routines"
 msgstr "Routines"
 
@@ -2729,7 +2729,7 @@ msgid "Scratchpad"
 msgstr "Scratchpad"
 
 #: src/pages/SpaceSearch.tsx:124
-#: src/shell/pages.tsx:62
+#: src/shell/pages.tsx:61
 msgid "Search"
 msgstr "Search"
 
@@ -2933,7 +2933,7 @@ msgstr "Sign in"
 msgid "Sign in to your persistent workspace"
 msgstr "Sign in to your persistent workspace"
 
-#: src/shell/pages.tsx:165
+#: src/shell/pages.tsx:164
 msgid "Sign out"
 msgstr "Sign out"
 
@@ -3587,7 +3587,7 @@ msgstr "Tool activity"
 msgid "Trade action"
 msgstr "Trade action"
 
-#: src/shell/pages.tsx:66
+#: src/shell/pages.tsx:65
 msgid "Trades"
 msgstr "Trades"
 

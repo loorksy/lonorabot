@@ -987,12 +987,29 @@ header.chats-header.search-active .header-search {
     var(--hi);
   font: 400 var(--fs-md) / 1.6 var(--font);
   will-change: transform;
+  /* Above the chrome, below the popups the screens inside open (they stack at 50). */
+  z-index: 40;
 }
-#dialog::backdrop {
+.sheet-layer {
+  display: contents;
+}
+/* The dialog's own backdrop (not the top layer's): it fades with the sheet's travel. */
+.sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 39;
+  display: none;
   background: rgba(5, 6, 8, 0.45);
   -webkit-backdrop-filter: blur(3px);
   backdrop-filter: blur(3px);
   opacity: var(--bd, 1);
+}
+#dialog[open] + .sheet-backdrop {
+  display: block;
+}
+#dialog.closing + .sheet-backdrop {
+  opacity: 0;
+  transition: opacity 0.16s ease-in;
 }
 html.kb-open #dialog {
   padding-bottom: 12px;

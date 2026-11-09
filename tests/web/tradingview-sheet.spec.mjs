@@ -44,11 +44,15 @@ test("chart sheet expands, yields to chart gestures, dismisses with iframe Escap
     await canvas.dispatchEvent("pointerdown", { pointerId: 1, clientX: 50, clientY: 50 });
     await expect(sheet.getByRole("button", { name: "Follow Agent", exact: true })).toBeVisible();
     await canvas.press("Escape");
-    await expect(sheet).toHaveCount(0);
-    await expect(open).toBeFocused();
-    await open.click();
-    await sheet.getByRole("button", { name: "Close chart", exact: true }).click();
-    await expect(sheet).toHaveCount(0);
+    await expect(sheet).not.toHaveAttribute("open", "");
+    // The dialog gives focus back to the button that opened it.
+    const menu = page.getByRole("button", { name: "Chat menu", exact: true });
+    await expect(menu).toBeFocused();
+    await menu.click();
+    await sheet.getByRole("button", { name: "Chart", exact: true }).click();
+    await expect(canvas).toBeVisible();
+    await sheet.getByRole("button", { name: "Close", exact: true }).click();
+    await expect(sheet).not.toHaveAttribute("open", "");
   } finally {
     fixture({ ...data, action: "cleanup" });
   }

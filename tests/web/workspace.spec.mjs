@@ -264,13 +264,17 @@ test("ticket modal and profile creation remain usable under StrictMode and Back"
   await page.getByTestId(`board-card-${ticket.id}`).click();
   await page.goBack();
   await expect(dialog).toHaveCount(0);
-  await expect(page).toHaveURL(/\/app\/board$/);
+  // /app/board is an alias of the reference's المهام tab.
+  await expect(page).toHaveURL(/\/app\/tasks$/);
   await page.goto(`/app/${agent.id}`);
   await page.getByRole("button", { name: "Agent info", exact: true }).click();
   await expect(page.locator("#dialog")).toHaveAttribute("open", "");
   await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "New chat", exact: true }).first().click();
-  await page.locator("#dialog").getByRole("button", { name: "New agent", exact: true }).click();
+  await page
+    .locator("#dialog")
+    .getByRole("button", { name: /^New agent/ })
+    .click();
   await expect(page).toHaveURL(/\/app\/new-agent$/);
   await expect(page.locator("#dialog")).not.toHaveAttribute("open", "");
   await page.getByTestId("agent-market-mode").selectOption("market");
@@ -314,12 +318,19 @@ test("tablet and Arabic phone layouts preserve navigation and unknown-route reco
   await page.evaluate(() => localStorage.setItem("lonora.locale", "ar"));
   await page.reload();
   await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
-  // Back from a conversation on a phone returns to the list; forward history restores it.
+  // Back from a conversation on a phone returns to the list; opening a chat and the browser's
+  // Back and Forward walk the same history.
   await page.getByRole("button", { name: "رجوع", exact: true }).click();
   await expect(page).toHaveURL(/\/app$/);
   await expect(page.locator("nav.tabbar")).toBeVisible();
+  // The list row opens the conversation on its thread.
+  const conversation = new RegExp(`/app/${agent.id}(\\?thread=[^&]+)?$`);
+  await page.locator(`[data-inbox-agent-id="${agent.id}"]`).click();
+  await expect(page).toHaveURL(conversation);
+  await page.goBack();
+  await expect(page).toHaveURL(/\/app$/);
   await page.goForward();
-  await expect(page).toHaveURL(new RegExp(`/app/${agent.id}$`));
+  await expect(page).toHaveURL(conversation);
   const dimensions = await page.evaluate(() => ({
     width: document.documentElement.clientWidth,
     scroll: document.documentElement.scrollWidth,
