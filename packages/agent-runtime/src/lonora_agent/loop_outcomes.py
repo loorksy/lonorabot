@@ -16,7 +16,6 @@ from lonora_db.tasks import OWNER_ATTENTION
 from lonora_tools.context import ToolContext
 
 from .environment import environment_state
-from .progress import progress
 from .runtime_notices import (
     append_notice,
     attention_message,
@@ -101,15 +100,6 @@ def supersede_wait_siblings(messages: list[ModelMessage], pending: list[ToolCall
     After waking, the model must decide again from current external evidence.
     """
     close_unexecuted(messages, pending, "task_wait_requires_fresh_analysis_after_wake")
-
-
-async def report_wait_superseded(context: ToolContext, superseded: list[ToolCall]) -> None:
-    for sibling in superseded:
-        await progress(
-            context,
-            "tool.cancelled",
-            {"name": sibling.name, "call_id": sibling.id, "code": "tool_call_superseded"},
-        )
 
 
 def question_outcome(state: dict[str, Any], question: dict[str, Any]) -> LoopOutcome:

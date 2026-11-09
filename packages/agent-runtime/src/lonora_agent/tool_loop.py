@@ -71,7 +71,6 @@ from .loop_outcomes import (
     final_answer,
     limit_outcome,
     question_outcome,
-    report_wait_superseded,
     request_owner_attention,
     rich_metadata,
 )
@@ -274,7 +273,7 @@ async def finish_turn(
                 context_view=view,
             )
         except LonoraError as error:
-            if error.code in {"stale_lease", "skill_continuation_unavailable"}:
+            if error.code in FENCE_CODES:
                 raise
             # The report is a courtesy at a limit: an unavailable model must not
             # turn the bounded stop into a Run failure. Nothing more executes.
@@ -364,7 +363,7 @@ async def execute_tool_loop(
         return await reenter_external_wait(context, state, messages, pending, save)
     woken = consume_wake(state, messages, pending)
     await save()
-    await report_wait_superseded(context, woken)
+    await report_closed(context, woken, [], "tool_call_superseded")
 
     while True:
         await cancellation_checkpoint(context)

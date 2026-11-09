@@ -21,7 +21,7 @@ from lonora_tools.registry import ToolRegistry
 from lonora_tools.tool_results import store_result
 
 from .context.skills import assert_skill_authority
-from .context_engine import record_observed
+from .context_engine import FENCE_CODES, record_observed
 from .environment import (
     ToolRetryScheduled,
     bounded_result,
@@ -34,7 +34,6 @@ from .loop_outcomes import (
     external_wait_outcome,
     final_answer,
     question_outcome,
-    report_wait_superseded,
     rich_metadata,
     supersede_wait_siblings,
     wait_update,
@@ -197,7 +196,7 @@ async def execute_segment(
                 context, registry, active_ids=state["instruction_skill_ids"]
             )
         except LonoraError as error:
-            if error.code in {"stale_lease", "skill_continuation_unavailable"}:
+            if error.code in FENCE_CODES:
                 raise
             # As for a serial call, any other refusal is each call's observation.
             return [
@@ -241,7 +240,7 @@ async def result_content(context: ToolContext, call: ToolCall, result: dict[str,
     try:
         summary = await store_result(context, call, result, summary)
     except LonoraError as error:
-        if error.code in {"stale_lease", "skill_continuation_unavailable"}:
+        if error.code in FENCE_CODES:
             raise
         summary["result_persisted"] = False
         summary["result_storage_error"] = error.code
@@ -367,7 +366,7 @@ async def execute_next_segment(
         )
         await remember_use(context, registry, exposure, call, result, scope=scope)
         if result.get("_runtime_external_wait"):
-            await report_wait_superseded(context, superseded)
+            await report_closed(context, superseded, [], "tool_call_superseded")
             return external_wait_outcome(state)
         if result.get("_runtime_wait"):
             return question_outcome(state, state["pending_input_request"])

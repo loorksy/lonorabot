@@ -23,17 +23,13 @@ from .context.skills import selected_skill_ids
 from .context_engine import DELEGATED_KEY, DELEGATED_TRIGGERS
 from .continuation import slice_limit
 from .environment import environment_state
-from .loop_outcomes import (
-    LoopOutcome,
-    external_wait_outcome,
-    report_wait_superseded,
-    supersede_wait_siblings,
-)
+from .loop_outcomes import LoopOutcome, external_wait_outcome, supersede_wait_siblings
 from .model_recovery import reset_streak
 from .recovery import restore_execution
 from .runtime_notices import append_notice, resumed_notice
 from .skills.snapshot import read_snapshot
 from .stop_gates import reset_stop_gate
+from .tool_block import report_closed
 from .tool_exposure import ensure_exposure
 from .tool_guardrails import reset_guardrails
 from .tool_intent import start_budget_epoch
@@ -111,7 +107,7 @@ async def reenter_external_wait(
         superseded = list(pending)
         supersede_wait_siblings(messages, pending)
         await save()
-        await report_wait_superseded(context, superseded)
+        await report_closed(context, superseded, [], "tool_call_superseded")
     return external_wait_outcome(state)
 
 
