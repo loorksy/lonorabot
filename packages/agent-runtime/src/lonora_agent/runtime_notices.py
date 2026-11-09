@@ -175,7 +175,7 @@ def attention_notice(reason: str, arabic: bool, incomplete: Sequence[str] = ()) 
     It leads the owner-attention message so a held answer that claims progress
     can never be the only account of work that the runtime knows is unfinished.
     """
-    cause = _ATTENTION_CAUSE.get(reason, ("This task is not finished.", "هذه المهمة لم تكتمل بعد."))
+    cause = _ATTENTION_CAUSE.get(reason, _ATTENTION_CAUSE["task_steps_incomplete"])
     parts = [cause[1] if arabic else cause[0]]
     if incomplete:
         listed = ("، " if arabic else "; ").join(incomplete[:12])

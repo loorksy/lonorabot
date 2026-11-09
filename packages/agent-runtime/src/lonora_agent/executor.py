@@ -71,6 +71,21 @@ async def keep_lease(context: ToolContext, lease_seconds: int, lost: Callable[[]
             break
 
 
+async def record_failure(context: ToolContext, registry: ToolRegistry, code: str) -> None:
+    """Fail the Run with ``code``; once its lease is lost the failure is discarded."""
+    try:
+        async with context.db.sessions() as session, session.begin():
+            await fail_run(
+                session,
+                context.lease,
+                code,
+                read_only_names={tool.name for tool in registry.tools.values() if tool.read_only},
+            )
+        await return_outcome(context.db, context.lease.run_id)
+    except LonoraError:
+        log.info("stale_failure_discarded")
+
+
 async def execute_run(
     context: ToolContext, registry: ToolRegistry, lease_seconds: int, maximum_rounds: int
 ) -> None:
@@ -282,34 +297,10 @@ async def execute_run(
             raise
     except LonoraError as error:
         if error.code != "stale_lease":
-            try:
-                async with context.db.sessions() as session, session.begin():
-                    await fail_run(
-                        session,
-                        context.lease,
-                        error.code,
-                        read_only_names={
-                            tool.name for tool in registry.tools.values() if tool.read_only
-                        },
-                    )
-                await return_outcome(context.db, context.lease.run_id)
-            except LonoraError:
-                log.info("stale_failure_discarded")
+            await record_failure(context, registry, error.code)
     except Exception as error:
         log.error("run_failed type=%s", type(error).__name__)
-        try:
-            async with context.db.sessions() as session, session.begin():
-                await fail_run(
-                    session,
-                    context.lease,
-                    "runtime_error",
-                    read_only_names={
-                        tool.name for tool in registry.tools.values() if tool.read_only
-                    },
-                )
-            await return_outcome(context.db, context.lease.run_id)
-        except LonoraError:
-            log.info("stale_failure_discarded")
+        await record_failure(context, registry, "runtime_error")
     finally:
         heartbeat_task.cancel()
         await asyncio.gather(heartbeat_task, return_exceptions=True)
