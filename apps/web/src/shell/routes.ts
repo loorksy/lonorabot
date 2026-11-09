@@ -2,6 +2,7 @@
 export const ROOTS = ["chats", "updates", "tasks", "settings"] as const;
 export type Root = (typeof ROOTS)[number];
 export const PAGES = [
+  "agents",
   "artifacts",
   "archived",
   "market",

@@ -32,8 +32,6 @@ export type ShellData = {
   patchInbox: (prefs: ThreadPrefs[]) => void;
   setChatLists: (update: (lists: ChatList[]) => ChatList[]) => void;
   setThreadSettings: (settings: ThreadSettings) => void;
-  createAgent: ReturnType<typeof import("../hooks/useAgents").useAgents>["create"];
-  removeAgent: (id: string) => Promise<void>;
   addGroup: (group: Resource) => void;
   signOut: () => Promise<void>;
 };

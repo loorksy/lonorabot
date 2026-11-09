@@ -48,6 +48,11 @@ export function DesktopList({
           label={<Trans>New group</Trans>}
           onSelect={() => nav.go("/app/new-group")}
         />
+        <PopItem
+          icon="bot"
+          label={<Trans>Manage agents</Trans>}
+          onSelect={() => nav.go("/app/agents")}
+        />
         <PopSep />
         <PopItem
           icon="check"

@@ -114,28 +114,30 @@ test("conversation shows safe generated SVG, cloud chart side panel and persiste
       .click();
     await expect(page).toHaveURL(/\/app\/new-agent$/);
     const form = page.locator("main");
-    await page.getByTestId("agent-market-mode").selectOption("market");
-    await form.getByLabel("Name", { exact: true }).fill("Role parity fixture");
-    await form.getByLabel("Title", { exact: true }).fill("Risk analyst");
+    // Owner decision Q9: the template is chosen first and persisted on the agent.
+    await form.getByRole("radio", { name: /^Trading agent/ }).check();
+    await form.getByRole("button", { name: "Next", exact: true }).click();
+    await form.getByLabel("Agent name", { exact: true }).fill("Role parity fixture");
     await form.getByLabel("Description", { exact: true }).fill("Review exposure before trading.");
     await form.getByLabel("Broker account", { exact: true }).selectOption(data.account);
     await page.getByRole("button", { name: "Choose trading pair", exact: true }).click();
     await page.getByRole("option", { name: data.symbol, exact: true }).click();
     const creation = page.waitForResponse(
       (response) =>
-        new URL(response.url()).pathname === "/api/agents" &&
+        new URL(response.url()).pathname === "/api/agents/create" &&
         response.request().method() === "POST",
     );
-    await form.getByRole("button", { name: "Create agent", exact: true }).click();
+    await form.getByRole("button", { name: "Create the agent", exact: true }).click();
     const created = await (await creation).json();
     data.extra_agents.push(created.id);
-    expect(created.title).toBe("Risk analyst");
+    expect(created.template).toBe("trading");
+    expect(created.trading_symbol).toBe(data.symbol);
     expect(created.description).toBe("Review exposure before trading.");
     await page.reload();
     await expect(page.locator(".chat-head .chat-name")).toContainText("Role parity fixture");
     await page.getByRole("button", { name: "Agent info", exact: true }).click();
-    await expect(page.locator("#dialog").getByLabel("Title", { exact: true })).toHaveValue(
-      "Risk analyst",
+    await expect(page.locator("#dialog").getByLabel("Description", { exact: true })).toHaveValue(
+      "Review exposure before trading.",
     );
     expect(errors).toEqual([]);
   } finally {

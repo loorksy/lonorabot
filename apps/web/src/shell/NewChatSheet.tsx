@@ -5,6 +5,7 @@ import { useCallback } from "react";
 import { AgentAvatar } from "../components/ai/AgentAvatar";
 import type { Agent, Resource } from "../lib/api";
 import { useShellData } from "./data";
+import { agentRole } from "./lists/ThreadRow";
 import { useNavigation } from "./navigation";
 import { useSheets } from "./sheets/SheetHost";
 
@@ -62,8 +63,12 @@ function Body({
           >
             <AgentAvatar agent={agent} />
             <span className="body">
-              <strong dir="auto">{agent.name}</strong>
-              <small dir="auto">{agent.title || agent.description}</small>
+              <strong>
+                <bdi>{agent.name}</bdi>
+              </strong>
+              <small>
+                <bdi>{agentRole(agent)}</bdi>
+              </small>
             </span>
             {agent.paused && (
               <span className="status off">{t({ message: "Paused", context: "agent badge" })}</span>
@@ -92,8 +97,12 @@ function Body({
                     <GroupAvatar members={members} />
                   </span>
                   <span className="body">
-                    <strong dir="auto">{String(group.payload.name)}</strong>
-                    <small dir="auto">{String(group.payload.purpose ?? "")}</small>
+                    <strong>
+                      <bdi>{String(group.payload.name)}</bdi>
+                    </strong>
+                    <small>
+                      <bdi>{String(group.payload.purpose ?? "")}</bdi>
+                    </small>
                   </span>
                 </button>
               );
@@ -101,6 +110,9 @@ function Body({
           </div>
         </>
       )}
+      <button type="button" className="btn full ghost" onClick={() => onGo("/app/agents")}>
+        <Trans>Manage agents</Trans>
+      </button>
     </>
   );
 }

@@ -17,6 +17,7 @@ import type { SettingsTab } from "../pages/settings-sidebar";
 import { AgentCreatePanel } from "../pages/shell/bot-panel";
 import { ThreadViewport } from "../pages/shell/chat-context";
 import { useClient } from "../providers/ClientProvider";
+import { AgentsPage } from "./AgentsPage";
 import { useShellData } from "./data";
 import { Lab } from "./Lab";
 import { ArchivedPage, ChatList } from "./lists/ChatList";
@@ -55,6 +56,8 @@ const Legacy = ({ children }: { children: React.ReactNode }) => (
 
 export function pageTitle(page: Page): string {
   switch (page) {
+    case "agents":
+      return t`Agents`;
     case "artifacts":
       return t`Files`;
     case "archived":
@@ -193,6 +196,7 @@ export function DetailPages({
           }
         />
         <Route path="/app/archived" element={<ArchivedPage />} />
+        <Route path="/app/agents" element={<AgentsPage />} />
         <Route
           path="/app/market"
           element={
@@ -228,15 +232,12 @@ export function DetailPages({
         <Route
           path="/app/new-agent"
           element={
-            <Legacy>
-              <AgentCreatePanel
-                create={data.createAgent}
-                onCreated={(row) => {
-                  data.refresh();
-                  nav.go(`/app/${row.id}`, { replace: true });
-                }}
-              />
-            </Legacy>
+            <AgentCreatePanel
+              onCreated={(row) => {
+                data.refresh();
+                nav.go(`/app/${row.id}`, { replace: true });
+              }}
+            />
           }
         />
         <Route

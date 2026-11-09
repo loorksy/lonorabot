@@ -35,38 +35,8 @@ export function useAgents() {
     agents,
     error,
     loading,
-    create: async (
-      name: string,
-      avatar: string,
-      color: string,
-      profile?: {
-        title?: string;
-        description?: string;
-        instructions?: string;
-        scope_mode?: "flexible";
-        trading_account_id?: string | null;
-        trading_symbol?: string | null;
-      },
-    ) => {
-      const agent = await api.post<Agent>("/agents", { name, avatar, color, ...profile });
-      setAgents((rows) =>
-        retainConversation(key, rows.some((row) => row.id === agent.id) ? rows : [...rows, agent]),
-      );
-      refresh();
-      return agent;
-    },
     update: async (id: string, body: Partial<Agent>) => {
       await api.patch(`/agents/${id}`, body);
-      refresh();
-    },
-    remove: async (id: string) => {
-      await api.delete(`/agents/${encodeURIComponent(id)}`);
-      setAgents((rows) =>
-        retainConversation(
-          key,
-          rows.filter((row) => row.id !== id),
-        ),
-      );
       refresh();
     },
   };

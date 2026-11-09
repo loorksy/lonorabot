@@ -15,6 +15,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { flushSync } from "react-dom";
 import { useLocation, useNavigate } from "react-router-dom";
 import { VoiceChatCard } from "../components/call/VoiceChatCard";
 import { useAgents } from "../hooks/useAgents";
@@ -45,6 +46,7 @@ import { DesktopList } from "./DesktopList";
 import { DesktopRail } from "./DesktopRail";
 import { mergePrefs, type ShellData, ShellDataProvider, useShellData } from "./data";
 import { FloatingTabBar, tabLabel } from "./FloatingTabBar";
+import { EASE, flip } from "./flip";
 import { LargeTitle } from "./LargeTitle";
 import { listsApi } from "./lists/api";
 import { chatPath } from "./lists/ChatList";
@@ -53,7 +55,6 @@ import { PopoverProvider } from "./lists/Popover";
 import { SelBar } from "./lists/Selection";
 import { ListsProvider, useLists } from "./lists/state";
 import type { SearchTab } from "./lists/UnifiedSearch";
-import "./lists/lists.css";
 import { isDesktop, reducedMotion, useDesktop } from "./motion";
 import { NetworkStrip, useNetworkPhase } from "./NetworkStrip";
 import { useNewChatSheet } from "./NewChatSheet";
@@ -71,21 +72,26 @@ import { UpdateBar } from "./UpdateBar";
 import { useViewportVars } from "./viewport";
 import { Welcome } from "./Welcome";
 import "./shell.css";
+import "./lists/lists.css";
 
 export function Shell({ onLogout }: { onLogout: () => void }) {
   const { owner } = useClient();
   return (
     <VoiceProvider ownerId={owner.id}>
       <ShellDataLoader onLogout={onLogout}>
-        <SheetProvider>
-          <ToastProvider>
-            <PopoverProvider>
-              <NavigationProvider>
-                <ShellLists />
-              </NavigationProvider>
-            </PopoverProvider>
-          </ToastProvider>
-        </SheetProvider>
+        {/* One scope for the chrome and what the providers float above it (sheets, toast,
+            menus): the reference's defaults reach all of them, the legacy styles none. */}
+        <div className="app-shell">
+          <SheetProvider>
+            <ToastProvider>
+              <PopoverProvider>
+                <NavigationProvider>
+                  <ShellLists />
+                </NavigationProvider>
+              </PopoverProvider>
+            </ToastProvider>
+          </SheetProvider>
+        </div>
       </ShellDataLoader>
     </VoiceProvider>
   );
@@ -96,7 +102,7 @@ function ShellDataLoader({ onLogout, children }: { onLogout: () => void; childre
   const { owner, revision, refresh, events } = useClient();
   const voice = useVoice();
   const navigate = useNavigate();
-  const { agents, create, remove, loading, error: agentError } = useAgents();
+  const { agents, loading, error: agentError } = useAgents();
   const [groups, setGroups] = useState<Resource[]>([]);
   const [runs, setRuns] = useState<Run[]>([]);
   const [inbox, setInbox] = useState<InboxEntry[]>([]);
@@ -209,8 +215,6 @@ function ShellDataLoader({ onLogout, children }: { onLogout: () => void; childre
       runs: observedRuns,
       busyIds,
       refresh,
-      createAgent: create,
-      removeAgent: remove,
       addGroup: (group) => setGroups((rows) => [...rows, group]),
       signOut,
     }),
@@ -232,8 +236,6 @@ function ShellDataLoader({ onLogout, children }: { onLogout: () => void; childre
       observedRuns,
       busyIds,
       refresh,
-      create,
-      remove,
       signOut,
     ],
   );
@@ -419,7 +421,20 @@ function ShellBody() {
     );
   }, [entryKey, route]);
   const updateSearch = useCallback((next: SearchState) => {
-    setSearch(next);
+    // The header gives the field its room (or takes it back) at once; the title, the field and
+    // the + travel with transforms.
+    const header = topRef.current?.querySelector<HTMLElement>("header.chats-header");
+    if (header && next.expanded !== searchRef.current.expanded)
+      flip(
+        [
+          ...header.querySelectorAll<HTMLElement>(
+            ":scope > h1, :scope > .header-search, :scope > .icon",
+          ),
+        ].map((el) => ({ el, scale: el.classList.contains("header-search") })),
+        () => flushSync(() => setSearch(next)),
+        { duration: 200 },
+      );
+    else setSearch(next);
     try {
       window.history.replaceState(
         {
@@ -721,6 +736,7 @@ function ShellBody() {
       onBack={nav.back}
       onNewChat={openNewChat}
       onNewTask={onNewTask}
+      onNewAgent={() => nav.go("/app/new-agent")}
       header={header}
       selection={
         lists.selected &&
@@ -742,7 +758,7 @@ function ShellBody() {
   );
   const selectedKey = agent ? `agent:${agent.id}` : group ? `group:${group.id}` : undefined;
   return (
-    <div className="app-shell">
+    <>
       {desktop ? (
         <div id="app" ref={appRef} className={collapsed ? "list-collapsed" : ""}>
           <DesktopRail
@@ -750,7 +766,30 @@ function ShellBody() {
             chatsBadge={chatsBadge}
             updatesDot={attention.items.length > 0}
             collapsed={collapsed}
-            onToggleCollapsed={() => setCollapsed((value) => !value)}
+            onToggleCollapsed={() => {
+              // The list pane leaves and returns with opacity and a slide; the grid changes at once.
+              const list = appRef.current?.querySelector<HTMLElement>(".desktop-list");
+              if (!list || reducedMotion()) return setCollapsed((value) => !value);
+              // Toward the rail: its side is the inline start.
+              const slide = getComputedStyle(list).direction === "rtl" ? 24 : -24;
+              if (collapsed) {
+                flushSync(() => setCollapsed(false));
+                list.animate(
+                  [
+                    { opacity: 0, transform: `translateX(${slide}px)` },
+                    { opacity: 1, transform: "none" },
+                  ],
+                  { duration: 220, easing: EASE },
+                );
+              } else
+                list.animate(
+                  [
+                    { opacity: 1, transform: "none" },
+                    { opacity: 0, transform: `translateX(${slide}px)` },
+                  ],
+                  { duration: 220, easing: EASE },
+                ).onfinish = () => setCollapsed(true);
+            }}
             onSection={switchTab}
             ownerInitial={owner.email.slice(0, 1).toUpperCase()}
             onOwner={() => nav.go("/app/owner")}
@@ -844,6 +883,6 @@ function ShellBody() {
       <UpdateBar revision={revision} forced={import.meta.env.DEV && forcedUpdate} />
       <HeadsUp currentThreadId={conversation ? openThread : undefined} />
       {maintenance && <MaintenanceOverlay retry={() => void retryMaintenance()} />}
-    </div>
+    </>
   );
 }
