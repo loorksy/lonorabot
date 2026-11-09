@@ -8,6 +8,8 @@ Recorded 2026-11-09 from the owner's answers to the questions in `CAPABILITY_MAP
 - **Agents and groups are never deleted**: only their conversation history is hidden for the owner (Q1, Q44). The server's `DELETE /api/agents/{id}` and `DELETE /api/groups/{id}` get no UI.
 - **Lonora is the only channel to the owner**: no Telegram or other external delivery channels to the owner (Q53). Inbound Telegram to an agent stays as the server has it, with the row reworded.
 - **The agent has access to every tool** and may use them; the UI shows the results in the reference's visual language (Q37).
+- **The team decides UI questions itself** (2026-11-09): within the reference's look, these decisions and the money-safety invariants, Claude and its agents make UI decisions and record the reason. The owner is asked only when the reference and an owner decision or a money-safety invariant genuinely conflict.
+- **The agent decides the shape of each answer** (2026-11-09): text only, text with an interface, or an interface only, chosen every turn from what the owner will do with the answer. No keyword router, no forced interface, no separate classifier call. The behaviour follows Open Intelligent UI (github.com/thesysdev/open-intelligent-ui); the look is the reference's generative UI.
 - **Future**: Lonora may become a hosted product in the style of myclaw.ai; keep the auth layout extensible for that, but do not build multi-user now (Q46). When the mobile app is built, do not forget push notifications and the notification permission flow (Q10).
 
 ## Phase 2 — layout, lists, sheets
