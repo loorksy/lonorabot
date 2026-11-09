@@ -3,12 +3,14 @@ import type { DeviceChallenge, OwnerAction, OwnerActionDecision } from "@lonora/
 import {
   type CredentialForm,
   mergeOwnerAction,
+  OWNER_ACTION_CHANGED,
   type OwnerActionButton,
   type OwnerActionOption,
   ownerActionCard,
   ownerActionChoices,
   ownerActionChoose,
   ownerActionText,
+  rereadOwnerAction,
   submitCredential,
   webDeviceProof,
   webDeviceSupported,
@@ -100,9 +102,19 @@ export function OwnerActionCard({
       if (!mounted.current) return;
       if (cause instanceof ApiError && cause.code === "device_registration_required")
         setEnroll(true);
+      if (cause instanceof ApiError && cause.code === OWNER_ACTION_CHANGED) await reread();
       setError(cause);
     } finally {
       if (mounted.current) setBusy(false);
+    }
+  }
+  /** The card changed on another screen: show it as it is now before another tap. */
+  async function reread() {
+    try {
+      const current = await rereadOwnerAction((path) => api.get<OwnerAction[]>(path), row);
+      if (current && mounted.current) onChanged(current);
+    } catch {
+      // The next runtime revision reads the conversation's cards again.
     }
   }
   async function submit(button: OwnerActionButton) {

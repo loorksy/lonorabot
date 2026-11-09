@@ -299,8 +299,14 @@ def same_terms(left: GrantTerms, right: GrantTerms) -> bool:
 class OwnerActionChallenge(Contract):
     """The owner's choice on a grant card that changes what is signed: including the
     positions the owner opened manually (Custom only; Full delegation always includes
-    them). Sent with the passkey challenge."""
+    them). Sent with the passkey challenge.
 
+    ``delegation`` is the choice the owner's card showed when he tapped (Web and Mobile
+    always send it). The challenge is refused when it differs from the card's stored
+    draft, so the passkey never signs a choice his screen did not show; the card is
+    read again instead."""
+
+    delegation: GrantDelegation | None = None
     allow_manual_positions: bool | None = None
 
 

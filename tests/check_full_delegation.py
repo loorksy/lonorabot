@@ -285,15 +285,37 @@ async def main() -> None:
             "POST", f"/owner-actions/{card_id}/decision", {"decision": "confirm"}
         )
         assert status == 403 and refused["code"] == "owner_action_passkey_required", refused
+        # A screen that still shows Custom (another screen chose Full, or the answer to
+        # that choice was lost) never signs Full: its challenge names Custom, or sends the
+        # own-positions switch only Custom shows, and is refused before anything is
+        # prepared; the card is read again instead.
+        for stale in (
+            {"delegation": "custom", "allow_manual_positions": True},
+            {"delegation": "custom", "allow_manual_positions": False},
+            {"delegation": "custom"},
+            {"allow_manual_positions": True},
+            {"allow_manual_positions": False},
+        ):
+            status, refused = await raw("POST", f"/owner-actions/{card_id}/challenge", stale)
+            assert status == 409, (stale, status, refused)
+            assert refused["code"] == "owner_action_card_changed", (stale, refused)
+        assert (await stored(card_id)).result == {}, "a stale challenge prepared a grant"
+        # A screen showing Full shows no own-positions switch, so it sends none.
         status, refused = await raw(
-            "POST", f"/owner-actions/{card_id}/challenge", {"allow_manual_positions": False}
+            "POST",
+            f"/owner-actions/{card_id}/challenge",
+            {"delegation": "full", "allow_manual_positions": False},
         )
         assert status == 422, (status, refused)
         assert refused["code"] == "owner_action_full_delegation_terms_fixed", refused
-        status, refused = await raw("POST", f"/owner-actions/{card_id}/challenge", {})
+        status, refused = await raw(
+            "POST", f"/owner-actions/{card_id}/challenge", {"delegation": "full"}
+        )
         assert status == 409 and refused["code"] == "device_registration_required", refused
         device = await Device.enroll(fixture)
-        challenge = await fixture.request("POST", f"/owner-actions/{card_id}/challenge", {})
+        challenge = await fixture.request(
+            "POST", f"/owner-actions/{card_id}/challenge", {"delegation": "full"}
+        )
         gold_thread = await fixture.conversation(gold)
         async with db.sessions() as session:
             prepared_id = (await stored(card_id)).result["authority_id"]
@@ -332,15 +354,21 @@ async def main() -> None:
         # The permission composer's identical proposal is the very same pending envelope.
         assert composer["id"] == prepared_id, (composer["id"], prepared_id)
         print(
-            "PASS Full needs the same passkey (enrolling first) and its challenge signs an account-wide envelope with every action, own positions, no expiry and no caps"
+            "PASS a screen still showing Custom never signs Full (owner_action_card_changed, nothing prepared); Full needs the same passkey (enrolling first) and signs an account-wide envelope with every action, own positions, no expiry and no caps"
         )
 
         # 4. Switching after a challenge withdraws the proposal prepared for the other
-        #    choice: a proof for it never confirms the card.
+        #    choice: a proof for it never confirms the card. A screen that still shows
+        #    Full is refused the other way round, and prepares nothing.
         await choose(card_id, "custom")
         async with db.sessions() as session:
             withdrawn = await session.get(AccountAuthorityRow, prepared_id)
             assert withdrawn is not None and withdrawn.status == "revoked"
+        status, refused = await raw(
+            "POST", f"/owner-actions/{card_id}/challenge", {"delegation": "full"}
+        )
+        assert status == 409 and refused["code"] == "owner_action_card_changed", refused
+        assert (await stored(card_id)).result == {}, "a stale challenge prepared a grant"
         status, refused = await raw(
             "POST",
             f"/owner-actions/{card_id}/decision",
@@ -351,12 +379,25 @@ async def main() -> None:
         )
         assert status == 409 and refused["code"] == "owner_action_challenge_required", refused
         assert (await card(lonora_thread["id"], card_id))["status"] == "pending"
-        print("PASS switching the choice withdraws a prepared proposal; its proof signs nothing")
+        print(
+            "PASS switching the choice withdraws a prepared proposal; its proof signs nothing, and a screen still showing the other choice is refused"
+        )
 
         # 5. The owner signs Full: the grant is active, the card set no daily loss limit
-        #    and the account's own limits stay exactly as they were.
+        #    and the account's own limits stay exactly as they were, including a daily
+        #    loss limit he set elsewhere before signing.
+        await fixture.request(
+            "PUT",
+            policy_path,
+            {
+                "risk": {"currency": "USD", "max_trade_risk": "50", "max_daily_loss": "100"},
+                "max_positions": 2,
+            },
+        )
         await choose(card_id, "full")
-        challenge = await fixture.request("POST", f"/owner-actions/{card_id}/challenge", {})
+        challenge = await fixture.request(
+            "POST", f"/owner-actions/{card_id}/challenge", {"delegation": "full"}
+        )
         status, decided = await raw(
             "POST",
             f"/owner-actions/{card_id}/decision",
@@ -371,10 +412,12 @@ async def main() -> None:
         assert decided["decided_via"] == "passkey"
         assert decided["result"]["money_limit"] == "apply", decided["result"]
         assert decided["result"]["delegation"] == "full" and decided["result"]["daily_loss"] is None
+        assert Decimal(decided["result"]["daily_loss_kept"]) == 100, decided["result"]
         assert decided["facts"]["grant"]["delegation"] == "full"
         assert decided["facts"]["grant"]["allow_manual_positions"] is True
+        assert Decimal(decided["facts"]["money"]["daily_loss"]["current"]) == 100
         policy = await fixture.request("GET", policy_path)
-        assert policy["risk"]["max_daily_loss"] is None, policy
+        assert Decimal(policy["risk"]["max_daily_loss"]) == 100, policy
         assert Decimal(policy["risk"]["max_trade_risk"]) == 50 and policy["max_positions"] == 2
         async with db.sessions() as session:
             active = list(
@@ -397,7 +440,7 @@ async def main() -> None:
             assert "passkey" in line.content or "مفتاح المرور" in line.content, line.content
             assert "As you chose" not in line.content and "كما اخترت" not in line.content
         print(
-            "PASS signing Full activates the account-wide grant with one passkey tap; no daily loss limit came from the card and the account's limits are unchanged"
+            "PASS signing Full activates the account-wide grant with one passkey tap; no daily loss limit came from the card and the account's limits, its daily loss limit included, are unchanged"
         )
 
         # 6. The status line and the permission frame show Full delegation.
@@ -483,8 +526,47 @@ async def main() -> None:
                 .where(TradeApprovalRow.run_id == gold_context.lease.run_id)
             )
             assert asked == 0, asked
+        # A losing day: the daily loss limit the owner set elsewhere refuses new risk under
+        # Full, while closing what is open is still allowed.
+        async with db.sessions() as session, session.begin():
+            book = await session.get(TradingAccountRow, account, with_for_update=True)
+            assert book is not None
+            fresh = snapshot()["quotes"]
+            book.payload = {
+                **book.payload,
+                "quotes": fresh,
+                "history": [
+                    *book.payload.get("history", []),
+                    {"time": utcnow().isoformat(), "type": "DEAL_TYPE_SELL", "profit": "-1000"},
+                ],
+            }
+        before = await broker.snapshot()
+        # Not the refused entry above again (the same request in one Run replays its
+        # result): 0.2 lot to a 99.6 stop risks 28, inside the per-trade limit of 50.
+        losing = await call(
+            gold_context,
+            "trade_execute",
+            action="buy",
+            account_id=account,
+            symbol=GOLD,
+            volume="0.2",
+            stop_loss="99.6",
+        )
+        assert losing.get("status") == "failed", losing
+        assert losing.get("code") == "risk_daily_loss_limit", losing
+        assert await broker.snapshot() == before
+        euro = next(item for item in before["positions"] if item["symbol"] == EURO)
+        exit_trade = await call(
+            gold_context,
+            "trade_execute",
+            action="close_position",
+            account_id=account,
+            symbol=EURO,
+            position_id=euro["id"],
+        )
+        assert exit_trade.get("status") == "confirmed", exit_trade
         print(
-            "PASS under Full the agent trades another pair and manages the owner's own position with no card; the account's per-trade risk limit and position cap still refuse"
+            "PASS under Full the agent trades another pair and manages the owner's own position with no card; the account's per-trade risk limit, position cap and daily loss limit still refuse, and exits stay allowed"
         )
 
         # 8. From the owner's own message, Lonora preselects Full; the owner still
@@ -524,6 +606,49 @@ async def main() -> None:
         await fixture.request(
             "POST", f"/owner-actions/{silver_card}/decision", {"decision": "cancel"}
         )
+        # The server reads the owner's words itself: a message that asks only for trading
+        # opens the card on Custom whatever the model passes.
+        plain_context, plain_thread = await owner_context(lonora, "تداول الفضة عني من الآن")
+        plain = await call(
+            plain_context,
+            "owner_action_propose",
+            kind="grant_authority",
+            agent_id=silver["id"],
+            delegation="full",
+        )
+        assert plain["delegation"] == "custom", plain
+        assert plain["full_delegation_not_preselected"] == "owner_did_not_ask_full_delegation"
+        plain_card = plain["owner_action"]["id"]
+        assert (await card(plain_thread["id"], plain_card))["facts"]["grant"][
+            "delegation"
+        ] == "custom"
+        await fixture.request(
+            "POST", f"/owner-actions/{plain_card}/decision", {"decision": "cancel"}
+        )
+        # Full delegation with a daily loss the owner named: Full sets no daily loss limit,
+        # so the result says the limit needs its own card (Custom still carries it).
+        limited_context, _ = await owner_context(
+            lonora, "Give the silver agent full delegation with a 2% daily loss limit"
+        )
+        limited = await call(
+            limited_context,
+            "owner_action_propose",
+            kind="grant_authority",
+            agent_id=silver["id"],
+            delegation="full",
+            daily_loss_percent="2",
+        )
+        assert limited["delegation"] == "full", limited
+        assert limited["requested_daily_loss_needs_limits_card"] is True, limited
+        limited_row = await stored(limited["owner_action"]["id"])
+        assert limited_row.payload["daily_loss"] is None, limited_row.payload
+        assert limited_row.payload["custom"]["daily_loss"]["basis"] == "requested"
+        assert Decimal(limited_row.payload["custom"]["daily_loss"]["percent"]) == 2
+        await fixture.request(
+            "POST",
+            f"/owner-actions/{limited['owner_action']['id']}/decision",
+            {"decision": "cancel"},
+        )
         fixed_context, fixed_thread = await owner_context(
             lonora, "Give the fixed agent full delegation on my account"
         )
@@ -548,7 +673,7 @@ async def main() -> None:
         assert status == 409, (status, refused)
         assert refused["code"] == "owner_action_full_delegation_unavailable", refused
         print(
-            "PASS from the owner's own words Lonora preselects Full and the owner still chooses; a fixed-market agent is never offered Full"
+            "PASS from the owner's own words (checked by the server) Lonora preselects Full and the owner still chooses; a daily loss he named is flagged as needing its own card; a fixed-market agent is never offered Full"
         )
 
         # 9. Nothing changes for grants already signed, or for a card stored before the

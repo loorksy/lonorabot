@@ -15,6 +15,7 @@ from lonora_contracts.owner_actions import (
     OwnerActionProposal,
 )
 from lonora_contracts.risk_limits import MonetaryRiskLimits
+from lonora_core.delegation_words import asks_full_delegation
 from lonora_db.agent_permissions import default_level
 from lonora_db.owner_actions import (
     ALL_ACTIONS,
@@ -287,3 +288,45 @@ def test_the_choice_is_a_grant_field_and_a_decision_that_signs_nothing() -> None
     assert choose.proof is None and choose.delegation == "full"
     with pytest.raises(ValidationError):
         OwnerActionDecision.model_validate({"decision": "choose", "delegation": "everything"})
+
+
+@pytest.mark.parametrize(
+    "words",
+    [
+        "فوّض وكيل الفضة تفويضًا كاملًا على حسابي",
+        "أعطه تفويض كامل",
+        "التفويض الكامل لوكيل الذهب",
+        "فوضه بالكامل",
+        "أعطِ لونورا كل الصلاحيات على حسابي",
+        "صلاحيات التداول الكاملة",
+        "صلاحية مطلقة على الحساب",
+        "تحكم كامل بحسابي",
+        "Give the gold agent full delegation",
+        "I want to fully delegate my account",
+        "delegate everything to it",
+        "give it complete control",
+        "full trading authority please",
+        "carte blanche on my account",
+    ],
+)
+def test_owner_words_asking_for_full_delegation(words: str) -> None:
+    assert asks_full_delegation(words)
+
+
+@pytest.mark.parametrize(
+    "words",
+    [
+        "trade gold for me",
+        "تداول الذهب عني من الآن",
+        "give me a full analysis of gold",
+        "تحليل كامل للذهب",
+        "trade all pairs for me until I stop you",
+        "إدارة المخاطر بشكل كامل",
+        "open a full position on EURUSD",
+        "خله يتداول بنفسه على الذهب",
+        "",
+    ],
+)
+def test_owner_words_not_asking_for_full_delegation(words: str) -> None:
+    """A Full card opens only from the owner's words; anything else opens on Custom."""
+    assert not asks_full_delegation(words)

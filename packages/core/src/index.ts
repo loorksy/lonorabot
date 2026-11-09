@@ -74,6 +74,7 @@ export {
   type CredentialPost,
   credentialForm,
   mergeOwnerAction,
+  OWNER_ACTION_CHANGED,
   type OwnerActionButton,
   type OwnerActionOption,
   type OwnerActionSpec,
@@ -84,6 +85,7 @@ export {
   ownerActionError,
   ownerActionLabels,
   ownerActionText,
+  rereadOwnerAction,
   submitCredential,
 } from "./owner-actions";
 export {

@@ -1,12 +1,14 @@
 import type { DeviceChallenge, OwnerAction, OwnerActionDecision } from "@lonora/contracts";
 import {
   type CredentialForm,
+  OWNER_ACTION_CHANGED,
   type OwnerActionButton,
   type OwnerActionOption,
   ownerActionCard,
   ownerActionChoices,
   ownerActionChoose,
   ownerActionText,
+  rereadOwnerAction,
   submitCredential,
 } from "@lonora/core";
 import { useEffect, useRef, useState } from "react";
@@ -68,12 +70,22 @@ export function OwnerActionCard({
     } catch (reason) {
       if (reason instanceof ApiError && reason.code === "device_registration_required")
         setEnroll(true);
+      if (reason instanceof ApiError && reason.code === OWNER_ACTION_CHANGED) await reread();
       setError(errorText(reason));
     } finally {
       pending.current = false;
       setBusy(false);
     }
   }
+  // The card changed on another screen: show it as it is now before another tap.
+  const reread = async () => {
+    try {
+      const current = await rereadOwnerAction((path) => api.get<OwnerAction[]>(path), row);
+      if (current) onChange(current);
+    } catch {
+      // The next poll reads the conversation's cards again.
+    }
+  };
   // The tap that found no passkey on this device: registering continues straight into it.
   const waiting = useRef<OwnerActionButton | null>(null);
   const decide = (button: OwnerActionButton) =>

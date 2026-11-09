@@ -288,5 +288,12 @@ export type OwnerActionDecision = {
   /** connect_credential: what the secure form created; never the value it holds. */
   connected?: { resource: "integration" | "mcp" | "broker"; id: string };
 };
-/** Grant card: the owner's choice that changes what the passkey signs. */
-export type OwnerActionChallenge = { allow_manual_positions?: boolean };
+/**
+ * Grant card: the owner's choice that changes what the passkey signs (his own positions,
+ * under Custom only), and the choice the card showed when he tapped. The server refuses a
+ * challenge whose choice differs from the card's stored draft (owner_action_card_changed).
+ */
+export type OwnerActionChallenge = {
+  delegation?: GrantDelegation;
+  allow_manual_positions?: boolean;
+};

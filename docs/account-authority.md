@@ -35,7 +35,12 @@ passkey step. Nothing in the envelope names the choice: a signed grant with exac
 terms is recognized as Full delegation (`full_delegation`) by the readiness projection
 (`full_delegation` on each grant and in the On its own params), the safety sheet and
 the permission frame (`full_delegation` on each authorized scope). Grants already signed
-keep exactly what they signed.
+keep exactly what they signed; the Full delegation label follows the signed terms, so a
+grant signed earlier, or from Custom, with exactly these terms reads as Full delegation
+without any change to what it may do. A grant card's passkey challenge names the choice
+the card showed and is refused when the stored choice changed meanwhile
+(`owner_action_card_changed`), so the passkey never signs Full while the owner's card
+shows Custom.
 
 ## The ladder: No trading / Ask me / On its own
 

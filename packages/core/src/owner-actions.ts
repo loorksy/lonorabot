@@ -859,7 +859,10 @@ function grantCard(card: OwnerAction, locale: string, lang: Language, now: Date)
           : {}),
       });
   if (grant) {
-    if (!pending && delegation === "full") lines.push(text.delegationFull);
+    // Signed: the label follows the signed terms, as the readiness line and safety sheet
+    // read them, so a Custom card that signed exactly Full's terms says so too.
+    if (!pending && (delegation === "full" || (card.status === "confirmed" && fullTerms(grant))))
+      lines.push(text.delegationFull);
     const account = accountLabel(facts.account, text);
     if (account) lines.push(`${text.account}: ${account}`);
     lines.push(`${text.markets}: ${marketsLabel(grant.symbol_scope, grant.symbols, text, lang)}`);
@@ -974,6 +977,19 @@ function grantCard(card: OwnerAction, locale: string, lang: Language, now: Date)
   };
 }
 
+/** A card's grant terms are Full delegation's (``full_delegation`` in
+ * lonora_contracts.account_authority reads a card's envelope the same way: a card signs no
+ * cap of its own): every pair on the account, every action, until stopped, the owner's own
+ * positions too. */
+function fullTerms(grant: NonNullable<OwnerAction["facts"]["grant"]>): boolean {
+  return (
+    grant.symbol_scope === "account" &&
+    grant.all_actions &&
+    grant.duration === "until_stopped" &&
+    grant.allow_manual_positions
+  );
+}
+
 /** A grant card's stored choice: Custom unless the server's draft says Full. */
 function grantDelegation(card: OwnerAction): GrantDelegation {
   return card.facts.grant?.delegation === "full" ? "full" : "custom";
@@ -985,9 +1001,10 @@ export function ownerActionChoose(option: OwnerActionOption): OwnerActionDecisio
   return option.choice ? { decision: "choose", delegation: option.choice.value } : null;
 }
 
-/** What a grant card's switches send: the passkey challenge carries the owner's own
- * positions choice under Custom (it is signed; Full always includes them); the decision
- * carries the rest. */
+/** What a grant card's switches send: the passkey challenge carries the choice the card
+ * shows (the server refuses it if the stored choice changed meanwhile) and the owner's
+ * own positions switch under Custom (it is signed; Full always includes them); the
+ * decision carries the rest. */
 export function ownerActionChoices(
   card: OwnerAction,
   chosen: Readonly<Record<string, boolean>>,
@@ -1012,8 +1029,8 @@ export function ownerActionChoices(
   return {
     challenge:
       grantDelegation(card) === "full"
-        ? {}
-        : { allow_manual_positions: value("manual", initial("manual")) },
+        ? { delegation: "full" }
+        : { delegation: "custom", allow_manual_positions: value("manual", initial("manual")) },
     decision,
   };
 }
@@ -1569,6 +1586,21 @@ export function ownerActionCard(
   };
 }
 
+/** A refusal that means the card changed on another screen (a grant card's choice): the
+ * client reads the card again so it shows what the passkey would sign now. */
+export const OWNER_ACTION_CHANGED = "owner_action_card_changed";
+
+/** The card as the server reads it now (null when it is gone), through the same list
+ * route Web and Mobile already read their conversation's cards from. */
+export async function rereadOwnerAction(
+  get: (path: string) => Promise<OwnerAction[]>,
+  row: OwnerAction,
+): Promise<OwnerAction | null> {
+  if (!row.thread_id) return null;
+  const rows = await get(`/owner-actions?thread_id=${encodeURIComponent(row.thread_id)}`);
+  return rows.find((item) => item.id === row.id) ?? null;
+}
+
 /** A newer status never goes back to pending when an older read arrives late. */
 export function mergeOwnerAction(previous: OwnerAction, next: OwnerAction): OwnerAction {
   if (previous.status !== "pending" && next.status === "pending") return previous;
@@ -1631,6 +1663,10 @@ const errors: Readonly<Record<string, { en: string; ar: string }>> = {
   owner_action_delegation_required: {
     en: "Choose Custom or Full delegation.",
     ar: "اختر مخصص أو تفويض كامل.",
+  },
+  owner_action_card_changed: {
+    en: "This card changed on another screen. It now shows the current choice; check it and tap again.",
+    ar: "تغيّرت هذه البطاقة من شاشة أخرى، وهي تعرض الآن الاختيار الحالي؛ راجعها ثم اضغط مجددًا.",
   },
   owner_action_choice_unsupported: {
     en: "This card has no such choice.",

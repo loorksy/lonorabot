@@ -28,7 +28,10 @@ the assertion (``finish_activation``). The card's other choices only narrow (the
 loss limit, stopping another agent's grant) or widen nothing (Resume). Its one choice,
 Custom or Full delegation, is a ``choose`` decision: it rewrites the stored draft the
 next challenge signs and withdraws a proposal an earlier challenge prepared; it settles
-nothing and grants nothing, and Full needs the same passkey confirmation as Custom.
+nothing and grants nothing, and Full needs the same passkey confirmation as Custom. The
+challenge names the choice the owner's card showed and is refused
+(``owner_action_card_changed``) when another screen changed the stored choice since, so
+the passkey never signs a choice the owner's screen did not show.
 """
 
 from dataclasses import dataclass
@@ -208,10 +211,17 @@ async def grant_challenge(
         raise LonoraError("owner_action_not_needed_" + reason, 409)
     await authority_lock(session, owner.id + ":devices")
     draft = GrantDraft.model_validate(row.payload)
-    if body.allow_manual_positions is not None and draft.delegation == "full":
-        # Full delegation always includes the owner's own positions: the card says so,
-        # so the passkey never signs anything else under that choice.
-        if not body.allow_manual_positions:
+    # The choice the owner's card showed: the one it names, or Custom when it sent the
+    # own-positions switch only Custom shows. Another screen may have changed the stored
+    # choice since (or the answer to a choice was lost): the passkey then signs nothing
+    # and the card is read again, so it never signs Full while the card shows Custom.
+    shown = body.delegation or ("custom" if body.allow_manual_positions is not None else None)
+    if shown is not None and shown != draft.delegation:
+        raise LonoraError("owner_action_card_changed", 409)
+    if draft.delegation == "full":
+        # Full delegation always includes the owner's own positions: the card says so
+        # and shows no switch, so the passkey never signs anything else under it.
+        if body.allow_manual_positions is not None:
             raise LonoraError("owner_action_full_delegation_terms_fixed", 422)
     elif body.allow_manual_positions is not None:
         # The owner's own switch on the card; it is part of what the passkey signs.

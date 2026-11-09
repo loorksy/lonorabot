@@ -227,6 +227,7 @@ const delegation = {
       "تبقى الحدود المالية التي ضبطتها لهذا الحساب في مكان آخر نافذة؛ وإزالتها خطوة منفصلة بمفتاح المرور.",
     markets: "الأسواق: كل أزواج هذا الحساب",
     ownIncluded: "يشمل المراكز التي فتحتها بنفسك",
+    changed: "تغيّرت هذه البطاقة من شاشة أخرى، وهي تعرض الآن الاختيار الحالي؛ راجعها ثم اضغط مجددًا.",
   },
   en: {
     custom: "Custom",
@@ -237,6 +238,8 @@ const delegation = {
       "Money limits you set on this account elsewhere stay in force; removing them is a separate step with your passkey.",
     markets: "Markets: All pairs on this account",
     ownIncluded: "Positions you opened yourself are included",
+    changed:
+      "This card changed on another screen. It now shows the current choice; check it and tap again.",
   },
 };
 
@@ -342,6 +345,111 @@ for (const locale of ["ar", "en"])
       );
       await second.getByRole("button", { name: text.notNow, exact: true }).click();
       await expect(second.getByText(text.dismissed, { exact: true })).toBeVisible();
+    } finally {
+      await context.request.delete(`/api/agents/${agent.id}`, { headers });
+      simulation({ ...data, action: "cleanup" });
+    }
+  });
+
+for (const locale of ["ar", "en"])
+  test(`Expo ${locale}: a grant card changed on another screen is read again and never signs the other choice`, async ({
+    page,
+    context,
+  }) => {
+    test.setTimeout(90000);
+    const text = { ...copy[locale], ...delegation[locale] };
+    const data = simulation({ action: "init", empty: true });
+    await context.addCookies(
+      data.cookies.map((cookie) => ({
+        ...cookie,
+        url: test.info().project.use.baseURL,
+        httpOnly: cookie.name === "lonora_session",
+        sameSite: "Strict",
+      })),
+    );
+    await context.addInitScript((value) => localStorage.setItem("lonora.locale", value), locale);
+    const headers = {
+      "X-CSRF-Token": data.cookies.find((row) => row.name === "lonora_csrf").value,
+    };
+    const created = await context.request.post("/api/agents", {
+      headers,
+      data: {
+        name: `Native stale ${randomUUID().slice(0, 6)}`,
+        scope_mode: "flexible",
+        trading_account_id: data.account,
+        trading_symbol: data.symbol,
+      },
+    });
+    expect(created.status()).toBe(201);
+    const agent = await created.json();
+    const thread = await (
+      await context.request.post(`/api/agents/${agent.id}/conversation`, { headers, data: {} })
+    ).json();
+    const cards = async () =>
+      (await context.request.get(`/api/owner-actions?thread_id=${thread.id}`)).json();
+    try {
+      const seeded = seedCard({
+        kind: "grant_authority",
+        account: data.account,
+        symbol: data.symbol,
+        agent: agent.id,
+        thread: thread.id,
+      });
+      // This screen keeps what it last read until its tap reaches the server: another
+      // screen's choice (or a lost answer to one) has not reached it yet.
+      let frozen = null;
+      await page.route(
+        (url) => url.pathname.endsWith("/owner-actions"),
+        async (route) => {
+          if (frozen && route.request().method() === "GET") await route.fulfill({ json: frozen });
+          else await route.continue();
+        },
+      );
+      const challenges = [];
+      await page.route(
+        (url) => url.pathname.endsWith(`/owner-actions/${seeded.id}/challenge`),
+        async (route) => {
+          challenges.push(route.request().postDataJSON());
+          frozen = null;
+          await route.continue();
+        },
+      );
+      await page.goto(`/thread?id=${thread.id}`);
+      const card = page.getByTestId(`owner-action-${seeded.id}`);
+      const custom = card.getByTestId("owner-action-choice-custom");
+      const full = card.getByTestId("owner-action-choice-full");
+      await expect(custom).toHaveAttribute("aria-checked", "true");
+      await expect(card.getByTestId("owner-action-option-manual")).toBeVisible();
+      frozen = await cards();
+      // The owner picks Full on another screen; this one still shows Custom.
+      const other = await context.request.post(`/api/owner-actions/${seeded.id}/decision`, {
+        headers,
+        data: { decision: "choose", delegation: "full" },
+      });
+      expect(other.ok()).toBeTruthy();
+      await expect(custom).toHaveAttribute("aria-checked", "true");
+      await card.getByRole("button", { name: text.authorize, exact: true }).click();
+      // Refused before any passkey prompt: the card is read again and shows Full now.
+      await expect(card.getByText(text.changed, { exact: true })).toBeVisible();
+      await expect(full).toHaveAttribute("aria-checked", "true");
+      await expect(card.getByTestId("owner-action-choice-detail-full")).toContainText(
+        text.fullMeaning,
+      );
+      await expect(card.getByTestId("owner-action-option-manual")).toHaveCount(0);
+      await expect(card.getByText(text.markets, { exact: true })).toBeVisible();
+      expect(challenges).toEqual([{ delegation: "custom", allow_manual_positions: false }]);
+      // Nothing was prepared or signed.
+      const stored = (await cards()).find((row) => row.id === seeded.id);
+      expect(stored.status).toBe("pending");
+      expect(stored.result).toEqual({});
+      const level = await (await context.request.get(`/api/agents/${agent.id}/permissions`)).json();
+      expect(level.effective_level).toBe("supervised");
+      if (locale === "ar")
+        await card.screenshot({
+          path: test.info().outputPath("owner-action-changed-native-ar.png"),
+        });
+      await card.getByRole("button", { name: text.notNow, exact: true }).click();
+      await expect(card.getByText(text.dismissed, { exact: true })).toBeVisible();
     } finally {
       await context.request.delete(`/api/agents/${agent.id}`, { headers });
       simulation({ ...data, action: "cleanup" });
