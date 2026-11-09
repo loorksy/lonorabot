@@ -15,7 +15,11 @@ function measure() {
     view.scale > 1.01 ? 0 : Math.max(0, Math.round(innerHeight - view.height - view.offsetTop));
   if (root.style.getPropertyValue("--kb") !== `${kb}px`) root.style.setProperty("--kb", `${kb}px`);
   root.classList.toggle("kb-open", kb > 80);
+  if (kb > 150) lastKeyboard = kb;
 }
+let lastKeyboard = 0;
+/** The last real keyboard height: the emoji panel opens at the same height (250–360, 300). */
+export const keyboardHeight = () => Math.round(Math.min(360, Math.max(250, lastKeyboard || 300)));
 function focused(event: FocusEvent) {
   const target = event.target;
   if (

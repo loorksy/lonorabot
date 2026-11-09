@@ -23,6 +23,7 @@ export function TopBar({
   onNewChat,
   onNewTask,
   header,
+  selection,
   children,
 }: {
   topRef?: RefObject<HTMLElement | null>;
@@ -36,6 +37,8 @@ export function TopBar({
   onNewTask: () => void;
   /** The conversation header, when the route is a conversation. */
   header?: ReactNode;
+  /** The selection toolbar replaces the header on the chat list and the archived page. */
+  selection?: ReactNode;
   /** Strips under the header (call, network). */
   children?: ReactNode;
 }) {
@@ -54,14 +57,15 @@ export function TopBar({
       <Icon name="back" />
     </button>
   );
-  const classes = ["topbar", section ? "bare" : "", detail ? "bare bare-detail" : ""]
-    .filter(Boolean)
-    .join(" ");
+  const classes = selection
+    ? "topbar selecting"
+    : ["topbar", section ? "bare" : "", detail ? "bare bare-detail" : ""].filter(Boolean).join(" ");
   const routeName =
     route.kind === "root" ? route.root : route.kind === "page" ? route.page : route.kind;
   return (
     <div ref={topRef as RefObject<HTMLDivElement>} className={classes} data-route={routeName}>
-      {header ??
+      {selection ??
+        header ??
         (section ? (
           tasks ? (
             <div className="float-actions">{newTask}</div>

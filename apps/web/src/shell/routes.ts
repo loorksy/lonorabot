@@ -3,7 +3,7 @@ export const ROOTS = ["chats", "updates", "tasks", "settings"] as const;
 export type Root = (typeof ROOTS)[number];
 export const PAGES = [
   "artifacts",
-  "search",
+  "archived",
   "market",
   "trading",
   "routines",
@@ -31,6 +31,8 @@ const ALIASES: Readonly<Record<string, string>> = {
   notifications: "/app/updates",
   account: "/app/settings",
   capabilities: "/app/settings?tab=capabilities",
+  // Search lives in the chats header (phones) and the list pane (desktop).
+  search: "/app",
 };
 const rootNames = new Set<string>(ROOTS);
 const pageNames = new Set<string>(PAGES);

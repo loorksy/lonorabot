@@ -49,7 +49,7 @@ import { AgentPermissions } from "../../components/permissions/AgentPermissions"
 import { TradeApprovalCard, useTradeApprovals } from "../../components/trading/TradeApprovals";
 import { useThreads } from "../../hooks/useThreads";
 import type { Agent, Message, Resource, Run } from "../../lib/api";
-import { api } from "../../lib/api";
+import { api, isRequestCancelled } from "../../lib/api";
 import { showLatestButton } from "../../lib/chat-scroll";
 import {
   appendDraftFiles,
@@ -66,6 +66,7 @@ import { streamForRun } from "../../lib/response_streaming";
 import { activityTimeline, type StreamRow, streamVisible } from "../../lib/stream-timeline";
 import { userError } from "../../lib/user_error";
 import { useClient } from "../../providers/ClientProvider";
+import { useToast } from "../../shell/Toast";
 import {
   FailedReplyNotice,
   MessageBubble,
@@ -81,6 +82,7 @@ export function ThreadViewport({
   conversationName,
   onOpenChart,
   knownRuns,
+  aroundSeq,
 }: {
   conversationName?: string;
   onOpenChart?: (id: string) => void;
@@ -88,9 +90,33 @@ export function ThreadViewport({
   agentId: string;
   agents: Agent[];
   knownRuns?: Run[];
+  /** A search hit to bring into view (?around=seq). */
+  aroundSeq?: number;
 }) {
   const agent = agents.find((item) => item.id === agentId);
   const thread = useThreads(undefined, threadId, knownRuns);
+  const toast = useToast();
+  const [jump, setJump] = useState<string | null>(null);
+  const loadAround = useRef(thread.around);
+  loadAround.current = thread.around;
+  useEffect(() => {
+    if (aroundSeq == null) return;
+    let live = true;
+    void loadAround
+      .current(aroundSeq)
+      .then((rows) => {
+        if (!live) return;
+        const hit = rows.find((row) => row.seq === aroundSeq);
+        if (hit) setJump(hit.id);
+        else toast(t`The message is no longer available.`);
+      })
+      .catch((error) => {
+        if (live && !isRequestCancelled(error)) toast(t`The message is no longer available.`);
+      });
+    return () => {
+      live = false;
+    };
+  }, [aroundSeq, toast]);
   const approvalState = useTradeApprovals(threadId);
   const ownerActions = useOwnerActions(threadId);
   const { owner, events, revision, streams, seedStreams, connected } = useClient();
@@ -335,6 +361,7 @@ export function ThreadViewport({
         onPreview={setPreview}
         onOlder={thread.older}
         onRetrySend={thread.retry}
+        jump={jump}
         trailing={
           <div className="thread-progress template-thread-progress">
             <SubagentTasks runs={thread.runs} />
@@ -911,7 +938,10 @@ export function ThreadMessages({
   events = [],
   connected = true,
   previousVisualMessageIds,
+  jump,
 }: {
+  /** A message to scroll to ~29% from the top and flash (a search hit). */
+  jump?: string | null;
   previousVisualMessageIds?: Map<string, string>;
   events?: import("../../lib/api").Event[];
   connected?: boolean;
@@ -983,6 +1013,25 @@ export function ThreadMessages({
       showLatestButton(visible, element.scrollHeight - element.clientHeight - element.scrollTop),
     );
   }, [messages]);
+
+  const jumped = useRef<string | null>(null);
+  useLayoutEffect(() => {
+    const element = scroll.current;
+    // The hit may render after its page arrives: look again whenever the messages change.
+    void messages;
+    if (!jump || !element || jumped.current === jump) return;
+    const target = element.querySelector<HTMLElement>(`[data-message-id="${CSS.escape(jump)}"]`);
+    if (!target) return;
+    jumped.current = jump;
+    following.current = false;
+    const box = element.getBoundingClientRect();
+    element.scrollTop +=
+      target.getBoundingClientRect().top - box.top - Math.max(24, element.clientHeight * 0.29);
+    target.classList.remove("flash");
+    void target.offsetWidth;
+    target.classList.add("flash");
+    setTimeout(() => target.classList.remove("flash"), 1700);
+  }, [jump, messages]);
 
   useEffect(() => {
     const transcript = content.current;

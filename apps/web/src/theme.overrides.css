@@ -1,10 +1,5 @@
 /* Lonora shell with OpenUI AgentInterface layout (MIT, Thesys Inc., revision9d73d17).
    Earlier template-derived rules retain their THIRD_PARTY_NOTICES.md attribution. */
-.tpl-roster-notice {
-  padding: 12px 8px;
-  color: var(--muted-foreground);
-  font-size: 12px;
-}
 .tpl-empty {
   display: flex;
   flex: 1;

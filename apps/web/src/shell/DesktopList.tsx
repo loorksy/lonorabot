@@ -1,37 +1,104 @@
 import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
+import { archivedRowSummary, filterRows } from "@lonora/core";
 import { Icon } from "@lonora/ui-web";
-import { ConversationInbox } from "../pages/shell/conversation-inbox";
 import { useShellData } from "./data";
+import { listsApi } from "./lists/api";
+import { ChatList } from "./lists/ChatList";
+import { PopItem, PopSep, usePopover } from "./lists/Popover";
+import { SelBar } from "./lists/Selection";
+import { useLists } from "./lists/state";
+import { type SearchTab, UnifiedSearch } from "./lists/UnifiedSearch";
+import { useNavigation } from "./navigation";
 import { SkChats } from "./Skeleton";
 
-/* The desktop list pane: head (title, new chat), the search pill, then the conversation rows. */
+/* The desktop list pane: head (title, + new chat, ⋮ list menu; the selection toolbar while
+   selecting), the search pill, then the rows, or the search results while a query is typed. */
 export function DesktopList({
   query,
   onQuery,
+  tab,
+  onTab,
   selected,
-  onOpen,
   onNewChat,
 }: {
   query: string;
   onQuery: (query: string) => void;
+  tab: SearchTab;
+  onTab: (tab: SearchTab) => void;
   selected?: string;
-  onOpen: (path: string) => void;
   onNewChat: () => void;
 }) {
   const data = useShellData();
+  const lists = useLists();
+  const popover = usePopover();
+  const nav = useNavigation();
   const loading = data.agentsLoading || data.groupsLoading || data.inboxLoading;
+  const menu = (anchor: HTMLElement) =>
+    popover.open(
+      anchor,
+      <>
+        <PopItem
+          icon="userPlus"
+          label={<Trans>New agent</Trans>}
+          onSelect={() => nav.go("/app/new-agent")}
+        />
+        <PopItem
+          icon="users"
+          label={<Trans>New group</Trans>}
+          onSelect={() => nav.go("/app/new-group")}
+        />
+        <PopSep />
+        <PopItem
+          icon="check"
+          label={<Trans>Select chats</Trans>}
+          onSelect={() => {
+            const first = filterRows(lists.rows, lists.filter, data.chatLists)[0];
+            if (first) lists.start(first.key);
+          }}
+        />
+        {archivedRowSummary(lists.rows).count > 0 && (
+          <PopItem
+            icon="archive"
+            label={<Trans>Archived</Trans>}
+            onSelect={() => nav.go("/app/archived")}
+          />
+        )}
+        <PopItem
+          icon="checks"
+          label={<Trans>Mark all as read</Trans>}
+          onSelect={() => void listsApi.readAll().then(data.patchInbox).catch(lists.failed)}
+        />
+      </>,
+      t`List options`,
+    );
   return (
     <aside className="desktop-list" aria-label={t`Chat list`}>
       <div className="desktop-list-head">
-        <h2>
-          <Trans>Chats</Trans>
-        </h2>
-        <button type="button" className="icon" aria-label={t`New chat`} onClick={onNewChat}>
-          <Icon name="plus" />
-        </button>
+        {lists.selected ? (
+          <SelBar />
+        ) : (
+          <>
+            <h2>
+              <Trans>Chats</Trans>
+            </h2>
+            <button type="button" className="icon" aria-label={t`New chat`} onClick={onNewChat}>
+              <Icon name="plus" />
+            </button>
+            <button
+              type="button"
+              className="icon"
+              aria-label={t`List options`}
+              aria-haspopup="menu"
+              aria-expanded="false"
+              onClick={(event) => menu(event.currentTarget)}
+            >
+              <Icon name="more" />
+            </button>
+          </>
+        )}
       </div>
-      <label className={`list-search${query.trim() ? " has-query" : ""}`}>
+      <search className={`list-search${query.trim() ? " has-query" : ""}`}>
         <Icon name="search" />
         <input
           id="desktop-search"
@@ -57,26 +124,14 @@ export function DesktopList({
         >
           <Icon name="close" />
         </button>
-      </label>
+      </search>
       <div className="desktop-threads" id="desktop-threads">
-        {loading && !data.agents.length && !data.groups.length ? (
+        {query.trim() ? (
+          <UnifiedSearch query={query} tab={tab} onTab={onTab} />
+        ) : loading && !data.agents.length && !data.groups.length ? (
           <SkChats />
         ) : (
-          <ConversationInbox
-            agents={data.agents}
-            groups={data.groups}
-            entries={data.inbox}
-            loading={loading}
-            error={data.inboxError}
-            busyIds={data.busyIds}
-            onOpen={onOpen}
-            onCreate={onNewChat}
-            onRetry={data.refresh}
-            query={query}
-            searching={false}
-            onQueryChange={onQuery}
-            selected={selected}
-          />
+          <ChatList selectedKey={selected} />
         )}
       </div>
     </aside>

@@ -66,9 +66,7 @@ function Body({
               <small dir="auto">{agent.title || agent.description}</small>
             </span>
             {agent.paused && (
-              <span className="status off">
-                <Trans>Paused</Trans>
-              </span>
+              <span className="status off">{t({ message: "Paused", context: "agent badge" })}</span>
             )}
           </button>
         ))}
@@ -95,7 +93,7 @@ function Body({
                   </span>
                   <span className="body">
                     <strong dir="auto">{String(group.payload.name)}</strong>
-                    <small>{members.map((member) => member.name).join("، ")}</small>
+                    <small dir="auto">{String(group.payload.purpose ?? "")}</small>
                   </span>
                 </button>
               );

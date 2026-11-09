@@ -2,7 +2,7 @@ import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
 import { Icon } from "@lonora/ui-web";
 import { lazy, Suspense, useEffect } from "react";
-import { Route, Routes, useSearchParams } from "react-router-dom";
+import { Route, Routes, useLocation, useSearchParams } from "react-router-dom";
 import { usePersistentThread } from "../hooks/usePersistentThread";
 import type { Agent, Resource, Run } from "../lib/api";
 import { userError } from "../lib/user_error";
@@ -13,14 +13,14 @@ import { GroupCreatePanel } from "../pages/GroupPanel";
 import { Knowledge } from "../pages/Knowledge";
 import { OwnerProfileSection } from "../pages/OwnerProfileSection";
 import { Routines } from "../pages/Routines";
-import { SpaceSearch } from "../pages/SpaceSearch";
 import type { SettingsTab } from "../pages/settings-sidebar";
 import { AgentCreatePanel } from "../pages/shell/bot-panel";
 import { ThreadViewport } from "../pages/shell/chat-context";
-import { ConversationInbox } from "../pages/shell/conversation-inbox";
 import { useClient } from "../providers/ClientProvider";
 import { useShellData } from "./data";
 import { Lab } from "./Lab";
+import { ArchivedPage, ChatList } from "./lists/ChatList";
+import { type SearchTab, UnifiedSearch } from "./lists/UnifiedSearch";
 import { useNavigation } from "./navigation";
 import { DEV_ROUTES, type Page, type Root } from "./routes";
 import { useShortcutsSheet } from "./ShortcutsSheet";
@@ -57,8 +57,8 @@ export function pageTitle(page: Page): string {
   switch (page) {
     case "artifacts":
       return t`Files`;
-    case "search":
-      return t`Search`;
+    case "archived":
+      return t`Archived`;
     case "market":
       return t`Market`;
     case "trading":
@@ -82,36 +82,21 @@ export function pageTitle(page: Page): string {
 export function RootPage({
   root,
   search,
-  onOpen,
-  onNewChat,
+  onTab,
   desktop,
 }: {
   root: Root;
-  search: { expanded: boolean; query: string };
-  onOpen: (path: string) => void;
-  onNewChat: () => void;
+  search: { expanded: boolean; query: string; tab: SearchTab };
+  onTab: (tab: SearchTab) => void;
   desktop: boolean;
 }) {
   const data = useShellData();
   if (root === "chats") {
+    if (search.expanded)
+      return <UnifiedSearch query={search.query} tab={search.tab} onTab={onTab} />;
     const loading = data.agentsLoading || data.groupsLoading || data.inboxLoading;
     if (loading && !data.agents.length && !data.groups.length) return <SkChats />;
-    return (
-      <ConversationInbox
-        agents={data.agents}
-        groups={data.groups}
-        entries={data.inbox}
-        loading={loading}
-        error={data.inboxError}
-        busyIds={data.busyIds}
-        onOpen={onOpen}
-        onCreate={onNewChat}
-        onRetry={data.refresh}
-        query={search.expanded ? search.query : ""}
-        searching={false}
-        onQueryChange={() => undefined}
-      />
-    );
+    return <ChatList />;
   }
   if (root === "updates")
     return (
@@ -182,6 +167,12 @@ export function DetailPages({
   const data = useShellData();
   const nav = useNavigation();
   const first = data.agents[0]?.id ?? "";
+  const [params] = useSearchParams();
+  const location = useLocation();
+  // A search hit opens the knowledge of its agent.
+  const knowledgeAgent = data.agents.find((agent) => agent.id === params.get("agent"))?.id;
+  // «مجموعة من المحددين» prefills the members and the name.
+  const draft = (location.state ?? {}) as { members?: string[]; name?: string };
   return (
     <Suspense fallback={<Loading />}>
       <Routes>
@@ -201,14 +192,7 @@ export function DetailPages({
             </Legacy>
           }
         />
-        <Route
-          path="/app/search"
-          element={
-            <Legacy>
-              <SpaceSearch />
-            </Legacy>
-          }
-        />
+        <Route path="/app/archived" element={<ArchivedPage />} />
         <Route
           path="/app/market"
           element={
@@ -237,7 +221,7 @@ export function DetailPages({
           path="/app/knowledge"
           element={
             <Legacy>
-              <Knowledge agents={data.agents} initialAgent={first} />
+              <Knowledge agents={data.agents} initialAgent={knowledgeAgent || first} />
             </Legacy>
           }
         />
@@ -260,7 +244,10 @@ export function DetailPages({
           element={
             <Legacy>
               <GroupCreatePanel
+                key={location.key}
                 agents={data.agents}
+                initialMembers={draft.members}
+                initialName={draft.name}
                 onCreated={(row) => {
                   data.addGroup(row);
                   data.refresh();
@@ -350,6 +337,7 @@ function AgentConversation({
       <ThreadViewport
         key={thread.id}
         threadId={thread.id}
+        aroundSeq={aroundOf(params)}
         agentId={agent.id}
         agents={agents}
         knownRuns={knownRuns}
@@ -358,6 +346,11 @@ function AgentConversation({
     </>
   );
 }
+
+const aroundOf = (params: URLSearchParams) => {
+  const seq = Number(params.get("around"));
+  return Number.isInteger(seq) && seq > 0 ? seq : undefined;
+};
 
 export function ChatPane({
   agent,
@@ -371,6 +364,7 @@ export function ChatPane({
   onOpenChart: (id: string) => void;
 }) {
   const data = useShellData();
+  const [params] = useSearchParams();
   if (group)
     return (
       <Legacy>
@@ -378,6 +372,7 @@ export function ChatPane({
           <ThreadViewport
             key={String(group.state.thread_id)}
             threadId={String(group.state.thread_id)}
+            aroundSeq={aroundOf(params)}
             agentId=""
             knownRuns={data.runs}
             conversationName={String(group.payload.name)}

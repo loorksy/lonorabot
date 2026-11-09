@@ -1,5 +1,11 @@
-import { t } from "@lingui/core/macro";
-import { liveAvatarState, projectRunEvents, turnActivity } from "@lonora/core";
+import { plural, t } from "@lingui/core/macro";
+import {
+  filterRows,
+  liveAvatarState,
+  projectRunEvents,
+  turnActivity,
+  unreadBadgeTotal,
+} from "@lonora/core";
 import {
   type ReactNode,
   useCallback,
@@ -15,9 +21,20 @@ import { useAgents } from "../hooks/useAgents";
 import { useTheme } from "../hooks/useTheme";
 import { useVoice } from "../hooks/useVoice";
 import { useAgentLiveState } from "../lib/agent-live-state";
-import { type Agent, ApiError, api, isRequestCancelled, type Resource, type Run } from "../lib/api";
+import {
+  type Agent,
+  ApiError,
+  api,
+  type ChatList,
+  type InboxEntry,
+  isRequestCancelled,
+  type Message,
+  type Resource,
+  type Run,
+  type ThreadSettings,
+} from "../lib/api";
 import { auth } from "../lib/auth";
-import { type InboxEntry, inboxPath, inboxRows } from "../pages/shell/conversation-inbox";
+import { flushQueued } from "../lib/outgoing-messages";
 import { useAttention } from "../providers/AttentionProvider";
 import { useClient } from "../providers/ClientProvider";
 import { VoiceProvider } from "../providers/VoiceProvider";
@@ -26,9 +43,17 @@ import { useChatMenu } from "./ChatMenu";
 import { type EdgeOptions, useScrollChrome } from "./chrome";
 import { DesktopList } from "./DesktopList";
 import { DesktopRail } from "./DesktopRail";
-import { type ShellData, ShellDataProvider, useShellData } from "./data";
+import { mergePrefs, type ShellData, ShellDataProvider, useShellData } from "./data";
 import { FloatingTabBar, tabLabel } from "./FloatingTabBar";
 import { LargeTitle } from "./LargeTitle";
+import { listsApi } from "./lists/api";
+import { chatPath } from "./lists/ChatList";
+import { HeadsUp } from "./lists/HeadsUp";
+import { PopoverProvider } from "./lists/Popover";
+import { SelBar } from "./lists/Selection";
+import { ListsProvider, useLists } from "./lists/state";
+import type { SearchTab } from "./lists/UnifiedSearch";
+import "./lists/lists.css";
 import { isDesktop, reducedMotion, useDesktop } from "./motion";
 import { NetworkStrip, useNetworkPhase } from "./NetworkStrip";
 import { useNewChatSheet } from "./NewChatSheet";
@@ -54,9 +79,11 @@ export function Shell({ onLogout }: { onLogout: () => void }) {
       <ShellDataLoader onLogout={onLogout}>
         <SheetProvider>
           <ToastProvider>
-            <NavigationProvider>
-              <ShellBody />
-            </NavigationProvider>
+            <PopoverProvider>
+              <NavigationProvider>
+                <ShellLists />
+              </NavigationProvider>
+            </PopoverProvider>
           </ToastProvider>
         </SheetProvider>
       </ShellDataLoader>
@@ -76,6 +103,8 @@ function ShellDataLoader({ onLogout, children }: { onLogout: () => void; childre
   const [inboxLoading, setInboxLoading] = useState(true);
   const [inboxError, setInboxError] = useState<unknown>();
   const [groupsLoading, setGroupsLoading] = useState(true);
+  const [chatLists, setChatListsState] = useState<ChatList[]>([]);
+  const [threadSettings, setThreadSettings] = useState<ThreadSettings | null>(null);
   const [error, setError] = useState<unknown>();
   useEffect(() => {
     void revision;
@@ -118,6 +147,29 @@ function ShellDataLoader({ onLogout, children }: { onLogout: () => void; childre
       live = false;
     };
   }, [revision]);
+  useEffect(() => {
+    void revision;
+    let live = true;
+    void Promise.allSettled([
+      api.get<ChatList[]>("/chat-lists"),
+      api.get<ThreadSettings>("/threads/settings"),
+    ]).then(([lists, settings]) => {
+      if (!live) return;
+      if (lists.status === "fulfilled") setChatListsState(lists.value);
+      if (settings.status === "fulfilled") setThreadSettings(settings.value);
+    });
+    return () => {
+      live = false;
+    };
+  }, [revision]);
+  const patchInbox = useCallback<ShellData["patchInbox"]>(
+    (prefs) => setInbox((rows) => mergePrefs(rows, prefs)),
+    [],
+  );
+  const setChatLists = useCallback<ShellData["setChatLists"]>(
+    (update) => setChatListsState((rows) => update(rows)),
+    [],
+  );
   const observedRuns = useMemo(() => projectRunEvents(runs, events), [runs, events]);
   const busyIds = useMemo(
     () =>
@@ -148,6 +200,11 @@ function ShellDataLoader({ onLogout, children }: { onLogout: () => void; childre
       inbox,
       inboxLoading,
       inboxError,
+      chatLists,
+      threadSettings,
+      patchInbox,
+      setChatLists,
+      setThreadSettings,
       error: error ?? agentError,
       runs: observedRuns,
       busyIds,
@@ -166,6 +223,10 @@ function ShellDataLoader({ onLogout, children }: { onLogout: () => void; childre
       inbox,
       inboxLoading,
       inboxError,
+      chatLists,
+      threadSettings,
+      patchInbox,
+      setChatLists,
       error,
       agentError,
       observedRuns,
@@ -193,8 +254,23 @@ function routeTitle(route: ShellRoute, agent?: Agent, group?: Resource) {
       return "Lonora";
   }
 }
-type SearchState = { expanded: boolean; query: string };
-const noSearch: SearchState = { expanded: false, query: "" };
+type SearchState = { expanded: boolean; query: string; tab: SearchTab };
+const noSearch: SearchState = { expanded: false, query: "", tab: "all" };
+
+/* The list's state: phones select on the chat list and the archived page, desktop anywhere. */
+function ShellLists() {
+  const { route } = useNavigation();
+  const desktop = useDesktop();
+  const selectable =
+    desktop ||
+    (route.kind === "root" && route.root === "chats") ||
+    (route.kind === "page" && route.page === "archived");
+  return (
+    <ListsProvider selectable={selectable}>
+      <ShellBody />
+    </ListsProvider>
+  );
+}
 
 function ShellBody() {
   const nav = useNavigation();
@@ -211,6 +287,7 @@ function ShellBody() {
   const openNewChat = useNewChatSheet();
   const openShortcuts = useShortcutsSheet();
   const permission = usePermissionSheet();
+  const lists = useLists();
   const { theme } = useTheme();
   useViewportVars();
   useSettingsRedirect();
@@ -262,6 +339,68 @@ function ShellBody() {
   const [forcedUpdate, setForcedUpdate] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [desktopQuery, setDesktopQuery] = useState("");
+  const [desktopTab, setDesktopTab] = useState<SearchTab>("all");
+  const chatsBadge = unreadBadgeTotal(data.inbox);
+
+  /* The open conversation is read: its unread count and «marked unread» clear on the server
+     (shared with mobile), and stay clear while new answers arrive in view. */
+  const openThread = agent
+    ? (new URLSearchParams(location.search).get("thread") ??
+      lists.rows.find((row) => row.key === `agent:${agent.id}`)?.threadId)
+    : group
+      ? String(group.state?.thread_id ?? "")
+      : undefined;
+  const reading = useRef("");
+  const { patchInbox } = data;
+  useEffect(() => {
+    const entry = data.inbox.find((row) => row.thread_id === openThread);
+    if (!entry || !(entry.unread_count > 0 || entry.marked_unread)) return;
+    if (document.visibilityState !== "visible") return;
+    const seq = Math.max(entry.last_message?.seq ?? 0, entry.last_read_seq);
+    const key = `${entry.thread_id}:${seq}:${entry.unread_count}`;
+    if (reading.current === key) return;
+    reading.current = key;
+    void listsApi
+      .read(entry.thread_id, seq)
+      .then((prefs) => patchInbox([prefs]))
+      .catch(() => {
+        reading.current = "";
+      });
+  }, [data.inbox, openThread, patchInbox]);
+
+  /* Owner decision Q6: plain messages written offline go out by themselves once the network
+     is back (same client_nonce); a refused one stays «failed» with a manual retry. */
+  const { refresh } = data;
+  const flush = useCallback(async () => {
+    const sent = await flushQueued(
+      owner.id,
+      (threadId, body) =>
+        api
+          .post<{ message: Message }>(`/threads/${threadId}/messages`, body)
+          .then((accepted) => accepted.message),
+      (error) => error instanceof ApiError,
+    );
+    if (!sent) return;
+    refresh();
+    toast(
+      plural(sent, {
+        one: "One waiting message was sent",
+        two: "Two waiting messages were sent",
+        few: "# waiting messages were sent",
+        many: "# waiting messages were sent",
+        other: "# waiting messages were sent",
+      }),
+      { type: "success" },
+    );
+  }, [owner.id, refresh, toast]);
+  useEffect(() => {
+    if (connected && navigator.onLine) void flush();
+  }, [connected, flush]);
+  useEffect(() => {
+    const online = () => void flush();
+    window.addEventListener("online", online);
+    return () => window.removeEventListener("online", online);
+  }, [flush]);
 
   /* The chats header's search field: expanded and query live in the history entry so Back
      restores a previous search; a fresh navigation to the chats starts unsearched. */
@@ -273,7 +412,11 @@ function ShellBody() {
   useEffect(() => {
     void entryKey;
     const saved = (window.history.state as { lonoraSearch?: SearchState } | null)?.lonoraSearch;
-    setSearch(route.kind === "root" && route.root === "chats" && saved ? saved : noSearch);
+    setSearch(
+      route.kind === "root" && route.root === "chats" && saved
+        ? { ...noSearch, ...saved }
+        : noSearch,
+    );
   }, [entryKey, route]);
   const updateSearch = useCallback((next: SearchState) => {
     setSearch(next);
@@ -370,19 +513,16 @@ function ShellBody() {
         return;
       }
       if (event.altKey && (event.key === "ArrowUp" || event.key === "ArrowDown")) {
-        const { rows, byEntity } = inboxRows(data.agents, data.groups, data.inbox);
+        // The previous or next chat in the list's current order (wraps).
+        const rows = filterRows(lists.rows, lists.filter, data.chatLists);
         if (!rows.length) return;
         event.preventDefault();
-        const current = rows.findIndex((row) =>
-          agent
-            ? row.kind === "agent" && row.value.id === agent.id
-            : group
-              ? row.kind === "group" && row.value.id === group.id
-              : false,
+        const current = rows.findIndex(
+          (row) => row.key === (agent ? `agent:${agent.id}` : group ? `group:${group.id}` : ""),
         );
         const next =
           rows[(current + (event.key === "ArrowDown" ? 1 : -1) + rows.length) % rows.length];
-        nav.go(inboxPath(next, byEntity.get(`${next.kind}:${next.value.id}`)));
+        nav.go(chatPath(next));
         return;
       }
       if (event.key === "Escape" && searchRef.current.expanded && !sheets.isOpen()) clearSearch();
@@ -394,9 +534,9 @@ function ShellBody() {
     route,
     agent,
     group,
-    data.agents,
-    data.groups,
-    data.inbox,
+    lists.rows,
+    lists.filter,
+    data.chatLists,
     openNewChat,
     openShortcuts,
     sheets,
@@ -541,8 +681,7 @@ function ShellBody() {
           <RootPage
             root={route.root}
             search={search}
-            onOpen={nav.go}
-            onNewChat={openNewChat}
+            onTab={(tab) => updateSearch({ ...searchRef.current, tab })}
             desktop={desktop}
           />
         )
@@ -573,7 +712,7 @@ function ShellBody() {
               expanded: search.expanded,
               query: search.query,
               inputRef: searchInput,
-              onChange: (query) => updateSearch({ expanded: true, query }),
+              onChange: (query) => updateSearch({ ...searchRef.current, expanded: true, query }),
               onExpand: () => updateSearch({ ...searchRef.current, expanded: true }),
               onClear: clearSearch,
             }
@@ -583,6 +722,14 @@ function ShellBody() {
       onNewChat={openNewChat}
       onNewTask={onNewTask}
       header={header}
+      selection={
+        lists.selected &&
+        !desktop &&
+        ((route.kind === "root" && route.root === "chats") ||
+          (route.kind === "page" && route.page === "archived")) ? (
+          <SelBar />
+        ) : undefined
+      }
     >
       <NetworkStrip phase={net} ownerId={owner.id} />
     </TopBar>
@@ -600,7 +747,7 @@ function ShellBody() {
         <div id="app" ref={appRef} className={collapsed ? "list-collapsed" : ""}>
           <DesktopRail
             section={section}
-            chatsBadge={0}
+            chatsBadge={chatsBadge}
             updatesDot={attention.items.length > 0}
             collapsed={collapsed}
             onToggleCollapsed={() => setCollapsed((value) => !value)}
@@ -610,9 +757,13 @@ function ShellBody() {
           />
           <DesktopList
             query={desktopQuery}
-            onQuery={setDesktopQuery}
+            onQuery={(query) => {
+              setDesktopQuery(query);
+              if (!query.trim()) setDesktopTab("all");
+            }}
+            tab={desktopTab}
+            onTab={setDesktopTab}
             selected={selectedKey}
-            onOpen={nav.go}
             onNewChat={openNewChat}
           />
           <section
@@ -659,8 +810,7 @@ function ShellBody() {
                   <RootPage
                     root={ghost}
                     search={noSearch}
-                    onOpen={nav.go}
-                    onNewChat={openNewChat}
+                    onTab={() => undefined}
                     desktop={false}
                   />
                 </PageErrorBoundary>
@@ -671,7 +821,7 @@ function ShellBody() {
             <FloatingTabBar
               navRef={navRef}
               section={section}
-              chatsBadge={0}
+              chatsBadge={chatsBadge}
               updatesDot={attention.items.length > 0}
               onTab={switchTab}
               onLensRelease={(root, lensFrom) => pagerTo(root, lensFrom)}
@@ -692,6 +842,7 @@ function ShellBody() {
         }}
       />
       <UpdateBar revision={revision} forced={import.meta.env.DEV && forcedUpdate} />
+      <HeadsUp currentThreadId={conversation ? openThread : undefined} />
       {maintenance && <MaintenanceOverlay retry={() => void retryMaintenance()} />}
     </div>
   );

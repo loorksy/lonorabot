@@ -1,5 +1,5 @@
 import { type RefObject, useEffect, useLayoutEffect } from "react";
-import { isDesktop, layoutOverlays } from "./motion";
+import { isDesktop, layoutOverlays, reducedMotion } from "./motion";
 import { rememberedScroll } from "./navigation";
 
 /* The scroll-driven chrome: the section title inside the page dissolves (parallax, scale,
@@ -20,6 +20,48 @@ export function syncTitle(main: HTMLElement) {
   if (blur) blur.style.opacity = p.toFixed(3);
 }
 
+/* WhatsApp: the chat list's filters sit above the first row and show when the list is
+   pulled down a little; they snap open or closed and stay while a filter other than الكل
+   is on (data-rest="0"). Phones only. */
+const listFilters = (main: HTMLElement) =>
+  main.querySelector<HTMLElement>(":scope #chat-rows>.list-filters");
+/** How far the chat list rests scrolled: the filters' height while they hide. */
+export function chatsRest(main: HTMLElement) {
+  const filters = listFilters(main);
+  if (!filters || isDesktop() || filters.dataset.rest !== "1") return 0;
+  return filters.offsetHeight;
+}
+export function syncFilters(main: HTMLElement) {
+  const filters = listFilters(main);
+  if (!filters || isDesktop()) return;
+  const h = filters.offsetHeight || 1;
+  const v = filters.dataset.rest !== "1" ? 1 : Math.max(0, Math.min(1, 1 - main.scrollTop / h));
+  filters.style.opacity = v.toFixed(2);
+  filters.style.transform =
+    v < 1
+      ? `translateY(${((1 - v) * 10).toFixed(1)}px) scale(${(0.95 + 0.05 * v).toFixed(3)})`
+      : "";
+  filters.style.pointerEvents = v < 0.4 ? "none" : "";
+}
+/** A fresh visit rests with the filters hidden; short lists get room to rest that way. */
+export function hideFiltersInitially(main: HTMLElement) {
+  const filters = listFilters(main);
+  const rows = main.querySelector<HTMLElement>("#chat-rows");
+  if (!filters || !rows || isDesktop()) return false;
+  const style = getComputedStyle(main);
+  const pad = Number.parseFloat(style.paddingTop) + Number.parseFloat(style.paddingBottom);
+  rows.style.minHeight = `${Math.max(0, main.clientHeight - pad + filters.offsetHeight)}px`;
+  if (filters.dataset.rest !== "1") return false;
+  main.scrollTop = filters.offsetHeight;
+  return true;
+}
+export function snapFilters(main: HTMLElement) {
+  const h = chatsRest(main);
+  const y = main.scrollTop;
+  if (!h || y <= 0 || y >= h) return;
+  main.scrollTo({ top: y < h * 0.5 ? 0 : h, behavior: reducedMotion() ? "auto" : "smooth" });
+}
+
 export type EdgeOptions = {
   /** The main tabs and bare detail pages have a scroll edge; the chat and desktop keep --edge 1. */
   edge: boolean;
@@ -33,14 +75,14 @@ export function syncEdge(main: HTMLElement, top: HTMLElement | null, options: Ed
       .querySelector("header.chats-header")
       ?.classList.toggle(
         "title-off",
-        !options.searchExpanded && !isDesktop() && main.scrollTop > 20,
+        !options.searchExpanded && !isDesktop() && main.scrollTop > chatsRest(main) + 20,
       );
   if (isDesktop() || !options.edge || (options.chats && options.searchExpanded)) {
     top.style.removeProperty("--edge");
     return;
   }
   const title = main.querySelector<HTMLElement>(":scope>.large-title");
-  const rest = title ? title.offsetHeight * 0.6 : 0;
+  const rest = title ? title.offsetHeight * 0.6 : options.chats ? chatsRest(main) : 0;
   top.style.setProperty(
     "--edge",
     Math.max(0, Math.min(1, (main.scrollTop - rest) / 16)).toFixed(3),
@@ -49,7 +91,9 @@ export function syncEdge(main: HTMLElement, top: HTMLElement | null, options: Ed
 
 /** Where a freshly painted page is scrolled to (the real page and the pager's incoming page). */
 export function placeScroll(main: HTMLElement, viewKey: string) {
-  main.scrollTop = rememberedScroll(viewKey) ?? 0;
+  const remembered = rememberedScroll(viewKey);
+  if (remembered !== undefined || !hideFiltersInitially(main)) main.scrollTop = remembered ?? 0;
+  syncFilters(main);
   syncTitle(main);
 }
 
@@ -92,19 +136,30 @@ export function useScrollChrome({
     const m = main.current;
     if (!m) return;
     let lastY = m.scrollTop;
+    let snap: ReturnType<typeof setTimeout> | undefined;
     const onScroll = () => {
       syncTitle(m);
       syncEdge(m, top.current, options);
+      if (options.chats && !options.searchExpanded) {
+        syncFilters(m);
+        clearTimeout(snap);
+        snap = setTimeout(() => {
+          if (!paused.current) snapFilters(m);
+        }, 140);
+      }
       const n = nav.current;
       if (!n || paused.current) return;
       const y = m.scrollTop;
       const d = y - lastY;
       lastY = y;
-      if (y < 30) n.classList.remove("compact");
+      if (y < chatsRest(m) + 30) n.classList.remove("compact");
       else if (d > 6) n.classList.add("compact");
       else if (d < -8) n.classList.remove("compact");
     };
     m.addEventListener("scroll", onScroll, { passive: true });
-    return () => m.removeEventListener("scroll", onScroll);
+    return () => {
+      clearTimeout(snap);
+      m.removeEventListener("scroll", onScroll);
+    };
   }, [main, top, nav, options, paused]);
 }

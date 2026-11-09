@@ -175,7 +175,9 @@ export function useScrollMemory(ref: React.RefObject<HTMLElement | null>, key: s
     const element = ref.current;
     if (!element || restored.current === key) return;
     restored.current = key;
-    element.scrollTop = scrollMemory.get(key) ?? 0;
+    // A fresh entry keeps where its page placed itself (the chat list rests past its filters).
+    const saved = scrollMemory.get(key);
+    if (saved !== undefined) element.scrollTop = saved;
   }, [ref, key]);
   useEffect(() => {
     const element = ref.current;

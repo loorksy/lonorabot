@@ -8,12 +8,17 @@ import { userError } from "../lib/user_error";
 export function GroupCreatePanel({
   agents,
   onCreated,
+  initialMembers = [],
+  initialName = "",
 }: {
   agents: Agent[];
   onCreated: (group: Resource) => void;
+  /** «مجموعة من المحددين»: the chat list's selection. */
+  initialMembers?: string[];
+  initialName?: string;
 }) {
-  const [name, setName] = useState("");
-  const [members, setMembers] = useState<string[]>([]);
+  const [name, setName] = useState(initialName);
+  const [members, setMembers] = useState<string[]>(initialMembers);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>();
   return (
