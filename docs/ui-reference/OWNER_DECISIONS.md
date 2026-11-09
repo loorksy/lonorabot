@@ -5,7 +5,7 @@ Recorded 2026-11-09 from the owner's answers to the questions in `CAPABILITY_MAP
 ## Standing rules the owner restated
 
 - **Vocabulary**: keep the reference's own terms everywhere; do not introduce new terminology (Q19).
-- **Agents are never deleted**: only their conversation history is hidden for the owner (Q1, Q44). The server's `DELETE /api/agents/{id}` gets no UI.
+- **Agents and groups are never deleted**: only their conversation history is hidden for the owner (Q1, Q44). The server's `DELETE /api/agents/{id}` and `DELETE /api/groups/{id}` get no UI.
 - **Lonora is the only channel to the owner**: no Telegram or other external delivery channels to the owner (Q53). Inbound Telegram to an agent stays as the server has it, with the row reworded.
 - **The agent has access to every tool** and may use them; the UI shows the results in the reference's visual language (Q37).
 - **Future**: Lonora may become a hosted product in the style of myclaw.ai; keep the auth layout extensible for that, but do not build multi-user now (Q46). When the mobile app is built, do not forget push notifications and the notification permission flow (Q10).
@@ -14,7 +14,7 @@ Recorded 2026-11-09 from the owner's answers to the questions in `CAPABILITY_MAP
 
 | # | Decision |
 |---|---|
-| Q1 (OQ2) | «مسح» / «حذف» on a conversation = hide the history for the owner on the server (visibility cursor), keeping the thread, grants and ledger. Groups: «حذف» removes the group. No agent deletion anywhere. |
+| Q1 (OQ2) | «مسح» / «حذف» on any conversation, agent or group, = hide the history for the owner on the server (visibility cursor), keeping the thread, grants and ledger. Agents and groups are never deleted from the UI: the agent and the group stay with their members; only the chat history is hidden. The server's `DELETE /api/agents/{id}` and `DELETE /api/groups/{id}` get no UI. (Revised 2026-11-09 by the owner: «المجموعات والوكلاء لا يمكن حذفهم، يُحذف سجل الدردشات فقط».) |
 | Q2 (OQ3) | One grey tick = accepted by the server. Two accent ticks = the agent's run started on that message. Exposed per message and on the inbox `last_message`. |
 | Q3 (OQ7) | Pins, mute, archive, favourites, marked-unread, custom lists and keep-archived live on the server per owner (`ln_thread_prefs`, `ln_chat_lists`), shared by web and mobile. |
 | Q4 (OQ6) | Mute suppresses message heads-ups, sounds and the badge only. Critical / action_required attention items always show. Archive behaves the same. |
