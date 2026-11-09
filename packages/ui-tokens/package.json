@@ -19,6 +19,7 @@
     ".": "./src/index.ts",
     "./css": "./src/tokens.css",
     "./tokens.css": "./src/tokens.css",
+    "./reference.css": "./src/reference.css",
     "./brand": "./src/brand.ts"
   },
   "peerDependencies": {
