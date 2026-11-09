@@ -84,12 +84,10 @@ for (const locale of ["en", "ar"]) {
           "Latest actual conversation preview",
         );
         await expect(home.locator(`[data-inbox-group-id="${group.id}"]`)).toBeVisible();
-        // Account's Personal Agent remains first even when specialists are newer.
-        const agents = await (await context.request.get("/api/agents")).json();
-        const personal = agents.find((row) => row.role === "personal");
-        await expect(home.locator(".tpl-inbox-row").first()).toHaveAttribute(
-          "data-inbox-agent-id",
-          personal.id,
+        // The reference's order: pins, then the latest activity; the newest chat leads.
+        await expect(home.locator(".thread[data-key]").first()).toHaveAttribute(
+          "data-key",
+          `group:${group.id}`,
         );
       }
       expect(openedThread).toBe(0);
@@ -145,7 +143,7 @@ test("inbox projection failure preserves bots and retry recovers without reload"
   );
   await page.goto("/app/");
   const home = page.getByTestId("conversation-inbox");
-  await expect(home.locator(".tpl-inbox-row").first()).toBeVisible();
+  await expect(home.locator(".thread[data-key]").first()).toBeVisible();
   await expect(home.getByRole("alert")).toBeVisible();
   failing = false;
   await home.getByRole("button", { name: "Retry", exact: true }).click();
