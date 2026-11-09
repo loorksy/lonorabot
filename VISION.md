@@ -29,7 +29,10 @@ You talk to Lonora, your personal assistant, in Arabic or English, the way you t
 2. **Trading authority is one ladder per agent:** No trading / Ask me / On its own (signed).
    - *Ask me*: every trade becomes a one-tap approval card.
    - *On its own*: one signed grant per agent and account (which markets, which actions, until when). A trade outside the grant becomes an approval card, never a silent refusal.
-   - The default grant card: until you stop it; a daily loss limit taken from your sentence or suggested at 3% of equity (you may deliberately choose "no money limit"); your own manually opened positions are excluded unless you switch them on.
+   - The grant card offers one choice in its list, Custom selected by default:
+     - *مخصص / Custom*: you set markets, actions and duration (from your sentence), until you stop it by default; a daily loss limit taken from your sentence or suggested at 3% of equity (you may deliberately choose "no money limit"); your own manually opened positions are excluded unless you switch them on.
+     - *تفويض كامل / Full delegation*: every pair on the account and every action (open, close fully or partly, pending orders, change stop loss and take profit, cancel), until you stop it, your own manually opened positions included, and no daily loss limit from the card. Money limits you set on the account stay in force; removing one is a separate passkey step.
+     - An agent may preselect Full only when your own message asked for full delegation; you still choose and sign with your passkey either way.
 3. **Brakes and limits:**
    - One **Stop new trading / Resume** control for every agent and your manual orders. Exits (close, cancel, tightening a stop) stay allowed.
    - Time-boxed pauses you say in chat, for example "no new trades today". They apply to agents, and to your own orders only if you say so.

@@ -24,6 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .base import Tool
 from .context import ToolContext
+from .restrictions import owner_message_id
 from .symbols import canonical_broker_symbol
 
 # The daily loss limit a grant card suggests when the owner named none (owner decision D1).
@@ -120,6 +121,23 @@ async def daily_loss_draft(
     )
 
 
+async def preselect_full(
+    session: AsyncSession, context: ToolContext, run: RunRow, grant: GrantDraft
+) -> tuple[GrantDraft, str | None]:
+    """Full delegation preselected on the card, when the owner's own message asked for
+    it: only in a Run that answers the owner's message and has read nothing anyone else
+    wrote, and only for an agent whose grant may cover every pair on the account. The
+    owner still sees both choices and signs with the passkey. Returns the draft and why
+    Full was not preselected (None when it was)."""
+    agent = await agent_binding(session, context.owner_id, grant.agent_id)
+    # Every pair on the account: the same rule the card and the signed envelope use.
+    if not account_wide_scope(agent):
+        return grant, "fixed_market_agent"
+    if await owner_message_id(session, run) is None:
+        return grant, "owner_message_required"
+    return grant.with_delegation("full"), None
+
+
 def card_summary(
     row: OwnerActionRow, created: bool, thread_id: str, passkey: bool
 ) -> dict[str, Any]:
@@ -185,6 +203,9 @@ async def propose_card(context: ToolContext, args: dict[str, Any]) -> dict[str, 
     grant = await grant_draft(context, proposal) if proposal.kind == "grant_authority" else None
     async with context.db.sessions() as session, session.begin():
         run, thread = await card_scope(context, session)
+        not_preselected: str | None = None
+        if grant is not None and proposal.delegation == "full":
+            grant, not_preselected = await preselect_full(session, context, run, grant)
         row, created = await propose(
             session,
             context.owner_id,
@@ -203,6 +224,11 @@ async def propose_card(context: ToolContext, args: dict[str, Any]) -> dict[str, 
             # A grant card never raises the account's daily loss limit; the owner asked
             # for more, so a set_account_limits card is the way to raise it.
             summary["daily_loss_above_current_needs_limits_card"] = True
+        if row.kind == "grant_authority":
+            # Which choice the card shows selected now; the owner may switch it.
+            summary["delegation"] = GrantDraft.model_validate(row.payload).delegation
+            if not_preselected is not None:
+                summary["full_delegation_not_preselected"] = not_preselected
         return summary
 
 
@@ -223,7 +249,11 @@ def tools() -> list[Tool]:
             "or all_pairs, actions, duration, allow_manual_positions, and the owner's daily "
             "loss as daily_loss_percent or daily_loss_amount, which the card only sets or "
             "lowers; omit what the owner did not say and the server fills the obvious "
-            "defaults), trust_source (source_kind mcp_server with connection_id: "
+            "defaults; delegation full only when the owner's message asks for full "
+            "delegation: the card then preselects it (every pair, every action, the owner's "
+            "own positions, until stopped, no daily loss limit from the card) and the owner "
+            "still chooses Custom or Full and signs), trust_source (source_kind mcp_server "
+            "with connection_id: "
             "the card lists its tools for the owner to trust; github_owner, github_repo or "
             "feed_domain with identifier) and connect_credential (target mcp_server, "
             "news_feed, brave_search, economic_calendar or broker; service x for an X MCP "

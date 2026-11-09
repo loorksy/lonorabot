@@ -23,6 +23,20 @@ what they signed. Arbitrary code still cannot access broker credentials or
 bypass the typed executor. The same proposal is signed from a grant card in the
 conversation (`owner-actions.md`), built only from the card's stored draft.
 
+The grant card offers one choice in its list of options: Custom (the D1 defaults above,
+selected by default) or Full delegation. Full signs the same v2 full-management envelope
+with `symbol_scope=account`, every action, no expiry, `allow_manual_positions` true and
+no numerical cap, and sets no daily loss limit from the card; the composer's identical
+proposal is the same pending envelope. It needs the same passkey ceremony, is offered
+only where account-wide scope is allowed (the Personal Agent and flexible root agents),
+and changes no limit: the account's money limits and execution caps (`ExecutionPolicy`),
+pauses and Stop new trading bind it like any grant, and removing a limit is a separate
+passkey step. Nothing in the envelope names the choice: a signed grant with exactly these
+terms is recognized as Full delegation (`full_delegation`) by the readiness projection
+(`full_delegation` on each grant and in the On its own params), the safety sheet and
+the permission frame (`full_delegation` on each authorized scope). Grants already signed
+keep exactly what they signed.
+
 ## The ladder: No trading / Ask me / On its own
 
 Each agent has one level, in the same words on Web and Mobile, in English and
@@ -167,6 +181,10 @@ Current authoritative grant summaries enter the existing live Agent projection;
 the badge is presentation, never permission.
 
 ## Verification
+
+`tests/check_full_delegation.py` signs Full delegation from a grant card and shows that
+the account's per-trade risk limit and position cap still refuse under it, while another
+pair and the owner's own position are managed without a card.
 
 `tests/check_account_authority.py` uses disposable PostgreSQL, genuine WebAuthn
 signatures and the simulation adapter. It covers exact forex/metal/index/crypto

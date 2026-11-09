@@ -99,6 +99,24 @@ test("every readiness state has one plain line in English and Arabic, never a ra
     tradingReadinessLine(daily, "ar", now),
     `يتداول باستقلال · ${isolate("XAUUSD")} · حتى توقفه · الخسارة اليومية ${isolate("200.00 USD")}`,
   );
+  // Full delegation says so in place of the markets; the account's own limit still shows.
+  const full = {
+    ...daily,
+    params: {
+      ...daily.params,
+      symbol_scope: "account" as const,
+      symbols: [],
+      full_delegation: true,
+    },
+  };
+  assert.equal(
+    tradingReadinessLine(full, "en", now),
+    `Trades on its own · Full delegation · until you stop it · Daily loss ${isolate("200.00 USD")}`,
+  );
+  assert.equal(
+    tradingReadinessLine(full, "ar", now),
+    `يتداول باستقلال · تفويض كامل · حتى توقفه · الخسارة اليومية ${isolate("200.00 USD")}`,
+  );
   // With several accounts the line names the granted one the way the sheet does ...
   const named = { ...daily, params: { ...daily.params, account_id: "acct-1", account_count: 1 } };
   assert.ok(

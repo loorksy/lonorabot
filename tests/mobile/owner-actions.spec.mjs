@@ -38,6 +38,9 @@ async def main():
                 from lonora_contracts.owner_actions import DailyLossDraft,GrantDraft
                 from lonora_db.owner_actions import ALL_ACTIONS
                 draft=GrantDraft(agent_id=data['agent'],account_id=data['account'],symbol_scope='selected',symbols=[data['symbol']],actions=list(ALL_ACTIONS),daily_loss=DailyLossDraft(amount='300.00',currency='USD',basis='suggested',percent='3',equity='10000'))
+                if data.get('delegation')=='full':
+                    # Preselected because the owner's own message asked for full delegation.
+                    draft=draft.with_delegation('full')
                 row,_=await propose(session,f.owner,proposal,card_id=str(uuid4()),agent_id=data['agent'],thread_id=data['thread'],run_id=None,grant=draft)
             elif data['kind']=='resume_trading':
                 # As an agent proposes it when the owner asks to resume.
@@ -210,6 +213,137 @@ for (const locale of ["ar", "en"])
           data: { reason: "" },
         });
       await context.request.put("/api/trading/controls", { headers, data: original });
+      simulation({ ...data, action: "cleanup" });
+    }
+  });
+
+const delegation = {
+  ar: {
+    custom: "مخصص",
+    full: "تفويض كامل",
+    customMeaning: "مخصص: الأسواق والعمليات والمدة الظاهرة هنا فقط",
+    fullMeaning: "تفويض كامل: كل أزواج هذا الحساب وكل العمليات",
+    fullLimits:
+      "تبقى الحدود المالية التي ضبطتها لهذا الحساب في مكان آخر نافذة؛ وإزالتها خطوة منفصلة بمفتاح المرور.",
+    markets: "الأسواق: كل أزواج هذا الحساب",
+    ownIncluded: "يشمل المراكز التي فتحتها بنفسك",
+  },
+  en: {
+    custom: "Custom",
+    full: "Full delegation",
+    customMeaning: "Custom: only the markets, actions and time shown here",
+    fullMeaning: "Full delegation: every pair on this account and every action",
+    fullLimits:
+      "Money limits you set on this account elsewhere stay in force; removing them is a separate step with your passkey.",
+    markets: "Markets: All pairs on this account",
+    ownIncluded: "Positions you opened yourself are included",
+  },
+};
+
+for (const locale of ["ar", "en"])
+  test(`Expo ${locale}: Custom or Full delegation is one choice in the grant card's list`, async ({
+    page,
+    context,
+  }) => {
+    test.setTimeout(90000);
+    const text = { ...copy[locale], ...delegation[locale] };
+    const data = simulation({ action: "init", empty: true });
+    await context.addCookies(
+      data.cookies.map((cookie) => ({
+        ...cookie,
+        url: test.info().project.use.baseURL,
+        httpOnly: cookie.name === "lonora_session",
+        sameSite: "Strict",
+      })),
+    );
+    await context.addInitScript((value) => localStorage.setItem("lonora.locale", value), locale);
+    const headers = {
+      "X-CSRF-Token": data.cookies.find((row) => row.name === "lonora_csrf").value,
+    };
+    // A flexible agent: its grant may cover every pair on the account.
+    const created = await context.request.post("/api/agents", {
+      headers,
+      data: {
+        name: `Native full ${randomUUID().slice(0, 6)}`,
+        scope_mode: "flexible",
+        trading_account_id: data.account,
+        trading_symbol: data.symbol,
+      },
+    });
+    expect(created.status()).toBe(201);
+    const agent = await created.json();
+    const thread = await (
+      await context.request.post(`/api/agents/${agent.id}/conversation`, { headers, data: {} })
+    ).json();
+    const stored = async (id) =>
+      (await (await context.request.get(`/api/owner-actions?thread_id=${thread.id}`)).json()).find(
+        (row) => row.id === id,
+      );
+    try {
+      const seeded = seedCard({
+        kind: "grant_authority",
+        account: data.account,
+        symbol: data.symbol,
+        agent: agent.id,
+        thread: thread.id,
+      });
+      await page.goto(`/thread?id=${thread.id}`);
+      const card = page.getByTestId(`owner-action-${seeded.id}`);
+      const custom = card.getByTestId("owner-action-choice-custom");
+      const full = card.getByTestId("owner-action-choice-full");
+      // One choice inside the card's own list, Custom selected, the same words as Web.
+      await expect(custom).toHaveAttribute("aria-checked", "true");
+      await expect(full).toHaveAttribute("aria-checked", "false");
+      await expect(custom).toContainText(text.custom);
+      await expect(full).toContainText(text.full);
+      await expect(card.getByTestId("owner-action-choice-detail-custom")).toContainText(
+        text.customMeaning,
+      );
+      await expect(card.getByTestId("owner-action-option-manual")).toBeVisible();
+      await full.click();
+      await expect(full).toHaveAttribute("aria-checked", "true");
+      const detail = card.getByTestId("owner-action-choice-detail-full");
+      await expect(detail).toContainText(text.fullMeaning);
+      await expect(detail).toContainText(text.fullLimits);
+      await expect(card.getByTestId("owner-action-option-manual")).toHaveCount(0);
+      await expect(card.getByTestId("owner-action-option-no_money_limit")).toHaveCount(0);
+      await expect(card.getByText(text.ownIncluded, { exact: true })).toBeVisible();
+      await expect(card.getByText(text.markets, { exact: true })).toBeVisible();
+      await expect(card.getByRole("button", { name: text.authorize, exact: true })).toBeVisible();
+      // The choice is stored in the card's draft on the server.
+      expect((await stored(seeded.id)).facts.grant.delegation).toBe("full");
+      if (locale === "ar")
+        await card.screenshot({ path: test.info().outputPath("owner-action-full-native-ar.png") });
+      await custom.click();
+      await expect(custom).toHaveAttribute("aria-checked", "true");
+      await expect(card.getByTestId("owner-action-option-manual")).toBeVisible();
+      expect((await stored(seeded.id)).facts.grant.delegation).toBe("custom");
+      await card.getByRole("button", { name: text.notNow, exact: true }).click();
+      await expect(card.getByText(text.dismissed, { exact: true })).toBeVisible();
+      const level = await (await context.request.get(`/api/agents/${agent.id}/permissions`)).json();
+      expect(level.effective_level).toBe("supervised");
+      // A card Lonora raised from the owner's own words opens on Full; the owner chooses.
+      const preselected = seedCard({
+        kind: "grant_authority",
+        account: data.account,
+        symbol: data.symbol,
+        agent: agent.id,
+        thread: thread.id,
+        delegation: "full",
+      });
+      await page.reload();
+      const second = page.getByTestId(`owner-action-${preselected.id}`);
+      await expect(second.getByTestId("owner-action-choice-full")).toHaveAttribute(
+        "aria-checked",
+        "true",
+      );
+      await expect(second.getByTestId("owner-action-choice-detail-full")).toContainText(
+        text.fullLimits,
+      );
+      await second.getByRole("button", { name: text.notNow, exact: true }).click();
+      await expect(second.getByText(text.dismissed, { exact: true })).toBeVisible();
+    } finally {
+      await context.request.delete(`/api/agents/${agent.id}`, { headers });
       simulation({ ...data, action: "cleanup" });
     }
   });

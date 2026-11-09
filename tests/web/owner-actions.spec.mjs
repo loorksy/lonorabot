@@ -41,6 +41,9 @@ async def main():
                 from lonora_contracts.owner_actions import DailyLossDraft,GrantDraft
                 from lonora_db.owner_actions import ALL_ACTIONS
                 draft=GrantDraft(agent_id=data['agent'],account_id=data['account'],symbol_scope='selected',symbols=[data['symbol']],actions=list(ALL_ACTIONS),daily_loss=DailyLossDraft(amount='300.00',currency='USD',basis=data.get('basis','suggested'),percent='3',equity='10000'))
+                if data.get('delegation')=='full':
+                    # Preselected because the owner's own message asked for full delegation.
+                    draft=draft.with_delegation('full')
                 row,_=await propose(session,f.owner,proposal,card_id=str(uuid4()),agent_id=data['agent'],thread_id=data['thread'],run_id=None,grant=draft)
             elif data['kind']=='resume_trading':
                 # As an agent proposes it when the owner asks to resume.
@@ -286,6 +289,173 @@ for (const locale of ["en", "ar"])
       ).json();
       expect(Number(policy.risk.max_daily_loss)).toBe(300);
     } finally {
+      await state.cleanup();
+    }
+  });
+
+const delegationCopy = {
+  en: {
+    custom: "Custom",
+    full: "Full delegation",
+    customMeaning: "Custom: only the markets, actions and time shown here",
+    fullMeaning: "Full delegation: every pair on this account and every action",
+    fullLimits:
+      "Money limits you set on this account elsewhere stay in force; removing them is a separate step with your passkey.",
+    allPairs: "Markets: All pairs on this account",
+    ownIncluded: "Positions you opened yourself are included",
+    notNow: "Not now",
+  },
+  ar: {
+    custom: "مخصص",
+    full: "تفويض كامل",
+    customMeaning: "مخصص: الأسواق والعمليات والمدة الظاهرة هنا فقط",
+    fullMeaning: "تفويض كامل: كل أزواج هذا الحساب وكل العمليات",
+    fullLimits:
+      "تبقى الحدود المالية التي ضبطتها لهذا الحساب في مكان آخر نافذة؛ وإزالتها خطوة منفصلة بمفتاح المرور.",
+    allPairs: "الأسواق: كل أزواج هذا الحساب",
+    ownIncluded: "يشمل المراكز التي فتحتها بنفسك",
+    notNow: "ليس الآن",
+  },
+};
+
+for (const locale of ["en", "ar"])
+  test(`${locale}: Custom or Full delegation is one choice in the grant card's list, signed with the passkey`, async ({
+    page,
+    context,
+  }) => {
+    test.setTimeout(90000);
+    const text = { ...copy[locale], ...delegationCopy[locale] };
+    const state = await setup(context, locale);
+    for (const device of await (await context.request.get("/api/auth/devices")).json())
+      expect(
+        (
+          await context.request.delete(`/api/auth/devices/${device.id}`, { headers: state.headers })
+        ).ok(),
+      ).toBeTruthy();
+    const cdp = await context.newCDPSession(page);
+    await cdp.send("WebAuthn.enable");
+    await cdp.send("WebAuthn.addVirtualAuthenticator", {
+      options: {
+        protocol: "ctap2",
+        transport: "internal",
+        hasResidentKey: true,
+        hasUserVerification: true,
+        isUserVerified: true,
+        automaticPresenceSimulation: true,
+      },
+    });
+    // A flexible agent: its grant may cover every pair on the account.
+    const created = await context.request.post("/api/agents", {
+      headers: state.headers,
+      data: {
+        name: `Full agent ${randomUUID().slice(0, 6)}`,
+        scope_mode: "flexible",
+        trading_account_id: state.account,
+        trading_symbol: state.data.symbol,
+      },
+    });
+    expect(created.status()).toBe(201);
+    const agent = await created.json();
+    const thread = await (
+      await context.request.post(`/api/agents/${agent.id}/conversation`, {
+        headers: state.headers,
+        data: {},
+      })
+    ).json();
+    try {
+      await state.controls({ enabled: true, emergency_stop: false });
+      // A money limit the owner set elsewhere: Full keeps it in force.
+      const limit = await context.request.put(
+        `/api/trading/accounts/${state.account}/execution-policy`,
+        { headers: state.headers, data: { risk: { currency: "USD", max_open_risk: "400" } } },
+      );
+      expect(limit.ok()).toBeTruthy();
+      const seeded = seedCard({
+        kind: "grant_authority",
+        account: state.account,
+        symbol: state.data.symbol,
+        agent: agent.id,
+        thread: thread.id,
+      });
+      const bodies = [];
+      page.on("request", (request) => {
+        if (request.method() === "POST" && request.url().includes(`/owner-actions/${seeded.id}/`))
+          bodies.push([new URL(request.url()).pathname.split("/").pop(), request.postDataJSON()]);
+      });
+      await page.goto(`/app/${agent.id}`);
+      const card = page.locator(`[data-owner-action="${seeded.id}"]`);
+      await expect(card).toHaveAttribute("data-owner-action-status", "pending");
+      const custom = card.getByRole("radio", { name: text.custom, exact: true });
+      // The card's daily loss line (the choice's own meaning mentions the limit too).
+      const dailyLine = card.locator("p", { hasText: new RegExp(`^${text.dailyLoss}:`) });
+      const full = card.getByRole("radio", { name: text.full, exact: true });
+      // One choice inside the card's own list, Custom selected; no separate button.
+      await expect(custom).toBeChecked();
+      await expect(full).not.toBeChecked();
+      await expect(card.getByRole("button")).toHaveText([text.authorize, text.notNow]);
+      await expect(card.locator("[data-owner-action-choice-detail]")).toContainText(
+        text.customMeaning,
+      );
+      await expect(card.getByRole("checkbox", { name: text.includeOwn })).not.toBeChecked();
+      await expect(dailyLine).toContainText("300.00 USD");
+      // Choosing Full updates the card's stored draft; the card then reads as Full.
+      await full.check();
+      await expect(full).toBeChecked();
+      const detail = card.locator("[data-owner-action-choice-detail]");
+      await expect(detail).toContainText(text.fullMeaning);
+      await expect(detail).toContainText(text.fullLimits);
+      await expect(card.getByRole("checkbox", { name: text.includeOwn })).toHaveCount(0);
+      await expect(card.getByText(text.ownIncluded, { exact: true })).toBeVisible();
+      await expect(card.getByText(text.allPairs, { exact: true })).toBeVisible();
+      await expect(dailyLine).toHaveCount(0);
+      // Back to Custom restores it exactly, then Full again.
+      await custom.check();
+      await expect(custom).toBeChecked();
+      await expect(card.getByRole("checkbox", { name: text.includeOwn })).toBeVisible();
+      await expect(dailyLine).toContainText("300.00 USD");
+      await full.check();
+      await expect(full).toBeChecked();
+      if (locale === "ar") {
+        await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
+        await card.screenshot({ path: test.info().outputPath("owner-action-full-ar.png") });
+      }
+      await card.getByRole("button", { name: text.authorize, exact: true }).click();
+      await card.getByLabel(text.password, { exact: true }).fill("ci-only-owner-password");
+      await card.getByRole("button", { name: text.register, exact: true }).click();
+      await expect(card).toHaveAttribute("data-owner-action-status", "confirmed");
+      await expect(card.getByRole("status")).toHaveText(text.signed);
+      await expect(card.getByText(text.full, { exact: true })).toBeVisible();
+      const chosen = bodies
+        .filter(([kind, body]) => kind === "decision" && body.decision === "choose")
+        .map(([, body]) => body.delegation);
+      expect(chosen).toEqual(["full", "custom", "full"]);
+      // Full sends no own-positions switch: the stored draft includes them.
+      const challenges = bodies.filter(([kind]) => kind === "challenge").map(([, body]) => body);
+      expect(challenges.at(-1)).toEqual({});
+      const confirm = bodies.find(
+        ([kind, body]) => kind === "decision" && body.decision === "confirm",
+      );
+      expect(confirm?.[1].proof?.challenge_id).toBeTruthy();
+      const permission = await (
+        await context.request.get(`/api/agents/${agent.id}/permissions`)
+      ).json();
+      expect(permission.effective_level).toBe("autonomous");
+      const envelope = permission.active_authorities[0].envelope;
+      expect(envelope.symbol_scope).toBe("account");
+      expect(envelope.symbols).toEqual([]);
+      expect(envelope.actions).toHaveLength(10);
+      expect(envelope.allow_manual_positions).toBe(true);
+      expect(envelope.valid_until).toBeNull();
+      const policy = await (
+        await context.request.get(`/api/trading/accounts/${state.account}/execution-policy`)
+      ).json();
+      // No daily loss limit from the card; the owner's own limit stays.
+      expect(policy.risk.max_daily_loss).toBeNull();
+      expect(Number(policy.risk.max_open_risk)).toBe(400);
+      await page.reload();
+      await expect(page.getByTestId("safety-pill")).toContainText(text.full);
+    } finally {
+      await context.request.delete(`/api/agents/${agent.id}`, { headers: state.headers });
       await state.cleanup();
     }
   });

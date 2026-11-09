@@ -21,6 +21,12 @@ export type OwnerActionKind =
   | "supervision_paused"
   | "trust_source"
   | "connect_credential";
+/**
+ * A grant card's one choice: Custom (the markets, actions, duration, daily loss limit and
+ * own positions the card shows) or Full delegation (every pair on the account, every
+ * action and the owner's own positions, until stopped, no daily loss limit from the card).
+ */
+export type GrantDelegation = "custom" | "full";
 /** A model card's side of a choice: the mode and its model (null: the owner's default). */
 export type OwnerActionModelState = { mode: AgentModelMode; model: ModelLabel };
 /** trust_source: what the owner adds to the trusted list. */
@@ -70,6 +76,8 @@ export type OwnerActionGrantTerms = {
   minimum_equity: string | null;
   valid_until: string | null;
   allow_manual_positions: boolean;
+  /** Every pair, every action and the owner's own positions, with no expiry or cap. */
+  full_delegation?: boolean;
 };
 /**
  * One owner-only action offered as a card in the conversation (lonora_db.owner_actions).
@@ -131,6 +139,10 @@ export type OwnerAction = {
       all_actions: boolean;
       duration: AuthorityDuration;
       allow_manual_positions: boolean;
+      /** The card's choice now (Custom by default); the owner switches it on the card. */
+      delegation?: GrantDelegation;
+      /** False for an agent whose grant never covers every pair (a fixed-market agent). */
+      full_available?: boolean;
     };
     /** The account's money limits and the daily loss line a grant card sets (D1). */
     money?: {
@@ -222,6 +234,8 @@ export type OwnerAction = {
     /** The account's own daily loss limit, unchanged by the card. */
     daily_loss_kept?: string | null;
     money_limit?: "apply" | "none";
+    /** A grant card: the choice that was signed. */
+    delegation?: GrantDelegation;
     stopped_agents?: string[];
     allowed_added?: boolean;
     undone?: boolean;
@@ -255,7 +269,10 @@ export type OwnerAction = {
   updated_at: string;
 };
 export type OwnerActionDecision = {
-  decision: "confirm" | "cancel";
+  /** "choose" switches a pending grant card's choice in its stored draft; it signs nothing. */
+  decision: "confirm" | "cancel" | "choose";
+  /** Grant card, with "choose": Custom or Full delegation. */
+  delegation?: GrantDelegation;
   outcome?: AttestedOutcome;
   note?: string;
   broker_reference?: string;

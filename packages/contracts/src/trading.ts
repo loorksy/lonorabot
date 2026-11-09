@@ -191,6 +191,8 @@ export type TradingReadiness = {
     account_id?: string | null;
     count?: number;
     symbol_scope?: "selected" | "account";
+    /** on_its_own: the first grant is Full delegation (every pair, action and own position). */
+    full_delegation?: boolean;
     symbols?: string[];
     grant_count?: number;
     /** on_its_own: how many accounts its grants cover. */
@@ -207,6 +209,8 @@ export type TradingReadiness = {
     actions: string[];
     allow_manual_positions: boolean;
     valid_until: string | null;
+    /** Every pair on the account, every action and the owner's own positions, until stopped. */
+    full_delegation?: boolean;
   }>;
   global_trading: GlobalTrading;
   restrictions: Array<{

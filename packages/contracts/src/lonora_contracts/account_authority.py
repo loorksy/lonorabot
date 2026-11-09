@@ -1,8 +1,9 @@
 """Explicit, signed account delegation; independent of a predeclared Goal plan."""
 
+from collections.abc import Mapping
 from datetime import datetime
 from decimal import Decimal
-from typing import Literal
+from typing import Any, Literal, get_args
 
 from pydantic import Field, model_validator
 
@@ -20,6 +21,32 @@ AuthorityAction = Literal[
     "cancel_order",
     "modify_order",
 ]
+# Every action a grant can allow: open, close fully or partly, pending orders, changing
+# stop loss and take profit, cancelling and modifying orders.
+ALL_AUTHORITY_ACTIONS: tuple[AuthorityAction, ...] = get_args(AuthorityAction)
+AUTHORITY_CAPS = (
+    "maximum_order_volume",
+    "maximum_symbol_volume",
+    "maximum_positions",
+    "maximum_pending_orders",
+    "maximum_actions",
+    "minimum_equity",
+)
+
+
+def full_delegation(envelope: Mapping[str, Any]) -> bool:
+    """Whether a grant (an envelope, or its stored JSON) is Full delegation: full
+    management of every pair on its account, every action and the owner's own
+    positions, with no expiry and no cap of its own. The account's money limits, the
+    owner's pauses and Stop new trading still bind it; nothing here is authority."""
+    return (
+        envelope.get("management_mode") == "full"
+        and envelope.get("symbol_scope") == "account"
+        and set(envelope.get("actions") or ()) == set(ALL_AUTHORITY_ACTIONS)
+        and envelope.get("valid_until") is None
+        and envelope.get("allow_manual_positions") is True
+        and all(envelope.get(name) is None for name in AUTHORITY_CAPS)
+    )
 
 
 class AccountAuthorityProposal(Contract):

@@ -84,6 +84,7 @@ CHECKS = (
     "check_owner_profile.py",
     "check_grant_card.py",
     "check_grant_coverage.py",
+    "check_full_delegation.py",
     "check_lossless_downgrades.py",
     "check_goal_call_identity.py",
     "check_agent_model_choice.py",

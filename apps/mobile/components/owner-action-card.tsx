@@ -2,13 +2,15 @@ import type { DeviceChallenge, OwnerAction, OwnerActionDecision } from "@lonora/
 import {
   type CredentialForm,
   type OwnerActionButton,
+  type OwnerActionOption,
   ownerActionCard,
   ownerActionChoices,
+  ownerActionChoose,
   ownerActionText,
   submitCredential,
 } from "@lonora/core";
 import { useEffect, useRef, useState } from "react";
-import { Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 import { api } from "../lib/api";
 import { ApiError } from "../lib/api-error";
 import { deviceProof, deviceSupported } from "../lib/device-proof";
@@ -39,6 +41,8 @@ export function OwnerActionCard({
   const [enroll, setEnroll] = useState(false);
   const [password, setPassword] = useState("");
   const [chosen, setChosen] = useState<Record<string, boolean>>({});
+  // The choice being stored: shown selected until the server's card says so.
+  const [choosing, setChoosing] = useState<string | null>(null);
   const [supported, setSupported] = useState<boolean | null>(null);
   // A credential card's form: values stay here until posted to the owner API, then clear.
   const [values, setValues] = useState<Record<string, string>>({});
@@ -100,6 +104,19 @@ export function OwnerActionCard({
     waiting.current = null;
     onChange(updated);
   };
+  // A grant card's Custom or Full delegation: the server stores the choice in the card's
+  // draft and answers with the card as it now reads; nothing is signed.
+  const choose = (option: OwnerActionOption) =>
+    run(async () => {
+      const body = ownerActionChoose(option);
+      if (!body || option.initial) return;
+      setChoosing(option.key);
+      try {
+        onChange(await api.post<OwnerAction>(`/owner-actions/${row.id}/decision`, body));
+      } finally {
+        setChoosing(null);
+      }
+    });
   const connect = (form: CredentialForm) =>
     run(async () => {
       const sent = {
@@ -134,6 +151,8 @@ export function OwnerActionCard({
       if (waiting.current) await submit(waiting.current);
     });
   const blocked = spec.passkey && supported === false;
+  const selected = (option: OwnerActionOption) =>
+    choosing ? choosing === option.key : option.initial;
   return (
     <View
       testID={`owner-action-${row.id}`}
@@ -154,16 +173,75 @@ export function OwnerActionCard({
         </Text>
       ))}
       {spec.hint ? <Text style={[{ color: colors.secondary }, align]}>{spec.hint}</Text> : null}
-      {spec.options.map((option) => (
-        <SettingsSwitch
-          key={option.key}
-          testID={`owner-action-option-${option.key.split(":")[0]}`}
-          label={option.label}
-          value={chosen[option.key] ?? option.initial}
-          disabled={busy}
-          onChange={(value) => setChosen((old) => ({ ...old, [option.key]: value }))}
-        />
-      ))}
+      {spec.options.map((option) =>
+        option.choice ? (
+          <View key={option.key} style={{ gap: 4 }}>
+            <Pressable
+              testID={`owner-action-choice-${option.choice.value}`}
+              accessibilityRole="radio"
+              accessibilityLabel={option.label}
+              aria-checked={selected(option)}
+              accessibilityState={{ checked: selected(option), disabled: busy }}
+              disabled={busy}
+              onPress={() => void choose(option)}
+              style={({ pressed }) => ({
+                flexDirection: rtl ? "row-reverse" : "row",
+                alignItems: "center",
+                gap: 10,
+                minHeight: 44,
+                paddingHorizontal: 12,
+                borderWidth: 1,
+                borderRadius: 12,
+                borderColor: selected(option) ? colors.foreground : colors.border,
+                opacity: busy ? 0.5 : pressed ? 0.82 : 1,
+              })}
+            >
+              <View
+                style={{
+                  width: 18,
+                  height: 18,
+                  borderRadius: 9,
+                  borderWidth: 2,
+                  borderColor: colors.foreground,
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                {selected(option) ? (
+                  <View
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: 4,
+                      backgroundColor: colors.foreground,
+                    }}
+                  />
+                ) : null}
+              </View>
+              <Text style={[{ flex: 1, color: colors.foreground, fontSize: 17 }, align]}>
+                {option.label}
+              </Text>
+            </Pressable>
+            {option.detail ? (
+              <Text
+                testID={`owner-action-choice-detail-${option.choice.value}`}
+                style={[{ color: colors.secondary }, align]}
+              >
+                {option.detail}
+              </Text>
+            ) : null}
+          </View>
+        ) : (
+          <SettingsSwitch
+            key={option.key}
+            testID={`owner-action-option-${option.key.split(":")[0]}`}
+            label={option.label}
+            value={chosen[option.key] ?? option.initial}
+            disabled={busy}
+            onChange={(value) => setChosen((old) => ({ ...old, [option.key]: value }))}
+          />
+        ),
+      )}
       {spec.notes ? (
         <>
           <Field label={text.note} value={note} maxLength={2000} onChangeText={setNote} />

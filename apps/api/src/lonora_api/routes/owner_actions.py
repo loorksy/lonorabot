@@ -25,7 +25,10 @@ A grant card signs through the existing account-authority ceremony: its challeng
 the full-management proposal from the card's stored draft (``propose``) and returns the
 WebAuthn options bound to that envelope (``begin_activation``); its confirmation verifies
 the assertion (``finish_activation``). The card's other choices only narrow (the daily
-loss limit, stopping another agent's grant) or widen nothing (Resume).
+loss limit, stopping another agent's grant) or widen nothing (Resume). Its one choice,
+Custom or Full delegation, is a ``choose`` decision: it rewrites the stored draft the
+next challenge signs and withdraws a proposal an earlier challenge prepared; it settles
+nothing and grants nothing, and Full needs the same passkey confirmation as Custom.
 """
 
 from dataclasses import dataclass
@@ -61,6 +64,7 @@ from lonora_db.owner_actions import (
     account_policy,
     agent_names,
     card_facts,
+    choose_delegation,
     confirm_in_thread,
     continue_after_card,
     daily_loss_change,
@@ -204,7 +208,12 @@ async def grant_challenge(
         raise LonoraError("owner_action_not_needed_" + reason, 409)
     await authority_lock(session, owner.id + ":devices")
     draft = GrantDraft.model_validate(row.payload)
-    if body.allow_manual_positions is not None:
+    if body.allow_manual_positions is not None and draft.delegation == "full":
+        # Full delegation always includes the owner's own positions: the card says so,
+        # so the passkey never signs anything else under that choice.
+        if not body.allow_manual_positions:
+            raise LonoraError("owner_action_full_delegation_terms_fixed", 422)
+    elif body.allow_manual_positions is not None:
         # The owner's own switch on the card; it is part of what the passkey signs.
         draft = draft.model_copy(update={"allow_manual_positions": body.allow_manual_positions})
     # The grant belongs to the agent's own conversation, where its management Task runs.
@@ -298,6 +307,9 @@ async def decide(
     body: OwnerActionDecision,
     review: ServerReview | None = None,
 ) -> None:
+    if body.decision == "choose":
+        await choose(session, owner, row, body)
+        return
     desired = "confirmed" if body.decision == "confirm" else "cancelled"
     if row.status != "pending":
         # Idempotent per card: the same decision again answers from the record.
@@ -478,6 +490,27 @@ async def decide(
         await continue_after_card(session, row)
 
 
+async def choose(
+    session: AsyncSession, owner: OwnerIdentity, row: OwnerActionRow, body: OwnerActionDecision
+) -> None:
+    """The owner's choice on a pending grant card (Custom or Full delegation), stored in
+    its draft. Nothing is signed or settled: the next challenge builds the envelope from
+    the chosen draft, and a proposal prepared for the other choice is withdrawn."""
+    if row.kind != "grant_authority":
+        raise LonoraError("owner_action_choice_unsupported", 422)
+    if body.delegation is None:
+        raise LonoraError("owner_action_delegation_required", 422)
+    if row.status != "pending":
+        raise LonoraError("owner_action_expired_or_decided", 409)
+    if row.expires_at <= utcnow():
+        await settle(session, row, "expired", "expired")
+        return
+    if GrantDraft.model_validate(row.payload).delegation == body.delegation:
+        return  # Already chosen: idempotent.
+    await withdraw_grant(session, owner, row)
+    await choose_delegation(session, row, body.delegation)
+
+
 async def withdraw_grant(session: AsyncSession, owner: OwnerIdentity, row: OwnerActionRow) -> None:
     """A dismissed grant card leaves no pending proposal behind."""
     identifier = row.result.get("authority_id") if row.kind == "grant_authority" else None
@@ -525,10 +558,13 @@ async def confirm_grant(
         await apply_controls(session, TradingControl(enabled=True, emergency_stop=False))
         resumed = True
     daily = kept = None
+    # Full delegation has no daily loss line to opt out of: the account's own limits stay
+    # as they are either way, and the confirmation says so once.
+    money_limit = "apply" if draft.delegation == "full" else body.money_limit
     # The account lock the settings route takes before it reads the limits.
     await owned_account(session, owner.id, draft.account_id, lock=True)
     policy = await account_policy(session, owner.id, draft.account_id)
-    change = daily_loss_change(policy.risk, draft) if body.money_limit == "apply" else None
+    change = daily_loss_change(policy.risk, draft) if money_limit == "apply" else None
     if change is not None:
         if widens(policy.risk, change):
             raise LonoraError("owner_action_limits_invalid", 422)
@@ -563,6 +599,7 @@ async def confirm_grant(
     return {
         "signed_facts": signed,
         "authority_id": authority.id,
+        "delegation": draft.delegation,
         "allow_manual_positions": row.result.get("allow_manual_positions"),
         "resumed": resumed,
         "stopped_authorities": stopped,
@@ -570,7 +607,7 @@ async def confirm_grant(
         "daily_loss": daily,
         # The account's own daily loss limit, unchanged by this card.
         "daily_loss_kept": kept,
-        "money_limit": body.money_limit,
+        "money_limit": money_limit,
     }
 
 

@@ -19,13 +19,20 @@ from decimal import Decimal
 from typing import Any, cast
 
 from lonora_contracts.account_authority import (
+    ALL_AUTHORITY_ACTIONS,
     AccountAuthorityEnvelope,
     AccountAuthorityProposal,
     AuthorityAction,
+    full_delegation,
 )
 from lonora_contracts.domain import new_id, utcnow
 from lonora_contracts.execution_quality import ExecutionPolicy
-from lonora_contracts.owner_actions import MODEL_CARD_KINDS, GrantDraft, OwnerActionProposal
+from lonora_contracts.owner_actions import (
+    MODEL_CARD_KINDS,
+    GrantDelegation,
+    GrantDraft,
+    OwnerActionProposal,
+)
 from lonora_contracts.risk_limits import MonetaryRiskLimits
 from lonora_contracts.trading import UNRESOLVED_STATUSES, TradingControl
 from lonora_core.user_error import LonoraError
@@ -76,18 +83,7 @@ LIFETIME = {
     "connect_credential": timedelta(days=7),
 }
 GRANT_HOURS = {"until_stopped": None, "12h": 12, "24h": 24, "7d": 168}
-ALL_ACTIONS: tuple[AuthorityAction, ...] = (
-    "buy",
-    "sell",
-    "buy_limit",
-    "sell_limit",
-    "buy_stop",
-    "sell_stop",
-    "close_position",
-    "modify_position",
-    "cancel_order",
-    "modify_order",
-)
+ALL_ACTIONS: tuple[AuthorityAction, ...] = ALL_AUTHORITY_ACTIONS
 # Pending cards one agent may have proposed at once; runtime cards do not count.
 MAXIMUM_PENDING_PER_AGENT = 5
 UPPER_LIMITS = (
@@ -400,6 +396,47 @@ async def grant_conflicts(
     ]
 
 
+def full_delegation_available(agent: AgentRow) -> bool:
+    """Full delegation covers every pair on the account: only an agent whose grant may
+    be account-wide (Lonora, or a flexible root agent) can be offered it."""
+    from .agent_binding import account_wide_scope
+
+    return account_wide_scope(agent)
+
+
+async def choose_delegation(
+    session: AsyncSession, row: OwnerActionRow, choice: GrantDelegation
+) -> bool:
+    """The owner's choice on a pending grant card, stored in its draft: the card's
+    payload (and its hash) become the chosen draft, so the next challenge builds the
+    envelope from it. Returns whether anything changed. The caller holds the owner cards
+    lock and the card, and withdraws a proposal an earlier challenge prepared."""
+    from .agent_binding import require_financial_agent
+
+    draft = GrantDraft.model_validate(row.payload)
+    if draft.delegation == choice:
+        return False
+    if choice == "full":
+        agent = await require_financial_agent(session, row.owner_id, draft.agent_id)
+        if not full_delegation_available(agent):
+            raise LonoraError("owner_action_full_delegation_unavailable", 409)
+    chosen = draft.with_delegation(choice)
+    payload = chosen.model_dump(mode="json")
+    digest = payload_hash(row.kind, payload)
+    # The same agent's other pending card that already asks for exactly this: one card
+    # per effect, so that one gives way to the card the owner is choosing on.
+    duplicate = await pending_effect(session, row.agent_id, row.kind, digest)
+    if duplicate is not None and duplicate.id != row.id:
+        await settle(session, duplicate, "superseded", "same_choice_on_another_card")
+    row.payload = payload
+    row.payload_hash = digest
+    row.result = {}
+    row.updated_at = utcnow()
+    await session.flush()
+    await owner_action_event(session, row)
+    return True
+
+
 def grant_proposal(
     draft: GrantDraft, thread_id: str, now: datetime | None = None
 ) -> AccountAuthorityProposal:
@@ -468,6 +505,7 @@ def grant_terms(envelope: AccountAuthorityEnvelope) -> dict[str, Any]:
         "maximum_actions": envelope.maximum_actions,
         "valid_until": None if envelope.valid_until is None else envelope.valid_until.isoformat(),
         "allow_manual_positions": envelope.allow_manual_positions,
+        "full_delegation": full_delegation(envelope.model_dump()),
     }
 
 
@@ -727,7 +765,13 @@ async def grant_facts(
     facts["account"] = account_facts(
         await session.get(BrokerSessionRow, draft.account_id), draft.account_id
     )
-    allow_manual = row.result.get("allow_manual_positions", draft.allow_manual_positions)
+    # Full delegation always includes the owner's own positions; under Custom the
+    # owner's switch, once sent with a challenge, is what is signed.
+    allow_manual = (
+        True
+        if draft.delegation == "full"
+        else row.result.get("allow_manual_positions", draft.allow_manual_positions)
+    )
     facts["grant"] = {
         "agent_name": names.get(draft.agent_id),
         "agent_is_personal": grantee is not None and grantee.role == "personal",
@@ -737,6 +781,10 @@ async def grant_facts(
         "all_actions": set(draft.actions) == set(ALL_ACTIONS),
         "duration": draft.duration,
         "allow_manual_positions": bool(allow_manual),
+        # The card's one choice, and whether Full delegation can be offered at all: a
+        # fixed-market agent's grant never covers every pair on the account.
+        "delegation": draft.delegation,
+        "full_available": grantee is not None and full_delegation_available(grantee),
     }
     policy = await account_policy(session, owner_id, draft.account_id)
     change = daily_loss_change(policy.risk, draft)
@@ -1672,6 +1720,9 @@ async def grant_notes(session: AsyncSession, row: OwnerActionRow) -> list[str]:
     """The grant's one-line confirmation: what else the card did, and Stop if it holds."""
     result = row.result
     notes: list[str] = []
+    if result.get("delegation") == "full":
+        # What Full delegation signed, and that the account's own limits still apply.
+        notes.append("owner_action_grant_full")
     if result.get("daily_loss") is not None:
         notes.append("owner_action_grant_daily_loss")
     elif result.get("money_limit") == "none":

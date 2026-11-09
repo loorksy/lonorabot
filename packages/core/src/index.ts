@@ -80,6 +80,7 @@ export {
   type OwnerActionText,
   ownerActionCard,
   ownerActionChoices,
+  ownerActionChoose,
   ownerActionError,
   ownerActionLabels,
   ownerActionText,
