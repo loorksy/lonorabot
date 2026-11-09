@@ -66,7 +66,7 @@ tatweel removed); messages are served by a pg_trgm index on that expression (cre
 `0045_chat_lists`, which installs the trusted `pg_trgm` extension). Score: exact 6, prefix
 5, contains 4, a detail field 3, then recency. Files are artifacts, knowledge is every
 agent's memory and semantic notes labelled by agent, skills the installed skills (Q5).
-Message hits carry `thread_id`, `seq`, `created_at`, `role`, `agent_id` (the speaker),
+Message hits carry `thread_id`, `seq`, `created_at`, `role`, `agent_id` (the speaking agent; for an owner message the thread's agent, null in a group),
 `thread_agent_id` and `group_id` (the thread's own agent or group, which routes the hit: a
 peer's outcome sits in the asking agent's thread) and a 160-character snippet;
 `GET /api/threads/{id}/messages?around=seq` centres a page on a
