@@ -295,6 +295,6 @@ test("web and mobile render the same status line, watch list and avatar", () => 
     for (const name of ["agentStatusLine", "watchCondition", "watchUntil", "/control"])
       assert.ok(source.includes(name), `${path} uses ${name}`);
   }
-  for (const path of ["apps/web/src/pages/Shell.tsx", "apps/mobile/app/thread.tsx"])
+  for (const path of ["apps/web/src/shell/Shell.tsx", "apps/mobile/app/thread.tsx"])
     assert.ok(readFileSync(path, "utf8").includes("liveAvatarState"), path);
 });
