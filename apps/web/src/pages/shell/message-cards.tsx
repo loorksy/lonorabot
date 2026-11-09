@@ -5,6 +5,7 @@ import { plainTextLinkParts } from "@lonora/chat-ui/markdown";
 import { ChatMarkdown } from "@lonora/chat-ui/web";
 import type { VisualAction } from "@lonora/contracts";
 import { peerOutcome } from "@lonora/core";
+import { Icon } from "@lonora/ui-web";
 import { ArrowRight, CornerUpLeft, MessagesSquare } from "lucide-react";
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
@@ -183,6 +184,10 @@ export function MessageBubble({
               >
                 <Trans>Retry</Trans>
               </button>
+            ) : outgoing.delivery === "queued" ? (
+              <span className="ticks-wait" role="status" aria-label={t`Waiting for the network…`}>
+                <Icon name="clock" />
+              </span>
             ) : (
               <span role="status">
                 <Trans>Sending…</Trans>

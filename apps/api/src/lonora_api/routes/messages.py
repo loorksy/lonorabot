@@ -6,7 +6,8 @@ from typing import Any
 from fastapi import APIRouter, Depends, Query, Request
 from lonora_auth.identity import OwnerIdentity
 from lonora_contracts.domain import MessageCreate
-from lonora_db.messages import history, message_data, send_message
+from lonora_db.messages import history, history_around, message_data, send_message
+from lonora_db.thread_prefs import consumed, consumed_seq, hidden_floor, steered_message_ids
 
 from ..middleware.auth import require_owner, runtime
 
@@ -20,12 +21,26 @@ async def messages(
     thread_id: str,
     limit: int = Query(default=100, ge=1, le=200),
     before: int | None = None,
+    around: int | None = Query(default=None, ge=1),
     owner: OwnerIdentity = Depends(require_owner),
 ) -> list[dict[str, Any]]:
+    """The owner's view of the history: nothing before the «مسح» cursor; ``around`` centres
+    the page on one message (a search hit); owner messages carry ``consumed``."""
     async with runtime(request).db.sessions() as session:
-        return [
-            message_data(row) for row in await history(session, owner.id, thread_id, limit, before)
-        ]
+        floor = await hidden_floor(session, owner.id, thread_id)
+        rows = (
+            await history_around(session, owner.id, thread_id, around, limit, floor=floor)
+            if around is not None
+            else await history(session, owner.id, thread_id, limit, before, floor=floor)
+        )
+        items = [message_data(row) for row in rows]
+        started = await consumed_seq(session, thread_id)
+        steered = await steered_message_ids(
+            session, [item["id"] for item in items if item["role"] == "user"]
+        )
+        for item in items:
+            item["consumed"] = consumed(item, started, steered)
+        return items
 
 
 @router.post("/threads/{thread_id}/messages", status_code=202)

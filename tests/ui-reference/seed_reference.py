@@ -1,0 +1,212 @@
+"""Seed the app with the reference's own demo data (docs/ui-reference/Lonora-Desktop-37.html,
+``initial``) for tests/ui-reference/side-by-side.mjs.
+
+Everything the owner can create goes through the API (in-process, the same routes the web
+calls): onboarding and sign-in, a simulation broker account with XAUUSD, the three agents from
+their templates, the group with its purpose and lead, the conversations and the read cursors.
+Agent-authored messages have no owner route (a run writes them), so they are written into
+history exactly as tests/chat_lists_browser.py does, at the reference's times (UTC).
+
+Reads one JSON object on stdin and prints one JSON object:
+``{"action": "init"}`` → cookies, agent and thread ids (on a database it seeded before, the same
+ids with a fresh sign-in, so a run can be repeated with --no-bindings).
+"""
+
+import asyncio
+import json
+import sys
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from check_streaming import Fixture  # noqa: E402
+from lonora_db.messages import message_data  # noqa: E402
+from lonora_db.schema import MessageRow, ThreadRow  # noqa: E402
+
+
+def at(hour: int, minute: int) -> datetime:
+    return datetime.now(UTC).replace(hour=hour, minute=minute, second=0, microsecond=0)
+
+
+async def say(fixture: Fixture, thread_id: str, agent_id: str, content: str, when: datetime):
+    async with fixture.runtime.db.sessions() as session, session.begin():
+        thread = await session.get(ThreadRow, thread_id, with_for_update=True)
+        assert thread is not None
+        row = MessageRow(
+            thread_id=thread_id,
+            seq=thread.next_seq,
+            role="assistant",
+            agent_id=agent_id,
+            content=content,
+            created_at=when,
+        )
+        session.add(row)
+        thread.next_seq += 1
+        await session.flush()
+        return message_data(row)
+
+
+async def rows(fixture: Fixture, path: str) -> list[dict[str, Any]]:
+    response = await fixture.client.get("/api" + path)
+    assert response.is_success, f"GET {path}: HTTP {response.status_code}"
+    return response.json()
+
+
+def cookies(fixture: Fixture) -> list[dict[str, str]]:
+    return [
+        {"name": cookie.name, "value": cookie.value or ""} for cookie in fixture.client.cookies.jar
+    ]
+
+
+async def attach(fixture: Fixture, agents: list[dict[str, Any]]) -> dict[str, Any]:
+    """A database this script seeded before: the same ids, a fresh sign-in."""
+    names = {
+        "Lonora": "lonora",
+        "محلل الذهب": "gold",
+        "مساعد الأبحاث": "research",
+        "رفيق": "friend",
+    }
+    ids = {names[agent["name"]]: agent["id"] for agent in agents if agent["name"] in names}
+    groups = await rows(fixture, "/groups")
+    team = next(group for group in groups if group["payload"]["name"] == "فريق التداول")
+    inbox = await rows(fixture, "/threads/inbox")
+    threads = {key: e["thread_id"] for key, i in ids.items() for e in inbox if e["agent_id"] == i}
+    threads["team"] = team["state"]["thread_id"]
+    return {"cookies": cookies(fixture), "agents": ids, "group": team["id"], "threads": threads}
+
+
+async def init(fixture: Fixture) -> dict[str, Any]:
+    agents = await rows(fixture, "/agents")
+    if any(agent["name"] == "محلل الذهب" for agent in agents):
+        return await attach(fixture, agents)
+    if len(agents) != 1:
+        raise SystemExit("seed_reference expects a fresh database (one personal agent).")
+    lonora = agents[0]
+    await fixture.request("PATCH", f"/agents/{lonora['id']}", {"color": "#7c83fd"})
+    account = await fixture.request(
+        "POST",
+        "/trading/connections",
+        {"provider": "simulation", "account_id": "ui-reference-demo", "enabled": True},
+    )
+    await fixture.request(
+        "POST",
+        f"/trading/connections/{account['id']}/simulation",
+        {
+            "snapshot": {
+                "balance": "10000",
+                "currency": "USD",
+                "instruments": [
+                    {
+                        "symbol": "XAUUSD",
+                        "digits": 2,
+                        "tick_size": "0.01",
+                        "volume_min": "0.01",
+                        "volume_max": "100",
+                        "volume_step": "0.01",
+                    }
+                ],
+            }
+        },
+    )
+    gold = await fixture.request(
+        "POST",
+        "/agents/create",
+        {
+            "template": "trading",
+            "name": "محلل الذهب",
+            "responsibility": "تحليل السوق ومتابعة الذهب",
+            "market": "XAUUSD",
+        },
+    )
+    research = await fixture.request(
+        "POST",
+        "/agents/create",
+        {
+            "template": "research",
+            "name": "مساعد الأبحاث",
+            "responsibility": "جمع المعلومات وتلخيصها",
+        },
+    )
+    friend = await fixture.request(
+        "POST",
+        "/agents/create",
+        {"template": "general", "name": "رفيق", "responsibility": "تنظيم المهام اليومية"},
+    )
+    for agent, color in ((gold, "#8b5cf6"), (research, "#5d9cec"), (friend, "#55bca6")):
+        await fixture.request("PATCH", f"/agents/{agent['id']}", {"color": color})
+    group = await fixture.request(
+        "POST",
+        "/groups/create",
+        {
+            "name": "فريق التداول",
+            "member_ids": [lonora["id"], gold["id"], research["id"]],
+            "participation": "mentions_or_lead",
+            "purpose": "متابعة السوق وتنسيق العمل",
+            "lead_agent_id": lonora["id"],
+        },
+    )
+    threads = {
+        "lonora": (await fixture.conversation(lonora))["id"],
+        "gold": (await fixture.conversation(gold))["id"],
+        "research": (await fixture.conversation(research))["id"],
+        "friend": (await fixture.conversation(friend))["id"],
+        "team": group["thread_id"],
+    }
+    await say(
+        fixture,
+        threads["gold"],
+        gold["id"],
+        "الذهب يقترب من مقاومة 2350. سأنبّهك عند أي اختراق، ويمكنك فتح الشارت من الاقتراحات أسفل المحادثة.",
+        at(9, 41),
+    )
+    lonora_seed = await say(
+        fixture,
+        threads["lonora"],
+        lonora["id"],
+        "صباح الخير أحمد! موجز اليوم جاهز: لا مستجدات عاجلة، ومهمة متابعة الذهب مستمرة حتى 18:00.",
+        at(9, 0),
+    )
+    team_first = await say(
+        fixture,
+        threads["team"],
+        lonora["id"],
+        "مرحبًا بالفريق. كل وكيل هنا يحتفظ بصلاحياته الخاصة.",
+        at(8, 30),
+    )
+    await say(
+        fixture,
+        threads["team"],
+        research["id"],
+        "جمعت ثلاثة مصادر عن توقعات الفائدة هذا الأسبوع. أرسلها لكم كملخص؟",
+        at(8, 32),
+    )
+    # The reference's unread map: gold 1, team 1 (Lonora's briefing was read).
+    await fixture.request("POST", f"/threads/{threads['lonora']}/read", {"seq": lonora_seed["seq"]})
+    await fixture.request("POST", f"/threads/{threads['team']}/read", {"seq": team_first["seq"]})
+    return {
+        "cookies": cookies(fixture),
+        "agents": {
+            "lonora": lonora["id"],
+            "gold": gold["id"],
+            "research": research["id"],
+            "friend": friend["id"],
+        },
+        "group": group["id"],
+        "threads": threads,
+    }
+
+
+async def main(data: dict[str, Any]) -> dict[str, Any]:
+    fixture = await Fixture().open()
+    try:
+        if data["action"] == "init":
+            return await init(fixture)
+        raise ValueError("Unknown seed action")
+    finally:
+        await fixture.close(cleanup=False)
+
+
+if __name__ == "__main__":
+    print(json.dumps(asyncio.run(main(json.load(sys.stdin)))))

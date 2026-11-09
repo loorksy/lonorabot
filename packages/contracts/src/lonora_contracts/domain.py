@@ -18,6 +18,8 @@ class Contract(BaseModel):
 
 
 class AgentCreate(Contract):
+    # The creation template; the server derives it from the focus pair when absent.
+    template: Literal["trading", "general", "research", "supervisor"] | None = None
     scope_mode: Literal["fixed_market", "flexible"] = "fixed_market"
     trading_account_id: str | None = Field(default=None, min_length=1, max_length=36)
     trading_symbol: str | None = Field(default=None, min_length=1, max_length=80)

@@ -79,3 +79,16 @@
   --scrollbar-hover: #a8a8a4;
   --radius: 0.75rem;
 }
+
+.legacy-surface,
+[data-theme="dark"] .legacy-surface {
+  --primary: #f1f1ef;
+  --accent: #1a1b20;
+  --muted: #141518;
+}
+
+[data-theme="light"] .legacy-surface {
+  --primary: #1a1a1a;
+  --accent: #eaeae6;
+  --muted: #f0f0ed;
+}

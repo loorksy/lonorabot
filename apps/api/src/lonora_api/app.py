@@ -19,6 +19,7 @@ from .runtime import ApiRuntime
 
 ROUTES = (
     "mobile_updates",
+    "version",
     "auth",
     "device_authority",
     "account_authority",
@@ -32,6 +33,7 @@ ROUTES = (
     "agent_secrets",
     "agent_skills",
     "threads",
+    "chat_lists",
     "messages",
     "runs",
     "steering",

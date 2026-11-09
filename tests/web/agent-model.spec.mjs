@@ -58,7 +58,7 @@ for (const locale of ["en", "ar"]) {
       // The same choice in the agent's settings: Fixed on one model, then Automatic.
       await page
         .getByRole("button", {
-          name: `${locale === "ar" ? "إعدادات الوكيل" : "Agent settings"}: ${agent.name}`,
+          name: locale === "ar" ? "معلومات الوكيل" : "Agent info",
           exact: true,
         })
         .click();

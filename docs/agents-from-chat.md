@@ -81,6 +81,8 @@ connection version is recorded and re-checked when the agent is created.
   temporary helpers do not count) and at most `MAXIMUM_CREATIONS_PER_RUN` (3) creations
   or creation cards per run (`agent_limit_reached`, `agent_create_run_limit`). Both are
   re-checked under the owner's creation lock, and the cap again when a card is tapped.
+  The owner's own «وكيل جديد» form (`POST /api/agents/create`, `created_via` `owner_ui`)
+  is not capped, as the owner's form never was.
 - A crash-replayed call returns the agent it created (its id is the call's resource id).
   A retry under a new call id for the same owner message, template and name returns the
   same agent (an effect receipt), also after a worker restart that lost the transcript.

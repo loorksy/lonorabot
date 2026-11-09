@@ -43,23 +43,39 @@ export function flexibleAgentUi(mobile) {
           await page.goto("/app/");
           await page
             .getByRole("button", {
-              name: locale === "ar" ? "إنشاء محادثة" : "Create conversation",
+              name: locale === "ar" ? "محادثة جديدة" : "New chat",
               exact: true,
             })
             .first()
             .click();
-          await page.getByTestId("create-new-agent").click();
+          await page
+            .locator("#dialog")
+            .getByRole("button", { name: locale === "ar" ? /^وكيل جديد/ : /^New agent/ })
+            .click();
+          await expect(page).toHaveURL(/\/app\/new-agent$/);
         }
-        const surface = mobile ? page : page.getByTestId("side-panel");
-        await surface.getByLabel(locale === "ar" ? "الاسم" : "Name", { exact: true }).fill(name);
-        if (mobile)
+        const surface = mobile ? page : page.locator("main");
+        if (mobile) {
+          await surface.getByLabel(locale === "ar" ? "الاسم" : "Name", { exact: true }).fill(name);
           await expect(page.getByTestId("agent-market-mode-general-native")).toContainText(
             locale === "ar" ? "نشط" : "Active",
           );
-        else await expect(page.getByTestId("agent-market-mode")).toHaveValue("general");
+        } else {
+          // Web (owner decision Q9): the general template is chosen first, then named.
+          await expect(
+            surface.getByRole("radio", { name: locale === "ar" ? /^وكيل عام/ : /^General agent/ }),
+          ).toBeChecked();
+          await surface.getByRole("button", { name: locale === "ar" ? "التالي" : "Next" }).click();
+          await surface
+            .getByLabel(locale === "ar" ? "اسم الوكيل" : "Agent name", { exact: true })
+            .fill(name);
+          await surface
+            .getByLabel(locale === "ar" ? "الوصف" : "Description", { exact: true })
+            .fill("Flexible general agent");
+        }
         const creation = page.waitForResponse(
           (response) =>
-            new URL(response.url()).pathname === "/api/agents" &&
+            new URL(response.url()).pathname === (mobile ? "/api/agents" : "/api/agents/create") &&
             response.request().method() === "POST",
         );
         await surface
@@ -68,10 +84,10 @@ export function flexibleAgentUi(mobile) {
               locale === "ar"
                 ? mobile
                   ? "إنشاء"
-                  : "إنشاء وكيل"
+                  : "إنشاء الوكيل"
                 : mobile
                   ? "Create"
-                  : "Create agent",
+                  : "Create the agent",
             exact: true,
           })
           .click();
@@ -79,6 +95,7 @@ export function flexibleAgentUi(mobile) {
         expect(response.status()).toBe(201);
         const agent = await response.json();
         created.push(agent.id);
+        if (!mobile) expect(agent.template).toBe("general");
         expect(agent.role).toBe("general");
         expect(agent.trading_account_id).toBeNull();
         expect(agent.trading_symbol).toBeNull();
@@ -99,9 +116,14 @@ export function flexibleAgentUi(mobile) {
         if (mobile) await page.goto(`/bot-settings?botId=${agent.id}`);
         else {
           await page.goto(`/app/${agent.id}`);
-          await page.locator(".tpl-chat-identity").click();
+          await page
+            .getByRole("button", {
+              name: locale === "ar" ? "معلومات الوكيل" : "Agent info",
+              exact: true,
+            })
+            .click();
         }
-        const settings = mobile ? page : page.getByTestId("side-panel");
+        const settings = mobile ? page : page.locator("#dialog");
         if (mobile)
           await expect(page.getByTestId("agent-market-mode-market-native")).toContainText(
             locale === "ar" ? "نشط" : "Active",

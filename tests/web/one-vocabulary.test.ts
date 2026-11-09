@@ -76,7 +76,6 @@ test("Web and Mobile read operation and approval labels from the one shared tabl
   assert.equal(runStatusText("waiting_takeover", "en"), "Waiting to resume");
   for (const file of [
     "apps/web/src/pages/ActivityList.tsx",
-    "apps/web/src/pages/shell/sidebar-activity.tsx",
     "apps/mobile/app/thread.tsx",
     "apps/mobile/app/index.tsx",
     "apps/mobile/components/WorkingIndicator.tsx",

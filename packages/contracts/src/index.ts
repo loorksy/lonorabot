@@ -11,6 +11,7 @@ export type * from "./models";
 export type * from "./owner-actions";
 export type * from "./performance";
 export type * from "./runs";
+export type * from "./search";
 export type * from "./skills";
 export type * from "./supervision";
 export type * from "./trading";

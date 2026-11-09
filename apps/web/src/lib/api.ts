@@ -89,6 +89,11 @@ async function perform<T>(path: string, init: RequestInit): Promise<T> {
       current();
       if (response.status === 401 && !path.startsWith("/auth/"))
         window.dispatchEvent(new CustomEvent("lonora:session-expired"));
+      // Repeated 503s mean maintenance (the shell decides how many), never one transient error.
+      // A 503 that names its own reason (broker identity, voice worker…) comes from a running
+      // API and stays that feature's error; only an unnamed one counts toward maintenance.
+      if (response.status === 503 && (data.code ?? "request_failed") === "request_failed")
+        window.dispatchEvent(new CustomEvent("lonora:api-unavailable"));
       throw new ApiError(data.code ?? "request_failed", response.status);
     }
     const data = await response.json();

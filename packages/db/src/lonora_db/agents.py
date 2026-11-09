@@ -24,6 +24,7 @@ def agent_data(row: AgentRow, *, trades_on_its_own: bool = False) -> dict[str, A
         "paused": row.paused,
         "trades_on_its_own": trades_on_its_own,
         "role": row.role,
+        "template": row.template,
         "execution_mode": row.execution_mode,
         "scope": scope_data(row),
         "trading_account_id": row.trading_account_id,
@@ -70,12 +71,18 @@ async def create_agent(
                 "scope_mode": "fixed_market",
             }
         )
+    template = request.template
+    if template is None and parent_id is None:
+        # The owner's form names no template: the focus pair decides. Delegated helpers
+        # keep none, and the personal agent clears it (their role is their type).
+        template = "trading" if request.trading_symbol else "general"
     row = AgentRow(
         owner_id=owner_id,
         parent_id=parent_id,
         role=role,
         execution_mode=execution_mode,
-        **request.model_dump(),
+        template=template,
+        **request.model_dump(exclude={"template"}),
     )
     if agent_id:
         row.id = agent_id

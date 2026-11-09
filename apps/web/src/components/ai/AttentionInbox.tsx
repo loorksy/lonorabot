@@ -1,19 +1,40 @@
 import { Trans, useLingui } from "@lingui/react/macro";
-import type { Agent, AttentionPolicy } from "@lonora/contracts";
+import type { Agent, AttentionCode, AttentionPolicy } from "@lonora/contracts";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../../lib/api";
 import { userError } from "../../lib/user_error";
 import { useAttention } from "../../providers/AttentionProvider";
 
-export function AttentionCount() {
-  const { items } = useAttention();
-  return items.length > 0 ? (
-    <span className="tpl-unread-badge">
-      {items.length}
-      {items.length === 50 ? "+" : ""}
-    </span>
-  ) : null;
+/** What each attention item says (the inbox and the heads-up banner). */
+export function useAttentionLabels(): Record<AttentionCode, string> {
+  const { t } = useLingui();
+  return {
+    watch_condition_met: t`Watch condition changed`,
+    emergency_stop: t`New trading stopped`,
+    approval_required: t`Waiting for approval`,
+    approval_resolved: t`Request updated`,
+    broker_degraded: t`Broker connection needs review`,
+    broker_recovered: t`Broker connection recovered`,
+    external_broker_activity: t`Broker account changed`,
+    setup_confirmed: t`Watch confirmed — review current evidence`,
+    thesis_invalidated: t`Setup validity changed`,
+    goal_changed: t`Trading goal updated`,
+    collaboration_completed: t`Collaboration result is ready`,
+    task_review: t`Task needs review`,
+    task_degraded: t`Task is retrying through a model outage`,
+    // Retired Super Bot items still stored in the inbox; nothing raises them any more.
+    super_bot_authorization: t`Request updated`,
+    super_bot_changed: t`Request updated`,
+    task_completed: t`Task completed`,
+    internal_update: t`Activity updated`,
+    maintenance_item_quarantined: t`A background item was paused after repeated errors; everything else keeps running`,
+    run_quarantined: t`Work stopped after repeated interruptions`,
+    operation_unresolved: t`A trade still has no confirmed broker result`,
+    operation_uncertain: t`The broker did not confirm a trade — tell Lonora whether it executed`,
+    gateway_degraded: t`Background service is running late`,
+    agent_notification: t`Your agent alerted you`,
+  };
 }
 export function AttentionInbox({
   agents,
@@ -42,32 +63,7 @@ export function AttentionInbox({
       active = false;
     };
   }, [compact]);
-  const labels = {
-    watch_condition_met: t`Watch condition changed`,
-    emergency_stop: t`New trading stopped`,
-    approval_required: t`Waiting for approval`,
-    approval_resolved: t`Request updated`,
-    broker_degraded: t`Broker connection needs review`,
-    broker_recovered: t`Broker connection recovered`,
-    external_broker_activity: t`Broker account changed`,
-    setup_confirmed: t`Watch confirmed — review current evidence`,
-    thesis_invalidated: t`Setup validity changed`,
-    goal_changed: t`Trading goal updated`,
-    collaboration_completed: t`Collaboration result is ready`,
-    task_review: t`Task needs review`,
-    task_degraded: t`Task is retrying through a model outage`,
-    // Retired Super Bot items still stored in the inbox; nothing raises them any more.
-    super_bot_authorization: t`Request updated`,
-    super_bot_changed: t`Request updated`,
-    task_completed: t`Task completed`,
-    internal_update: t`Activity updated`,
-    maintenance_item_quarantined: t`A background item was paused after repeated errors; everything else keeps running`,
-    run_quarantined: t`Work stopped after repeated interruptions`,
-    operation_unresolved: t`A trade still has no confirmed broker result`,
-    operation_uncertain: t`The broker did not confirm a trade — tell Lonora whether it executed`,
-    gateway_degraded: t`Background service is running late`,
-    agent_notification: t`Your agent alerted you`,
-  };
+  const labels = useAttentionLabels();
   if (compact && !items.length) return null;
   return (
     <section aria-label={t`Notifications`} data-testid="attention-inbox">

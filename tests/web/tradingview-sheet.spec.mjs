@@ -27,28 +27,32 @@ test("chart sheet expands, yields to chart gestures, dismisses with iframe Escap
     );
     await context.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
     await page.goto(`/app/${data.agent}`);
-    const open = page.getByRole("button", { name: "Charts", exact: true });
-    await open.click();
-    const sheet = page.getByTestId("side-panel");
-    await expect(sheet).toHaveAttribute("data-overlay", "true");
+    await page.getByRole("button", { name: "Chat menu", exact: true }).click();
+    await page.locator("#dialog").getByRole("button", { name: "Chart", exact: true }).click();
+    const sheet = page.locator("#dialog");
+    await expect(sheet).toHaveClass(/expandable/);
     const chart = sheet.locator(`[data-chart-id='${data.chart}']`);
     const canvas = chart.frameLocator(".chart-renderer iframe").locator("canvas").first();
     await expect(canvas).toBeVisible();
     const initial = await sheet.boundingBox();
     expect(initial.height).toBeLessThan(800);
-    await sheet.getByRole("button", { name: "Expand chart", exact: true }).click();
-    await expect(sheet).toHaveAttribute("data-chart-expanded", "true");
+    await sheet.getByRole("button", { name: "Full screen", exact: true }).click();
+    await expect(sheet).toHaveClass(/expanded/);
     await expect.poll(async () => (await sheet.boundingBox()).height).toBeGreaterThan(800);
     await sheet.getByRole("button", { name: "Follow Agent", exact: true }).click();
     await expect(sheet.getByRole("button", { name: "Free Browse", exact: true })).toBeVisible();
     await canvas.dispatchEvent("pointerdown", { pointerId: 1, clientX: 50, clientY: 50 });
     await expect(sheet.getByRole("button", { name: "Follow Agent", exact: true })).toBeVisible();
     await canvas.press("Escape");
-    await expect(sheet).toHaveCount(0);
-    await expect(open).toBeFocused();
-    await open.click();
-    await sheet.getByRole("button", { name: "Close chart", exact: true }).click();
-    await expect(sheet).toHaveCount(0);
+    await expect(sheet).not.toHaveAttribute("open", "");
+    // The dialog gives focus back to the button that opened it.
+    const menu = page.getByRole("button", { name: "Chat menu", exact: true });
+    await expect(menu).toBeFocused();
+    await menu.click();
+    await sheet.getByRole("button", { name: "Chart", exact: true }).click();
+    await expect(canvas).toBeVisible();
+    await sheet.getByRole("button", { name: "Close", exact: true }).click();
+    await expect(sheet).not.toHaveAttribute("open", "");
   } finally {
     fixture({ ...data, action: "cleanup" });
   }

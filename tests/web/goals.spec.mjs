@@ -65,8 +65,8 @@ test("a goal is a plan under the agent's level: pause, same-thread wake and canc
     expect(goalResponse.status()).toBe(201);
     const goal = await goalResponse.json();
     await page.goto(`/app/${agent.id}`);
-    await page.getByRole("button", { name: `Agent settings: ${agent.name}`, exact: true }).click();
-    await page.getByRole("button", { name: "Goals", exact: true }).click();
+    await page.getByRole("button", { name: "Chat menu", exact: true }).click();
+    await page.locator("#dialog").getByRole("button", { name: "Goals", exact: true }).click();
     const card = page.locator(`[data-goal-id='${goal.id}']`);
     await expect(card.getByText(goal.payload.title, { exact: true })).toBeVisible();
     // No second authority system: no per-goal autonomy switch, limit knobs or Super Bot.
@@ -83,6 +83,9 @@ test("a goal is a plan under the agent's level: pause, same-thread wake and canc
     await card.getByRole("button", { name: "Pause", exact: true }).click();
     await expect(card.getByRole("button", { name: "Resume", exact: true })).toBeVisible();
     await page.reload();
+    // Sheets are not remembered across a reload: open the goals again from the chat menu.
+    await page.getByRole("button", { name: "Chat menu", exact: true }).click();
+    await page.locator("#dialog").getByRole("button", { name: "Goals", exact: true }).click();
     await expect(card.getByRole("button", { name: "Resume", exact: true })).toBeVisible();
     await card.getByRole("button", { name: "Resume", exact: true }).click();
     await expect(card.getByRole("button", { name: "Pause", exact: true })).toBeVisible();
@@ -181,8 +184,8 @@ test("a Shadow goal is visibly virtual, needs no goal autonomy and pauses when t
     });
     expect([404, 405]).toContain(retired.status());
     await page.goto(`/app/${agent.id}`);
-    await page.getByRole("button", { name: `Agent settings: ${agent.name}`, exact: true }).click();
-    await page.getByRole("button", { name: "Goals", exact: true }).click();
+    await page.getByRole("button", { name: "Chat menu", exact: true }).click();
+    await page.locator("#dialog").getByRole("button", { name: "Goals", exact: true }).click();
     const card = page.locator(`[data-goal-id='${goal.id}']`);
     await expect(
       card.getByText("Shadow trading — virtual orders only", { exact: true }),
@@ -197,6 +200,8 @@ test("a Shadow goal is visibly virtual, needs no goal autonomy and pauses when t
       ).ok(),
     ).toBeTruthy();
     await page.reload();
+    await page.getByRole("button", { name: "Chat menu", exact: true }).click();
+    await page.locator("#dialog").getByRole("button", { name: "Goals", exact: true }).click();
     await expect(
       card.getByText("Shadow trading — virtual orders only", { exact: true }),
     ).toBeVisible();

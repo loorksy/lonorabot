@@ -2,7 +2,7 @@
 import { Trans, useLingui } from "@lingui/react/macro";
 import { ClipboardList, Plus } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { AgentAvatar } from "../components/ai/AgentAvatar";
 import { useOverlayHistory } from "../hooks/useOverlayHistory";
 import { type Agent, api, type Resource } from "../lib/api";
@@ -12,6 +12,9 @@ import { useClient } from "../providers/ClientProvider";
 
 const ticketStatuses = ["todo", "working", "waiting", "done", "failed", "cancelled"] as const;
 type TicketStatus = (typeof ticketStatuses)[number];
+/* «مهمة جديدة» (?new=1) for the page that mounts once the address has dropped it: the shell
+   mounts a new page for every navigation, the replace that drops ?new=1 included. */
+let newTicketRequested = false;
 
 function TicketStatusLabel({ status }: { status: string }) {
   return status === "done" || status === "completed" ? (
@@ -43,6 +46,32 @@ export function BoardPage({ agents }: { agents: Agent[] }) {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>();
+  const [params, setParams] = useSearchParams();
+  // «مهمة جديدة» from the shell (the tasks tab's floating «+», the welcome pane, the chat menu).
+  const wantsNew = params.get("new") === "1";
+  const requested = useRef(newTicketRequested);
+  useEffect(() => {
+    if (!wantsNew) {
+      newTicketRequested = false;
+      return;
+    }
+    newTicketRequested = true;
+    requested.current = true;
+    setParams(
+      (next) => {
+        next.delete("new");
+        return next;
+      },
+      { replace: true },
+    );
+  }, [wantsNew, setParams]);
+  useEffect(() => {
+    // The dialog reads its board and agent when it opens, so it waits for both; with no
+    // board it stays closed, as «New ticket» is disabled, and the page offers «Add board».
+    if (!requested.current || loading || !agents.length) return;
+    requested.current = false;
+    if (board) setSelected("new");
+  }, [loading, board, agents.length]);
   useEffect(() => {
     void revision;
     let active = true;

@@ -12,6 +12,7 @@ match, the result lists them so the agent asks the owner one focused question.
 from hashlib import sha256
 from typing import Any, cast
 
+from lonora_adapters.brokers.base import BrokerManager
 from lonora_contracts.agent_creation import TEMPLATE_LEVEL, AgentCreateInput
 from lonora_contracts.broker import BrokerConnection
 from lonora_contracts.domain import Contract, utcnow
@@ -29,6 +30,7 @@ from lonora_db.agent_creation import (
 )
 from lonora_db.agent_directory import agent_directory
 from lonora_db.broker_sessions import BrokerSessionRepository
+from lonora_db.client import Database
 from lonora_db.owner_actions import (
     account_facts,
     live_status,
@@ -90,11 +92,11 @@ def symbol_candidates(names: list[object], symbol: str) -> list[str]:
 
 
 async def resolve_market(
-    context: ToolContext, symbol: str, account_id: str | None
+    db: Database, brokers: BrokerManager, owner_id: str, symbol: str, account_id: str | None
 ) -> dict[str, Any]:
     """The focus pair as the broker names it, or the candidates to ask the owner about."""
-    async with context.db.sessions() as session:
-        rows = await BrokerSessionRepository().all_connections(session, context.owner_id)
+    async with db.sessions() as session:
+        rows = await BrokerSessionRepository().all_connections(session, owner_id)
     enabled = [
         row
         for row in sorted(rows, key=lambda item: (item.created_at, item.id))
@@ -110,7 +112,7 @@ async def resolve_market(
     failure: LonoraError | None = None
     for row in enabled:
         try:
-            broker = await context.brokers.get(context.owner_id, row.id)
+            broker = await brokers.get(owner_id, row.id)
             names = cast(list[object], await broker.symbols())
         except LonoraError as error:
             failure = failure or error
@@ -133,7 +135,7 @@ async def resolve_market(
             ],
         }
     row, name = found[0]
-    broker = await context.brokers.get(context.owner_id, row.id)
+    broker = await brokers.get(owner_id, row.id)
     if (await broker.instrument(name)).symbol != name:
         raise LonoraError("broker_symbol_mismatch", 409)
     return {"resolved": True, "account_id": row.id, "symbol": name, "version": row.version}
@@ -252,7 +254,9 @@ async def create(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         "supervises": params.supervises,
     }
     if params.market is not None:
-        market = await resolve_market(context, params.market, params.account_id)
+        market = await resolve_market(
+            context.db, context.brokers, context.owner_id, params.market, params.account_id
+        )
         if not market["resolved"]:
             return {
                 "created": False,

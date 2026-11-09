@@ -128,6 +128,37 @@ test("explicit abort is distinct from real network and server failures", async (
   await serverCheck;
 });
 
+test("only an unnamed 503 counts toward maintenance; a feature's own 503 stays its error", async () => {
+  const { client, window, waiting } = fixture();
+  let unavailable = 0;
+  window.addEventListener("lonora:api-unavailable", () => unavailable++);
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const connect = client.api.post("/trading/connections", { provider: "metaapi" });
+    const check = assert.rejects(
+      connect,
+      (error: unknown) =>
+        error instanceof client.ApiError &&
+        error.code === "broker_identity_unavailable" &&
+        error.status === 503,
+    );
+    waiting[attempt].resolve(
+      new Response('{"code":"broker_identity_unavailable"}', { status: 503 }),
+    );
+    await check;
+  }
+  assert.equal(unavailable, 0);
+  const plain = client.api.get("/threads/inbox");
+  const plainCheck = assert.rejects(plain, client.ApiError);
+  waiting[3].resolve(new Response("Service Unavailable", { status: 503 }));
+  await plainCheck;
+  assert.equal(unavailable, 1);
+  const generic = client.api.get("/threads/inbox");
+  const genericCheck = assert.rejects(generic, client.ApiError);
+  waiting[4].resolve(new Response('{"code":"request_failed"}', { status: 503 }));
+  await genericCheck;
+  assert.equal(unavailable, 2);
+});
+
 test("background startup retains bootstrap and session authentication", async () => {
   const { client, waiting, document } = fixture();
   const bootstrap = client.api.get("/onboarding");

@@ -59,6 +59,7 @@ STEPS = (
     StepSpec("channels", 2, 120),
     StepSpec("attention", 2, 120),
     StepSpec("incoming", 2, 60, critical=False),
+    StepSpec("thread_prefs", 2, 60, critical=False),
     StepSpec("watchdog", 30, 120),
 )
 
@@ -247,6 +248,11 @@ class Gateway:
 
         await self.for_each_owner(lambda service: incoming_tick(self.db, service.owner_id))
 
+    async def thread_prefs(self) -> None:
+        from .thread_prefs import thread_prefs_tick
+
+        await self.for_each_owner(lambda service: thread_prefs_tick(self.db, service.owner_id))
+
     def iterations(self) -> dict[str, Callable[[], Awaitable[object]]]:
         return {
             "heartbeat": self.heartbeat,
@@ -270,6 +276,7 @@ class Gateway:
             "channels": self.channels,
             "attention": self.attention,
             "incoming": self.incoming,
+            "thread_prefs": self.thread_prefs,
             "watchdog": self.watchdog.tick,
         }
 

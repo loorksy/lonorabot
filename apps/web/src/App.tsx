@@ -6,8 +6,8 @@ import { onboardingStatus } from "./lib/bootstrap";
 import { userError } from "./lib/user_error";
 import { Auth } from "./pages/Auth";
 import { Onboarding } from "./pages/Onboarding";
-import { Shell } from "./pages/Shell";
 import { ClientProvider } from "./providers/ClientProvider";
+import { Shell } from "./shell/Shell";
 export default function App() {
   const [owner, setOwner] = useState<Owner | null>(null);
   const [initialized, setInitialized] = useState<boolean>();

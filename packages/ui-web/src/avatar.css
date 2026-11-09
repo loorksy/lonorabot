@@ -28,3 +28,62 @@
   z-index: 11;
   pointer-events: none;
 }
+
+/* A group's members inside the slot (the reference's .grp-av cluster): a pair sits on the
+   diagonal, three make a triangle at 60%; each face is ringed in the surface behind it. */
+:where(.lonora-group-avatar) {
+  width: 44px;
+  height: 44px;
+}
+.lonora-group-avatar {
+  position: relative;
+  display: inline-block;
+  flex-shrink: 0;
+}
+.lonora-group-member {
+  position: absolute;
+  z-index: 1;
+  width: 64%;
+  height: 64%;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px var(--av-ring, var(--bg));
+}
+/* Above any slot size a surface gives a lone avatar (.row .lonora-agent-avatar). */
+.lonora-group-avatar > .lonora-group-member > .lonora-agent-avatar {
+  display: flex;
+  width: 100%;
+  height: 100%;
+}
+.lonora-group-avatar.n1 > .lonora-group-member {
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  box-shadow: none;
+}
+.lonora-group-avatar.n2 > .m1 {
+  top: 0;
+  right: 0;
+}
+.lonora-group-avatar.n2 > .m2 {
+  bottom: 0;
+  left: 0;
+  z-index: 2;
+}
+.lonora-group-avatar.n3 > .lonora-group-member {
+  width: 60%;
+  height: 60%;
+}
+.lonora-group-avatar.n3 > .m1 {
+  top: 0;
+  left: 20%;
+}
+.lonora-group-avatar.n3 > .m2 {
+  bottom: 0;
+  right: 0;
+  z-index: 2;
+}
+.lonora-group-avatar.n3 > .m3 {
+  bottom: 0;
+  left: 0;
+  z-index: 3;
+}

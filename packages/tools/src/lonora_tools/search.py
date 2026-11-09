@@ -52,52 +52,6 @@ class TextParser(HTMLParser):
             self.parts.append(data.strip())
 
 
-async def internal_search(db: Database, owner_id: str, query: str) -> dict[str, Any]:
-    """Owner-wide literal search for the owner API. Never expose it to an Agent:
-    it reads every Agent's memory and every owned thread."""
-    async with db.sessions() as session:
-        agents = (
-            await session.scalars(
-                select(AgentRow)
-                .where(
-                    AgentRow.owner_id == owner_id, AgentRow.name.icontains(query, autoescape=True)
-                )
-                .limit(20)
-            )
-        ).all()
-        messages = (
-            await session.scalars(
-                select(MessageRow)
-                .join(ThreadRow, ThreadRow.id == MessageRow.thread_id)
-                .where(
-                    ThreadRow.owner_id == owner_id,
-                    MessageRow.content.icontains(query, autoescape=True),
-                )
-                .order_by(MessageRow.created_at.desc())
-                .limit(30)
-            )
-        ).all()
-        memory = (
-            await session.scalars(
-                select(MemoryRow)
-                .join(AgentRow, AgentRow.id == MemoryRow.agent_id)
-                .where(
-                    AgentRow.owner_id == owner_id,
-                    MemoryRow.content.icontains(query, autoescape=True),
-                )
-                .limit(10)
-            )
-        ).all()
-        return {
-            "agents": [{"id": a.id, "name": a.name} for a in agents],
-            "messages": [
-                {"id": m.id, "thread_id": m.thread_id, "content": m.content[:1600]}
-                for m in messages
-            ],
-            "memory": [{"agent_id": m.agent_id, "content": m.content[:1600]} for m in memory],
-        }
-
-
 async def agent_search(db: Database, owner_id: str, agent_id: str, query: str) -> dict[str, Any]:
     """Literal search limited to this Agent's own memory and the threads it takes
     part in (its own and its subagents' threads, and groups it is a member of), plus

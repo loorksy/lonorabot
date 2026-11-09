@@ -45,6 +45,37 @@ export {
   sourceLine,
 } from "./capabilities";
 export {
+  archivedRowSummary,
+  archivedRows,
+  attentionAlwaysShows,
+  BUILTIN_FILTERS,
+  type ChatRow,
+  type ChatRowKind,
+  chatRows,
+  filterRows,
+  groupDraftName,
+  headsUpAllowed,
+  inQuietHours,
+  isArchived,
+  isFavourite,
+  isMuted,
+  isPinned,
+  isPlainOutgoing,
+  type ListFilter,
+  listIdOf,
+  listMemberRows,
+  type OutboxLatest,
+  PIN_LIMIT,
+  pinsAfter,
+  type QuietHours,
+  rowCount,
+  rowIsUnread,
+  rowKey,
+  rowMarkedOnly,
+  rowUnread,
+  selectionSummary,
+} from "./chat-rows";
+export {
   type MentionAddress,
   type MentionRange,
   mentionAddress,
@@ -68,6 +99,7 @@ export {
   operationStatusText,
   runStatusText,
 } from "./financial-boundary";
+export { archivedSummary, inboxUnread, isUnread, orderInbox, unreadBadgeTotal } from "./inbox";
 export {
   type CredentialField,
   type CredentialForm,
@@ -114,6 +146,7 @@ export {
   streamText,
 } from "./reply-stream";
 export { activeStatuses, canCancel, canResume, isWorking } from "./run-state";
+export { foldSearch, highlightRange } from "./search-fold";
 export {
   type SupervisionRow,
   type SupervisionText,

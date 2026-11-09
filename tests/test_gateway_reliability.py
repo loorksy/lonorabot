@@ -581,6 +581,14 @@ async def test_the_gateway_releases_its_leases_when_it_drains(
     assert heartbeat and heartbeat.state == "stopped"
 
 
+def test_every_gateway_iteration_is_a_scheduled_step(tmp_path: Path) -> None:
+    # start() schedules STEPS only: an iteration without a StepSpec never runs in production.
+    gateway = service.Gateway(
+        cast(Database, SimpleNamespace()), "unused-key", tmp_path, maximum_subagents=0
+    )
+    assert {spec.name for spec in service.STEPS} == set(gateway.iterations())
+
+
 async def leased(db: Database, owner: str, agent: str, thread: str) -> ToolContext:
     async with db.sessions() as session, session.begin():
         run = await create_run(

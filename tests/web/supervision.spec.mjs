@@ -60,7 +60,7 @@ asyncio.run(main())
 
 const copy = {
   en: {
-    settings: "Agent settings: ",
+    settings: "Agent info",
     section: "Lonora supervises your agents",
     byDefault: "by default",
     byYou: "set by you",
@@ -79,7 +79,7 @@ const copy = {
     resumed: "Resumed.",
   },
   ar: {
-    settings: "إعدادات الوكيل: ",
+    settings: "معلومات الوكيل",
     section: "لونورا تشرف على وكلائك",
     byDefault: "افتراضيًا",
     byYou: "عيّنته أنت",
@@ -128,9 +128,7 @@ for (const locale of ["en", "ar"])
     try {
       // Lonora's profile: every agent is supervised by default, each with one-tap Stop.
       await page.goto(`/app/${seeded.lonora}`);
-      await page
-        .getByRole("button", { name: `${text.settings}${seeded.lonora_name}`, exact: true })
-        .click();
+      await page.getByRole("button", { name: text.settings, exact: true }).click();
       const section = page.getByTestId("supervision-settings");
       await section.locator("summary").click();
       await expect(section.locator("summary")).toHaveText(text.section);

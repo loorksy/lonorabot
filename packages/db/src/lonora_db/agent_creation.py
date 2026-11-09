@@ -21,7 +21,7 @@ still cascades its work in Wave 1, so it never deletes work).
 from hashlib import sha256
 from typing import Any, Literal, cast
 
-from lonora_contracts.agent_creation import TEMPLATE_LEVEL
+from lonora_contracts.agent_creation import TEMPLATE_LEVEL, AgentTemplate
 from lonora_contracts.domain import AgentCreate, utcnow
 from lonora_contracts.model_routing import AgentModelChange, ModelSelection
 from lonora_core.user_error import LonoraError
@@ -164,10 +164,13 @@ async def existing_creation(
     return None
 
 
-async def check_creation(session: AsyncSession, owner_id: str, spec: dict[str, Any]) -> None:
+async def check_creation(
+    session: AsyncSession, owner_id: str, spec: dict[str, Any], *, capped: bool = True
+) -> None:
     """Re-check a creation against current state: the cap, the agents it reports to and
-    the broker connection its focus pair was looked up on."""
-    if await active_agents(session, owner_id) >= MAXIMUM_ACTIVE_AGENTS:
+    the broker connection its focus pair was looked up on. The cap bounds what agents
+    create (a run's call or its card); the owner's own form is not capped, as it never was."""
+    if capped and await active_agents(session, owner_id) >= MAXIMUM_ACTIVE_AGENTS:
         raise LonoraError("agent_limit_reached", 409)
     for target_id in spec.get("report_to", []):
         target = await owned_agent(session, owner_id, target_id)
@@ -217,7 +220,7 @@ async def create_root_agent(
         if existing.owner_id != owner_id or not origin:
             raise LonoraError("agent_identity_conflict", 409)
         return existing, False
-    await check_creation(session, owner_id, spec)
+    await check_creation(session, owner_id, spec, capped=created_via != "owner_ui")
     template = str(spec["template"])
     responsibility = str(spec.get("responsibility") or "").strip()
     account_id, symbol = spec.get("account_id"), spec.get("symbol")
@@ -225,6 +228,7 @@ async def create_root_agent(
         session,
         owner_id,
         AgentCreate(
+            template=cast(AgentTemplate, template),
             scope_mode="flexible",
             trading_account_id=account_id,
             trading_symbol=symbol,

@@ -171,6 +171,10 @@ class AgentRow(Base):
         ),
         CheckConstraint("scope_mode IN ('fixed_market','flexible')", name="ln_agent_scope_mode"),
         CheckConstraint(
+            "template IS NULL OR template IN ('trading','general','research','supervisor')",
+            name="ln_agent_template",
+        ),
+        CheckConstraint(
             "scope_mode != 'flexible' OR (parent_id IS NULL AND role IN ('general','specialist'))",
             name="ln_agent_flexible_root",
         ),
@@ -195,6 +199,9 @@ class AgentRow(Base):
         ),
     )
     role: Mapped[str] = mapped_column(String(16), default="legacy", server_default="legacy")
+    # The creation template (trading, general, research, supervisor). None for the
+    # personal agent and delegated helpers, whose role is their type.
+    template: Mapped[str | None] = mapped_column(String(16))
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     owner_id: Mapped[str] = mapped_column(
         ForeignKey("ln_owners.id", ondelete="CASCADE"), index=True
@@ -255,6 +262,62 @@ class MessageRow(Base):
     reply_to: Mapped[str | None] = mapped_column(String(36))
     attachment_ids: Mapped[list[str]] = mapped_column(JSON, default=list)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class ThreadPrefsRow(Base):
+    """The owner's state of one conversation: read cursor, marks and the history cursor.
+
+    ``last_read_seq`` only grows (max-wins). ``hidden_before_seq`` is «مسح»: messages at
+    or before it are hidden from the owner's history, inbox and search; the thread, its
+    grants and the agent stay. ``pinned_order`` is 1..3 per owner.
+    """
+
+    __tablename__ = "ln_thread_prefs"
+    __table_args__ = (
+        CheckConstraint(
+            "pinned_order IS NULL OR (pinned_order >= 1 AND pinned_order <= 3)",
+            name="ln_thread_prefs_pinned_order",
+        ),
+    )
+    owner_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_owners.id", ondelete="CASCADE"), primary_key=True
+    )
+    thread_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_threads.id", ondelete="CASCADE"), primary_key=True
+    )
+    last_read_seq: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    marked_unread: Mapped[bool] = mapped_column(default=False, server_default=text("false"))
+    muted: Mapped[bool] = mapped_column(default=False, server_default=text("false"))
+    archived: Mapped[bool] = mapped_column(default=False, server_default=text("false"))
+    favourite: Mapped[bool] = mapped_column(default=False, server_default=text("false"))
+    pinned_order: Mapped[int | None] = mapped_column(Integer)
+    hidden_before_seq: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class ChatListRow(Base):
+    """An owner-defined list of conversations (a filter chip), unique by name per owner."""
+
+    __tablename__ = "ln_chat_lists"
+    __table_args__ = (UniqueConstraint("owner_id", "name", name="ln_chat_list_name"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    owner_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_owners.id", ondelete="CASCADE"), index=True
+    )
+    name: Mapped[str] = mapped_column(String(30))
+    position: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class ChatListMemberRow(Base):
+    __tablename__ = "ln_chat_list_members"
+    list_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_chat_lists.id", ondelete="CASCADE"), primary_key=True
+    )
+    thread_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_threads.id", ondelete="CASCADE"), primary_key=True
+    )
 
 
 class RunRow(Base):

@@ -39,17 +39,24 @@ for (const locale of ["en", "ar"])
     try {
       await page.goto("/app/");
       await page
-        .getByRole("button", {
-          name: locale === "ar" ? "إنشاء محادثة" : "Create conversation",
-          exact: true,
-        })
+        .getByRole("button", { name: locale === "ar" ? "محادثة جديدة" : "New chat", exact: true })
         .first()
         .click();
-      await page.getByTestId("create-new-agent").click();
-      const panel = page.getByTestId("side-panel");
+      await page
+        .locator("#dialog")
+        .getByRole("button", { name: locale === "ar" ? /^وكيل جديد/ : /^New agent/ })
+        .click();
+      await expect(page).toHaveURL(/\/app\/new-agent$/);
+      // The creation form is a page (a template first, owner decision Q9); the agent's info
+      // opens as a sheet from the chat header.
+      let panel = page.locator("main");
+      await panel.getByRole("button", { name: locale === "ar" ? "التالي" : "Next" }).click();
       await panel
-        .getByLabel(locale === "ar" ? "الاسم" : "Name", { exact: true })
+        .getByLabel(locale === "ar" ? "اسم الوكيل" : "Agent name", { exact: true })
         .fill(`Avatar Studio ${randomUUID()}`);
+      await panel
+        .getByLabel(locale === "ar" ? "الوصف" : "Description", { exact: true })
+        .fill("Avatar studio fixture");
       await panel.getByTestId("avatar-studio-trigger").click();
       const studio = page.getByTestId("avatar-studio");
       await expect(studio).toBeVisible();
@@ -64,19 +71,36 @@ for (const locale of ["en", "ar"])
       await expect(studio).not.toBeVisible();
       const creating = page.waitForResponse(
         (response) =>
-          new URL(response.url()).pathname === "/api/agents" &&
+          new URL(response.url()).pathname === "/api/agents/create" &&
           response.request().method() === "POST",
       );
+      const styled = page.waitForResponse(
+        (response) =>
+          /^\/api\/agents\/[^/]+$/.test(new URL(response.url()).pathname) &&
+          response.request().method() === "PATCH",
+      );
       await panel
-        .getByRole("button", { name: locale === "ar" ? "إنشاء وكيل" : "Create agent", exact: true })
+        .getByRole("button", {
+          name: locale === "ar" ? "إنشاء الوكيل" : "Create the agent",
+          exact: true,
+        })
         .click();
       const created = await creating;
       expect(created.status()).toBe(201);
       agent = await created.json();
-      expect(agent.avatar).toBe("face-wink");
-      expect(agent.color).toBe("#06B6D4");
+      expect(agent.template).toBe("general");
+      // The chosen face and colour are saved on the new agent right after.
+      expect((await styled).ok()).toBe(true);
+      expect((await read()).avatar).toBe("face-wink");
+      expect((await read()).color).toBe("#06B6D4");
       await page.goto(`/app/${agent.id}`);
-      await page.locator(".tpl-chat-identity").click();
+      await page
+        .getByRole("button", {
+          name: locale === "ar" ? "معلومات الوكيل" : "Agent info",
+          exact: true,
+        })
+        .click();
+      panel = page.locator("#dialog");
       const nameField = panel.getByLabel(locale === "ar" ? "الاسم" : "Name", { exact: true });
       const persistedName = agent.name;
       const unsavedName = `${persistedName} draft`;
@@ -149,7 +173,12 @@ for (const locale of ["en", "ar"])
       expect(patches.at(-1)).not.toHaveProperty("avatar");
       expect(patches.at(-1)).not.toHaveProperty("color");
       await page.reload();
-      await page.locator(".tpl-chat-identity").click();
+      await page
+        .getByRole("button", {
+          name: locale === "ar" ? "معلومات الوكيل" : "Agent info",
+          exact: true,
+        })
+        .click();
       await panel.getByTestId("avatar-studio-trigger").click();
       await expect(studio.locator('[data-face-option="orb"]')).toHaveAttribute(
         "aria-pressed",
