@@ -129,6 +129,8 @@ test("pinning a fourth chat is refused locally and when the server answers 409",
     await refused;
     await expect(page.locator("#toast")).toHaveText("You can pin 3 chats only");
   } finally {
+    // Later refetches (afterEach deletes the seeded agents) must not reach a closing page.
+    await page.unrouteAll({ behavior: "ignoreErrors" });
     await pin([fixture.threads[0].id, fixture.threads[1].id, fixture.threads[2].id], false);
   }
 });
