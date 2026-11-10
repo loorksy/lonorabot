@@ -247,3 +247,17 @@ def test_hamza_forms_of_a_claim_are_recognised() -> None:
     created = [owner("ألغِ التنبيه"), *result("watch_create", {"ok": True})]
     assert claims_effect("تم إلغاؤه.")
     assert not claim_gate({}, created, "تم إلغاؤه.", EFFECTS | {"watch_create"}).passed
+
+
+def test_a_waiting_card_needs_a_proposed_card() -> None:
+    # Probe: I07 and I10 said the card «بانتظار لمستك» without proposing one.
+    nothing = [owner("استأنف التداول"), *result("list_accounts", {"ok": True})]
+    effects = EFFECTS | {"owner_action_propose", "list_accounts"}
+    for text in (
+        "بطاقة استئناف التداول بانتظار لمستك.",
+        "The resume card is waiting for your tap.",
+    ):
+        assert claims_effect(text)
+        assert not claim_gate({}, nothing, text, effects).passed
+    proposed = [owner("استأنف التداول"), *result("owner_action_propose", {"ok": True})]
+    assert claim_gate({}, proposed, "بطاقة استئناف التداول بانتظار لمستك.", effects).passed

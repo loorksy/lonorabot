@@ -107,7 +107,7 @@ def request_refusal(messages: list[ModelMessage], call: ToolCall) -> dict[str, A
             "executed": False,
             "message": "The owner asked to adopt a limit; memory enforces nothing and was not "
             "changed. Propose it with owner_action_propose kind set_account_limits (through "
-            "tool_call) and say the card is waiting for the owner's tap.",
+            "tool_call) now; once it is proposed, the card waits for the owner's tap.",
         }
     entry = call.name == "goal_step_execute" or (
         call.name == "trade_execute" and call.arguments.get("action") in ENTRY_ACTIONS
@@ -133,7 +133,7 @@ def request_refusal(messages: list[ModelMessage], call: ToolCall) -> dict[str, A
             "executed": False,
             "message": "The owner asked to resume trading, not to trade; a new entry is never "
             "the answer and nothing was sent. Only the owner resumes trading: propose it with "
-            "owner_action_propose kind resume_trading and say the card is waiting for their tap.",
+            "owner_action_propose kind resume_trading now; once it is proposed, the card waits for their tap.",
         }
     return None
 
@@ -167,28 +167,48 @@ _CLAIMS = [
 ]
 
 
+# Claims of a kind only that kind of tool supports. A cancellation needs a tool that
+# cancels (G0 J05: watch_create, then «تم الإلغاء»); a card the owner taps needs a tool
+# that raises one (probe: «البطاقة بانتظار لمستك» with no card proposed).
+_KINDS = [
+    (
+        re.compile(r"الغيت|لغيت|حذفت|ازلت|تم\s+(?:ال)?(?:الغاء|حذف)|cancel+ed|removed|deleted"),
+        re.compile(r"cancel|delete|remove|revoke|close|lift"),
+    ),
+    (
+        re.compile(
+            r"(?:بانتظار|تنتظر|ينتظر)\s+(?:\S+\s+)?(?:لمس|نقر|موافق|توقيع|تاكيد)|"
+            r"\bwait(?:s|ing)\b.{0,30}\b(?:tap|approval|confirmation|signature)\b"
+        ),
+        re.compile(r"owner_action_propose|model_request|agent_create"),
+    ),
+]
+
+
 def claims_effect(text: str) -> bool:
     plain = _normalized(text.strip())
-    return any(pattern.search(plain) for pattern in _CLAIMS)
-
-
-# A claimed cancellation needs a tool that cancels (G0 J05: watch_create, then «تم الإلغاء»).
-_CANCEL_CLAIM = re.compile(
-    r"الغيت|لغيت|حذفت|ازلت|تم\s+(?:ال)?(?:الغاء|حذف)|cancel+ed|removed|deleted"
-)
-_CANCEL_TOOL = re.compile(r"cancel|delete|remove|revoke|close|lift")
+    return any(pattern.search(plain) for pattern in _CLAIMS) or any(
+        claim.search(plain) for claim, _ in _KINDS
+    )
 
 
 def effect_supported(
     messages: list[ModelMessage], effect_tools: Collection[str], text: str = ""
 ) -> bool:
-    """Whether a successful effect result of the claimed kind exists in this owner request."""
-    cancelling = bool(_CANCEL_CLAIM.search(_normalized(text)))
+    """Whether successful effect results of every claimed kind exist in this owner request."""
+    plain = _normalized(text)
+    required = [tool for claim, tool in _KINDS if claim.search(plain)] or [re.compile("")]
+    return all(_supported(messages, effect_tools, tool) for tool in required)
+
+
+def _supported(
+    messages: list[ModelMessage], effect_tools: Collection[str], tool: re.Pattern[str]
+) -> bool:
     names = {
         c.id: c.name
         for m in messages
         for c in m.tool_calls
-        if c.name in effect_tools and (not cancelling or _CANCEL_TOOL.search(c.name))
+        if c.name in effect_tools and tool.search(c.name)
     }
     for message in reversed(messages):
         if is_owner_message(message):
@@ -227,8 +247,8 @@ CLAIM_NUDGE = (
     "the owner plainly what has not been done and ask if something is missing. Owner "
     "controls are tools reached with tool_call when not native: a pause or no new trades "
     "is trade_restriction_create; resuming trading, lifting a pause, limits and authority "
-    "are owner_action_propose cards that only the owner's tap applies (say the card is "
-    "waiting); a watch is cancelled with watch_cancel or changed with watch_update; a "
+    "are owner_action_propose cards that only the owner's tap applies (a card waits only "
+    "once proposed); a watch is cancelled with watch_cancel or changed with watch_update; a "
     "recurring review is routine_create; an agent's model is model_list then model_request."
 )
 
