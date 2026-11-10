@@ -514,19 +514,21 @@ old_key="$(head -c 32 /dev/urandom | base64 | tr '+/' '-_')"
     printf 'LONORA_LIVEKIT_API_KEY=livekit-key-value-123\nLONORA_LIVEKIT_API_SECRET=livekit-secret-value-456\nLONORA_LIVEKIT_NODE_IP=10.0.0.9\n'
     printf 'LONORA_MAXIMUM_SUBAGENTS=3\nLONORA_MAXIMUM_TOOL_ROUNDS=20\nLONORA_PASSKEY_ANDROID_FINGERPRINTS=[]\n'
     printf 'LONORA_POSTGRES_PASSWORD=old-postgres-password-789\nLONORA_RUN_LEASE_SECONDS=90\n'
-    printf 'LONORA_WEBHOOK_SECRET=old-webhook-secret-abcdef123\nLONORA_WORKER_POLL_SECONDS=1.0\n'
+    printf '%s\n' "LONORA_WEBHOOK_SECRET='old webhook secret = \"x\" 123'" 'LONORA_WORKER_POLL_SECONDS=1.0'
 } >"$work/old.env"
 chmod 600 "$work/old.env"
 side --behind-proxy 127.0.0.1:18030 --env-from "$work/old.env" --version v1 >"$work/side-install.log" 2>&1 || { show "$work/side-install.log"; fail 'side-by-side install'; }
 val() { sed -n "s/^$1=//p" "$home/.env" | tail -n 1; }
-[[ "$(val LONORA_ENCRYPTION_KEY)" == "$old_key" && "$(val LONORA_BOOTSTRAP_TOKEN)" == old-bootstrap-token-0123456789abcdef && "$(val LONORA_WEBHOOK_SECRET)" == old-webhook-secret-abcdef123 ]] || fail 'env-from: secrets copied'
+[[ "$(val LONORA_ENCRYPTION_KEY)" == "$old_key" && "$old_key" == *= && "$(val LONORA_BOOTSTRAP_TOKEN)" == old-bootstrap-token-0123456789abcdef ]] || fail 'env-from: secrets copied'
+grep -qxF "LONORA_WEBHOOK_SECRET='old webhook secret = \"x\" 123'" "$home/.env" || fail 'env-from: a value with spaces, = and quotes copied byte for byte'
+[[ ! -e "$home/.env.next" ]] || fail 'env-from: .env.next left over'
 [[ "$(val LONORA_MAXIMUM_SUBAGENTS)" == 3 && "$(val LONORA_RUN_LEASE_SECONDS)" == 90 && "$(val LONORA_PASSKEY_ANDROID_FINGERPRINTS)" == '[]' ]] || fail 'env-from: tuning and passkey keys copied'
 [[ -n "$(val LONORA_POSTGRES_PASSWORD)" && "$(val LONORA_POSTGRES_PASSWORD)" != old-postgres-password-789 ]] || fail 'env-from: a fresh database password'
 [[ "$(val LONORA_DOMAIN)" == localhost ]] || fail 'env-from: --domain wins'
 if grep -qE '^LONORA_(LIVEKIT|IMAGE|ARTIFACT_ROOT)' "$home/.env"; then fail 'env-from copied an unknown key'; fi
 [[ "$(stat -c %a "$home/.env")" == 600 ]] || fail 'env-from: .env mode'
 grep -q 'copied:.*LONORA_ENCRYPTION_KEY.*LONORA_WEBHOOK_SECRET' "$work/side-install.log" && grep -q 'Not copied.*LONORA_LIVEKIT_API_KEY.*LONORA_POSTGRES_PASSWORD' "$work/side-install.log" || { show "$work/side-install.log"; fail 'env-from lists names'; }
-for secret in "$old_key" old-bootstrap-token-0123456789abcdef old-webhook-secret-abcdef123 livekit-key-value-123 livekit-secret-value-456 old-postgres-password-789; do
+for secret in "$old_key" old-bootstrap-token-0123456789abcdef 'old webhook secret' livekit-key-value-123 livekit-secret-value-456 old-postgres-password-789; do
     if grep -qF -- "$secret" "$work/side-install.log"; then fail 'env-from printed a value'; fi
 done
 grep -q 'ok    port 18030 is free' "$work/side-install.log" || fail 'preflight printed what it found'
@@ -549,7 +551,7 @@ diff -q "$work/dummy.before" "$work/dummy.end" >/dev/null || fail 'removing the 
 ok "side by side (with --env-from: known keys copied, fresh DB password, names listed, no values printed): preflight refuses the taken project, a used port, a public address, low memory and disk; lonora2 in proxy mode on 127.0.0.1:18030 only (limits ${total} MB), updated, backed up, restore-tested; old project lonora untouched"
 
 # 18. No secret in anything the tooling printed or logged.
-for secret in "$key" "$backup_key" "$first_password" "$new_password" "$bootstrap" "$webhook" "$old_key" old-webhook-secret-abcdef123 livekit-secret-value-456 old-postgres-password-789; do
+for secret in "$key" "$backup_key" "$first_password" "$new_password" "$bootstrap" "$webhook" "$old_key" 'old webhook secret' livekit-secret-value-456 old-postgres-password-789; do
     [[ -n "$secret" ]] || continue
     leak="$(grep -lF -- "$secret" "$work"/*.log 2>/dev/null | head -n 1 || true)"
     [[ -z "$leak" ]] || fail "a secret appears in $leak"
