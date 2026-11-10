@@ -1,3 +1,5 @@
+import { shellLabels } from "./labels-shell";
+
 export type Locale = "ar" | "en";
 export const labels = {
   avatarStudio: ["استوديو الأفاتار", "Avatar Studio"],
@@ -725,8 +727,34 @@ export const labels = {
     "Broker verification pending. Market data remains available; new orders on the affected market are blocked until verification finishes, and closing remains available.",
   ],
   live_paused: ["متوقف مؤقتًا", "Paused"],
+  ...shellLabels,
 } as const;
 export type Label = keyof typeof labels;
 export function translate(locale: Locale, key: Label): string {
   return labels[key][locale === "ar" ? 0 : 1];
+}
+
+/** Fills «{0}» and «{name}» placeholders of a label. */
+export function fill(template: string, ...values: (string | number)[]): string;
+export function fill(template: string, values: Record<string, string | number>): string;
+export function fill(template: string, first?: unknown, ...rest: (string | number)[]): string {
+  if (first && typeof first === "object") {
+    const named = first as Record<string, string | number>;
+    return template.replace(/\{(\w+)\}/g, (_, key: string) => String(named[key] ?? ""));
+  }
+  const values = [first as string | number, ...rest];
+  return template.replace(/\{(\d+)\}/g, (_, index: string) => String(values[Number(index)] ?? ""));
+}
+/** The reference's Arabic counts (arCount): one, two, 3–10, 11 and more. */
+export function chatsWord(locale: Locale, count: number): string {
+  if (locale === "en") return count === 1 ? "one chat" : count === 2 ? "two chats" : `${count} chats`;
+  if (count === 1) return "محادثة واحدة";
+  if (count === 2) return "محادثتان";
+  return count <= 10 ? `${count} محادثات` : `${count} محادثة`;
+}
+export function agentsWord(locale: Locale, count: number): string {
+  if (locale === "en") return count === 1 ? "one agent" : count === 2 ? "two agents" : `${count} agents`;
+  if (count === 1) return "وكيل واحد";
+  if (count === 2) return "وكيلان";
+  return count <= 10 ? `${count} وكلاء` : count <= 99 ? `${count} وكيلًا` : `${count} وكيل`;
 }
