@@ -487,6 +487,27 @@ async def acknowledge(session: AsyncSession, owner_id: str, identifier: str) -> 
     return row
 
 
+# Kept unread by «تحديد الكل كمقروء»: each needs the owner's own look (Q4).
+KEEP_UNREAD = ("critical", "action_required")
+
+
+async def acknowledge_all(session: AsyncSession, owner_id: str) -> int:
+    rows = await session.scalars(
+        select(AttentionRow)
+        .where(
+            AttentionRow.owner_id == owner_id,
+            AttentionRow.status.in_(["pending", "ready"]),
+            AttentionRow.importance.not_in(KEEP_UNREAD),
+        )
+        .with_for_update()
+    )
+    count = 0
+    for row in rows:
+        await acknowledge(session, owner_id, row.id)
+        count += 1
+    return count
+
+
 async def set_cursor(session: AsyncSession, owner_id: str, cursor: int) -> None:
     if session.get_bind().dialect.name == "postgresql":
         await session.execute(

@@ -128,7 +128,9 @@ def finish_task(session: AsyncSession, row: TicketRow, status: TaskStatus) -> No
         return
     if state.control_requested == "cancel":
         status = "cancelled"
-    if status == "completed" and state.completion_mode == "continuous":
+    elif state.control_requested == "complete":
+        status = "completed"
+    elif status == "completed" and state.completion_mode == "continuous":
         raise LonoraError("task_wait_required", 409)
     if status == "failed" and state.status == "waiting" and state.waiting_reason == "retry_backoff":
         return
@@ -190,6 +192,8 @@ async def create_task(
                 completion_mode=request.completion_mode,
                 steps=request.steps,
                 retry_policy=request.retry_policy,
+                due_at=request.due_at.isoformat() if request.due_at else None,
+                completion_criteria=request.completion_criteria,
             ).model_dump(mode="json")
         },
     )
@@ -204,7 +208,7 @@ async def create_task(
             thread_id=work.id,
             agent_id=agent_id,
             trigger="tickets",
-            prompt=request.title + "\n" + request.description,
+            prompt=task_prompt(request),
             metadata={
                 "ticket_id": row.id,
                 "task_id": row.id,
@@ -225,6 +229,15 @@ async def create_task(
         payload={"id": row.id},
     )
     return row
+
+
+def task_prompt(request: TaskCreate) -> str:
+    lines = [request.title, request.description]
+    if request.completion_criteria:
+        lines.append("Completion criterion: " + request.completion_criteria)
+    if request.due_at:
+        lines.append("Due by: " + request.due_at.isoformat())
+    return "\n".join(line for line in lines if line)
 
 
 async def task_runs(session: AsyncSession, row: TicketRow) -> list[RunRow]:
@@ -381,7 +394,10 @@ async def control_task(
     *,
     agent_id: str | None = None,
     owner_message: bool = False,
+    complete: bool = False,
 ) -> TicketRow:
+    """Pause, resume, cancel or revise a Task; ``complete`` turns the owner's cancel into
+    «تحديد كمكتملة» (the same stop, recorded as completed)."""
     from .supervision import owner_takes_over, refuse_held
 
     row = await get_task(session, owner_id, request.task_id)
@@ -441,7 +457,7 @@ async def control_task(
             state.waiting_reason, state.control_requested = None, None
             if request.action == "cancel":
                 await cancel_task_approvals(session, failed_run.id)
-        save_task(session, row, state)
+        save_task(session, row, owner_completed(state) if complete else state)
         return row
     if state.status == "failed" and request.action == "cancel":
         row = await get_task(session, owner_id, row.id, lock=True)
@@ -527,8 +543,60 @@ async def control_task(
             for approval in approvals:
                 approval.status = "cancelled"
                 approval_event(session, approval)
-    save_task(session, row, state)
+    save_task(session, row, owner_completed(state) if complete else state)
     return row
+
+
+def owner_completed(state: TaskState) -> TaskState:
+    if state.status == "cancelled":
+        state.status, state.phase = "completed", "completed"
+    elif state.control_requested == "cancel":
+        state.control_requested = "complete"
+    return state
+
+
+async def complete_task(
+    session: AsyncSession, owner_id: str, task_id: str, expected_version: int
+) -> TicketRow:
+    """The owner's «تحديد كمكتملة»: the work stops as on a cancel and the Task reads completed.
+
+    Stopping releases the run exactly like the owner's cancel (pending trade approvals are
+    cancelled, never approved); only the final status differs. Agents have no route here.
+    """
+    row = await get_task(session, owner_id, task_id)
+    if row.version != expected_version:
+        raise LonoraError("version_conflict", 409)
+    state = task_state(row)
+    if state.status in {"completed", "cancelled"}:
+        raise LonoraError("task_terminal", 409)
+    if state.status == "failed" or not await active_task_run(session, row):
+        row = await get_task(session, owner_id, task_id, lock=True)
+        if row.version != expected_version:
+            raise LonoraError("version_conflict", 409)
+        state = task_state(row)
+        state.status, state.phase = "completed", "completed"
+        state.control_requested, state.waiting_reason = None, None
+        if state.failure:
+            state.failure.next_retry_at = None
+        save_task(session, row, state)
+        return row
+    return await control_task(
+        session,
+        owner_id,
+        TaskControl(task_id=task_id, action="cancel", expected_version=expected_version),
+        complete=True,
+    )
+
+
+async def active_task_run(session: AsyncSession, row: TicketRow) -> RunRow | None:
+    return next(
+        (
+            run
+            for run in await task_runs(session, row)
+            if run.status in {"queued", "leased", "running", "waiting_input", "waiting_takeover"}
+        ),
+        None,
+    )
 
 
 def revise_task(state: TaskState, request: TaskControl) -> None:
@@ -574,7 +642,13 @@ async def checkpoint_task(session: AsyncSession, lease: Lease) -> bool:
         pause = state.control_requested == "pause"
         run.status = "waiting_takeover" if pause else "cancelled"
         run.lease_expires_at = None
-        state.status = "paused" if pause else "cancelled"
+        state.status = (
+            "paused"
+            if pause
+            else "completed"
+            if state.control_requested == "complete"
+            else "cancelled"
+        )
         state.phase, state.control_requested = state.status, None
         save_task(session, row, state)
         return True

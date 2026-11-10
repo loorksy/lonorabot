@@ -77,7 +77,12 @@ async def retrieve_memory(
 
 
 async def index_note(
-    db: Database, credentials: ProviderCredentials, owner_id: str, agent_id: str, text: str
+    db: Database,
+    credentials: ProviderCredentials,
+    owner_id: str,
+    agent_id: str,
+    text: str,
+    title: str | None = None,
 ) -> dict[str, Any]:
     if not text.strip():
         raise LonoraError("memory_note_required")
@@ -99,7 +104,16 @@ async def index_note(
                 id=document_id,
                 owner_id=owner_id,
                 agent_id=agent_id,
-                payload={"text": text, "embedding": vector, "model": model},
+                payload={
+                    "text": text,
+                    "embedding": vector,
+                    "model": model,
+                    **({"title": title} if title is not None else {}),
+                },
             )
             session.add(row)
+        elif title is not None and row.payload.get("title") != title:
+            # The owner's name for the note in «المعرفة»; recall reads the text only.
+            row.payload = {**row.payload, "title": title}
+            row.version += 1
         return {"id": document_id, "indexed": True}

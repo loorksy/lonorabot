@@ -118,3 +118,21 @@ class PlaybookManifest(Contract):
     entry_conditions: list[str] = Field(min_length=1, max_length=16)
     terminal_states: list[str] = Field(min_length=1, max_length=16)
     recovery: str = Field(min_length=1, max_length=1000)
+
+
+class SkillVersionEntry(Contract):
+    """One saved version of an installed skill, listed in «سجل الإصدارات»."""
+
+    version: int = Field(ge=1)
+    created_at: str
+    name: str
+    description: str = ""
+    enabled: bool = True
+    current: bool = False
+
+
+class SkillRestore(Contract):
+    """Save an older version's payload as the skill's new version («الرجوع إلى الإصدار N»)."""
+
+    version: int = Field(ge=1)
+    expected_version: int = Field(ge=1)

@@ -16,6 +16,8 @@ from .transactions import owned_agent, owned_thread
 
 
 def next_run(request: RoutineCreate, after: datetime) -> datetime:
+    if request.run_at is not None:
+        return request.run_at
     if request.cron:
         return next_occurrence(request.cron, request.timezone, after)
     return after + timedelta(seconds=request.interval_seconds or 60)
@@ -26,11 +28,13 @@ def routine_data(row: RoutineRow) -> dict[str, Any]:
         "id": row.id,
         "agent_id": row.agent_id,
         "thread_id": row.thread_id,
+        "title": row.title,
         "prompt": row.prompt,
         "goal_id": row.goal_id,
         "step_id": row.step_id,
         "interval_seconds": row.interval_seconds,
         "cron": row.cron,
+        "run_at": row.run_at.isoformat() if row.run_at else None,
         "timezone": row.timezone,
         "enabled": row.enabled,
         "next_run_at": row.next_run_at.isoformat(),
@@ -194,6 +198,11 @@ async def enqueue_routine(session: AsyncSession, row: RoutineRow, now: datetime)
             "goal_step_not_found",
         }:
             raise
+    row.last_run_at = now
+    if row.run_at is not None:
+        # A one-shot routine fires once and then stays off until the owner reschedules it.
+        row.enabled = False
+        return enqueued
     request = RoutineCreate(
         prompt=row.prompt,
         interval_seconds=row.interval_seconds,
@@ -205,7 +214,6 @@ async def enqueue_routine(session: AsyncSession, row: RoutineRow, now: datetime)
     candidate = next_run(request, previous)
     # Collapse missed schedules into one wake; never replay a burst after downtime.
     row.next_run_at = candidate if candidate > now else next_run(request, now)
-    row.last_run_at = now
     return enqueued
 
 
