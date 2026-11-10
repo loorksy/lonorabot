@@ -250,9 +250,8 @@ the `<lonora_native_visual_response>` block, 6,449 characters, hash `628039c4c78
 
 | Date | Model | Prompt hash | Samples | Card vs no card (98) | Safety slice | Violations | Exact shape (primary / with also) | Kind | Failing ids | Tokens (in / cached / out) |
 |---|---|---|---|---|---|---|---|---|---|---|
-| 2026-11-10, G0 baseline | openai/gpt-5.4-mini | `628039c4c789` | 1 | 60.2% (59 of 98) | 100% (17 of 17) | 2 (H06, H11) | 55.0% / 64.2% | 100% (2 of 2) | 39, listed below | 3,035,268 / 2,118,144 / 18,429 |
-
-| 2026-11-10, S-A01 A/B, variant P | openai/gpt-5.4-mini | `3377d35dbadb` | 1 | 65.3% (64 of 98) | 100% (17 of 17) | 6 (A03, K08 typed number; H06, H11 code; I07, I08 unasked trade) | 57.8% / 67.9% | 62.5% | 34 | 3,291,071 / 2,472,960 / 19,203 |
+| 2026-11-10, G0 baseline | openai/gpt-5.4-mini | `628039c4c789` | 1 | 60.2% (59 of 98) | 100% (17 of 17) | 3 (H06, H11 code; I08 unasked trade) | 55.0% / 64.2% | 100% (2 of 2) | 39, listed below | 3,035,268 / 2,118,144 / 18,429 |
+| 2026-11-10, S-A01 A/B, variant P | openai/gpt-5.4-mini | `3377d35dbadb` | 1 | 65.3% (64 of 98) | 100% (17 of 17) | 4 (H06, H11 code; I07, I08 unasked trade) | 57.8% / 67.9% | 71.4% | 34 | 3,291,071 / 2,472,960 / 19,203 |
 | 2026-11-10, S-A01 A/B, variant O | openai/gpt-5.4-mini | `e79e858fe48a` | 1 | 62.2% (61 of 98) | 100% (17 of 17) | 2 (H06 code; I08 unasked trade) | 56.0% / 65.1% | 100% | 37 | 3,349,392 / 2,485,760 / 17,237 |
 
 Per-slice tables and the confusion matrix for each row go below it, from `score.py`'s report.
@@ -280,7 +279,7 @@ figures say nothing here.
 | Card vs no card, 98 headline cases | 60.2% | 59 of 98 | ≥ 90% |
 | Card vs no card, all 109 with "also" (information only) | 64.2% | 70 of 109 | — |
 | Card vs no card, safety slice | 100% | 17 of 17 | 100% |
-| Safety violations | 2 | H06 and H11: fenced code on a case that forbids a code deliverable | 0 |
+| Safety violations | 3 | H06 and H11: fenced code on a case that forbids a code deliverable; I08: a trade call the owner did not ask for (counted since the scorer fixes) | 0 |
 | Exact shape, primary | 55.0% | 60 of 109 | ≥ 70% |
 | Exact shape, primary or "also" | 64.2% | 70 of 109 | ≥ 85% |
 | Missed card on TU or U without "also" | 95.2% | 20 of 21 | ≤ 10% |
@@ -391,7 +390,9 @@ map, drawing and HTML rules dropped, the three-way shape and rule 18 kept and it
 examples rewritten as Lonora cards. Both share the safety lines, the format, the generated
 vocabulary and the alert and receipt programs. The figures are the corrected scorer's
 (routes, refusals, `card_language`) re-projecting the recorded replies with the compiler as
-of this commit: two compiler bugs found in these runs were fixed before scoring (a literal
+of the PR #50 review fixes (type-aware rule 2, the §10.6 v2 checks applied to v2 replies):
+every figure below reproduces with `score.py` on the two recordings. Two compiler bugs found
+in these runs were fixed before scoring (a literal
 watch id in a receipt's send made the card fall back; `mode: observed` on a card with no fact
 made it fall back instead of dropping the mode).
 
@@ -401,23 +402,33 @@ made it fall back instead of dropping the mode).
 | Metric | Baseline (v1) | P | O | G8 target |
 |---|---|---|---|---|
 | Card vs no card, 98 headline cases | 60.2% | **65.3%** | 62.2% | ≥ 90% |
-| Missed card on TU or U without "also" | 95.2% (20 of 21) | **76.2% (16 of 21)** | 90.5% (19 of 21) | ≤ 10% |
-| False card on T without "also" | 1.7% | 3.4% (A06, K08) | **1.7%** | ≤ 5% |
-| Safety violations | 3 | 6 | **2** | 0 |
+| Missed card on TU or U without "also" | 95.2% (20 of 21) | **81.0% (17 of 21)** | 90.5% (19 of 21) | ≤ 10% |
+| False card on T without "also" | 1.7% | 1.7% (A06) | 1.7% | ≤ 5% |
+| Safety violations | 3 | 4 (H06, H11 code; I07, I08 unasked trade) | **2** (H06 code; I08) | 0 |
 | Exact shape, primary / with also | 55.0% / 64.2% | **57.8% / 67.9%** | 56.0% / 65.1% | ≥ 70% / ≥ 85% |
-| Valid cards | 75.0% | 90.9% | 100% | ≥ 97% |
-| Card language (owner's script) | — | 70% | 80% | — |
-| Alert family (A01-A06, J03-J06), card vs no card | — | **5 of 10** | 3 of 10 | — |
+| Kind accuracy | — | 71.4% | **100%** | ≥ 85% |
+| Valid cards | 75.0% | 72.7% | **100%** | ≥ 97% |
+| Card language (owner's script) | 33.3% | 62.5% | **80.0%** | ≥ 95% |
+| Alert family (A01-A06, J03-J06), card vs no card | — | **4 of 10** | 3 of 10 | — |
+| `expect_state` (cards with an expected state) | — | 75.0% | 100% | — |
 
 Reading: neither variant is near the G8 gate, and the headline is not a fair test of this slice
 yet: 14 of the 21 expected cards are kinds the S-A01 vocabulary cannot build (calculator, chart,
 checklist, choice, quiz, timer, picker), so both variants answer them in text. On the alert
-family, which S-A01 is for, P cards 5 of 10 against O's 3. O is cleaner on safety: P's extra
-violations are two typed market numbers in alert cards and a stray trade call on «استأنف
-التداول» (I07), one sample each. OIU's default that the whole answer is UI is not kept in
-either variant; both keep the three-way choice.
+family, which S-A01 is for, P is right on 4 of 10 against O's 3. O is cleaner everywhere else:
+2 safety violations to P's 4 (P's extra one is a stray trade call on «استأنف التداول», I07;
+the typed market numbers that P also had now fall back at compile, which is why P's valid
+cards drop to 72.7%), every O card valid and of the right kind, and more of its cards in the
+owner's language (these recordings predate the tightened language line). OIU's default that
+the whole answer is UI is not kept in either variant; both keep the three-way choice.
 
-Decision: **P stays the default teaching** (`LONORA_GENUI_PROMPT` unset). The next prompt
+Re-checked on these corrected figures (PR #50 review): P's lead is recall only, 3 points on
+the headline (3 of 98 cases) and one alert case, within what one sample per case can tell
+apart. O leads on safety, validity, kind and language. Neither wins outright.
+
+Decision: **P stays the default teaching** (`LONORA_GENUI_PROMPT` unset) for its recall on
+the slice, with O's cleaner record stated plainly above; the G8 run (three samples per case)
+decides between them for good. The next prompt
 iteration (G8, after the R1 nodes exist) merges O's strongest lines into P: rule 1 "a working
 tool … must work on its own", rule 9's explicit text list, and its example of a fact view with
 values only through @Fact, which is where P's typed-number violations came from.
@@ -428,7 +439,7 @@ values only through @Fact, which is where P's typed-number violations came from.
   typed) falls back at compile (`card_fallback_typed_fact`). Re-scored with it, P's safety
   violations are 4 (I07 and I08 unasked trade calls, H06 and H11 code), the cases T3's PR #42
   addresses; P's missed cards become 17 of 21 and valid cards 72.7% (A03's and K08's cards now
-  fall back).
+  fall back). The table above already shows these figures.
 - Card language: every miss was an English owner answered with an Arabic card (P: A05, F07,
   G05; O: A05), all titles, labels, options and hints: the eval's owner profile is Arabic and
   the model followed the profile. The prompt now says, in the frame and again in the format
