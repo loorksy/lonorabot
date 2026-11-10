@@ -4,6 +4,7 @@ import { AgentAvatar } from "@lonora/ui-web";
 import { ChevronDown, MicOff } from "lucide-react";
 import { useVoice } from "../../hooks/useVoice";
 import { CallWaveform } from "./CallWaveform";
+import "./call.css";
 export function CallPill() {
   const voice = useVoice();
   if (!voice.target || !voice.minimized) return null;

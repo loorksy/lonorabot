@@ -127,7 +127,7 @@ msgstr "{queued, plural, one {رسالة واحدة تنتظر} two {رسالت�
 msgid "{reads} read"
 msgstr "{reads} قراءة"
 
-#: src/shell/Shell.tsx:390
+#: src/shell/Shell.tsx:432
 msgid "{sent, plural, one {One waiting message was sent} two {Two waiting messages were sent} few {# waiting messages were sent} many {# waiting messages were sent} other {# waiting messages were sent}}"
 msgstr "{sent, plural, one {أُرسلت رسالة واحدة كانت تنتظر} two {أُرسلت رسالتان كانت تنتظر} few {أُرسلت # رسائل كانت تنتظر} many {أُرسلت # رسالة كانت تنتظر} other {أُرسلت # رسالة كانت تنتظر}}"
 
@@ -245,7 +245,7 @@ msgstr "رمز الوصول"
 msgid "Access token — stored encrypted, never shown again"
 msgstr "رمز الوصول — يُحفظ مشفّرًا ولا يُعرض مرة أخرى"
 
-#: src/shell/pages.tsx:126
+#: src/shell/pages.tsx:127
 #: src/shell/settings/SettingsRoot.tsx:313
 msgid "Accessibility"
 msgstr "سهولة الاستخدام"
@@ -326,7 +326,7 @@ msgstr "أنشطة"
 msgid "Activity"
 msgstr "النشاط"
 
-#: src/shell/pages.tsx:118
+#: src/shell/pages.tsx:119
 msgid "Activity log"
 msgstr "سجل الإجراءات"
 
@@ -365,7 +365,7 @@ msgstr "إضافة حساب تداول"
 msgid "Add agents or groups"
 msgstr "إضافة وكلاء أو مجموعات"
 
-#: src/shell/pages.tsx:136
+#: src/shell/pages.tsx:137
 msgid "Add an AI provider"
 msgstr "إضافة مزود ذكاء اصطناعي"
 
@@ -418,7 +418,7 @@ msgstr "إضافة معرفة"
 msgid "Add line"
 msgstr "إضافة خط"
 
-#: src/shell/pages.tsx:138
+#: src/shell/pages.tsx:139
 msgid "Add MCP"
 msgstr "إضافة MCP"
 
@@ -546,7 +546,7 @@ msgstr "قالب الوكيل"
 #: src/shell/domain/UpdatesPages.tsx:187
 #: src/shell/lists/ChatList.tsx:185
 #: src/shell/NewChatSheet.tsx:53
-#: src/shell/pages.tsx:82
+#: src/shell/pages.tsx:83
 msgid "Agents"
 msgstr "الوكلاء"
 
@@ -648,6 +648,11 @@ msgstr "غاضب"
 msgid "Animals & nature"
 msgstr "حيوانات وطبيعة"
 
+#: src/shell/call/CallPages.tsx:546
+msgctxt "call"
+msgid "Answer"
+msgstr "رد"
+
 #: src/components/conversation-question.tsx:71
 msgid "Answered"
 msgstr "تمت الإجابة"
@@ -712,7 +717,7 @@ msgstr "أرشفة"
 
 #: src/shell/DesktopList.tsx:68
 #: src/shell/lists/ChatList.tsx:292
-#: src/shell/pages.tsx:86
+#: src/shell/pages.tsx:87
 msgid "Archived"
 msgstr "المؤرشفة"
 
@@ -752,6 +757,10 @@ msgstr "ملفات مرفقة"
 #: src/pages/shell/message-cards.tsx:161
 msgid "Attachment"
 msgstr "مرفق"
+
+#: src/shell/call/CallPages.tsx:145
+msgid "Audio output"
+msgstr "مخرج الصوت"
 
 #: src/shell/settings/ConnectionPages.tsx:807
 msgid "Authentication"
@@ -1052,13 +1061,32 @@ msgstr "بايت"
 msgid "Call"
 msgstr "اتصال"
 
-#: src/components/call/VoiceStatus.tsx:23
+#: src/shell/call/CallPages.tsx:234
+msgctxt "call clock"
+msgid "Call"
+msgstr "مكالمة"
+
+#: src/shell/pages.tsx:153
+msgctxt "page title"
+msgid "Call"
+msgstr "المكالمة"
+
+#: src/shell/call/CallPages.tsx:187
 msgid "Call ended"
 msgstr "انتهت المكالمة"
 
+#. placeholder {0}: target.name
+#: src/shell/call/CallPages.tsx:215
+msgid "Call with {0}"
+msgstr "مكالمة مع {0}"
+
 #: src/components/call/CallCard.tsx:43
-msgid "Call with {name}"
-msgstr "مكالمة مع {name}"
+#~ msgid "Call with {name}"
+#~ msgstr "مكالمة مع {name}"
+
+#: src/shell/call/CallPages.tsx:362
+msgid "Calls are not set up"
+msgstr "المكالمات غير مهيأة"
 
 #: src/shell/PermissionSheet.tsx:59
 msgid "Camera not allowed"
@@ -1070,6 +1098,7 @@ msgstr "الكاميرا غير مسموحة"
 #: src/components/skills/SkillCard.tsx:133
 #: src/components/skills/SkillEditor.tsx:141
 #: src/pages/Board.tsx:576
+#: src/shell/call/CallPages.tsx:373
 #: src/shell/domain/FilesPages.tsx:63
 #: src/shell/domain/SchedulesPages.tsx:63
 #: src/shell/domain/TasksPages.tsx:168
@@ -1562,7 +1591,7 @@ msgstr "ربط الحساب"
 #~ msgid "Connected"
 #~ msgstr "متصل"
 
-#: src/components/call/VoiceStatus.tsx:21
+#: src/shell/call/CallPages.tsx:186
 msgid "Connecting"
 msgstr "جارٍ الاتصال"
 
@@ -1605,8 +1634,8 @@ msgstr "المحتوى"
 msgid "Conversation"
 msgstr "المحادثة"
 
-#: src/shell/pages.tsx:385
-#: src/shell/pages.tsx:387
+#: src/shell/pages.tsx:392
+#: src/shell/pages.tsx:394
 msgid "Conversation history"
 msgstr "سجل المحادثات"
 
@@ -1672,12 +1701,12 @@ msgstr "إنشاء مجموعة"
 msgid "Create a skill"
 msgstr "إنشاء مهارة"
 
-#: src/shell/pages.tsx:114
+#: src/shell/pages.tsx:115
 msgctxt "page title"
 msgid "Create a skill"
 msgstr "إنشاء مهارة"
 
-#: src/shell/pages.tsx:120
+#: src/shell/pages.tsx:121
 #: src/shell/TopBar.tsx:59
 msgid "Create agent"
 msgstr "إنشاء وكيل"
@@ -1698,7 +1727,7 @@ msgstr "أنشئ وكيلًا لكل مهمة، واجمعهم في مجموعا
 msgid "Create group"
 msgstr "إنشاء المجموعة"
 
-#: src/shell/pages.tsx:122
+#: src/shell/pages.tsx:123
 msgctxt "page title"
 msgid "Create group"
 msgstr "إنشاء مجموعة"
@@ -1720,7 +1749,7 @@ msgstr "إنشاء مجموعة"
 msgid "Create task"
 msgstr "إنشاء مهمة"
 
-#: src/shell/pages.tsx:108
+#: src/shell/pages.tsx:109
 msgctxt "page title"
 msgid "Create task"
 msgstr "إنشاء مهمة"
@@ -1828,6 +1857,11 @@ msgstr "الأيام المنقضية من {month}"
 #: src/components/goals/TradingGoals.tsx:75
 msgid "Decision evidence"
 msgstr "أدلة القرار"
+
+#: src/shell/call/CallPages.tsx:552
+msgctxt "call"
+msgid "Decline"
+msgstr "رفض"
 
 #: src/shell/lists/EmojiPanel.tsx:512
 #: src/shell/settings/DevicePages.tsx:29
@@ -2066,15 +2100,15 @@ msgstr "مصدر التقويم الاقتصادي"
 msgid "Edit"
 msgstr "تعديل"
 
-#: src/shell/pages.tsx:116
+#: src/shell/pages.tsx:117
 msgid "Edit file"
 msgstr "تحرير الملف"
 
-#: src/shell/pages.tsx:102
+#: src/shell/pages.tsx:103
 msgid "Edit goal"
 msgstr "تحرير الهدف"
 
-#: src/shell/pages.tsx:96
+#: src/shell/pages.tsx:97
 msgid "Edit knowledge"
 msgstr "تحرير المعرفة"
 
@@ -2083,7 +2117,7 @@ msgstr "تحرير المعرفة"
 #~ msgid "Edit routine"
 #~ msgstr "تعديل المهمة المجدولة"
 
-#: src/shell/pages.tsx:112
+#: src/shell/pages.tsx:113
 msgid "Edit skill"
 msgstr "تعديل المهارة"
 
@@ -2152,12 +2186,22 @@ msgstr "تفعيل الاسترجاع الدلالي"
 msgid "Enabled"
 msgstr "مفعّل"
 
+#: src/shell/call/CallPages.tsx:300
+#: src/shell/call/CallPages.tsx:340
+msgctxt "call"
+msgid "End"
+msgstr "إنهاء"
+
 #: src/components/call/CallCard.tsx:106
 #: src/components/call/CallCard.tsx:107
-msgid "End call"
-msgstr "إنهاء المكالمة"
+#~ msgid "End call"
+#~ msgstr "إنهاء المكالمة"
 
-#: src/components/call/VoiceStatus.tsx:18
+#: src/shell/call/CallPages.tsx:406
+#~ msgid "End the current call first."
+#~ msgstr "أنه المكالمة الحالية أولاً."
+
+#: src/shell/call/CallPages.tsx:183
 msgid "Ending call"
 msgstr "جارٍ إنهاء المكالمة"
 
@@ -2342,7 +2386,7 @@ msgstr "اسم الملف"
 #: src/shell/lists/UnifiedSearch.tsx:275
 #: src/shell/lists/UnifiedSearch.tsx:310
 #: src/shell/lists/UnifiedSearch.tsx:317
-#: src/shell/pages.tsx:84
+#: src/shell/pages.tsx:85
 #: src/shell/settings/SettingsRoot.tsx:336
 msgid "Files"
 msgstr "الملفات"
@@ -2388,6 +2432,11 @@ msgstr "أعلام"
 #: src/components/ai/AvatarStudio.tsx:72
 msgid "Focused"
 msgstr "مركّز"
+
+#: src/shell/call/CallPages.tsx:93
+#: src/shell/call/CallPages.tsx:94
+msgid "Fold the call"
+msgstr "طي المكالمة"
 
 #: src/components/charts/TradingChart.tsx:360
 msgid "Follow Agent"
@@ -2510,7 +2559,7 @@ msgstr "عنوان الهدف"
 
 #: src/shell/ChatMenu.tsx:98
 #: src/shell/ChatMenu.tsx:118
-#: src/shell/pages.tsx:100
+#: src/shell/pages.tsx:101
 msgid "Goals"
 msgstr "الأهداف"
 
@@ -2622,6 +2671,10 @@ msgstr "استيراد بيانات الحساب التجريبي"
 msgid "Imported skill"
 msgstr "مهارة مستوردة"
 
+#: src/shell/call/CallPages.tsx:322
+msgid "In progress"
+msgstr "جارية"
+
 #: src/shell/domain/TasksPages.tsx:44
 msgctxt "task status"
 msgid "In progress"
@@ -2640,6 +2693,16 @@ msgstr "رسائل داخل التطبيق"
 #: src/shell/settings/NotifyPages.tsx:130
 msgid "In-app notifications"
 msgstr "إشعارات داخل التطبيق"
+
+#: src/shell/call/CallPages.tsx:538
+#: src/shell/pages.tsx:155
+msgid "Incoming call"
+msgstr "مكالمة واردة"
+
+#. placeholder {0}: agent.name
+#: src/shell/call/CallPages.tsx:522
+msgid "Incoming call from {0}"
+msgstr "مكالمة واردة من {0}"
 
 #: src/pages/KnowledgeSection.tsx:209
 msgid "Index note"
@@ -2703,7 +2766,7 @@ msgstr "التعليمات"
 #~ msgid "Insufficient data for performance conclusions"
 #~ msgstr "بيانات غير كافية لاستنتاجات الأداء"
 
-#: src/shell/pages.tsx:132
+#: src/shell/pages.tsx:133
 #: src/shell/settings/SettingsRoot.tsx:324
 msgid "Integrations"
 msgstr "التكاملات"
@@ -2800,7 +2863,7 @@ msgstr "اختصارات لوحة المفاتيح"
 #: src/pages/Knowledge.tsx:20
 #: src/shell/ChatMenu.tsx:97
 #: src/shell/ChatMenu.tsx:112
-#: src/shell/pages.tsx:94
+#: src/shell/pages.tsx:95
 msgid "Knowledge"
 msgstr "المعرفة"
 
@@ -2828,7 +2891,7 @@ msgstr "ملاحظة معرفية"
 msgid "Knowledge of <0>{0}</0>"
 msgstr "معرفة خاصة بـ <0>{0}</0>"
 
-#: src/shell/pages.tsx:152
+#: src/shell/pages.tsx:157
 msgid "Lab"
 msgstr "مختبر الحالات"
 
@@ -2907,7 +2970,7 @@ msgstr "ربط Telegram"
 msgid "Link the account"
 msgstr "ربط الحساب"
 
-#: src/shell/pages.tsx:140
+#: src/shell/pages.tsx:141
 msgid "Link the broker"
 msgstr "ربط الوسيط"
 
@@ -2941,12 +3004,16 @@ msgid "List view"
 msgstr "عرض القائمة"
 
 #: src/components/call/VoiceStatus.tsx:30
-msgid "Listening"
-msgstr "يستمع"
+#~ msgid "Listening"
+#~ msgstr "يستمع"
 
 #: src/components/call/VoiceStatus.tsx:6
 #~ msgid "Listening · speak to interrupt"
 #~ msgstr "أستمع إليك · تحدث للمقاطعة"
+
+#: src/shell/call/CallPages.tsx:192
+msgid "Listening to you"
+msgstr "أستمع إليك"
 
 #: src/pages/LocalSettings.tsx:45
 #~ msgid "Live connection active"
@@ -3005,7 +3072,7 @@ msgstr "جارٍ تحميل المعاينة…"
 #: src/pages/ScratchpadSection.tsx:94
 #: src/pages/shell/chat-context.tsx:1113
 #: src/pages/SkillsSection.tsx:101
-#: src/shell/pages.tsx:71
+#: src/shell/pages.tsx:72
 msgid "Loading…"
 msgstr "جارٍ التحميل…"
 
@@ -3046,7 +3113,7 @@ msgstr "يحتاج Lonora إلى الميكروفون للإملاء والرس�
 msgid "Main navigation"
 msgstr "التنقل الرئيسي"
 
-#: src/shell/Shell.tsx:494
+#: src/shell/Shell.tsx:536
 msgid "Maintenance is still in progress. Try again shortly"
 msgstr "ما زالت الصيانة جارية. حاول بعد قليل"
 
@@ -3093,7 +3160,7 @@ msgid "Mark as unread"
 msgstr "تمييز كغير مقروءة"
 
 #: src/pages/Market.tsx:23
-#: src/shell/pages.tsx:88
+#: src/shell/pages.tsx:89
 msgid "Market"
 msgstr "السوق"
 
@@ -3149,7 +3216,7 @@ msgstr "لا تُمنح خوادم MCP أي أداة مالية؛ أدوات ا�
 msgid "Members"
 msgstr "الأعضاء"
 
-#: src/shell/pages.tsx:98
+#: src/shell/pages.tsx:99
 msgid "Memory"
 msgstr "الذاكرة"
 
@@ -3206,7 +3273,7 @@ msgstr "رمز MetaApi"
 msgid "Metric"
 msgstr "المقياس"
 
-#: src/components/call/VoiceStatus.tsx:28
+#: src/shell/call/CallPages.tsx:189
 msgid "Microphone muted"
 msgstr "الميكروفون مكتوم"
 
@@ -3224,8 +3291,8 @@ msgstr "تصغير"
 
 #: src/components/call/CallCard.tsx:119
 #: src/components/call/CallCard.tsx:120
-msgid "Minimize call"
-msgstr "تصغير المكالمة"
+#~ msgid "Minimize call"
+#~ msgstr "تصغير المكالمة"
 
 #: src/components/market/MarketOverview.tsx:17
 msgid "Minimum volume"
@@ -3243,7 +3310,7 @@ msgstr "الوضع"
 msgid "Model provider unavailable — retry scheduled"
 msgstr "مزود النموذج غير متاح — إعادة المحاولة مجدولة"
 
-#: src/shell/pages.tsx:134
+#: src/shell/pages.tsx:135
 #: src/shell/settings/IntegrationsPage.tsx:500
 msgid "Model providers"
 msgstr "مزوّدو النماذج"
@@ -3261,10 +3328,16 @@ msgstr "جارٍ المراقبة"
 msgid "More"
 msgstr "المزيد"
 
+#: src/shell/call/CallPages.tsx:279
+#: src/shell/call/CallPages.tsx:330
+msgctxt "call"
+msgid "Mute"
+msgstr "كتم"
+
 #: src/components/call/CallCard.tsx:95
 #: src/components/call/CallCard.tsx:96
-msgid "Mute microphone"
-msgstr "كتم الميكروفون"
+#~ msgid "Mute microphone"
+#~ msgstr "كتم الميكروفون"
 
 #: src/shell/lists/Selection.tsx:265
 msgid "Mute notifications"
@@ -3274,6 +3347,7 @@ msgstr "كتم الإشعارات"
 msgid "Mute notifications at night"
 msgstr "كتم الإشعارات ليلًا"
 
+#: src/shell/call/CallPages.tsx:322
 #: src/shell/lists/ThreadRow.tsx:199
 #: src/shell/lists/ThreadRow.tsx:199
 msgid "Muted"
@@ -3618,6 +3692,10 @@ msgstr "لا توجد أهداف تداول بعد."
 msgid "No unread messages."
 msgstr "لا توجد رسائل غير مقروءة."
 
+#: src/shell/call/CallPages.tsx:366
+msgid "No voice provider is configured yet. Add an OpenAI key in the model providers to make calls."
+msgstr "لم يُضبط مزود الصوت بعد. أضف مفتاح OpenAI في مزودي الذكاء الاصطناعي لإجراء المكالمات."
+
 #: src/shell/settings/IntegrationsPage.tsx:114
 msgid "Non-financial write"
 msgstr "كتابة غير مالية"
@@ -3679,7 +3757,7 @@ msgctxt "updates section"
 msgid "Notifications"
 msgstr "التنبيهات"
 
-#: src/shell/pages.tsx:128
+#: src/shell/pages.tsx:129
 #: src/shell/settings/SettingsRoot.tsx:318
 msgid "Notifications and contact"
 msgstr "الإشعارات والتواصل"
@@ -3732,6 +3810,11 @@ msgstr "من إجمالي التكلفة"
 msgid "OK"
 msgstr "حسنًا"
 
+#: src/shell/call/CallPages.tsx:290
+msgctxt "speaker"
+msgid "On"
+msgstr "مفعلة"
+
 #: src/shell/domain/SchedulesPages.tsx:93
 #: src/shell/domain/SchedulesPages.tsx:407
 msgctxt "schedule type"
@@ -3754,6 +3837,10 @@ msgstr "الملف الشخصي الذي يقرؤه جميع وكلائك، مع
 msgid "One profile all your agents read. Every change is logged with its author, and you can restore any earlier value."
 msgstr "ملف واحد يقرؤه جميع وكلائك. يُسجَّل كل تعديل مع كاتبه، ويمكنك استعادة أي قيمة سابقة."
 
+#: src/shell/call/CallPages.tsx:131
+msgid "Only one audio output is available."
+msgstr "لا يتوفر إلا مخرج صوت واحد."
+
 #: src/shell/PermissionSheet.tsx:39
 msgid "Open “Permissions”, then “Camera”."
 msgstr "افتح «الأذونات» ثم «الكاميرا»."
@@ -3767,7 +3854,7 @@ msgstr "افتح «الأذونات» ثم «الميكروفون»."
 msgid "Open active call"
 msgstr "فتح المكالمة الحالية"
 
-#: src/components/call/CallPill.tsx:15
+#: src/components/call/CallPill.tsx:16
 msgid "Open call with {name}"
 msgstr "فتح المكالمة مع {name}"
 
@@ -3782,8 +3869,8 @@ msgid "Open conversation"
 msgstr "فتح المحادثة"
 
 #: src/components/call/CallCard.tsx:52
-msgid "Open conversation with {name}"
-msgstr "فتح المحادثة مع {name}"
+#~ msgid "Open conversation with {name}"
+#~ msgstr "فتح المحادثة مع {name}"
 
 #: src/shell/settings/SettingsRoot.tsx:223
 msgid "Open Lonora straight from your home screen, in a full window."
@@ -3866,7 +3953,12 @@ msgstr "سعر الأمر"
 #~ msgid "Output"
 #~ msgstr "الإخراج"
 
-#: src/shell/pages.tsx:144
+#. placeholder {0}: index + 1
+#: src/shell/call/CallPages.tsx:158
+msgid "Output {0}"
+msgstr "مخرج {0}"
+
+#: src/shell/pages.tsx:145
 msgid "Overall usage"
 msgstr "الاستهلاك العام"
 
@@ -4010,8 +4102,7 @@ msgstr "خطوة من الخطة"
 msgid "Planning"
 msgstr "جارٍ التخطيط"
 
-#: src/components/call/CallCard.tsx:138
-#: src/components/call/CallCard.tsx:139
+#: src/shell/call/CallPages.tsx:249
 msgid "Play audio"
 msgstr "تشغيل الصوت"
 
@@ -4092,12 +4183,12 @@ msgstr "المستوى السعري"
 msgid "Price zone"
 msgstr "منطقة سعرية"
 
-#: src/shell/pages.tsx:150
+#: src/shell/pages.tsx:151
 #: src/shell/settings/SettingsRoot.tsx:341
 msgid "Privacy and security"
 msgstr "الخصوصية والأمان"
 
-#: src/shell/pages.tsx:130
+#: src/shell/pages.tsx:131
 msgid "Proactive contact"
 msgstr "التواصل الاستباقي"
 
@@ -4109,7 +4200,7 @@ msgstr "التواصل الاستباقي"
 #~ msgid "Profile"
 #~ msgstr "الهوية"
 
-#: src/shell/pages.tsx:124
+#: src/shell/pages.tsx:125
 msgctxt "owner"
 msgid "Profile"
 msgstr "الملف الشخصي"
@@ -4384,6 +4475,10 @@ msgstr "رد"
 msgid "Reply to an earlier message"
 msgstr "رد على رسالة سابقة"
 
+#: src/shell/call/CallPages.tsx:556
+msgid "Reply with a message"
+msgstr "الرد برسالة"
+
 #: src/components/ai/AttentionInbox.tsx:16
 #: src/components/ai/AttentionInbox.tsx:27
 #: src/components/ai/AttentionInbox.tsx:28
@@ -4490,15 +4585,14 @@ msgid "Resume"
 msgstr "استئناف"
 
 #: src/App.tsx:55
-#: src/components/call/CallCard.tsx:149
-#: src/components/call/CallCard.tsx:149
 #: src/pages/ActivityList.tsx:153
 #: src/pages/Artifacts.tsx:251
 #: src/pages/Board.tsx:139
 #: src/pages/shell/message-cards.tsx:185
+#: src/shell/call/CallPages.tsx:257
 #: src/shell/lists/ChatList.tsx:353
-#: src/shell/pages.tsx:367
-#: src/shell/pages.tsx:378
+#: src/shell/pages.tsx:374
+#: src/shell/pages.tsx:385
 msgid "Retry"
 msgstr "إعادة المحاولة"
 
@@ -4506,6 +4600,11 @@ msgstr "إعادة المحاولة"
 #: src/components/ai/AgentLiveStatus.tsx:95
 msgid "Retry scheduled"
 msgstr "إعادة المحاولة مجدولة"
+
+#. placeholder {0}: target.name
+#: src/shell/call/CallPages.tsx:319
+msgid "Return to the call with {0}"
+msgstr "العودة إلى المكالمة مع {0}"
 
 #: src/lib/user_error.ts:71
 #: src/lib/user_error.ts:78
@@ -4669,7 +4768,7 @@ msgstr "سيناريو"
 
 #: src/shell/domain/SchedulesPages.tsx:374
 #: src/shell/domain/TasksPages.tsx:92
-#: src/shell/pages.tsx:104
+#: src/shell/pages.tsx:105
 msgid "Schedule a task"
 msgstr "جدولة مهمة"
 
@@ -4695,7 +4794,7 @@ msgid "Scheduled"
 msgstr "مجدولة"
 
 #: src/shell/ChatMenu.tsx:125
-#: src/shell/pages.tsx:92
+#: src/shell/pages.tsx:93
 msgid "Scheduled tasks"
 msgstr "المهام المجدولة"
 
@@ -4874,6 +4973,10 @@ msgstr "الخوادم والمستودعات"
 #: src/shell/settings/AuthFlow.tsx:237
 msgid "Set up Lonora"
 msgstr "إعداد Lonora"
+
+#: src/shell/call/CallPages.tsx:383
+msgid "Set up the voice provider"
+msgstr "إعداد مزود الصوت"
 
 #: src/pages/shell/chat-context.tsx:776
 #: src/shell/FloatingTabBar.tsx:25
@@ -5062,7 +5165,7 @@ msgid "Skill version controls could not be verified. Reload before making change
 msgstr "تعذر التحقق من ضوابط إصدارات المهارات. أعد التحميل قبل إجراء تغييرات."
 
 #: src/pages/Knowledge.tsx:44
-#: src/shell/pages.tsx:110
+#: src/shell/pages.tsx:111
 #: src/shell/settings/IntegrationsPage.tsx:637
 msgid "Skills"
 msgstr "المهارات"
@@ -5116,7 +5219,11 @@ msgstr "الأصوات"
 msgid "Source"
 msgstr "المصدر"
 
-#: src/components/call/VoiceStatus.tsx:26
+#: src/shell/call/CallPages.tsx:290
+msgid "Speaker"
+msgstr "السماعة"
+
+#: src/shell/call/CallPages.tsx:191
 msgid "Speaking"
 msgstr "يتحدث"
 
@@ -5233,7 +5340,7 @@ msgstr "إيقاف الحركات والانتقالات غير الضرورية
 msgid "Stopped at its work limit"
 msgstr "توقف عند حد العمل"
 
-#: src/shell/pages.tsx:148
+#: src/shell/pages.tsx:149
 #: src/shell/settings/SettingsRoot.tsx:335
 msgid "Storage and data"
 msgstr "التخزين والبيانات"
@@ -5355,7 +5462,7 @@ msgstr "أُنشئت مهمة"
 
 #: src/pages/Board.tsx:343
 #: src/shell/domain/TasksPages.tsx:195
-#: src/shell/pages.tsx:106
+#: src/shell/pages.tsx:107
 msgid "Task details"
 msgstr "تفاصيل المهمة"
 
@@ -5486,6 +5593,10 @@ msgstr "رفض الوسيط هذا الفريم أو طلب الشموع."
 #: src/lib/user_error.ts:186
 msgid "The broker specifications are unavailable for this exact symbol."
 msgstr "مواصفات الوسيط غير متاحة لهذا الرمز المحدد."
+
+#: src/shell/Shell.tsx:362
+msgid "The call ended."
+msgstr "انتهت المكالمة."
 
 #: src/pages/ModelSettingsOverlay.tsx:94
 msgid "The catalog is read from the provider. Unknown capabilities are shown as unverified."
@@ -5756,6 +5867,10 @@ msgstr "تعذر اتصال الصوت. أعد محاولة المكالمة."
 #~ msgid "Theme"
 #~ msgstr "المظهر"
 
+#: src/shell/call/CallPages.tsx:181
+msgid "There is no call in progress."
+msgstr "لا توجد مكالمة جارية."
+
 #: src/shell/lists/UnifiedSearch.tsx:424
 msgid "There is no content in this section yet"
 msgstr "لا يوجد محتوى في هذا القسم بعد"
@@ -5801,6 +5916,15 @@ msgstr "حساب الوسيط مرتبط بالفعل. استخدم الاتصا
 #: src/lib/user_error.ts:188
 msgid "This broker connection is disabled."
 msgstr "اتصال الوسيط هذا معطّل."
+
+#: src/shell/call/CallPages.tsx:124
+msgid "This browser does not let a page choose the audio output."
+msgstr "لا يتيح هذا المتصفح اختيار مخرج الصوت."
+
+#: src/shell/call/CallPages.tsx:495
+#: src/shell/call/CallPages.tsx:513
+msgid "This call has ended."
+msgstr "انتهت هذه المكالمة."
 
 #: src/lib/user_error.ts:233
 #~ msgid "This conversation could not be resumed. Start a new conversation."
@@ -5868,7 +5992,7 @@ msgstr "لن تُرسل هذه العملية مرة أخرى."
 msgid "This page could not be displayed"
 msgstr "تعذّر عرض هذه الصفحة"
 
-#: src/shell/Shell.tsx:306
+#: src/shell/Shell.tsx:312
 msgid "This page is available in the development build only"
 msgstr "هذه الصفحة متاحة في نسخة التطوير فقط"
 
@@ -6028,13 +6152,14 @@ msgstr "تُرفض الأدوات التي قد تحرّك المال: {0}"
 msgid "Trade action"
 msgstr "عملية تداول"
 
-#: src/shell/pages.tsx:90
+#: src/shell/pages.tsx:91
 msgid "Trades"
 msgstr "الصفقات"
 
 #: src/components/ai/AgentAvatar.tsx:23
-#: src/components/call/CallCard.tsx:60
-#: src/components/call/CallPill.tsx:24
+#: src/components/call/CallPill.tsx:25
+#: src/shell/call/CallPages.tsx:67
+#: src/shell/call/CallPages.tsx:530
 msgid "Trades on its own"
 msgstr "يتداول بنفسه"
 
@@ -6044,7 +6169,7 @@ msgstr "يتداول بنفسه"
 msgid "Trading"
 msgstr "التداول"
 
-#: src/shell/pages.tsx:142
+#: src/shell/pages.tsx:143
 msgid "Trading account"
 msgstr "حساب التداول"
 
@@ -6177,14 +6302,16 @@ msgstr "الفتح بالبصمة أو الوجه"
 msgid "Unlocked"
 msgstr "فُتح القفل"
 
+#: src/shell/call/CallPages.tsx:279
+#: src/shell/call/CallPages.tsx:330
 #: src/shell/lists/Selection.tsx:265
 msgid "Unmute"
 msgstr "إلغاء الكتم"
 
 #: src/components/call/CallCard.tsx:95
 #: src/components/call/CallCard.tsx:96
-msgid "Unmute microphone"
-msgstr "إلغاء كتم الميكروفون"
+#~ msgid "Unmute microphone"
+#~ msgstr "إلغاء كتم الميكروفون"
 
 #: src/shell/lists/Selection.tsx:259
 msgid "Unpin"
@@ -6274,7 +6401,7 @@ msgstr "الاستهلاك"
 msgid "Usage breakdown"
 msgstr "توزيع الاستهلاك"
 
-#: src/shell/pages.tsx:146
+#: src/shell/pages.tsx:147
 msgid "Usage details"
 msgstr "تفاصيل الاستهلاك"
 
@@ -6362,8 +6489,8 @@ msgstr "يتطلب الصوت متصفحًا يدعم WebRTC والميكروف�
 
 #: src/components/call/CallCard.tsx:86
 #: src/components/call/CallCard.tsx:87
-msgid "Voice settings"
-msgstr "إعدادات الصوت"
+#~ msgid "Voice settings"
+#~ msgstr "إعدادات الصوت"
 
 #: src/components/market/MarketWatch.tsx:209
 #: src/components/trading/Positions.tsx:38
@@ -6510,7 +6637,7 @@ msgstr "أيام العمل"
 msgid "Working"
 msgstr "جارٍ العمل"
 
-#: src/shell/Shell.tsx:807
+#: src/shell/Shell.tsx:851
 msgid "Workspace"
 msgstr "مساحة العمل"
 

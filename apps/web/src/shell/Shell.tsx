@@ -17,7 +17,6 @@ import {
 } from "react";
 import { flushSync } from "react-dom";
 import { useLocation, useNavigate } from "react-router-dom";
-import { VoiceChatCard } from "../components/call/VoiceChatCard";
 import { useAgents } from "../hooks/useAgents";
 import { useTheme } from "../hooks/useTheme";
 import { useVoice } from "../hooks/useVoice";
@@ -41,6 +40,13 @@ import { useClient } from "../providers/ClientProvider";
 import { VoiceProvider } from "../providers/VoiceProvider";
 import { ChatHeader } from "./ChatHeader";
 import { useChatMenu } from "./ChatMenu";
+import {
+  CallHeader,
+  CallStrip,
+  callReturn,
+  useCallStarter,
+  useIncomingCalls,
+} from "./call/CallPages";
 import { type EdgeOptions, useScrollChrome } from "./chrome";
 import { DesktopList } from "./DesktopList";
 import { DesktopRail } from "./DesktopRail";
@@ -336,6 +342,42 @@ function ShellBody() {
     : undefined;
   const section = sectionOf(route);
   const conversation = route.kind === "chat" || route.kind === "group";
+  /* Phase 6: the call screen is the expanded call. On /app/call it is open; leaving the route
+     folds it; expanding it anywhere else (the strip, the header's call) opens the route and
+     remembers where it was opened from. A call that ends on its screen returns there. */
+  const onCallRoute = route.kind === "page" && route.page === "call";
+  const starter = useCallStarter();
+  useIncomingCalls(!voice.target);
+  const wasOnCall = useRef(onCallRoute);
+  const hadCall = useRef(false);
+  const here = location.pathname + location.search;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the voice actions are stable intents; the route and the call state drive this.
+  useEffect(() => {
+    const left = wasOnCall.current && !onCallRoute;
+    wasOnCall.current = onCallRoute;
+    const ended = hadCall.current && !voice.target;
+    hadCall.current = Boolean(voice.target);
+    if (!voice.target) {
+      if (ended && onCallRoute) {
+        toast(t`The call ended.`, { type: "info" });
+        nav.go(
+          callReturn.path && !callReturn.path.startsWith("/app/call") ? callReturn.path : "/app",
+          {
+            replace: true,
+          },
+        );
+      }
+      return;
+    }
+    if (onCallRoute) {
+      if (voice.minimized) voice.expand();
+    } else if (left) {
+      if (!voice.minimized) voice.minimize();
+    } else if (!voice.minimized) {
+      callReturn.path = here;
+      nav.go("/app/call", { replace: true });
+    }
+  }, [onCallRoute, voice.target, voice.minimized]);
   const home = desktop && route.kind === "root" && route.root === "chats";
   const net = useNetworkPhase(connected);
   const menu = useChatMenu({ agent, group, memberAgents });
@@ -657,8 +699,7 @@ function ShellBody() {
       onBack={nav.back}
       onInfo={menu.openInfo}
       onCall={() => {
-        if (voice.target) voice.expand();
-        else if (agent) void voice.start(agent, new URLSearchParams(location.search).get("thread"));
+        if (agent) void starter.start(agent, new URLSearchParams(location.search).get("thread"));
       }}
       onMenu={menu.openMenu}
     />
@@ -733,7 +774,7 @@ function ShellBody() {
       onNewChat={openNewChat}
       onNewTask={onNewTask}
       onNewAgent={() => nav.go("/app/new-agent")}
-      header={header}
+      header={header ?? (onCallRoute ? <CallHeader desktop={desktop} /> : undefined)}
       selection={
         lists.selected &&
         !desktop &&
@@ -743,6 +784,9 @@ function ShellBody() {
         ) : undefined
       }
     >
+      <CallStrip
+        hidden={onCallRoute || (route.kind === "chat" && route.agentId === voice.target?.agentId)}
+      />
       <NetworkStrip phase={net} ownerId={owner.id} />
     </TopBar>
   );
@@ -865,17 +909,6 @@ function ShellBody() {
           )}
         </div>
       )}
-      <VoiceChatCard
-        agents={data.agents}
-        onSettings={() => nav.go("/app/settings?tab=voice")}
-        onOpenConversation={() => {
-          const target = voice.target;
-          if (target)
-            nav.go(
-              `/app/${target.agentId}${target.threadId ? `?thread=${encodeURIComponent(target.threadId)}` : ""}`,
-            );
-        }}
-      />
       <UpdateBar revision={revision} forced={import.meta.env.DEV && forcedUpdate} />
       <HeadsUp currentThreadId={conversation ? openThread : undefined} />
       {maintenance && <MaintenanceOverlay retry={() => void retryMaintenance()} />}

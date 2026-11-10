@@ -1,0 +1,157 @@
+/* UI phase 6, calls: the reference's call strip, call page, controls and wave
+   (Lonora-Desktop-37.html 85, 506-525, 625). The wave follows the call's real levels through
+   transform only; muted or not connected, it lies flat and grey. */
+.call-strip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 2px 12px 4px;
+  color: var(--text);
+  border-top: 1px solid var(--glass-line);
+}
+.call-strip > svg {
+  color: var(--accent-ink);
+}
+.call-strip .label {
+  flex: 1;
+  min-width: 0;
+  text-align: start;
+  font-size: var(--fs-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.call-strip .icon {
+  width: 36px;
+  height: 36px;
+}
+.topbar.bare .call-strip {
+  background: var(--glass-bar);
+  -webkit-backdrop-filter: var(--blur);
+  backdrop-filter: var(--blur);
+  border-top: 0;
+  border-bottom: 1px solid var(--glass-line);
+}
+.call-page {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding-top: clamp(8px, 4vh, 40px);
+  touch-action: pan-x;
+}
+.call-page .avatar {
+  width: 128px;
+  height: 128px;
+  margin: 24px 0 12px;
+}
+.call-avatar-big {
+  display: grid;
+  place-items: center;
+}
+.call-avatar-big > * {
+  width: 100%;
+  height: 100%;
+}
+.call-page h2 {
+  margin: 4px 0;
+  font-size: var(--fs-xl);
+}
+.call-page > .btn.outline {
+  margin-top: 8px;
+}
+.call-controls {
+  display: flex;
+  justify-content: center;
+  gap: clamp(16px, 6vw, 32px);
+  margin-top: auto;
+  padding: 24px 0 max(16px, env(safe-area-inset-bottom));
+}
+.call-controls button {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  font-size: var(--fs-xs);
+}
+.call-controls button:disabled {
+  opacity: 0.5;
+}
+.circle {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--fill);
+  box-shadow: var(--raise);
+}
+.call-controls button[aria-pressed="true"] .circle {
+  background: var(--text);
+  color: var(--bg);
+}
+.circle.red {
+  background: linear-gradient(180deg, #f0605f, var(--danger-fill));
+  color: #fff;
+}
+.circle.red svg {
+  transform: rotate(135deg);
+}
+.circle.green {
+  background: linear-gradient(180deg, #5ff2c4, var(--accent));
+  color: var(--on-accent);
+}
+.wave {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  margin: 16px;
+}
+.wave i {
+  width: 6px;
+  height: 16px;
+  border-radius: var(--r-pill);
+  background: var(--text);
+  transition: transform 0.12s linear;
+}
+.wave i:nth-child(2) {
+  height: 30px;
+}
+.wave i:nth-child(3) {
+  height: 22px;
+  background: var(--accent);
+}
+.wave i:nth-child(4) {
+  height: 12px;
+}
+.wave.muted i {
+  background: var(--muted);
+}
+.call-follow {
+  width: min(100%, 520px);
+}
+.call-follow:empty {
+  display: none;
+}
+.call-error {
+  display: grid;
+  gap: 8px;
+  justify-items: center;
+}
+@media (prefers-reduced-motion: reduce) {
+  .wave i {
+    transition: none;
+  }
+}
+@media (max-height: 650px) {
+  .call-page .avatar {
+    width: 90px;
+    height: 90px;
+    margin: 8px 0;
+  }
+  .call-page h2 {
+    font-size: var(--fs-lg);
+  }
+}
