@@ -408,9 +408,56 @@ class RichUiPart(Contract):
     document: VisualDocument
 
 
+VOICE_PEAKS = 44
+MAX_VOICE_SECONDS = 120
+
+
+class RichVoicePart(Contract):
+    """An owner voice note (server-written): the audio artifact, its bars and transcript state.
+
+    The transcript itself is the message's ``content``; agents never emit this part.
+    """
+
+    type: Literal["voice"]
+    artifact_id: str = Field(max_length=36)
+    duration: float = Field(gt=0, le=MAX_VOICE_SECONDS, allow_inf_nan=False)
+    peaks: list[int] = Field(min_length=VOICE_PEAKS, max_length=VOICE_PEAKS)
+    transcript_status: Literal["pending", "done", "failed"]
+
+    @field_validator("artifact_id")
+    @classmethod
+    def resource(cls, value: str) -> str:
+        if str(UUID(value)).lower() != value.lower():
+            raise ValueError("visual_resource_invalid")
+        return value
+
+    @field_validator("peaks")
+    @classmethod
+    def bounded_peaks(cls, value: list[int]) -> list[int]:
+        if any(peak < 0 or peak > 100 for peak in value):
+            raise ValueError("voice_peaks_invalid")
+        return value
+
+
+class RichCallPart(Contract):
+    """A call log entry (server-written system message); agents never emit this part."""
+
+    type: Literal["call"]
+    direction: Literal["outgoing", "incoming"]
+    duration_seconds: int = Field(ge=0)
+    missed: bool
+
+
+# Parts only the server writes (owner voice notes, call logs). An Agent reply never carries
+# them: ``lonora_db.rich_response.validated_rich_content`` rejects them at publication.
+SERVER_PART_TYPES = frozenset({"voice", "call"})
+
+
 class RichContent(Contract):
     version: Literal[1] = 1
-    parts: list[RichTextPart | RichUiPart] = Field(min_length=1, max_length=24)
+    parts: list[RichTextPart | RichUiPart | RichVoicePart | RichCallPart] = Field(
+        min_length=1, max_length=24
+    )
 
     @model_validator(mode="after")
     def compiled(self) -> Self:

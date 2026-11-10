@@ -100,6 +100,7 @@ export {
   runStatusText,
 } from "./financial-boundary";
 export { archivedSummary, inboxUnread, isUnread, orderInbox, unreadBadgeTotal } from "./inbox";
+export { callPart, validateAgentRichContent, voicePart } from "./message-parts";
 export {
   type CredentialField,
   type CredentialForm,

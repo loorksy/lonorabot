@@ -1,5 +1,5 @@
 import type { Event, ReplyStreamSnapshot, RichContent, Run } from "@lonora/contracts";
-import { validateRichContent } from "./visual-response";
+import { validateAgentRichContent } from "./message-parts";
 
 export const MAX_STREAM_CHARS = 60000;
 const MAX_TAIL_CHUNKS = 150;
@@ -126,7 +126,7 @@ export function accumulateStream(
   if (stream.phase !== "streaming") return stream;
   if (typeof payload.input_seq === "number") stream = { ...stream, input_seq: payload.input_seq };
   if (event.kind === "run.delta" || event.kind === "run.rich_partial") {
-    const rich = validateRichContent(payload.rich_content);
+    const rich = validateAgentRichContent(payload.rich_content);
     stream = append(stream, {
       sequence: sequence as number,
       text: event.kind === "run.delta" && typeof payload.text === "string" ? payload.text : "",
@@ -140,7 +140,8 @@ export function accumulateStream(
     ...stream,
     sequence: Math.max(stream.sequence, sequence as number),
     phase: payload.phase === "discarded" ? "discarded" : "committed",
-    rich_content: payload.phase === "discarded" ? null : validateRichContent(payload.rich_content),
+    rich_content:
+      payload.phase === "discarded" ? null : validateAgentRichContent(payload.rich_content),
     message_id: typeof payload.message_id === "string" ? payload.message_id : null,
     cursor: event.cursor,
   };
@@ -159,7 +160,7 @@ export function seedStream(
   let rebased: LiveReplyStream = {
     ...snapshot,
     rich_content:
-      snapshot.phase === "discarded" ? null : validateRichContent(snapshot.rich_content),
+      snapshot.phase === "discarded" ? null : validateAgentRichContent(snapshot.rich_content),
     run_id: run.id,
     thread_id: run.thread_id,
     agent_id: run.agent_id,

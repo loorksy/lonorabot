@@ -91,7 +91,7 @@ export function NativeRichResponse({
           <View key={`text:${index}`} style={{ minWidth: 0 }}>
             <Markdown content={part.text} palette={palette} onChartLink={onChartLink} />
           </View>
-        ) : (
+        ) : part.type === "ui" ? (
           <NativeVisualDocument
             key={`ui:${index}:${part.document.root.id}`}
             document={part.document}
@@ -102,7 +102,7 @@ export function NativeRichResponse({
             onAction={onAction}
             rtl={rtl}
           />
-        ),
+        ) : null,
       )}
     </View>
   );

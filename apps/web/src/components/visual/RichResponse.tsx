@@ -106,13 +106,13 @@ export function RichResponse(props: Props) {
           <div className="native-rich-text" key={`text:${index}`}>
             <ChatMarkdown>{part.text}</ChatMarkdown>
           </div>
-        ) : (
+        ) : part.type === "ui" ? (
           <VisualDocumentView
             key={`${index}:${visualDocumentKey(part.document)}`}
             {...props}
             document={part.document}
           />
-        ),
+        ) : null,
       )}
     </div>
   );
