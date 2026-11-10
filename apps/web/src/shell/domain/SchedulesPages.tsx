@@ -207,7 +207,9 @@ export function NewSchedulePage() {
   const nav = useNavigation();
   const toast = useToast();
   const initial = useAgentParam();
-  const [agentId, setAgentId] = useState(initial?.id ?? "");
+  // The agent list may arrive after the first render: follow `?agent=` until the owner picks.
+  const [chosen, setAgentId] = useState<string>();
+  const agentId = chosen ?? initial?.id ?? "";
   const [kind, setKind] = useState<Kind>("repeat");
   const [busy, setBusy] = useState(false);
   const agent = data.agents.find((row) => row.id === agentId);

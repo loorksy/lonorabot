@@ -146,7 +146,14 @@ export function Area({
   return (
     <label className="field">
       <span>{label}</span>
-      <textarea name={name} defaultValue={defaultValue} maxLength={maxLength} required={required} />
+      {/* The label's own text would also read the textarea's content; name it by the label. */}
+      <textarea
+        name={name}
+        aria-label={typeof label === "string" ? label : undefined}
+        defaultValue={defaultValue}
+        maxLength={maxLength}
+        required={required}
+      />
     </label>
   );
 }
@@ -209,6 +216,7 @@ export function SelectField({
       <select
         name={name}
         className="select-native"
+        aria-label={label}
         tabIndex={-1}
         value={current}
         onChange={(event) => choose(event.target.value)}
