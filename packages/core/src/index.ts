@@ -111,7 +111,12 @@ export {
   orderInbox,
   unreadBadgeTotal,
 } from "./inbox";
-export { callPart, validateAgentRichContent, voicePart } from "./message-parts";
+export {
+  callPart,
+  pendingVoiceRich,
+  validateAgentRichContent,
+  voicePart,
+} from "./message-parts";
 export {
   type OrderLine,
   type OrderLineState,

@@ -25,3 +25,22 @@ export function validateAgentRichContent(value: unknown): RichContent | null {
   const rich = validateRichContent(value);
   return rich?.parts.every((part) => part.type === "text" || part.type === "ui") ? rich : null;
 }
+
+/** The voice part a voice note's send body carries, as the rich content of its pending or failed
+    bubble, so it is drawn as a voice note before the server's copy arrives. Null otherwise. */
+export function pendingVoiceRich(body: Record<string, unknown>): RichContent | null {
+  const voice = body.voice as { artifact_id?: unknown; duration?: unknown; peaks?: unknown } | null;
+  if (!voice || typeof voice !== "object" || typeof voice.artifact_id !== "string") return null;
+  return validateRichContent({
+    version: 1,
+    parts: [
+      {
+        type: "voice",
+        artifact_id: voice.artifact_id,
+        duration: Number(voice.duration),
+        peaks: Array.isArray(voice.peaks) ? voice.peaks : [],
+        transcript_status: "pending",
+      },
+    ],
+  });
+}

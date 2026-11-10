@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   callPart,
+  pendingVoiceRich,
   validateAgentRichContent,
   voicePart,
 } from "../../packages/core/src/message-parts";
@@ -49,4 +51,26 @@ test("an agent reply can never carry a server-written part", () => {
   assert.ok(validateAgentRichContent({ version: 1, parts: [text] }));
   assert.equal(validateAgentRichContent({ version: 1, parts: [text, voice] }), null);
   assert.equal(validateAgentRichContent({ version: 1, parts: [call] }), null);
+});
+
+test("a sending or failed voice note carries its voice part, so it is never a blank bubble", () => {
+  const rich = pendingVoiceRich({
+    content: "",
+    voice: { artifact_id: artifact, duration: 3.4, peaks },
+  });
+  const part = voicePart({ rich_content: rich });
+  assert.equal(part?.artifact_id, artifact);
+  assert.equal(part?.duration, 3.4);
+  assert.equal(part?.transcript_status, "pending");
+  assert.equal(pendingVoiceRich({ content: "hello" }), null);
+  // The web and mobile outboxes both draw the pending bubble from it.
+  for (const path of [
+    "apps/web/src/lib/outgoing-messages.ts",
+    "apps/mobile/lib/outgoing-messages.ts",
+  ])
+    assert.match(readFileSync(path, "utf8"), /rich_content: pendingVoiceRich\(body\)/);
+  // Mobile names a voice note or a call log instead of drawing an empty bubble.
+  const bubble = readFileSync("apps/mobile/components/message-bubble.tsx", "utf8");
+  assert.match(bubble, /voicePart\(message\)/);
+  assert.match(bubble, /callPart\(message\)/);
 });
