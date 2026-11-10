@@ -8,7 +8,7 @@
 - **المفتاح:** الملف `/opt/lonora/backup.key` (صلاحية 600، لا يُطبع ولا يُسجَّل أبدًا). **إذا ضاع هذا المفتاح تصبح كل النسخ الاحتياطية غير قابلة للقراءة نهائيًا، ولا توجد أي طريقة لاسترجاعها.** احفظ نسخة منه خارج الخادم، مثلًا في مدير كلمات المرور، وفي مكان منفصل عن النسخ الاحتياطية نفسها.
 - **اختبار الاستعادة:** `sudo lonora restore-test` يستعيد أحدث نسخة في بيئة مؤقتة معزولة عن الإنترنت (بلا مفاتيح مزودين أو وسيط، فلا تداول ولا اتصال خارجي)، ويتأكد أن التطبيق يعمل عليها، ثم يحذفها. شغّله مرة شهريًا على الأقل.
 - **الاستعادة الفعلية:** `sudo lonora restore <ملف> --replace` تستبدل البيانات الحالية بالنسخة.
-- **الخادم الحالي (VPS):** لم يُلمس. نقله إلى هذا النظام خطوة يدوية موصوفة في قسم «Moving the existing server» أدناه.
+- **الخادم الحالي (VPS):** لم يُلمس. المسار الموصى به بداية جديدة بقاعدة بيانات فارغة: تُحفظ نسخة كاملة من التثبيت القديم وتُنحّى جانبًا، ثم يُثبَّت النظام الجديد. الخطوات في قسم «Your current server: start fresh» أدناه. نقل التثبيت القديم كما هو خيار إضافي فقط.
 
 ## The pieces
 
@@ -177,9 +177,46 @@ same change that makes the server stop working with older mobile/web clients. Th
 workflow stamps the tag or branch, the commit and the build time. `lonora status` prints the
 manifest of the running image.
 
-## Moving the existing server onto this
+## Your current server: start fresh (recommended)
 
-Not done by this change: nothing touched the live VPS. The VPS today runs its own customised
+The owner decided the new system starts from an empty database: no agents or data are carried
+over. Nothing in this change touched the live VPS. Do this at a quiet time, as root, on the server.
+The new stack uses the same Compose project name (`lonora`) and volume names as the old one, so
+the old volumes must be archived and then removed — otherwise the new install would reuse them.
+
+1. Stop the old install (use the Compose file it actually runs with):
+   `cd /opt/lonora && docker compose --env-file .env -f <its compose file> stop`
+2. Archive everything the old install has, in one private directory:
+
+   ```sh
+   install -d -m 700 /opt/lonora-old-archive
+   for v in database artifacts; do
+     docker run --rm --entrypoint tar -v lonora_$v:/data:ro -v /opt/lonora-old-archive:/out \
+       postgres:16-alpine -C /data -czf /out/volume-$v.tar.gz .
+   done
+   ls -l /opt/lonora-old-archive    # both files must exist and not be empty
+   ```
+
+   (`docker volume ls | grep lonora_` shows the exact volume names if they differ.)
+3. Set the old install aside: `docker compose --env-file .env -f <its compose file> down` (no `-v`),
+   then `mv /opt/lonora /opt/lonora-old`. Its `.env` (with the old encryption key) stays in
+   `/opt/lonora-old`; keep that directory and the archive private, they hold secrets.
+4. Only after step 2 succeeded, remove the old volumes so the new database starts empty:
+   `docker volume rm lonora_database lonora_artifacts`
+5. Install the new system as in «Install a new server» above, with your domain. Copy the new
+   `backup.key` off the server.
+6. Optional: to keep the existing Android download and OTA updates working, copy them over
+   before clients update: `cp -a /opt/lonora-old/.runtime/releases/. /opt/lonora/.runtime/releases/`
+7. Check: `sudo lonora status` shows `/ready: ok`; open the site and create the owner account;
+   then `sudo lonora backup` and `sudo lonora restore-test`.
+
+Once the new system has run well for a while, `/opt/lonora-old` and `/opt/lonora-old-archive`
+can be deleted. Until then they are the only way back to the old system.
+
+## Optional: adopting the existing install instead
+
+Not the recommended path (see above); kept for a future server whose data must be kept.
+Nothing in this change touched the live VPS. The VPS today runs its own customised
 Compose file (see `docs/lonora-specs/DEPLOYMENT_2026_10_19.md`) from the checkout in `/opt/lonora`.
 To adopt it, at a quiet time:
 
@@ -228,6 +265,10 @@ schema, `restore --replace`, and adoption of an old-image installation. `REPO` m
 Verified in a development container with Docker 29.9 and Compose 5.6, real images, a real local
 registry (real digests), PostgreSQL 16: all 10 lifecycle checks passed.
 
+The fresh-start steps 2, 4 and 5 were also run here against volumes named like the old ones
+(`lonora_database` with a PostgreSQL cluster, `lonora_artifacts` with a file): both archives were
+complete, and the new install came up with `/ready` passing, no old table, no owner and no artifacts.
+
 Still to be checked on a real server:
 
 - The test images were built from the real `Dockerfile` with only the Chromium and font `apt-get`
@@ -240,4 +281,4 @@ Still to be checked on a real server:
 - The systemd backup timer (installed with `--no-systemd` in the test).
 - Pulling from `ghcr.io` (the test used a local registry), and the CI publish workflow, which
   cannot run while GitHub Actions is unavailable.
-- Adoption of the actual VPS, whose customised Compose file is not in the repository.
+- The fresh-start procedure on the actual VPS (its customised Compose file is not in the repository).
