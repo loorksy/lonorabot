@@ -24,6 +24,7 @@ export function ChatHeader({
   onInfo,
   onCall,
   onMenu,
+  menuReady,
 }: {
   agent?: Agent;
   group?: Resource;
@@ -37,6 +38,8 @@ export function ChatHeader({
   onInfo: () => void;
   onCall: () => void;
   onMenu: () => void;
+  /** The agent or group the menu is built from has loaded. */
+  menuReady: boolean;
 }) {
   const name = group ? String(group.payload.name) : (agent?.name ?? "Lonora");
   const infoLabel = group ? t`Group info` : t`Agent info`;
@@ -87,13 +90,11 @@ export function ChatHeader({
           <Icon name="phone" />
         </button>
       )}
-      {/* The menu is built from the loaded agent or group (its Goals row, its info page): until
-          they arrive after a reload it would open without them and keep that body. */}
       <button
         type="button"
         className="icon"
         aria-label={t`Chat menu`}
-        disabled={!agent && !group}
+        disabled={!menuReady}
         onClick={onMenu}
       >
         <Icon name="more" />

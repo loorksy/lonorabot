@@ -58,8 +58,22 @@ async def test_login_brute_force_is_refused_after_the_default_limit():
 
 
 @pytest.mark.asyncio
-async def test_each_route_has_its_own_bucket_and_the_limit_is_configurable():
+async def test_password_guesses_share_one_bucket_across_every_sign_in_route():
+    async with client(app()) as http:
+        codes: list[int] = []
+        for index in range(10):
+            path = "/api/auth/login" if index % 2 else "/api/auth/mobile/login"
+            codes.append((await http.post(path, json={})).status_code)
+        assert codes == [200] * 10
+        for path in ("/api/auth/login", "/api/auth/mobile/login", "/api/onboarding"):
+            assert (await http.post(path, json={})).status_code == 429, path
+
+
+@pytest.mark.asyncio
+async def test_enrollment_has_its_own_buckets_and_the_limit_is_configurable():
     async with client(app(limit=3)) as http:
-        for path in ("/api/auth/devices/enrollment", "/api/auth/login", "/api/onboarding"):
+        for path in ("/api/auth/devices/enrollment", "/api/auth/devices/enrollment/verify"):
             codes = [(await http.post(path, json={})).status_code for _ in range(4)]
             assert codes == [200, 200, 200, 429], (path, codes)
+        codes = [(await http.post("/api/auth/login", json={})).status_code for _ in range(4)]
+        assert codes == [200, 200, 200, 429], codes

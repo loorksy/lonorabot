@@ -6,20 +6,22 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 from starlette.types import ASGIApp
 
-LIMITED = frozenset(
-    {
-        "/api/auth/login",
-        "/api/auth/mobile/login",
-        "/api/onboarding",
-        "/api/auth/devices/enrollment",
-        "/api/auth/devices/enrollment/verify",
-    }
-)
+# The bucket each limited POST counts in. Every route that checks a password or the
+# bootstrap secret shares one bucket, so a host gets the same number of guesses however
+# it splits them; enrolling a device counts on its own.
+BUCKETS = {
+    "/api/auth/login": "password",
+    "/api/auth/mobile/login": "password",
+    "/api/onboarding": "password",
+    "/api/auth/devices/enrollment": "enrollment",
+    "/api/auth/devices/enrollment/verify": "enrollment_verify",
+}
+LIMITED = frozenset(BUCKETS)
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
-    """``limit`` POSTs per minute per client host, counted separately for each route, so
-    enrolling a device never spends the sign-in allowance (and the reverse)."""
+    """``limit`` POSTs per minute per client host and bucket: password guesses share one
+    bucket, so enrolling a device never spends the sign-in allowance (and the reverse)."""
 
     def __init__(self, app: ASGIApp, limit: int = 10):
         super().__init__(app)
@@ -30,7 +32,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         if request.url.path not in LIMITED or request.method != "POST":
             return await call_next(request)
         now = time.monotonic()
-        key = (request.client.host if request.client else "unknown", request.url.path)
+        key = (request.client.host if request.client else "unknown", BUCKETS[request.url.path])
         queue = self.calls[key]
         while queue and queue[0] < now - 60:
             queue.popleft()

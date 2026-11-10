@@ -295,7 +295,7 @@ msgstr "الإجراء"
 #~ msgstr "التفعيل بمصادقة الجهاز"
 
 #: src/lib/goal-status.ts:6
-#: src/shell/ChatHeader.tsx:53
+#: src/shell/ChatHeader.tsx:56
 msgid "Active"
 msgstr "نشط"
 
@@ -509,13 +509,13 @@ msgstr "تعاون الوكلاء"
 msgid "Agent created"
 msgstr "أُنشئ وكيل"
 
-#: src/shell/ChatMenu.tsx:140
+#: src/shell/ChatMenu.tsx:145
 msgid "Agent files"
 msgstr "ملفات الوكيل"
 
-#: src/shell/ChatHeader.tsx:42
-#: src/shell/ChatMenu.tsx:95
-#: src/shell/ChatMenu.tsx:106
+#: src/shell/ChatHeader.tsx:45
+#: src/shell/ChatMenu.tsx:100
+#: src/shell/ChatMenu.tsx:111
 msgid "Agent info"
 msgstr "معلومات الوكيل"
 
@@ -814,7 +814,7 @@ msgid "Awaiting review"
 msgstr "بانتظار المراجعة"
 
 #: src/pages/shell/bot-panel.tsx:166
-#: src/shell/ChatHeader.tsx:57
+#: src/shell/ChatHeader.tsx:60
 #: src/shell/sheets/SheetHost.tsx:580
 #: src/shell/StatePage.tsx:47
 #: src/shell/StatePage.tsx:72
@@ -1151,7 +1151,7 @@ msgid "Channel"
 msgstr "القناة"
 
 #: src/shell/ChatMenu.tsx:61
-#: src/shell/ChatMenu.tsx:109
+#: src/shell/ChatMenu.tsx:114
 msgid "Chart"
 msgstr "الشارت"
 
@@ -1173,8 +1173,8 @@ msgstr "تعذّر عرض الشارت."
 msgid "Chat list"
 msgstr "قائمة المحادثات"
 
-#: src/shell/ChatHeader.tsx:95
-#: src/shell/ChatMenu.tsx:91
+#: src/shell/ChatHeader.tsx:96
+#: src/shell/ChatMenu.tsx:96
 msgid "Chat menu"
 msgstr "قائمة المحادثة"
 
@@ -1570,7 +1570,7 @@ msgstr "جارٍ الاتصال"
 #~ msgid "Connecting microphone"
 #~ msgstr "جارٍ توصيل الميكروفون"
 
-#: src/shell/ChatHeader.tsx:47
+#: src/shell/ChatHeader.tsx:50
 msgid "Connecting…"
 msgstr "جارٍ الاتصال…"
 
@@ -2508,8 +2508,8 @@ msgstr "أُضيف هدف"
 msgid "Goal title"
 msgstr "عنوان الهدف"
 
-#: src/shell/ChatMenu.tsx:98
-#: src/shell/ChatMenu.tsx:118
+#: src/shell/ChatMenu.tsx:103
+#: src/shell/ChatMenu.tsx:123
 #: src/shell/pages.tsx:100
 msgid "Goals"
 msgstr "الأهداف"
@@ -2535,9 +2535,9 @@ msgstr "مجموعة"
 msgid "Group from the selected"
 msgstr "مجموعة من المحددين"
 
-#: src/shell/ChatHeader.tsx:42
-#: src/shell/ChatMenu.tsx:94
-#: src/shell/ChatMenu.tsx:106
+#: src/shell/ChatHeader.tsx:45
+#: src/shell/ChatMenu.tsx:99
+#: src/shell/ChatMenu.tsx:111
 msgid "Group info"
 msgstr "معلومات المجموعة"
 
@@ -2798,8 +2798,8 @@ msgid "Keyboard shortcuts"
 msgstr "اختصارات لوحة المفاتيح"
 
 #: src/pages/Knowledge.tsx:20
-#: src/shell/ChatMenu.tsx:97
-#: src/shell/ChatMenu.tsx:112
+#: src/shell/ChatMenu.tsx:102
+#: src/shell/ChatMenu.tsx:117
 #: src/shell/pages.tsx:94
 msgid "Knowledge"
 msgstr "المعرفة"
@@ -3336,7 +3336,7 @@ msgstr "رسالة جديدة"
 msgid "New owner skills use explicit activation and read-only metadata. They do not install code or grant permissions."
 msgstr "تستخدم المهارات الخاصة الجديدة التفعيل الصريح وبيانات وصفية للقراءة فقط. لا تثبّت أكوادًا ولا تمنح صلاحيات."
 
-#: src/shell/ChatMenu.tsx:135
+#: src/shell/ChatMenu.tsx:140
 #: src/shell/Welcome.tsx:57
 msgid "New task"
 msgstr "مهمة جديدة"
@@ -3762,8 +3762,8 @@ msgstr "افتح «الأذونات» ثم «الكاميرا»."
 msgid "Open “Permissions”, then “Microphone”."
 msgstr "افتح «الأذونات» ثم «الميكروفون»."
 
-#: src/shell/ChatHeader.tsx:82
-#: src/shell/ChatHeader.tsx:83
+#: src/shell/ChatHeader.tsx:85
+#: src/shell/ChatHeader.tsx:86
 msgid "Open active call"
 msgstr "فتح المكالمة الحالية"
 
@@ -3924,7 +3924,7 @@ msgstr "إيقاف الوكيل ومهامه المجدولة مؤقتًا"
 
 #: src/lib/goal-status.ts:42
 #: src/pages/Board.tsx:29
-#: src/shell/ChatHeader.tsx:51
+#: src/shell/ChatHeader.tsx:54
 msgid "Paused"
 msgstr "متوقف مؤقتًا"
 
@@ -4694,7 +4694,7 @@ msgctxt "tasks tab"
 msgid "Scheduled"
 msgstr "مجدولة"
 
-#: src/shell/ChatMenu.tsx:125
+#: src/shell/ChatMenu.tsx:130
 #: src/shell/pages.tsx:92
 msgid "Scheduled tasks"
 msgstr "المهام المجدولة"
@@ -6347,8 +6347,8 @@ msgstr "الرؤية"
 msgid "Voice"
 msgstr "الصوت"
 
-#: src/shell/ChatHeader.tsx:82
-#: src/shell/ChatHeader.tsx:83
+#: src/shell/ChatHeader.tsx:85
+#: src/shell/ChatHeader.tsx:86
 msgid "Voice call"
 msgstr "اتصال صوتي"
 
@@ -6408,7 +6408,7 @@ msgid "Waiting for the broker to report the entry position. The accepted order w
 msgstr "بانتظار أن يبلغ الوسيط عن صفقة الدخول. لن يُرسل الأمر المقبول مرة أخرى."
 
 #: src/pages/shell/message-cards.tsx:188
-#: src/shell/ChatHeader.tsx:45
+#: src/shell/ChatHeader.tsx:48
 #: src/shell/lists/ThreadRow.tsx:89
 msgid "Waiting for the network…"
 msgstr "بانتظار الشبكة…"
@@ -6510,7 +6510,7 @@ msgstr "أيام العمل"
 msgid "Working"
 msgstr "جارٍ العمل"
 
-#: src/shell/Shell.tsx:807
+#: src/shell/Shell.tsx:808
 msgid "Workspace"
 msgstr "مساحة العمل"
 

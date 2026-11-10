@@ -84,8 +84,13 @@ export function useChatMenu({
     },
     [sheets, nav, agent, group],
   );
+  // Every page is built from the loaded agent or group (a group's from its member agents),
+  // and the sheet keeps the body it opened with: before they arrive nothing opens, from the
+  // ⋮ button, the avatar or the name alike.
+  const ready = Boolean(agent || (group && !data.agentsLoading));
   const openPage = useCallback(
     (page: MenuPage, dir?: "fwd" | "back") => {
+      if (!ready) return;
       const title =
         page === "menu"
           ? t`Chat menu`
@@ -182,9 +187,10 @@ export function useChatMenu({
         { morph: true },
       );
     },
-    [sheets, nav, data, group, agent, memberAgents, refresh, openChart],
+    [sheets, nav, data, group, agent, memberAgents, refresh, openChart, ready],
   );
   return {
+    ready,
     openMenu: () => openPage("menu"),
     openInfo: () => openPage("info"),
     openChart,

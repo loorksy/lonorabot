@@ -91,6 +91,17 @@ test("a goal is a plan under the agent's level: pause, same-thread wake and canc
     });
     await page.reload();
     await expect(page.getByRole("button", { name: "Chat menu", exact: true })).toBeDisabled();
+    // The avatar and the name open the agent's info page: not before the agent is there.
+    // (Without an agent they are empty, so they are clicked in the page, not by the pointer.)
+    const clicked = await page.evaluate(() =>
+      [".head-avatar", ".chat-name"].map((selector) => {
+        const button = document.querySelector(selector);
+        button?.click();
+        return Boolean(button);
+      }),
+    );
+    expect(clicked).toEqual([true, true]);
+    await expect(page.locator("#dialog[open]")).toHaveCount(0);
     // Sheets are not remembered across a reload: open the goals again from the chat menu.
     await page.getByRole("button", { name: "Chat menu", exact: true }).click();
     await page.unroute(slowAgents);
