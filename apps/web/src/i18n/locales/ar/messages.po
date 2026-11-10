@@ -2214,7 +2214,7 @@ msgstr "اللغة"
 msgid "Later"
 msgstr "لاحقًا"
 
-#: src/shell/domain/UpdatesPages.tsx:284
+#: src/shell/domain/UpdatesPages.tsx:296
 msgid "Latest actions"
 msgstr "آخر الإجراءات"
 
@@ -2655,7 +2655,7 @@ msgid "Next: the chats"
 msgstr "التالي: المحادثات"
 
 #: src/shell/domain/UpdatesPages.tsx:107
-#: src/shell/domain/UpdatesPages.tsx:303
+#: src/shell/domain/UpdatesPages.tsx:315
 msgid "No activity yet."
 msgstr "لا يوجد نشاط بعد."
 
@@ -2695,7 +2695,7 @@ msgstr "لا محادثات في «{0}» بعد."
 msgid "No chats."
 msgstr "لا توجد محادثات."
 
-#: src/shell/domain/UpdatesPages.tsx:278
+#: src/shell/domain/UpdatesPages.tsx:290
 msgid "No enabled schedules."
 msgstr "لا توجد مواعيد مفعّلة."
 
@@ -2743,7 +2743,7 @@ msgstr "لا توجد رموز مطابقة"
 msgid "No new notifications"
 msgstr "لا توجد إشعارات جديدة"
 
-#: src/shell/domain/UpdatesPages.tsx:236
+#: src/shell/domain/UpdatesPages.tsx:248
 msgid "No notifications."
 msgstr "لا توجد تنبيهات."
 
@@ -3906,7 +3906,7 @@ msgstr "عرض جميع النتائج ({0})"
 msgid "Show more"
 msgstr "عرض المزيد"
 
-#: src/shell/domain/UpdatesPages.tsx:298
+#: src/shell/domain/UpdatesPages.tsx:310
 msgid "Show the full log"
 msgstr "عرض السجل كاملًا"
 
@@ -4856,7 +4856,7 @@ msgstr "إلغاء كتم الميكروفون"
 msgid "Unpin"
 msgstr "إلغاء التثبيت"
 
-#: src/shell/domain/UpdatesPages.tsx:231
+#: src/shell/domain/UpdatesPages.tsx:243
 msgid "Unread"
 msgstr "غير مقروء"
 
@@ -4887,7 +4887,7 @@ msgstr "حساب وسيط لم تُتحقق هويته"
 msgid "Unverified metadata"
 msgstr "بيانات وصفية غير موثقة"
 
-#: src/shell/domain/UpdatesPages.tsx:242
+#: src/shell/domain/UpdatesPages.tsx:254
 msgid "Upcoming"
 msgstr "المواعيد القادمة"
 

@@ -1,5 +1,5 @@
 import { Icon, type IconName } from "@lonora/ui-web";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 
 /* The reference's small builders (R, V, F, T, Select, Check, Toggle, Form, empty, note,
    foldCard) as React parts, with the same markup and classes. */
@@ -151,6 +151,8 @@ export function Area({
   );
 }
 
+/** «Select»: the reference's picker (syncSelectMenus): the native select stays in the form,
+    hidden, and a trigger opens a listbox of the options. */
 export function SelectField({
   label,
   name,
@@ -158,20 +160,58 @@ export function SelectField({
   value,
   onChange,
 }: {
-  label: ReactNode;
+  label: string;
   name: string;
   options: readonly (readonly [string, string])[];
   value?: string;
   onChange?: (value: string) => void;
 }) {
+  const first = options[0]?.[0] ?? "";
+  const [current, setCurrent] = useState(value ?? first);
+  const [menu, setMenu] = useState<{ left: number; top: number; width: number } | null>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (value !== undefined) setCurrent(value);
+  }, [value]);
+  useEffect(() => {
+    if (!menu) return;
+    const close = (event: Event) => {
+      if (event instanceof KeyboardEvent && event.key !== "Escape") return;
+      if (event.target instanceof Node && trigger.current?.parentElement?.contains(event.target))
+        return;
+      setMenu(null);
+    };
+    document.addEventListener("pointerdown", close, true);
+    document.addEventListener("keydown", close, true);
+    return () => {
+      document.removeEventListener("pointerdown", close, true);
+      document.removeEventListener("keydown", close, true);
+    };
+  }, [menu]);
+  const choose = (next: string) => {
+    setCurrent(next);
+    onChange?.(next);
+  };
+  const shown = options.find(([key]) => key === current)?.[1] ?? options[0]?.[1] ?? "";
+  const open = () => {
+    const rect = trigger.current?.getBoundingClientRect();
+    if (!rect) return;
+    const width = Math.min(Math.max(rect.width, 210), window.innerWidth - 24);
+    setMenu({
+      width,
+      left: Math.max(12, Math.min(rect.right - width, window.innerWidth - width - 12)),
+      top: rect.bottom + 6,
+    });
+  };
   return (
     <label className="field">
       <span>{label}</span>
       <select
         name={name}
-        {...(onChange
-          ? { value, onChange: (event) => onChange(event.target.value) }
-          : { defaultValue: value })}
+        className="select-native"
+        tabIndex={-1}
+        value={current}
+        onChange={(event) => choose(event.target.value)}
       >
         {options.map(([key, text]) => (
           <option key={key} value={key}>
@@ -179,6 +219,55 @@ export function SelectField({
           </option>
         ))}
       </select>
+      <button
+        ref={trigger}
+        type="button"
+        className="select-trigger"
+        aria-haspopup="listbox"
+        aria-expanded={!!menu}
+        aria-label={`${label}: ${shown}`}
+        onClick={(event) => {
+          event.preventDefault();
+          if (menu) setMenu(null);
+          else open();
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+            event.preventDefault();
+            open();
+          }
+        }}
+      >
+        <span>{shown}</span>
+        <Icon name="down" />
+      </button>
+      {menu && (
+        <div
+          className="select-popup"
+          role="listbox"
+          aria-label={`${label}: ${shown}`}
+          style={{ left: menu.left, top: menu.top, width: menu.width }}
+        >
+          {options.map(([key, text]) => (
+            <button
+              key={key}
+              type="button"
+              className="select-option"
+              role="option"
+              aria-selected={key === current}
+              onClick={(event) => {
+                event.preventDefault();
+                choose(key);
+                setMenu(null);
+                trigger.current?.focus();
+              }}
+            >
+              <span>{text}</span>
+              <span className="option-mark">{key === current ? <Icon name="check" /> : null}</span>
+            </button>
+          ))}
+        </div>
+      )}
     </label>
   );
 }

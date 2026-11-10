@@ -2214,7 +2214,7 @@ msgstr "Language"
 msgid "Later"
 msgstr "Later"
 
-#: src/shell/domain/UpdatesPages.tsx:284
+#: src/shell/domain/UpdatesPages.tsx:296
 msgid "Latest actions"
 msgstr "Latest actions"
 
@@ -2655,7 +2655,7 @@ msgid "Next: the chats"
 msgstr "Next: the chats"
 
 #: src/shell/domain/UpdatesPages.tsx:107
-#: src/shell/domain/UpdatesPages.tsx:303
+#: src/shell/domain/UpdatesPages.tsx:315
 msgid "No activity yet."
 msgstr "No activity yet."
 
@@ -2695,7 +2695,7 @@ msgstr "No chats in «{0}» yet."
 msgid "No chats."
 msgstr "No chats."
 
-#: src/shell/domain/UpdatesPages.tsx:278
+#: src/shell/domain/UpdatesPages.tsx:290
 msgid "No enabled schedules."
 msgstr "No enabled schedules."
 
@@ -2743,7 +2743,7 @@ msgstr "No matching emojis"
 msgid "No new notifications"
 msgstr "No new notifications"
 
-#: src/shell/domain/UpdatesPages.tsx:236
+#: src/shell/domain/UpdatesPages.tsx:248
 msgid "No notifications."
 msgstr "No notifications."
 
@@ -3906,7 +3906,7 @@ msgstr "Show all results ({0})"
 msgid "Show more"
 msgstr "Show more"
 
-#: src/shell/domain/UpdatesPages.tsx:298
+#: src/shell/domain/UpdatesPages.tsx:310
 msgid "Show the full log"
 msgstr "Show the full log"
 
@@ -4856,7 +4856,7 @@ msgstr "Unmute microphone"
 msgid "Unpin"
 msgstr "Unpin"
 
-#: src/shell/domain/UpdatesPages.tsx:231
+#: src/shell/domain/UpdatesPages.tsx:243
 msgid "Unread"
 msgstr "Unread"
 
@@ -4887,7 +4887,7 @@ msgstr "Unverified broker account"
 msgid "Unverified metadata"
 msgstr "Unverified metadata"
 
-#: src/shell/domain/UpdatesPages.tsx:242
+#: src/shell/domain/UpdatesPages.tsx:254
 msgid "Upcoming"
 msgstr "Upcoming"
 
