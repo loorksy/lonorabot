@@ -2,7 +2,6 @@ from typing import Any
 
 from lonora_contracts.account import Order, Position
 from lonora_contracts.domain import Contract, utcnow
-from lonora_contracts.shadow import ExecutionMode
 from lonora_contracts.trading import TradeRequest, TradeResult, TradingControl
 from lonora_core.trading_control import require_trading
 from lonora_core.user_error import LonoraError
@@ -13,7 +12,6 @@ from lonora_db.agent_binding import (
 from lonora_db.agent_permissions import effective_permission
 from lonora_db.runs import require_lease
 from lonora_db.schema import (
-    EffectReceiptRow,
     MessageRow,
     RunRow,
     SettingRow,
@@ -57,14 +55,10 @@ async def trading_permission_available(context: ToolContext) -> str | None:
 
     Every financial handler rechecks current permission before it prepares or
     sends anything, so this grants and removes nothing; a permission raised
-    later in the Run still works through tool_call. Shadow execution does not
-    depend on the live permission level and stays available.
+    later in the Run still works through tool_call.
     """
     async with context.db.sessions() as session:
-        agent = await agent_binding(session, context.owner_id, context.agent_id)
-        run = await require_lease(session, context.lease)
-        if agent.execution_mode == "shadow" or run.model_metadata.get("execution_mode") == "shadow":
-            return None
+        await agent_binding(session, context.owner_id, context.agent_id)
         level = await effective_permission(session, context.owner_id, context.agent_id)
     return "agent_analysis_only" if level == "analysis" else None
 
@@ -308,16 +302,12 @@ async def approved_execution(
     provisional = False
     async with context.db.sessions() as reader:
         origin = await require_lease(reader, context.lease)
-        mode = (
-            "shadow"
-            if gate_only and origin.model_metadata.get("execution_mode") == "shadow"
-            else "live"
-        )
-        await require_financial_agent(
-            reader, context.owner_id, context.agent_id, execution_mode=mode
-        )
+        # Shadow trading is removed (Q57): a Run started in it never asks or sends.
+        if origin.model_metadata.get("execution_mode", "live") != "live":
+            raise LonoraError("shadow_execution_forbidden", 403)
+        await require_financial_agent(reader, context.owner_id, context.agent_id)
         previous = await reader.get(TradeApprovalRow, approval_id)
-        if mode == "live" and (previous is None or previous.status != "completed"):
+        if previous is None or previous.status != "completed":
             level = await effective_permission(reader, context.owner_id, context.agent_id)
             if level == "analysis":
                 raise LonoraError("agent_analysis_only", 403)
@@ -332,7 +322,7 @@ async def approved_execution(
                 await available_authority(reader, context.owner_id, origin, request)
                 for request in authority_requests
             ]
-            if mode == "live" and not gate_only and level == "autonomous"
+            if not gate_only and level == "autonomous"
             else []
         )
     if grants and all(grants) and not provisional:
@@ -345,36 +335,9 @@ async def approved_execution(
         grants = []
     if grants:
         return await account_authorized_execution(context, authority_requests, grants)
-    if mode == "shadow" and previous is None:
-        from lonora_trading.shadow import ShadowReadView
-
-        initial_snapshot: dict[str, Any] = {}
-        for request in requests:
-            view = ShadowReadView(
-                context.db, context.brokers, context.owner_id, context.agent_id, request.account_id
-            )
-            targets = (
-                await view.positions()
-                if request.position_id
-                else await view.orders()
-                if request.order_id
-                else []
-            )
-            target_id = request.position_id or request.order_id
-            if target_id:
-                target = next((item for item in targets if item.id == target_id), None)
-                key = (
-                    request.account_id
-                    + (":position:" if request.position_id else ":order:")
-                    + target_id
-                )
-                initial_snapshot[key] = material_state(target) if target else None
-    else:
-        initial_snapshot = await management_snapshot(context, requests) if previous is None else {}
+    initial_snapshot = await management_snapshot(context, requests) if previous is None else {}
     adding = (
-        await new_risk_requests(context, requests)
-        if mode == "live" and not gate_only and previous is None
-        else []
+        await new_risk_requests(context, requests) if not gate_only and previous is None else []
     )
     if adding:
         async with context.db.sessions() as reader:
@@ -387,21 +350,19 @@ async def approved_execution(
         current = await require_lease(session, context.lease)
         if current.agent_id != context.agent_id:
             raise LonoraError("agent_run_mismatch", 409)
-        await require_financial_agent(
-            session, context.owner_id, current.agent_id, execution_mode=mode
-        )
+        await require_financial_agent(session, context.owner_id, current.agent_id)
         visible_thread_id = current.model_metadata.get("origin_thread_id") or context.thread_id
         thread = await owned_thread(session, context.owner_id, visible_thread_id, lock=True)
         if thread.agent_id != context.agent_id and not thread.group_id:
             raise LonoraError("agent_thread_mismatch", 409)
         await require_lease(session, context.lease, lock=True)
         row = await session.get(TradeApprovalRow, approval_id)
-        if row is None and mode == "live" and not gate_only:
+        if row is None and not gate_only:
             row = await reviewed_approval(session, context, requests)
             if row is not None:
                 approval_id = row.id
         if row is None:
-            if mode == "live" and not gate_only:
+            if not gate_only:
                 await refuse_braked_entries(session, context, adding)
             row = TradeApprovalRow(
                 id=approval_id,
@@ -411,7 +372,7 @@ async def approved_execution(
                 agent_id=context.agent_id,
                 call_id=context.call_id,
                 timeline_seq=thread.next_seq,
-                broker_snapshot={**initial_snapshot, "execution_mode": {"value": mode}},
+                broker_snapshot={**initial_snapshot, "execution_mode": {"value": "live"}},
                 requests=[r.model_dump(mode="json") for r in requests],
                 status="pending",
                 results=[],
@@ -606,101 +567,19 @@ async def execute(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         if args.get(field) is False:
             args.pop(field)
     async with context.db.sessions() as session:
-        from lonora_db.agent_binding import agent_binding
-
-        agent = await agent_binding(session, context.owner_id, context.agent_id)
-        run = await require_lease(session, context.lease)
-        shadow = (
-            agent.execution_mode == "shadow" or run.model_metadata.get("execution_mode") == "shadow"
-        )
-    if (
-        args.get("symbol")
-        and args.get("account_id")
-        and not (shadow and args.get("action") == "cancel_order")
-    ):
+        await agent_binding(session, context.owner_id, context.agent_id)
+        await require_lease(session, context.lease)
+    if args.get("symbol") and args.get("account_id"):
         broker = await context.brokers.get(context.owner_id, str(args["account_id"]))
         args["symbol"] = await canonical_broker_symbol(broker, str(args["symbol"]))
-    args["operation_id"] = stable_id(
-        context.lease.run_id, ("shadow:" if shadow else "trade:") + request_hash(args)
-    )
-    if shadow:
-        from lonora_trading.shadow import execute_shadow
-
-        result = await execute_shadow(
-            context.db,
-            context.brokers,
-            context.owner_id,
-            context.agent_id,
-            context.thread_id,
-            context.lease,
-            TradeRequest.model_validate(args),
-        )
-        data = result.model_dump(mode="json")
-        return {"mode": "shadow", "results": [data], **data}
+    args["operation_id"] = stable_id(context.lease.run_id, "trade:" + request_hash(args))
     return await approved_execution(context, [TradeRequest.model_validate(args)])
 
 
 async def close_positions(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     async with context.db.sessions() as session:
-        from lonora_db.agent_binding import agent_binding
-
-        agent = await agent_binding(session, context.owner_id, context.agent_id)
-        run = await require_lease(session, context.lease)
-    if agent.execution_mode == "shadow" or run.model_metadata.get("execution_mode") == "shadow":
-        from lonora_trading.shadow import execute_shadow, shadow_rows
-
-        key = "shadow-close-all:" + context.effect_key
-        intent = request_hash(args)
-        async with context.db.sessions() as session, session.begin():
-            await require_lease(session, context.lease, lock=True)
-            receipt = await session.get(EffectReceiptRow, key)
-            if receipt and receipt.result.get("intent") != intent:
-                raise LonoraError("operation_id_conflict", 409)
-            if receipt is None:
-                rows = await shadow_rows(
-                    context.db,
-                    context.owner_id,
-                    context.agent_id,
-                    args["account_id"],
-                    args.get("symbol"),
-                )
-                requests = [
-                    TradeRequest(
-                        account_id=row.account_id,
-                        symbol=row.symbol,
-                        action="close_position",
-                        position_id=row.id,
-                        operation_id=stable_id(context.resource_id, "shadow-close:" + row.id),
-                    )
-                    for row in rows
-                    if row.status == "open"
-                ]
-                session.add(
-                    EffectReceiptRow(
-                        key=key,
-                        result={
-                            "intent": intent,
-                            "requests": [request.model_dump(mode="json") for request in requests],
-                        },
-                    )
-                )
-            else:
-                requests = [
-                    TradeRequest.model_validate(value) for value in receipt.result["requests"]
-                ]
-        results: list[dict[str, Any]] = []
-        for request in requests:
-            result = await execute_shadow(
-                context.db,
-                context.brokers,
-                context.owner_id,
-                context.agent_id,
-                context.thread_id,
-                context.lease,
-                request,
-            )
-            results.append(result.model_dump(mode="json"))
-        return {"mode": "shadow", "results": results}
+        await agent_binding(session, context.owner_id, context.agent_id)
+        await require_lease(session, context.lease)
     approval_id = stable_id(context.lease.run_id, "approval:" + context.call_id)
     async with context.db.sessions() as session:
         previous = await session.get(TradeApprovalRow, approval_id)
@@ -736,7 +615,6 @@ class TradeRecordReference(Contract):
 class TradeRecordHistory(Contract):
     account_id: str | None = None
     symbol: str | None = None
-    execution_mode: ExecutionMode | None = None
     limit: int = Field(default=5, ge=1, le=10)
 
 
@@ -765,8 +643,6 @@ async def record_history(context: ToolContext, args: dict[str, Any]) -> dict[str
             query = query.where(TradingJournalRow.account_id == account_id)
         if symbol:
             query = query.where(TradingJournalRow.request["symbol"].as_string() == symbol)
-        if params.execution_mode:
-            query = query.where(TradingJournalRow.execution_mode == params.execution_mode)
         rows = list(
             await session.scalars(
                 query.order_by(
@@ -780,7 +656,6 @@ async def record_history(context: ToolContext, args: dict[str, Any]) -> dict[str
                     "operation_id": row.operation_id,
                     "symbol": row.request.get("symbol"),
                     "account_id": row.account_id,
-                    "execution_mode": row.execution_mode,
                     "action": row.request.get("action"),
                     "status": row.status,
                     "code": row.result.get("code"),
@@ -801,7 +676,7 @@ def tools() -> list[Tool]:
     return [
         Tool(
             "trade_record_history",
-            "Find actual durable live/Shadow execution receipts and failures by bound account/symbol. Use trade_record_read for the recorded evidence; never reconstruct past decisions from current prices. This does not authorize execution.",
+            "Find actual durable execution receipts and failures by bound account/symbol. Use trade_record_read for the recorded evidence; never reconstruct past decisions from current prices. This does not authorize execution.",
             TradeRecordHistory,
             record_history,
             True,

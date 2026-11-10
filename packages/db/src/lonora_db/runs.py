@@ -155,8 +155,6 @@ async def create_run(
     taint = await inherited_taint(session, request.metadata, request.parent_run_id)
     if taint is not None:
         row.model_metadata = {**row.model_metadata, TAINT: taint}
-    if agent.execution_mode == "shadow":
-        row.model_metadata = {**row.model_metadata, "execution_mode": "shadow"}
     if run_id:
         row.id = run_id
     session.add(row)

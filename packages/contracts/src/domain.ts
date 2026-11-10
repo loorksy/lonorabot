@@ -12,7 +12,6 @@ export type Agent = {
   template?: AgentTemplate | null;
   /** A signed grant is in force and the agent is not paused (presentation only). */
   trades_on_its_own?: boolean;
-  execution_mode?: "live" | "shadow";
   role?: "personal" | "general" | "specialist" | "delegated" | "legacy";
   scope_mode?: "fixed_market" | "flexible";
   scope_revision?: number;

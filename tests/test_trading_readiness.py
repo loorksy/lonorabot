@@ -304,14 +304,13 @@ async def test_ambiguous_operation_reads_as_uncertain_with_its_scoped_block(
     acct = await account(db, owner)
     await resume(db)
     level(monkeypatch, "autonomous", grant(acct))
-    rows: list[tuple[str, str, str, dict[str, Any]]] = [
-        ("op-ambiguous", "ambiguous", "live", {"execution": {"agent_id": agent}}),
-        ("op-submitted", "submitted", "live", {}),
-        ("op-confirmed", "confirmed", "live", {}),
-        ("op-shadow", "ambiguous", "shadow", {}),
+    rows: list[tuple[str, str, dict[str, Any]]] = [
+        ("op-ambiguous", "ambiguous", {"execution": {"agent_id": agent}}),
+        ("op-submitted", "submitted", {}),
+        ("op-confirmed", "confirmed", {}),
     ]
     async with db.sessions() as session, session.begin():
-        for index, (operation, status, mode, details) in enumerate(rows):
+        for index, (operation, status, details) in enumerate(rows):
             session.add(
                 TradingJournalRow(
                     operation_id=operation,
@@ -320,7 +319,6 @@ async def test_ambiguous_operation_reads_as_uncertain_with_its_scoped_block(
                     request_hash="hash",
                     request={"symbol": "XAUUSD", "action": "buy", "volume": "0.1"},
                     status=status,
-                    execution_mode=mode,
                     result={"details": details},
                     submitted_at=utcnow() - timedelta(minutes=10 - index),
                 )
@@ -550,7 +548,6 @@ async def test_the_status_line_waits_for_the_owner_or_the_broker_like_the_pill(
                 request_hash="hash",
                 request={"symbol": "XAUUSD", "action": "buy", "volume": "0.1"},
                 status="ambiguous",
-                execution_mode="live",
                 result={"details": {"execution": {"agent_id": agent}}},
                 submitted_at=utcnow(),
             )

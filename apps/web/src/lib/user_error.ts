@@ -59,10 +59,6 @@ export function userError(error: unknown) {
     case "goal_execution_mode_invalid":
     case "shadow_execution_forbidden":
       return t`Execution mode changed. Review the saved plan before continuing.`;
-    case "shadow_monetary_pnl_unavailable":
-      return t`Virtual monetary profit is unavailable without verified contract and currency valuation.`;
-    case "shadow_decision_required":
-      return t`Record a fresh market decision before virtual entry.`;
     case "device_challenge_not_found":
       return t`This passkey request is not available in this session. Start it again.`;
     case "device_secure_origin_required":
@@ -153,6 +149,10 @@ export function userError(error: unknown) {
       return t`This operation already has a settled outcome. Reload the journal.`;
     case "broker_account_not_found":
       return t`Broker account not found.`;
+    case "connection_test_timeout":
+      return t`The test did not get an answer in time. Nothing was saved.`;
+    case "broker_secret_required":
+      return t`Enter the access token.`;
     case "broker_account_already_connected":
       return t`This broker account is already connected. Use the existing connection.`;
     case "broker_identity_unavailable":

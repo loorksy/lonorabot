@@ -21,10 +21,7 @@ async def main() -> None:
                 {"provider": "simulation", "account_id": "goal-call-identity", "enabled": True},
             )
         )["id"]
-        agent = await f.agent("Frozen Goal call")
-        await f.request(
-            "PUT", f"/agents/{agent['id']}/execution-mode", {"execution_mode": "shadow"}
-        )
+        agent = await f.agent("Frozen Goal call", supervised=True)
         thread = await f.conversation(agent)
         context = await f.lease(await f.run(agent, thread))
         registry = load_tools()
@@ -68,8 +65,7 @@ async def main() -> None:
             "status": "confirmed",
             "code": "explicit-fixture-receipt",
         }
-        # Inject at the domain boundary; the separate Shadow Goal suite exercises
-        # real virtual execution. Here the crash gap and moved plan are isolated.
+        # Inject at the domain boundary: the crash gap and moved plan are isolated.
         execute = AsyncMock(return_value={"operation_id": operation_id, "result": broker_result})
         with patch("lonora_tools.trading_goal.execute_goal_step", execute):
             initial = await registry.execute(call, context)

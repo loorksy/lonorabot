@@ -104,7 +104,14 @@ export { DASH as GENUI_DASH } from "./genui/functions";
 export { parseCardNumber } from "./genui/input";
 export { isUiPart, validateUiDocument, validateUiPart } from "./genui/spec";
 export { cardLock, sendBlocked, submitMark } from "./genui/submit";
-export { archivedSummary, inboxUnread, isUnread, orderInbox, unreadBadgeTotal } from "./inbox";
+export {
+  archivedSummary,
+  inboxUnread,
+  isUnread,
+  mergePrefs,
+  orderInbox,
+  unreadBadgeTotal,
+} from "./inbox";
 export {
   type CredentialField,
   type CredentialForm,
@@ -151,6 +158,17 @@ export {
   streamText,
 } from "./reply-stream";
 export { activeStatuses, canCancel, canResume, isWorking } from "./run-state";
+export {
+  firstSearchPage,
+  moreSearchItems,
+  SEARCH_PAGE,
+  SEARCH_SOURCES,
+  SEARCH_TABS,
+  type SearchFetch,
+  type SearchSection,
+  type SearchTab,
+  searchPath,
+} from "./search-feed";
 export { foldSearch, highlightRange } from "./search-fold";
 export {
   type SupervisionRow,

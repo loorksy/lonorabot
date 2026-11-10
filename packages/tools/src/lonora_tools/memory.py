@@ -156,21 +156,24 @@ async def write(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
 class OwnerPreferencesUpdate(Contract):
     reach_me: ReachMe | None = None
     reply_language: Literal["ar", "en", "auto"] | None = None
-    quiet_start_hour: int | None = Field(default=None, ge=0, le=23)
-    quiet_end_hour: int | None = Field(default=None, ge=0, le=23)
+    # Quiet hours to the minute (Q47), local "HH:MM" in the owner's time zone.
+    quiet_start: str | None = Field(default=None, pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
+    quiet_end: str | None = Field(default=None, pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
     clear_quiet_hours: bool = False
     timezone: str | None = Field(default=None, max_length=64)
 
     @model_validator(mode="after")
     def something_to_change(self) -> Self:
-        if (self.quiet_start_hour is None) != (self.quiet_end_hour is None):
+        if (self.quiet_start is None) != (self.quiet_end is None):
             raise ValueError("incoming_call_quiet_hours_incomplete")
-        if self.clear_quiet_hours and self.quiet_start_hour is not None:
+        if self.quiet_start is not None and self.quiet_start == self.quiet_end:
+            raise ValueError("incoming_call_quiet_hours_empty")
+        if self.clear_quiet_hours and self.quiet_start is not None:
             raise ValueError("quiet_hours_conflict")
         if (
             self.reach_me is None
             and self.reply_language is None
-            and self.quiet_start_hour is None
+            and self.quiet_start is None
             and self.timezone is None
             and not self.clear_quiet_hours
         ):
@@ -178,7 +181,7 @@ class OwnerPreferencesUpdate(Contract):
         if self.timezone is not None:
             try:
                 ZoneInfo(self.timezone)
-            except (ValueError, ZoneInfoNotFoundError) as error:
+            except (ValueError, ZoneInfoNotFoundError, OSError) as error:
                 raise ValueError("invalid_timezone") from error
         return self
 
@@ -223,9 +226,11 @@ async def update_preferences(context: ToolContext, args: dict[str, Any]) -> dict
             changes["timezone"] = params.timezone
         if params.clear_quiet_hours:
             changes["quiet_start_hour"] = changes["quiet_end_hour"] = None
-        elif params.quiet_start_hour is not None:
-            changes["quiet_start_hour"] = params.quiet_start_hour
-            changes["quiet_end_hour"] = params.quiet_end_hour
+        elif params.quiet_start is not None and params.quiet_end is not None:
+            for side, value in (("start", params.quiet_start), ("end", params.quiet_end)):
+                hour, minute = (int(part) for part in value.split(":"))
+                changes[f"quiet_{side}_hour"] = hour
+                changes[f"quiet_{side}_minute"] = hour * 60 + minute
         updated = IncomingCallPolicy.model_validate(
             {**policy.model_dump(mode="json", exclude={"enabled"}), **changes}
         )
@@ -285,7 +290,8 @@ def tools() -> list[Tool]:
             "owner_preferences_update",
             "Set the owner's shared preferences from what he said: reach_me (activity, notify, "
             "message or call: how to reach him when something needs him), reply_language (ar, "
-            "en, or auto: his latest message's language), quiet hours, timezone. Every Agent "
+            "en, or auto: his latest message's language), quiet hours as local HH:MM "
+            "(quiet_start, quiet_end), timezone. Every Agent "
             "follows them from its next run; the owner can revert. Delivery is in-app only.",
             OwnerPreferencesUpdate,
             update_preferences,

@@ -82,11 +82,7 @@ async def follow_event(session: AsyncSession, event: EventRow) -> None:
         operation = await session.get(
             TradingJournalRow, str(event.payload.get("operation_id") or "")
         )
-        if (
-            operation is None
-            or operation.owner_id != owner_id
-            or operation.execution_mode != "live"
-        ):
+        if operation is None or operation.owner_id != owner_id:
             return
         subject = "operation:" + operation.operation_id
         if operation.status == "ambiguous":

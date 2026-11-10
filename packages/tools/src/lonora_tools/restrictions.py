@@ -217,7 +217,6 @@ async def create(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         query = select(TradingJournalRow).where(
             TradingJournalRow.owner_id == context.owner_id,
             TradingJournalRow.account_id == row.account_id,
-            TradingJournalRow.execution_mode == "live",
             TradingJournalRow.status.in_(sorted(UNRESOLVED_STATUSES)),
         )
         if row.symbol is not None:

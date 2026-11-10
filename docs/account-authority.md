@@ -235,8 +235,7 @@ grant, exact approval, Goal step). Owner-manual operations through `POST
 /trading/execute` are exempt unless the owner sets `applies_to_owner_manual` on an
 all-agent restriction; agents cannot set it. The flag binds the owner's own trades, so
 it is rejected together with `agent_id` (a restriction scoped to one agent never
-restricts the owner), and matching applies it only to all-agent restrictions. Shadow
-execution never reaches a broker and is unaffected.
+restricts the owner), and matching applies it only to all-agent restrictions.
 
 The decisive check runs in the executor's `before_send` callback, under the per-account
 send lock, in the same transaction that moves the reserved journal row to `submitted`.

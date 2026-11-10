@@ -106,7 +106,6 @@ async def read(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
                     "agent_id": row.agent_id,
                     "thread_id": row.thread_id,
                     "status": row.state.get("status"),
-                    "execution_mode": row.state.get("execution_mode", "live"),
                     "current_step": row.state.get("current_step"),
                     "plan_version": row.state.get("plan_version", 1),
                     "account_id": row.payload["account_id"],
@@ -135,7 +134,6 @@ async def read_goal(context: ToolContext, args: dict[str, Any]) -> dict[str, Any
             "title": goal.payload["title"],
             "objective": goal.payload["objective"],
             "status": goal.state["status"],
-            "execution_mode": goal.state.get("execution_mode", "live"),
             "plan_version": goal.state.get("plan_version", 1),
             "scope": {key: goal.payload.get(key) for key in ("account_id", "symbol")},
             # Plan data, not limits: only the grant, money limits and restrictions bind.
@@ -531,7 +529,7 @@ def tools() -> list[Tool]:
         ),
         Tool(
             "goal_step_execute",
-            "Execute the exact current step in its frozen live/shadow Goal mode with fresh evidence. Live steps follow the agent's current level: No trading prohibits mutations, Ask me waits for the owner's approval card, On its own sends inside a matching signed grant and asks with an approval card outside it. Stop new trading and pauses still apply; shadow steps only mutate virtual state and need no approval. Fixed step/attempt identity across runs; ambiguity blocks retries.",
+            "Execute the exact current step with fresh evidence. Live steps follow the agent's current level: No trading prohibits mutations, Ask me waits for the owner's approval card, On its own sends inside a matching signed grant and asks with an approval card outside it. Stop new trading and pauses still apply. Fixed step/attempt identity across runs; ambiguity blocks retries.",
             GoalStepNote,
             execute,
             financial=True,

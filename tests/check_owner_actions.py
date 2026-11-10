@@ -540,7 +540,6 @@ async def main() -> None:
                 request_hash="fixture",
                 request={"account_id": account, "action": "sell", "symbol": GOLD, "volume": "0.2"},
                 status="ambiguous",
-                execution_mode="live",
                 result={
                     "operation_id": attributed,
                     "status": "ambiguous",

@@ -200,7 +200,7 @@ async def main() -> None:
         )
         # The terminal receipt retains immutable server attribution rather than
         # depending on a lease field that broker responses need not repeat.
-        from lonora_contracts.shadow import PerformanceRead
+        from lonora_contracts.execution_quality import PerformanceRead
         from lonora_trading.performance import performance_snapshot
 
         permission = await fixture.request("GET", f"/agents/{agent['id']}/permissions")
@@ -237,9 +237,9 @@ async def main() -> None:
             db,
             fixture.owner,
             agent["id"],
-            PerformanceRead(execution_mode="live", account_id=account_id, symbol=symbol),
+            PerformanceRead(account_id=account_id, symbol=symbol),
         )
-        assert summary["sample_count"] == 1 and summary["execution_mode"] == "live"
+        assert summary["sample_count"] == 1
         assert summary["monetary_pnl"] is None and not summary["live_authority_granted"]
         print(
             "PASS blocked and executed historical evidence survives reconciliation; same read-only tool loop reads scoped receipts without broker access"

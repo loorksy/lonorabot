@@ -101,12 +101,12 @@ executing. Changing a Goal still requires the Goal's own thread.
 
 Every agent, including a fixed-market (legacy bound) agent, reads every owned account
 and symbol: quotes, candles, accounts, full history and activity, trade records,
-decision history, opportunities, shadow and performance reads, sizing and
+decision history, opportunities, performance reads, sizing and
 relationships. The read guard is the registry's own effect metadata
 (`guard_market_tool(..., read=tool.read_only)`). Mutations keep the binding:
 `agent_trading_account_mismatch` and `agent_trading_symbol_mismatch` now come only
-from charts, watches, goals, decisions, opportunity and relationship records, shadow
-execution and financial tools, and the executor asserts the binding of every leased
+from charts, watches, goals, decisions, opportunity and relationship records and
+financial tools, and the executor asserts the binding of every leased
 request. `in_execution_scope` on accounts, positions and orders shows what the agent
 may execute. See
 [market-analysis.md](market-analysis.md#readable-and-executable-scope-of-fixed-market-agents).
