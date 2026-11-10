@@ -152,6 +152,24 @@ async def request_owner_attention(
     return attention_outcome(state, question)
 
 
+def append_line(state: dict[str, Any], messages: list[ModelMessage], text: str, line: str) -> str:
+    """Append one line to the reply, its stored message and its card's text parts."""
+    text = (text.rstrip() + "\n\n" + line) if text.strip() else line
+    rich = state.get("rich_content")
+    if isinstance(rich, dict):
+        parts = cast(dict[str, Any], rich).get("parts")
+        if isinstance(parts, list):
+            state["rich_content"] = {
+                **cast(dict[str, Any], rich),
+                "parts": [*cast(list[Any], parts), {"type": "text", "text": line}],
+            }
+    if messages and messages[-1].role == "assistant":
+        messages[-1] = messages[-1].model_copy(
+            update={"content": text, "rich_content": state.get("rich_content")}
+        )
+    return text
+
+
 async def final_answer(
     context: ToolContext,
     state: dict[str, Any],
@@ -164,9 +182,9 @@ async def final_answer(
 ) -> LoopOutcome | None:
     """Apply the bounded task stop gates; ``None`` means the turn continues.
 
-    With ``effect_tools`` (a conversation) an action the reply claims must be
-    supported by a successful effect result in this request: one repair turn,
-    then an honest line replaces the claim.
+    With ``effect_tools``, an action the reply claims for the owner's request must be
+    supported by a successful result of its kind in this request: one repair turn,
+    then one honest line is appended. The reply and its card are kept.
     """
     if effect_tools is not None:
         claim = claim_gate(state, messages, text, effect_tools)
@@ -174,12 +192,9 @@ async def final_answer(
             append_notice(messages, "effect_claim_check", claim.nudge)
             await save()
             return None
-        if claim.replacement:
-            text = claim.replacement
-            state.pop("rich_content", None)
-            metadata = {k: v for k, v in metadata.items() if k != "rich_content"}
-            if messages and messages[-1].role == "assistant":
-                messages[-1] = ModelMessage(role="assistant", content=text)
+        if claim.appended:
+            text = append_line(state, messages, text, claim.appended)
+            metadata = {**metadata, **rich_metadata(state)}
             await save()
     verdict = await task_stop_gate(context, state)
     if verdict.continue_turn:

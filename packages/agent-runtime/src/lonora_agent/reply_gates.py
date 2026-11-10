@@ -1,134 +1,256 @@
 """Deterministic reply guards keyed on the owner's own words and this request's results.
 
-- ``request_refusal``: a request to stop, pause or resume trading is never answered with a
-  new entry, nor a limit to adopt with a memory note. The call is refused before its handler runs, so no approval card appears, and
-  the result names the owner controls that do answer it.
-- ``claim_gate``: a final reply may say an action happened only when a successful
-  effect result in this request supports it. One repair turn, then an honest line.
-- ``code_deliverable``: D5, Lonora hands the owner no code as a product. Q36 keeps a
-  short fenced block as explanation.
+The owner's words are ``state["owner_request"]``: the message the owner typed that
+started this Run and the steering the owner typed while it worked. Peer text, wake,
+watch and routine prompts and model text never enter it (``record_owner_request``,
+``add_owner_steering``).
+
+- ``request_refusal``: a request to stop, pause or resume trading is never answered
+  with a new entry, a limit to adopt never with a memory note, and the claim repair
+  turn never increases risk. Exits, cancellations and protective changes always run.
+- ``claim_gate`` / ``unconfirmed_line``: when the owner asked for an action, a reply
+  that says the reply's own action on a Lonora object happened needs a successful result
+  of the matching kind in this request. One repair turn, then one honest line is
+  appended; the reply and its card are kept.
+- ``strip_code_deliverable``: D5, Lonora hands the owner no program as a product. Only
+  the code block is replaced; Q36 explanation blocks and display fences stay.
 
 The patterns are guards on a narrow set of phrasings, never request routers.
 """
 
 import json
 import re
-from collections.abc import Collection
+from collections.abc import Collection, Sequence
 from dataclasses import dataclass
 from typing import Any, cast
 
 from lonora_adapter_kit.types import ModelMessage, ToolCall
 
-from .context.financial_result import FINANCIAL_CALLS
-from .runtime_notices import is_owner_message, is_runtime_notice, prefers_arabic
+from .runtime_notices import is_owner_message
 
 _STATE_KEY = "effect_claim_gate"
+_REQUEST_KEY = "owner_request"
+_START_KEY = "owner_request_start"
+# Runs the owner started by typing; every other trigger is a wake with server or
+# model text, which reports events instead of answering an owner request.
+OWNER_TRIGGERS = frozenset({"user", "group"})
 # Entries and pending-entry edits: the class a no_new_entries restriction refuses.
 ENTRY_ACTIONS = frozenset(
     {"buy", "sell", "buy_limit", "sell_limit", "buy_stop", "sell_stop", "modify_order"}
 )
-# A fenced block of at least this many lines answering a request for code is a deliverable.
+# A fenced block of at least this many lines answering a request for a program is a
+# deliverable; a shorter one explains (Q36).
 DELIVERABLE_LINES = 8
+# Fences that carry display data, never a program.
+_DISPLAY_FENCES = frozenset({"lonora-ui", "json", "mermaid", "diagram"})
 
 
 def _normalized(text: str) -> str:
-    """Arabic without diacritics or tatweel, one alef, yaa and haa form; lower-case Latin."""
+    """Arabic without diacritics or tatweel, one alef, yaa, haa and hamza form; lower Latin."""
     text = re.sub(r"[ً-ٰٟـ]", "", text)
     text = re.sub(r"[أإآٱ]", "ا", text).replace("ى", "ي").replace("ة", "ه")
     text = re.sub(r"[ؤئ]", "ء", text)
     return text.lower()
 
 
-def owner_words(messages: list[ModelMessage]) -> str:
-    """The latest owner message: the request this reply answers."""
-    return next((m.content for m in reversed(messages) if is_owner_message(m)), "")
+# --- The owner's own request -------------------------------------------------------
 
 
-_STOP = [
-    re.compile(
-        r"(?:وقف|ايقاف|علق|تعليق|جمد|تجميد)\S*\s+(?!(?:ال)?خساره)(?:\S+\s+){0,2}?"
-        r"(?:ال)?(?:تداول|صفق|تنفيذ|دخول|شراء|بيع)"
-    ),
-    re.compile(r"\bلا\s+(?:ت|ن)?(?:فتح|تداول|دخل)"),
-    re.compile(r"(?:بدون|بلا|ممنوع)\s+(?:ال)?(?:صفقات|صفقه|تداول|دخول)"),
-    re.compile(
-        r"\b(?:stop|pause|halt|suspend|freeze)\b(?!\W*loss)\W+(?:\w+\W+){0,3}?"
-        r"(?:trading|trades?|entries|positions|opening|buying|selling)\b"
-    ),
-    re.compile(r"\bno\s+(?:new|more)\s+(?:trades?|positions|entries)\b"),
-    re.compile(r"\b(?:don'?t|do\s+not)\s+(?:open|trade|enter)\b"),
-]
+def record_owner_request(state: dict[str, Any], trigger: str, messages: list[ModelMessage]) -> None:
+    """On a Run's first entry: the owner-typed message that started it, if any."""
+    if _REQUEST_KEY in state:
+        return
+    index = next(
+        (i for i in range(len(messages) - 1, -1, -1) if is_owner_message(messages[i])), None
+    )
+    if trigger in OWNER_TRIGGERS and index is not None:
+        state[_REQUEST_KEY] = [messages[index].content]
+        state[_START_KEY] = index
+    else:
+        state[_REQUEST_KEY] = []
+        state[_START_KEY] = len(messages)
 
 
-_RESUME = [
-    re.compile(r"(?:استانف|استءناف|شغل|تشغيل|فعل|تفعيل|رجع|ارجاع)\S*\s+(?:ال)?تداول"),
-    re.compile(r"\b(?:resume|unpause|restart|re-?enable|turn\s+on)\b\W+(?:\w+\W+){0,2}?trading\b"),
-]
+def add_owner_steering(state: dict[str, Any], text: str) -> None:
+    """Owner-typed steering joins the request; it never replaces the first message."""
+    if text.strip():
+        state.setdefault(_REQUEST_KEY, []).append(text)
 
 
-# "Don't stop trading" / «لا توقف الصفقات» negate the stop verb itself.
-_NEGATED_STOP = re.compile(
-    r"\b(?:don'?t|do\s+not|never)\s+(?:stop|pause|halt|suspend|freeze)\b|"
-    r"(?:^|\s)(?:لا|ما|لن|مو)\s+\S*(?:وقف|علق|جمد)\S*"
+def owner_words(state: dict[str, Any]) -> str:
+    words = state.get(_REQUEST_KEY)
+    if not isinstance(words, list):
+        return ""
+    return "\n".join(item for item in cast(list[Any], words) if isinstance(item, str))
+
+
+def _request_messages(state: dict[str, Any], messages: list[ModelMessage]) -> list[ModelMessage]:
+    """Everything this Run added after the owner's message, steering and peers included."""
+    start = state.get(_START_KEY)
+    return messages[start:] if type(start) is int and 0 <= start <= len(messages) else []
+
+
+# --- Recognisers over the owner's words ----------------------------------------------
+
+# A word start: the text start, a space or punctuation, then an optional wa/fa.
+_W = r"(?:^|(?<=[\s،,.؛;:!؟?«\"(\-]))(?:و|ف)?"
+_NEGATION = re.compile(
+    r"(?:^|\s)(?:لا|ما|مو|مش|لن|لم|ليس|بلاش)(?:\s|$)|"
+    r"\b(?:don'?t|do\s+not|doesn'?t|not|never|no\s+need|haven'?t|hasn'?t|didn'?t|won'?t)\b"
 )
 
 
+def _negated(plain: str, start: int) -> bool:
+    """A negation among the three words before a match, within its clause."""
+    clause = re.split(r"[.،,؛;!؟?\n]", plain[:start])[-1]
+    return bool(_NEGATION.search(" " + " ".join(clause.split()[-3:]) + " "))
+
+
+def _affirmed(patterns: Sequence[re.Pattern[str]], text: str) -> bool:
+    plain = _normalized(text)
+    return any(
+        not _negated(plain, match.start())
+        for pattern in patterns
+        for match in pattern.finditer(plain)
+    )
+
+
+_FILLERS = r"(?:\s+(?:كل|جميع|عن|لي|مءقتا|حاليا|فورا|الان))*"
+_STOP = [
+    # A stop-trading phrase: the verb at a word start and a trading object. A stop
+    # loss (الوقف، وقف الخسارة، SL) has no trading object after the verb.
+    re.compile(
+        _W
+        + r"(?:اوقف|اوقفوا|وقف|وقفوا|توقف|ايقاف|جمد|جمدوا|تجميد)"
+        + _FILLERS
+        + r"\s+(?:ال)?(?:تداول|دخول|صفقات\s+(?:ال)?جديده)"
+    ),
+    re.compile(_W + r"(?:ممنوع|بدون|بلا)\s+(?:ال)?(?:تداول|صفقات\s+(?:ال)?جديده|دخول)"),
+    re.compile(
+        r"\b(?:stop|pause|halt|suspend|freeze)\b(?:\s+(?:all|the|my|any|new|opening|placing))*"
+        r"\s+(?:trading|trades|entries|positions|buying|selling)\b"
+    ),
+    re.compile(r"\bno\s+(?:new|more)\s+(?:trades?|positions|entries)\b"),
+]
+# A prohibition is a stop by itself; it is not read through the negation window.
+_PROHIBIT = [
+    re.compile(_W + r"لا\s+(?:ت|ن)(?:فتح|تداول|دخل)(?=\s|$|[.!،,])"),
+    re.compile(
+        r"\b(?:don'?t|do\s+not)\s+(?:trade\b|(?:open|enter|place)\s+(?:any\s+|new\s+)*"
+        r"(?:trades?|positions|entries|orders)\b)"
+    ),
+]
+_RESUME = [
+    re.compile(_W + r"(?:استانف|استانفوا|استءناف)(?=\s|$|[.!،,؟?])"),
+    re.compile(_W + r"(?:ارفع|فك|الغ|الغي|شيل)\s+(?:ال)?(?:ايقاف|توقف|تجميد)(?=\s|$|[.!،,؟?])"),
+    re.compile(_W + r"(?:شغل|فعل|رجع)\s+(?:ال)?تداول"),
+    re.compile(
+        r"\b(?:resume|unpause|restart|re-?enable)\s+(?:the\s+|my\s+)?trading\b|"
+        r"\bturn\s+trading\s+(?:back\s+)?on\b|\blift\s+the\s+(?:pause|stop|freeze)\b|"
+        r"\bresume\b(?=\s*$|\s*[.!])"
+    ),
+]
+
+
 def stop_requested(text: str) -> bool:
-    plain = _NEGATED_STOP.sub(" ", _normalized(text))
-    return any(pattern.search(plain) for pattern in _STOP)
+    plain = _normalized(text)
+    return _affirmed(_STOP, text) or any(pattern.search(plain) for pattern in _PROHIBIT)
 
 
 def resume_requested(text: str) -> bool:
-    plain = _normalized(text)
-    return any(pattern.search(plain) for pattern in _RESUME)
+    return _affirmed(_RESUME, text)
 
 
-_CANCEL_REQUEST = re.compile(r"\bالغ(?:ي|اء)?\b|\bاحذف|\bامسح|\b(?:cancel|delete|remove)\b")
-_MODEL_REQUEST = re.compile(r"نموذج|موديل|\b(?:model|llm)\b")
+_CANCEL_REQUEST = [
+    re.compile(_W + r"(?:الغ|الغي|الغاء|احذف|امسح)(?=\s|$)|\b(?:cancel|delete|remove)\b")
+]
+_MODEL_REQUEST = [
+    re.compile(
+        r"نموذج\s+(?:ال)?ذكاء|موديل|\b(?:ai|language)\s+model\b|\bllm\b|\bmodel\s+(?:for|of)\b"
+    )
+]
 
 
-def requested_tools(messages: list[ModelMessage]) -> list[str]:
+def requested_tools(state: dict[str, Any]) -> list[str]:
     """Owner-control tools the owner's words call for, offered natively for this Run.
 
-    Presentation only: they join the promoted set within its budget, and execution
-    still validates every call (G0: the model reached for the native trade tool).
+    Presentation only: they join the promoted set within its budget and the Run's
+    scope, and execution still validates every call.
     """
-    words = owner_words(messages)
-    plain = _normalized(words)
+    words = owner_words(state)
     names: list[str] = []
     if stop_requested(words):
         names.append("trade_restriction_create")
-    if _CANCEL_REQUEST.search(plain):
+    if _affirmed(_CANCEL_REQUEST, words):
         names += ["watch_list", "watch_cancel"]
-    if _MODEL_REQUEST.search(plain):
+    if _affirmed(_MODEL_REQUEST, words):
         names += ["model_list", "model_request"]
     return names
 
 
-def _in_claim_repair(messages: list[ModelMessage]) -> bool:
-    """Whether the claim gate's repair notice was given in the current owner request."""
-    for message in reversed(messages):
-        if is_owner_message(message):
-            return False
-        if is_runtime_notice(message) and '"kind": "effect_claim_check"' in message.content:
-            return True
-    return False
+_ACTION_REQUEST = [
+    re.compile(
+        _W + r"(?:الغ|الغي|احذف|امسح|شيل|عدل|غير|خلي|خليه|خليها|حط|ضع|اضبط|فعل|شغل|اوقف|وقف|"
+        r"استانف|ارفع|فك|سجل|احفظ|اعتمد|حدد|جدول|ذكرني|نبهني|انشء|سوي|اعمل|اجعل|ثبت|انقل|"
+        r"اشتر|اشتري|بيع|سكر|اغلق|افتح)(?:ه|ها|هم|لي|ني)?(?=\s|$|[.!،,؟?])"
+    ),
+    re.compile(
+        r"\b(?:cancel|delete|remove|set|change|move|make|create|save|remember|record|pause|"
+        r"stop|resume|lift|schedule|remind|alert|notify|buy|sell|close|open|adopt|apply|"
+        r"update|switch|add|log|turn)\b"
+    ),
+]
 
 
-def request_refusal(messages: list[ModelMessage], call: ToolCall) -> dict[str, Any] | None:
-    """The refused result of a call that cannot answer the owner's control request:
-    a new entry for a stop, pause or resume, a memory note for a limit to adopt, a
-    financial call in the claim gate's repair turn."""
-    if call.name in FINANCIAL_CALLS and _in_claim_repair(messages):
+def action_requested(words: str) -> bool:
+    return _affirmed(_ACTION_REQUEST, words)
+
+
+# Adopting or setting a limit, not remembering one (G0 I10: «اعتمد 1% كحد أقصى لكل صفقة»).
+_LIMIT_SET = [
+    re.compile(
+        _W + r"(?:اعتمد|ثبت|ضع|حط|خلي|اجعل|حدد|عين)\s.*(?:حد\s*(?:ال)?اقصي|الحد\s|حدود|مخاطره)"
+    ),
+    re.compile(r"\b(?:set|make|adopt|apply|use|put)\b.*\b(?:max(?:imum)?|limit|cap)\b"),
+    re.compile(r"\b(?:max(?:imum)?|limit|cap)\b.*\bto\s+\d"),
+]
+
+
+# --- Calls refused before they run ---------------------------------------------------
+
+
+def _risk_increasing(call: ToolCall, goal_action: str | None) -> bool:
+    """A new or larger exposure, or a removed stop. Exits, cancels and tightening are not."""
+    if call.name == "goal_step_execute":
+        return goal_action in ENTRY_ACTIONS
+    if call.name != "trade_execute":
+        return False
+    action = call.arguments.get("action")
+    return action in ENTRY_ACTIONS or (
+        action == "modify_position" and bool(call.arguments.get("clear_stop_loss"))
+    )
+
+
+def request_refusal(
+    state: dict[str, Any], call: ToolCall, *, goal_action: str | None = None
+) -> dict[str, Any] | None:
+    """The refused result of a call that cannot answer the owner's request.
+
+    ``goal_action`` is the trade action of the goal step a ``goal_step_execute`` would
+    run (``None`` for a step that trades nothing).
+    """
+    increasing = _risk_increasing(call, goal_action)
+    if increasing and state.get(_STATE_KEY) == 1:
         return {
             "ok": False,
-            "code": "claim_repair_no_financial_call",
+            "code": "claim_repair_no_new_risk",
             "executed": False,
             "message": "This turn only corrects a reply that claimed an action; it cannot "
-            "place, change or close a trade, and nothing was sent. Tell the owner plainly "
-            "what has not been done.",
+            "open or increase exposure, and nothing was sent. Closing, cancelling and "
+            "protecting stay possible. Tell the owner plainly what is not confirmed.",
         }
-    if call.name == "memory_write" and _LIMIT_SET.search(_normalized(owner_words(messages))):
+    words = owner_words(state)
+    if call.name == "memory_write" and _affirmed(_LIMIT_SET, words):
         return {
             "ok": False,
             "code": "owner_limit_request_not_memory",
@@ -137,12 +259,8 @@ def request_refusal(messages: list[ModelMessage], call: ToolCall) -> dict[str, A
             "changed. Propose it with owner_action_propose kind set_account_limits (through "
             "tool_call) now; once it is proposed, the card waits for the owner's tap.",
         }
-    entry = call.name == "goal_step_execute" or (
-        call.name == "trade_execute" and call.arguments.get("action") in ENTRY_ACTIONS
-    )
-    if not entry:
+    if not increasing:
         return None
-    words = owner_words(messages)
     if stop_requested(words):
         return {
             "ok": False,
@@ -167,121 +285,254 @@ def request_refusal(messages: list[ModelMessage], call: ToolCall) -> dict[str, A
     return None
 
 
-_AR_CLAIM_VERBS = (
-    "الغيت|لغيت|استانفت|اوقفت|وقفت|حفظت|عدلت|غيرت|انشات|انشءت|فعلت|شغلت|ضبطت|سجلت|"
-    "اضفت|حذفت|ازلت|ارسلت|جدولت|اعتمدت|ثبتت|نقلت|طبقت|قمت"
+# --- Effect claims -------------------------------------------------------------------
+
+# Lonora objects an action claim can be about.
+_AR_OBJECT = (
+    r"(?:ال)?(?:تنبيه|تنبيهات|مراقبه|شرط|تداول|صفقه|صفقات|امر|اوامر|حد|حدود|مخاطره|مهمه|"
+    r"موعد|تذكير|روتين|ذاكره|ملاحظه|قيد|حظر|ايقاف|بطاقه|طلب|مستوي)(?:ا|ها)?"
 )
-_EN_CLAIM_VERBS = (
-    "cancel+ed|saved|set|created|updated|changed|paused|resumed|stopped|scheduled|removed|"
-    "deleted|enabled|disabled|added|adjusted|moved|switched|recorded|logged|placed|applied"
+_EN_OBJECT = (
+    r"(?:alert|alerts|watch|trading|trade|trades|position|positions|order|orders|limit|limits|"
+    r"restriction|pause|routine|reminder|schedule|memory|note|card|request)"
 )
-_START = r"(?:^|[\n.!؟?:،;]\s*)"
-_CLAIMS = [
-    # «تم.» standing alone, or «تم» with the effect it names.
-    re.compile(
-        _START + r"تم+(?:\s*(?:[.!،,✅]|$)|\s+(?:ال)?(?:حفظ|الغاء|تعديل|ضبط|تفعيل|"
-        r"ايقاف|استءناف|انشاء|جدوله|اعتماد|تحديد|تسجيل|ارسال|حذف|تغيير))"
-    ),
-    re.compile(_START + r"(?:[وف])?(?:لقد\s+|قد\s+)?(?:" + _AR_CLAIM_VERBS + r")(?:ه|ها|هم)?\b"),
-    re.compile(_START + r"(?:done|all set)\b"),
-    re.compile(
-        r"\bi(?:'ve|\s+have)\s+(?:now\s+|just\s+|already\s+)?(?:" + _EN_CLAIM_VERBS + r")\b"
-    ),
-    # A bare past participle opening a sentence ("Cancelled the alert."); "set" and
-    # other forms an imperative shares stay out.
-    re.compile(
-        _START + r"(?:cancel+ed|saved|created|updated|changed|paused|resumed|stopped|"
-        r"scheduled|removed|deleted|enabled|disabled|added|switched)\s+(?:the|your|it)\b"
-    ),
-]
+# The kinds a claim can be, each read from its verb.
+_AR_VERBS = {
+    "cancel": r"الغيت|لغيت|حذفت|ازلت|شلت",
+    "stop": r"اوقفت|وقفت|جمدت",
+    "resume": r"استانفت",
+    "close": r"اغلقت|سكرت",
+    "generic": r"حفظت|عدلت|غيرت|انشات|انشءت|فعلت|شغلت|ضبطت|اضفت|ارسلت|جدولت|اعتمدت|"
+    r"نقلت|رفعت|خفضت|سجلت",
+}
+_AR_NOUNS = {
+    "cancel": r"الغاء|حذف",
+    "stop": r"ايقاف|تجميد",
+    "resume": r"استءناف",
+    "close": r"اغلاق",
+    "generic": r"حفظ|تعديل|ضبط|تفعيل|انشاء|جدوله|اعتماد|تسجيل|تغيير|تثبيت|رفع|نقل",
+}
+_EN_VERBS = {
+    "cancel": r"cancel+ed|removed|deleted",
+    "stop": r"paused|stopped|halted|frozen",
+    "resume": r"resumed|unpaused",
+    "close": r"closed",
+    "generic": r"saved|set|created|updated|changed|scheduled|enabled|added|adjusted|moved|"
+    r"switched|recorded|logged|applied|placed|raised|lowered",
+}
+_SENTENCE = r"(?:^|(?<=[\n.!؟?:;]))\s*"
+_END = r"(?=\s|$|[.!،,:])"
 
 
-# Claims of a kind only that kind of tool supports. A cancellation needs a tool that
-# cancels (G0 J05: watch_create, then «تم الإلغاء»); a card the owner taps needs a tool
-# that raises one (probe: «البطاقة بانتظار لمستك» with no card proposed).
-_KINDS = [
-    (
-        re.compile(r"الغيت|لغيت|حذفت|ازلت|تم\s+(?:ال)?(?:الغاء|حذف)|cancel+ed|removed|deleted"),
-        re.compile(r"cancel|delete|remove|revoke|close|lift"),
-    ),
-    (
-        re.compile(
-            r"(?:بانتظار|تنتظر|ينتظر)\s+(?:\S+\s+)?(?:لمس|نقر|موافق|توقيع|تاكيد)|"
-            r"\bwait(?:s|ing)\b.{0,30}\b(?:tap|approval|confirmation|signature)\b"
+def _claim_patterns() -> list[tuple[str, re.Pattern[str]]]:
+    found: list[tuple[str, re.Pattern[str]]] = [
+        # «تم.» / "Done." standing alone answers the owner's own request.
+        ("generic", re.compile(_SENTENCE + r"(?:تم+|done|all\s+set)\s*(?:[.!،,✅]|$)")),
+        (
+            "card",
+            re.compile(
+                r"(?:بانتظار|تنتظر|ينتظر)\s+(?:\S+\s+)?(?:لمس|نقر|موافق|توقيع|تاكيد)|"
+                r"\bwait(?:s|ing)\b.{0,30}\b(?:tap|approval|confirmation|signature)\b"
+            ),
         ),
-        re.compile(r"owner_action_propose|model_request|agent_create"),
-    ),
-]
+    ]
+    for kind, verbs in _AR_VERBS.items():
+        # First person past with the object it acts on: «ألغيت التنبيه».
+        found.append(
+            (
+                kind,
+                re.compile(
+                    _W
+                    + r"(?:لقد\s+|قد\s+)?(?:"
+                    + verbs
+                    + r")(?:ه|ها)?"
+                    + _END
+                    + r"(?:\s+\S+){0,2}?\s+"
+                    + _AR_OBJECT
+                    + _END
+                ),
+            )
+        )
+    for kind, nouns in _AR_NOUNS.items():
+        # «تم إلغاء التنبيه», or «تم إلغاؤه» with the object as a pronoun.
+        found.append(
+            (
+                kind,
+                re.compile(
+                    _W
+                    + r"تم+\s+(?:ال)?(?:"
+                    + nouns
+                    + r")(?:ه|ها)"
+                    + _END
+                    + "|"
+                    + _W
+                    + r"تم+\s+(?:ال)?(?:"
+                    + nouns
+                    + r")"
+                    + _END
+                    + r"(?:\s+\S+){0,2}?\s+"
+                    + _AR_OBJECT
+                    + _END
+                ),
+            )
+        )
+    for kind, verbs in _EN_VERBS.items():
+        found.append(
+            (
+                kind,
+                re.compile(
+                    r"\bi(?:'ve|\s+have)?\s+(?:now\s+|just\s+|already\s+)?(?:" + verbs + r")\b"
+                    r"(?:\s+\S+){0,3}?\s+"
+                    + _EN_OBJECT
+                    + r"\b|"
+                    + _SENTENCE
+                    + r"(?:"
+                    + verbs
+                    + r")\s+(?:the|your|all)\s+"
+                    + _EN_OBJECT
+                    + r"\b"
+                ),
+            )
+        )
+    return found
+
+
+_CLAIMS = _claim_patterns()
+
+
+def _claim_text(text: str) -> str:
+    """The reply's prose: no fences, no table rows (an order table is not a claim)."""
+    text = re.sub(r"(?ms)^(```|~~~).*?^\1[ \t]*$", " ", text)
+    return "\n".join(line for line in text.splitlines() if not line.lstrip().startswith("|"))
+
+
+def claim_kinds(text: str) -> set[str]:
+    """The kinds of affirmative action claims the reply makes."""
+    plain = _normalized(_claim_text(text).strip())
+    return {
+        kind
+        for kind, pattern in _CLAIMS
+        for match in pattern.finditer(plain)
+        if not _negated(plain, match.start())
+    }
 
 
 def claims_effect(text: str) -> bool:
-    plain = _normalized(text.strip())
-    return any(pattern.search(plain) for pattern in _CLAIMS) or any(
-        claim.search(plain) for claim, _ in _KINDS
+    return bool(claim_kinds(text))
+
+
+_CARD_TOOLS = re.compile(
+    r"owner_action_propose|model_request|agent_create|trade_execute|trade_close_positions|"
+    r"goal_step_execute|supervis|credential|connect|trust|grant"
+)
+
+
+def _supports(kind: str, call: ToolCall, effect_tools: Collection[str]) -> bool:
+    action = call.arguments.get("action")
+    if kind == "card":
+        return bool(_CARD_TOOLS.search(call.name))
+    if kind == "stop":
+        return call.name in {"trade_restriction_create", "owner_action_propose"}
+    if kind == "resume":
+        # Only the owner resumes trading; no tool result of this Run shows it resumed.
+        return False
+    if kind == "cancel":
+        return bool(re.search(r"cancel|delete|remove|revoke|lift", call.name)) or (
+            call.name == "trade_execute" and action in {"cancel_order", "close_position"}
+        )
+    if kind == "close":
+        return call.name == "trade_close_positions" or (
+            call.name == "trade_execute" and action == "close_position"
+        )
+    return call.name in effect_tools and not (
+        call.name == "trade_execute" and action in ENTRY_ACTIONS
     )
 
 
-def effect_supported(
-    messages: list[ModelMessage], effect_tools: Collection[str], text: str = ""
-) -> bool:
-    """Whether successful effect results of every claimed kind exist in this owner request."""
-    plain = _normalized(text)
-    required = [tool for claim, tool in _KINDS if claim.search(plain)] or [re.compile("")]
-    return all(_supported(messages, effect_tools, tool) for tool in required)
+_UNCERTAIN = {"tool_execution_uncertain", "broker_result_ambiguous"}
 
 
-def _supported(
-    messages: list[ModelMessage], effect_tools: Collection[str], tool: re.Pattern[str]
-) -> bool:
-    names = {
-        c.id: c.name
-        for m in messages
-        for c in m.tool_calls
-        if c.name in effect_tools and tool.search(c.name)
+def _outcome(raw: str) -> str:
+    """``confirmed``, ``uncertain`` or ``failed`` for one tool result."""
+    try:
+        data: Any = json.loads(raw)
+    except ValueError:
+        return "failed"
+    if not isinstance(data, dict):
+        return "failed"
+    result = cast(dict[str, Any], data)
+    rows: Any = result.get("results", [result])
+    listed = cast(list[Any], rows) if isinstance(rows, list) else [result]
+    statuses = [cast(dict[str, Any], row).get("status") for row in listed if isinstance(row, dict)]
+    if result.get("code") in _UNCERTAIN or "ambiguous" in statuses:
+        return "uncertain"
+    if result.get("ok") is False or any(s in {"failed", "rejected"} for s in statuses):
+        return "failed"
+    return "confirmed"
+
+
+def _support(
+    state: dict[str, Any], messages: list[ModelMessage], kind: str, effect_tools: Collection[str]
+) -> str:
+    """The best outcome among this request's calls that would support the claim kind."""
+    request = _request_messages(state, messages)
+    calls = {c.id: c for m in request for c in m.tool_calls if _supports(kind, c, effect_tools)}
+    outcomes = {
+        _outcome(m.content) for m in request if m.role == "tool" and m.tool_call_id in calls
     }
-    for message in reversed(messages):
-        if is_owner_message(message):
-            return False
-        if message.role != "tool" or message.tool_call_id not in names:
-            continue
-        try:
-            raw: Any = json.loads(message.content)
-        except ValueError:
-            continue
-        if not isinstance(raw, dict):
-            continue
-        data = cast(dict[str, Any], raw)
-        if data.get("ok") is not False and data.get("status") not in {
-            "failed",
-            "rejected",
-            "ambiguous",
-        }:
-            return True
-    return False
+    return next((o for o in ("confirmed", "uncertain") if o in outcomes), "failed")
 
 
 @dataclass(frozen=True)
 class ClaimVerdict:
     nudge: str | None = None
-    replacement: str | None = None
+    # One honest line appended to the reply; the reply and its card are kept.
+    appended: str | None = None
 
     @property
     def passed(self) -> bool:
-        return self.nudge is None and self.replacement is None
+        return self.nudge is None and self.appended is None
 
 
 CLAIM_NUDGE = (
-    "Your reply says an action was carried out, but no tool in this request completed it, "
-    "so it did not happen. This check is Lonora's, not the owner's, and the owner has not "
+    "Your reply says an action was carried out, but no successful tool result in this "
+    "request confirms it. This check is Lonora's, not the owner's, and the owner has not "
     "read your draft: write the reply afresh, with no apology and no mention of this check. "
-    "Either do it now with the right tool, or tell the owner plainly what has not been "
-    "done and ask if something is missing. Owner "
-    "controls are tools reached with tool_call when not native: a pause or no new trades "
-    "is trade_restriction_create; resuming trading, lifting a pause, limits and authority "
-    "are owner_action_propose cards that only the owner's tap applies (a card waits only "
-    "once proposed); a watch is cancelled with watch_cancel or changed with watch_update; a "
-    "recurring review is routine_create; an agent's model is model_list then model_request."
+    "Either do it now with the right tool, or tell the owner plainly what is not confirmed "
+    "and ask if something is missing. Owner controls are tools reached with tool_call when "
+    "not native: a pause or no new trades is trade_restriction_create; resuming trading, "
+    "lifting a pause, limits and authority are owner_action_propose cards that only the "
+    "owner's tap applies (a card waits only once proposed); a watch is cancelled with "
+    "watch_cancel or changed with watch_update; a recurring review is routine_create; an "
+    "agent's model is model_list then model_request."
 )
+
+
+def _arabic(words: str) -> bool:
+    return bool(re.search(r"[ؠ-ي]", words)) or not re.search(r"[A-Za-z]{3}", words)
+
+
+def _line(words: str, uncertain: bool) -> str:
+    if uncertain:
+        return (
+            "نتيجة ذلك غير مؤكدة بعد، وأتحقق منها؛ لن أعيد الإرسال."
+            if _arabic(words)
+            else "The outcome is not confirmed yet and is being checked; I will not resend it."
+        )
+    return "لم أتمكن من تأكيد ذلك بعد." if _arabic(words) else "I could not confirm that yet."
+
+
+def _verdict(
+    state: dict[str, Any], messages: list[ModelMessage], text: str, effect_tools: Collection[str]
+) -> tuple[bool, bool]:
+    """``(unsupported, uncertain)`` for the reply's claims in this owner request."""
+    words = owner_words(state)
+    if not words or not action_requested(words):
+        return False, False
+    outcomes = [_support(state, messages, kind, effect_tools) for kind in claim_kinds(text)]
+    if not outcomes or all(o == "confirmed" for o in outcomes):
+        return False, False
+    return True, "uncertain" in outcomes
 
 
 def claim_gate(
@@ -290,62 +541,86 @@ def claim_gate(
     text: str,
     effect_tools: Collection[str],
 ) -> ClaimVerdict:
-    """One repair turn for an unsupported effect claim, then an honest line instead.
+    """One repair turn for an unsupported claim, then one appended honest line.
 
-    The counter lives in the checkpoint and resets only on real owner input
-    (``reset_stop_gate``), so restarts cannot buy more attempts.
+    An uncertain outcome is never repaired (a repair could resend it): the line says
+    it is being checked. The counter lives in the checkpoint and resets only on real
+    owner input (``reset_stop_gate``), so restarts cannot buy more attempts.
     """
-    if not claims_effect(text) or effect_supported(messages, effect_tools, text):
+    unsupported, uncertain = _verdict(state, messages, text, effect_tools)
+    if not unsupported:
         return ClaimVerdict()
-    attempts = state.get(_STATE_KEY, 0)
-    if type(attempts) is not int or attempts < 1:
+    if not uncertain and state.get(_STATE_KEY) != 1:
         state[_STATE_KEY] = 1
         return ClaimVerdict(nudge=CLAIM_NUDGE)
-    # Another effect may have succeeded, so the line says only that the claim is unconfirmed.
-    return ClaimVerdict(
-        replacement="ما ذكرتُ أنه تم لم يؤكده أي إجراء في هذا الرد، فهو لم يحدث بعد. أخبرني "
-        "إن أردت أن أحاول مرة أخرى."
-        if prefers_arabic(messages)
-        else "What I said was done is not confirmed by any action in this reply, so it has "
-        "not happened yet. Tell me if you want me to try again."
-    )
+    return ClaimVerdict(appended=_line(owner_words(state), uncertain))
 
 
-# Adopting or setting a limit, not remembering one (G0 I10: «اعتمد 1% كحد أقصى لكل صفقة»).
-_LIMIT_SET = re.compile(
-    r"(?:اعتمد|ثبت|ضع|حط|خلي|اجعل|حدد|عين|فعل)\S*\s.*(?:حد\s*(?:ال)?اقصي|الحد\s|حدود|مخاطره)|"
-    r"\b(?:set|make|adopt|apply|use|put)\b.*\b(?:max(?:imum)?|limit|cap)\b|"
-    r"\b(?:max(?:imum)?|limit|cap)\b.*\bto\s+\d"
+def unconfirmed_line(
+    state: dict[str, Any], messages: list[ModelMessage], text: str, effect_tools: Collection[str]
+) -> str | None:
+    """The appended line for a reply no repair can follow (the tool-less final report)."""
+    unsupported, uncertain = _verdict(state, messages, text, effect_tools)
+    return _line(owner_words(state), uncertain) if unsupported else None
+
+
+# --- D5: no program as a deliverable ---------------------------------------------------
+
+_LANGUAGE = re.compile(
+    r"\b(?:mql4|mql5|pine\s*script|pinescript|pine|python|javascript|typescript|c\+\+|c#|"
+    r"java|lua|rust|golang|bash|powershell|vba|ninjascript|easylanguage|afl)\b|"
+    r"بايثون|جافا|بلغه\s+\S+"
+)
+_DELIVERABLE = re.compile(
+    _W + r"(?:ال)?(?:كود|سكربت|سكريبت|برنامج|مءشر|استراتيجيه|روبوت|اكسبرت|اكسبيرت)"
+    r"|\b(?:code|script|program|indicator|strategy|bot|ea|expert\s+advisor)\b"
+)
+_ADVISOR = re.compile(_W + r"(?:ال)?(?:اكسبرت|اكسبيرت)|\bexpert\s+advisor\b|\bea\b")
+_WRITE = re.compile(
+    _W + r"(?:اكتب|ابن|ابني|اعمل|سوي|برمج)|\b(?:write|build|make|create|code|give)\b"
 )
 
 
-_CODE_REQUEST = re.compile(
-    r"كود|سكربت|سكريبت|برمج|اكسبرت|اكسبيرت|"
-    r"\b(?:code|script|mql[45]|pine|python|javascript|expert advisor|ea)\b"
+def code_requested(words: str) -> bool:
+    """The owner asked for a program in a programming language (or an expert advisor)."""
+    plain = _normalized(words)
+    if _LANGUAGE.search(plain) and _DELIVERABLE.search(plain):
+        return True
+    return bool(_ADVISOR.search(plain) and _WRITE.search(plain))
+
+
+_FENCE = re.compile(
+    r"(?ms)^(?P<mark>```|~~~)(?P<lang>[^\n]*)\n(?P<body>.*?)(?:^(?P=mark)[ \t]*$|\Z)"
 )
-_FENCE = re.compile(r"```[^\n]*\n(.*?)(?:```|\Z)", re.DOTALL)
 
 
-def code_requested(text: str) -> bool:
-    return bool(_CODE_REQUEST.search(_normalized(text)))
-
-
-def code_deliverable(messages: list[ModelMessage], text: str) -> bool:
-    """D5: a substantial fenced block answering the owner's request for code."""
-    if not code_requested(owner_words(messages)):
-        return False
-    return any(
-        sum(1 for line in block.splitlines() if line.strip()) >= DELIVERABLE_LINES
-        for block in _FENCE.findall(text)
-    )
-
-
-def code_decline(messages: list[ModelMessage]) -> str:
+def code_decline(words: str) -> str:
     return (
         "لا أسلّم الكود كمنتج، ومنه كود التداول مثل MQL5 وPine Script. أستطيع أن أشرح لك "
         "منطق المؤشر أو الاستراتيجية، أو أطبّقها تحليلًا على السوق وأنبّهك بالنتيجة."
-        if prefers_arabic(messages)
+        if _arabic(words)
         else "I don't hand over code as a deliverable, trading code included (MQL5, Pine "
         "Script). I can explain the indicator's or strategy's logic, or apply it to the "
         "market as analysis and alert you."
     )
+
+
+def strip_code_deliverable(words: str, text: str) -> str:
+    """Replace each program block answering a request for one with a single decline.
+
+    Display fences and short explanation blocks (Q36) stay; the rest of the reply stays.
+    """
+    if not code_requested(words):
+        return text
+    declined = False
+
+    def replace(match: re.Match[str]) -> str:
+        nonlocal declined
+        language = match.group("lang").strip().lower()
+        lines = sum(1 for line in match.group("body").splitlines() if line.strip())
+        if language in _DISPLAY_FENCES or lines < DELIVERABLE_LINES:
+            return match.group(0)
+        first, declined = not declined, True
+        return code_decline(words) + "\n" if first else ""
+
+    return _FENCE.sub(replace, text)

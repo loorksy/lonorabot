@@ -1,4 +1,8 @@
-"""Reply guards keyed on the owner's own words and this request's tool results (G0 baseline)."""
+"""Reply guards keyed on the owner's own words and this request's tool results.
+
+Corpus vectors from the G0 baseline and the PR #42 review: every sentence that must
+fire and every sentence that must not, in Arabic and English.
+"""
 
 import json
 from typing import Any
@@ -6,306 +10,222 @@ from typing import Any
 import pytest
 from lonora_adapter_kit.types import ModelMessage, ToolCall
 from lonora_agent.reply_gates import (
+    CLAIM_NUDGE,
+    action_requested,
+    add_owner_steering,
     claim_gate,
-    claims_effect,
-    code_deliverable,
+    claim_kinds,
     code_requested,
+    record_owner_request,
     request_refusal,
     requested_tools,
+    resume_requested,
     stop_requested,
+    strip_code_deliverable,
+    unconfirmed_line,
 )
-from lonora_agent.runtime_notices import notice_message
 from lonora_agent.stop_gates import reset_stop_gate
 from lonora_tools.base import ExposureProfile, ToolScope
 from lonora_tools.loader import load_tools
 
-EFFECTS = frozenset({"memory_write", "watch_cancel", "trade_restriction_create"})
+EFFECTS = frozenset(
+    {
+        "memory_write",
+        "watch_cancel",
+        "watch_create",
+        "trade_restriction_create",
+        "owner_action_propose",
+        "trade_execute",
+        "trade_close_positions",
+        "routine_create",
+    }
+)
 
 
 def owner(text: str) -> ModelMessage:
     return ModelMessage(role="user", content=text)
 
 
+def state_of(words: str) -> dict[str, Any]:
+    state: dict[str, Any] = {}
+    record_owner_request(state, "user", [owner(words)])
+    return state
+
+
 def call(name: str, **arguments: Any) -> ToolCall:
-    return ToolCall(id="call_" + name, name=name, arguments=arguments)
+    return ToolCall(
+        id="call_" + name + str(arguments.get("action", "")), name=name, arguments=arguments
+    )
 
 
-def result(name: str, payload: dict[str, Any]) -> list[ModelMessage]:
+def result(name: str, payload: dict[str, Any], **arguments: Any) -> list[ModelMessage]:
+    made = call(name, **arguments)
     return [
-        ModelMessage(role="assistant", content="", tool_calls=[call(name)]),
-        ModelMessage(role="tool", tool_call_id="call_" + name, content=json.dumps(payload)),
+        ModelMessage(role="assistant", content="", tool_calls=[made]),
+        ModelMessage(role="tool", tool_call_id=made.id, content=json.dumps(payload)),
     ]
 
 
-@pytest.mark.parametrize(
-    "text",
-    [
-        "أوقف الصفقات الجديدة اليوم",
-        "اوقف التداول",
-        "وقّف كل الصفقات",
-        "أوقِفْ التداول على الذهب",
-        "علّق التداول حتى الغد",
-        "لا تفتح صفقات اليوم",
-        "بدون صفقات جديدة اليوم",
-        "Stop new trades today",
-        "pause trading",
-        "no new trades this week",
-        "don't open anything today",
-    ],
-)
-def test_the_owners_stop_or_pause_words_are_recognised(text: str) -> None:
+# --- Stop, pause and resume -----------------------------------------------------------
+
+STOP_FIRES = [
+    "أوقف الصفقات الجديدة اليوم",
+    "اوقف التداول",
+    "أوقِفْ التداول على الذهب",
+    "وقّف التداول فورًا",
+    "جمّد التداول حتى الغد",
+    "لا تفتح صفقات اليوم",
+    "بدون صفقات جديدة اليوم",
+    "ممنوع التداول اليوم",
+    "Stop new trades today",
+    "pause trading",
+    "no new trades this week",
+    "don't open any new positions today",
+    "لازم توقف التداول الآن",
+]
+STOP_SILENT = [
+    "اشتر ذهب 0.1 والوقف تحت الدخول بـ 5 دولار",
+    "حط وقف الخسارة للصفقة عند 1.08",
+    "وقف الخسارة تحت الدخول بخمسة دولار",
+    "لا داعي لإيقاف التداول، اشتر الذهب",
+    "مو لازم توقف التداول",
+    "لا توقف التداول",
+    "I don't want to stop trading, buy gold",
+    "never pause trading for news",
+    "علّق على حركة الذهب",
+    "تعليقك على التداول اليوم؟",
+    "move the stop loss on my trade",
+    "set the SL below the entry",
+    "سكّر كل صفقاتي",
+    "استأنف التداول",
+    "اشترِ ذهب 0.1 لوت",
+    "",
+]
+RESUME_FIRES = [
+    "استأنف التداول",
+    "استأنف",
+    "استئناف التداول",
+    "ارفع الإيقاف",
+    "فك الإيقاف عن التداول",
+    "شغّل التداول",
+    "resume trading",
+    "lift the pause",
+    "turn trading back on",
+]
+RESUME_SILENT = [
+    "استأنفت التداول أمس؟",
+    "لا تستأنف التداول",
+    "don't resume trading yet",
+    "ارفع الوقف إلى نقطة الدخول",
+    "متى يستأنف السوق؟",
+    "أوقف التداول",
+]
+
+
+@pytest.mark.parametrize("text", STOP_FIRES)
+def test_stop_requests_fire(text: str) -> None:
     assert stop_requested(text)
 
 
-@pytest.mark.parametrize(
-    "text",
-    [
-        "اشتر 0.1 يورو دولار",
-        "حط وقف الخسارة للصفقة عند 1.08",
-        "استأنف التداول",
-        "move the stop loss on my trade",
-        "سكّر كل صفقاتي",
-        "",
-    ],
-)
-def test_other_requests_are_not_stop_requests(text: str) -> None:
+@pytest.mark.parametrize("text", STOP_SILENT)
+def test_stop_lookalikes_stay_silent(text: str) -> None:
     assert not stop_requested(text)
+
+
+@pytest.mark.parametrize("text", RESUME_FIRES)
+def test_resume_requests_fire(text: str) -> None:
+    assert resume_requested(text)
+
+
+@pytest.mark.parametrize("text", RESUME_SILENT)
+def test_resume_lookalikes_stay_silent(text: str) -> None:
+    assert not resume_requested(text)
 
 
 @pytest.mark.parametrize("action", ["buy", "sell", "buy_limit", "sell_stop", "modify_order"])
-def test_no_entry_can_answer_a_stop_request(action: str) -> None:
-    messages = [owner("أوقف الصفقات الجديدة اليوم")]
-    refused = request_refusal(messages, call("trade_execute", action=action, symbol="EURUSD"))
-    assert refused is not None
-    assert refused["ok"] is False and refused["executed"] is False
-    assert refused["code"] == "owner_stop_request_no_entry"
-    assert "trade_restriction_create" in refused["message"]
-    # A goal step may be an entry too: it does not run as the answer either.
-    assert request_refusal(messages, call("goal_step_execute", goal_id="g")) is not None
+def test_no_entry_answers_a_stop_request(action: str) -> None:
+    refused = request_refusal(
+        state_of("أوقف الصفقات الجديدة اليوم"), call("trade_execute", action=action)
+    )
+    assert refused and refused["code"] == "owner_stop_request_no_entry"
+    assert refused["executed"] is False and "trade_restriction_create" in refused["message"]
+    # The refusal never claims a restriction exists.
+    assert "nothing was sent" in refused["message"] and "recorded" not in refused["message"]
 
 
-@pytest.mark.parametrize("action", ["close_position", "modify_position", "cancel_order"])
-def test_closing_and_protecting_stay_possible_under_a_stop_request(action: str) -> None:
-    messages = [owner("stop trading now")]
-    assert request_refusal(messages, call("trade_execute", action=action)) is None
-    assert request_refusal(messages, call("trade_close_positions")) is None
-
-
-@pytest.mark.parametrize("text", ["استأنف التداول", "استئناف التداول", "resume trading"])
-def test_a_resume_request_is_never_answered_with_an_entry(text: str) -> None:
-    # G0 I07: «استأنف التداول» became a BUY 0.01 XAUUSD proposal.
-    refused = request_refusal([owner(text)], call("trade_execute", action="buy", symbol="XAUUSD"))
-    assert refused is not None and refused["code"] == "owner_control_request_no_entry"
+def test_no_entry_answers_a_resume_request() -> None:
+    # G0 probe: «استأنف التداول» became a BUY 0.01 XAUUSD proposal.
+    refused = request_refusal(state_of("استأنف التداول"), call("trade_execute", action="buy"))
+    assert refused and refused["code"] == "owner_control_request_no_entry"
     assert "owner_action_propose" in refused["message"]
 
 
-def test_only_the_latest_owner_message_counts() -> None:
-    entry = call("trade_execute", action="buy", symbol="EURUSD")
-    earlier = [owner("أوقف التداول"), ModelMessage(role="assistant", content="تم"), owner("اشتر")]
-    assert request_refusal(earlier, entry) is None
-    # A runtime notice or a tool observation is not the owner's word.
-    notice = ModelMessage(role="user", context_origin="tool_observation", content="stop trading")
-    assert request_refusal([owner("اشتر يورو"), notice], entry) is None
-    assert request_refusal([owner("أوقف التداول"), notice], entry) is not None
-
-
 @pytest.mark.parametrize(
-    "text",
+    "exit_call",
     [
-        "تم.",
-        "تم. عدّلت الشرط إلى فوق 2450 للذهب.",
-        "ألغيت التنبيه.",
-        "استأنفت التداول على الحساب التجريبي 7001234.",
-        "تم حفظه: 1% كحد أقصى لكل صفقة.",
-        "تم. سأجعلها للفضة على حساب التجريبي.",
-        "تم. حددت الأحد الساعة 10:00 صباحًا لمراجعة الصفقات.",
-        "لقد أوقفت الصفقات الجديدة.",
-        "أنشئت لك تنبيهًا على الذهب.",
-        "Done. The alert is set.",
-        "I've cancelled the alert.",
-        "I have paused trading for today.",
+        call("trade_execute", action="close_position"),
+        call("trade_execute", action="modify_position", stop_loss="1.08"),
+        call("trade_execute", action="cancel_order"),
+        call("trade_close_positions"),
     ],
 )
-def test_effect_claims_are_recognised(text: str) -> None:
-    assert claims_effect(text)
+@pytest.mark.parametrize("words", ["أوقف التداول", "استأنف التداول", "stop trading now"])
+def test_exits_are_never_blocked_by_a_control_request(words: str, exit_call: ToolCall) -> None:
+    assert request_refusal(state_of(words), exit_call) is None
 
 
-@pytest.mark.parametrize(
-    "text",
-    [
-        "الرصيد 9841.69 USD والصفقة المفتوحة شراء EURUSD.",
-        "سأنبّهك عندما يصعد الذهب فوق 2400 إذا وافقت.",
-        "التداول متوقف حاليًا؛ يمكنك استئنافه من زر «استئناف».",
-        "The trade that was opened yesterday is in profit.",
-        "I can cancel the alert if you want.",
-        "لم أنفّذ أي تغيير بعد.",
-    ],
-)
-def test_facts_offers_and_plans_are_not_claims(text: str) -> None:
-    assert not claims_effect(text)
+def test_a_goal_step_is_refused_only_when_it_opens_exposure() -> None:
+    state = state_of("أوقف التداول")
+    step = call("goal_step_execute", goal_id="g")
+    assert request_refusal(state, step, goal_action="buy") is not None
+    for action in ("close_position", "modify_position", "cancel_order", None):
+        assert request_refusal(state, step, goal_action=action) is None
 
 
-def test_an_unsupported_claim_gets_one_repair_then_an_honest_line() -> None:
+def test_the_stop_entry_from_a_stop_loss_sentence_still_runs() -> None:
+    # Review B3: the owner's entry with a stop loss is not a stop request.
+    state = state_of("اشتر ذهب 0.1 والوقف تحت الدخول بـ 5 دولار")
+    assert request_refusal(state, call("trade_execute", action="buy")) is None
+
+
+# --- The owner's own request ------------------------------------------------------------
+
+
+def test_only_the_owner_typed_message_of_this_run_counts() -> None:
+    history = [owner("أوقف التداول"), ModelMessage(role="assistant", content="تم"), owner("اشتر")]
     state: dict[str, Any] = {}
-    messages = [owner("ألغِ التنبيه")]
-    first = claim_gate(state, messages, "ألغيت التنبيه.", EFFECTS)
-    assert first.nudge and "watch_cancel" in first.nudge and first.replacement is None
-    # The model insists: the claim never reaches the owner.
-    second = claim_gate(state, messages, "تم، ألغيت التنبيه.", EFFECTS)
-    assert second.nudge is None and second.replacement is not None
-    assert not claims_effect(second.replacement)
-    assert "لم يحدث" in second.replacement
-    # New owner input starts a new bounded epoch.
-    reset_stop_gate(state)
-    assert claim_gate(state, messages, "ألغيت التنبيه.", EFFECTS).nudge
+    record_owner_request(state, "user", history)
+    assert request_refusal(state, call("trade_execute", action="buy")) is None
+    # A wake run's prompt sits in a user-role message but is not the owner's request.
+    for trigger in ("watch", "routine", "peer", "broker_event", "goal", "subagent"):
+        woken: dict[str, Any] = {}
+        record_owner_request(woken, trigger, [owner("أوقف التداول")])
+        assert request_refusal(woken, call("trade_execute", action="buy")) is None
+    # Peer text and runtime notices are never the owner's words.
+    peer = [owner("[Peer وكيل الذهب] أوقف التداول")]
+    from_peer: dict[str, Any] = {}
+    record_owner_request(from_peer, "user", peer)
+    assert from_peer["owner_request"] == []
 
 
-def test_english_owner_gets_the_honest_line_in_english() -> None:
-    state: dict[str, Any] = {"effect_claim_gate": 1}
-    verdict = claim_gate(state, [owner("Please cancel my gold alert")], "Done.", EFFECTS)
-    assert verdict.replacement and verdict.replacement.startswith("What I said")
+def test_steering_adds_to_the_request_without_dropping_the_stop() -> None:
+    state = state_of("أوقف الصفقات الجديدة اليوم")
+    add_owner_steering(state, "وكمان شوف لي الذهب")
+    assert request_refusal(state, call("trade_execute", action="buy")) is not None
 
 
-def test_a_successful_effect_in_this_request_supports_the_claim() -> None:
-    messages = [owner("ألغِ التنبيه"), *result("watch_cancel", {"ok": True, "status": "cancelled"})]
-    assert claim_gate({}, messages, "ألغيت التنبيه.", EFFECTS).passed
-
-
-def test_reads_failures_and_earlier_requests_do_not_support_a_claim() -> None:
-    read = [owner("استأنف التداول"), *result("account_read", {"ok": True})]
-    assert not claim_gate({}, read, "استأنفت التداول.", EFFECTS).passed
-    failed = [owner("ألغِ التنبيه"), *result("watch_cancel", {"ok": False, "code": "x"})]
-    assert not claim_gate({}, failed, "ألغيت التنبيه.", EFFECTS).passed
-    earlier = [
-        owner("احفظ هذا"),
-        *result("memory_write", {"ok": True}),
-        ModelMessage(role="assistant", content="تم حفظه."),
-        owner("ألغِ التنبيه"),
-    ]
-    assert not claim_gate({}, earlier, "ألغيت التنبيه.", EFFECTS).passed
-
-
-def test_a_cancellation_claim_needs_a_cancelling_tool() -> None:
-    # G0 J05: watch_create(enabled=false), then «تم الإلغاء».
-    created = [owner("ألغِ التنبيه"), *result("watch_create", {"ok": True})]
-    effects = EFFECTS | {"watch_create"}
-    assert not claim_gate({}, created, "تم الإلغاء.", effects).passed
-    assert not claim_gate({}, created, "I've cancelled the alert.", effects).passed
-    cancelled = [owner("ألغِ التنبيه"), *result("watch_cancel", {"ok": True})]
-    assert claim_gate({}, cancelled, "تم الإلغاء.", effects).passed
-    # Other claims still accept any successful effect.
-    assert claim_gate({}, created, "تم حفظ التنبيه.", effects).passed
-
-
-def test_a_limit_the_owner_adopts_is_not_a_memory_note() -> None:
-    # G0 I10: «اعتمد 1% كحد أقصى لكل صفقة» became memory_write and «تم حفظه».
-    note = call("memory_write", operations=[])
-    for text in ("اعتمد 1% كحد أقصى لكل صفقة", "set my max risk per trade to 1%"):
-        refused = request_refusal([owner(text)], note)
-        assert refused and refused["code"] == "owner_limit_request_not_memory"
-        assert "set_account_limits" in refused["message"]
-    assert request_refusal([owner("اعتمد 1% كحد أقصى لكل صفقة")], call("account_read")) is None
-    # Remembering a preference stays a memory note.
-    for text in ("تذكر أنني أفضّل الردود المختصرة", "remember my max risk is 1%", "خليها 2450"):
-        assert request_refusal([owner(text)], note) is None
-
-
-def test_a_reply_without_a_claim_passes_untouched() -> None:
-    state: dict[str, Any] = {}
-    assert claim_gate(state, [owner("كم الرصيد؟")], "الرصيد 9841.69 USD.", EFFECTS).passed
-    assert state == {}
-
-
-MQL5 = "```mql5\n" + "\n".join(f"int line{i} = {i};" for i in range(12)) + "\n```"
-
-
-def test_code_requested_by_the_owner_is_a_d5_deliverable() -> None:
-    assert code_requested("اكتب لي كود مؤشر RSI بلغة MQL5")
-    assert code_requested("Write me a Pine Script strategy")
-    assert not code_requested("حلل لي الذهب")
-    messages = [owner("اكتب لي كود مؤشر RSI بلغة MQL5")]
-    assert code_deliverable(messages, "هذا هو الكود:\n" + MQL5)
-    assert not code_deliverable(messages, "لا أسلّم الكود كمنتج.")
-
-
-def test_a_short_block_that_explains_stays_allowed() -> None:
-    # Q36: fenced code is allowed as explanation; only a deliverable is refused.
-    messages = [owner("Write me a Pine Script strategy")]
-    assert not code_deliverable(messages, "The idea:\n```pine\nfast = ta.sma(close, 9)\n```")
-    # Without the owner asking for code, a long block is not judged here.
-    assert not code_deliverable([owner("اشرح لي RSI")], MQL5)
+# --- Promotion ------------------------------------------------------------------------
 
 
 def test_the_owners_words_bring_the_control_tool_into_the_run() -> None:
-    assert requested_tools([owner("أوقف الصفقات الجديدة اليوم")]) == ["trade_restriction_create"]
-    assert requested_tools([owner("ألغِ التنبيه")]) == ["watch_list", "watch_cancel"]
-    assert requested_tools([owner("اختر لي نموذج الذكاء المناسب لوكيل الذهب")]) == [
+    assert requested_tools(state_of("أوقف الصفقات الجديدة اليوم")) == ["trade_restriction_create"]
+    assert requested_tools(state_of("ألغِ التنبيه")) == ["watch_list", "watch_cancel"]
+    assert requested_tools(state_of("اختر لي نموذج الذكاء المناسب لوكيل الذهب")) == [
         "model_list",
         "model_request",
     ]
-    assert requested_tools([owner("حلل الذهب حتى الغد")]) == []
-
-
-def test_hamza_forms_of_a_claim_are_recognised() -> None:
-    # Probe: «تم إلغاؤه» after watch_create.
-    created = [owner("ألغِ التنبيه"), *result("watch_create", {"ok": True})]
-    assert claims_effect("تم إلغاؤه.")
-    assert not claim_gate({}, created, "تم إلغاؤه.", EFFECTS | {"watch_create"}).passed
-
-
-def test_a_waiting_card_needs_a_proposed_card() -> None:
-    # Probe: I07 and I10 said the card «بانتظار لمستك» without proposing one.
-    nothing = [owner("استأنف التداول"), *result("list_accounts", {"ok": True})]
-    effects = EFFECTS | {"owner_action_propose", "list_accounts"}
-    for text in (
-        "بطاقة استئناف التداول بانتظار لمستك.",
-        "The resume card is waiting for your tap.",
-    ):
-        assert claims_effect(text)
-        assert not claim_gate({}, nothing, text, effects).passed
-    proposed = [owner("استأنف التداول"), *result("owner_action_propose", {"ok": True})]
-    assert claim_gate({}, proposed, "بطاقة استئناف التداول بانتظار لمستك.", effects).passed
-
-
-@pytest.mark.parametrize(
-    "text",
-    ["لا توقف الصفقات", "ما أوقفت التداول، كمّل", "don't stop trading", "never pause trading"],
-)
-def test_a_negated_stop_is_not_a_stop_request(text: str) -> None:
-    assert not stop_requested(text)
-
-
-def test_a_false_positive_fails_safe() -> None:
-    # A question about the words reads as a stop request: it can only refuse an entry,
-    # and the refusal says nothing was sent; it never claims a restriction exists.
-    messages = [owner("ماذا يعني أوقف الصفقات؟")]
-    refused = request_refusal(messages, call("trade_execute", action="buy", symbol="XAUUSD"))
-    assert refused and "nothing was sent" in refused["message"]
-    assert "created" not in refused["message"] and "recorded" not in refused["message"]
-    assert request_refusal(messages, call("trade_execute", action="close_position")) is None
-    assert request_refusal(messages, call("trade_close_positions")) is None
-
-
-@pytest.mark.parametrize("name", ["trade_execute", "trade_close_positions", "goal_step_execute"])
-def test_the_claim_repair_round_cannot_reach_a_financial_tool(name: str) -> None:
-    messages = [owner("اشتر الذهب"), ModelMessage(role="assistant", content="اشتريت الذهب.")]
-    assert request_refusal(messages, call(name, action="close_position")) is None
-    state: dict[str, Any] = {}
-    verdict = claim_gate(state, messages, "قمت بالشراء.", EFFECTS)
-    assert verdict.nudge
-    messages.append(notice_message("effect_claim_check", verdict.nudge))
-    refused = request_refusal(messages, call(name, action="close_position"))
-    assert refused and refused["code"] == "claim_repair_no_financial_call"
-    # Other tools stay available to do the work honestly.
-    assert request_refusal(messages, call("watch_cancel")) is None
-
-
-def test_the_honest_line_does_not_say_nothing_happened() -> None:
-    # A successful effect of another kind may exist (J05: watch_create, then «تم الإلغاء»).
-    created = [owner("ألغِ التنبيه"), *result("watch_create", {"ok": True})]
-    state: dict[str, Any] = {"effect_claim_gate": 1}
-    line = claim_gate(state, created, "تم الإلغاء.", EFFECTS | {"watch_create"}).replacement
-    assert line and "لم يؤكده" in line and "أي تغيير" not in line
+    for text in ("حلل الذهب حتى الغد", "هل هذا نموذج رأس وكتفين؟", "علّق على الذهب"):
+        assert requested_tools(state_of(text)) == []
 
 
 @pytest.mark.parametrize("scope", ["full", "observe_only", "helper"])
@@ -316,10 +236,252 @@ def test_promoted_control_tools_are_never_financial_and_keep_scope(scope: ToolSc
     for profiles in sets:
         base, _ = registry.exposure(profiles, scope=scope)
         for text in words:
-            remembered = requested_tools([owner(text)])
+            remembered = requested_tools(state_of(text))
             native, _ = registry.exposure(profiles, scope=scope, remembered=remembered)
             added = set(native) - set(base)
             assert all(not registry.tools[name].financial for name in added)
             assert all(registry.tools[name].permitted(scope) for name in added)
             if scope != "helper":
                 assert added == set(remembered)
+
+
+# --- Limits --------------------------------------------------------------------------
+
+
+def test_a_limit_the_owner_adopts_is_not_a_memory_note() -> None:
+    note = call("memory_write", operations=[])
+    for text in ("اعتمد 1% كحد أقصى لكل صفقة", "set my max risk per trade to 1%"):
+        refused = request_refusal(state_of(text), note)
+        assert refused and refused["code"] == "owner_limit_request_not_memory"
+        assert "set_account_limits" in refused["message"]
+    for text in ("تذكر أنني أفضّل الردود المختصرة", "remember my max risk is 1%", "خليها 2450"):
+        assert request_refusal(state_of(text), note) is None
+
+
+# --- The claim repair turn never increases risk -----------------------------------------
+
+
+def test_the_claim_repair_turn_refuses_only_risk_increasing_calls() -> None:
+    state = state_of("ألغِ التنبيه")
+    state["effect_claim_gate"] = 1
+    for increasing in (
+        call("trade_execute", action="buy"),
+        call("trade_execute", action="modify_order"),
+        call("trade_execute", action="modify_position", clear_stop_loss=True),
+    ):
+        refused = request_refusal(state, increasing)
+        assert refused and refused["code"] == "claim_repair_no_new_risk"
+    assert request_refusal(state, call("goal_step_execute"), goal_action="sell") is not None
+    for exit_call in (
+        call("trade_execute", action="close_position"),
+        call("trade_execute", action="cancel_order"),
+        call("trade_execute", action="modify_position", stop_loss="1.08"),
+        call("trade_close_positions"),
+        call("watch_cancel"),
+    ):
+        assert request_refusal(state, exit_call) is None
+    assert request_refusal(state, call("goal_step_execute"), goal_action="close_position") is None
+
+
+# --- Effect claims --------------------------------------------------------------------
+
+CLAIMS = [
+    ("تم.", {"generic"}),
+    ("تم. عدّلت الشرط إلى فوق 2450 للذهب.", {"generic"}),
+    ("ألغيت التنبيه.", {"cancel"}),
+    ("تم إلغاء التنبيه.", {"cancel"}),
+    ("تم إلغاؤه.", {"cancel"}),
+    ("استأنفت التداول على الحساب التجريبي 7001234.", {"resume"}),
+    ("تم حفظه: 1% كحد أقصى لكل صفقة.", {"generic"}),
+    ("لقد أوقفت التداول لليوم.", {"stop"}),
+    ("تم إيقاف التداول اليوم.", {"stop"}),
+    ("أنشئت لك تنبيهًا على الذهب.", {"generic"}),
+    ("بطاقة استئناف التداول بانتظار لمستك.", {"card"}),
+    ("Done.", {"generic"}),
+    ("I've cancelled the alert.", {"cancel"}),
+    ("I have paused trading for today.", {"stop"}),
+    ("Cancelled the alert.", {"cancel"}),
+    ("The resume card is waiting for your tap.", {"card"}),
+]
+NOT_CLAIMS = [
+    "سجلت الفضة ارتفاعاً قوياً اليوم.",
+    "ثبتت الأسعار قرب 2368.",
+    "قمت بتحليل الذهب على الإطار اليومي.",
+    "تم تحديد مستويات الدعم عند 2350 و2330.",
+    "لم يتم إلغاء التنبيه بعد.",
+    "ما ألغيت التنبيه، هل تريد ذلك؟",
+    "I haven't cancelled it yet.",
+    "I have not paused trading.",
+    "| 1201 | EURUSD | cancelled |\n| 1202 | XAUUSD | filled |",
+    "الرصيد 9841.69 USD والصفقة المفتوحة شراء EURUSD.",
+    "سأنبّهك عندما يصعد الذهب فوق 2400 إذا وافقت.",
+    "التداول متوقف حاليًا؛ يمكنك استئنافه من زر «استئناف».",
+    "I can cancel the alert if you want.",
+    "Set the stop at 1.08 if you agree.",
+    "```\nstatus: cancelled\n```",
+]
+
+
+@pytest.mark.parametrize(("text", "kinds"), CLAIMS)
+def test_action_claims_are_recognised_with_their_kind(text: str, kinds: set[str]) -> None:
+    assert claim_kinds(text) == kinds
+
+
+@pytest.mark.parametrize("text", NOT_CLAIMS)
+def test_analysis_denials_offers_and_tables_are_not_claims(text: str) -> None:
+    assert claim_kinds(text) == set()
+
+
+def test_only_an_action_request_can_be_gated() -> None:
+    assert action_requested("ألغِ التنبيه") and action_requested("خليها 2450")
+    assert action_requested("Please cancel my gold alert")
+    for text in ("كم الرصيد؟", "حلل الذهب", "أنهيت جلسة تركيز (25 دقيقة)", "ما رأيك في الفضة؟"):
+        assert not action_requested(text)
+    # A question gets no claim check, even when the reply says «تم».
+    assert claim_gate(state_of("كم الرصيد؟"), [], "تم.", EFFECTS).passed
+
+
+def test_an_unsupported_claim_gets_one_repair_then_one_appended_line() -> None:
+    state = state_of("ألغِ التنبيه")
+    first = claim_gate(state, [], "ألغيت التنبيه.", EFFECTS)
+    assert first.nudge == CLAIM_NUDGE and first.appended is None
+    second = claim_gate(state, [], "تم، ألغيت التنبيه.", EFFECTS)
+    assert second.nudge is None and second.appended == "لم أتمكن من تأكيد ذلك بعد."
+    reset_stop_gate(state)
+    assert claim_gate(state, [], "ألغيت التنبيه.", EFFECTS).nudge
+
+
+def test_the_honest_line_follows_the_owners_language() -> None:
+    state = state_of("Please cancel my gold alert")
+    state["effect_claim_gate"] = 1
+    assert claim_gate(state, [], "Done.", EFFECTS).appended == "I could not confirm that yet."
+
+
+def with_results(
+    words: str, *results: list[ModelMessage]
+) -> tuple[dict[str, Any], list[ModelMessage]]:
+    messages = [owner(words), *(item for block in results for item in block)]
+    state: dict[str, Any] = {}
+    record_owner_request(state, "user", messages[:1])
+    return state, messages
+
+
+def test_each_kind_needs_its_own_support() -> None:
+    ok = {"ok": True}
+    confirmed = {"status": "confirmed", "details": {"verification": {"status": "verified"}}}
+    cases = [
+        ("ألغِ التنبيه", "ألغيت التنبيه.", result("watch_cancel", ok), True),
+        # J05: a created watch does not support a cancellation.
+        ("ألغِ التنبيه", "تم إلغاء التنبيه.", result("watch_create", ok), False),
+        (
+            "ألغِ الأمر",
+            "ألغيت الأمر.",
+            result("trade_execute", confirmed, action="cancel_order"),
+            True,
+        ),
+        (
+            "سكّر الصفقة",
+            "تم إغلاق الصفقة.",
+            result("trade_execute", confirmed, action="close_position"),
+            True,
+        ),
+        ("أوقف التداول", "أوقفت التداول.", result("trade_restriction_create", ok), True),
+        # Review C10: a memory note never supports a stopped trading claim.
+        ("أوقف التداول", "أوقفت التداول.", result("memory_write", ok), False),
+        # Only the owner resumes trading.
+        ("استأنف التداول", "استأنفت التداول.", result("owner_action_propose", ok), False),
+        ("استأنف التداول", "البطاقة بانتظار لمستك.", result("owner_action_propose", ok), True),
+        ("خليها 2450", "تم حفظ التنبيه.", result("watch_create", ok), True),
+        (
+            "ألغِ التنبيه",
+            "ألغيت التنبيه.",
+            result("watch_cancel", {"ok": False, "code": "x"}),
+            False,
+        ),
+    ]
+    for words, reply, block, supported in cases:
+        state, messages = with_results(words, block)
+        assert claim_gate(state, messages, reply, EFFECTS).passed is supported, (words, reply)
+
+
+def test_an_effect_earlier_in_the_request_counts_after_steering() -> None:
+    state, messages = with_results("ألغِ التنبيه", result("watch_cancel", {"ok": True}))
+    messages.append(owner("وشوف لي الذهب كمان"))
+    add_owner_steering(state, "وشوف لي الذهب كمان")
+    messages.append(ModelMessage(role="user", content="[peer] outcome"))
+    assert claim_gate(state, messages, "ألغيت التنبيه.", EFFECTS).passed
+
+
+def test_an_uncertain_outcome_is_never_repaired_and_never_invites_a_retry() -> None:
+    for payload in ({"ok": False, "code": "tool_execution_uncertain"}, {"status": "ambiguous"}):
+        state, messages = with_results(
+            "ألغِ الأمر", result("trade_execute", payload, action="cancel_order")
+        )
+        verdict = claim_gate(state, messages, "ألغيت الأمر.", EFFECTS)
+        assert verdict.nudge is None and verdict.appended
+        assert "غير مؤكدة" in verdict.appended and "لن أعيد الإرسال" in verdict.appended
+
+
+def test_the_tool_less_final_report_gets_the_line_too() -> None:
+    # Review C13: a nudge on the second-to-last round ends in finish_turn.
+    state = state_of("ألغِ التنبيه")
+    state["effect_claim_gate"] = 1
+    assert unconfirmed_line(state, [], "ألغيت التنبيه.", EFFECTS) == "لم أتمكن من تأكيد ذلك بعد."
+    assert unconfirmed_line(state, [], "لم أُلغِ التنبيه بعد.", EFFECTS) is None
+
+
+def test_wake_runs_are_never_gated() -> None:
+    for trigger in ("broker_event", "goal", "owner_card", "follow_up", "activation", "watch"):
+        state: dict[str, Any] = {}
+        record_owner_request(state, trigger, [owner("ألغِ التنبيه")])
+        assert claim_gate(state, [], "ألغيت التنبيه.", EFFECTS).passed
+
+
+# --- D5 --------------------------------------------------------------------------------
+
+PROGRAM = "```mql5\n" + "\n".join(f"double buffer{i}[];" for i in range(12)) + "\n```"
+CODE_FIRES = [
+    "اكتب لي كود مؤشر RSI بلغة MQL5",
+    "Write me a Pine Script strategy",
+    "give me a python script to backtest gold",
+    "ابني لي اكسبرت للذهب",
+    "write an EA for EURUSD",
+]
+CODE_SILENT = [
+    "ما معنى كود خطأ 10019 من الوسيط؟",
+    "أرسل لي كود الدعوة",
+    "هل يتجه الاقتصاد إلى ركود؟",
+    "برمجة تنبيه على الذهب فوق 2400",
+    "اشرح لي مؤشر RSI",
+    "حلل لي الذهب",
+]
+
+
+@pytest.mark.parametrize("text", CODE_FIRES)
+def test_program_requests_fire(text: str) -> None:
+    assert code_requested(text)
+
+
+@pytest.mark.parametrize("text", CODE_SILENT)
+def test_code_lookalikes_stay_silent(text: str) -> None:
+    assert not code_requested(text)
+
+
+def test_only_the_program_block_is_replaced() -> None:
+    reply = "هذه فكرة المؤشر.\n" + PROGRAM + "\nوهذه طريقة قراءته."
+    stripped = strip_code_deliverable("اكتب لي كود مؤشر RSI بلغة MQL5", reply)
+    assert "buffer" not in stripped and stripped.startswith("هذه فكرة المؤشر.")
+    assert "لا أسلّم الكود" in stripped and stripped.endswith("وهذه طريقة قراءته.")
+    tilde = "~~~python\n" + "\n".join(f"x{i} = {i}" for i in range(10)) + "\n~~~"
+    assert "x9" not in strip_code_deliverable("give me a python script", tilde)
+
+
+def test_display_fences_and_explanations_are_never_touched() -> None:
+    words = "Write me a Pine Script strategy"
+    card = "```lonora-ui\n" + "\n".join(f'{{"n": {i}}}' for i in range(12)) + "\n```"
+    data = "```json\n" + "\n".join(f'{{"n": {i}}},' for i in range(12)) + "\n```"
+    short = "The idea:\n```pine\nfast = ta.sma(close, 9)\n```"
+    for reply in (card, data, short):
+        assert strip_code_deliverable(words, reply) == reply
+    # Without a program request a long block is not judged.
+    assert strip_code_deliverable("اشرح لي RSI", PROGRAM) == PROGRAM

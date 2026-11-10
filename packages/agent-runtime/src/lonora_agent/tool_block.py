@@ -7,6 +7,7 @@ from typing import Any, cast
 
 from lonora_adapter_kit.types import ModelMessage, ToolCall
 from lonora_core.user_error import LonoraError
+from lonora_db.trading_goals import owned_goal, planned_step
 from lonora_session.idempotency import request_hash
 from lonora_tools.base import Tool, ToolScope
 from lonora_tools.context import ToolContext
@@ -277,6 +278,20 @@ async def result_content(context: ToolContext, call: ToolCall, result: dict[str,
     return json.dumps(summary, ensure_ascii=False)
 
 
+async def goal_step_action(context: ToolContext, call: ToolCall) -> str | None:
+    """The trade action of the goal step a goal_step_execute would run, if it trades."""
+    if call.name != "goal_step_execute" or not isinstance(call.arguments.get("goal_id"), str):
+        return None
+    try:
+        async with context.db.sessions() as session:
+            goal = await owned_goal(session, context.owner_id, call.arguments["goal_id"])
+            step = planned_step(goal, call.arguments.get("step_id"))
+    except LonoraError:
+        # The handler reports the same failure; nothing here runs it.
+        return None
+    return step.trade.action if step.trade else None
+
+
 async def run_and_record_segment(
     context: ToolContext,
     registry: ToolRegistry,
@@ -295,7 +310,12 @@ async def run_and_record_segment(
     """
     segment = next_segment(pending, registry.tools)
     # Effects run alone; a call that cannot answer the owner's control request is refused.
-    refusal = request_refusal(messages, segment.calls[0]) if segment.kind == "serial" else None
+    first = segment.calls[0]
+    refusal = (
+        request_refusal(state, first, goal_action=await goal_step_action(context, first))
+        if segment.kind == "serial"
+        else None
+    )
     if refusal:
         call = segment.calls[0]
         await progress(

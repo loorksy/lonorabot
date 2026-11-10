@@ -21,7 +21,7 @@ from .context.image_observations import prepare_image_observations
 from .context.team import refresh_routing_context
 from .progress import progress
 from .public_stream import PublicStream
-from .reply_gates import code_decline, code_deliverable, code_requested, owner_words
+from .reply_gates import code_requested, strip_code_deliverable
 from .skills.system_policy import apply_operating_policy
 from .stream_publication import StreamPublication
 from .visual_response import VisualReplyProjector, visual_observation_catalog
@@ -38,6 +38,7 @@ async def model_turn(
     policy_tools: Collection[str] | None = None,
     context_view: Callable[[list[ModelMessage]], list[ModelMessage]] | None = None,
     input_scale: float = 1.0,
+    owner_request: str = "",
 ) -> tuple[ModelReply, ModelSelection]:
     """One model request. ``resolve_calls`` turns stable bridge calls into the
     real calls before the financial-truth gates below and before the loop sees
@@ -47,7 +48,7 @@ async def model_turn(
     only; every gate below still reads the complete canonical ``messages``.
     The router tries the Run's chosen model, then this Agent's own model choice;
     ``input_scale`` is the Run's admission scale after a provider-proven context
-    overflow.
+    overflow; ``owner_request`` is the owner's own words this Run answers (D5).
     """
     preparation_started = monotonic()
     stage_started = preparation_started
@@ -96,7 +97,7 @@ async def model_turn(
     incremental_allowed = (
         not unverified_financial_result(messages)
         and not unsettled_wait_result(messages)
-        and not code_requested(owner_words(messages))
+        and not code_requested(owner_request)
     )
     streaming = PublicStream(set(), public_ids, enabled=incremental_allowed)
     projector = VisualReplyProjector(context, messages)
@@ -217,9 +218,10 @@ async def model_turn(
         result_summary = unsettled_wait_result(messages)
         if result_summary:
             reply = reply.model_copy(update={"text": result_summary})
-    elif code_deliverable(messages, reply.text):
-        # D5: no code as a deliverable; Q36 keeps a short explanatory block.
-        reply = reply.model_copy(update={"text": code_decline(messages)})
+    else:
+        # D5: a program answering a request for one is replaced by a decline; the rest
+        # of the reply, display fences and Q36 explanation blocks stay.
+        reply = reply.model_copy(update={"text": strip_code_deliverable(owner_request, reply.text)})
     # Style is model guidance, never a second generation or a failed user
     # request. Sensitive spans are removed deterministically from the actual
     # answer; financial truth was established above and is not rewritten.

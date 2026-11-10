@@ -6,6 +6,7 @@ from lonora_db.steering import consume_steering, user_interrupt_pending
 from lonora_tools.context import ToolContext
 
 from .context.attachments import attachment_context
+from .reply_gates import add_owner_steering
 from .stop_gates import reset_stop_gate
 from .tool_guardrails import reset_guardrails
 
@@ -22,6 +23,8 @@ async def merge_steering(
     async with context.db.sessions() as session, session.begin():
         fresh = await consume_steering(session, context.lease)
         for row in fresh:
+            if row.role == "user":
+                add_owner_steering(state, row.content)
             notes, images = (
                 await attachment_context(
                     session, context.owner_id, context.thread_id, row.seq, context.artifact_root

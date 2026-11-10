@@ -98,7 +98,7 @@ async def ensure_exposure(
     profiles = run_profiles(agent, task_run, supervises=supervising)
     unavailable = await registry.availability(context)
     # The owner-control tools this request names come first, then remembered ones.
-    requested = requested_tools(messages)
+    requested = requested_tools(state)
     native, promoted = registry.exposure(
         profiles,
         scope=scope,
