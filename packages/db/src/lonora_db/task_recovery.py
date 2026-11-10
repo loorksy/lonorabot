@@ -105,7 +105,10 @@ async def record_failure(session: AsyncSession, run: RunRow, read_only_names: se
     ):
         return
     state = task_state(row)
-    if state.status in {"completed", "cancelled"} or state.control_requested == "cancel":
+    if state.status in {"completed", "cancelled"} or state.control_requested in {
+        "cancel",
+        "complete",
+    }:
         return
     if state.failure and (state.failure.run_id, state.failure.lease_fence) == (
         run.id,

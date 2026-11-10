@@ -9,7 +9,7 @@ from uuid import uuid4
 from check_streaming import Fixture
 from lonora_contracts.domain import AgentCreate, utcnow
 from lonora_db.agents import agent_data, create_agent
-from lonora_db.schema import RunRow, TradingJournalRow
+from lonora_db.schema import AttentionRow, RunRow, TradingJournalRow
 from lonora_db.threads import conversation_thread
 from lonora_gateway.attention import attention_tick
 from lonora_gateway.liveness import Liveness
@@ -61,15 +61,35 @@ async def main():
                     result={"details": {"execution": {"agent_id": desk["id"], "run_id": run.id}}},
                 )
             )
+            # A plain update «تحديد الكل كمقروء» marks read (critical items stay unread, Q4).
+            info_key = "browser-info-" + uuid4().hex[:12]
+            session.add(
+                AttentionRow(
+                    owner_id=fixture.owner,
+                    agent_id=desk["id"],
+                    thread_id=thread.id,
+                    logical_key=info_key,
+                    coalesce_key=info_key,
+                    importance="important_change",
+                    code="internal_update",
+                    due_at=utcnow(),
+                )
+            )
         await Watchdog(fixture.runtime.db, Liveness(), set()).aging_operations()
         notifications = (await fixture.client.get("/api/attention")).json()
         alert = next(row for row in notifications if row["code"] == "emergency_stop")
         uncertain = next(row for row in notifications if row["code"] == "operation_unresolved")
+        informational = next(
+            row
+            for row in notifications
+            if row["code"] == "internal_update" and row["agent_id"] == desk["id"]
+        )
         print(
             json.dumps(
                 {
                     "notification": alert,
                     "uncertain": uncertain,
+                    "informational": informational,
                     "agent": {"id": desk["id"], "name": desk["name"]},
                     "cookies": cookies(fixture),
                 }

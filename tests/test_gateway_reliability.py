@@ -523,6 +523,32 @@ async def test_the_watchdog_reports_aging_operations_overdue_wakes_and_stalls_on
 
 
 @pytest.mark.asyncio
+async def test_a_fired_one_shot_switched_back_on_is_not_an_overdue_wake(
+    task_db: Fixture,
+) -> None:
+    db, owner, agent, thread = task_db
+    async with db.sessions() as session, session.begin():
+        past = utcnow() - timedelta(hours=1)
+        session.add(
+            RoutineRow(
+                owner_id=owner,
+                agent_id=agent,
+                thread_id=thread,
+                prompt="once",
+                run_at=past,
+                next_run_at=past,
+                last_run_at=past,
+                # It fired, then something switched it back on without a new time.
+                enabled=True,
+            )
+        )
+    watchdog = Watchdog(db, Liveness(), set())
+    assert await watchdog.overdue_wakes() == 0
+    assert "overdue" not in watchdog.episodes
+    assert await system_items(db, owner, "gateway_degraded") == []
+
+
+@pytest.mark.asyncio
 async def test_drain_releases_leases_with_the_fence_kept_so_resume_is_immediate(
     task_db: Fixture,
 ) -> None:

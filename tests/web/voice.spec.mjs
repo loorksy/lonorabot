@@ -316,7 +316,8 @@ test("compact call survives navigation with its origin, real track mute and orde
     await page.getByRole("button", { name: "Minimize call", exact: true }).click();
     await page.getByRole("button", { name: "Chat menu", exact: true }).click();
     await page.locator("#dialog").getByRole("button", { name: "Agent files", exact: true }).click();
-    await expect(page).toHaveURL(/\/app\/artifacts$/);
+    // «الملفات» of this agent (UI phase 4b).
+    await expect(page).toHaveURL(/\/app\/artifacts\?agent=[^&]+$/);
     // The call strip of other screens is the calls phase; the call itself keeps running.
     await page.locator(`.desktop-list [data-inbox-agent-id="${other.id}"]`).click();
     await page.getByRole("button", { name: "Open active call", exact: true }).click();

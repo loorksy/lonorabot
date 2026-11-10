@@ -8,7 +8,7 @@ from lonora_contracts.domain import utcnow
 from lonora_core.user_error import LonoraError
 from lonora_db.schema import AnalyticalWorkspaceRow, EffectReceiptRow, SkillRow
 from lonora_db.skill_controls import read_skill_controls
-from lonora_db.skills import SkillRepository
+from lonora_db.skills import SkillRepository, record_version
 from lonora_session.idempotency import request_hash
 from lonora_tools.context import ToolContext
 from lonora_tools.registry import ToolRegistry
@@ -303,6 +303,7 @@ async def install_entry(
             state = retained
             state.versions.append(entry)
             row.payload, row.version, row.updated_at = payload, row.version + 1, utcnow()
+            record_version(session, row)
         else:
             if arguments["expected_version"] != 0:
                 raise LonoraError("version_conflict", 409)
@@ -434,6 +435,7 @@ async def validate_package(context: ToolContext, arguments: dict[str, Any]) -> d
             row.version + 1,
             utcnow(),
         )
+        record_version(session, row)
         result = describe(
             row,
             entry,
@@ -520,6 +522,7 @@ async def control_package(
             raise LonoraError("skill_package_action_invalid", 422)
         await validate_graph(session, context, registry, row.payload, row.id)
         row.version, row.updated_at = row.version + 1, utcnow()
+        record_version(session, row)
         result = describe(row, entry, status=action)
         save_receipt(session, context, digest, result)
         return result
