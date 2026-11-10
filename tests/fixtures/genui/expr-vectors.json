@@ -1,0 +1,484 @@
+{
+ "values": {
+  "symbol": "XAUUSD",
+  "dir": "above",
+  "price": 2400,
+  "empty": null,
+  "s": "",
+  "list": [
+   1,
+   2,
+   3
+  ],
+  "obj": {
+   "a": 1,
+   "b": true
+  },
+  "t": "abc",
+  "n": 0,
+  "neg": -2.5
+ },
+ "facts": {
+  "xau": 2368.4,
+  "xag": 28.92,
+  "eur": 1.0842,
+  "col": [
+   1,
+   2,
+   3,
+   4
+  ],
+  "txt": "hi"
+ },
+ "cases": [
+  {
+   "src": "1+2*3",
+   "expected": 7
+  },
+  {
+   "src": "(1+2)*3",
+   "expected": 9
+  },
+  {
+   "src": "10/4",
+   "expected": 2.5
+  },
+  {
+   "src": "10/0",
+   "expected": 0
+  },
+  {
+   "src": "7%3",
+   "expected": 1
+  },
+  {
+   "src": "7%0",
+   "expected": 0
+  },
+  {
+   "src": "-3+1",
+   "expected": -2
+  },
+  {
+   "src": "!0",
+   "expected": true
+  },
+  {
+   "src": "!1",
+   "expected": false
+  },
+  {
+   "src": "!''",
+   "expected": true
+  },
+  {
+   "src": "1==1",
+   "expected": true
+  },
+  {
+   "src": "1=='1'",
+   "expected": true
+  },
+  {
+   "src": "'a'=='a'",
+   "expected": true
+  },
+  {
+   "src": "null==null",
+   "expected": true
+  },
+  {
+   "src": "null==0",
+   "expected": false
+  },
+  {
+   "src": "true==1",
+   "expected": true
+  },
+  {
+   "src": "1!=2",
+   "expected": true
+  },
+  {
+   "src": "'a'+1",
+   "expected": "a1"
+  },
+  {
+   "src": "1+'a'",
+   "expected": "1a"
+  },
+  {
+   "src": "null+1",
+   "expected": 1
+  },
+  {
+   "src": "2.5*2",
+   "expected": 5
+  },
+  {
+   "src": "0.1+0.2",
+   "expected": 0.30000000000000004
+  },
+  {
+   "src": "1<2",
+   "expected": true
+  },
+  {
+   "src": "'a'<'b'",
+   "expected": true
+  },
+  {
+   "src": "2>=2",
+   "expected": true
+  },
+  {
+   "src": "true&&'x'",
+   "expected": "x"
+  },
+  {
+   "src": "0||'d'",
+   "expected": "d"
+  },
+  {
+   "src": "null||0",
+   "expected": 0
+  },
+  {
+   "src": "1?2:3",
+   "expected": 2
+  },
+  {
+   "src": "0?2:3",
+   "expected": 3
+  },
+  {
+   "src": "1?0?5:6:7",
+   "expected": 6
+  },
+  {
+   "src": "$symbol",
+   "expected": "XAUUSD"
+  },
+  {
+   "src": "$price",
+   "expected": 2400
+  },
+  {
+   "src": "$empty",
+   "expected": null
+  },
+  {
+   "src": "$missing",
+   "expected": null
+  },
+  {
+   "src": "$price>2000&&$dir=='above'",
+   "expected": true
+  },
+  {
+   "src": "$list.length",
+   "expected": 3
+  },
+  {
+   "src": "$list[1]",
+   "expected": 2
+  },
+  {
+   "src": "$list[9]",
+   "expected": null
+  },
+  {
+   "src": "$t.length",
+   "expected": 3
+  },
+  {
+   "src": "$obj.a",
+   "expected": 1
+  },
+  {
+   "src": "$obj['b']",
+   "expected": true
+  },
+  {
+   "src": "$obj.constructor",
+   "expected": null
+  },
+  {
+   "src": "$neg*2",
+   "expected": -5
+  },
+  {
+   "src": "@Pick($symbol,'XAUUSD',1,'XAGUSD',2,3)",
+   "expected": 1
+  },
+  {
+   "src": "@Pick('EURUSD','XAUUSD',1,'XAGUSD',2,3)",
+   "expected": 3
+  },
+  {
+   "src": "@Pick('x','a',1)",
+   "expected": null
+  },
+  {
+   "src": "@Fact('xau')",
+   "expected": 2368.4
+  },
+  {
+   "src": "@Fact('nope')",
+   "expected": null
+  },
+  {
+   "src": "@Fact('col')",
+   "expected": [
+    1,
+    2,
+    3,
+    4
+   ]
+  },
+  {
+   "src": "@Round(2.345,2)",
+   "expected": 2.35
+  },
+  {
+   "src": "@Round(2.5)",
+   "expected": 3
+  },
+  {
+   "src": "@Round(-2.5)",
+   "expected": -2
+  },
+  {
+   "src": "@Round('x')",
+   "expected": null
+  },
+  {
+   "src": "@Floor(2.7)",
+   "expected": 2
+  },
+  {
+   "src": "@Ceil(2.1)",
+   "expected": 3
+  },
+  {
+   "src": "@Abs(-3)",
+   "expected": 3
+  },
+  {
+   "src": "@Sqrt(9)",
+   "expected": 3
+  },
+  {
+   "src": "@Sqrt(-1)",
+   "expected": null
+  },
+  {
+   "src": "@Min(3,1,2)",
+   "expected": 1
+  },
+  {
+   "src": "@Max([1,5],3)",
+   "expected": 5
+  },
+  {
+   "src": "@Min()",
+   "expected": null
+  },
+  {
+   "src": "@Pow(2,10)",
+   "expected": 1024
+  },
+  {
+   "src": "@Clamp(5,0,3)",
+   "expected": 3
+  },
+  {
+   "src": "@Clamp(-1,0,3)",
+   "expected": 0
+  },
+  {
+   "src": "@Clamp(1,3,0)",
+   "expected": null
+  },
+  {
+   "src": "@If(1,'a','b')",
+   "expected": "a"
+  },
+  {
+   "src": "@If(0,'a')",
+   "expected": null
+  },
+  {
+   "src": "@Len([1,2])",
+   "expected": 2
+  },
+  {
+   "src": "@Len('abc')",
+   "expected": 3
+  },
+  {
+   "src": "@Len(null)",
+   "expected": 0
+  },
+  {
+   "src": "@Count([1,true,true],true)",
+   "expected": 3
+  },
+  {
+   "src": "@Sum([1,2,3])",
+   "expected": 6
+  },
+  {
+   "src": "@Avg([2,4])",
+   "expected": 3
+  },
+  {
+   "src": "@Avg([])",
+   "expected": null
+  },
+  {
+   "src": "@Range(1,5)",
+   "expected": [
+    1,
+    2,
+    3,
+    4,
+    5
+   ]
+  },
+  {
+   "src": "@Range(0,1,0.5)",
+   "expected": [
+    0,
+    0.5,
+    1
+   ]
+  },
+  {
+   "src": "@Range(0,500)",
+   "expected": null
+  },
+  {
+   "src": "@Includes(['a','b'],'b')",
+   "expected": true
+  },
+  {
+   "src": "@Includes([1,2],'1')",
+   "expected": true
+  },
+  {
+   "src": "@First([4,5])",
+   "expected": 4
+  },
+  {
+   "src": "@Last([4,5])",
+   "expected": 5
+  },
+  {
+   "src": "@Last([])",
+   "expected": null
+  },
+  {
+   "src": "@Default(null,5)",
+   "expected": 5
+  },
+  {
+   "src": "@Default('',5)",
+   "expected": 5
+  },
+  {
+   "src": "@Default(0,5)",
+   "expected": 0
+  },
+  {
+   "src": "@Take([1,2,3],2)",
+   "expected": [
+    1,
+    2
+   ]
+  },
+  {
+   "src": "@Take([1,2,3],-1)",
+   "expected": [
+    3
+   ]
+  },
+  {
+   "src": "@Change([1,3,6])",
+   "expected": [
+    0,
+    2,
+    3
+   ]
+  },
+  {
+   "src": "@Cumulative([1,2,3])",
+   "expected": [
+    1,
+    3,
+    6
+   ]
+  },
+  {
+   "src": "@MovingAvg([1,2,3,4],2)",
+   "expected": [
+    1,
+    1.5,
+    2.5,
+    3.5
+   ]
+  },
+  {
+   "src": "@Allocate(100,[1,1,1])",
+   "expected": [
+    33.34,
+    33.33,
+    33.33
+   ]
+  },
+  {
+   "src": "@Allocate(10,[0,0])",
+   "expected": null
+  },
+  {
+   "src": "@Score($obj,[1,true])",
+   "expected": 0
+  },
+  {
+   "src": "@Clamp(@Default($empty,1),1,10)",
+   "expected": 1
+  },
+  {
+   "src": "@Abs(($price-@Fact('xau'))/@Fact('xau')*100)",
+   "expected": 1.3342340820807257
+  },
+  {
+   "src": "@Unknown(1)",
+   "expected": null
+  },
+  {
+   "src": "1+",
+   "expected": null
+  },
+  {
+   "src": "(1",
+   "expected": null
+  },
+  {
+   "src": "'unterminated",
+   "expected": null
+  },
+  {
+   "src": "$__proto__",
+   "expected": null
+  },
+  {
+   "src": "[1,2,3][0]",
+   "expected": 1
+  },
+  {
+   "src": "@Join(['a','b'],'-')",
+   "expected": "a-b"
+  }
+ ]
+}

@@ -1,0 +1,342 @@
+{
+ "cases": [
+  {
+   "watch": {
+    "kind": "price",
+    "symbol": "XAUUSD",
+    "condition": "above",
+    "level": "2400",
+    "indicator": null,
+    "timeframe": null,
+    "metric": null
+   },
+   "locale": "ar",
+   "expected": "⁨XAUUSD⁩ فوق ⁨2400⁩"
+  },
+  {
+   "watch": {
+    "kind": "price",
+    "symbol": "XAUUSD",
+    "condition": "above",
+    "level": "2400",
+    "indicator": null,
+    "timeframe": null,
+    "metric": null
+   },
+   "locale": "en",
+   "expected": "⁨XAUUSD⁩ above ⁨2400⁩"
+  },
+  {
+   "watch": {
+    "kind": "price",
+    "symbol": "EURUSD",
+    "condition": "below",
+    "level": "1.08",
+    "indicator": null,
+    "timeframe": null,
+    "metric": null
+   },
+   "locale": "ar",
+   "expected": "⁨EURUSD⁩ تحت ⁨1.08⁩"
+  },
+  {
+   "watch": {
+    "kind": "price",
+    "symbol": "EURUSD",
+    "condition": "below",
+    "level": "1.08",
+    "indicator": null,
+    "timeframe": null,
+    "metric": null
+   },
+   "locale": "en",
+   "expected": "⁨EURUSD⁩ below ⁨1.08⁩"
+  },
+  {
+   "watch": {
+    "kind": "price",
+    "symbol": "XAUUSD",
+    "condition": "cross_above",
+    "level": "0",
+    "indicator": null,
+    "timeframe": null,
+    "metric": null
+   },
+   "locale": "ar",
+   "expected": "⁨XAUUSD⁩ يتجاوز صعودًا"
+  },
+  {
+   "watch": {
+    "kind": "price",
+    "symbol": "XAUUSD",
+    "condition": "cross_above",
+    "level": "0",
+    "indicator": null,
+    "timeframe": null,
+    "metric": null
+   },
+   "locale": "en",
+   "expected": "⁨XAUUSD⁩ crosses above"
+  },
+  {
+   "watch": {
+    "kind": "price",
+    "symbol": "XAUUSD",
+    "condition": "changed",
+    "level": null,
+    "indicator": null,
+    "timeframe": null,
+    "metric": null
+   },
+   "locale": "ar",
+   "expected": "⁨XAUUSD⁩ يتغير"
+  },
+  {
+   "watch": {
+    "kind": "price",
+    "symbol": "XAUUSD",
+    "condition": "changed",
+    "level": null,
+    "indicator": null,
+    "timeframe": null,
+    "metric": null
+   },
+   "locale": "en",
+   "expected": "⁨XAUUSD⁩ changes"
+  },
+  {
+   "watch": {
+    "kind": "indicator",
+    "symbol": "XAUUSD",
+    "condition": "cross_above",
+    "level": "70",
+    "indicator": "rsi",
+    "timeframe": "1h",
+    "metric": null
+   },
+   "locale": "ar",
+   "expected": "⁨RSI⁩ ⁨1h⁩ ⁨XAUUSD⁩ يتجاوز صعودًا ⁨70⁩"
+  },
+  {
+   "watch": {
+    "kind": "indicator",
+    "symbol": "XAUUSD",
+    "condition": "cross_above",
+    "level": "70",
+    "indicator": "rsi",
+    "timeframe": "1h",
+    "metric": null
+   },
+   "locale": "en",
+   "expected": "⁨RSI⁩ ⁨1h⁩ ⁨XAUUSD⁩ crosses above ⁨70⁩"
+  },
+  {
+   "watch": {
+    "kind": "account",
+    "symbol": null,
+    "condition": "below",
+    "level": "900",
+    "indicator": null,
+    "timeframe": null,
+    "metric": "equity"
+   },
+   "locale": "ar",
+   "expected": "الحساب حقوق الملكية تحت ⁨900⁩"
+  },
+  {
+   "watch": {
+    "kind": "account",
+    "symbol": null,
+    "condition": "below",
+    "level": "900",
+    "indicator": null,
+    "timeframe": null,
+    "metric": "equity"
+   },
+   "locale": "en",
+   "expected": "Account equity below ⁨900⁩"
+  },
+  {
+   "watch": {
+    "kind": "account",
+    "symbol": null,
+    "condition": "above",
+    "level": null,
+    "indicator": null,
+    "timeframe": null,
+    "metric": "free_margin"
+   },
+   "locale": "ar",
+   "expected": "الحساب الهامش الحر فوق"
+  },
+  {
+   "watch": {
+    "kind": "account",
+    "symbol": null,
+    "condition": "above",
+    "level": null,
+    "indicator": null,
+    "timeframe": null,
+    "metric": "free_margin"
+   },
+   "locale": "en",
+   "expected": "Account free margin above"
+  },
+  {
+   "watch": {
+    "kind": "position",
+    "symbol": "EURUSD",
+    "condition": "above",
+    "level": "50",
+    "indicator": null,
+    "timeframe": null,
+    "metric": "profit"
+   },
+   "locale": "ar",
+   "expected": "المركز ⁨EURUSD⁩ الربح فوق ⁨50⁩"
+  },
+  {
+   "watch": {
+    "kind": "position",
+    "symbol": "EURUSD",
+    "condition": "above",
+    "level": "50",
+    "indicator": null,
+    "timeframe": null,
+    "metric": "profit"
+   },
+   "locale": "en",
+   "expected": "Position ⁨EURUSD⁩ profit above ⁨50⁩"
+  },
+  {
+   "watch": {
+    "kind": "position",
+    "symbol": "EURUSD",
+    "condition": "closed",
+    "level": null,
+    "indicator": null,
+    "timeframe": null,
+    "metric": null
+   },
+   "locale": "ar",
+   "expected": "المركز ⁨EURUSD⁩ يُغلق"
+  },
+  {
+   "watch": {
+    "kind": "position",
+    "symbol": "EURUSD",
+    "condition": "closed",
+    "level": null,
+    "indicator": null,
+    "timeframe": null,
+    "metric": null
+   },
+   "locale": "en",
+   "expected": "Position ⁨EURUSD⁩ closes"
+  },
+  {
+   "watch": {
+    "kind": "calendar",
+    "symbol": null,
+    "condition": "due",
+    "level": null,
+    "indicator": null,
+    "timeframe": null,
+    "metric": null
+   },
+   "locale": "ar",
+   "expected": "المفكرة الاقتصادية · حدث مستحق"
+  },
+  {
+   "watch": {
+    "kind": "calendar",
+    "symbol": null,
+    "condition": "due",
+    "level": null,
+    "indicator": null,
+    "timeframe": null,
+    "metric": null
+   },
+   "locale": "en",
+   "expected": "Economic calendar · event due"
+  },
+  {
+   "watch": {
+    "kind": "dynamic",
+    "symbol": "XAGUSD",
+    "condition": null,
+    "level": null,
+    "indicator": null,
+    "timeframe": "15m",
+    "metric": null
+   },
+   "locale": "ar",
+   "expected": "⁨XAGUSD⁩ نمط"
+  },
+  {
+   "watch": {
+    "kind": "dynamic",
+    "symbol": "XAGUSD",
+    "condition": null,
+    "level": null,
+    "indicator": null,
+    "timeframe": "15m",
+    "metric": null
+   },
+   "locale": "en",
+   "expected": "⁨XAGUSD⁩ pattern"
+  },
+  {
+   "watch": {
+    "kind": "price",
+    "symbol": "XAU‮USD",
+    "condition": "above",
+    "level": "24⁦00",
+    "indicator": null,
+    "timeframe": null,
+    "metric": null
+   },
+   "locale": "ar",
+   "expected": "⁨XAUUSD⁩ فوق ⁨2400⁩"
+  },
+  {
+   "watch": {
+    "kind": "price",
+    "symbol": "XAU‮USD",
+    "condition": "above",
+    "level": "24⁦00",
+    "indicator": null,
+    "timeframe": null,
+    "metric": null
+   },
+   "locale": "en",
+   "expected": "⁨XAUUSD⁩ above ⁨2400⁩"
+  },
+  {
+   "watch": {
+    "kind": "price",
+    "symbol": null,
+    "condition": "opened",
+    "level": null,
+    "indicator": null,
+    "timeframe": null,
+    "metric": null
+   },
+   "locale": "ar",
+   "expected": "يُفتح"
+  },
+  {
+   "watch": {
+    "kind": "price",
+    "symbol": null,
+    "condition": "opened",
+    "level": null,
+    "indicator": null,
+    "timeframe": null,
+    "metric": null
+   },
+   "locale": "en",
+   "expected": "opens"
+  }
+ ]
+}
