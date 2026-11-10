@@ -169,12 +169,11 @@ done
 ok 'failed pg_dump (exit 1) and truncated pg_dump (exit 0): update aborted before pinning, live DB untouched, no bad backup kept'
 
 # 8. Refusals that change nothing: concurrent operation, no pin, no release manifest.
-flock "$home/state/lock" sleep 30 &
-locker=$!
-sleep 1
+exec 8>"$home/state/lock"
+flock 8
 if lonora update v2 >"$work/locked.log" 2>&1; then fail 'update ran while locked'; fi
 grep -q 'Another lonora operation' "$work/locked.log" || fail 'lock message'
-kill "$locker"; wait "$locker" 2>/dev/null || true
+exec 8>&-
 mv "$home/state/image.env" "$work/image.env.saved"
 if (cd "$home" && LONORA_IMAGE_REPO="$repo" infra/compose/lonora update v2) >"$work/nopin.log" 2>&1; then fail 'update ran without a pin'; fi
 mv "$work/image.env.saved" "$home/state/image.env"
