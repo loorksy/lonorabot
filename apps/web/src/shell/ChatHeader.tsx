@@ -1,6 +1,6 @@
 import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
-import type { AvatarStateId } from "@lonora/core";
+import { type AvatarStateId, showsTradingControl } from "@lonora/core";
 import { GroupAvatar, Icon } from "@lonora/ui-web";
 import { useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
@@ -60,7 +60,13 @@ export function ChatHeader({
       )
     : undefined;
   const typingName = replying ? memberAgents.find((m) => m.id === replying.agent_id)?.name : null;
-  const trading = Boolean(agent && (agent.trading_account_id || agent.template === "trading"));
+  // Lonora (the personal agent) trades too (Q19): its chat has the capsule and the sheet's
+  // trading section like any trading agent's.
+  const trading = Boolean(
+    agent &&
+      (agent.template === "trading" ||
+        showsTradingControl({ role: agent.role, trading_account_id: agent.trading_account_id })),
+  );
   const openSheet = () =>
     agent && (trading || prefs.agentStatus) && sheet(agent, trading, prefs.agentStatus);
   // The agent page's «التداول والأمان» row lands here with ?sheet=agent: open the sheet once

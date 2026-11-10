@@ -364,3 +364,24 @@ test("S7: the permission chip never guesses a level, and the mandate draft belon
   await expect.poll(() => drafts.length).toBe(1);
   expect(drafts[0].thread_id).toBe(conversation.thread.id);
 });
+
+test("S8: Lonora's chat has the trading and safety section like any trading agent's", async ({
+  page,
+  context,
+  conversation,
+}) => {
+  void conversation;
+  await page.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
+  const lonora = (await (await context.request.get("/api/agents")).json()).find(
+    (row) => row.role === "personal",
+  );
+  expect(lonora).toBeTruthy();
+  await page.goto(`/app/${lonora.id}`);
+  // The menu is built when it opens: wait until the agent is loaded.
+  await expect(page.getByTestId("permission-chip")).toBeVisible();
+  await page.getByRole("button", { name: "Chat menu", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Watches", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Status and safety", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Trading and safety" })).toBeVisible();
+  await expect(page.getByTestId("agent-mode-line")).toBeVisible();
+});

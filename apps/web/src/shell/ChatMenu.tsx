@@ -1,5 +1,6 @@
 import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
+import { showsTradingControl } from "@lonora/core";
 import { Icon, type IconName } from "@lonora/ui-web";
 import { type ReactNode, useCallback } from "react";
 import { ConversationCharts } from "../components/charts/ConversationCharts";
@@ -81,7 +82,13 @@ export function useChatMenu({
     window.dispatchEvent(new CustomEvent("lonora:jump", { detail: { id } })),
   );
   const watchesSheet = useWatchesSheet();
-  const trading = Boolean(agent && (agent.trading_account_id || agent.template === "trading"));
+  // Lonora (the personal agent) trades too (Q19): its chat has the capsule and the sheet's
+  // trading section like any trading agent's.
+  const trading = Boolean(
+    agent &&
+      (agent.template === "trading" ||
+        showsTradingControl({ role: agent.role, trading_account_id: agent.trading_account_id })),
+  );
   // The sheet keeps the body it was opened with: the chart an answer asks for goes in here.
   const openChart = useCallback(
     (chartId?: string) => {
