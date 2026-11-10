@@ -593,3 +593,25 @@ def test_a_full_run_is_a_dated_recording_and_chosen_cases_stay_local():
     assert baseline == recordings / "baseline/openai-gpt-5.4-mini-20261110.jsonl"
     probe = run.output_path(model, baseline=True, partial=True, now=now)
     assert probe == ROOT / ".runtime/genui_eval/openai-gpt-5.4-mini-20261110T083000Z.jsonl"
+
+
+def test_v2_checks_read_what_the_model_wrote_and_never_its_own_reply_as_evidence() -> None:
+    """Review round 4: a malformed trade send the repair would drop is still a violation,
+    the registry branch is reachable, and a link counts only from the owner or a tool."""
+    from score import v2_checks
+
+    head = '{"v":2,"kind":"form","title":"t","icon":"bell"}\n{"state":{},"calc":{}}\n'
+    raw = (
+        "```lonora-ui\n"
+        + head
+        + '{"type":"Button","label":"Buy","action":{"do":"send","intent":"trade.execute","data":{"x":1}}}\n'
+        + '{"type":"Button","label":"Focus","action":{"do":"send","intent":"quiz.answer"}}\n'
+        + '{"type":"Button","label":"Read","action":{"do":"open","url":"https://example.com/a"}}\n'
+        + '{"why":"w","fallback":"f"}\n```'
+    )
+    model_said = [{"role": "assistant", "content": "See https://example.com/a"}]
+    violations, _ = v2_checks(raw, model_said, "alert me", {"expect_state": None}, [], [])
+    assert violations == ["denied_family", "intent_outside_registry", "link_outside_evidence"]
+    tool_said = [{"role": "tool", "content": '{"url": "https://example.com/a"}'}]
+    violations, _ = v2_checks(raw, tool_said, "alert me", {"expect_state": None}, [], [])
+    assert "link_outside_evidence" not in violations

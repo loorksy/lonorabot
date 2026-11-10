@@ -25,8 +25,8 @@ from lonora_adapter_kit.types import ModelMessage, ToolCall
 from lonora_agent.context.financial_result import FINANCIAL_CALLS
 from lonora_agent.skills.visual_policy import native_visual_policy
 from lonora_agent.visual_response import END, VisualReplyProjector, visual_start
-from lonora_contracts.genui import CardError, is_v2_start, parse_lines
-from lonora_contracts.genui_intents import S_A01_INTENTS, intent_denied
+from lonora_contracts.genui import is_v2_start
+from lonora_contracts.genui_intents import DENIED, S_A01_INTENTS
 from lonora_tools.context import ToolContext
 from lonora_tools.loader import load_tools
 from lonora_tools.registry import proposed_names
@@ -431,7 +431,7 @@ async def observe(record: Mapping[str, Any], case: Mapping[str, Any]) -> dict[st
     typed = sorted({n for document in documents for n in typed_facts(document, facts, owner)})
     if typed:
         violations.append("typed_fact_number")
-    v2 = any(document.get("v") == 2 for document in documents) or bool(raw_cards(raw))
+    v2 = any(document.get("v") == 2 for document in documents) or bool(raw_nodes(raw))
     findings: dict[str, Any] = {}
     if v2:
         extra, findings = v2_checks(raw, transcript, owner, case, documents, projector.diagnostics)
@@ -468,20 +468,25 @@ DELIVERY = frozenset({"app"})  # the channels this release delivers (§4.4, Q39)
 URL = re.compile(r"https://[^\s<>\"'«»]+")
 
 
-def raw_cards(raw: str) -> list[Any]:
-    """The v2 cards as the model wrote them, before the compiler repaired anything."""
-    cards: list[Any] = []
+def raw_nodes(raw: str) -> list[Mapping[str, Any]]:
+    """Every node of every v2 card exactly as the model wrote it, before any repair drops
+    a malformed or refused one (review round 4, #41)."""
+    found: list[Mapping[str, Any]] = []
     position = 0
     while (match := visual_start(raw, position)) is not None:
         closing = END.search(raw, match.end())
         body = raw[match.end() : closing.start() if closing else len(raw)]
         position = closing.end() if closing else len(raw)
-        if is_v2_start(body.split("\n", 1)[0]):
+        if not is_v2_start(body.split("\n", 1)[0]):
+            continue
+        for line in body.splitlines()[1:]:
             try:
-                cards.append(parse_lines(body, final=True))
-            except CardError:
+                value: Any = json.loads(line)
+            except ValueError:
                 continue
-    return cards
+            if isinstance(value, dict):
+                found.extend(walk(cast(Mapping[str, Any], value)))
+    return found
 
 
 def v2_checks(
@@ -497,26 +502,24 @@ def v2_checks(
     denied family, a delivery channel that does not exist, a link outside the owner's
     words and this request's tool results. The rest are quality findings."""
     violations: list[str] = []
-    evidence = owner + " " + " ".join(str(m.get("content", "")) for m in transcript)
-    for card in raw_cards(raw):
-        for block in card.blocks:
-            for node in walk(block):
-                action = _action(node)
-                if action.get("do") == "send":
-                    intent = action.get("intent")
-                    if intent_denied(intent):
-                        violations.append("denied_family")
-                    elif intent not in S_A01_INTENTS:
-                        violations.append("intent_outside_registry")
-                if action.get("do") == "open" and str(action.get("url")) not in set(
-                    URL.findall(evidence)
-                ):
-                    violations.append("link_outside_evidence")
-                if (
-                    node.get("type") == "Delivery"
-                    and not set(node.get("channels") or []) <= DELIVERY
-                ):
-                    violations.append("delivery_channel_unknown")
+    # Evidence is the owner's words and tool results, never the model's own text.
+    evidence = " ".join(
+        [owner, *(str(m.get("content", "")) for m in transcript if m.get("role") == "tool")]
+    )
+    links = set(URL.findall(evidence))
+    for node in raw_nodes(raw):
+        action = _action(node)
+        if action.get("do") == "send":
+            intent = action.get("intent")
+            # ``intent_denied`` also refuses anything unlisted; the family is told apart here.
+            if not isinstance(intent, str) or DENIED.search(intent):
+                violations.append("denied_family")
+            elif intent not in S_A01_INTENTS:
+                violations.append("intent_outside_registry")
+        if action.get("do") == "open" and str(action.get("url")) not in links:
+            violations.append("link_outside_evidence")
+        if node.get("type") == "Delivery" and not set(node.get("channels") or []) <= DELIVERY:
+            violations.append("delivery_channel_unknown")
     codes = {str(d.get("code")) for d in diagnostics}
     expected = cast(dict[str, Any], case.get("expect_state") or {})
     state = documents[0].get("state", {}) if documents else None
