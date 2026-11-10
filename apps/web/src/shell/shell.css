@@ -299,6 +299,14 @@ main.page-enter {
   overflow: hidden;
   padding: 0;
 }
+/* The history picker and the error banner sit under the floating header, never beneath it;
+   the transcript below them then needs no header clearance of its own. */
+main.chat-main > :is(.tpl-history-picker, .tpl-error-banner):first-child {
+  margin-top: var(--top-h, 60px);
+}
+main.chat-main > :is(.tpl-history-picker, .tpl-error-banner) ~ .chat-scroll {
+  padding-top: 4px;
+}
 main.chat-main > .legacy-surface {
   flex: 1;
   min-height: 0;

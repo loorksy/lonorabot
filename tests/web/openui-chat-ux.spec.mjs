@@ -445,3 +445,30 @@ test("S10: the mandate sheet follows D1: until stopped, the agent's own pair, th
   await expect.poll(() => drafts.length).toBe(3);
   expect(drafts[2].daily_loss_percent).toBeUndefined();
 });
+
+test("S15: on a phone the history picker sits under the header, not beneath it", async ({
+  page,
+  conversation,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
+  const { thread, agent } = conversation;
+  await page.route(`**/api/threads?agent_id=${agent.id}`, (route) =>
+    route.fulfill({
+      json: [thread, { ...thread, id: `${thread.id.slice(0, -4)}0000`, title: "Earlier chat" }],
+    }),
+  );
+  await page.goto(`/app/${agent.id}?thread=${thread.id}`);
+  const picker = page.locator(".tpl-history-picker");
+  await expect(picker).toBeVisible();
+  const header = await page.locator(".chat-head").boundingBox();
+  const box = await picker.boundingBox();
+  expect(box.y).toBeGreaterThanOrEqual(header.y + header.height - 1);
+  // The control itself is reachable: nothing covers its centre.
+  const select = await picker.locator("select").boundingBox();
+  const hit = await page.evaluate(
+    ({ x, y }) => document.elementFromPoint(x, y)?.closest(".tpl-history-picker") != null,
+    { x: select.x + select.width / 2, y: select.y + select.height / 2 },
+  );
+  expect(hit).toBe(true);
+});
