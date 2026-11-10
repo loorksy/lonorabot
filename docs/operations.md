@@ -117,8 +117,9 @@ and Gateway, keeps the failed version pinned, prints `ROLLBACK HELD` and exits w
 `sudo lonora update <version>` first rolls the unfinished one back (same rules, including the hold),
 then performs the requested update. `sudo lonora rollback` only rolls back.
 
-Only one of update, restore, rollback, start and backup runs at a time (a lock in `state/`); the
-daily backup waits for a running update. `state/history.log` records every update and rollback
+Only one of update, restore, restore-test, rollback, start and backup runs at a time (a lock in
+`state/`); the daily backup waits for a running update. Whoever takes the lock first removes any
+scratch files a killed run left in `backups/`. `state/history.log` records every update and rollback
 with the backup that was taken.
 
 Expect a short outage (stop → backup → migrate → start), usually under a minute plus backup time.
