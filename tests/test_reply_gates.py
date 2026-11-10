@@ -117,6 +117,7 @@ def test_only_the_latest_owner_message_counts() -> None:
         "تم. سأجعلها للفضة على حساب التجريبي.",
         "تم. حددت الأحد الساعة 10:00 صباحًا لمراجعة الصفقات.",
         "لقد أوقفت الصفقات الجديدة.",
+        "أنشئت لك تنبيهًا على الذهب.",
         "Done. The alert is set.",
         "I've cancelled the alert.",
         "I have paused trading for today.",

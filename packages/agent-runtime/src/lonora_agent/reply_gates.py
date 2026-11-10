@@ -133,13 +133,14 @@ def request_refusal(messages: list[ModelMessage], call: ToolCall) -> dict[str, A
             "executed": False,
             "message": "The owner asked to resume trading, not to trade; a new entry is never "
             "the answer and nothing was sent. Only the owner resumes trading: propose it with "
-            "owner_action_propose kind resume_trading now; once it is proposed, the card waits for their tap.",
+            "owner_action_propose kind resume_trading now; once it is proposed, the card "
+            "waits for their tap.",
         }
     return None
 
 
 _AR_CLAIM_VERBS = (
-    "الغيت|لغيت|استانفت|اوقفت|وقفت|حفظت|عدلت|غيرت|انشات|انشئت|فعلت|شغلت|ضبطت|سجلت|"
+    "الغيت|لغيت|استانفت|اوقفت|وقفت|حفظت|عدلت|غيرت|انشات|انشءت|فعلت|شغلت|ضبطت|سجلت|"
     "اضفت|حذفت|ازلت|ارسلت|جدولت|اعتمدت|ثبتت|نقلت|طبقت|قمت"
 )
 _EN_CLAIM_VERBS = (
