@@ -209,16 +209,16 @@ export function TaskPage() {
         >
           <Trans>View conversation</Trans>
         </button>
-        {(task.can_pause || task.status === "paused") && (
+        {(task.can_pause || task.can_resume) && (
           <button
             type="button"
             className="btn outline"
-            disabled={busy || (!task.can_pause && !task.can_resume)}
+            disabled={busy}
             onClick={() =>
               void act(() => domainApi.controlTask(task, task.can_resume ? "resume" : "pause"))
             }
           >
-            {task.status === "paused" ? <Trans>Resume</Trans> : <Trans context="task">Pause</Trans>}
+            {task.can_resume ? <Trans>Resume</Trans> : <Trans context="task">Pause</Trans>}
           </button>
         )}
       </div>

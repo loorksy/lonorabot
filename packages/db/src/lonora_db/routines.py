@@ -15,6 +15,9 @@ from .trading_goals import owned_goal, planned_step
 from .transactions import owned_agent, owned_thread
 
 
+ONE_SHOT_RETRY = timedelta(minutes=5)
+
+
 def next_run(request: RoutineCreate, after: datetime) -> datetime:
     if request.run_at is not None:
         return request.run_at
@@ -200,8 +203,12 @@ async def enqueue_routine(session: AsyncSession, row: RoutineRow, now: datetime)
             raise
     row.last_run_at = now
     if row.run_at is not None:
-        # A one-shot routine fires once and then stays off until the owner reschedules it.
-        row.enabled = False
+        if enqueued:
+            # A one-shot routine fires once and then stays off until the owner reschedules it.
+            row.enabled = False
+        else:
+            # Not run (its goal is paused): it stays scheduled and is tried again later.
+            row.next_run_at = now + ONE_SHOT_RETRY
         return enqueued
     request = RoutineCreate(
         prompt=row.prompt,

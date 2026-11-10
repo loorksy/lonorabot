@@ -33,6 +33,14 @@ export function useLoad<T>(load: (() => Promise<T>) | null, key: string): Loaded
   const [error, setError] = useState<unknown>();
   const [loading, setLoading] = useState(true);
   const [manual, setManual] = useState(0);
+  // Another item: drop the previous one's data and error before the new load.
+  const [loadedKey, setLoadedKey] = useState(key);
+  if (loadedKey !== key) {
+    setLoadedKey(key);
+    setData(undefined);
+    setError(undefined);
+    setLoading(true);
+  }
   // biome-ignore lint/correctness/useExhaustiveDependencies: `key` names the query; `load` is recreated each render.
   useEffect(() => {
     void revision;

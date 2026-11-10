@@ -83,7 +83,10 @@ async def index_note(
     agent_id: str,
     text: str,
     title: str | None = None,
+    replaces: str | None = None,
 ) -> dict[str, Any]:
+    """Index one note; ``replaces`` (the owner's edit) removes that note of the same agent in
+    the same transaction, so an edit never leaves both notes or neither."""
     if not text.strip():
         raise LonoraError("memory_note_required")
     if len(text) > 24000:
@@ -116,4 +119,9 @@ async def index_note(
             # The owner's name for the note in «المعرفة»; recall reads the text only.
             row.payload = {**row.payload, "title": title}
             row.version += 1
+        if replaces and replaces != document_id:
+            old = await session.get(SemanticMemoryRow, replaces, with_for_update=True)
+            if old is None or old.owner_id != owner_id or old.agent_id != agent_id:
+                raise LonoraError("knowledge_note_not_found", 404)
+            await session.delete(old)
         return {"id": document_id, "indexed": True}

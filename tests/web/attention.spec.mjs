@@ -43,7 +43,10 @@ test("durable notification is shared across views and stays read after reload", 
   const before = await (await context.request.get("/api/attention")).json();
   const open = (rows) => rows.filter((row) => row.id === fixture.notification.id);
   const markAll = page.getByRole("button", { name: "Mark all as read", exact: true });
-  if (await markAll.isVisible()) {
+  const keptUnread = ["critical", "action_required"].includes(fixture.notification.importance);
+  // The fixture's own alert is still unread here, so the bulk action is offered.
+  await expect(markAll).toBeVisible();
+  {
     const seenAll = page.waitForResponse((response) =>
       response.url().endsWith("/api/attention/seen-all"),
     );
@@ -51,8 +54,7 @@ test("durable notification is shared across views and stays read after reload", 
     expect((await seenAll).ok()).toBeTruthy();
   }
   const after = await (await context.request.get("/api/attention")).json();
-  if (["critical", "action_required"].includes(fixture.notification.importance))
-    expect(open(after)).toEqual(open(before));
+  if (keptUnread) expect(open(after)).toEqual(open(before));
   else expect(open(after)).toEqual([]);
   await page.reload();
   await expect(uncertain.locator(".dot")).toHaveCount(0);

@@ -173,7 +173,12 @@ export function UpdatesPage() {
       );
       void attention.seen(item.id).catch(() => notes.reload());
     }
-    nav.go(`/app/${item.agent_id}?thread=${item.thread_id}`);
+    // A group's notification opens the group conversation, as the inbox did.
+    nav.go(
+      item.parameters.group_id
+        ? `/app/g/${item.parameters.group_id}`
+        : `/app/${item.agent_id}?thread=${item.thread_id}`,
+    );
   };
   const acts = (feed.data?.items ?? []).slice(0, 4);
   return (

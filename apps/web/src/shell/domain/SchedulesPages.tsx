@@ -260,6 +260,10 @@ export function NewSchedulePage() {
                 return;
               }
               const at = new Date(`${date}T${hhmm(hour, minute)}:00`);
+              if (at.getTime() <= Date.now()) {
+                toast(t`Choose a time that has not passed.`, { type: "warn" });
+                return;
+              }
               await domainApi.createRoutine(agentId, {
                 title,
                 prompt: title,

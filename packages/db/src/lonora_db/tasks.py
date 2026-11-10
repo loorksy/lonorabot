@@ -579,6 +579,9 @@ async def complete_task(
         state.control_requested, state.waiting_reason = None, None
         if state.failure:
             state.failure.next_retry_at = None
+        # As the owner's cancel does: nothing this Task's runs asked for stays decidable.
+        for run in await task_runs(session, row):
+            await cancel_task_approvals(session, run.id)
         save_task(session, row, state)
         return row
     return await control_task(

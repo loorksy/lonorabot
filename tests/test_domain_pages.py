@@ -22,7 +22,7 @@ from pydantic import ValidationError
 
 
 def test_a_routine_has_exactly_one_schedule_and_a_one_shot_needs_a_zone():
-    at = datetime(2026, 12, 1, 9, tzinfo=UTC)
+    at = datetime(2030, 12, 1, 9, tzinfo=UTC)
     one_shot = RoutineCreate(prompt="Brief me", title="  موجز  ", run_at=at)
     assert one_shot.title == "موجز" and one_shot.run_at == at
     assert RoutineCreate(prompt="x", cron="0 9 * * *", title="   ").title is None
@@ -409,5 +409,135 @@ async def test_agent_text_files_upload_and_edit_but_other_files_do_not():
             fixture, "PUT", f"/artifacts/{image.json()['id']}/text", {"name": "a", "content": "x"}
         )
         assert code == 409 and problem["code"] == "artifact_not_text"
+    finally:
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_completing_a_task_with_no_active_run_cancels_its_trade_approvals():
+    database()
+    from check_streaming import Fixture
+    from lonora_db.schema import RunRow, TradeApprovalRow
+
+    fixture = await Fixture().open()
+    try:
+        agent = await fixture.agent("Approver")
+        thread = await fixture.conversation(agent)
+        task = await fixture.request(
+            "POST",
+            f"/tasks?agent_id={agent['id']}&thread_id={thread['id']}",
+            {"title": "Stale approval"},
+        )
+        run_id = task["runs"][0]["id"]
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            run = await session.get(RunRow, run_id, with_for_update=True)
+            assert run is not None
+            run.status = "failed"
+            for status in ("pending", "approved"):
+                session.add(
+                    TradeApprovalRow(
+                        id=f"{status}-{run_id[:20]}",
+                        owner_id=fixture.owner,
+                        run_id=run_id,
+                        thread_id=thread["id"],
+                        agent_id=agent["id"],
+                        call_id="call-" + status,
+                        requests=[],
+                        status=status,
+                    )
+                )
+        current = await fixture.request("GET", f"/tasks/{task['id']}")
+        done = await fixture.request(
+            "POST", f"/tasks/{task['id']}/complete", {"expected_version": current["version"]}
+        )
+        assert done["status"] == "completed"
+        async with fixture.runtime.db.sessions() as session:
+            for status in ("pending", "approved"):
+                row = await session.get(TradeApprovalRow, f"{status}-{run_id[:20]}")
+                assert row is not None and row.status == "cancelled"
+    finally:
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_a_one_shot_that_cannot_enqueue_stays_scheduled_and_past_times_are_refused():
+    database()
+    from check_streaming import Fixture
+    from lonora_contracts.domain import utcnow
+    from lonora_db.routines import enqueue_routine
+    from lonora_db.schema import RoutineRow
+
+    with pytest.raises(ValidationError, match="run_at_past"):
+        RoutineCreate(prompt="x", run_at=datetime(2020, 1, 1, tzinfo=UTC))
+    offset = datetime(2030, 1, 1, 12, tzinfo=UTC).astimezone(
+        __import__("zoneinfo").ZoneInfo("Asia/Damascus")
+    )
+    assert RoutineCreate(prompt="x", run_at=offset).run_at == datetime(2030, 1, 1, 12, tzinfo=UTC)
+    fixture = await Fixture().open()
+    try:
+        agent = await fixture.agent("Retry")
+        at = (utcnow() + timedelta(hours=1)).replace(microsecond=0)
+        created = await fixture.request(
+            "POST", f"/routines/{agent['id']}", {"prompt": "Once", "run_at": at.isoformat()}
+        )
+        import lonora_db.routines as routines
+
+        async def refused(*_: Any, **__: Any) -> None:
+            from lonora_core.user_error import LonoraError
+
+            raise LonoraError("goal_not_active", 409)
+
+        original = routines.create_run
+        routines.create_run = refused  # type: ignore[assignment]
+        try:
+            async with fixture.runtime.db.sessions() as session, session.begin():
+                row = await session.get(RoutineRow, created["id"], with_for_update=True)
+                assert row is not None
+                now = at + timedelta(seconds=1)
+                assert not await enqueue_routine(session, row, now)
+                assert row.enabled is True and row.next_run_at > now
+        finally:
+            routines.create_run = original
+    finally:
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_text_edit_never_deletes_outside_its_folder_and_untyped_text_is_text():
+    database()
+    from check_streaming import Fixture
+    from lonora_security.runtime_storage import confined_path
+
+    fixture = await Fixture().open()
+    try:
+        root = fixture.runtime.settings.artifact_root
+        markdown = await fixture.client.post(
+            "/api/artifacts/upload",
+            files={"file": ("plan.md", b"# plan", "application/octet-stream")},
+        )
+        row = markdown.json()
+        assert row["payload"]["media_type"] == "text/plain"
+        victim = confined_path(root, "someone-else/secret.txt")
+        victim.parent.mkdir(parents=True, exist_ok=True)
+        victim.write_bytes(b"keep me")
+        # A key retargeted through the generic resource update must not reach the unlink.
+        moved = await fixture.request(
+            "PUT",
+            f"/artifacts/{row['id']}",
+            {
+                "version": row["version"],
+                "payload": {**row["payload"], "key": "someone-else/secret.txt"},
+            },
+        )
+        saved = await fixture.request(
+            "PUT", f"/artifacts/{moved['id']}/text", {"name": "plan.md", "content": "# new"}
+        )
+        assert saved["payload"]["key"].startswith(row["id"] + "/")
+        assert victim.read_bytes() == b"keep me"
+        again = await fixture.request(
+            "PUT", f"/artifacts/{row['id']}/text", {"name": "plan.md", "content": "# newer"}
+        )
+        assert not confined_path(root, saved["payload"]["key"]).exists()
+        assert confined_path(root, again["payload"]["key"]).read_bytes() == b"# newer"
     finally:
         await fixture.close()

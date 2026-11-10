@@ -54,20 +54,15 @@ async def edit_note(
     rt = runtime(request)
     async with rt.db.sessions() as session:
         await owned_note(session, owner.id, agent_id, note_id)
-    result = await index_note(
+    return await index_note(
         rt.db,
         rt.services(owner.id).router.credentials,
         owner.id,
         agent_id,
         body.content,
         body.title,
+        replaces=note_id,
     )
-    if result["id"] != note_id:
-        async with rt.db.sessions() as session, session.begin():
-            row = await session.get(SemanticMemoryRow, note_id, with_for_update=True)
-            if row is not None:
-                await session.delete(row)
-    return result
 
 
 @router.delete("/knowledge/notes/{note_id}")

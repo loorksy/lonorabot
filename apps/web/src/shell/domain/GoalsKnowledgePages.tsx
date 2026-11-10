@@ -7,7 +7,7 @@ import { SkRows } from "../Skeleton";
 import { useToast } from "../Toast";
 import { domainApi, type TradingGoalView } from "./api";
 import { isTrader, useAgentParam, useItemParam, useLoad } from "./hooks";
-import { Area, Check, Field, FormPage, Grouped, Row, SelectField, text } from "./ui";
+import { Area, Check, Empty, Field, FormPage, Grouped, Row, SelectField, text } from "./ui";
 
 const goalState = (status: string) =>
   status === "completed"
@@ -17,6 +17,13 @@ const goalState = (status: string) =>
       : status === "paused"
         ? t({ message: "Paused", context: "task status" })
         : t({ message: "Active", context: "goal" });
+
+const Missing = ({ error }: { error: unknown }) =>
+  error != null ? (
+    <p role="alert">{userError(error)}</p>
+  ) : (
+    <Empty>{t`The item no longer exists.`}</Empty>
+  );
 
 /** «الأهداف»: a trading agent's plans (Q41), or a light goal list for any other agent. */
 export function GoalsPage() {
@@ -87,6 +94,8 @@ export function GoalEditPage() {
   const goals = useLoad(agent ? () => domainApi.goals(agent.id) : null, `goals:${agent?.id}`);
   const goal = goals.data?.find((row) => row.id === item);
   if (!agent || (item && goals.loading && !goals.data)) return <SkRows count={3} />;
+  // An item that failed to load or is gone is never saved again as a new one.
+  if (item && !goal) return <Missing error={goals.error} />;
   return (
     <div className="domain-page">
       <FormPage
@@ -193,6 +202,7 @@ export function KnowledgeEditPage() {
   const item = items.data?.find((row) => row.id === id);
   const [type, setType] = useState<"note" | "link" | undefined>();
   if (!agent || (id && items.loading && !items.data)) return <SkRows count={3} />;
+  if (id && !item) return <Missing error={items.error} />;
   const kind = type ?? item?.type ?? "note";
   return (
     <div className="domain-page">

@@ -29,7 +29,7 @@ msgid "{0} deleted"
 msgstr "حُذفت {0}"
 
 #. placeholder {0}: kilobytes(row.payload.size)
-#: src/shell/domain/FilesPages.tsx:174
+#: src/shell/domain/FilesPages.tsx:175
 msgid "{0} KB"
 msgstr "{0} كيلوبايت"
 
@@ -39,7 +39,7 @@ msgid "{0} will be added to it"
 msgstr "{0} ستُضاف إليها"
 
 #. placeholder {0}: agent.name
-#: src/shell/domain/UpdatesPages.tsx:188
+#: src/shell/domain/UpdatesPages.tsx:193
 msgid "{0}, has something new"
 msgstr "{0}، لديه جديد"
 
@@ -214,7 +214,7 @@ msgstr "تم تحديث النشاط"
 msgid "Add"
 msgstr "إضافة"
 
-#: src/shell/domain/GoalsKnowledgePages.tsx:74
+#: src/shell/domain/GoalsKnowledgePages.tsx:81
 msgid "Add a goal"
 msgstr "إضافة هدف"
 
@@ -263,7 +263,7 @@ msgstr "إضافة مؤشر"
 msgid "Add integration"
 msgstr "إضافة تكامل"
 
-#: src/shell/domain/GoalsKnowledgePages.tsx:176
+#: src/shell/domain/GoalsKnowledgePages.tsx:185
 msgid "Add knowledge"
 msgstr "إضافة معرفة"
 
@@ -315,7 +315,7 @@ msgstr "إعدادات متقدمة"
 #: src/pages/shell/message-cards.tsx:264
 #: src/pages/shell/message-cards.tsx:267
 #: src/pages/shell/message-cards.tsx:334
-#: src/shell/domain/SchedulesPages.tsx:290
+#: src/shell/domain/SchedulesPages.tsx:294
 #: src/shell/domain/TasksPages.tsx:197
 msgid "Agent"
 msgstr "الوكيل"
@@ -363,7 +363,7 @@ msgstr "قالب الوكيل"
 #~ msgstr "مساحة عمل الوكيل"
 
 #: src/shell/AgentsPage.tsx:27
-#: src/shell/domain/UpdatesPages.tsx:182
+#: src/shell/domain/UpdatesPages.tsx:187
 #: src/shell/lists/ChatList.tsx:185
 #: src/shell/NewChatSheet.tsx:53
 #: src/shell/pages.tsx:69
@@ -376,7 +376,7 @@ msgstr "الوكلاء"
 msgid "Agents and groups"
 msgstr "الوكلاء والمجموعات"
 
-#: src/shell/domain/SchedulesPages.tsx:316
+#: src/shell/domain/SchedulesPages.tsx:320
 msgid "Alert channel"
 msgstr "قناة التنبيه"
 
@@ -792,7 +792,7 @@ msgstr "الكاميرا غير مسموحة"
 #: src/components/skills/SkillCard.tsx:133
 #: src/components/skills/SkillEditor.tsx:141
 #: src/pages/Board.tsx:576
-#: src/shell/domain/FilesPages.tsx:62
+#: src/shell/domain/FilesPages.tsx:63
 #: src/shell/domain/TasksPages.tsx:168
 #: src/shell/lists/Selection.tsx:78
 msgid "Cancel"
@@ -929,7 +929,7 @@ msgstr "تحقق من نتيجة الإغلاق"
 msgid "Check existing operation"
 msgstr "فحص العملية الحالية"
 
-#: src/shell/domain/SkillsPages.tsx:268
+#: src/shell/domain/SkillsPages.tsx:281
 msgid "Check the fields"
 msgstr "فحص الحقول"
 
@@ -967,15 +967,19 @@ msgstr "اختر نموذجًا من الكتالوج"
 msgid "Choose a feed"
 msgstr "اختر مصدرًا"
 
-#: src/shell/domain/FilesPages.tsx:138
-#: src/shell/domain/FilesPages.tsx:228
-#: src/shell/domain/SkillsPages.tsx:98
+#: src/shell/domain/FilesPages.tsx:139
+#: src/shell/domain/FilesPages.tsx:236
+#: src/shell/domain/SkillsPages.tsx:111
 msgid "Choose a file smaller than 600 KB."
 msgstr "اختر ملفًا أصغر من 600 كيلوبايت."
 
 #: src/components/ai/AvatarStudio.tsx:123
 msgid "Choose a glowing face and color. Preview your changes before applying them."
 msgstr "اختر وجهًا مضيئًا ولونًا، وعاين التغييرات قبل تطبيقها."
+
+#: src/shell/domain/SchedulesPages.tsx:264
+msgid "Choose a time that has not passed."
+msgstr "اختر وقتًا لم يمضِ بعد."
 
 #: src/components/integrations/IntegrationSetup.tsx:136
 #: src/pages/Knowledge.tsx:67
@@ -1130,7 +1134,7 @@ msgid "Completed"
 msgstr "مكتمل"
 
 #: src/shell/domain/GoalsKnowledgePages.tsx:14
-#: src/shell/domain/GoalsKnowledgePages.tsx:128
+#: src/shell/domain/GoalsKnowledgePages.tsx:137
 msgctxt "goal"
 msgid "Completed"
 msgstr "مكتمل"
@@ -1154,7 +1158,7 @@ msgstr "معيار الإكمال"
 msgid "Condition"
 msgstr "الشرط"
 
-#: src/shell/domain/SchedulesPages.tsx:314
+#: src/shell/domain/SchedulesPages.tsx:318
 msgid "Condition — for the conditional alert"
 msgstr "الشرط — للتنبيه الشرطي"
 
@@ -1174,7 +1178,7 @@ msgstr "اضبط مفتاح OpenAI يتيح الوصول إلى واجهة GPT-L
 #~ msgid "Confirm account password"
 #~ msgstr "تأكيد كلمة مرور الحساب"
 
-#: src/shell/domain/FilesPages.tsx:54
+#: src/shell/domain/FilesPages.tsx:55
 #: src/shell/domain/TasksPages.tsx:160
 msgid "Confirm deletion"
 msgstr "تأكيد الحذف"
@@ -1239,8 +1243,8 @@ msgstr "نوع الاتصال"
 #: src/pages/ScratchpadSection.tsx:80
 #: src/pages/ScratchpadSection.tsx:169
 #: src/pages/ScratchpadSection.tsx:171
-#: src/shell/domain/FilesPages.tsx:254
-#: src/shell/domain/GoalsKnowledgePages.tsx:257
+#: src/shell/domain/FilesPages.tsx:262
+#: src/shell/domain/GoalsKnowledgePages.tsx:267
 msgid "Content"
 msgstr "المحتوى"
 
@@ -1304,7 +1308,7 @@ msgstr "إنشاء مجموعة"
 msgid "Create a routine to schedule recurring work."
 msgstr "أنشئ مهمة لجدولة العمل المتكرر."
 
-#: src/shell/domain/SkillsPages.tsx:168
+#: src/shell/domain/SkillsPages.tsx:181
 msgid "Create a skill"
 msgstr "إنشاء مهارة"
 
@@ -1409,7 +1413,7 @@ msgid "Customize avatar"
 msgstr "تخصيص الأفاتار"
 
 #: src/shell/domain/SchedulesPages.tsx:39
-#: src/shell/domain/SchedulesPages.tsx:307
+#: src/shell/domain/SchedulesPages.tsx:311
 msgctxt "schedule repeat"
 msgid "Daily"
 msgstr "يوميًا"
@@ -1418,7 +1422,7 @@ msgstr "يوميًا"
 msgid "Dark"
 msgstr "داكن"
 
-#: src/shell/domain/SchedulesPages.tsx:312
+#: src/shell/domain/SchedulesPages.tsx:316
 msgid "Date"
 msgstr "التاريخ"
 
@@ -1448,8 +1452,8 @@ msgstr "تغيّر التفويض"
 #: src/pages/McpServersOverlay.tsx:102
 #: src/pages/RoutineEditor.tsx:122
 #: src/pages/ScratchpadSection.tsx:203
-#: src/shell/domain/FilesPages.tsx:77
-#: src/shell/domain/FilesPages.tsx:123
+#: src/shell/domain/FilesPages.tsx:78
+#: src/shell/domain/FilesPages.tsx:124
 #: src/shell/domain/TasksPages.tsx:183
 #: src/shell/domain/TasksPages.tsx:238
 #: src/shell/lists/EmojiPanel.tsx:405
@@ -1491,7 +1495,7 @@ msgstr "حذف القائمة"
 msgid "Delete these owner instructions? Existing version blocks will remain."
 msgstr "هل تريد حذف هذه التعليمات الخاصة؟ ستبقى عمليات حظر الإصدارات محفوظة."
 
-#: src/shell/domain/FilesPages.tsx:58
+#: src/shell/domain/FilesPages.tsx:59
 msgid "Delete this file?"
 msgstr "هل تريد حذف هذا الملف؟"
 
@@ -1519,8 +1523,8 @@ msgstr "اعتمادية غير متاحة"
 #: src/pages/Board.tsx:392
 #: src/pages/shell/bot-panel.tsx:134
 #: src/pages/shell/bot-settings.tsx:114
-#: src/shell/domain/GoalsKnowledgePages.tsx:122
-#: src/shell/domain/SkillsPages.tsx:303
+#: src/shell/domain/GoalsKnowledgePages.tsx:131
+#: src/shell/domain/SkillsPages.tsx:316
 msgid "Description"
 msgstr "الوصف"
 
@@ -1573,7 +1577,7 @@ msgstr "إخفاء الخطأ"
 #: src/components/ArtifactFileCard.tsx:64
 #: src/components/common/FilePreviewPanel.tsx:93
 #: src/pages/Artifacts.tsx:325
-#: src/shell/domain/FilesPages.tsx:110
+#: src/shell/domain/FilesPages.tsx:111
 msgid "Download"
 msgstr "تنزيل"
 
@@ -1609,7 +1613,7 @@ msgid "Economic calendar feed"
 msgstr "مصدر التقويم الاقتصادي"
 
 #: src/pages/Routines.tsx:104
-#: src/shell/domain/FilesPages.tsx:120
+#: src/shell/domain/FilesPages.tsx:121
 msgid "Edit"
 msgstr "تعديل"
 
@@ -1680,7 +1684,7 @@ msgstr "تفعيل"
 #. placeholder {0}: routineTitle(routine)
 #. placeholder {0}: skillTitle(row.payload)
 #: src/shell/domain/SchedulesPages.tsx:153
-#: src/shell/domain/SkillsPages.tsx:156
+#: src/shell/domain/SkillsPages.tsx:169
 msgid "Enable {0}"
 msgstr "تفعيل {0}"
 
@@ -1708,7 +1712,7 @@ msgstr "إنهاء المكالمة"
 msgid "Ending call"
 msgstr "جارٍ إنهاء المكالمة"
 
-#: src/shell/domain/SkillsPages.tsx:264
+#: src/shell/domain/SkillsPages.tsx:277
 msgid "Enter the skill's name and instructions."
 msgstr "أدخل اسم المهارة وتعليماتها."
 
@@ -1822,7 +1826,7 @@ msgstr "رابط المصدر أو Webhook"
 msgid "Fibonacci"
 msgstr "فيبوناتشي"
 
-#: src/shell/domain/FilesPages.tsx:248
+#: src/shell/domain/FilesPages.tsx:256
 msgid "File name"
 msgstr "اسم الملف"
 
@@ -1837,12 +1841,12 @@ msgstr "الملفات"
 msgid "Files and outputs from your agents will appear here."
 msgstr "ستظهر ملفات وكلائك ومخرجاتهم هنا."
 
-#: src/shell/domain/FilesPages.tsx:142
+#: src/shell/domain/FilesPages.tsx:143
 msgid "Files holds text files only."
 msgstr "تحفظ «الملفات» الملفات النصية فقط."
 
 #. placeholder {0}: agent.name
-#: src/shell/domain/FilesPages.tsx:158
+#: src/shell/domain/FilesPages.tsx:159
 msgid "Files of <0>{0}</0>"
 msgstr "ملفات <0>{0}</0>"
 
@@ -1958,7 +1962,7 @@ msgstr "إعدادات التداول العالمية"
 msgid "Goal added"
 msgstr "أُضيف هدف"
 
-#: src/shell/domain/GoalsKnowledgePages.tsx:115
+#: src/shell/domain/GoalsKnowledgePages.tsx:124
 msgid "Goal title"
 msgstr "عنوان الهدف"
 
@@ -2034,11 +2038,11 @@ msgstr "صورة مرفقة"
 msgid "Import a market snapshot before using the demo account."
 msgstr "استورد بيانات السوق قبل استخدام حساب المحاكاة."
 
-#: src/shell/domain/SkillsPages.tsx:171
+#: src/shell/domain/SkillsPages.tsx:184
 msgid "Import a skill"
 msgstr "استيراد مهارة"
 
-#: src/shell/domain/SkillsPages.tsx:116
+#: src/shell/domain/SkillsPages.tsx:129
 msgid "Imported skill"
 msgstr "مهارة مستوردة"
 
@@ -2048,7 +2052,7 @@ msgid "In progress"
 msgstr "قيد التنفيذ"
 
 #: src/shell/domain/SchedulesPages.tsx:79
-#: src/shell/domain/SchedulesPages.tsx:316
+#: src/shell/domain/SchedulesPages.tsx:320
 msgid "In the app"
 msgstr "داخل التطبيق"
 
@@ -2085,7 +2089,7 @@ msgid "Instruction version"
 msgstr "إصدار التعليمات"
 
 #: src/pages/shell/bot-settings.tsx:128
-#: src/shell/domain/SkillsPages.tsx:309
+#: src/shell/domain/SkillsPages.tsx:322
 msgid "Instructions"
 msgstr "التعليمات"
 
@@ -2196,7 +2200,7 @@ msgid "Knowledge note"
 msgstr "ملاحظة معرفية"
 
 #. placeholder {0}: agent.name
-#: src/shell/domain/GoalsKnowledgePages.tsx:149
+#: src/shell/domain/GoalsKnowledgePages.tsx:158
 msgid "Knowledge of <0>{0}</0>"
 msgstr "معرفة خاصة بـ <0>{0}</0>"
 
@@ -2217,7 +2221,7 @@ msgstr "اللغة"
 msgid "Later"
 msgstr "لاحقًا"
 
-#: src/shell/domain/UpdatesPages.tsx:296
+#: src/shell/domain/UpdatesPages.tsx:301
 msgid "Latest actions"
 msgstr "آخر الإجراءات"
 
@@ -2246,10 +2250,10 @@ msgstr "تعليمات قديمة"
 msgid "Light"
 msgstr "فاتح"
 
-#: src/shell/domain/GoalsKnowledgePages.tsx:164
-#: src/shell/domain/GoalsKnowledgePages.tsx:237
-#: src/shell/domain/GoalsKnowledgePages.tsx:242
-#: src/shell/domain/GoalsKnowledgePages.tsx:248
+#: src/shell/domain/GoalsKnowledgePages.tsx:173
+#: src/shell/domain/GoalsKnowledgePages.tsx:247
+#: src/shell/domain/GoalsKnowledgePages.tsx:252
+#: src/shell/domain/GoalsKnowledgePages.tsx:258
 msgctxt "knowledge"
 msgid "Link"
 msgstr "رابط"
@@ -2387,7 +2391,7 @@ msgid "Margin"
 msgstr "الهامش"
 
 #: src/shell/DesktopList.tsx:74
-#: src/shell/domain/UpdatesPages.tsx:206
+#: src/shell/domain/UpdatesPages.tsx:211
 msgid "Mark all as read"
 msgstr "تحديد الكل كمقروء"
 
@@ -2576,7 +2580,7 @@ msgstr "مكتومة"
 #: src/components/integrations/IntegrationSetup.tsx:91
 #: src/pages/McpServersOverlay.tsx:56
 #: src/pages/shell/bot-settings.tsx:101
-#: src/shell/domain/SkillsPages.tsx:296
+#: src/shell/domain/SkillsPages.tsx:309
 msgid "Name"
 msgstr "الاسم"
 
@@ -2627,7 +2631,7 @@ msgstr "تستخدم المهارات الخاصة الجديدة التفعيل
 msgid "New task"
 msgstr "مهمة جديدة"
 
-#: src/shell/domain/FilesPages.tsx:192
+#: src/shell/domain/FilesPages.tsx:193
 msgid "New text file"
 msgstr "ملف نصي جديد"
 
@@ -2658,7 +2662,7 @@ msgid "Next: the chats"
 msgstr "التالي: المحادثات"
 
 #: src/shell/domain/UpdatesPages.tsx:107
-#: src/shell/domain/UpdatesPages.tsx:315
+#: src/shell/domain/UpdatesPages.tsx:320
 msgid "No activity yet."
 msgstr "لا يوجد نشاط بعد."
 
@@ -2698,7 +2702,7 @@ msgstr "لا محادثات في «{0}» بعد."
 msgid "No chats."
 msgstr "لا توجد محادثات."
 
-#: src/shell/domain/UpdatesPages.tsx:290
+#: src/shell/domain/UpdatesPages.tsx:295
 msgid "No enabled schedules."
 msgstr "لا توجد مواعيد مفعّلة."
 
@@ -2710,7 +2714,7 @@ msgstr "لا توجد عمليات تنفيذ بعد"
 msgid "No files are available yet."
 msgstr "لا توجد ملفات متاحة بعد."
 
-#: src/shell/domain/FilesPages.tsx:168
+#: src/shell/domain/FilesPages.tsx:169
 msgid "No files."
 msgstr "لا توجد ملفات."
 
@@ -2718,7 +2722,7 @@ msgstr "لا توجد ملفات."
 msgid "No financial executions yet."
 msgstr "لا توجد تنفيذات مالية بعد."
 
-#: src/shell/domain/GoalsKnowledgePages.tsx:43
+#: src/shell/domain/GoalsKnowledgePages.tsx:50
 msgid "No goals for this agent."
 msgstr "لا توجد أهداف لهذا الوكيل."
 
@@ -2746,7 +2750,7 @@ msgstr "لا توجد رموز مطابقة"
 msgid "No new notifications"
 msgstr "لا توجد إشعارات جديدة"
 
-#: src/shell/domain/UpdatesPages.tsx:248
+#: src/shell/domain/UpdatesPages.tsx:253
 msgid "No notifications."
 msgstr "لا توجد تنبيهات."
 
@@ -2762,7 +2766,7 @@ msgstr "لا توجد عمليات بعد"
 msgid "No pending orders"
 msgstr "لا توجد أوامر معلقة"
 
-#: src/shell/domain/SkillsPages.tsx:224
+#: src/shell/domain/SkillsPages.tsx:237
 msgid "No previous versions."
 msgstr "لا توجد إصدارات سابقة."
 
@@ -2810,11 +2814,11 @@ msgstr "لا توجد مهام مجدولة."
 msgid "No skills available."
 msgstr "لا توجد مهارات متاحة."
 
-#: src/shell/domain/SkillsPages.tsx:138
+#: src/shell/domain/SkillsPages.tsx:151
 msgid "No skills for this agent."
 msgstr "لا توجد مهارات لهذا الوكيل."
 
-#: src/shell/domain/GoalsKnowledgePages.tsx:158
+#: src/shell/domain/GoalsKnowledgePages.tsx:167
 msgid "No sources for this agent."
 msgstr "لا توجد مصادر لهذا الوكيل."
 
@@ -2853,13 +2857,13 @@ msgid "Not set"
 msgstr "غير محدد"
 
 #: src/components/charts/ChartAnnotations.tsx:70
-#: src/shell/domain/GoalsKnowledgePages.tsx:164
-#: src/shell/domain/GoalsKnowledgePages.tsx:237
-#: src/shell/domain/GoalsKnowledgePages.tsx:241
+#: src/shell/domain/GoalsKnowledgePages.tsx:173
+#: src/shell/domain/GoalsKnowledgePages.tsx:247
+#: src/shell/domain/GoalsKnowledgePages.tsx:251
 msgid "Note"
 msgstr "ملاحظة"
 
-#: src/shell/domain/FilesPages.tsx:250
+#: src/shell/domain/FilesPages.tsx:258
 msgid "note.txt"
 msgstr "ملاحظة.txt"
 
@@ -2868,7 +2872,7 @@ msgstr "ملاحظة.txt"
 msgid "Notifications"
 msgstr "الإشعارات"
 
-#: src/shell/domain/UpdatesPages.tsx:202
+#: src/shell/domain/UpdatesPages.tsx:207
 msgctxt "updates section"
 msgid "Notifications"
 msgstr "التنبيهات"
@@ -3404,7 +3408,7 @@ msgid "Removed from favourites"
 msgstr "أُزيلت من المفضلة"
 
 #: src/shell/domain/SchedulesPages.tsx:75
-#: src/shell/domain/SchedulesPages.tsx:304
+#: src/shell/domain/SchedulesPages.tsx:308
 msgid "Repeat"
 msgstr "التكرار"
 
@@ -3489,7 +3493,7 @@ msgstr "سُوّيت دون تأكيد من الوسيط"
 msgid "Responsible agent"
 msgstr "الوكيل المسؤول"
 
-#: src/shell/domain/SkillsPages.tsx:218
+#: src/shell/domain/SkillsPages.tsx:231
 msgid "Restore"
 msgstr "استعادة"
 
@@ -3590,8 +3594,8 @@ msgstr "التنفيذ بأسعار مأخوذة دوريًا افتراضي. ا
 #: src/pages/RoutineEditor.tsx:100
 #: src/pages/ScratchpadSection.tsx:195
 #: src/pages/shell/bot-settings.tsx:169
-#: src/shell/domain/GoalsKnowledgePages.tsx:94
-#: src/shell/domain/GoalsKnowledgePages.tsx:201
+#: src/shell/domain/GoalsKnowledgePages.tsx:103
+#: src/shell/domain/GoalsKnowledgePages.tsx:211
 msgid "Save"
 msgstr "حفظ"
 
@@ -3599,7 +3603,7 @@ msgstr "حفظ"
 msgid "Save and discover models"
 msgstr "حفظ واكتشاف النماذج"
 
-#: src/shell/domain/FilesPages.tsx:222
+#: src/shell/domain/FilesPages.tsx:230
 msgid "Save file"
 msgstr "حفظ الملف"
 
@@ -3619,7 +3623,7 @@ msgstr "حفظ الذاكرة"
 msgid "Save schedule"
 msgstr "حفظ الجدولة"
 
-#: src/shell/domain/SkillsPages.tsx:253
+#: src/shell/domain/SkillsPages.tsx:266
 msgid "Save skill"
 msgstr "حفظ المهارة"
 
@@ -3670,11 +3674,11 @@ msgstr "جدولة مهمة"
 msgid "Schedule recurring work for your agents."
 msgstr "جدول العمل المتكرر لوكلائك."
 
-#: src/shell/domain/SchedulesPages.tsx:279
+#: src/shell/domain/SchedulesPages.tsx:283
 msgid "Schedule saved"
 msgstr "حُفظت الجدولة"
 
-#: src/shell/domain/SchedulesPages.tsx:297
+#: src/shell/domain/SchedulesPages.tsx:301
 msgid "Schedule type"
 msgstr "نوع الجدولة"
 
@@ -3908,7 +3912,7 @@ msgstr "عرض جميع النتائج ({0})"
 msgid "Show more"
 msgstr "عرض المزيد"
 
-#: src/shell/domain/UpdatesPages.tsx:310
+#: src/shell/domain/UpdatesPages.tsx:315
 msgid "Show the full log"
 msgstr "عرض السجل كاملًا"
 
@@ -3977,11 +3981,11 @@ msgstr "مكتبة المهارات"
 msgid "Skill created"
 msgstr "أُنشئت مهارة"
 
-#: src/shell/domain/SkillsPages.tsx:85
+#: src/shell/domain/SkillsPages.tsx:98
 msgid "Skill disabled"
 msgstr "عُطّلت المهارة"
 
-#: src/shell/domain/SkillsPages.tsx:85
+#: src/shell/domain/SkillsPages.tsx:98
 msgid "Skill enabled"
 msgstr "فُعّلت المهارة"
 
@@ -3990,11 +3994,11 @@ msgstr "فُعّلت المهارة"
 msgid "Skill ID"
 msgstr "معرّف المهارة"
 
-#: src/shell/domain/SkillsPages.tsx:187
+#: src/shell/domain/SkillsPages.tsx:200
 msgid "Skill restored to version {version}"
 msgstr "أُعيدت المهارة إلى الإصدار {version}"
 
-#: src/shell/domain/SkillsPages.tsx:283
+#: src/shell/domain/SkillsPages.tsx:296
 msgid "Skill saved"
 msgstr "حُفظت المهارة"
 
@@ -4016,7 +4020,7 @@ msgid "Skills guide how this agent works. They do not grant trading permissions.
 msgstr "توجّه المهارات طريقة عمل الوكيل ولا تمنحه صلاحيات تداول. تعرض هذه المكتبة التعليمات الحالية، وتحتفظ المهام النشطة بإصداراتها المثبتة."
 
 #. placeholder {0}: agent.name
-#: src/shell/domain/SkillsPages.tsx:131
+#: src/shell/domain/SkillsPages.tsx:144
 msgid "Skills of <0>{0}</0>"
 msgstr "مهارات <0>{0}</0>"
 
@@ -4226,7 +4230,7 @@ msgstr "اضغط رمز القفل بجانب عنوان الموقع."
 #: src/pages/Board.tsx:382
 #: src/pages/RoutineEditor.tsx:75
 #: src/pages/RoutineEditor.tsx:77
-#: src/shell/domain/SchedulesPages.tsx:288
+#: src/shell/domain/SchedulesPages.tsx:292
 msgid "Task"
 msgstr "المهمة"
 
@@ -4373,9 +4377,13 @@ msgstr "السوق الافتراضي اختياري. يمكن تحليل أسو
 msgid "The existing fixed market stays unchanged until you choose a new scope."
 msgstr "يبقى السوق الثابت الحالي دون تغيير حتى تختار نطاقًا جديدًا."
 
-#: src/shell/domain/SkillsPages.tsx:263
+#: src/shell/domain/SkillsPages.tsx:276
 msgid "The fields passed the check."
 msgstr "نجح فحص الحقول."
+
+#: src/shell/domain/FilesPages.tsx:223
+msgid "The file no longer exists."
+msgstr "لم يعد الملف موجودًا."
 
 #: src/components/common/FilePreviewPanel.tsx:20
 msgid "The file preview could not be displayed"
@@ -4388,6 +4396,10 @@ msgstr "ستظهر الإجابة كاملة عند الانتهاء."
 #: src/components/ai/AgentLiveStatus.tsx:86
 #~ msgid "The grant is active, but its readiness check did not finish. No trade was sent."
 #~ msgstr "التفويض مفعّل، لكن فحص الجاهزية لم يكتمل. لم تُرسل أي صفقة."
+
+#: src/shell/domain/GoalsKnowledgePages.tsx:25
+msgid "The item no longer exists."
+msgstr "لم يعد العنصر موجودًا."
 
 #: src/pages/shell/chat-context.tsx:114
 #: src/pages/shell/chat-context.tsx:117
@@ -4479,7 +4491,7 @@ msgstr "النموذج المحدد غير متاح لدى هذا المزود. 
 msgid "The setup code is incorrect."
 msgstr "رمز الإعداد غير صحيح."
 
-#: src/shell/domain/SkillsPages.tsx:246
+#: src/shell/domain/SkillsPages.tsx:259
 msgid "The skill no longer exists."
 msgstr "لم تعد المهارة موجودة."
 
@@ -4677,7 +4689,7 @@ msgid "Tick size"
 msgstr "أصغر حركة سعرية"
 
 #: src/shell/domain/SchedulesPages.tsx:76
-#: src/shell/domain/SchedulesPages.tsx:313
+#: src/shell/domain/SchedulesPages.tsx:317
 msgid "Time"
 msgstr "الوقت"
 
@@ -4694,7 +4706,7 @@ msgstr "المنطقة الزمنية"
 #: src/pages/ScratchpadSection.tsx:69
 #: src/pages/ScratchpadSection.tsx:160
 #: src/pages/shell/bot-settings.tsx:110
-#: src/shell/domain/GoalsKnowledgePages.tsx:226
+#: src/shell/domain/GoalsKnowledgePages.tsx:236
 msgid "Title"
 msgstr "العنوان"
 
@@ -4725,7 +4737,7 @@ msgstr "استهلاك الرموز"
 msgid "Too many attempts. Wait a minute and retry."
 msgstr "محاولات كثيرة. انتظر دقيقة وأعد المحاولة."
 
-#: src/shell/domain/SkillsPages.tsx:315
+#: src/shell/domain/SkillsPages.tsx:329
 msgid "Tool"
 msgstr "الأداة"
 
@@ -4819,7 +4831,7 @@ msgstr "إعادة المحاولة"
 
 #: src/components/integrations/IntegrationSetup.tsx:73
 #: src/pages/shell/bot-panel.tsx:146
-#: src/shell/domain/GoalsKnowledgePages.tsx:228
+#: src/shell/domain/GoalsKnowledgePages.tsx:238
 msgid "Type"
 msgstr "النوع"
 
@@ -4835,7 +4847,7 @@ msgstr "إلغاء الأرشفة"
 msgid "Unavailable"
 msgstr "غير متاحة"
 
-#: src/shell/domain/SkillsPages.tsx:189
+#: src/shell/domain/SkillsPages.tsx:202
 #: src/shell/lists/ListSheets.tsx:369
 #: src/shell/lists/Selection.tsx:142
 msgid "Undo"
@@ -4858,7 +4870,7 @@ msgstr "إلغاء كتم الميكروفون"
 msgid "Unpin"
 msgstr "إلغاء التثبيت"
 
-#: src/shell/domain/UpdatesPages.tsx:243
+#: src/shell/domain/UpdatesPages.tsx:248
 msgid "Unread"
 msgstr "غير مقروء"
 
@@ -4889,7 +4901,7 @@ msgstr "حساب وسيط لم تُتحقق هويته"
 msgid "Unverified metadata"
 msgstr "بيانات وصفية غير موثقة"
 
-#: src/shell/domain/UpdatesPages.tsx:254
+#: src/shell/domain/UpdatesPages.tsx:259
 msgid "Upcoming"
 msgstr "المواعيد القادمة"
 
@@ -4906,7 +4918,7 @@ msgstr "حدّث للحصول على آخر التحسينات."
 msgid "Updates"
 msgstr "المستجدات"
 
-#: src/shell/domain/FilesPages.tsx:185
+#: src/shell/domain/FilesPages.tsx:186
 msgid "Upload a file"
 msgstr "رفع ملف"
 
@@ -4930,12 +4942,12 @@ msgstr "بيانات مؤكدة"
 msgid "Verifying execution"
 msgstr "جارٍ التحقق من التنفيذ"
 
-#: src/shell/domain/SkillsPages.tsx:322
+#: src/shell/domain/SkillsPages.tsx:336
 msgid "Version"
 msgstr "الإصدار"
 
 #. placeholder {0}: entry.version
-#: src/shell/domain/SkillsPages.tsx:212
+#: src/shell/domain/SkillsPages.tsx:225
 msgid "Version {0}"
 msgstr "الإصدار {0}"
 
@@ -4947,9 +4959,9 @@ msgstr "الإصدار محظور"
 msgid "Version controls revision"
 msgstr "مراجعة ضوابط الإصدارات"
 
-#: src/shell/domain/SkillsPages.tsx:202
-#: src/shell/domain/SkillsPages.tsx:207
-#: src/shell/domain/SkillsPages.tsx:324
+#: src/shell/domain/SkillsPages.tsx:215
+#: src/shell/domain/SkillsPages.tsx:220
+#: src/shell/domain/SkillsPages.tsx:338
 msgid "Version history"
 msgstr "سجل الإصدارات"
 
@@ -5070,7 +5082,7 @@ msgid "Web search"
 msgstr "البحث في الويب"
 
 #: src/shell/domain/SchedulesPages.tsx:42
-#: src/shell/domain/SchedulesPages.tsx:309
+#: src/shell/domain/SchedulesPages.tsx:313
 msgctxt "schedule repeat"
 msgid "Weekly"
 msgstr "أسبوعيًا"
@@ -5114,7 +5126,7 @@ msgid "Work stopped after repeated interruptions"
 msgstr "توقف عمل بعد انقطاعات متكررة"
 
 #: src/shell/domain/SchedulesPages.tsx:41
-#: src/shell/domain/SchedulesPages.tsx:308
+#: src/shell/domain/SchedulesPages.tsx:312
 msgctxt "schedule repeat"
 msgid "Workdays"
 msgstr "أيام العمل"
@@ -5128,7 +5140,7 @@ msgstr "جارٍ العمل"
 msgid "Workspace"
 msgstr "مساحة العمل"
 
-#: src/shell/domain/FilesPages.tsx:162
+#: src/shell/domain/FilesPages.tsx:163
 msgid "Workspace files"
 msgstr "ملفات مساحة العمل"
 

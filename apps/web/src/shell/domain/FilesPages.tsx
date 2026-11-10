@@ -12,10 +12,11 @@ import { useSheets } from "../sheets/SheetHost";
 import { useToast } from "../Toast";
 import { type ArtifactPayload, domainApi } from "./api";
 import { useItemParam, useLoad } from "./hooks";
-import { Area, Field, FormPage, Grouped, Row } from "./ui";
+import { Area, Empty, Field, FormPage, Grouped, Row } from "./ui";
 
 const MAX_TEXT = 600_000;
-const TEXT_NAME = /\.(txt|md|csv|json|html|css|js|ts|xml|yaml|yml|log)$/i;
+// The same list as the server (routes/artifacts.py TEXT_SUFFIXES).
+const TEXT_NAME = /\.(txt|md|csv|json|html|css|js|xml|yaml|yml|log)$/i;
 const TEXT_TYPES = new Set(["application/json", "application/xml", "application/x-ndjson"]);
 /** «الملفات» holds text files only (Q36). */
 export const isTextFile = (payload: ArtifactPayload) =>
@@ -214,6 +215,13 @@ export function FileEditPage() {
     `file:${id}`,
   );
   if (id && file.loading && !file.data) return <SkRows count={2} />;
+  // A file that failed to load or is gone is never re-created as a new one.
+  if (id && !file.data)
+    return file.error != null ? (
+      <p role="alert">{userError(file.error)}</p>
+    ) : (
+      <Empty>{t`The file no longer exists.`}</Empty>
+    );
   const existing = file.data ?? null;
   return (
     <div className="domain-page">

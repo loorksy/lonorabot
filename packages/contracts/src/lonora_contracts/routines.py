@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 
 from pydantic import Field, model_validator
 
@@ -26,8 +26,13 @@ class RoutineCreate(Contract):
         schedules = [self.interval_seconds, self.cron, self.run_at]
         if sum(value is not None for value in schedules) != 1:
             raise ValueError("one_schedule_required")
-        if self.run_at is not None and self.run_at.tzinfo is None:
-            raise ValueError("run_at_timezone_required")
+        if self.run_at is not None:
+            if self.run_at.tzinfo is None:
+                raise ValueError("run_at_timezone_required")
+            self.run_at = self.run_at.astimezone(UTC)
+            # A minute of grace for the form's clock; earlier would fire at once.
+            if self.run_at < datetime.now(UTC) - timedelta(minutes=1):
+                raise ValueError("run_at_past")
         if self.title is not None:
             self.title = self.title.strip() or None
         return self

@@ -24,6 +24,13 @@ const TOOLS = () =>
     ["artifact_create", t`Prepare reports`],
   ] as const;
 
+/** The three choices, plus the skill's own first tool when it is none of them. */
+const toolOptions = (current?: string) => {
+  const options: (readonly [string, string])[] = [...TOOLS()];
+  if (current && !options.some(([key]) => key === current)) options.push([current, current]);
+  return options;
+};
+
 export const skillTitle = (skill: AgentSkill) => skill.manifest?.title || skill.name;
 export const skillDescription = (skill: AgentSkill) => skill.manifest?.description ?? "";
 
@@ -51,6 +58,11 @@ const NEW_MANIFEST: Omit<SkillManifest, "id" | "title" | "description" | "requir
   context_budget: 6000,
 };
 
+function keepTools(prior: string[], tool: string): string[] {
+  if ((prior[0] ?? "") === tool) return prior;
+  return tool ? [tool, ...prior.slice(1).filter((name) => name !== tool)] : prior.slice(1);
+}
+
 /** The owner's fields on a skill payload, keeping everything else it carries. */
 export function withFields(
   base: AgentSkill | null,
@@ -65,7 +77,8 @@ export function withFields(
           id: name,
           title: fields.title,
           description: fields.description || fields.title,
-          required_tools: fields.tool ? [fields.tool] : [],
+          // The form edits the first tool only; the rest of the list is kept as it was.
+          required_tools: keepTools(prior?.required_tools ?? [], fields.tool),
         }
       : null;
   return { ...(base ?? { enabled: true }), name, content: fields.content, manifest };
@@ -310,12 +323,13 @@ export function SkillPage({ create = false }: { create?: boolean }) {
           name="instructions"
           defaultValue={skill?.content}
           maxLength={16000}
+          required
         />
         <SelectField
           label={t`Tool`}
           name="tool"
           value={skill?.manifest?.required_tools?.[0] ?? ""}
-          options={TOOLS()}
+          options={toolOptions(skill?.manifest?.required_tools?.[0])}
         />
         {row && (
           <>
