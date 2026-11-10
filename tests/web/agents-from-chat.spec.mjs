@@ -147,7 +147,8 @@ for (const locale of ["en", "ar"])
       }
       await card.getByRole("button", { name: text.undo, exact: true }).click();
       await expect(card).toHaveAttribute("data-owner-action-status", "confirmed");
-      await expect(card.locator(".nt-done")).toBeVisible();
+      // The real outcome of the Undo, word for word.
+      await expect(card.getByRole("status")).toHaveText(text.undone);
       expect((await context.request.get(`/api/agents/${seeded.agent}`)).status()).toBe(404);
       // The status line opens the AgentSheet; its watches row opens «المراقبات»; Cancel there.
       await line.click();

@@ -173,7 +173,7 @@ for (const locale of ["en", "ar"])
       await expect(undo.locator(".nt-text")).toContainText(text.created);
       await undo.getByRole("button", { name: text.undo, exact: true }).click();
       await expect(undo).toHaveAttribute("data-owner-action-status", "confirmed");
-      await expect(undo.locator(".nt-done")).toBeVisible();
+      await expect(undo.getByRole("status")).toHaveText(text.undone);
       const after = await (
         await context.request.get(`/api/supervision?agent_id=${seeded.watcher}`)
       ).json();

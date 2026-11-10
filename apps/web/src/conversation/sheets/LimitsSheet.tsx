@@ -80,6 +80,9 @@ function LimitsBody({ accountId, close }: { accountId: string; close: () => void
   const toast = useToast();
   const [policy, setPolicy] = useState<Policy | null>(null);
   const [next, setNext] = useState<Record<Field, number | null> | null>(null);
+  // Amount limits are in the account's own currency (risk_currency_required): the policy's,
+  // else the account's as the broker reports it, else the owner types it.
+  const [currency, setCurrency] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>();
   const path = `/trading/accounts/${encodeURIComponent(accountId)}/execution-policy`;
@@ -90,6 +93,17 @@ function LimitsBody({ accountId, close }: { accountId: string; close: () => void
       .then((row) => {
         if (!live) return;
         setPolicy(row);
+        const stored = typeof row.risk.currency === "string" ? row.risk.currency : "";
+        setCurrency(stored);
+        if (!stored)
+          void api
+            .get<{ account?: { currency?: string } }>(
+              `/trading/accounts/${encodeURIComponent(accountId)}`,
+            )
+            .then((summary) => {
+              if (live && summary.account?.currency) setCurrency(summary.account.currency);
+            })
+            .catch(() => undefined);
         setNext(
           Object.fromEntries(FIELDS.map(({ key }) => [key, num(row.risk[key])])) as Record<
             Field,
@@ -101,14 +115,16 @@ function LimitsBody({ accountId, close }: { accountId: string; close: () => void
     return () => {
       live = false;
     };
-  }, [path]);
+  }, [path, accountId]);
   if (!policy || !next)
     return error ? <p className="form-error">{userError(error)}</p> : <p className="note">…</p>;
   const from = (key: Field) => num(policy.risk[key]);
   const changed = FIELDS.some(({ key }) => from(key) !== next[key]);
   const loose = FIELDS.some(({ key }) => looser(key, from(key), next[key]));
-  const unit = (percent: boolean) =>
-    percent ? "%" : policy.risk.currency ? ` ${policy.risk.currency}` : "";
+  const unit = (percent: boolean) => (percent ? "%" : currency ? ` ${currency}` : "");
+  // An amount limit needs the account currency; percentages do not.
+  const needsCurrency = FIELDS.some(({ key, percent }) => !percent && next[key] != null);
+  const missingCurrency = needsCurrency && !currency.trim();
   const show = (value: number | null, percent: boolean) =>
     value == null ? t`No limit` : `${+value.toFixed(2)}${unit(percent)}`;
   const save = async () => {
@@ -116,6 +132,7 @@ function LimitsBody({ accountId, close }: { accountId: string; close: () => void
       ...policy,
       risk: {
         ...policy.risk,
+        currency: currency.trim() || null,
         ...Object.fromEntries(
           FIELDS.map(({ key }) => [key, next[key] == null ? null : String(next[key])]),
         ),
@@ -226,6 +243,28 @@ function LimitsBody({ accountId, close }: { accountId: string; close: () => void
               : t`Tightening is saved at once.`}
         </span>
       </p>
+      {needsCurrency && (
+        <label className="oa-f">
+          <span className="oa-l">
+            <Trans>Account currency</Trans>
+          </span>
+          <input
+            name="currency"
+            dir="ltr"
+            maxLength={8}
+            autoComplete="off"
+            value={currency}
+            aria-invalid={missingCurrency}
+            onChange={(event) => setCurrency(event.target.value.toUpperCase())}
+          />
+        </label>
+      )}
+      {missingCurrency && (
+        <p className="oa-warn" role="alert">
+          <Icon name="alert" />
+          <span>{t`Amount limits are in the account currency: enter it to save.`}</span>
+        </p>
+      )}
       {loose && !webDeviceSupported() && (
         <p className="oa-warn">{t`This browser cannot use a passkey.`}</p>
       )}
@@ -239,7 +278,7 @@ function LimitsBody({ accountId, close }: { accountId: string; close: () => void
         <button
           type="button"
           className={`btn primary${changed ? "" : " is-off"}${busy ? " is-busy" : ""}`}
-          disabled={!changed || busy}
+          disabled={!changed || busy || missingCurrency}
           onClick={() => void save()}
         >
           {loose && <Icon name="fingerprint" />}

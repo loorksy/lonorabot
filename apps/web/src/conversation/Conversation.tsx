@@ -704,15 +704,15 @@ export function Conversation({
         if (!entries.some((entry) => entry.isIntersecting) || loadingOlder) return;
         setLoadingOlder(true);
         following.current = false;
-        const before = thread.messages.length;
+        // The page's own count says whether older history remains; a failed read leaves
+        // paging on, so the sentinel tries again when it comes back into view.
         void thread
           .older()
-          .then(() => undefined)
+          .then((read) => {
+            if (read === 0) setHasOlder(false);
+          })
           .catch(() => undefined)
-          .finally(() => {
-            setLoadingOlder(false);
-            if (thread.messages.length === before) setHasOlder(false);
-          });
+          .finally(() => setLoadingOlder(false));
       },
       { root, rootMargin: "200px 0px 0px 0px" },
     );

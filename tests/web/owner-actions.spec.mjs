@@ -465,6 +465,12 @@ for (const locale of ["en", "ar"])
         })
         .click();
       await expect(page.getByTestId("agent-mode-line")).toContainText(text.full);
+      // The owner's absolute open-risk cap stays and is shown as set, never «دون حد».
+      const openRisk = page.locator('#dialog [data-money-limit="max_open_risk"]');
+      await expect(openRisk).toContainText("400");
+      await expect(
+        page.locator('#dialog [data-money-limit="max_open_risk_equity_percent"]'),
+      ).toHaveCount(0);
     } finally {
       await context.request.delete(`/api/agents/${agent.id}`, { headers: state.headers });
       await state.cleanup();

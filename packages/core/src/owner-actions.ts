@@ -1832,3 +1832,17 @@ export function ownerActionError(code: string | null | undefined, locale: string
   const entry = code ? errors[code] : undefined;
   return entry ? entry[language(locale)] : null;
 }
+
+// The notices whose «تراجع» is their confirm decision; the others (stop_tightened) are records.
+const UNDOABLE_NOTICES = new Set<string>([
+  "agent_model_changed",
+  "agent_created",
+  "supervision_created",
+  "watch_changed",
+]);
+
+/** A settled notice reads «تم التراجع» only when its confirm was the owner's Undo (Q31); a
+    settled stop_tightened record was applied, never undone. */
+export function noticeUndone(card: Pick<OwnerAction, "kind" | "status">): boolean {
+  return card.status === "confirmed" && UNDOABLE_NOTICES.has(card.kind);
+}

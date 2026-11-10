@@ -408,8 +408,9 @@ export function Composer({
     "composer",
     canSend || text.trim() ? "has-text" : "",
     replyTarget ? "is-replying" : "",
-    // Send turns into ■ while the agent works; typing a direction brings send back (steering).
-    streaming && !text.trim() && !files.length ? "is-streaming" : "",
+    // ■ Stop stays while the agent works (reference streamingIn): the owner can always stop a
+    // run that may be heading to a trade. A typed direction adds send beside it (steering).
+    streaming ? "is-streaming" : "",
     showSuggestion ? "has-suggest" : "",
     listening ? "listening" : "",
     recorder.active ? "recording" : "",
@@ -886,6 +887,30 @@ function useVoiceRecorder({
     knob.current = null;
     lock.current = null;
   };
+  // Leaving the conversation (unmount, which a thread switch is) abandons a recording: the
+  // microphone is released and nothing is ever sent, not even a recording that was ending.
+  const alive = useRef(true);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: unmount only.
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+      const r = rec.current;
+      rec.current = null;
+      if (r) {
+        cancelAnimationFrame(r.raf);
+        r.chunks = [];
+        try {
+          if (r.media && r.media.state !== "inactive") r.media.stop();
+        } catch {
+          // already stopped
+        }
+        for (const track of r.stream?.getTracks() ?? []) track.stop();
+        void r.ctx?.close().catch(() => undefined);
+      }
+      cleanupFloat();
+    };
+  }, []);
   const finish = async (mode: "send" | "cancel", quiet = false) => {
     const r = rec.current;
     if (!r) return;
@@ -942,7 +967,8 @@ function useVoiceRecorder({
           })
         : null;
     stop();
-    if (blob) await onSend(blob, Math.round(seconds * 10) / 10, voicePeaks(r.levels));
+    if (blob && alive.current)
+      await onSend(blob, Math.round(seconds * 10) / 10, voicePeaks(r.levels));
   };
   const tick = (now: number) => {
     const r = rec.current;

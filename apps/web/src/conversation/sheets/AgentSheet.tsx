@@ -1,10 +1,17 @@
 import { i18n } from "@lingui/core";
 import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
-import type { AgentLiveState, MoneyLimitName, TradingReadiness } from "@lonora/contracts";
+import type {
+  AgentLiveState,
+  MoneyLimitName,
+  MoneyLimits,
+  TradingReadiness,
+} from "@lonora/contracts";
 import {
   agentStatusLine,
   isolate,
+  moneyLimitLabel,
+  pauseClassLabel,
   readinessTime,
   tradingReadinessLine,
   tradingSafetyText,
@@ -108,6 +115,11 @@ export function StatusAvatar({ agent, children }: { agent: Agent; children: Reac
 
 function restrictionText(r: TradingReadiness["restrictions"][number]) {
   const until = r.valid_until ? readinessTime(r.valid_until, i18n.locale) : null;
+  // Only a «no new entries» pause is «الصفقات الجديدة معلّقة»; the others name their class.
+  if (r.action_class !== "no_new_entries") {
+    const what = pauseClassLabel(r.action_class, i18n.locale);
+    return until ? t`Restricted: ${what} until ${until}` : t`Restricted: ${what}`;
+  }
   return until ? t`New trades are paused until ${until}` : t`New trades are paused`;
 }
 
@@ -201,12 +213,48 @@ function useAccountName(readiness: TradingReadiness | null) {
   };
 }
 
-const LIMIT_ROWS: Array<[MoneyLimitName, () => string]> = [
-  ["max_daily_loss", () => t`Daily loss limit`],
-  ["max_trade_risk_equity_percent", () => t`Trade risk limit`],
-  ["max_open_risk_equity_percent", () => t`Open risk limit`],
-  ["min_free_margin", () => t`Minimum free margin`],
+/* The owner's money limits, every cap that is set (a percentage of equity and an absolute
+   amount can both apply): «دون حد» only when neither is set. */
+const LIMIT_GROUPS: Array<[() => string, MoneyLimitName[]]> = [
+  [() => t`Daily loss limit`, ["max_daily_loss"]],
+  [() => t`Trade risk limit`, ["max_trade_risk_equity_percent", "max_trade_risk"]],
+  [() => t`Open risk limit`, ["max_open_risk_equity_percent", "max_open_risk"]],
+  [() => t`Minimum free margin`, ["min_free_margin"]],
 ];
+
+export function LimitRows({ limits }: { limits: MoneyLimits }) {
+  const amount = (key: MoneyLimitName) =>
+    `${limits.limits[key]}${key.endsWith("percent") ? "%" : limits.currency ? ` ${limits.currency}` : ""}`;
+  if (!limits.configured)
+    // The server enforces none: the same words as the readiness line.
+    return (
+      <div className="row" data-money-limit="none">
+        <span className="body">{tradingSafetyText(i18n.locale).noMoneyLimit}</span>
+      </div>
+    );
+  return (
+    <>
+      {LIMIT_GROUPS.map(([label, keys]) => {
+        const set = keys.filter((key) => limits.limits[key] != null);
+        return set.length ? (
+          set.map((key) => (
+            <div key={key} className="row" data-money-limit={key}>
+              <span className="body">
+                {set.length > 1 ? moneyLimitLabel(key, i18n.locale) : label()}
+              </span>
+              <span className="value ltr">{amount(key)}</span>
+            </div>
+          ))
+        ) : (
+          <div key={keys[0]} className="row" data-money-limit={keys[0]} data-unset="">
+            <span className="body">{label()}</span>
+            <span className="value">{t`No limit`}</span>
+          </div>
+        );
+      })}
+    </>
+  );
+}
 
 function AgentSheetBody({
   agent,
@@ -221,7 +269,7 @@ function AgentSheetBody({
   const prefs = useChatPrefs();
   const { refresh } = useClient();
   const toast = useToast();
-  const limits = useLimitsSheet();
+  const limits_ = useLimitsSheet();
   const watches = useWatchesSheet();
   const [busy, setBusy] = useState(false);
   const readiness = state?.trading_readiness ?? null;
@@ -410,7 +458,11 @@ function AgentSheetBody({
                 onClick={() =>
                   void run(
                     stopped ? resumeTrading : stopNewTrading,
-                    stopped ? t`Trading resumed` : t`Trading stopped · closing is still allowed`,
+                    stopped
+                      ? t`Trading resumed`
+                      : exits
+                        ? t`Trading stopped · closing is still allowed`
+                        : t`Trading stopped`,
                   )
                 }
               />
@@ -471,7 +523,10 @@ function AgentSheetBody({
                     {r.source === "owner_ui" || r.source === "owner_message"
                       ? t`Set by you`
                       : agentName(r.created_by_agent_id)}{" "}
-                    · {t`closing allowed`}
+                    ·{" "}
+                    {r.action_class === "all_mutations" || !exits
+                      ? t`closing is frozen too`
+                      : t`closing allowed`}
                   </small>
                 </span>
                 <button
@@ -516,35 +571,27 @@ function AgentSheetBody({
               </div>
             ))}
           </div>
-          {account && (
-            <>
+          {(readiness.money_limits ?? []).map((limits) => (
+            <section key={limits.account_id} data-account-limits={limits.account_id}>
               <h3>
                 <Trans>Account limits</Trans>
+                {accountName(limits.account_id) && <> · {accountName(limits.account_id)}</>}
               </h3>
               <div className="group">
-                {LIMIT_ROWS.map(([key, label]) => (
-                  <div key={key} className="row">
-                    <span className="body">{label()}</span>
-                    <span className="value ltr">
-                      {account.limits[key] != null
-                        ? `${account.limits[key]}${key.endsWith("percent") ? "%" : account.currency ? ` ${account.currency}` : ""}`
-                        : t`No limit`}
-                    </span>
-                  </div>
-                ))}
+                <LimitRows limits={limits} />
               </div>
               <button
                 type="button"
                 className="btn full outline"
                 onClick={() => {
                   close();
-                  limits(account.account_id);
+                  limits_(limits.account_id);
                 }}
               >
                 <Trans>Edit the limits</Trans>
               </button>
-            </>
-          )}
+            </section>
+          ))}
           {exits ? (
             <p className="note">
               <Trans>

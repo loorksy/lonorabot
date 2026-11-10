@@ -306,8 +306,9 @@ export function useThreads(
       await api.post(`/runs/${id}/resume`, {});
       refresh();
     },
-    older: async () => {
-      if (!threadId || !messages.length) return;
+    /** The page before the oldest loaded message; resolves to how many it read (0: none). */
+    older: async (): Promise<number> => {
+      if (!threadId || !messages.length) return 0;
       const rows = await api.get<Message[]>(
         `/threads/${threadId}/messages?before=${messages[0].seq}`,
       );
@@ -316,6 +317,7 @@ export function useThreads(
         for (const message of rows) merged.set(message.id, message);
         return [...merged.values()].sort((a, b) => a.seq - b.seq);
       });
+      return rows.length;
     },
     /** The page centred on one message (a search hit); merged into what is loaded. */
     around: async (seq: number) => {

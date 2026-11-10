@@ -160,9 +160,11 @@ test("composer respects IME and multiline input while preserving immediate sends
   await expect(page.locator(".composer .send")).toBeHidden();
   expect(posts).toBe(1);
   await composer.fill("Continue with this direction");
-  // A direction typed while the agent works: send comes back (steering), ■ stays reachable.
-  await expect(page.locator(".composer .send")).toBeEnabled();
+  // A direction typed while the agent works: send comes back (steering) and ■ Stop stays
+  // reachable, so the owner can always stop a run that may be heading to a trade.
   await expect(page.locator(".composer .send")).toBeVisible();
+  await expect(page.locator(".composer .stop")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Stop the reply", exact: true })).toBeEnabled();
 });
 
 test("manual transcript scrolling is preserved as fresh content arrives", async ({
@@ -212,4 +214,95 @@ test("manual transcript scrolling is preserved as fresh content arrives", async 
   const newest = await page.locator("[data-message-id='ux-message-25']").boundingBox();
   const restingBar = await page.locator(".composer-card").boundingBox();
   expect(newest.y + newest.height).toBeLessThan(restingBar.y);
+});
+
+test("M6: leaving the chat while recording releases the microphone and sends nothing", async ({
+  page,
+  conversation,
+}) => {
+  await page.addInitScript(() => {
+    localStorage.setItem("lonora.locale", "en");
+    // A real audio track (an oscillator) whose stop() is counted.
+    window.__micStopped = 0;
+    navigator.mediaDevices.getUserMedia = async () => {
+      const ctx = new AudioContext();
+      const osc = ctx.createOscillator();
+      const out = ctx.createMediaStreamDestination();
+      osc.connect(out);
+      osc.start();
+      for (const track of out.stream.getTracks()) {
+        const stop = track.stop.bind(track);
+        track.stop = () => {
+          window.__micStopped += 1;
+          stop();
+        };
+      }
+      return out.stream;
+    };
+  });
+  const sends = [];
+  page.on("request", (request) => {
+    const path = new URL(request.url()).pathname;
+    if (
+      request.method() === "POST" &&
+      (path.endsWith("/messages") || path.startsWith("/api/artifacts"))
+    )
+      sends.push(path);
+  });
+  await page.goto(`/app/${conversation.agent.id}`);
+  await page.locator(".composer .cbtn").click();
+  await page.locator("#dialog").getByRole("button", { name: "Voice message" }).click();
+  await expect(page.locator(".vrec-bar")).toBeVisible();
+  await page.waitForTimeout(600);
+  // Leave the conversation (the composer unmounts, as a thread switch does).
+  await page
+    .locator(".desktop-rail")
+    .getByRole("button", { name: "Settings", exact: true })
+    .click();
+  await expect(page.locator(".vrec-bar")).toHaveCount(0);
+  await expect.poll(() => page.evaluate(() => window.__micStopped)).toBeGreaterThan(0);
+  await page.waitForTimeout(1500);
+  expect(sends).toEqual([]);
+});
+
+test("M10: older history keeps paging page after page, and a failed read does not end it", async ({
+  page,
+  conversation,
+}) => {
+  await page.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
+  const all = Array.from({ length: 180 }, (_, index) =>
+    message(conversation, index + 1, index % 2 ? "assistant" : "user", `Page row ${index + 1}`),
+  );
+  let failed = false;
+  const befores = [];
+  await page.route(`**/api/threads/${conversation.thread.id}/messages*`, (route) => {
+    if (route.request().method() !== "GET") return route.continue();
+    const before = new URL(route.request().url()).searchParams.get("before");
+    if (!before) return route.fulfill({ json: all.slice(-60) });
+    befores.push(Number(before));
+    // The first older read fails once: paging must stay on.
+    if (!failed) {
+      failed = true;
+      return route.fulfill({ status: 503, json: { code: "service_unavailable" } });
+    }
+    const rows = all.filter((row) => row.seq < Number(before)).slice(-60);
+    return route.fulfill({ json: rows });
+  });
+  await page.goto(`/app/${conversation.agent.id}`);
+  const transcript = page.getByTestId("transcript");
+  await expect(page.locator("[data-message-id='ux-message-180']")).toBeVisible();
+  // Scrolling to the top keeps loading: the failed read, then two pages, down to the first.
+  await expect
+    .poll(
+      async () => {
+        await transcript.evaluate((element) => {
+          element.scrollTop = 0;
+        });
+        return page.locator("[data-message-id='ux-message-1']").count();
+      },
+      { timeout: 20000, intervals: [400] },
+    )
+    .toBe(1);
+  expect(befores.length).toBeGreaterThanOrEqual(3);
+  await expect(page.locator("[data-message-id='ux-message-1']")).toHaveCount(1);
 });

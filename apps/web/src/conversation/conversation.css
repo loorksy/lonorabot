@@ -4801,3 +4801,8 @@ span.no-trade {
     -webkit-touch-callout: none;
   }
 }
+
+/* Lonora (review M3): a direction typed during a run shows send beside ■ Stop; Stop never hides. */
+.composer.is-streaming.has-text .send {
+  display: grid !important;
+}

@@ -3,6 +3,7 @@ import type { DeviceChallenge, OwnerAction, OwnerActionDecision } from "@lonora/
 import {
   type CredentialForm,
   mergeOwnerAction,
+  noticeUndone,
   OWNER_ACTION_CHANGED,
   type OwnerActionButton,
   type OwnerActionOption,
@@ -224,6 +225,7 @@ export function OwnerActionCard({
         row={row}
         text={[spec.title, ...spec.lines].join(" · ")}
         undo={settled ? undefined : spec.buttons.find((button) => button.decision === "confirm")}
+        outcome={spec.outcome}
         busy={busy}
         error={error}
         onUndo={(button) => void decide(button)}
@@ -607,6 +609,7 @@ function NoticeLine({
   row,
   text,
   undo,
+  outcome,
   busy,
   error,
   onUndo,
@@ -614,12 +617,16 @@ function NoticeLine({
   row: OwnerAction;
   text: string;
   undo?: OwnerActionButton;
+  /** The settled card's own line (core settledLine), e.g. «تم التراجع: أُزيل الوكيل.». */
+  outcome?: string | null;
   busy: boolean;
   error: unknown;
   onUndo: (button: OwnerActionButton) => void;
 }) {
   const labels = ownerActionText(i18n.locale);
-  const undone = row.status === "confirmed";
+  // Only a notice that offers «تراجع» can be undone (Q31): a settled stop_tightened notice
+  // was applied, never undone.
+  const undone = noticeUndone(row);
   return (
     <div
       className="k-notice"
@@ -639,9 +646,9 @@ function NoticeLine({
           })}
         </time>
         {undone ? (
-          <span className="nt-done">
+          <span className="nt-done" role="status">
             <Icon name="undo" />
-            {labels.undone}
+            {outcome ?? labels.undone}
           </span>
         ) : undo ? (
           <button

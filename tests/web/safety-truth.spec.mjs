@@ -332,6 +332,11 @@ test("header safety pill: one line, one brake, Resume in one call", async ({ pag
     await expect(capsule).toContainText("Trading is stopped");
     await capsule.click();
     const sheet = page.locator("#dialog");
+    // The sheet's head repeats the server's line; the money limits say none is set.
+    await expect(sheet.getByTestId("agent-mode-line")).toHaveText(
+      "New trading stopped · exits allowed",
+    );
+    await expect(sheet.getByText("No money limit set", { exact: true })).toBeVisible();
     const trading = sheet.getByRole("switch", { name: "Trading", exact: true });
     await expect(trading).toHaveAttribute("aria-checked", "false");
     await expect(
@@ -339,6 +344,7 @@ test("header safety pill: one line, one brake, Resume in one call", async ({ pag
     ).toBeVisible();
     await trading.click();
     await expect(trading).toHaveAttribute("aria-checked", "true");
+    await expect(sheet.getByTestId("agent-mode-line")).toHaveText("Asks you before each trade");
     expect(writes).toEqual([{ enabled: true, emergency_stop: false }]);
     expect(await state.read()).toEqual({ enabled: true, emergency_stop: false });
     // A normal state pins nothing under the header.
@@ -410,9 +416,14 @@ for (const locale of ["en", "ar"])
       await expect(pill.locator(".sc-text")).toHaveText(text.frozen);
       await pill.click();
       const sheet = page.locator("#dialog");
-      // The sheet never says closing is allowed while a freeze blocks it.
+      // The sheet's head repeats the frozen line; it never contradicts the freeze alert.
+      await expect(sheet.getByTestId("agent-mode-line")).toHaveText(text.frozen);
       await expect(sheet.getByRole("alert")).toHaveText(text.alert);
       await expect(sheet.getByText(text.allowed, { exact: true })).toHaveCount(0);
+      // No row or toast claims closing is allowed under the freeze.
+      await expect(
+        sheet.getByText(/closing (is still |is always )?allowed|الإغلاق مسموح/),
+      ).toHaveCount(0);
     } finally {
       if (freeze)
         await context.request.post(`/api/trading/restrictions/${freeze}/revoke`, {
@@ -423,3 +434,47 @@ for (const locale of ["en", "ar"])
       await state.cleanup();
     }
   });
+
+test("M11: an amount limit saves in the account's own currency, prefilled from the broker", async ({
+  page,
+  context,
+}) => {
+  const state = await setup(context);
+  const response = await context.request.post("/api/agents", {
+    headers: state.headers,
+    data: {
+      name: `Limits ${randomUUID()}`,
+      trading_account_id: state.data.account,
+      trading_symbol: state.data.symbol,
+    },
+  });
+  expect(response.status()).toBe(201);
+  const agent = await response.json();
+  const path = `/api/trading/accounts/${state.data.account}/execution-policy`;
+  try {
+    const before = await (await context.request.get(path)).json();
+    expect(before.risk.currency ?? null).toBeNull();
+    const puts = [];
+    page.on("request", (request) => {
+      if (request.method() === "PUT" && new URL(request.url()).pathname === path)
+        puts.push(request.postDataJSON());
+    });
+    await page.goto(`/app/${agent.id}`);
+    await page.getByRole("button", { name: "Chat menu", exact: true }).click();
+    await page.getByRole("button", { name: "Status and safety", exact: true }).click();
+    await page.locator("#dialog").getByRole("button", { name: "Edit the limits" }).click();
+    const sheet = page.locator("#dialog");
+    // Daily loss is an amount: «استعادة» sets it, the currency comes from the account.
+    await sheet.locator(".oa-lim").first().getByRole("button", { name: "Restore" }).click();
+    await expect(sheet.locator('input[name="currency"]')).toHaveValue("USD");
+    await sheet.getByRole("button", { name: "Save", exact: true }).click();
+    await expect.poll(() => puts.length).toBe(1);
+    expect(puts[0].risk.currency).toBe("USD");
+    const after = await (await context.request.get(path)).json();
+    expect(after.risk.currency).toBe("USD");
+    expect(Number(after.risk.max_daily_loss)).toBeGreaterThan(0);
+  } finally {
+    await context.request.delete(`/api/agents/${agent.id}`, { headers: state.headers });
+    await state.cleanup();
+  }
+});
