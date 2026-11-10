@@ -390,6 +390,7 @@ for (const locale of ["en", "ar"])
             alert: "A freeze is active: exits are blocked too.",
           };
     let freeze;
+    let pause;
     try {
       const permissions = await (
         await context.request.get(`/api/agents/${agent.id}/permissions`)
@@ -410,6 +411,13 @@ for (const locale of ["en", "ar"])
       });
       expect(created.status()).toBe(201);
       freeze = (await created.json()).id;
+      // A plain pause next to the freeze: its row speaks for its own class only.
+      const paused = await context.request.post("/api/trading/restrictions", {
+        headers: state.headers,
+        data: { account_id: state.data.account, action_class: "no_new_entries" },
+      });
+      expect(paused.status()).toBe(201);
+      pause = (await paused.json()).id;
       await page.reload();
       await expect(pill).toHaveAttribute("data-readiness", "stopped");
       // A freeze blocks exits too: the capsule says it in the server's words.
@@ -424,9 +432,22 @@ for (const locale of ["en", "ar"])
       await expect(
         sheet.getByText(/closing (is still |is always )?allowed|الإغلاق مسموح/),
       ).toHaveCount(0);
+      // R3: each restriction row tells its own class: the freeze freezes closing, the pause
+      // does not (and never borrows the freeze's words).
+      await expect(sheet.locator(`[data-restriction="${freeze}"]`)).toHaveAttribute(
+        "data-closing",
+        "frozen",
+      );
+      await expect(sheet.locator(`[data-restriction="${pause}"]`)).toHaveAttribute(
+        "data-closing",
+        "allowed",
+      );
+      await expect(sheet.locator(`[data-restriction="${pause}"]`)).not.toContainText(
+        locale === "ar" ? "مجمّد" : "frozen",
+      );
     } finally {
-      if (freeze)
-        await context.request.post(`/api/trading/restrictions/${freeze}/revoke`, {
+      for (const id of [freeze, pause].filter(Boolean))
+        await context.request.post(`/api/trading/restrictions/${id}/revoke`, {
           headers: state.headers,
           data: {},
         });

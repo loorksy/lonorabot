@@ -514,19 +514,29 @@ function AgentSheetBody({
               )}
             </div>
             {systemPauses.map((r) => (
-              <div key={r.id} className="row">
+              <div
+                key={r.id}
+                className="row"
+                data-restriction={r.id}
+                data-closing={r.action_class === "all_mutations" ? "frozen" : "allowed"}
+              >
                 <Icon name="lock" />
                 <span className="body">
                   <strong>{restrictionText(r)}</strong>
                   <small dir="auto">
                     {accountName(r.account_id) && <>{accountName(r.account_id)} · </>}
+                    {r.symbol && (
+                      <>
+                        <bdi className="ltr">{r.symbol}</bdi> ·{" "}
+                      </>
+                    )}
                     {r.source === "owner_ui" || r.source === "owner_message"
                       ? t`Set by you`
                       : agentName(r.created_by_agent_id)}{" "}
-                    ·{" "}
-                    {r.action_class === "all_mutations" || !exits
+                    · {/* Each row's own class: a freeze elsewhere never colours this pause. */}
+                    {r.action_class === "all_mutations"
                       ? t`closing is frozen too`
-                      : t`closing allowed`}
+                      : t`this one does not block closing`}
                   </small>
                 </span>
                 <button
