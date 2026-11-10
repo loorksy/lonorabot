@@ -324,8 +324,23 @@ where a Lonora installation exists. It checks, in order:
     secrets and keeps the new database password;
 15. adoption of an installation on an image from before this tooling (optional path).
 
-`REPO` must hold the tags `old`, `v1`, `v2`, `v3-broken` and `v4-good` described at the top of the
-script; any local registry (`docker run -d -p 127.0.0.1:5000:5000 registry:2`) works.
+`REPO` must hold the tags `old`, `v1`, `v2`, `v3-broken` and `v4-good`. Build them with
+`tests/ops/build_test_images.sh REPO`, into any registry you control:
+
+```sh
+docker run -d --name registry -p 127.0.0.1:5000:5000 registry:2
+bash tests/ops/build_test_images.sh localhost:5000/lonora
+bash tests/ops/lifecycle_test.sh localhost:5000/lonora
+```
+
+It builds `old` from main at `80e195f` (the last commit before this tooling, override with
+`OLD_SHA`), `v1` and `v2` from the checkout with different `LONORA_VERSION`, `v3-broken` (v2 plus
+`tests/ops/fixtures/9999_broken_probe.py`, which creates a table, and a Gateway that never starts)
+and `v4-good` (v2 plus `tests/ops/fixtures/9998_good_probe.py`). The probe migrations exist only
+inside those test images. It pushes all five and prints their digests (also written to
+`.runtime/ops-test-images.txt`). Where the Debian mirror is unreachable, `LONORA_TEST_SKIP_APT=1`
+drops the Chromium/fonts line; `LONORA_BUILD_CA_FILE` and `LONORA_BUILD_NETWORK=host` help behind a
+TLS-intercepting proxy on `127.0.0.1`. The runs reported here used all three.
 
 ### What was verified, and what still needs a real host
 
