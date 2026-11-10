@@ -208,6 +208,13 @@ def _rows(value: Any) -> bool:
 ACTIONS = ("set", "toggle", "reset", "copy", "open", "go", "send")
 
 
+def _data_value(value: Any) -> bool:
+    """A send's data field: ``$key`` (a state or calc name) or a literal, never an expression."""
+    if isinstance(value, str):
+        return _key(value[1:]) if value.startswith("$") else len(value) <= 200
+    return _scalar(value)
+
+
 def _action(value: Any) -> bool:
     if not isinstance(value, dict):
         return False
@@ -221,7 +228,7 @@ def _action(value: Any) -> bool:
             and len(value["intent"]) <= 48
             and isinstance(data, dict)
             and len(cast(dict[str, Any], data)) <= 12
-            and all(_key(k) and _expr(v) for k, v in cast(dict[str, Any], data).items())
+            and all(_key(k) and _data_value(v) for k, v in cast(dict[str, Any], data).items())
             and isinstance(value.get("lock", True), bool)
         )
     if kind == "go":
@@ -343,7 +350,8 @@ def repair_node(
             node[name] = icon
             continue
         if check is None or not check(value):
-            if required:
+            # A button whose action is invalid is dropped, never turned into a question.
+            if required or (kind == "Button" and name == "action"):
                 diagnostics.add("block_dropped", block, kind, f"{path}{name}".lower()[:48])
                 return None
             diagnostics.add("prop_dropped", block, kind, f"{path}{name}".lower()[:48])

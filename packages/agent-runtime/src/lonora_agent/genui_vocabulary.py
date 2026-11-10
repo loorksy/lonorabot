@@ -29,6 +29,6 @@ def genui_vocabulary() -> str:
             "Intents: alert.create data {symbol: $key of a Segmented of quoted symbols, dir: above|below, price: $key} (Lonora adds the account and the delivery row) · alert.off data {watch_id: the id from watch_create or watch_list}.",
             "Functions: @Fact('key') (a data-line fact), " + functions + ".",
             "Icons: " + ", ".join(sorted(ICON_NAMES)) + ".",
-            "Instrument names (label asset options with these): " + vocabulary_line() + ".",
+            "Instrument names (label an asset option with its name in the owner's language): " + vocabulary_line() + ".",
         ]
     )

@@ -213,3 +213,17 @@ def test_a_calc_may_be_a_literal_as_in_the_reference() -> None:
     assert card.data["calc"]["dp"] == 2
     env = environment(card.data["state"], card.data["calc"], {"xau": 2368.4})
     assert render_template(card.blocks[2]["hint"], env) == "الآن 2368.40"
+
+
+def test_a_literal_send_value_is_data_and_a_bad_action_drops_its_button() -> None:
+    raw = "\n".join(
+        [
+            '{"v":2,"kind":"receipt","title":"Alert active","icon":"check"}',
+            '{"type":"Button","label":"Stop","action":{"do":"send","intent":"alert.off","data":{"watch_id":"47a32ccd-c721-5382-b3b1-9ba4d335db1e"}}}',
+            '{"type":"Button","label":"Odd","action":{"do":"launch"}}',
+            '{"why":"w","fallback":"f"}',
+        ]
+    )
+    card = parse_lines(raw, final=True)
+    assert [b["label"] for b in card.blocks] == ["Stop"]
+    assert card.blocks[0]["action"]["data"]["watch_id"].startswith("47a32ccd")

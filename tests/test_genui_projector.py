@@ -2,6 +2,7 @@
 the delivery row, budget and deterministic repair (GENUI_PLAN §9.2, §9.4, §10.1)."""
 
 import json
+import re
 from contextlib import asynccontextmanager
 from pathlib import Path
 from types import SimpleNamespace
@@ -258,8 +259,17 @@ def test_v2_prompt_block_is_bounded_generated_and_off_by_default(monkeypatch) ->
     block = native_visual_policy()
     assert block.startswith(VISUAL_MARKER) and block.endswith(VISUAL_END)
     assert len(block) <= MAX_GENUI_GUIDANCE_CHARS
-    for part in ("<lonora_answer_shape>", "<lonora_ui_rules>", "alert.create", "XAUUSD الذهب"):
+    for part in ("<lonora_answer_shape>", "<lonora_ui_rules>", "alert.create", "XAUUSD Gold"):
         assert part in block
+    # English only (owner rule): no Arabic outside the instrument names the compiler matches.
+    names = block.index("Instrument names")
+    rest = block[: names] + block[block.index("\n", names) :]
+    assert not re.search("[\u0600-\u06ff]", rest)
+    monkeypatch.setenv("LONORA_GENUI_PROMPT", "O")
+    other = native_visual_policy()
+    assert other != block and len(other) <= MAX_GENUI_GUIDANCE_CHARS and "<!--" not in other
+    assert not re.search("[\u0600-\u06ff]", other[: other.index("Instrument names")])
+    monkeypatch.setenv("LONORA_GENUI_PROMPT", "P")
     assert "{vocabulary}" not in block and native_visual_policy() == block
     assert capabilities().block() == (
         "<lonora_ui_capabilities>\nintents: ask, alert.create, alert.off\ndelivery: app\n"
