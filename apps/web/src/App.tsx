@@ -75,6 +75,12 @@ export default function App() {
         }}
       />
     );
+  try {
+    // Signed in once on this device: the intro slides are not shown again after a sign-out.
+    localStorage.setItem("lonora.auth.intro-seen", "1");
+  } catch {
+    /* storage unavailable */
+  }
   return (
     <ClientProvider key={owner.id} owner={owner}>
       <Shell

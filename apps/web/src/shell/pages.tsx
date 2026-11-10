@@ -46,14 +46,13 @@ const Settings = lazy(() =>
   import("../pages/SettingsOverlay").then((m) => ({ default: m.SettingsOverlay })),
 );
 /** Old settings tabs: the ones with a reference page go there; models and voice keep the
- * existing screen until their phase (model routing has no reference home, OQ47; voice is
- * phase 6). */
-const settingsTabs = new Set<string>(["models", "voice"]);
+ * existing screen until their phase (model routing and the trading controls have no reference
+ * home yet, OQ47; voice is phase 6). */
+const settingsTabs = new Set<string>(["models", "voice", "trading"]);
 const settingsMoved: Readonly<Record<string, string>> = {
   capabilities: "/app/integrations",
   integrations: "/app/integrations",
   mcp: "/app/integrations",
-  trading: "/app/integrations",
   usage: "/app/usage",
   overview: "/app/settings",
 };

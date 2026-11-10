@@ -263,9 +263,10 @@ test("ticket modal and profile creation remain usable under StrictMode and Back"
     .getByRole("button", { name: "Settings", exact: true })
     .click();
   await expect(page).toHaveURL(/\/app\/settings$/);
-  await expect(page.locator(".settings-nav")).toBeVisible();
+  const root = page.getByRole("button", { name: /^Notifications and contact/ });
+  await expect(root).toBeVisible();
   await page.goBack();
-  await expect(page.locator(".settings-nav")).toHaveCount(0);
+  await expect(root).toHaveCount(0);
   await expect(page).toHaveURL(new RegExp(`/app/${teammate.id}$`));
 });
 
