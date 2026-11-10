@@ -1,4 +1,12 @@
-name: lonora
+# The one canonical production deployment. `lonora` (infra/compose/lonora) drives it:
+# it pins LONORA_IMAGE to a digest in state/image.env, runs `migrate` as its own step,
+# adds mode-direct.yml (Caddy on 80/443) or mode-proxy.yml (Caddy on one loopback port
+# behind an existing reverse proxy), and the overlays listed in LONORA_COMPOSE_OVERLAYS.
+# The project name (LONORA_PROJECT) prefixes every container, volume and network, so a
+# second installation can run beside another. Every service has memory and CPU limits,
+# overridable in .env; the defaults fit the stack in about 2.3 GB on a 2-vCPU host.
+# See docs/operations.md.
+name: ${LONORA_PROJECT:-lonora}
 services:
   db:
     image: postgres:16-alpine
@@ -8,6 +16,8 @@ services:
       POSTGRES_USER: lonora
       POSTGRES_PASSWORD: ${LONORA_POSTGRES_PASSWORD:?set a strong production database password}
     volumes: ["database:/var/lib/postgresql/data"]
+    mem_limit: ${LONORA_DB_MEMORY:-512m}
+    cpus: ${LONORA_DB_CPUS:-0.5}
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U lonora -d lonora"]
       interval: 5s
@@ -28,8 +38,11 @@ services:
       LONORA_CHART_BROWSER_SANDBOX: "false"
       LONORA_OTA_ROOT: /app/releases/ota
       LONORA_ANDROID_APK_PATH: /app/releases/android/lonora.apk
+      LONORA_MIGRATE_ON_START: "false"
     command: ["api"]
     volumes: ["artifacts:/app/.runtime/artifacts", "../../.runtime/releases/android:/app/releases/android:ro", "../../.runtime/releases/ota:/app/releases/ota:ro"]
+    mem_limit: ${LONORA_API_MEMORY:-896m}
+    cpus: ${LONORA_API_CPUS:-0.75}
     depends_on:
       db: {condition: service_healthy}
     healthcheck:
@@ -39,6 +52,18 @@ services:
       retries: 15
     security_opt: ["no-new-privileges:true"]
     cap_drop: ["ALL"]
+  migrate:
+    image: ${LONORA_IMAGE:-ghcr.io/loorksy/lonorabot:main}
+    profiles: ["tools"]
+    env_file: ../../.env
+    environment: *runtime
+    command: ["migrate"]
+    mem_limit: ${LONORA_MIGRATE_MEMORY:-512m}
+    cpus: ${LONORA_MIGRATE_CPUS:-0.5}
+    depends_on:
+      db: {condition: service_healthy}
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
   gateway:
     image: ${LONORA_IMAGE:-ghcr.io/loorksy/lonorabot:main}
     restart: unless-stopped
@@ -46,6 +71,8 @@ services:
     environment: *runtime
     command: ["gateway"]
     volumes: ["artifacts:/app/.runtime/artifacts"]
+    mem_limit: ${LONORA_GATEWAY_MEMORY:-768m}
+    cpus: ${LONORA_GATEWAY_CPUS:-0.75}
     depends_on:
       api: {condition: service_healthy}
     stop_grace_period: 40s
@@ -54,10 +81,12 @@ services:
   caddy:
     image: caddy:2.10-alpine
     restart: unless-stopped
-    ports: ["80:80", "443:443"]
+    # Published ports come from mode-direct.yml or mode-proxy.yml.
     environment:
       LONORA_DOMAIN: ${LONORA_DOMAIN:?set public domain}
-    volumes: ["./Caddyfile.prod:/etc/caddy/Caddyfile:ro", "caddy-data:/data", "caddy-config:/config"]
+    volumes: ["./Caddyfile.prod:/etc/caddy/Caddyfile:ro", "../../maintenance:/maintenance:ro", "caddy-data:/data", "caddy-config:/config"]
+    mem_limit: ${LONORA_CADDY_MEMORY:-96m}
+    cpus: ${LONORA_CADDY_CPUS:-0.25}
     depends_on: [api]
 volumes:
   database:
