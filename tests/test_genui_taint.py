@@ -430,3 +430,23 @@ async def test_rules_v_and_n_hold_in_session_search_and_compaction() -> None:
 
     finally:
         await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_a_subagent_spawned_by_a_tainted_run_is_tainted() -> None:
+    """M1 through the real tool: ``subagent_spawn`` from a card's send starts a tainted
+    Run that is not a submission, and its own work is tainted in turn."""
+    from lonora_db.genui_taint import SUBMIT, TAINT
+    from test_proactive_wakes import call
+
+    fixture = await open_fixture()
+    try:
+        _, submit_run, context = await submit_lease(fixture)
+        spawned = await call(context, "subagent_spawn", task="Check the gold quote.")
+        child = await run_row(fixture, spawned["id"])
+        origin = (await run_row(fixture, submit_run["id"])).model_metadata[SUBMIT]
+        assert child.parent_run_id == submit_run["id"]
+        assert child.model_metadata[TAINT] == origin and SUBMIT not in child.model_metadata
+        assert await tainted(fixture, spawned["id"])
+    finally:
+        await fixture.close()
