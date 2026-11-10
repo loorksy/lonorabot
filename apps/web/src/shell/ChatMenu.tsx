@@ -47,6 +47,22 @@ function MenuRow({
   );
 }
 
+/** «الحالة والأمان»: trading agents and the status preference always; any other agent while it
+    has a task that may need the owner (review, resume). Live, since the menu stays open. */
+function StatusRow({
+  agent,
+  shown,
+  onClick,
+}: {
+  agent: Agent;
+  shown: boolean;
+  onClick: () => void;
+}) {
+  const tasks = useAgentLiveState(agent.id).state?.tasks ?? [];
+  if (!shown && !tasks.length) return null;
+  return <MenuRow icon="shield" label={<Trans>Status and safety</Trans>} onClick={onClick} />;
+}
+
 export function useChatMenu({
   agent,
   group,
@@ -66,8 +82,6 @@ export function useChatMenu({
   );
   const watchesSheet = useWatchesSheet();
   const trading = Boolean(agent && (agent.trading_account_id || agent.template === "trading"));
-  // A task that needs the owner (review, resume) is reachable from ⋮ for any agent.
-  const hasTasks = (useAgentLiveState(agent?.id).state?.tasks ?? []).length > 0;
   // The sheet keeps the body it was opened with: the chart an answer asks for goes in here.
   const openChart = useCallback(
     (chartId?: string) => {
@@ -122,10 +136,10 @@ export function useChatMenu({
                 onClick={() => openPage("info", "fwd")}
               />
               <MenuRow icon="chart" label={<Trans>Chart</Trans>} onClick={() => openChart()} />
-              {agent && (trading || prefs.agentStatus || hasTasks) && (
-                <MenuRow
-                  icon="shield"
-                  label={<Trans>Status and safety</Trans>}
+              {agent && (
+                <StatusRow
+                  agent={agent}
+                  shown={trading || prefs.agentStatus}
                   onClick={() => statusSheet(agent, trading, prefs.agentStatus)}
                 />
               )}
@@ -215,7 +229,6 @@ export function useChatMenu({
       refresh,
       openChart,
       prefs.agentStatus,
-      hasTasks,
       statusSheet,
       trading,
       watchesSheet,
