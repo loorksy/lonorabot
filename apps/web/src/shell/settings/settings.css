@@ -149,6 +149,12 @@
   height: 15px;
   flex: none;
 }
+.app-shell .prefs-row {
+  gap: 10px;
+  padding: 10px 12px;
+  min-height: 64px;
+  cursor: default;
+}
 .lang-select {
   flex: 1;
   min-width: 0;
@@ -741,6 +747,17 @@ html.theme-vt::view-transition-group(ts-thumb) {
 }
 /* ---- auth + lock 1187-1244 */
 /* ---- Auth layer (v17) */
+#auth {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: grid;
+  place-items: center;
+  overflow-y: auto;
+  background:
+    radial-gradient(120% 60% at 50% -10%, rgba(124, 131, 253, 0.18), transparent 60%), var(--bg);
+  animation: enter 0.3s var(--ease) both;
+}
 #auth .auth-card {
   width: min(420px, 100%);
   min-height: 100dvh;
@@ -749,7 +766,7 @@ html.theme-vt::view-transition-group(ts-thumb) {
   padding: calc(env(safe-area-inset-top) + 12px) 22px calc(env(safe-area-inset-bottom) + 22px);
 }
 @media (min-width: 900px) {
-  .auth-card {
+  #auth .auth-card {
     min-height: auto;
     margin: 40px 0;
     padding: 28px 32px;

@@ -114,3 +114,22 @@ test("the profile page reads right to left in Arabic with the reference's labels
   await expect(page.getByRole("radio", { name: /رسالة/ })).toHaveAttribute("aria-checked", "true");
   expect(owner.agent.id).toBeTruthy();
 });
+
+test("the Knowledge panel's profile link closes the chat menu and opens the profile page", async ({
+  page,
+  context,
+  owner,
+}) => {
+  await context.addInitScript(() => {
+    localStorage.setItem("lonora.locale", "en");
+    localStorage.setItem("lonora.auth.intro-seen", "1");
+  });
+  await page.goto(`/app/${owner.agent.id}`);
+  await page.getByRole("button", { name: "Chat menu", exact: true }).click();
+  const panel = page.locator("#dialog");
+  await panel.getByRole("button", { name: "Knowledge", exact: true }).click();
+  await panel.getByRole("button", { name: "Open the profile", exact: true }).click();
+  await expect(page).toHaveURL(/\/app\/owner$/);
+  await expect(page.locator("#dialog[open]")).toHaveCount(0);
+  await expect(page.getByLabel("Name", { exact: true })).toBeVisible();
+});

@@ -46,7 +46,7 @@ def valid_zone(tz: str | None) -> str | None:
         return None
     try:
         ZoneInfo(tz)
-    except (ZoneInfoNotFoundError, ValueError):
+    except (ZoneInfoNotFoundError, ValueError, OSError):
         raise LonoraError("invalid_timezone", 422) from None
     return tz
 

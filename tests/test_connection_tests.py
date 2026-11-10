@@ -105,8 +105,19 @@ async def test_mcp_test_is_remote_only_and_broker_test_refuses_a_linked_account(
     try:
         local = await fixture.client.post("/api/mcp/test", json={"url": "stdio://server"})
         assert local.status_code == 422
-        private = await fixture.client.post("/api/mcp/test", json={"url": "http://127.0.0.1:9/mcp"})
+        plain = await fixture.client.post(
+            "/api/mcp/test", json={"url": "http://mcp.example.com/mcp"}
+        )
+        assert plain.status_code == 422, plain.text
+        private = await fixture.client.post(
+            "/api/mcp/test", json={"url": "https://127.0.0.1:9/mcp"}
+        )
         assert private.status_code >= 400 and private.status_code != 500, private.text
+        stored = await fixture.client.post(
+            "/api/mcp",
+            json={"payload": {"name": "plain", "transport": "http", "url": "http://a.example/mcp"}},
+        )
+        assert stored.status_code == 422, stored.text
         simulation = await fixture.client.post(
             "/api/trading/connections/test",
             json={"provider": "simulation", "account_id": "sim-" + uuid4().hex[:8]},
@@ -126,5 +137,49 @@ async def test_mcp_test_is_remote_only_and_broker_test_refuses_a_linked_account(
         )
         assert missing.status_code == 409
         assert missing.json()["code"] == "broker_secret_required"
+    finally:
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_a_snapshot_imports_only_into_a_demo_connection():
+    database()
+    from check_streaming import Fixture
+    from lonora_db.broker_sessions import BrokerSessionRepository
+
+    fixture = await Fixture().open()
+    try:
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            broker = await BrokerSessionRepository().create(
+                session,
+                fixture.owner,
+                {"provider": "metaapi", "account_id": "mt-" + uuid4().hex[:8], "enabled": False},
+                broker_identity={
+                    "login": str(uuid4().int % 10**8),
+                    "server": "Fixture-Server",
+                    "platform": "mt5",
+                },
+            )
+        snapshot = {"snapshot": {"balance": "1000", "currency": "USD"}}
+        refused = await fixture.client.post(
+            f"/api/trading/connections/{broker.id}/simulation", json=snapshot
+        )
+        assert refused.status_code == 409, refused.text
+        assert refused.json()["code"] == "simulation_provider_required"
+        missing = await fixture.client.post(
+            f"/api/trading/connections/{uuid4()}/simulation", json=snapshot
+        )
+        assert missing.status_code == 404
+        demo = await fixture.request(
+            "POST",
+            "/trading/connections",
+            {"provider": "simulation", "account_id": "sim-" + uuid4().hex[:8], "enabled": True},
+        )
+        imported = await fixture.client.post(
+            f"/api/trading/connections/{demo['id']}/simulation", json=snapshot
+        )
+        assert imported.status_code == 200, imported.text
+        await fixture.request("DELETE", f"/trading/connections/{demo['id']}")
+        await fixture.request("DELETE", f"/trading/connections/{broker.id}")
     finally:
         await fixture.close()

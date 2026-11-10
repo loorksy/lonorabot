@@ -1,6 +1,6 @@
 from typing import Literal
 
-from pydantic import ConfigDict, Field
+from pydantic import ConfigDict, Field, field_validator
 
 from .domain import Contract
 
@@ -12,6 +12,14 @@ class McpConnection(Contract):
     command: list[str] = Field(default_factory=list[str], max_length=16)
     secret_id: str | None = None
     enabled: bool = False
+
+    @field_validator("url")
+    @classmethod
+    def https_only(cls, value: str | None) -> str | None:
+        # Remote servers only (Q56), over HTTPS: the transport refuses anything else anyway.
+        if value is not None and not value.lower().startswith("https://"):
+            raise ValueError("mcp_https_required")
+        return value
 
 
 class McpToolDeclaration(Contract):

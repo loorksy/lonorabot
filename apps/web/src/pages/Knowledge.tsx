@@ -3,7 +3,7 @@ import { Trans } from "@lingui/react/macro";
 import type { Agent } from "@lonora/contracts";
 import { ownerProfileLabel } from "@lonora/core";
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { goFromSheet } from "../shell/navigation";
 import { KnowledgeSection } from "./KnowledgeSection";
 import { ScratchpadSection } from "./ScratchpadSection";
 import { SkillsSection } from "./SkillsSection";
@@ -73,9 +73,9 @@ export function Knowledge({ agents, initialAgent }: { agents: Agent[]; initialAg
 
 /** The owner profile, its change log and how agents reach the owner are settings pages. */
 function OwnerProfileLink() {
-  // Plain router navigation: this panel also opens outside the shell's navigation provider.
-  const navigate = useNavigate();
-  const go = (path: string) => navigate(path);
+  // The chat-menu sheet sits above the shell's navigation provider: the shell's guarded
+  // navigation closes the sheet and asks before leaving unsaved edits.
+  const go = (path: string) => goFromSheet(path);
   return (
     <section className="card">
       <p>

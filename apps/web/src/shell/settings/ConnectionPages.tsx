@@ -307,13 +307,19 @@ export function BrokerAccountPage({ connectionId }: { connectionId: string }) {
     (account.error as { code?: string } | undefined)?.code === "simulation_snapshot_required";
   if (needsSnapshot)
     return (
-      <SimulationImport
-        number={number}
-        onImported={() => {
-          account.reload();
-          symbols.reload();
-        }}
-      />
+      <>
+        <SimulationImport
+          connectionId={row.id}
+          number={number}
+          onImported={() => {
+            account.reload();
+            symbols.reload();
+          }}
+        />
+        <button type="button" className="btn full danger" onClick={remove}>
+          <Trans>Unlink the account</Trans>
+        </button>
+      </>
     );
   const cells = list.map((symbol) => {
     const who = agents
@@ -471,11 +477,17 @@ export function BrokerAccountPage({ connectionId }: { connectionId: string }) {
 /* «حساب تجريبي» trades against a market snapshot the owner imports (balance, currency,
    instruments, quotes and candles; the server's simulation format). Nothing is invented here:
    until a snapshot is imported the account has no symbols. */
-function SimulationImport({ number, onImported }: { number: string; onImported: () => void }) {
+function SimulationImport({
+  connectionId,
+  number,
+  onImported,
+}: {
+  connectionId: string;
+  number: string;
+  onImported: () => void;
+}) {
   const toast = useToast();
   const [busy, setBusy] = useState(false);
-  const connections = useLoad(() => api.get<BrokerConnectionRow[]>("/trading/connections"), []);
-  const row = connections.value?.find((item) => item.payload.account_id === number);
   return (
     <>
       <div className="acct-hero">
@@ -503,17 +515,20 @@ function SimulationImport({ number, onImported }: { number: string; onImported: 
           type="file"
           accept="application/json,.json"
           hidden
-          disabled={busy || !row}
+          disabled={busy}
           onChange={async (event) => {
             const file = event.currentTarget.files?.[0];
             event.currentTarget.value = "";
-            if (!file || !row) return;
+            if (!file) return;
             setBusy(true);
             try {
               const snapshot = JSON.parse(await file.text()) as unknown;
-              await api.post(`/trading/connections/${encodeURIComponent(row.id)}/simulation`, {
-                snapshot,
-              });
+              await api.post(
+                `/trading/connections/${encodeURIComponent(connectionId)}/simulation`,
+                {
+                  snapshot,
+                },
+              );
               toast(t`The demo account data is imported`, { type: "success" });
               onImported();
             } catch (error) {
@@ -731,7 +746,7 @@ export function McpFormPage() {
     if (!form) return false;
     const { name, url, token } = values(form);
     if (!name) return toast(t`Enter the server name`, { type: "warn" }), false;
-    if (!/^https?:\/\/\S+/.test(url))
+    if (!/^https:\/\/\S+/.test(url))
       return toast(t`Enter a link that starts with https://`, { type: "warn" }), false;
     if (auth === "token" && !token)
       return toast(t`Enter the access token`, { type: "warn" }), false;

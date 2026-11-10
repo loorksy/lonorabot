@@ -336,5 +336,8 @@ async def test_usage_routes_serve_series_rank_csv_and_day_buckets():
         bad = await fixture.client.get("/api/usage/series?period=day&tz=Mars/Olympus")
         assert bad.status_code == 422
         assert (await fixture.client.get("/api/usage/series?period=year")).status_code == 422
+        # A zone directory is not a zone: 422, never a server error.
+        folder = await fixture.client.get("/api/usage/series?period=day&tz=America")
+        assert folder.status_code == 422 and folder.json()["code"] == "invalid_timezone"
     finally:
         await fixture.close()

@@ -55,6 +55,11 @@ function unlockState(): State {
   const lock = readLock();
   return { ...fresh("unlock"), tries: lock.tries ?? 0, until: lock.until ?? 0 };
 }
+/** Browser keys the lock leaves alone (zoom, reload, find); the app still never sees them. */
+const browserKey = (event: KeyboardEvent) =>
+  event.key === "F5" ||
+  ((event.ctrlKey || event.metaKey) &&
+    ["+", "-", "=", "0", "r", "R", "f", "F"].includes(event.key));
 const vibrate = (pattern: number | number[]) => navigator.vibrate?.(pattern);
 
 export function AppLockProvider({ children }: { children: ReactNode }) {
@@ -173,6 +178,7 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
   // handler (the composer, the shell's shortcuts) sees a key.
   useEffect(() => {
     if (!locked) return;
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const others = [...document.body.children].filter(
       (node): node is HTMLElement =>
         node instanceof HTMLElement && node !== layer.current && !node.hasAttribute("inert"),
@@ -187,6 +193,8 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
         node.removeAttribute("inert");
         node.removeAttribute("aria-hidden");
       }
+      // Back to where the owner was when the lock came up.
+      if (opener?.isConnected) opener.focus({ preventScroll: true });
     };
   }, [locked]);
   useEffect(() => {
@@ -211,7 +219,8 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
       } else if (event.key === "Backspace") {
         event.preventDefault();
         key("del");
-      } else if (event.key !== "Enter" && event.key !== " ") event.preventDefault();
+      } else if (event.key !== "Enter" && event.key !== " " && !browserKey(event))
+        event.preventDefault();
     };
     window.addEventListener("keydown", down, true);
     return () => window.removeEventListener("keydown", down, true);

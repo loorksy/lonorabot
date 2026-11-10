@@ -55,12 +55,14 @@ async def dry_run_provider(
 class McpTest(Contract):
     """Remote servers only (owner decision Q56): there is no local/stdio test."""
 
-    url: str = Field(min_length=8, max_length=2048, pattern=r"^https?://")
+    url: str = Field(min_length=8, max_length=2048, pattern=r"^https://")
     token: str | None = Field(default=None, max_length=4096)
 
 
 @router.post("/mcp/test")
-async def dry_run_mcp(body: McpTest, owner: OwnerIdentity = Depends(require_owner)) -> dict[str, Any]:
+async def dry_run_mcp(
+    body: McpTest, owner: OwnerIdentity = Depends(require_owner)
+) -> dict[str, Any]:
     server = McpConnector(HttpMcpTransport(body.url, body.token or None))
     try:
         # The listing handshake only (initialize, tools/list): no tool is called.

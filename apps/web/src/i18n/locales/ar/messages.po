@@ -58,7 +58,7 @@ msgid "{0} MB"
 msgstr "{0} م.ب"
 
 #. placeholder {0}: totals.unpriced_requests
-#: src/shell/settings/UsagePage.tsx:429
+#: src/shell/settings/UsagePage.tsx:436
 msgid "{0} requests have no list price"
 msgstr "{0} طلبات دون سعر معلن"
 
@@ -100,7 +100,7 @@ msgstr "{linked} مرتبطة"
 msgid "{minutes} min ago"
 msgstr "قبل {minutes} دقيقة"
 
-#: src/shell/settings/UsagePage.tsx:157
+#: src/shell/settings/UsagePage.tsx:164
 msgid "{month} so far"
 msgstr "{month} حتى الآن"
 
@@ -129,11 +129,11 @@ msgid "{writes} non-financial write"
 msgstr "{writes} كتابة غير مالية"
 
 #. placeholder {0}: num(totals.cached_tokens)
-#: src/shell/settings/UsagePage.tsx:417
+#: src/shell/settings/UsagePage.tsx:424
 msgid "<0>{0}</0> tokens reused"
 msgstr "<0>{0}</0> توكن أُعيد استخدامها"
 
-#: src/shell/settings/UsagePage.tsx:601
+#: src/shell/settings/UsagePage.tsx:608
 msgid "<0>{share}%</0> of the total"
 msgstr "<0>{share}%</0> من الإجمالي"
 
@@ -149,11 +149,11 @@ msgstr "7 أيام"
 msgid "A background item was paused after repeated errors; everything else keeps running"
 msgstr "أُوقف عنصر في الخلفية بعد أخطاء متكررة؛ يستمر كل ما عداه في العمل"
 
-#: src/shell/settings/NotifyPages.tsx:123
+#: src/shell/settings/NotifyPages.tsx:131
 msgid "A bar at the top of the screen when a reply arrives in another conversation"
 msgstr "شريط أعلى الشاشة عند وصول رد في محادثة أخرى"
 
-#: src/shell/settings/NotifyPages.tsx:235
+#: src/shell/settings/NotifyPages.tsx:266
 msgid "A call rings this device · registered for the passkey"
 msgstr "تصل المكالمة إلى هذا الجهاز · مسجَّل لمفتاح المرور"
 
@@ -169,7 +169,7 @@ msgstr "تعود المحادثة إلى القائمة عند وصول رسال
 msgid "A chat will return when a new message arrives"
 msgstr "ستعود المحادثة عند وصول رسالة جديدة"
 
-#: src/shell/settings/ConnectionPages.tsx:495
+#: src/shell/settings/ConnectionPages.tsx:507
 msgid "A demo account trades against market data you import: the balance, the symbols, their prices and candles. Import a snapshot file to use it."
 msgstr "يتداول الحساب التجريبي على بيانات سوق تستوردها: الرصيد والرموز وأسعارها وشموعها. استورد ملف لقطة لاستخدامه."
 
@@ -181,7 +181,7 @@ msgstr "سُجّلت إجابة مختلفة مسبقًا."
 msgid "A list named «{name}» already exists"
 msgstr "توجد قائمة باسم «{name}»"
 
-#: src/shell/settings/NotifyPages.tsx:21
+#: src/shell/settings/NotifyPages.tsx:22
 msgid "A message in the agent's conversation with an alert"
 msgstr "رسالة في محادثة الوكيل مع تنبيه"
 
@@ -201,7 +201,7 @@ msgstr "يتوفر إصدار جديد"
 msgid "A removed agent"
 msgstr "وكيل محذوف"
 
-#: src/shell/settings/NotifyPages.tsx:137
+#: src/shell/settings/NotifyPages.tsx:168
 msgid "A short tone when a reply arrives"
 msgstr "نغمة قصيرة عند وصول رد"
 
@@ -213,7 +213,7 @@ msgstr "صفقة ما زالت بلا نتيجة مؤكدة من الوسيط"
 #~ msgid "A workspace that remembers"
 #~ msgstr "مساحة عمل تتذكر"
 
-#: src/shell/settings/UsagePage.tsx:408
+#: src/shell/settings/UsagePage.tsx:415
 msgid "About {perRequest} tokens per request"
 msgstr "نحو {perRequest} توكن للطلب"
 
@@ -221,12 +221,12 @@ msgstr "نحو {perRequest} توكن للطلب"
 msgid "Above"
 msgstr "أعلى من"
 
-#: src/shell/settings/ConnectionPages.tsx:800
+#: src/shell/settings/ConnectionPages.tsx:815
 msgid "Access token"
 msgstr "رمز الوصول"
 
 #: src/shell/settings/ConnectionPages.tsx:74
-#: src/shell/settings/ConnectionPages.tsx:806
+#: src/shell/settings/ConnectionPages.tsx:821
 msgid "Access token — stored encrypted, never shown again"
 msgstr "رمز الوصول — يُحفظ مشفّرًا ولا يُعرض مرة أخرى"
 
@@ -253,7 +253,7 @@ msgid "Account number"
 msgstr "رقم الحساب"
 
 #: src/shell/settings/ConnectionPages.tsx:146
-#: src/shell/settings/ConnectionPages.tsx:380
+#: src/shell/settings/ConnectionPages.tsx:386
 msgid "Account type"
 msgstr "نوع الحساب"
 
@@ -297,7 +297,7 @@ msgstr "أنشطة"
 msgid "Activity"
 msgstr "النشاط"
 
-#: src/shell/settings/NotifyPages.tsx:19
+#: src/shell/settings/NotifyPages.tsx:20
 msgid "Activity log only"
 msgstr "سجل النشاط فقط"
 
@@ -312,7 +312,7 @@ msgstr "تم تحديث النشاط"
 msgid "Add"
 msgstr "إضافة"
 
-#: src/shell/settings/ConnectionPages.tsx:580
+#: src/shell/settings/ConnectionPages.tsx:595
 msgid "Add a provider"
 msgstr "إضافة مزود"
 
@@ -385,7 +385,7 @@ msgstr "إضافة MCP"
 msgid "Add owner instructions"
 msgstr "إضافة تعليمات خاصة"
 
-#: src/shell/settings/ConnectionPages.tsx:845
+#: src/shell/settings/ConnectionPages.tsx:860
 msgid "Add the server"
 msgstr "إضافة الخادم"
 
@@ -453,7 +453,7 @@ msgstr "بعد الربط تُجلب رموز التداول المتاحة من
 msgid "Agent"
 msgstr "الوكيل"
 
-#: src/shell/settings/NotifyPages.tsx:316
+#: src/shell/settings/NotifyPages.tsx:347
 msgid "Agent calls"
 msgstr "مكالمات الوكيل"
 
@@ -508,7 +508,7 @@ msgstr "الوكلاء"
 msgid "Agents and groups"
 msgstr "الوكلاء والمجموعات"
 
-#: src/shell/settings/ConnectionPages.tsx:431
+#: src/shell/settings/ConnectionPages.tsx:437
 msgid "Agents on this account"
 msgstr "الوكلاء على هذا الحساب"
 
@@ -563,11 +563,15 @@ msgstr "اسمح بالوصول إلى الميكروفون لبدء محادث�
 msgid "An active skill is no longer available. Review its settings before resuming this task."
 msgstr "إحدى المهارات النشطة لم تعد متاحة. راجع إعداداتها قبل استئناف المهمة."
 
-#: src/shell/settings/NotifyPages.tsx:20
+#: src/shell/settings/NotifyPages.tsx:21
 msgid "An alert on your device"
 msgstr "تنبيه على جهازك"
 
-#: src/shell/settings/NotifyPages.tsx:198
+#: src/shell/settings/NotifyPages.tsx:146
+msgid "An alert when an agent confirms an opportunity"
+msgstr "تنبيه عندما يؤكد وكيل فرصة"
+
+#: src/shell/settings/NotifyPages.tsx:229
 msgid "An unconfirmed operation or a restriction on your account"
 msgstr "عملية غير مؤكَّدة أو قيد على حسابك"
 
@@ -601,11 +605,11 @@ msgid "Any signed delegation on this account is revoked, and {names} go back to 
 msgstr "يُلغى أي تفويض موقَّع على هذا الحساب، ويعود {names} إلى «تنفيذ بموافقة» دون حساب حتى تختار حسابًا آخر."
 
 #: src/pages/ModelSettingsOverlay.tsx:78
-#: src/shell/settings/ConnectionPages.tsx:656
+#: src/shell/settings/ConnectionPages.tsx:671
 msgid "API key"
 msgstr "مفتاح API"
 
-#: src/shell/settings/AppLock.tsx:250
+#: src/shell/settings/AppLock.tsx:259
 #: src/shell/settings/DevicePages.tsx:208
 msgid "App lock"
 msgstr "قفل التطبيق"
@@ -614,7 +618,7 @@ msgstr "قفل التطبيق"
 msgid "App lock turned off"
 msgstr "أُوقف قفل التطبيق"
 
-#: src/shell/settings/AppLock.tsx:107
+#: src/shell/settings/AppLock.tsx:112
 msgid "App lock turned on"
 msgstr "فُعّل قفل التطبيق"
 
@@ -697,7 +701,7 @@ msgstr "ملفات مرفقة"
 msgid "Attachment"
 msgstr "مرفق"
 
-#: src/shell/settings/ConnectionPages.tsx:792
+#: src/shell/settings/ConnectionPages.tsx:807
 msgid "Authentication"
 msgstr "المصادقة"
 
@@ -715,13 +719,13 @@ msgstr "القفل التلقائي"
 msgid "Available"
 msgstr "متاحة"
 
-#: src/shell/settings/ConnectionPages.tsx:384
-#: src/shell/settings/ConnectionPages.tsx:407
+#: src/shell/settings/ConnectionPages.tsx:390
+#: src/shell/settings/ConnectionPages.tsx:413
 msgid "Available symbols"
 msgstr "الرموز المتاحة"
 
 #. placeholder {0}: list.length
-#: src/shell/settings/ConnectionPages.tsx:386
+#: src/shell/settings/ConnectionPages.tsx:392
 msgid "Available symbols · {0}"
 msgstr "الرموز المتاحة · {0}"
 
@@ -736,7 +740,7 @@ msgstr "الرموز المتاحة · {0}"
 msgid "Avatar Studio"
 msgstr "استوديو الأفاتار"
 
-#: src/shell/settings/UsagePage.tsx:424
+#: src/shell/settings/UsagePage.tsx:431
 msgid "Average cost per request"
 msgstr "متوسط تكلفة الطلب"
 
@@ -787,7 +791,7 @@ msgstr "العمل في الخلفية"
 
 #: src/components/market/MarketWatch.tsx:194
 #: src/components/trading/AccountSummary.tsx:40
-#: src/shell/settings/ConnectionPages.tsx:367
+#: src/shell/settings/ConnectionPages.tsx:373
 msgid "Balance"
 msgstr "الرصيد"
 
@@ -965,11 +969,11 @@ msgstr "شراء بحد سعري"
 msgid "Buy stop"
 msgstr "شراء عند الاختراق"
 
-#: src/shell/settings/UsagePage.tsx:549
+#: src/shell/settings/UsagePage.tsx:556
 msgid "By agent"
 msgstr "حسب الوكيل"
 
-#: src/shell/settings/UsagePage.tsx:564
+#: src/shell/settings/UsagePage.tsx:571
 msgid "By model"
 msgstr "حسب النموذج"
 
@@ -982,7 +986,7 @@ msgstr "بايت"
 #~ msgid "Cached"
 #~ msgstr "من الذاكرة المؤقتة"
 
-#: src/shell/settings/NotifyPages.tsx:22
+#: src/shell/settings/NotifyPages.tsx:23
 msgid "Call"
 msgstr "اتصال"
 
@@ -1005,7 +1009,7 @@ msgstr "الكاميرا غير مسموحة"
 #: src/components/skills/SkillEditor.tsx:141
 #: src/pages/Board.tsx:576
 #: src/shell/lists/Selection.tsx:78
-#: src/shell/settings/AppLock.tsx:256
+#: src/shell/settings/AppLock.tsx:265
 #: src/shell/settings/ConnectionPages.tsx:280
 #: src/shell/settings/SettingsRoot.tsx:284
 msgid "Cancel"
@@ -1045,7 +1049,7 @@ msgstr "القدرات غير مؤكدة"
 msgid "Card view"
 msgstr "عرض البطاقات"
 
-#: src/shell/settings/OwnerPage.tsx:278
+#: src/shell/settings/OwnerPage.tsx:279
 msgid "Change log"
 msgstr "سجل التغييرات"
 
@@ -1193,7 +1197,7 @@ msgstr "اختر مصدرًا"
 msgid "Choose a glowing face and color. Preview your changes before applying them."
 msgstr "اختر وجهًا مضيئًا ولونًا، وعاين التغييرات قبل تطبيقها."
 
-#: src/pages/Knowledge.tsx:68
+#: src/pages/Knowledge.tsx:67
 #: src/pages/shell/bot-picker.tsx:17
 msgid "Choose an agent"
 msgstr "اختر وكيلًا"
@@ -1235,8 +1239,8 @@ msgstr "اختر نماذج صوت مدعومة من الإعدادات العا
 msgid "Choose the broker"
 msgstr "اختر الوسيط"
 
-#: src/shell/settings/ConnectionPages.tsx:603
-#: src/shell/settings/ConnectionPages.tsx:646
+#: src/shell/settings/ConnectionPages.tsx:618
+#: src/shell/settings/ConnectionPages.tsx:661
 msgid "Choose the provider"
 msgstr "اختر المزود"
 
@@ -1439,7 +1443,7 @@ msgid "Connection restored"
 msgstr "عاد الاتصال"
 
 #: src/components/trading/BrokerConnection.tsx:47
-#: src/shell/settings/ConnectionPages.tsx:776
+#: src/shell/settings/ConnectionPages.tsx:791
 msgid "Connection type"
 msgstr "نوع الاتصال"
 
@@ -1493,7 +1497,7 @@ msgstr "نسخ الرسالة"
 msgid "Copy table"
 msgstr "نسخ الجدول"
 
-#: src/shell/settings/UsagePage.tsx:282
+#: src/shell/settings/UsagePage.tsx:289
 msgid "Cost"
 msgstr "التكلفة"
 
@@ -1501,7 +1505,7 @@ msgstr "التكلفة"
 msgid "Cost · {window}"
 msgstr "التكلفة · {window}"
 
-#: src/shell/settings/UsagePage.tsx:336
+#: src/shell/settings/UsagePage.tsx:343
 msgid "Cost per hour today"
 msgstr "التكلفة لكل ساعة اليوم"
 
@@ -1623,11 +1627,11 @@ msgstr "لون مخصص"
 msgid "Customize avatar"
 msgstr "تخصيص الأفاتار"
 
-#: src/shell/settings/UsagePage.tsx:336
+#: src/shell/settings/UsagePage.tsx:343
 msgid "Daily cost"
 msgstr "التكلفة اليومية"
 
-#: src/shell/settings/NotifyPages.tsx:326
+#: src/shell/settings/NotifyPages.tsx:357
 msgid "Daily notification limit"
 msgstr "حد الإشعارات اليومي"
 
@@ -1639,17 +1643,17 @@ msgstr "حد الإشعارات اليومي"
 msgid "Dark mode"
 msgstr "الوضع الليلي"
 
-#: src/shell/settings/UsagePage.tsx:280
+#: src/shell/settings/UsagePage.tsx:287
 msgid "Day"
 msgstr "اليوم"
 
 #. placeholder {0}: series.month.day_of_month
 #. placeholder {1}: series.month.days_in_month
-#: src/shell/settings/UsagePage.tsx:183
+#: src/shell/settings/UsagePage.tsx:190
 msgid "Day {0} of {1}"
 msgstr "اليوم {0} من {1}"
 
-#: src/shell/settings/UsagePage.tsx:173
+#: src/shell/settings/UsagePage.tsx:180
 msgid "Days of {month} elapsed"
 msgstr "الأيام المنقضية من {month}"
 
@@ -1677,7 +1681,7 @@ msgstr "مهمة مفوّضة"
 #: src/shell/lists/EmojiPanel.tsx:405
 #: src/shell/lists/Selection.tsx:99
 #: src/shell/lists/Selection.tsx:273
-#: src/shell/settings/AppLock.tsx:280
+#: src/shell/settings/AppLock.tsx:289
 msgid "Delete"
 msgstr "حذف"
 
@@ -1702,7 +1706,7 @@ msgstr "حذف التعليمات الخاصة"
 msgid "Delete the chats?"
 msgstr "حذف المحادثات؟"
 
-#: src/shell/settings/OwnerPage.tsx:264
+#: src/shell/settings/OwnerPage.tsx:265
 msgid "Delete the fact"
 msgstr "حذف المعلومة"
 
@@ -1719,9 +1723,9 @@ msgstr "هل تريد حذف هذه التعليمات الخاصة؟ ستبقى
 #~ msgstr "توصيل الرسائل الواردة إلى"
 
 #: src/shell/settings/ConnectionPages.tsx:146
-#: src/shell/settings/ConnectionPages.tsx:355
-#: src/shell/settings/ConnectionPages.tsx:380
-#: src/shell/settings/ConnectionPages.tsx:490
+#: src/shell/settings/ConnectionPages.tsx:361
+#: src/shell/settings/ConnectionPages.tsx:386
+#: src/shell/settings/ConnectionPages.tsx:502
 msgid "Demo"
 msgstr "تجريبي"
 
@@ -1732,7 +1736,7 @@ msgstr "تجريبي · {0}"
 
 #: src/shell/settings/ConnectionPages.tsx:64
 #: src/shell/settings/ConnectionPages.tsx:257
-#: src/shell/settings/ConnectionPages.tsx:487
+#: src/shell/settings/ConnectionPages.tsx:499
 msgid "Demo account"
 msgstr "حساب تجريبي"
 
@@ -1759,8 +1763,8 @@ msgstr "الوصف"
 msgid "Determined"
 msgstr "مصمم"
 
-#: src/shell/settings/NotifyPages.tsx:211
-#: src/shell/settings/NotifyPages.tsx:213
+#: src/shell/settings/NotifyPages.tsx:242
+#: src/shell/settings/NotifyPages.tsx:244
 msgid "Device"
 msgstr "الجهاز"
 
@@ -1786,7 +1790,7 @@ msgstr "فشل التحقق من الجهاز. لم يُمنح أي تفويض."
 msgid "Disabled"
 msgstr "معطلة"
 
-#: src/shell/navigation.tsx:119
+#: src/shell/navigation.tsx:123
 msgid "Discard"
 msgstr "تجاهل"
 
@@ -1926,7 +1930,7 @@ msgstr "إنهاء المكالمة"
 msgid "Ending call"
 msgstr "جارٍ إنهاء المكالمة"
 
-#: src/shell/settings/ConnectionPages.tsx:735
+#: src/shell/settings/ConnectionPages.tsx:750
 #: src/shell/settings/IntegrationsPage.tsx:281
 msgid "Enter a link that starts with https://"
 msgstr "أدخل رابطًا يبدأ بـ https://"
@@ -1936,7 +1940,7 @@ msgid "Enter a valid domain like example.com"
 msgstr "أدخل نطاقًا صحيحًا مثل example.com"
 
 #: src/shell/settings/ConnectionPages.tsx:101
-#: src/shell/settings/ConnectionPages.tsx:737
+#: src/shell/settings/ConnectionPages.tsx:752
 msgid "Enter the access token"
 msgstr "أدخل رمز الوصول"
 
@@ -1948,22 +1952,22 @@ msgstr "أدخل رمز الوصول."
 msgid "Enter the account number"
 msgstr "أدخل رقم الحساب"
 
-#: src/shell/settings/ConnectionPages.tsx:604
+#: src/shell/settings/ConnectionPages.tsx:619
 msgid "Enter the API key"
 msgstr "أدخل مفتاح API"
 
 #: src/shell/settings/AppLock.tsx:49
-#: src/shell/settings/AppLock.tsx:97
+#: src/shell/settings/AppLock.tsx:102
 msgid "Enter the code again"
 msgstr "أعد إدخال الرمز"
 
 #: src/shell/settings/AppLock.tsx:46
-#: src/shell/settings/AppLock.tsx:155
-#: src/shell/settings/AppLock.tsx:157
+#: src/shell/settings/AppLock.tsx:160
+#: src/shell/settings/AppLock.tsx:162
 msgid "Enter the lock code"
 msgstr "أدخل رمز القفل"
 
-#: src/shell/settings/ConnectionPages.tsx:733
+#: src/shell/settings/ConnectionPages.tsx:748
 msgid "Enter the server name"
 msgstr "أدخل اسم الخادم"
 
@@ -2040,7 +2044,7 @@ msgstr "تحتفظ المهام الحالية بتعليماتها المثبت
 #~ msgid "Expired"
 #~ msgstr "منتهي الصلاحية"
 
-#: src/shell/settings/UsagePage.tsx:512
+#: src/shell/settings/UsagePage.tsx:519
 msgid "Export CSV"
 msgstr "تصدير CSV"
 
@@ -2076,11 +2080,11 @@ msgstr "رابط خلاصة"
 msgid "Fetch the tools to review them before approving the server."
 msgstr "اجلب الأدوات لمراجعتها قبل اعتماد الخادم."
 
-#: src/shell/settings/ConnectionPages.tsx:414
+#: src/shell/settings/ConnectionPages.tsx:420
 msgid "Fetched from the broker account, and shown in the pair pickers when creating an agent and in delegation."
 msgstr "تُجلب من حساب الوسيط تلقائيًا، وتظهر في قوائم اختيار الزوج عند إنشاء وكيل وفي التفويض."
 
-#: src/shell/settings/ConnectionPages.tsx:393
+#: src/shell/settings/ConnectionPages.tsx:399
 msgid "Fetching the symbols from <0>{broker}</0>…"
 msgstr "جارٍ جلب الرموز من <0>{broker}</0>…"
 
@@ -2153,7 +2157,7 @@ msgstr "طعام وشراب"
 msgid "For example: Work, Friends"
 msgstr "مثال: العمل، الأصدقاء"
 
-#: src/shell/settings/NotifyPages.tsx:22
+#: src/shell/settings/NotifyPages.tsx:23
 msgid "For urgent matters: the agent calls you"
 msgstr "للأمور العاجلة: يتصل بك الوكيل"
 
@@ -2161,7 +2165,7 @@ msgstr "للأمور العاجلة: يتصل بك الوكيل"
 msgid "For your account's safety, sign in again. Your conversations and drafts are saved."
 msgstr "لأمان حسابك، سجّل الدخول مجددًا. محادثاتك ومسوداتك محفوظة."
 
-#: src/shell/settings/OwnerPage.tsx:198
+#: src/shell/settings/OwnerPage.tsx:199
 msgid "Form of address"
 msgstr "طريقة المخاطبة"
 
@@ -2176,21 +2180,21 @@ msgstr "الهامش المتاح"
 
 #: src/pages/ActivityList.tsx:116
 #: src/pages/ActivityList.tsx:119
-#: src/shell/settings/NotifyPages.tsx:164
+#: src/shell/settings/NotifyPages.tsx:195
 msgid "From"
 msgstr "من"
 
 #. placeholder {0}: clock(policy?.quiet_start_minute)
 #. placeholder {1}: clock(policy?.quiet_end_minute)
-#: src/shell/settings/NotifyPages.tsx:151
+#: src/shell/settings/NotifyPages.tsx:182
 msgid "From {0} to {1}"
 msgstr "من {0} إلى {1}"
 
-#: src/shell/settings/NotifyPages.tsx:152
+#: src/shell/settings/NotifyPages.tsx:183
 msgid "From 22:00 to 08:00"
 msgstr "من 22:00 إلى 08:00"
 
-#: src/shell/settings/UsagePage.tsx:413
+#: src/shell/settings/UsagePage.tsx:420
 msgid "From the cache"
 msgstr "من الذاكرة المؤقتة"
 
@@ -2295,7 +2299,7 @@ msgstr "سعيد"
 msgid "Hide message text"
 msgstr "إخفاء نص الرسائل"
 
-#: src/shell/settings/ConnectionPages.tsx:669
+#: src/shell/settings/ConnectionPages.tsx:684
 msgid "Hide the key"
 msgstr "إخفاء المفتاح"
 
@@ -2311,13 +2315,13 @@ msgstr "انتهت مهلة تحميل شموع الوسيط التاريخية.
 msgid "Historical market data is blocked by the data provider's billing. Fund the provider account, then retry. Live prices may remain available."
 msgstr "حُجبت بيانات الشموع بسبب رصيد خدمة البيانات. أضف رصيدًا إلى حساب مزوّد البيانات ثم أعد المحاولة. قد تبقى الأسعار الحية متاحة."
 
-#: src/shell/settings/UsagePage.tsx:280
+#: src/shell/settings/UsagePage.tsx:287
 msgid "Hour"
 msgstr "الساعة"
 
-#: src/pages/Knowledge.tsx:92
-#: src/shell/settings/NotifyPages.tsx:79
-#: src/shell/settings/NotifyPages.tsx:81
+#: src/pages/Knowledge.tsx:88
+#: src/shell/settings/NotifyPages.tsx:87
+#: src/shell/settings/NotifyPages.tsx:89
 msgid "How to reach you"
 msgstr "طريقة التواصل"
 
@@ -2341,15 +2345,15 @@ msgstr "فورًا"
 msgid "Import a market snapshot before using the demo account."
 msgstr "استورد بيانات السوق قبل استخدام حساب المحاكاة."
 
-#: src/shell/settings/ConnectionPages.tsx:501
+#: src/shell/settings/ConnectionPages.tsx:513
 msgid "Import the demo account data"
 msgstr "استيراد بيانات الحساب التجريبي"
 
-#: src/shell/settings/NotifyPages.tsx:311
+#: src/shell/settings/NotifyPages.tsx:342
 msgid "In-app messages"
 msgstr "رسائل داخل التطبيق"
 
-#: src/shell/settings/NotifyPages.tsx:122
+#: src/shell/settings/NotifyPages.tsx:130
 msgid "In-app notifications"
 msgstr "إشعارات داخل التطبيق"
 
@@ -2376,7 +2380,7 @@ msgstr "المؤشرات والرسومات"
 #~ msgstr "الإدخال"
 
 #. placeholder {0}: 100 - input
-#: src/shell/settings/UsagePage.tsx:397
+#: src/shell/settings/UsagePage.tsx:404
 msgid "Input {input}% · output {0}%"
 msgstr "إدخال {input}% · إخراج {0}%"
 
@@ -2487,7 +2491,7 @@ msgstr "إبقاء المحادثات مؤرشفة"
 msgid "Keep current fixed market"
 msgstr "الإبقاء على السوق الثابت الحالي"
 
-#: src/shell/navigation.tsx:106
+#: src/shell/navigation.tsx:110
 msgid "Keep editing"
 msgstr "متابعة التعديل"
 
@@ -2495,7 +2499,7 @@ msgstr "متابعة التعديل"
 #~ msgid "Keep working beside the conversation."
 #~ msgstr "واصل العمل بجانب المحادثة."
 
-#: src/shell/settings/ConnectionPages.tsx:565
+#: src/shell/settings/ConnectionPages.tsx:580
 msgid "Key saved · never shown again"
 msgstr "المفتاح محفوظ · لا يُعرض مرة أخرى"
 
@@ -2508,7 +2512,7 @@ msgstr "لوحة المفاتيح"
 msgid "Keyboard shortcuts"
 msgstr "اختصارات لوحة المفاتيح"
 
-#: src/pages/Knowledge.tsx:21
+#: src/pages/Knowledge.tsx:20
 #: src/shell/ChatMenu.tsx:98
 #: src/shell/ChatMenu.tsx:115
 #: src/shell/pages.tsx:85
@@ -2568,7 +2572,7 @@ msgstr "ضاحك"
 msgid "Learning"
 msgstr "يحفظ المعلومات"
 
-#: src/shell/navigation.tsx:87
+#: src/shell/navigation.tsx:91
 msgid "Leave the edits?"
 msgstr "مغادرة التعديلات؟"
 
@@ -2709,12 +2713,12 @@ msgstr "القفل مفعّل"
 msgid "Lock the app with a code"
 msgstr "قفل التطبيق برمز"
 
-#: src/pages/Knowledge.tsx:38
+#: src/pages/Knowledge.tsx:37
 #: src/pages/KnowledgeSection.tsx:83
 msgid "Long-term memory"
 msgstr "الذاكرة الدائمة"
 
-#: src/shell/settings/UsagePage.tsx:556
+#: src/shell/settings/UsagePage.tsx:563
 msgid "Lonora"
 msgstr "Lonora"
 
@@ -2853,7 +2857,7 @@ msgid "Mentions"
 msgstr "الإشارات"
 
 #: src/pages/shell/chat-context.tsx:815
-#: src/shell/settings/NotifyPages.tsx:21
+#: src/shell/settings/NotifyPages.tsx:22
 msgid "Message"
 msgstr "الرسالة"
 
@@ -2953,7 +2957,7 @@ msgstr "كتم الميكروفون"
 msgid "Mute notifications"
 msgstr "كتم الإشعارات"
 
-#: src/shell/settings/NotifyPages.tsx:148
+#: src/shell/settings/NotifyPages.tsx:179
 msgid "Mute notifications at night"
 msgstr "كتم الإشعارات ليلًا"
 
@@ -2967,7 +2971,7 @@ msgstr "مكتومة"
 #~ msgstr "جهازي"
 
 #: src/pages/shell/bot-settings.tsx:99
-#: src/shell/settings/OwnerPage.tsx:186
+#: src/shell/settings/OwnerPage.tsx:187
 msgid "Name"
 msgstr "الاسم"
 
@@ -3059,7 +3063,7 @@ msgstr "التنفيذ القادم"
 msgid "Next: the chats"
 msgstr "التالي: المحادثات"
 
-#: src/shell/settings/ConnectionPages.tsx:461
+#: src/shell/settings/ConnectionPages.tsx:467
 msgid "No agent works on this account."
 msgstr "لا يعمل أي وكيل على هذا الحساب."
 
@@ -3082,7 +3086,7 @@ msgstr "لا توجد محادثات مؤرشفة. اضغط مطولًا على 
 msgid "No artifacts found."
 msgstr "لم يتم العثور على ملفات."
 
-#: src/shell/settings/ConnectionPages.tsx:799
+#: src/shell/settings/ConnectionPages.tsx:814
 msgid "No authentication"
 msgstr "بدون مصادقة"
 
@@ -3139,7 +3143,7 @@ msgstr "لا توجد مجموعات."
 msgid "No internet connection"
 msgstr "لا يوجد اتصال بالإنترنت"
 
-#: src/shell/settings/NotifyPages.tsx:335
+#: src/shell/settings/NotifyPages.tsx:366
 msgid "No limit"
 msgstr "دون حد"
 
@@ -3223,7 +3227,7 @@ msgstr "لا توجد مهارات."
 #~ msgid "No speech yet"
 #~ msgstr "لم يبدأ الحديث بعد"
 
-#: src/shell/settings/UsagePage.tsx:196
+#: src/shell/settings/UsagePage.tsx:203
 msgid "No spending cap: usage never stops a request."
 msgstr "دون سقف للإنفاق: لا يوقف الاستهلاك أي طلب."
 
@@ -3275,18 +3279,18 @@ msgstr "لم يُرسل"
 msgid "Note"
 msgstr "ملاحظة"
 
-#: src/shell/settings/OwnerPage.tsx:273
+#: src/shell/settings/OwnerPage.tsx:274
 msgid "Nothing yet."
 msgstr "لا شيء بعد."
 
-#: src/shell/settings/NotifyPages.tsx:20
+#: src/shell/settings/NotifyPages.tsx:21
 msgid "Notification"
 msgstr "إشعار"
 
 #: src/components/ai/AttentionInbox.tsx:69
 #: src/components/ai/AttentionInbox.tsx:71
 #: src/shell/settings/DevicePages.tsx:293
-#: src/shell/settings/NotifyPages.tsx:118
+#: src/shell/settings/NotifyPages.tsx:126
 msgid "Notifications"
 msgstr "الإشعارات"
 
@@ -3299,11 +3303,11 @@ msgstr "الإشعارات والتواصل"
 msgid "Notifications muted"
 msgstr "كُتمت الإشعارات"
 
-#: src/shell/settings/NotifyPages.tsx:259
+#: src/shell/settings/NotifyPages.tsx:290
 msgid "Notifications off"
 msgstr "الإشعارات متوقفة"
 
-#: src/shell/settings/NotifyPages.tsx:259
+#: src/shell/settings/NotifyPages.tsx:290
 msgid "Notifications on"
 msgstr "الإشعارات مفعّلة"
 
@@ -3312,10 +3316,11 @@ msgid "Notifications restored"
 msgstr "أُعيدت الإشعارات"
 
 #: src/components/ai/AttentionInbox.tsx:102
+#: src/shell/settings/NotifyPages.tsx:145
 msgid "Notify me about confirmed opportunities"
 msgstr "أبلغني بالفرص المؤكدة"
 
-#: src/shell/settings/UsagePage.tsx:226
+#: src/shell/settings/UsagePage.tsx:233
 msgid "now"
 msgstr "الآن"
 
@@ -3333,7 +3338,7 @@ msgstr "أشياء"
 msgid "of about {0}"
 msgstr "من {0} تقريبًا"
 
-#: src/shell/settings/UsagePage.tsx:550
+#: src/shell/settings/UsagePage.tsx:557
 msgid "of the total cost"
 msgstr "من إجمالي التكلفة"
 
@@ -3350,11 +3355,11 @@ msgstr "وكيل واحد"
 msgid "One model for text work"
 msgstr "نموذج واحد للمهام النصية"
 
-#: src/pages/Knowledge.tsx:86
+#: src/pages/Knowledge.tsx:82
 msgid "One profile all your agents read, with its change log, is in Settings."
 msgstr "الملف الشخصي الذي يقرؤه جميع وكلائك، مع سجل تغييراته، في الإعدادات."
 
-#: src/shell/settings/OwnerPage.tsx:337
+#: src/shell/settings/OwnerPage.tsx:338
 msgid "One profile all your agents read. Every change is logged with its author, and you can restore any earlier value."
 msgstr "ملف واحد يقرؤه جميع وكلائك. يُسجَّل كل تعديل مع كاتبه، ويمكنك استعادة أي قيمة سابقة."
 
@@ -3406,7 +3411,7 @@ msgstr "سعر الفتح"
 msgid "Open the ⋮ menu of the browser."
 msgstr "افتح قائمة ⋮ في المتصفح."
 
-#: src/pages/Knowledge.tsx:89
+#: src/pages/Knowledge.tsx:85
 msgid "Open the profile"
 msgstr "فتح الملف الشخصي"
 
@@ -3545,11 +3550,11 @@ msgstr "قيد الانتظار"
 msgid "Pending orders"
 msgstr "الأوامر المعلقة"
 
-#: src/shell/settings/NotifyPages.tsx:250
+#: src/shell/settings/NotifyPages.tsx:281
 msgid "Per agent"
 msgstr "لكل وكيل"
 
-#: src/shell/settings/UsagePage.tsx:431
+#: src/shell/settings/UsagePage.tsx:438
 msgid "Per completed request"
 msgstr "لكل طلب مكتمل"
 
@@ -3623,8 +3628,8 @@ msgstr "الصفقة مفتوحة"
 msgid "Positions"
 msgstr "الصفقات"
 
-#: src/shell/settings/OwnerPage.tsx:225
-#: src/shell/settings/OwnerPage.tsx:286
+#: src/shell/settings/OwnerPage.tsx:226
+#: src/shell/settings/OwnerPage.tsx:287
 msgid "Preferences"
 msgstr "التفضيلات"
 
@@ -3708,12 +3713,12 @@ msgid "Profit"
 msgstr "الربح"
 
 #. placeholder {0}: usd(series.month.projected_usd)
-#: src/shell/settings/UsagePage.tsx:162
+#: src/shell/settings/UsagePage.tsx:169
 msgid "projected <0>{0}</0>"
 msgstr "المتوقع <0>{0}</0>"
 
 #. placeholder {0}: usd(series.month.projected_usd)
-#: src/shell/settings/UsagePage.tsx:188
+#: src/shell/settings/UsagePage.tsx:195
 msgid "Projected to {endText} <0>{0}</0>"
 msgstr "المتوقع حتى {endText} <0>{0}</0>"
 
@@ -3723,7 +3728,7 @@ msgstr "احمِ محادثاتك برمز من 4 أرقام"
 
 #: src/pages/ModelSettingsOverlay.tsx:57
 #: src/pages/ModelSettingsOverlay.tsx:59
-#: src/shell/settings/ConnectionPages.tsx:635
+#: src/shell/settings/ConnectionPages.tsx:650
 msgid "Provider"
 msgstr "المزود"
 
@@ -3746,15 +3751,15 @@ msgstr "أُغلق السؤال"
 msgid "Queued"
 msgstr "في الانتظار"
 
-#: src/shell/settings/NotifyPages.tsx:144
+#: src/shell/settings/NotifyPages.tsx:175
 msgid "Quiet hours"
 msgstr "ساعات الهدوء"
 
-#: src/shell/settings/NotifyPages.tsx:322
+#: src/shell/settings/NotifyPages.tsx:353
 msgid "Quiet hours are in Settings ← Notifications and contact."
 msgstr "ساعات الهدوء من الإعدادات ← الإشعارات والتواصل."
 
-#: src/shell/settings/NotifyPages.tsx:68
+#: src/shell/settings/NotifyPages.tsx:76
 msgid "Quiet hours must start and end at different times."
 msgstr "يجب أن تبدأ ساعات الهدوء وتنتهي في وقتين مختلفين."
 
@@ -3842,7 +3847,7 @@ msgstr "جارٍ إعادة الاتصال…"
 msgid "Record resolution"
 msgstr "تسجيل التسوية"
 
-#: src/shell/settings/NotifyPages.tsx:19
+#: src/shell/settings/NotifyPages.tsx:20
 msgid "Recorded in Updates without any alert"
 msgstr "يُسجَّل في المستجدات دون أي تنبيه"
 
@@ -3858,7 +3863,7 @@ msgstr "تحديث الرسم البياني"
 #~ msgid "Refresh live candles"
 #~ msgstr "تحديث الشموع المباشر"
 
-#: src/shell/settings/ConnectionPages.tsx:427
+#: src/shell/settings/ConnectionPages.tsx:433
 msgid "Refresh the symbols"
 msgstr "تحديث الرموز"
 
@@ -3900,7 +3905,7 @@ msgstr "رفض"
 msgid "Reload"
 msgstr "إعادة تحميل"
 
-#: src/shell/settings/ConnectionPages.tsx:839
+#: src/shell/settings/ConnectionPages.tsx:854
 msgid "Remote servers only. You review and approve its tools before any agent uses them."
 msgstr "خوادم بعيدة فقط. تراجع أدواته وتعتمدها قبل أن يستخدمها أي وكيل."
 
@@ -3959,7 +3964,7 @@ msgstr "رد على رسالة سابقة"
 msgid "Request updated"
 msgstr "تم تحديث الطلب"
 
-#: src/shell/settings/UsagePage.tsx:404
+#: src/shell/settings/UsagePage.tsx:411
 msgid "Requests"
 msgstr "الطلبات"
 
@@ -3979,7 +3984,7 @@ msgstr "البحث المعمق"
 msgid "Research agent"
 msgstr "وكيل بحث"
 
-#: src/shell/settings/ConnectionPages.tsx:774
+#: src/shell/settings/ConnectionPages.tsx:789
 msgid "Research tools"
 msgstr "أدوات الأبحاث"
 
@@ -4027,11 +4032,11 @@ msgstr "إعادة ضبط الكل"
 msgid "Resolved without broker confirmation"
 msgstr "سُوّيت دون تأكيد من الوسيط"
 
-#: src/shell/settings/OwnerPage.tsx:329
+#: src/shell/settings/OwnerPage.tsx:330
 msgid "Restore"
 msgstr "استعادة"
 
-#: src/shell/settings/OwnerPage.tsx:325
+#: src/shell/settings/OwnerPage.tsx:326
 msgid "Restored"
 msgstr "استُعيدت"
 
@@ -4138,8 +4143,8 @@ msgstr "جارٍ التنفيذ"
 #: src/pages/ScratchpadSection.tsx:195
 #: src/pages/shell/bot-settings.tsx:167
 #: src/shell/settings/IntegrationsPage.tsx:442
-#: src/shell/settings/NotifyPages.tsx:351
-#: src/shell/settings/OwnerPage.tsx:237
+#: src/shell/settings/NotifyPages.tsx:382
+#: src/shell/settings/OwnerPage.tsx:238
 msgid "Save"
 msgstr "حفظ"
 
@@ -4167,15 +4172,15 @@ msgstr "حفظ القائمة"
 msgid "Save the list · {count}"
 msgstr "حفظ القائمة · {count}"
 
-#: src/shell/settings/ConnectionPages.tsx:710
+#: src/shell/settings/ConnectionPages.tsx:725
 msgid "Save the settings"
 msgstr "حفظ الإعدادات"
 
 #: src/components/skills/SkillEditor.tsx:119
 #: src/pages/KnowledgeSection.tsx:96
 #: src/pages/ModelRoutingSettings.tsx:161
-#: src/shell/settings/ConnectionPages.tsx:624
-#: src/shell/settings/NotifyPages.tsx:298
+#: src/shell/settings/ConnectionPages.tsx:639
+#: src/shell/settings/NotifyPages.tsx:329
 #: src/shell/settings/OwnerPage.tsx:136
 msgid "Saved"
 msgstr "تم الحفظ"
@@ -4219,7 +4224,7 @@ msgstr "جدول العمل المتكرر لوكلائك."
 #~ msgid "Scheduled work"
 #~ msgstr "العمل المجدول"
 
-#: src/pages/Knowledge.tsx:52
+#: src/pages/Knowledge.tsx:51
 msgid "Scratchpad"
 msgstr "مسودة العمل"
 
@@ -4367,11 +4372,11 @@ msgstr "إرسال توجيه"
 msgid "Sending…"
 msgstr "جارٍ الإرسال…"
 
-#: src/shell/settings/ConnectionPages.tsx:779
+#: src/shell/settings/ConnectionPages.tsx:794
 msgid "Server address"
 msgstr "عنوان الخادم"
 
-#: src/shell/settings/ConnectionPages.tsx:772
+#: src/shell/settings/ConnectionPages.tsx:787
 msgid "Server name"
 msgstr "اسم الخادم"
 
@@ -4448,11 +4453,11 @@ msgstr "عرض الكل"
 msgid "Show all results ({0})"
 msgstr "عرض جميع النتائج ({0})"
 
-#: src/shell/settings/UsagePage.tsx:265
+#: src/shell/settings/UsagePage.tsx:272
 msgid "Show as a chart"
 msgstr "عرض كرسم"
 
-#: src/shell/settings/UsagePage.tsx:265
+#: src/shell/settings/UsagePage.tsx:272
 msgid "Show as a table"
 msgstr "عرض كجدول"
 
@@ -4460,7 +4465,7 @@ msgstr "عرض كجدول"
 msgid "Show more"
 msgstr "عرض المزيد"
 
-#: src/shell/settings/ConnectionPages.tsx:669
+#: src/shell/settings/ConnectionPages.tsx:684
 msgid "Show the key"
 msgstr "إظهار المفتاح"
 
@@ -4468,7 +4473,7 @@ msgstr "إظهار المفتاح"
 msgid "Show the shortcuts"
 msgstr "عرض الاختصارات"
 
-#: src/shell/settings/NotifyPages.tsx:130
+#: src/shell/settings/NotifyPages.tsx:138
 msgid "Show the start of the message in the notification"
 msgstr "إظهار بداية الرسالة في الإشعار"
 
@@ -4548,7 +4553,7 @@ msgstr "معرّف المهارة"
 msgid "Skill version controls could not be verified. Reload before making changes."
 msgstr "تعذر التحقق من ضوابط إصدارات المهارات. أعد التحميل قبل إجراء تغييرات."
 
-#: src/pages/Knowledge.tsx:45
+#: src/pages/Knowledge.tsx:44
 #: src/shell/settings/IntegrationsPage.tsx:637
 msgid "Skills"
 msgstr "المهارات"
@@ -4589,7 +4594,7 @@ msgstr "مبتسم"
 msgid "Smileys & people"
 msgstr "وجوه ضاحكة وأشخاص"
 
-#: src/shell/settings/NotifyPages.tsx:136
+#: src/shell/settings/NotifyPages.tsx:167
 msgid "Sounds"
 msgstr "الأصوات"
 
@@ -4845,12 +4850,12 @@ msgid "Temporary delegated tasks"
 msgstr "المهام المفوّضة المؤقتة"
 
 #: src/shell/settings/ConnectionPages.tsx:198
-#: src/shell/settings/ConnectionPages.tsx:706
-#: src/shell/settings/ConnectionPages.tsx:836
+#: src/shell/settings/ConnectionPages.tsx:721
+#: src/shell/settings/ConnectionPages.tsx:851
 msgid "Test the connection"
 msgstr "اختبار الاتصال"
 
-#: src/shell/settings/NotifyPages.tsx:129
+#: src/shell/settings/NotifyPages.tsx:137
 msgid "Text preview"
 msgstr "معاينة النص"
 
@@ -4953,7 +4958,7 @@ msgstr "المحادثات"
 msgid "The code is asked when Lonora opens"
 msgstr "يُطلب الرمز عند فتح Lonora"
 
-#: src/shell/settings/AppLock.tsx:113
+#: src/shell/settings/AppLock.tsx:118
 msgid "The codes do not match. Choose a new code"
 msgstr "الرمزان غير متطابقين. اختر رمزًا جديدًا"
 
@@ -4961,11 +4966,11 @@ msgstr "الرمزان غير متطابقين. اختر رمزًا جديدًا
 msgid "The connection works"
 msgstr "الاتصال يعمل"
 
-#: src/shell/settings/ConnectionPages.tsx:698
+#: src/shell/settings/ConnectionPages.tsx:713
 msgid "The connection works · {count} models available"
 msgstr "الاتصال يعمل · {count} نموذجًا متاحًا"
 
-#: src/shell/settings/ConnectionPages.tsx:828
+#: src/shell/settings/ConnectionPages.tsx:843
 msgid "The connection works · {count} tools"
 msgstr "الاتصال يعمل · {count} أداة"
 
@@ -4981,7 +4986,7 @@ msgstr "لم يعد السوق الحالي يؤكد شرط هذا الهدف. �
 msgid "The default market is optional. Other markets can be analyzed; trading follows your separate authorization."
 msgstr "السوق الافتراضي اختياري. يمكن تحليل أسواق أخرى؛ التداول يخضع لتفويضك المنفصل."
 
-#: src/shell/settings/ConnectionPages.tsx:517
+#: src/shell/settings/ConnectionPages.tsx:532
 msgid "The demo account data is imported"
 msgstr "استُوردت بيانات الحساب التجريبي"
 
@@ -4993,11 +4998,11 @@ msgstr "لم يؤكّد الجهاز. حاول مرة أخرى."
 msgid "The existing fixed market stays unchanged until you choose a new scope."
 msgstr "يبقى السوق الثابت الحالي دون تغيير حتى تختار نطاقًا جديدًا."
 
-#: src/shell/settings/OwnerPage.tsx:166
+#: src/shell/settings/OwnerPage.tsx:167
 msgid "The fact is removed"
 msgstr "حُذفت المعلومة"
 
-#: src/shell/settings/ConnectionPages.tsx:521
+#: src/shell/settings/ConnectionPages.tsx:536
 msgid "The file is not valid JSON."
 msgstr "الملف ليس JSON صالحًا."
 
@@ -5013,7 +5018,7 @@ msgstr "ستظهر الإجابة كاملة عند الانتهاء."
 #~ msgid "The grant is active, but its readiness check did not finish. No trade was sent."
 #~ msgstr "التفويض مفعّل، لكن فحص الجاهزية لم يكتمل. لم تُرسل أي صفقة."
 
-#: src/shell/settings/ConnectionPages.tsx:677
+#: src/shell/settings/ConnectionPages.tsx:692
 msgid "The key is stored encrypted and is never shown again."
 msgstr "يُحفظ المفتاح مشفّرًا ولا يُعرض مرة أخرى."
 
@@ -5083,7 +5088,7 @@ msgstr "الأيام السبعة السابقة"
 msgid "the previous thirty days"
 msgstr "الثلاثين يومًا السابقة"
 
-#: src/shell/settings/OwnerPage.tsx:150
+#: src/shell/settings/OwnerPage.tsx:151
 msgid "The previous value is restored"
 msgstr "استُعيدت القيمة السابقة"
 
@@ -5127,7 +5132,7 @@ msgstr "يُحذف سجل الدردشات في المجموعات المحدد�
 msgid "The selected model is not available from this provider. Choose another model in Settings."
 msgstr "النموذج المحدد غير متاح لدى هذا المزود. اختر نموذجًا آخر من الإعدادات."
 
-#: src/shell/settings/ConnectionPages.tsx:761
+#: src/shell/settings/ConnectionPages.tsx:776
 msgid "The server is added"
 msgstr "أُضيف الخادم"
 
@@ -5356,7 +5361,7 @@ msgstr "متأمل"
 msgid "Tick size"
 msgstr "أصغر حركة سعرية"
 
-#: src/shell/settings/OwnerPage.tsx:209
+#: src/shell/settings/OwnerPage.tsx:210
 msgid "Time zone"
 msgstr "المنطقة الزمنية"
 
@@ -5378,7 +5383,7 @@ msgstr "العنوان"
 
 #: src/pages/ActivityList.tsx:125
 #: src/pages/ActivityList.tsx:128
-#: src/shell/settings/NotifyPages.tsx:177
+#: src/shell/settings/NotifyPages.tsx:208
 msgid "To"
 msgstr "إلى"
 
@@ -5393,8 +5398,8 @@ msgstr "قيد الانتظار"
 #: src/pages/Artifacts.tsx:235
 #: src/pages/shell/chat-context.tsx:1167
 #: src/shell/settings/UsagePage.tsx:85
-#: src/shell/settings/UsagePage.tsx:227
-#: src/shell/settings/UsagePage.tsx:312
+#: src/shell/settings/UsagePage.tsx:234
+#: src/shell/settings/UsagePage.tsx:319
 msgid "Today"
 msgstr "اليوم"
 
@@ -5407,8 +5412,8 @@ msgstr "اليوم حتى الآن"
 #~ msgid "Token usage"
 #~ msgstr "استهلاك الرموز"
 
-#: src/shell/settings/UsagePage.tsx:285
-#: src/shell/settings/UsagePage.tsx:389
+#: src/shell/settings/UsagePage.tsx:292
+#: src/shell/settings/UsagePage.tsx:396
 msgid "Tokens"
 msgstr "التوكن"
 
@@ -5416,7 +5421,7 @@ msgstr "التوكن"
 msgid "Too many attempts. Wait a minute and retry."
 msgstr "محاولات كثيرة. انتظر دقيقة وأعد المحاولة."
 
-#: src/shell/settings/AppLock.tsx:269
+#: src/shell/settings/AppLock.tsx:278
 msgid "Too many tries. Try again in {wait} s"
 msgstr "محاولات كثيرة. حاول بعد {wait} ث"
 
@@ -5567,11 +5572,12 @@ msgstr "فصل"
 
 #: src/shell/settings/ConnectionPages.tsx:260
 #: src/shell/settings/ConnectionPages.tsx:298
-#: src/shell/settings/ConnectionPages.tsx:465
+#: src/shell/settings/ConnectionPages.tsx:320
+#: src/shell/settings/ConnectionPages.tsx:471
 msgid "Unlink the account"
 msgstr "فصل الحساب"
 
-#: src/shell/settings/AppLock.tsx:278
+#: src/shell/settings/AppLock.tsx:287
 msgid "Unlock with fingerprint"
 msgstr "فتح بالبصمة"
 
@@ -5579,7 +5585,7 @@ msgstr "فتح بالبصمة"
 msgid "Unlock with fingerprint or face"
 msgstr "الفتح بالبصمة أو الوجه"
 
-#: src/shell/settings/AppLock.tsx:154
+#: src/shell/settings/AppLock.tsx:159
 msgid "Unlocked"
 msgstr "فُتح القفل"
 
@@ -5610,7 +5616,7 @@ msgstr "غير مقروءة"
 msgid "Unsafe instructions"
 msgstr "تعليمات غير آمنة"
 
-#: src/shell/navigation.tsx:87
+#: src/shell/navigation.tsx:91
 msgid "Unsaved changes"
 msgstr "تعديلات غير محفوظة"
 
@@ -5648,11 +5654,11 @@ msgstr "رفع ملف"
 msgid "Uploading…"
 msgstr "جارٍ الرفع…"
 
-#: src/shell/settings/NotifyPages.tsx:346
+#: src/shell/settings/NotifyPages.tsx:377
 msgid "Urgent alerts always arrive and do not count."
 msgstr "التنبيهات العاجلة تصل دائمًا ولا تُحتسب."
 
-#: src/shell/settings/NotifyPages.tsx:195
+#: src/shell/settings/NotifyPages.tsx:226
 msgid "Urgent always arrives"
 msgstr "العاجل يصل دائمًا"
 
@@ -5660,7 +5666,7 @@ msgstr "العاجل يصل دائمًا"
 msgid "Usage"
 msgstr "الاستهلاك"
 
-#: src/shell/settings/UsagePage.tsx:625
+#: src/shell/settings/UsagePage.tsx:632
 msgid "Usage breakdown"
 msgstr "توزيع الاستهلاك"
 
@@ -5668,7 +5674,7 @@ msgstr "توزيع الاستهلاك"
 msgid "Usage details"
 msgstr "تفاصيل الاستهلاك"
 
-#: src/shell/settings/UsagePage.tsx:336
+#: src/shell/settings/UsagePage.tsx:343
 msgid "Use the arrows to move between the columns."
 msgstr "استخدم الأسهم للتنقل بين الأعمدة."
 
@@ -5684,7 +5690,7 @@ msgstr "بيانات مؤكدة"
 msgid "Verifying execution"
 msgstr "جارٍ التحقق من التنفيذ"
 
-#: src/shell/settings/AppLock.tsx:148
+#: src/shell/settings/AppLock.tsx:153
 msgid "Verifying…"
 msgstr "جارٍ التحقق…"
 
@@ -5838,7 +5844,7 @@ msgstr "ما الذي يجب أن يعرفه هذا الوكيل عن عمله؟
 #~ msgid "What this agent is for"
 #~ msgstr "ما مهمة هذا الوكيل؟"
 
-#: src/shell/settings/OwnerPage.tsx:242
+#: src/shell/settings/OwnerPage.tsx:243
 msgid "What your agents know about you"
 msgstr "ما يعرفه وكلاؤك عنك"
 
@@ -5878,22 +5884,22 @@ msgstr "يكتب"
 
 #. placeholder {0}: who(fact.row)
 #. placeholder {1}: ago(fact.row.created_at)
-#: src/shell/settings/OwnerPage.tsx:256
+#: src/shell/settings/OwnerPage.tsx:257
 msgid "Written by {0} · {1}"
 msgstr "كتبها {0} · {1}"
 
-#: src/shell/settings/AppLock.tsx:133
+#: src/shell/settings/AppLock.tsx:138
 msgid "Wrong code"
 msgstr "رمز غير صحيح"
 
 #. placeholder {0}: 5 - tries
-#: src/shell/settings/AppLock.tsx:133
+#: src/shell/settings/AppLock.tsx:138
 msgid "Wrong code. {0} tries left"
 msgstr "رمز غير صحيح. بقيت {0} محاولات"
 
 #: src/pages/shell/chat-context.tsx:1168
 #: src/shell/settings/OwnerPage.tsx:36
-#: src/shell/settings/UsagePage.tsx:227
+#: src/shell/settings/UsagePage.tsx:234
 msgid "Yesterday"
 msgstr "أمس"
 
@@ -5907,7 +5913,7 @@ msgstr "أنت"
 msgid "You can choose «All» to search the other sections."
 msgstr "يمكنك اختيار «الكل» للبحث في بقية الأقسام."
 
-#: src/shell/navigation.tsx:92
+#: src/shell/navigation.tsx:96
 msgid "You can keep editing or discard the changes."
 msgstr "يمكنك متابعة التعديل أو تجاهل التغييرات."
 
@@ -5920,7 +5926,7 @@ msgstr "يمكنك تثبيت 3 محادثات فقط"
 msgid "You decide"
 msgstr "أنت صاحب القرار"
 
-#: src/shell/settings/ConnectionPages.tsx:576
+#: src/shell/settings/ConnectionPages.tsx:591
 msgid "You have not added a provider yet."
 msgstr "لم تضف مزودًا بعد."
 
@@ -5928,7 +5934,7 @@ msgstr "لم تضف مزودًا بعد."
 msgid "You reached the name's maximum length"
 msgstr "وصلت إلى الحد الأقصى للاسم"
 
-#: src/shell/navigation.tsx:94
+#: src/shell/navigation.tsx:98
 msgid "You will lose the unsaved edits."
 msgstr "ستفقد التعديلات غير المحفوظة."
 

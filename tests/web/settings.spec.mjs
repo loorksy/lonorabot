@@ -51,6 +51,25 @@ test("settings root, quiet hours to the minute and one agent's delivery rules", 
     await expect(page.getByRole("radio", { name: /Activity log only/ })).toBeVisible();
     // No browser notification permission until a push channel exists (Q10).
     await expect(page.getByText(/Browser notifications/)).toHaveCount(0);
+    // «إشعاري بالفرص المؤكدة» (the attention policy) lives here.
+    const opportunities = page.getByRole("switch", {
+      name: "Notify me about confirmed opportunities",
+    });
+    const wasOn = (await opportunities.getAttribute("aria-checked")) === "true";
+    await opportunities.click();
+    await expect
+      .poll(
+        async () =>
+          (await (await context.request.get("/api/attention/policy")).json()).opportunities,
+      )
+      .toBe(!wasOn);
+    await opportunities.click();
+    await expect
+      .poll(
+        async () =>
+          (await (await context.request.get("/api/attention/policy")).json()).opportunities,
+      )
+      .toBe(wasOn);
     const mute = page.getByRole("switch", { name: "Mute notifications at night" });
     if ((await mute.getAttribute("aria-checked")) !== "true") await mute.click();
     await expect(page.getByText("Urgent always arrives")).toBeVisible();
@@ -109,15 +128,25 @@ test("app lock: a 4-digit code, wrong tries counted, unlocked again", async ({ p
     const agent = (await (await context.request.get("/api/agents")).json())[0];
     const sent = [];
     page.on("request", (request) => {
-      if (request.method() === "POST" && /\/api\/(messages|runs)\b/.test(request.url()))
+      // A send is POST /api/threads (a new conversation) or POST /api/threads/{id}/messages.
+      if (
+        request.method() === "POST" &&
+        /\/api\/threads(\/[^/]+\/messages)?(\?|$)/.test(request.url())
+      )
         sent.push(request.url());
     });
     await page.goto(agent ? `/app/${agent.id}` : "/app");
     await expect(lock).toBeVisible();
     await expect(page.locator("#root")).toHaveAttribute("inert", "");
+    const locked = page.url();
     await page.keyboard.type("hello");
     await page.keyboard.press("Enter");
+    // The shell's search shortcut must not run behind the lock.
     await page.keyboard.press("Control+K");
+    await page.keyboard.press("Control+Shift+O");
+    await page.waitForTimeout(300);
+    expect(page.url()).toBe(locked);
+    await expect(page.locator("#dialog[open]")).toHaveCount(0);
     for (let index = 0; index < 4; index += 1) {
       await page.keyboard.press("Tab");
       expect(await page.evaluate(() => Boolean(document.activeElement?.closest("#lock")))).toBe(
@@ -125,6 +154,8 @@ test("app lock: a 4-digit code, wrong tries counted, unlocked again", async ({ p
       );
     }
     expect(sent).toEqual([]);
+    const composer = page.locator("textarea").first();
+    if (await composer.count()) await expect(composer).toHaveValue("");
     // "hello" has no digits; the first wrong code is counted and survives a reload.
     await page.keyboard.type("1111");
     await expect(lock.getByText("Wrong code. 4 tries left")).toBeVisible();
@@ -200,6 +231,18 @@ test("auth: intro once, e-mail sign-in, and «Your session ended»", async ({ pa
     await page.getByRole("button", { name: "Next" }).click();
     await page.getByRole("button", { name: "Start now" }).click();
     await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
+    // The #auth layer is the reference's full-screen layer; ≥900px the card is a floating panel.
+    const layer = page.locator("#auth");
+    expect(await layer.evaluate((node) => getComputedStyle(node).position)).toBe("fixed");
+    expect(await layer.evaluate((node) => getComputedStyle(node).zIndex)).toBe("300");
+    await page.screenshot({ path: ".runtime/auth/auth-signin-390.png" });
+    await page.setViewportSize({ width: 1440, height: 900 });
+    const card = page.locator("#auth .auth-card");
+    expect(await card.evaluate((node) => getComputedStyle(node).borderTopLeftRadius)).toBe("28px");
+    const box = await card.boundingBox();
+    expect(box && box.x > 300 && box.width <= 420).toBe(true);
+    await page.screenshot({ path: ".runtime/auth/auth-signin-1440.png" });
+    await page.setViewportSize({ width: 390, height: 844 });
     // Only e-mail + password (Q46): no phone, sign-up or forgot-password.
     await expect(page.getByText(/phone|Forgot|Create an account/i)).toHaveCount(0);
     await page.getByLabel("Email").fill(process.env.LONORA_UI_TEST_EMAIL ?? "ci@example.com");

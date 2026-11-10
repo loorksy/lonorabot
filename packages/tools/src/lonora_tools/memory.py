@@ -181,7 +181,7 @@ class OwnerPreferencesUpdate(Contract):
         if self.timezone is not None:
             try:
                 ZoneInfo(self.timezone)
-            except (ValueError, ZoneInfoNotFoundError) as error:
+            except (ValueError, ZoneInfoNotFoundError, OSError) as error:
                 raise ValueError("invalid_timezone") from error
         return self
 

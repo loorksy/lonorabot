@@ -115,8 +115,13 @@ async def test_calls_off_means_the_agent_never_rings():
     from lonora_contracts.domain import new_id, utcnow
     from lonora_contracts.incoming_calls import IncomingCallPolicy
     from lonora_core.user_error import LonoraError
-    from lonora_db.schema import AttentionRow, DeviceCredentialRow
-    from lonora_voice.incoming import preferences, request_call, set_preferences
+    from lonora_db.schema import AttentionRow, DeviceCredentialRow, VoiceSessionRow
+    from lonora_voice.incoming import (
+        preferences,
+        request_call,
+        require_current_consent,
+        set_preferences,
+    )
 
     fixture = await Fixture().open()
     device = new_id()
@@ -125,7 +130,6 @@ async def test_calls_off_means_the_agent_never_rings():
     try:
         agent = await fixture.agent("No calls " + uuid4().hex[:6])
         thread = await fixture.conversation(agent)
-        await fixture.client.put(f"/api/agents/{agent['id']}/notifications", json={"calls": False})
         attention = new_id()
         async with fixture.runtime.db.sessions() as session, session.begin():
             session.add(
@@ -150,10 +154,52 @@ async def test_calls_off_means_the_agent_never_rings():
                     agent_id=agent["id"],
                     thread_id=thread["id"],
                     importance="critical",
-                    code="emergency_stop",
+                    code="agent_notification",
                     status="ready",
                     logical_key=attention,
                     coalesce_key=attention,
+                    parameters={},
+                    source_events=[],
+                    source_count=1,
+                    version=1,
+                    due_at=utcnow(),
+                )
+            )
+        # With calls on, the invitation rings.
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            ringing = await request_call(
+                session,
+                fixture.owner,
+                attention,
+                "Urgent verified account safety change",
+                agent_id=agent["id"],
+                thread_id=thread["id"],
+            )
+            ringing_id = ringing.id
+        await fixture.client.put(f"/api/agents/{agent['id']}/notifications", json={"calls": False})
+        # The call already ringing loses its consent the moment calls are turned off.
+        with pytest.raises(LonoraError) as stale:
+            async with fixture.runtime.db.sessions() as session:
+                row = await session.get(VoiceSessionRow, ringing_id)
+                assert row is not None
+                await require_current_consent(session, row)
+        assert stale.value.code == "incoming_call_agent_disabled"
+        # And a new one never rings.
+        second = new_id()
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            source = await session.get(AttentionRow, attention)
+            assert source is not None
+            session.add(
+                AttentionRow(
+                    id=second,
+                    owner_id=fixture.owner,
+                    agent_id=agent["id"],
+                    thread_id=thread["id"],
+                    importance="critical",
+                    code="agent_notification",
+                    status="ready",
+                    logical_key=second,
+                    coalesce_key=second,
                     parameters={},
                     source_events=[],
                     source_count=1,
@@ -166,7 +212,7 @@ async def test_calls_off_means_the_agent_never_rings():
                 await request_call(
                     session,
                     fixture.owner,
-                    attention,
+                    second,
                     "Urgent verified account safety change",
                     agent_id=agent["id"],
                     thread_id=thread["id"],
@@ -175,4 +221,36 @@ async def test_calls_off_means_the_agent_never_rings():
     finally:
         async with fixture.runtime.db.sessions() as session, session.begin():
             await set_preferences(session, fixture.owner, before)
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_owner_notify_tells_the_agent_when_its_rules_kept_the_alert_in_activity():
+    database()
+    from check_streaming import Fixture
+    from lonora_adapter_kit.types import ToolCall
+    from lonora_tools.loader import load_tools
+
+    fixture = await Fixture().open()
+    try:
+        agent = await fixture.agent("Rule notes " + uuid4().hex[:6])
+        await fixture.client.put(f"/api/agents/{agent['id']}/notifications", json={"in_app": False})
+        thread = await fixture.conversation(agent)
+        run = await fixture.run(agent, thread)
+        context = await fixture.lease(run)
+        result = await load_tools().execute(
+            ToolCall(
+                id="notify-" + uuid4().hex,
+                name="owner_notify",
+                arguments={
+                    "importance": "important_change",
+                    "summary": "Gold moved past the level " + uuid4().hex[:6],
+                    "dedupe_key": "rules-" + uuid4().hex,
+                },
+            ),
+            context,
+        )
+        assert result["status"] == "agent_in_app_off", result
+        assert "no notification was shown" in result["note"], result
+    finally:
         await fixture.close()

@@ -111,6 +111,14 @@ def main() -> None:
     base = make_url(get_settings().database_url)
     commands = [[sys.executable, "tests/" + script] for script in CHECKS]
     commands.append([sys.executable, "-m", "pytest", "tests/test_task_runtime.py", "-q"])
+    # UI phase 5: delivery rules, dry-run tests, owner identity and usage (PostgreSQL cases).
+    for name in (
+        "test_agent_delivery_rules.py",
+        "test_connection_tests.py",
+        "test_owner_identity.py",
+        "test_usage_dashboard.py",
+    ):
+        commands.append([sys.executable, "-m", "pytest", "tests/" + name, "-q"])
     for command in commands:
         name = "lonora_foundation_" + uuid4().hex + "_test"
         asyncio.run(database(base, name, create=True))

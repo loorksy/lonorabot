@@ -147,6 +147,7 @@ export function OwnerPage() {
       });
       setProfile(await api.get<OwnerProfile>("/owner/profile"));
       setDraft(null);
+      revisions.reload();
       toast(t`The previous value is restored`, { type: "success" });
     } catch (error) {
       toast(userError(error), { type: "error" });

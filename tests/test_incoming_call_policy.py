@@ -16,6 +16,9 @@ def test_consent_requires_device_and_valid_timezone():
         IncomingCallPolicy(enabled=True)
     with pytest.raises(ValidationError):
         IncomingCallPolicy(timezone="Made/Up")
+    # A zone directory, not a zone: refused as invalid, never a server error.
+    with pytest.raises(ValidationError, match="invalid_timezone"):
+        IncomingCallPolicy(timezone="America")
     with pytest.raises(ValidationError):
         IncomingCallPolicy(quiet_start_hour=22)
 

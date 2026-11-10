@@ -62,7 +62,7 @@ class IncomingCallPolicy(Contract):
     def valid_timezone(cls, value: str) -> str:
         try:
             ZoneInfo(value)
-        except (ValueError, ZoneInfoNotFoundError) as error:
+        except (ValueError, ZoneInfoNotFoundError, OSError) as error:
             raise ValueError("invalid_timezone") from error
         return value
 

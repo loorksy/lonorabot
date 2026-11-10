@@ -141,12 +141,19 @@ function MonthCard({ series, locale }: { series: UsageSeries; locale: string }) 
     month: "long",
     timeZone: series.timezone,
   });
-  const end = new Date(start.getTime());
-  end.setUTCDate(end.getUTCDate() + series.month.days_in_month - 1);
+  // The month's last day from its calendar parts in the owner's zone: adding days to an
+  // instant drifts across a DST change.
+  const parts = new Intl.DateTimeFormat("en", {
+    year: "numeric",
+    month: "numeric",
+    timeZone: series.timezone,
+  }).formatToParts(start);
+  const part = (type: string) => Number(parts.find((item) => item.type === type)?.value);
+  const end = new Date(Date.UTC(part("year"), part("month") - 1, series.month.days_in_month, 12));
   const endText = end.toLocaleDateString(`${locale}-u-nu-latn`, {
     day: "numeric",
     month: "long",
-    timeZone: series.timezone,
+    timeZone: "UTC",
   });
   const fraction = series.month.day_of_month / series.month.days_in_month;
   return (

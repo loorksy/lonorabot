@@ -1,3 +1,4 @@
+import { i18n } from "@lingui/core";
 import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
 import type { AgentDeliveryRules, IncomingCallPolicy } from "@lonora/contracts";
@@ -44,6 +45,13 @@ export function NotifyPage() {
   const [prefs, setPrefs] = useDevicePref<NotifyPrefs>("notify", NOTIFY_DEFAULTS);
   const rules = useLoad(
     () => api.get<Record<string, AgentDeliveryRules>>("/agents/notifications"),
+    [],
+  );
+  const attention = useLoad(
+    () =>
+      api.get<{ opportunities: boolean; informational: boolean; locale: "ar" | "en" }>(
+        "/attention/policy",
+      ),
     [],
   );
   const [busy, setBusy] = useState(false);
@@ -132,6 +140,29 @@ export function NotifyPage() {
           icon="eye"
           onChange={(preview) => setPrefs({ preview })}
         />
+        {attention.value && (
+          <ToggleRow
+            title={t`Notify me about confirmed opportunities`}
+            sub={t`An alert when an agent confirms an opportunity`}
+            on={attention.value.opportunities}
+            icon="target"
+            onChange={async (opportunities) => {
+              const current = attention.value;
+              if (!current) return;
+              try {
+                attention.set(
+                  await api.put("/attention/policy", {
+                    ...current,
+                    opportunities,
+                    locale: i18n.locale === "ar" ? "ar" : "en",
+                  }),
+                );
+              } catch (error) {
+                toast(userError(error), { type: "error" });
+              }
+            }}
+          />
+        )}
         <ToggleRow
           title={t`Sounds`}
           sub={t`A short tone when a reply arrives`}

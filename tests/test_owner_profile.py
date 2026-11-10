@@ -976,3 +976,37 @@ async def test_writes_keep_the_legacy_section_and_history_shows_only_the_change(
             assert row is not None and "- Prefers Arabic replies" in row.content
     finally:
         await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_quiet_hours_from_chat_are_kept_to_the_minute_and_an_empty_window_is_refused():
+    database()
+    from check_streaming import Fixture
+
+    fixture = await Fixture().open()
+    try:
+        await reset_profile(fixture)
+        registry = load_tools()
+        agent = await fixture.agent("Lonora")
+        context, _ = await owner_turn(fixture, agent, "لا تزعجني من 22:30 إلى 07:15")
+        saved = await call(
+            registry, context, "owner_preferences_update", quiet_start="22:30", quiet_end="07:15"
+        )
+        assert saved["changed"] is True, saved
+        policy = await fixture.request("GET", "/voice/incoming/policy")
+        assert (policy["quiet_start_minute"], policy["quiet_end_minute"]) == (1350, 435)
+        # The owner's own save of an empty window is a 422 with its own code.
+        current = {
+            key: value
+            for key, value in policy.items()
+            if key not in {"enabled", "quiet_start_hour", "quiet_end_hour"}
+        }
+        refused = await fixture.client.put(
+            "/api/owner/preferences",
+            json={"reach_me": {**current, "quiet_start_minute": 600, "quiet_end_minute": 600}},
+        )
+        assert refused.status_code == 422
+        assert refused.json()["code"] == "incoming_call_quiet_hours_empty"
+    finally:
+        await reset_profile(fixture)
+        await fixture.close()
