@@ -496,7 +496,7 @@ msgstr "After linking, the account's trading symbols are fetched from the broker
 msgid "Agent"
 msgstr "Agent"
 
-#: src/components/genui/UiCard.tsx:246
+#: src/components/genui/UiCard.tsx:238
 msgid "Agent call"
 msgstr "Agent call"
 
@@ -1464,7 +1464,7 @@ msgstr "Commands at the start of the message"
 msgid "Compared with {compare} · <0>{0}</0>"
 msgstr "Compared with {compare} · <0>{0}</0>"
 
-#: src/components/genui/UiCard.tsx:477
+#: src/components/genui/UiCard.tsx:469
 msgid "Complete «{label}» first"
 msgstr "Complete «{label}» first"
 
@@ -2070,7 +2070,7 @@ msgstr "Economic calendar"
 msgid "Economic calendar feed"
 msgstr "Economic calendar feed"
 
-#: src/components/genui/UiCard.tsx:611
+#: src/components/genui/UiCard.tsx:603
 #: src/shell/domain/FilesPages.tsx:121
 msgid "Edit"
 msgstr "Edit"
@@ -2101,7 +2101,7 @@ msgstr "Edit skill"
 msgid "Edit the list"
 msgstr "Edit the list"
 
-#: src/components/genui/UiCard.tsx:550
+#: src/components/genui/UiCard.tsx:542
 msgid "Edit, then send again"
 msgstr "Edit, then send again"
 
@@ -2644,7 +2644,7 @@ msgctxt "task status"
 msgid "In progress"
 msgstr "In progress"
 
-#: src/components/genui/UiCard.tsx:243
+#: src/components/genui/UiCard.tsx:235
 #: src/shell/domain/SchedulesPages.tsx:200
 #: src/shell/domain/SchedulesPages.tsx:248
 #: src/shell/domain/SchedulesPages.tsx:505
@@ -2726,7 +2726,7 @@ msgstr "Instructions"
 msgid "Integrations"
 msgstr "Integrations"
 
-#: src/components/genui/UiCard.tsx:568
+#: src/components/genui/UiCard.tsx:560
 msgid "Interactive interface"
 msgstr "Interactive interface"
 
@@ -2753,7 +2753,7 @@ msgstr "Interrupted"
 #~ msgid "Interval"
 #~ msgstr "Interval"
 
-#: src/components/genui/UiCard.tsx:359
+#: src/components/genui/UiCard.tsx:351
 msgid "Invalid value."
 msgstr "Invalid value."
 
@@ -2879,7 +2879,7 @@ msgstr "Larger"
 msgid "Largest"
 msgstr "Largest"
 
-#: src/components/genui/UiCard.tsx:467
+#: src/components/genui/UiCard.tsx:459
 msgid "Last updated"
 msgstr "Last updated"
 
@@ -3701,7 +3701,7 @@ msgstr "Nothing yet."
 msgid "Notification"
 msgstr "Notification"
 
-#: src/components/genui/UiCard.tsx:223
+#: src/components/genui/UiCard.tsx:215
 msgid "Notification method"
 msgstr "Notification method"
 
@@ -4027,7 +4027,7 @@ msgstr "Persistent child agent"
 msgid "Personal Agent"
 msgstr "Personal Agent"
 
-#: src/components/genui/UiCard.tsx:245
+#: src/components/genui/UiCard.tsx:237
 msgid "Phone notification"
 msgstr "Phone notification"
 
@@ -4894,7 +4894,7 @@ msgid "Sending…"
 msgstr "Sending…"
 
 #. placeholder {0}: agent?.name ?? "Lonora"
-#: src/components/genui/UiCard.tsx:608
+#: src/components/genui/UiCard.tsx:600
 msgid "Sent to {0}"
 msgstr "Sent to {0}"
 
@@ -4987,7 +4987,7 @@ msgstr "Show as a chart"
 msgid "Show as a table"
 msgstr "Show as a table"
 
-#: src/components/genui/UiCard.tsx:371
+#: src/components/genui/UiCard.tsx:363
 #: src/shell/domain/UpdatesPages.tsx:129
 #: src/shell/lists/UnifiedSearch.tsx:379
 msgid "Show more"
@@ -5164,7 +5164,7 @@ msgstr "Sounds"
 msgid "Source"
 msgstr "Source"
 
-#: src/components/genui/UiCard.tsx:639
+#: src/components/genui/UiCard.tsx:631
 msgid "Sources"
 msgstr "Sources"
 
@@ -6543,7 +6543,7 @@ msgctxt "schedule type"
 msgid "When a condition is met"
 msgstr "When a condition is met"
 
-#: src/components/genui/UiCard.tsx:629
+#: src/components/genui/UiCard.tsx:621
 msgid "Why this interface?"
 msgstr "Why this interface?"
 
@@ -6655,7 +6655,7 @@ msgstr "You reached the name's maximum length"
 msgid "You rejected a request"
 msgstr "You rejected a request"
 
-#: src/components/genui/UiCard.tsx:618
+#: src/components/genui/UiCard.tsx:610
 msgid "You stopped the reply before the interface was complete"
 msgstr "You stopped the reply before the interface was complete"
 
