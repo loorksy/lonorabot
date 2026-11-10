@@ -35,12 +35,15 @@ client from before the channel existed keeps its meaning (`enabled` true reads a
 `call`); a request that states both and contradicts itself is refused
 (`incoming_call_channel_conflict`). These checks keep their own code in the API
 response (`incoming_call_channel_conflict`, `incoming_call_device_required`,
-`incoming_call_quiet_hours_incomplete`, `invalid_timezone`) instead of a generic
-`invalid_request`, and Web and Mobile show the same Arabic or English text for each.
+`incoming_call_quiet_hours_incomplete`, `incoming_call_quiet_hours_empty`,
+`invalid_timezone`) instead of a generic `invalid_request`, and Web and Mobile show the same
+Arabic or English text for each. Quiet hours are kept to the minute (`quiet_start_minute`,
+`quiet_end_minute`, Q47); a window that starts and ends at the same minute would hold
+everything all day and is refused (`incoming_call_quiet_hours_empty`).
 `notify` means the inbox: the alerts Lonora raises and the alerts an Agent raises
 itself with `owner_notify` (below).
 
-The owner sets it in Web Knowledge (About you) or Mobile Voice settings
+The owner sets it on the web in Settings ← «الإشعارات والتواصل» (`/app/notify-settings`) or in Mobile Voice settings
 (`PUT /api/owner/preferences`), or in chat: "Send me a message instead of
 calling" makes the Agent call `owner_preferences_update`, which needs a Run that
 answers the owner's message and records a revertible, attributed revision. Choosing

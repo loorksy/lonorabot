@@ -18,7 +18,7 @@ from lonora_contracts.trading_goal import GoalExecution
 from lonora_core.user_error import LonoraError
 from lonora_db.agent_permissions import effective_permission
 from lonora_db.client import Database
-from lonora_db.goal_scope import goal_mode, require_goal_agent
+from lonora_db.goal_scope import require_goal_agent
 from lonora_db.runs import create_run, locked_run_thread, require_lease, run_data
 from lonora_db.schema import (
     AgentRow,
@@ -79,12 +79,9 @@ async def goal_requires_approval(session: AsyncSession, goal: TradingGoalRow, ru
 
     Live steps follow the level like any trade: No trading refuses, Ask me needs the
     owner's exact approval, On its own sends inside a covering signed grant (a step
-    outside it asks instead, see ``execute_goal_step``). Shadow steps never touch the
-    broker and need no approval, like shadow trades outside a Goal.
+    outside it asks instead, see ``execute_goal_step``).
     """
     await require_goal_agent(session, goal, run)
-    if goal_mode(goal) == "shadow":
-        return False
     level = await effective_permission(session, goal.owner_id, run.agent_id)
     if level == "analysis":
         raise LonoraError("agent_analysis_only", 403)
@@ -409,44 +406,40 @@ async def execute_goal_step(
         raise
     account_authority_id: str | None = None
     expected_target: dict[str, Any] | None = None
-    if goal_mode(goal) == "live":
+    async with db.sessions() as session:
+        current = await require_lease(session, lease)
+        autonomous = await effective_permission(session, owner_id, current.agent_id) == "autonomous"
+    if autonomous and not level_asks:
+        # Every term of the grant decides, the owner's own ticket included: a step the
+        # grant does not fully cover asks the owner instead of failing at the executor.
+        facts = await authority_snapshot(
+            await brokers.get(owner_id, request.account_id), request.account_id
+        )
         async with db.sessions() as session:
             current = await require_lease(session, lease)
-            autonomous = (
-                await effective_permission(session, owner_id, current.agent_id) == "autonomous"
+            account_authority_id = await covering_authority(
+                session, owner_id, current, request, facts
             )
-        if autonomous and not level_asks:
-            # Every term of the grant decides, the owner's own ticket included: a step the
-            # grant does not fully cover asks the owner instead of failing at the executor.
-            facts = await authority_snapshot(
-                await brokers.get(owner_id, request.account_id), request.account_id
-            )
-            async with db.sessions() as session:
-                current = await require_lease(session, lease)
-                account_authority_id = await covering_authority(
-                    session, owner_id, current, request, facts
-                )
     # The ladder is monotonic: under "On its own" a step no active grant covers asks the
     # owner with an approval card, exactly like "Ask me", instead of being refused.
-    needs_approval = level_asks or (goal_mode(goal) == "live" and account_authority_id is None)
+    needs_approval = level_asks or account_authority_id is None
     if needs_approval:
         if approval_gate is None:
             raise LonoraError("trade_approval_required", 409)
         pending_approval = await approval_gate(request)
         if pending_approval is not None:
             return pending_approval
-    if goal_mode(goal) == "live":
-        if request.position_id:
-            target = next(
-                (p for p in evidence.get("positions", []) if p.get("id") == request.position_id),
-                None,
-            )
-            expected_target = material_state(Position.model_validate(target)) if target else None
-        elif request.order_id:
-            target = next(
-                (p for p in evidence.get("orders", []) if p.get("id") == request.order_id), None
-            )
-            expected_target = material_state(Order.model_validate(target)) if target else None
+    if request.position_id:
+        target = next(
+            (p for p in evidence.get("positions", []) if p.get("id") == request.position_id),
+            None,
+        )
+        expected_target = material_state(Position.model_validate(target)) if target else None
+    elif request.order_id:
+        target = next(
+            (p for p in evidence.get("orders", []) if p.get("id") == request.order_id), None
+        )
+        expected_target = material_state(Order.model_validate(target)) if target else None
     async with db.sessions() as session, session.begin():
         run, _ = await locked_run_thread(session, lease)
         goal = await owned_goal(session, owner_id, goal_id, True)
@@ -498,7 +491,6 @@ async def execute_goal_step(
                 "rationale": note,
                 "evidence_refs": evidence_refs or [],
                 "observation": evidence,
-                "execution_mode": goal_mode(goal),
                 "plan_version": expected_plan_version,
             },
             status="executing",
@@ -528,30 +520,15 @@ async def execute_goal_step(
                 raise LonoraError("trade_approval_unavailable", 409)
 
     try:
-        if goal_mode(goal) == "shadow":
-            from .shadow import execute_shadow
-
-            result = await execute_shadow(
-                db,
-                brokers,
-                owner_id,
-                goal.agent_id or "",
-                goal.thread_id or "",
-                lease,
-                request,
-                goal=context,
-                authorization=require_approved_goal if needs_approval else None,
-            )
-        else:
-            result = await executor.execute(
-                owner_id,
-                request,
-                lease,
-                goal=context,
-                authorization=require_approved_goal if needs_approval else None,
-                account_authority_id=account_authority_id,
-                expected_target=expected_target,
-            )
+        result = await executor.execute(
+            owner_id,
+            request,
+            lease,
+            goal=context,
+            authorization=require_approved_goal if needs_approval else None,
+            account_authority_id=account_authority_id,
+            expected_target=expected_target,
+        )
     except LonoraError as error:
         async with db.sessions() as session, session.begin():
             await require_lease(session, lease, lock=True)

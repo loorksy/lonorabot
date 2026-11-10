@@ -3,7 +3,7 @@
  * «المؤرشفة» row and the list order, from the server's inbox projection. Web and Mobile
  * compute the same numbers from the same entries; nothing here is stored.
  */
-import type { InboxEntry } from "@lonora/contracts";
+import type { InboxEntry, ThreadPrefs } from "@lonora/contracts";
 
 /** The count pill, or 1 for a conversation marked unread with no new messages. */
 export function inboxUnread(entry: InboxEntry): number {
@@ -45,5 +45,34 @@ export function orderInbox(entries: readonly InboxEntry[]): InboxEntry[] {
     if (first.last_activity_at !== second.last_activity_at)
       return first.last_activity_at < second.last_activity_at ? 1 : -1;
     return first.thread_id < second.thread_id ? -1 : first.thread_id > second.thread_id ? 1 : 0;
+  });
+}
+
+/** An inbox entry with the owner's new state of its conversation, merged before the next refetch. */
+export function mergePrefs(entries: InboxEntry[], prefs: ThreadPrefs[]): InboxEntry[] {
+  const byThread = new Map(prefs.map((row) => [row.thread_id, row]));
+  return entries.map((entry) => {
+    const next = byThread.get(entry.thread_id);
+    if (!next) return entry;
+    const { thread_id: _thread, updated_at: _updated, ...state } = next;
+    const hidden = next.hidden_before_seq > entry.hidden_before_seq;
+    const lastSeq = entry.last_message?.seq ?? 0;
+    // «مسح» hides what is at or before the boundary: those cannot be unread, a message after it can.
+    const unread =
+      next.last_read_seq >= lastSeq || (hidden && lastSeq <= next.hidden_before_seq)
+        ? 0
+        : hidden
+          ? Math.min(entry.unread_count, lastSeq - next.hidden_before_seq)
+          : entry.unread_count;
+    return {
+      ...entry,
+      ...state,
+      // «مسح» empties the preview until the refetch.
+      unread_count: unread,
+      last_message:
+        hidden && entry.last_message && entry.last_message.seq <= next.hidden_before_seq
+          ? null
+          : entry.last_message,
+    };
   });
 }

@@ -10,7 +10,7 @@ from lonora_db.schema import TradingJournalRow
 from lonora_trading.journal import execution_evidence, record_excerpt
 
 
-def test_execution_snapshot_keeps_target_and_labels_truncation_without_inventing_shadow_profit():
+def test_execution_snapshot_keeps_target_and_labels_truncation():
     now = utcnow()
     snapshot = ExecutionSnapshot(
         account=AccountState(
@@ -39,13 +39,12 @@ def test_execution_snapshot_keeps_target_and_labels_truncation_without_inventing
     request = TradeRequest(
         account_id="account", symbol="EURUSDm", action="close_position", position_id="ticket-149"
     )
-    evidence = execution_evidence(snapshot, request, mode="shadow", phase="virtual_preflight")
+    evidence = execution_evidence(snapshot, request, phase="before_send")
     assert evidence["counts"] == {"positions": 150, "orders": 0}
     assert evidence["truncated"] and len(evidence["snapshot"]["positions"]) == 100
     assert evidence["snapshot"]["positions"][0]["id"] == "ticket-149"
-    assert all(row["profit"] is None for row in evidence["snapshot"]["positions"])
     assert snapshot.positions[0].profit == 50
-    assert evidence["target_source"] == "virtual_book" and evidence["hidden_reasoning"] is None
+    assert evidence["target_source"] == "broker_adapter" and evidence["hidden_reasoning"] is None
 
 
 def test_record_projection_does_not_mutate_or_expose_other_symbol_positions():
@@ -53,7 +52,6 @@ def test_record_projection_does_not_mutate_or_expose_other_symbol_positions():
         operation_id="operation",
         owner_id="owner",
         account_id="account",
-        execution_mode="live",
         request={"symbol": "EURUSDm"},
         result={
             "details": {
@@ -89,7 +87,6 @@ def test_legacy_receipt_reports_missing_evidence_without_substitution():
         operation_id="old-operation",
         owner_id="owner",
         account_id="account",
-        execution_mode="live",
         request={"symbol": "EURUSDm"},
         result={"status": "confirmed", "details": {}},
         updated_at=utcnow(),

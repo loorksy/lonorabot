@@ -112,7 +112,8 @@ The owner trusts a server in one of three ways, all owner-session only:
   card follows. The confirmation line says which, and the agent that asked is woken to
   check the server with `mcp_tools` and propose `trust_source` or explain the problem.
   Nothing waits for a card that never comes;
-- Capabilities: **Review and trust** previews the tools with a digest, and trusting
+- «التكاملات» (`/app/integrations`): an MCP server's sheet previews the tools with a digest
+  («مراجعة الأدوات»), and approving
   re-reads the server and refuses with `mcp_tools_changed` if anything moved since.
 
 ## Skills
@@ -177,8 +178,9 @@ thing: the trusted sources, the Skills agents installed or wrote with their orig
 saved MCP servers with their trusted tools and tier, the integrations and feeds (domain
 only), and the built-in capabilities with an honest state: `ready`, `not_connected` (one
 card connects it) or `not_set_up` on this server (no browser service, no analysis host,
-no chart renderer, no search service). Web shows it under Settings, Capabilities; Mobile
-under Settings, Capabilities. Each entry has its Undo: remove or restore a source,
+no chart renderer, no search service). Web shows it under Settings ← «التكاملات»
+(`/app/integrations`: news domains with undo, RSS feeds, MCP servers and their review,
+skills with their undo); Mobile under Settings, Capabilities. Each entry has its Undo: remove or restore a source,
 revoke an installed Skill version, remove an integration, remove an MCP server's trust.
 A server trusted for reading counts the tools that need non-financial writes. A Skill
 version the owner undid shows as undone (it no longer loads) and offers no second

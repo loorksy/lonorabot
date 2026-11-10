@@ -241,8 +241,6 @@ def execution_outcome(journal: TradingJournalRow) -> Literal["executed", "not_ex
 
 
 async def sync_opportunity_execution(session: AsyncSession, journal: TradingJournalRow) -> None:
-    if journal.execution_mode != "live":
-        return
     identifier = journal.request.get("thesis_id")
     if not identifier or journal.status not in TERMINAL_STATUSES:
         return

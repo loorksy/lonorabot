@@ -337,8 +337,9 @@ async def main():
                     IncomingCallPolicy(
                         enabled=True,
                         device_id=device,
-                        quiet_start_hour=0,
-                        quiet_end_hour=0,
+                        # A window around now (UTC): quiet hours hold the call.
+                        quiet_start_minute=(utcnow().hour * 60 + utcnow().minute - 60) % 1440,
+                        quiet_end_minute=(utcnow().hour * 60 + utcnow().minute + 60) % 1440,
                     ),
                 )
             assert await incoming_tick(restarted, f.owner, provider) == 0

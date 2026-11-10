@@ -19,7 +19,7 @@ Initial01–18 audit: `895eaa8` on `feat/coherent-agent-foundations` (historical
 | [05_PERSONAL_AGENT_AND_ACCOUNT_WIDE_TRADING_CONTEXT.md](05_PERSONAL_AGENT_AND_ACCOUNT_WIDE_TRADING_CONTEXT.md) | Personal Agent, explicit scope and account event ownership |
 | [06_CROSS_AGENT_COLLABORATION_AND_GUEST_AGENTS.md](06_CROSS_AGENT_COLLABORATION_AND_GUEST_AGENTS.md) | Durable collaboration sessions, provenance and Guest Agents |
 | [07_AGENT_MENTIONS_AND_DIRECT_IN_THREAD_ADDRESSING.md](07_AGENT_MENTIONS_AND_DIRECT_IN_THREAD_ADDRESSING.md) | Stable identity mentions and session-scoped addressing |
-| [08_SHADOW_TRADING_AND_TRADING_PERFORMANCE_INTELLIGENCE.md](08_SHADOW_TRADING_AND_TRADING_PERFORMANCE_INTELLIGENCE.md) | Shadow execution isolation and performance intelligence |
+| [08_SHADOW_TRADING_AND_TRADING_PERFORMANCE_INTELLIGENCE.md](08_SHADOW_TRADING_AND_TRADING_PERFORMANCE_INTELLIGENCE.md) | Performance intelligence (Shadow execution removed, Q57) |
 | [09_EXECUTION_QUALITY_AND_PRE_TRADE_REVALIDATION_ENGINE.md](09_EXECUTION_QUALITY_AND_PRE_TRADE_REVALIDATION_ENGINE.md) | Fresh pre-trade revalidation and measured fill quality |
 | [10_PORTFOLIO_EXPOSURE_AND_CROSS_MARKET_INTELLIGENCE.md](10_PORTFOLIO_EXPOSURE_AND_CROSS_MARKET_INTELLIGENCE.md) | Account-wide exposure and measured market relationships |
 | [11_OPPORTUNITY_MEMORY_THESIS_LIFECYCLE_AND_MARKET_TRANSITIONS.md](11_OPPORTUNITY_MEMORY_THESIS_LIFECYCLE_AND_MARKET_TRANSITIONS.md) | Durable opportunities, thesis evolution and regime transitions |

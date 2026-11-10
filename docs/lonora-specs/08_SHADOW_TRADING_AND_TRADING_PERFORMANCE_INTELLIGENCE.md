@@ -12,7 +12,7 @@ IMPORTANT:
 - Work on a dedicated branch and add focused tests.
 
 
-# 08 — Shadow Trading and Trading Performance Intelligence
+# 08 — Shadow Trading (removed, Q57) and Trading Performance Intelligence
 
 ## Objective
 Add Shadow Trading plus durable performance intelligence so Lonora can record what it would have done, follow the virtual result on real market data, evaluate decision quality, detect recurring weaknesses, and compare setup/strategy performance over time.
@@ -159,3 +159,10 @@ Cover:
 
 ## Definition of done
 Lonora can trade in Shadow mode on real market data without broker execution, track the hypothetical result, evaluate analysis/entry/management/execution separately, detect repeated weaknesses, and build a strategy/setup performance history that informs future analysis without silently changing safety policy.
+
+> **Shadow trading removed (owner decision Q57).** Virtual execution, the Shadow
+> execution mode, `ln_shadow_trades` and the `market_shadow_*` tools are gone; migration
+> `0053_remove_shadow_trading` revoked the grants of former Shadow agents, set them to
+> "No trading" and cancelled unfinished Shadow goals. Live performance reads
+> (`market_performance_read`, `GET /api/agents/{id}/performance`) remain. The text above
+> is kept as history.

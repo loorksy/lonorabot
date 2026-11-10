@@ -5,6 +5,7 @@ from lonora_contracts.account import AccountState
 from lonora_contracts.domain import utcnow
 from lonora_contracts.market import Candle, Instrument, Quote, TradingHours
 from lonora_core.user_error import LonoraError
+from lonora_db.broker_sessions import BrokerSessionRepository
 from lonora_db.client import Database
 from lonora_db.trading_accounts import TradingAccountRepository
 from lonora_db.transactions import resource_data
@@ -13,6 +14,11 @@ from lonora_db.transactions import resource_data
 async def import_simulation(
     db: Database, owner_id: str, connection_id: str, snapshot: dict[str, Any]
 ) -> dict[str, Any]:
+    async with db.sessions() as session:
+        # Only the owner's own «تجريبي» connection takes a snapshot: never a broker account.
+        connection = await BrokerSessionRepository().get(session, owner_id, connection_id)
+        if connection.payload.get("provider") != "simulation":
+            raise LonoraError("simulation_provider_required", 409)
     if Decimal(str(snapshot.get("balance", -1))) < 0 or not snapshot.get("currency"):
         raise LonoraError("invalid_simulation_account")
     instruments = [

@@ -234,7 +234,6 @@ async def reconcile_ambiguous(db: Database, brokers: BrokerManager) -> int:
                             & (TradingJournalRow.submitted_at < now - SUBMISSION_GRACE)
                         ),
                         observation_due(now),
-                        TradingJournalRow.execution_mode == "live",
                     )
                     .order_by(TradingJournalRow.updated_at, TradingJournalRow.operation_id)
                     .limit(50)
@@ -310,7 +309,6 @@ async def recheck_verifications(db: Database, brokers: BrokerManager) -> int:
                     select(TradingJournalRow)
                     .where(
                         TradingJournalRow.status == "confirmed",
-                        TradingJournalRow.execution_mode == "live",
                         TradingJournalRow.result["details"]["verification"]["status"].as_string()
                         == "pending",
                         TradingJournalRow.updated_at <= now - VERIFICATION_INTERVAL,

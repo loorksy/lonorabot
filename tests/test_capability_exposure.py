@@ -576,12 +576,11 @@ async def test_the_tool_less_limit_report_never_publishes_a_bridged_trade_claim(
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    ("role", "account", "symbol", "mode"),
+    ("role", "account", "symbol"),
     [
-        ("specialist", "account-1", "XAUUSD", "live"),
+        ("specialist", "account-1", "XAUUSD"),
         # The owner's default Personal Agent reads every owned account.
-        ("personal", None, None, "live"),
-        ("specialist", "account-1", "XAUUSD", "shadow"),
+        ("personal", None, None),
     ],
 )
 async def test_trading_identities_get_the_market_working_set(
@@ -590,22 +589,19 @@ async def test_trading_identities_get_the_market_working_set(
     role: str,
     account: str | None,
     symbol: str | None,
-    mode: str,
 ) -> None:
     db, owner, agent_id, _ = task_db
     async with db.sessions() as session, session.begin():
         agent = await session.get(AgentRow, agent_id)
         assert agent
         agent.role, agent.trading_account_id, agent.trading_symbol = role, account, symbol
-        agent.execution_mode = mode
-    if mode == "live":
-        # Lonora and a root trading agent start at Ask me (W15-3); this case starts from
-        # No trading, the owner's explicit choice.
-        async with db.sessions() as session, session.begin():
-            assert await effective_permission(session, owner, agent_id) == "supervised"
-            await change_permission(
-                session, owner, agent_id, PermissionChange(level="analysis", expected_revision=0)
-            )
+    # Lonora and a root trading agent start at Ask me (W15-3); this case starts from
+    # No trading, the owner's explicit choice.
+    async with db.sessions() as session, session.begin():
+        assert await effective_permission(session, owner, agent_id) == "supervised"
+        await change_permission(
+            session, owner, agent_id, PermissionChange(level="analysis", expected_revision=0)
+        )
     catalog = load_tools()
     model = BridgingScript(ModelReply(text="Watching."))
     monkeypatch.setattr("lonora_agent.tool_loop.model_turn", model)
@@ -632,10 +628,6 @@ async def test_trading_identities_get_the_market_working_set(
     inventory = model.kwargs[0]["capability_inventory"]
     assert "web_browse=browser_unconfigured" in inventory
     financial = {"trade_execute", "trade_close_positions", "goal_step_execute"}
-    if mode == "shadow":
-        # Shadow execution does not depend on the live permission level.
-        assert "trade_execute" in offered and not financial & exposure["unavailable"].keys()
-        return
     # No trading refuses every live mutation: the tools are named unavailable instead
     # of offered natively.
     assert "trade_execute" not in offered

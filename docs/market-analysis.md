@@ -132,7 +132,7 @@ owned account and symbol like any other agent: every read-only tool in the regis
 plus `market_candles_to_workspace`, which copies market reads into the agent's own
 workspace. `list_accounts`, `account_read`, `account_history` and `account_activity`
 are no longer filtered to the bound account or symbol; trade records, decision
-history, opportunity reads, shadow reads, performance reads, position sizing and
+history, opportunity reads, performance reads, position sizing and
 relationship reads drop their binding checks. `list_accounts` marks each account and
 `account_read` each position and order with `in_execution_scope`, and the catalog and
 account reads carry an `execution_scope` note, so the agent still sees what it may
@@ -145,7 +145,7 @@ executing follows your grant.
 Mutations keep the binding (`agent_trading_account_mismatch` and
 `agent_trading_symbol_mismatch` now come only from mutation paths). Charts, watches
 (including watches on a foreign position ticket), goals, decisions, opportunity
-records, relationship records, shadow execution and every financial `trade_` tool
+records, relationship records and every financial `trade_` tool
 keep the bound account and symbol through the guard and their own handler checks.
 The financial executor independently asserts the binding of every leased request,
 and preflight requires a position's or order's symbol to equal the request's symbol,
