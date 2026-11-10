@@ -250,7 +250,7 @@ test("M6: leaving the chat while recording releases the microphone and sends not
       sends.push(path);
   });
   await page.goto(`/app/${conversation.agent.id}`);
-  await page.locator(".composer .cbtn").click();
+  await page.getByRole("button", { name: "Attachments and tools", exact: true }).click();
   await page.locator("#dialog").getByRole("button", { name: "Voice message" }).click();
   await expect(page.locator(".vrec-bar")).toBeVisible();
   await page.waitForTimeout(600);

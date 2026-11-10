@@ -2,6 +2,7 @@
 
 import type { Agent, Artifact, Message } from "@lonora/contracts";
 import {
+  guestCandidates,
   type MentionAddress,
   type MentionRange,
   mentionAddress,
@@ -38,6 +39,7 @@ export function ThreadComposer({
   working = false,
   members = [],
   mentionAll = false,
+  direct = false,
   collaborationSessionId,
   reply,
   onCancelReply,
@@ -56,6 +58,8 @@ export function ThreadComposer({
   working?: boolean;
   members?: Agent[];
   mentionAll?: boolean;
+  /** A direct chat: at most two guest agents per message (MAX_DIRECT_GUESTS). */
+  direct?: boolean;
   collaborationSessionId?: string;
   reply?: Message | null;
   onCancelReply?: () => void;
@@ -68,7 +72,9 @@ export function ThreadComposer({
   const textBeforeCaret = draft.slice(0, cursor);
   const query = mentionQuery(textBeforeCaret);
   const candidates: Array<Agent | null> =
-    query === null ? [] : mentionCandidates(members, query).slice(0, 6);
+    query === null
+      ? []
+      : guestCandidates(mentionCandidates(members, query), committed.current, direct).slice(0, 6);
   if (query !== null && mentionAll && "all".startsWith(query.toLowerCase())) candidates.push(null);
   useEffect(() => {
     if (!draft) {

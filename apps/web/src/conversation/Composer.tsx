@@ -2,6 +2,7 @@ import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
 import type { PermissionState } from "@lonora/contracts";
 import {
+  guestCandidates,
   type MentionAddress,
   type MentionRange,
   mentionAddress,
@@ -199,15 +200,21 @@ export function Composer({
     };
   }, []);
 
-  /* ---- mentions: group members (+ القائد, متوقف, @الكل); a direct chat: other agents */
+  /* ---- mentions: group members (+ القائد, متوقف); a direct chat: other agents (+ @الكل while
+     a collaboration session is open) */
   const memberIds = isGroup
     ? agents.map((row) => row.id)
     : agents.filter((row) => row.id !== agent?.id).map((row) => row.id);
   const pool = agents.filter((row) => memberIds.includes(row.id));
   const candidates =
-    mention !== null && mention !== dismissed ? mentionCandidates(pool, mention).slice(0, 6) : [];
+    mention !== null && mention !== dismissed
+      ? guestCandidates(mentionCandidates(pool, mention), committed.current, !isGroup).slice(0, 6)
+      : [];
+  // «@الكل» addresses everyone in this chat's open collaboration session (a direct chat with
+  // guests); the server refuses it anywhere else, so it is offered only there.
   const all =
-    isGroup &&
+    Boolean(collaborationSessionId) &&
+    !isGroup &&
     mention !== null &&
     mention !== dismissed &&
     "الكلall".includes(mention.toLowerCase());

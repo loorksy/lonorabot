@@ -267,3 +267,18 @@ test("M7: a late message.created never overwrites what the refetch already knows
   const updated = mergeLiveMessage(read, "message.updated", { ...created, superseded_by: "m3" });
   assert.equal(updated.superseded_by, "m3");
 });
+
+test("a direct chat offers at most two guests per message; a group is not capped", async () => {
+  const { guestCandidates } = await import("../../packages/core/src/composer-mentions");
+  const named = (id: string) => ({ id, name: id, paused: false }) as unknown as Agent;
+  const pool = [named("a"), named("b"), named("c")];
+  assert.deepEqual(
+    guestCandidates(pool, [{ agent_id: "a" }], true).map((row) => row.id),
+    ["a", "b", "c"],
+  );
+  assert.deepEqual(
+    guestCandidates(pool, [{ agent_id: "a" }, { agent_id: "b" }], true).map((row) => row.id),
+    ["a", "b"],
+  );
+  assert.equal(guestCandidates(pool, [{ agent_id: "a" }, { agent_id: "b" }], false).length, 3);
+});

@@ -78,6 +78,8 @@ export {
   selectionSummary,
 } from "./chat-rows";
 export {
+  guestCandidates,
+  MAX_DIRECT_GUESTS,
   type MentionAddress,
   type MentionRange,
   mentionAddress,

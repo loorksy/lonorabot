@@ -58,3 +58,22 @@ export function mentionAddress(text: string, ranges: MentionRange[]): MentionAdd
     collaboration_session_id: valid.find((range) => range.agent_id === null)?.session_id,
   };
 }
+
+/** A direct chat invites at most this many guest agents per message (server MAX_DIRECT_GUESTS,
+    code ``collaboration_guest_limit``). */
+export const MAX_DIRECT_GUESTS = 2;
+
+/** Once a direct chat's message names its two guests, only they stay offered. */
+export function guestCandidates(
+  candidates: Agent[],
+  committed: readonly Pick<MentionRange, "agent_id">[],
+  direct: boolean,
+): Agent[] {
+  if (!direct) return candidates;
+  const named = new Set(
+    committed.map((row) => row.agent_id).filter((id): id is string => Boolean(id)),
+  );
+  return named.size >= MAX_DIRECT_GUESTS
+    ? candidates.filter((agent) => named.has(agent.id))
+    : candidates;
+}

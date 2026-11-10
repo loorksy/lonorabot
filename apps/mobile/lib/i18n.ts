@@ -233,6 +233,10 @@ export const labels = {
     "The execution mode does not match this operation's authority.",
   ],
   input_answer_invalid: ["اختر إجابة متاحة", "Choose an available answer"],
+  collaboration_guest_limit: [
+    "يمكن دعوة وكيلين آخرين على الأكثر في رسالة واحدة",
+    "At most two other agents can join one message",
+  ],
   input_answer_expired: [
     "لم يعد هذا السؤال ينتظر إجابة",
     "This question is no longer waiting for an answer",
