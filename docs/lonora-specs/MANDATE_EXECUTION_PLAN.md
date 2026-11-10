@@ -607,7 +607,7 @@ Verification on the final code tree (`2c5092c`; the documentation commit that fo
 
 - **Reference UI for `apps/web`** from `docs/ui-reference/Lonora-Desktop-37.html`, in six phases, one PR each (see «Reference UI» below and `docs/ui-reference/CAPABILITY_MAP.md`).
 - **Agent computer and domain scope** (D5–D7). Each agent gets a persistent isolated environment: a terminal, controlled internet through the SSRF-safe proxy, long jobs, Lonora tools callable from code, and server-injected credentials that the agent never sees, including OAuth connections. It gets no interactive browser, no hosting and no inbound ports, and broker or financial hosts are refused. A domain-scope rule sits in the protected core, with a permanent refusal test set.
-- **More brokers** as adapters behind the single executor, starting with Alpaca (paper trading for safe tests), then Interactive Brokers.
+- **More brokers** as adapters behind the single executor. Alpaca is dropped: the owner does not need it (2026-11-10, «لي Alpaca لا داعي نهائين ولانحتاجه»); its adapter (PR #36, branch `trading/alpaca-adapter`) was closed unmerged. MetaApi stays the broker; Interactive Brokers only if the owner asks for it.
 
 ## Reference UI
 
