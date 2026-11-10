@@ -147,7 +147,7 @@ test("integrations: the demo account tests for real, MCP is remote only, usage h
     await expect(page.getByText(/Edit (the )?limit/)).toHaveCount(0);
     const csv = page.getByRole("link", { name: "Export CSV" });
     await expect(csv).toHaveAttribute("href", /period=month/);
-    await page.getByRole("tab", { name: "This week" }).click();
+    await page.getByRole("tab", { name: "7 days" }).click();
     await expect(csv).toHaveAttribute("href", /period=week/);
     const exported = await context.request.get("/api/usage/export.csv?period=week");
     expect((await exported.text()).replace(/^﻿/, "").split(/\r?\n/)[0]).toBe(

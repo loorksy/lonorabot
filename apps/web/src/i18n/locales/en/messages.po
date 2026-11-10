@@ -137,6 +137,14 @@ msgstr "<0>{0}</0> tokens reused"
 msgid "<0>{share}%</0> of the total"
 msgstr "<0>{share}%</0> of the total"
 
+#: src/shell/settings/UsagePage.tsx:87
+msgid "30 days"
+msgstr "30 days"
+
+#: src/shell/settings/UsagePage.tsx:86
+msgid "7 days"
+msgstr "7 days"
+
 #: src/components/ai/AttentionInbox.tsx:31
 msgid "A background item was paused after repeated errors; everything else keeps running"
 msgstr "A background item was paused after repeated errors; everything else keeps running"
@@ -317,6 +325,10 @@ msgstr "Add a trading account"
 msgid "Add agents or groups"
 msgstr "Add agents or groups"
 
+#: src/shell/pages.tsx:104
+msgid "Add an AI provider"
+msgstr "Add an AI provider"
+
 #: src/components/market/EconomicCalendar.tsx:30
 msgid "Add an economic calendar feed in Integrations to load events."
 msgstr "Add an economic calendar feed in Integrations to load events."
@@ -325,7 +337,6 @@ msgstr "Add an economic calendar feed in Integrations to load events."
 msgid "Add an emoji"
 msgstr "Add an emoji"
 
-#: src/shell/pages.tsx:106
 #: src/shell/settings/IntegrationsPage.tsx:706
 msgid "Add an MCP server"
 msgstr "Add an MCP server"
@@ -362,6 +373,10 @@ msgstr "Add integration"
 #: src/components/charts/ChartAnnotations.tsx:53
 msgid "Add line"
 msgstr "Add line"
+
+#: src/shell/pages.tsx:106
+msgid "Add MCP"
+msgstr "Add MCP"
 
 #: src/components/skills/CreateSkill.tsx:20
 msgid "Add owner instructions"
@@ -1332,8 +1347,8 @@ msgid "Commands at the start of the message"
 msgstr "Commands at the start of the message"
 
 #: src/shell/pages.tsx:98
-msgid "Communication"
-msgstr "Communication"
+#~ msgid "Communication"
+#~ msgstr "Communication"
 
 #. placeholder {0}: usd(series.previous.cost_usd)
 #: src/shell/settings/UsagePage.tsx:129
@@ -1447,8 +1462,8 @@ msgstr "Content"
 msgid "Conversation"
 msgstr "Conversation"
 
-#: src/shell/pages.tsx:361
-#: src/shell/pages.tsx:363
+#: src/shell/pages.tsx:362
+#: src/shell/pages.tsx:364
 msgid "Conversation history"
 msgstr "Conversation history"
 
@@ -2507,7 +2522,7 @@ msgstr "Knowledge and skills"
 msgid "Knowledge note"
 msgstr "Knowledge note"
 
-#: src/shell/pages.tsx:119
+#: src/shell/pages.tsx:120
 msgid "Lab"
 msgstr "Lab"
 
@@ -2561,7 +2576,6 @@ msgstr "Light"
 msgid "Link"
 msgstr "Link"
 
-#: src/shell/pages.tsx:108
 #: src/shell/settings/ConnectionPages.tsx:215
 #: src/shell/settings/IntegrationsPage.tsx:698
 msgid "Link a trading account"
@@ -2574,6 +2588,10 @@ msgstr "Link Telegram"
 #: src/shell/settings/ConnectionPages.tsx:175
 msgid "Link the account"
 msgstr "Link the account"
+
+#: src/shell/pages.tsx:108
+msgid "Link the broker"
+msgstr "Link the broker"
 
 #: src/shell/settings/IntegrationsPage.tsx:624
 msgid "Linked"
@@ -2893,8 +2911,8 @@ msgid "Mode"
 msgstr "Mode"
 
 #: src/shell/pages.tsx:104
-msgid "Model provider"
-msgstr "Model provider"
+#~ msgid "Model provider"
+#~ msgstr "Model provider"
 
 #: src/components/ai/AgentLiveStatus.tsx:38
 msgid "Model provider unavailable — retry scheduled"
@@ -3435,6 +3453,10 @@ msgstr "Order price"
 msgid "Output"
 msgstr "Output"
 
+#: src/shell/pages.tsx:112
+msgid "Overall usage"
+msgstr "Overall usage"
+
 #: src/shell/settings/IntegrationsPage.tsx:652
 msgid "Owner"
 msgstr "Owner"
@@ -3640,10 +3662,14 @@ msgstr "Price level"
 msgid "Price zone"
 msgstr "Price zone"
 
-#: src/shell/pages.tsx:117
+#: src/shell/pages.tsx:118
 #: src/shell/settings/SettingsRoot.tsx:337
 msgid "Privacy and security"
 msgstr "Privacy and security"
+
+#: src/shell/pages.tsx:98
+msgid "Proactive contact"
+msgstr "Proactive contact"
 
 #: src/components/ai/primitives.tsx:97
 #~ msgid "Processing the task"
@@ -4011,8 +4037,8 @@ msgstr "Resume"
 #: src/pages/Routines.tsx:169
 #: src/pages/shell/message-cards.tsx:185
 #: src/shell/lists/ChatList.tsx:353
-#: src/shell/pages.tsx:343
-#: src/shell/pages.tsx:354
+#: src/shell/pages.tsx:344
+#: src/shell/pages.tsx:355
 msgid "Retry"
 msgstr "Retry"
 
@@ -4661,7 +4687,7 @@ msgstr "Stop unnecessary animations and transitions"
 msgid "Stopped at its work limit"
 msgstr "Stopped at its work limit"
 
-#: src/shell/pages.tsx:115
+#: src/shell/pages.tsx:116
 #: src/shell/settings/SettingsRoot.tsx:331
 msgid "Storage and data"
 msgstr "Storage and data"
@@ -5208,7 +5234,6 @@ msgid "This message is too large to process, even after older history was summar
 msgstr "This message is too large to process, even after older history was summarized. Shorten it or send fewer attachments; the conversation is kept."
 
 #: src/pages/Artifacts.tsx:241
-#: src/shell/settings/UsagePage.tsx:87
 msgid "This month"
 msgstr "This month"
 
@@ -5291,7 +5316,6 @@ msgid "This task is waiting for an uncertain external operation to be reconciled
 msgstr "This task is waiting for an uncertain external operation to be reconciled."
 
 #: src/pages/Artifacts.tsx:238
-#: src/shell/settings/UsagePage.tsx:86
 msgid "This week"
 msgstr "This week"
 
@@ -5603,7 +5627,6 @@ msgstr "Urgent alerts always arrive and do not count."
 msgid "Urgent always arrives"
 msgstr "Urgent always arrives"
 
-#: src/shell/pages.tsx:113
 #: src/shell/settings/SettingsRoot.tsx:330
 msgid "Usage"
 msgstr "Usage"
@@ -5611,6 +5634,10 @@ msgstr "Usage"
 #: src/shell/settings/UsagePage.tsx:625
 msgid "Usage breakdown"
 msgstr "Usage breakdown"
+
+#: src/shell/pages.tsx:114
+msgid "Usage details"
+msgstr "Usage details"
 
 #: src/shell/settings/UsagePage.tsx:336
 msgid "Use the arrows to move between the columns."

@@ -95,22 +95,23 @@ export function pageTitle(page: Page): string {
     case "notify-settings":
       return t`Notifications and contact`;
     case "communication":
-      return t`Communication`;
+      return t`Proactive contact`;
     case "integrations":
       return t`Integrations`;
     case "providers":
       return t`Model providers`;
     case "provider":
-      return t`Model provider`;
+      return t`Add an AI provider`;
     case "mcp":
-      return t`Add an MCP server`;
+      return t`Add MCP`;
     case "broker":
-      return t`Link a trading account`;
+      return t`Link the broker`;
     case "broker-account":
       return t`Trading account`;
     case "usage":
+      return t`Overall usage`;
     case "usage-detail":
-      return t`Usage`;
+      return t`Usage details`;
     case "storage":
       return t`Storage and data`;
     case "privacy":

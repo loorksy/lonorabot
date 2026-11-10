@@ -83,8 +83,8 @@ function Delta({ current, previous }: { current: number; previous: number }) {
 
 const periods = (): [UsagePeriod, string, string, string][] => [
   ["day", t`Today`, t`today so far`, t`the same time yesterday`],
-  ["week", t`This week`, t`the last 7 days`, t`the previous seven days`],
-  ["month", t`This month`, t`the last 30 days`, t`the previous thirty days`],
+  ["week", t`7 days`, t`the last 7 days`, t`the previous seven days`],
+  ["month", t`30 days`, t`the last 30 days`, t`the previous thirty days`],
 ];
 
 function PeriodFilter({

@@ -137,6 +137,14 @@ msgstr "<0>{0}</0> توكن أُعيد استخدامها"
 msgid "<0>{share}%</0> of the total"
 msgstr "<0>{share}%</0> من الإجمالي"
 
+#: src/shell/settings/UsagePage.tsx:87
+msgid "30 days"
+msgstr "30 يومًا"
+
+#: src/shell/settings/UsagePage.tsx:86
+msgid "7 days"
+msgstr "7 أيام"
+
 #: src/components/ai/AttentionInbox.tsx:31
 msgid "A background item was paused after repeated errors; everything else keeps running"
 msgstr "أُوقف عنصر في الخلفية بعد أخطاء متكررة؛ يستمر كل ما عداه في العمل"
@@ -317,6 +325,10 @@ msgstr "إضافة حساب تداول"
 msgid "Add agents or groups"
 msgstr "إضافة وكلاء أو مجموعات"
 
+#: src/shell/pages.tsx:104
+msgid "Add an AI provider"
+msgstr "إضافة مزود ذكاء اصطناعي"
+
 #: src/components/market/EconomicCalendar.tsx:30
 msgid "Add an economic calendar feed in Integrations to load events."
 msgstr "أضف مصدرًا للتقويم الاقتصادي في التكاملات لتحميل الأحداث."
@@ -325,7 +337,6 @@ msgstr "أضف مصدرًا للتقويم الاقتصادي في التكام�
 msgid "Add an emoji"
 msgstr "إضافة رمز تعبيري"
 
-#: src/shell/pages.tsx:106
 #: src/shell/settings/IntegrationsPage.tsx:706
 msgid "Add an MCP server"
 msgstr "إضافة خادم MCP"
@@ -362,6 +373,10 @@ msgstr "إضافة تكامل"
 #: src/components/charts/ChartAnnotations.tsx:53
 msgid "Add line"
 msgstr "إضافة خط"
+
+#: src/shell/pages.tsx:106
+msgid "Add MCP"
+msgstr "إضافة MCP"
 
 #: src/components/skills/CreateSkill.tsx:20
 msgid "Add owner instructions"
@@ -1332,13 +1347,13 @@ msgid "Commands at the start of the message"
 msgstr "الأوامر في بداية الرسالة"
 
 #: src/shell/pages.tsx:98
-msgid "Communication"
-msgstr "التواصل"
+#~ msgid "Communication"
+#~ msgstr "التواصل"
 
 #. placeholder {0}: usd(series.previous.cost_usd)
 #: src/shell/settings/UsagePage.tsx:129
 msgid "Compared with {compare} · <0>{0}</0>"
-msgstr "مقارنة بـ{compare} · <0>{0}</0>"
+msgstr "مقارنة ب{compare} · <0>{0}</0>"
 
 #: src/components/ai/primitives.tsx:49
 #: src/components/ai/TurnActivity.tsx:36
@@ -1447,8 +1462,8 @@ msgstr "المحتوى"
 msgid "Conversation"
 msgstr "المحادثة"
 
-#: src/shell/pages.tsx:361
-#: src/shell/pages.tsx:363
+#: src/shell/pages.tsx:362
+#: src/shell/pages.tsx:364
 msgid "Conversation history"
 msgstr "سجل المحادثات"
 
@@ -2507,7 +2522,7 @@ msgstr "المعرفة والمهارات"
 msgid "Knowledge note"
 msgstr "ملاحظة معرفية"
 
-#: src/shell/pages.tsx:119
+#: src/shell/pages.tsx:120
 msgid "Lab"
 msgstr "مختبر الحالات"
 
@@ -2561,7 +2576,6 @@ msgstr "فاتح"
 msgid "Link"
 msgstr "ربط"
 
-#: src/shell/pages.tsx:108
 #: src/shell/settings/ConnectionPages.tsx:215
 #: src/shell/settings/IntegrationsPage.tsx:698
 msgid "Link a trading account"
@@ -2574,6 +2588,10 @@ msgstr "ربط Telegram"
 #: src/shell/settings/ConnectionPages.tsx:175
 msgid "Link the account"
 msgstr "ربط الحساب"
+
+#: src/shell/pages.tsx:108
+msgid "Link the broker"
+msgstr "ربط الوسيط"
 
 #: src/shell/settings/IntegrationsPage.tsx:624
 msgid "Linked"
@@ -2893,8 +2911,8 @@ msgid "Mode"
 msgstr "الوضع"
 
 #: src/shell/pages.tsx:104
-msgid "Model provider"
-msgstr "مزوّد النماذج"
+#~ msgid "Model provider"
+#~ msgstr "مزوّد النماذج"
 
 #: src/components/ai/AgentLiveStatus.tsx:38
 msgid "Model provider unavailable — retry scheduled"
@@ -3435,6 +3453,10 @@ msgstr "سعر الأمر"
 msgid "Output"
 msgstr "الإخراج"
 
+#: src/shell/pages.tsx:112
+msgid "Overall usage"
+msgstr "الاستهلاك العام"
+
 #: src/shell/settings/IntegrationsPage.tsx:652
 msgid "Owner"
 msgstr "المالك"
@@ -3640,10 +3662,14 @@ msgstr "المستوى السعري"
 msgid "Price zone"
 msgstr "منطقة سعرية"
 
-#: src/shell/pages.tsx:117
+#: src/shell/pages.tsx:118
 #: src/shell/settings/SettingsRoot.tsx:337
 msgid "Privacy and security"
 msgstr "الخصوصية والأمان"
+
+#: src/shell/pages.tsx:98
+msgid "Proactive contact"
+msgstr "التواصل الاستباقي"
 
 #: src/components/ai/primitives.tsx:97
 #~ msgid "Processing the task"
@@ -4011,8 +4037,8 @@ msgstr "استئناف"
 #: src/pages/Routines.tsx:169
 #: src/pages/shell/message-cards.tsx:185
 #: src/shell/lists/ChatList.tsx:353
-#: src/shell/pages.tsx:343
-#: src/shell/pages.tsx:354
+#: src/shell/pages.tsx:344
+#: src/shell/pages.tsx:355
 msgid "Retry"
 msgstr "إعادة المحاولة"
 
@@ -4661,7 +4687,7 @@ msgstr "إيقاف الحركات والانتقالات غير الضرورية
 msgid "Stopped at its work limit"
 msgstr "توقف عند حد العمل"
 
-#: src/shell/pages.tsx:115
+#: src/shell/pages.tsx:116
 #: src/shell/settings/SettingsRoot.tsx:331
 msgid "Storage and data"
 msgstr "التخزين والبيانات"
@@ -5208,7 +5234,6 @@ msgid "This message is too large to process, even after older history was summar
 msgstr "هذه الرسالة أكبر من أن تُعالج حتى بعد تلخيص السجل الأقدم. اختصرها أو أرسل مرفقات أقل؛ المحادثة محفوظة."
 
 #: src/pages/Artifacts.tsx:241
-#: src/shell/settings/UsagePage.tsx:87
 msgid "This month"
 msgstr "هذا الشهر"
 
@@ -5291,7 +5316,6 @@ msgid "This task is waiting for an uncertain external operation to be reconciled
 msgstr "تنتظر المهمة التحقق من عملية خارجية غير محسومة."
 
 #: src/pages/Artifacts.tsx:238
-#: src/shell/settings/UsagePage.tsx:86
 msgid "This week"
 msgstr "هذا الأسبوع"
 
@@ -5603,7 +5627,6 @@ msgstr "التنبيهات العاجلة تصل دائمًا ولا تُحتس�
 msgid "Urgent always arrives"
 msgstr "العاجل يصل دائمًا"
 
-#: src/shell/pages.tsx:113
 #: src/shell/settings/SettingsRoot.tsx:330
 msgid "Usage"
 msgstr "الاستهلاك"
@@ -5611,6 +5634,10 @@ msgstr "الاستهلاك"
 #: src/shell/settings/UsagePage.tsx:625
 msgid "Usage breakdown"
 msgstr "توزيع الاستهلاك"
+
+#: src/shell/pages.tsx:114
+msgid "Usage details"
+msgstr "تفاصيل الاستهلاك"
 
 #: src/shell/settings/UsagePage.tsx:336
 msgid "Use the arrows to move between the columns."
