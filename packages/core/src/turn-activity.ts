@@ -286,6 +286,7 @@ const toolLabels: Readonly<Record<string, Label>> = {
   owner_action_propose: { en: "Preparing a card for you", ar: "يجهّز بطاقة لك" },
   wait_for_input: { en: "Waiting for your reply", ar: "ينتظر ردك" },
   group_silence: { en: "Staying quiet in the group", ar: "يلتزم الصمت في المجموعة" },
+  message_react: { en: "Reacting to a message", ar: "يتفاعل مع رسالة" },
   market_position_size: { en: "Sizing a position", ar: "يحسب حجم المركز" },
   market_shadow_execute: { en: "Placing a virtual trade", ar: "ينفّذ صفقة افتراضية" },
   market_candles_to_workspace: {
