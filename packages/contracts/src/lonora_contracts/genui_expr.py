@@ -27,6 +27,9 @@ BLOCKED = frozenset({"__proto__", "prototype", "constructor"})
 # may exceed MAX_TEXT code points and no list MAX_ITEMS items, so no expression can expand.
 MAX_TEXT = 2000
 MAX_ITEMS = 201
+# One budget for a whole value however it nests (review round 4): a text costs its code
+# points, every other value 1, a list or object 1 plus its contents.
+MAX_SIZE = 20000
 TOKEN = re.compile(
     r"\s*(?:(?P<num>\d+(?:\.\d+)?)|'(?P<sq>[^']*)'|\"(?P<dq>[^\"]*)\"|\$(?P<var>[A-Za-z_][A-Za-z0-9_]*)"
     r"|@(?P<fn>[A-Za-z][A-Za-z0-9]*)|(?P<id>[A-Za-z_][A-Za-z0-9_]*)"
@@ -364,11 +367,37 @@ def _compare(op: str, left: Any, right: Any) -> bool:
     return {"<": a < b, "<=": a <= b, ">": a > b, ">=": a >= b}[op]
 
 
+def over_budget(value: Any, limit: int = MAX_SIZE) -> bool:
+    """Whether a value costs more than ``limit``; stops as soon as it does."""
+    total = 0
+    stack: list[Any] = [value]
+    while stack:
+        item = stack.pop()
+        if isinstance(item, str):
+            total += len(item)
+        elif isinstance(item, list):
+            items = cast(list[Any], item)
+            if len(items) > MAX_ITEMS:
+                return True
+            total += 1
+            stack.extend(items)
+        elif isinstance(item, dict):
+            total += 1
+            stack.extend(cast(dict[str, Any], item).values())
+        else:
+            total += 1
+        if total > limit:
+            return True
+    return False
+
+
 def bounded(result: Any) -> Any:
-    """Every function result and concatenation stays within the output bounds."""
-    if isinstance(result, str) and len(result) > MAX_TEXT:
-        raise ExpressionError("genui_expression_too_large")
-    if isinstance(result, list) and len(cast(list[Any], result)) > MAX_ITEMS:
+    """Every value an expression produces or reads stays within the output bounds: a text
+    within MAX_TEXT, any nesting of lists within MAX_ITEMS each and MAX_SIZE in all."""
+    if isinstance(result, str):
+        if len(result) > MAX_TEXT:
+            raise ExpressionError("genui_expression_too_large")
+    elif isinstance(result, list | dict) and over_budget(result):
         raise ExpressionError("genui_expression_too_large")
     return cast(Any, result)
 
@@ -435,21 +464,21 @@ def evaluate_node(node: Node, env: Env) -> Any:
         name = node[1]
         if name in BLOCKED:
             raise ExpressionError("genui_expression_blocked")
-        return env.values.get(name)
+        return bounded(env.values.get(name))
     if tag == "l":
         name = node[1]
         if name in BLOCKED:
             raise ExpressionError("genui_expression_blocked")
-        return env.names.get(name)
+        return bounded(env.names.get(name))
     if tag == "a":
-        return [evaluate_node(item, env) for item in node[1]]
+        return bounded([evaluate_node(item, env) for item in node[1]])
     if tag == "u":
         value = evaluate_node(node[2], env)
         return not truthy(value) if node[1] == "!" else -to_number(value)
     if tag == "?":
         return evaluate_node(node[2] if truthy(evaluate_node(node[1], env)) else node[3], env)
     if tag == "g":
-        return _get(evaluate_node(node[1], env), evaluate_node(node[2], env))
+        return bounded(_get(evaluate_node(node[1], env), evaluate_node(node[2], env)))
     if tag == "b":
         op = node[1]
         left = evaluate_node(node[2], env)
@@ -482,8 +511,8 @@ def evaluate(source: Any, env: Env, default: Any = None) -> Any:
     if not isinstance(source, str):
         return source
     try:
-        value = normal(evaluate_node(parse(source), env))
-    except (ExpressionError, RecursionError, OverflowError, ValueError, TypeError):
+        value = normal(bounded(evaluate_node(parse(source), env)))
+    except (ExpressionError, RecursionError, OverflowError, ValueError, TypeError, MemoryError):
         return default
     return default if value is None and default is not None else value
 
@@ -503,8 +532,12 @@ def render_template(text: str, env: Env) -> str:
         if value is None:
             return ""
         if isinstance(value, list):
-            return "، ".join(show(item) for item in cast(list[Any], value))
-        return show(value)
+            # As the client's display: a missing item shows nothing.
+            text = "، ".join("" if item is None else show(item) for item in cast(list[Any], value))
+        else:
+            text = show(value)
+        # A shown piece is a text like any other: over MAX_TEXT it shows nothing.
+        return "" if len(text) > MAX_TEXT else text
 
     return TEMPLATE.sub(replace, text)
 

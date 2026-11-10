@@ -4,16 +4,18 @@
  * executed as JavaScript: expressions are parsed into a small AST and walked.
  */
 import { ARITY, FUNCTIONS, type GenuiFunction } from "./functions";
-import { MAX_ITEMS, MAX_TEXT, textSize } from "./limits";
+import { MAX_TEXT, overBudget, textSize } from "./limits";
 
 export const MAX_EXPRESSION_CHARS = 400;
 export const MAX_EXPRESSION_DEPTH = 12;
 const MAX_PARSE_NESTING = 160;
 const BLOCKED = new Set(["__proto__", "prototype", "constructor"]);
+/** Every value an expression produces or reads stays within the output bounds: a text
+ * within MAX_TEXT, any nesting of lists within MAX_ITEMS each and MAX_SIZE in all. */
 function bounded(value: unknown): unknown {
-  if (typeof value === "string" && textSize(value) > MAX_TEXT)
-    throw new ExpressionError("genui_expression_too_large");
-  if (Array.isArray(value) && value.length > MAX_ITEMS)
+  if (typeof value === "string") {
+    if (textSize(value) > MAX_TEXT) throw new ExpressionError("genui_expression_too_large");
+  } else if (value !== null && typeof value === "object" && overBudget(value))
     throw new ExpressionError("genui_expression_too_large");
   return value;
 }
@@ -365,12 +367,12 @@ export function evaluateNode(node: Node, env: Env): unknown {
       return node[1];
     case "v":
       if (BLOCKED.has(node[1])) throw new ExpressionError("genui_expression_blocked");
-      return ownGet(env.values, node[1]);
+      return bounded(ownGet(env.values, node[1]));
     case "l":
       if (BLOCKED.has(node[1])) throw new ExpressionError("genui_expression_blocked");
-      return ownGet(env.names, node[1]);
+      return bounded(ownGet(env.names, node[1]));
     case "a":
-      return node[1].map((item) => evaluateNode(item, env));
+      return bounded(node[1].map((item) => evaluateNode(item, env)));
     case "u": {
       const value = evaluateNode(node[2], env);
       return node[1] === "!" ? !truthy(value) : -toNumber(value);
@@ -378,7 +380,7 @@ export function evaluateNode(node: Node, env: Env): unknown {
     case "?":
       return evaluateNode(truthy(evaluateNode(node[1], env)) ? node[2] : node[3], env);
     case "g":
-      return get(evaluateNode(node[1], env), evaluateNode(node[2], env));
+      return bounded(get(evaluateNode(node[1], env), evaluateNode(node[2], env)));
     case "b": {
       const left = evaluateNode(node[2], env);
       if (node[1] === "&&") return truthy(left) ? evaluateNode(node[3], env) : left;
@@ -409,7 +411,7 @@ export function evaluate(source: unknown, env: Env, fallback: unknown = null): u
   if (typeof source !== "string") return source;
   let value: unknown;
   try {
-    value = normal(evaluateNode(parse(source), env));
+    value = normal(bounded(evaluateNode(parse(source), env)));
   } catch {
     return fallback;
   }
@@ -447,7 +449,11 @@ export function groupNumber(value: number, digits: number, trim = false): string
 }
 
 export function renderTemplate(text: string, env: Env): string {
-  return text.replace(TEMPLATE, (_match, source: string) => display(evaluate(source, env, "")));
+  return text.replace(TEMPLATE, (_match, source: string) => {
+    const shown = display(evaluate(source, env, ""));
+    // A shown piece is a text like any other: over MAX_TEXT it shows nothing (as Python).
+    return textSize(shown) > MAX_TEXT ? "" : shown;
+  });
 }
 
 /** `values` over `state`, then each calc in order into the same `$` namespace. */

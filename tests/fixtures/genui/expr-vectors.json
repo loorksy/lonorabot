@@ -543,6 +543,18 @@
   {
    "src": "@Round(2.345,2)",
    "expected": 2.35
+  },
+  {
+   "src": "[@Join(@Range(0,200),'xxxxxxx'),@Join(@Range(0,200),'xxxxxxx'),@Join(@Range(0,200),'xxxxxxx'),@Join(@Range(0,200),'xxxxxxx'),@Join(@Range(0,200),'xxxxxxx'),@Join(@Range(0,200),'xxxxxxx'),@Join(@Range(0,200),'xxxxxxx'),@Join(@Range(0,200),'xxxxxxx'),@Join(@Range(0,200),'xxxxxxx'),@Join(@Range(0,200),'xxxxxxx'),@Join(@Range(0,200),'xxxxxxx')]",
+   "expected": null
+  },
+  {
+   "src": "@Len([@Join(@Range(0,200),'xxxxxxx'),@Join(@Range(0,200),'xxxxxxx')])",
+   "expected": 2
+  },
+  {
+   "src": "@Len([[1,2],[3]])",
+   "expected": 2
   }
  ]
 }

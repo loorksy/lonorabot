@@ -206,3 +206,19 @@ test("the client's card validator fails closed on anything malformed", () => {
   Object.defineProperty(getter, "title", { get: () => "t", enumerable: true });
   assert.equal(validateUiDocument(getter), null);
 });
+
+test("a calc chain of nested lists stays within one budget (review round 4)", () => {
+  const calc = {
+    a: "@Join(@Range(0,200),'xxxxxxx')",
+    b: `[${Array(120).fill("$a").join(",")}]`,
+    c: `[${Array(120).fill("$b").join(",")}]`,
+  };
+  const started = Date.now();
+  const env = environment({}, calc, {});
+  assert.equal(String(env.values.a).length, 1893);
+  assert.equal(env.values.b, null);
+  assert.deepEqual(env.values.c, Array(120).fill(null));
+  assert.equal(renderTemplate("{$b}", env), "");
+  assert.equal(renderTemplate("{$c}", env), "، ".repeat(119));
+  assert.ok(Date.now() - started < 2000);
+});

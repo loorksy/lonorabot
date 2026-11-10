@@ -235,3 +235,24 @@ def test_function_arity_is_the_shared_fixture() -> None:
 
     shared = json.loads((FIXTURES / "arity.json").read_text())
     assert {name: [low, high] for name, (low, high) in ARITY.items()} == shared
+
+
+def test_a_calc_chain_of_nested_lists_stays_within_one_budget() -> None:
+    """Review round 4: lists of lists built through ``$`` reads are charged as a whole, so
+    the chain fails at its first oversized step instead of expanding to gigabytes."""
+    import time
+
+    from lonora_contracts.genui_expr import environment, render_template
+
+    calc = {
+        "a": "@Join(@Range(0,200),'xxxxxxx')",
+        "b": "[" + ",".join(["$a"] * 120) + "]",
+        "c": "[" + ",".join(["$b"] * 120) + "]",
+    }
+    started = time.monotonic()
+    env = environment({}, calc, {})
+    assert len(env.values["a"]) == 1893
+    assert env.values["b"] is None and env.values["c"] == [None] * 120
+    assert render_template("{$b}", env) == ""
+    assert render_template("{$c}", env) == "، " * 119
+    assert time.monotonic() - started < 2

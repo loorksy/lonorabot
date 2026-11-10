@@ -568,3 +568,28 @@ async def test_an_alert_card_on_an_account_the_server_cannot_name_falls_back() -
         agent_id="agent-1", several_accounts=True, named_accounts=frozenset({"acc-1"})
     )
     compile_card(parse_lines(A01, final=True), messages(), named, capabilities(), set(), final=True)
+
+
+@pytest.mark.asyncio
+async def test_a_card_built_on_a_calc_chain_falls_back_or_stays_bounded_never_crashes() -> None:
+    """Review round 4: the nested-list calc chain compiles quickly to a bounded card."""
+    import time
+
+    chain = (
+        '"a":"@Join(@Range(0,200),\'xxxxxxx\')",'
+        + '"b":"['
+        + ",".join(["$a"] * 120)
+        + ']","c":"['
+        + ",".join(["$b"] * 120)
+        + ']",'
+    )
+    body = A01.replace('"calc":{', '"calc":{' + chain).replace(
+        '{"type":"Text","tone":"muted"',
+        '{"type":"Note","text":"{$c}"}\n{"type":"Text","tone":"muted"',
+    )
+    started = time.monotonic()
+    projection, _ = await project(reply(body))
+    assert time.monotonic() - started < 5
+    rich = projection.rich_until()
+    assert rich is not None
+    assert len(json.dumps(rich, ensure_ascii=False)) < 64_000

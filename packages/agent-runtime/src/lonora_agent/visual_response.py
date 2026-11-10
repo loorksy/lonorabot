@@ -643,9 +643,10 @@ class VisualReplyProjector:
         if key not in self.cards:
             try:
                 card = parse_lines(raw, final=final)
-            except CardError as error:
+            except (CardError, RecursionError, MemoryError) as error:
                 if final:
-                    self.diagnostics.append({"code": str(error), "frame": 0, "paths": []})
+                    code = str(error) if isinstance(error, CardError) else "card_fallback"
+                    self.diagnostics.append({"code": code, "frame": 0, "paths": []})
                 self.cards[key] = None
                 card = None
             if card is not None:
@@ -656,7 +657,16 @@ class VisualReplyProjector:
                     )
                     if final:
                         self.diagnostics.extend(card.diagnostics.items[:24])
-                except (CardError, ValueError, TypeError, KeyError, SQLAlchemyError) as error:
+                except (
+                    CardError,
+                    ValueError,
+                    TypeError,
+                    KeyError,
+                    RecursionError,
+                    OverflowError,
+                    MemoryError,
+                    SQLAlchemyError,
+                ) as error:
                     code = str(error) if isinstance(error, CardError) else "card_fallback"
                     if final:
                         self.diagnostics.extend(card.diagnostics.items[:24])
@@ -810,6 +820,7 @@ class VisualReplyProjector:
                     KeyError,
                     RecursionError,
                     OverflowError,
+                    MemoryError,
                     SQLAlchemyError,
                 ) as error:
                     self._failure(error, index)
