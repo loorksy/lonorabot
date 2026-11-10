@@ -81,6 +81,10 @@ LIFETIME = {
     # Add a source to the trusted list, or connect an account or credential (W15-8).
     "trust_source": timedelta(days=7),
     "connect_credential": timedelta(days=7),
+    # Changes an agent made without asking (Q31): Undo of an extended watch, and the
+    # notice of a tightened stop (recorded settled, nothing to tap).
+    "watch_changed": timedelta(days=7),
+    "stop_tightened": timedelta(days=7),
 }
 GRANT_HOURS = {"until_stopped": None, "12h": 12, "24h": 24, "7d": 168}
 ALL_ACTIONS: tuple[AuthorityAction, ...] = ALL_AUTHORITY_ACTIONS
@@ -299,6 +303,12 @@ async def stale_reason(
         from .capability_cards import stale_reason as capability_stale
 
         return await capability_stale(session, owner_id, kind, payload)
+    if kind == "watch_changed":
+        from .notice_cards import watch_change_stale
+
+        return await watch_change_stale(session, owner_id, payload)
+    if kind == "stop_tightened":
+        return "nothing_to_undo"
     if kind == "supervision_paused":
         hold = await _live_pause(session, owner_id, payload)
         if hold is None:
@@ -720,6 +730,10 @@ async def card_facts(
         return await supervision_facts(session, row, facts), False
     if row.kind == "supervision_paused":
         return await pause_facts(session, row, facts), False
+    if row.kind in {"watch_changed", "stop_tightened"}:
+        from .notice_cards import notice_facts
+
+        return await notice_facts(session, row, facts), False
     if row.kind in {"trust_source", "connect_credential"}:
         from .capability_cards import card_facts as capability_facts
 
@@ -1014,6 +1028,8 @@ async def owner_action_data(
         "status_reason": "expired"
         if status == "expired" and row.status == "pending"
         else (row.status_reason),
+        # The newer card that replaced this one («عرض الأحدث»), or None.
+        "superseded_by": row.superseded_by,
         "source": row.source,
         "agent_id": row.agent_id,
         "thread_id": row.thread_id,
@@ -1057,9 +1073,13 @@ async def settle(
     *,
     via: str | None = None,
     result: dict[str, Any] | None = None,
+    by: str | None = None,
 ) -> OwnerActionRow:
+    """``by`` names the newer card that replaces this one (``superseded_by``)."""
     now = utcnow()
     row.status, row.status_reason, row.updated_at = status, reason, now
+    if by is not None:
+        row.superseded_by = by
     if status in {"confirmed", "cancelled"}:
         row.decided_at, row.decided_via = now, via
     if result is not None:
@@ -1088,6 +1108,7 @@ async def supersede_subject(
     keep: str | None = None,
     effect: str | None = None,
     skip_locked: bool = False,
+    by: str | None = None,
 ) -> list[OwnerActionRow]:
     """Settle every other pending card for the same record: its effect is done or gone.
 
@@ -1095,6 +1116,7 @@ async def supersede_subject(
     twice); a different change to the same account's limits stays on its card.
     ``skip_locked`` leaves a card the owner is deciding at this moment to its decision,
     which re-checks it (a delete holding the agent's lock never waits on a tap).
+    ``by`` is the newer card replacing them, recorded on each (``superseded_by``).
     """
     query = select(OwnerActionRow).where(
         OwnerActionRow.owner_id == owner_id,
@@ -1116,7 +1138,9 @@ async def supersede_subject(
         if row.id == keep:
             continue
         expired = row.expires_at <= utcnow()
-        settled.append(await settle(session, row, "expired" if expired else "superseded", reason))
+        settled.append(
+            await settle(session, row, "expired" if expired else "superseded", reason, by=by)
+        )
     return settled
 
 
@@ -1164,7 +1188,9 @@ async def create_card(
     kind: str,
     subject: str,
     payload: dict[str, Any],
+    status: str = "pending",
 ) -> OwnerActionRow:
+    """``status`` "confirmed" records a notice that offers nothing to decide."""
     now = utcnow()
     row = OwnerActionRow(
         id=card_id,
@@ -1177,7 +1203,7 @@ async def create_card(
         subject=subject,
         payload=payload,
         payload_hash=payload_hash(kind, payload),
-        status="pending",
+        status=status,
         result={},
         # The card sits after everything already in the conversation, like an approval.
         timeline_seq=thread.next_seq,
@@ -1274,6 +1300,7 @@ async def propose_effect(
             current,
             "expired" if current.expires_at <= utcnow() else "superseded",
             "expired" if current.expires_at <= utcnow() else "conversation_deleted",
+            by=card_id,
         )
     pending = await session.scalar(
         select(func.count())
@@ -1493,12 +1520,15 @@ async def raise_review_card(
     if not await review_card_wanted(session, owner_id, payload):
         return None
     # One review waits per server: a server that keeps changing never stacks up cards.
-    await supersede_subject(session, owner_id, "trust_source", subject, "server_changed_again")
+    card_id = new_id()
+    await supersede_subject(
+        session, owner_id, "trust_source", subject, "server_changed_again", by=card_id
+    )
     thread = await card_thread(session, owner_id, agent_id, thread_id)
     return await create_card(
         session,
         owner_id,
-        card_id=new_id(),
+        card_id=card_id,
         agent_id=agent_id,
         thread=thread,
         run_id=run_id,
@@ -1684,6 +1714,113 @@ async def owned_card(
     if row is None or row.owner_id != owner_id:
         raise LonoraError("owner_action_not_found", 404)
     return row
+
+
+async def draft_grant_card(
+    session: AsyncSession, owner_id: str, draft: GrantDraft, thread_id: str | None
+) -> OwnerActionRow:
+    """The owner's own grant card from the mandate sheet: the resolved draft stored on a
+    pending grant card in the agent's conversation, exactly like an agent's proposal. It
+    grants nothing: only the card's passkey ceremony (challenge, then the decision with
+    the device proof bound to the envelope built from this draft) activates a grant.
+
+    The same draft twice returns the card already shown; a different one replaces the
+    agent's other pending grant cards for that account (``superseded_by``) and withdraws
+    a proposal their challenge prepared."""
+    from .account_authority import owned_authority, revoke
+
+    await lock_owner_actions(session, owner_id)
+    payload = draft.model_dump(mode="json")
+    reason = await stale_reason(session, owner_id, "grant_authority", payload)
+    if reason is not None:
+        raise LonoraError("owner_action_not_needed_" + reason, 409)
+    card_id = new_id()
+    current = await pending_effect(
+        session, draft.agent_id, "grant_authority", payload_hash("grant_authority", payload)
+    )
+    if current is not None and current.thread_id is not None and current.expires_at > utcnow():
+        return current
+    subject = "grant:" + draft.agent_id + ":" + draft.account_id
+    for replaced in await supersede_subject(
+        session, owner_id, "grant_authority", subject, "replaced_by_owner_draft", by=card_id
+    ):
+        prepared = replaced.result.get("authority_id")
+        if isinstance(prepared, str):
+            authority = await owned_authority(session, owner_id, prepared)
+            if authority.status == "pending":
+                await revoke(session, owner_id, prepared)
+    thread = await card_thread(session, owner_id, draft.agent_id, thread_id)
+    return await create_card(
+        session,
+        owner_id,
+        card_id=card_id,
+        agent_id=draft.agent_id,
+        thread=thread,
+        run_id=None,
+        source="owner",
+        kind="grant_authority",
+        subject=subject,
+        payload=payload,
+    )
+
+
+# Cards «طلب جديد» can raise again once expired: decisions the runtime asks for whose
+# record may still need one. Undo and notice cards keep their own window and never come
+# back; an agent's proposal is the agent's to make again.
+RENEWABLE_KINDS = frozenset({"resolve_operation", "lift_restriction", "resume_trading"})
+
+
+async def renew_card(session: AsyncSession, owner_id: str, card_id: str) -> OwnerActionRow:
+    """«طلب جديد»: a fresh pending card of the same kind for an expired card whose record
+    still needs the owner's decision, with a fresh server lifetime; the old card names
+    it (``superseded_by``). Refused (``owner_action_not_renewable``) for a card still
+    waiting, decided, already replaced, of another kind, or whose record moved on."""
+    from .personal_agent import ensure_personal_agent
+
+    await lock_owner_actions(session, owner_id)
+    row = await owned_card(session, owner_id, card_id, lock=True)
+    if (
+        row.kind not in RENEWABLE_KINDS
+        or live_status(row) != "expired"
+        or row.superseded_by is not None
+    ):
+        raise LonoraError("owner_action_not_renewable", 409)
+    try:
+        reason = await stale_reason(session, owner_id, row.kind, row.payload)
+    except LonoraError:
+        reason = "record_missing"
+    newer = await session.scalar(
+        select(OwnerActionRow.id).where(
+            OwnerActionRow.owner_id == owner_id,
+            OwnerActionRow.kind == row.kind,
+            OwnerActionRow.subject == row.subject,
+            OwnerActionRow.status == "pending",
+            OwnerActionRow.expires_at > utcnow(),
+        )
+    )
+    if reason is not None or newer is not None:
+        raise LonoraError("owner_action_not_renewable", 409)
+    agent = await session.get(AgentRow, row.agent_id)
+    agent_id = (
+        agent.id
+        if agent is not None and agent.owner_id == owner_id
+        else (await ensure_personal_agent(session, owner_id)).id
+    )
+    fresh_id = new_id()
+    await settle(session, row, "expired", row.status_reason or "expired", by=fresh_id)
+    thread = await card_thread(session, owner_id, agent_id, row.thread_id)
+    return await create_card(
+        session,
+        owner_id,
+        card_id=fresh_id,
+        agent_id=agent_id,
+        thread=thread,
+        run_id=row.run_id,
+        source=row.source,
+        kind=row.kind,
+        subject=row.subject,
+        payload=row.payload,
+    )
 
 
 async def thread_cards(

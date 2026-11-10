@@ -183,7 +183,9 @@ async def raise_model_card(
         # Only the latest switch can be undone, and an earlier request about this
         # agent's model no longer applies: a later tap must not undo this choice.
         for ended in ("agent_model", "agent_model_changed"):
-            await supersede_subject(session, owner_id, ended, subject, "model_changed_again")
+            await supersede_subject(
+                session, owner_id, ended, subject, "model_changed_again", by=card_id
+            )
     else:
         current = await pending_effect(session, agent_id, kind, payload_hash(kind, payload))
         if current is not None:
@@ -194,6 +196,7 @@ async def raise_model_card(
                 current,
                 "expired" if current.expires_at <= utcnow() else "superseded",
                 "expired" if current.expires_at <= utcnow() else "conversation_deleted",
+                by=card_id,
             )
         pending = await session.scalar(
             select(func.count())

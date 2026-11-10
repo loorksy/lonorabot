@@ -799,6 +799,8 @@ class TradeApprovalRow(Base):
     requests: Mapped[list[dict[str, Any]]] = mapped_column(JSON)
     status: Mapped[str] = mapped_column(String(24), default="pending")
     results: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
+    # Past it a pending approval can no longer be approved (Q32); NULL on older rows.
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
@@ -903,7 +905,7 @@ class OwnerActionRow(Base):
             "status IN ('pending','confirmed','cancelled','expired','superseded')",
             name="ln_owner_action_status",
         ),
-        CheckConstraint("source IN ('agent','system')", name="ln_owner_action_source"),
+        CheckConstraint("source IN ('agent','system','owner')", name="ln_owner_action_source"),
         Index("ln_owner_action_owner_status", "owner_id", "status"),
         Index("ln_owner_action_thread", "thread_id", "created_at"),
         Index("ln_owner_action_subject", "owner_id", "kind", "subject"),
@@ -924,7 +926,8 @@ class OwnerActionRow(Base):
     agent_id: Mapped[str] = mapped_column(String(36))
     thread_id: Mapped[str | None] = mapped_column(ForeignKey("ln_threads.id", ondelete="SET NULL"))
     run_id: Mapped[str | None] = mapped_column(String(36))
-    # agent: proposed by an agent's tool call; system: raised from a runtime event.
+    # agent: proposed by an agent's tool call; system: raised from a runtime event;
+    # owner: drafted by the owner (a grant card from the mandate sheet).
     source: Mapped[str] = mapped_column(String(8))
     kind: Mapped[str] = mapped_column(String(32))
     # The record the card acts on ("trading", "restriction:<id>", "operation:<id>", ...).
@@ -933,6 +936,8 @@ class OwnerActionRow(Base):
     payload_hash: Mapped[str] = mapped_column(String(64))
     status: Mapped[str] = mapped_column(String(16), default="pending")
     status_reason: Mapped[str | None] = mapped_column(String(64))
+    # The newer card that replaced this one (same subject), for «عرض الأحدث».
+    superseded_by: Mapped[str | None] = mapped_column(String(36))
     result: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     timeline_seq: Mapped[int | None] = mapped_column(Integer)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

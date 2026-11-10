@@ -149,6 +149,11 @@ async def agent_live_state(
                 TradeApprovalRow.owner_id == owner_id,
                 TradeApprovalRow.agent_id == agent.id,
                 TradeApprovalRow.status == "pending",
+                # One past its expiry can no longer be approved (it settles when read).
+                or_(
+                    TradeApprovalRow.expires_at.is_(None),
+                    TradeApprovalRow.expires_at > utcnow(),
+                ),
             )
         )
         or 0

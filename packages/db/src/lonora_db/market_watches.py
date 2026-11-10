@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Any, Literal
 
@@ -228,4 +228,34 @@ async def update_watch(
         state.pop("lifecycle_reason", None)
     row.payload, row.state = validated, state
     _changed(session, row, "agent" if agent_id else "owner")
+    return row
+
+
+async def extend_watch(
+    session: AsyncSession, owner_id: str, watch_id: str, hours: int
+) -> MarketWatchRow:
+    """The owner's «تمديد»: the expiry moves ``hours`` later (from now, when it already
+    passed, so it watches again). A watch with no expiry has nothing to extend."""
+    row = await steered_watch(session, owner_id, watch_id, None)
+    expires = row.payload.get("expires_at")
+    if not expires:
+        raise LonoraError("watch_has_no_expiry", 409)
+    base = max(datetime.fromisoformat(str(expires)), utcnow())
+    return await update_watch(session, owner_id, watch_id, expires_at=base + timedelta(hours=hours))
+
+
+async def restore_expiry(
+    session: AsyncSession, owner_id: str, watch_id: str, expires_at: str | None, revision: int
+) -> MarketWatchRow:
+    """Undo of an agent's extension: the earlier expiry back, only while the watch is
+    still at the revision that change left (``watch_changed_again`` otherwise). An
+    earlier expiry already past leaves the watch expired, as it would have been."""
+    row = await steered_watch(session, owner_id, watch_id, None)
+    if row.version != revision:
+        raise LonoraError("watch_changed_again", 409)
+    try:
+        row.payload = MarketWatchRepository().validate({**row.payload, "expires_at": expires_at})
+    except ValidationError as error:
+        raise LonoraError("watch_update_invalid", 422) from error
+    _changed(session, row, "owner")
     return row

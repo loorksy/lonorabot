@@ -9,8 +9,11 @@ from lonora_db.market_watches import (
     MarketWatchRepository,
     WatchAction,
     control_watch,
+    steered_watch,
     update_watch,
 )
+from lonora_db.notice_cards import raise_watch_changed
+from lonora_db.owner_actions import lock_owner_actions
 from lonora_db.runs import require_lease
 from lonora_db.schema import EventRow, MarketWatchRow, RunRow
 from lonora_db.threads import report_thread
@@ -195,7 +198,11 @@ async def resume(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
 async def update(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     params = WatchUpdate.model_validate(args)
     async with context.db.sessions() as session, session.begin():
-        await require_lease(session, context.lease, lock=True)
+        run = await require_lease(session, context.lease, lock=True)
+        # The owner's cards before the watch: the order the notice's Undo takes them in.
+        await lock_owner_actions(session, context.owner_id)
+        before = await steered_watch(session, context.owner_id, params.watch_id, context.agent_id)
+        previous, version = before.payload.get("expires_at"), before.version
         row = await update_watch(
             session,
             context.owner_id,
@@ -205,6 +212,17 @@ async def update(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             clear_expiry=params.clear_expiry,
             level=params.level,
         )
+        if row.version != version:
+            # An extension the owner did not ask for shows as a notice with Undo (Q31).
+            await raise_watch_changed(
+                session,
+                context.owner_id,
+                row,
+                previous,
+                agent_id=context.agent_id,
+                thread_id=await report_thread(session, run),
+                run_id=run.id,
+            )
         return resource_data(row)
 
 
