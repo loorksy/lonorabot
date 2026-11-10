@@ -2,13 +2,21 @@ import { i18n } from "@lingui/core";
 import { Trans } from "@lingui/react/macro";
 import type { TradeApproval as Approval } from "@lonora/contracts";
 import { approvalStatusText, brokerTicketLabel, financialResultReason } from "@lonora/core";
+import { Icon } from "@lonora/ui-web";
 import { useEffect, useRef, useState } from "react";
 import { api } from "../../lib/api";
 import { operationStatusLabel } from "../../lib/operation-status";
 import { userError } from "../../lib/user_error";
 import { useClient } from "../../providers/ClientProvider";
 
-const rank = { pending: 0, approved: 1, rejected: 1, completed: 2, cancelled: 2 };
+const rank: Record<string, number> = {
+  pending: 0,
+  approved: 1,
+  rejected: 1,
+  expired: 1,
+  completed: 2,
+  cancelled: 2,
+};
 
 /**
  * The reason under a broker result, from the table Mobile reads too. Only a result
@@ -99,144 +107,180 @@ export function useTradeApprovals(threadId: string, watching = false) {
   };
 }
 
+/** One line per request: side · volume · symbol, then price / stop / target. */
+function requestLine(request: Approval["requests"][number]) {
+  const parts = [String(request.action), request.volume != null ? String(request.volume) : null]
+    .filter(Boolean)
+    .join(" ");
+  return parts;
+}
+
+/**
+ * A trade approval in the conversation (reference cardMarkup approval, Desktop-37 3761-3775):
+ * «طلب موافقة · SYMBOL», the request, «موافقة» / «رفض»; decided, it is one line. An approval
+ * lives 30-60 minutes on the server (Q32); an expired one offers «طلب جديد», which asks the
+ * agent again (it never creates an approvable request by itself).
+ */
 export function TradeApprovalCard({
   row,
   busy,
   decide,
+  onRenew,
 }: {
   row: Approval;
   busy: boolean;
   decide: (id: string, decision: "approve" | "reject") => Promise<void>;
+  onRenew?: (row: Approval) => void;
 }) {
+  const symbol = row.requests.find((request) => request.symbol)?.symbol;
+  const status = row.status as Approval["status"] | "expired";
+  if (status !== "pending") {
+    const bad = status === "rejected" || status === "cancelled" || status === "expired";
+    return (
+      <div className="mcard is-done" data-trade-approval={row.id} data-trade-status={status}>
+        <div className={`oa-line ${bad ? "st-cancelled" : "st-confirmed"}`}>
+          <span className={`oa-line-ic${bad ? " bad" : ""}`}>
+            <Icon name={bad ? "close" : "check"} />
+          </span>
+          <span className="oa-line-body">
+            <span className="oa-line-kind">
+              <Trans>Approval request</Trans> ·{" "}
+              {status === "expired" ? (
+                <Trans>Expired</Trans>
+              ) : (
+                approvalStatusText(row.status, i18n.locale)
+              )}
+            </span>
+            <span className="oa-line-text" dir="auto">
+              {row.requests.map(requestLine).join(" · ")}
+              {symbol && (
+                <>
+                  {" "}
+                  <bdi>{String(symbol)}</bdi>
+                </>
+              )}
+            </span>
+          </span>
+          {status === "expired" && onRenew && (
+            <button type="button" className="btn sm ghost" onClick={() => onRenew(row)}>
+              <Trans>New request</Trans>
+            </button>
+          )}
+        </div>
+        {row.results.map((result) => (
+          <div
+            key={result.operation_id}
+            className={`od-ev ${result.status === "confirmed" ? "ok" : result.status === "failed" ? "bad" : "warn"}`}
+            data-trade-result={result.status}
+          >
+            <Icon name={result.status === "confirmed" ? "check" : "alert"} />
+            <span>
+              {operationStatusLabel(result.status, result.details)}
+              {result.broker_id && (
+                <>
+                  {" · "}
+                  {brokerTicketLabel(i18n.locale)} <b className="ltr">{result.broker_id}</b>
+                </>
+              )}
+              {resultReason(result) && ` · ${resultReason(result)}`}
+            </span>
+          </div>
+        ))}
+      </div>
+    );
+  }
   return (
-    <article className="card" data-trade-approval={row.id}>
-      <strong>
-        <Trans>Trading request</Trans>
-      </strong>
-      {row.execution_mode === "shadow" && (
-        <p>
-          <Trans>Shadow trading — virtual orders only</Trans>
-        </p>
-      )}
+    <div className="mcard" data-trade-approval={row.id} data-trade-status={status}>
+      <div className="mcard-kicker">
+        <Icon name="shield" />
+        <Trans>Approval request</Trans>
+        {symbol && (
+          <>
+            {" · "}
+            <bdi>{String(symbol)}</bdi>
+          </>
+        )}
+      </div>
       {row.requests.map((request, index) => (
-        <dl key={String(request.operation_id ?? index)}>
-          <dt>
-            <Trans>Action</Trans>
-          </dt>
-          <dd>
-            <bdi>{String(request.action)}</bdi>
-          </dd>
-          <dt>
-            <Trans>Symbol</Trans>
-          </dt>
-          <dd>
-            <bdi>{String(request.symbol)}</bdi>
-          </dd>
-          {request.volume != null && (
-            <>
-              <dt>
-                <Trans>Volume</Trans>
-              </dt>
-              <dd>
-                <bdi>{String(request.volume)}</bdi>
-              </dd>
-            </>
-          )}
-          {request.price != null && (
-            <>
-              <dt>
-                <Trans>Price</Trans>
-              </dt>
-              <dd>
-                <bdi>{String(request.price)}</bdi>
-              </dd>
-            </>
-          )}
-          {request.stop_loss != null && (
-            <>
-              <dt>
-                <Trans>Stop loss</Trans>
-              </dt>
-              <dd>
-                <bdi>{String(request.stop_loss)}</bdi>
-              </dd>
-            </>
-          )}
-          {request.clear_stop_loss === true && (
-            <p>
-              <Trans>Remove stop loss</Trans>
-            </p>
-          )}
-          {request.clear_take_profit === true && (
-            <p>
-              <Trans>Remove take profit</Trans>
-            </p>
-          )}
-          {request.take_profit != null && (
-            <>
-              <dt>
-                <Trans>Take profit</Trans>
-              </dt>
-              <dd>
-                <bdi>{String(request.take_profit)}</bdi>
-              </dd>
-            </>
-          )}
-          {(request.position_id ?? request.order_id) != null && (
-            <>
-              <dt>
-                <Trans>Broker ticket</Trans>
-              </dt>
-              <dd>
-                <bdi>{String(request.position_id ?? request.order_id)}</bdi>
-              </dd>
-            </>
-          )}
-        </dl>
-      ))}
-      {row.status === "pending" ? (
-        <div className="actions">
-          <button type="button" disabled={busy} onClick={() => void decide(row.id, "approve")}>
-            <Trans>Approve</Trans>
-          </button>
-          <button type="button" disabled={busy} onClick={() => void decide(row.id, "reject")}>
-            <Trans>Reject</Trans>
-          </button>
-        </div>
-      ) : (
-        <p>{approvalStatusText(row.status, i18n.locale)}</p>
-      )}
-      {row.results.map((result) => (
-        <div key={result.operation_id} data-trade-result={result.status}>
-          <p>{operationStatusLabel(result.status, result.details)}</p>
-          {result.broker_id && (
-            <p>
-              {brokerTicketLabel(i18n.locale)}: <bdi>{result.broker_id}</bdi>
-            </p>
-          )}
-          {resultReason(result) && <p>{resultReason(result)}</p>}
-          {Object.entries(result.details ?? {})
-            .filter(([key]) =>
-              [
-                "price",
-                "execution_price",
-                "order_id",
-                "deal_id",
-                "position_id",
-                "numeric_code",
-                "string_code",
-                "message",
-                "description",
-              ].includes(key),
-            )
-            .map(([key, value]) => (
-              <p key={key}>
-                <bdi>{String(value)}</bdi>
-              </p>
-            ))}
+        <div key={String(request.operation_id ?? index)} className="mcard-request">
+          <strong dir="auto">
+            <bdi>{requestLine(request)}</bdi>
+          </strong>
+          <dl className="oa-dl">
+            {request.price != null && (
+              <div>
+                <dt>
+                  <Trans>Price</Trans>
+                </dt>
+                <dd className="ltr">{String(request.price)}</dd>
+              </div>
+            )}
+            {request.stop_loss != null && (
+              <div>
+                <dt>
+                  <Trans>Stop loss</Trans>
+                </dt>
+                <dd className="ltr">{String(request.stop_loss)}</dd>
+              </div>
+            )}
+            {request.take_profit != null && (
+              <div>
+                <dt>
+                  <Trans>Take profit</Trans>
+                </dt>
+                <dd className="ltr">{String(request.take_profit)}</dd>
+              </div>
+            )}
+            {request.clear_stop_loss === true && (
+              <div>
+                <dt>
+                  <Trans>Stop loss</Trans>
+                </dt>
+                <dd>
+                  <Trans>Remove stop loss</Trans>
+                </dd>
+              </div>
+            )}
+            {request.clear_take_profit === true && (
+              <div>
+                <dt>
+                  <Trans>Take profit</Trans>
+                </dt>
+                <dd>
+                  <Trans>Remove take profit</Trans>
+                </dd>
+              </div>
+            )}
+            {(request.position_id ?? request.order_id) != null && (
+              <div>
+                <dt>
+                  <Trans>Broker ticket</Trans>
+                </dt>
+                <dd className="ltr">{String(request.position_id ?? request.order_id)}</dd>
+              </div>
+            )}
+          </dl>
         </div>
       ))}
-    </article>
+      <div className="mcard-actions">
+        <button
+          type="button"
+          className="btn primary sm"
+          disabled={busy}
+          onClick={() => void decide(row.id, "approve")}
+        >
+          <Trans>Approve</Trans>
+        </button>
+        <button
+          type="button"
+          className="btn sm"
+          disabled={busy}
+          onClick={() => void decide(row.id, "reject")}
+        >
+          <Trans>Reject</Trans>
+        </button>
+      </div>
+    </div>
   );
 }
 

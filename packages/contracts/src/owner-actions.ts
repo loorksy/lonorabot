@@ -276,6 +276,8 @@ export type OwnerActionDecision = {
   outcome?: AttestedOutcome;
   note?: string;
   broker_reference?: string;
+  /** resolve_operation with «غير معروف»: also stop new trades for the rest of the day (Q11). */
+  pause_new_today?: boolean;
   proof?: DeviceProof;
   /** Grant card: "none" leaves the account's daily loss limit as it is. */
   money_limit?: "apply" | "none";

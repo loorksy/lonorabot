@@ -153,6 +153,13 @@ export function failOutgoing(
     ),
   );
 }
+/** «حذف» on a failed message: it leaves the outbox (it never reached the server). */
+export function dropOutgoing(key: string, nonce: string) {
+  save(
+    key,
+    outgoingMessages(key).filter((row) => row.nonce !== nonce),
+  );
+}
 /** The owner's keys with an outbox, in memory or saved on this device. */
 function ownerKeys(ownerId: string): string[] {
   const keys = new Set(entries.keys());

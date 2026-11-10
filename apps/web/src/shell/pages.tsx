@@ -3,6 +3,7 @@ import { Trans } from "@lingui/react/macro";
 import { Icon } from "@lonora/ui-web";
 import { lazy, Suspense, useEffect } from "react";
 import { Route, Routes, useLocation, useSearchParams } from "react-router-dom";
+import { Conversation } from "../conversation/Conversation";
 import { usePersistentThread } from "../hooks/usePersistentThread";
 import type { Agent, Resource, Run } from "../lib/api";
 import { userError } from "../lib/user_error";
@@ -15,7 +16,6 @@ import { OwnerProfileSection } from "../pages/OwnerProfileSection";
 import { Routines } from "../pages/Routines";
 import type { SettingsTab } from "../pages/settings-sidebar";
 import { AgentCreatePanel } from "../pages/shell/bot-panel";
-import { ThreadViewport } from "../pages/shell/chat-context";
 import { useClient } from "../providers/ClientProvider";
 import { AgentsPage } from "./AgentsPage";
 import { useShellData } from "./data";
@@ -335,7 +335,7 @@ function AgentConversation({
           </label>
         </div>
       )}
-      <ThreadViewport
+      <Conversation
         key={thread.id}
         threadId={thread.id}
         aroundSeq={aroundOf(params)}
@@ -367,35 +367,30 @@ export function ChatPane({
   const data = useShellData();
   const [params] = useSearchParams();
   if (group)
-    return (
-      <Legacy>
-        {group.state?.thread_id ? (
-          <ThreadViewport
-            key={String(group.state.thread_id)}
-            threadId={String(group.state.thread_id)}
-            aroundSeq={aroundOf(params)}
-            agentId=""
-            knownRuns={data.runs}
-            conversationName={String(group.payload.name)}
-            onOpenChart={onOpenChart}
-            agents={memberAgents}
-          />
-        ) : (
-          <NotFoundPage />
-        )}
-      </Legacy>
+    return group.state?.thread_id ? (
+      <Conversation
+        key={String(group.state.thread_id)}
+        threadId={String(group.state.thread_id)}
+        aroundSeq={aroundOf(params)}
+        agentId=""
+        knownRuns={data.runs}
+        conversationName={String(group.payload.name)}
+        onOpenChart={onOpenChart}
+        agents={memberAgents}
+        groupLead={(group.payload.lead_agent_id as string | undefined) ?? memberAgents[0]?.id}
+      />
+    ) : (
+      <NotFoundPage />
     );
   if (!agent) return data.agentsLoading ? <SkChat /> : <NotFoundPage />;
   return (
-    <Legacy>
-      <AgentConversation
-        key={agent.id}
-        agent={agent}
-        agents={data.agents}
-        knownRuns={data.runs}
-        onOpenChart={onOpenChart}
-      />
-    </Legacy>
+    <AgentConversation
+      key={agent.id}
+      agent={agent}
+      agents={data.agents}
+      knownRuns={data.runs}
+      onOpenChart={onOpenChart}
+    />
   );
 }
 

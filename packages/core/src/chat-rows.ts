@@ -202,7 +202,8 @@ export const groupDraftName = (names: readonly string[]) =>
  * waits in it and stays «failed» with a manual retry under the same client_nonce.
  */
 export function isPlainOutgoing(body: Readonly<Record<string, unknown>>): boolean {
-  return body.input_answer == null;
+  // An edit cancels the original's run (Q21): it stays «failed» with a manual retry.
+  return body.input_answer == null && body.edited_from == null;
 }
 
 /**

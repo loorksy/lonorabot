@@ -15,11 +15,11 @@ import {
   webDeviceProof,
   webDeviceSupported,
 } from "@lonora/core";
+import { Icon, type IconName } from "@lonora/ui-web";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError, api, isRequestCancelled } from "../../lib/api";
 import { userError } from "../../lib/user_error";
 import { useClient } from "../../providers/ClientProvider";
-import "./owner-action-card.css";
 
 /** The conversation's owner action cards; refreshed by every runtime revision. */
 export function useOwnerActions(threadId: string) {
@@ -66,9 +66,18 @@ export function useOwnerActions(threadId: string) {
 export function OwnerActionCard({
   row,
   onChanged,
+  inSheet = false,
+  onRenew,
+  onLatest,
 }: {
   row: OwnerAction;
   onChanged: (row: OwnerAction) => void;
+  /** Q12: the same card opened as a sheet from the permission chip or the agent page. */
+  inSheet?: boolean;
+  /** «طلب جديد» on an expired resolve card (POST /owner-actions/{id}/renew). */
+  onRenew?: (row: OwnerAction) => void;
+  /** «عرض الأحدث» on a superseded card. */
+  onLatest?: (id: string) => void;
 }) {
   const locale = i18n.locale;
   const text = ownerActionText(locale);
@@ -77,6 +86,9 @@ export function OwnerActionCard({
   const [error, setError] = useState<unknown>();
   const [note, setNote] = useState("");
   const [reference, setReference] = useState("");
+  const [more, setMore] = useState(false);
+  // Q11: «غير معروف» can also stop new trades for the rest of the day (an owner restriction).
+  const [pauseToday, setPauseToday] = useState(false);
   const [enroll, setEnroll] = useState(false);
   const [password, setPassword] = useState("");
   const [chosen, setChosen] = useState<Record<string, boolean>>({});
@@ -128,6 +140,7 @@ export function OwnerActionCard({
       body.outcome = button.outcome;
       if (note.trim()) body.note = note.trim();
       if (reference.trim()) body.broker_reference = reference.trim();
+      if (button.outcome === "unknown" && pauseToday) body.pause_new_today = true;
     }
     if (button.decision === "confirm" && spec.passkey) {
       const challenge = await api.post<DeviceChallenge>(
@@ -202,88 +215,179 @@ export function OwnerActionCard({
       if (mounted.current) setBusy(false);
     }
   }
+  const settled = row.status !== "pending";
+  const notice = NOTICE_KINDS.has(row.kind);
+  const kind = ownerActionKindName(row);
+  if (notice)
+    return (
+      <NoticeLine
+        row={row}
+        text={[spec.title, ...spec.lines].join(" · ")}
+        undo={settled ? undefined : spec.buttons.find((button) => button.decision === "confirm")}
+        busy={busy}
+        error={error}
+        onUndo={(button) => void decide(button)}
+      />
+    );
+  if (settled && !inSheet)
+    return (
+      <DecisionLine
+        row={row}
+        kind={kind}
+        text={spec.outcome ?? spec.title}
+        onRenew={onRenew}
+        onLatest={onLatest}
+      />
+    );
+  const resolve = row.kind === "resolve_operation";
+  const left = Date.parse(row.expires_at) - Date.now();
   return (
-    <article
-      className="card lonora-owner-action"
+    // biome-ignore lint/a11y/useSemanticElements: the reference's card is a named group
+    <div
+      className={`oa st-${row.status} act-${row.kind}${inSheet ? " in-sheet" : ""}`}
+      data-oa-mid={row.id}
       data-owner-action={row.id}
       data-owner-action-kind={row.kind}
       data-owner-action-status={row.status}
       aria-label={spec.title}
+      role="group"
     >
-      <strong dir="auto">{spec.title}</strong>
-      {spec.lines.map((line) => (
-        <p key={line} dir="auto">
+      <div className="oa-head">
+        <span className="oa-ic">
+          <Icon name={KIND_ICON[row.kind] ?? "shield"} />
+        </span>
+        <span className="oa-kind">{spec.title}</span>
+        {resolve && left > 0 && left < 3_600_000 && <Countdown until={row.expires_at} />}
+      </div>
+      {spec.lines.length > 0 && (
+        <strong className="oa-title" dir="auto">
+          {spec.lines[0]}
+        </strong>
+      )}
+      {spec.lines.slice(1).map((line) => (
+        <p key={line} className="oa-sub" dir="auto">
           {line}
         </p>
       ))}
       {spec.hint && (
-        <p className="muted" dir="auto">
-          {spec.hint}
+        <p className="oa-hint" dir="auto">
+          <Icon name={spec.passkey ? "fingerprint" : "info"} />
+          <span>{spec.hint}</span>
         </p>
       )}
-      {spec.options.length > 0 && (
-        <div className="lonora-owner-action-options">
-          {spec.options.map((option) =>
-            option.choice ? (
-              <div key={option.key} className="lonora-owner-action-choice">
-                <label className="check" dir="auto">
-                  <input
-                    type="radio"
-                    name={`owner-action-${row.id}-${option.choice.group}`}
-                    data-owner-action-choice={option.choice.value}
-                    checked={choosing ? choosing === option.key : option.initial}
-                    disabled={busy}
-                    onChange={() => void choose(option)}
-                  />
-                  <span>{option.label}</span>
-                </label>
-                {option.detail && (
-                  <p className="muted" dir="auto" data-owner-action-choice-detail>
-                    {option.detail}
-                  </p>
-                )}
-              </div>
-            ) : (
-              <label key={option.key} className="check" dir="auto">
-                <input
-                  type="checkbox"
-                  data-owner-action-option={option.key.split(":")[0]}
-                  checked={chosen[option.key] ?? option.initial}
+      {spec.options.some((option) => option.choice) && (
+        <div className="oa-radios" role="radiogroup">
+          {spec.options
+            .filter((option) => option.choice)
+            .map((option) => {
+              const on = choosing ? choosing === option.key : option.initial;
+              return (
+                // biome-ignore lint/a11y/useSemanticElements: the reference's radio rows
+                <button
+                  key={option.key}
+                  type="button"
+                  role="radio"
+                  aria-checked={on}
+                  className={`oa-radio${on ? " on" : ""}`}
+                  data-owner-action-choice={option.choice?.value}
                   disabled={busy}
-                  onChange={(event) =>
-                    setChosen((old) => ({ ...old, [option.key]: event.target.checked }))
-                  }
-                />
-                <span>{option.label}</span>
-              </label>
-            ),
-          )}
+                  onClick={() => void choose(option)}
+                >
+                  <span>
+                    <strong>{option.label}</strong>
+                    {option.detail && on && (
+                      <small data-owner-action-choice-detail>{option.detail}</small>
+                    )}
+                  </span>
+                  {on && <Icon name="check" />}
+                </button>
+              );
+            })}
         </div>
       )}
-      {spec.notes && (
-        <div className="lonora-owner-action-notes">
-          <label>
-            {text.note}
-            <input
-              dir="auto"
-              value={note}
-              maxLength={2000}
-              disabled={busy}
-              onChange={(event) => setNote(event.target.value)}
-            />
-          </label>
-          <label>
-            {text.brokerReference}
-            <input
-              dir="auto"
-              value={reference}
-              maxLength={200}
-              disabled={busy}
-              onChange={(event) => setReference(event.target.value)}
-            />
-          </label>
+      {spec.options.some((option) => !option.choice) && (
+        <div className="oa-fields">
+          {spec.options
+            .filter((option) => !option.choice)
+            .map((option) => {
+              const on = chosen[option.key] ?? option.initial;
+              return (
+                <div key={option.key} className="oa-f">
+                  <span className="oa-l" dir="auto">
+                    {option.label}
+                  </span>
+                  <button
+                    type="button"
+                    className="switch"
+                    role="switch"
+                    aria-checked={on}
+                    aria-label={option.label}
+                    data-owner-action-option={option.key.split(":")[0]}
+                    disabled={busy}
+                    onClick={() => setChosen((old) => ({ ...old, [option.key]: !on }))}
+                  />
+                </div>
+              );
+            })}
         </div>
       )}
+      {resolve && !settled && (
+        <div className="oa-fields">
+          <div className="oa-f">
+            <span className="oa-l">
+              {text.pauseNewToday}
+              <small>{text.pauseNewTodayHint}</small>
+            </span>
+            <button
+              type="button"
+              className="switch"
+              role="switch"
+              aria-checked={pauseToday}
+              aria-label={text.pauseNewToday}
+              data-owner-action-option="pause_new_today"
+              disabled={busy}
+              onClick={() => setPauseToday((on) => !on)}
+            />
+          </div>
+        </div>
+      )}
+      {spec.notes &&
+        (more ? (
+          <div className="oa-fields">
+            <label className="oa-input">
+              <span>
+                {text.noteShort} <small>{text.optional}</small>
+              </span>
+              <input
+                type="text"
+                dir="auto"
+                value={note}
+                maxLength={120}
+                autoComplete="off"
+                disabled={busy}
+                onChange={(event) => setNote(event.target.value)}
+              />
+            </label>
+            <label className="oa-input">
+              <span>
+                {text.brokerRefShort} <small>{text.optional}</small>
+              </span>
+              <input
+                type="text"
+                dir="ltr"
+                value={reference}
+                maxLength={32}
+                autoComplete="off"
+                disabled={busy}
+                onChange={(event) => setReference(event.target.value)}
+              />
+            </label>
+          </div>
+        ) : (
+          <button type="button" className="oa-link" onClick={() => setMore(true)}>
+            {text.addNote}
+          </button>
+        ))}
       {spec.credential && (
         <CredentialFields
           form={spec.credential}
@@ -291,11 +395,24 @@ export function OwnerActionCard({
           onSubmit={(values) => void connect(spec.credential as CredentialForm, values)}
         />
       )}
-      {spec.passkey && !supported && <p role="status">{text.passkeyUnsupported}</p>}
+      {spec.passkey && !supported && (
+        <p className="oa-warn" role="status">
+          {text.passkeyUnsupported}
+        </p>
+      )}
       {enroll && (
-        <div className="lonora-owner-action-notes">
-          <label>
-            {text.password}
+        <>
+          <div className={`oa-key${busy ? " busy" : ""}`}>
+            <span className="oa-key-ic">
+              <Icon name="device" />
+            </span>
+            <div>
+              <strong>{text.registerDevice}</strong>
+              <small>{text.deviceOnce}</small>
+            </div>
+          </div>
+          <label className="oa-input">
+            <span>{text.password}</span>
             <input
               type="password"
               autoComplete="current-password"
@@ -303,38 +420,230 @@ export function OwnerActionCard({
               onChange={(event) => setPassword(event.target.value)}
             />
           </label>
-          <button
-            type="button"
-            disabled={!password || busy || !supported}
-            onClick={() => void register()}
-          >
-            {text.registerDevice}
-          </button>
-        </div>
+          <div className="oa-actions">
+            <button
+              type="button"
+              className="btn primary"
+              disabled={!password || busy || !supported}
+              onClick={() => void register()}
+            >
+              {text.registerDevice}
+            </button>
+          </div>
+        </>
       )}
       {spec.buttons.length > 0 && (
-        <div className="actions">
+        <div className={`oa-actions${spec.buttons.length === 3 ? " three" : ""}`}>
           {spec.buttons.map((button) => (
             <button
               key={button.key}
               type="button"
-              className={button.primary ? "primary" : undefined}
+              className={`btn sm ${button.primary ? "primary" : "outline"}${busy ? " is-busy" : ""}`}
               data-owner-action-button={button.key}
               disabled={busy || (spec.passkey && button.decision === "confirm" && !supported)}
               onClick={() => void decide(button)}
             >
-              {button.label}
+              {spec.passkey && button.decision === "confirm" && <Icon name="fingerprint" />}
+              <span>{button.label}</span>
             </button>
           ))}
         </div>
       )}
-      {spec.outcome && (
-        <p role="status" dir="auto" data-owner-action-outcome={row.status}>
+      {settled && spec.outcome && (
+        <p className="oa-done" role="status" dir="auto" data-owner-action-outcome={row.status}>
           {spec.outcome}
         </p>
       )}
-      {error != null && <p role="alert">{userError(error)}</p>}
-    </article>
+      {error != null && (
+        <p className="oa-warn" role="alert">
+          <Icon name="alert" />
+          <span>{userError(error)}</span>
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** Undo-only kinds: a change made without asking, in one centred line with «تراجع» (Q31). */
+const NOTICE_KINDS = new Set<string>([
+  "agent_model_changed",
+  "agent_created",
+  "supervision_created",
+  "watch_changed",
+  "stop_tightened",
+]);
+const KIND_ICON: Partial<Record<string, IconName>> = {
+  grant_authority: "shield",
+  set_account_limits: "scale",
+  lift_restriction: "lock",
+  resolve_operation: "alert",
+  resume_trading: "power",
+  agent_model: "cpu",
+  agent_model_changed: "cpu",
+  create_agent: "userPlus",
+  agent_created: "userPlus",
+  supervise: "eye",
+  supervision_created: "eye",
+  supervision_stopped: "eye",
+  supervision_paused: "pause",
+  trust_source: "shield",
+  connect_credential: "key",
+  watch_changed: "radar",
+  stop_tightened: "shield",
+};
+const STATUS_ICON: Record<string, IconName> = {
+  pending: "timer",
+  confirmed: "check",
+  cancelled: "close",
+  expired: "timer",
+  superseded: "layers",
+};
+
+function statusLabel(labels: ReturnType<typeof ownerActionText>, status: OwnerAction["status"]) {
+  return {
+    pending: labels.statusPending,
+    confirmed: labels.statusConfirmed,
+    cancelled: labels.statusCancelled,
+    expired: labels.statusExpired,
+    superseded: labels.statusSuperseded,
+  }[status];
+}
+
+function ownerActionKindName(row: OwnerAction) {
+  return ownerActionCard(row, i18n.locale).title;
+}
+
+/** Server lifetimes; shown only on resolve cards and only under one hour (Q13). */
+function Countdown({ until }: { until: string }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+  const left = Math.max(0, Date.parse(until) - now);
+  const s = Math.ceil(left / 1000);
+  const label = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+  return (
+    <span className={`oa-exp${left < 60_000 ? " soon" : ""}`}>
+      <span className="sr-only">{ownerActionText(i18n.locale).expiresIn}</span>
+      <Icon name="timer" />
+      <span className="ltr">{label}</span>
+    </span>
+  );
+}
+
+/** A decided or lapsed card is one line; tap for all of it; «طلب جديد» / «عرض الأحدث». */
+function DecisionLine({
+  row,
+  kind,
+  text,
+  onRenew,
+  onLatest,
+}: {
+  row: OwnerAction;
+  kind: string;
+  text: string;
+  onRenew?: (row: OwnerAction) => void;
+  onLatest?: (id: string) => void;
+}) {
+  const labels = ownerActionText(i18n.locale);
+  const [open, setOpen] = useState(false);
+  const supersededBy = (row as OwnerAction & { superseded_by?: string | null }).superseded_by;
+  return (
+    <div
+      className={`oa-line st-${row.status}`}
+      data-owner-action={row.id}
+      data-owner-action-kind={row.kind}
+      data-owner-action-status={row.status}
+    >
+      <span className="oa-line-ic">
+        <Icon name={STATUS_ICON[row.status] ?? "check"} />
+      </span>
+      <button
+        type="button"
+        className="oa-line-body"
+        aria-expanded={open}
+        onClick={() => setOpen((value) => !value)}
+      >
+        <span className="oa-line-kind">
+          {kind} · {statusLabel(labels, row.status)}
+        </span>
+        <span className="oa-line-text" dir="auto" data-owner-action-outcome={row.status}>
+          {text}
+        </span>
+      </button>
+      {row.status === "expired" && row.kind === "resolve_operation" && onRenew && (
+        <button type="button" className="btn sm ghost" onClick={() => onRenew(row)}>
+          {labels.renew}
+        </button>
+      )}
+      {row.status === "superseded" && supersededBy && onLatest && (
+        <button type="button" className="btn sm ghost" onClick={() => onLatest(supersededBy)}>
+          {labels.latest}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function NoticeLine({
+  row,
+  text,
+  undo,
+  busy,
+  error,
+  onUndo,
+}: {
+  row: OwnerAction;
+  text: string;
+  undo?: OwnerActionButton;
+  busy: boolean;
+  error: unknown;
+  onUndo: (button: OwnerActionButton) => void;
+}) {
+  const labels = ownerActionText(i18n.locale);
+  const undone = row.status === "confirmed";
+  return (
+    <div
+      className="k-notice"
+      data-owner-action={row.id}
+      data-owner-action-kind={row.kind}
+      data-owner-action-status={row.status}
+    >
+      <div className={`notice${undone ? " undone" : ""}`}>
+        <Icon name={KIND_ICON[row.kind] ?? "info"} />
+        <span className="nt-text" title={text} dir="auto">
+          {text}
+        </span>
+        <time dateTime={row.created_at}>
+          {new Date(row.created_at).toLocaleTimeString("en-GB", {
+            hour: "2-digit",
+            minute: "2-digit",
+          })}
+        </time>
+        {undone ? (
+          <span className="nt-done">
+            <Icon name="undo" />
+            {labels.undone}
+          </span>
+        ) : undo ? (
+          <button
+            type="button"
+            className="nt-undo"
+            data-owner-action-button={undo.key}
+            disabled={busy}
+            onClick={() => onUndo(undo)}
+          >
+            {labels.undo}
+          </button>
+        ) : null}
+      </div>
+      {error != null && (
+        <p className="oa-warn" role="alert">
+          {userError(error)}
+        </p>
+      )}
+    </div>
   );
 }
 

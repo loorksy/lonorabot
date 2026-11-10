@@ -5,6 +5,7 @@ import { api, isRequestCancelled, type Message, type Run, type Thread } from "..
 import { conversationKey, readConversation, retainConversation } from "../lib/conversation-cache";
 import {
   acknowledgeOutgoing,
+  dropOutgoing,
   enqueueOutgoing,
   failOutgoing,
   type OutgoingIntent,
@@ -232,6 +233,11 @@ export function useThreads(
     reply_to: string | null = null,
     mentions?: MentionAddress,
     inputAnswer?: InputAnswer,
+    /** Phase 3 fields: edited_from (Q21), voice (Q24). */
+    extra?: {
+      edited_from?: string;
+      voice?: { artifact_id: string; duration: number; peaks: number[] };
+    },
   ): OutgoingIntent {
     if (!threadId) throw new Error("thread_not_found");
     const fingerprint = JSON.stringify([
@@ -241,6 +247,7 @@ export function useThreads(
       reply_to,
       mentions,
       inputAnswer,
+      extra,
     ]);
     const intent = enqueueOutgoing(
       key,
@@ -254,6 +261,7 @@ export function useThreads(
         mention_agent_ids: mentions?.agent_ids ?? [],
         mention_all: mentions?.all ?? false,
         collaboration_session_id: mentions?.collaboration_session_id,
+        ...(extra ?? {}),
       },
       Math.max(0, ...canonicalMessages.map((message) => message.seq)),
     );
@@ -284,6 +292,7 @@ export function useThreads(
       if (!prior) return;
       await deliver(enqueueOutgoing(key, threadId, prior.fingerprint, prior.body));
     },
+    drop: (nonce: string) => dropOutgoing(key, nonce),
     cancel: async (id: string) => {
       await api.post(`/runs/${id}/cancel`, {});
       refresh();
