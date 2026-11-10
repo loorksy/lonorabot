@@ -128,7 +128,8 @@ export type TradeApproval = {
   run_id: string;
   thread_id: string;
   agent_id: string;
-  status: "pending" | "approved" | "rejected" | "completed" | "cancelled";
+  /** expired: its lifetime (30-60 min) ended unapproved; «طلب جديد» asks the agent again. */
+  status: "pending" | "approved" | "rejected" | "completed" | "cancelled" | "expired";
   requests: Payload[];
   results: {
     operation_id: string;
@@ -137,6 +138,8 @@ export type TradeApproval = {
     code?: string | null;
     details: Payload;
   }[];
+  /** Past it the card can no longer be approved; null on older approvals. */
+  expires_at?: string | null;
   created_at: string;
 };
 /** Owner money limits of one account (lonora_db.trading_readiness.risk_limit_frame). */

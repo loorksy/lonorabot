@@ -8,7 +8,7 @@ import { operationStatusLabel } from "../../lib/operation-status";
 import { userError } from "../../lib/user_error";
 import { useClient } from "../../providers/ClientProvider";
 
-const rank = { pending: 0, approved: 1, rejected: 1, completed: 2, cancelled: 2 };
+const rank = { pending: 0, approved: 1, rejected: 1, expired: 1, completed: 2, cancelled: 2 };
 
 /**
  * The reason under a broker result, from the table Mobile reads too. Only a result

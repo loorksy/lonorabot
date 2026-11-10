@@ -290,6 +290,16 @@ export const ownerActionLabels = {
     connect: "Connect",
     connected: "Connected. Agents see only that it is configured.",
     alreadyConnected: "This is already connected. Nothing changed.",
+    watchChangedTitle: "Watch extended",
+    watchChangedHint:
+      "The agent moved this watch's end without asking. Undo puts the earlier end back.",
+    watchNoEnd: "until cancelled",
+    watchUndone: "Undone: the watch ends as before.",
+    watchChangedAgain: "This watch changed since. Nothing to undo.",
+    watchRemoved: "This watch no longer exists.",
+    stopTightenedTitle: "Stop loss tightened",
+    stopLoss: "Stop loss",
+    stopTightenedLine: "Stop loss tightened. No undo: loosening it again would be a new order.",
   },
   ar: {
     resumeTitle: "استئناف التداول",
@@ -537,6 +547,15 @@ export const ownerActionLabels = {
     connect: "ربط",
     connected: "تم الربط. لا يرى الوكلاء إلا أنه مُعدّ.",
     alreadyConnected: "هذا مربوط مسبقًا. لم يتغير شيء.",
+    watchChangedTitle: "مُدّدت مراقبة",
+    watchChangedHint: "مدّد الوكيل نهاية هذه المراقبة دون أن يسأل. «تراجع» يعيد النهاية السابقة.",
+    watchNoEnd: "حتى الإلغاء",
+    watchUndone: "تم التراجع: تنتهي المراقبة كما كانت.",
+    watchChangedAgain: "تغيّرت هذه المراقبة بعد ذلك. لا شيء للتراجع عنه.",
+    watchRemoved: "لم تعد هذه المراقبة موجودة.",
+    stopTightenedTitle: "شُدّ وقف الخسارة",
+    stopLoss: "وقف الخسارة",
+    stopTightenedLine: "شُدّ وقف الخسارة. لا تراجع: إرخاؤه من جديد أمر جديد.",
   },
 } as const satisfies Record<Language, Record<string, string>>;
 export type OwnerActionText = (typeof ownerActionLabels)[Language];
@@ -618,7 +637,7 @@ function actionLabel(action: string | null, lang: Language): string {
 function settledLine(card: OwnerAction, text: OwnerActionText, lang: Language): string | null {
   if (card.status === "pending") return null;
   if (card.status === "cancelled")
-    return card.kind === "agent_created"
+    return card.kind === "agent_created" || card.kind === "watch_changed"
       ? text.kept
       : card.kind === "supervision_created" || card.kind === "supervision_stopped"
         ? text.supervisionKept
@@ -664,6 +683,10 @@ function settledLine(card: OwnerAction, text: OwnerActionText, lang: Language): 
             : text.trusted;
       case "connect_credential":
         return text.connected;
+      case "watch_changed":
+        return text.watchUndone;
+      case "stop_tightened":
+        return text.stopTightenedLine;
       case "resolve_operation":
         return card.result.outcome === "executed"
           ? text.recordedExecuted
@@ -707,6 +730,10 @@ function settledLine(card: OwnerAction, text: OwnerActionText, lang: Language): 
       return text.alreadyEnded;
     case "watch_expired":
       return text.watchExpired;
+    case "watch_changed_again":
+      return text.watchChangedAgain;
+    case "watch_removed":
+      return text.watchRemoved;
     case "source_already_trusted":
       return text.alreadyTrusted;
     case "mcp_connection_missing":
@@ -1446,6 +1473,44 @@ export function ownerActionCard(
       ];
       break;
     }
+    case "watch_changed": {
+      title = text.watchChangedTitle;
+      const watch = facts.watch;
+      if (watch) {
+        const end = (value: string | null) =>
+          value ? `${text.until} ${readinessTime(value, locale, now)}` : text.watchNoEnd;
+        lines.push(
+          [
+            ...(watch.symbol ? [isolate(watch.symbol)] : []),
+            `${end(watch.previous_expires_at)} ${arrow(lang)} ${end(watch.expires_at)}`,
+          ].join(" · "),
+        );
+      }
+      if (!watch?.active) {
+        // Changed again or removed since: the notice can only be dismissed.
+        hint = watch ? text.watchChangedAgain : text.watchRemoved;
+        buttons = [{ key: "cancel", label: text.keep, decision: "cancel", primary: false }];
+        break;
+      }
+      hint = text.watchChangedHint;
+      buttons = [
+        { key: "confirm", label: text.undo, decision: "confirm", primary: false },
+        { key: "cancel", label: text.keep, decision: "cancel", primary: false },
+      ];
+      break;
+    }
+    case "stop_tightened": {
+      // A notice only (Q31): recorded settled, nothing to tap.
+      title = text.stopTightenedTitle;
+      const stop = facts.stop;
+      if (stop)
+        lines.push(
+          `${isolate(stop.symbol)} · ${text.stopLoss}: ${
+            stop.previous_stop_loss ? isolate(stop.previous_stop_loss) : text.notSet
+          } ${arrow(lang)} ${isolate(stop.stop_loss)}`,
+        );
+      break;
+    }
     case "supervise": {
       title = text.superviseTitle;
       lines.push(...supervisionLines(card, lang, text));
@@ -1695,6 +1760,22 @@ const errors: Readonly<Record<string, { en: string; ar: string }>> = {
   owner_action_connection_mismatch: {
     en: "That connection does not match this card.",
     ar: "هذا الربط لا يطابق هذه البطاقة.",
+  },
+  owner_action_not_renewable: {
+    en: "This card can no longer be asked again. Nothing changed.",
+    ar: "لم يعد ممكنًا طلب هذه البطاقة من جديد. لم يتغير شيء.",
+  },
+  owner_action_pause_unsupported: {
+    en: "This card cannot pause new trades.",
+    ar: "لا تستطيع هذه البطاقة إيقاف الصفقات الجديدة.",
+  },
+  trade_approval_expired: {
+    en: "This request expired. Ask for a new one.",
+    ar: "انتهت مدة هذا الطلب. اطلب طلبًا جديدًا.",
+  },
+  trade_approval_not_renewable: {
+    en: "This request is still waiting or was already answered.",
+    ar: "هذا الطلب ما زال بانتظارك أو سبقت الإجابة عليه.",
   },
   mcp_owner_trust_disabled: {
     en: "This server's operator allows only declared MCP tools.",
