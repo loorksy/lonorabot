@@ -49,6 +49,10 @@ class IncomingCallPolicy(Contract):
     timezone: str = "UTC"
     quiet_start_hour: int | None = Field(default=None, ge=0, le=23)
     quiet_end_hour: int | None = Field(default=None, ge=0, le=23)
+    # Owner decision Q47: quiet hours to the minute (minutes after local midnight). The
+    # whole-hour fields stay for clients that only know hours and always follow these.
+    quiet_start_minute: int | None = Field(default=None, ge=0, le=1439)
+    quiet_end_minute: int | None = Field(default=None, ge=0, le=1439)
     ttl_seconds: int = Field(default=45, ge=15, le=120)
     minimum_interval_seconds: int = Field(default=300, ge=60, le=86400)
 
@@ -73,23 +77,46 @@ class IncomingCallPolicy(Contract):
         self.enabled = self.channel == "call"
         if self.enabled and not self.device_id:
             raise ValueError("incoming_call_device_required")
-        if (self.quiet_start_hour is None) != (self.quiet_end_hour is None):
+        self._align_quiet_minutes()
+        if (self.quiet_start_minute is None) != (self.quiet_end_minute is None):
             raise ValueError("incoming_call_quiet_hours_incomplete")
         return self
 
+    def _align_quiet_minutes(self) -> None:
+        """Hours and minutes describe one window. A client that sends only hours (or an hour
+        that disagrees with a stored minute) sets the minute on the hour; clearing the hours
+        clears the window."""
+        hours_sent = {"quiet_start_hour", "quiet_end_hour"} & self.model_fields_set
+        if hours_sent and self.quiet_start_hour is None and self.quiet_end_hour is None:
+            self.quiet_start_minute = self.quiet_end_minute = None
+            return
+        for side in ("start", "end"):
+            hour: int | None = getattr(self, f"quiet_{side}_hour")
+            minute: int | None = getattr(self, f"quiet_{side}_minute")
+            if hour is not None and (minute is None or minute // 60 != hour):
+                setattr(self, f"quiet_{side}_minute", hour * 60)
+            elif hour is None and minute is not None:
+                setattr(self, f"quiet_{side}_hour", minute // 60)
+
     def quiet(self, now: datetime) -> bool:
-        if self.quiet_start_hour is None or self.quiet_end_hour is None:
+        if self.quiet_start_minute is None or self.quiet_end_minute is None:
             return False
-        hour = now.astimezone(ZoneInfo(self.timezone)).hour
-        start, end = self.quiet_start_hour, self.quiet_end_hour
-        return start <= hour < end if start < end else hour >= start or hour < end
+        local = now.astimezone(ZoneInfo(self.timezone))
+        minute = local.hour * 60 + local.minute
+        start, end = self.quiet_start_minute, self.quiet_end_minute
+        return start <= minute < end if start < end else minute >= start or minute < end
 
     def quiet_until(self, now: datetime) -> datetime | None:
         """When the current quiet hours end, or None outside them."""
-        if not self.quiet(now) or self.quiet_end_hour is None:
+        if not self.quiet(now) or self.quiet_end_minute is None:
             return None
         local = now.astimezone(ZoneInfo(self.timezone))
-        end = local.replace(hour=self.quiet_end_hour, minute=0, second=0, microsecond=0)
+        end = local.replace(
+            hour=self.quiet_end_minute // 60,
+            minute=self.quiet_end_minute % 60,
+            second=0,
+            microsecond=0,
+        )
         if end <= local:
             end += timedelta(days=1)
         return end.astimezone(UTC)

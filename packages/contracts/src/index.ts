@@ -8,6 +8,7 @@ export type * from "./devices";
 export type * from "./domain";
 export type * from "./events";
 export type * from "./models";
+export type * from "./notifications";
 export type * from "./owner-actions";
 export type * from "./performance";
 export type * from "./runs";

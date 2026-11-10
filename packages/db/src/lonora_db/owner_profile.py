@@ -205,9 +205,19 @@ def preferences_snapshot(policy: IncomingCallPolicy, reply_language: str | None)
     )
 
 
+def _clock(minute: int) -> str:
+    return f"{minute // 60:02d}:{minute % 60:02d}"
+
+
 def _quiet(policy: dict[str, Any]) -> str | None:
-    start, end = policy.get("quiet_start_hour"), policy.get("quiet_end_hour")
-    return None if start is None or end is None else f"{start}-{end}"
+    start, end = policy.get("quiet_start_minute"), policy.get("quiet_end_minute")
+    if start is None or end is None:
+        # A revision stored before minutes existed holds whole hours only.
+        start_hour, end_hour = policy.get("quiet_start_hour"), policy.get("quiet_end_hour")
+        if start_hour is None or end_hour is None:
+            return None
+        start, end = start_hour * 60, end_hour * 60
+    return f"{_clock(start)}-{_clock(end)}"
 
 
 PREFERENCE_FIELDS: tuple[tuple[str, Callable[[dict[str, Any]], Any]], ...] = (
@@ -301,6 +311,8 @@ def preferences_data(policy: IncomingCallPolicy, reply_language: str | None) -> 
         "reach_me": policy.channel,
         "quiet_start_hour": policy.quiet_start_hour,
         "quiet_end_hour": policy.quiet_end_hour,
+        "quiet_start_minute": policy.quiet_start_minute,
+        "quiet_end_minute": policy.quiet_end_minute,
         "timezone": policy.timezone,
         "device_selected": policy.device_id is not None,
         "opportunity_calls": policy.opportunities,

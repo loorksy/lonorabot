@@ -26,6 +26,7 @@ ROUTES = (
     "agent_permissions",
     "agent_models",
     "onboarding",
+    "agent_delivery",
     "agents",
     "agent_state",
     "execution_mode",

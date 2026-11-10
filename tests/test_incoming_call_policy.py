@@ -28,3 +28,32 @@ def test_quiet_hours_handle_overnight_and_local_timezone():
     assert IncomingCallPolicy(quiet_start_hour=8, quiet_end_hour=17).quiet(
         datetime(2026, 10, 21, 12, tzinfo=UTC)
     )
+
+
+def test_quiet_hours_to_the_minute():
+    """Owner decision Q47: quiet hours are kept in minutes (22:30 → 07:15)."""
+    policy = IncomingCallPolicy(quiet_start_minute=22 * 60 + 30, quiet_end_minute=7 * 60 + 15)
+    assert (policy.quiet_start_hour, policy.quiet_end_hour) == (22, 7)
+    assert not policy.quiet(datetime(2026, 10, 21, 22, 29, tzinfo=UTC))
+    assert policy.quiet(datetime(2026, 10, 21, 22, 30, tzinfo=UTC))
+    assert policy.quiet(datetime(2026, 10, 22, 7, 14, tzinfo=UTC))
+    assert not policy.quiet(datetime(2026, 10, 22, 7, 15, tzinfo=UTC))
+    until = policy.quiet_until(datetime(2026, 10, 22, 3, 0, tzinfo=UTC))
+    assert until == datetime(2026, 10, 22, 7, 15, tzinfo=UTC)
+
+
+def test_hour_only_clients_keep_working():
+    """A client that only knows whole hours (mobile, the memory tool) sets minutes on the hour;
+    a stored minute that disagrees with a newly sent hour yields to the hour."""
+    legacy = IncomingCallPolicy(quiet_start_hour=22, quiet_end_hour=6)
+    assert (legacy.quiet_start_minute, legacy.quiet_end_minute) == (1320, 360)
+    edited = IncomingCallPolicy(
+        quiet_start_hour=23, quiet_end_hour=6, quiet_start_minute=1350, quiet_end_minute=375
+    )
+    assert (edited.quiet_start_minute, edited.quiet_end_minute) == (1380, 375)
+    cleared = IncomingCallPolicy(quiet_start_hour=None, quiet_end_hour=None)
+    assert cleared.quiet_start_minute is None and cleared.quiet_end_minute is None
+    with pytest.raises(ValidationError):
+        IncomingCallPolicy(quiet_start_minute=1440, quiet_end_minute=0)
+    with pytest.raises(ValidationError):
+        IncomingCallPolicy(quiet_start_minute=60)

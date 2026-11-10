@@ -310,6 +310,31 @@ class ChatListRow(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class AgentDeliveryRulesRow(Base):
+    """Per-agent delivery rules (Q47): in-app alerts, calls and a daily alert limit.
+
+    No row = the owner-wide policy alone. The rules only narrow delivery; urgent items
+    always show and nothing here grants authority."""
+
+    __tablename__ = "ln_agent_delivery_rules"
+    __table_args__ = (
+        CheckConstraint(
+            "daily_limit IS NULL OR (daily_limit >= 1 AND daily_limit <= 100)",
+            name="ln_agent_delivery_rules_daily_limit",
+        ),
+    )
+    owner_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_owners.id", ondelete="CASCADE"), primary_key=True
+    )
+    agent_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_agents.id", ondelete="CASCADE"), primary_key=True
+    )
+    in_app: Mapped[bool] = mapped_column(default=True, server_default=text("true"))
+    calls: Mapped[bool] = mapped_column(default=True, server_default=text("true"))
+    daily_limit: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class ChatListMemberRow(Base):
     __tablename__ = "ln_chat_list_members"
     list_id: Mapped[str] = mapped_column(
