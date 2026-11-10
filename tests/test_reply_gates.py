@@ -11,6 +11,7 @@ from lonora_agent.reply_gates import (
     code_deliverable,
     code_requested,
     entry_refusal,
+    limit_notice,
     stop_requested,
 )
 from lonora_agent.stop_gates import reset_stop_gate
@@ -85,6 +86,14 @@ def test_closing_and_protecting_stay_possible_under_a_stop_request(action: str) 
     messages = [owner("stop trading now")]
     assert entry_refusal(messages, call("trade_execute", action=action)) is None
     assert entry_refusal(messages, call("trade_close_positions")) is None
+
+
+@pytest.mark.parametrize("text", ["استأنف التداول", "استئناف التداول", "resume trading"])
+def test_a_resume_request_is_never_answered_with_an_entry(text: str) -> None:
+    # G0 I07: «استأنف التداول» became a BUY 0.01 XAUUSD proposal.
+    refused = entry_refusal([owner(text)], call("trade_execute", action="buy", symbol="XAUUSD"))
+    assert refused is not None and refused["code"] == "owner_control_request_no_entry"
+    assert "owner_action_propose" in refused["message"]
 
 
 def test_only_the_latest_owner_message_counts() -> None:
@@ -170,6 +179,26 @@ def test_reads_failures_and_earlier_requests_do_not_support_a_claim() -> None:
         owner("ألغِ التنبيه"),
     ]
     assert not claim_gate({}, earlier, "ألغيت التنبيه.", EFFECTS).passed
+
+
+def test_a_cancellation_claim_needs_a_cancelling_tool() -> None:
+    # G0 J05: watch_create(enabled=false), then «تم الإلغاء».
+    created = [owner("ألغِ التنبيه"), *result("watch_create", {"ok": True})]
+    effects = EFFECTS | {"watch_create"}
+    assert not claim_gate({}, created, "تم الإلغاء.", effects).passed
+    assert not claim_gate({}, created, "I've cancelled the alert.", effects).passed
+    cancelled = [owner("ألغِ التنبيه"), *result("watch_cancel", {"ok": True})]
+    assert claim_gate({}, cancelled, "تم الإلغاء.", effects).passed
+    # Other claims still accept any successful effect.
+    assert claim_gate({}, created, "تم حفظ التنبيه.", effects).passed
+
+
+def test_a_limit_the_owner_adopts_is_not_a_memory_note() -> None:
+    # G0 I10: «اعتمد 1% كحد أقصى لكل صفقة» became memory_write and «تم حفظه».
+    assert limit_notice([owner("اعتمد 1% كحد أقصى لكل صفقة")], "memory_write")
+    assert limit_notice([owner("set my max risk per trade to 1%")], "memory_write")
+    assert limit_notice([owner("اعتمد 1% كحد أقصى لكل صفقة")], "account_read") is None
+    assert limit_notice([owner("تذكر أنني أفضّل الردود المختصرة")], "memory_write") is None
 
 
 def test_a_reply_without_a_claim_passes_untouched() -> None:

@@ -30,7 +30,7 @@ from .loop_outcomes import (
     rich_metadata,
 )
 from .progress import progress
-from .reply_gates import entry_refusal
+from .reply_gates import entry_refusal, limit_notice
 from .runtime_notices import attach_notice
 from .skills.access import admitted_view_ids
 from .tool_batch import Segment, gather_bounded, next_segment
@@ -342,6 +342,8 @@ async def run_and_record_segment(
             decision = after_call(state, call, tool, result, failed=record["failures"] > 0)
             if decision.action in {"warn", "halt"}:
                 attach_notice(result, "tool_guardrail", decision.message)
+        if result.get("ok") is not False and (notice := limit_notice(messages, call.name)):
+            attach_notice(result, "owner_control", notice)
         if result.get("_runtime_retry"):
             clear_inflight(environment, {later.id for later in segment.calls[index:]})
             state["waiting_call_id"] = call.id
