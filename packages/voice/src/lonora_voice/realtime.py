@@ -26,6 +26,7 @@ from .handoff import (
     timestamp,
     transcript_fragment,
 )
+from .sessions import log_voice_call
 
 logger = logging.getLogger(__name__)
 
@@ -515,6 +516,8 @@ class RealtimeVoiceSession:
                         return
                     if row.payload.get("status") not in {"closing", "closed", "failed"}:
                         row.payload = {**row.payload, "status": "connected"}
+                        # The call log's duration starts here (lonora_voice.sessions).
+                        row.state = {**row.state, "connected_at": time.time()}
                 receiver = asyncio.create_task(self.receive(connection))
                 try:
                     while not receiver.done() and await self.tick():
@@ -561,6 +564,8 @@ class RealtimeVoiceSession:
                         **row.state,
                         "finalized": bool(row.state.get("finalized") or finalized),
                     }
+                    # A call the far side or the transport ended is logged too.
+                    await log_voice_call(session, row)
 
     async def receive(self, connection: ClientConnection) -> None:
         async for raw in connection:

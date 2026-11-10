@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import Any, cast
 
 from lonora_adapter_kit.types import ModelMessage
+from lonora_core.message_preview import model_content
 from lonora_db.schema import AgentRow, MessageRow, RunRow
 from lonora_tools.runtime_control import WaitInput
 from pydantic import ValidationError
@@ -151,10 +152,11 @@ async def history_context(
     messages: list[ModelMessage] = []
     for row in reversed(rows):
         peer = bool(agent_id and row.agent_id and row.agent_id != agent_id)
+        text = model_content(row.content, row.rich_content)
         content = (
-            "[Peer " + names.get(row.agent_id or "", row.agent_id or "") + "]\n" + row.content
+            "[Peer " + names.get(row.agent_id or "", row.agent_id or "") + "]\n" + text
             if peer
-            else row.content
+            else text
         )
         content += options.get(row.id, "")
         messages.append(

@@ -9,6 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .events import emit
+from .rich_response import server_rich_content
 from .runs import run_data
 from .schema import (
     AgentRow,
@@ -18,8 +19,27 @@ from .schema import (
     MessageRow,
     RunRow,
     SteeringRow,
+    ThreadRow,
 )
 from .transactions import owned_agent, owned_thread
+
+# A voice note waiting for its transcript; the receipt is removed once it settles.
+VOICE_NOTE_PENDING = "voice-note:"
+VOICE_MEDIA_TYPES = frozenset({"audio/webm", "audio/ogg", "audio/mp4", "audio/mpeg", "audio/wav"})
+
+
+async def voice_artifact(
+    session: AsyncSession, owner_id: str, thread_id: str, artifact_id: str
+) -> ArtifactRow:
+    """The owner's audio artifact uploaded to this thread (a recorder's codec suffix is
+    ignored: ``audio/webm;codecs=opus`` is ``audio/webm``)."""
+    artifact = await session.get(ArtifactRow, artifact_id)
+    if artifact is None or artifact.owner_id != owner_id:
+        raise LonoraError("artifact_not_found", 404)
+    media_type = str(artifact.payload.get("media_type", "")).split(";")[0].strip().lower()
+    if artifact.thread_id != thread_id or media_type not in VOICE_MEDIA_TYPES:
+        raise LonoraError("voice_artifact_invalid", 422)
+    return artifact
 
 
 def message_data(row: MessageRow) -> dict[str, Any]:
@@ -247,6 +267,16 @@ async def send_message(
         artifact = await session.get(ArtifactRow, artifact_id)
         if artifact is None or artifact.owner_id != owner_id:
             raise LonoraError("artifact_not_found", 404)
+    rich_content = None
+    if request.voice:
+        await voice_artifact(session, owner_id, thread_id, request.voice.artifact_id)
+        rich_content = server_rich_content(
+            {
+                **request.voice.model_dump(mode="json"),
+                "type": "voice",
+                "transcript_status": "pending",
+            }
+        )
     message = MessageRow(
         thread_id=thread_id,
         seq=thread.next_seq,
@@ -258,8 +288,10 @@ async def send_message(
                 "mention_all",
                 "collaboration_session_id",
                 "input_answer",
+                "voice",
             }
         ),
+        rich_content=rich_content,
         mentions={
             "agent_ids": list(dict.fromkeys(request.mention_agent_ids)),
             "all": request.mention_all,
@@ -275,6 +307,45 @@ async def send_message(
         thread.title = request.content[:80]
     session.add(message)
     await session.flush()
+    if request.voice:
+        # The Agent never answers an empty message: Runs are admitted once the
+        # transcript lands (lonora_db.voice_notes.settle_voice_note).
+        run_ids: list[str] = []
+        session.add(
+            EffectReceiptRow(
+                key=VOICE_NOTE_PENDING + message.id,
+                result={"owner_id": owner_id, "thread_id": thread_id, "message_id": message.id},
+            )
+        )
+    else:
+        run_ids = await admit_runs(
+            session, owner_id, thread, message, request, reply, answer_run, collaboration
+        )
+    receipt_result: dict[str, Any] = {"run_ids": run_ids}
+    if request.input_answer:
+        receipt_result["input_answer"] = request.input_answer.model_dump()
+    session.add(EffectReceiptRow(key="message:" + message.id, result=receipt_result))
+    emit(session, owner_id, "message.created", thread_id=thread_id, payload=message_data(message))
+    return {
+        "message": message_data(message),
+        "run_ids": run_ids,
+        "runs": await acknowledged_runs(session, run_ids),
+        "deduplicated": False,
+    }
+
+
+async def admit_runs(
+    session: AsyncSession,
+    owner_id: str,
+    thread: ThreadRow,
+    message: MessageRow,
+    request: MessageCreate,
+    reply: MessageRow | None,
+    answer_run: RunRow | None,
+    collaboration: Any,
+) -> list[str]:
+    """Start or steer the Runs an owner message asks for; returns their ids."""
+    thread_id = thread.id
     targets: list[str] = []
     if thread.agent_id:
         targets = [thread.agent_id]
@@ -412,14 +483,4 @@ async def send_message(
                 message_id=message.id,
                 session_id=collaboration.id if collaboration else None,
             )
-    receipt_result: dict[str, Any] = {"run_ids": run_ids}
-    if request.input_answer:
-        receipt_result["input_answer"] = request.input_answer.model_dump()
-    session.add(EffectReceiptRow(key="message:" + message.id, result=receipt_result))
-    emit(session, owner_id, "message.created", thread_id=thread_id, payload=message_data(message))
-    return {
-        "message": message_data(message),
-        "run_ids": run_ids,
-        "runs": await acknowledged_runs(session, run_ids),
-        "deduplicated": False,
-    }
+    return run_ids

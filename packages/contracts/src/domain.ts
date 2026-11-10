@@ -36,6 +36,20 @@ export type Thread = {
   created_at: string;
 };
 export type InputAnswer = { run_id: string; question_id: string; choice_id: string };
+/** A recorded voice note: the audio artifact uploaded to the thread, duration and 44 peaks. */
+export type VoiceNote = { artifact_id: string; duration: number; peaks: number[] };
+/** POST /threads/{id}/messages. With `voice` the content stays empty (the server transcribes). */
+export type MessageCreate = {
+  content?: string;
+  client_nonce?: string;
+  reply_to?: string | null;
+  attachment_ids?: string[];
+  mention_agent_ids?: string[];
+  mention_all?: boolean;
+  collaboration_session_id?: string | null;
+  input_answer?: InputAnswer | null;
+  voice?: VoiceNote | null;
+};
 export type Message = {
   /** Owner messages: the agent's run started on this message (two accent ticks). */
   consumed?: boolean | null;
