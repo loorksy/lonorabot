@@ -1,6 +1,6 @@
 import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import type { Candle, Resource } from "../../lib/api";
 import { type ChartScene, type ChartState, charts, readScene } from "../../lib/charts";
 import { readCandles } from "../../lib/market";
@@ -9,7 +9,6 @@ import { useClient } from "../../providers/ClientProvider";
 import { SkPage } from "../Skeleton";
 import { useSheets } from "../sheets/SheetHost";
 import { layout } from "./chart-geometry";
-import { scoped } from "./scope";
 import "./agent.css";
 
 const FRAMES = ["5m", "15m", "1h", "4h"] as const;
@@ -67,6 +66,8 @@ export function CandleChart({
     },
   });
   const { fs, right } = g;
+  // Everything on the price scale stays in the price area, out of the oscillator panes.
+  const clip = `ag-plot-${useId().replace(/:/g, "")}`;
   return (
     <svg
       ref={ref}
@@ -75,6 +76,11 @@ export function CandleChart({
       role="img"
       aria-label={t`Market chart`}
     >
+      <defs>
+        <clipPath id={clip}>
+          <rect x={f(g.plot.x)} y={f(g.plot.y)} width={f(g.plot.w)} height={f(g.plot.h)} />
+        </clipPath>
+      </defs>
       {g.grid.map((line) => (
         <g key={line.label}>
           <path
@@ -92,30 +98,32 @@ export function CandleChart({
           </text>
         </g>
       ))}
-      {g.shapes.map((shape, index) =>
-        shape.kind === "box" ? (
-          // biome-ignore lint/suspicious/noArrayIndexKey: drawings have no stable key here
-          <g key={index} data-overlay="zone">
-            <rect
-              x={f(shape.x)}
-              y={f(shape.y)}
-              width={f(shape.w)}
-              height={f(shape.h)}
-              style={{ fill: TONE[shape.tone], fillOpacity: 0.14, stroke: TONE[shape.tone] }}
-            />
-            {shape.label && (
-              <text
-                x={f(shape.x + 4)}
-                y={f(shape.y + fs)}
-                style={{ fill: TONE[shape.tone] }}
-                fontSize={fs}
-              >
-                {shape.label}
-              </text>
-            )}
-          </g>
-        ) : null,
-      )}
+      <g clipPath={`url(#${clip})`}>
+        {g.shapes.map((shape, index) =>
+          shape.kind === "box" ? (
+            // biome-ignore lint/suspicious/noArrayIndexKey: drawings have no stable key here
+            <g key={index} data-overlay="zone">
+              <rect
+                x={f(shape.x)}
+                y={f(shape.y)}
+                width={f(shape.w)}
+                height={f(shape.h)}
+                style={{ fill: TONE[shape.tone], fillOpacity: 0.14, stroke: TONE[shape.tone] }}
+              />
+              {shape.label && (
+                <text
+                  x={f(shape.x + 4)}
+                  y={f(shape.y + fs)}
+                  style={{ fill: TONE[shape.tone] }}
+                  fontSize={fs}
+                >
+                  {shape.label}
+                </text>
+              )}
+            </g>
+          ) : null,
+        )}
+      </g>
       {g.bars.map((bar, i) => {
         const x = g.X(i);
         const color = bar.c >= bar.o ? "var(--mint)" : "var(--red)";
@@ -134,87 +142,94 @@ export function CandleChart({
           </g>
         );
       })}
-      {g.priceLines.map((line) => (
-        <polyline
-          key={line.name}
-          data-overlay="indicator"
-          points={line.points}
-          fill="none"
-          style={{ stroke: "var(--accent)" }}
-          strokeWidth="1.5"
-        />
-      ))}
-      {g.shapes.map((shape, index) => {
-        if (shape.kind === "hline")
-          return (
-            // biome-ignore lint/suspicious/noArrayIndexKey: drawings have no stable key here
-            <g key={index} data-overlay="line">
-              <path
-                d={`M${f(shape.x1)} ${f(shape.y)}H${f(shape.x2)}`}
-                style={{ stroke: TONE[shape.tone] }}
-                strokeDasharray={shape.dash ? "6 4" : undefined}
-              />
-              {shape.label && (
-                <text
-                  x={f(shape.x1 + 3)}
-                  y={f(shape.y - fs * 0.4)}
-                  style={{ fill: TONE[shape.tone] }}
-                  fontSize={fs}
-                >
-                  {shape.label}
-                </text>
-              )}
-            </g>
-          );
-        if (shape.kind === "segment")
-          return (
-            // biome-ignore lint/suspicious/noArrayIndexKey: drawings have no stable key here
-            <g key={index} data-overlay={shape.arrow ? "arrow" : "segment"}>
-              <line
-                x1={f(shape.x1)}
-                y1={f(shape.y1)}
-                x2={f(shape.x2)}
-                y2={f(shape.y2)}
-                style={{ stroke: TONE[shape.tone] }}
-                strokeWidth="1.5"
-              />
-              {shape.arrow && (
+      <g clipPath={`url(#${clip})`}>
+        {g.priceLines.map((line) => (
+          <polyline
+            key={line.name}
+            data-overlay="indicator"
+            points={line.points}
+            fill="none"
+            style={{ stroke: "var(--accent)" }}
+            strokeWidth="1.5"
+          />
+        ))}
+        {g.shapes.map((shape, index) => {
+          if (shape.kind === "hline")
+            return (
+              // biome-ignore lint/suspicious/noArrayIndexKey: drawings have no stable key here
+              <g key={index} data-overlay="line">
+                <path
+                  d={`M${f(shape.x1)} ${f(shape.y)}H${f(shape.x2)}`}
+                  style={{ stroke: TONE[shape.tone] }}
+                  strokeDasharray={shape.dash ? "6 4" : undefined}
+                />
+                {shape.label && (
+                  <text
+                    x={f(shape.x1 + 3)}
+                    y={f(shape.y - fs * 0.4)}
+                    style={{ fill: TONE[shape.tone] }}
+                    fontSize={fs}
+                  >
+                    {shape.label}
+                  </text>
+                )}
+              </g>
+            );
+          if (shape.kind === "segment")
+            return (
+              // biome-ignore lint/suspicious/noArrayIndexKey: drawings have no stable key here
+              <g key={index} data-overlay={shape.arrow ? "arrow" : "segment"}>
+                <line
+                  x1={f(shape.x1)}
+                  y1={f(shape.y1)}
+                  x2={f(shape.x2)}
+                  y2={f(shape.y2)}
+                  style={{ stroke: TONE[shape.tone] }}
+                  strokeWidth="1.5"
+                />
+                {shape.arrow && (
+                  <circle
+                    cx={f(shape.x2)}
+                    cy={f(shape.y2)}
+                    r={3}
+                    style={{ fill: TONE[shape.tone] }}
+                  />
+                )}
+              </g>
+            );
+          if (shape.kind === "note")
+            return (
+              // biome-ignore lint/suspicious/noArrayIndexKey: drawings have no stable key here
+              <g key={index} data-overlay="note">
                 <circle
-                  cx={f(shape.x2)}
-                  cy={f(shape.y2)}
-                  r={3}
+                  cx={f(shape.x)}
+                  cy={f(shape.y)}
+                  r={3.5}
                   style={{ fill: TONE[shape.tone] }}
                 />
-              )}
-            </g>
-          );
-        if (shape.kind === "note")
-          return (
-            // biome-ignore lint/suspicious/noArrayIndexKey: drawings have no stable key here
-            <g key={index} data-overlay="note">
-              <circle cx={f(shape.x)} cy={f(shape.y)} r={3.5} style={{ fill: TONE[shape.tone] }} />
-              {shape.text && (
-                <text
-                  x={f(shape.x - 6)}
-                  y={f(shape.y - fs * 0.6)}
-                  textAnchor="end"
-                  style={{ fill: TONE[shape.tone] }}
-                  fontSize={fs}
-                >
-                  {shape.text}
-                </text>
-              )}
-            </g>
-          );
-        return null;
-      })}
-      {g.pane && (
-        <g data-overlay="pane">
-          <path d={`M15 ${f(g.pane.top - fs * 0.8)}H${right}`} style={{ stroke: "var(--line)" }} />
-          <text x={18} y={f(g.pane.top + fs * 0.2)} style={{ fill: "var(--muted)" }} fontSize={fs}>
-            {g.pane.label}
+                {shape.text && (
+                  <text
+                    x={f(shape.x - 6)}
+                    y={f(shape.y - fs * 0.6)}
+                    textAnchor="end"
+                    style={{ fill: TONE[shape.tone] }}
+                    fontSize={fs}
+                  >
+                    {shape.text}
+                  </text>
+                )}
+              </g>
+            );
+          return null;
+        })}
+      </g>
+      {g.panes.map((pane) => (
+        <g key={pane.label} data-overlay="pane">
+          <path d={`M15 ${f(pane.top - fs * 0.8)}H${right}`} style={{ stroke: "var(--line)" }} />
+          <text x={18} y={f(pane.top + fs * 0.2)} style={{ fill: "var(--muted)" }} fontSize={fs}>
+            {pane.label}
           </text>
-          {g.pane.guides.map((guide) => (
+          {pane.guides.map((guide) => (
             <g key={guide.label}>
               <path
                 d={`M15 ${f(guide.y)}H${right}`}
@@ -231,7 +246,7 @@ export function CandleChart({
               </text>
             </g>
           ))}
-          {g.pane.lines.map((line) => (
+          {pane.lines.map((line) => (
             <polyline
               key={line.name}
               points={line.points}
@@ -241,7 +256,7 @@ export function CandleChart({
             />
           ))}
         </g>
-      )}
+      ))}
       {g.times.map((time) => (
         <text
           key={time.x}
@@ -282,23 +297,28 @@ export function ChartSheetBody({
   const [scene, setScene] = useState<ChartScene | null>(null);
   const [chosen, setChosen] = useState<string | null | undefined>(chartId);
   const [error, setError] = useState<unknown>();
-  // The chart whose scene is shown is decided once: the one named, or the agent's own.
+  // The chart named stays; otherwise the newest of the agent's charts on this pair, re-listed
+  // on every chart event (chart_open always makes a new chart, even on the same pair).
+  const chartEvents = events
+    .filter((event) => event.kind.startsWith("cloud_charts."))
+    .at(-1)?.cursor;
   useEffect(() => {
+    void chartEvents;
     if (chartId) return;
     let live = true;
     charts
       .list(agentId)
       .then((rows: Resource<ChartState>[]) => {
-        const mine = rows.find(
-          (row) => row.payload.account_id === accountId && row.payload.symbol === symbol,
-        );
+        const mine = rows
+          .filter((row) => row.payload.account_id === accountId && row.payload.symbol === symbol)
+          .sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
         if (live) setChosen(mine?.id ?? null);
       })
       .catch(() => live && setChosen(null));
     return () => {
       live = false;
     };
-  }, [chartId, agentId, accountId, symbol]);
+  }, [chartId, agentId, accountId, symbol, chartEvents]);
   const updated = events
     .filter((event) => event.kind === "cloud_charts.scene_updated" && event.payload?.id === chosen)
     .at(-1)?.cursor;
@@ -339,7 +359,7 @@ export function ChartSheetBody({
     setCandles(null);
   }, [frame]);
   return (
-    <div className="chart-body grow" data-chart-id={chosen ?? undefined}>
+    <div className="chart-body grow ag-scope" data-chart-id={chosen ?? undefined}>
       <div className="tabs" role="tablist">
         {FRAMES.map((item) => (
           <button
@@ -452,21 +472,19 @@ export function useChartSheet() {
         expand: true,
         title,
         label: pair ? `${t`Chart`} ${pair.symbol}` : t`Chart`,
-        body: scoped(
-          pair ? (
-            <ChartSheetBody
-              key={`${pair.accountId}:${pair.symbol}`}
-              accountId={pair.accountId}
-              symbol={pair.symbol}
-              agentId={options.agentId}
-            />
-          ) : (
-            <ChartById
-              chartId={options.chartId}
-              agentId={options.agentId}
-              threadId={options.threadId}
-            />
-          ),
+        body: pair ? (
+          <ChartSheetBody
+            key={`${pair.accountId}:${pair.symbol}`}
+            accountId={pair.accountId}
+            symbol={pair.symbol}
+            agentId={options.agentId}
+          />
+        ) : (
+          <ChartById
+            chartId={options.chartId}
+            agentId={options.agentId}
+            threadId={options.threadId}
+          />
         ),
       });
     },

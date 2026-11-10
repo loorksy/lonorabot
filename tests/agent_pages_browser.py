@@ -91,12 +91,21 @@ def agent_operations(owner: str, account: str, agent: str) -> list[TradingJourna
             {"action": "buy", "volume": "0.3"},
             {**verified, "price": "211.00", "volume": "0.3"},
         ),
+        # A MetaApi DONE_PARTIAL receipt as the executor writes it: never verified.
         row(
             30,
             "confirmed",
-            {"action": "sell_limit", "volume": "0.5", "price": "215"},
-            {**verified, "price": "215.00", "volume": "0.2"},
+            {"action": "sell", "volume": "0.5"},
+            {
+                "partial_execution": True,
+                "numeric_code": 10010,
+                "price": 209.5,
+                "volume": 0.2,
+                "verification": {"status": "pending"},
+            },
         ),
+        # A placed limit order: accepted by the broker, not filled, no fill price.
+        row(25, "confirmed", {"action": "buy_limit", "volume": "0.4", "price": "205"}, verified),
         row(20, "failed", {"action": "buy_stop", "volume": "0.1", "price": "220"}, {}),
         row(10, "resolved", {"action": "close_position", "position_id": "p-1"}, {}),
     ]

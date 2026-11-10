@@ -195,7 +195,8 @@ export function HeadsUp({ currentThreadId }: { currentThreadId?: string }) {
         </span>
       </button>
       <button type="button" className="btn small outline hu-reply" onClick={open}>
-        <Trans>Reply</Trans>
+        {/* A broker outage opens the recovery page under its own words, not «رد». */}
+        {banner.path ? <Trans>State details</Trans> : <Trans>Reply</Trans>}
       </button>
     </div>
   );

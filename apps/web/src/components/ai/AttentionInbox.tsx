@@ -132,7 +132,11 @@ export function AttentionInbox({
               void seen(item.id).catch(setError);
             }}
           >
-            <Trans>Open conversation</Trans>
+            {item.code === "broker_degraded" ? (
+              <Trans>State details</Trans>
+            ) : (
+              <Trans>Open conversation</Trans>
+            )}
           </Link>
           <button
             type="button"

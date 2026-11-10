@@ -174,8 +174,12 @@ test("trades: the owner's own close goes through the executor; the order log sho
   await expect(row("filled")).toContainText("211.00");
   await expect(row("partial")).toContainText("0.2 / 0.5");
   await expect(row("partial")).toContainText("Partly filled");
-  await expect(row("partial")).toContainText("Limit order");
+  await expect(row("partial")).toContainText("209.5");
+  // A placed limit order: «مقبول لدى الوسيط», and no price the broker did not give.
+  await expect(row("accepted")).toContainText("Limit order");
+  await expect(row("accepted")).not.toContainText("205");
   await expect(row("rejected")).toContainText("Stop order");
+  await expect(row("rejected")).not.toContainText("220");
   await expect(row("cancelled")).toContainText("Close the trade");
   const position = await card.getAttribute("data-position-id");
   await card.getByRole("button", { name: "Close the trade", exact: true }).click();

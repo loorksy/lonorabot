@@ -4,7 +4,11 @@ import { Trans } from "@lingui/react/macro";
 import { financialBoundaryError } from "@lonora/core";
 import { Icon } from "@lonora/ui-web";
 import { useState } from "react";
-import { modifyTicket, useTicketAction } from "../../components/trading/useTicketAction";
+import {
+  modifyTicket,
+  type TicketOutcome,
+  useTicketAction,
+} from "../../components/trading/useTicketAction";
 import type { AccountSummary, Agent, Journal, Position, Resource } from "../../lib/api";
 import { operationStatusLabel } from "../../lib/operation-status";
 import { userError } from "../../lib/user_error";
@@ -171,13 +175,8 @@ function Trades({ agent }: { agent: Agent }) {
             const action = String(request.action ?? "");
             const wording = orderWording(action);
             const fill = orderFill(entry);
-            // The broker's evidence price once filled; the asked price of a pending order.
-            const price =
-              state === "filled" || state === "partial"
-                ? fill.price
-                : request.price != null
-                  ? String(request.price)
-                  : null;
+            // A price only with the broker's evidence (a fill), never the asked one.
+            const price = fill.price;
             const asked = request.volume != null ? String(request.volume) : null;
             return (
               // The chat's order sheet (chat.messages.order-line) arrives with the journal's
@@ -194,10 +193,13 @@ function Trades({ agent }: { agent: Agent }) {
                 <span className="body">
                   <strong>
                     {wording.title}{" "}
-                    {asked && (
-                      <span className="ltr">
-                        {state === "partial" && fill.volume ? `${fill.volume} / ${asked}` : asked}
-                      </span>
+                    {state === "partial" ? (
+                      // The executed size when the broker gave it; otherwise no number.
+                      fill.volume && asked ? (
+                        <span className="ltr">{`${fill.volume} / ${asked}`}</span>
+                      ) : null
+                    ) : (
+                      asked && <span className="ltr">{asked}</span>
                     )}{" "}
                     <bdi>{String(request.symbol ?? "")}</bdi>
                   </strong>
@@ -263,9 +265,28 @@ function PositionCard({
   // The last thing the owner did is what the card reports: an old close never masks a
   // later modify, and each modify body has its own operation.
   const [last, setLast] = useState<{ action: "close" | "modify"; ticket: string } | null>(null);
-  const outcome =
-    last?.action === "modify" ? modify.outcome(last.ticket) : close.outcome(position.id);
-  const error = last?.action === "modify" ? modify.error : close.error;
+  // After a reload nothing was done in this session: the journal's latest operation on this
+  // position (the owner's own rows included) is what the card reports, unsettled or not.
+  const latest = (journal ?? [])
+    .filter(
+      (entry) =>
+        String(entry.request.position_id ?? "") === position.id &&
+        ["modify_position", "close_position"].includes(String(entry.request.action)),
+    )
+    .sort((a, b) => b.updated_at.localeCompare(a.updated_at))[0];
+  const restored: TicketOutcome | null = latest
+    ? {
+        status: latest.status,
+        details: latest.result.details,
+        code: typeof latest.result.code === "string" ? latest.result.code : null,
+      }
+    : null;
+  const outcome = last
+    ? last.action === "modify"
+      ? modify.outcome(last.ticket)
+      : close.outcome(position.id)
+    : restored;
+  const error = last?.action === "modify" ? modify.error : last ? close.error : undefined;
   const busy = close.busy(position.id) || (last ? modify.busy(last.ticket) : false);
   const openModify = () =>
     sheets.open({

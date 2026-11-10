@@ -72,24 +72,100 @@ test("an annotation scoped to other timeframes is not drawn", () => {
   assert.equal(g.shapes.length, 0);
 });
 
-test("oscillators get their own lower pane; RSI is never drawn on the price scale", () => {
+test("Fibonacci level L sits at start + (end − start) × L, labelled by its percentage", () => {
+  const g = layout({
+    ...base,
+    annotations: [
+      { type: "fibonacci", start: { time: at(30), price: 110 }, end: { time: at(35), price: 130 } },
+    ],
+  });
+  const lines = g.shapes.filter((shape) => shape.kind === "hline");
+  assert.deepEqual(
+    lines.map((line) => (line.kind === "hline" ? [line.label, +line.price.toFixed(3)] : null)),
+    [
+      ["0.0%", 110],
+      ["23.6%", 114.72],
+      ["38.2%", 117.64],
+      ["50.0%", 120],
+      ["61.8%", 122.36],
+      ["100.0%", 130],
+    ],
+  );
+  for (const line of lines)
+    if (line.kind === "hline") assert.ok(Math.abs(line.y - g.Y(line.price)) < 1e-9);
+});
+
+test("a ray and a trend line anchored before the window keep their true slope", () => {
+  // Anchors 60 and 50 bars before the first bar: far left of the window.
+  const before = (k: number) => new Date(bars[0].t - k * 15 * 60_000).toISOString();
+  const g = layout({
+    ...base,
+    annotations: [
+      {
+        type: "trend_line",
+        start: { time: before(60), price: 40 },
+        end: { time: at(30), price: 132 },
+      },
+      { type: "ray", start: { time: before(50), price: 50 }, end: { time: before(40), price: 60 } },
+    ],
+  });
+  const [trend, ray] = g.shapes;
+  assert.ok(trend.kind === "segment" && ray.kind === "segment");
+  // The first anchor lies left of the plot, never pulled onto its edge.
+  assert.ok(trend.x1 < g.plot.x && ray.x1 < g.plot.x);
+  const pxPerBar = 17;
+  const trendSlope = (trend.y2 - trend.y1) / (trend.x2 - trend.x1);
+  const expected = (g.Y(132) - g.Y(40)) / ((60 + 30) * pxPerBar);
+  assert.ok(Math.abs(trendSlope - expected) < 1e-9, "the trend line's slope is exact");
+  const raySlope = (ray.y2 - ray.y1) / (ray.x2 - ray.x1);
+  assert.ok(Math.abs(raySlope - (g.Y(60) - g.Y(50)) / (10 * pxPerBar)) < 1e-9);
+  assert.equal(ray.x2, g.right, "the ray runs on to the right edge");
+});
+
+test("a scenario at the latest bar keeps a readable width with its labels in the plot", () => {
+  const g = layout({
+    ...base,
+    annotations: [
+      {
+        type: "scenario",
+        start: { time: at(39), price: 140 },
+        end: { time: new Date(bars[39].t + 60_000).toISOString(), price: 145 },
+        stop: 138,
+      },
+    ],
+  });
+  for (const shape of g.shapes) {
+    assert.ok(shape.kind === "hline");
+    assert.ok(shape.x2 - shape.x1 >= 72);
+    assert.ok(shape.x1 >= g.plot.x && shape.x2 <= g.right);
+  }
+});
+
+test("each oscillator has its own lower pane; RSI is never drawn on the price scale", () => {
   const rsi = bars.map((_, i) => (i < 14 ? null : 30 + i));
+  const atr = bars.map((_, i) => (i < 14 ? null : 1 + i / 10));
   const g = layout({
     ...base,
     annotations: [],
     indicators: [
       { name: "rsi", period: 14, series: { value: rsi } },
+      { name: "atr", period: 14, series: { value: atr } },
       { name: "sma", period: 5, series: { value: bars.map((b) => b.c) } },
     ],
     indicatorTimes: bars.map((b) => b.t),
   });
-  assert.ok(g.pane);
-  assert.equal(g.pane.label, "RSI 14");
-  assert.ok(g.pane.top > g.bottom, "the pane sits under the candles");
-  const ys = g.pane.lines[0].points.split(" ").map((p) => Number(p.split(",")[1]));
-  for (const y of ys) assert.ok(y >= g.pane.top && y <= g.pane.bottom, `RSI y ${y} in its pane`);
+  assert.deepEqual(
+    g.panes.map((pane) => pane.label),
+    ["RSI 14", "ATR 14"],
+  );
+  assert.ok(g.panes[0].top > g.bottom && g.panes[1].top > g.panes[0].bottom);
+  for (const pane of g.panes) {
+    const ys = pane.lines[0].points.split(" ").map((p) => Number(p.split(",")[1]));
+    for (const y of ys) assert.ok(y >= pane.top && y <= pane.bottom, `y ${y} in ${pane.label}`);
+  }
   assert.deepEqual(
     g.priceLines.map((line) => line.name),
     ["sma:value"],
   );
+  assert.equal(g.plot.y + g.plot.h, g.bottom, "the price clip ends above the panes");
 });
