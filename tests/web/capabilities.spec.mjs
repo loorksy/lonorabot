@@ -139,7 +139,7 @@ for (const locale of ["en", "ar"])
       created.push(JSON.parse(decision.body).connected.id);
 
       const trust = page.locator(`[data-owner-action="${seeded.trust}"]`);
-      await expect(trust.locator("strong")).toHaveText(text.trustTitle);
+      await expect(trust.locator(".oa-kind")).toHaveText(text.trustTitle);
       await expect(trust).toContainText(`⁨${domain}⁩`);
       await trust.getByRole("button", { name: text.trust, exact: true }).click();
       await expect(trust).toHaveAttribute("data-owner-action-status", "confirmed");

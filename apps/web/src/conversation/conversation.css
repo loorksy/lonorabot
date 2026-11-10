@@ -4772,3 +4772,10 @@ span.no-trade {
   display: block;
   margin-bottom: 2px;
 }
+
+/* Lonora: a long placeholder stays on the one line of the empty field. */
+.composer textarea:placeholder-shown {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

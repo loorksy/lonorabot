@@ -176,6 +176,11 @@ export function Composer({
     if (!el) return;
     void text;
     el.style.height = "28px";
+    // An empty field stays one line: a long placeholder never grows it.
+    if (!text) {
+      el.style.overflowY = "hidden";
+      return;
+    }
     const cap = Math.min(164, Math.round(window.innerHeight * 0.34));
     el.style.height = `${Math.max(28, Math.min(cap, el.scrollHeight))}px`;
     el.style.overflowY = el.scrollHeight > cap ? "auto" : "hidden";
