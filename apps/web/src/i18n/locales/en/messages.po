@@ -530,11 +530,11 @@ msgid "Applies to every agent of this account"
 msgstr "Applies to every agent of this account"
 
 #: src/components/trading/TradeApprovals.tsx:147
-#: src/components/trading/TradeApprovals.tsx:196
+#: src/components/trading/TradeApprovals.tsx:198
 msgid "Approval request"
 msgstr "Approval request"
 
-#: src/components/trading/TradeApprovals.tsx:272
+#: src/components/trading/TradeApprovals.tsx:274
 msgid "Approve"
 msgstr "Approve"
 
@@ -810,7 +810,7 @@ msgstr "Broker server"
 msgid "Broker symbol"
 msgstr "Broker symbol"
 
-#: src/components/trading/TradeApprovals.tsx:257
+#: src/components/trading/TradeApprovals.tsx:259
 #: src/conversation/Cards.tsx:451
 msgid "Broker ticket"
 msgstr "Broker ticket"
@@ -1692,8 +1692,8 @@ msgstr "Discovered models"
 
 #: src/conversation/PermissionMenu.tsx:77
 #: src/conversation/PermissionMenu.tsx:80
-msgid "Does not trade"
-msgstr "Does not trade"
+#~ msgid "Does not trade"
+#~ msgstr "Does not trade"
 
 #: src/components/ai/AvatarStudio.tsx:189
 #~ msgid "Done"
@@ -1770,7 +1770,7 @@ msgstr "Edit the list"
 msgid "Edit the message"
 msgstr "Edit the message"
 
-#: src/conversation/Message.tsx:405
+#: src/conversation/Message.tsx:414
 msgid "Edited"
 msgstr "Edited"
 
@@ -1921,7 +1921,7 @@ msgstr "Existing tasks keep pinned instructions. Disabling a skill prevents its 
 #~ msgid "Expand chart"
 #~ msgstr "Expand chart"
 
-#: src/components/trading/TradeApprovals.tsx:149
+#: src/components/trading/TradeApprovals.tsx:150
 msgid "Expired"
 msgstr "Expired"
 
@@ -2678,7 +2678,7 @@ msgstr "Message composer"
 
 #: src/conversation/Conversation.tsx:490
 #: src/conversation/Conversation.tsx:513
-#: src/conversation/Message.tsx:519
+#: src/conversation/Message.tsx:528
 msgid "Message options"
 msgstr "Message options"
 
@@ -2841,7 +2841,7 @@ msgstr "New message"
 msgid "New owner skills use explicit activation and read-only metadata. They do not install code or grant permissions."
 msgstr "New owner skills use explicit activation and read-only metadata. They do not install code or grant permissions."
 
-#: src/components/trading/TradeApprovals.tsx:166
+#: src/components/trading/TradeApprovals.tsx:168
 msgid "New request"
 msgstr "New request"
 
@@ -3057,6 +3057,10 @@ msgstr "No skills available."
 msgid "No tickets yet"
 msgstr "No tickets yet"
 
+#: src/conversation/PermissionMenu.tsx:80
+msgid "No trading"
+msgstr "No trading"
+
 #: src/components/goals/TradingGoals.tsx:184
 msgid "No trading goals yet."
 msgstr "No trading goals yet."
@@ -3073,7 +3077,7 @@ msgstr "No watches."
 msgid "Not sent"
 msgstr "Not sent"
 
-#: src/conversation/Message.tsx:558
+#: src/conversation/Message.tsx:567
 msgid "Not sent · tap to retry"
 msgstr "Not sent · tap to retry"
 
@@ -3489,7 +3493,7 @@ msgstr "Previous / next chat"
 
 #: src/components/charts/ChartAnnotations.tsx:23
 #: src/components/market/MarketWatch.tsx:125
-#: src/components/trading/TradeApprovals.tsx:213
+#: src/components/trading/TradeApprovals.tsx:215
 msgid "Price"
 msgstr "Price"
 
@@ -3569,7 +3573,7 @@ msgstr "Ray"
 msgid "React {emoji}"
 msgstr "React {emoji}"
 
-#: src/conversation/Message.tsx:540
+#: src/conversation/Message.tsx:549
 msgid "React to the message"
 msgstr "React to the message"
 
@@ -3684,7 +3688,7 @@ msgstr "Register a passkey before activating this request."
 msgid "Regression"
 msgstr "Regression"
 
-#: src/components/trading/TradeApprovals.tsx:280
+#: src/components/trading/TradeApprovals.tsx:282
 msgid "Reject"
 msgstr "Reject"
 
@@ -3723,11 +3727,11 @@ msgstr "Remove from favourites"
 #~ msgid "Remove reply"
 #~ msgstr "Remove reply"
 
-#: src/components/trading/TradeApprovals.tsx:240
+#: src/components/trading/TradeApprovals.tsx:242
 msgid "Remove stop loss"
 msgstr "Remove stop loss"
 
-#: src/components/trading/TradeApprovals.tsx:250
+#: src/components/trading/TradeApprovals.tsx:252
 msgid "Remove take profit"
 msgstr "Remove take profit"
 
@@ -4447,8 +4451,8 @@ msgid "Stop"
 msgstr "Stop"
 
 #: src/components/goals/TradingGoals.tsx:228
-#: src/components/trading/TradeApprovals.tsx:221
-#: src/components/trading/TradeApprovals.tsx:237
+#: src/components/trading/TradeApprovals.tsx:223
+#: src/components/trading/TradeApprovals.tsx:239
 msgid "Stop loss"
 msgstr "Stop loss"
 
@@ -4546,8 +4550,8 @@ msgid "Symbols"
 msgstr "Symbols"
 
 #: src/components/goals/TradingGoals.tsx:229
-#: src/components/trading/TradeApprovals.tsx:229
-#: src/components/trading/TradeApprovals.tsx:247
+#: src/components/trading/TradeApprovals.tsx:231
+#: src/components/trading/TradeApprovals.tsx:249
 msgid "Take profit"
 msgstr "Take profit"
 
@@ -4760,7 +4764,7 @@ msgstr "The message is no longer available."
 msgid "The message was not sent"
 msgstr "The message was not sent"
 
-#: src/conversation/Message.tsx:531
+#: src/conversation/Message.tsx:540
 msgid "The message was not sent. Options"
 msgstr "The message was not sent. Options"
 
@@ -5672,7 +5676,7 @@ msgstr "You reached the usage limit"
 msgid "You set the markets, actions, duration and money limit"
 msgstr "You set the markets, actions, duration and money limit"
 
-#: src/conversation/Message.tsx:401
+#: src/conversation/Message.tsx:410
 msgid "You stopped the reply"
 msgstr "You stopped the reply"
 

@@ -74,10 +74,10 @@ export function PermissionChip({
   if (!agent) return null;
   if (!trading)
     return (
-      <span className="no-trade" role="note" aria-label={t`Does not trade`}>
+      <span className="no-trade" role="note" data-testid="permission-no-trading">
         <Icon name="eye" />
         <span>
-          <Trans>Does not trade</Trans>
+          <Trans>No trading</Trans>
         </span>
       </span>
     );
