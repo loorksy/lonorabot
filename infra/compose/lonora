@@ -43,7 +43,9 @@ DIGEST_RE='^[^[:space:]@]+@sha256:[0-9a-f]{64}$'
 # .env keys a backup may restore with --with-config. Never the database password (the
 # volume belongs to this installation), the overlays, or anything that selects code.
 RESTORABLE_KEY='^LONORA_[A-Z0-9_]+$'
-NEVER_RESTORED='^LONORA_(POSTGRES_PASSWORD|COMPOSE_OVERLAYS|IMAGE|IMAGE_REPO|DATABASE_URL|HOST_DATABASE_URL)$'
+# Nor anything that describes this installation rather than its secrets: project name,
+# mode/port, overlays and resource limits.
+NEVER_RESTORED='^LONORA_(POSTGRES_PASSWORD|COMPOSE_OVERLAYS|IMAGE|IMAGE_REPO|DATABASE_URL|HOST_DATABASE_URL|PROJECT|PROXY_LISTEN|[A-Z]+_(MEMORY|CPUS))$'
 # Owner controls, authority and money records. If any of them changed while a new version
 # ran, restoring the pre-update backup could undo an owner's stop, restriction or
 # revocation, or erase the record of an order already at the broker: the rollback holds.
@@ -53,8 +55,18 @@ GPG_DIR=""
 WORK_DIR=""
 FROM_HOLD=false
 
-say() { printf 'lonora: %s\n' "$*"; }
-die() { printf 'lonora: %s\n' "$*" >&2; exit 1; }
+# The command the owner types for this installation: lonora, or lonora-<project> when
+# another installation owns /usr/local/bin/lonora. Next steps are printed with it.
+command_name() {
+    local link
+    for link in /usr/local/bin/lonora "/usr/local/bin/lonora-$(project 2>/dev/null || echo lonora)"; do
+        if [[ "$(readlink -f "$link" 2>/dev/null)" == "$SELF" ]]; then basename "$link"; return; fi
+    done
+    printf '%s\n' "$SELF"
+}
+CMD_NAME=lonora
+say() { local text="$*"; printf 'lonora: %s\n' "${text//sudo lonora /sudo $CMD_NAME }"; }
+die() { local text="$*"; printf 'lonora: %s\n' "${text//sudo lonora /sudo $CMD_NAME }" >&2; exit 1; }
 cleanup() { local path; for path in "${CLEANUP[@]}"; do rm -rf -- "$path"; done; CLEANUP=(); }
 # A backup path as given; if it is not there, relative to the installation.
 backup_path() {
@@ -71,7 +83,7 @@ workdir() {
     CLEANUP+=("$WORK_DIR")
     # gpg's home holds only its agent socket; a short path keeps the socket under the
     # 107-byte limit wherever the installation lives.
-    GPG_DIR="$(mktemp -d /tmp/lonora-gpg.XXXXXX)"
+    GPG_DIR="$(mktemp -d "/tmp/lonora-$(project)-gpg.XXXXXX")"
     CLEANUP+=("$GPG_DIR")
 }
 
@@ -85,7 +97,7 @@ lock() { # flock options: -n (fail fast) or -w SECONDS (wait)
     export LONORA_LOCK_HELD=1
     # Holding the lock, nothing else uses scratch files: remove any a killed run left behind.
     # gpg homes hold only an agent socket; every command that uses gpg holds this lock.
-    rm -rf -- "$SCRATCH" "$BACKUPS"/*.part /tmp/lonora-gpg.*
+    rm -rf -- "$SCRATCH" "$BACKUPS"/*.part "/tmp/lonora-$(project)-gpg."*
 }
 
 # Only the overlay list is read from .env; nothing from it is evaluated here.
@@ -131,6 +143,16 @@ require_tools() {
 # update or rollback is deciding what the database will be.
 maintenance_on() { mkdir -p maintenance; chmod 755 maintenance; : >"$MAINTENANCE"; chmod 644 "$MAINTENANCE"; }
 maintenance_off() { rm -f "$MAINTENANCE"; }
+# Stop the Gateway and the API, confirm they are down, then turn maintenance on. If they
+# cannot be stopped, maintenance stays off: a Gateway never runs while maintenance is on.
+quiesce() {
+    compose stop gateway api >/dev/null 2>&1 || true
+    if [[ -n "$(compose ps -q --status running gateway api 2>/dev/null)" ]]; then
+        say 'Cannot stop the Gateway and API (see: sudo lonora logs gateway); writes stay open.'
+        return 1
+    fi
+    maintenance_on
+}
 
 # --- backup key: never echoed, passed to gpg on a file descriptor -----------------
 require_key() {
@@ -159,7 +181,10 @@ encrypt() { gpg_run --symmetric --cipher-algo AES256 --s2k-digest-algo SHA512 --
 # with exit status 0, so the status lines are checked, not only the exit code.
 decrypt_authenticated() {
     local status_file="$GPG_DIR/status"
-    gpg_run --status-file "$status_file" --decrypt --output - "$1" >"$2" 2>/dev/null || return 1
+    gpg_run --status-file "$status_file" --decrypt --output - "$1" >"$2" 2>"$GPG_DIR/stderr" || {
+        if grep -qiE 'no space|write error|error writing|disk' "$GPG_DIR/stderr"; then return 3; fi
+        return 1
+    }
     grep -q '^\[GNUPG:\] NEED_PASSPHRASE_SYM ' "$status_file" || return 1
     [[ "$(grep -c '^\[GNUPG:\] DECRYPTION_OKAY' "$status_file")" == 1 ]] || return 1
     [[ "$(grep -c '^\[GNUPG:\] PLAINTEXT ' "$status_file")" == 1 ]] || return 1
@@ -203,6 +228,12 @@ control_fingerprint() {
     part="$(row_digest "ln_settings t WHERE key LIKE 'trading%'")" || return 0
     [[ -n "$part" ]] || return 0
     all+="settings=$part;"
+    part="$(psql_value "SELECT md5(coalesce(string_agg(r.h, '' ORDER BY r.h), '')) FROM (SELECT md5(t.id || ':' || coalesce(t.state->>'status', '')) AS h FROM ln_trading_goals t WHERE t.state->>'status' IN ('paused', 'cancelled')) r")" || return 0
+    [[ -n "$part" ]] || return 0
+    all+="goal_exits=$part;"
+    part="$(psql_value "SELECT md5(coalesce(string_agg(r.h, '' ORDER BY r.h), '')) FROM (SELECT md5(t.id || ':' || coalesce(t.state->>'control_requested', '') || ':' || CASE WHEN t.state->>'status' IN ('paused', 'cancelled') THEN t.state->>'status' ELSE '' END) AS h FROM ln_tickets t WHERE t.state->>'control_requested' IS NOT NULL OR t.state->>'status' IN ('paused', 'cancelled')) r")" || return 0
+    [[ -n "$part" ]] || return 0
+    all+="task_exits=$part;"
     part="$(row_digest "ln_messages t WHERE role = 'user'")" || return 0
     [[ -n "$part" ]] || return 0
     printf '%s\n' "$all" "owner_messages=$part" | sha256sum | cut -d' ' -f1
@@ -219,7 +250,8 @@ marker_value() { [[ -f "$1" ]] || return 0; sed -n "s/^$2=//p" "$1" | tail -n 1;
 # roll back to, nor the one being restored (LONORA_PROTECT_BACKUP).
 prune_backups() {
     local protected=() old path
-    for path in "$(marker_value "$MARKER" backup)" "$(marker_value "$HELD_MARKER" backup)" "${LONORA_PROTECT_BACKUP:-}"; do
+    for path in "$(marker_value "$MARKER" backup)" "$(marker_value "$HELD_MARKER" backup)" "${LONORA_PROTECT_BACKUP:-}" \
+        "$(marker_value "$RESTORE_MARKER" file)" "$(marker_value "$RESTORE_MARKER" safety)"; do
         [[ -n "$path" ]] && protected+=("$(readlink -f "$path" 2>/dev/null || printf '%s' "$path")")
     done
     while IFS= read -r old; do
@@ -231,6 +263,7 @@ prune_backups() {
 cmd_backup() {
     lock -w 3600
     require_tools; require_key
+    [[ ! -f "$RESTORE_MARKER" ]] || die "A restore stopped part-way; the database is incomplete, so no backup is taken. Finish it: sudo lonora restore $(marker_value "$RESTORE_MARKER" file) --replace"
     [[ -n "$(compose ps -q db)" ]] || die 'The database service is not running.'
     mkdir -p "$BACKUPS"; chmod 700 "$BACKUPS"
     workdir; local work="$WORK_DIR"
@@ -268,12 +301,19 @@ cmd_backup() {
 open_backup() {
     local file="$1" work="$2"
     [[ -f "$file" ]] || die "No backup file $file."
-    decrypt_authenticated "$file" "$work/backup.tar" || { rm -f "$work/backup.tar"; die 'Decryption failed: not an authentic backup made with this key (wrong key, damaged, or forged).'; }
+    local available; available="$(df -Pk "$work" | awk 'NR==2 {print $4}')"
+    if ((available < $(stat -c %s "$file") / 1024 * 3)); then
+        die "Not enough free disk in $STATE to open $file (needs about three times its size). Free some space and run the command again."
+    fi
+    local status=0
+    decrypt_authenticated "$file" "$work/backup.tar" || status=$?
+    if ((status == 3)); then rm -f "$work/backup.tar"; die "Could not write the decrypted backup in $work (disk full?). Free some space and run the command again."; fi
+    if ((status != 0)); then rm -f "$work/backup.tar"; die 'Decryption failed: not an authentic backup made with this key (wrong key, damaged, or forged).'; fi
     local names; names="$(tar -tf "$work/backup.tar" | LC_ALL=C sort | tr '\n' ' ')"
     [[ "$names" == 'SHA256SUMS artifacts.tar.gz config.tar.gz database.dump manifest.json ' ]] || die 'Unexpected backup contents.'
     if tar -tvf "$work/backup.tar" | grep -q '^[^-]'; then die 'Backup contains a non-regular file.'; fi
     mkdir -p "$work/b"
-    tar -C "$work/b" --no-same-owner -xf "$work/backup.tar"
+    tar -C "$work/b" --no-same-owner -xf "$work/backup.tar" || die "Could not extract the backup in $work (disk full?). Free some space and run the command again."
     rm -f "$work/backup.tar"
     (cd "$work/b" && sha256sum --quiet -c SHA256SUMS) || die 'Checksum mismatch inside the backup.'
     check_archive "$work/b/artifacts.tar.gz" '^artifacts(/|$)'
@@ -318,23 +358,34 @@ merge_env() { # $1: the backup's .env
     mv -f "$merged" .env
 }
 cmd_restore() {
-    local file="" replace=false with_config=false argument
+    local file="" replace=false with_config=false abandon=false yes=false argument
     for argument in "$@"; do
         case "$argument" in
             --replace) replace=true ;;
             --with-config) with_config=true ;;
+            --abandon) abandon=true ;;
+            --yes) yes=true ;;
             *) file="$(backup_path "$argument")" ;;
         esac
     done
-    [[ -n "$file" ]] || die 'Usage: lonora restore FILE --replace [--with-config]'
+    if "$abandon"; then restore_abandon "$yes"; return; fi
+    [[ -n "$file" ]] || die 'Usage: lonora restore FILE --replace [--with-config] | lonora restore --abandon'
     "$replace" || die '--replace is required: restore replaces the current database and files.'
     lock -n
     require_tools; require_key
     [[ ! -f "$MARKER" && ! -f "$HELD_MARKER" ]] || die 'An update is unfinished or held. Run: sudo lonora rollback'
     local again="sudo lonora restore $file --replace"
     if "$with_config"; then again+=' --with-config'; fi
-    if [[ -f "$RESTORE_MARKER" && "$(marker_value "$RESTORE_MARKER" file)" != "$file" ]]; then
-        die "A restore of $(marker_value "$RESTORE_MARKER" file) stopped part-way. Finish it first: sudo lonora restore $(marker_value "$RESTORE_MARKER" file) --replace"
+    if [[ -f "$RESTORE_MARKER" ]]; then
+        local pending safety_file
+        pending="$(marker_value "$RESTORE_MARKER" file)"; safety_file="$(marker_value "$RESTORE_MARKER" safety)"
+        if [[ "$file" == "$safety_file" && "$file" != "$pending" ]]; then
+            say "Going back to the state before the unfinished restore: restoring its safety backup $safety_file."
+            printf 'file=%s\nsafety=%s\nstarted=%s\n' "$file" "$safety_file" "$(date -u +%FT%TZ)" >"$RESTORE_MARKER.part" &&
+                mv -f "$RESTORE_MARKER.part" "$RESTORE_MARKER" || die "Cannot write $RESTORE_MARKER."
+        elif [[ "$file" != "$pending" ]]; then
+            die "A restore of $pending stopped part-way. Finish it (sudo lonora restore $pending --replace), go back to the state before it (sudo lonora restore $safety_file --replace), or abandon it (sudo lonora restore --abandon)."
+        fi
     fi
     workdir; local work="$WORK_DIR"
     open_backup "$file" "$work"
@@ -344,8 +395,7 @@ cmd_restore() {
     revision_known "$image" "$revision" || die "The backup is at migration $revision, which the installed image does not know. Update to the backup's image first: $(manifest_field "$work" image)"
     compose up -d --wait db >/dev/null || die 'The database service does not start; nothing was restored.'
     # Read-only from here: no owner write and no Gateway while the safety backup is taken.
-    maintenance_on
-    compose stop gateway api >/dev/null 2>&1 || true
+    quiesce || die 'Nothing was restored.'
     local safety
     if [[ -f "$RESTORE_MARKER" ]]; then
         safety="$(marker_value "$RESTORE_MARKER" safety)"
@@ -382,6 +432,24 @@ cmd_restore() {
     compose up -d --wait --remove-orphans || die "Services did not start after the restore. Check: sudo lonora logs api; then: sudo lonora start"
     wait_for /ready || die 'Restored, but /ready did not pass. Check: sudo lonora logs api; then: sudo lonora start'
     say "Restored $(basename "$file") (backup at migration $revision, now $(db_revision)); /ready passes."
+}
+
+# Clear an unfinished restore's marker, after confirmation. The database may be empty or
+# partial afterwards; the safety backup stays on disk.
+restore_abandon() { # $1 yes (true|false)
+    lock -n
+    require_tools
+    [[ -f "$RESTORE_MARKER" ]] || die 'No unfinished restore to abandon.'
+    local pending safety_file answer=""
+    pending="$(marker_value "$RESTORE_MARKER" file)"; safety_file="$(marker_value "$RESTORE_MARKER" safety)"
+    say "Abandoning the unfinished restore of $pending. The database may be empty or incomplete."
+    if [[ "$1" != true ]]; then
+        [[ -t 0 ]] || die 'Confirm with: sudo lonora restore --abandon --yes'
+        read -r -p 'Type ABANDON to continue: ' answer
+        [[ "$answer" == ABANDON ]] || die 'Not abandoned.'
+    fi
+    rm -f "$RESTORE_MARKER"
+    say "Abandoned. The safety backup is kept: $safety_file. Next: sudo lonora restore $safety_file --replace, or sudo lonora start to run on the database as it is."
 }
 
 # Restore into a separate stack on an internal Docker network with no route out. The
@@ -500,9 +568,9 @@ lonora: the broker. API and Gateway are stopped; writes get "updating" (maintena
 lonora: the failed version $(current_image) stays pinned.
 lonora: Check now, in the broker's own terminal: positions and orders since $(marker_get started).
 lonora: Then choose one:
-lonora:   sudo lonora rollback --force                     restore the pre-update backup
+lonora:   sudo $CMD_NAME rollback --force                     restore the pre-update backup
 lonora:                                                    ($(marker_get backup)); records since then are lost
-lonora:   sudo lonora update <fixed version> --keep-data   keep the current data and update forward
+lonora:   sudo $CMD_NAME update <fixed version> --keep-data   keep the current data and update forward
 HELD
 }
 
@@ -510,10 +578,16 @@ HELD
 # (failed version pinned, current data kept, services stopped) instead of rolling back.
 back_to_hold() { # $1 reason
     say "The forward update failed at: $1. Returning to the held state."
-    compose stop gateway api >/dev/null 2>&1 || true
-    maintenance_on
-    if [[ -f "$ROLLBACK_BUNDLE" ]]; then tar -xzf "$ROLLBACK_BUNDLE" || say "Cannot restore the deployment files from $ROLLBACK_BUNDLE."; fi
-    mv -f "$HELD_BUNDLE" "$ROLLBACK_BUNDLE" && mv -f "$HELD_MARKER" "$MARKER" || { say "Cannot restore the held marker from $HELD_MARKER."; return 1; }
+    quiesce || return 1
+    trap '' INT TERM HUP
+    local status=0
+    if [[ -f "$HELD_BUNDLE" ]]; then
+        if [[ -f "$ROLLBACK_BUNDLE" ]]; then tar -xzf "$ROLLBACK_BUNDLE" || say "Cannot restore the deployment files from $ROLLBACK_BUNDLE."; fi
+        mv -f "$HELD_BUNDLE" "$ROLLBACK_BUNDLE" || status=1
+    fi
+    if ((status == 0)); then mv -f "$HELD_MARKER" "$MARKER" || status=1; fi
+    trap 'cleanup; exit 130' INT TERM HUP
+    ((status == 0)) || { say "Cannot restore the held state from $HELD_MARKER; run: sudo lonora rollback"; return 1; }
     print_held 'the forward update did not pass its health gate; the data it migrated is kept.'
     return 2
 }
@@ -528,9 +602,7 @@ rollback() { # $1 reason, $2 force (true|false)
     previous="$(marker_get previous)"; phase="$(marker_get phase)"; backup="$(marker_get backup)"
     baseline="$(marker_get controls)"
     say "Rolling back ($reason) to $previous."
-    maintenance_on
-    compose stop gateway >/dev/null 2>&1 || true
-    compose stop api >/dev/null 2>&1 || true
+    quiesce || { say 'Then run: sudo lonora rollback'; return 1; }
     case "$phase" in
         migrate) restore_db=true ;;
         api|gateway|hold) restore_db=true; check=true ;;
@@ -608,7 +680,7 @@ cmd_rollback() {
 gate_pinned() { # $1 held (true|false)
     local held="$1" step=""
     say "$(current_image) is already pinned; starting it behind the health gates."
-    maintenance_on
+    quiesce || die 'Nothing was changed.'
     if ! compose up -d --wait db; then step='database start'
     elif ! compose run --rm migrate; then step='migrations'
     elif ! compose up -d --wait db api caddy || ! wait_for /health; then step='API health'
@@ -620,8 +692,7 @@ gate_pinned() { # $1 held (true|false)
         return 0
     fi
     if "$held"; then
-        compose stop gateway api >/dev/null 2>&1 || true
-        maintenance_on
+        quiesce || true
         print_held "the pinned version still fails at: $step."
         exit 2
     fi
@@ -698,16 +769,20 @@ cmd_update() {
     tar -czf "$ROLLBACK_BUNDLE" "${saved[@]}"
     printf 'previous=%s\ntarget=%s\nstarted=%s\nphase=stopping\n' "$previous" "$pinned" "$(date -u +%FT%TZ)" >"$MARKER.part"
     mv -f "$MARKER.part" "$MARKER"
-    maintenance_on
-    say 'Stopping API and Gateway (writes answer "updating"), then backing up.'
-    compose stop gateway api >/dev/null
+    say 'Stopping API and Gateway (then writes answer "updating"), then backing up.'
+    if ! quiesce; then
+        if "$FROM_HOLD"; then fail_update 'stopping the services'; fi
+        rm -f "$MARKER" "$ROLLBACK_BUNDLE"
+        compose up -d --wait >/dev/null 2>&1 || true
+        die 'Nothing was changed.'
+    fi
     must_mark phase backup
     rm -f "$STATE/last-backup"
     if ! "$SELF" backup; then
         if "$FROM_HOLD"; then fail_update 'backup'; fi
-        compose up -d --wait >/dev/null 2>&1 || true
         rm -f "$MARKER" "$ROLLBACK_BUNDLE"
         maintenance_off
+        compose up -d --wait >/dev/null 2>&1 || true
         die 'Backup failed; nothing was changed. The previous version was started again.'
     fi
     local backup; backup="$(readlink -f "$(cat "$STATE/last-backup" 2>/dev/null)" 2>/dev/null || true)"
@@ -777,13 +852,18 @@ cmd_status() {
 cmd_maintenance() {
     case "${1:-}" in
         off) maintenance_off; say 'Maintenance off: writes are open.' ;;
-        on) maintenance_on; say 'Maintenance on: writes answer "updating" until: sudo lonora maintenance off' ;;
+        on)
+            lock -n
+            require_tools
+            quiesce || die 'Maintenance stays off.'
+            say 'API and Gateway stopped; maintenance on: writes answer "updating" until: sudo lonora maintenance off (then: sudo lonora start)' ;;
         *) die 'Usage: lonora maintenance on|off' ;;
     esac
 }
 
 main() {
     cd "$LONORA_HOME"
+    CMD_NAME="$(command_name)"
     [[ "$KEEP" =~ ^[1-9][0-9]*$ ]] || die 'LONORA_BACKUP_KEEP must be a positive integer.'
     trap 'cleanup' EXIT
     trap 'cleanup; exit 130' INT TERM HUP

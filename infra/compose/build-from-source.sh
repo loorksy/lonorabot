@@ -69,12 +69,16 @@ builder="$project-builder"
 quota="$(awk -v c="$cpus" 'BEGIN { printf "%d", c * 100000 }')"
 docker buildx rm "$builder" >/dev/null 2>&1 || true
 create=(docker buildx create --name "$builder" --driver docker-container --driver-opt network=host
-    --driver-opt "cpu-quota=$quota" --driver-opt "memory=$memory" --config "$work/buildkitd.toml")
+    --driver-opt "cpu-quota=$quota" --driver-opt cpu-shares=256 --driver-opt "memory=$memory"
+    --config "$work/buildkitd.toml" --bootstrap)
 for var in HTTP_PROXY HTTPS_PROXY http_proxy https_proxy; do
     if [[ -n "${!var:-}" ]]; then create+=(--driver-opt "env.$var=${!var}"); fi
 done
 "${create[@]}" >/dev/null
 trap 'docker buildx rm "$builder" >/dev/null 2>&1 || true; rm -rf "$work"' EXIT
+# A low I/O weight for the build container too, where the kernel's I/O scheduler supports it.
+docker update --blkio-weight 100 "buildx_buildkit_${builder}0" >/dev/null 2>&1 ||
+    say 'This kernel does not support an I/O weight for containers; the build still runs under ionice.'
 
 dockerfile="$work/Dockerfile"
 if [[ -n "${LONORA_TEST_SKIP_APT:-}" ]]; then
@@ -94,4 +98,6 @@ docker pull -q "$image" >/dev/null
 digest="$(docker image inspect --format '{{range .RepoDigests}}{{println .}}{{end}}' "$image" | grep -m1 "^127.0.0.1:$port/lonora@sha256:")"
 say "Built and pushed: $image"
 say "Digest: $digest"
-say "New install: sudo bash install.sh --project $project --version $image ...   Update: sudo lonora update $image"
+# The loopback registry has no authentication: install and update by digest, never by tag.
+say "New install: sudo bash install.sh --project $project --version $digest ..."
+say "Update:      sudo lonora update $digest"

@@ -76,6 +76,21 @@ port_in_use() { # $1 port: any listener on the host, or a container publishing i
     (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null
 }
 existing_dir() { local dir="$1"; while [[ ! -d "$dir" ]]; do dir="$(dirname "$dir")"; done; printf '%s\n' "$dir"; }
+# Parse one .env line into EL_NAME / EL_VALUE (an "export " prefix and leading spaces are
+# allowed). 0: a setting; 1: blank or comment; 2: not NAME=VALUE; 3: CRLF; 4: control character.
+env_line() {
+    local line="$1"
+    EL_NAME=""; EL_VALUE=""
+    [[ "$line" != *$'\r' ]] || { EL_NAME="${line%%=*}"; return 3; }
+    line="${line#"${line%%[![:space:]]*}"}"
+    [[ -n "$line" && "$line" != \#* ]] || return 1
+    if [[ "$line" == "export "* ]]; then line="${line#export }"; line="${line#"${line%%[![:space:]]*}"}"; fi
+    [[ "$line" == *=* ]] || return 2
+    EL_NAME="${line%%=*}"; EL_VALUE="${line#*=}"
+    [[ "$EL_NAME" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
+    [[ "$EL_VALUE" != *[[:cntrl:]]* ]] || return 4
+    return 0
+}
 
 say "Preflight for project '$project' in $home (nothing is changed unless every check passes):"
 if [[ "$project" =~ ^[a-z0-9][a-z0-9_-]*$ ]]; then check true "project name '$project'"; else check false "project name '$project' (use lowercase letters, digits, - or _)"; fi
@@ -98,8 +113,10 @@ if [[ -n "$taken" ]]; then check false "Docker names of project '$project' alrea
 others="$(docker ps -aq --filter "label=com.docker.compose.project=$project" | wc -l)"
 if ((others > 0)); then check false "$others container(s) of Compose project '$project' already exist"; else check true "no containers of project '$project'"; fi
 if [[ -n "$proxy_listen" ]]; then
-    if [[ "$proxy_listen" =~ ^127\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}:([0-9]{1,5})$ ]]; then
-        port="${BASH_REMATCH[1]}"
+    if [[ "$proxy_listen" =~ ^127\.([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3}):([0-9]{1,5})$ ]] &&
+        ((10#${BASH_REMATCH[1]} <= 255 && 10#${BASH_REMATCH[2]} <= 255 && 10#${BASH_REMATCH[3]} <= 255 &&
+          10#${BASH_REMATCH[4]} >= 1 && 10#${BASH_REMATCH[4]} <= 65535)); then
+        port="$((10#${BASH_REMATCH[4]}))"
         if port_in_use "$port"; then check false "port $port is in use (behind-proxy $proxy_listen)"; else check true "port $port is free (behind-proxy $proxy_listen, loopback only)"; fi
     else
         check false "--behind-proxy $proxy_listen must be a loopback address:port, e.g. 127.0.0.1:18030"
@@ -114,10 +131,23 @@ for overlay in $overlays; do
         infra/research/compose.research.yml) check true "overlay $overlay (adds about 1.1 GB)" ;;
         infra/analysis/compose.workspace.yml)
             if [[ -S /run/lonora-analysis/host.sock ]]; then check true "overlay $overlay: workspace host socket /run/lonora-analysis/host.sock is up"
-            else check false "overlay $overlay needs the workspace host running (/run/lonora-analysis/host.sock is missing; docs/operations.md, \"Analysis workspace host\")"; fi ;;
+            else say "  warn  overlay $overlay: /run/lonora-analysis/host.sock is missing; Lonora starts, analysis stays unavailable until lonora-analysis.service runs"; fi ;;
         *) check false "overlay $overlay is not one of the bundled overlays" ;;
     esac
 done
+if [[ -n "$env_from" ]]; then
+    number=0 bad=0
+    while IFS= read -r raw || [[ -n "$raw" ]]; do
+        number=$((number + 1)); result=0
+        env_line "$raw" || result=$?
+        case "$result" in
+            2) say "  FAIL  --env-from line $number is not NAME=VALUE"; bad=$((bad + 1)) ;;
+            3) say "  FAIL  --env-from line $number (${EL_NAME:-?}) has a Windows line ending (CRLF)"; bad=$((bad + 1)) ;;
+            4) say "  FAIL  --env-from $EL_NAME has a control character in its value"; bad=$((bad + 1)) ;;
+        esac
+    done <"$env_from"
+    if ((bad > 0)); then problems=$((problems + bad)); else check true "--env-from $env_from: $number lines, all readable"; fi
+fi
 ram_mb=$(($(sed -n 's/^MemAvailable: *\([0-9]*\) kB/\1/p' /proc/meminfo) / 1024))
 if ((ram_mb >= min_ram_mb)); then check true "available memory ${ram_mb} MB (need ${min_ram_mb} MB)"; else check false "available memory ${ram_mb} MB, below ${min_ram_mb} MB (the stack is limited to about 2.3 GB)"; fi
 disk_dir="$(existing_dir "$home")"
@@ -180,9 +210,10 @@ if [[ -n "$env_from" ]]; then
     # Copy the known keys over the generated values; never print a value.
     copied="" ignored="" line="" name="" value=""
     while IFS= read -r line || [[ -n "$line" ]]; do
-        [[ "$line" =~ ^[[:space:]]*(#|$) ]] && continue
-        name="${line%%=*}"; value="${line#*=}"
-        [[ "$line" == *=* && "$name" =~ ^[A-Z][A-Z0-9_]*$ ]] || { ignored+=" (an unreadable line)"; continue; }
+        result=0; env_line "$line" || result=$?
+        ((result == 1)) && continue
+        ((result == 0)) || die "--env-from: line ${EL_NAME:-?} cannot be read; nothing more was changed."
+        name="$EL_NAME"; value="$EL_VALUE"
         if [[ "$ENV_FROM_KEYS" != *" $name "* || ( "$name" == LONORA_DOMAIN && "$domain_given" == true ) ]]; then ignored+=" $name"; continue; fi
         [[ "$value" != *[[:cntrl:]]* ]] || die "--env-from: $name has a control character; nothing more was changed."
         # Mode 600 from the first byte (umask 077 is also set at the top); renamed into place.

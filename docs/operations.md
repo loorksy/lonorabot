@@ -22,7 +22,9 @@
   `sudo bash install.sh --home /opt/lonora2 --project lonora2 --behind-proxy 127.0.0.1:18030 --domain <اسم تجريبي> --version <الإصدار>`
   يفحص المثبّت قبل أي تغيير: أن المنفذ غير مستخدم، وأن المجلد فارغ من أي تثبيت، وأن اسم المشروع غير مستخدم، وأن الذاكرة والمساحة كافيتان، ويطبع ما وجده ويرفض إن فشل أي فحص. لكل خدمة حدّ للذاكرة والمعالج (نحو 2.3 غيغابايت للمجموع)، وخدمات البحث والمتصفح معطلة افتراضيًا.
 - **إعادة استخدام الأسرار الحالية:** الخيار `--env-from /opt/lonora/.env` ينسخ من ملف الإعدادات القديم المفاتيح التي يعرفها الإصدار الجديد فقط (مفتاح التشفير الذي تُفك به مفاتيح المزودين والوسيط المحفوظة، وسر الـ webhook، وبصمات passkey لتطبيق أندرويد، والنطاق، وإعدادات الضبط)، ويطبع أسماءها فقط دون أي قيمة، ويُنشئ كلمة مرور جديدة لقاعدة البيانات الجديدة، ويتجاهل الباقي (LiveKit وIMAGE وARTIFACT_ROOT وغيرها) ويذكر أسماءها.
-- **مضيف مساحة التحليل:** الخدمة `lonora-analysis.service` على الخادم تبقى كما هي؛ يربطها التثبيت الجديد بالخيار `--overlay infra/analysis/compose.workspace.yml`، ويرفض المثبّت إن لم يكن مقبسها `/run/lonora-analysis/host.sock` قائمًا.
+- **مضيف مساحة التحليل:** الخدمة `lonora-analysis.service` على الخادم تبقى كما هي؛ يربطها التثبيت الجديد بالخيار `--overlay infra/analysis/compose.workspace.yml`. إن لم تكن الخدمة تعمل يبدأ Lonora رغم ذلك، وتبقى أدوات التحليل غير متاحة حتى تعمل الخدمة.
+- **النطاق:** عند التثبيت مباشرة على الاسم الأساسي استخدم `--domain lonora.lork.cloud`. إن ثبّتّ على اسم تجريبي ثم أردت التحويل: غيّر `LONORA_DOMAIN=lonora.lork.cloud` في `/opt/lonora2/.env` ثم نفّذ `sudo lonora start` قبل تعديل traefik.
+- **استعادة غير مكتملة:** `sudo lonora status` يعرض «RESTORE NOT FINISHED». الخيارات: أكملها بالأمر المطبوع، أو ارجع إلى ما قبلها بـ `sudo lonora restore <نسختها الاحتياطية> --replace`، أو `sudo lonora restore --abandon`.
 - **التحويل لاحقًا (قرارك أنت ومتى تشاء):** أولًا تجرّب النسخة الجديدة على اسم تجريبي (مثل `next.lonora.lork.cloud`) عبر ملف traefik جديد `lonora-next.yml`. عند التحويل تغيّر سطرًا واحدًا فقط في `lonora.yml` (العنوان `http://127.0.0.1:18010` يصبح `http://127.0.0.1:18030`)، ثم توقف النسخة القديمة دون حذف شيء. تنبيه: ملف معطوب في مجلد traefik قد يعطّل كل المواقع على الخادم، لذا اكتب الملف باسم مؤقت وتحقق منه ثم انقله إلى مكانه. المثبّت لا يكتب في مجلد traefik أبدًا. الخطوات في قسمي «Side by side» و«Switch over later» أدناه.
 - **البناء على الخادم:** ما دام GitHub Actions متوقفًا، يبني الأمر `infra/compose/build-from-source.sh` الصورة على الخادم بحدود معالج وذاكرة، ويضعها في سجل محلي على `127.0.0.1` فقط، ثم يتم التثبيت أو التحديث منها كالمعتاد.
 
@@ -45,8 +47,9 @@ Every service has a memory and CPU limit (below).
 All of these files ship **inside the server image** under `/app/deploy`. The installer and
 `lonora update` copy them from the image to the server, so the server never needs a source
 checkout, Git, Python or Node, and the files on the server always match the image that runs.
-There is no other way to deploy: no build-from-source script on the server, no host-PostgreSQL
-variant.
+Images come from a registry, or are built on the server with `build-from-source.sh` into a
+loopback-only registry («Build from source on the server»); either way install and update pin a
+digest. There is no host-PostgreSQL variant.
 
 Layout on a server (default `/opt/lonora`):
 
@@ -91,8 +94,13 @@ key — is not copied. It prints the copied and the ignored key **names**, never
 `.env` is mode 600.
 
 `--overlay` adds a bundled overlay at install time (`infra/research/compose.research.yml`,
-`infra/analysis/compose.workspace.yml`); the preflight refuses the workspace overlay while its host
-socket is missing.
+`infra/analysis/compose.workspace.yml`); the preflight warns (does not refuse) when the workspace
+host socket is missing.
+
+The preflight also reads the whole `--env-from` file before anything is written: `export ` prefixes
+and leading spaces are accepted; a Windows line ending (CRLF), a control character or a line that is
+not `NAME=VALUE` fails it, naming the line or key (never the value). `--behind-proxy` must be
+`127.x.y.z:PORT` with valid octets and a port from 1 to 65535.
 
 First a **preflight**, which changes nothing and prints each finding as `ok` or `FAIL`: the home
 directory holds no installation; no `<project>_database` volume and no container of the project
@@ -219,6 +227,10 @@ runs for the old stack, and the new installation uses the same socket:
    `infra/analysis/compose.workspace.yml` to `LONORA_COMPOSE_OVERLAYS` in `.env` and run
    `sudo lonora start`. The overlay mounts only the socket directory, read-only, into the API and the
    Gateway (group 10001), with `LONORA_WORKSPACE_SOCKET` set; it never mounts the Docker socket.
+   The directory is created if it is missing, so the API and the Gateway start (and `/ready` passes)
+   even when the service is not running — after a reboot Docker may start before it, or it may be
+   stopped. Analysis tools then answer that the host is unavailable until the service starts and
+   creates its socket in that same directory (systemd reuses an existing `RuntimeDirectory`).
 3. When the old stack is deleted, leave the service running: the new installation uses it.
    Upgrading the service itself follows `docs/analytical-workspace.md` (its reviewed venv and image ID).
 
@@ -259,13 +271,18 @@ server from a checkout:
 ```sh
 git clone https://github.com/loorksy/lonorabot /srv/lonorabot && cd /srv/lonorabot && git checkout <commit>
 sudo bash infra/compose/build-from-source.sh --source /srv/lonorabot --project lonora2 --version v0.3.0
-sudo bash install.sh … --project lonora2 --version 127.0.0.1:5055/lonora:v0.3.0     # new install
-sudo lonora update 127.0.0.1:5055/lonora:v0.3.0                                      # update
+# it prints the digest, e.g. 127.0.0.1:5055/lonora@sha256:…; use the digest, never the tag:
+sudo bash install.sh … --project lonora2 --version 127.0.0.1:5055/lonora@sha256:…   # new install
+sudo lonora update 127.0.0.1:5055/lonora@sha256:…                                   # update
 ```
+
+The loopback registry has no authentication, so a tag there could be repointed by anything on the
+host: install and update by the printed digest.
 
 The script starts a registry container (`lonora2-registry`, volume `lonora2_registry`) that listens on
 `127.0.0.1:5055` only (`--registry-port`), builds in a dedicated BuildKit container capped at
-`--cpus` (default 1) and `--memory` (default 2g), under `nice` and `ionice`, pushes the image there
+`--cpus` (default 1) and `--memory` (default 2g) with a low CPU weight (and a low I/O weight where the
+kernel supports it), under `nice` and `ionice`, pushes the image there
 and prints its digest. Install and update then pin that digest exactly as with a published image,
 including backups and automatic rollback. The registry keeps every built version, so a rollback can
 always pull the previous one. Needs `git` and the Docker buildx plugin.
@@ -326,7 +343,7 @@ and the failed version pinned, prints `ROLLBACK HELD` with the reason, and exits
 | `ROLLBACK INCOMPLETE: restoring the database … failed` | The database was dropped but the restore failed (for example a full disk). | Fix the cause (`sudo lonora status`, `sudo lonora logs db`, `df -h`), then `sudo lonora rollback` — it retries the restore from the same backup. |
 | `ROLLBACK did not reach /ready` | The previous version and data are back but do not start; writes are open. | `sudo lonora logs api`, `sudo lonora logs gateway`; when fixed, `sudo lonora rollback` starts and checks again. |
 | `The pre-update backup … cannot be opened` | The backup could not be decrypted or extracted (key, disk space). | Fix it, then `sudo lonora rollback`. |
-| `Maintenance: on` in `lonora status`, writes answer 503 | Something stopped with maintenance on (only ever while no Gateway runs). | `sudo lonora maintenance off` opens writes without waiting for `/ready`. |
+| `Maintenance: on` in `lonora status`, writes answer 503 | Something stopped with maintenance on (only ever while the Gateway and API are stopped). | `sudo lonora maintenance off` opens writes without waiting for `/ready`, then `sudo lonora start`. `sudo lonora maintenance on` stops the Gateway and API first; if they cannot be stopped, maintenance stays off. |
 | `Restoring the database failed … run it again: sudo lonora restore FILE --replace` | A restore stopped after the database was dropped. | Fix the cause, then run exactly the printed command: it resumes without a second safety backup. `update` and `start` refuse until it is done. |
 | `The database has no migration yet` | An installation stopped before its first migration. | `sudo lonora start`. |
 | `UPDATE NOT FINISHED` in `lonora status` | The update was interrupted (SSH dropped, reboot). `start` and `restore` refuse to run. | `sudo lonora rollback`, or `sudo lonora update <version>`, which rolls the unfinished one back first (same rules, including the hold) and then updates. |
@@ -418,9 +435,18 @@ sudo lonora restore /path/lonora-….tar.gpg --replace --with-config
 ```
 
 `--with-config` also restores the secrets and settings in `.env` (domain, encryption key for saved
-credentials, bootstrap token, provider keys) and the APK/OTA release files. It never restores the
-database password (the new server's database was created with its own), the overlay list, the
-pinned image or any deployment file. Without `--with-config` the current `.env` is kept.
+credentials, bootstrap token, provider keys) and the APK/OTA release files. It never restores what
+describes this installation rather than its secrets: the database password (the new server's
+database was created with its own), the project name (`LONORA_PROJECT`), the mode and port
+(`LONORA_PROXY_LISTEN`), the overlay list, the resource limits, the pinned image or any deployment
+file. Without `--with-config` the current `.env` is kept.
+
+**An unfinished restore** (`RESTORE NOT FINISHED` in `lonora status`) blocks `update`, `start` and the
+daily backup (a backup of a half-restored database is useless). Three ways out: finish it (the
+printed `sudo lonora restore FILE --replace`), go back to the state before it
+(`sudo lonora restore <its safety backup> --replace`; the safety backup is named in `lonora status`
+and is never rotated away), or `sudo lonora restore --abandon` (asks to type ABANDON, or `--yes`),
+which only clears the marker and leaves the database as it is.
 
 ## Release manifest and client versions
 
@@ -526,7 +552,12 @@ machine. It uses the projects `lonora` and `lonora2`, their volume names, ports 
 Also: an install with no schema yet is brought up by `update` of the pinned version and by the named
 `sudo lonora start` (1b); a rollback whose `/ready` fails leaves writes open and the next
 `lonora rollback` completes (10c); 503 is asserted while API and Gateway are stopped and writes are
-open while the new Gateway runs (10). 21 checks in all.
+open while the new Gateway runs (10); a sampler finds no moment with maintenance on and a Gateway
+running through `update <pinned>` and `maintenance on`, and status names the clear command (9b);
+an unfinished restore also blocks the daily backup and an unconfirmed `--abandon`; the side-by-side
+install also uses the workspace overlay with no socket (still `/ready`), refuses port 70000 and a
+CRLF `--env-from` file, and a `lonora2` backup restored `--with-config` into a `lonora3` install
+keeps `lonora3`'s project and mode. 22 checks in all.
 
 `REPO` must hold the tags `old`, `v1`, `v2`, `v4-good`, `v3-broken`, `v3-broken2` and `v3-fixed`. Build them with
 `tests/ops/build_test_images.sh REPO`, into any registry you control:
@@ -551,7 +582,7 @@ the Debian mirror is unreachable, `LONORA_TEST_SKIP_APT=1` drops the Chromium/fo
 ### What was verified, and what still needs a real host
 
 Verified in a development container with Docker 29.9 and Compose 5.6, real images, a real local
-registry (real digests), PostgreSQL 16 and Caddy 2.10: all 21 lifecycle checks passed. The
+registry (real digests), PostgreSQL 16 and Caddy 2.10: all 22 lifecycle checks passed. The
 fresh-start steps 2, 4 and 5 were also run here against volumes named like the old ones: both
 archives were complete, and the new install came up with `/ready` passing and an empty database.
 

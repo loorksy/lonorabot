@@ -20,7 +20,7 @@ repo="${1:?Usage: lifecycle_test.sh REPO}"
 root="$(cd "$(dirname "$0")/../.." && pwd)"
 
 # Never run next to a real installation: it would share its project and volumes.
-for name in lonora lonora2; do
+for name in lonora lonora2 lonora3; do
     if docker volume inspect "${name}_database" >/dev/null 2>&1 || [[ -n "$(docker ps -aq --filter "label=com.docker.compose.project=$name")" ]]; then
         echo "Refusing to run: this host has Compose project $name (containers or ${name}_database)." >&2
         exit 1
@@ -69,7 +69,7 @@ no_leftovers() {
     if [[ -n "$(find "$home/backups" -mindepth 1 \( -name '.work*' -o -name '*.part' \) -print)" ]]; then fail "$1: scratch files in backups/"; fi
     if [[ -n "$(find "$home/state/.work" -mindepth 1 -print 2>/dev/null)" ]]; then fail "$1: scratch files left in state/.work"; fi
     if [[ -n "$(find "$home" -maxdepth 1 -name '.env.merge.*')" ]]; then fail "$1: merge files left"; fi
-    if [[ -n "$(find /tmp -maxdepth 1 -name 'lonora-gpg.*' -print)" ]]; then fail "$1: gpg homes left in /tmp"; fi
+    if [[ -n "$(find /tmp -maxdepth 1 -name 'lonora-*-gpg.*' -print)" ]]; then fail "$1: gpg homes left in /tmp"; fi
 }
 post_status() { # HTTP status of a write through Caddy (the owner's path)
     curl -sk -o "$work/post.body" -w '%{http_code}' -X POST -H 'Content-Type: application/json' -d '{}' https://localhost/api/onboarding || true
@@ -86,7 +86,8 @@ install_fresh() { # $1 version
 wipe() { dc down -v --remove-orphans >/dev/null 2>&1 || true; rm -rf "$home"; }
 teardown() {
     if [[ -f "$home/.env" ]]; then dc down -v --remove-orphans >/dev/null 2>&1 || true; fi
-    rm -f /usr/local/bin/lonora /usr/local/bin/lonora-lonora2
+    rm -f /usr/local/bin/lonora /usr/local/bin/lonora-lonora2 /usr/local/bin/lonora-lonora3
+    if [[ -n "${made_analysis_dir:-}" ]]; then rm -rf /run/lonora-analysis; fi
     docker compose -p lonora -f "$work/dummy/compose.yml" down -v >/dev/null 2>&1 || true
     rm -rf "$work"
 }
@@ -253,6 +254,28 @@ grep -q 'Starting the API; the Gateway stays stopped' "$work/update.log" || fail
 [[ "$(post_status)" != 503 ]] || fail 'writes still refused after the update'
 ok 'update v2: backup first, migrate step, API then Gateway, /ready, digest pinned, script replaced atomically, writes open again'
 
+# 9b. Never a Gateway while maintenance is on: sampled through update <pinned> and by hand.
+: >"$work/violations"
+( while :; do
+    if [[ -e "$home/maintenance/on" && -n "$(docker ps -q --filter name=^lonora-gateway-1$ --filter status=running)" ]]; then echo violation >>"$work/violations"; fi
+    sleep 0.2
+done ) &
+sampler=$!
+lonora update v2 >"$work/pinned.log" 2>&1 || { kill "$sampler"; show "$work/pinned.log"; fail 'update of the pinned version on a running stack'; }
+lonora maintenance on >"$work/maint-on.log" 2>&1 || { kill "$sampler"; show "$work/maint-on.log"; fail 'maintenance on'; }
+kill "$sampler"; wait "$sampler" 2>/dev/null || true
+[[ ! -s "$work/violations" ]] || fail "a Gateway ran while maintenance was on ($(wc -l <"$work/violations") samples)"
+grep -q 'already pinned; starting it behind the health gates' "$work/pinned.log" || fail 'update of the pinned version took the gated start'
+if gateway_running; then fail 'maintenance on left the Gateway running'; fi
+lonora status >"$work/maint-status.log" 2>&1 || true
+grep -q 'Maintenance: on' "$work/maint-status.log" && grep -q 'sudo lonora maintenance off' "$work/maint-status.log" || { show "$work/maint-status.log"; fail 'status shows maintenance and the command that clears it'; }
+[[ "$(post_status)" == 503 ]] || fail 'maintenance on did not refuse writes'
+lonora maintenance off >/dev/null 2>&1
+[[ ! -e "$home/maintenance/on" && "$(post_status)" != 503 ]] || fail 'maintenance off did not open writes'
+lonora start >"$work/maint-start.log" 2>&1 || { show "$work/maint-start.log"; fail 'start after maintenance'; }
+ready || fail 'ready after maintenance'
+ok 'never a Gateway under maintenance (sampled through update <pinned> and maintenance on); status names the clear command; maintenance off opens writes'
+
 # 10. A failing update with no owner or money writes rolls back image and schema; while it
 # runs, Caddy refuses writes with the maintenance answer.
 dc exec -T db psql -U lonora -d lonora -qc "CREATE TABLE ops_probe (note text); INSERT INTO ops_probe VALUES ('before-update')" >/dev/null
@@ -372,6 +395,11 @@ lonora status >"$work/restore-status.log" 2>&1 || true
 grep -q 'RESTORE NOT FINISHED' "$work/restore-status.log" || { show "$work/restore-status.log"; fail 'status shows the unfinished restore'; }
 if lonora update v4-good >"$work/restore-blocks.log" 2>&1; then fail 'update ran over an unfinished restore'; fi
 grep -q 'A restore stopped part-way' "$work/restore-blocks.log" || fail 'update names the unfinished restore'
+if lonora backup >"$work/restore-nobackup.log" 2>&1; then fail 'backup ran over an unfinished restore'; fi
+grep -q 'no backup is taken' "$work/restore-nobackup.log" || fail 'backup refusal names the unfinished restore'
+if lonora restore --abandon </dev/null >"$work/abandon.log" 2>&1; then fail 'abandon without confirmation'; fi
+grep -q 'Confirm with' "$work/abandon.log" || fail 'abandon asks for confirmation'
+[[ -f "$home/state/restore-in-progress" ]] || fail 'an unconfirmed abandon cleared the marker'
 count="$(backups)"
 run_printed "$work/restore-fail.log" >"$work/restore-rerun.log" 2>&1 || { show "$work/restore-rerun.log"; fail 'the printed restore command'; }
 db_unwrap pg_restore
@@ -385,7 +413,7 @@ LONORA_BACKUP_KEEP=1 lonora backup >"$work/keep1.log" 2>&1 && LONORA_BACKUP_KEEP
 [[ -f "$b1" ]] || fail 'KEEP=1 deleted the held backup'
 rm -f "$home/state/held-update"
 if LONORA_BACKUP_KEEP=0 lonora backup >/dev/null 2>&1; then fail 'KEEP=0 accepted'; fi
-ok 'restore failing after DROP: marker kept, update refused, the printed command resumes without a second safety backup; KEEP=1 keeps a held backup; KEEP=0 refused'
+ok 'restore failing after DROP: marker kept, update, daily backup and unconfirmed abandon refused, the printed command resumes without a second safety backup; KEEP=1 keeps a held backup; KEEP=0 refused'
 
 # 11. An owner-control write while the new version runs holds the rollback; --keep-data
 # with the same digest or a bad tag keeps it held; a fixed version updates forward.
@@ -502,6 +530,12 @@ if side --behind-proxy 127.0.0.1:18010 --version v1 >"$work/pre-port.log" 2>&1; 
 grep -q 'port 18010 is in use' "$work/pre-port.log" || { show "$work/pre-port.log"; fail 'preflight: port in use'; }
 if side --behind-proxy 0.0.0.0:18030 --version v1 >"$work/pre-public.log" 2>&1; then fail 'installed on a public address'; fi
 grep -q 'must be a loopback address' "$work/pre-public.log" || fail 'preflight: loopback only'
+if side --behind-proxy 127.0.0.1:70000 --version v1 >"$work/pre-portrange.log" 2>&1; then fail 'installed on port 70000'; fi
+grep -q 'must be a loopback address' "$work/pre-portrange.log" || fail 'preflight: port range'
+printf 'LONORA_ENCRYPTION_KEY=abc\r\n' >"$work/crlf.env"
+if side --behind-proxy 127.0.0.1:18030 --env-from "$work/crlf.env" --version v1 >"$work/pre-crlf.log" 2>&1; then fail 'installed from a CRLF env file'; fi
+grep -q 'LONORA_ENCRYPTION_KEY) has a Windows line ending' "$work/pre-crlf.log" || { show "$work/pre-crlf.log"; fail 'preflight: CRLF named'; }
+if grep -qF 'abc' "$work/pre-crlf.log"; then fail 'preflight printed an env value'; fi
 if side --behind-proxy 127.0.0.1:18030 --min-free-ram-mb 99999999 --version v1 >"$work/pre-ram.log" 2>&1; then fail 'installed below the memory minimum'; fi
 grep -q 'available memory .* below 99999999 MB' "$work/pre-ram.log" || fail 'preflight: memory'
 if side --behind-proxy 127.0.0.1:18030 --min-free-disk-gb 999999 --version v1 >"$work/pre-disk.log" 2>&1; then fail 'installed below the disk minimum'; fi
@@ -512,17 +546,22 @@ old_key="$(head -c 32 /dev/urandom | base64 | tr '+/' '-_')"
     printf 'LONORA_ARTIFACT_ROOT=/old/artifacts\nLONORA_BOOTSTRAP_TOKEN=old-bootstrap-token-0123456789abcdef\n'
     printf 'LONORA_DOMAIN=lonora.example.org\nLONORA_ENCRYPTION_KEY=%s\nLONORA_IMAGE=old-image:tag\n' "$old_key"
     printf 'LONORA_LIVEKIT_API_KEY=livekit-key-value-123\nLONORA_LIVEKIT_API_SECRET=livekit-secret-value-456\nLONORA_LIVEKIT_NODE_IP=10.0.0.9\n'
-    printf 'LONORA_MAXIMUM_SUBAGENTS=3\nLONORA_MAXIMUM_TOOL_ROUNDS=20\nLONORA_PASSKEY_ANDROID_FINGERPRINTS=[]\n'
+    printf 'export LONORA_MAXIMUM_SUBAGENTS=3\n  LONORA_MAXIMUM_TOOL_ROUNDS=20\nLONORA_PASSKEY_ANDROID_FINGERPRINTS=[]\n'
     printf 'LONORA_POSTGRES_PASSWORD=old-postgres-password-789\nLONORA_RUN_LEASE_SECONDS=90\n'
     printf '%s\n' "LONORA_WEBHOOK_SECRET='old webhook secret = \"x\" 123'" 'LONORA_WORKER_POLL_SECONDS=1.0'
 } >"$work/old.env"
 chmod 600 "$work/old.env"
-side --behind-proxy 127.0.0.1:18030 --env-from "$work/old.env" --version v1 >"$work/side-install.log" 2>&1 || { show "$work/side-install.log"; fail 'side-by-side install'; }
+if [[ ! -e /run/lonora-analysis ]]; then made_analysis_dir=1; fi
+[[ ! -S /run/lonora-analysis/host.sock ]] || fail 'this test needs the workspace host socket absent'
+side --behind-proxy 127.0.0.1:18030 --env-from "$work/old.env" --overlay infra/analysis/compose.workspace.yml --version v1 >"$work/side-install.log" 2>&1 || { show "$work/side-install.log"; fail 'side-by-side install'; }
+grep -q 'warn  overlay infra/analysis/compose.workspace.yml' "$work/side-install.log" || fail 'preflight warns about the missing workspace socket'
+[[ "$(docker exec lonora2-api-1 printenv LONORA_WORKSPACE_SOCKET)" == /run/lonora-analysis/host.sock ]] || fail 'workspace overlay on the API'
+if docker exec lonora2-gateway-1 test -S /run/lonora-analysis/host.sock; then fail 'unexpected workspace socket'; fi
 val() { sed -n "s/^$1=//p" "$home/.env" | tail -n 1; }
 [[ "$(val LONORA_ENCRYPTION_KEY)" == "$old_key" && "$old_key" == *= && "$(val LONORA_BOOTSTRAP_TOKEN)" == old-bootstrap-token-0123456789abcdef ]] || fail 'env-from: secrets copied'
 grep -qxF "LONORA_WEBHOOK_SECRET='old webhook secret = \"x\" 123'" "$home/.env" || fail 'env-from: a value with spaces, = and quotes copied byte for byte'
 [[ ! -e "$home/.env.next" ]] || fail 'env-from: .env.next left over'
-[[ "$(val LONORA_MAXIMUM_SUBAGENTS)" == 3 && "$(val LONORA_RUN_LEASE_SECONDS)" == 90 && "$(val LONORA_PASSKEY_ANDROID_FINGERPRINTS)" == '[]' ]] || fail 'env-from: tuning and passkey keys copied'
+[[ "$(val LONORA_MAXIMUM_SUBAGENTS)" == 3 && "$(val LONORA_MAXIMUM_TOOL_ROUNDS)" == 20 && "$(val LONORA_RUN_LEASE_SECONDS)" == 90 && "$(val LONORA_PASSKEY_ANDROID_FINGERPRINTS)" == '[]' ]] || fail 'env-from: tuning and passkey keys copied'
 [[ -n "$(val LONORA_POSTGRES_PASSWORD)" && "$(val LONORA_POSTGRES_PASSWORD)" != old-postgres-password-789 ]] || fail 'env-from: a fresh database password'
 [[ "$(val LONORA_DOMAIN)" == localhost ]] || fail 'env-from: --domain wins'
 if grep -qE '^LONORA_(LIVEKIT|IMAGE|ARTIFACT_ROOT)' "$home/.env"; then fail 'env-from copied an unknown key'; fi
@@ -543,12 +582,24 @@ total="$(docker inspect -f '{{.HostConfig.Memory}}' "${side_ids[@]}" | awk '{s+=
 lonora update v2 >"$work/side-update.log" 2>&1 || { show "$work/side-update.log"; fail 'side-by-side update'; }
 lonora backup >"$work/side-backup.log" 2>&1 || { show "$work/side-backup.log"; fail 'side-by-side backup'; }
 lonora restore-test >"$work/side-rt.log" 2>&1 || { show "$work/side-rt.log"; fail 'side-by-side restore-test'; }
+side_backup="$(ls -1t "$home"/backups/lonora-*.tar.gpg | head -n 1)"
+cp "$side_backup" "$work/side.tar.gpg"; install -m 600 "$home/backup.key" "$work/side.key"
+wipe
+home="$work/home3"
+LONORA_INSTALL_ALLOW_NON_ROOT=1 bash "$root/infra/compose/install.sh" --home "$home" --domain localhost --project lonora3 --no-systemd --version v2 >"$work/home3-install.log" 2>&1 || { show "$work/home3-install.log"; fail 'install lonora3'; }
+install -m 600 "$work/side.key" "$home/backup.key"
+lonora restore "$work/side.tar.gpg" --replace --with-config >"$work/cross-restore.log" 2>&1 || { show "$work/cross-restore.log"; fail 'restore a lonora2 backup into lonora3'; }
+[[ "$(sed -n 's/^LONORA_PROJECT=//p' "$home/.env")" == lonora3 && -z "$(sed -n 's/^LONORA_PROXY_LISTEN=//p' "$home/.env")" ]] || fail 'restore --with-config changed the project or mode'
+[[ "$(sed -n 's/^LONORA_ENCRYPTION_KEY=//p' "$home/.env")" == "$old_key" ]] || fail 'restore --with-config brought the secrets'
+[[ -z "$(docker ps -aq --filter label=com.docker.compose.project=lonora2)" && -z "$(docker volume ls -q --filter name=^lonora2_)" ]] || fail 'restore created containers or volumes of another project'
+ready || fail 'ready after the cross-project restore'
+wipe
 snapshot >"$work/dummy.after"
 diff -q "$work/dummy.before" "$work/dummy.after" >/dev/null || { diff "$work/dummy.before" "$work/dummy.after" >&2; fail 'the old project changed'; }
 wipe
 snapshot >"$work/dummy.end"
 diff -q "$work/dummy.before" "$work/dummy.end" >/dev/null || fail 'removing the new project changed the old one'
-ok "side by side (with --env-from: known keys copied, fresh DB password, names listed, no values printed): preflight refuses the taken project, a used port, a public address, low memory and disk; lonora2 in proxy mode on 127.0.0.1:18030 only (limits ${total} MB), updated, backed up, restore-tested; old project lonora untouched"
+ok "side by side (with --env-from: known keys copied incl. export/indented lines, fresh DB password, names listed, no values printed; workspace overlay with no socket still reaches /ready; a lonora2 backup restored --with-config into lonora3 keeps project and mode): preflight refuses a bad port and a CRLF file, the taken project, a used port, a public address, low memory and disk; lonora2 in proxy mode on 127.0.0.1:18030 only (limits ${total} MB), updated, backed up, restore-tested; old project lonora untouched"
 
 # 18. No secret in anything the tooling printed or logged.
 for secret in "$key" "$backup_key" "$first_password" "$new_password" "$bootstrap" "$webhook" "$old_key" 'old webhook secret' livekit-secret-value-456 old-postgres-password-789; do

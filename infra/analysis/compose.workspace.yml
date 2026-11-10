@@ -1,5 +1,9 @@
-# Optional overlay, after the reviewed host service is installed and started.
-# There is deliberately no Docker socket mount or application credential here.
+# Optional overlay for the analysis workspace host (lonora-analysis.service). The socket
+# directory is created if missing, so the API and Gateway start without the host service
+# (after a reboot, Docker may start first; or the service is stopped): analysis tools then
+# report the host unavailable until the service creates /run/lonora-analysis/host.sock in
+# that same directory (systemd reuses an existing RuntimeDirectory). There is deliberately
+# no Docker socket mount or application credential here.
 services:
   api:
     group_add:
@@ -12,7 +16,7 @@ services:
         target: /run/lonora-analysis
         read_only: true
         bind:
-          create_host_path: false
+          create_host_path: true
   gateway:
     group_add:
       - "10001"
@@ -24,4 +28,4 @@ services:
         target: /run/lonora-analysis
         read_only: true
         bind:
-          create_host_path: false
+          create_host_path: true
