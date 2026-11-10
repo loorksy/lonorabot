@@ -2,11 +2,11 @@ import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
 import type { Journal, OwnerAction, TradeApproval, VisualAction } from "@lonora/contracts";
 import {
-  stopTargets,
   conversationTimeline,
   isWorking,
   type MentionAddress,
   nearConversationBottom,
+  stopTargets,
   turnActivity,
 } from "@lonora/core";
 import { Icon } from "@lonora/ui-web";
@@ -44,6 +44,8 @@ import {
   type FailureFamily,
   OrderLine,
   OrderSheetBody,
+  PeerCard,
+  peersByMessage,
   QuestionCard,
   Steps,
 } from "./Cards";
@@ -134,6 +136,7 @@ export function Conversation({
   const [artifacts, setArtifacts] = useState<Resource[]>([]);
   const [journal, setJournal] = useState<Journal[]>([]);
   const [collaboration, setCollaboration] = useState<Resource | null>(null);
+  const [peers, setPeers] = useState<Resource[]>([]);
   const [preview, setPreview] = useState<Resource | null>(null);
   const [reply, setReply] = useState<ApiMessage | null>(
     () => readComposerDraft(draftKey(owner.id, threadId)).reply,
@@ -174,6 +177,10 @@ export function Conversation({
           ),
       )
       .catch(() => live && setJournal([]));
+    void api
+      .get<Resource[]>(`/peer-messages?thread_id=${encodeURIComponent(threadId)}`)
+      .then((rows) => live && setPeers(rows))
+      .catch(() => undefined);
     void api
       .get<Resource | null>(`/threads/${threadId}/collaboration`)
       .then((row) => live && setCollaboration(row))
@@ -262,6 +269,7 @@ export function Conversation({
       ),
     [runs, streams],
   );
+  const peerCards = useMemo(() => peersByMessage(peers), [peers]);
   const mentions = useMemo(() => mentionPattern(agents.map((row) => row.name)), [agents]);
   const callsByMessage = useMemo(() => {
     const out = new Map<string, { run: Run; seconds: number }>();
@@ -868,6 +876,7 @@ export function Conversation({
       return;
     }
     const question = questions.get(message.id);
+    const peer = peerCards.get(message.id);
     const done = callsByMessage.get(message.id);
     const doneCalls = done ? turnActivity(done.run, localEvents).calls : [];
     body.push(
@@ -878,7 +887,13 @@ export function Conversation({
         selected={selected === message.id}
         stopped={done?.run.status === "cancelled"}
         card={
-          question?.choices.length ? (
+          peer ? (
+            <PeerCard
+              message={message}
+              peer={peer}
+              run={runsById.get(String(peer.payload.run_id ?? ""))}
+            />
+          ) : question?.choices.length ? (
             <QuestionCard
               request={question}
               onAnswer={(answer, label) => thread.send(label, [], message.id, undefined, answer)}

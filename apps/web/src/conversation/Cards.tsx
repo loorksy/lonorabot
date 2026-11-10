@@ -2,11 +2,13 @@ import { i18n } from "@lingui/core";
 import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
 import type { InputAnswer, InputRequest, Journal } from "@lonora/contracts";
-import { type ActivityCall, activityCallLabel } from "@lonora/core";
+import { type ActivityCall, activityCallLabel, peerOutcome } from "@lonora/core";
 import { Icon, type IconName } from "@lonora/ui-web";
 import { useEffect, useState } from "react";
-import type { Run } from "../lib/api";
+import { Link } from "react-router-dom";
+import type { Message, Resource, Run } from "../lib/api";
 import { userError } from "../lib/user_error";
+import { md } from "./Markdown";
 
 /* Cards that live inside the conversation's Message frame: the agent error card, the question
    card, the order line and its sheet, and the agent's steps (reference 3761-3775, 5491-5515,
@@ -523,6 +525,91 @@ export function Steps({
           </li>
         ))}
       </ol>
+    </div>
+  );
+}
+
+/** The message ids a peer exchange (agent ↔ agent) is shown on, in both conversations. */
+export function peersByMessage(peers: Resource[]): Map<string, Resource> {
+  const out = new Map<string, Resource>();
+  for (const peer of peers) {
+    const payload = peer.payload;
+    for (const id of [
+      payload.source_message_id,
+      payload.target_message_id,
+      payload.source_outcome_message_id,
+      payload.target_outcome_message_id,
+      ...(Array.isArray(payload.source_outcome_message_ids)
+        ? payload.source_outcome_message_ids
+        : []),
+    ])
+      if (typeof id === "string") out.set(id, peer);
+  }
+  return out;
+}
+
+/** An actual persisted request between two agents, or its returned result, with links to
+    both continuous conversations (the reference's card frame). */
+export function PeerCard({ message, peer, run }: { message: Message; peer: Resource; run?: Run }) {
+  const payload = peer.payload;
+  const request =
+    payload.source_message_id === message.id || payload.target_message_id === message.id;
+  const wrapped = peerOutcome(message.content);
+  const side = (a: unknown, b: unknown) => String((request ? a : b) ?? "");
+  const from = {
+    id: side(payload.source_agent_id, payload.target_agent_id),
+    name: side(payload.source_agent_name, payload.target_agent_name),
+    thread: side(payload.source_thread_id, payload.target_thread_id),
+  };
+  const to = {
+    id: side(payload.target_agent_id, payload.source_agent_id),
+    name: side(payload.target_agent_name, payload.source_agent_name),
+    thread: side(payload.target_thread_id, payload.source_thread_id),
+  };
+  const status = wrapped.status ?? run?.status ?? String(payload.status ?? "queued");
+  const who = (party: typeof from) => {
+    const name = <bdi>{party.name || t`Agent`}</bdi>;
+    return party.id ? (
+      <Link to={`/app/${encodeURIComponent(party.id)}?thread=${encodeURIComponent(party.thread)}`}>
+        {name}
+      </Link>
+    ) : (
+      name
+    );
+  };
+  const label =
+    status === "cancelled"
+      ? t`Cancelled`
+      : status === "failed"
+        ? t`Failed`
+        : status === "completed"
+          ? t`Completed`
+          : status === "limited"
+            ? t`Stopped at its work limit`
+            : ["running", "leased"].includes(status)
+              ? t`Working…`
+              : t`Queued`;
+  return (
+    <div
+      className="mcard peer-card"
+      data-peer-message-id={peer.id}
+      data-peer-kind={request ? "request" : "outcome"}
+    >
+      <div className="mcard-kicker">
+        <Icon name="users" />
+        <Trans>Agent collaboration</Trans>
+      </div>
+      <div className="peer-who">
+        {who(from)}
+        <Icon name="back" className="flip" />
+        {who(to)}
+      </div>
+      {!(status === "cancelled" && wrapped.body === "cancelled") && (
+        <div className="md" dir="auto">
+          {md(wrapped.body, null)}
+        </div>
+      )}
+      <span className="mcard-sub">{label}</span>
     </div>
   );
 }

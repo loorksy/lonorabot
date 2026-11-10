@@ -4730,3 +4730,21 @@ span.no-trade {
 .md ol {
   list-style: decimal;
 }
+
+/* Lonora: an agent ↔ agent request or result inside the reference's card frame. */
+.peer-card .peer-who {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  font-size: var(--fs-sm);
+}
+.peer-card .peer-who a {
+  color: var(--accent);
+}
+.peer-card .peer-who .flip {
+  transform: scaleX(-1);
+}
+[dir="rtl"] .peer-card .peer-who .flip {
+  transform: none;
+}
