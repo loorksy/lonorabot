@@ -200,6 +200,8 @@
 /* A card's send quotes its card: the sparkle at the reference's quote icon size
    (Desktop-37 \.quote-text svg, review U5). */
 .template-message-quote.ux-quote svg {
+  /* Inline beside the card title, never a block of its own (preflight sets svg block). */
+  display: inline-block;
   width: 14px;
   height: 14px;
   vertical-align: -2px;

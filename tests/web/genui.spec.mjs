@@ -114,8 +114,13 @@ test("A01: the alert card streams, computes, sends and locks in the conversation
     await price.fill("");
     await price.pressSequentially("2,4");
     await expect(send).toBeDisabled();
+    // Enter says why nothing was sent: the reference's field error (review round 4).
+    await price.press("Enter");
+    await expect(alert.getByRole("alert").filter({ hasText: "القيمة غير صحيحة." })).toBeVisible();
+    await expect(price).toHaveAttribute("aria-invalid", "true");
     await price.pressSequentially("00");
     await expect(send).toBeEnabled();
+    await expect(alert.getByText("القيمة غير صحيحة.")).toHaveCount(0);
     const posted = page.waitForResponse(
       (response) =>
         response.request().method() === "POST" &&
@@ -135,6 +140,14 @@ test("A01: the alert card streams, computes, sends and locks in the conversation
     await expect(page.locator(".ux-quote").getByText("تنبيه سعر")).toBeVisible();
     // The quote's sparkle at the reference's quote icon size (review U5).
     await expect(page.locator(".ux-quote svg")).toHaveCSS("width", "14px");
+    // On the title's line, not above it (review round 4).
+    const [icon, title] = await Promise.all([
+      page.locator(".ux-quote svg").boundingBox(),
+      page.locator(".ux-quote span").boundingBox(),
+    ]);
+    expect(
+      icon && title && Math.abs(icon.y + icon.height / 2 - (title.y + title.height / 2)),
+    ).toBeLessThan(6);
     await expect(alert).toHaveClass(/is-sent/);
     await expect(alert.getByText(/أُرسل إلى/)).toBeVisible();
     await expect(price).toBeDisabled();

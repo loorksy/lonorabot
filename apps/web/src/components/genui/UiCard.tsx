@@ -14,7 +14,7 @@ import {
   sendBlocked,
 } from "@lonora/core";
 import { ICON_PATHS, Icon, type IconName } from "@lonora/ui-web";
-import { Fragment, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../../lib/api";
 import { userError } from "../../lib/user_error";
@@ -287,6 +287,12 @@ function NumberField({
 }) {
   const key = String(block.bind);
   const [draft, setDraft] = useState(value == null ? "" : String(value));
+  // Shown once the owner leaves the field or presses Enter, never mid-typing.
+  const [checked, setChecked] = useState(false);
+  const bad = parseCardNumber(draft) === undefined;
+  const { unreadable } = ctx;
+  // A field that is hidden or removed no longer holds the send (review round 4).
+  useEffect(() => () => unreadable(key, false), [key, unreadable]);
   // Only an outside change (an option's `also`, a reset) replaces the owner's draft.
   // biome-ignore lint/correctness/useExhaustiveDependencies: the draft is the local echo
   useEffect(() => {
@@ -312,7 +318,8 @@ function NumberField({
           autoComplete="off"
           value={draft}
           aria-required={block.required ? true : undefined}
-          aria-invalid={ctx.invalid === key ? true : undefined}
+          aria-invalid={ctx.invalid === key || (bad && checked) ? true : undefined}
+          aria-describedby={bad && checked ? `${id}-err` : undefined}
           data-ux-bind={key}
           disabled={ctx.frozen || ctx.locked}
           onChange={(event) => {
@@ -323,9 +330,12 @@ function NumberField({
             ctx.unreadable(key, parsed === undefined);
             if (parsed !== undefined) ctx.type(key, parsed);
           }}
+          onBlur={() => setChecked(true)}
           onKeyDown={(event) => {
             if (event.key !== "Enter") return;
             event.preventDefault();
+            setChecked(true);
+            if (bad) return; // the field's own error says why nothing was sent
             const card = event.currentTarget.closest(".ux");
             const primary = card?.querySelector<HTMLButtonElement>(".btn.primary");
             if (primary && !primary.disabled) primary.click();
@@ -334,6 +344,13 @@ function NumberField({
         />
         {typeof block.suffix === "string" && <span className="ux-affix">{block.suffix}</span>}
       </div>
+      {bad && checked && (
+        // The reference's field error (Desktop-37 .field-err, 5547).
+        <span className="field-err" id={`${id}-err`} role="alert">
+          <Icon name="alert" />
+          <span>{t`Invalid value.`}</span>
+        </span>
+      )}
     </div>
   );
 }
@@ -389,6 +406,16 @@ export default function UiCard({
   const [whyOpen, setWhyOpen] = useState(false);
   const [invalid, setInvalid] = useState<string | null>(null);
   const [unreadable, setUnreadable] = useState<ReadonlySet<string>>(() => new Set());
+  // Stable, so a field's cleanup on hide or unmount runs only then.
+  const markUnreadable = useCallback((key: string, bad: boolean) => {
+    setUnreadable((old) => {
+      if (old.has(key) === bad) return old;
+      const next = new Set(old);
+      if (bad) next.add(key);
+      else next.delete(key);
+      return next;
+    });
+  }, []);
   const [notice, setNotice] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [sentHere, setSentHere] = useState<string | null>(null);
@@ -429,7 +456,7 @@ export default function UiCard({
       minute: "2-digit",
     });
     // JavaScript's \b is ASCII-only, so «الآن» is matched up to a space or the end.
-    return text.replace(/^(الآن|now)(?=\s|$)/iu, `${t`Last updated`} ${time}`);
+    return text.replace(/^(الآن|now)(?=[\s:،,.]|$)/iu, `${t`Last updated`} ${time}`);
   };
 
   /** The reference's `uxMissing`: the first visible required input left empty. */
@@ -486,15 +513,7 @@ export default function UiCard({
       setValues((old) => ({ ...old, [key]: value }));
       if (invalid === key) setInvalid(null);
     },
-    unreadable(key, bad) {
-      setUnreadable((old) => {
-        if (old.has(key) === bad) return old;
-        const next = new Set(old);
-        if (bad) next.add(key);
-        else next.delete(key);
-        return next;
-      });
-    },
+    unreadable: markUnreadable,
     checkRequired: () => checkRequired(),
     act(block, path) {
       const action = block.action as Record<string, unknown> | undefined;
@@ -538,13 +557,16 @@ export default function UiCard({
       className={`ux${locked ? " is-sent" : ""}${building ? " is-building" : ""}`}
       data-ux-mid={host.messageId}
       role="group"
-      aria-label={title}
+      aria-label={title || t`Interactive interface`}
       aria-busy={building || undefined}
     >
       <div className="ux-head">
-        <span className="ux-ic">
-          <UiIcon name={doc.icon} />
-        </span>
+        {doc.icon && (
+          // No icon tile until the head line names one (Desktop-37 6539).
+          <span className="ux-ic">
+            <UiIcon name={doc.icon} />
+          </span>
+        )}
         <span className="ux-ht">
           <b>{title}</b>
           {doc.sub && <small>{renderTemplate(doc.sub, env)}</small>}

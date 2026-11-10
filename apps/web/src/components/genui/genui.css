@@ -564,6 +564,21 @@
   text-underline-offset: 3px;
   text-decoration-color: var(--line-strong);
 }
+/* Desktop-37 1053-1054 .field-err, scoped: a field's own error under it. */
+.ux .field-err {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  color: var(--red);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+}
+.ux .field-err svg {
+  width: 15px;
+  height: 15px;
+  flex: none;
+}
 .ux-notice {
   margin: 0;
   padding: 0 12px 10px;
