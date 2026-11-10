@@ -25,7 +25,7 @@ from .schema import EffectReceiptRow, RunRow
 
 TAINT = "ui_tainted"
 SUBMIT = "ui_submit_origin"
-Kind = Literal["watch", "routine", "ticket", "goal"]
+Kind = Literal["watch", "routine", "ticket", "goal", "opportunity"]
 # The run metadata keys that name a durable wake source, and its kind.
 SOURCES: tuple[tuple[str, Kind], ...] = (
     ("watch_id", "watch"),
@@ -33,6 +33,7 @@ SOURCES: tuple[tuple[str, Kind], ...] = (
     ("ticket_id", "ticket"),
     ("task_id", "ticket"),
     ("goal_id", "goal"),
+    ("opportunity_id", "opportunity"),
 )
 
 
@@ -46,17 +47,29 @@ def own_taint(run: RunRow) -> dict[str, Any] | None:
     return _mapping(metadata.get(TAINT)) or _mapping(metadata.get(SUBMIT))
 
 
-async def _source_taint(session: AsyncSession, metadata: dict[str, Any]) -> dict[str, Any] | None:
+async def _source_taint(
+    session: AsyncSession, metadata: dict[str, Any], depth: int = 0
+) -> dict[str, Any] | None:
     for key, kind in SOURCES:
         identifier = metadata.get(key)
         if isinstance(identifier, str) and identifier:
             taint = await row_taint(session, kind, identifier)
             if taint is not None:
                 return taint
+    # A Run that continues an owner's card (``continue_after_card``, an agent's first
+    # task) carries the taint of the Run that proposed the card (review round 4).
+    card_id = metadata.get("owner_action_id")
+    if isinstance(card_id, str) and card_id and depth < 4:
+        from .schema import OwnerActionRow
+
+        card = await session.get(OwnerActionRow, card_id)
+        proposer = await session.get(RunRow, card.run_id) if card and card.run_id else None
+        if proposer is not None:
+            return await run_taint(session, proposer, depth + 1)
     return None
 
 
-async def run_taint(session: AsyncSession, run: RunRow) -> dict[str, Any] | None:
+async def run_taint(session: AsyncSession, run: RunRow, depth: int = 0) -> dict[str, Any] | None:
     """The taint of ``run`` or of any Run in its ``parent_run_id`` ancestry: stored on the
     Run, or on the durable row it wakes from or works on (a Task Run resumed in place
     follows its Task's taint)."""
@@ -65,7 +78,7 @@ async def run_taint(session: AsyncSession, run: RunRow) -> dict[str, Any] | None
         if run.id in seen:
             raise LonoraError("goal_run_ancestry_invalid", 409)
         seen.add(run.id)
-        taint = own_taint(run) or await _source_taint(session, run.model_metadata or {})
+        taint = own_taint(run) or await _source_taint(session, run.model_metadata or {}, depth)
         if taint is not None:
             return taint
         if not run.parent_run_id:

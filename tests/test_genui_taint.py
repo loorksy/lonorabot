@@ -450,3 +450,77 @@ async def test_a_subagent_spawned_by_a_tainted_run_is_tainted() -> None:
         assert await tainted(fixture, spawned["id"])
     finally:
         await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_an_opportunity_saved_by_tainted_work_wakes_tainted() -> None:
+    """Review round 4 (a): an opportunity a card's send saved keeps the taint, so its wake
+    (a ``trigger='watch'`` Run with no parent) cannot spend the signed grant."""
+    from lonora_contracts.domain import utcnow
+    from test_proactive_wakes import retire, simulation
+
+    fixture = await open_fixture()
+    connection = ""
+    try:
+        connection = await simulation(fixture, [])
+        card, _, context = await submit_lease(fixture)
+        saved = await tool(
+            context,
+            "market_opportunity_create",
+            {
+                "account_id": connection,
+                "symbol": "XAUUSD",
+                "timeframe": "1m",
+                "setup_key": "card-breakout",
+                "definition": {
+                    "direction": "BUY",
+                    "rationale": "From a card",
+                    "entry_condition": "Above 2450",
+                    "invalidation_condition": "Below 2400",
+                    "strategy_version": "card-v1",
+                    "expires_at": (utcnow() + timedelta(hours=1)).isoformat(),
+                },
+            },
+        )
+        assert await row_taint(fixture, "opportunity", saved["id"]) is not None
+        assert await tainted(fixture, await wake(fixture, card, opportunity_id=saved["id"]))
+    finally:
+        await retire(fixture, connection)
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_the_continuation_of_a_card_a_tainted_run_proposed_is_tainted() -> None:
+    """Review round 4 (b): a card a card's send proposed (e.g. a trust_source card) and
+    the owner tapped continues in a Run that keeps the proposing Run's taint."""
+    from lonora_contracts.domain import utcnow
+    from lonora_db.owner_actions import continue_after_card
+    from lonora_db.schema import OwnerActionRow, RunRow
+
+    fixture = await open_fixture()
+    try:
+        card, submit_run, _ = await submit_lease(fixture)
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            row = OwnerActionRow(
+                owner_id=fixture.owner,
+                agent_id=card.agent["id"],
+                thread_id=card.thread["id"],
+                run_id=submit_run["id"],
+                source="agent",
+                kind="trust_source",
+                subject="source:card-test",
+                payload={"source_kind": "mcp", "identifier": "card-test"},
+                payload_hash="0" * 64,
+                status="confirmed",
+                expires_at=utcnow() + timedelta(hours=1),
+            )
+            session.add(row)
+            await session.flush()
+            continued = await continue_after_card(session, row)
+            assert continued is not None
+            continued_id = continued.id
+            stored = await session.get(RunRow, continued_id)
+            assert stored is not None and stored.parent_run_id is None
+        assert await tainted(fixture, continued_id)
+    finally:
+        await fixture.close()
