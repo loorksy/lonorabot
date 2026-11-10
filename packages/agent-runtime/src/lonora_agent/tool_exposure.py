@@ -15,8 +15,9 @@ from typing import Any, cast
 from lonora_adapter_kit.types import ModelMessage, ToolCall, ToolDefinition
 from lonora_core.user_error import LonoraError
 from lonora_db.agent_binding import agent_binding
-from lonora_db.schema import AgentRow
+from lonora_db.schema import AgentRow, ThreadRow
 from lonora_db.supervision import supervised_ids
+from lonora_db.threads import thread_options
 from lonora_db.tool_usage import record_tool_use, remembered_tools
 from lonora_tools.base import EXPOSURE_PROFILES, ExposureProfile, ToolScope
 from lonora_tools.context import ToolContext
@@ -93,6 +94,9 @@ async def ensure_exposure(
         agent = await agent_binding(session, context.owner_id, context.agent_id)
         remembered = await remembered_tools(session, context.owner_id, context.agent_id)
         supervising = bool(await supervised_ids(session, context.owner_id, context.agent_id))
+        thread = await session.get(ThreadRow, context.thread_id)
+        # The owner switched on web search for this chat (Q33): its schema is native.
+        web_search = thread is not None and thread_options(thread).web_search
     profiles = run_profiles(agent, task_run, supervises=supervising)
     unavailable = await registry.availability(context)
     native, promoted = registry.exposure(
@@ -105,6 +109,13 @@ async def ensure_exposure(
         if name in registry.tools and registry.tools[name].permitted(scope)
     }
     chosen = set(native) | kept
+    if (
+        web_search
+        and "web_search" in registry.tools
+        and registry.tools["web_search"].permitted(scope)
+        and "web_search" not in unavailable
+    ):
+        chosen.add("web_search")
     exposure = {
         "version": EXPOSURE_VERSION,
         "profiles": profiles,
