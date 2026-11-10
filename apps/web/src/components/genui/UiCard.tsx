@@ -158,11 +158,17 @@ function Block({ block, path, ctx }: { block: UiBlock; path: string; ctx: Ctx })
             aria-labelledby={`${id}-l`}
             style={{ "--n": options.length, "--i": current } as React.CSSProperties}
             onKeyDown={(event) => {
-              const step = { ArrowLeft: 1, ArrowRight: -1, ArrowDown: 1, ArrowUp: -1 }[event.key];
+              // Left and Right follow the reading direction; Up and Down never do (review).
+              const rtl = getComputedStyle(event.currentTarget).direction === "rtl";
+              const step = {
+                ArrowLeft: rtl ? 1 : -1,
+                ArrowRight: rtl ? -1 : 1,
+                ArrowDown: 1,
+                ArrowUp: -1,
+              }[event.key];
               if (!step || ctx.frozen || ctx.locked) return;
               event.preventDefault();
-              const rtl = getComputedStyle(event.currentTarget).direction === "rtl";
-              const next = (current + (rtl ? step : -step) + options.length) % options.length;
+              const next = (current + step + options.length) % options.length;
               const option = options[next];
               if (!option) return;
               ctx.pick(key, option.value, option.also);
@@ -218,8 +224,8 @@ function Block({ block, path, ctx }: { block: UiBlock; path: string; ctx: Ctx })
                 className="ux-pick"
                 role="checkbox"
                 aria-checked="true"
+                // Read-only, not disabled: the reference's disabled dim does not apply.
                 aria-disabled="true"
-                disabled
               >
                 <span className="ux-box" aria-hidden="true">
                   <Icon name="check" />
@@ -240,9 +246,12 @@ function Block({ block, path, ctx }: { block: UiBlock; path: string; ctx: Ctx })
       const action = block.action as { do?: string } | undefined;
       const safe = action && ["go", "open", "copy"].includes(String(action.do));
       const sends = !action || action.do === "send";
+      // Every control waits while the card builds; only a sent card keeps go/open/copy.
       const off =
-        (!safe && (ctx.frozen || ctx.locked || (sends && ctx.sendOff))) ||
-        (block.disabled !== undefined && Boolean(evaluate(block.disabled, ctx.env, false)));
+        ctx.frozen ||
+        (!safe && (ctx.locked || (sends && ctx.sendOff))) ||
+        // A `disabled` that fails to evaluate disables, as the server refuses it (fail closed).
+        (block.disabled !== undefined && Boolean(evaluate(block.disabled, ctx.env, true)));
       return (
         <button
           type="button"

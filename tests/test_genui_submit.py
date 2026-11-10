@@ -18,7 +18,9 @@ A01 = (Path(__file__).parent / "fixtures/genui/documents/valid/a01-alert.lonora-
 QUOTES = {"c1": ("XAUUSD", "2368.40"), "c2": ("XAGUSD", "28.92"), "c3": ("EURUSD", "1.0842")}
 
 
-async def compiled_card(agent_id: str, body: str = A01) -> dict[str, Any]:
+async def compiled_card(
+    agent_id: str, body: str = A01, extra: list[ModelMessage] | None = None
+) -> dict[str, Any]:
     from lonora_agent.genui_capabilities import capabilities
     from lonora_agent.genui_compile import AgentScope, compile_card
     from lonora_contracts.genui import parse_lines
@@ -38,6 +40,7 @@ async def compiled_card(agent_id: str, body: str = A01) -> dict[str, Any]:
             )
             for c, (s, b) in QUOTES.items()
         ],
+        *(extra or []),
     ]
     return compile_card(
         parse_lines(body, final=True),
@@ -55,12 +58,19 @@ class Card:
     def __init__(self, fixture: Any):
         self.fixture = fixture
 
-    async def open(self, body: str = A01) -> "Card":
-        from lonora_db.schema import MessageRow, ThreadRow
+    async def open(self, body: str = A01, extra: list[ModelMessage] | None = None) -> "Card":
+        await self.start()
+        return await self.place(body, extra)
 
+    async def start(self) -> "Card":
         self.agent = await self.fixture.agent("Card")
         self.thread = await self.fixture.conversation(self.agent)
-        document = await compiled_card(self.agent["id"], body)
+        return self
+
+    async def place(self, body: str = A01, extra: list[ModelMessage] | None = None) -> "Card":
+        from lonora_db.schema import MessageRow, ThreadRow
+
+        document = await compiled_card(self.agent["id"], body, extra)
         async with self.fixture.runtime.db.sessions() as session, session.begin():
             thread = await session.get(ThreadRow, self.thread["id"], with_for_update=True)
             assert thread is not None
@@ -588,4 +598,97 @@ async def test_a_send_that_ran_is_never_marked_and_clients_learn_it_started() ->
         assert shown.get("ui_mark") is None and "mark" not in shown["ui_submit"]
         assert next(m for m in page if m["id"] == card.message_id)["ui_lock"]["1"]
     finally:
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_an_owner_message_folded_into_a_queued_send_survives_its_edit() -> None:
+    """The owner types while a card's send waits: their message joins that queued Run.
+    «تعديل» cancels the send, never the owner's words: they get a normal owner Run."""
+    from lonora_db.genui_taint import SUBMIT
+
+    fixture = await open_fixture()
+    try:
+        card = await Card(fixture).open()
+        response = await card.post(card.body({"price": 2460}))
+        assert response.status_code == 202
+        submit_run = response.json()["run_ids"][0]
+        typed = await fixture.request(
+            "POST", f"/threads/{card.thread['id']}/messages", {"content": "وأيضًا راقب الفضة"}
+        )
+        assert typed["run_ids"] == [submit_run]  # folded into the queued send's Run
+        await fixture.request(
+            "POST", f"/threads/{card.thread['id']}/messages/{card.message_id}/ui-state/1/unlock"
+        )
+        queued = [r for r in await runs(fixture, card.thread["id"]) if r.status == "queued"]
+        assert len(queued) == 1 and SUBMIT not in queued[0].model_metadata
+        assert queued[0].input_seq >= typed["message"]["seq"]
+    finally:
+        await fixture.close()
+
+
+@pytest.mark.parametrize("language", ["ar", "en"])
+@pytest.mark.asyncio
+async def test_alert_off_names_the_watch_in_the_conversations_language(language: str) -> None:
+    """«إيقاف التنبيه» on a receipt: the bubble names the watch in the watch list's own
+    words, in the conversation's language (review)."""
+    from lonora_db.schema import OwnerProfileRow
+    from test_proactive_wakes import call, retire, simulation
+
+    fixture = await open_fixture()
+    connection = ""
+    previous: str | None = None
+    try:
+        connection = await simulation(fixture, [])
+        card = await Card(fixture).start()
+        context = await fixture.lease(await fixture.run(card.agent, card.thread))
+        watch = await call(
+            context,
+            "watch_create",
+            account_id=connection,
+            symbol="XAUUSD",
+            condition="above",
+            level="2400",
+            prompt="Tell the owner.",
+        )
+        receipt = "\n".join(
+            [
+                '{"v":2,"kind":"receipt","title":"تنبيه فعّال","icon":"check"}',
+                '{"type":"Button","label":"إيقاف التنبيه","icon":"bellOff","action":'
+                '{"do":"send","intent":"alert.off","data":{"watch_id":"' + watch["id"] + '"}}}',
+                '{"why":"w","fallback":"التنبيه فعّال."}',
+            ]
+        )
+        created = [
+            ModelMessage(
+                role="assistant",
+                content="",
+                tool_calls=[ToolCall(id="w1", name="watch_create", arguments={})],
+            ),
+            ModelMessage(role="tool", tool_call_id="w1", content=json.dumps({"id": watch["id"]})),
+        ]
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            profile = await session.get(OwnerProfileRow, fixture.owner)
+            if profile is None:
+                profile = OwnerProfileRow(owner_id=fixture.owner)
+                session.add(profile)
+            previous = profile.reply_language
+            profile.reply_language = language
+        await card.place(receipt, created)
+        response = await card.post(card.body({}, path="0"))
+        assert response.status_code == 202, response.text
+        message = response.json()["message"]
+        assert message["ui_submit"]["intent"] == "alert.off"
+        # The watch list's own words (watchCondition), in the conversation's language.
+        expected = {
+            "ar": "أوقف تنبيه \u2068XAUUSD\u2069 فوق \u20682400\u2069",
+            "en": "Stop the alert \u2068XAUUSD\u2069 above \u20682400\u2069",
+        }[language]
+        assert message["content"] == expected
+    finally:
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            profile = await session.get(OwnerProfileRow, fixture.owner)
+            if profile is not None:
+                profile.reply_language = previous
+        await retire(fixture, connection)
         await fixture.close()

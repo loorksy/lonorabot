@@ -557,6 +557,19 @@ class VisualProjection:
             return None
 
 
+# A building card before its head line is complete (GENUI_PLAN §9.1).
+SKELETON: dict[str, Any] = {
+    "v": 2,
+    "kind": "form",
+    "title": "",
+    "facts": {},
+    "state": {},
+    "calc": {},
+    "blocks": [],
+    "fallback": "",
+}
+
+
 class VisualReplyProjector:
     """Compile complete frames once, while independent prose keeps flowing.
 
@@ -640,6 +653,8 @@ class VisualReplyProjector:
         document = self.cards[key]
         if document is None:
             if not final:
+                # Until the head line is complete: the skeleton, never nothing (review).
+                result.card(dict(SKELETON), building=True)
                 return False
             fallback = (self.cards.get("fallback:" + key) or {}).get("fallback")
             result.errors.append("visual_frame_rejected")
@@ -727,6 +742,7 @@ class VisualReplyProjector:
     async def project(self, text: str, *, partial: bool = False) -> VisualProjection:
         result = VisualProjection()
         position = 0
+        cards = 0
         for index in range(12):
             match = visual_start(text, position)
             if not match:
@@ -739,8 +755,9 @@ class VisualReplyProjector:
                 partial and closing is None and re.match(r'^\s*\{\s*"v"\s*:\s*2', body)
             ):
                 complete = closing is not None and text[: closing.end()].endswith("\n")
-                if any(part["type"] == "ui" for part, _ in result.segments):
-                    # One card per reply: a second is dropped, its fallback kept as text.
+                if cards:
+                    # One card per reply, even when the first fell back: a second is
+                    # dropped, its fallback kept as text (review).
                     if partial and not complete:
                         return result
                     self.diagnostics.append({"code": "interface_extra", "frame": index})
@@ -752,6 +769,7 @@ class VisualReplyProjector:
                         self._prose(result, "\n" + extra + "\n")
                     position = closing.end() if closing else len(text)
                     continue
+                cards += 1
                 if partial and not complete:
                     await self._v2(result, body, partial=True, closed=False)
                     return result

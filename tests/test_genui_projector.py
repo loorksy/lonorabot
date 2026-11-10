@@ -445,3 +445,108 @@ async def test_stop_before_any_block_shows_the_fallback_and_failure_never_builds
         assert rich is not None
         assert [p["type"] for p in rich["parts"]] == ["text", "text"]
         assert not any(p.get("building") for p in rich["parts"])
+
+
+@pytest.mark.asyncio
+async def test_a_link_in_a_cards_send_is_never_the_owners_link() -> None:
+    """An ``open`` URL is allowed only when the owner typed it or a tool returned it; a
+    card's send (``[owner_via_card …]``) is card words, never the owner's (review)."""
+    link = "https://example.com/gold-report"
+    body = A01.replace(
+        '{"type":"Text","tone":"muted"',
+        '{"type":"Button","label":"التقرير","action":{"do":"open","url":"'
+        + link
+        + '"}}\n{"type":"Text","tone":"muted"',
+    )
+
+    async def opens(owner: str) -> bool:
+        history = messages()
+        history[0] = ModelMessage(role="user", content=owner)
+        projection, _ = await project(reply(body), history=history)
+        rich = projection.rich_until()
+        assert rich is not None
+        from lonora_contracts.genui import walk
+
+        document = rich["parts"][-1]["document"]
+        return any(
+            node.get("action", {}).get("url") == link for _p, node in walk(document["blocks"])
+        )
+
+    assert await opens("نبّهني إذا صعد الذهب فوق 2400 " + link)
+    assert not await opens("[owner_via_card «تنبيه سعر»]\nافتح " + link)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "edit",
+    [
+        # Inside template braces.
+        lambda b: b.replace(
+            '{"type":"Text","tone":"muted"',
+            '{"type":"Note","text":"السعر {2368.40}"}\n{"type":"Text","tone":"muted"',
+        ),
+        # A calc literal and an expression constant.
+        lambda b: b.replace('"calc":{', '"calc":{"x":2368.4,'),
+        lambda b: b.replace("@Fact('xau')", "2368.40", 1),
+        # An option's also, and an option label.
+        lambda b: b.replace('"also":{"price":2400}', '"also":{"price":2368.4}'),
+        lambda b: b.replace('"label":"يصعد فوق"', '"label":"يصعد فوق 2,368.40"'),
+        # Arabic-Indic digits.
+        lambda b: b.replace(
+            '{"type":"Text","tone":"muted"',
+            '{"type":"Note","text":"السعر ٢٬٣٦٨٫٤٠"}\n{"type":"Text","tone":"muted"',
+        ),
+    ],
+)
+async def test_typed_market_values_are_caught_wherever_the_card_types_them(edit) -> None:
+    projection, projector = await project(reply(edit(A01)))
+    assert all(p["type"] == "text" for p in (projection.rich_until() or {"parts": []})["parts"])
+    assert any(d["code"] == "card_fallback_typed_fact" for d in projector.diagnostics)
+
+
+@pytest.mark.asyncio
+async def test_a_year_or_id_from_a_quote_is_not_a_market_value() -> None:
+    """Only price-like quote and account fields count: the card may type the year the
+    quote's timestamp also carries (review, rule 2 false positive)."""
+    body = A01.replace(
+        '{"type":"Text","tone":"muted"',
+        '{"type":"Note","text":"خطة 2026"}\n{"type":"Text","tone":"muted"',
+    )
+    projection, projector = await project(reply(body))
+    rich = projection.rich_until()
+    assert rich is not None and rich["parts"][-1]["type"] == "ui"
+    assert not any(d["code"] == "card_fallback_typed_fact" for d in projector.diagnostics)
+
+
+@pytest.mark.asyncio
+async def test_a_fixed_market_agents_card_on_another_account_falls_back() -> None:
+    """A fixed-market agent's card reads only its own account (review): quotes read on
+    any other account make the card fall back as ``option_out_of_scope``."""
+    projection, projector = await project(reply(), agent=_Agent("acc-2", "XAUUSD"))
+    assert all(p["type"] == "text" for p in (projection.rich_until() or {"parts": []})["parts"])
+    assert any(d["code"] == "option_out_of_scope" for d in projector.diagnostics)
+
+
+@pytest.mark.asyncio
+async def test_a_second_card_after_a_fallback_is_still_dropped() -> None:
+    """One card per reply even when the first fell back to text (review)."""
+    first = A01.replace('"alert.create"', '"trade.execute"')  # falls back
+    second = '{"v":2,"kind":"receipt","title":"x","icon":"check"}\n{"type":"Text","text":"y"}\n{"why":"w","fallback":"الثانية"}'
+    text = reply(first) + "\n```lonora-ui\n" + second + "\n```\n"
+    projection, projector = await project(text)
+    parts = (projection.rich_until() or {"parts": []})["parts"]
+    assert not any(p["type"] == "ui" for p in parts)
+    assert any(d["code"] == "interface_extra" for d in projector.diagnostics)
+
+
+@pytest.mark.asyncio
+async def test_the_skeleton_shows_as_soon_as_the_fence_opens() -> None:
+    """Before the head line is complete the card already shows as a building skeleton
+    (review), never nothing."""
+    projection, _ = await project(LEAD + '```lonora-ui\n{"v":2,"kind":"for', partial=True)
+    rich = projection.rich_until()
+    assert rich is not None
+    part = rich["parts"][-1]
+    assert part["type"] == "ui" and part["building"] is True
+    assert part["document"]["blocks"] == []
+    RichContent.model_validate(rich)

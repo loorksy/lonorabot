@@ -200,8 +200,10 @@ async def _identity_names(
     document: dict[str, Any],
     intent: str,
     data: dict[str, Any],
+    language: str = "ar",
 ) -> dict[str, str]:
-    """The server's own names for identity fields (§8.3, Identity values)."""
+    """The server's own names for identity fields (§8.3, Identity values), in the
+    conversation's language."""
     names: dict[str, str] = {}
     if intent == "alert.off":
         watch = await session.get(MarketWatchRow, data["watch_id"])
@@ -211,7 +213,7 @@ async def _identity_names(
             or watch.agent_id != document.get("agent_id")
         ):
             raise LonoraError("ui_submit_data_invalid", 422)
-        names["watch_id"] = watch_name(watch_summary(watch), "ar")
+        names["watch_id"] = watch_name(watch_summary(watch), language)
     if intent == "alert.create":
         accounts = await enabled_accounts(session, owner_id)
         if len(accounts) > 1:
@@ -358,7 +360,7 @@ async def submit_card(
     if intent_name == "ask":
         content = render_template(str(node["label"]), env).strip()
     else:
-        names = await _identity_names(session, owner_id, document, intent_name, data)
+        names = await _identity_names(session, owner_id, document, intent_name, data, language)
         content = compose_bubble(intent, data, language, names)
     if not content or public_reply_violation(content):
         raise LonoraError("ui_submit_text_refused", 422)
@@ -492,6 +494,48 @@ async def settle_unstarted(session: AsyncSession, run: RunRow) -> None:
     await _updated(session, message)
 
 
+async def requeue_folded(session: AsyncSession, run: RunRow) -> None:
+    """The owner's own messages folded into a queued submission's Run while it waited are
+    not lost when «تعديل» or the lifetime cancels it: they get a normal owner Run. Stop
+    re-queues nothing: it stops the owner's work too."""
+    origin = ui_submit_origin(run)
+    submit = await session.get(MessageRow, str(origin.get("message_id"))) if origin else None
+    if submit is None:
+        return
+    folded = await session.scalar(
+        select(MessageRow.id)
+        .where(
+            MessageRow.thread_id == run.thread_id,
+            MessageRow.role == "user",
+            MessageRow.origin == "owner",
+            MessageRow.seq > submit.seq,
+            MessageRow.seq <= run.input_seq,
+        )
+        .limit(1)
+    )
+    thread = await session.get(ThreadRow, run.thread_id)
+    if folded is None or thread is None:
+        return
+    from lonora_contracts.runs import RunRequest
+
+    from .runs import create_run
+
+    try:
+        await create_run(
+            session,
+            thread.owner_id,
+            RunRequest(
+                thread_id=run.thread_id,
+                agent_id=run.agent_id,
+                trigger="group" if thread.group_id else "user",
+            ),
+        )
+    except LonoraError as error:
+        # A paused agent answers when it is resumed, as for any owner message.
+        if error.code != "agent_paused":
+            raise
+
+
 async def expire_submits(session: AsyncSession, thread_id: str | None = None) -> list[RunRow]:
     """Rule L: a submission not started 30 minutes after it was sent is cancelled
     (``ui_submit_expired``), settled lazily at claim and on read, with no countdown."""
@@ -523,6 +567,7 @@ async def expire_submits(session: AsyncSession, thread_id: str | None = None) ->
                 payload={"code": "ui_submit_expired"},
             )
         await settle_unstarted(session, run)
+        await requeue_folded(session, run)
         expired.append(run)
     return expired
 
@@ -552,6 +597,7 @@ async def unlock_card(
         # Superseded first, so the cancellation records «مُعدّلة» (Q21, review U2).
         submit.ui_submit = {**submit.ui_submit, "superseded_at": utcnow().isoformat()}
         await cancel_run(session, owner_id, run.id)
+        await requeue_folded(session, run)
     state = dict(source.ui_state or {})
     parts = dict(state.get("parts", {}))
     parts[str(part)] = {**parts.get(str(part), {}), "unlocked_seq": submit.seq}

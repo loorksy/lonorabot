@@ -468,6 +468,11 @@ def evaluate_node(node: Node, env: Env) -> Any:
         if node[1] == "Fact":
             key = evaluate_node(node[2][0], env) if node[2] else None
             return env.facts.get(key) if isinstance(key, str) else None
+        from .genui_functions import ARITY
+
+        low, high = ARITY.get(node[1], (0, None))
+        if len(node[2]) < low or (high is not None and len(node[2]) > high):
+            raise ExpressionError("genui_function_arity")
         return bounded(function(*[evaluate_node(arg, env) for arg in node[2]]))
     raise ExpressionError("genui_expression_invalid")
 

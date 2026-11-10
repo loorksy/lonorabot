@@ -204,6 +204,35 @@ NUMBER = re.compile(r"\d[\d,]*(?:\.\d+)?")
 FACT_TOOLS = re.compile(r"^(?:market_|account_|list_accounts$|trade_record_history$)")
 
 
+# Arabic-Indic and Persian digits, «٫» and «٬», read as the client reads them.
+DIGITS = str.maketrans("٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹٫٬", "01234567890123456789.,")
+# The quote and account fields whose values are market or account numbers (rule 2); ids,
+# logins, timestamps, digits and volume steps never are (review: no year false positive).
+PRICE_KEYS = frozenset(
+    {
+        "bid",
+        "ask",
+        "last",
+        "mid",
+        "price",
+        "open",
+        "high",
+        "low",
+        "close",
+        "current_price",
+        "open_price",
+        "price_open",
+        "price_current",
+        "balance",
+        "equity",
+        "margin",
+        "free_margin",
+        "profit",
+        "value",
+    }
+)
+
+
 def _numbers(value: Any) -> set[Decimal]:
     found: set[Decimal] = set()
     if isinstance(value, bool) or value is None:
@@ -212,7 +241,7 @@ def _numbers(value: Any) -> set[Decimal]:
         if math.isfinite(value):
             found.add(Decimal(str(value)).normalize())
     elif isinstance(value, str):
-        for token in NUMBER.findall(value):
+        for token in NUMBER.findall(value.translate(DIGITS)):
             try:
                 found.add(Decimal(token.replace(",", "")).normalize())
             except InvalidOperation:
@@ -226,6 +255,21 @@ def _numbers(value: Any) -> set[Decimal]:
     return found
 
 
+def _read_values(value: Any) -> set[Decimal]:
+    """Price-like values only: the PRICE_KEYS fields of a quote or account result."""
+    found: set[Decimal] = set()
+    if isinstance(value, dict):
+        for key, item in cast(dict[str, Any], value).items():
+            if key in PRICE_KEYS and not isinstance(item, dict | list):
+                found |= _numbers(item)
+            else:
+                found |= _read_values(item)
+    elif isinstance(value, list):
+        for item in cast(list[Any], value):
+            found |= _read_values(item)
+    return found
+
+
 def _significant(number: Decimal) -> bool:
     return (number != number.to_integral_value() and abs(number) >= 1) or abs(number) >= 1000
 
@@ -234,29 +278,21 @@ def typed_fact_numbers(
     head: dict[str, Any],
     blocks: list[dict[str, Any]],
     state: dict[str, Any],
+    calc: dict[str, Any],
     evidence: dict[str, Evidence],
     owner: str,
 ) -> list[str]:
-    """Market or account values read this turn that the card types as literals instead of
-    citing through @Fact (rule 2); numbers the owner typed are theirs to show."""
+    """Market or account values read this turn that the card types instead of citing
+    through @Fact (rule 2), wherever it types them: text, template braces, calc literals
+    and expressions (@Pick constants included), options (values, labels, ``also``) and
+    action data, in any digits. Numbers the owner typed are theirs to show."""
     read: set[Decimal] = set()
     for item in evidence.values():
         if FACT_TOOLS.match(item.name) and not _failed(item.result):
-            read |= {n for n in _numbers(item.result) if _significant(n)}
+            read |= {n for n in _read_values(item.result) if _significant(n)}
     said = _numbers(owner)
-    literals: list[Any] = [head.get("title"), head.get("sub"), list(state.values())]
-    for _path, node in walk(blocks):
-        for key in ("text", "label", "hint", "sub", "value", "rows", "title"):
-            value = node.get(key)
-            if isinstance(value, str):
-                value = re.sub(r"\{[^{}]*\}", " ", value)
-            elif isinstance(value, list):
-                value = [
-                    re.sub(r"\{[^{}]*\}", " ", c) if isinstance(c, str) else c
-                    for row in cast(list[Any], value)
-                    for c in (cast(list[Any], row) if isinstance(row, list) else [row])
-                ]
-            literals.append(value)
+    shown = {key: value for key, value in head.items() if key not in {"facts", "v"}}
+    literals: list[Any] = [shown, state, calc, blocks]
     return sorted(str(n) for n in _numbers(literals) if n in read and n not in said)
 
 
@@ -307,15 +343,23 @@ def _data_keys(action: dict[str, Any], state: dict[str, Any], calc: dict[str, An
     return keys
 
 
-def _owner_urls(messages: list[ModelMessage], evidence: dict[str, Evidence]) -> set[str]:
-    owner = next(
+def owner_words(messages: list[ModelMessage]) -> str:
+    """The owner's latest typed message; a card's send is card words, never the owner's
+    (its projection starts ``[owner_via_card``, GENUI_PLAN §8.4)."""
+    return next(
         (
             m.content
             for m in reversed(messages)
-            if m.role == "user" and m.context_origin == "conversation"
+            if m.role == "user"
+            and m.context_origin == "conversation"
+            and not m.content.startswith("[owner_via_card")
         ),
         "",
     )
+
+
+def _owner_urls(messages: list[ModelMessage], evidence: dict[str, Evidence]) -> set[str]:
+    owner = owner_words(messages)
     urls = set(re.findall(r"https://[^\s<>\"'«»]+", owner))
 
     def collect(value: Any) -> None:
@@ -406,6 +450,10 @@ def compile_card(
             "account_id": call_account,
         }
     if facts and all(fact["value"] is None for fact in facts.values()):
+        raise CardError("card_fallback")
+    if scope.bound_account and account is not None and account != scope.bound_account:
+        # A fixed-market agent's card is about its own account only (review).
+        diagnostics.add("option_out_of_scope", None, "head")
         raise CardError("card_fallback")
     if head.get("mode") == "observed" and not facts:
         # No fact declared: the card shows no market or account number, so it is never
@@ -605,15 +653,8 @@ def compile_card(
                 break
 
     # Rule 2: a market or account value read this turn is shown only through @Fact.
-    owner = next(
-        (
-            m.content
-            for m in reversed(messages)
-            if m.role == "user" and m.context_origin == "conversation"
-        ),
-        "",
-    )
-    if typed_fact_numbers(head, blocks, state, evidence, owner):
+    owner = owner_words(messages)
+    if typed_fact_numbers(head, blocks, state, calc, evidence, owner):
         raise CardError("card_fallback_typed_fact")
 
     # Privacy over every display string as the client renders it (review S2): templated

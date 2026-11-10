@@ -137,6 +137,48 @@ function dayLabel(context: FormatContext, value: unknown): string | null {
   return en ? `${name} ${month} ${day}` : `${name} ${day} ${month}`;
 }
 
+/** How many arguments each function takes, the twin of Python's ARITY (shared fixture
+ * tests/fixtures/genui/arity.json; `Random` is client-only): a call outside it fails the
+ * expression on both sides. */
+export const ARITY: Record<string, readonly [number, number | null]> = {
+  Abs: [1, 1],
+  Allocate: [2, 2],
+  Avg: [1, 1],
+  Ceil: [1, 1],
+  Change: [1, 1],
+  Clamp: [3, 3],
+  Count: [1, 2],
+  Cumulative: [1, 1],
+  DayLabel: [1, 1],
+  Default: [1, 2],
+  Fact: [0, 1],
+  Filter: [3, 3],
+  First: [1, 1],
+  Floor: [1, 1],
+  Fmt: [1, 2],
+  If: [1, 3],
+  Includes: [2, 2],
+  Join: [1, 2],
+  Last: [1, 1],
+  Len: [1, 1],
+  Max: [0, null],
+  Min: [0, null],
+  Money: [1, 2],
+  MovingAvg: [2, 2],
+  Pct: [1, 2],
+  Pick: [1, null],
+  Plural: [1, 6],
+  Pow: [2, 2],
+  Range: [2, 3],
+  Round: [1, 2],
+  Score: [2, 2],
+  Signed: [1, 2],
+  Sqrt: [1, 1],
+  Sum: [1, 1],
+  Take: [2, 2],
+  Random: [0, 4],
+};
+
 export const FUNCTIONS: Record<string, GenuiFunction> = {
   Round: (_c, value, digits) => round(value, digits),
   Floor: unary(Math.floor),

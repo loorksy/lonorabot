@@ -363,3 +363,22 @@ FUNCTIONS: dict[str, Callable[..., Any]] = {
 CLIENT_ONLY = frozenset({"Random"})
 KNOWN = frozenset(FUNCTIONS) | CLIENT_ONLY
 FORMATTERS = frozenset({"Fmt", "Money", "Pct", "Signed", "DayLabel", "Plural", "Join"})
+
+
+def _arity(function: Callable[..., Any]) -> tuple[int, int | None]:
+    import inspect
+
+    parameters = list(inspect.signature(function).parameters.values())
+    required = sum(
+        1
+        for p in parameters
+        if p.kind is p.POSITIONAL_OR_KEYWORD and p.default is inspect.Parameter.empty
+    )
+    if any(p.kind is p.VAR_POSITIONAL for p in parameters):
+        return required, None
+    return required, len(parameters)
+
+
+# How many arguments each function takes, ``functions.ts`` ARITY's twin (shared fixture):
+# a call outside it fails the expression on both sides.
+ARITY: dict[str, tuple[int, int | None]] = {name: _arity(f) for name, f in FUNCTIONS.items()}

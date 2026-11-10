@@ -511,6 +511,38 @@
   {
    "src": "@Len(@Join([@Join(@Range(0,150),'xxxxx'), @Join(@Range(0,150),'xxxxx')], ''))",
    "expected": 0
+  },
+  {
+   "src": "@Round()",
+   "expected": null
+  },
+  {
+   "src": "@Abs(1,2)",
+   "expected": null
+  },
+  {
+   "src": "@Pow(2)",
+   "expected": null
+  },
+  {
+   "src": "@Len()",
+   "expected": null
+  },
+  {
+   "src": "@Clamp(1,2)",
+   "expected": null
+  },
+  {
+   "src": "@If(true,1,2,3)",
+   "expected": null
+  },
+  {
+   "src": "@Default(1,2,3) + 1",
+   "expected": null
+  },
+  {
+   "src": "@Round(2.345,2)",
+   "expected": 2.35
   }
  ]
 }

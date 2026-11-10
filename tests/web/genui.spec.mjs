@@ -268,7 +268,6 @@ const ALLOWED = {
   ".ux": ["height"],
   ".ux-body": ["height"],
   ".ux-picks": ["height"],
-  ".ux-box": ["opacity"],
 };
 
 async function probe(page) {

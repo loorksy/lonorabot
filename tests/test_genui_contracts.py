@@ -227,3 +227,11 @@ def test_a_literal_send_value_is_data_and_a_bad_action_drops_its_button() -> Non
     card = parse_lines(raw, final=True)
     assert [b["label"] for b in card.blocks] == ["Stop"]
     assert card.blocks[0]["action"]["data"]["watch_id"].startswith("47a32ccd")
+
+
+def test_function_arity_is_the_shared_fixture() -> None:
+    """Both evaluators refuse a call outside a function's arity (``functions.ts`` ARITY)."""
+    from lonora_contracts.genui_functions import ARITY
+
+    shared = json.loads((FIXTURES / "arity.json").read_text())
+    assert {name: [low, high] for name, (low, high) in ARITY.items()} == shared

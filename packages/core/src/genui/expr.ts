@@ -3,7 +3,7 @@
  * vectors in `tests/fixtures/genui/expr-vectors.json` hold the two equal. Nothing here is
  * executed as JavaScript: expressions are parsed into a small AST and walked.
  */
-import { FUNCTIONS, type GenuiFunction } from "./functions";
+import { ARITY, FUNCTIONS, type GenuiFunction } from "./functions";
 import { MAX_ITEMS, MAX_TEXT, textSize } from "./limits";
 
 export const MAX_EXPRESSION_CHARS = 400;
@@ -396,6 +396,9 @@ export function evaluateNode(node: Node, env: Env): unknown {
       if (node[1] === "Random" && !env.context?.allowRandom) {
         throw new ExpressionError("genui_random_outside_set");
       }
+      const [low, high] = Object.hasOwn(ARITY, node[1]) ? (ARITY[node[1]] ?? [0, null]) : [0, null];
+      if (node[2].length < low || (high !== null && node[2].length > high))
+        throw new ExpressionError("genui_function_arity");
       return bounded(fn(env.context ?? {}, ...node[2].map((arg) => evaluateNode(arg, env))));
     }
   }

@@ -4,6 +4,7 @@ import test from "node:test";
 import type { AgentWatchSummary } from "@lonora/contracts";
 import { watchCondition } from "../../packages/core/src/agent-status";
 import { environment, evaluate, renderTemplate } from "../../packages/core/src/genui/expr";
+import { ARITY } from "../../packages/core/src/genui/functions";
 import { parseCardNumber } from "../../packages/core/src/genui/input";
 
 type Vectors = {
@@ -95,4 +96,15 @@ test("a card's number field reads grouped and Arabic numbers, never a prefix (M7
     ["1e999", undefined],
   ];
   for (const [text, expected] of cases) assert.equal(parseCardNumber(text), expected, text);
+});
+
+test("every function's arity equals Python's (shared fixture)", () => {
+  const expected = JSON.parse(
+    readFileSync(new URL("../fixtures/genui/arity.json", import.meta.url), "utf8"),
+  ) as Record<string, [number, number | null]>;
+  const { Random: _random, ...shared } = ARITY;
+  assert.deepEqual(
+    Object.fromEntries(Object.entries(shared).map(([name, range]) => [name, [...range]])),
+    expected,
+  );
 });
