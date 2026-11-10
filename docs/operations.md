@@ -581,8 +581,8 @@ the Debian mirror is unreachable, `LONORA_TEST_SKIP_APT=1` drops the Chromium/fo
 
 ### What was verified, and what still needs a real host
 
-Verified in a development container with Docker 29.9 and Compose 5.6, real images, a real local
-registry (real digests), PostgreSQL 16 and Caddy 2.10: all 22 lifecycle checks passed. The
+Verified with real images, a local registry (real digests), PostgreSQL 16 and Caddy 2.10, on
+Docker 29.1.3 and Compose 2.40.3: all 22 lifecycle checks passed (`LONORA_TEST_SKIP_APT=1`). The
 fresh-start steps 2, 4 and 5 were also run here against volumes named like the old ones: both
 archives were complete, and the new install came up with `/ready` passing and an empty database.
 
