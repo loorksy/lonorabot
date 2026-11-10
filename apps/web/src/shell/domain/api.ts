@@ -66,7 +66,9 @@ export const domainApi = {
     api.get<Routine[]>(agentId ? `/routines?agent_id=${encodeURIComponent(agentId)}` : "/routines"),
   createRoutine: (agentId: string, input: RoutineInput) =>
     api.post<Routine>(`/routines/${agentId}`, input),
-  saveRoutine: (id: string, input: RoutineInput) => api.put<Routine>(`/routines/${id}`, input),
+  /** A partial edit: fields left out keep their stored value. */
+  saveRoutine: (id: string, input: Partial<RoutineInput>) =>
+    api.put<Routine>(`/routines/${id}`, input),
   deleteRoutine: (id: string) => api.delete<{ deleted: boolean }>(`/routines/${id}`),
   /** «عند تحقق شرط»: a market watch that wakes the agent with the prompt (no authority). */
   createWatch: (agentId: string, payload: Record<string, unknown>) =>

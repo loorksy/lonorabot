@@ -123,7 +123,7 @@ msgstr "تحققت مراقبة"
 #~ msgid "A workspace that remembers"
 #~ msgstr "مساحة عمل تتذكر"
 
-#: src/shell/domain/SchedulesPages.tsx:118
+#: src/shell/domain/SchedulesPages.tsx:124
 msgid "above"
 msgstr "فوق"
 
@@ -315,7 +315,7 @@ msgstr "إعدادات متقدمة"
 #: src/pages/shell/message-cards.tsx:264
 #: src/pages/shell/message-cards.tsx:267
 #: src/pages/shell/message-cards.tsx:334
-#: src/shell/domain/SchedulesPages.tsx:404
+#: src/shell/domain/SchedulesPages.tsx:467
 #: src/shell/domain/TasksPages.tsx:197
 msgid "Agent"
 msgstr "الوكيل"
@@ -376,7 +376,7 @@ msgstr "الوكلاء"
 msgid "Agents and groups"
 msgstr "الوكلاء والمجموعات"
 
-#: src/shell/domain/SchedulesPages.tsx:430
+#: src/shell/domain/SchedulesPages.tsx:493
 msgid "Alert channel"
 msgstr "قناة التنبيه"
 
@@ -594,7 +594,7 @@ msgstr "العمل في الخلفية"
 msgid "Balance"
 msgstr "الرصيد"
 
-#: src/shell/domain/SchedulesPages.tsx:118
+#: src/shell/domain/SchedulesPages.tsx:124
 msgctxt "watch"
 msgid "below"
 msgstr "تحت"
@@ -793,7 +793,7 @@ msgstr "الكاميرا غير مسموحة"
 #: src/components/skills/SkillEditor.tsx:141
 #: src/pages/Board.tsx:576
 #: src/shell/domain/FilesPages.tsx:63
-#: src/shell/domain/SchedulesPages.tsx:57
+#: src/shell/domain/SchedulesPages.tsx:63
 #: src/shell/domain/TasksPages.tsx:168
 #: src/shell/lists/Selection.tsx:78
 msgid "Cancel"
@@ -855,8 +855,8 @@ msgstr "تغيير الوضع يوقف أهداف التداول النشطة م
 msgid "Channel"
 msgstr "قناة"
 
-#: src/shell/domain/SchedulesPages.tsx:136
-#: src/shell/domain/SchedulesPages.tsx:174
+#: src/shell/domain/SchedulesPages.tsx:188
+#: src/shell/domain/SchedulesPages.tsx:235
 msgctxt "schedule details"
 msgid "Channel"
 msgstr "القناة"
@@ -983,7 +983,8 @@ msgstr "اختر ملفًا أصغر من 600 كيلوبايت."
 msgid "Choose a glowing face and color. Preview your changes before applying them."
 msgstr "اختر وجهًا مضيئًا ولونًا، وعاين التغييرات قبل تطبيقها."
 
-#: src/shell/domain/SchedulesPages.tsx:374
+#: src/shell/domain/SchedulesPages.tsx:153
+#: src/shell/domain/SchedulesPages.tsx:437
 msgid "Choose a time that has not passed."
 msgstr "اختر وقتًا لم يمضِ بعد."
 
@@ -1026,7 +1027,8 @@ msgstr "اختر GPT-Live 1 أو GPT-Live 1 mini كنموذج الصوت الع�
 msgid "Choose supported global speech models in Settings."
 msgstr "اختر نماذج صوت مدعومة من الإعدادات العالمية."
 
-#: src/shell/domain/SchedulesPages.tsx:369
+#: src/shell/domain/SchedulesPages.tsx:148
+#: src/shell/domain/SchedulesPages.tsx:432
 msgid "Choose the task's date."
 msgstr "اختر تاريخ المهمة."
 
@@ -1163,12 +1165,12 @@ msgstr "معيار الإكمال"
 msgid "Condition"
 msgstr "الشرط"
 
-#: src/shell/domain/SchedulesPages.tsx:169
+#: src/shell/domain/SchedulesPages.tsx:230
 msgctxt "watch"
 msgid "Condition"
 msgstr "الشرط"
 
-#: src/shell/domain/SchedulesPages.tsx:428
+#: src/shell/domain/SchedulesPages.tsx:491
 msgid "Condition — for the conditional alert"
 msgstr "الشرط — للتنبيه الشرطي"
 
@@ -1189,7 +1191,7 @@ msgstr "اضبط مفتاح OpenAI يتيح الوصول إلى واجهة GPT-L
 #~ msgstr "تأكيد كلمة مرور الحساب"
 
 #: src/shell/domain/FilesPages.tsx:55
-#: src/shell/domain/SchedulesPages.tsx:51
+#: src/shell/domain/SchedulesPages.tsx:53
 #: src/shell/domain/TasksPages.tsx:160
 msgid "Confirm deletion"
 msgstr "تأكيد الحذف"
@@ -1427,8 +1429,8 @@ msgstr "لون مخصص"
 msgid "Customize avatar"
 msgstr "تخصيص الأفاتار"
 
-#: src/shell/domain/SchedulesPages.tsx:97
-#: src/shell/domain/SchedulesPages.tsx:421
+#: src/shell/domain/SchedulesPages.tsx:103
+#: src/shell/domain/SchedulesPages.tsx:484
 msgctxt "schedule repeat"
 msgid "Daily"
 msgstr "يوميًا"
@@ -1437,7 +1439,8 @@ msgstr "يوميًا"
 msgid "Dark"
 msgstr "داكن"
 
-#: src/shell/domain/SchedulesPages.tsx:426
+#: src/shell/domain/SchedulesPages.tsx:167
+#: src/shell/domain/SchedulesPages.tsx:489
 msgid "Date"
 msgstr "التاريخ"
 
@@ -1468,7 +1471,7 @@ msgstr "تغيّر التفويض"
 #: src/pages/ScratchpadSection.tsx:203
 #: src/shell/domain/FilesPages.tsx:78
 #: src/shell/domain/FilesPages.tsx:124
-#: src/shell/domain/SchedulesPages.tsx:143
+#: src/shell/domain/SchedulesPages.tsx:204
 #: src/shell/domain/TasksPages.tsx:183
 #: src/shell/domain/TasksPages.tsx:247
 #: src/shell/lists/EmojiPanel.tsx:405
@@ -1494,7 +1497,7 @@ msgstr "حذف التعليمات الخاصة"
 #~ msgid "Delete permanently"
 #~ msgstr "حذف نهائي"
 
-#: src/shell/domain/SchedulesPages.tsx:149
+#: src/shell/domain/SchedulesPages.tsx:210
 msgid "Delete schedule"
 msgstr "حذف الجدول"
 
@@ -1514,7 +1517,7 @@ msgstr "هل تريد حذف هذه التعليمات الخاصة؟ ستبقى
 msgid "Delete this file?"
 msgstr "هل تريد حذف هذا الملف؟"
 
-#: src/shell/domain/SchedulesPages.tsx:143
+#: src/shell/domain/SchedulesPages.tsx:204
 msgid "Delete this schedule?"
 msgstr "هل تريد حذف هذا الجدول؟"
 
@@ -1592,6 +1595,11 @@ msgstr "إخفاء الخطأ"
 #: src/components/ai/AvatarStudio.tsx:189
 #~ msgid "Done"
 #~ msgstr "تم"
+
+#: src/shell/domain/SchedulesPages.tsx:315
+msgctxt "one-shot"
+msgid "Done"
+msgstr "نُفّذت"
 
 #: src/components/ArtifactFileCard.tsx:64
 #: src/components/common/FilePreviewPanel.tsx:93
@@ -1702,8 +1710,8 @@ msgstr "تفعيل"
 #. placeholder {0}: routineTitle(routine)
 #. placeholder {0}: skillTitle(row.payload)
 #. placeholder {0}: watch.payload.prompt ?? ""
-#: src/shell/domain/SchedulesPages.tsx:257
-#: src/shell/domain/SchedulesPages.tsx:278
+#: src/shell/domain/SchedulesPages.tsx:319
+#: src/shell/domain/SchedulesPages.tsx:341
 #: src/shell/domain/SkillsPages.tsx:169
 msgid "Enable {0}"
 msgstr "تفعيل {0}"
@@ -1752,11 +1760,11 @@ msgstr "حان موعد الحدث"
 #~ msgstr "التكرار · بالدقائق"
 
 #. placeholder {0}: minutes / 60
-#: src/shell/domain/SchedulesPages.tsx:106
+#: src/shell/domain/SchedulesPages.tsx:112
 msgid "Every {0} h"
 msgstr "كل {0} ساعة"
 
-#: src/shell/domain/SchedulesPages.tsx:109
+#: src/shell/domain/SchedulesPages.tsx:115
 msgid "Every {minutes} min"
 msgstr "كل {minutes} دقيقة"
 
@@ -2068,9 +2076,9 @@ msgctxt "task status"
 msgid "In progress"
 msgstr "قيد التنفيذ"
 
-#: src/shell/domain/SchedulesPages.tsx:137
-#: src/shell/domain/SchedulesPages.tsx:175
-#: src/shell/domain/SchedulesPages.tsx:430
+#: src/shell/domain/SchedulesPages.tsx:189
+#: src/shell/domain/SchedulesPages.tsx:236
+#: src/shell/domain/SchedulesPages.tsx:493
 msgid "In the app"
 msgstr "داخل التطبيق"
 
@@ -2726,7 +2734,7 @@ msgstr "لا توجد مواعيد مفعّلة."
 #~ msgid "No executions yet"
 #~ msgstr "لا توجد عمليات تنفيذ بعد"
 
-#: src/shell/domain/SchedulesPages.tsx:42
+#: src/shell/domain/SchedulesPages.tsx:43
 msgid "No expiry"
 msgstr "دون انتهاء"
 
@@ -2826,7 +2834,7 @@ msgstr "لا توجد رسائل محفوظة بعد. ستظهر هنا بعد �
 msgid "No saved tasks yet."
 msgstr "لا توجد مهام محفوظة بعد."
 
-#: src/shell/domain/SchedulesPages.tsx:222
+#: src/shell/domain/SchedulesPages.tsx:288
 msgid "No scheduled tasks."
 msgstr "لا توجد مهام مجدولة."
 
@@ -2921,8 +2929,8 @@ msgstr "أشياء"
 msgid "OK"
 msgstr "حسنًا"
 
-#: src/shell/domain/SchedulesPages.tsx:87
-#: src/shell/domain/SchedulesPages.tsx:332
+#: src/shell/domain/SchedulesPages.tsx:93
+#: src/shell/domain/SchedulesPages.tsx:395
 msgctxt "schedule type"
 msgid "Once"
 msgstr "مرة واحدة"
@@ -3355,8 +3363,8 @@ msgstr "سجّل قرار سوق حديثًا قبل الدخول الافترا
 msgid "Record resolution"
 msgstr "تسجيل التسوية"
 
-#: src/shell/domain/SchedulesPages.tsx:92
-#: src/shell/domain/SchedulesPages.tsx:331
+#: src/shell/domain/SchedulesPages.tsx:98
+#: src/shell/domain/SchedulesPages.tsx:394
 msgctxt "schedule type"
 msgid "Recurring"
 msgstr "متكرر"
@@ -3428,8 +3436,8 @@ msgstr "إزالة جني الربح"
 msgid "Removed from favourites"
 msgstr "أُزيلت من المفضلة"
 
-#: src/shell/domain/SchedulesPages.tsx:133
-#: src/shell/domain/SchedulesPages.tsx:418
+#: src/shell/domain/SchedulesPages.tsx:185
+#: src/shell/domain/SchedulesPages.tsx:481
 msgid "Repeat"
 msgstr "التكرار"
 
@@ -3588,8 +3596,8 @@ msgid "Route by capability"
 msgstr "التوجيه حسب القدرة"
 
 #: src/shell/ChatMenu.tsx:125
-msgid "Routines"
-msgstr "المهام المجدولة"
+#~ msgid "Routines"
+#~ msgstr "المهام المجدولة"
 
 #: src/pages/Board.tsx:478
 msgid "Run task"
@@ -3635,7 +3643,7 @@ msgstr "حفظ الأعضاء"
 msgid "Save memory"
 msgstr "حفظ الذاكرة"
 
-#: src/shell/domain/SchedulesPages.tsx:345
+#: src/shell/domain/SchedulesPages.tsx:408
 msgid "Save schedule"
 msgstr "حفظ الجدولة"
 
@@ -3680,21 +3688,25 @@ msgstr "سيناريو"
 #~ msgid "Schedule"
 #~ msgstr "الجدولة"
 
-#: src/shell/domain/SchedulesPages.tsx:299
+#: src/shell/domain/SchedulesPages.tsx:362
 #: src/shell/domain/TasksPages.tsx:92
 #: src/shell/pages.tsx:91
 msgid "Schedule a task"
 msgstr "جدولة مهمة"
 
+#: src/shell/domain/SchedulesPages.tsx:142
+msgid "Schedule again"
+msgstr "جدولة من جديد"
+
 #: src/pages/Routines.tsx:27
 #~ msgid "Schedule recurring work for your agents."
 #~ msgstr "جدول العمل المتكرر لوكلائك."
 
-#: src/shell/domain/SchedulesPages.tsx:393
+#: src/shell/domain/SchedulesPages.tsx:456
 msgid "Schedule saved"
 msgstr "حُفظت الجدولة"
 
-#: src/shell/domain/SchedulesPages.tsx:411
+#: src/shell/domain/SchedulesPages.tsx:474
 msgid "Schedule type"
 msgstr "نوع الجدولة"
 
@@ -3703,6 +3715,7 @@ msgctxt "tasks tab"
 msgid "Scheduled"
 msgstr "مجدولة"
 
+#: src/shell/ChatMenu.tsx:125
 #: src/shell/pages.tsx:79
 msgid "Scheduled tasks"
 msgstr "المهام المجدولة"
@@ -4151,14 +4164,15 @@ msgstr "وقف الخسارة · اختياري"
 #~ msgid "Stop Super Bot"
 #~ msgstr "إيقاف سوبر بوت"
 
-#: src/shell/domain/SchedulesPages.tsx:181
-#: src/shell/domain/SchedulesPages.tsx:187
+#: src/shell/domain/SchedulesPages.tsx:244
+#: src/shell/domain/SchedulesPages.tsx:249
+#: src/shell/domain/SchedulesPages.tsx:253
 msgid "Stop the watch"
-msgstr "إيقاف المراقبة"
+msgstr "إلغاء المراقبة"
 
-#: src/shell/domain/SchedulesPages.tsx:181
+#: src/shell/domain/SchedulesPages.tsx:243
 msgid "Stop this watch?"
-msgstr "هل تريد إيقاف هذه المراقبة؟"
+msgstr "هل تريد إلغاء هذه المراقبة؟"
 
 #: src/components/trading/SuperBotCards.tsx:161
 #~ msgid "Stopped"
@@ -4253,7 +4267,7 @@ msgstr "اضغط رمز القفل بجانب عنوان الموقع."
 
 #: src/pages/Board.tsx:380
 #: src/pages/Board.tsx:382
-#: src/shell/domain/SchedulesPages.tsx:402
+#: src/shell/domain/SchedulesPages.tsx:465
 msgid "Task"
 msgstr "المهمة"
 
@@ -4317,6 +4331,10 @@ msgstr "المهام المفوّضة المؤقتة"
 #: src/lib/user_error.ts:182
 msgid "That chart timeframe is not supported by this broker."
 msgstr "هذا الفريم غير مدعوم لدى الوسيط."
+
+#: src/shell/domain/SchedulesPages.tsx:132
+msgid "That time has passed. Choose a new time."
+msgstr "مضى هذا الوقت. اختر وقتًا جديدًا."
 
 #: src/lib/user_error.ts:235
 #~ msgid "The agent reached the step limit for this run. Send another message to continue."
@@ -4711,8 +4729,9 @@ msgstr "متأمل"
 msgid "Tick size"
 msgstr "أصغر حركة سعرية"
 
-#: src/shell/domain/SchedulesPages.tsx:134
-#: src/shell/domain/SchedulesPages.tsx:427
+#: src/shell/domain/SchedulesPages.tsx:168
+#: src/shell/domain/SchedulesPages.tsx:186
+#: src/shell/domain/SchedulesPages.tsx:490
 msgid "Time"
 msgstr "الوقت"
 
@@ -4915,7 +4934,7 @@ msgstr "تعليمات غير آمنة"
 msgid "Unsaved changes"
 msgstr "تعديلات غير محفوظة"
 
-#: src/shell/domain/SchedulesPages.tsx:172
+#: src/shell/domain/SchedulesPages.tsx:233
 msgid "Until"
 msgstr "حتى"
 
@@ -5108,8 +5127,8 @@ msgstr "لم نعثر على نتائج لـ «{q}». جرّب كلمة أقصر
 msgid "Web search"
 msgstr "البحث في الويب"
 
-#: src/shell/domain/SchedulesPages.tsx:100
-#: src/shell/domain/SchedulesPages.tsx:423
+#: src/shell/domain/SchedulesPages.tsx:106
+#: src/shell/domain/SchedulesPages.tsx:486
 msgctxt "schedule repeat"
 msgid "Weekly"
 msgstr "أسبوعيًا"
@@ -5138,8 +5157,8 @@ msgstr "ما الذي يجب أن يعرفه هذا الوكيل عن عمله؟
 #~ msgid "What this agent is for"
 #~ msgstr "ما مهمة هذا الوكيل؟"
 
-#: src/shell/domain/SchedulesPages.tsx:271
 #: src/shell/domain/SchedulesPages.tsx:334
+#: src/shell/domain/SchedulesPages.tsx:397
 msgctxt "schedule type"
 msgid "When a condition is met"
 msgstr "عند تحقق شرط"
@@ -5152,8 +5171,8 @@ msgstr "غمزة"
 msgid "Work stopped after repeated interruptions"
 msgstr "توقف عمل بعد انقطاعات متكررة"
 
-#: src/shell/domain/SchedulesPages.tsx:99
-#: src/shell/domain/SchedulesPages.tsx:422
+#: src/shell/domain/SchedulesPages.tsx:105
+#: src/shell/domain/SchedulesPages.tsx:485
 msgctxt "schedule repeat"
 msgid "Workdays"
 msgstr "أيام العمل"
@@ -5183,7 +5202,7 @@ msgstr "ملفات مساحة العمل"
 msgid "Worried"
 msgstr "قلق"
 
-#: src/shell/domain/SchedulesPages.tsx:355
+#: src/shell/domain/SchedulesPages.tsx:418
 msgid "Write the alert condition."
 msgstr "اكتب شرط التنبيه."
 

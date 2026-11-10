@@ -21,6 +21,7 @@ from lonora_db.attention import (
 from lonora_db.client import Database
 from lonora_db.item_failures import blocked, failure_code
 from lonora_db.owner_actions import awaiting_owner_answer
+from lonora_db.routines import not_fired_one_shot
 from lonora_db.runs import MAX_RUN_RECOVERIES, aware, quarantine_run
 from lonora_db.schema import (
     AgentRow,
@@ -258,6 +259,8 @@ class Watchdog:
                     RoutineRow.next_run_at < limit,
                     AgentRow.paused.is_(False),
                     ~blocked("routine", RoutineRow.id),
+                    # As the due query: a fired one-shot switched back on is not due.
+                    not_fired_one_shot(),
                 )
             )
             waits = await session.scalar(

@@ -74,9 +74,17 @@ the profile can never disagree.
 (`lonora_agent/context/memory.py`) puts three labelled sections in the user-role
 context message, never the system role: `owner_preferences` (trust
 `owner_attributed`, priority 90), `operating_notes` (trust `agent_authored`,
-priority 82) and `memory` (priority 80). The owner preferences rank below the
-system policy and the owner's own messages and above retrieved content; none of
-the three grants tools, permissions or financial authority. Every body is JSON
+priority 82), `memory` (priority 80) and, when the owner kept any for this Agent,
+`owner_knowledge` (trust `owner_attributed_untrusted`, priority 78). The owner
+preferences rank below the system policy and the owner's own messages and above
+retrieved content; none of these sections grants tools, permissions or financial
+authority. `owner_knowledge` holds this Agent's light goals (`ln_agent_goals`:
+title, description, done) and knowledge links (`ln_knowledge_links`: title, URL,
+note) from «الأهداف» and «المعرفة»: at most 20 of each, newest first, every field
+cut at 400 characters except the URL, which stays whole (at most 2,000 by contract).
+Its fixed note is English; the owner's text is carried as data in its own language.
+Under a small window sections shed lowest priority first, so `owner_knowledge`
+goes before `memory`, `operating_notes` and `owner_preferences`. Every body is JSON
 escaped like `profile_context`. The profile is capped at 8,000 characters
 (`OWNER_PROFILE_CHAR_LIMIT`); if a merged profile is longer, its newest lines are
 injected with a note asking the Agent to summarize it. Conversation locale for

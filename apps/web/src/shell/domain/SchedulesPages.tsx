@@ -1,6 +1,7 @@
 import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
 import type { Resource, Routine } from "@lonora/contracts";
+import { errorCode } from "@lonora/core";
 import { Icon } from "@lonora/ui-web";
 import { useState } from "react";
 import { api } from "../../lib/api";
@@ -45,10 +46,15 @@ const until = (row: WatchRow) =>
 export function useConfirm() {
   const sheets = useSheets();
   const toast = useToast();
-  return (question: string, action: string, run: () => Promise<void>) =>
+  return (
+    question: string,
+    action: string,
+    run: () => Promise<void>,
+    title: string = t`Confirm deletion`,
+  ) =>
     sheets.open({
       id: "confirm-delete",
-      title: t`Confirm deletion`,
+      title,
       body: (
         <>
           <p>{question}</p>
@@ -118,6 +124,52 @@ const conditionText = (payload: WatchPayload) =>
     payload.condition === "below" ? t({ message: "below", context: "watch" }) : t`above`
   } ${payload.level ?? ""}`;
 
+/** A one-shot that already ran («نُفّذت»): it has no switch, only «جدولة من جديد». */
+const fired = (routine: Routine) => !!routine.run_at && !!routine.last_run_at && !routine.enabled;
+
+const scheduleError = (cause: unknown) =>
+  errorCode(cause) === "run_at_past"
+    ? t`That time has passed. Choose a new time.`
+    : userError(cause);
+
+/** «جدولة من جديد»: a new date and time for a one-shot that already ran. */
+function Reschedule({ routine, onDone }: { routine: Routine; onDone: () => void }) {
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+  return (
+    <FormPage
+      name="reschedule"
+      submit={<Trans>Schedule again</Trans>}
+      busy={busy}
+      onSubmit={async (form) => {
+        const date = text(form, "date");
+        const [hour, minute] = (text(form, "time") || "09:00").split(":").map(Number);
+        if (!date) {
+          toast(t`Choose the task's date.`, { type: "warn" });
+          return;
+        }
+        const at = new Date(`${date}T${hhmm(hour, minute)}:00`);
+        if (at.getTime() <= Date.now()) {
+          toast(t`Choose a time that has not passed.`, { type: "warn" });
+          return;
+        }
+        setBusy(true);
+        try {
+          await domainApi.saveRoutine(routine.id, { run_at: at.toISOString(), enabled: true });
+          onDone();
+        } catch (cause) {
+          toast(scheduleError(cause), { type: "error" });
+        } finally {
+          setBusy(false);
+        }
+      }}
+    >
+      <Field label={t`Date`} name="date" type="date" />
+      <Field label={t`Time`} name="time" type="time" defaultValue="09:00" />
+    </FormPage>
+  );
+}
+
 /** The schedule details sheet: «التكرار», «الوقت», «القناة», «حذف الجدول». */
 export function useScheduleDetails(onDeleted: () => void) {
   const sheets = useSheets();
@@ -136,6 +188,15 @@ export function useScheduleDetails(onDeleted: () => void) {
             label={t({ message: "Channel", context: "schedule details" })}
             value={t`In the app`}
           />
+          {fired(routine) && (
+            <Reschedule
+              routine={routine}
+              onDone={() => {
+                sheets.close();
+                onDeleted();
+              }}
+            />
+          )}
           <button
             type="button"
             className="btn full danger"
@@ -178,10 +239,15 @@ function useWatchDetails(onChanged: () => void) {
             type="button"
             className="btn full danger"
             onClick={() =>
-              confirm(t`Stop this watch?`, t`Stop the watch`, async () => {
-                await api.post(`/watches/${watch.id}/control`, { action: "cancel" });
-                onChanged();
-              })
+              confirm(
+                t`Stop this watch?`,
+                t`Stop the watch`,
+                async () => {
+                  await api.post(`/watches/${watch.id}/control`, { action: "cancel" });
+                  onChanged();
+                },
+                t`Stop the watch`,
+              )
             }
           >
             <Trans>Stop the watch</Trans>
@@ -223,17 +289,10 @@ export function ScheduleList({ agentId }: { agentId?: string }) {
   const toggle = async (routine: Routine, enabled: boolean) => {
     routines.set((list) => list?.map((row) => (row.id === routine.id ? { ...row, enabled } : row)));
     try {
-      await domainApi.saveRoutine(routine.id, {
-        title: routine.title,
-        prompt: routine.prompt,
-        interval_seconds: routine.interval_seconds,
-        cron: routine.cron,
-        run_at: routine.run_at,
-        timezone: routine.timezone,
-        enabled,
-      });
+      // Only the switch: the server keeps everything else as it is.
+      await domainApi.saveRoutine(routine.id, { enabled });
     } catch (cause) {
-      toast(userError(cause), { type: "error" });
+      toast(scheduleError(cause), { type: "error" });
       routines.reload();
     }
   };
@@ -252,11 +311,15 @@ export function ScheduleList({ agentId }: { agentId?: string }) {
                 {facts.kind} · {facts.repeat} · <span className="ltr">{facts.time}</span>
               </small>
             </button>
-            <Toggle
-              on={routine.enabled}
-              label={t`Enable ${routineTitle(routine)}`}
-              onChange={(next) => void toggle(routine, next)}
-            />
+            {fired(routine) ? (
+              <span className="value">{t({ message: "Done", context: "one-shot" })}</span>
+            ) : (
+              <Toggle
+                on={routine.enabled}
+                label={t`Enable ${routineTitle(routine)}`}
+                onChange={(next) => void toggle(routine, next)}
+              />
+            )}
           </div>
         );
       })}

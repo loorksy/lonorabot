@@ -117,11 +117,12 @@ async def index_note(
             session.add(row)
             from lonora_db.events import emit
 
-            # «أُضيفت معرفة» in the owner's activity log (GET /api/activity).
+            # A new note reads «أُضيفت معرفة» in the activity log; an edit (replaces) is an
+            # update, which the log does not list.
             emit(
                 session,
                 owner_id,
-                "knowledge_notes.created",
+                "knowledge_notes.updated" if replaces else "knowledge_notes.created",
                 agent_id=agent_id,
                 payload={"id": document_id},
             )

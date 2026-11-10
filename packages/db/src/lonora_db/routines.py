@@ -6,7 +6,7 @@ from lonora_contracts.routines import RoutineCreate
 from lonora_contracts.runs import RunRequest
 from lonora_core.cron import next_occurrence
 from lonora_core.user_error import LonoraError
-from sqlalchemy import Select, or_, select
+from sqlalchemy import ColumnElement, Select, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .runs import create_run
@@ -40,6 +40,7 @@ def routine_data(row: RoutineRow) -> dict[str, Any]:
         "timezone": row.timezone,
         "enabled": row.enabled,
         "next_run_at": row.next_run_at.isoformat(),
+        "last_run_at": row.last_run_at.isoformat() if row.last_run_at else None,
     }
 
 
@@ -91,6 +92,12 @@ async def create_routine(
     return row
 
 
+def not_fired_one_shot() -> ColumnElement[bool]:
+    """A one-shot that already fired never fires again until its run_at is changed, whoever
+    switches it back on (owner, the agent's routine_toggle, a supervisor)."""
+    return or_(RoutineRow.run_at.is_(None), RoutineRow.last_run_at.is_(None))
+
+
 def due_query(now: datetime) -> Select[RoutineRow]:
     return (
         select(RoutineRow)
@@ -99,9 +106,7 @@ def due_query(now: datetime) -> Select[RoutineRow]:
             RoutineRow.enabled.is_(True),
             RoutineRow.next_run_at <= now,
             AgentRow.paused.is_(False),
-            # A one-shot that already fired never fires again until its run_at is changed,
-            # whoever switches it back on (owner, the agent's routine_toggle, a supervisor).
-            or_(RoutineRow.run_at.is_(None), RoutineRow.last_run_at.is_(None)),
+            not_fired_one_shot(),
         )
         .order_by(RoutineRow.next_run_at)
     )
@@ -203,13 +208,19 @@ async def enqueue_routine(session: AsyncSession, row: RoutineRow, now: datetime)
             "goal_step_not_found",
         }:
             raise
+        refused = error.code
+    else:
+        refused = None
     if row.run_at is not None:
         if enqueued:
             # A one-shot routine fires once and then stays off until the owner reschedules it.
             row.enabled, row.last_run_at = False, now
-        else:
-            # Not run (its goal is paused): it stays scheduled and is tried again later.
+        elif await one_shot_can_wait(session, row, refused):
+            # Its goal is only paused: it stays scheduled and is tried again later.
             row.next_run_at = now + ONE_SHOT_RETRY
+        else:
+            # Its goal ended or its step is gone: it can never run, so it switches off.
+            row.enabled = False
         return enqueued
     row.last_run_at = now
     request = RoutineCreate(
@@ -224,6 +235,15 @@ async def enqueue_routine(session: AsyncSession, row: RoutineRow, now: datetime)
     # Collapse missed schedules into one wake; never replay a burst after downtime.
     row.next_run_at = candidate if candidate > now else next_run(request, now)
     return enqueued
+
+
+async def one_shot_can_wait(session: AsyncSession, row: RoutineRow, refused: str | None) -> bool:
+    """A goal-linked one-shot waits only while its goal is paused; ended goals or a passed
+    step can never run it."""
+    if refused != "goal_not_active" or not row.goal_id:
+        return False
+    goal = await session.get(TradingGoalRow, row.goal_id)
+    return goal is not None and goal.state.get("status") not in {"completed", "cancelled"}
 
 
 async def owned_routine(session: AsyncSession, owner_id: str, routine_id: str) -> RoutineRow:

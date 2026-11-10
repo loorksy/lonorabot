@@ -87,7 +87,8 @@ async def owner_knowledge_section(
         "links": [
             {
                 "title": cut(row.payload.get("title")),
-                "url": cut(row.payload.get("url")),
+                # Whole (the contract caps it at 2000): a cut URL would open the wrong page.
+                "url": str(row.payload.get("url") or ""),
                 "note": cut(row.payload.get("note")),
             }
             for row in links

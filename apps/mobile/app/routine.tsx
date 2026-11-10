@@ -148,6 +148,8 @@ function RoutineForm({
   );
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // A one-shot that already ran («نُفّذت») has no switch: it is rescheduled on the web.
+  const fired = !!routine?.run_at && !!routine.last_run_at && !routine.enabled;
   async function save() {
     setBusy(true);
     setError(null);
@@ -159,7 +161,14 @@ function RoutineForm({
               interval_seconds: mode === "interval" ? Number(minutes) * 60 : null,
               cron: mode === "cron" ? cron : null,
             };
-      const input = { prompt: prompt.trim(), ...schedule, timezone, enabled };
+      // The task text is the routine's title too (as on the web), so an edit shows.
+      const input = {
+        title: prompt.trim().slice(0, 160),
+        prompt: prompt.trim(),
+        ...schedule,
+        timezone,
+        ...(fired ? {} : { enabled }),
+      };
       if (routine) await routines.update(routine, input);
       else await routines.create(agent, input);
       await onSaved();
@@ -231,8 +240,10 @@ function RoutineForm({
           justifyContent: "space-between",
         }}
       >
-        <Text style={{ color: colors.foreground }}>{t("enabled")}</Text>
-        <Switch accessibilityLabel={t("enabled")} value={enabled} onValueChange={setEnabled} />
+        <Text style={{ color: colors.foreground }}>{t(fired ? "oneShotDone" : "enabled")}</Text>
+        {!fired && (
+          <Switch accessibilityLabel={t("enabled")} value={enabled} onValueChange={setEnabled} />
+        )}
       </View>
       <Button
         label={t("save")}

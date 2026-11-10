@@ -552,7 +552,7 @@ const rowProbes = (side) =>
     .flatMap(([name, key]) =>
       ROW_PARTS.map((part) => [`row:${name}${part}`, `.thread[data-key="${key}"]${part}`]),
     );
-async function probe(page, side) {
+async function probe(page, side, extra = []) {
   return page.evaluate(
     ([selectors, props]) => {
       const out = {};
@@ -573,7 +573,7 @@ async function probe(page, side) {
       }
       return out;
     },
-    [[...PROBES, ...DOMAIN_PROBES, ...rowProbes(side)], PROPS],
+    [[...PROBES, ...extra, ...rowProbes(side)], PROPS],
   );
 }
 function probeDiff(ref, app) {
@@ -736,7 +736,15 @@ async function capture(state, side, viewport, theme) {
     }
     await settle(page, state.wait ?? 600);
     const png = await page.screenshot({ animations: "disabled", caret: "hide" });
-    return { png, probe: await probe(page, side), words: await words(page), requests, errors };
+    // The domain pages' own classes are probed on their states only.
+    const extra = state.domain ? DOMAIN_PROBES : [];
+    return {
+      png,
+      probe: await probe(page, side, extra),
+      words: await words(page),
+      requests,
+      errors,
+    };
   } catch (error) {
     return { error: String(error), requests, errors };
   } finally {

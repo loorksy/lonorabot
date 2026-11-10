@@ -78,6 +78,8 @@ export type Routine = {
   timezone: string;
   enabled: boolean;
   next_run_at: string;
+  /** When it last fired; a one-shot that fired («نُفّذت») is rescheduled with a new run_at. */
+  last_run_at: string | null;
 };
 /** What a routine save sends: exactly one of interval_seconds, cron or run_at. */
 export type RoutineInput = {

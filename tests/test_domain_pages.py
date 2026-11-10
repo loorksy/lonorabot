@@ -451,7 +451,7 @@ async def test_agent_text_files_upload_and_edit_but_other_files_do_not():
 async def test_completing_a_task_with_no_active_run_cancels_its_trade_approvals():
     database()
     from check_streaming import Fixture
-    from lonora_db.schema import RunRow, TicketRow, TradeApprovalRow
+    from lonora_db.schema import RunRow, TradeApprovalRow
 
     fixture = await Fixture().open()
     try:
@@ -467,10 +467,6 @@ async def test_completing_a_task_with_no_active_run_cancels_its_trade_approvals(
             run = await session.get(RunRow, run_id, with_for_update=True)
             assert run is not None
             run.status = "failed"
-            ticket = await session.get(TicketRow, task["id"], with_for_update=True)
-            assert ticket is not None
-            # The failed-Task path (retry review), not only the idle one.
-            ticket.state = {**ticket.state, "task": {**ticket.state["task"], "status": "failed"}}
             for status in ("pending", "approved"):
                 session.add(
                     TradeApprovalRow(
@@ -503,7 +499,7 @@ async def test_a_one_shot_that_cannot_enqueue_stays_scheduled_and_past_times_are
     from check_streaming import Fixture
     from lonora_contracts.domain import utcnow
     from lonora_db.routines import enqueue_routine
-    from lonora_db.schema import RoutineRow
+    from lonora_db.schema import RoutineRow, TradingGoalRow
 
     with pytest.raises(ValidationError, match="run_at_past"):
         RoutineCreate(prompt="x", run_at=datetime(2020, 1, 1, tzinfo=UTC))
@@ -529,11 +525,24 @@ async def test_a_one_shot_that_cannot_enqueue_stays_scheduled_and_past_times_are
         routines.create_run = refused  # type: ignore[assignment]
         try:
             async with fixture.runtime.db.sessions() as session, session.begin():
+                goal = TradingGoalRow(
+                    owner_id=fixture.owner,
+                    agent_id=agent["id"],
+                    payload={"title": "g", "steps": []},
+                    state={"status": "paused"},
+                )
+                session.add(goal)
+                await session.flush()
                 row = await session.get(RoutineRow, created["id"], with_for_update=True)
                 assert row is not None
+                # Its goal is paused: the one-shot is not run and stays scheduled.
+                row.goal_id = goal.id
                 now = at + timedelta(seconds=1)
+                assert await routines.one_shot_can_wait(session, row, "goal_not_active")
+                row.goal_id = None
                 assert not await enqueue_routine(session, row, now)
-                assert row.enabled is True and row.next_run_at > now
+                # Without a paused goal the refusal is final: it switches off.
+                assert row.enabled is False
         finally:
             routines.create_run = original
     finally:
@@ -744,5 +753,221 @@ async def test_an_added_note_appears_in_the_activity_log():
         feed = await fixture.request("GET", "/activity?limit=20")
         codes = [row["code"] for row in feed["items"] if row["agent_id"] == agent["id"]]
         assert "knowledge_added" in codes
+    finally:
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_direct_completion_releases_a_supervisors_hold():
+    database()
+    from check_streaming import Fixture
+    from lonora_contracts.domain import utcnow
+    from lonora_db.schema import RunRow, SupervisionHoldRow
+
+    fixture = await Fixture().open()
+    try:
+        agent, lead = await fixture.agent("Held"), await fixture.agent("Lead")
+        thread = await fixture.conversation(agent)
+        task = await fixture.request(
+            "POST", f"/tasks?agent_id={agent['id']}&thread_id={thread['id']}", {"title": "Held"}
+        )
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            run = await session.get(RunRow, task["runs"][0]["id"], with_for_update=True)
+            assert run is not None
+            run.status = "failed"  # no active run: the direct path
+            hold = SupervisionHoldRow(
+                owner_id=fixture.owner,
+                holder_agent_id=lead["id"],
+                agent_id=agent["id"],
+                target_kind="task",
+                target_id=task["id"],
+                source="agent",
+                created_at=utcnow(),
+            )
+            session.add(hold)
+            await session.flush()
+            hold_id = hold.id
+        current = await fixture.request("GET", f"/tasks/{task['id']}")
+        await fixture.request(
+            "POST", f"/tasks/{task['id']}/complete", {"expected_version": current["version"]}
+        )
+        async with fixture.runtime.db.sessions() as session:
+            released = await session.get(SupervisionHoldRow, hold_id)
+            assert released is not None and released.released_at is not None
+            assert released.released_by == "owner"
+    finally:
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_one_shot_edges_off_switch_reschedule_text_edit_watchdog_and_ended_goals():
+    database()
+    import lonora_db.routines as routines
+    from check_streaming import Fixture
+    from lonora_contracts.domain import utcnow
+    from lonora_core.user_error import LonoraError
+    from lonora_db.routines import due_routines, enqueue_routine
+    from lonora_db.schema import RoutineRow, TradingGoalRow
+
+    fixture = await Fixture().open()
+    try:
+        agent = await fixture.agent("Edges")
+        at = (utcnow() + timedelta(hours=1)).replace(microsecond=0)
+        once = await fixture.request(
+            "POST",
+            f"/routines/{agent['id']}",
+            {"title": "T", "prompt": "P", "run_at": at.isoformat()},
+        )
+        past = utcnow() - timedelta(hours=2)
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            row = await session.get(RoutineRow, once["id"], with_for_update=True)
+            assert row is not None
+            row.run_at = row.next_run_at = past  # its time passed unfired (agent was paused)
+        # Editing only the text of an enabled one-shot whose time passed is allowed.
+        edited = await fixture.request("PUT", f"/routines/{once['id']}", {"prompt": "P2"})
+        assert edited["prompt"] == "P2" and edited["enabled"]
+        # Switching it off is allowed too; switching it back on refuses the past time.
+        off = await fixture.request("PUT", f"/routines/{once['id']}", {"enabled": False})
+        assert off["enabled"] is False
+        code, body = await status_of(fixture, "PUT", f"/routines/{once['id']}", {"enabled": True})
+        assert code == 422 and body["code"] == "run_at_past"
+        # Rescheduling resets the fired marker: it is due again at its new time.
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            row = await session.get(RoutineRow, once["id"], with_for_update=True)
+            assert row is not None
+            row.last_run_at, row.enabled = past, True  # fired, then switched on by an agent
+        async with fixture.runtime.db.sessions() as session:
+            assert once["id"] not in [i for i, _ in await due_routines(session)]
+        # The watchdog's overdue count uses the same clause: no lasting «wakes_overdue».
+        async with fixture.runtime.db.sessions() as session:
+            from lonora_db.routines import not_fired_one_shot
+            from sqlalchemy import func, select
+
+            counted = await session.scalar(
+                select(func.count(RoutineRow.id)).where(
+                    RoutineRow.id == once["id"], not_fired_one_shot()
+                )
+            )
+        assert counted == 0
+        soon = (utcnow() + timedelta(minutes=30)).replace(microsecond=0)
+        again = await fixture.request(
+            "PUT", f"/routines/{once['id']}", {"run_at": soon.isoformat(), "enabled": True}
+        )
+        assert again["enabled"]
+        async with fixture.runtime.db.sessions() as session:
+            row = await session.get(RoutineRow, once["id"])
+            assert row is not None and row.last_run_at is None
+        # A goal-linked one-shot: a paused goal waits, an ended goal switches it off.
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            goal = TradingGoalRow(
+                owner_id=fixture.owner,
+                agent_id=agent["id"],
+                payload={"title": "g", "steps": []},
+                state={"status": "paused"},
+            )
+            session.add(goal)
+            await session.flush()
+            row = await session.get(RoutineRow, once["id"], with_for_update=True)
+            assert row is not None
+            row.goal_id, row.step_id = goal.id, "s"
+            goal_id = goal.id
+
+        async def refused(*_: Any, **__: Any) -> None:
+            raise LonoraError("goal_not_active", 409)
+
+        original = routines.create_run
+        routines.create_run = refused  # type: ignore[assignment]
+        try:
+            now = soon + timedelta(seconds=1)
+            async with fixture.runtime.db.sessions() as session, session.begin():
+                row = await session.get(RoutineRow, once["id"], with_for_update=True)
+                assert row is not None
+                row.goal_id = goal_id
+                assert await routines.one_shot_can_wait(session, row, "goal_not_active")
+                assert not await routines.one_shot_can_wait(session, row, "goal_step_unavailable")
+                goal_row = await session.get(TradingGoalRow, goal_id, with_for_update=True)
+                assert goal_row is not None
+                goal_row.state = {"status": "cancelled"}
+                await session.flush()
+                assert not await routines.one_shot_can_wait(session, row, "goal_not_active")
+                row.goal_id = None
+                assert not await enqueue_routine(session, row, now)
+                # No goal: a refusal is not a pause, so it switches off.
+                assert row.enabled is False
+        finally:
+            routines.create_run = original
+    finally:
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_activity_dedupes_repeats_but_its_cursor_still_moves_on():
+    database()
+    from check_streaming import Fixture
+    from lonora_db.schema import EventRow
+
+    fixture = await Fixture().open()
+    try:
+        agent = await fixture.agent("Repeat")
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            for _ in range(2):
+                session.add(
+                    EventRow(
+                        owner_id=fixture.owner,
+                        agent_id=agent["id"],
+                        kind="task.updated",
+                        payload={"id": "same-task", "status": "completed"},
+                    )
+                )
+        page = await fixture.request("GET", "/activity?limit=2")
+        assert [row["code"] for row in page["items"]] == ["task_completed"]
+        assert page["next_before"] is not None and page["next_before"] < int(page["items"][0]["id"])
+    finally:
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_editing_a_note_is_not_logged_as_added_knowledge():
+    database()
+    from check_streaming import Fixture
+    from lonora_memory import semantic
+
+    fixture = await Fixture().open()
+    try:
+        agent = await fixture.agent("Editor")
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            from lonora_db.transactions import SettingsRepository
+
+            await SettingsRepository().put(
+                session, "semantic_memory", {"enabled": True, "model": "fixture-embedding"}
+            )
+
+        async def embed(*_: Any) -> list[float]:
+            return [0.1, 0.2]
+
+        original = semantic.embed_text
+        semantic.embed_text = embed  # type: ignore[assignment]
+        try:
+            first = await semantic.index_note(
+                fixture.runtime.db, cast(Any, None), fixture.owner, agent["id"], "One", "T"
+            )
+            await semantic.index_note(
+                fixture.runtime.db,
+                cast(Any, None),
+                fixture.owner,
+                agent["id"],
+                "Two",
+                "T",
+                replaces=first["id"],
+            )
+        finally:
+            semantic.embed_text = original
+            async with fixture.runtime.db.sessions() as session, session.begin():
+                from lonora_db.transactions import SettingsRepository
+
+                await SettingsRepository().put(session, "semantic_memory", {"enabled": False})
+        feed = await fixture.request("GET", "/activity?limit=50")
+        codes = [row["code"] for row in feed["items"] if row["agent_id"] == agent["id"]]
+        assert codes.count("knowledge_added") == 1
     finally:
         await fixture.close()

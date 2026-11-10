@@ -122,7 +122,7 @@ export function useChatMenu({
               {/* «المهام المجدولة» of this agent (or the group's first member): the page. */}
               <MenuRow
                 icon="clock"
-                label={<Trans>Routines</Trans>}
+                label={<Trans>Scheduled tasks</Trans>}
                 onClick={() => {
                   sheets.close();
                   nav.go(`/app/routines?agent=${agent?.id ?? memberAgents[0]?.id ?? ""}`);

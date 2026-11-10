@@ -188,6 +188,7 @@ export function domainStates({ ROOT, env, seed, refRun, visible, pause }) {
   ];
   return states.map((state) => ({
     ...state,
+    domain: true,
     appSetup: async (a, memo) => {
       ensure();
       if (state.appSetup) await state.appSetup(a, memo);

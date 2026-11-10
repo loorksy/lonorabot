@@ -1,6 +1,6 @@
 from datetime import UTC, datetime, timedelta
 
-from pydantic import Field, model_validator
+from pydantic import Field, ValidationInfo, model_validator
 
 from .domain import Contract
 
@@ -20,7 +20,7 @@ class RoutineCreate(Contract):
     enabled: bool = True
 
     @model_validator(mode="after")
-    def validate_schedule(self) -> "RoutineCreate":
+    def validate_schedule(self, info: ValidationInfo) -> "RoutineCreate":
         if bool(self.goal_id) != bool(self.step_id):
             raise ValueError("goal_and_step_required_together")
         schedules = [self.interval_seconds, self.cron, self.run_at]
@@ -32,7 +32,12 @@ class RoutineCreate(Contract):
             self.run_at = self.run_at.astimezone(UTC)
             # A minute of grace for the form's clock; an enabled earlier time would fire at
             # once. Switching a fired one-shot off stays possible.
-            if self.enabled and self.run_at < datetime.now(UTC) - timedelta(minutes=1):
+            # An edit that neither sets run_at nor switches the routine on passes
+            # context {"keep_run_at": True}: its time stays as it is (fired or not).
+            context: dict[str, object] = info.context or {}
+            keep = bool(context.get("keep_run_at"))
+            late = self.run_at < datetime.now(UTC) - timedelta(minutes=1)
+            if self.enabled and late and not keep:
                 raise ValueError("run_at_past")
         if self.title is not None:
             self.title = self.title.strip() or None
