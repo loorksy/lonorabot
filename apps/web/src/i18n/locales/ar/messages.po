@@ -609,7 +609,7 @@ msgstr "يُلغى أي تفويض موقَّع على هذا الحساب، و�
 msgid "API key"
 msgstr "مفتاح API"
 
-#: src/shell/settings/AppLock.tsx:259
+#: src/shell/settings/AppLock.tsx:261
 #: src/shell/settings/DevicePages.tsx:208
 msgid "App lock"
 msgstr "قفل التطبيق"
@@ -1009,7 +1009,7 @@ msgstr "الكاميرا غير مسموحة"
 #: src/components/skills/SkillEditor.tsx:141
 #: src/pages/Board.tsx:576
 #: src/shell/lists/Selection.tsx:78
-#: src/shell/settings/AppLock.tsx:265
+#: src/shell/settings/AppLock.tsx:267
 #: src/shell/settings/ConnectionPages.tsx:280
 #: src/shell/settings/SettingsRoot.tsx:284
 msgid "Cancel"
@@ -1681,7 +1681,7 @@ msgstr "مهمة مفوّضة"
 #: src/shell/lists/EmojiPanel.tsx:405
 #: src/shell/lists/Selection.tsx:99
 #: src/shell/lists/Selection.tsx:273
-#: src/shell/settings/AppLock.tsx:289
+#: src/shell/settings/AppLock.tsx:291
 msgid "Delete"
 msgstr "حذف"
 
@@ -5421,7 +5421,7 @@ msgstr "التوكن"
 msgid "Too many attempts. Wait a minute and retry."
 msgstr "محاولات كثيرة. انتظر دقيقة وأعد المحاولة."
 
-#: src/shell/settings/AppLock.tsx:278
+#: src/shell/settings/AppLock.tsx:280
 msgid "Too many tries. Try again in {wait} s"
 msgstr "محاولات كثيرة. حاول بعد {wait} ث"
 
@@ -5577,7 +5577,7 @@ msgstr "فصل"
 msgid "Unlink the account"
 msgstr "فصل الحساب"
 
-#: src/shell/settings/AppLock.tsx:287
+#: src/shell/settings/AppLock.tsx:289
 msgid "Unlock with fingerprint"
 msgstr "فتح بالبصمة"
 

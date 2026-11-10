@@ -93,6 +93,28 @@ test("the owner profile is edited, logged, restored, and the reach mode saved", 
     .toBe("activity");
   const after = await (await context.request.get("/api/owner/profile")).json();
   expect(after.name).toBe(name);
+  // Restoring a preferences row (the name) updates the log in place, without a reload: the row
+  // reads «Restored» and the revert is a new, newest row.
+  await page.goto("/app/owner");
+  const rows = log.locator(".row");
+  await expect(rows.filter({ hasText: "Name" }).first()).toBeVisible();
+  const count = await rows.count();
+  const at = (await rows.allInnerTexts()).findIndex((text) => text.includes(name));
+  expect(at).toBeGreaterThanOrEqual(0);
+  let reloaded = false;
+  page.once("load", () => {
+    reloaded = true;
+  });
+  await rows.nth(at).getByRole("button", { name: "Restore", exact: true }).click();
+  await expect(rows).toHaveCount(count + 1);
+  await expect(rows.nth(at + 1)).toContainText("Restored");
+  await expect(rows.nth(at + 1).getByRole("button", { name: "Restore", exact: true })).toHaveCount(
+    0,
+  );
+  expect(reloaded).toBe(false);
+  await expect
+    .poll(async () => (await (await context.request.get("/api/owner/profile")).json()).name)
+    .toBeNull();
   expect(owner.agent.id).toBeTruthy();
 });
 
