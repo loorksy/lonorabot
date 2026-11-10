@@ -182,7 +182,8 @@ export const FUNCTIONS: Record<string, GenuiFunction> = {
     const text = fixed(number === null ? null : Math.abs(number), digits);
     return text === null || number === null ? DASH : `${number >= 0 ? "+" : "−"}${text}`;
   },
-  If: (_c, condition, positive = null, negative = null) => (truthy(condition) ? positive : negative),
+  If: (_c, condition, positive = null, negative = null) =>
+    truthy(condition) ? positive : negative,
   Pick: (_c, key, ...pairs) => {
     for (let index = 0; index + 1 < pairs.length; index += 2) {
       if (looseEqual(key, pairs[index])) return pairs[index + 1];
@@ -204,7 +205,9 @@ export const FUNCTIONS: Record<string, GenuiFunction> = {
     return items.filter((item) => looseEqual(item, target)).length;
   },
   Sum: (_c, value) =>
-    Array.isArray(value) ? value.reduce<number>((total, item) => total + (num(item) ?? 0), 0) : null,
+    Array.isArray(value)
+      ? value.reduce<number>((total, item) => total + (num(item) ?? 0), 0)
+      : null,
   Avg: (_c, value) => {
     const numbers = Array.isArray(value) && value.length ? series(value) : null;
     return numbers ? numbers.reduce((a, b) => a + b, 0) / numbers.length : null;
@@ -236,14 +239,20 @@ export const FUNCTIONS: Record<string, GenuiFunction> = {
     if (answers === null || typeof answers !== "object" || Array.isArray(answers)) return null;
     if (!Array.isArray(key)) return null;
     const record = answers as Record<string, unknown>;
-    return key.filter((expected, index) => Object.hasOwn(record, String(index)) && looseEqual(record[String(index)], expected)).length;
+    return key.filter(
+      (expected, index) =>
+        Object.hasOwn(record, String(index)) && looseEqual(record[String(index)], expected),
+    ).length;
   },
   DayLabel: (context, value) => dayLabel(context, value),
   Fact: () => null,
   First: (_c, value) => (Array.isArray(value) && value.length ? value[0] : null),
   Last: (_c, value) => (Array.isArray(value) && value.length ? value[value.length - 1] : null),
   Default: (_c, value, fallback = null) =>
-    value === null || value === undefined || value === "" || (typeof value === "number" && !Number.isFinite(value))
+    value === null ||
+    value === undefined ||
+    value === "" ||
+    (typeof value === "number" && !Number.isFinite(value))
       ? fallback
       : value,
   Take: (_c, values, count) => {
@@ -258,13 +267,18 @@ export const FUNCTIONS: Record<string, GenuiFunction> = {
             item !== null &&
             typeof item === "object" &&
             !Array.isArray(item) &&
-            looseEqual(Object.hasOwn(item, key) ? (item as Record<string, unknown>)[key] : null, target),
+            looseEqual(
+              Object.hasOwn(item, key) ? (item as Record<string, unknown>)[key] : null,
+              target,
+            ),
         )
       : null,
   Change: (_c, value) => {
     const items = series(value);
     if (!items) return null;
-    return items.length ? [0, ...items.slice(1).map((item, index) => item - (items[index] as number))] : [];
+    return items.length
+      ? [0, ...items.slice(1).map((item, index) => item - (items[index] as number))]
+      : [];
   },
   Cumulative: (_c, value) => {
     const items = series(value);

@@ -1,3 +1,4 @@
+import type { UiPart } from "./genui";
 /** Native, declarative response vocabulary. It never carries executable code. */
 export type VisualScalar = string | number | boolean | null;
 export type VisualOperator =
@@ -105,5 +106,6 @@ export type VisualDocument = {
 };
 export type VisualResponsePart =
   | { type: "text"; text: string }
-  | { type: "ui"; document: VisualDocument };
+  | { type: "ui"; document: VisualDocument }
+  | UiPart;
 export type RichContent = { version: 1; parts: VisualResponsePart[] };

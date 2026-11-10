@@ -33,7 +33,10 @@ test("the canonical alert card computes the screenshot's hint and distance", () 
     { xau: 2368.4, xag: 28.92, eur: 1.0842 },
   );
   assert.equal(renderTemplate("الآن {@Fmt($cur,$dp)}", env), "الآن 2,368.40");
-  assert.equal(renderTemplate("يبعد **{@Pct(@Abs($gap),2)}** عن السعر الحالي", env), "يبعد **1.33%** عن السعر الحالي");
+  assert.equal(
+    renderTemplate("يبعد **{@Pct(@Abs($gap),2)}** عن السعر الحالي", env),
+    "يبعد **1.33%** عن السعر الحالي",
+  );
   assert.equal(evaluate("$price&&!$hit", env), true);
 });
 
@@ -51,7 +54,17 @@ test("the server's watch names equal watchCondition's words (shared vectors)", (
     readFileSync(new URL("../fixtures/genui/watch-name-vectors.json", import.meta.url), "utf8"),
   ) as { cases: { watch: Partial<AgentWatchSummary>; locale: string; expected: string }[] };
   for (const item of cases) {
-    const watch = { id: "w", account_id: null, expires_at: null, lifecycle: "pending", ...item.watch };
-    assert.equal(watchCondition(watch as AgentWatchSummary, item.locale), item.expected, JSON.stringify(item.watch));
+    const watch = {
+      id: "w",
+      account_id: null,
+      expires_at: null,
+      lifecycle: "pending",
+      ...item.watch,
+    };
+    assert.equal(
+      watchCondition(watch as AgentWatchSummary, item.locale),
+      item.expected,
+      JSON.stringify(item.watch),
+    );
   }
 });

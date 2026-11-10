@@ -1,3 +1,4 @@
+import type { UiLock, UiState, UiSubmitRecord } from "./genui";
 import type { AgentTemplate } from "./owner-actions";
 import type { RichContent } from "./visual-response";
 
@@ -51,6 +52,14 @@ export type Message = {
   reply_to: string | null;
   attachment_ids: string[];
   created_at: string;
+  /** Who wrote it: the owner, a card's send (text composed by the server) or a v1 tap. */
+  origin?: "owner" | "ui_submit" | "ui_follow_up";
+  ui_submit?: UiSubmitRecord | null;
+  ui_state?: UiState | null;
+  /** Derived on read: the locking submission per card part. */
+  ui_lock?: Record<string, UiLock>;
+  /** Rule N on read: «مُعدّلة» or «لم يُنفَّذ». */
+  ui_mark?: "superseded" | "not_run" | null;
 };
 export type Resource<T = Payload> = {
   id: string;

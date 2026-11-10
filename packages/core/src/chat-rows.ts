@@ -202,7 +202,8 @@ export const groupDraftName = (names: readonly string[]) =>
  * waits in it and stays «failed» with a manual retry under the same client_nonce.
  */
 export function isPlainOutgoing(body: Readonly<Record<string, unknown>>): boolean {
-  return body.input_answer == null;
+  // A card's send is never flushed by itself either (GENUI_PLAN §8.6).
+  return body.input_answer == null && body.ui_submit == null;
 }
 
 /**

@@ -44,6 +44,7 @@ import { WorkingIndicator } from "../../components/ai/primitives";
 import { TurnActivity } from "../../components/ai/TurnActivity";
 import { FilePreviewPanel } from "../../components/common/FilePreviewPanel";
 import { ConversationQuestion } from "../../components/conversation-question";
+import { GenuiHost } from "../../components/genui";
 import { OwnerActionCard, useOwnerActions } from "../../components/owner-actions/OwnerActionCard";
 import { AgentPermissions } from "../../components/permissions/AgentPermissions";
 import { TradeApprovalCard, useTradeApprovals } from "../../components/trading/TradeApprovals";
@@ -1071,161 +1072,170 @@ export function ThreadMessages({
   }
 
   return (
-    <div className="template-transcript-region">
-      <section
-        ref={scroll}
-        className="thread-messages template-transcript"
-        data-testid="transcript"
-        aria-label={t`Conversation`}
-        onWheel={(event) => {
-          if (event.deltaY < 0) following.current = false;
-        }}
-        onTouchStart={() => {
-          following.current = false;
-        }}
-        onScroll={(event) => {
-          const element = event.currentTarget;
-          const nearEnd = nearConversationBottom(
-            element.scrollHeight,
-            element.clientHeight,
-            element.scrollTop,
-          );
-          following.current = nearEnd;
-          setShowLatest((visible) =>
-            showLatestButton(
-              visible,
-              element.scrollHeight - element.clientHeight - element.scrollTop,
-            ),
-          );
-        }}
-      >
-        <div ref={content} className="template-transcript-content">
-          {messages.length >= 100 && (
-            <button
-              type="button"
-              className="template-load-older"
-              disabled={loadingOlder}
-              onClick={() => void loadOlder()}
-            >
-              {loadingOlder ? (
-                <>
-                  <LoaderCircle size={14} className="template-spinning" />
-                  <Trans>Loading…</Trans>
-                </>
-              ) : (
-                <Trans>Load earlier messages</Trans>
-              )}
-            </button>
-          )}
-          {olderError != null && <p role="alert">{userError(olderError)}</p>}
-          {conversationTimeline(messages, approvals, ownerActions).map((item) => {
-            if (item.kind === "owner_action")
-              return <Fragment key={item.id}>{renderOwnerAction?.(item.action)}</Fragment>;
-            if (item.kind === "approval")
-              return <Fragment key={item.id}>{renderApproval?.(item.approval)}</Fragment>;
-            const message = item.message;
-            if (message.id.startsWith("activity:")) {
-              const run = runsById.get(message.id.slice("activity:".length));
-              return run ? (
-                <TurnActivity
-                  key={message.id}
-                  run={run}
-                  events={events}
-                  connected={connected}
-                  agent={agents.find((agent) => agent.id === run.agent_id)}
-                />
-              ) : null;
-            }
-            const preview = previews.get(message.id);
-            if (preview)
-              return (
-                <StreamingMessageCard
-                  key={message.id}
-                  run={preview.run}
-                  stream={preview.stream}
-                  events={events}
-                  connected={connected}
-                  ownerId={ownerId}
-                  artifacts={artifacts}
-                  onVisualAction={onVisualAction}
-                  agent={agents.find((agent) => agent.id === preview.run.agent_id)}
-                  showSpeaker={showSpeakers}
-                />
-              );
-            const question = questions.get(message.id);
-            const previousMessage =
-              messages[messages.findIndex((row) => row.id === message.id) - 1];
-            const separator =
-              !message.id.startsWith("pending:") &&
-              needsTimeSeparator(message.created_at, previousMessage?.created_at);
-            return (
-              <Fragment key={message.id}>
-                {separator && (
-                  <div className="template-time-separator">
-                    <time dateTime={message.created_at}>
-                      {formatTimeSeparator(message.created_at, i18n.locale, {
-                        today: t`Today`,
-                        yesterday: t`Yesterday`,
-                      })}
-                    </time>
-                  </div>
-                )}
-                <MessageBubble
-                  message={message}
-                  previousVisualMessageId={previousVisualMessageIds?.get(message.id)}
-                  ownerId={ownerId}
-                  onVisualAction={onVisualAction}
-                  body={
-                    onAnswer && question?.choices.length ? (
-                      <ConversationQuestion request={question} onAnswer={onAnswer} />
-                    ) : undefined
-                  }
-                  showSpeaker={showSpeakers}
-                  agent={agents.find((agent) => agent.id === message.agent_id)}
-                  artifacts={artifacts}
-                  replyParent={message.reply_to ? byId.get(message.reply_to) : undefined}
-                  onReply={onReply}
-                  onPreview={onPreview}
-                  onRetrySend={onRetrySend}
-                  peer={peersByMessageId.get(message.id)}
-                  peerRun={runsById.get(
-                    String(peersByMessageId.get(message.id)?.payload.run_id ?? ""),
-                  )}
-                />
-                {failures
-                  .filter((failure) => failure.message.id === message.id)
-                  .map(({ run }) => (
-                    <FailedReplyNotice
-                      key={run.id}
-                      run={run}
-                      agent={agents.find((agent) => agent.id === run.agent_id)}
-                      showSpeaker={showSpeakers}
-                    />
-                  ))}
-              </Fragment>
+    <GenuiHost
+      value={{
+        threadId: canonicalMessages[0]?.thread_id ?? runs[0]?.thread_id ?? "",
+        messages: canonicalMessages,
+        runs,
+        agents,
+      }}
+    >
+      <div className="template-transcript-region">
+        <section
+          ref={scroll}
+          className="thread-messages template-transcript"
+          data-testid="transcript"
+          aria-label={t`Conversation`}
+          onWheel={(event) => {
+            if (event.deltaY < 0) following.current = false;
+          }}
+          onTouchStart={() => {
+            following.current = false;
+          }}
+          onScroll={(event) => {
+            const element = event.currentTarget;
+            const nearEnd = nearConversationBottom(
+              element.scrollHeight,
+              element.clientHeight,
+              element.scrollTop,
             );
-          })}
-          {trailing}
-        </div>
-      </section>
-      {showLatest && (
-        <button
-          type="button"
-          className="template-icon-button template-jump-latest"
-          aria-label={t`Jump to latest`}
-          onClick={() => {
-            following.current = true;
-            scroll.current?.scrollTo({
-              top: scroll.current.scrollHeight,
-              behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
-                ? "instant"
-                : "smooth",
-            });
+            following.current = nearEnd;
+            setShowLatest((visible) =>
+              showLatestButton(
+                visible,
+                element.scrollHeight - element.clientHeight - element.scrollTop,
+              ),
+            );
           }}
         >
-          <ArrowDown size={17} />
-        </button>
-      )}
-    </div>
+          <div ref={content} className="template-transcript-content">
+            {messages.length >= 100 && (
+              <button
+                type="button"
+                className="template-load-older"
+                disabled={loadingOlder}
+                onClick={() => void loadOlder()}
+              >
+                {loadingOlder ? (
+                  <>
+                    <LoaderCircle size={14} className="template-spinning" />
+                    <Trans>Loading…</Trans>
+                  </>
+                ) : (
+                  <Trans>Load earlier messages</Trans>
+                )}
+              </button>
+            )}
+            {olderError != null && <p role="alert">{userError(olderError)}</p>}
+            {conversationTimeline(messages, approvals, ownerActions).map((item) => {
+              if (item.kind === "owner_action")
+                return <Fragment key={item.id}>{renderOwnerAction?.(item.action)}</Fragment>;
+              if (item.kind === "approval")
+                return <Fragment key={item.id}>{renderApproval?.(item.approval)}</Fragment>;
+              const message = item.message;
+              if (message.id.startsWith("activity:")) {
+                const run = runsById.get(message.id.slice("activity:".length));
+                return run ? (
+                  <TurnActivity
+                    key={message.id}
+                    run={run}
+                    events={events}
+                    connected={connected}
+                    agent={agents.find((agent) => agent.id === run.agent_id)}
+                  />
+                ) : null;
+              }
+              const preview = previews.get(message.id);
+              if (preview)
+                return (
+                  <StreamingMessageCard
+                    key={message.id}
+                    run={preview.run}
+                    stream={preview.stream}
+                    events={events}
+                    connected={connected}
+                    ownerId={ownerId}
+                    artifacts={artifacts}
+                    onVisualAction={onVisualAction}
+                    agent={agents.find((agent) => agent.id === preview.run.agent_id)}
+                    showSpeaker={showSpeakers}
+                  />
+                );
+              const question = questions.get(message.id);
+              const previousMessage =
+                messages[messages.findIndex((row) => row.id === message.id) - 1];
+              const separator =
+                !message.id.startsWith("pending:") &&
+                needsTimeSeparator(message.created_at, previousMessage?.created_at);
+              return (
+                <Fragment key={message.id}>
+                  {separator && (
+                    <div className="template-time-separator">
+                      <time dateTime={message.created_at}>
+                        {formatTimeSeparator(message.created_at, i18n.locale, {
+                          today: t`Today`,
+                          yesterday: t`Yesterday`,
+                        })}
+                      </time>
+                    </div>
+                  )}
+                  <MessageBubble
+                    message={message}
+                    previousVisualMessageId={previousVisualMessageIds?.get(message.id)}
+                    ownerId={ownerId}
+                    onVisualAction={onVisualAction}
+                    body={
+                      onAnswer && question?.choices.length ? (
+                        <ConversationQuestion request={question} onAnswer={onAnswer} />
+                      ) : undefined
+                    }
+                    showSpeaker={showSpeakers}
+                    agent={agents.find((agent) => agent.id === message.agent_id)}
+                    artifacts={artifacts}
+                    replyParent={message.reply_to ? byId.get(message.reply_to) : undefined}
+                    onReply={onReply}
+                    onPreview={onPreview}
+                    onRetrySend={onRetrySend}
+                    peer={peersByMessageId.get(message.id)}
+                    peerRun={runsById.get(
+                      String(peersByMessageId.get(message.id)?.payload.run_id ?? ""),
+                    )}
+                  />
+                  {failures
+                    .filter((failure) => failure.message.id === message.id)
+                    .map(({ run }) => (
+                      <FailedReplyNotice
+                        key={run.id}
+                        run={run}
+                        agent={agents.find((agent) => agent.id === run.agent_id)}
+                        showSpeaker={showSpeakers}
+                      />
+                    ))}
+                </Fragment>
+              );
+            })}
+            {trailing}
+          </div>
+        </section>
+        {showLatest && (
+          <button
+            type="button"
+            className="template-icon-button template-jump-latest"
+            aria-label={t`Jump to latest`}
+            onClick={() => {
+              following.current = true;
+              scroll.current?.scrollTo({
+                top: scroll.current.scrollHeight,
+                behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+                  ? "instant"
+                  : "smooth",
+              });
+            }}
+          >
+            <ArrowDown size={17} />
+          </button>
+        )}
+      </div>
+    </GenuiHost>
   );
 }

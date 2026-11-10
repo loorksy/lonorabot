@@ -115,7 +115,10 @@ class Parser {
     let left = this.binary(level + 1);
     for (;;) {
       const token = this.tokens[this.index] as Token;
-      if (token.kind === "op" && (LEVELS[level] as readonly string[]).includes(String(token.value))) {
+      if (
+        token.kind === "op" &&
+        (LEVELS[level] as readonly string[]).includes(String(token.value))
+      ) {
         this.index += 1;
         left = ["b", String(token.value), left, this.binary(level + 1)];
       } else break;
@@ -202,7 +205,8 @@ function astDepth(node: Node): number {
   let deepest = 0;
   for (const item of node.slice(1)) {
     if (Array.isArray(item)) {
-      if (typeof item[0] === "string") deepest = Math.max(deepest, astDepth(item as unknown as Node));
+      if (typeof item[0] === "string")
+        deepest = Math.max(deepest, astDepth(item as unknown as Node));
       else for (const child of item as Node[]) deepest = Math.max(deepest, astDepth(child));
     }
   }
@@ -217,7 +221,8 @@ export function parse(source: string): Node {
   if (cached === null) throw new ExpressionError("genui_expression_invalid");
   try {
     const node = new Parser(tokenize(source)).parse();
-    if (astDepth(node) > MAX_EXPRESSION_DEPTH) throw new ExpressionError("genui_expression_too_deep");
+    if (astDepth(node) > MAX_EXPRESSION_DEPTH)
+      throw new ExpressionError("genui_expression_too_deep");
     if (cache.size < 4096) cache.set(source, node);
     return node;
   } catch (error) {
@@ -329,11 +334,17 @@ const ownGet = (record: Record<string, unknown>, key: string) =>
   Object.hasOwn(record, key) ? (record[key] ?? null) : null;
 
 function get(container: unknown, key: unknown): unknown {
-  if (typeof key === "string" && BLOCKED.has(key)) throw new ExpressionError("genui_expression_blocked");
+  if (typeof key === "string" && BLOCKED.has(key))
+    throw new ExpressionError("genui_expression_blocked");
   if (isPlain(container)) return ownGet(container, typeof key === "string" ? key : show(key));
   if (Array.isArray(container) || typeof container === "string") {
     if (key === "length") return container.length;
-    const index = typeof key === "number" ? key : typeof key === "string" && /^\d+$/.test(key) ? Number(key) : Number.NaN;
+    const index =
+      typeof key === "number"
+        ? key
+        : typeof key === "string" && /^\d+$/.test(key)
+          ? Number(key)
+          : Number.NaN;
     if (Number.isInteger(index) && index >= 0 && index < container.length) return container[index];
   }
   return null;

@@ -211,7 +211,7 @@ msgstr "إضافة محادثات"
 msgid "Add chats to your favourites: press and hold a chat, then ⋮."
 msgstr "أضف محادثات إلى المفضلة: اضغط مطولًا على محادثة ثم ⋮."
 
-#: src/pages/shell/chat-context.tsx:825
+#: src/pages/shell/chat-context.tsx:826
 msgid "Add direction while the agent works…"
 msgstr "أضف توجيهًا أثناء عمل الوكيل…"
 
@@ -263,19 +263,23 @@ msgstr "إعدادات متقدمة"
 #: src/pages/Board.tsx:416
 #: src/pages/Board.tsx:418
 #: src/pages/shell/bot-picker.tsx:16
-#: src/pages/shell/chat-context.tsx:284
-#: src/pages/shell/message-cards.tsx:40
-#: src/pages/shell/message-cards.tsx:104
-#: src/pages/shell/message-cards.tsx:256
-#: src/pages/shell/message-cards.tsx:259
-#: src/pages/shell/message-cards.tsx:264
-#: src/pages/shell/message-cards.tsx:267
-#: src/pages/shell/message-cards.tsx:334
+#: src/pages/shell/chat-context.tsx:285
+#: src/pages/shell/message-cards.tsx:41
+#: src/pages/shell/message-cards.tsx:105
+#: src/pages/shell/message-cards.tsx:266
+#: src/pages/shell/message-cards.tsx:269
+#: src/pages/shell/message-cards.tsx:274
+#: src/pages/shell/message-cards.tsx:277
+#: src/pages/shell/message-cards.tsx:344
 msgid "Agent"
 msgstr "الوكيل"
 
+#: src/components/genui/UiCard.tsx:231
+msgid "Agent call"
+msgstr "مكالمة الوكيل"
+
 #: src/components/ai/CollaborationMarker.tsx:11
-#: src/pages/shell/message-cards.tsx:248
+#: src/pages/shell/message-cards.tsx:258
 msgid "Agent collaboration"
 msgstr "تعاون الوكلاء"
 
@@ -447,16 +451,16 @@ msgstr "اطلب من هذا الوكيل إنشاء هدف تداول. تبقى
 msgid "Assign work to your agents and follow each task."
 msgstr "أسند العمل إلى وكلائك وتابع كل مهمة."
 
-#: src/pages/shell/chat-context.tsx:802
 #: src/pages/shell/chat-context.tsx:803
+#: src/pages/shell/chat-context.tsx:804
 msgid "Attach file"
 msgstr "إرفاق ملف"
 
-#: src/pages/shell/chat-context.tsx:625
+#: src/pages/shell/chat-context.tsx:626
 msgid "Attached files"
 msgstr "ملفات مرفقة"
 
-#: src/pages/shell/message-cards.tsx:161
+#: src/pages/shell/message-cards.tsx:170
 msgid "Attachment"
 msgstr "مرفق"
 
@@ -745,7 +749,7 @@ msgstr "إلغاء التحديد"
 #: src/components/ToolActivityDisclosure.tsx:23
 #: src/lib/goal-status.ts:44
 #: src/pages/Board.tsx:27
-#: src/pages/shell/message-cards.tsx:277
+#: src/pages/shell/message-cards.tsx:287
 msgid "Cancelled"
 msgstr "ملغى"
 
@@ -1023,13 +1027,17 @@ msgstr "اللون"
 msgid "Commands at the start of the message"
 msgstr "الأوامر في بداية الرسالة"
 
+#: src/components/genui/UiCard.tsx:424
+msgid "Complete «{label}» first"
+msgstr "أكمل «{label}» أولًا"
+
 #: src/components/ai/primitives.tsx:49
 #: src/components/ai/TurnActivity.tsx:36
 #: src/components/ai/TurnActivity.tsx:95
 #: src/components/ToolActivityDisclosure.tsx:27
 #: src/lib/goal-status.ts:36
 #: src/pages/Board.tsx:21
-#: src/pages/shell/message-cards.tsx:281
+#: src/pages/shell/message-cards.tsx:291
 msgid "Completed"
 msgstr "مكتمل"
 
@@ -1121,7 +1129,7 @@ msgstr "المحتوى"
 #~ msgstr "لوحة السياق"
 
 #: src/pages/ModelRoutingSettings.tsx:10
-#: src/pages/shell/chat-context.tsx:1079
+#: src/pages/shell/chat-context.tsx:1088
 msgid "Conversation"
 msgstr "المحادثة"
 
@@ -1387,7 +1395,7 @@ msgstr "فصل الحساب"
 msgid "Discovered models"
 msgstr "النماذج المكتشفة"
 
-#: src/pages/shell/chat-context.tsx:698
+#: src/pages/shell/chat-context.tsx:699
 msgid "Dismiss error"
 msgstr "إخفاء الخطأ"
 
@@ -1424,6 +1432,7 @@ msgstr "التقويم الاقتصادي"
 msgid "Economic calendar feed"
 msgstr "مصدر التقويم الاقتصادي"
 
+#: src/components/genui/UiCard.tsx:552
 #: src/pages/Routines.tsx:104
 msgid "Edit"
 msgstr "تعديل"
@@ -1437,6 +1446,14 @@ msgstr "تعديل المهمة المجدولة"
 #: src/shell/lists/ListSheets.tsx:398
 msgid "Edit the list"
 msgstr "تعديل القائمة"
+
+#: src/components/genui/UiCard.tsx:496
+msgid "Edit, then send again"
+msgstr "عدّل ثم أرسل من جديد"
+
+#: src/components/genui/index.tsx:61
+msgid "Edited"
+msgstr "مُعدّلة"
 
 #: src/pages/Auth.tsx:31
 #: src/pages/Onboarding.tsx:38
@@ -1500,7 +1517,7 @@ msgstr "إنهاء المكالمة"
 msgid "Ending call"
 msgstr "جارٍ إنهاء المكالمة"
 
-#: src/pages/shell/chat-context.tsx:905
+#: src/pages/shell/chat-context.tsx:906
 msgid "Enter to send · Shift+Enter for a new line"
 msgstr "Enter للإرسال · Shift+Enter لسطر جديد"
 
@@ -1584,7 +1601,7 @@ msgstr "الوجه"
 #: src/components/ToolActivityDisclosure.tsx:25
 #: src/lib/goal-status.ts:38
 #: src/pages/Board.tsx:31
-#: src/pages/shell/message-cards.tsx:279
+#: src/pages/shell/message-cards.tsx:289
 msgid "Failed"
 msgstr "فشل"
 
@@ -1791,6 +1808,10 @@ msgstr "صورة مرفقة"
 msgid "Import a market snapshot before using the demo account."
 msgstr "استورد بيانات السوق قبل استخدام حساب المحاكاة."
 
+#: src/components/genui/UiCard.tsx:228
+msgid "In the app"
+msgstr "داخل التطبيق"
+
 #: src/pages/KnowledgeSection.tsx:209
 msgid "Index note"
 msgstr "فهرسة الملاحظة"
@@ -1877,7 +1898,7 @@ msgstr "لم تُنفّذ"
 msgid "Its own role, model and permissions"
 msgstr "دور ونموذج وصلاحيات خاصة به"
 
-#: src/pages/shell/chat-context.tsx:1215
+#: src/pages/shell/chat-context.tsx:1224
 msgid "Jump to latest"
 msgstr "الانتقال إلى الأحدث"
 
@@ -1942,6 +1963,10 @@ msgstr "التسمية"
 msgid "Language"
 msgstr "اللغة"
 
+#: src/components/genui/UiCard.tsx:414
+msgid "Last updated"
+msgstr "آخر تحديث"
+
 #: src/shell/UpdateBar.tsx:49
 msgid "Later"
 msgstr "لاحقًا"
@@ -2000,7 +2025,7 @@ msgstr "الاتصال المباشر فعّال"
 msgid "Live observations"
 msgstr "ملاحظات التداول الحقيقي"
 
-#: src/pages/shell/chat-context.tsx:1116
+#: src/pages/shell/chat-context.tsx:1125
 msgid "Load earlier messages"
 msgstr "تحميل الرسائل السابقة"
 
@@ -2049,7 +2074,7 @@ msgstr "جارٍ تحميل المعاينة…"
 #: src/pages/RoutineRunHistory.tsx:43
 #: src/pages/Routines.tsx:176
 #: src/pages/ScratchpadSection.tsx:94
-#: src/pages/shell/chat-context.tsx:1113
+#: src/pages/shell/chat-context.tsx:1122
 #: src/pages/SkillsSection.tsx:101
 #: src/shell/pages.tsx:49
 msgid "Loading…"
@@ -2177,23 +2202,23 @@ msgstr "اذكر الوكلاء باستخدام ‎@الاسم. عند عدم �
 msgid "Mention an agent"
 msgstr "الإشارة إلى وكيل"
 
-#: src/pages/shell/chat-context.tsx:751
+#: src/pages/shell/chat-context.tsx:752
 msgid "Mentions"
 msgstr "الإشارات"
 
-#: src/pages/shell/chat-context.tsx:815
+#: src/pages/shell/chat-context.tsx:816
 msgid "Message"
 msgstr "الرسالة"
 
-#: src/pages/shell/chat-context.tsx:827
+#: src/pages/shell/chat-context.tsx:828
 msgid "Message {recipientName}"
 msgstr "راسل {recipientName}"
 
-#: src/pages/shell/chat-context.tsx:664
+#: src/pages/shell/chat-context.tsx:665
 msgid "Message composer"
 msgstr "محرر الرسالة"
 
-#: src/pages/shell/chat-context.tsx:828
+#: src/pages/shell/chat-context.tsx:829
 msgid "Message your agent…"
 msgstr "اكتب رسالة لوكيلك…"
 
@@ -2496,6 +2521,10 @@ msgstr "لا توجد أهداف تداول بعد."
 msgid "No unread messages."
 msgstr "لا توجد رسائل غير مقروءة."
 
+#: src/components/genui/index.tsx:61
+msgid "Not carried out"
+msgstr "لم يُنفَّذ"
+
 #: src/shell/lists/ThreadRow.tsx:89
 msgid "Not sent"
 msgstr "لم يُرسل"
@@ -2503,6 +2532,10 @@ msgstr "لم يُرسل"
 #: src/components/charts/ChartAnnotations.tsx:70
 msgid "Note"
 msgstr "ملاحظة"
+
+#: src/components/genui/UiCard.tsx:208
+msgid "Notification method"
+msgstr "طريقة الإشعار"
 
 #: src/components/ai/AttentionInbox.tsx:69
 #: src/components/ai/AttentionInbox.tsx:71
@@ -2719,6 +2752,10 @@ msgstr "وكيل ابن دائم"
 msgid "Personal Agent"
 msgstr "المساعد الشخصي"
 
+#: src/components/genui/UiCard.tsx:230
+msgid "Phone notification"
+msgstr "إشعار الهاتف"
+
 #: src/pages/shell/bot-panel.tsx:54
 msgid "Pick a template; the agent's type follows from its role and scope."
 msgstr "اختر قالبًا؛ يُشتق نوع الوكيل من دوره ونطاق عمله."
@@ -2851,7 +2888,7 @@ msgstr "أُغلق السؤال"
 #: src/components/ai/primitives.tsx:33
 #: src/components/ai/primitives.tsx:81
 #: src/components/ai/TurnActivity.tsx:26
-#: src/pages/shell/message-cards.tsx:285
+#: src/pages/shell/message-cards.tsx:295
 msgid "Queued"
 msgstr "في الانتظار"
 
@@ -2972,7 +3009,7 @@ msgstr "رفض"
 msgid "Reload"
 msgstr "إعادة تحميل"
 
-#: src/pages/shell/chat-context.tsx:737
+#: src/pages/shell/chat-context.tsx:738
 msgid "Remove {name}"
 msgstr "إزالة {name}"
 
@@ -2980,7 +3017,7 @@ msgstr "إزالة {name}"
 msgid "Remove from favourites"
 msgstr "إزالة من المفضلة"
 
-#: src/pages/shell/chat-context.tsx:720
+#: src/pages/shell/chat-context.tsx:721
 msgid "Remove reply"
 msgstr "إزالة الرد"
 
@@ -2996,14 +3033,14 @@ msgstr "إزالة جني الربح"
 msgid "Removed from favourites"
 msgstr "أُزيلت من المفضلة"
 
-#: src/pages/shell/message-cards.tsx:201
-#: src/pages/shell/message-cards.tsx:202
+#: src/pages/shell/message-cards.tsx:211
+#: src/pages/shell/message-cards.tsx:212
 #: src/shell/lists/HeadsUp.tsx:191
 msgid "Reply"
 msgstr "رد"
 
-#: src/pages/shell/chat-context.tsx:709
-#: src/pages/shell/message-cards.tsx:113
+#: src/pages/shell/chat-context.tsx:710
+#: src/pages/shell/message-cards.tsx:121
 msgid "Reply to an earlier message"
 msgstr "رد على رسالة سابقة"
 
@@ -3079,7 +3116,7 @@ msgstr "سُوّيت دون تأكيد من الوسيط"
 #: src/pages/ActivityList.tsx:269
 #: src/pages/Board.tsx:574
 #: src/pages/Routines.tsx:100
-#: src/pages/shell/chat-context.tsx:291
+#: src/pages/shell/chat-context.tsx:292
 msgid "Resume"
 msgstr "استئناف"
 
@@ -3090,7 +3127,7 @@ msgstr "استئناف"
 #: src/pages/Artifacts.tsx:251
 #: src/pages/Board.tsx:139
 #: src/pages/Routines.tsx:169
-#: src/pages/shell/message-cards.tsx:185
+#: src/pages/shell/message-cards.tsx:195
 #: src/shell/lists/ChatList.tsx:353
 #: src/shell/pages.tsx:305
 #: src/shell/pages.tsx:316
@@ -3354,8 +3391,8 @@ msgstr "بيع عند الكسر"
 msgid "Semantic memory · optional"
 msgstr "الذاكرة الدلالية · اختيارية"
 
-#: src/pages/shell/chat-context.tsx:880
 #: src/pages/shell/chat-context.tsx:881
+#: src/pages/shell/chat-context.tsx:882
 msgid "Send"
 msgstr "إرسال"
 
@@ -3363,16 +3400,21 @@ msgstr "إرسال"
 msgid "Send (Shift+Enter for a new line)"
 msgstr "إرسال (Shift+Enter لسطر جديد)"
 
-#: src/pages/shell/chat-context.tsx:880
 #: src/pages/shell/chat-context.tsx:881
+#: src/pages/shell/chat-context.tsx:882
 msgid "Send direction"
 msgstr "إرسال توجيه"
 
 #: src/components/ai/primitives.tsx:74
 #: src/components/ai/TurnActivity.tsx:25
-#: src/pages/shell/message-cards.tsx:193
+#: src/pages/shell/message-cards.tsx:203
 msgid "Sending…"
 msgstr "جارٍ الإرسال…"
+
+#. placeholder {0}: agent?.name ?? "Lonora"
+#: src/components/genui/UiCard.tsx:549
+msgid "Sent to {0}"
+msgstr "أُرسل إلى {0}"
 
 #: src/pages/McpServersOverlay.tsx:60
 msgid "Server URL"
@@ -3382,7 +3424,7 @@ msgstr "رابط الخادم"
 #~ msgid "Service needs attention"
 #~ msgstr "الخدمة تحتاج إلى مراجعة"
 
-#: src/pages/shell/chat-context.tsx:776
+#: src/pages/shell/chat-context.tsx:777
 #: src/shell/FloatingTabBar.tsx:25
 msgid "Settings"
 msgstr "الإعدادات"
@@ -3438,6 +3480,7 @@ msgstr "عرض الكل"
 msgid "Show all results ({0})"
 msgstr "عرض جميع النتائج ({0})"
 
+#: src/components/genui/UiCard.tsx:330
 #: src/shell/lists/UnifiedSearch.tsx:376
 msgid "Show more"
 msgstr "عرض المزيد"
@@ -3544,6 +3587,10 @@ msgstr "وجوه ضاحكة وأشخاص"
 msgid "Source"
 msgstr "المصدر"
 
+#: src/components/genui/UiCard.tsx:580
+msgid "Sources"
+msgstr "المصادر"
+
 #: src/components/call/VoiceStatus.tsx:26
 msgid "Speaking"
 msgstr "يتحدث"
@@ -3609,8 +3656,8 @@ msgid "Still unknown"
 msgstr "لا تزال غير معروفة"
 
 #: src/pages/ActivityList.tsx:259
-#: src/pages/shell/chat-context.tsx:896
 #: src/pages/shell/chat-context.tsx:897
+#: src/pages/shell/chat-context.tsx:898
 msgid "Stop"
 msgstr "إيقاف"
 
@@ -3635,7 +3682,7 @@ msgstr "وقف الخسارة · اختياري"
 #~ msgid "Stopped"
 #~ msgstr "متوقف"
 
-#: src/pages/shell/message-cards.tsx:283
+#: src/pages/shell/message-cards.tsx:293
 msgid "Stopped at its work limit"
 msgstr "توقف عند حد العمل"
 
@@ -3852,7 +3899,7 @@ msgstr "يبقى السوق الثابت الحالي دون تغيير حتى �
 msgid "The file preview could not be displayed"
 msgstr "تعذّر عرض معاينة الملف"
 
-#: src/pages/shell/message-cards.tsx:364
+#: src/pages/shell/message-cards.tsx:374
 msgid "The full response will appear when complete."
 msgstr "ستظهر الإجابة كاملة عند الانتهاء."
 
@@ -3860,8 +3907,8 @@ msgstr "ستظهر الإجابة كاملة عند الانتهاء."
 #~ msgid "The grant is active, but its readiness check did not finish. No trade was sent."
 #~ msgstr "التفويض مفعّل، لكن فحص الجاهزية لم يكتمل. لم تُرسل أي صفقة."
 
-#: src/pages/shell/chat-context.tsx:114
-#: src/pages/shell/chat-context.tsx:117
+#: src/pages/shell/chat-context.tsx:115
+#: src/pages/shell/chat-context.tsx:118
 msgid "The message is no longer available."
 msgstr "لم تعد الرسالة متاحة."
 
@@ -3946,7 +3993,7 @@ msgstr "النموذج المحدد غير متاح لدى هذا المزود. 
 msgid "The setup code is incorrect."
 msgstr "رمز الإعداد غير صحيح."
 
-#: src/pages/shell/message-cards.tsx:296
+#: src/pages/shell/message-cards.tsx:306
 msgid "The task resumed from its saved state after reconnection."
 msgstr "استؤنفت المهمة من حالتها المحفوظة بعد إعادة الاتصال."
 
@@ -4165,7 +4212,7 @@ msgstr "قيد الانتظار"
 #~ msgstr "إلى:"
 
 #: src/pages/Artifacts.tsx:235
-#: src/pages/shell/chat-context.tsx:1167
+#: src/pages/shell/chat-context.tsx:1176
 msgid "Today"
 msgstr "اليوم"
 
@@ -4449,7 +4496,7 @@ msgstr "بانتظار التحقق من النتيجة"
 msgid "Waiting for the broker to report the entry position. The accepted order will not be submitted again."
 msgstr "بانتظار أن يبلغ الوسيط عن صفقة الدخول. لن يُرسل الأمر المقبول مرة أخرى."
 
-#: src/pages/shell/message-cards.tsx:188
+#: src/pages/shell/message-cards.tsx:198
 #: src/shell/ChatHeader.tsx:45
 #: src/shell/lists/ThreadRow.tsx:89
 msgid "Waiting for the network…"
@@ -4501,6 +4548,10 @@ msgstr "ما الذي يجب أن يعرفه هذا الوكيل عن عمله؟
 #~ msgid "What this agent is for"
 #~ msgstr "ما مهمة هذا الوكيل؟"
 
+#: src/components/genui/UiCard.tsx:570
+msgid "Why this interface?"
+msgstr "لماذا هذه الواجهة؟"
+
 #: src/components/ai/AvatarStudio.tsx:64
 msgid "Wink"
 msgstr "غمزة"
@@ -4535,7 +4586,7 @@ msgstr "قلق"
 msgid "Writing"
 msgstr "يكتب"
 
-#: src/pages/shell/chat-context.tsx:1168
+#: src/pages/shell/chat-context.tsx:1177
 msgid "Yesterday"
 msgstr "أمس"
 
@@ -4560,6 +4611,10 @@ msgstr "يمكنك تثبيت 3 محادثات فقط"
 #: src/shell/lists/ListSheets.tsx:334
 msgid "You reached the name's maximum length"
 msgstr "وصلت إلى الحد الأقصى للاسم"
+
+#: src/components/genui/UiCard.tsx:559
+msgid "You stopped the reply before the interface was complete"
+msgstr "أوقفتَ الرد قبل اكتمال الواجهة"
 
 #: src/shell/navigation.tsx:94
 msgid "You will lose the unsaved edits."

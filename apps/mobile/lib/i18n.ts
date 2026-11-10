@@ -79,6 +79,8 @@ export const labels = {
   visualExample: ["مثال توضيحي", "Illustrative example"],
   visualEstimate: ["تقدير", "Estimate"],
   visualUnavailable: ["غير متاح", "Unavailable"],
+  uiSubmitEdited: ["مُعدّلة", "Edited"],
+  uiSubmitNotRun: ["لم يُنفَّذ", "Not carried out"],
   visualObservedAt: ["وقت الملاحظة", "Observed at"],
   visualSources: ["بيانات الاستجابة", "Response evidence"],
   visualActionUnavailable: [

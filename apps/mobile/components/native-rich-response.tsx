@@ -12,6 +12,7 @@ import {
   expandVisualAction,
   filterVisualRows,
   initialVisualState,
+  isUiPart,
   updateVisualState,
   validateRichContent,
   visualStateStorageKey,
@@ -50,7 +51,11 @@ type Props = {
 };
 
 function validatedParts(content: RichContent) {
-  return validateRichContent(content)?.parts ?? [];
+  // R1: a lonora-ui v2 card shows as text on mobile (its fallback), as older builds do
+  // (GENUI_PLAN §9.7); the native card renderer arrives with mobile parity (G6).
+  return (validateRichContent(content)?.parts ?? []).map((part) =>
+    isUiPart(part) ? { type: "text" as const, text: part.document.fallback } : part,
+  );
 }
 
 /** Only already compiled native documents can suppress duplicate file previews. */

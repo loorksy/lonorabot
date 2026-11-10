@@ -13,6 +13,7 @@ import { ArtifactFileCard } from "../../components/ArtifactFileCard";
 import { AgentAvatar } from "../../components/ai/AgentAvatar";
 import { WorkingIndicator } from "../../components/ai/primitives";
 import { TurnActivity } from "../../components/ai/TurnActivity";
+import { SubmitMark } from "../../components/genui";
 import { RichResponse } from "../../components/visual/RichResponse";
 import type { Agent, Event, Message, ReplyStreamSnapshot, Resource, Run } from "../../lib/api";
 import { isOutgoingMessage } from "../../lib/outgoing-messages";
@@ -105,14 +106,22 @@ export function MessageBubble({
           </div>
         )}
         <div className="message-body template-message-body" dir="auto">
-          {message.reply_to && (
-            <blockquote className="template-message-quote">
-              {replyParent ? (
-                replyParent.content.slice(0, 180)
-              ) : (
-                <Trans>Reply to an earlier message</Trans>
-              )}
+          {message.reply_to && message.origin === "ui_submit" && message.ui_submit ? (
+            // A card's send quotes its card: sparkle + the card's title (Desktop-37 3750-3753).
+            <blockquote className="template-message-quote ux-quote">
+              <Icon name="sparkle" />
+              <span>{message.ui_submit.card_title}</span>
             </blockquote>
+          ) : (
+            message.reply_to && (
+              <blockquote className="template-message-quote">
+                {replyParent ? (
+                  replyParent.content.slice(0, 180)
+                ) : (
+                  <Trans>Reply to an earlier message</Trans>
+                )}
+              </blockquote>
+            )
           )}
           {body ??
             ((message.content || message.rich_content) && (
@@ -164,6 +173,7 @@ export function MessageBubble({
           })}
         </div>
         <div className="message-meta template-message-meta">
+          <SubmitMark message={message} />
           {!outgoing && (
             <time
               dateTime={message.created_at}
