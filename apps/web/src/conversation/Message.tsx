@@ -361,7 +361,16 @@ export function Message({
     body = (
       <GenUiPart
         message={
-          live ? { ...message, content: live.text, rich_content: live.rich ?? null } : message
+          live
+            ? {
+                ...message,
+                // The preview's edits live under preview:<run>; the canonical message
+                // reads them back through previousVisualIds when its run links it.
+                id: `preview:${live.runId}`,
+                content: live.text,
+                rich_content: live.rich ?? null,
+              }
+            : message
         }
         live={Boolean(live?.streaming)}
       />
