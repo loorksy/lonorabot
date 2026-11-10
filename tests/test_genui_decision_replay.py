@@ -21,7 +21,9 @@ async def test_every_gate_recording_still_passes():
     for model, path in listed.items():
         records = score.load_results(FIXTURES / path)
         assert {item["model"] for item in records} == {model}
-        failures = await score.replay(records, LABELS)
+        earlier = score.previous_recording(FIXTURES / path)
+        previous = score.load_results(earlier) if earlier else None
+        failures = await score.replay(records, LABELS, previous)
         assert not failures, model + ": " + "; ".join(failures)
 
 

@@ -10,23 +10,28 @@ stored in the test database is the placeholder ``proxy-injected`` and the networ
 adds the real key for api.openai.com.
 
     LONORA_DATABASE_URL=postgresql+asyncpg://.../lonora_g0_test \\
-    .venv/bin/python scripts/genui_eval/run.py --live [--cases A01,K01] [--limit N] [--samples 1]
+    .venv/bin/python scripts/genui_eval/run.py --live [--cases A01,K01] [--limit N] [--samples 1] \
+        [--baseline]
 
-Writes one JSON line per case and sample to .runtime/genui_eval/ and prints tokens and the
-scorer's report. Refuses to run without --live: every run spends real model tokens.
+Writes one scrubbed JSON line per case and sample. A full run is a recording,
+tests/fixtures/genui_decision/recordings/<model>-<YYYYMMDD>.jsonl (with --baseline under
+recordings/baseline/); a run of chosen cases is a probe and stays in .runtime/genui_eval/.
+Prints tokens and the scorer's report, compared with the previous recording of the same model.
+Refuses to run without --live: every run spends real model tokens.
 """
 
 import argparse
 import asyncio
 import json
 import os
+import re
 import sys
 import time
-from collections.abc import Awaitable, Callable, Sequence
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, cast
-from uuid import uuid4
+from uuid import NAMESPACE_URL, uuid4, uuid5
 
 import httpx
 from lonora_adapter_kit.model import ModelAdapter
@@ -52,7 +57,10 @@ import score  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / ".runtime/genui_eval"
+RECORDINGS = bank.FIXTURES / "recordings"
 PLACEHOLDER_KEY = "proxy-injected"
+# A provider key never reaches a record (the proxy adds it); a key-shaped string refuses the write.
+KEY_SHAPE = re.compile(r"\bsk-[A-Za-z0-9_-]{16,}")
 LEASE_SECONDS, MAXIMUM_ROUNDS = 120, 24  # the worker's production defaults (env.py)
 CASE_SECONDS = 300
 OWNER = {"email": "g0-eval@example.com", "password": "g0-eval-" + uuid4().hex}
@@ -172,8 +180,12 @@ async def seed(url: URL, model: str) -> dict[str, str]:
 class RecordingAdapter:
     """The real provider adapter; records the exact admitted request and the raw reply."""
 
-    def __init__(self, inner: ModelAdapter, model: str, log: list[dict[str, Any]]):
-        self.inner, self.model, self.log = inner, model, log
+    def __init__(self, inner: ModelAdapter, model: str, log: list[dict[str, Any]], origin: float):
+        self.inner, self.model, self.log, self.origin = inner, model, log, origin
+
+    def since_origin(self) -> int:
+        """Milliseconds since the owner's message (the turn's start)."""
+        return round((time.monotonic() - self.origin) * 1000)
 
     async def complete(
         self,
@@ -190,15 +202,31 @@ class RecordingAdapter:
         entry: dict[str, Any] = {"messages": len(messages), "tools": [t.name for t in tools]}
         entry["max_output_tokens"] = max_output_tokens
         self.log.append(entry)
+        streamed: list[str] = []
+
+        async def delta(chunk: str) -> None:
+            # v1 shows a card once its frame is complete: that is the first card line's moment.
+            streamed.append(chunk)
+            if "first_card_ms" not in entry and score.card_closed_at("".join(streamed)):
+                entry["first_card_ms"] = self.since_origin()
+            assert on_delta is not None
+            await on_delta(chunk)
+
         try:
             reply = await self.inner.complete(
-                model, messages, tools, max_output_tokens=max_output_tokens, on_delta=on_delta
+                model,
+                messages,
+                tools,
+                max_output_tokens=max_output_tokens,
+                on_delta=None if on_delta is None else delta,
             )
         except BaseException as error:
             entry["error"] = type(error).__name__
             raise
         finally:
             entry["latency_ms"] = round((time.monotonic() - started) * 1000)
+        if "first_card_ms" not in entry and score.card_closed_at(reply.text):
+            entry["first_card_ms"] = self.since_origin()  # a reply that was not streamed
         entry["raw_text"] = reply.text
         entry["tool_calls"] = [call.model_dump(mode="json") for call in reply.tool_calls]
         entry["usage"] = reply.usage.model_dump(mode="json")
@@ -211,15 +239,54 @@ class RecordingAdapter:
         await self.inner.close()
 
 
-def recording_factory(model: str, log: list[dict[str, Any]]) -> Callable[[str, str], ModelAdapter]:
+def recording_factory(
+    model: str, log: list[dict[str, Any]], origin: float
+) -> Callable[[str, str], ModelAdapter]:
     provider, name = model.split("/", 1)
 
     def factory(selected: str, secret: str) -> ModelAdapter:
         if selected != provider:
             raise SystemExit(f"Refusing an unexpected provider: {selected}")
-        return RecordingAdapter(model_adapter(selected, secret), name, log)
+        return RecordingAdapter(model_adapter(selected, secret), name, log, origin)
 
     return factory
+
+
+def scrub(record: dict[str, Any], identities: Mapping[str, str]) -> dict[str, Any]:
+    """The record without the ids that differ per run, and never with a key (§10.6).
+
+    Seeded rows (owner, agents, thread, account, run) become fixed UUIDs named after their role
+    and provider call ids become call_1, call_2, ... in order of appearance. Each is replaced
+    everywhere at once, so a replay still resolves every fact against its call.
+    """
+    text = json.dumps(record, ensure_ascii=False)
+    if KEY_SHAPE.search(text):
+        raise SystemExit("Refusing to write a record that holds a key-shaped string.")
+    calls = [
+        *(c["id"] for m in record["transcript"] for c in m.get("tool_calls", [])),
+        *(c["id"] for r in record["requests"] for c in r.get("tool_calls", [])),
+        *(c["id"] for c in record["reply_tool_calls"]),
+        *(c.get("call_id") for c in record["tool_calls"]),
+    ]
+    names = {old: f"call_{n}" for n, old in enumerate(dict.fromkeys(c for c in calls if c), 1)}
+    names.update(
+        {
+            old: str(uuid5(NAMESPACE_URL, "lonora-g0-eval/" + role))
+            for role, old in identities.items()
+        }
+    )
+    if not names:
+        return record
+    pattern = re.compile("|".join(map(re.escape, sorted(names, key=len, reverse=True))))
+    return json.loads(pattern.sub(lambda match: names[match[0]], text))
+
+
+def output_path(model: str, *, baseline: bool, partial: bool, now: datetime) -> Path:
+    """A full run is a recording (the G0 baseline under baseline/); chosen cases are a probe."""
+    name = model.replace("/", "-")
+    if partial:
+        return OUT / f"{name}-{now:%Y%m%dT%H%M%SZ}.jsonl"
+    return (RECORDINGS / "baseline" if baseline else RECORDINGS) / f"{name}-{now:%Y%m%d}.jsonl"
 
 
 async def seed_context(api: Api, ids: dict[str, str], turns: Sequence[dict[str, str]]) -> None:
@@ -283,6 +350,7 @@ async def run_case(
     log: list[dict[str, Any]] = []
     calls: list[dict[str, Any]] = []
     started = time.monotonic()
+    run_id = ""
     api = Api(clone)
     try:
         await api.login()
@@ -296,8 +364,11 @@ async def run_case(
         context = api.runtime.services(api.owner).tool_context(
             ids["lonora_id"], ids["thread_id"], await lease(api, run_id), api.settings.artifact_root
         )
-        context.router.factory = recording_factory(model, log)
-        tools = bank.materialize(bank.load_bank(), ids, datetime.now(UTC))
+        context.router.factory = recording_factory(model, log, started)
+        tools = bank.for_context(
+            bank.materialize(bank.load_bank(), ids, datetime.now(UTC)),
+            case["context"].get("seed"),
+        )
         async with asyncio.timeout(CASE_SECONDS):
             await execute_run(
                 context, bank.fixture_registry(tools, calls), LEASE_SECONDS, MAXIMUM_ROUNDS
@@ -326,7 +397,7 @@ async def run_case(
         for key in ("input_tokens", "output_tokens", "cached_tokens")
     }
     last = log[-1] if log else {}
-    return {
+    record = {
         "case": case["id"],
         "sample": sample,
         "model": model,
@@ -344,6 +415,8 @@ async def run_case(
         "content": answer.content if answer and status == "completed" else None,
         "rich_content": answer.rich_content if answer and status == "completed" else None,
     }
+    identities = {**ids, "owner_id": api.owner, "run_id": run_id}
+    return scrub(record, {role: value for role, value in identities.items() if value})
 
 
 async def main(arguments: argparse.Namespace) -> int:
@@ -359,9 +432,13 @@ async def main(arguments: argparse.Namespace) -> int:
         (bank.FIXTURES / "contexts.json").read_text()
     )
     ids = await seed(base, arguments.model)
-    OUT.mkdir(parents=True, exist_ok=True)
-    stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
-    path = OUT / f"{arguments.model.replace('/', '-')}-{stamp}.jsonl"
+    partial = bool(arguments.cases or arguments.limit)
+    path = output_path(
+        arguments.model, baseline=arguments.baseline, partial=partial, now=datetime.now(UTC)
+    )
+    previous = None if partial else score.previous_recording(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("")  # a second full run on the same day replaces that day's recording
     records: list[dict[str, Any]] = []
     try:
         for case in chosen:
@@ -390,7 +467,10 @@ async def main(arguments: argparse.Namespace) -> int:
         for k in ("input_tokens", "cached_tokens", "output_tokens")
     }
     print("total", json.dumps(total), "->", path)
-    print(score.report(await score.score(records, cases)))
+    if previous is not None:
+        print("compared with", previous)
+    earlier = score.load_results(previous) if previous else None
+    print(score.report(await score.score(records, cases, earlier)))
     return 0
 
 
@@ -401,6 +481,9 @@ if __name__ == "__main__":
     parser.add_argument("--cases", default="", help="comma-separated case ids, e.g. A01,K01")
     parser.add_argument("--limit", type=int, default=0, help="run at most this many cases")
     parser.add_argument("--samples", type=int, default=1, help="samples per case (plan: 3)")
+    parser.add_argument(
+        "--baseline", action="store_true", help="G0: record under recordings/baseline/"
+    )
     options = parser.parse_args()
     if not options.live:
         parser.error("refusing to call a real model without --live")

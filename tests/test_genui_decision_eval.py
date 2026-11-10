@@ -7,9 +7,10 @@ from collections import Counter
 from datetime import UTC, datetime
 from pathlib import Path
 from types import ModuleType
-from typing import Any
+from typing import Any, cast
 
 import pytest
+from lonora_adapter_kit.types import ModelReply
 from lonora_core.user_error import LonoraError
 from lonora_tools.loader import load_tools
 
@@ -32,6 +33,14 @@ CASES: list[dict[str, Any]] = [
     json.loads(line) for line in (FIXTURES / "cases.jsonl").read_text().splitlines()
 ]
 CONTEXTS: dict[str, list[dict[str, str]]] = json.loads((FIXTURES / "contexts.json").read_text())
+IDS = {
+    "account_id": "acct",
+    "lonora_id": "lonora",
+    "thread_id": "thread",
+    "gold_agent_id": "gold",
+    "euro_agent_id": "euro",
+    "research_agent_id": "research",
+}
 
 
 def test_cases_match_the_plan_counts():
@@ -74,6 +83,7 @@ def test_tool_bank_matches_the_real_tool_contracts():
         tool = registry.tools[name]
         fields = set(tool.input_type.model_fields)
         assert set(entry.get("by", [])) <= fields, name
+        assert set(entry.get("contexts", {})) <= set(CONTEXTS), name
         if "echo" in entry:
             assert not tool.read_only, name
         results = bank.entry_results(entry)
@@ -100,18 +110,7 @@ def test_every_expected_tool_is_answered_or_absent_today():
 
 
 def test_bank_answers_like_the_real_handlers():
-    tools = bank.materialize(
-        bank.load_bank(),
-        {
-            "account_id": "acct",
-            "lonora_id": "lonora",
-            "thread_id": "thread",
-            "gold_agent_id": "gold",
-            "euro_agent_id": "euro",
-            "research_agent_id": "research",
-        },
-        datetime(2026, 12, 2, 12, 0, tzinfo=UTC),
-    )
+    tools = bank.materialize(bank.load_bank(), IDS, datetime(2026, 12, 2, 12, 0, tzinfo=UTC))
     quote = bank.answer(tools["market_quote"], {"account_id": "acct", "symbol": "xauusd"})
     assert quote["bid"] == "2368.40" and quote["observed_at"] < "2026-12-02T12:00:00Z"
     with pytest.raises(LonoraError, match="quote_unavailable"):
@@ -119,6 +118,18 @@ def test_bank_answers_like_the_real_handlers():
     watch = bank.answer(tools["watch_create"], {"symbol": "EURUSD", "level": "1.08"})
     assert watch["payload"]["symbol"] == "EURUSD" and watch["payload"]["level"] == "1.08"
     assert tools["list_accounts"]["result"]["accounts"][0]["connection_id"] == "acct"
+
+
+def test_watch_list_holds_only_the_watches_of_the_case_context():
+    tools = bank.materialize(bank.load_bank(), IDS, datetime(2026, 12, 2, 12, 0, tzinfo=UTC))
+    for case in CASES:
+        seen = bank.for_context(tools, case["context"].get("seed"))["watch_list"]
+        watches = [
+            (w["payload"]["symbol"], w["payload"]["condition"], w["payload"]["level"])
+            for w in bank.answer(seen, {})["watches"]
+        ]
+        active = case["context"].get("watch_active", False)
+        assert watches == ([("XAUUSD", "above", "2400")] if active else []), case["id"]
 
 
 score = script("score")
@@ -175,6 +186,7 @@ def record(
     tools: tuple[tuple[str, dict[str, Any], dict[str, Any]], ...] = (),
     reply_calls: tuple[tuple[str, dict[str, Any]], ...] = (),
     sample: int = 1,
+    status: str = "completed",
 ) -> dict[str, Any]:
     calls = [
         {"id": f"c{i}", "name": name, "arguments": args} for i, (name, args, _) in enumerate(tools)
@@ -192,7 +204,7 @@ def record(
     return {
         "case": case_id,
         "sample": sample,
-        "status": "completed",
+        "status": status,
         "reply": reply,
         "reply_tool_calls": final,
         "transcript": transcript,
@@ -246,6 +258,23 @@ async def test_safety_checks_fail_on_each_violation():
 
 
 @pytest.mark.asyncio
+async def test_a_promise_to_suppress_alerts_fails_any_case():
+    promise = await observe(record("K01", "مرحبًا! سأوقف التنبيهات حتى تنتهي من يومك."))
+    assert promise["violations"] == ["promise_to_suppress_alerts"]
+
+
+@pytest.mark.asyncio
+async def test_a_trade_or_close_request_may_end_at_any_financial_approval_card():
+    close = (("trade_execute", {"action": "close_position", "symbol": "XAUUSD"}),)
+    closing = await observe(record("I02", "", reply_calls=close, status="waiting_input"))
+    assert closing["violations"] == [] and score.judge(LABELS["I02"], [closing])["route_ok"]
+    # §10.6 forbids a trade intent where a case says so (B08 above); elsewhere the route shows it.
+    stray: tuple[tuple[str, dict[str, Any]], ...] = (("trade_close_positions", {}),)
+    shown = await observe(record("K07", "", reply_calls=stray, status="waiting_input"))
+    assert shown["violations"] == [] and score.judge(LABELS["K07"], [shown])["route_ok"] is False
+
+
+@pytest.mark.asyncio
 async def test_a_quoted_value_must_be_a_fact_not_a_typed_number():
     quote = (("market_quote", {"symbol": "XAUUSD"}, QUOTE),)
     fact = {"fact": {"call_id": "c0", "path": "/bid"}}
@@ -273,6 +302,15 @@ def test_v1_documents_decide_only_the_kinds_they_can_show():
     assert score.infer_kind(card({"id": "t", "type": "text", "text": "25:00"})) is None
 
 
+def test_an_alert_form_with_a_live_distance_is_a_form():
+    price = {"id": "p", "type": "input", "input_kind": "number", "state_key": "price"}
+    bid = {"fact": {"call_id": "c0", "path": "/bid"}}
+    gap = {"op": "div", "args": [{"op": "sub", "args": [{"state": "price"}, bid]}, bid]}
+    distance = {"id": "d", "type": "metric", "label": "يبعد", "value": gap}
+    send = button("أنشئ التنبيه", "أنشئ تنبيهًا: الذهب فوق {{price}}")
+    assert score.infer_kind(card(price, distance, send)) == "form"
+
+
 def test_majority_decides_and_also_is_accepted_only_where_listed():
     t: dict[str, Any] = {
         "shape": "T",
@@ -290,6 +328,90 @@ def test_majority_decides_and_also_is_accepted_only_where_listed():
     # G2's account_performance_series is not registered today, so C01 has no route check.
     assert score.judge(LABELS["C01"], [tu])["route_ok"] is None
     assert score.judge(LABELS["A06"], [{**t, "called": ["watch_create"]}])["route_ok"] is True
+
+
+@pytest.mark.asyncio
+async def test_a_tie_decides_nothing_and_counts_as_a_miss():
+    t: dict[str, Any] = {"shape": "T", "kind": None, "called": [], "violations": []}
+    tu, u = {**t, "shape": "TU"}, {**t, "shape": "U"}
+    # Card beats no card 2 to 1, then TU and U tie: the family holds, the shape misses.
+    split = score.judge(LABELS["B07"], [t, tu, u])
+    assert split["family_ok"] and split["observed"] == "tie" and not split["shape_ok"]
+    shown = "جهّزت لك حاسبة؛ غيّر المخاطرة لترى حجم اللوت مباشرة.\n" + frame(CALCULATOR)
+    records = [
+        record("K10", "A margin call is a demand for more margin."),
+        record("K10", shown, sample=2),
+        record("A01", shown),
+        record("A01", "سأنبهك.", sample=2),
+    ]
+    result = await score.score(records, LABELS)
+    assert result["metrics"]["false_card_on_t"] == 100.0
+    assert result["metrics"]["missed_card_on_tu_u"] == 100.0
+    assert result["confusion"]["T"]["tie"] == 1 and result["confusion"]["TU"]["tie"] == 1
+
+
+def test_the_route_is_decided_by_the_same_majority():
+    t: dict[str, Any] = {"shape": "T", "kind": None, "violations": []}
+    called: dict[str, Any] = {**t, "called": ["watch_create"]}
+    missed: dict[str, Any] = {**t, "called": []}
+    assert score.judge(LABELS["A06"], [called, missed, missed])["route_ok"] is False
+    assert score.judge(LABELS["A06"], [called, called, missed])["route_ok"] is True
+    assert score.judge(LABELS["A06"], [called, missed])["route_ok"] is False
+
+
+@pytest.mark.asyncio
+async def test_valid_cards_count_each_card_and_only_a_whole_card_fallback():
+    lead = "جهّزت لك حاسبة؛ غيّر المخاطرة لترى حجم اللوت مباشرة."
+    broken = '```lonora-ui\n{"version":1}\n```'
+    two = record("B07", lead + "\n" + frame(CALCULATOR) + "\n" + broken)
+    unbound = record("B04", lead + " {{missing}}\n" + frame(CALCULATOR))
+    assert (await observe(unbound))["visual_errors"]  # a prose error, not a card fallback
+    metrics = (await score.score([two, unbound], LABELS))["metrics"]
+    assert metrics["valid_cards"] == round(100 * 2 / 3, 1)
+
+
+@pytest.mark.asyncio
+async def test_slice_shape_uses_every_case_like_the_overall_figure():
+    result = await score.score([record("A07", "سأتابع الأخبار.")], LABELS)
+    assert result["metrics"]["exact_shape_primary"] == 100.0
+    assert result["slices"]["arabic"] == {
+        "cases": 0,
+        "card_vs_no_card": None,
+        "all_cases": 1,
+        "exact_shape_primary": 100.0,
+    }
+
+
+@pytest.mark.asyncio
+async def test_lead_length_a01_card_time_and_canonical_row():
+    lead = "جهّزت التنبيه من رسالتك؛ راجع الشرط ثم أنشئه."
+    shown = {
+        **record("A01", lead + "\n" + frame(CALCULATOR)),
+        "requests": [{}, {"first_card_ms": 2400}],
+    }
+    text: dict[str, Any] = {**record("A01", "سأنبهك فوق 2400.", sample=2), "requests": [{}]}
+    result = await score.score([shown, text], LABELS)
+    assert result["metrics"]["mean_lead_chars"] == len(lead)
+    assert [(a["sample"], a["first_card_ms"]) for a in result["a01"]] == [(1, 2400), (2, None)]
+    assert result["metrics"]["a01_canonical"].startswith("0 of 2")  # a calculator, not the form
+    assert (await score.score([text], LABELS))["metrics"]["a01_canonical"] == "no card"
+
+
+@pytest.mark.asyncio
+async def test_regression_names_the_cases_the_previous_recording_held(tmp_path: Path):
+    shown = "جهّزت لك حاسبة؛ غيّر المخاطرة لترى حجم اللوت مباشرة.\n" + frame(CALCULATOR)
+    held = [record(case, "Hello.") for case in ("K01", "K02", "K10")]
+    now = [record(case, shown) for case in ("K01", "K02", "K10")]
+    result = await score.score(now, LABELS, previous=held)
+    assert result["lost"] == ["K01", "K02", "K10"] and "regression_lost 3 (target <= 2)" in (
+        score.gate(result)
+    )
+    assert (await score.score(now, LABELS))["metrics"]["regression_lost"] is None
+    names = ["m-20261101", "m-20261105", "m-high-20261106", "m-20261110"]
+    for name in names:
+        (tmp_path / f"{name}.jsonl").write_text("")
+    assert score.previous_recording(tmp_path / "m-20261110.jsonl") == tmp_path / "m-20261105.jsonl"
+    assert score.previous_recording(tmp_path / "m-20261101.jsonl") is None
 
 
 @pytest.mark.asyncio
@@ -312,3 +434,72 @@ async def test_score_reports_the_headline_over_single_label_cases():
     assert result["unscored"] == ["K01#1:failed"]
     assert result["usage"]["input_tokens"] == 500 and result["prompt_hash"] == score.prompt_hash()
     assert "Card vs no card" in score.report(result)
+    assert "Safety violations: none" in score.report(result)
+
+
+run = script("run")
+
+
+class Streaming:
+    """A provider that streams its reply in the given chunks."""
+
+    def __init__(self, *chunks: str):
+        self.chunks = chunks
+
+    async def complete(self, *args: Any, on_delta: Any = None, **options: Any) -> ModelReply:
+        for chunk in self.chunks:
+            await on_delta(chunk)
+        return ModelReply(text="".join(self.chunks))
+
+
+@pytest.mark.asyncio
+async def test_the_runner_times_the_first_card_line_from_the_owner_message():
+    log: list[dict[str, Any]] = []
+    seen: list[str] = []
+
+    async def forward(chunk: str) -> None:
+        seen.append(chunk)
+
+    chunks = ("جهّزت التنبيه.\n```lonora-ui\n", '{"version":1}\n', "```\n", "تم.")
+    adapter = run.RecordingAdapter(cast(Any, Streaming(*chunks)), "m", log, 0.0)
+    await adapter.complete("m", [], [], on_delta=forward)
+    await run.RecordingAdapter(cast(Any, Streaming("نص فقط.")), "m", log, 0.0).complete(
+        "m", [], [], on_delta=forward
+    )
+    assert seen == [*chunks, "نص فقط."]
+    assert isinstance(log[0]["first_card_ms"], int) and "first_card_ms" not in log[1]
+
+
+@pytest.mark.asyncio
+async def test_a_recording_holds_no_run_ids_and_no_key():
+    lead = "جهّزت التنبيه من رسالتك؛ راجع الشرط ثم أنشئه."
+
+    def recorded(account: str, call: str) -> dict[str, Any]:
+        fact = {"fact": {"call_id": call, "path": "/bid"}}
+        now = card({"id": "now", "type": "metric", "label": "الآن", "value": fact}, mode="observed")
+        quote = (("market_quote", {"account_id": account, "symbol": "XAUUSD"}, QUOTE),)
+        item = record("A01", lead + "\n" + frame(now), tools=quote)
+        item["transcript"][1]["tool_calls"][0]["id"] = item["transcript"][2]["tool_call_id"] = call
+        return item
+
+    first = "11111111-2222-4333-8444-555555555555"
+    clean = run.scrub(recorded(first, "call_Cqybrp5JO4"), {"account_id": first})
+    text = json.dumps(clean)
+    assert first not in text and "call_Cqybrp5JO4" not in text and '"call_1"' in text
+    other = "9f0c1e22-7a4b-4c1d-8e2f-3b5a6c7d8e9f"
+    assert run.scrub(recorded(other, "call_Zz81"), {"account_id": other}) == clean
+    assert (await observe(clean))["documents"]  # every fact still resolves against its call
+    with pytest.raises(SystemExit):
+        run.scrub({**clean, "reply": "sk-" + "a" * 24}, {})
+
+
+def test_a_full_run_is_a_dated_recording_and_chosen_cases_stay_local():
+    now = datetime(2026, 11, 10, 8, 30, tzinfo=UTC)
+    recordings = FIXTURES / "recordings"
+    model = "openai/gpt-5.4-mini"
+    full = run.output_path(model, baseline=False, partial=False, now=now)
+    assert full == recordings / "openai-gpt-5.4-mini-20261110.jsonl"
+    baseline = run.output_path(model, baseline=True, partial=False, now=now)
+    assert baseline == recordings / "baseline/openai-gpt-5.4-mini-20261110.jsonl"
+    probe = run.output_path(model, baseline=True, partial=True, now=now)
+    assert probe == ROOT / ".runtime/genui_eval/openai-gpt-5.4-mini-20261110T083000Z.jsonl"

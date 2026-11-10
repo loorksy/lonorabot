@@ -99,8 +99,9 @@ def parts(value: Any, pointer: str) -> Iterator[Any]:
 
 
 def entry_results(entry: Mapping[str, Any]) -> list[dict[str, Any]]:
-    """Every successful result an entry can answer with."""
+    """Every successful result an entry can answer with, a case context's answers included."""
     found = [entry["result"]] if "result" in entry else list(entry.get("results", {}).values())
+    found.extend(entry.get("contexts", {}).values())
     return [cast(dict[str, Any], result) for result in found if "error" not in result]
 
 
@@ -125,6 +126,19 @@ def materialize(bank: Mapping[str, Any], ids: Mapping[str, str], now: datetime) 
     if re.search(r"\{[a-z_]+_id\}", text):
         raise ValueError("eval_bank_identity_missing")
     return shift_times(json.loads(text), now, datetime.fromisoformat(bank["anchor"]))
+
+
+def for_context(tools: Mapping[str, Any], seed: str | None) -> dict[str, Any]:
+    """The bank as one case sees it: an answer its context holds replaces the default.
+
+    watch_list is empty unless the case's earlier turns created the gold watch (A01_sent).
+    """
+    return {
+        name: {**entry, "result": entry["contexts"][seed]}
+        if seed in entry.get("contexts", {})
+        else entry
+        for name, entry in tools.items()
+    }
 
 
 def answer(entry: Mapping[str, Any], arguments: Mapping[str, Any]) -> dict[str, Any]:
