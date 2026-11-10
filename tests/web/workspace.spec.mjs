@@ -444,7 +444,7 @@ test("retry after a committed message response is lost reuses its real receipt",
     // Sending identical content again after confirmation is a new deliberate intent.
     await composer.fill(message);
     const repeatedResponse = messageResponse();
-    await page.getByRole("button", { name: "Send direction", exact: true }).click();
+    await page.locator(".composer .send").click();
     const repeated = await (await repeatedResponse).json();
     for (const id of repeated.run_ids) ownedRuns.add(id);
     expect(nonces).toHaveLength(2);
