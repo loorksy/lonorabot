@@ -1,4 +1,5 @@
-"""Sign-in, onboarding and enrollment POSTs are limited per client host and per route."""
+"""Sign-in, onboarding and enrollment POSTs are limited per client host and per bucket:
+every route that checks a password or the bootstrap secret shares one bucket."""
 
 import httpx
 import pytest
@@ -38,9 +39,11 @@ def test_the_production_default_is_ten_a_minute_and_the_env_can_raise_it(
         "bootstrap_token": "b" * 32,
     }
     monkeypatch.delenv("LONORA_AUTH_RATE_LIMIT_PER_MINUTE", raising=False)
-    assert Settings(**required, _env_file=None)  # pyright: ignore[reportCallIssue].auth_rate_limit_per_minute == 10
+    settings = Settings(**required, _env_file=None)  # pyright: ignore[reportCallIssue]
+    assert settings.auth_rate_limit_per_minute == 10
     monkeypatch.setenv("LONORA_AUTH_RATE_LIMIT_PER_MINUTE", "500")
-    assert Settings(**required, _env_file=None)  # pyright: ignore[reportCallIssue].auth_rate_limit_per_minute == 500
+    settings = Settings(**required, _env_file=None)  # pyright: ignore[reportCallIssue]
+    assert settings.auth_rate_limit_per_minute == 500
 
 
 @pytest.mark.asyncio
@@ -66,7 +69,10 @@ async def test_password_guesses_share_one_bucket_across_every_sign_in_route():
             codes.append((await http.post(path, json={})).status_code)
         assert codes == [200] * 10
         for path in ("/api/auth/login", "/api/auth/mobile/login", "/api/onboarding"):
-            assert (await http.post(path, json={})).status_code == 429, path
+            refused = await http.post(path, json={})
+            assert refused.status_code == 429, path
+            assert refused.json() == {"code": "rate_limited"}, path
+            assert refused.headers["retry-after"] == "60", path
 
 
 @pytest.mark.asyncio
