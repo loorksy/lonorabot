@@ -343,6 +343,10 @@ export const labels = {
     "الوسيط لم يؤكد صفقة — أخبر لونورا هل نُفذت",
     "The broker did not confirm a trade — tell Lonora whether it executed",
   ],
+  attentionPositionUnprotected: [
+    "صفقة فقدت حمايتها، تحقّق من وقف الخسارة لدى الوسيط",
+    "A position lost its protection; check its stop-loss at the broker",
+  ],
   attentionGatewayDegraded: ["خدمة الخلفية متأخرة", "Background service is running late"],
   attentionAgentAlert: ["نبّهك وكيلك", "Your agent alerted you"],
   retryScheduled: ["إعادة المحاولة مجدولة", "Retry scheduled"],

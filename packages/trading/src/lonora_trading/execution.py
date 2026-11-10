@@ -43,6 +43,7 @@ from .journal import execution_evidence
 from .manual_activity import material_state
 from .operation_events import operation_event
 from .preflight import preflight
+from .protection import raise_unprotected
 from .reconciliation import send_lock_key
 from .restrictions import AdmissionBlocked, require_unrestricted
 from .risk_limits import assess_risk, risk_operations
@@ -564,6 +565,8 @@ class ExecutionService:
                 changed = await persist_result(
                     session, request.operation_id, outcome.status, outcome.model_dump(mode="json")
                 )
+                # A close that left the position without its exit orders asks the owner.
+                await raise_unprotected(session, owner_id, request, outcome, lease)
                 row = await session.get(TradingJournalRow, request.operation_id)
                 assert row is not None
                 if changed:

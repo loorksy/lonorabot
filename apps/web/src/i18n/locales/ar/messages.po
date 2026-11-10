@@ -97,6 +97,10 @@ msgstr "توجد قائمة باسم «{name}»"
 msgid "A new version is available"
 msgstr "يتوفر إصدار جديد"
 
+#: src/components/ai/AttentionInbox.tsx:35
+msgid "A position lost its protection; check its stop-loss at the broker"
+msgstr "صفقة فقدت حمايتها، تحقّق من وقف الخسارة لدى الوسيط"
+
 #: src/lib/user_error.ts:152
 #~ msgid "A previous operation on this market still needs broker verification, so this new order was not sent. Closing positions, cancelling pending orders and tightening stops remain available."
 #~ msgstr "لا تزال عملية سابقة على هذا السوق بانتظار تحقق الوسيط، لذا لم يُرسل هذا الأمر الجديد. يبقى إغلاق المراكز وإلغاء الأوامر المعلقة وتضييق وقف الخسارة متاحًا."
@@ -517,7 +521,7 @@ msgstr "العودة إلى المحادثات"
 #~ msgid "Back to workspace"
 #~ msgstr "العودة إلى مساحة العمل"
 
-#: src/components/ai/AttentionInbox.tsx:35
+#: src/components/ai/AttentionInbox.tsx:36
 msgid "Background service is running late"
 msgstr "خدمة الخلفية متأخرة"
 
@@ -2103,7 +2107,7 @@ msgstr "الهامش"
 msgid "Mark all as read"
 msgstr "تحديد الكل كمقروء"
 
-#: src/components/ai/AttentionInbox.tsx:140
+#: src/components/ai/AttentionInbox.tsx:141
 msgid "Mark as read"
 msgstr "تحديد كمقروء"
 
@@ -2424,7 +2428,7 @@ msgstr "لا توجد رموز مطابقة"
 msgid "No matching emojis"
 msgstr "لا توجد رموز مطابقة"
 
-#: src/components/ai/AttentionInbox.tsx:107
+#: src/components/ai/AttentionInbox.tsx:108
 msgid "No new notifications"
 msgstr "لا توجد إشعارات جديدة"
 
@@ -2504,8 +2508,8 @@ msgstr "لم يُرسل"
 msgid "Note"
 msgstr "ملاحظة"
 
-#: src/components/ai/AttentionInbox.tsx:69
-#: src/components/ai/AttentionInbox.tsx:71
+#: src/components/ai/AttentionInbox.tsx:70
+#: src/components/ai/AttentionInbox.tsx:72
 msgid "Notifications"
 msgstr "الإشعارات"
 
@@ -2517,7 +2521,7 @@ msgstr "كُتمت الإشعارات"
 msgid "Notifications restored"
 msgstr "أُعيدت الإشعارات"
 
-#: src/components/ai/AttentionInbox.tsx:102
+#: src/components/ai/AttentionInbox.tsx:103
 msgid "Notify me about confirmed opportunities"
 msgstr "أبلغني بالفرص المؤكدة"
 
@@ -2558,7 +2562,7 @@ msgstr "فتح المكالمة مع {name}"
 msgid "Open chart"
 msgstr "افتح شارت"
 
-#: src/components/ai/AttentionInbox.tsx:132
+#: src/components/ai/AttentionInbox.tsx:133
 #: src/pages/ActivityList.tsx:250
 #: src/pages/Board.tsx:456
 #: src/pages/RoutineRunHistory.tsx:55
@@ -4574,7 +4578,7 @@ msgstr "أنت: {0}"
 msgid "You: {text}"
 msgstr "أنت: {text}"
 
-#: src/components/ai/AttentionInbox.tsx:36
+#: src/components/ai/AttentionInbox.tsx:37
 msgid "Your agent alerted you"
 msgstr "نبّهك وكيلك"
 

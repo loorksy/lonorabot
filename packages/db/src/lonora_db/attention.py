@@ -34,6 +34,8 @@ SYSTEM_ATTENTION = {
     "maintenance_item_quarantined": "important_change",
     "run_quarantined": "action_required",
     "operation_unresolved": "action_required",
+    # A close left a position without its exit orders; open until protected or closed.
+    "position_unprotected": "action_required",
     "gateway_degraded": "important_change",
 }
 
@@ -77,6 +79,10 @@ async def mandatory_current(session: AsyncSession, row: AttentionRow) -> bool:
             and journal.status in IN_PROGRESS_STATUSES | UNRESOLVED_STATUSES
         )
     if row.code == "run_quarantined":
+        return True
+    if row.code == "position_unprotected":
+        # Withdrawn by lonora_trading.protection only once the broker shows the position
+        # protected again or closed; until then it is current.
         return True
     if row.code == "emergency_stop":
         return (await SettingsRepository().get(session, "trading_control")).get(

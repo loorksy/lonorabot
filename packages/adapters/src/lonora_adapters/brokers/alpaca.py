@@ -15,6 +15,7 @@ import asyncio
 import json
 import logging
 from collections.abc import AsyncGenerator, Awaitable, Callable
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from time import monotonic
@@ -43,6 +44,9 @@ ASSET_CACHE_SECONDS = 600
 QUOTE_POLL_SECONDS = 2.0
 CANDLE_POLL_SECONDS = 10.0
 REQUEST_TIMEOUT_SECONDS = 20.0
+# A cancelled order releases its quantity, and a market close fills, asynchronously.
+POLL_SECONDS = 0.5
+POLLS = 20
 
 # Test seam only: an in-process fake Alpaca server. Configuration cannot reach it, and the
 # URLs stay the fixed paper hosts whatever transport carries them.
@@ -140,6 +144,20 @@ def decimal_text(value: Decimal) -> str:
     if not value.is_finite():
         raise LonoraError("broker_numeric_precision_loss")
     return format(value, "f")
+
+
+@dataclass
+class Plan:
+    """The mutation a request sends, decided before the send boundary."""
+
+    method: str
+    path: str
+    body: dict[str, Any] | None
+    position: Position | None = None
+    groups: list[normalize.ProtectionGroup] = field(default_factory=list[normalize.ProtectionGroup])
+
+
+INTACT = {"new", "accepted", "held", "partially_filled"}
 
 
 class AlpacaBroker:
@@ -456,11 +474,12 @@ class AlpacaBroker:
         clock = await self.trading("GET", "/v2/clock")
         return bool(clock.get("is_open"))
 
-    async def prepare(self, request: TradeRequest) -> tuple[str, str, dict[str, Any] | None]:
+    async def prepare(self, request: TradeRequest) -> Plan:
         """Everything the mutation needs, read before the send boundary.
 
-        Returns the one HTTP mutation as (method, path, body). Every refusal here raises
-        before ``before_send``, so the executor records it as never sent.
+        Returns the HTTP mutation to send, and for a close of a protected position the
+        protection that must be released first. Every refusal here raises before
+        ``before_send``, so the executor records it as never sent.
         """
         asset = await self.asset(request.symbol)
         crypto = normalize.is_crypto(asset)
@@ -505,25 +524,19 @@ class AlpacaBroker:
                     body["take_profit"] = {"limit_price": decimal_text(request.take_profit)}
                 if request.stop_loss is not None:
                     body["stop_loss"] = {"stop_price": decimal_text(request.stop_loss)}
-            return "POST", "/v2/orders", body
+            return Plan("POST", "/v2/orders", body)
         if request.action == "close_position":
-            positions, _ = await self.book()
-            target = next(
-                (
-                    item
-                    for item in positions
-                    if str(item.get("asset_id")) == request.position_id
-                    and self.canonical(item) == request.symbol
-                ),
-                None,
-            )
-            if target is None:
-                raise LonoraError("position_not_found", 404)
+            position, orders = await self.target(request)
             query = f"?qty={decimal_text(request.volume)}" if request.volume is not None else ""
-            return "DELETE", f"/v2/positions/{target['asset_id']}{query}", None
+            # Exit orders hold the position's quantity at Alpaca; the close releases
+            # them first (protected_close).
+            groups = normalize.protection_groups(
+                orders, position.symbol, normalize.exit_side(position), self.canonical
+            )
+            return Plan("DELETE", f"/v2/positions/{position.id}{query}", None, position, groups)
         if request.action == "cancel_order":
             await self.pending(request)
-            return "DELETE", f"/v2/orders/{request.order_id}", None
+            return Plan("DELETE", f"/v2/orders/{request.order_id}", None)
         if request.action == "modify_order":
             order = await self.pending(request)
             if (
@@ -539,22 +552,33 @@ class AlpacaBroker:
             field = {"limit": "limit_price", "stop": "stop_price"}.get(str(order.get("type")))
             if field is None:
                 raise LonoraError("broker_order_type_unsupported", 422)
-            return "PATCH", f"/v2/orders/{order['id']}", {field: decimal_text(request.price)}
-        # modify_position: replace the price of one existing protection leg.
+            return Plan("PATCH", f"/v2/orders/{order['id']}", {field: decimal_text(request.price)})
+        # modify_position: add protection, or replace the price of one existing leg.
         if request.clear_stop_loss or request.clear_take_profit:
+            # Removing protection widens risk.
             raise LonoraError("broker_protection_clear_unsupported", 422)
-        positions, orders = await self.book()
-        position = next(
-            (
-                item
-                for item in normalize.positions(positions, orders, self.canonical)
-                if item.id == request.position_id and item.symbol == request.symbol
-            ),
-            None,
+        position, orders = await self.target(request)
+        groups = normalize.protection_groups(
+            orders, position.symbol, normalize.exit_side(position), self.canonical
         )
-        if position is None:
-            raise LonoraError("position_not_found", 404)
+        if not groups:
+            # Protecting an unprotected position: one exit order for the whole quantity,
+            # an OCO for both levels, tagged so it reads back as this position's.
+            if crypto:
+                raise LonoraError("broker_protection_unsupported", 422)
+            body = normalize.protection_body(
+                position.symbol,
+                normalize.exit_side(position),
+                position.volume,
+                request.stop_loss,
+                request.take_profit,
+                normalize.protection_tag(request.operation_id, 0),
+            )
+            return Plan("POST", "/v2/orders", body)
         legs = normalize.protection_legs(orders, position, self.canonical)
+        if not legs:
+            # Several groups, or one covering part of the position: no single leg to edit.
+            raise LonoraError("broker_protection_split", 409)
         edits = [
             (role, wanted)
             for role, wanted, current in (
@@ -572,8 +596,26 @@ class AlpacaBroker:
         leg = legs.get(role)
         if leg is None:
             raise LonoraError("broker_protection_leg_missing", 409)
-        field = "stop_price" if role == "stop_loss" else "limit_price"
-        return "PATCH", f"/v2/orders/{leg['id']}", {field: decimal_text(wanted)}
+        price = "stop_price" if role == "stop_loss" else "limit_price"
+        body = {price: decimal_text(wanted)}
+        if str(leg.get("client_order_id") or "").startswith(normalize.PROTECTION_PREFIX):
+            # A replacement is a new order: keep it recognisable as this position's stop.
+            body["client_order_id"] = normalize.protection_tag(request.operation_id, 0)
+        return Plan("PATCH", f"/v2/orders/{leg['id']}", body)
+
+    async def target(self, request: TradeRequest) -> tuple[Position, list[dict[str, Any]]]:
+        positions, orders = await self.book()
+        position = next(
+            (
+                item
+                for item in normalize.positions(positions, orders, self.canonical)
+                if item.id == request.position_id and item.symbol == request.symbol
+            ),
+            None,
+        )
+        if position is None:
+            raise LonoraError("position_not_found", 404)
+        return position, orders
 
     async def pending(self, request: TradeRequest) -> dict[str, Any]:
         _, orders = await self.book()
@@ -594,7 +636,7 @@ class AlpacaBroker:
         self, request: TradeRequest, before_send: Callable[[], Awaitable[None]] | None = None
     ) -> TradeResult:
         try:
-            method, path, body = await self.prepare(request)
+            plan = await self.prepare(request)
         except LonoraError:
             raise
         except Exception as error:
@@ -603,8 +645,10 @@ class AlpacaBroker:
             await before_send()
         # The send boundary is crossed. From here only a received broker answer is a
         # known outcome; anything else stays ambiguous and is never resent.
+        if plan.groups and plan.position is not None:
+            return await self.protected_close(request, plan, plan.position)
         try:
-            response = await self.trading(method, path, body=body)
+            response = await self.trading(plan.method, plan.path, body=plan.body)
         except AlpacaHTTPError as error:
             failure = self.diagnose(error, "trade")
             if error.status_code >= 500 or "client_order_id" in error.message.casefold():
@@ -644,6 +688,210 @@ class AlpacaBroker:
                 code="broker_result_ambiguous",
             )
 
+    async def protected_close(
+        self, request: TradeRequest, plan: Plan, position: Position
+    ) -> TradeResult:
+        """Close a protected position: release its exit orders, close, re-arm the rest.
+
+        One executor operation, ordered steps, all recorded in ``details.protection``.
+        The close is sent only once every exit order is out of the open book. A close
+        that does not happen restores the cancelled protection at the same levels; one
+        whose outcome is unknown re-arms nothing (an exit order with nothing held would
+        open the opposite position). ``attention`` asks the owner to look whenever the
+        position was left, or may be left, without its protection.
+        """
+        steps: list[dict[str, Any]] = []
+        record: dict[str, Any] = {"steps": steps, "cancelled": False, "restored": True}
+
+        def outcome(
+            status: Any, code: str | None = None, broker_id: str | None = None, **extra: Any
+        ) -> TradeResult:
+            exposed = record["cancelled"] and status != "confirmed"
+            record["attention"] = exposed or not record["restored"]
+            return TradeResult(
+                operation_id=request.operation_id,
+                status=status,
+                code=code,
+                broker_id=broker_id,
+                details={
+                    "environment": self.environment,
+                    "position_id": request.position_id,
+                    **extra,
+                    "protection": record,
+                },
+            )
+
+        ids = [str(order["id"]) for group in plan.groups for order in group.orders]
+        cancelled = True
+        for order_id in ids:
+            try:
+                await self.trading("DELETE", f"/v2/orders/{order_id}")
+                record["cancelled"] = True
+                steps.append({"step": "cancel", "order_id": order_id, "outcome": "accepted"})
+            except AlpacaHTTPError as error:
+                if error.status_code in {404, 422}:
+                    # Already gone (an OCO sibling, or filled): the book decides below.
+                    steps.append({"step": "cancel", "order_id": order_id, "outcome": "closed"})
+                    continue
+                cancelled = False
+                steps.append(
+                    {
+                        "step": "cancel",
+                        "order_id": order_id,
+                        "outcome": "refused",
+                        "http_status": error.status_code,
+                    }
+                )
+                break
+            except Exception as error:
+                self.diagnose(error, "trade")
+                record["cancelled"] = True  # it may have been applied
+                cancelled = False
+                steps.append({"step": "cancel", "order_id": order_id, "outcome": "unknown"})
+                break
+        if not cancelled or not await self.released(ids):
+            steps.append({"step": "close", "outcome": "not_sent"})
+            record["restored"] = await self.restore(request, plan, steps)
+            return outcome("failed", "broker_protection_cancel_failed")
+        try:
+            closing = normalize.mapping(await self.trading("DELETE", plan.path))
+        except AlpacaHTTPError as error:
+            if error.status_code < 500:
+                failure = self.diagnose(error, "trade")
+                steps.append(
+                    {"step": "close", "outcome": "refused", "http_status": error.status_code}
+                )
+                record["restored"] = await self.restore(request, plan, steps)
+                return outcome(
+                    "failed",
+                    rejection_code(error, request),
+                    http_status=error.status_code,
+                    broker_code=error.code,
+                    description=failure.diagnostic_message or None,
+                )
+            self.diagnose(error, "trade")
+            steps.append({"step": "close", "outcome": "unknown"})
+            record["restored"] = False
+            return outcome("ambiguous", "broker_result_ambiguous")
+        except Exception as error:
+            self.diagnose(error, "trade")
+            steps.append({"step": "close", "outcome": "unknown"})
+            record["restored"] = False
+            return outcome("ambiguous", "broker_result_ambiguous")
+        final = await self.settled(closing)
+        state = final.get("status")
+        steps.append({"step": "close", "order_id": final.get("id"), "outcome": state})
+        details = normalize.order_details(final) if final.get("id") else {}
+        if state == "filled":
+            record["restored"] = await self.restore(request, plan, steps)
+            return outcome("confirmed", broker_id=str(final["id"]), **details)
+        if state in normalize.REJECTED or (
+            state in normalize.UNFILLED_END
+            and normalize.positive_decimal(final.get("filled_qty")) is None
+        ):
+            record["restored"] = await self.restore(request, plan, steps)
+            return outcome("failed", "broker_order_rejected", str(final["id"]), **details)
+        # Still working, or partly filled and stopped: what is held is not known yet, so
+        # nothing is re-armed.
+        record["restored"] = False
+        return outcome(
+            "ambiguous", "broker_result_ambiguous", str(final.get("id") or "") or None, **details
+        )
+
+    async def released(self, ids: list[str]) -> bool:
+        """True once none of these orders is in the open book (bounded wait)."""
+        wanted = set(ids)
+        for attempt in range(POLLS):
+            try:
+                if not any(str(item.get("id")) in wanted for item in await self.open_orders()):
+                    return True
+            except Exception as error:
+                self.diagnose(error, "trade")
+            if attempt + 1 < POLLS:
+                await asyncio.sleep(POLL_SECONDS)
+        return False
+
+    async def settled(self, order: dict[str, Any]) -> dict[str, Any]:
+        """The closing order once it reached a final state, or its last observation."""
+        current = order
+        for _ in range(POLLS):
+            if current.get("status") in {"filled"} | normalize.REJECTED | normalize.UNFILLED_END:
+                return current
+            await asyncio.sleep(POLL_SECONDS)
+            try:
+                current = normalize.mapping(await self.trading("GET", f"/v2/orders/{order['id']}"))
+            except Exception as error:
+                self.diagnose(error, "trade")
+        return current
+
+    async def restore(self, request: TradeRequest, plan: Plan, steps: list[dict[str, Any]]) -> bool:
+        """Re-arm the original protection, at the same levels, for what is held now.
+
+        A group whose orders are all still working is left alone. Any other group is
+        cleared and placed again; a smaller position keeps protection only for what it
+        still holds. False whenever the position may be left less protected than before.
+        """
+        try:
+            positions, orders = await self.book()
+            position = next(
+                (
+                    item
+                    for item in normalize.positions(positions, orders, self.canonical)
+                    if item.id == request.position_id
+                ),
+                None,
+            )
+            if position is None:
+                steps.append({"step": "restore", "outcome": "position_closed"})
+                return True
+            states = {str(item["id"]): item.get("status") for item in orders}
+            intact = [
+                group
+                for group in plan.groups
+                if all(states.get(str(order["id"])) in INTACT for order in group.orders)
+            ]
+            broken = [group for group in plan.groups if group not in intact]
+            if not broken:
+                steps.append({"step": "restore", "outcome": "intact"})
+                return True
+            leftovers = [
+                str(order["id"])
+                for group in broken
+                for order in group.orders
+                if states.get(str(order["id"])) in INTACT
+            ]
+            for order_id in leftovers:
+                await self.trading("DELETE", f"/v2/orders/{order_id}")
+                steps.append({"step": "cancel", "order_id": order_id, "outcome": "accepted"})
+            if not await self.released([str(o["id"]) for group in broken for o in group.orders]):
+                steps.append({"step": "restore", "outcome": "quantity_not_released"})
+                return False
+            remaining = position.volume - sum((group.qty for group in intact), Decimal(0))
+            for index, (qty, group) in enumerate(normalize.rearmed(broken, remaining), start=1):
+                body = normalize.protection_body(
+                    position.symbol,
+                    normalize.exit_side(position),
+                    qty,
+                    group.stop_loss,
+                    group.take_profit,
+                    normalize.protection_tag(request.operation_id, index),
+                )
+                placed = normalize.mapping(await self.trading("POST", "/v2/orders", body=body))
+                steps.append(
+                    {
+                        "step": "rearm",
+                        "order_id": placed.get("id"),
+                        "qty": str(qty),
+                        "stop_loss": str(group.stop_loss) if group.stop_loss else None,
+                        "take_profit": str(group.take_profit) if group.take_profit else None,
+                    }
+                )
+            return True
+        except Exception as error:
+            failure = self.diagnose(error, "trade")
+            steps.append({"step": "restore", "outcome": "failed", "code": failure.code})
+            return False
+
     async def reconcile(
         self,
         operation_id: str,
@@ -651,6 +899,29 @@ class AlpacaBroker:
         *,
         submitted_at: datetime | None = None,
     ) -> TradeResult:
+        if request is not None and request.action == "modify_position":
+            # Protection added to an unprotected position carries its own client order
+            # id; an edit of an existing leg does not.
+            try:
+                await self.assets()
+                order = await self.trading(
+                    "GET",
+                    "/v2/orders:by_client_order_id",
+                    params={"client_order_id": normalize.protection_tag(operation_id, 0)},
+                )
+                found = normalize.mapping(order)
+                if found.get("status") not in normalize.REJECTED:
+                    return TradeResult(
+                        operation_id=operation_id,
+                        status="confirmed",
+                        broker_id=str(found["id"]),
+                        details={**normalize.order_details(found), "reconciled": True},
+                    )
+            except AlpacaHTTPError as error:
+                if error.status_code != 404:
+                    raise self.diagnose(error, "reconciliation") from error
+            except Exception as error:
+                raise self.diagnose(error, "reconciliation") from error
         if request is not None and request.action not in normalize.ENTRY_ACTIONS:
             # Closes, edits and cancels carry no client order id at Alpaca; recovery
             # compares the broker target instead (lonora_trading.target_state).

@@ -180,7 +180,12 @@ class Gateway:
         await self.for_each_owner(lambda service: reconcile_ambiguous(self.db, service.brokers))
 
     async def verifications(self) -> None:
+        from lonora_trading.protection import recheck_protection
+
         await self.for_each_owner(lambda service: recheck_verifications(self.db, service.brokers))
+        await self.for_each_owner(
+            lambda service: recheck_protection(self.db, service.brokers, service.owner_id)
+        )
 
     async def account_recovery(self) -> None:
         from lonora_trading.broker_recovery import maintenance_account_recovery

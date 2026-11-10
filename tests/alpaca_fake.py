@@ -32,6 +32,13 @@ def now() -> str:
     return datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
 
+OPEN = {"new", "accepted", "pending_new", "partially_filled", "pending_cancel"}
+
+
+def public(order: dict[str, Any]) -> dict[str, Any]:
+    return {key: value for key, value in order.items() if not key.startswith("_")}
+
+
 def error(status: int, code: int, message: str) -> JSONResponse:
     return JSONResponse({"code": code, "message": message}, status_code=status)
 
@@ -46,6 +53,7 @@ class FakeAlpaca:
         self.orders: dict[str, dict[str, Any]] = {}
         self.fills: list[dict[str, Any]] = []
         self.is_open = True
+        self.cancel_polls = 0  # order-book reads until a cancel releases its quantity
         self.mutations: list[tuple[str, str]] = []
         self.requests: list[tuple[str, str]] = []
         self.seen_hosts: set[str] = set()
@@ -60,6 +68,7 @@ class FakeAlpaca:
                 Route("/v2/orders", self.list_orders, methods=["GET"]),
                 Route("/v2/orders", self.place, methods=["POST"]),
                 Route("/v2/orders:by_client_order_id", self.by_client_id),
+                Route("/v2/orders/{order_id}", self.get_order, methods=["GET"]),
                 Route("/v2/orders/{order_id}", self.replace, methods=["PATCH"]),
                 Route("/v2/orders/{order_id}", self.cancel, methods=["DELETE"]),
                 Route("/v2/account/activities/FILL", self.activities),
@@ -186,18 +195,24 @@ class FakeAlpaca:
         return Decimal(str(quote["ap" if side == "buy" else "bp"]))
 
     def held(self, asset_id: str) -> Decimal:
-        """Quantity reserved by open exit legs; the two legs of one group share it."""
+        """Quantity reserved by open exit orders; the two legs of one group share it."""
         groups: dict[str, Decimal] = {}
         for o in self.orders.values():
-            if (
-                o["asset_id"] == asset_id
-                and o.get("group_role") in {"stop_loss", "take_profit"}
-                and o["status"] in {"new", "held", "accepted"}
-            ):
-                groups[o["group_id"]] = max(
-                    groups.get(o["group_id"], Decimal(0)), Decimal(o["qty"])
-                )
+            protective = o.get("group_role") in {"stop_loss", "take_profit"} or str(
+                o.get("client_order_id") or ""
+            ).startswith("LNP_")
+            if o["asset_id"] == asset_id and protective and o["status"] in OPEN | {"held"}:
+                key = o.get("group_id") or o["id"]
+                groups[key] = max(groups.get(key, Decimal(0)), Decimal(o["qty"]))
         return sum(groups.values(), Decimal(0))
+
+    def settle_cancels(self) -> None:
+        """Alpaca releases a cancelled order asynchronously (pending_cancel first)."""
+        for o in self.orders.values():
+            if o["status"] == "pending_cancel":
+                o["_cancel_polls"] -= 1
+                if o["_cancel_polls"] <= 0:
+                    o.update(status="canceled", canceled_at=now())
 
     # -- trading API -------------------------------------------------------------------
 
@@ -219,17 +234,25 @@ class FakeAlpaca:
         return self.guard(request) or JSONResponse(list(self.positions.values()))
 
     async def list_orders(self, request: Request) -> Response:
-        open_states = {"new", "accepted", "pending_new", "partially_filled", "held"}
-        return self.guard(request) or JSONResponse(
-            [o for o in self.orders.values() if o["status"] in open_states]
+        if refused := self.guard(request):
+            return refused
+        self.settle_cancels()
+        return JSONResponse(
+            [public(o) for o in self.orders.values() if o["status"] in OPEN | {"held"}]
         )
+
+    async def get_order(self, request: Request) -> Response:
+        if refused := self.guard(request):
+            return refused
+        order = self.orders.get(request.path_params["order_id"])
+        return JSONResponse(public(order)) if order else error(404, 40410000, "order not found")
 
     async def by_client_id(self, request: Request) -> Response:
         if refused := self.guard(request):
             return refused
         tag = request.query_params.get("client_order_id")
         found = next((o for o in self.orders.values() if o["client_order_id"] == tag), None)
-        return JSONResponse(found) if found else error(404, 40410000, "order not found")
+        return JSONResponse(public(found)) if found else error(404, 40410000, "order not found")
 
     async def place(self, request: Request) -> Response:
         if refused := self.guard(request):
@@ -246,9 +269,47 @@ class FakeAlpaca:
         held = self.positions.get(asset["id"])
         if side == "sell" and asset["class"] == "crypto" and not held:
             return error(403, 40310000, "insufficient balance for BTC (requested: 1, available: 0)")
-        cost = qty * self.price(asset["symbol"], side)
-        if side == "buy" and cost > Decimal(self.account["buying_power"]):
+        if held and (side == "sell") == (held["side"] == "long"):
+            # An exit order may not exceed what is held and not yet reserved.
+            available = Decimal(held["qty"]) - self.held(asset["id"])
+            if qty > available:
+                return error(
+                    403,
+                    40310000,
+                    f"insufficient qty available for order (requested: {qty}, available: {available})",
+                )
+        elif side == "buy" and qty * self.price(asset["symbol"], side) > Decimal(
+            self.account["buying_power"]
+        ):
             return error(403, 40310000, "insufficient buying power")
+        if body.get("order_class") == "oco":
+            group = str(uuid.uuid4())
+            parent = self.order(
+                symbol=asset["symbol"],
+                client_order_id=body["client_order_id"],
+                qty=str(qty),
+                side=side,
+                type="limit",
+                time_in_force=body["time_in_force"],
+                limit_price=body["take_profit"]["limit_price"],
+                order_class="oco",
+                group_id=group,
+                group_role="take_profit",
+                status="new",
+            )
+            leg = self.order(
+                symbol=asset["symbol"],
+                qty=str(qty),
+                side=side,
+                type="stop",
+                time_in_force=body["time_in_force"],
+                stop_price=body["stop_loss"]["stop_price"],
+                order_class="oco",
+                group_id=group,
+                group_role="stop_loss",
+                status="new",
+            )
+            return JSONResponse({**public(parent), "legs": [public(leg)]})
         group = str(uuid.uuid4()) if body.get("order_class") in {"bracket", "oto"} else None
         exit_side = "sell" if side == "buy" else "buy"
         entry = self.order(
@@ -298,7 +359,7 @@ class FakeAlpaca:
             self.fill(entry, self.price(asset["symbol"], side))
         else:
             entry["status"] = "accepted"
-        return JSONResponse({**entry, "legs": legs or None})
+        return JSONResponse({**public(entry), "legs": [public(leg) for leg in legs] or None})
 
     async def replace(self, request: Request) -> Response:
         if refused := self.guard(request):
@@ -332,14 +393,16 @@ class FakeAlpaca:
             return error(404, 40410000, "order not found")
         if order["status"] not in {"new", "accepted", "held", "partially_filled"}:
             return error(422, 42210000, "order is not cancelable")
-        order.update(status="canceled", canceled_at=now())
-        for leg in self.orders.values():
-            if (
-                order.get("group_id")
-                and leg.get("group_id") == order["group_id"]
-                and leg is not order
-            ):
-                if leg["status"] in {"held", "new"}:
+        siblings = [
+            leg
+            for leg in self.orders.values()
+            if order.get("group_id") and leg.get("group_id") == order["group_id"]
+        ]
+        for leg in siblings or [order]:
+            if leg["status"] in {"held", "new", "accepted", "partially_filled"}:
+                if self.cancel_polls:
+                    leg.update(status="pending_cancel", _cancel_polls=self.cancel_polls)
+                else:
                     leg.update(status="canceled", canceled_at=now())
         return Response(status_code=204)
 
@@ -362,7 +425,7 @@ class FakeAlpaca:
         side = "sell" if position["side"] == "long" else "buy"
         order = self.order(symbol=asset["symbol"], qty=str(qty), side=side, type="market")
         self.fill(order, self.price(asset["symbol"], side))
-        return JSONResponse(order)
+        return JSONResponse(public(order))
 
     async def activities(self, request: Request) -> Response:
         return self.guard(request) or JSONResponse(list(reversed(self.fills)))

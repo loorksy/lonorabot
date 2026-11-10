@@ -32,6 +32,7 @@ export function useAttentionLabels(): Record<AttentionCode, string> {
     run_quarantined: t`Work stopped after repeated interruptions`,
     operation_unresolved: t`A trade still has no confirmed broker result`,
     operation_uncertain: t`The broker did not confirm a trade — tell Lonora whether it executed`,
+    position_unprotected: t`A position lost its protection; check its stop-loss at the broker`,
     gateway_degraded: t`Background service is running late`,
     agent_notification: t`Your agent alerted you`,
   };

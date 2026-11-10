@@ -3,8 +3,9 @@
 Runs on disposable PostgreSQL against the local fake Alpaca server (tests/alpaca_fake.py):
 the provider catalog, a verified paper connection, owner-path executions with the signed
 send boundary, a lost response that recovery settles from the client order id without a
-resend, a protection edit, a close refused because exit legs hold the quantity, Trading
-OFF blocking an entry while an exit still runs, a lost close settled from broker target
+resend, a protection edit, Trading OFF blocking an entry while protected and unprotected
+exits still run (legs released, then re-armed), a close that could not restore protection
+raising position_unprotected until a stop is added, a lost close settled from broker target
 state, and a scan proving the keys never reach the database's readable records or the
 logs. No network and no Alpaca account are involved.
 """
@@ -20,8 +21,9 @@ from check_streaming import Fixture
 from lonora_adapters.brokers import alpaca
 from lonora_contracts.trading import TradeRequest, TradingControl
 from lonora_core.user_error import LonoraError
-from lonora_db.schema import BrokerSessionRow, EventRow, TradingJournalRow
+from lonora_db.schema import AttentionRow, BrokerSessionRow, EventRow, TradingJournalRow
 from lonora_trading.controls import read_controls, save_controls
+from lonora_trading.protection import recheck_protection
 from lonora_trading.reconciliation import reconcile_ambiguous
 from sqlalchemy import delete, select
 
@@ -42,6 +44,7 @@ async def main() -> None:
     fake = FakeAlpaca()
     transport = Transport(fake)
     alpaca.transport_factory = lambda: transport
+    alpaca.POLL_SECONDS = 0
     capture = Capture()
     logging.getLogger().addHandler(capture)
     logging.getLogger().setLevel(logging.DEBUG)
@@ -160,11 +163,6 @@ async def main() -> None:
         assert position.stop_loss == Decimal(225) and position.take_profit == Decimal(240)
         print("PASS tightening a stop replaces exactly the stop leg")
 
-        held = trade("close_position", position_id=AAPL_ID)
-        result = await service.execute(fixture.owner, held)
-        assert (result.status, result.code) == ("failed", "broker_request_rejected"), result
-        print("PASS closing a protected stock position is refused by Alpaca (legs hold the qty)")
-
         await save_controls(db, TradingControl(enabled=False))
         sent_before = len(fake.mutations)
         try:
@@ -174,10 +172,70 @@ async def main() -> None:
         else:
             raise AssertionError("Trading OFF admitted a new entry")
         assert len(fake.mutations) == sent_before
+        print("PASS Trading OFF blocks an entry before any send")
+
+        alpaca_broker = await brokers.get(fixture.owner, account)
+
+        async def aapl() -> Any:
+            return next((p for p in await alpaca_broker.positions() if p.id == AAPL_ID), None)
+
+        partial_protected = trade("close_position", position_id=AAPL_ID, volume="1")
+        result = await service.execute(fixture.owner, partial_protected)
+        assert result.status == "confirmed", result
+        assert result.details["protection"]["restored"] is True, result.details
+        position = await aapl()
+        assert (position.volume, position.stop_loss, position.take_profit) == (
+            Decimal(1),
+            Decimal(225),
+            Decimal(240),
+        )
+        print(
+            "PASS with Trading OFF a protected partial close releases the legs and re-arms the rest"
+        )
+
         partial = trade("close_position", "BTC/USD", position_id=BTC_ID, volume="0.2")
         result = await service.execute(fixture.owner, partial)
         assert result.status == "confirmed", result
-        print("PASS Trading OFF blocks an entry before any send and still runs an exit")
+        print("PASS with Trading OFF an unprotected exit still runs")
+
+        stuck = trade("close_position", position_id=AAPL_ID)
+        fake.fail_next[f"DELETE /v2/positions/{AAPL_ID}"] = (403, 40310000, "trade denied")
+        fake.fail_next["POST /v2/orders"] = (403, 40310000, "trade denied")
+        result = await service.execute(fixture.owner, stuck)
+        assert result.status == "failed" and result.details["protection"]["restored"] is False
+
+        async def unprotected_item() -> AttentionRow:
+            async with db.sessions() as session:
+                found = await session.scalar(
+                    select(AttentionRow).where(
+                        AttentionRow.owner_id == fixture.owner,
+                        AttentionRow.code == "position_unprotected",
+                        AttentionRow.parameters["operation_id"].as_string() == stuck.operation_id,
+                    )
+                )
+                assert found is not None, "no position_unprotected item"
+                return found
+
+        item = await unprotected_item()
+        assert item.status == "ready", item
+        assert item.importance == "action_required"
+        assert await recheck_protection(db, brokers, fixture.owner) == 0
+        assert (await unprotected_item()).status == "ready"  # still unprotected: stays open
+        print("PASS a close that could not restore protection raises position_unprotected")
+
+        add = trade("modify_position", position_id=AAPL_ID, stop_loss="226")
+        result = await service.execute(fixture.owner, add)
+        assert result.status == "confirmed", result
+        assert (await aapl()).stop_loss == Decimal(226)
+        assert await recheck_protection(db, brokers, fixture.owner) == 1
+        assert (await unprotected_item()).status == "suppressed"
+        print("PASS with Trading OFF a stop is added to the unprotected position; the item closes")
+
+        full_protected = trade("close_position", position_id=AAPL_ID)
+        result = await service.execute(fixture.owner, full_protected)
+        assert result.status == "confirmed", result
+        assert await aapl() is None
+        print("PASS with Trading OFF a protected position closes fully (stop released first)")
 
         exit_all = trade("close_position", "BTC/USD", position_id=BTC_ID)
         transport.lose_after.add(f"DELETE /v2/positions/{BTC_ID}")

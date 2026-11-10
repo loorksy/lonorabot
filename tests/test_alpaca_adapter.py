@@ -293,9 +293,10 @@ async def test_protection_edit_replaces_exactly_one_leg(setup: Any) -> None:
 
 
 @pytest.mark.asyncio
-async def test_unprotected_position_has_no_leg_to_edit(setup: Any) -> None:
+async def test_split_protection_has_no_single_leg_to_edit(setup: Any) -> None:
     broker, harness = setup
-    await send(broker, harness, entry())
+    await send(broker, harness, entry(volume=5, stop_loss=Decimal(220)))
+    await send(broker, harness, entry(volume=5, stop_loss=Decimal(221)))
     request = TradeRequest(
         account_id="conn-1",
         action="modify_position",
@@ -303,9 +304,10 @@ async def test_unprotected_position_has_no_leg_to_edit(setup: Any) -> None:
         position_id=AAPL_ID,
         stop_loss=Decimal(225),
     )
+    sends = harness.sends
     with pytest.raises(LonoraError) as refused:
         await send(broker, harness, request)
-    assert refused.value.code == "broker_protection_leg_missing" and harness.sends == 1
+    assert refused.value.code == "broker_protection_split" and harness.sends == sends
 
 
 @pytest.mark.asyncio
@@ -363,14 +365,12 @@ async def test_closes_full_partial_and_held_by_protection(setup: Any) -> None:
     full = partial.model_copy(update={"operation_id": "full", "volume": None})
     assert (await send(broker, harness, full)).status == "confirmed"
     assert await broker.positions() == []
-    # A protected stock position: Alpaca holds its quantity for the exit legs.
-    await send(broker, harness, entry(stop_loss=Decimal(220), take_profit=Decimal(240)))
+    # An unprotected stock close; protected closes: tests/test_alpaca_protection.py.
+    await send(broker, harness, entry())
     held = TradeRequest(
         account_id="conn-1", action="close_position", symbol="AAPL", position_id=AAPL_ID
     )
-    refused = await send(broker, harness, held)
-    assert (refused.status, refused.code) == ("failed", "broker_request_rejected")
-    assert "insufficient qty" in refused.details["description"]
+    assert (await send(broker, harness, held)).status == "confirmed"
     lost = await broker.reconcile(held.operation_id, held)
     assert (lost.status, lost.code) == ("ambiguous", "execution_not_observed")
     with pytest.raises(LonoraError) as missing:

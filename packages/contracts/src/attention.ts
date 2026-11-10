@@ -27,6 +27,7 @@ export type AttentionCode =
   | "run_quarantined"
   | "operation_unresolved"
   | "operation_uncertain"
+  | "position_unprotected"
   | "gateway_degraded"
   | "agent_notification";
 export interface AttentionNotification {

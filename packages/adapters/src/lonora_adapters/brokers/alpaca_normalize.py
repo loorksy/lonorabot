@@ -1,6 +1,8 @@
 """Alpaca Trading/Market Data v2 payloads as Lonora contracts. Pure functions, no I/O."""
 
+import hashlib
 from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any, cast
@@ -36,7 +38,8 @@ VOLUME_MAX = Decimal(1_000_000)
 STOCK_TICK = Decimal("0.01")
 REJECTED = {"rejected"}
 UNFILLED_END = {"canceled", "expired", "done_for_day", "stopped", "suspended"}
-PROTECTION_ROLES = {"stop_loss", "take_profit"}
+PROTECTION_ROLES = ("stop_loss", "take_profit")
+PROTECTION_PREFIX = "LNP_"
 
 
 def mapping(value: Any) -> dict[str, Any]:
@@ -167,13 +170,32 @@ def account(value: dict[str, Any], account_id: str) -> AccountState:
 
 
 def role(order: dict[str, Any]) -> str | None:
+    """The protection role of an open order, or None for an entry.
+
+    Bracket, OTO and OCO legs carry Alpaca's ``group_role``. A standalone stop or limit
+    Lonora placed to protect a position carries the ``LNP_`` client order id prefix.
+    """
     value = order.get("group_role")
-    return str(value) if value else None
+    if value in PROTECTION_ROLES:
+        return str(value)
+    if str(order.get("client_order_id") or "").startswith(PROTECTION_PREFIX):
+        kind = order.get("type")
+        if kind in {"stop", "stop_limit"}:
+            return "stop_loss"
+        if kind == "limit":
+            return "take_profit"
+    return None
+
+
+def protection_tag(operation_id: str, index: int) -> str:
+    """Client order id of the index-th protection order an operation places."""
+    digest = hashlib.sha256(f"{operation_id}:{index}".encode()).hexdigest()
+    return PROTECTION_PREFIX + digest[:24]
 
 
 def entry_orders(orders: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Open orders that open or add exposure: everything except protection legs."""
-    return [item for item in orders if role(item) not in PROTECTION_ROLES]
+    """Open orders that open or add exposure: everything except protection orders."""
+    return [item for item in orders if role(item) is None]
 
 
 def legs_of(orders: list[dict[str, Any]], group_id: Any, wanted: str) -> list[dict[str, Any]]:
@@ -188,32 +210,128 @@ def leg_price(leg: dict[str, Any] | None, field: str) -> Decimal | None:
     return positive_decimal(leg.get(field)) if leg else None
 
 
+@dataclass
+class ProtectionGroup:
+    """Exit orders that protect one quantity together (one OCO, or one standalone order)."""
+
+    key: str
+    orders: list[dict[str, Any]]
+    qty: Decimal
+    stop_loss: Decimal | None
+    take_profit: Decimal | None
+
+    def leg(self, name: str) -> dict[str, Any] | None:
+        return next((item for item in self.orders if role(item) == name), None)
+
+
+def protection_groups(
+    orders: list[dict[str, Any]], symbol: str, exit_side: str, canonical: Canonical
+) -> list[ProtectionGroup]:
+    """Open protection on a position: exit-side orders of a filled bracket, an OCO, or a
+    Lonora standalone stop/limit. Legs of a still-pending entry protect nothing yet."""
+    pending = {item.get("group_id") for item in entry_orders(orders) if item.get("group_id")}
+    groups: dict[str, list[dict[str, Any]]] = {}
+    for item in orders:
+        if (
+            role(item) is not None
+            and item.get("group_id") not in pending
+            and canonical(item) == symbol
+            and item.get("side") == exit_side
+        ):
+            key = str(item.get("group_id") or item["id"])
+            groups.setdefault(key, []).append(item)
+    result: list[ProtectionGroup] = []
+    for key, items in groups.items():
+        stop = next((item for item in items if role(item) == "stop_loss"), None)
+        target = next((item for item in items if role(item) == "take_profit"), None)
+        result.append(
+            ProtectionGroup(
+                key=key,
+                orders=items,
+                qty=max(
+                    number(item.get("qty") or 0) - number(item.get("filled_qty") or 0)
+                    for item in items
+                ),
+                stop_loss=leg_price(stop, "stop_price"),
+                take_profit=leg_price(target, "limit_price"),
+            )
+        )
+    return result
+
+
+def exit_side(position: Position) -> str:
+    return "sell" if position.side == "buy" else "buy"
+
+
 def protection_legs(
     orders: list[dict[str, Any]], position: Position, canonical: Canonical
 ) -> dict[str, dict[str, Any]]:
-    """The single open stop-loss and take-profit leg that protects a whole position.
+    """The legs of the one protection group that covers the whole position.
 
-    Alpaca has no position-level protection: a filled bracket leaves its exit legs as
-    open orders. Only one unambiguous leg per role, on the exit side, covering the whole
-    quantity, counts; anything else reads as unprotected (and is never edited).
+    Alpaca has no position-level protection. Only a single group on the exit side
+    covering the whole quantity reads as the position's stop-loss / take-profit;
+    anything else reads as unprotected and is never edited in place.
     """
-    entries = {item.get("group_id") for item in entry_orders(orders)}
-    exit_side = "sell" if position.side == "buy" else "buy"
-    found: dict[str, list[dict[str, Any]]] = {"stop_loss": [], "take_profit": []}
-    for item in orders:
-        name = role(item)
-        if (
-            name in PROTECTION_ROLES
-            and item.get("group_id") not in entries
-            and canonical(item) == position.symbol
-            and item.get("side") == exit_side
-        ):
-            found[name].append(item)
-    return {
-        name: values[0]
-        for name, values in found.items()
-        if len(values) == 1 and number(values[0].get("qty") or 0) == position.volume
+    groups = protection_groups(orders, position.symbol, exit_side(position), canonical)
+    if len(groups) != 1 or groups[0].qty != position.volume:
+        return {}
+    return {name: leg for name in PROTECTION_ROLES if (leg := groups[0].leg(name)) is not None}
+
+
+def protection_body(
+    symbol: str,
+    side: str,
+    qty: Decimal,
+    stop_loss: Decimal | None,
+    take_profit: Decimal | None,
+    tag: str,
+) -> dict[str, Any]:
+    """One exit order protecting ``qty``: OCO for both levels, else a stop or a limit."""
+    body: dict[str, Any] = {
+        "symbol": symbol,
+        "qty": text(qty),
+        "side": side,
+        "time_in_force": "gtc",
+        "client_order_id": tag,
     }
+    if stop_loss is not None and take_profit is not None:
+        return {
+            **body,
+            "type": "limit",
+            "limit_price": text(take_profit),
+            "order_class": "oco",
+            "take_profit": {"limit_price": text(take_profit)},
+            "stop_loss": {"stop_price": text(stop_loss)},
+        }
+    if stop_loss is not None:
+        return {**body, "type": "stop", "stop_price": text(stop_loss)}
+    if take_profit is not None:
+        return {**body, "type": "limit", "limit_price": text(take_profit)}
+    raise ValueError("protection_level_required")
+
+
+def rearmed(
+    groups: list[ProtectionGroup], remaining: Decimal
+) -> list[tuple[Decimal, ProtectionGroup]]:
+    """The protected quantity of each group once only ``remaining`` units are held.
+
+    Levels stay the same; a reduced position gives up protected quantity from the last
+    group first, so no exit order ever exceeds what is held.
+    """
+    plan: list[tuple[Decimal, ProtectionGroup]] = []
+    left = remaining
+    for group in groups:
+        qty = min(group.qty, left)
+        if qty > 0:
+            plan.append((qty, group))
+        left -= qty
+    return plan
+
+
+def text(value: Decimal) -> str:
+    if not value.is_finite():
+        raise ValueError("broker_number_invalid")
+    return format(value, "f")
 
 
 def positions(

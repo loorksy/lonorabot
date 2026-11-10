@@ -37,6 +37,7 @@ const labels: Record<AttentionCode, Label> = {
   run_quarantined: "attentionRunQuarantined",
   operation_unresolved: "attentionOperationUnresolved",
   operation_uncertain: "attentionOperationUncertain",
+  position_unprotected: "attentionPositionUnprotected",
   gateway_degraded: "attentionGatewayDegraded",
   agent_notification: "attentionAgentAlert",
 };
