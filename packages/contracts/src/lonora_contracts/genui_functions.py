@@ -149,8 +149,12 @@ def _count(value: Any, target: Any = True) -> Any:
 def _sum(value: Any) -> Any:
     if not isinstance(value, list):
         return None
-    numbers = [_num(item) for item in cast(list[Any], value)]
-    return normal(sum(item for item in numbers if item is not None))
+    total = 0.0
+    for item in cast(list[Any], value):
+        number = _num(item)
+        if number is not None:
+            total += number  # plain left-to-right addition, as JavaScript's reduce
+    return normal(total)
 
 
 def _avg(value: Any) -> Any:
@@ -159,7 +163,10 @@ def _avg(value: Any) -> Any:
     numbers = [_num(item) for item in cast(list[Any], value)]
     if any(item is None for item in numbers):
         return None
-    return normal(sum(cast(list[float], numbers)) / len(numbers))
+    total = 0.0
+    for number in cast(list[float], numbers):
+        total += number
+    return normal(total / len(numbers))
 
 
 def _range(start: Any, stop: Any, step: Any = 1) -> Any:

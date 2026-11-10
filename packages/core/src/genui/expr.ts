@@ -348,7 +348,19 @@ function get(container: unknown, key: unknown): unknown {
   if (typeof key === "string" && BLOCKED.has(key))
     throw new ExpressionError("genui_expression_blocked");
   if (isPlain(container)) return ownGet(container, typeof key === "string" ? key : show(key));
-  if (Array.isArray(container) || typeof container === "string") {
+  if (typeof container === "string") {
+    // Code points, as Python indexes and measures a text.
+    const points = Array.from(container);
+    if (key === "length") return points.length;
+    const index =
+      typeof key === "number"
+        ? key
+        : typeof key === "string" && /^\d+$/.test(key)
+          ? Number(key)
+          : Number.NaN;
+    return Number.isInteger(index) && index >= 0 && index < points.length ? points[index] : null;
+  }
+  if (Array.isArray(container)) {
     if (key === "length") return container.length;
     const index =
       typeof key === "number"

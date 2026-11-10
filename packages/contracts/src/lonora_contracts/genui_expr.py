@@ -17,6 +17,7 @@ import math
 import re
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
+from decimal import Decimal
 from typing import Any, cast
 
 MAX_EXPRESSION_CHARS = 400
@@ -291,7 +292,8 @@ def to_number(value: Any) -> float:
         text = value.strip()
         if text == "":
             return 0.0
-        if re.fullmatch(r"[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?", text):
+        # ASCII digits only, as JavaScript's Number() reads them (never Arabic-Indic).
+        if re.fullmatch(r"[+-]?([0-9]+\.?[0-9]*|\.[0-9]+)([eE][+-]?[0-9]+)?", text):
             return float(text)
         return math.nan
     return math.nan
@@ -313,9 +315,15 @@ def number_text(value: float | int) -> str:
         return "true" if value else "false"
     if not math.isfinite(value):
         return "NaN" if math.isnan(value) else ("Infinity" if value > 0 else "-Infinity")
-    if float(value).is_integer() and abs(value) < 1e21:
+    if float(value).is_integer() and abs(value) < 1e16:
         return str(int(value))
-    return repr(float(value))
+    # The same shortest digits as JavaScript; its notation: fixed between 1e-7 and 1e21.
+    text = repr(float(value))
+    if abs(value) < 1e-6 or abs(value) >= 1e21:
+        mantissa, _, exponent = text.partition("e")
+        power = int(exponent) if exponent else 0
+        return f"{mantissa}e{'+' if power > 0 else ''}{power}"
+    return format(Decimal(text), "f")
 
 
 def show(value: Any) -> str:
@@ -406,7 +414,8 @@ def _binary(op: str, left: Any, right: Any) -> Any:
     if op == "+":
         if isinstance(left, str) or isinstance(right, str):
             return bounded(show(left) + show(right))
-        return to_number(left or 0) + to_number(right or 0)
+        # JavaScript's ``left || 0``: a list or object is truthy, so it reads as NaN.
+        return to_number(left if truthy(left) else 0) + to_number(right if truthy(right) else 0)
     if op in {"-", "*", "/", "%"}:
         a, b = to_number(left), to_number(right)
         if op == "-":

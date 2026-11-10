@@ -555,6 +555,102 @@
   {
    "src": "@Len([[1,2],[3]])",
    "expected": 2
+  },
+  {
+   "src": "'a'-1",
+   "expected": null
+  },
+  {
+   "src": "[]+1",
+   "expected": null
+  },
+  {
+   "src": "[]-1",
+   "expected": null
+  },
+  {
+   "src": "'٢٣'*1",
+   "expected": null
+  },
+  {
+   "src": "'٢'*2",
+   "expected": null
+  },
+  {
+   "src": "0.1+0.2+0.3",
+   "expected": 0.6000000000000001
+  },
+  {
+   "src": "@Sum([0.1,0.2,0.3])",
+   "expected": 0.6000000000000001
+  },
+  {
+   "src": "@Sum(@Range(0,1,0.1))",
+   "expected": 5.500000000000001
+  },
+  {
+   "src": "@Avg(@Range(0,200))",
+   "expected": 100
+  },
+  {
+   "src": "@Avg([0.1,0.2,0.3])",
+   "expected": 0.20000000000000004
+  },
+  {
+   "src": "@Round(2.675,2)",
+   "expected": 2.68
+  },
+  {
+   "src": "@Round(1.005,2)",
+   "expected": 1
+  },
+  {
+   "src": "@Round(0.125,2)",
+   "expected": 0.13
+  },
+  {
+   "src": "@Len('😀')",
+   "expected": 1
+  },
+  {
+   "src": "@Len('a😀b')",
+   "expected": 3
+  },
+  {
+   "src": "'a😀b'[1]",
+   "expected": "😀"
+  },
+  {
+   "src": "'a😀b'.length",
+   "expected": 3
+  },
+  {
+   "src": "''+0.00001",
+   "expected": "0.00001"
+  },
+  {
+   "src": "''+1e-7",
+   "expected": null
+  },
+  {
+   "src": "''+2.5e-6",
+   "expected": null
+  },
+  {
+   "src": "''+1e21",
+   "expected": null
+  },
+  {
+   "src": "''+12345678901234567",
+   "expected": "12345678901234568"
+  },
+  {
+   "src": "@Includes(['1'],1)",
+   "expected": true
+  },
+  {
+   "src": "@Includes([true],'true')",
+   "expected": true
   }
  ]
 }

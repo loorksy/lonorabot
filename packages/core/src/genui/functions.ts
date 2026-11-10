@@ -234,7 +234,9 @@ export const FUNCTIONS: Record<string, GenuiFunction> = {
     return pairs.length % 2 === 1 ? pairs[pairs.length - 1] : null;
   },
   Len: (_c, value) => {
-    if (Array.isArray(value) || typeof value === "string") return value.length;
+    // Code points, as Python's len counts them.
+    if (typeof value === "string") return textSize(value);
+    if (Array.isArray(value)) return value.length;
     if (value !== null && typeof value === "object") return Object.keys(value).length;
     return value === null || value === undefined ? 0 : null;
   },
@@ -252,8 +254,10 @@ export const FUNCTIONS: Record<string, GenuiFunction> = {
       ? value.reduce<number>((total, item) => total + (num(item) ?? 0), 0)
       : null,
   Avg: (_c, value) => {
-    const numbers = Array.isArray(value) && value.length ? series(value) : null;
-    return numbers ? numbers.reduce((a, b) => a + b, 0) / numbers.length : null;
+    if (!Array.isArray(value) || !value.length) return null;
+    const numbers = value.map(num);
+    if (numbers.some((item) => item === null)) return null;
+    return (numbers as number[]).reduce((a, b) => a + b, 0) / numbers.length;
   },
   Range: (_c, start, stop, step = 1) => {
     const a = num(start);

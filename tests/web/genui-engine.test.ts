@@ -199,7 +199,8 @@ test("the client's card validator fails closed on anything malformed", () => {
     { ...valid, blocks: [{ type: "Button", label: "x", action: { do: "open", url: "http://x" } }] },
     { ...valid, calc: { x: "@Nope(" } },
     { ...valid, fallback: "x".repeat(1501) },
-    JSON.parse('{"v":2,"__proto__":{"x":1}}'),
+    // Valid in every other way, so only the own __proto__ key refuses it.
+    JSON.parse(JSON.stringify(valid).replace('{"v":2', '{"v":2,"__proto__":{"x":1}')),
   ])
     assert.equal(validateUiDocument(broken), null, JSON.stringify(broken));
   const getter = { ...valid };
