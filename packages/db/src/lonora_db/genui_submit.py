@@ -47,6 +47,7 @@ from .schema import (
     MarketWatchRow,
     MessageRow,
     RunRow,
+    SteeringRow,
     ThreadRow,
 )
 from .transactions import owned_agent
@@ -497,20 +498,26 @@ async def requeue_folded(session: AsyncSession, run: RunRow) -> None:
     """The owner's own messages folded into a queued submission's Run while it waited are
     not lost when «تعديل» or the lifetime cancels it: they get a normal owner Run. Stop
     re-queues nothing: it stops the owner's work too."""
-    origin = ui_submit_origin(run)
-    submit = await session.get(MessageRow, str(origin.get("message_id"))) if origin else None
-    if submit is None:
+    if ui_submit_origin(run) is None:
         return
-    folded = await session.scalar(
-        select(MessageRow.id)
-        .where(
-            MessageRow.thread_id == run.thread_id,
-            MessageRow.role == "user",
-            MessageRow.origin == "owner",
-            MessageRow.seq > submit.seq,
-            MessageRow.seq <= run.input_seq,
+    # Exactly the owner messages this Run took: folded while queued (recorded on it) or
+    # steered while leased. Never the window, which rule W raises past other work.
+    held = [str(i) for i in run.model_metadata.get("folded_message_ids", [])]
+    held += list(
+        await session.scalars(select(SteeringRow.message_id).where(SteeringRow.run_id == run.id))
+    )
+    folded = (
+        await session.scalar(
+            select(MessageRow.id)
+            .where(
+                MessageRow.id.in_(held),
+                MessageRow.role == "user",
+                MessageRow.origin == "owner",
+            )
+            .limit(1)
         )
-        .limit(1)
+        if held
+        else None
     )
     thread = await session.get(ThreadRow, run.thread_id)
     if folded is None or thread is None:

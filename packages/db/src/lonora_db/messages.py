@@ -417,6 +417,14 @@ async def send_message(
                 state: dict[str, Any] = {**active.execution_state, "input_requests": updated}
                 state.pop("pending_input_request", None)
                 active.execution_state = state
+            if active.model_metadata.get("ui_submit_origin") and message.origin == "owner":
+                # A card's send that has not run yet holds the owner's words for it; if
+                # «تعديل» or the lifetime cancels it, they are re-queued (genui_submit).
+                held = list(active.model_metadata.get("folded_message_ids", []))[-20:]
+                active.model_metadata = {
+                    **active.model_metadata,
+                    "folded_message_ids": [*held, message.id],
+                }
             if active.status == "queued":
                 active.input_seq = message.seq
                 if active.execution_state:

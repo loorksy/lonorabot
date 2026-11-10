@@ -776,3 +776,62 @@ async def test_the_compiler_names_the_cards_account_beyond_the_bounded_list() ->
     finally:
         await retire(fixture, *connections)
         await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_an_owner_message_steered_into_a_leased_send_survives_its_edit() -> None:
+    """Review round 4: the send was leased (not yet running) when the owner typed, so their
+    message became a steering row; «تعديل» still re-queues it."""
+    fixture = await open_fixture()
+    try:
+        card = await Card(fixture).open()
+        response = await card.post(card.body({"price": 2470}))
+        assert response.status_code == 202
+        submit_run = response.json()["run_ids"][0]
+        from lonora_db.schema import RunRow
+
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            run = await session.get(RunRow, submit_run, with_for_update=True)
+            assert run is not None
+            run.status = "leased"
+        typed = await fixture.request(
+            "POST", f"/threads/{card.thread['id']}/messages", {"content": "وأيضًا الفضة"}
+        )
+        assert typed["run_ids"] == [submit_run]
+        await fixture.request(
+            "POST", f"/threads/{card.thread['id']}/messages/{card.message_id}/ui-state/1/unlock"
+        )
+        queued = [r for r in await runs(fixture, card.thread["id"]) if r.status == "queued"]
+        assert len(queued) == 1 and queued[0].id != submit_run
+    finally:
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_an_edit_never_duplicates_an_owner_message_another_run_answers() -> None:
+    """The claim window (rule W) may reach owner messages another Run answers; «تعديل»
+    re-queues only what the send itself took, so nothing is answered twice."""
+    from lonora_db.schema import RunRow
+
+    fixture = await open_fixture()
+    try:
+        card = await Card(fixture).open()
+        earlier = await fixture.run(card.agent, card.thread)  # the oldest active Run
+        response = await card.post(card.body({"price": 2480}))
+        assert response.status_code == 202
+        submit_run = response.json()["run_ids"][0]
+        typed = await fixture.request(
+            "POST", f"/threads/{card.thread['id']}/messages", {"content": "ما رأيك؟"}
+        )
+        assert typed["run_ids"] == [earlier["id"]]  # folded into the earlier Run, not the send
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            run = await session.get(RunRow, submit_run, with_for_update=True)
+            assert run is not None
+            run.input_seq = typed["message"]["seq"]  # as rule W raises it at claim
+        await fixture.request(
+            "POST", f"/threads/{card.thread['id']}/messages/{card.message_id}/ui-state/1/unlock"
+        )
+        queued = [r.id for r in await runs(fixture, card.thread["id"]) if r.status == "queued"]
+        assert queued == [earlier["id"]]
+    finally:
+        await fixture.close()
