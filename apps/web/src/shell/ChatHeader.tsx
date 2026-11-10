@@ -2,6 +2,8 @@ import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
 import type { AvatarStateId } from "@lonora/core";
 import { GroupAvatar, Icon } from "@lonora/ui-web";
+import { useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { AgentAvatar } from "../components/ai/AgentAvatar";
 import { PersonalAgentBadge } from "../components/ai/PersonalAgentBadge";
 import { CallPill } from "../components/call/CallPill";
@@ -61,6 +63,23 @@ export function ChatHeader({
   const trading = Boolean(agent && (agent.trading_account_id || agent.template === "trading"));
   const openSheet = () =>
     agent && (trading || prefs.agentStatus) && sheet(agent, trading, prefs.agentStatus);
+  // The agent page's «التداول والأمان» row lands here with ?sheet=agent: open the sheet once
+  // and drop the parameter so Back does not reopen it.
+  const [params, setParams] = useSearchParams();
+  const wanted = params.get("sheet") === "agent";
+  // biome-ignore lint/correctness/useExhaustiveDependencies: opened once per landing.
+  useEffect(() => {
+    if (!wanted || !agent) return;
+    openSheet();
+    setParams(
+      (old) => {
+        const next = new URLSearchParams(old);
+        next.delete("sheet");
+        return next;
+      },
+      { replace: true },
+    );
+  }, [wanted, agent?.id]);
   const statusOn = Boolean(agent && prefs.agentStatus && !working && net === "on");
   const infoLabel = group ? t`Group info` : t`Agent info`;
   const presence =

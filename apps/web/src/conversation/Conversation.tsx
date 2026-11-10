@@ -2,7 +2,7 @@ import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
 import type { Journal, OwnerAction, TradeApproval, VisualAction } from "@lonora/contracts";
 import {
-  canCancel,
+  stopTargets,
   conversationTimeline,
   isWorking,
   type MentionAddress,
@@ -226,7 +226,7 @@ export function Conversation({
 
   /* ---- runs: what is active, streaming, failed */
   const runs = thread.runs.filter((run) => run.thread_id === threadId);
-  const activeRuns = runs.filter((run) => canCancel(run.status));
+  const activeRuns = stopTargets(runs, threadId);
   const streamingRows = runs
     .map((run) => ({ run, stream: streamForRun(run, streams[run.id]) }))
     .filter(({ run, stream }) => streamVisible(run, stream, thread.messages))

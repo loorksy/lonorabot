@@ -203,7 +203,13 @@ export const groupDraftName = (names: readonly string[]) =>
  */
 export function isPlainOutgoing(body: Readonly<Record<string, unknown>>): boolean {
   // An edit cancels the original's run (Q21): it stays «failed» with a manual retry.
-  return body.input_answer == null && body.edited_from == null;
+  // A card submit and a voice note are never auto-flushed: only plain owner text is (Q6).
+  return (
+    body.input_answer == null &&
+    body.edited_from == null &&
+    body.ui_submit == null &&
+    body.voice == null
+  );
 }
 
 /**

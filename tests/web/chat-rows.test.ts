@@ -7,6 +7,7 @@ import type {
   InboxLastMessage,
   Resource,
 } from "../../packages/contracts/src/domain";
+import type { RunStatus } from "../../packages/contracts/src/runs";
 import {
   archivedRowSummary,
   attentionAlwaysShows,
@@ -20,6 +21,7 @@ import {
   rowMarkedOnly,
   selectionSummary,
 } from "../../packages/core/src/chat-rows";
+import { stopTargets } from "../../packages/core/src/run-state";
 import { foldSearch, highlightRange } from "../../packages/core/src/search-fold";
 
 const at = (hour: number) => `2026-11-09T${String(hour).padStart(2, "0")}:00:00Z`;
@@ -165,6 +167,10 @@ test("Q6 and Q4: only plain messages flush; mute hides heads-ups, never urgent a
     }),
     false,
   );
+  // GENUI_PLAN §8: a card submit never enters the auto-flushed outbox; nor does a voice note.
+  assert.equal(isPlainOutgoing({ content: "x", ui_submit: { card_id: "c" } }), false);
+  assert.equal(isPlainOutgoing({ content: "", voice: { artifact_id: "a" } }), false);
+  assert.equal(isPlainOutgoing({ content: "x", edited_from: "m" }), false);
   assert.equal(headsUpAllowed(entries[3]), false);
   assert.equal(headsUpAllowed(entries[4]), false);
   assert.equal(headsUpAllowed(entries[0]), true);
@@ -197,4 +203,19 @@ test("quiet hours: 22:00-08:00 in the owner's zone, crossing midnight; none set,
     false,
   );
   assert.equal(inQuietHours(null, new Date()), false);
+});
+
+test("Stop cancels every cancellable run of the thread, a queued card submit included", () => {
+  const run = (id: string, status: RunStatus, thread_id = "t") => ({ id, status, thread_id });
+  const targets = stopTargets(
+    [
+      run("a", "running"),
+      run("b", "queued"),
+      run("c", "waiting_input"),
+      run("d", "completed"),
+      run("e", "queued", "other"),
+    ],
+    "t",
+  ).map((row) => row.id);
+  assert.deepEqual(targets, ["a", "b", "c"]);
 });

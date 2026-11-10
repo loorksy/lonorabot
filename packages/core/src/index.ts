@@ -154,7 +154,7 @@ export {
   streamForRun,
   streamText,
 } from "./reply-stream";
-export { activeStatuses, canCancel, canResume, isWorking } from "./run-state";
+export { activeStatuses, canCancel, canResume, isWorking, stopTargets } from "./run-state";
 export { foldSearch, highlightRange } from "./search-fold";
 export {
   type SupervisionRow,

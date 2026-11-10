@@ -10,3 +10,10 @@ export function canResume(status: RunStatus): boolean {
 export function canCancel(status: RunStatus): boolean {
   return isWorking(status) || status === "waiting_input" || status === "waiting_takeover";
 }
+/** Stop cancels EVERY cancellable run of the thread, a queued card submit included. */
+export function stopTargets<T extends { status: RunStatus; thread_id: string }>(
+  runs: readonly T[],
+  threadId: string,
+): T[] {
+  return runs.filter((run) => run.thread_id === threadId && canCancel(run.status));
+}
