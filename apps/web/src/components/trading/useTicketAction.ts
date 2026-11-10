@@ -5,13 +5,35 @@ import { executeTrade } from "../../lib/trading";
 
 export type TicketOutcome = { status: string; details?: unknown; code?: string | null };
 
+/** The ticket a journal row settles: a modify by its body, a close by its position, a cancel
+ * by its order. */
+export function ticketOf(
+  action: "close_position" | "cancel_order" | "modify_position",
+  request: Payload,
+): string {
+  if (action === "modify_position") return modifyTicket(request);
+  return String(request[action === "cancel_order" ? "order_id" : "position_id"]);
+}
+
+/** A modify is one operation per distinct change: its ticket is the position and the body,
+ * so a held (unsettled) modify never blocks a different stop or target. */
+export function modifyTicket(request: Partial<Trade> | Payload): string {
+  const value = (key: string) => {
+    const item = (request as Record<string, unknown>)[key];
+    return item == null || item === false ? "" : String(item);
+  };
+  return ["position_id", "stop_loss", "take_profit", "clear_stop_loss", "clear_take_profit"]
+    .map(value)
+    .join("|");
+}
+
 /**
  * The owner's close/cancel button on one broker ticket. The operation_id is minted once
  * per ticket action and kept until its outcome settles (see ``settleOperation``), so a
  * double click, a retry after a timeout or a reload never creates a second operation.
  */
 export function useTicketAction(
-  action: "close_position" | "cancel_order",
+  action: "close_position" | "cancel_order" | "modify_position",
   accountId: string,
   journal: Journal[] | undefined,
   onChange: () => void,
@@ -27,9 +49,7 @@ export function useTicketAction(
     // outcome stays on the row, and the button acts again as a new operation.
     const settled: Record<string, TicketOutcome> = {};
     for (const entry of journal ?? []) {
-      const ticket = String(
-        entry.request[action === "close_position" ? "position_id" : "order_id"],
-      );
+      const ticket = ticketOf(action, entry.request);
       if (
         heldOperation(action, accountId, ticket) === entry.operation_id &&
         settleOperation(action, accountId, ticket, entry.status)

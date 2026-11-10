@@ -279,6 +279,47 @@ async def main() -> None:
         )
         assert cleared["role"] == "general" and cleared["trading_symbol"] is None
         assert (await f.request("GET", f"/agents/{fixed['id']}"))["scope_revision"] == 2
+        # The identity form's account switch (agent.identity.form) is the same PATCH: moving
+        # the agent to another account never carries the signed grant along. The envelope
+        # stays on its own account and pair, and a trade on the new account is the owner's
+        # approval card with nothing sent before the tap.
+        moved = await f.request(
+            "PATCH",
+            f"/agents/{fixed['id']}",
+            {
+                "scope_mode": "flexible",
+                "trading_account_id": second,
+                "trading_symbol": "EURUSDm",
+                "expected_scope_revision": 2,
+            },
+        )
+        assert moved["trading_account_id"] == second and moved["scope_revision"] == 3
+        async with f.runtime.db.sessions() as session:
+            row, envelope = await require_authority(session, f.owner, fixed["id"], proposal["id"])
+            assert row.envelope_hash == original_hash and row.envelope == original_envelope
+            assert envelope.account_id == first and envelope.symbols == ["EURUSDm"]
+        before_second = await (await context.brokers.get(f.owner, second)).positions()
+        asked_second = await call(
+            "trade_execute",
+            {
+                "account_id": second,
+                # The GRANTED symbol on the new account: a grant that wrongly followed the
+                # agent's account would execute this one.
+                "symbol": "EURUSDm",
+                "action": "buy",
+                "volume": "0.1",
+                "stop_loss": "90",
+            },
+            fixed_context,
+        )
+        assert asked_second.get("_runtime_wait") and asked_second.get("approval_id"), asked_second
+        assert await (await context.brokers.get(f.owner, second)).positions() == before_second
+        await f.request(
+            "POST",
+            f"/trading/approvals/{asked_second['approval_id']}/decision",
+            {"decision": "reject"},
+        )
+        print("PASS an account switch keeps the grant on its own account; its symbol there asks")
         async with f.runtime.db.sessions() as session:
             persisted = await session.get(AgentRow, fixed["id"])
             assert persisted and "<flexible_agent_scope>" in binding_context(persisted)
