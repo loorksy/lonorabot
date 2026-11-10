@@ -292,7 +292,8 @@ test("ticket modal and profile creation remain usable under StrictMode and Back"
   );
   await form.getByRole("button", { name: "Create the agent", exact: true }).click();
   const teammate = remember("agents", await (await created).json());
-  await expect(page).toHaveURL(new RegExp(`/app/${teammate.id}$`));
+  // A new agent lands on its own page (phase 4a, agent.new.templates).
+  await expect(page).toHaveURL(new RegExp(`/app/agent/${teammate.id}$`));
   await page
     .locator(".desktop-rail")
     .getByRole("button", { name: "Settings", exact: true })

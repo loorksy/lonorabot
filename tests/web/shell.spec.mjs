@@ -262,7 +262,8 @@ test.describe("phone shell (390×844, Arabic)", () => {
       await expect(dialog).toHaveAttribute("aria-label", "قائمة المحادثة");
       await dialog.getByRole("button", { name: "الشارت", exact: true }).click();
       await expect(dialog).toHaveClass(/expandable/);
-      await expect(dialog).toHaveAttribute("aria-label", "الشارت");
+      // The chart sheet names the pair when the agent has one (chart.sheet, Q37).
+      await expect(dialog).toHaveAttribute("aria-label", /^الشارت/);
       const resting = (await dialog.boundingBox()).height;
       await dialog.getByRole("button", { name: "ملء الشاشة", exact: true }).click();
       await expect(dialog).toHaveClass(/expanded/);

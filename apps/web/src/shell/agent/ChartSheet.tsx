@@ -278,7 +278,7 @@ export function ChartSheetBody({
     };
   }, [accountId, symbol, agentId, preferredChartId, revision]);
   return (
-    <div className="chart-body grow">
+    <div className="chart-body grow" data-chart-id={preferredChartId ?? scene?.chart_id}>
       <div className="tabs" role="tablist">
         {FRAMES.map((item) => (
           <button
