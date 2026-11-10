@@ -54,6 +54,8 @@ test("the trading agent's page: level, trading and safety, watches, and the on/o
   await expect(main).toContainText("Trading and safety");
   await expect(main).toContainText("Ask me on every order");
   await expect(main).toContainText("No watches.");
+  // Q1, Q44: the agent page never offers to delete the agent.
+  await expect(main.getByRole("button", { name: /delete|remove the agent/i })).toHaveCount(0);
   for (const row of [
     "Identity and model",
     "Knowledge",
@@ -205,6 +207,7 @@ test("the group page and «مجموعة جديدة» with purpose and coordinato
   await expect(main.locator(".hero h2")).toHaveText(data.group.payload.name);
   await expect(main).toContainText("Gold research");
   await expect(main.locator(".row", { hasText: data.research.name })).toContainText("Coordinator");
+  await expect(main.getByRole("button", { name: /delete/i })).toHaveCount(0);
   await page.goto("/app/new-group");
   await main.getByLabel("Group name", { exact: true }).fill(`${data.group.payload.name} 2`);
   await main.getByLabel("Purpose", { exact: true }).fill("Second desk");
