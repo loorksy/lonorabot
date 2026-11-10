@@ -57,7 +57,7 @@ own document keeps only its private views:
 
 | View | Where | Who writes it | How a Run sees it |
 | --- | --- | --- | --- |
-| `USER.md` | `ln_owner_profile.content`, one per owner | the owner (Knowledge, About you) or any Agent from the owner's message | `owner_preferences` context section, every Run of every Agent |
+| `USER.md` | `ln_owner_profile.content`, one per owner | the owner (Settings ← الملف الشخصي, `/app/owner`) or any Agent from the owner's message | `owner_preferences` context section, every Run of every Agent |
 | `MEMORY.md` (and older unsectioned text) | the Agent's `ln_memory` row | the Agent or the owner | `memory` context section, that Agent only |
 | `OPERATING.md` | the Agent's `ln_memory` row | the Agent (its own working method) or the owner | `operating_notes` context section, that Agent only |
 
@@ -163,12 +163,11 @@ preferences, plain field changes without device identifiers):
   change touched go back (undoing an Agent's "reply in Arabic" leaves a later "message
   me instead of calling" as it is). The document is locked before anything is read.
 
-The Web Knowledge page opens on **About you**: the profile text, the reach-me and
-reply-language editor (the same preference Mobile edits in Voice settings) and the
-change history with *Undo this change*. Each form keeps its own unsaved edits, so
-saving reach-me never discards typed profile text (or the reverse), and the text
-form keeps the version its edit started from. The memory tab of each Agent shows
-its own history the same way. Labels and error texts come from one table in
+On the web the profile lives in Settings: «الملف الشخصي» (`/app/owner`) edits the name, the
+form of address, the time zone and the profile text, lists what agents wrote and shows the
+change log with «استعادة»; «الإشعارات والتواصل» (`/app/notify-settings`) holds the reach-me
+choice, quiet hours to the minute and each agent's delivery rules. The Knowledge panel
+links to both. The memory tab of each Agent shows its own history the same way. Labels and error texts come from one table in
 `@lonora/core` (`owner-profile.ts`) in Arabic and English, read by both Web
 (`userError`) and Mobile (`errorText`).
 
@@ -386,7 +385,7 @@ surface and pre-upgrade receipts.
 - Automatic per-turn recall still covers only the current thread; other threads
   are reached through `session_search`.
 - Mobile edits the reach-me preference and reply language (Voice settings); the
-  profile text and its change history are edited on the Web Knowledge page.
+  profile text and its change history are edited on the web profile page (`/app/owner`).
 - Reach-me delivery is in-app only until off-app delivery (Wave 3). Until the
   `owner_notify` tool (W15-7) lets an Agent raise an inbox alert, `notify` behaves
   like `message` plus the alerts Lonora already raises, and its label says exactly

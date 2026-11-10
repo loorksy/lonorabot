@@ -50,8 +50,8 @@ not build or run a historical strategy simulation, or present an old one as
 validation or as a basis for authority; reading an old saved report on request
 is allowed. Historical market observations remain ordinary analysis evidence;
 see market structure, relationships and decision replay. Learning comes from
-real recorded outcomes. Decision replay, relationship evidence and Shadow
-trading are not backtesting and are unchanged.
+real recorded outcomes. Decision replay and relationship evidence are not
+backtesting and are unchanged (Shadow trading is removed, Q57).
 
 Data written while the engine existed is inert:
 

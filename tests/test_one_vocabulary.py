@@ -74,5 +74,5 @@ def test_activity_label_overrides_name_real_registry_tools() -> None:
     ).read_text()
     table = source.split("const toolLabels", 1)[1].split("\n};", 1)[0]
     names = set(re.findall(r"^  ([a-z_]+):", table, re.MULTILINE))
-    assert {"owner_action_propose", "wait_for_input", "market_shadow_execute"} <= names
+    assert {"owner_action_propose", "wait_for_input"} <= names
     assert names <= set(load_tools().tools), names - set(load_tools().tools)

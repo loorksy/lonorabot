@@ -18,7 +18,7 @@ Restrictions govern agent-originated operations (every leased path: account gran
 exact approval, Goal step). Owner-manual operations are exempt unless the owner flagged
 an all-agent restriction ``applies_to_owner_manual``; a restriction scoped to one agent
 never binds the owner (creation rejects the combination, and matching ignores it).
-Shadow execution never reaches a broker and is not affected. The final decision is made
+The final decision is made
 inside the executor's before-send callback, under the account send lock and the
 restriction lock, so queued work and every admission path are covered; an operation
 already sent is never reversed.

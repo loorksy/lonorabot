@@ -2,7 +2,7 @@ import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
 import { Icon } from "@lonora/ui-web";
 import { lazy, Suspense, useEffect } from "react";
-import { Route, Routes, useLocation, useSearchParams } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation, useParams, useSearchParams } from "react-router-dom";
 import { usePersistentThread } from "../hooks/usePersistentThread";
 import type { Agent, Resource, Run } from "../lib/api";
 import { userError } from "../lib/user_error";
@@ -11,7 +11,6 @@ import { Artifacts } from "../pages/Artifacts";
 import { BoardPage } from "../pages/Board";
 import { GroupCreatePanel } from "../pages/GroupPanel";
 import { Knowledge } from "../pages/Knowledge";
-import { OwnerProfileSection } from "../pages/OwnerProfileSection";
 import { Routines } from "../pages/Routines";
 import type { SettingsTab } from "../pages/settings-sidebar";
 import { AgentCreatePanel } from "../pages/shell/bot-panel";
@@ -27,22 +26,36 @@ import { DEV_ROUTES, type Page, type Root } from "./routes";
 import { useShortcutsSheet } from "./ShortcutsSheet";
 import { SkChat, SkChats } from "./Skeleton";
 import { NotFoundPage } from "./StatePage";
+import {
+  BrokerAccountPage,
+  BrokerFormPage,
+  McpFormPage,
+  ProviderFormPage,
+  ProvidersPage,
+} from "./settings/ConnectionPages";
+import { AccessibilityPage, PrivacyPage, StoragePage } from "./settings/DevicePages";
+import { IntegrationsPage } from "./settings/IntegrationsPage";
+import { CommunicationPage, NotifyPage } from "./settings/NotifyPages";
+import { OwnerPage } from "./settings/OwnerPage";
+import { SettingsRoot } from "./settings/SettingsRoot";
+import { UsageDetailPage, UsagePage } from "./settings/UsagePage";
 
 const Market = lazy(() => import("../pages/Market").then((m) => ({ default: m.Market })));
 const Trading = lazy(() => import("../pages/Trading").then((m) => ({ default: m.Trading })));
 const Settings = lazy(() =>
   import("../pages/SettingsOverlay").then((m) => ({ default: m.SettingsOverlay })),
 );
-const settingsTabs = new Set<string>([
-  "overview",
-  "capabilities",
-  "models",
-  "voice",
-  "trading",
-  "integrations",
-  "mcp",
-  "usage",
-]);
+/** Old settings tabs: the ones with a reference page go there; models and voice keep the
+ * existing screen until their phase (model routing and the trading controls have no reference
+ * home yet, OQ47; voice is phase 6). */
+const settingsTabs = new Set<string>(["models", "voice", "trading"]);
+const settingsMoved: Readonly<Record<string, string>> = {
+  capabilities: "/app/integrations",
+  integrations: "/app/integrations",
+  mcp: "/app/integrations",
+  usage: "/app/usage",
+  overview: "/app/settings",
+};
 
 const Loading = () => (
   <p className="note" role="status">
@@ -76,6 +89,32 @@ export function pageTitle(page: Page): string {
       return t({ message: "Create group", context: "page title" });
     case "owner":
       return t({ message: "Profile", context: "owner" });
+    case "accessibility":
+      return t`Accessibility`;
+    case "notify-settings":
+      return t`Notifications and contact`;
+    case "communication":
+      return t`Proactive contact`;
+    case "integrations":
+      return t`Integrations`;
+    case "providers":
+      return t`Model providers`;
+    case "provider":
+      return t`Add an AI provider`;
+    case "mcp":
+      return t`Add MCP`;
+    case "broker":
+      return t`Link the broker`;
+    case "broker-account":
+      return t`Trading account`;
+    case "usage":
+      return t`Overall usage`;
+    case "usage-detail":
+      return t`Usage details`;
+    case "storage":
+      return t`Storage and data`;
+    case "privacy":
+      return t`Privacy and security`;
     default:
       return t`Lab`;
   }
@@ -116,48 +155,26 @@ export function RootPage({
   return <SettingsPage desktop={desktop} />;
 }
 
-function SettingsPage({ desktop }: { desktop: boolean }) {
-  const data = useShellData();
+function SettingsPage({ desktop: _desktop }: { desktop: boolean }) {
   const [params] = useSearchParams();
-  const tab = params.get("tab") ?? "overview";
-  const initialTab = (settingsTabs.has(tab) ? tab : "overview") as SettingsTab;
-  const shortcuts = useShortcutsSheet();
-  return (
-    <>
+  const tab = params.get("tab");
+  if (tab && Object.hasOwn(settingsMoved, tab) && tab !== "overview")
+    return <Navigate to={settingsMoved[tab]} replace />;
+  if (tab && settingsTabs.has(tab))
+    return (
       <Legacy>
         <Suspense fallback={<Loading />}>
-          <Settings key={initialTab} initialTab={initialTab} />
+          <Settings key={tab} initialTab={tab as SettingsTab} />
         </Suspense>
       </Legacy>
-      {desktop && (
-        <div className="group">
-          <button type="button" className="row" onClick={shortcuts}>
-            <Icon name="keyboard" />
-            <span className="body">
-              <strong>
-                <Trans>Keyboard shortcuts</Trans>
-              </strong>
-            </span>
-            <span className="chevron">
-              <Icon name="chev" />
-            </span>
-          </button>
-        </div>
-      )}
-      <div className="group">
-        <button type="button" className="row" onClick={() => void data.signOut()}>
-          <Icon name="power" />
-          <span className="body">
-            <strong>
-              <Trans>Sign out</Trans>
-            </strong>
-            <small className="ltr">{data.owner.email}</small>
-          </span>
-        </button>
-      </div>
-    </>
-  );
+    );
+  return <SettingsRoot />;
 }
+
+const ItemPage = ({ render }: { render: (item: string) => React.ReactNode }) => {
+  const { item = "" } = useParams();
+  return <>{render(item)}</>;
+};
 
 /* The inner pages: the existing screens, each under its reference title. */
 export function DetailPages({
@@ -258,14 +275,35 @@ export function DetailPages({
             </Legacy>
           }
         />
+        <Route path="/app/owner" element={<OwnerPage />} />
+        <Route path="/app/accessibility" element={<AccessibilityPage />} />
+        <Route path="/app/notify-settings" element={<NotifyPage />} />
         <Route
-          path="/app/owner"
+          path="/app/communication/:item"
+          element={<ItemPage render={(item) => <CommunicationPage key={item} agentId={item} />} />}
+        />
+        <Route path="/app/integrations" element={<IntegrationsPage />} />
+        <Route path="/app/providers" element={<ProvidersPage />} />
+        <Route path="/app/provider" element={<ProviderFormPage />} />
+        <Route
+          path="/app/provider/:item"
+          element={<ItemPage render={(item) => <ProviderFormPage key={item} initial={item} />} />}
+        />
+        <Route path="/app/mcp" element={<McpFormPage />} />
+        <Route path="/app/broker" element={<BrokerFormPage />} />
+        <Route
+          path="/app/broker-account/:item"
           element={
-            <Legacy>
-              <OwnerProfileSection />
-            </Legacy>
+            <ItemPage render={(item) => <BrokerAccountPage key={item} connectionId={item} />} />
           }
         />
+        <Route path="/app/usage" element={<UsagePage />} />
+        <Route
+          path="/app/usage-detail/:item"
+          element={<ItemPage render={(item) => <UsageDetailPage key={item} agentId={item} />} />}
+        />
+        <Route path="/app/storage" element={<StoragePage />} />
+        <Route path="/app/privacy" element={<PrivacyPage />} />
         <Route
           path="/app/lab"
           element={

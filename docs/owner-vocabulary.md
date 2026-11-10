@@ -19,7 +19,7 @@ grant, the money limits, the pauses and Stop new trading.
 - A goal is a plan under the agent's trading level and signed grant
   (`trading-goals.md`). `GoalCreate` and `GoalControl` have no `autonomous` field and no
   owner limit knobs; a live step outside the grant becomes an approval card under
-  *On its own*; a Shadow step needs no approval.
+  *On its own*. (Shadow trading is removed, Q57.)
 - The readiness review and the confirmation line after signing are keyed on grants
   (`account-authority.md`). The avatar crown is "trades on its own"
   (`trades_on_its_own`), shown while the agent is not paused and holds a grant in
@@ -51,7 +51,7 @@ It is presentation only.
   turns them into one Arabic or English line. A short override table, keyed by
   registry id, names the few tools whose family label would state the wrong action
   (`owner_action_propose` "Preparing a card for you", `wait_for_input` "Waiting for
-  your reply", `market_shadow_execute` "Placing a virtual trade", the skill tools,
+  your reply", the skill tools,
   `market_position_size`, `owner_call_request`); `tests/test_one_vocabulary.py` keeps
   it in sync with the registry. The phase follows the same metadata instead of a
   pattern on tool names. Events from before the metadata read as "Using a tool". The
@@ -95,5 +95,5 @@ goal step whose agent changed level while it was prepared) has shared owner text
 - `tests/check_device_authority.py`: the retired surface, the composer confirmation
   line, the marker, device revocation and the migration round trip.
 - `tests/check_activation_review.py`, `tests/check_goals.py`,
-  `tests/check_shadow_goals.py`, `tests/check_conversational_setup.py` and
+  `tests/check_conversational_setup.py` and
   `tests/check_unified_permissions.py` on fresh databases.

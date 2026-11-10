@@ -32,7 +32,7 @@ MODULES = {
     "opportunity": "intelligence",
     "consult": "intelligence",
     "models": "intelligence",
-    "shadow": "intelligence",
+    "performance": "intelligence",
     "chart": "charts",
     "chart_state": "charts",
     "chart_indicator": "charts",

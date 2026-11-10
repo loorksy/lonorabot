@@ -72,3 +72,12 @@ class ExecutionQuality(Contract):
     drift_tolerance: Decimal | None = None
     quote_observed_at: datetime | None = None
     exposure: ExposureSnapshot
+
+
+class PerformanceRead(Contract):
+    """Live decision/outcome quality over the agent's persisted journal."""
+
+    account_id: str | None = None
+    symbol: str | None = None
+    strategy_version: str | None = None
+    minimum_sample: int = Field(default=20, ge=5, le=1000)

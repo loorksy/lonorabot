@@ -13,6 +13,20 @@ export const PAGES = [
   "new-group",
   "owner",
   "lab",
+  // Phase 5: settings pages (the reference's route names).
+  "accessibility",
+  "notify-settings",
+  "communication",
+  "integrations",
+  "providers",
+  "provider",
+  "mcp",
+  "broker",
+  "broker-account",
+  "usage",
+  "usage-detail",
+  "storage",
+  "privacy",
 ] as const;
 export type Page = (typeof PAGES)[number];
 export type ShellRoute =
@@ -31,10 +45,35 @@ const ALIASES: Readonly<Record<string, string>> = {
   activity: "/app/updates",
   notifications: "/app/updates",
   account: "/app/settings",
-  capabilities: "/app/settings?tab=capabilities",
+  capabilities: "/app/integrations",
   // Search lives in the chats header (phones) and the list pane (desktop).
   search: "/app",
 };
+/** Pages that take one item (`/app/<page>/<id>`). */
+const ITEM_PAGES = new Set<string>([
+  "artifacts",
+  "communication",
+  "broker-account",
+  "usage-detail",
+  "provider",
+]);
+/** The settings pages: the settings tab stays selected under them. */
+const SETTINGS_PAGES = new Set<string>([
+  "owner",
+  "accessibility",
+  "notify-settings",
+  "communication",
+  "integrations",
+  "providers",
+  "provider",
+  "mcp",
+  "broker",
+  "broker-account",
+  "usage",
+  "usage-detail",
+  "storage",
+  "privacy",
+]);
 const rootNames = new Set<string>(ROOTS);
 const pageNames = new Set<string>(PAGES);
 
@@ -50,7 +89,7 @@ export function parseRoute(pathname: string): ShellRoute {
   if (Object.hasOwn(ALIASES, head) && !item) return { kind: "alias", to: ALIASES[head] };
   if (rootNames.has(head) && !item) return { kind: "root", root: head as Root };
   if (pageNames.has(head)) {
-    if (extra || (item && head !== "artifacts")) return { kind: "not-found" };
+    if (extra || (item && !ITEM_PAGES.has(head))) return { kind: "not-found" };
     return item ? { kind: "page", page: head as Page, item } : { kind: "page", page: head as Page };
   }
   if (!item) return { kind: "chat", agentId: head };
@@ -59,7 +98,7 @@ export function parseRoute(pathname: string): ShellRoute {
 
 export function sectionOf(route: ShellRoute): Root {
   if (route.kind === "root") return route.root;
-  if (route.kind === "page" && route.page === "owner") return "settings";
+  if (route.kind === "page" && SETTINGS_PAGES.has(route.page)) return "settings";
   return "chats";
 }
 /** A route the pager can slide between: only the four roots on phones. */

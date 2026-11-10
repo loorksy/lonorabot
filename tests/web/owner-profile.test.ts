@@ -63,6 +63,7 @@ test("undo names what it does and why it may be refused, in both languages", () 
     "invalid_timezone",
     "incoming_call_device_required",
     "incoming_call_quiet_hours_incomplete",
+    "incoming_call_quiet_hours_empty",
     "incoming_call_channel_conflict",
   ]) {
     assert.ok(ownerProfileError(code, "en"), code);

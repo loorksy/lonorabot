@@ -25,7 +25,6 @@ def agent_data(row: AgentRow, *, trades_on_its_own: bool = False) -> dict[str, A
         "trades_on_its_own": trades_on_its_own,
         "role": row.role,
         "template": row.template,
-        "execution_mode": row.execution_mode,
         "scope": scope_data(row),
         "trading_account_id": row.trading_account_id,
         "trading_symbol": row.trading_symbol,
@@ -48,10 +47,8 @@ async def create_agent(
         if request.scope_mode == "flexible"
         else "legacy"
     )
-    execution_mode = "live"
     if parent_id:
         parent = await owned_agent(session, owner_id, parent_id)
-        execution_mode = parent.execution_mode
         if parent.role == "delegated" or not parent.trading_account_id:
             # Owner-wide visibility is not a financial scope a child can inherit.
             # Unbound legacy parents also cannot mint new unrestricted children.
@@ -80,7 +77,6 @@ async def create_agent(
         owner_id=owner_id,
         parent_id=parent_id,
         role=role,
-        execution_mode=execution_mode,
         template=template,
         **request.model_dump(exclude={"template"}),
     )
