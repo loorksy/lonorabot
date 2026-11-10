@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .events import emit
 from .schema import AgentRow, RunRow, TradeApprovalRow
 from .transactions import owned_thread
+from .voice_provenance import carry_voice_handoff
 
 # How long an approval card can be approved (Q32): a lifetime between 30 and 60 minutes.
 # Past it a pending card settles as expired when next read or decided (no scheduler) and
@@ -153,7 +154,7 @@ async def decide(
 def renew_prompt(row: TradeApprovalRow) -> str:
     """Fixed text and the server's own identifier only: nothing a model wrote."""
     return (
-        "The owner tapped «طلب جديد» on your expired approval card (approval_id="
+        "The owner tapped New request on your expired approval card (approval_id="
         f"{row.id}). Nothing was approved or sent. Re-check the market, the account and "
         "your reasons now with fresh data. If the trade still makes sense, request it again "
         "with trade_execute so a new approval card is raised through the normal path; "
@@ -181,7 +182,7 @@ async def renew_approval(session: AsyncSession, owner_id: str, approval_id: str)
     agent = await session.get(AgentRow, row.agent_id)
     if agent is None or agent.owner_id != owner_id or row.thread_id is None:
         raise LonoraError("trade_approval_not_renewable", 409)
-    return await create_run(
+    run = await create_run(
         session,
         owner_id,
         RunRequest(
@@ -193,6 +194,13 @@ async def renew_approval(session: AsyncSession, owner_id: str, approval_id: str)
         ),
         run_id,
     )
+    # A spoken request stays provisional when it is asked again (its own approval card), and
+    # a later spoken correction withdraws the new run's approvals too.
+    source = await session.get(RunRow, row.run_id)
+    if source is not None:
+        await carry_voice_handoff(session, source, run)
+        await session.flush()
+    return run
 
 
 async def require_approved_target_current(

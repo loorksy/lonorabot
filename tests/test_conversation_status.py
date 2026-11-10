@@ -183,6 +183,168 @@ async def test_a_run_that_touched_the_executor_is_never_retried():
 
 
 @pytest.mark.asyncio
+async def test_a_retry_of_a_spoken_request_stays_provisional_and_is_withdrawn_by_corrections():
+    """M2(a): the retry carries the voice provenance, so it cannot spend the standing grant
+    without its own approval card, and the correction path selects it."""
+    database()
+    from check_streaming import Fixture
+    from lonora_db.schema import RunRow
+    from lonora_db.voice_provenance import delegation_runs
+    from lonora_trading.account_authority import provisional_voice
+
+    fixture = await Fixture().open()
+    try:
+        _, run_id = await conversation_run(fixture, "اشترِ الذهب")
+        handoff = {
+            "session_id": "voice-1",
+            "delegation_id": "d-1",
+            "revision": 1,
+            "finalized": False,
+        }
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            run = await session.get(RunRow, run_id)
+            assert run is not None
+            run.model_metadata = {**run.model_metadata, "voice_handoff": handoff}
+        await failed(fixture, run_id, "model_provider_unavailable")
+        response = await post(fixture, f"/runs/{run_id}/retry")
+        assert response.status_code == 202
+        retry_id = response.json()["id"]
+        async with fixture.runtime.db.sessions() as session:
+            retry = await session.get(RunRow, retry_id)
+            assert retry is not None
+            assert retry.model_metadata["voice_handoff"] == handoff
+            assert await provisional_voice(session, retry) is True
+            assert set(await session.scalars(delegation_runs("d-1"))) == {run_id, retry_id}
+    finally:
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_a_reply_that_started_other_work_is_never_retried():
+    """M2(b): a peer, collaboration, subagent or Task started by the failed reply may hold
+    money of its own; the retry is refused whatever that work did."""
+    database()
+    from check_streaming import Fixture
+    from lonora_db.schema import RunRow
+
+    fixture = await Fixture().open()
+    try:
+        for link in ("parent_run_id", "started_by_run_id"):
+            thread, run_id = await conversation_run(fixture)
+            await failed(fixture, run_id, "model_provider_unavailable")
+            async with fixture.runtime.db.sessions() as session, session.begin():
+                parent = await session.get(RunRow, run_id)
+                assert parent is not None
+                child = RunRow(
+                    id=str(uuid4()),
+                    thread_id=thread["id"],
+                    agent_id=parent.agent_id,
+                    trigger="tickets",
+                    prompt="",
+                    input_seq=parent.input_seq,
+                    parent_run_id=run_id if link == "parent_run_id" else None,
+                    model_metadata={"started_by_run_id": run_id}
+                    if link == "started_by_run_id"
+                    else {},
+                )
+                session.add(child)
+                # A grandchild two levels down is found too.
+                session.add(
+                    RunRow(
+                        id=str(uuid4()),
+                        thread_id=thread["id"],
+                        agent_id=parent.agent_id,
+                        trigger="tickets",
+                        prompt="",
+                        input_seq=parent.input_seq,
+                        parent_run_id=child.id,
+                    )
+                )
+            response = await post(fixture, f"/runs/{run_id}/retry")
+            assert response.status_code == 409, link
+            assert response.json()["code"] == "run_not_retryable", link
+    finally:
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_a_reply_to_an_edited_message_is_never_retried():
+    """M2(c): edit-and-resend replaced the owner's message; its old request never runs again."""
+    database()
+    from check_streaming import Fixture
+
+    fixture = await Fixture().open()
+    try:
+        thread, run_id = await conversation_run(fixture, "اشترِ 0.1 ذهب")
+        original = next(
+            row
+            for row in await fixture.request("GET", f"/threads/{thread['id']}/messages")
+            if row["role"] == "user"
+        )
+        await failed(fixture, run_id, "model_provider_unavailable")
+        await fixture.request(
+            "POST",
+            f"/threads/{thread['id']}/messages",
+            {
+                "content": "حلّل الذهب فقط",
+                "client_nonce": "edit-" + uuid4().hex,
+                "edited_from": original["id"],
+            },
+        )
+        response = await post(fixture, f"/runs/{run_id}/retry")
+        assert response.status_code == 409
+        assert response.json()["code"] == "run_not_retryable"
+    finally:
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_a_renewed_approval_keeps_the_spoken_requests_provenance():
+    """M2(a): «طلب جديد» on an expired approval of a spoken request starts a provisional
+    run whose approvals a later correction withdraws."""
+    database()
+    from check_streaming import Fixture
+    from lonora_db.schema import RunRow, TradeApprovalRow
+    from lonora_db.trade_approvals import renew_approval
+    from lonora_trading.account_authority import provisional_voice
+
+    fixture = await Fixture().open()
+    try:
+        thread, run_id = await conversation_run(fixture, "اشترِ الذهب")
+        handoff = {"session_id": "voice-2", "delegation_id": "d-2", "finalized": False}
+        approval_id = str(uuid4())
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            run = await session.get(RunRow, run_id)
+            assert run is not None
+            run.model_metadata = {**run.model_metadata, "voice_handoff": handoff}
+            session.add(
+                TradeApprovalRow(
+                    id=approval_id,
+                    owner_id=fixture.owner,
+                    run_id=run_id,
+                    thread_id=thread["id"],
+                    agent_id=run.agent_id,
+                    call_id="call",
+                    requests=[{"action": "buy", "symbol": "XAUUSD"}],
+                    status="expired",
+                    results=[],
+                )
+            )
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            renewed = await renew_approval(session, fixture.owner, approval_id)
+            renewed_id = renewed.id
+        async with fixture.runtime.db.sessions() as session:
+            row = await session.get(RunRow, renewed_id)
+            assert row is not None
+            assert row.model_metadata["voice_handoff"] == handoff
+            assert await provisional_voice(session, row) is True
+            # The model text of the renewal is English only.
+            assert all(ord(ch) < 0x0600 or ord(ch) > 0x06FF for ch in row.prompt)
+    finally:
+        await fixture.close()
+
+
+@pytest.mark.asyncio
 async def test_journal_operations_carry_their_conversation_anchor():
     database()
     from check_streaming import Fixture
@@ -309,3 +471,30 @@ def test_anchors_are_written_beside_the_reservation_and_read_by_no_execution_pat
             text = path.read_text()
             assert "TradingJournalRow.thread_id" not in text, path
             assert "TradingJournalRow.timeline_seq" not in text, path
+
+
+@pytest.mark.asyncio
+async def test_the_routing_frame_never_carries_the_owners_status_line():
+    """M8: current_work and its card pointer are the owner's (Arabic) status line; model text
+    is English only, so the routing frame leaves them out."""
+    database()
+    from check_streaming import Fixture
+    from lonora_agent.context.team import routing_frame
+    from lonora_db.agent_state import agent_live_state
+    from lonora_db.schema import RunRow
+
+    fixture = await Fixture().open()
+    try:
+        thread, run_id = await conversation_run(fixture, "اشترِ الذهب")
+        # Running: the owner's line then names the message it answers.
+        await fixture.lease({"id": run_id, **await fixture.request("GET", f"/runs/{run_id}")})
+        async with fixture.runtime.db.sessions() as session:
+            run = await session.get(RunRow, run_id)
+            assert run is not None
+            live = await agent_live_state(session, fixture.owner, run.agent_id)
+            frame = await routing_frame(session, fixture.owner, run.agent_id, thread["id"])
+        assert live.current_work is not None  # the owner's line exists ...
+        assert '"current_work"' not in frame and '"pending_card_id"' not in frame  # ... not here
+        assert "اشترِ الذهب" not in frame
+    finally:
+        await fixture.close()

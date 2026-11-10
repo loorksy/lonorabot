@@ -6,6 +6,7 @@ import {
   isWorking,
   type MentionAddress,
   nearConversationBottom,
+  retriedRunIds,
   stopTargets,
   turnActivity,
 } from "@lonora/core";
@@ -582,9 +583,16 @@ export function Conversation({
       window.dispatchEvent(new CustomEvent("lonora:start-call", { detail: { agentId } })),
   };
 
+  // A retried reply's error card settles at once, before the runs list catches up.
+  const [retriedHere, setRetriedHere] = useState<ReadonlySet<string>>(new Set());
+  const retried = useMemo(
+    () => new Set([...retriedRunIds(runs), ...retriedHere]),
+    [runs, retriedHere],
+  );
   const retryRun = useCallback(
     async (run: Run) => {
       await api.post(`/runs/${run.id}/retry`, {});
+      setRetriedHere((old) => new Set(old).add(run.id));
       refresh();
     },
     [refresh],
@@ -922,7 +930,9 @@ export function Conversation({
         }
       />,
     );
-    for (const failure of failures.filter((f) => f.message.id === message.id))
+    for (const failure of failures.filter(
+      (f) => f.message.id === message.id && !retried.has(f.run.id),
+    ))
       body.push(
         <div
           key={`failed:${failure.run.id}`}

@@ -15,8 +15,9 @@ from lonora_db.events import emit
 from lonora_db.messages import send_message
 from lonora_db.schema import MessageRow, RunRow, TradeApprovalRow, VoiceSessionRow
 from lonora_db.trade_approvals import approval_event
+from lonora_db.voice_provenance import delegation_runs
 from lonora_providers.credentials import ProviderCredentials
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from websockets.asyncio.client import ClientConnection
 
 from .handoff import (
@@ -302,7 +303,11 @@ class RealtimeVoiceSession:
                         .where(
                             TradeApprovalRow.owner_id == row.owner_id,
                             TradeApprovalRow.thread_id == row.thread_id,
-                            TradeApprovalRow.run_id.in_(task.get("run_ids", [])),
+                            or_(
+                                TradeApprovalRow.run_id.in_(task.get("run_ids", [])),
+                                # Retries and renewals carry the same provenance.
+                                TradeApprovalRow.run_id.in_(delegation_runs(identity)),
+                            ),
                             TradeApprovalRow.status.in_(["pending", "approved"]),
                         )
                         .with_for_update()

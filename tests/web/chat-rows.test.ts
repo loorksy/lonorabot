@@ -21,7 +21,7 @@ import {
   rowMarkedOnly,
   selectionSummary,
 } from "../../packages/core/src/chat-rows";
-import { stopTargets } from "../../packages/core/src/run-state";
+import { retriedRunIds, stopTargets } from "../../packages/core/src/run-state";
 import { foldSearch, highlightRange } from "../../packages/core/src/search-fold";
 
 const at = (hour: number) => `2026-11-09T${String(hour).padStart(2, "0")}:00:00Z`;
@@ -232,4 +232,13 @@ test("quiet hours to the minute (Q47): 22:30-07:15 wins over the whole hours", (
   assert.equal(inQuietHours(policy, new Date("2026-11-09T22:30:00Z")), true);
   assert.equal(inQuietHours(policy, new Date("2026-11-10T07:14:00Z")), true);
   assert.equal(inQuietHours(policy, new Date("2026-11-10T07:15:00Z")), false);
+});
+
+test("M2(d): a retried reply's error card settles; it never offers a second Retry", () => {
+  const ids = retriedRunIds([
+    { model_metadata: { retry_of: "failed-1" } },
+    { model_metadata: {} },
+    { model_metadata: null },
+  ]);
+  assert.deepEqual([...ids], ["failed-1"]);
 });

@@ -162,7 +162,14 @@ export {
   streamForRun,
   streamText,
 } from "./reply-stream";
-export { activeStatuses, canCancel, canResume, isWorking, stopTargets } from "./run-state";
+export {
+  activeStatuses,
+  canCancel,
+  canResume,
+  isWorking,
+  retriedRunIds,
+  stopTargets,
+} from "./run-state";
 export {
   firstSearchPage,
   moreSearchItems,
