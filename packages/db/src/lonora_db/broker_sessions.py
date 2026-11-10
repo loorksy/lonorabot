@@ -1,6 +1,6 @@
 from typing import Any, cast
 
-from lonora_contracts.broker import BrokerConnection
+from lonora_contracts.broker import VERIFIED_PROVIDERS, BrokerConnection
 from lonora_core.user_error import LonoraError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -94,7 +94,10 @@ class BrokerSessionRepository(ResourceRepository):
         await self.lock_owner(session, owner_id)
         config = BrokerConnection.model_validate(payload)
         await self.assert_unique(session, owner_id, payload, identity=broker_identity)
-        if config.provider == "metaapi" and broker_identity_key(broker_identity or {}) is None:
+        if (
+            config.provider in VERIFIED_PROVIDERS
+            and broker_identity_key(broker_identity or {}) is None
+        ):
             raise LonoraError("broker_identity_unavailable", 503)
         row = await super().create(
             session,
@@ -131,7 +134,7 @@ class BrokerSessionRepository(ResourceRepository):
             getattr(config, key) == getattr(previous, key)
             for key in ("provider", "account_id", "region", "secret_id")
         )
-        if config.provider == "metaapi" and not (verified and same_credentials):
+        if config.provider in VERIFIED_PROVIDERS and not (verified and same_credentials):
             raise LonoraError("broker_identity_unavailable", 503)
         await self.assert_unique(
             session,

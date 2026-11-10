@@ -1,6 +1,7 @@
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, Request
+from lonora_adapters.brokers.alpaca import credentials_secret
 from lonora_adapters.storage.secret_store import EncryptedSecretStore
 from lonora_auth.identity import OwnerIdentity
 from lonora_contracts.broker import BrokerConnection
@@ -21,13 +22,37 @@ from lonora_trading.connections import connect_account
 from lonora_trading.controls import read_controls, save_controls
 from lonora_trading.journal import journal_data
 from lonora_trading.owner_controls import attest_operation
+from lonora_trading.providers import provider_catalog
 from lonora_trading.simulation import import_simulation
+from pydantic import Field, model_validator
 
 from ..middleware.auth import require_owner, runtime
 
 
 class ConnectionCreate(BrokerConnection):
+    # Alpaca's account id is the paper host's account number, read at connect time.
+    account_id: str = Field(default="", max_length=120)
     api_key: str | None = None
+    key_id: str | None = Field(default=None, max_length=200)
+    secret_key: str | None = Field(default=None, max_length=200)
+
+    @model_validator(mode="after")
+    def provider_fields(self) -> "ConnectionCreate":
+        if self.provider == "alpaca":
+            if self.api_key is not None or self.region is not None:
+                raise ValueError("alpaca_fields_invalid")
+        elif self.key_id is not None or self.secret_key is not None:
+            raise ValueError("alpaca_fields_invalid")
+        elif not self.account_id.strip():
+            raise ValueError("account_id_required")
+        return self
+
+    def credential(self) -> str | None:
+        if self.provider != "alpaca":
+            return self.api_key
+        if self.key_id is None and self.secret_key is None:
+            return None  # an existing stored secret_id
+        return credentials_secret(self.key_id or "", self.secret_key or "")
 
 
 class SimulationInput(Contract):
@@ -66,14 +91,23 @@ async def connect(
     request: Request, body: ConnectionCreate, owner: OwnerIdentity = Depends(require_owner)
 ) -> dict[str, Any]:
     rt = runtime(request)
-    config = BrokerConnection.model_validate(body.model_dump(exclude={"api_key"}))
+    payload = body.model_dump(exclude={"api_key", "key_id", "secret_key"})
+    if body.provider == "alpaca":
+        payload["account_id"] = "unverified"  # replaced by the broker-observed account number
+    config = BrokerConnection.model_validate(payload)
     return await connect_account(
         rt.db,
         EncryptedSecretStore(rt.db, rt.settings.encryption_key.get_secret_value(), owner.id),
         owner.id,
         config,
-        body.api_key,
+        body.credential(),
     )
+
+
+@router.get("/providers")
+async def providers(owner: OwnerIdentity = Depends(require_owner)) -> list[dict[str, Any]]:
+    """The connection form for each broker provider; language-free, the web labels it."""
+    return provider_catalog()
 
 
 @router.delete("/connections/{connection_id}")

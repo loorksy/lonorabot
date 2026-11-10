@@ -2,6 +2,7 @@
 
 from typing import Any
 
+from lonora_adapters.brokers.alpaca import AlpacaBroker, credentials_from_secret
 from lonora_adapters.brokers.metaapi import MetaApiBroker
 from lonora_adapters.storage.secret_store import EncryptedSecretStore
 from lonora_contracts.broker import BrokerConnection
@@ -19,7 +20,11 @@ from sqlalchemy import select
 
 
 async def verified_identity(config: BrokerConnection, token: str) -> dict[str, Any]:
-    broker = MetaApiBroker(config.account_id, config.region, token)
+    broker: AlpacaBroker | MetaApiBroker = (
+        AlpacaBroker(*credentials_from_secret(token))
+        if config.provider == "alpaca"
+        else MetaApiBroker(config.account_id, config.region, token)
+    )
     try:
         identity = await broker.metadata_identity()
         if broker_identity_key(identity) is None:
@@ -37,11 +42,19 @@ async def connect_account(
     api_key: str | None,
 ) -> dict[str, Any]:
     repository = BrokerSessionRepository()
+    identity: dict[str, Any] | None = None
+    if config.provider == "alpaca":
+        # Alpaca keys name no account: the paper host's own account number does. Read it
+        # (read-only) before the duplicate check; live keys are refused by the paper host.
+        token = api_key or (await secrets.read(config.secret_id) if config.secret_id else None)
+        if not token:
+            raise LonoraError("broker_secret_required", 409)
+        identity = await verified_identity(config, token)
+        config.account_id = str(identity["login"])
     # A repeated click on an existing provider ID should not contact the provider
     # or replace the working credential with the newly submitted value.
     async with db.sessions() as session:
         await repository.assert_unique(session, owner_id, config.model_dump(mode="json"))
-    identity: dict[str, Any] | None = None
     if config.provider == "metaapi":
         token = api_key or (await secrets.read(config.secret_id) if config.secret_id else None)
         if not token:

@@ -44,6 +44,15 @@ class BrokerManager:
             from .simulation import SimulationBroker
 
             broker: BrokerAdapter = SimulationBroker(self.db, owner_id, connection_id)
+        elif config.provider == "alpaca":
+            from .alpaca import AlpacaBroker, credentials_from_secret
+
+            if not config.secret_id:
+                raise LonoraError("broker_secret_required", 409)
+            broker = AlpacaBroker(
+                *credentials_from_secret(await self.secrets.read(config.secret_id)),
+                connection_id,
+            )
         else:
             from .metaapi import MetaApiBroker
 
