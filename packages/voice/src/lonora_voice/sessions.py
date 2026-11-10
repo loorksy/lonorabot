@@ -1,6 +1,7 @@
 import asyncio
 import hashlib
 import time
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from lonora_adapters.voice.realtime import OpenAILiveAdapter
@@ -16,6 +17,7 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .context import voice_context
+from .incoming import MODE as INCOMING_MODE
 from .incoming import owner_lock
 from .routing import live_model
 
@@ -218,12 +220,31 @@ async def log_voice_call(session: AsyncSession, row: ResourceRow) -> None:
     connected_at = row.state.get("connected_at")
     if row.payload.get("mode") != "gpt_live" or not row.agent_id or connected_at is None:
         return
+    # An agent's call the owner answered: its accepted request for this agent, just before
+    # this call connected, makes it incoming (each request answers one call).
+    answered = await session.scalar(
+        select(VoiceSessionRow)
+        .where(
+            VoiceSessionRow.owner_id == row.owner_id,
+            VoiceSessionRow.agent_id == row.agent_id,
+            VoiceSessionRow.payload["mode"].as_string() == INCOMING_MODE,
+            VoiceSessionRow.payload["status"].as_string() == "accepted",
+            VoiceSessionRow.payload["answered_session_id"].as_string().is_(None),
+            VoiceSessionRow.updated_at
+            >= datetime.fromtimestamp(float(connected_at), UTC) - timedelta(minutes=5),
+        )
+        .order_by(VoiceSessionRow.updated_at.desc())
+        .limit(1)
+        .with_for_update()
+    )
+    if answered is not None:
+        answered.payload = {**answered.payload, "answered_session_id": row.id}
     await log_call(
         session,
         row.owner_id,
         row.agent_id,
         row.id,
-        direction="outgoing",
+        direction="incoming" if answered is not None else "outgoing",
         duration_seconds=round(time.time() - float(connected_at)),
         missed=False,
     )

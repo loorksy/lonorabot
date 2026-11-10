@@ -141,13 +141,16 @@ async def newest_pending_card(
             TradeApprovalRow.owner_id == owner_id,
             TradeApprovalRow.agent_id == agent_id,
             TradeApprovalRow.status == "pending",
+            # Past its lifetime it is expired, even before it is settled as such (Q32).
+            or_(TradeApprovalRow.expires_at.is_(None), TradeApprovalRow.expires_at > utcnow()),
         )
         .order_by(TradeApprovalRow.created_at.desc(), TradeApprovalRow.id)
         .limit(1)
     )
     if approval is not None and (card is None or approval.created_at >= card.created_at):
         first = approval.requests[0] if approval.requests else {}
-        return approval.id, clip("طلب موافقة · " + operation_title(first)), None, approval.run_id
+        expiry = approval.expires_at.isoformat() if approval.expires_at else None
+        return approval.id, clip("طلب موافقة · " + operation_title(first)), expiry, approval.run_id
     if card is not None:
         return card.id, "قرار مطلوب", card.expires_at.isoformat(), card.run_id
     return None

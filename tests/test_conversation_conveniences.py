@@ -607,3 +607,27 @@ async def test_a_mention_in_a_direct_chat_invites_guests_into_one_session():
         assert len(answer) == 1 and "رأيي: الذهب صاعد" in answer[0]["content"]
     finally:
         await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_message_react_defaults_to_the_owner_message_being_answered():
+    """The model never sees message ids: without one, the reaction lands on the owner's
+    message this turn answers."""
+    database()
+    from check_streaming import Fixture
+    from lonora_tools.message import react
+
+    fixture = await Fixture().open()
+    try:
+        agent = await fixture.agent("Reactor")
+        thread = await fixture.conversation(agent)
+        sent = (await send(fixture, thread["id"], {"content": "شكرًا"})).json()
+        context = await fixture.lease({**sent["runs"][0], "thread_id": thread["id"]})
+        await react(context, {"emoji": "👍"})
+        items = await page(fixture, thread["id"])
+        owner = next(item for item in items if item["id"] == sent["message"]["id"])
+        assert [(row["emoji"], row["reactor"]) for row in owner["reactions"]] == [
+            ("👍", agent["id"])
+        ]
+    finally:
+        await fixture.close()

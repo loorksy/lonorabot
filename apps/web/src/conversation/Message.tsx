@@ -226,7 +226,12 @@ function CallBubble({ message }: { message: ConversationMessage }) {
   const minutes = Math.floor(call.duration_seconds / 60);
   const seconds = String(call.duration_seconds % 60).padStart(2, "0");
   return (
-    <div className="msg theirs first k-call" data-message-id={message.id}>
+    // The owner's own call sits on the owner's side; the agent's call on the agent's.
+    <div
+      className={`msg ${call.direction === "outgoing" ? "mine" : "theirs"} first k-call`}
+      data-message-id={message.id}
+      data-call-direction={call.direction}
+    >
       <div className="msg-line">
         <button
           type="button"

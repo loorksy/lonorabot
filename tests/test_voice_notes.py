@@ -251,13 +251,25 @@ async def test_a_voice_note_is_transcribed_before_the_agent_answers():
         entry = next(item for item in inbox if item["thread_id"] == thread["id"])
         assert entry["last_message"]["kind"] == "voice"
 
+        # The owner's chosen reply language is the transcription hint (none: detected).
+        from lonora_db.schema import OwnerProfileRow
+        from sqlalchemy import select
+
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            profile = await session.scalar(
+                select(OwnerProfileRow).where(OwnerProfileRow.owner_id == fixture.owner)
+            )
+            if profile is None:
+                profile = OwnerProfileRow(owner_id=fixture.owner)
+                session.add(profile)
+            profile.reply_language = "en"
         assert await settle(fixture, Credentials()) >= 1
-        # The configured fallback, the Arabic hint and the recorder's container.
+        # The configured fallback, the owner's language and the recorder's container.
         assert [call["model"] for call in FakeSpeech.calls][:2] == [
             "gpt-4o-mini-transcribe",
             "whisper-1",
         ]
-        assert FakeSpeech.calls[1]["language"] == "ar"
+        assert FakeSpeech.calls[1]["language"] == "en"
         assert FakeSpeech.calls[1]["media_type"] == "audio/webm"
         assert FakeSpeech.calls[1]["audio"] == b"OggS-fixture-audio"
         updated = await events_of(fixture, "message.updated", thread["id"])
@@ -399,6 +411,53 @@ async def test_an_ended_call_is_logged_once_and_starts_no_run():
         created = await events_of(fixture, "message.created", thread["id"])
         assert [event.payload["id"] for event in created] == [logged[0].id]
         assert await runs_of(fixture, thread["id"]) == []
+    finally:
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_an_answered_agent_call_is_logged_incoming_once():
+    """An agent's call the owner accepted is the agent's call (the agent's side); the next
+    call the owner places is outgoing again."""
+    database()
+    from check_streaming import Fixture
+    from lonora_db.schema import VoiceSessionRow
+    from lonora_voice.incoming import MODE
+
+    fixture = await Fixture().open()
+    try:
+        agent = await fixture.agent("Caller back")
+        thread = await fixture.conversation(agent)
+        request, answered, later = new_id(), new_id(), new_id()
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            session.add(
+                VoiceSessionRow(
+                    id=request,
+                    owner_id=fixture.owner,
+                    agent_id=agent["id"],
+                    thread_id=thread["id"],
+                    payload={"mode": MODE, "status": "accepted", "device_id": new_id()},
+                    state={},
+                    version=1,
+                )
+            )
+            for identifier in (answered, later):
+                session.add(
+                    VoiceSessionRow(
+                        id=identifier,
+                        owner_id=fixture.owner,
+                        agent_id=agent["id"],
+                        thread_id=thread["id"],
+                        payload={"mode": "gpt_live", "status": "connected", "model": "m"},
+                        state={"connected_at": time.time() - 30},
+                        version=1,
+                    )
+                )
+        await fixture.request("DELETE", f"/voice/sessions/{answered}")
+        await fixture.request("DELETE", f"/voice/sessions/{later}")
+        logged = await call_messages(fixture, thread["id"])
+        directions = [message.rich_content["parts"][0]["direction"] for message in logged]
+        assert directions == ["incoming", "outgoing"]
     finally:
         await fixture.close()
 

@@ -19,16 +19,16 @@ from lonora_core.message_preview import voice_part
 from lonora_core.user_error import LonoraError
 from lonora_db.client import Database
 from lonora_db.messages import VOICE_MEDIA_TYPES
-from lonora_db.schema import ArtifactRow, MessageRow
+from lonora_db.schema import ArtifactRow, MessageRow, OwnerProfileRow
 from lonora_db.voice_notes import pending_voice_notes, settle_voice_note
 from lonora_providers.credentials import ProviderCredentials
 from lonora_providers.routing_policy import read_policy
 from lonora_security.runtime_storage import confined_path
+from sqlalchemy import select
 
 log = logging.getLogger("lonora.voice_notes")
 
 MODELS = ("gpt-4o-mini-transcribe", "whisper-1")
-LANGUAGE = "ar"
 
 
 async def transcription_models(db: Database) -> list[str]:
@@ -52,6 +52,10 @@ async def transcribe_note(
         message = await session.get(MessageRow, message_id)
         voice = voice_part(message.rich_content) if message else None
         artifact = await session.get(ArtifactRow, str(voice["artifact_id"])) if voice else None
+        # The owner's chosen language is the hint; without one the provider detects it.
+        language = await session.scalar(
+            select(OwnerProfileRow.reply_language).where(OwnerProfileRow.owner_id == owner_id)
+        )
     if artifact is None or artifact.owner_id != owner_id:
         return None
     media_type = str(artifact.payload.get("media_type", "")).split(";")[0].strip().lower()
@@ -65,7 +69,7 @@ async def transcribe_note(
     audio = path.read_bytes()
     for model in await transcription_models(db):
         try:
-            return await adapter.transcribe(audio, model, media_type=media_type, language=LANGUAGE)
+            return await adapter.transcribe(audio, model, media_type=media_type, language=language)
         except LonoraError:
             log.warning("voice_note_transcription_failed model=%s", model)
     return None
