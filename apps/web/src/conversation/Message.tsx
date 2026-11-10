@@ -74,12 +74,12 @@ export function Ticks({ message }: { message: ConversationMessage }) {
   return message.consumed ? (
     <span className="ticks read">
       <Icon name="checks" />
-      <span className="sr-only">{t`Read`}</span>
+      <span className="sr-only">{t({ message: "Read", context: "message receipt" })}</span>
     </span>
   ) : (
     <span className="ticks">
       <Icon name="check" />
-      <span className="sr-only">{t`Sent`}</span>
+      <span className="sr-only">{t({ message: "Sent", context: "message receipt" })}</span>
     </span>
   );
 }

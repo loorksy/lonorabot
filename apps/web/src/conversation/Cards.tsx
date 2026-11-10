@@ -222,14 +222,14 @@ const ORDER_TONE: Record<OrderState, string> = {
 };
 export function orderLabel(state: OrderState) {
   return {
-    requested: t`Requested`,
-    sent: t`Sent`,
-    accepted: t`Accepted by the broker`,
-    partial: t`Partially filled`,
-    filled: t`Filled`,
-    rejected: t`Rejected`,
-    cancelled: t`Cancelled`,
-    uncertain: t`Unconfirmed`,
+    requested: t({ message: "Requested", context: "order state" }),
+    sent: t({ message: "Sent", context: "order state" }),
+    accepted: t({ message: "Accepted by the broker", context: "order state" }),
+    partial: t({ message: "Partially filled", context: "order state" }),
+    filled: t({ message: "Filled", context: "order state" }),
+    rejected: t({ message: "Rejected", context: "order state" }),
+    cancelled: t({ message: "Cancelled", context: "order state" }),
+    uncertain: t({ message: "Unconfirmed", context: "order state" }),
   }[state];
 }
 export function OrderBadge({ state }: { state: OrderState }) {
@@ -589,16 +589,16 @@ export function PeerCard({ message, peer, run }: { message: Message; peer: Resou
   };
   const label =
     status === "cancelled"
-      ? t`Cancelled`
+      ? t({ message: "Cancelled", context: "task state" })
       : status === "failed"
-        ? t`Failed`
+        ? t({ message: "Failed", context: "task state" })
         : status === "completed"
-          ? t`Completed`
+          ? t({ message: "Completed", context: "task state" })
           : status === "limited"
             ? t`Stopped at its work limit`
             : ["running", "leased"].includes(status)
               ? t`Working…`
-              : t`Queued`;
+              : t({ message: "Queued", context: "task state" });
   return (
     <div
       className="mcard peer-card"
