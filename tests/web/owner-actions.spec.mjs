@@ -270,7 +270,7 @@ for (const locale of ["en", "ar"])
       await card.getByRole("button", { name: text.register, exact: true }).click();
       await expect(card).toHaveAttribute("data-owner-action-status", "confirmed");
       await expect(card.getByRole("status")).toHaveText(text.signed);
-      await expect(card.getByRole("button")).toHaveCount(0);
+      await expect(card.locator("[data-owner-action-button]")).toHaveCount(0);
       const challenges = bodies.filter(([kind]) => kind === "challenge").map(([, body]) => body);
       // The challenge names the choice the card showed: Custom, with its own switch.
       expect(challenges.at(-1)).toEqual({ delegation: "custom", allow_manual_positions: false });
@@ -610,7 +610,7 @@ for (const locale of ["en", "ar"])
       await card.getByRole("button", { name: text.resumeButton, exact: true }).click();
       await expect(card).toHaveAttribute("data-owner-action-status", "confirmed");
       await expect(card.getByRole("status")).toHaveText(text.resumed);
-      await expect(card.getByRole("button")).toHaveCount(0);
+      await expect(card.locator("[data-owner-action-button]")).toHaveCount(0);
       expect(decisions).toEqual([{ decision: "confirm" }]);
       expect(await state.read()).toEqual({ enabled: true, emergency_stop: false });
       // The conversation confirms the change in one server-written line.

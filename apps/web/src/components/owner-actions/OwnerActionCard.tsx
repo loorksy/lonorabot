@@ -234,6 +234,7 @@ export function OwnerActionCard({
       <DecisionLine
         row={row}
         kind={kind}
+        choice={spec.options.find((option) => option.choice && option.initial)?.label}
         text={spec.outcome ?? spec.title}
         onRenew={onRenew}
         onLatest={onLatest}
@@ -537,12 +538,15 @@ function Countdown({ until }: { until: string }) {
 function DecisionLine({
   row,
   kind,
+  choice,
   text,
   onRenew,
   onLatest,
 }: {
   row: OwnerAction;
   kind: string;
+  /** The choice the owner decided with (e.g. Custom or Full delegation). */
+  choice?: string;
   text: string;
   onRenew?: (row: OwnerAction) => void;
   onLatest?: (id: string) => void;
@@ -568,6 +572,12 @@ function DecisionLine({
       >
         <span className="oa-line-kind">
           {kind} · {statusLabel(labels, row.status)}
+          {choice && (
+            <>
+              {" · "}
+              <span dir="auto">{choice}</span>
+            </>
+          )}
         </span>
         <span
           className="oa-line-text"

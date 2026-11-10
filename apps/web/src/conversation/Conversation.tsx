@@ -614,6 +614,9 @@ export function Conversation({
     else if (answers > old.count && old.count) setFresh((n) => n + (answers - old.count));
     previous.current = { first, last, height: el.scrollHeight, count: answers };
   }, [rows, answers]);
+  // The message column mounts once the first page arrives (before that the empty state).
+  const hasContent = rows.length > 0;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: re-attach when the column mounts.
   useEffect(() => {
     const target = content.current;
     if (!target) return;
@@ -626,7 +629,7 @@ export function Conversation({
     observer.observe(target);
     if (scroll.current) observer.observe(scroll.current);
     return () => observer.disconnect();
-  }, []);
+  }, [hasContent]);
   // A jump (quote, search hit, «عرض الطلب»): ~29% from the top, then the flash.
   useLayoutEffect(() => {
     void rows;
