@@ -10,7 +10,6 @@ import { SupervisionSettings } from "../../components/ai/SupervisionSettings";
 import { AgentModelCard } from "../../components/models/AgentModelCard";
 import { AccountAuthoritySettings } from "../../components/trading/AccountAuthoritySettings";
 import { AgentMarketPicker } from "../../components/trading/AgentMarketPicker";
-import { ExecutionModeSettings } from "../../components/trading/ExecutionModeSettings";
 import { type Agent, api } from "../../lib/api";
 import { userError } from "../../lib/user_error";
 import { useClient } from "../../providers/ClientProvider";
@@ -93,7 +92,6 @@ export function AgentSettings({ agent, onClose }: { agent: Agent; onClose: () =>
           allowFixed={agentMarketMode(agent) === "fixed"}
         />
       )}
-      <ExecutionModeSettings agent={agent} />
       <AccountAuthoritySettings key={agent.id} agent={agent} />
       <AgentModelCard key={`model-${agent.id}`} agent={agent} />
       <SupervisionSettings key={`supervision-${agent.id}`} agent={agent} />

@@ -829,7 +829,6 @@ async def main() -> None:
                     request_hash="fixture",
                     request=ambiguous_request.model_dump(mode="json"),
                     status="ambiguous",
-                    execution_mode="live",
                     result={
                         "operation_id": unresolved,
                         "status": "ambiguous",

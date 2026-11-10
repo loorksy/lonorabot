@@ -176,12 +176,9 @@ async def candidate(
         elif event.kind == "trading.operation_updated":
             resource = await session.get(TradingJournalRow, identifier)
             if resource and resource.owner_id == event.owner_id:
-                # An older transition never withdraws or repeats a newer one, and a
-                # virtual (shadow) operation never reaches a broker to be uncertain about.
+                # An older transition never withdraws or repeats a newer one.
                 if resource.status != event.payload.get("status"):
                     raise LonoraError("attention_superseded_state", 409)
-                if resource.execution_mode != "live":
-                    raise LonoraError("attention_source_unavailable", 404)
                 agent = await session.get(AgentRow, event.agent_id) if event.agent_id else None
                 if agent is None or agent.owner_id != event.owner_id:
                     # The owner's own order, or its agent is gone: Lonora's conversation.

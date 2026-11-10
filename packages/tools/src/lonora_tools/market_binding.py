@@ -105,22 +105,11 @@ async def guard_market_tool(
         return args
     async with context.db.sessions() as session:
         agent = await agent_binding(session, context.owner_id, context.agent_id)
-        if (
-            name.startswith("trade_")
-            and name not in NONFINANCIAL_TRADE_TOOLS
-            and agent.execution_mode != "shadow"
-        ) or (
+        if (name.startswith("trade_") and name not in NONFINANCIAL_TRADE_TOOLS) or (
             name.startswith("goal_") and name not in {"goal_read", "goal_list", "goal_decisions"}
         ):
-            run = await require_lease(session, context.lease)
-            mode = (
-                "shadow"
-                if name.startswith("goal_") and run.model_metadata.get("execution_mode") == "shadow"
-                else "live"
-            )
-            await require_financial_agent(
-                session, context.owner_id, context.agent_id, execution_mode=mode
-            )
+            await require_lease(session, context.lease)
+            await require_financial_agent(session, context.owner_id, context.agent_id)
         if not fixed_market(agent):
             return args
         aligned = align_payload(agent, args)

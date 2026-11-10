@@ -1352,7 +1352,6 @@ function PermissionControl({
                           !proposal ||
                           conflict ||
                           !state ||
-                          agent.execution_mode === "shadow" ||
                           agent.paused,
                       )
                     : reviewIsActive

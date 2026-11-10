@@ -28,7 +28,6 @@ def test_personal_agent_guidance_does_not_contradict_signed_management():
         id="personal",
         owner_id="owner",
         role="personal",
-        execution_mode="live",
     )
     guidance = binding_context(agent)
 

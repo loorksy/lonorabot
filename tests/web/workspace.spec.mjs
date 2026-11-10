@@ -122,41 +122,6 @@ test("refresh waits for the real session without flashing sign-in or workspace s
   }
 });
 
-test("owner shadow mode persists through reload without enabling live trading", async ({
-  page,
-  context,
-  workspace,
-}) => {
-  const { agent } = workspace;
-  await page.goto(`/app/${agent.id}`);
-  await page.getByRole("button", { name: "Agent info", exact: true }).click();
-  let control = page.getByRole("switch", {
-    name: "Shadow trading — virtual orders only",
-    exact: true,
-  });
-  await expect(control).not.toBeChecked();
-  // The controlled checkbox reflects the server response, not an optimistic
-  // checked state before the owner mode is actually persisted.
-  await control.click();
-  await expect(control).toBeChecked();
-  await expect
-    .poll(async () => {
-      const agents = await (await context.request.get("/api/agents")).json();
-      return agents.find((row) => row.id === agent.id).execution_mode;
-    })
-    .toBe("shadow");
-  await expect(page.getByText("Shadow observations", { exact: false })).toBeVisible();
-  await page.reload();
-  await page.getByRole("button", { name: "Agent info", exact: true }).click();
-  control = page.getByRole("switch", {
-    name: "Shadow trading — virtual orders only",
-    exact: true,
-  });
-  await expect(control).toBeChecked();
-  const controls = await (await context.request.get("/api/trading/controls")).json();
-  expect(controls.enabled).toBe(false);
-});
-
 test("recoverable task failure shows authoritative review and resumes the same Run", async ({
   page,
   context,

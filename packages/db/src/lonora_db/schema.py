@@ -162,10 +162,8 @@ class AgentRow(Base):
         String(16), default="fixed_market", server_default="fixed_market"
     )
     scope_revision: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
-    execution_mode: Mapped[str] = mapped_column(String(12), default="live", server_default="live")
     __tablename__ = "ln_agents"
     __table_args__ = (
-        CheckConstraint("execution_mode IN ('live','shadow')", name="ln_agents_execution_mode"),
         CheckConstraint(
             "role IN ('personal','general','specialist','delegated','legacy')", name="ln_agent_role"
         ),
@@ -643,16 +641,8 @@ class ResourceRow(Base):
 
 
 class TradingJournalRow(Base):
-    execution_mode: Mapped[str] = mapped_column(
-        String(12), default="live", server_default="live", index=True
-    )
     __tablename__ = "ln_trading_journal"
-    __table_args__ = (
-        Index("ln_journal_reconcile_due", "status", "submitted_at"),
-        CheckConstraint(
-            "execution_mode IN ('live','shadow')", name="ln_trading_journal_execution_mode"
-        ),
-    )
+    __table_args__ = (Index("ln_journal_reconcile_due", "status", "submitted_at"),)
     operation_id: Mapped[str] = mapped_column(String(80), primary_key=True)
     owner_id: Mapped[str] = mapped_column(ForeignKey("ln_owners.id", ondelete="CASCADE"))
     account_id: Mapped[str] = mapped_column(String(120), index=True)
@@ -852,15 +842,6 @@ class TradingOpportunityRow(ResourceRow):
     status: Mapped[str] = mapped_column(String(24), default="forming", index=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
     last_validated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-
-
-class ShadowTradeRow(ResourceRow):
-    __tablename__ = "ln_shadow_trades"
-    account_id: Mapped[str] = mapped_column(String(120), index=True)
-    symbol: Mapped[str] = mapped_column(String(80), index=True)
-    status: Mapped[str] = mapped_column(String(16), index=True)
-    decision_id: Mapped[str | None] = mapped_column(String(36))
-    thesis_id: Mapped[str | None] = mapped_column(String(36))
 
 
 class TradingRestrictionRow(Base):

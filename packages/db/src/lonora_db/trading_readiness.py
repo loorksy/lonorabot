@@ -173,7 +173,6 @@ async def trading_readiness(
     if accounts:
         scope = [
             TradingJournalRow.owner_id == owner_id,
-            TradingJournalRow.execution_mode == "live",
             TradingJournalRow.account_id.in_(accounts),
             TradingJournalRow.status.in_(sorted(UNRESOLVED_STATUSES)),
         ]

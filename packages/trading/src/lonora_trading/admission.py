@@ -176,7 +176,6 @@ async def unresolved_in_scope(
     query = select(TradingJournalRow.operation_id).where(
         TradingJournalRow.owner_id == owner_id,
         TradingJournalRow.account_id == account_id,
-        TradingJournalRow.execution_mode == "live",
         TradingJournalRow.status.in_(sorted(statuses)),
         or_(*scope),
     )
