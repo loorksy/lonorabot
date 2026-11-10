@@ -177,14 +177,19 @@ export function TradeApprovalCard({
           >
             <Icon name={result.status === "confirmed" ? "check" : "alert"} />
             <span>
-              {operationStatusLabel(result.status, result.details)}
+              <span>{operationStatusLabel(result.status, result.details)}</span>
               {result.broker_id && (
                 <>
                   {" · "}
                   {brokerTicketLabel(i18n.locale)} <b className="ltr">{result.broker_id}</b>
                 </>
               )}
-              {resultReason(result) && ` · ${resultReason(result)}`}
+              {resultReason(result) && (
+                <>
+                  {" · "}
+                  <span>{resultReason(result)}</span>
+                </>
+              )}
             </span>
           </div>
         ))}
