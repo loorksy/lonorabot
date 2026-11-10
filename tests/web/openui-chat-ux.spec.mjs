@@ -625,3 +625,112 @@ test("paging: a failing older read is not retried in a loop while the sentinel s
   });
   await expect.poll(() => reads).toBeGreaterThan(before);
 });
+
+test("M2(d): a retried reply's error card settles at once and stays settled", async ({
+  page,
+  conversation,
+}) => {
+  await page.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
+  const { thread, agent } = conversation;
+  const run = (id, status, metadata = {}) => ({
+    id,
+    thread_id: thread.id,
+    agent_id: agent.id,
+    parent_run_id: null,
+    status,
+    trigger: "user",
+    input_seq: 1,
+    error_code: status === "failed" ? "model_provider_unavailable" : null,
+    failure:
+      status === "failed"
+        ? { code: "model_provider_unavailable", family: "model", retry_after_seconds: null }
+        : null,
+    result: null,
+    model_metadata: metadata,
+    created_at: "2026-10-25T10:00:01Z",
+    updated_at: "2026-10-25T10:00:02Z",
+  });
+  let runs = [run("run-failed", "failed")];
+  await page.route(`**/api/threads/${thread.id}/messages*`, (route) =>
+    route.request().method() === "GET"
+      ? route.fulfill({ json: [message(conversation, 1, "user", "Analyse gold")] })
+      : route.continue(),
+  );
+  await page.route(`**/api/runs?thread_id=${thread.id}*`, (route) => route.fulfill({ json: runs }));
+  await page.route("**/api/runs/run-failed/retry", (route) => {
+    const retry = run("run-retry", "queued", { retry_of: "run-failed" });
+    runs = [...runs, retry];
+    return route.fulfill({ status: 202, json: retry });
+  });
+  await page.goto(`/app/${agent.id}`);
+  const card = page.locator("[data-failed-run-id='run-failed']");
+  await expect(card).toBeVisible();
+  await card.getByRole("button", { name: "Retry", exact: true }).click();
+  await expect(card).toHaveCount(0);
+  // After a reload the runs list itself (the retry's retry_of) keeps it settled.
+  await page.reload();
+  await expect(page.getByText("Analyse gold")).toBeVisible();
+  await expect(card).toHaveCount(0);
+});
+
+test("M4: the safety sheet shows the money limits of every account, each as set", async ({
+  page,
+  context,
+  conversation,
+}) => {
+  void conversation;
+  await page.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
+  const lonora = (await (await context.request.get("/api/agents")).json()).find(
+    (row) => row.role === "personal",
+  );
+  const accounts = [
+    {
+      account_id: "acct-one",
+      configured: true,
+      currency: "USD",
+      limits: { max_daily_loss: "250", max_open_risk: "400" },
+      not_configured: [],
+    },
+    {
+      account_id: "acct-two",
+      configured: true,
+      currency: "EUR",
+      limits: { max_daily_loss: "90" },
+      not_configured: [],
+    },
+    {
+      account_id: "acct-three",
+      configured: false,
+      currency: null,
+      limits: {},
+      not_configured: ["max_daily_loss"],
+    },
+  ];
+  await page.route(`**/api/agents/${lonora.id}/state`, async (route) => {
+    const live = await (await route.fetch()).json();
+    await route.fulfill({
+      json: {
+        ...live,
+        trading_readiness: { ...(live.trading_readiness ?? {}), money_limits: accounts },
+      },
+    });
+  });
+  await page.goto(`/app/${lonora.id}`);
+  await expect(page.getByTestId("permission-chip")).toBeVisible();
+  await page.getByRole("button", { name: "Chat menu", exact: true }).click();
+  await page.getByRole("button", { name: "Status and safety", exact: true }).click();
+  const sheet = page.locator("#dialog");
+  await expect(sheet.locator("[data-account-limits]")).toHaveCount(3);
+  const one = sheet.locator("[data-account-limits='acct-one']");
+  await expect(one.locator("[data-money-limit='max_daily_loss']")).toContainText("250 USD");
+  await expect(one.locator("[data-money-limit='max_open_risk']")).toContainText("400 USD");
+  const two = sheet.locator("[data-account-limits='acct-two']");
+  await expect(two.locator("[data-money-limit='max_daily_loss']")).toContainText("90 EUR");
+  await expect(two.locator("[data-money-limit='max_open_risk_equity_percent']")).toHaveAttribute(
+    "data-unset",
+    "",
+  );
+  await expect(
+    sheet.locator("[data-account-limits='acct-three'] [data-money-limit='none']"),
+  ).toHaveCount(1);
+});
