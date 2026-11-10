@@ -674,6 +674,52 @@ Recorded 2026-11-09, branch `ui/phase-2-shell` (not pushed, not merged; GitHub C
 | Playwright `test:web` (system Chrome, fresh `*_ci` database) | 132 passed, 7 failed: exactly the baseline (`agent-permissions:391`, `group-status:14`, `skills-management:121`, `visual-response:64` in all four variants). The new `agents-entry` specs pass; the creation specs (`avatar-studio`, `flexible-agents`, `rakazo-parity`, `workspace:241`), `inbox:6` and `shell:84` were updated for the template creation, the reference's order and leftover badges. `avatar:110` and `inbox:123` (the former `inbox:120`) passed. |
 | `tests/ui-reference/side-by-side.mjs` | See the table above; bindings 0 step errors, no forbidden DELETE. |
 
+### Reference UI phase 4a status (agent pages)
+
+Recorded 2026-11-10, branch `ui/phase-4-agent` (track T6). Every row of the Phase 4 table this track owns carries **delivered (phase 4a)** in `docs/ui-reference/CAPABILITY_MAP.md`; no migration (the reserved `0054_*`/`0055_*` ids are unused).
+
+- **Implemented** (`apps/web/src/shell/agent/`). Routes `/app/agent/<id>`, `/app/identity/<id>`, `/app/trades/<id>`, `/app/group/<id>` (the group chat stays `/app/g/<id>`) and `/app/recovery`. The agents page opens these pages; «وكيل جديد» gains the «الإشراف على وكلاء آخرين» switch (its picked agents go to `supervises`), the model choice (`model`) and lands on the new agent's page, still through `POST /api/agents/create`. The agent page: hero with Lonora's avatar and pencil, level badge (not for research), «تحت إشراف» line (a chosen supervisor before Lonora's default), «محادثة» and «اتصال» (Q58: dimmed without a voice provider; a tap opens a sheet with a button to the voice settings); the nav rows; «التداول والأمان» with the modeLine from `trading_readiness`; watches with pause/resume/cancel (undo); «يشرف على» with the picker; «إيقاف الوكيل» hidden on Lonora's page (Q38) and the server's refusals as a toast. The avatar sheet (Q42): the reference layout with Lonora's 16 shapes and component. The identity form: name, role, model, account and pair from the account's symbols; a pair or account change is the server's scope change with `expected_scope_revision`. The group page (members, «المنسق», add members with `PUT /api/groups/{id}`, no deletion) and «مجموعة جديدة» with purpose and coordinator. The trades page: open positions with the owner's «تعديل الوقف والهدف» and «إغلاق الصفقة» through `POST /api/trading/execute` (held operation ids, Q30) and «سجل الأوامر» with the reference's state names from the journal (`order-state.ts`: «منفَّذ» only with broker evidence or the owner's resolution). The chart sheet (Q37): the reference's SVG geometry with the broker's candles, timeframe tabs and detents, the agent's annotations and indicators as read-only overlays; it replaces `ConversationCharts` in the chat menu (an answer's chart opens by id on its own timeframe). The recovery page reads each connection's `state.broker_recovery`.
+- **Money safety.** `tests/check_flexible_agents.py` now also switches the trading agent to another account through the identity form's PATCH: the signed envelope stays on its own account and pair, and a trade on the new account becomes the owner's approval card with nothing sent. `tests/check_owner_trades.py` drives the trades page's route with Trading OFF: a close and a stop moved toward the market are admitted, a stop moved away from the market is refused and the position is unchanged. Both pass on the existing server rules; no backend change was needed. No UI deletes an agent or a group (asserted in `agent-pages.spec.mjs`).
+- **Side-by-side** (`tests/ui-reference/side-by-side.mjs`, fresh `*_ci`; the seed now imports XAUUSD 5m candles along the reference's curve and opens the owner's demo position). Mismatch % for 390x844 dark / light, 1280x800 dark / light:
+
+| State | 390 dark | 390 light | 1280 dark | 1280 light |
+| --- | --- | --- | --- | --- |
+| `agents-page` | 1.05 | 1.03 | 0.99 | 0.96 |
+| `agent-trader` | 0.66 | 0.66 | 0.8 | 0.77 |
+| `agent-lonora` | 0.71 | 0.7 | 0.81 | 0.78 |
+| `agent-research` | 0.74 | 0.73 | 0.82 | 0.79 |
+| `avatar-sheet` | 4.13 | 4.13 | 1.32 | 1.32 |
+| `identity-trader` | 8.06 | 8.69 | 3.83 | 4.18 |
+| `group-page` | 1.46 | 1.45 | 1.13 | 1.1 |
+| `new-group` | 1.26 | 1.52 | 1.28 | 1.42 |
+| `new-agent-templates` | 4 | 5.05 | 2.04 | 2.65 |
+| `trades-trader` | 3.91 | 2.77 | 1.71 | 1.38 |
+| `recovery` | 7.04 | 7.03 | 4.42 | 4.37 |
+| `sheet-detent-rest` | 8.29 | 10.44 | 1.05 | 1.33 |
+| `sheet-detent-expanded` | 0.39 | 3.22 | 0.17 | 1.99 |
+
+- **Remaining deviations, and why.**
+  - Goals and skills rows 404 until T7's domain pages land (knowledge, routines and files open the existing pages with `?agent=`).
+  - «التداول والأمان» row 1 opens the conversation with `?sheet=agent`; the sheet itself (`chat.agent-sheet`) is phase 3 (T2).
+  - Watches: «تمديد ساعتين» and «مراقبة جديدة» wait for WP-F (T2); paused watches are listed from the watches resource, active ones from the same source.
+  - «سجل الأوامر» rows show their state only; they open the chat's order sheet once WP-F's journal anchors (migration 0047) land. The owner's own operations carry no `agent_id`, so they are not listed under the agent.
+  - The identity and new-group forms use native selects (no pair icon in the options) until T7's `SelectField` merges; then both switch to it.
+  - The reference says changing the pair cancels a signed mandate and lowers the level; the server keeps the envelope on its own account and pair and asks for everything outside it (never a widen). The identity form says so when the pair or account changes.
+  - The avatar sheet's faces are Lonora's shapes (Q42), so `avatar-sheet` differs in the grid by design; the palette shows Lonora's first seven colours.
+  - Recovery shows the seed's real state (connected) where the reference draws the demo outage; «إعادة المحاولة» is a fresh account read, the worker's reconciliation writes the new state.
+  - The chart title is «الشارت» with the symbol (the reference names the pair in Arabic, «الذهب»); the leftmost time label can be missing when the first visible bar is not on the 7-bar grid.
+- **Verification** (each database fresh):
+
+| Check | Result |
+| --- | --- |
+| `pnpm lint` | exit 0 (78 warnings, existing kinds; no errors) |
+| `pnpm check` / `pnpm build` | 7 of 7 tasks each |
+| `pnpm --filter @lonora/web i18n` | 1166 messages; Arabic 0 missing |
+| `tsx --test` (the CI list, now with `order-state.test.ts`) | 104 of 104 |
+| `pytest tests -q` | 2068 passed, 17 skipped, 1 failed (`test_trading_readiness`, fixed on main by PR #38, merged in after the run), 6 errors (`test_web_browser.py`: the Python Playwright browser cannot launch in this container) |
+| `check_flexible_agents.py`, `check_owner_trades.py` | PASS |
+| Playwright `test:web` (system Chrome) | full run before merging main: 140 passed, 13 failed = the 7 baseline + `avatar:110` (fixed on main) + 5 specs that still expected the old chart body or landing URL, all updated and re-run green; `workspace:383` fails intermittently on `origin/main` too (4 of 6 runs there) |
+
 ## Wave 2 — durable responsibilities and the always-on gateway
 
 - A `Responsibility` record that owns tasks, wakes, watches, grants, restrictions, communication preference and expiry. It answers "what is active" and "what happened while I was away".
