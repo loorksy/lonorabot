@@ -4,7 +4,8 @@
 #
 #   bash tests/ops/lifecycle_test.sh REPO
 #
-# REPO is a registry repository holding these tags:
+# REPO is a registry repository holding these tags; tests/ops/build_test_images.sh REPO
+# builds and pushes all five:
 #   old        an image built from a commit before this tooling (no bundle, no manifest)
 #   v1, v2     two builds of this tree with different LONORA_VERSION build args
 #   v3-broken  v2 plus a schema-changing migration whose gateway never becomes ready
