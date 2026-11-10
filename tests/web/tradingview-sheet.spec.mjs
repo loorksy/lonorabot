@@ -34,7 +34,7 @@ test("chart sheet expands, dismisses with Escape and restores focus (Q37: the re
     // The conversation has no pair: its latest chart, on that chart's own timeframe, drawn
     // from the broker's candles with the reference's SVG.
     await expect(sheet.getByRole("tab", { name: "15m" })).toHaveAttribute("aria-selected", "true");
-    const candles = sheet.locator("svg.chart rect");
+    const candles = sheet.locator("svg.chart > g > rect");
     await expect(candles.first()).toBeVisible();
     // The chart's RSI(14) is an oscillator: its own labelled pane, never the price scale.
     const pane = sheet.locator('svg.chart [data-overlay="pane"]');

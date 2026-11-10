@@ -14,7 +14,7 @@ from typing import Any
 from uuid import uuid4
 
 from check_streaming import Fixture
-from lonora_db.schema import TradingJournalRow
+from lonora_db.schema import BrokerSessionRow, TradingJournalRow
 from lonora_gateway.attention import attention_tick
 from sqlalchemy import delete
 
@@ -212,6 +212,28 @@ async def action(data: dict[str, Any]) -> dict[str, Any]:
             }
         finally:
             await fixture.close(cleanup=False)
+    if data["action"] == "degrade":
+        # The broker session as broker_recovery writes it when the account stops answering.
+        fixture = await Fixture().open()
+        try:
+            async with fixture.runtime.db.sessions() as session, session.begin():
+                row = await session.get(BrokerSessionRow, data["account"], with_for_update=True)
+                assert row is not None
+                now = datetime.now(UTC).isoformat()
+                row.state = {
+                    **row.state,
+                    "broker_recovery": {
+                        "status": "disconnected",
+                        "reason_code": "broker_unreachable",
+                        "since": now,
+                        "observed_at": now,
+                        "last_success_at": None,
+                        "unresolved_operations": [],
+                    },
+                }
+        finally:
+            await fixture.close(cleanup=False)
+        return {"degraded": True}
     if data["action"] == "cleanup":
         fixture = await Fixture().open()
         try:

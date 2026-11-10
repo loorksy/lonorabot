@@ -12,7 +12,7 @@ msgstr "«{0}» deleted"
 msgid "«{name}» saved"
 msgstr "«{name}» saved"
 
-#: src/shell/agent/TradesPage.tsx:232
+#: src/shell/agent/TradesPage.tsx:234
 msgid "«Filled» shows only with the broker's evidence or your confirmation."
 msgstr "«Filled» shows only with the broker's evidence or your confirmation."
 
@@ -138,7 +138,7 @@ msgstr "A trade still has no confirmed broker result"
 msgid "Above"
 msgstr "Above"
 
-#: src/shell/agent/TradesPage.tsx:38
+#: src/shell/agent/TradesPage.tsx:42
 msgctxt "order state"
 msgid "Accepted by the broker"
 msgstr "Accepted by the broker"
@@ -520,8 +520,8 @@ msgstr "Ask this agent to create a trading goal. Its plan, watches and execution
 msgid "Assign work to your agents and follow each task."
 msgstr "Assign work to your agents and follow each task."
 
-#: src/shell/agent/TradesPage.tsx:63
-#: src/shell/agent/TradesPage.tsx:71
+#: src/shell/agent/TradesPage.tsx:67
+#: src/shell/agent/TradesPage.tsx:75
 msgid "At market price"
 msgstr "At market price"
 
@@ -771,7 +771,7 @@ msgstr "Built-in override rejected"
 msgid "Buy"
 msgstr "Buy"
 
-#: src/shell/agent/TradesPage.tsx:55
+#: src/shell/agent/TradesPage.tsx:59
 msgctxt "side"
 msgid "Buy"
 msgstr "Buy"
@@ -825,7 +825,7 @@ msgstr "Camera not allowed"
 #: src/pages/Board.tsx:576
 #: src/shell/agent/AgentPage.tsx:404
 #: src/shell/agent/AvatarSheet.tsx:111
-#: src/shell/agent/TradesPage.tsx:313
+#: src/shell/agent/TradesPage.tsx:334
 #: src/shell/lists/Selection.tsx:78
 msgid "Cancel"
 msgstr "Cancel"
@@ -835,7 +835,7 @@ msgid "Cancel goal"
 msgstr "Cancel goal"
 
 #: src/components/trading/Orders.tsx:41
-#: src/shell/agent/TradesPage.tsx:75
+#: src/shell/agent/TradesPage.tsx:79
 msgid "Cancel order"
 msgstr "Cancel order"
 
@@ -853,7 +853,7 @@ msgstr "Cancel the selection"
 msgid "Cancelled"
 msgstr "Cancelled"
 
-#: src/shell/agent/TradesPage.tsx:46
+#: src/shell/agent/TradesPage.tsx:50
 msgctxt "order state"
 msgid "Cancelled"
 msgstr "Cancelled"
@@ -886,10 +886,10 @@ msgstr "Changing the market makes this agent's account and pair a flexible defau
 msgid "Channel"
 msgstr "Channel"
 
-#: src/shell/agent/ChartSheet.tsx:445
-#: src/shell/agent/ChartSheet.tsx:448
-#: src/shell/agent/ChartSheet.tsx:454
-#: src/shell/agent/ChartSheet.tsx:454
+#: src/shell/agent/ChartSheet.tsx:465
+#: src/shell/agent/ChartSheet.tsx:468
+#: src/shell/agent/ChartSheet.tsx:474
+#: src/shell/agent/ChartSheet.tsx:474
 #: src/shell/ChatMenu.tsx:99
 msgid "Chart"
 msgstr "Chart"
@@ -960,7 +960,7 @@ msgid "Check cancel result"
 msgstr "Check cancel result"
 
 #: src/components/trading/Positions.tsx:77
-#: src/shell/agent/TradesPage.tsx:353
+#: src/shell/agent/TradesPage.tsx:374
 msgid "Check close result"
 msgstr "Check close result"
 
@@ -1123,10 +1123,10 @@ msgstr "Close position"
 msgid "Close search"
 msgstr "Close search"
 
-#: src/shell/agent/TradesPage.tsx:71
-#: src/shell/agent/TradesPage.tsx:302
-#: src/shell/agent/TradesPage.tsx:328
-#: src/shell/agent/TradesPage.tsx:355
+#: src/shell/agent/TradesPage.tsx:75
+#: src/shell/agent/TradesPage.tsx:323
+#: src/shell/agent/TradesPage.tsx:349
+#: src/shell/agent/TradesPage.tsx:376
 msgid "Close the trade"
 msgstr "Close the trade"
 
@@ -1606,7 +1606,7 @@ msgstr "Edit"
 msgid "Edit avatar"
 msgstr "Edit avatar"
 
-#: src/shell/agent/TradesPage.tsx:77
+#: src/shell/agent/TradesPage.tsx:81
 msgid "Edit order"
 msgstr "Edit order"
 
@@ -1615,9 +1615,9 @@ msgstr "Edit order"
 msgid "Edit routine"
 msgstr "Edit routine"
 
-#: src/shell/agent/TradesPage.tsx:73
-#: src/shell/agent/TradesPage.tsx:273
-#: src/shell/agent/TradesPage.tsx:349
+#: src/shell/agent/TradesPage.tsx:77
+#: src/shell/agent/TradesPage.tsx:294
+#: src/shell/agent/TradesPage.tsx:370
 msgid "Edit stop and target"
 msgstr "Edit stop and target"
 
@@ -1704,12 +1704,12 @@ msgstr "Enter the role."
 msgid "Enter to send · Shift+Enter for a new line"
 msgstr "Enter to send · Shift+Enter for a new line"
 
-#: src/shell/agent/ChartSheet.tsx:64
+#: src/shell/agent/ChartSheet.tsx:63
 msgctxt "chart"
 msgid "Entry"
 msgstr "Entry"
 
-#: src/shell/agent/TradesPage.tsx:344
+#: src/shell/agent/TradesPage.tsx:365
 msgid "Entry price"
 msgstr "Entry price"
 
@@ -1835,7 +1835,7 @@ msgstr "Files"
 msgid "Files and outputs from your agents will appear here."
 msgstr "Files and outputs from your agents will appear here."
 
-#: src/shell/agent/TradesPage.tsx:42
+#: src/shell/agent/TradesPage.tsx:46
 msgctxt "order state"
 msgid "Filled"
 msgstr "Filled"
@@ -2219,7 +2219,7 @@ msgstr "Legacy instructions"
 msgid "Light"
 msgstr "Light"
 
-#: src/shell/agent/TradesPage.tsx:66
+#: src/shell/agent/TradesPage.tsx:70
 msgid "Limit order"
 msgstr "Limit order"
 
@@ -2227,7 +2227,7 @@ msgstr "Limit order"
 msgid "Link a trading account from Settings → Integrations to choose the pair from its symbols."
 msgstr "Link a trading account from Settings → Integrations to choose the pair from its symbols."
 
-#: src/shell/agent/TradesPage.tsx:116
+#: src/shell/agent/TradesPage.tsx:120
 msgid "Link a trading account from Settings first."
 msgstr "Link a trading account from Settings first."
 
@@ -2371,7 +2371,7 @@ msgstr "Margin"
 msgid "Mark all as read"
 msgstr "Mark all as read"
 
-#: src/components/ai/AttentionInbox.tsx:143
+#: src/components/ai/AttentionInbox.tsx:147
 msgid "Mark as read"
 msgstr "Mark as read"
 
@@ -2398,7 +2398,7 @@ msgstr "Market"
 msgid "Market buy"
 msgstr "Market buy"
 
-#: src/shell/agent/ChartSheet.tsx:76
+#: src/shell/agent/ChartSheet.tsx:77
 msgid "Market chart"
 msgstr "Market chart"
 
@@ -2659,7 +2659,7 @@ msgstr "No candle history was found for this symbol and timeframe."
 msgid "No candles available for this instrument and timeframe."
 msgstr "No candles available for this instrument and timeframe."
 
-#: src/shell/agent/ChartSheet.tsx:367
+#: src/shell/agent/ChartSheet.tsx:387
 msgid "No candles for this timeframe yet."
 msgstr "No candles for this timeframe yet."
 
@@ -2720,7 +2720,7 @@ msgstr "No new notifications"
 msgid "No open positions"
 msgstr "No open positions"
 
-#: src/shell/agent/TradesPage.tsx:153
+#: src/shell/agent/TradesPage.tsx:157
 msgid "No open trade."
 msgstr "No open trade."
 
@@ -2728,7 +2728,7 @@ msgstr "No open trade."
 msgid "No operations yet"
 msgstr "No operations yet"
 
-#: src/shell/agent/TradesPage.tsx:227
+#: src/shell/agent/TradesPage.tsx:229
 msgid "No orders yet."
 msgstr "No orders yet."
 
@@ -2801,7 +2801,7 @@ msgstr "No trading account chosen · choose an account"
 msgid "No trading account linked · link an account"
 msgstr "No trading account linked · link an account"
 
-#: src/shell/agent/TradesPage.tsx:115
+#: src/shell/agent/TradesPage.tsx:119
 msgid "No trading account was chosen for this agent."
 msgstr "No trading account was chosen for this agent."
 
@@ -2892,7 +2892,7 @@ msgstr "Open call with {name}"
 msgid "Open chart"
 msgstr "Open chart"
 
-#: src/components/ai/AttentionInbox.tsx:135
+#: src/components/ai/AttentionInbox.tsx:138
 #: src/pages/ActivityList.tsx:250
 #: src/pages/Board.tsx:456
 #: src/pages/RoutineRunHistory.tsx:55
@@ -2960,7 +2960,7 @@ msgstr "Operations awaiting confirmation"
 #~ msgid "Orb"
 #~ msgstr "Orb"
 
-#: src/shell/agent/TradesPage.tsx:158
+#: src/shell/agent/TradesPage.tsx:162
 msgid "Order log"
 msgstr "Order log"
 
@@ -3008,7 +3008,7 @@ msgstr "Pair"
 msgid "Part of this conversation's history could not be read, so this reply stopped. Send your message again; the conversation is kept."
 msgstr "Part of this conversation's history could not be read, so this reply stopped. Send your message again; the conversation is kept."
 
-#: src/shell/agent/TradesPage.tsx:40
+#: src/shell/agent/TradesPage.tsx:44
 msgctxt "order state"
 msgid "Partly filled"
 msgstr "Partly filled"
@@ -3068,8 +3068,8 @@ msgstr "PDF preview"
 msgid "Pending"
 msgstr "Pending"
 
-#: src/shell/agent/TradesPage.tsx:75
-#: src/shell/agent/TradesPage.tsx:77
+#: src/shell/agent/TradesPage.tsx:79
+#: src/shell/agent/TradesPage.tsx:81
 msgid "Pending order"
 msgstr "Pending order"
 
@@ -3216,7 +3216,7 @@ msgstr "Profile"
 msgid "Profit"
 msgstr "Profit"
 
-#: src/shell/agent/TradesPage.tsx:73
+#: src/shell/agent/TradesPage.tsx:77
 msgid "Protection change"
 msgstr "Protection change"
 
@@ -3358,7 +3358,7 @@ msgstr "Reject"
 #~ msgid "Rejected"
 #~ msgstr "Rejected"
 
-#: src/shell/agent/TradesPage.tsx:44
+#: src/shell/agent/TradesPage.tsx:48
 msgctxt "order state"
 msgid "Rejected"
 msgstr "Rejected"
@@ -3403,7 +3403,7 @@ msgstr "Removed from favourites"
 
 #: src/pages/shell/message-cards.tsx:201
 #: src/pages/shell/message-cards.tsx:202
-#: src/shell/lists/HeadsUp.tsx:198
+#: src/shell/lists/HeadsUp.tsx:199
 msgid "Reply"
 msgstr "Reply"
 
@@ -3418,7 +3418,7 @@ msgstr "Reply to an earlier message"
 msgid "Request updated"
 msgstr "Request updated"
 
-#: src/shell/agent/TradesPage.tsx:34
+#: src/shell/agent/TradesPage.tsx:38
 msgctxt "order state"
 msgid "Requested"
 msgstr "Requested"
@@ -3587,7 +3587,7 @@ msgstr "Sampled quote fills are hypothetical. Monetary profit is unavailable."
 #: src/pages/ScratchpadSection.tsx:195
 #: src/pages/shell/bot-settings.tsx:169
 #: src/shell/agent/IdentityPage.tsx:339
-#: src/shell/agent/TradesPage.tsx:414
+#: src/shell/agent/TradesPage.tsx:435
 msgid "Save"
 msgstr "Save"
 
@@ -3776,7 +3776,7 @@ msgstr "Selected chats"
 msgid "Sell"
 msgstr "Sell"
 
-#: src/shell/agent/TradesPage.tsx:54
+#: src/shell/agent/TradesPage.tsx:58
 msgctxt "side"
 msgid "Sell"
 msgstr "Sell"
@@ -3813,7 +3813,7 @@ msgstr "Send direction"
 msgid "Sending…"
 msgstr "Sending…"
 
-#: src/shell/agent/TradesPage.tsx:36
+#: src/shell/agent/TradesPage.tsx:40
 msgctxt "order state"
 msgid "Sent"
 msgstr "Sent"
@@ -4050,8 +4050,10 @@ msgstr "Start a chat or add a task for it to appear here."
 #~ msgid "Start voice conversation"
 #~ msgstr "Start voice conversation"
 
+#: src/components/ai/AttentionInbox.tsx:136
 #: src/shell/agent/RecoveryPage.tsx:87
 #: src/shell/agent/RecoveryPage.tsx:159
+#: src/shell/lists/HeadsUp.tsx:199
 msgid "State details"
 msgstr "State details"
 
@@ -4072,15 +4074,15 @@ msgstr "Still unknown"
 msgid "Stop"
 msgstr "Stop"
 
-#: src/shell/agent/ChartSheet.tsx:65
+#: src/shell/agent/ChartSheet.tsx:64
 msgctxt "chart"
 msgid "Stop"
 msgstr "Stop"
 
 #: src/components/goals/TradingGoals.tsx:228
 #: src/components/trading/TradeApprovals.tsx:158
-#: src/shell/agent/TradesPage.tsx:345
-#: src/shell/agent/TradesPage.tsx:392
+#: src/shell/agent/TradesPage.tsx:366
+#: src/shell/agent/TradesPage.tsx:413
 msgid "Stop loss"
 msgstr "Stop loss"
 
@@ -4092,7 +4094,7 @@ msgstr "Stop loss · optional"
 #~ msgid "Stop new trading, your pauses and the account's money limits still apply to every order. Pausing a goal does not close existing broker positions."
 #~ msgstr "Stop new trading, your pauses and the account's money limits still apply to every order. Pausing a goal does not close existing broker positions."
 
-#: src/shell/agent/TradesPage.tsx:69
+#: src/shell/agent/TradesPage.tsx:73
 msgid "Stop order"
 msgstr "Stop order"
 
@@ -4196,8 +4198,8 @@ msgstr "Symbols"
 
 #: src/components/goals/TradingGoals.tsx:229
 #: src/components/trading/TradeApprovals.tsx:178
-#: src/shell/agent/TradesPage.tsx:346
-#: src/shell/agent/TradesPage.tsx:403
+#: src/shell/agent/TradesPage.tsx:367
+#: src/shell/agent/TradesPage.tsx:424
 msgid "Take profit"
 msgstr "Take profit"
 
@@ -4209,7 +4211,7 @@ msgstr "Take profit · optional"
 msgid "Tap the lock icon next to the site address."
 msgstr "Tap the lock icon next to the site address."
 
-#: src/shell/agent/ChartSheet.tsx:66
+#: src/shell/agent/ChartSheet.tsx:65
 msgctxt "chart"
 msgid "Target"
 msgstr "Target"
@@ -4463,7 +4465,7 @@ msgid "The task resumed from its saved state after reconnection."
 msgstr "The task resumed from its saved state after reconnection."
 
 #. placeholder {0}: position.symbol
-#: src/shell/agent/TradesPage.tsx:306
+#: src/shell/agent/TradesPage.tsx:327
 msgid "The trade on <0>{0}</0> is closed at the market price. This is your own order, sent through the executor."
 msgstr "The trade on <0>{0}</0> is closed at the market price. This is your own order, sent through the executor."
 
@@ -4522,7 +4524,7 @@ msgstr "This broker account is already connected. Use the existing connection."
 msgid "This broker connection is disabled."
 msgstr "This broker connection is disabled."
 
-#: src/shell/agent/ChartSheet.tsx:415
+#: src/shell/agent/ChartSheet.tsx:435
 msgid "This chart is no longer available."
 msgstr "This chart is no longer available."
 
@@ -4530,7 +4532,7 @@ msgstr "This chart is no longer available."
 #~ msgid "This conversation could not be resumed. Start a new conversation."
 #~ msgstr "This conversation could not be resumed. Start a new conversation."
 
-#: src/shell/agent/ChartSheet.tsx:417
+#: src/shell/agent/ChartSheet.tsx:437
 msgid "This conversation has no pair to chart. Ask the agent for a chart, or open the market."
 msgstr "This conversation has no pair to chart. Ask the agent for a chart, or open the market."
 
@@ -4832,7 +4834,7 @@ msgstr "Unarchive"
 msgid "Unavailable"
 msgstr "Unavailable"
 
-#: src/shell/agent/TradesPage.tsx:48
+#: src/shell/agent/TradesPage.tsx:52
 msgctxt "order state"
 msgid "Unconfirmed"
 msgstr "Unconfirmed"
@@ -4979,7 +4981,7 @@ msgstr "Voice settings"
 #: src/components/trading/Positions.tsx:38
 #: src/components/trading/TradeActionCard.tsx:110
 #: src/components/trading/TradeApprovals.tsx:138
-#: src/shell/agent/TradesPage.tsx:343
+#: src/shell/agent/TradesPage.tsx:364
 msgid "Volume"
 msgstr "Volume"
 

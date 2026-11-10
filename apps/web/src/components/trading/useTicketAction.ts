@@ -5,6 +5,16 @@ import { executeTrade } from "../../lib/trading";
 
 export type TicketOutcome = { status: string; details?: unknown; code?: string | null };
 
+/** The ticket a journal row settles: a modify by its body, a close by its position, a cancel
+ * by its order. */
+export function ticketOf(
+  action: "close_position" | "cancel_order" | "modify_position",
+  request: Payload,
+): string {
+  if (action === "modify_position") return modifyTicket(request);
+  return String(request[action === "cancel_order" ? "order_id" : "position_id"]);
+}
+
 /** A modify is one operation per distinct change: its ticket is the position and the body,
  * so a held (unsettled) modify never blocks a different stop or target. */
 export function modifyTicket(request: Partial<Trade> | Payload): string {
@@ -39,10 +49,7 @@ export function useTicketAction(
     // outcome stays on the row, and the button acts again as a new operation.
     const settled: Record<string, TicketOutcome> = {};
     for (const entry of journal ?? []) {
-      const ticket =
-        action === "modify_position"
-          ? modifyTicket(entry.request)
-          : String(entry.request[action === "cancel_order" ? "order_id" : "position_id"]);
+      const ticket = ticketOf(action, entry.request);
       if (
         heldOperation(action, accountId, ticket) === entry.operation_id &&
         settleOperation(action, accountId, ticket, entry.status)

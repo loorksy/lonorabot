@@ -66,7 +66,8 @@ async def main() -> None:
                 "stop_loss": "190",
             },
         )
-        assert status >= 400 or widened.get("status") == "failed", widened
+        # The global brake's own refusal, not any refusal.
+        assert status == 409 and widened.get("code") == "emergency_stop", (status, widened)
         after = (await fixture.request("GET", f"/trading/accounts/{account}"))["positions"]
         assert after[0]["stop_loss"] in {"200", "200.00", "200.0"}, after
         print("PASS with Trading OFF the server refuses a stop moved away from the market")
@@ -82,7 +83,7 @@ async def main() -> None:
                 "clear_stop_loss": True,
             },
         )
-        assert status >= 400 or cleared.get("status") == "failed", cleared
+        assert status == 409 and cleared.get("code") == "emergency_stop", (status, cleared)
         after = (await fixture.request("GET", f"/trading/accounts/{account}"))["positions"]
         assert after[0]["stop_loss"] in {"200", "200.00", "200.0"}, after
         print("PASS with Trading OFF the server refuses clearing the stop")

@@ -79,7 +79,7 @@ test("conversation shows safe generated SVG, cloud chart side panel and persiste
     const panel = page.locator("#dialog");
     // Q37: the reference's chart sheet draws the chart's candles as SVG.
     await expect(
-      panel.locator(`[data-chart-id='${data.chart}'] svg.chart rect`).first(),
+      panel.locator(`[data-chart-id='${data.chart}'] svg.chart > g > rect`).first(),
     ).toBeVisible();
     await image.evaluate((element) => element.decode());
     await image.screenshot({ path: ".runtime/rakazo-parity/svg-isolated.png" });

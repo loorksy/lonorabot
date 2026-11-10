@@ -209,8 +209,8 @@ test("the chart sheet draws the broker's candles for the agent's pair (Q37)", as
   const sheet = page.locator("#dialog");
   await expect(sheet).toHaveClass(/expandable/);
   await sheet.getByRole("tab", { name: "15m" }).click();
-  await expect(sheet.locator("svg.chart rect").first()).toBeVisible();
-  expect(await sheet.locator("svg.chart rect").count()).toBeGreaterThan(8);
+  await expect(sheet.locator("svg.chart > g > rect").first()).toBeVisible();
+  expect(await sheet.locator("svg.chart > g > rect").count()).toBeGreaterThan(8);
   await sheet.getByRole("button", { name: "Full screen", exact: true }).click();
   await expect(sheet).toHaveClass(/expanded/);
 });
@@ -303,4 +303,207 @@ test("«وكيل جديد»: the supervision switch sends the agents it supervis
   expect(body).not.toHaveProperty("model");
   await expect(page).toHaveURL(new RegExp(`/app/agent/${agent.id}$`));
   await expect(main.locator(".row", { hasText: data.trader.name })).toBeVisible();
+});
+
+test("«تعديل الوقف والهدف»: one operation per body, a retry reuses it, a clear is explicit", async ({
+  page,
+}) => {
+  const bodies = [];
+  let dropFirst = true;
+  await page.route("**/api/trading/execute", async (route) => {
+    const body = route.request().postDataJSON();
+    if (body.action !== "modify_position") return route.continue();
+    bodies.push(body);
+    // The first send is lost before it reaches the server: the button keeps its operation.
+    if (dropFirst) {
+      dropFirst = false;
+      return route.abort("failed");
+    }
+    return route.continue();
+  });
+  await page.goto(`/app/trades/${data.trader.id}`);
+  const main = page.locator("main");
+  const card = main.locator("[data-position-id]").first();
+  const position = await card.getAttribute("data-position-id");
+  const sheet = page.locator("#dialog");
+  const modify = async (stop) => {
+    await card.getByRole("button", { name: "Edit stop and target", exact: true }).click();
+    await sheet.getByLabel("Stop loss", { exact: true }).fill(stop);
+    await sheet.getByRole("button", { name: "Save", exact: true }).click();
+  };
+  await modify("205");
+  await expect(card.getByRole("alert")).toBeVisible();
+  await modify("205");
+  await expect.poll(() => bodies.length).toBe(2);
+  await expect(card.locator("[data-operation-status]")).toBeVisible();
+  await modify("206");
+  await expect.poll(() => bodies.length).toBe(3);
+  await modify("");
+  await expect.poll(() => bodies.length).toBe(4);
+  expect(bodies[0].operation_id).toBe(bodies[1].operation_id);
+  expect(bodies[2].operation_id).not.toBe(bodies[1].operation_id);
+  expect(bodies[3].operation_id).not.toBe(bodies[2].operation_id);
+  expect(bodies[3]).toMatchObject({ position_id: position, clear_stop_loss: true });
+  expect(bodies[3]).not.toHaveProperty("stop_loss");
+  // The card reports the last action: the clear, with the server's answer.
+  await expect(card.locator("[data-operation-status]")).toBeVisible();
+  await expect(card.getByRole("alert")).toHaveCount(0);
+});
+
+test("identity: a saved pair missing from the account's list is kept; a rename sends no market", async ({
+  page,
+}) => {
+  // The account no longer lists the agent's saved pair.
+  await page.route("**/api/market/symbols*", (route) => route.fulfill({ json: ["EURUSD"] }));
+  await page.goto(`/app/identity/${data.trader.id}`);
+  const main = page.locator("main");
+  const pair = main.getByRole("combobox", { name: "Pair", exact: true });
+  await expect(pair).toHaveValue(data.symbol);
+  const save = page.waitForRequest(
+    (request) =>
+      request.method() === "PATCH" && request.url().endsWith(`/api/agents/${data.trader.id}`),
+  );
+  await main.getByLabel("Name", { exact: true }).fill(`${data.trader.name} 3`);
+  await main.getByRole("button", { name: "Save", exact: true }).click();
+  expect((await save).postDataJSON()).toEqual({
+    name: `${data.trader.name} 3`,
+    description: "Follows gold",
+  });
+});
+
+test("identity: a trading agent with no account sends a market only when the owner picks one", async ({
+  page,
+}) => {
+  const csrf = data.cookies.find((cookie) => cookie.name === "lonora_csrf").value;
+  const headers = { "X-CSRF-Token": csrf };
+  const current = await (await page.request.get(`/api/agents/${data.trader.id}`)).json();
+  const cleared = await page.request.patch(`/api/agents/${data.trader.id}`, {
+    headers,
+    data: {
+      scope_mode: "flexible",
+      trading_account_id: null,
+      trading_symbol: null,
+      expected_scope_revision: current.scope_revision,
+    },
+  });
+  expect(cleared.ok()).toBeTruthy();
+  await page.goto(`/app/identity/${data.trader.id}`);
+  const main = page.locator("main");
+  const account = main.getByRole("combobox", { name: "Trading account", exact: true });
+  await expect(account).toHaveValue("");
+  await expect(main.getByRole("combobox", { name: "Pair", exact: true })).toHaveCount(0);
+  let save = page.waitForRequest(
+    (request) =>
+      request.method() === "PATCH" && request.url().endsWith(`/api/agents/${data.trader.id}`),
+  );
+  await main.getByLabel("Name", { exact: true }).fill(`${data.trader.name} 4`);
+  await main.getByRole("button", { name: "Save", exact: true }).click();
+  expect((await save).postDataJSON()).toEqual({
+    name: `${data.trader.name} 4`,
+    description: "Follows gold",
+  });
+  // The owner picks the account: the pair comes from its symbols and the market is sent.
+  await page.goto(`/app/identity/${data.trader.id}`);
+  await account.selectOption(data.account);
+  await expect(main.getByRole("combobox", { name: "Pair", exact: true })).toHaveValue(data.symbol);
+  await expect(main.locator(".note[role=status]")).toContainText("flexible default");
+  save = page.waitForRequest(
+    (request) =>
+      request.method() === "PATCH" && request.url().endsWith(`/api/agents/${data.trader.id}`),
+  );
+  await main.getByRole("button", { name: "Save", exact: true }).click();
+  expect((await save).postDataJSON()).toMatchObject({
+    scope_mode: "flexible",
+    trading_account_id: data.account,
+    trading_symbol: data.symbol,
+    expected_scope_revision: current.scope_revision + 1,
+  });
+});
+
+test("«وكيل جديد» with a fixed model sends it", async ({ page }) => {
+  const agents = await (await page.request.get("/api/agents")).json();
+  const lonora = agents.find((agent) => agent.role === "personal");
+  // One configured model, as the personal agent's summary lists the owner's models.
+  await page.route(`**/api/agents/${lonora.id}/model/summary`, async (route) => {
+    const summary = await (await route.fetch()).json();
+    await route.fulfill({
+      json: {
+        ...summary,
+        available: [{ provider: "openai", model: "gpt-fixture", name: "Fixture model" }],
+      },
+    });
+  });
+  let body = null;
+  await page.route("**/api/agents/create", (route) => {
+    body = route.request().postDataJSON();
+    return route.abort("failed");
+  });
+  await page.goto("/app/new-agent");
+  const main = page.locator("main");
+  await main.getByRole("radio", { name: /^General agent/ }).check();
+  await main.getByRole("button", { name: "Next", exact: true }).click();
+  await main.getByLabel("Agent name", { exact: true }).fill("Model fixture");
+  await main.getByLabel("Description", { exact: true }).fill("Uses one model");
+  await main
+    .getByRole("combobox", { name: "Model", exact: true })
+    .selectOption({ label: "Fixture model" });
+  await main.getByRole("button", { name: "Create the agent", exact: true }).click();
+  await expect.poll(() => body).not.toBeNull();
+  expect(body).toMatchObject({
+    template: "general",
+    model: { provider: "openai", model: "gpt-fixture" },
+  });
+});
+
+test("the group page adds an agent with the group's version; the members list grows", async ({
+  page,
+}) => {
+  const agents = await (await page.request.get("/api/agents")).json();
+  const lonora = agents.find((agent) => agent.role === "personal");
+  await page.goto(`/app/group/${data.group.id}`);
+  const main = page.locator("main");
+  await main.getByRole("button", { name: "Add an agent", exact: true }).click();
+  const sheet = page.locator("#dialog");
+  await sheet.getByRole("checkbox", { name: new RegExp(lonora.name) }).click();
+  const put = page.waitForRequest(
+    (request) =>
+      request.method() === "PUT" &&
+      new URL(request.url()).pathname === `/api/groups/${data.group.id}`,
+  );
+  await sheet.getByRole("button", { name: "Add", exact: true }).click();
+  const body = (await put).postDataJSON();
+  expect(body.version).toBe(data.group.version);
+  expect(body.payload.member_ids).toEqual([data.trader.id, data.research.id, lonora.id]);
+  expect(body.payload).toMatchObject({ purpose: "Gold research", lead_agent_id: data.research.id });
+  await expect(main.locator(".row", { hasText: lonora.name })).toBeVisible();
+  await expect(main.locator(".hero p")).toHaveText("3 agents");
+});
+
+test("the recovery page shows the broker session's real outage", async ({ page }) => {
+  fixture({ action: "degrade", account: data.account });
+  await page.goto(`/app/recovery?account=${data.account}`);
+  const main = page.locator("main");
+  await expect(main.locator(".hero h2")).toHaveText("The broker connection dropped");
+  await expect(main).toContainText("Execution state");
+  await expect(main).toContainText("Paused for now");
+  await main.getByRole("button", { name: "State details", exact: true }).click();
+  await expect(page.locator("#dialog")).toContainText("broker_unreachable");
+});
+
+test("the avatar pencil on the agent and identity pages saves a Lonora shape", async ({ page }) => {
+  for (const path of [`/app/agent/${data.trader.id}`, `/app/identity/${data.trader.id}`]) {
+    await page.goto(path);
+    await page.locator("main .pencil").click();
+    const studio = page.getByTestId("avatar-studio");
+    await expect(studio.locator("[data-face-option]")).toHaveCount(16);
+    const face = path.includes("identity") ? "face-happy" : "face-wink";
+    await studio.locator(`[data-face-option="${face}"]`).click();
+    const patch = page.waitForRequest(
+      (request) =>
+        request.method() === "PATCH" && request.url().endsWith(`/api/agents/${data.trader.id}`),
+    );
+    await studio.getByTestId("avatar-studio-save").click();
+    expect((await patch).postDataJSON()).toMatchObject({ avatar: face });
+    await expect(studio).toHaveCount(0);
+  }
 });

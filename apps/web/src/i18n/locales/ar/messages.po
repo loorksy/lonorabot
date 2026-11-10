@@ -12,7 +12,7 @@ msgstr "حُذفت «{0}»"
 msgid "«{name}» saved"
 msgstr "حُفظت «{name}»"
 
-#: src/shell/agent/TradesPage.tsx:232
+#: src/shell/agent/TradesPage.tsx:234
 msgid "«Filled» shows only with the broker's evidence or your confirmation."
 msgstr "لا تظهر حالة «منفَّذ» إلا بدليل من الوسيط أو بتأكيدك."
 
@@ -138,7 +138,7 @@ msgstr "صفقة ما زالت بلا نتيجة مؤكدة من الوسيط"
 msgid "Above"
 msgstr "أعلى من"
 
-#: src/shell/agent/TradesPage.tsx:38
+#: src/shell/agent/TradesPage.tsx:42
 msgctxt "order state"
 msgid "Accepted by the broker"
 msgstr "مقبول لدى الوسيط"
@@ -520,8 +520,8 @@ msgstr "اطلب من هذا الوكيل إنشاء هدف تداول. تبقى
 msgid "Assign work to your agents and follow each task."
 msgstr "أسند العمل إلى وكلائك وتابع كل مهمة."
 
-#: src/shell/agent/TradesPage.tsx:63
-#: src/shell/agent/TradesPage.tsx:71
+#: src/shell/agent/TradesPage.tsx:67
+#: src/shell/agent/TradesPage.tsx:75
 msgid "At market price"
 msgstr "بسعر السوق"
 
@@ -771,7 +771,7 @@ msgstr "رُفض استبدال المهارة المدمجة"
 msgid "Buy"
 msgstr "شراء"
 
-#: src/shell/agent/TradesPage.tsx:55
+#: src/shell/agent/TradesPage.tsx:59
 msgctxt "side"
 msgid "Buy"
 msgstr "شراء"
@@ -825,7 +825,7 @@ msgstr "الكاميرا غير مسموحة"
 #: src/pages/Board.tsx:576
 #: src/shell/agent/AgentPage.tsx:404
 #: src/shell/agent/AvatarSheet.tsx:111
-#: src/shell/agent/TradesPage.tsx:313
+#: src/shell/agent/TradesPage.tsx:334
 #: src/shell/lists/Selection.tsx:78
 msgid "Cancel"
 msgstr "إلغاء"
@@ -835,7 +835,7 @@ msgid "Cancel goal"
 msgstr "إلغاء الهدف"
 
 #: src/components/trading/Orders.tsx:41
-#: src/shell/agent/TradesPage.tsx:75
+#: src/shell/agent/TradesPage.tsx:79
 msgid "Cancel order"
 msgstr "إلغاء الأمر"
 
@@ -853,7 +853,7 @@ msgstr "إلغاء التحديد"
 msgid "Cancelled"
 msgstr "ملغى"
 
-#: src/shell/agent/TradesPage.tsx:46
+#: src/shell/agent/TradesPage.tsx:50
 msgctxt "order state"
 msgid "Cancelled"
 msgstr "ملغى"
@@ -886,10 +886,10 @@ msgstr "تغيير السوق يجعل حساب هذا الوكيل وزوجه �
 msgid "Channel"
 msgstr "قناة"
 
-#: src/shell/agent/ChartSheet.tsx:445
-#: src/shell/agent/ChartSheet.tsx:448
-#: src/shell/agent/ChartSheet.tsx:454
-#: src/shell/agent/ChartSheet.tsx:454
+#: src/shell/agent/ChartSheet.tsx:465
+#: src/shell/agent/ChartSheet.tsx:468
+#: src/shell/agent/ChartSheet.tsx:474
+#: src/shell/agent/ChartSheet.tsx:474
 #: src/shell/ChatMenu.tsx:99
 msgid "Chart"
 msgstr "الشارت"
@@ -960,7 +960,7 @@ msgid "Check cancel result"
 msgstr "تحقق من نتيجة الإلغاء"
 
 #: src/components/trading/Positions.tsx:77
-#: src/shell/agent/TradesPage.tsx:353
+#: src/shell/agent/TradesPage.tsx:374
 msgid "Check close result"
 msgstr "تحقق من نتيجة الإغلاق"
 
@@ -1123,10 +1123,10 @@ msgstr "إغلاق الصفقة"
 msgid "Close search"
 msgstr "إغلاق البحث"
 
-#: src/shell/agent/TradesPage.tsx:71
-#: src/shell/agent/TradesPage.tsx:302
-#: src/shell/agent/TradesPage.tsx:328
-#: src/shell/agent/TradesPage.tsx:355
+#: src/shell/agent/TradesPage.tsx:75
+#: src/shell/agent/TradesPage.tsx:323
+#: src/shell/agent/TradesPage.tsx:349
+#: src/shell/agent/TradesPage.tsx:376
 msgid "Close the trade"
 msgstr "إغلاق الصفقة"
 
@@ -1606,7 +1606,7 @@ msgstr "تعديل"
 msgid "Edit avatar"
 msgstr "تعديل الأفتار"
 
-#: src/shell/agent/TradesPage.tsx:77
+#: src/shell/agent/TradesPage.tsx:81
 msgid "Edit order"
 msgstr "تعديل الأمر"
 
@@ -1615,9 +1615,9 @@ msgstr "تعديل الأمر"
 msgid "Edit routine"
 msgstr "تعديل المهمة المجدولة"
 
-#: src/shell/agent/TradesPage.tsx:73
-#: src/shell/agent/TradesPage.tsx:273
-#: src/shell/agent/TradesPage.tsx:349
+#: src/shell/agent/TradesPage.tsx:77
+#: src/shell/agent/TradesPage.tsx:294
+#: src/shell/agent/TradesPage.tsx:370
 msgid "Edit stop and target"
 msgstr "تعديل الوقف والهدف"
 
@@ -1704,12 +1704,12 @@ msgstr "أدخل الدور."
 msgid "Enter to send · Shift+Enter for a new line"
 msgstr "Enter للإرسال · Shift+Enter لسطر جديد"
 
-#: src/shell/agent/ChartSheet.tsx:64
+#: src/shell/agent/ChartSheet.tsx:63
 msgctxt "chart"
 msgid "Entry"
 msgstr "دخول"
 
-#: src/shell/agent/TradesPage.tsx:344
+#: src/shell/agent/TradesPage.tsx:365
 msgid "Entry price"
 msgstr "سعر الدخول"
 
@@ -1835,7 +1835,7 @@ msgstr "الملفات"
 msgid "Files and outputs from your agents will appear here."
 msgstr "ستظهر ملفات وكلائك ومخرجاتهم هنا."
 
-#: src/shell/agent/TradesPage.tsx:42
+#: src/shell/agent/TradesPage.tsx:46
 msgctxt "order state"
 msgid "Filled"
 msgstr "منفَّذ"
@@ -2219,7 +2219,7 @@ msgstr "تعليمات قديمة"
 msgid "Light"
 msgstr "فاتح"
 
-#: src/shell/agent/TradesPage.tsx:66
+#: src/shell/agent/TradesPage.tsx:70
 msgid "Limit order"
 msgstr "أمر محدد"
 
@@ -2227,7 +2227,7 @@ msgstr "أمر محدد"
 msgid "Link a trading account from Settings → Integrations to choose the pair from its symbols."
 msgstr "اربط حساب تداول من الإعدادات ← التكاملات لاختيار الزوج من رموزه."
 
-#: src/shell/agent/TradesPage.tsx:116
+#: src/shell/agent/TradesPage.tsx:120
 msgid "Link a trading account from Settings first."
 msgstr "اربط حساب تداول أولًا من الإعدادات."
 
@@ -2371,7 +2371,7 @@ msgstr "الهامش"
 msgid "Mark all as read"
 msgstr "تحديد الكل كمقروء"
 
-#: src/components/ai/AttentionInbox.tsx:143
+#: src/components/ai/AttentionInbox.tsx:147
 msgid "Mark as read"
 msgstr "تحديد كمقروء"
 
@@ -2398,7 +2398,7 @@ msgstr "السوق"
 msgid "Market buy"
 msgstr "شراء بسعر السوق"
 
-#: src/shell/agent/ChartSheet.tsx:76
+#: src/shell/agent/ChartSheet.tsx:77
 msgid "Market chart"
 msgstr "شارت السوق"
 
@@ -2659,7 +2659,7 @@ msgstr "لم يتم العثور على شموع تاريخية لهذا الر�
 msgid "No candles available for this instrument and timeframe."
 msgstr "لا تتوفر شموع لهذه الأداة والفترة الزمنية."
 
-#: src/shell/agent/ChartSheet.tsx:367
+#: src/shell/agent/ChartSheet.tsx:387
 msgid "No candles for this timeframe yet."
 msgstr "لا توجد شموع لهذا الإطار الزمني بعد."
 
@@ -2720,7 +2720,7 @@ msgstr "لا توجد إشعارات جديدة"
 msgid "No open positions"
 msgstr "لا توجد صفقات مفتوحة"
 
-#: src/shell/agent/TradesPage.tsx:153
+#: src/shell/agent/TradesPage.tsx:157
 msgid "No open trade."
 msgstr "لا توجد صفقة مفتوحة."
 
@@ -2728,7 +2728,7 @@ msgstr "لا توجد صفقة مفتوحة."
 msgid "No operations yet"
 msgstr "لا توجد عمليات بعد"
 
-#: src/shell/agent/TradesPage.tsx:227
+#: src/shell/agent/TradesPage.tsx:229
 msgid "No orders yet."
 msgstr "لا أوامر بعد."
 
@@ -2801,7 +2801,7 @@ msgstr "لم يُختر حساب تداول · اختر حسابًا"
 msgid "No trading account linked · link an account"
 msgstr "لا يوجد حساب تداول مرتبط · اربط حسابًا"
 
-#: src/shell/agent/TradesPage.tsx:115
+#: src/shell/agent/TradesPage.tsx:119
 msgid "No trading account was chosen for this agent."
 msgstr "لم يُختر حساب تداول لهذا الوكيل."
 
@@ -2892,7 +2892,7 @@ msgstr "فتح المكالمة مع {name}"
 msgid "Open chart"
 msgstr "افتح شارت"
 
-#: src/components/ai/AttentionInbox.tsx:135
+#: src/components/ai/AttentionInbox.tsx:138
 #: src/pages/ActivityList.tsx:250
 #: src/pages/Board.tsx:456
 #: src/pages/RoutineRunHistory.tsx:55
@@ -2960,7 +2960,7 @@ msgstr "عمليات بانتظار التأكيد"
 #~ msgid "Orb"
 #~ msgstr "دائرة"
 
-#: src/shell/agent/TradesPage.tsx:158
+#: src/shell/agent/TradesPage.tsx:162
 msgid "Order log"
 msgstr "سجل الأوامر"
 
@@ -3008,7 +3008,7 @@ msgstr "الزوج"
 msgid "Part of this conversation's history could not be read, so this reply stopped. Send your message again; the conversation is kept."
 msgstr "تعذّرت قراءة جزء من سجل هذه المحادثة فتوقف هذا الرد. أرسل رسالتك مرة أخرى؛ المحادثة محفوظة."
 
-#: src/shell/agent/TradesPage.tsx:40
+#: src/shell/agent/TradesPage.tsx:44
 msgctxt "order state"
 msgid "Partly filled"
 msgstr "منفَّذ جزئيًا"
@@ -3068,8 +3068,8 @@ msgstr "معاينة PDF"
 msgid "Pending"
 msgstr "قيد الانتظار"
 
-#: src/shell/agent/TradesPage.tsx:75
-#: src/shell/agent/TradesPage.tsx:77
+#: src/shell/agent/TradesPage.tsx:79
+#: src/shell/agent/TradesPage.tsx:81
 msgid "Pending order"
 msgstr "أمر معلّق"
 
@@ -3216,7 +3216,7 @@ msgstr "الملف الشخصي"
 msgid "Profit"
 msgstr "الربح"
 
-#: src/shell/agent/TradesPage.tsx:73
+#: src/shell/agent/TradesPage.tsx:77
 msgid "Protection change"
 msgstr "تعديل الحماية"
 
@@ -3358,7 +3358,7 @@ msgstr "رفض"
 #~ msgid "Rejected"
 #~ msgstr "مرفوض"
 
-#: src/shell/agent/TradesPage.tsx:44
+#: src/shell/agent/TradesPage.tsx:48
 msgctxt "order state"
 msgid "Rejected"
 msgstr "مرفوض"
@@ -3403,7 +3403,7 @@ msgstr "أُزيلت من المفضلة"
 
 #: src/pages/shell/message-cards.tsx:201
 #: src/pages/shell/message-cards.tsx:202
-#: src/shell/lists/HeadsUp.tsx:198
+#: src/shell/lists/HeadsUp.tsx:199
 msgid "Reply"
 msgstr "رد"
 
@@ -3418,7 +3418,7 @@ msgstr "رد على رسالة سابقة"
 msgid "Request updated"
 msgstr "تم تحديث الطلب"
 
-#: src/shell/agent/TradesPage.tsx:34
+#: src/shell/agent/TradesPage.tsx:38
 msgctxt "order state"
 msgid "Requested"
 msgstr "مطلوب"
@@ -3587,7 +3587,7 @@ msgstr "التنفيذ بأسعار مأخوذة دوريًا افتراضي. ا
 #: src/pages/ScratchpadSection.tsx:195
 #: src/pages/shell/bot-settings.tsx:169
 #: src/shell/agent/IdentityPage.tsx:339
-#: src/shell/agent/TradesPage.tsx:414
+#: src/shell/agent/TradesPage.tsx:435
 msgid "Save"
 msgstr "حفظ"
 
@@ -3776,7 +3776,7 @@ msgstr "المحادثات المحددة"
 msgid "Sell"
 msgstr "بيع"
 
-#: src/shell/agent/TradesPage.tsx:54
+#: src/shell/agent/TradesPage.tsx:58
 msgctxt "side"
 msgid "Sell"
 msgstr "بيع"
@@ -3813,7 +3813,7 @@ msgstr "إرسال توجيه"
 msgid "Sending…"
 msgstr "جارٍ الإرسال…"
 
-#: src/shell/agent/TradesPage.tsx:36
+#: src/shell/agent/TradesPage.tsx:40
 msgctxt "order state"
 msgid "Sent"
 msgstr "مُرسَل"
@@ -4050,8 +4050,10 @@ msgstr "ابدأ محادثة أو أضف مهمة لتظهر هنا."
 #~ msgid "Start voice conversation"
 #~ msgstr "بدء محادثة صوتية"
 
+#: src/components/ai/AttentionInbox.tsx:136
 #: src/shell/agent/RecoveryPage.tsx:87
 #: src/shell/agent/RecoveryPage.tsx:159
+#: src/shell/lists/HeadsUp.tsx:199
 msgid "State details"
 msgstr "تفاصيل الحالة"
 
@@ -4072,15 +4074,15 @@ msgstr "لا تزال غير معروفة"
 msgid "Stop"
 msgstr "إيقاف"
 
-#: src/shell/agent/ChartSheet.tsx:65
+#: src/shell/agent/ChartSheet.tsx:64
 msgctxt "chart"
 msgid "Stop"
 msgstr "وقف"
 
 #: src/components/goals/TradingGoals.tsx:228
 #: src/components/trading/TradeApprovals.tsx:158
-#: src/shell/agent/TradesPage.tsx:345
-#: src/shell/agent/TradesPage.tsx:392
+#: src/shell/agent/TradesPage.tsx:366
+#: src/shell/agent/TradesPage.tsx:413
 msgid "Stop loss"
 msgstr "وقف الخسارة"
 
@@ -4092,7 +4094,7 @@ msgstr "وقف الخسارة · اختياري"
 #~ msgid "Stop new trading, your pauses and the account's money limits still apply to every order. Pausing a goal does not close existing broker positions."
 #~ msgstr "يبقى إيقاف الصفقات الجديدة وإيقافاتك والحدود المالية للحساب نافذة على كل أمر. إيقاف الهدف مؤقتًا لا يغلق المراكز المفتوحة لدى الوسيط."
 
-#: src/shell/agent/TradesPage.tsx:69
+#: src/shell/agent/TradesPage.tsx:73
 msgid "Stop order"
 msgstr "أمر إيقاف"
 
@@ -4196,8 +4198,8 @@ msgstr "رموز"
 
 #: src/components/goals/TradingGoals.tsx:229
 #: src/components/trading/TradeApprovals.tsx:178
-#: src/shell/agent/TradesPage.tsx:346
-#: src/shell/agent/TradesPage.tsx:403
+#: src/shell/agent/TradesPage.tsx:367
+#: src/shell/agent/TradesPage.tsx:424
 msgid "Take profit"
 msgstr "جني الربح"
 
@@ -4209,7 +4211,7 @@ msgstr "جني الربح · اختياري"
 msgid "Tap the lock icon next to the site address."
 msgstr "اضغط رمز القفل بجانب عنوان الموقع."
 
-#: src/shell/agent/ChartSheet.tsx:66
+#: src/shell/agent/ChartSheet.tsx:65
 msgctxt "chart"
 msgid "Target"
 msgstr "هدف"
@@ -4463,7 +4465,7 @@ msgid "The task resumed from its saved state after reconnection."
 msgstr "استؤنفت المهمة من حالتها المحفوظة بعد إعادة الاتصال."
 
 #. placeholder {0}: position.symbol
-#: src/shell/agent/TradesPage.tsx:306
+#: src/shell/agent/TradesPage.tsx:327
 msgid "The trade on <0>{0}</0> is closed at the market price. This is your own order, sent through the executor."
 msgstr "تُغلق الصفقة على <0>{0}</0> بسعر السوق. هذا أمرك أنت، يُرسَل عبر المنفّذ."
 
@@ -4522,7 +4524,7 @@ msgstr "حساب الوسيط مرتبط بالفعل. استخدم الاتصا
 msgid "This broker connection is disabled."
 msgstr "اتصال الوسيط هذا معطّل."
 
-#: src/shell/agent/ChartSheet.tsx:415
+#: src/shell/agent/ChartSheet.tsx:435
 msgid "This chart is no longer available."
 msgstr "لم يعد هذا الشارت متاحًا."
 
@@ -4530,7 +4532,7 @@ msgstr "لم يعد هذا الشارت متاحًا."
 #~ msgid "This conversation could not be resumed. Start a new conversation."
 #~ msgstr "تعذّر استئناف هذه المحادثة. ابدأ محادثة جديدة."
 
-#: src/shell/agent/ChartSheet.tsx:417
+#: src/shell/agent/ChartSheet.tsx:437
 msgid "This conversation has no pair to chart. Ask the agent for a chart, or open the market."
 msgstr "لا يوجد زوج لهذه المحادثة لعرضه. اطلب شارتًا من الوكيل أو افتح السوق."
 
@@ -4832,7 +4834,7 @@ msgstr "إلغاء الأرشفة"
 msgid "Unavailable"
 msgstr "غير متاحة"
 
-#: src/shell/agent/TradesPage.tsx:48
+#: src/shell/agent/TradesPage.tsx:52
 msgctxt "order state"
 msgid "Unconfirmed"
 msgstr "غير مؤكَّد"
@@ -4979,7 +4981,7 @@ msgstr "إعدادات الصوت"
 #: src/components/trading/Positions.tsx:38
 #: src/components/trading/TradeActionCard.tsx:110
 #: src/components/trading/TradeApprovals.tsx:138
-#: src/shell/agent/TradesPage.tsx:343
+#: src/shell/agent/TradesPage.tsx:364
 msgid "Volume"
 msgstr "الحجم"
 
