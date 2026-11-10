@@ -60,6 +60,7 @@ CHECKS = (
     "check_unified_permissions.py",
     "check_account_recovery.py",
     "check_execution_recovery.py",
+    "check_alpaca_paper.py",
     "check_trading_restrictions.py",
     "check_decision_replay.py",
     "check_review_findings.py",

@@ -373,7 +373,10 @@ class FakeAlpaca:
         if refused := self.guard(request):
             return refused
         symbols = request.query_params["symbols"].split(",")
-        return JSONResponse({"quotes": {s: self.quotes[s] for s in symbols if s in self.quotes}})
+        # Served as the latest observation, stamped now, as a live feed would be.
+        return JSONResponse(
+            {"quotes": {s: {**self.quotes[s], "t": now()} for s in symbols if s in self.quotes}}
+        )
 
     async def list_bars(self, request: Request) -> Response:
         if refused := self.guard(request):
