@@ -163,6 +163,8 @@ test("ar: one sentence creates a gold agent; one tap approves a trade, one passk
     // Ask me until the grant: the pill says it asks before each trade.
     await expect(await modeLine(page)).toContainText(text.asks);
     await page.keyboard.press("Escape");
+    // The sheet slides away before the conversation behind it takes input again.
+    await expect(page.locator("#app")).not.toHaveAttribute("inert", "");
     await said(words.buyOnce);
     const asked = worker({ thread: goldThread.id, account: data.account, symbol: data.symbol });
     expect(asked.status).toBe("waiting_input");
