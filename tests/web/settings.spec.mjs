@@ -47,6 +47,13 @@ test("settings root, quiet hours to the minute and one agent's delivery rules", 
     await expect(page.getByText(/^Lonora · version \d/)).toBeVisible();
     await expect(page.getByText("About Lonora")).toHaveCount(0);
     await expect(page.getByRole("button", { name: /^Sign out/ })).toBeVisible();
+    // The preferences row keeps the group's 14px inline padding (the reference's `.group > .row`).
+    expect(
+      await page
+        .locator(".group > .prefs-row")
+        .first()
+        .evaluate((node) => getComputedStyle(node).paddingInlineStart),
+    ).toBe("14px");
     await page.getByRole("button", { name: /^Notifications and contact/ }).click();
     await expect(page.getByRole("radio", { name: /Activity log only/ })).toBeVisible();
     // No browser notification permission until a push channel exists (Q10).
@@ -119,6 +126,8 @@ test("app lock: a 4-digit code, wrong tries counted, unlocked again", async ({ p
     await expect(lock.getByText("Enter the code again")).toBeVisible();
     await page.keyboard.type("1234");
     await expect(lock).toHaveCount(0);
+    // Focus goes back to the switch that opened the set-code layer.
+    await expect(page.getByRole("switch", { name: "Lock the app with a code" })).toBeFocused();
     await expect(page.getByRole("switch", { name: "Unlock with fingerprint or face" })).toHaveCount(
       0,
     );
@@ -154,6 +163,44 @@ test("app lock: a 4-digit code, wrong tries counted, unlocked again", async ({ p
       );
     }
     expect(sent).toEqual([]);
+    // Zoom, reload and find stay the browser's while locked; a plain digit is the lock's.
+    const dots = lock.locator(".lk-dots i.on");
+    const filled = await dots.count();
+    const prevented = await page.evaluate(() =>
+      [
+        ["0", true],
+        ["=", true],
+        ["-", true],
+        ["r", true],
+        ["f", true],
+        ["F5", false],
+        ["5", false],
+      ].map(([key, ctrlKey]) => {
+        const event = new KeyboardEvent("keydown", {
+          key,
+          ctrlKey,
+          bubbles: true,
+          cancelable: true,
+        });
+        (document.activeElement ?? document.body).dispatchEvent(event);
+        return [key, event.defaultPrevented];
+      }),
+    );
+    expect(prevented).toEqual([
+      ["0", false],
+      ["=", false],
+      ["-", false],
+      ["r", false],
+      ["f", false],
+      ["F5", false],
+      ["5", true],
+    ]);
+    // Ctrl+0 is zoom reset, not a digit of the code; the synthetic "5" above was one.
+    await expect(dots).toHaveCount(filled + 1);
+    await page.keyboard.press("Backspace");
+    await page.keyboard.press("Control+0");
+    await page.waitForTimeout(100);
+    await expect(dots).toHaveCount(filled);
     const composer = page.locator("textarea").first();
     if (await composer.count()) await expect(composer).toHaveValue("");
     // "hello" has no digits; the first wrong code is counted and survives a reload.
@@ -239,6 +286,12 @@ test("auth: intro once, e-mail sign-in, and «Your session ended»", async ({ pa
     await page.setViewportSize({ width: 1440, height: 900 });
     const card = page.locator("#auth .auth-card");
     expect(await card.evaluate((node) => getComputedStyle(node).borderTopLeftRadius)).toBe("28px");
+    // The desktop rule must beat the base `#auth .auth-card` (its own `#auth` scope).
+    const desk = await card.evaluate((node) => {
+      const style = getComputedStyle(node);
+      return [style.minHeight, style.paddingInlineStart];
+    });
+    expect(desk).toEqual(["auto", "32px"]);
     const box = await card.boundingBox();
     expect(box && box.x > 300 && box.width <= 420).toBe(true);
     await page.screenshot({ path: ".runtime/auth/auth-signin-1440.png" });
