@@ -254,3 +254,44 @@ async def test_owner_notify_tells_the_agent_when_its_rules_kept_the_alert_in_act
         assert "no notification was shown" in result["note"], result
     finally:
         await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_owner_notify_tells_the_agent_when_its_daily_limit_kept_the_alert_in_activity():
+    database()
+    from check_streaming import Fixture
+    from lonora_adapter_kit.types import ToolCall
+    from lonora_tools.loader import load_tools
+
+    fixture = await Fixture().open()
+    try:
+        agent = await fixture.agent("Rule limit " + uuid4().hex[:6])
+        await fixture.client.put(
+            f"/api/agents/{agent['id']}/notifications", json={"daily_limit": 1}
+        )
+        thread = await fixture.conversation(agent)
+        results = []
+        for _ in range(2):
+            run = await fixture.run(agent, thread)
+            context = await fixture.lease(run)
+            results.append(
+                await load_tools().execute(
+                    ToolCall(
+                        id="notify-" + uuid4().hex,
+                        name="owner_notify",
+                        arguments={
+                            "importance": "important_change",
+                            "summary": "Gold moved past the level " + uuid4().hex[:6],
+                            "dedupe_key": "limit-" + uuid4().hex,
+                        },
+                    ),
+                    context,
+                )
+            )
+        first, second = results
+        assert first["status"] in {"pending", "ready"} and first["attention_id"], first
+        assert second["status"] == "agent_daily_limit", second
+        assert second["attention_id"] is None, second
+        assert "daily alert limit" in second["note"], second
+    finally:
+        await fixture.close()

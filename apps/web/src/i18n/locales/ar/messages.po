@@ -541,13 +541,13 @@ msgstr "مكالمات الوكيل"
 msgid "Agent collaboration"
 msgstr "تعاون الوكلاء"
 
-#: src/shell/ChatMenu.tsx:165
+#: src/shell/ChatMenu.tsx:179
 msgid "Agent files"
 msgstr "ملفات الوكيل"
 
 #: src/shell/ChatHeader.tsx:84
-#: src/shell/ChatMenu.tsx:108
-#: src/shell/ChatMenu.tsx:121
+#: src/shell/ChatMenu.tsx:122
+#: src/shell/ChatMenu.tsx:135
 msgid "Agent info"
 msgstr "معلومات الوكيل"
 
@@ -726,7 +726,7 @@ msgstr "يُلغى أي تفويض موقَّع على هذا الحساب، و�
 msgid "API key"
 msgstr "مفتاح API"
 
-#: src/shell/settings/AppLock.tsx:259
+#: src/shell/settings/AppLock.tsx:260
 #: src/shell/settings/DevicePages.tsx:208
 msgid "App lock"
 msgstr "قفل التطبيق"
@@ -1175,7 +1175,7 @@ msgstr "الكاميرا غير مسموحة"
 #: src/conversation/sheets/WatchesSheet.tsx:91
 #: src/pages/Board.tsx:576
 #: src/shell/lists/Selection.tsx:78
-#: src/shell/settings/AppLock.tsx:265
+#: src/shell/settings/AppLock.tsx:266
 #: src/shell/settings/ConnectionPages.tsx:280
 #: src/shell/settings/SettingsRoot.tsx:284
 msgid "Cancel"
@@ -1257,8 +1257,8 @@ msgid "Channel"
 msgstr "قناة"
 
 #: src/conversation/ToolsSheet.tsx:157
-#: src/shell/ChatMenu.tsx:74
-#: src/shell/ChatMenu.tsx:124
+#: src/shell/ChatMenu.tsx:88
+#: src/shell/ChatMenu.tsx:138
 msgid "Chart"
 msgstr "الشارت"
 
@@ -1286,7 +1286,7 @@ msgid "Chat list"
 msgstr "قائمة المحادثات"
 
 #: src/shell/ChatHeader.tsx:144
-#: src/shell/ChatMenu.tsx:104
+#: src/shell/ChatMenu.tsx:118
 msgid "Chat menu"
 msgstr "قائمة المحادثة"
 
@@ -1961,7 +1961,7 @@ msgstr "مهمة مفوّضة"
 #: src/shell/lists/EmojiPanel.tsx:405
 #: src/shell/lists/Selection.tsx:99
 #: src/shell/lists/Selection.tsx:273
-#: src/shell/settings/AppLock.tsx:289
+#: src/shell/settings/AppLock.tsx:290
 msgid "Delete"
 msgstr "حذف"
 
@@ -2653,8 +2653,8 @@ msgstr "الانتقال إلى آخر الرسائل، {fresh} جديدة"
 msgid "Go to the quoted message"
 msgstr "الانتقال إلى الرسالة المقتبسة"
 
-#: src/shell/ChatMenu.tsx:112
-#: src/shell/ChatMenu.tsx:147
+#: src/shell/ChatMenu.tsx:126
+#: src/shell/ChatMenu.tsx:161
 msgid "Goals"
 msgstr "الأهداف"
 
@@ -2680,8 +2680,8 @@ msgid "Group from the selected"
 msgstr "مجموعة من المحددين"
 
 #: src/shell/ChatHeader.tsx:84
-#: src/shell/ChatMenu.tsx:107
 #: src/shell/ChatMenu.tsx:121
+#: src/shell/ChatMenu.tsx:135
 msgid "Group info"
 msgstr "معلومات المجموعة"
 
@@ -2958,8 +2958,8 @@ msgstr "نوع التفويض"
 
 #: src/conversation/ToolsSheet.tsx:194
 #: src/pages/Knowledge.tsx:20
-#: src/shell/ChatMenu.tsx:110
-#: src/shell/ChatMenu.tsx:141
+#: src/shell/ChatMenu.tsx:124
+#: src/shell/ChatMenu.tsx:155
 #: src/shell/pages.tsx:86
 msgid "Knowledge"
 msgstr "المعرفة"
@@ -3552,7 +3552,7 @@ msgid "New request"
 msgstr "طلب جديد"
 
 #: src/conversation/ToolsSheet.tsx:111
-#: src/shell/ChatMenu.tsx:160
+#: src/shell/ChatMenu.tsx:174
 #: src/shell/Welcome.tsx:57
 msgid "New task"
 msgstr "مهمة جديدة"
@@ -4898,8 +4898,8 @@ msgid "Route by capability"
 msgstr "التوجيه حسب القدرة"
 
 #: src/pages/Routines.tsx:24
-#: src/shell/ChatMenu.tsx:113
-#: src/shell/ChatMenu.tsx:153
+#: src/shell/ChatMenu.tsx:127
+#: src/shell/ChatMenu.tsx:167
 #: src/shell/pages.tsx:84
 msgid "Routines"
 msgstr "المهام المجدولة"
@@ -5510,7 +5510,7 @@ msgid "Status"
 msgstr "الحالة"
 
 #: src/conversation/sheets/AgentSheet.tsx:573
-#: src/shell/ChatMenu.tsx:128
+#: src/shell/ChatMenu.tsx:63
 msgid "Status and safety"
 msgstr "الحالة والأمان"
 
@@ -6430,7 +6430,7 @@ msgstr "محاولات كثيرة. انتظر دقيقة وأعد المحاول
 msgid "Too many requests in a short time"
 msgstr "طلبات كثيرة في وقت قصير"
 
-#: src/shell/settings/AppLock.tsx:278
+#: src/shell/settings/AppLock.tsx:279
 msgid "Too many tries. Try again in {wait} s"
 msgstr "محاولات كثيرة. حاول بعد {wait} ث"
 
@@ -6642,7 +6642,7 @@ msgstr "فصل"
 msgid "Unlink the account"
 msgstr "فصل الحساب"
 
-#: src/shell/settings/AppLock.tsx:287
+#: src/shell/settings/AppLock.tsx:288
 msgid "Unlock with fingerprint"
 msgstr "فتح بالبصمة"
 
@@ -6920,7 +6920,7 @@ msgid "Watch source"
 msgstr "مصدر المراقبة"
 
 #: src/conversation/sheets/AgentSheet.tsx:301
-#: src/shell/ChatMenu.tsx:135
+#: src/shell/ChatMenu.tsx:149
 msgid "Watches"
 msgstr "المراقبات"
 

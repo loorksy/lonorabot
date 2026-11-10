@@ -541,13 +541,13 @@ msgstr "Agent calls"
 msgid "Agent collaboration"
 msgstr "Agent collaboration"
 
-#: src/shell/ChatMenu.tsx:165
+#: src/shell/ChatMenu.tsx:179
 msgid "Agent files"
 msgstr "Agent files"
 
 #: src/shell/ChatHeader.tsx:84
-#: src/shell/ChatMenu.tsx:108
-#: src/shell/ChatMenu.tsx:121
+#: src/shell/ChatMenu.tsx:122
+#: src/shell/ChatMenu.tsx:135
 msgid "Agent info"
 msgstr "Agent info"
 
@@ -726,7 +726,7 @@ msgstr "Any signed delegation on this account is revoked, and {names} go back to
 msgid "API key"
 msgstr "API key"
 
-#: src/shell/settings/AppLock.tsx:259
+#: src/shell/settings/AppLock.tsx:260
 #: src/shell/settings/DevicePages.tsx:208
 msgid "App lock"
 msgstr "App lock"
@@ -1175,7 +1175,7 @@ msgstr "Camera not allowed"
 #: src/conversation/sheets/WatchesSheet.tsx:91
 #: src/pages/Board.tsx:576
 #: src/shell/lists/Selection.tsx:78
-#: src/shell/settings/AppLock.tsx:265
+#: src/shell/settings/AppLock.tsx:266
 #: src/shell/settings/ConnectionPages.tsx:280
 #: src/shell/settings/SettingsRoot.tsx:284
 msgid "Cancel"
@@ -1257,8 +1257,8 @@ msgid "Channel"
 msgstr "Channel"
 
 #: src/conversation/ToolsSheet.tsx:157
-#: src/shell/ChatMenu.tsx:74
-#: src/shell/ChatMenu.tsx:124
+#: src/shell/ChatMenu.tsx:88
+#: src/shell/ChatMenu.tsx:138
 msgid "Chart"
 msgstr "Chart"
 
@@ -1286,7 +1286,7 @@ msgid "Chat list"
 msgstr "Chat list"
 
 #: src/shell/ChatHeader.tsx:144
-#: src/shell/ChatMenu.tsx:104
+#: src/shell/ChatMenu.tsx:118
 msgid "Chat menu"
 msgstr "Chat menu"
 
@@ -1961,7 +1961,7 @@ msgstr "Delegated task"
 #: src/shell/lists/EmojiPanel.tsx:405
 #: src/shell/lists/Selection.tsx:99
 #: src/shell/lists/Selection.tsx:273
-#: src/shell/settings/AppLock.tsx:289
+#: src/shell/settings/AppLock.tsx:290
 msgid "Delete"
 msgstr "Delete"
 
@@ -2653,8 +2653,8 @@ msgstr "Go to the latest messages, {fresh} new"
 msgid "Go to the quoted message"
 msgstr "Go to the quoted message"
 
-#: src/shell/ChatMenu.tsx:112
-#: src/shell/ChatMenu.tsx:147
+#: src/shell/ChatMenu.tsx:126
+#: src/shell/ChatMenu.tsx:161
 msgid "Goals"
 msgstr "Goals"
 
@@ -2680,8 +2680,8 @@ msgid "Group from the selected"
 msgstr "Group from the selected"
 
 #: src/shell/ChatHeader.tsx:84
-#: src/shell/ChatMenu.tsx:107
 #: src/shell/ChatMenu.tsx:121
+#: src/shell/ChatMenu.tsx:135
 msgid "Group info"
 msgstr "Group info"
 
@@ -2958,8 +2958,8 @@ msgstr "Kind of mandate"
 
 #: src/conversation/ToolsSheet.tsx:194
 #: src/pages/Knowledge.tsx:20
-#: src/shell/ChatMenu.tsx:110
-#: src/shell/ChatMenu.tsx:141
+#: src/shell/ChatMenu.tsx:124
+#: src/shell/ChatMenu.tsx:155
 #: src/shell/pages.tsx:86
 msgid "Knowledge"
 msgstr "Knowledge"
@@ -3552,7 +3552,7 @@ msgid "New request"
 msgstr "New request"
 
 #: src/conversation/ToolsSheet.tsx:111
-#: src/shell/ChatMenu.tsx:160
+#: src/shell/ChatMenu.tsx:174
 #: src/shell/Welcome.tsx:57
 msgid "New task"
 msgstr "New task"
@@ -4898,8 +4898,8 @@ msgid "Route by capability"
 msgstr "Route by capability"
 
 #: src/pages/Routines.tsx:24
-#: src/shell/ChatMenu.tsx:113
-#: src/shell/ChatMenu.tsx:153
+#: src/shell/ChatMenu.tsx:127
+#: src/shell/ChatMenu.tsx:167
 #: src/shell/pages.tsx:84
 msgid "Routines"
 msgstr "Routines"
@@ -5510,7 +5510,7 @@ msgid "Status"
 msgstr "Status"
 
 #: src/conversation/sheets/AgentSheet.tsx:573
-#: src/shell/ChatMenu.tsx:128
+#: src/shell/ChatMenu.tsx:63
 msgid "Status and safety"
 msgstr "Status and safety"
 
@@ -6430,7 +6430,7 @@ msgstr "Too many attempts. Wait a minute and retry."
 msgid "Too many requests in a short time"
 msgstr "Too many requests in a short time"
 
-#: src/shell/settings/AppLock.tsx:278
+#: src/shell/settings/AppLock.tsx:279
 msgid "Too many tries. Try again in {wait} s"
 msgstr "Too many tries. Try again in {wait} s"
 
@@ -6642,7 +6642,7 @@ msgstr "Unlink"
 msgid "Unlink the account"
 msgstr "Unlink the account"
 
-#: src/shell/settings/AppLock.tsx:287
+#: src/shell/settings/AppLock.tsx:288
 msgid "Unlock with fingerprint"
 msgstr "Unlock with fingerprint"
 
@@ -6920,7 +6920,7 @@ msgid "Watch source"
 msgstr "Watch source"
 
 #: src/conversation/sheets/AgentSheet.tsx:301
-#: src/shell/ChatMenu.tsx:135
+#: src/shell/ChatMenu.tsx:149
 msgid "Watches"
 msgstr "Watches"
 
