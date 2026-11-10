@@ -1037,7 +1037,8 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
           }
           draft={draft}
           members={agents}
-          direct
+          direct={!thread?.group_id}
+          self={thread?.group_id ? null : agent?.id}
           mentionAll={collaborationActive}
           collaborationSessionId={collaborationSessionId}
           reply={reply}

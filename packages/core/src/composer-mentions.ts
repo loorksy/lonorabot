@@ -68,12 +68,13 @@ export function guestCandidates(
   candidates: Agent[],
   committed: readonly Pick<MentionRange, "agent_id">[],
   direct: boolean,
+  /** A direct chat's own agent: never a guest, never counted toward the cap. */
+  self?: string | null,
 ): Agent[] {
   if (!direct) return candidates;
+  const others = candidates.filter((agent) => agent.id !== self);
   const named = new Set(
-    committed.map((row) => row.agent_id).filter((id): id is string => Boolean(id)),
+    committed.map((row) => row.agent_id).filter((id): id is string => Boolean(id) && id !== self),
   );
-  return named.size >= MAX_DIRECT_GUESTS
-    ? candidates.filter((agent) => named.has(agent.id))
-    : candidates;
+  return named.size >= MAX_DIRECT_GUESTS ? others.filter((agent) => named.has(agent.id)) : others;
 }

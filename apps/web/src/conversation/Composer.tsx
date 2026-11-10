@@ -213,7 +213,12 @@ export function Composer({
   const pool = agents.filter((row) => memberIds.includes(row.id));
   const candidates =
     mention !== null && mention !== dismissed
-      ? guestCandidates(mentionCandidates(pool, mention), committed.current, !isGroup).slice(0, 6)
+      ? guestCandidates(
+          mentionCandidates(pool, mention),
+          committed.current,
+          !isGroup,
+          agent?.id,
+        ).slice(0, 6)
       : [];
   // «@الكل» addresses everyone in this chat's open collaboration session (a direct chat with
   // guests); the server refuses it anywhere else, so it is offered only there.
