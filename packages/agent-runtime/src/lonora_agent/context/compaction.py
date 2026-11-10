@@ -114,6 +114,7 @@ async def compact_history(context: ToolContext, *, settled: bool = False) -> Non
             # Never truncate a batch and then mark unseen messages as summarized.
             budget = MAXIMUM_CONTEXT_CHARS - len(COMPACTION_PROMPT) - 128
             through = prior_seq
+            held = False
             for row in rows:
                 role, content = row.role, row.content
                 if row.origin in {"ui_submit", "ui_follow_up"}:
@@ -122,6 +123,7 @@ async def compact_history(context: ToolContext, *, settled: bool = False) -> Non
                     # The summary is shared by every later Run: a submission whose Run has
                     # not ended waits outside it, one that never ran is only a note.
                     if not never_ran(row.ui_submit, await submit_status(session, row)):
+                        held = True
                         break
                     content = "[" + NEVER_RAN_NOTE + "]"
                 block = (
@@ -134,6 +136,10 @@ async def compact_history(context: ToolContext, *, settled: bool = False) -> Non
                 input_text += block
                 through = row.seq
             if through == prior_seq:
+                if held:
+                    # A send still waiting at the cursor: the summary resumes once its
+                    # Run has ended, never a failed turn.
+                    return
                 raise LonoraError("history_message_too_large", 413)
         reply, selection = await context.router.complete(
             Capability.BACKGROUND,

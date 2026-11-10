@@ -1,11 +1,14 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import type { AgentWatchSummary } from "@lonora/contracts";
+import type { AgentWatchSummary, Message, Run } from "@lonora/contracts";
 import { watchCondition } from "../../packages/core/src/agent-status";
+import { isPlainOutgoing } from "../../packages/core/src/chat-rows";
 import { environment, evaluate, renderTemplate } from "../../packages/core/src/genui/expr";
 import { ARITY } from "../../packages/core/src/genui/functions";
 import { parseCardNumber } from "../../packages/core/src/genui/input";
+import { validateUiDocument } from "../../packages/core/src/genui/spec";
+import { cardLock, sendBlocked, submitMark } from "../../packages/core/src/genui/submit";
 
 type Vectors = {
   values: Record<string, unknown>;
@@ -107,4 +110,99 @@ test("every function's arity equals Python's (shared fixture)", () => {
     Object.fromEntries(Object.entries(shared).map(([name, range]) => [name, [...range]])),
     expected,
   );
+});
+
+// The shared client helpers (§8.1, §8.2 rules N and T, §8.6, §9.3).
+const sendMessage = (overrides: Record<string, unknown> = {}) =>
+  ({
+    id: "s1",
+    thread_id: "t",
+    seq: 5,
+    role: "user",
+    content: "أنشئ تنبيهًا",
+    origin: "ui_submit",
+    reply_to: "card",
+    ui_submit: {
+      source_message_id: "card",
+      part: 1,
+      intent: "alert.create",
+      lock: true,
+      run_id: "r1",
+    },
+    ...overrides,
+  }) as unknown as Message;
+const cardMessage = { id: "card", thread_id: "t", seq: 4, role: "assistant" } as unknown as Message;
+const run = (status: string, overrides: Record<string, unknown> = {}) =>
+  ({ id: "r1", thread_id: "t", agent_id: "a", status, ...overrides }) as unknown as Run;
+
+test("a card's send is never flushed by the outbox", () => {
+  assert.equal(isPlainOutgoing({ content: "hi" }), true);
+  assert.equal(isPlainOutgoing({ content: "", ui_submit: { part: 1 } }), false);
+  assert.equal(isPlainOutgoing({ content: "x", input_answer: { run_id: "r" } }), false);
+});
+
+test("the never-run mark is the server's fact only (review U1)", () => {
+  // A Run that finished without the client hearing of its start is not «لم يُنفَّذ».
+  assert.equal(submitMark(sendMessage()), null);
+  assert.equal(submitMark(sendMessage({ ui_mark: "not_run" })), "not_run");
+  const superseded = sendMessage();
+  (superseded.ui_submit as Record<string, unknown>).mark = "superseded";
+  assert.equal(submitMark(superseded), "superseded");
+  const started = sendMessage({ ui_mark: "not_run" });
+  (started.ui_submit as Record<string, unknown>).started_at = "2026-11-10T00:00:00Z";
+  assert.equal(submitMark(started), null);
+  assert.equal(submitMark({ ...sendMessage(), origin: "owner" } as Message), null);
+});
+
+test("a card is locked by its latest locking send unless never run or unlocked", () => {
+  assert.deepEqual(cardLock(cardMessage, 1, [cardMessage, sendMessage()]), { id: "s1", seq: 5 });
+  assert.equal(cardLock(cardMessage, 0, [cardMessage, sendMessage()]), null);
+  assert.equal(cardLock(cardMessage, 1, [cardMessage, sendMessage({ ui_mark: "not_run" })]), null);
+  const unlocked = {
+    ...cardMessage,
+    ui_state: { parts: { "1": { unlocked_seq: 5 } } },
+  } as unknown as Message;
+  assert.equal(cardLock(unlocked, 1, [unlocked, sendMessage()]), null);
+  const repeatable = sendMessage();
+  (repeatable.ui_submit as Record<string, unknown>).lock = false;
+  assert.equal(cardLock(cardMessage, 1, [cardMessage, repeatable]), null);
+});
+
+test("a send waits while the agent is paused, waits for the owner, or has one queued", () => {
+  assert.equal(sendBlocked("a", "t", [], [], true), "paused");
+  assert.equal(sendBlocked("a", "t", [], [run("waiting_input")], false), "waiting");
+  assert.equal(sendBlocked("a", "t", [sendMessage()], [run("queued")], false), "queued");
+  assert.equal(sendBlocked("a", "t", [sendMessage()], [run("completed")], false), null);
+  assert.equal(
+    sendBlocked("a", "t", [sendMessage()], [run("queued", { agent_id: "b" })], false),
+    null,
+  );
+});
+
+test("the client's card validator fails closed on anything malformed", () => {
+  const valid = {
+    v: 2,
+    kind: "form",
+    title: "t",
+    facts: {},
+    state: {},
+    calc: {},
+    blocks: [{ type: "Text", text: "x" }],
+    fallback: "f",
+  };
+  assert.ok(validateUiDocument(valid));
+  for (const broken of [
+    { ...valid, v: 1 },
+    { ...valid, kind: "unknown" },
+    { ...valid, blocks: [{ type: "Script", text: "x" }] },
+    { ...valid, blocks: [{ type: "Button", label: "x", action: { do: "trade" } }] },
+    { ...valid, blocks: [{ type: "Button", label: "x", action: { do: "open", url: "http://x" } }] },
+    { ...valid, calc: { x: "@Nope(" } },
+    { ...valid, fallback: "x".repeat(1501) },
+    JSON.parse('{"v":2,"__proto__":{"x":1}}'),
+  ])
+    assert.equal(validateUiDocument(broken), null, JSON.stringify(broken));
+  const getter = { ...valid };
+  Object.defineProperty(getter, "title", { get: () => "t", enumerable: true });
+  assert.equal(validateUiDocument(getter), null);
 });

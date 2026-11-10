@@ -550,3 +550,21 @@ async def test_the_skeleton_shows_as_soon_as_the_fence_opens() -> None:
     assert part["type"] == "ui" and part["building"] is True
     assert part["document"]["blocks"] == []
     RichContent.model_validate(rich)
+
+
+@pytest.mark.asyncio
+async def test_an_alert_card_on_an_account_the_server_cannot_name_falls_back() -> None:
+    """With several accounts, an alert card's bubble must name its account (§8.3)."""
+    from lonora_agent.genui_capabilities import capabilities
+    from lonora_agent.genui_compile import AgentScope, CardError, compile_card
+    from lonora_contracts.genui import parse_lines
+
+    scope = AgentScope(agent_id="agent-1", several_accounts=True, named_accounts=frozenset())
+    with pytest.raises(CardError, match="card_fallback_account_unnamed"):
+        compile_card(
+            parse_lines(A01, final=True), messages(), scope, capabilities(), set(), final=True
+        )
+    named = AgentScope(
+        agent_id="agent-1", several_accounts=True, named_accounts=frozenset({"acc-1"})
+    )
+    compile_card(parse_lines(A01, final=True), messages(), named, capabilities(), set(), final=True)

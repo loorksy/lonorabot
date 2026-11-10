@@ -5,6 +5,7 @@ from it is tainted, and the taint is never the submission marker the queue rules
 Runs on the real migrated PostgreSQL schema (skipped without ``LONORA_DATABASE_URL``).
 """
 
+import json
 from datetime import timedelta
 from typing import Any
 
@@ -344,5 +345,88 @@ async def test_search_internal_hides_unfinished_submissions_and_labels_card_word
         mine = [m for m in found["messages"] if m["thread_id"] == card.thread["id"]]
         sent = [m for m in mine if m["content"].startswith("أنشئ تنبيهًا")]
         assert sent and all(m["role"] == "owner_via_card" for m in sent)
+    finally:
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_rules_v_and_n_hold_in_session_search_and_compaction() -> None:
+    """A send that ran and ended is history, labelled ``owner_via_card``; one that never
+    ran is only the note; one still waiting is outside every other Run's view."""
+    from unittest.mock import patch
+
+    from lonora_adapter_kit.types import ModelReply
+    from lonora_agent.context.compaction import compact_history
+    from lonora_contracts.model_routing import ModelSelection
+    from lonora_db.genui_submit import mark_submit_started
+    from lonora_db.schema import MessageRow, RunRow, ThreadRow
+    from lonora_memory.sessions import discover, history_scope, read
+
+    fixture = await open_fixture()
+    try:
+        card = await Card(fixture).open()
+        thread_id = card.thread["id"]
+
+        async def send(price: int) -> dict[str, Any]:
+            await card.place()  # a fresh card each time: a sent card stays locked
+            response = await card.post(card.body({"price": price}))
+            assert response.status_code == 202, response.text
+            return response.json()
+
+        ran = await send(2401)
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            run = await session.get(RunRow, ran["run_ids"][0], with_for_update=True)
+            assert run is not None
+            await mark_submit_started(session, run)
+            run.status = "completed"
+        never = await send(2402)
+        await fixture.request(
+            "POST", f"/threads/{thread_id}/messages/{card.message_id}/ui-state/1/unlock"
+        )
+        waiting = await send(2403)
+        # Enough later conversation for compaction to summarize the older part.
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            thread = await session.get(ThreadRow, thread_id, with_for_update=True)
+            assert thread is not None
+            for index in range(130):
+                session.add(
+                    MessageRow(
+                        thread_id=thread_id,
+                        agent_id=None if index % 2 == 0 else card.agent["id"],
+                        role="user" if index % 2 == 0 else "assistant",
+                        seq=thread.next_seq,
+                        content=f"رسالة لاحقة {index}",
+                    )
+                )
+                thread.next_seq += 1
+
+        # session_search: discover and read.
+        async with fixture.runtime.db.sessions() as session:
+            scope = await history_scope(session, fixture.owner, card.agent["id"])
+            found = await discover(session, scope, "أنشئ تنبيهًا", thread_id=thread_id)
+            page = await read(session, scope, thread_id, 0, limit=50)
+        shown = {m["message_id"]: m for m in page["messages"]}
+        assert shown[ran["message"]["id"]]["author"] == "owner_via_card"
+        assert never["message"]["id"] not in shown and waiting["message"]["id"] not in shown
+        matches = json.dumps(found, ensure_ascii=False)
+        assert never["message"]["id"] not in matches and waiting["message"]["id"] not in matches
+
+        # Compaction: the shared summary input.
+        other = await fixture.run(card.agent, card.thread)
+        context = await fixture.lease(other)
+        captured: list[str] = []
+
+        async def complete(*args: Any, **kwargs: Any) -> Any:
+            captured.append(args[1][-1].content)
+            return ModelReply(text="ملخص"), ModelSelection(provider="openai", model="scripted")
+
+        with patch.object(context.router, "complete", complete):
+            await compact_history(context)
+        assert captured
+        summary_input = captured[0]
+        assert "role='owner_via_card'" in summary_input and "2,401" in summary_input
+        assert "طلب من بطاقة لم يُنفَّذ" in summary_input and "2,402" not in summary_input
+        assert "2,403" not in "".join(captured)
+
     finally:
         await fixture.close()

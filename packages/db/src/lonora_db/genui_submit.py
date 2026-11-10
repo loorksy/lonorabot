@@ -194,7 +194,7 @@ def _validate_values(document: dict[str, Any], values: dict[str, Any]) -> dict[s
     return clean
 
 
-async def _identity_names(
+async def identity_names(
     session: AsyncSession,
     owner_id: str,
     document: dict[str, Any],
@@ -217,13 +217,8 @@ async def _identity_names(
     if intent == "alert.create":
         accounts = await enabled_accounts(session, owner_id)
         if len(accounts) > 1:
-            from .owner_actions import account_facts
-
             # Read the card's own account directly: the list above is bounded.
-            account_id = str(data.get("account_id"))
-            row = await session.get(BrokerSessionRow, account_id)
-            owned = row if row is not None and row.owner_id == owner_id else None
-            label = account_facts(owned, account_id).get("label")
+            label = await account_label(session, str(data.get("account_id")), owner_id)
             if not label:
                 # The bubble must name the account and cannot (§8.3, account).
                 raise LonoraError("ui_submit_account_unnamed", 409)
@@ -239,11 +234,15 @@ async def enabled_accounts(session: AsyncSession, owner_id: str) -> list[BrokerS
     return [row for row in rows if row.payload.get("enabled", True)][:8]
 
 
-async def account_label(session: AsyncSession, account_id: str) -> str | None:
+async def account_label(session: AsyncSession, account_id: str, owner_id: str) -> str | None:
+    """The server's name for one of the owner's accounts, read directly; None for an
+    account it cannot name or that is not the owner's."""
     from .owner_actions import account_facts
 
     row = await session.get(BrokerSessionRow, account_id)
-    label = account_facts(row, account_id).get("label") if row is not None else None
+    if row is None or row.owner_id != owner_id:
+        return None
+    label = account_facts(row, account_id).get("label")
     return str(label) if label else None
 
 
@@ -360,7 +359,7 @@ async def submit_card(
     if intent_name == "ask":
         content = render_template(str(node["label"]), env).strip()
     else:
-        names = await _identity_names(session, owner_id, document, intent_name, data, language)
+        names = await identity_names(session, owner_id, document, intent_name, data, language)
         content = compose_bubble(intent, data, language, names)
     if not content or public_reply_violation(content):
         raise LonoraError("ui_submit_text_refused", 422)

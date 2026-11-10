@@ -616,8 +616,22 @@ class VisualReplyProjector:
                     accounts = await enabled_accounts(session, self.context.owner_id)
                     scope.several_accounts = len(accounts) > 1
                     if scope.several_accounts:
-                        scope.unnamed_accounts = frozenset(
-                            [row.id for row in accounts if not await account_label(session, row.id)]
+                        # The card's account is one this request read: name each directly,
+                        # owner-checked, wherever it sits among the owner's accounts.
+                        read = {
+                            str(call.arguments["account_id"])
+                            for message in self.messages
+                            for call in message.tool_calls or []
+                            if isinstance(call.arguments.get("account_id"), str)
+                        }
+                        if agent.trading_account_id:
+                            read.add(agent.trading_account_id)
+                        scope.named_accounts = frozenset(
+                            [
+                                account
+                                for account in read
+                                if await account_label(session, account, self.context.owner_id)
+                            ]
                         )
             self.scope = scope
         return self.scope
