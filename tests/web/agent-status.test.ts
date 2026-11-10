@@ -159,7 +159,7 @@ test("an order line shows the server state under the reference's names", () => {
   assert.equal(orderLineState(limit).state, "accepted");
   assert.equal(orderLineState(journal("failed")).state, "rejected");
   const notSent = journal("failed", { send_state: "not_sent" });
-  assert.equal(orderLineState(notSent).state, "cancelled");
+  assert.equal(orderLineState(notSent).state, "blocked");
   assert.equal(orderLineState(journal("ambiguous")).state, "uncertain");
   assert.equal(orderLineText("uncertain", "ar"), "غير مؤكَّد");
   const attested = (outcome: string) =>
@@ -236,7 +236,7 @@ test("M1: the order line reads the executor's real fields, not top-level guesses
       result: { operation_id: "op", status: "failed", code: "risk_daily_loss_limit", details: {} },
     }),
   );
-  assert.equal(blocked.state, "cancelled");
+  assert.equal(blocked.state, "blocked");
   assert.equal(blocked.not_sent, true);
   const rejected = orderLineState(
     journal("failed", {
@@ -286,4 +286,20 @@ test("the quota card follows Q22: no spend cap to raise, the provider's own quot
   const cards = readFileSync("apps/web/src/conversation/Cards.tsx", "utf8");
   assert.doesNotMatch(cards, /Edit the limit`|Raise the limit|usage limit/);
   assert.match(cards, /family === "quota" \? t`View usage`/);
+});
+
+test("R1/R2: the executor's own rows: a never-sent order is Requested → Blocked; no «try again» on money", async () => {
+  const { readFileSync } = await import("node:fs");
+  const rows = JSON.parse(readFileSync("tests/fixtures/order-rows.json", "utf8"));
+  const blocked = orderLineState(rows.not_sent);
+  assert.deepEqual(blocked.steps, ["requested", "blocked"]);
+  assert.equal(blocked.not_sent, true);
+  assert.equal(orderLineText("blocked", "ar"), "أُوقف قبل الإرسال");
+  const rejected = orderLineState(rows.rejected);
+  assert.deepEqual(rejected.steps, ["requested", "sent", "rejected"]);
+  // The sheet draws the shared steps and names the reason, never a generic retry.
+  const cards = readFileSync("apps/web/src/conversation/Cards.tsx", "utf8");
+  const sheet = cards.slice(cards.indexOf("export function OrderSheetBody"));
+  assert.match(sheet, /line\.steps\.map/);
+  assert.doesNotMatch(sheet.slice(0, sheet.indexOf("Technical details")), /userError\(/);
 });

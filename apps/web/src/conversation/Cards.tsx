@@ -5,6 +5,7 @@ import type { InputAnswer, InputRequest, Journal } from "@lonora/contracts";
 import {
   type ActivityCall,
   activityCallLabel,
+  financialBoundaryError,
   type OrderLineState,
   orderLineAction,
   orderLineState,
@@ -218,6 +219,7 @@ const ORDER_TONE: Record<OrderState, string> = {
   filled: "ok",
   rejected: "bad",
   cancelled: "off",
+  blocked: "off",
   uncertain: "warn",
 };
 export function orderLabel(state: OrderState) {
@@ -229,6 +231,7 @@ export function orderLabel(state: OrderState) {
     filled: t({ message: "Filled", context: "order state" }),
     rejected: t({ message: "Rejected", context: "order state" }),
     cancelled: t({ message: "Cancelled", context: "order state" }),
+    blocked: t({ message: "Blocked before sending", context: "order state" }),
     uncertain: t({ message: "Unconfirmed", context: "order state" }),
   }[state];
 }
@@ -238,7 +241,7 @@ export function OrderBadge({ state }: { state: OrderState }) {
       ? "check"
       : state === "rejected"
         ? "close"
-        : state === "cancelled"
+        : state === "cancelled" || state === "blocked"
           ? "minus"
           : state === "uncertain"
             ? "alert"
@@ -309,64 +312,53 @@ export function OrderLine({ row, onOpen }: { row: Journal; onOpen: (row: Journal
 export function OrderSheetBody({ row, onResolve }: { row: Journal; onResolve?: () => void }) {
   const line = orderLineState(row);
   const state = line.state;
-  const steps: OrderState[] = ["requested", "sent", "accepted", "filled"];
-  const reached = {
-    requested: 0,
-    sent: 1,
-    accepted: 2,
-    partial: 3,
-    filled: 3,
-    rejected: 1,
-    cancelled: 2,
-    uncertain: 1,
-  }[state];
+  // The shared timeline (core orderLineState): a never-sent order reads Requested → Blocked
+  // before sending, never Sent or Accepted.
+  const LADDER: OrderState[] = ["requested", "sent", "accepted", "filled"];
+  const final = ["filled", "partial", "rejected", "cancelled", "blocked", "uncertain"];
+  const next = final.includes(state) ? [] : LADDER.slice(LADDER.indexOf(state) + 1);
+  const tone = (step: OrderState) =>
+    step === "rejected"
+      ? "on bad"
+      : step === "cancelled" || step === "blocked"
+        ? "on off"
+        : step === "uncertain"
+          ? "warn"
+          : "on";
   const ticket = line.ticket ?? "—";
   const time = (iso?: string | null) =>
     iso ? new Date(iso).toLocaleTimeString("en-GB", { hour12: false }) : "…";
+  const code = row.result?.code ? String(row.result.code) : null;
+  const details = (row.result?.details ?? {}) as Record<string, unknown>;
+  // A rejection or a block names its own reason; never a generic "try again" on money.
+  const reason =
+    financialBoundaryError(code, i18n.locale) ??
+    (typeof details.description === "string" && details.description ? details.description : null);
   return (
     <div className="od-sheet">
-      <ol className="od-line">
-        {steps.slice(0, reached + 1).map((step) =>
-          step === "filled" && state === "partial" ? (
-            <li key={step} className="on">
-              <i />
-              <span>{orderLabel("partial")}</span>
-              <time className="ltr">{time(row.updated_at)}</time>
-            </li>
-          ) : (
-            <li key={step} className="on">
-              <i />
-              <span>{orderLabel(step)}</span>
+      <ol className="od-line" data-steps={line.steps.join(" ")}>
+        {line.steps.map((step) => (
+          <li key={step} className={tone(step)}>
+            <i />
+            <span>{orderLabel(step)}</span>
+            {step === "uncertain" ? (
+              <time>
+                <Trans>No answer from the broker</Trans>
+              </time>
+            ) : (
               <time className="ltr">
                 {time(step === "requested" ? row.submitted_at : row.updated_at)}
               </time>
-            </li>
-          ),
-        )}
-        {(state === "rejected" || state === "cancelled") && (
-          <li className={`on ${state === "rejected" ? "bad" : "off"}`}>
-            <i />
-            <span>{orderLabel(state)}</span>
-            <time className="ltr">{time(row.updated_at)}</time>
+            )}
           </li>
-        )}
-        {state === "uncertain" && (
-          <li className="warn">
+        ))}
+        {next.map((step) => (
+          <li key={step} className="next">
             <i />
-            <span>{orderLabel("uncertain")}</span>
-            <time>
-              <Trans>No answer from the broker</Trans>
-            </time>
+            <span>{orderLabel(step)}</span>
+            <time>…</time>
           </li>
-        )}
-        {!["filled", "partial", "rejected", "cancelled", "uncertain"].includes(state) &&
-          steps.slice(reached + 1).map((step) => (
-            <li key={step} className="next">
-              <i />
-              <span>{orderLabel(step)}</span>
-              <time>…</time>
-            </li>
-          ))}
+        ))}
       </ol>
       {state === "filled" || state === "partial" ? (
         <div className="od-ev ok">
@@ -407,19 +399,27 @@ export function OrderSheetBody({ row, onResolve }: { row: Journal; onResolve?: (
       ) : state === "rejected" ? (
         <div className="od-ev bad">
           <Icon name="close" />
-          <span>
+          <span data-order-reason="rejected">
             <Trans>The broker rejected the order</Trans>
-            {row.result?.code ? ` · ${userError({ code: String(row.result.code) })}` : ""}
+            {reason && (
+              <>
+                {" · "}
+                <bdi>{reason}</bdi>
+              </>
+            )}
           </span>
         </div>
-      ) : state === "cancelled" ? (
+      ) : state === "cancelled" || state === "blocked" ? (
         <div className="od-ev off">
           <Icon name="minus" />
-          <span>
+          <span data-order-reason={state}>
             {line.not_sent ? <Trans>Not sent to the broker</Trans> : orderLabel("cancelled")}
-            {line.not_sent && row.result?.code
-              ? ` · ${userError({ code: String(row.result.code) })}`
-              : ""}
+            {line.not_sent && reason && (
+              <>
+                {" · "}
+                <bdi>{reason}</bdi>
+              </>
+            )}
           </span>
         </div>
       ) : (

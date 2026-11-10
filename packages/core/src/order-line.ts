@@ -2,7 +2,8 @@
  * One order line per financial operation in the chat (Q30): the server's durable operation
  * states under the reference's names (Lonora-Desktop-37 OD_ST / odTimeline()):
  * requested «مطلوب» → sent «مُرسَل» → accepted «مقبول لدى الوسيط» → partial «منفَّذ جزئيًا» |
- * filled «منفَّذ», or rejected «مرفوض» · cancelled «ملغى» · uncertain «غير مؤكَّد».
+ * filled «منفَّذ», or rejected «مرفوض» · cancelled «ملغى» · blocked before sending «أُوقف قبل
+ * الإرسال» (a brake, a limit or a released reservation; never sent) · uncertain «غير مؤكَّد».
  *
  * «منفَّذ» never shows without evidence: a broker ticket or a verified resulting state, or
  * the owner's own attestation. A confirmation without it reads «غير مؤكَّد». The partial
@@ -19,6 +20,7 @@ export type OrderLineState =
   | "filled"
   | "rejected"
   | "cancelled"
+  | "blocked"
   | "uncertain";
 
 export type OrderLine = {
@@ -47,6 +49,7 @@ export const orderLineLabels = {
     filled: "منفَّذ",
     rejected: "مرفوض",
     cancelled: "ملغى",
+    blocked: "أُوقف قبل الإرسال",
     uncertain: "غير مؤكَّد",
   },
   en: {
@@ -57,6 +60,7 @@ export const orderLineLabels = {
     filled: "Filled",
     rejected: "Rejected",
     cancelled: "Cancelled",
+    blocked: "Blocked before sending",
     uncertain: "Unconfirmed",
   },
 } as const satisfies Record<"ar" | "en", Record<OrderLineState, string>>;
@@ -144,7 +148,7 @@ export function orderLineState(
     }
     case "failed":
       // Stopped before the broker (a brake, a limit, a released reservation): never sent.
-      if (sendState === "not_sent") return line("cancelled", ["requested"]);
+      if (sendState === "not_sent") return line("blocked", ["requested"]);
       return line("rejected", ["requested", "sent"]);
     case "ambiguous":
       return line("uncertain", ["requested", "sent"]);

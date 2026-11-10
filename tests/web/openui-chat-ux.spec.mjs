@@ -1,6 +1,7 @@
 // OpenUI-derived chat interaction acceptance over Lonora's actual API and outbox.
 // biome-ignore-all lint/suspicious/noUndeclaredEnvVars: Playwright environment is not cached by Turbo.
 import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { test as base, expect } from "@playwright/test";
 import { brokerFixture } from "./broker-fixture.mjs";
 
@@ -471,4 +472,36 @@ test("S15: on a phone the history picker sits under the header, not beneath it",
     { x: select.x + select.width / 2, y: select.y + select.height / 2 },
   );
   expect(hit).toBe(true);
+});
+
+test("R1/R2: the order sheet draws the executor's own rows: blocked before sending, the broker's reason", async ({
+  page,
+  conversation,
+}) => {
+  await page.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
+  const rows = JSON.parse(readFileSync("tests/fixtures/order-rows.json", "utf8"));
+  const anchored = Object.values(rows).map((row) => ({
+    ...row,
+    thread_id: conversation.thread.id,
+    agent_id: conversation.agent.id,
+  }));
+  await page.route(`**/api/trading/journal?thread_id=${conversation.thread.id}`, (route) =>
+    route.fulfill({ json: anchored }),
+  );
+  await page.goto(`/app/${conversation.agent.id}`);
+  const sheet = page.locator("#dialog");
+  await page.locator("[data-operation-id='op-not-sent']").click();
+  await expect(sheet.locator(".od-line")).toHaveAttribute("data-steps", "requested blocked");
+  await expect(sheet.locator(".od-line li")).toHaveText([/Requested/, /Blocked before sending/]);
+  await expect(sheet.locator(".od-line")).not.toContainText("Sent");
+  await expect(sheet.locator(".od-line")).not.toContainText("Accepted by the broker");
+  await expect(sheet.locator("[data-order-reason='blocked']")).toContainText(
+    "Not sent to the broker",
+  );
+  await page.keyboard.press("Escape");
+  await page.locator("[data-operation-id='op-rejected']").click();
+  const reason = sheet.locator("[data-order-reason='rejected']");
+  await expect(reason).toContainText("The broker rejected the order");
+  await expect(reason).toContainText("Not enough money to complete the request");
+  await expect(sheet).not.toContainText(/try again/i);
 });

@@ -1,0 +1,74 @@
+{
+  "not_sent": {
+    "account_id": "acct",
+    "agent_id": null,
+    "awaiting_broker_confirmation": false,
+    "broker_account_id": null,
+    "operation_id": "op-not-sent",
+    "provider": null,
+    "request": {
+      "account_id": "acct",
+      "action": "buy",
+      "clear_stop_loss": false,
+      "clear_take_profit": false,
+      "operation_id": "op-not-sent",
+      "symbol": "XAUUSD",
+      "volume": "0.1"
+    },
+    "resolution": null,
+    "result": {
+      "broker_id": null,
+      "code": "risk_daily_loss_limit",
+      "details": {
+        "send_state": "not_sent"
+      },
+      "operation_id": "op-not-sent",
+      "status": "failed"
+    },
+    "run_id": null,
+    "send_state": "not_sent",
+    "status": "failed",
+    "submitted_at": "2026-11-01T09:30:00+00:00",
+    "thread_id": null,
+    "timeline_seq": null,
+    "updated_at": "2026-11-01T09:30:00+00:00",
+    "verification_status": null
+  },
+  "rejected": {
+    "account_id": "acct",
+    "agent_id": null,
+    "awaiting_broker_confirmation": false,
+    "broker_account_id": null,
+    "operation_id": "op-rejected",
+    "provider": null,
+    "request": {
+      "account_id": "acct",
+      "action": "sell",
+      "clear_stop_loss": false,
+      "clear_take_profit": false,
+      "operation_id": "op-rejected",
+      "symbol": "XAUUSD",
+      "volume": "0.2"
+    },
+    "resolution": null,
+    "result": {
+      "broker_id": null,
+      "code": "TRADE_RETCODE_NO_MONEY",
+      "details": {
+        "description": "Not enough money to complete the request",
+        "numeric_code": 10019,
+        "send_state": "sent"
+      },
+      "operation_id": "op-rejected",
+      "status": "failed"
+    },
+    "run_id": null,
+    "send_state": "unknown",
+    "status": "failed",
+    "submitted_at": "2026-11-01T09:30:00+00:00",
+    "thread_id": null,
+    "timeline_seq": null,
+    "updated_at": "2026-11-01T09:30:00+00:00",
+    "verification_status": null
+  }
+}
