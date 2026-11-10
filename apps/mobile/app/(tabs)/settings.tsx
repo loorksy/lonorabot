@@ -1,5 +1,6 @@
 import { Redirect, useRouter } from "expo-router";
 import { ScrollView, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { SettingsGroup, SettingsRow } from "../../components/settings-group";
 import { colors, Loading } from "../../components/ui";
 import { useSession } from "../../lib/session";
@@ -7,6 +8,7 @@ import { useTheme } from "../../lib/theme";
 export default function Settings() {
   const { ready, owner, t, rtl } = useSession();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { mode, setMode } = useTheme();
   if (!ready) return <Loading />;
   if (!owner) return <Redirect href="/sign-in" />;
@@ -19,7 +21,7 @@ export default function Settings() {
           fontSize: 28,
           fontWeight: "700",
           paddingHorizontal: 20,
-          paddingTop: 14,
+          paddingTop: insets.top + 14,
           textAlign: rtl ? "right" : "left",
         }}
       >

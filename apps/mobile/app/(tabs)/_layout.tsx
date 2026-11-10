@@ -3,7 +3,6 @@
 import { unreadBadgeTotal } from "@lonora/core";
 import { Redirect, Tabs, useRouter } from "expo-router";
 import { View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { FloatingTabBar, ROOTS, type RootTab } from "../../components/shell/chrome";
 import { NetworkStrip } from "../../components/shell/network-strip";
 import { Loading } from "../../components/ui";
@@ -15,14 +14,13 @@ import { useTheme } from "../../lib/theme";
 export default function TabsLayout() {
   const { ready, owner } = useSession();
   const { c } = useTheme();
-  const insets = useSafeAreaInsets();
   const data = useShellData();
   const lists = useLists();
   const router = useRouter();
   if (!ready) return <Loading />;
   if (!owner) return <Redirect href="/sign-in" />;
   return (
-    <View style={{ flex: 1, backgroundColor: c.bg, paddingTop: insets.top }}>
+    <View style={{ flex: 1, backgroundColor: c.bg }}>
       <NetworkStrip />
       <Tabs
         screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: c.bg } }}

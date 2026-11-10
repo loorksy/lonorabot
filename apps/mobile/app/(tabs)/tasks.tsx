@@ -2,6 +2,7 @@
 import { activeStatuses, runStatusText } from "@lonora/core";
 import { Redirect, useRouter } from "expo-router";
 import { ScrollView, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AgentFace, Empty, GroupBox, Row } from "../../components/shell/kit";
 import { Loading } from "../../components/ui";
 import { useSession } from "../../lib/session";
@@ -12,6 +13,7 @@ export default function Tasks() {
   const { ready, owner, t, rtl, locale } = useSession();
   const { c } = useTheme();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const data = useShellData();
   if (!ready) return <Loading />;
   if (!owner) return <Redirect href="/sign-in" />;
@@ -25,7 +27,7 @@ export default function Tasks() {
           fontSize: 28,
           fontWeight: "700",
           paddingHorizontal: 20,
-          paddingTop: 14,
+          paddingTop: insets.top + 14,
           paddingBottom: 6,
           textAlign: rtl ? "right" : "left",
         }}

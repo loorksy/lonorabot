@@ -9,7 +9,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { Animated, Pressable, Text, View } from "react-native";
+import { AccessibilityInfo, Animated, Pressable, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useSession } from "../../lib/session";
 import { radius, useTheme } from "../../lib/theme";
@@ -33,6 +33,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const show = useCallback<Show>((message, options = {}) => {
     clearTimeout(timer.current);
     next.current += 1;
+    // iOS does not read a live region by itself.
+    AccessibilityInfo.announceForAccessibility(message);
     setItem({ id: next.current, message, ...options });
     timer.current = setTimeout(() => setItem(null), options.action ? 6000 : 3200);
   }, []);

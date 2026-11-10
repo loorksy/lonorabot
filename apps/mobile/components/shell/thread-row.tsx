@@ -86,9 +86,13 @@ function Preview({
     <>
       {mine ? (
         last.consumed ? (
-          <Icon name="checks" size={16} color={c["accent-ink"]} />
+          <View accessibilityRole="image" accessibilityLabel={t("sh_tickRead")} testID="tick-read">
+            <Icon name="checks" size={16} color={c["accent-ink"]} />
+          </View>
         ) : (
-          <Icon name="check" size={16} color={c.muted} />
+          <View accessibilityRole="image" accessibilityLabel={t("sh_tickSent")} testID="tick-sent">
+            <Icon name="check" size={16} color={c.muted} />
+          </View>
         )
       ) : null}
       {icon ? <Icon name={icon} size={16} color={color} /> : null}
@@ -132,7 +136,24 @@ export const ThreadRow = memo(function ThreadRow({
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={row.name}
+      accessibilityLabel={[
+        row.name,
+        count > 0
+          ? fill(t("sh_unreadN"), { count })
+          : rowMarkedOnly(row)
+            ? t("sh_unreadMarked")
+            : "",
+        outgoing
+          ? outgoing.message.delivery === "failed"
+            ? t("sh_notSent")
+            : t("sh_waitingNetwork")
+          : "",
+        row.paused ? t("sh_paused") : "",
+        muted ? t("sh_muted") : "",
+        isPinned(row) ? t("sh_pinned") : "",
+      ]
+        .filter(Boolean)
+        .join("، ")}
       accessibilityState={{ selected: selecting ? picked : undefined }}
       testID={`thread-row-${row.key}`}
       {...({

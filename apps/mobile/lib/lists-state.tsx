@@ -3,6 +3,7 @@
 // and comes back merged (the same contract as Web's lists/state).
 import type { ThreadPrefs, ThreadPrefsUpdate } from "@lonora/contracts";
 import { type ChatRow, chatRows, type ListFilter } from "@lonora/core";
+import { useGlobalSearchParams, usePathname } from "expo-router";
 import {
   createContext,
   type ReactNode,
@@ -10,9 +11,10 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
-import { BackHandler } from "react-native";
+import { AppState, BackHandler } from "react-native";
 import { useToast } from "../components/shell/toast";
 import { ApiError } from "./api";
 import { ensureThread, listsApi } from "./lists-api";
@@ -78,7 +80,8 @@ export function ListsProvider({ children }: { children: ReactNode }) {
     for (const row of rows) {
       if (!row.threadId) continue;
       const pending = outgoingMessages(outgoingKey(server, ownerId, row.threadId));
-      count += pending.length;
+      // Only messages still waiting count; a failed one needs the owner's retry (Q6).
+      count += pending.filter((item) => item.message.delivery !== "failed").length;
       const last = pending.at(-1);
       if (last) map.set(row.threadId, last);
     }
@@ -173,6 +176,34 @@ export function ListsProvider({ children }: { children: ReactNode }) {
     },
     [merge],
   );
+  /* The open conversation is read: its unread count and «marked unread» clear on the server (shared
+     with Web), and stay clear while new answers arrive in view. The conversation screens need no
+     change: the route says which thread is open. */
+  const pathname = usePathname();
+  const params = useGlobalSearchParams<{ id?: string | string[]; groupId?: string | string[] }>();
+  const first = (value?: string | string[]) => (Array.isArray(value) ? value[0] : value);
+  const openThread =
+    pathname === "/thread"
+      ? first(params.id)
+      : pathname === "/group-thread"
+        ? data.groups.find((group) => group.id === first(params.groupId))?.state?.thread_id
+        : undefined;
+  const reading = useRef("");
+  useEffect(() => {
+    const entry = data.inbox.find((row) => row.thread_id === openThread);
+    if (!entry || !(entry.unread_count > 0 || entry.marked_unread)) return;
+    if (AppState.currentState !== "active") return;
+    const seq = Math.max(entry.last_message?.seq ?? 0, entry.last_read_seq);
+    const key = `${entry.thread_id}:${seq}:${entry.unread_count}`;
+    if (reading.current === key) return;
+    reading.current = key;
+    void listsApi
+      .read(entry.thread_id, seq)
+      .then((prefs) => patchInbox([prefs]))
+      .catch(() => {
+        reading.current = "";
+      });
+  }, [data.inbox, data.groups, openThread, patchInbox]);
   const failed = useCallback(
     (error: unknown) => {
       if (error instanceof ApiError && error.code === "thread_pin_limit") toast(t("sh_pin3"));

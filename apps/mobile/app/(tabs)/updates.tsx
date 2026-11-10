@@ -1,6 +1,8 @@
 // المستجدات: what needs the owner (the attention inbox). A dot on the tab says something is new.
+
 import { Redirect } from "expo-router";
 import { ScrollView, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AttentionInbox } from "../../components/attention-inbox";
 import { colors, Loading } from "../../components/ui";
 import { api } from "../../lib/api";
@@ -12,6 +14,7 @@ export default function Updates() {
   const { ready, owner, t, rtl } = useSession();
   const { c } = useTheme();
   const data = useShellData();
+  const insets = useSafeAreaInsets();
   if (!ready) return <Loading />;
   if (!owner) return <Redirect href="/sign-in" />;
   return (
@@ -23,7 +26,7 @@ export default function Updates() {
           fontSize: 28,
           fontWeight: "700",
           paddingHorizontal: 20,
-          paddingTop: 14,
+          paddingTop: insets.top + 14,
           paddingBottom: 6,
           textAlign: rtl ? "right" : "left",
         }}

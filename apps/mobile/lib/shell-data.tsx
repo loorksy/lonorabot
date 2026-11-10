@@ -68,6 +68,8 @@ export function ShellDataProvider({ children }: { children: ReactNode }) {
   const [attention, setAttention] = useState<AttentionNotification[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [offline, setOffline] = useState(false);
+  // Local confirmed writes bump this; a primary read that started before the last one is dropped.
+  const writes = useRef(0);
 
   useEffect(() => {
     const cached = conversationCache.get<InboxSnapshot>(scope, "inbox");
@@ -84,6 +86,7 @@ export function ShellDataProvider({ children }: { children: ReactNode }) {
   const refresh = useCallback(
     async (stillLive: () => boolean = () => true) => {
       const requestOwner = currentOwner.current;
+      const startedAt = writes.current;
       const current = () =>
         stillLive() && requestOwner === currentOwner.current && conversationCache.current(scope);
       try {
@@ -96,7 +99,7 @@ export function ShellDataProvider({ children }: { children: ReactNode }) {
           api.get<ChatList[]>("/chat-lists").catch(() => null),
           api.get<ThreadSettings>("/threads/settings").catch(() => null),
         ]).then(([nextAgents, nextGroups, nextInbox, nextLists, nextSettings]) => {
-          if (!current()) return;
+          if (!current() || writes.current !== startedAt) return;
           conversationCache.set(scope, "inbox", {
             agents: nextAgents,
             groups: nextGroups,
@@ -183,6 +186,7 @@ export function ShellDataProvider({ children }: { children: ReactNode }) {
 
   const patchInbox = useCallback(
     (prefs: ThreadPrefs[]) => {
+      writes.current += 1;
       setInbox((entries) => {
         const next = mergePrefs(entries, prefs);
         const cached = conversationCache.get<InboxSnapshot>(scope, "inbox");
@@ -192,10 +196,14 @@ export function ShellDataProvider({ children }: { children: ReactNode }) {
     },
     [scope],
   );
-  const setChatLists = useCallback(
-    (update: (lists: ChatList[]) => ChatList[]) => setChatListsState(update),
-    [],
-  );
+  const setChatLists = useCallback((update: (lists: ChatList[]) => ChatList[]) => {
+    writes.current += 1;
+    setChatListsState(update);
+  }, []);
+  const setThreadSettings = useCallback((settings: ThreadSettings) => {
+    writes.current += 1;
+    setThreadSettingsState(settings);
+  }, []);
   const clearAttention = useCallback(
     (id: string) => setAttention((rows) => rows.filter((row) => row.id !== id)),
     [],
@@ -221,7 +229,7 @@ export function ShellDataProvider({ children }: { children: ReactNode }) {
       refresh: () => refreshRef.current(),
       patchInbox,
       setChatLists,
-      setThreadSettings: setThreadSettingsState,
+      setThreadSettings,
       clearAttention,
     }),
     [

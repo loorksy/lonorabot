@@ -9,7 +9,6 @@ import {
   filterRows,
   type ListFilter,
   listIdOf,
-  rowIsUnread,
 } from "@lonora/core";
 import { useRouter } from "expo-router";
 import {
@@ -39,7 +38,7 @@ import { useSession } from "../../lib/session";
 import { useShellData } from "../../lib/shell-data";
 import { useTheme } from "../../lib/theme";
 import { Icon } from "./icon";
-import { Empty, GroupBox, Row, SkRows, Switch } from "./kit";
+import { Empty, GroupBox, Row, RtlScroll, SkRows, Switch } from "./kit";
 import { useListSheets } from "./list-sheets";
 import { ThreadRow } from "./thread-row";
 import { useToast } from "./toast";
@@ -51,14 +50,9 @@ export function useOpenChat() {
   const router = useRouter();
   const { errorText } = useSession();
   const toast = useToast();
-  const lists = useLists();
-  const { read } = lists;
   return useCallback(
     async (row: ChatRow, extra: Record<string, string> = {}) => {
       try {
-        // Opening a chat reads it on the server; the row and the tab badge follow. The conversation
-        // screen itself is a later part of the port, so the list does it on the way in.
-        if (rowIsUnread(row)) void read([row]).catch(() => undefined);
         if (row.kind === "group") {
           router.push({ pathname: "/group-thread", params: { groupId: row.id, ...extra } });
           return;
@@ -71,7 +65,7 @@ export function useOpenChat() {
         toast(errorText(reason), { type: "error" });
       }
     },
-    [router, errorText, toast, read],
+    [router, errorText, toast],
   );
 }
 
@@ -134,11 +128,7 @@ function Filters() {
       accessibilityLabel={t("sh_filterChats")}
       style={{ height: FILTER_H, borderBottomWidth: 1, borderBottomColor: c.line }}
     >
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ flexDirection: rtl ? "row-reverse" : "row", paddingHorizontal: 4 }}
-      >
+      <RtlScroll contentContainerStyle={{ paddingHorizontal: 4 }}>
         {BUILTIN_FILTERS.map((filter) => chip(filter, names[filter], filter))}
         {data.chatLists.map((list) =>
           chip(`list:${list.id}`, list.name, `list:${list.id}`, () => sheets.listMenu(list)),
@@ -151,7 +141,7 @@ function Filters() {
         >
           <Icon name="plus" size={18} color={c.muted} />
         </Pressable>
-      </ScrollView>
+      </RtlScroll>
     </View>
   );
 }

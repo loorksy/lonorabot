@@ -49,7 +49,7 @@ export function CircleButton({
         borderColor: c["glass-line"],
       })}
     >
-      <View style={{ transform: [{ scaleX: icon === "back" && rtl ? -1 : 1 }] }}>
+      <View style={{ transform: [{ scaleX: icon === "back" && !rtl ? -1 : 1 }] }}>
         <Icon name={icon} size={22} color={c.text} />
       </View>
     </Pressable>

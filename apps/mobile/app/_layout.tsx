@@ -11,8 +11,13 @@ import { ListsProvider } from "../lib/lists-state";
 import { useOtaUpdates } from "../lib/ota";
 import { SessionProvider } from "../lib/session";
 import { ShellDataProvider } from "../lib/shell-data";
-import { ThemeProvider } from "../lib/theme";
+import { ThemeProvider, useTheme } from "../lib/theme";
 import { VoiceSessionProvider } from "../lib/voice-session";
+
+function ThemedStatusBar() {
+  const { mode } = useTheme();
+  return <StatusBar style={mode === "dark" ? "light" : "dark"} />;
+}
 
 export default function Layout() {
   useOtaUpdates();
@@ -26,7 +31,7 @@ export default function Layout() {
                 <VoiceSessionProvider>
                   <ChartSheetProvider>
                     <View style={{ flex: 1 }}>
-                      <StatusBar style="light" />
+                      <ThemedStatusBar />
                       <Stack
                         screenOptions={{
                           headerShown: false,

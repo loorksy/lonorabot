@@ -1,8 +1,16 @@
 // Small pieces of the reference's look: grouped rows, buttons, empty states, the switch, skeletons.
 import type { Agent, Group as GroupResource } from "@lonora/contracts";
 import type { ChatRow } from "@lonora/core";
-import { type ReactNode, useEffect, useRef } from "react";
-import { Animated, Pressable, Text, View, type ViewStyle } from "react-native";
+import { Children, type ReactNode, useEffect, useRef } from "react";
+import {
+  Animated,
+  Pressable,
+  ScrollView,
+  type ScrollViewProps,
+  Text,
+  View,
+  type ViewStyle,
+} from "react-native";
 import { useSession } from "../../lib/session";
 import { radius, useTheme } from "../../lib/theme";
 import { BotAvatar } from "../bot-avatar";
@@ -393,5 +401,33 @@ export function SkRows({ count = 6, size = 50 }: { count?: number; size?: number
         </View>
       ))}
     </View>
+  );
+}
+
+/**
+ * A horizontal scroller that reads from the start edge in both directions: in Arabic the first item
+ * is at the right, so the items are laid out reversed and the scroller rests at its end.
+ */
+export function RtlScroll({ children, ...props }: ScrollViewProps & { children: ReactNode }) {
+  const { rtl } = useSession();
+  const ref = useRef<ScrollView>(null);
+  const placed = useRef(false);
+  const items = Children.toArray(children);
+  return (
+    <ScrollView
+      ref={ref}
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      {...props}
+      contentContainerStyle={[props.contentContainerStyle, { flexDirection: "row" }]}
+      onContentSizeChange={() => {
+        if (rtl && !placed.current) {
+          placed.current = true;
+          ref.current?.scrollToEnd({ animated: false });
+        }
+      }}
+    >
+      {rtl ? items.reverse() : items}
+    </ScrollView>
   );
 }

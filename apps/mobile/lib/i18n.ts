@@ -1,4 +1,5 @@
 import { shellLabels } from "./labels-shell";
+import { shellExtraLabels } from "./labels-shell-extra";
 
 export type Locale = "ar" | "en";
 export const labels = {
@@ -728,6 +729,7 @@ export const labels = {
   ],
   live_paused: ["متوقف مؤقتًا", "Paused"],
   ...shellLabels,
+  ...shellExtraLabels,
 } as const;
 export type Label = keyof typeof labels;
 export function translate(locale: Locale, key: Label): string {

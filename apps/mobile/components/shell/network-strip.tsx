@@ -2,6 +2,7 @@
 // in this device's outbox (Q6), then «تم استعادة الاتصال» for a moment once a read succeeds again.
 import { useEffect, useRef, useState } from "react";
 import { Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLists } from "../../lib/lists-state";
 import { useSession } from "../../lib/session";
 import { useShellData } from "../../lib/shell-data";
@@ -12,6 +13,7 @@ export function NetworkStrip() {
   const { t, rtl, locale } = useSession();
   const data = useShellData();
   const lists = useLists();
+  const insets = useSafeAreaInsets();
   const [restored, setRestored] = useState(false);
   const was = useRef(false);
   useEffect(() => {
@@ -48,9 +50,15 @@ export function NetworkStrip() {
       accessibilityLiveRegion="polite"
       testID="network-strip"
       style={{
+        position: "absolute",
+        top: 0,
+        left: 0,
+        right: 0,
+        zIndex: 40,
         minHeight: 30,
         paddingHorizontal: 14,
-        paddingVertical: 6,
+        paddingTop: insets.top + 6,
+        paddingBottom: 6,
         alignItems: "center",
         justifyContent: "center",
         backgroundColor: data.offline ? c["danger-fill"] : c.accent,

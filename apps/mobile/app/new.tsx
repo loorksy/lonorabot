@@ -5,7 +5,7 @@
 import type { Agent, AgentTemplate, Thread } from "@lonora/contracts";
 import { DEFAULT_AVATAR_COLOR } from "@lonora/core";
 import { Redirect, useRouter } from "expo-router";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { ScrollView, Text, TextInput, View } from "react-native";
 import { AvatarPicker } from "../components/avatar-picker";
 import { type BrokerPair, BrokerPairPicker } from "../components/broker-pair-picker";
@@ -32,6 +32,7 @@ export default function NewAgent() {
   const [role, setRole] = useState("");
   const [color, setColor] = useState(DEFAULT_AVATAR_COLOR);
   const [avatar, setAvatar] = useState("face-smile");
+  const created = useRef<Agent | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   if (!ready) return <Loading />;
@@ -63,17 +64,22 @@ export default function NewAgent() {
     setBusy(true);
     setError(null);
     try {
-      const agent = await api.post<Agent>("/agents/create", {
-        template,
-        name: name.trim(),
-        responsibility: role.trim(),
-        ...(trading ? { market: pair.trading_symbol, account_id: pair.trading_account_id } : {}),
-      });
-      // The appearance is the agent's own setting, saved right after; a failed save is not a failed
-      // creation (a retry would make a second agent) and stays editable in the agent's settings.
-      if (avatar !== agent.avatar || color !== agent.color)
-        await api.patch(`/agents/${agent.id}`, { avatar, color }).catch(() => undefined);
-      void data.refresh();
+      // After a successful creation never create again: a retry only reopens the conversation.
+      let agent = created.current;
+      if (!agent) {
+        agent = await api.post<Agent>("/agents/create", {
+          template,
+          name: name.trim(),
+          responsibility: role.trim(),
+          ...(trading ? { market: pair.trading_symbol, account_id: pair.trading_account_id } : {}),
+        });
+        created.current = agent;
+        // The appearance is the agent's own setting, saved right after; a failed save is not a failed
+        // creation (a retry would make a second agent) and stays editable in the agent's settings.
+        if (avatar !== agent.avatar || color !== agent.color)
+          await api.patch(`/agents/${agent.id}`, { avatar, color }).catch(() => undefined);
+        void data.refresh();
+      }
       const thread = await api.post<Thread>(
         `/agents/${encodeURIComponent(agent.id)}/conversation`,
         {},

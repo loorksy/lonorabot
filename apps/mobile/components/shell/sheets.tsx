@@ -13,7 +13,7 @@ import {
 import {
   Animated,
   BackHandler,
-  KeyboardAvoidingView,
+  Keyboard,
   Platform,
   Pressable,
   ScrollView,
@@ -52,6 +52,21 @@ export function SheetProvider({ children }: { children: ReactNode }) {
   const { height } = useWindowDimensions();
   const [spec, setSpec] = useState<SheetSpec | null>(null);
   const [mounted, setMounted] = useState(false);
+  const [keyboard, setKeyboard] = useState(0);
+  useEffect(() => {
+    const show = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
+      (event) => setKeyboard(event.endCoordinates.height),
+    );
+    const hide = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide",
+      () => setKeyboard(0),
+    );
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
   const slide = useRef(new Animated.Value(0)).current;
   const open = useCallback((next: SheetSpec) => {
     setSpec(next);
@@ -83,7 +98,9 @@ export function SheetProvider({ children }: { children: ReactNode }) {
   const last = useRef<SheetSpec | null>(null);
   if (spec) last.current = spec;
   const shown = spec ?? last.current;
-  const panelHeight = shown?.full ? height - insets.top - 12 : undefined;
+  // The panel shrinks by the keyboard's height instead of being pushed above the screen.
+  const room = height - keyboard - insets.top - 12;
+  const panelHeight = shown?.full ? room : undefined;
   return (
     <Context.Provider value={value}>
       {children}
@@ -106,9 +123,8 @@ export function SheetProvider({ children }: { children: ReactNode }) {
             {/* A tap outside closes; the sheet's own buttons are the accessible way. */}
             <Pressable accessible={false} style={{ flex: 1 }} onPress={close} />
           </Animated.View>
-          <KeyboardAvoidingView
-            behavior={Platform.OS === "ios" ? "padding" : undefined}
-            style={{ flex: 1, justifyContent: "flex-end" }}
+          <View
+            style={{ flex: 1, justifyContent: "flex-end", paddingBottom: keyboard }}
             pointerEvents="box-none"
           >
             <Animated.View
@@ -117,7 +133,7 @@ export function SheetProvider({ children }: { children: ReactNode }) {
               accessibilityLabel={shown.title}
               style={{
                 height: panelHeight,
-                maxHeight: height - insets.top - 12,
+                maxHeight: room,
                 backgroundColor: c.bg,
                 borderTopLeftRadius: radius.lg,
                 borderTopRightRadius: radius.lg,
@@ -158,7 +174,7 @@ export function SheetProvider({ children }: { children: ReactNode }) {
                   >
                     <View
                       style={{
-                        transform: [{ scaleX: shown.back && !rtl ? 1 : shown.back ? -1 : 1 }],
+                        transform: [{ scaleX: shown.back && !rtl ? -1 : 1 }],
                       }}
                     >
                       <Icon name={shown.back ? "back" : "close"} size={20} color={c.text} />
@@ -217,7 +233,7 @@ export function SheetProvider({ children }: { children: ReactNode }) {
                 </ScrollView>
               )}
             </Animated.View>
-          </KeyboardAvoidingView>
+          </View>
         </View>
       ) : null}
     </Context.Provider>

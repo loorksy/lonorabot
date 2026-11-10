@@ -2,6 +2,7 @@
 import { reference } from "@lonora/ui-tokens";
 import {
   createContext,
+  Fragment,
   type ReactNode,
   useCallback,
   useContext,
@@ -9,6 +10,7 @@ import {
   useMemo,
   useState,
 } from "react";
+import { applyLegacyTheme } from "../components/ui";
 import { loadSetting, saveSetting } from "./storage";
 
 export type ThemeMode = "dark" | "light";
@@ -44,7 +46,14 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     void saveSetting("lonora.theme", next).catch(() => undefined);
   }, []);
   const value = useMemo(() => ({ mode, c: palettes[mode], setMode }), [mode, setMode]);
-  return <Context.Provider value={value}>{children}</Context.Provider>;
+  // The legacy palette is a module-level object: update it before the tree below renders, and
+  // remount that tree so every screen reads the new colours.
+  applyLegacyTheme(mode);
+  return (
+    <Context.Provider value={value}>
+      <Fragment key={mode}>{children}</Fragment>
+    </Context.Provider>
+  );
 }
 
 export const useTheme = () => useContext(Context);

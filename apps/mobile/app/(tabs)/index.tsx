@@ -4,7 +4,7 @@ import type { SearchTab } from "@lonora/core";
 import { filterRows } from "@lonora/core";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
-import { BackHandler, View } from "react-native";
+import { BackHandler, Keyboard, View } from "react-native";
 import { ChatList } from "../../components/shell/chat-list";
 import { ChatsHeader, TopBar } from "../../components/shell/chrome";
 import { useNewChatSheet } from "../../components/shell/new-chat-sheet";
@@ -21,7 +21,10 @@ export default function Chats() {
   const lists = useLists();
   const newChat = useNewChatSheet();
   const [search, setSearch] = useState({ expanded: false, query: "", tab: "all" as SearchTab });
-  const clearSearch = useCallback(() => setSearch({ expanded: false, query: "", tab: "all" }), []);
+  const clearSearch = useCallback(() => {
+    Keyboard.dismiss();
+    setSearch({ expanded: false, query: "", tab: "all" });
+  }, []);
   useFocusEffect(
     useCallback(() => {
       if (!search.expanded) return;

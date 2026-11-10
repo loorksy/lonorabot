@@ -25,7 +25,7 @@ import { useShellData } from "../../lib/shell-data";
 import { radius, useTheme } from "../../lib/theme";
 import { useOpenChat } from "./chat-list";
 import { Icon, type IconName } from "./icon";
-import { RowAvatar, Sk, SkRows, useAgentRole } from "./kit";
+import { RowAvatar, RtlScroll, Sk, SkRows, useAgentRole } from "./kit";
 import { clockTime } from "./thread-row";
 import { useToast } from "./toast";
 
@@ -175,7 +175,7 @@ function Hit({
       meta = owner && owner !== item.title ? owner : null;
       open = () =>
         skill
-          ? router.push("/skills")
+          ? router.push("/integrations")
           : item.agent_id
             ? router.push({ pathname: "/bot-settings", params: { botId: item.agent_id } })
             : gone();
@@ -289,14 +289,11 @@ export function UnifiedSearch({
     other: t("sh_sOther"),
   };
   const tabs = (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
+    <RtlScroll
       accessibilityRole="tablist"
       accessibilityLabel={t("sh_filterSearch")}
       style={{ flexGrow: 0 }}
       contentContainerStyle={{
-        flexDirection: rtl ? "row-reverse" : "row",
         gap: 8,
         paddingHorizontal: 14,
         paddingVertical: 10,
@@ -330,7 +327,7 @@ export function UnifiedSearch({
           </Text>
         </Pressable>
       ))}
-    </ScrollView>
+    </RtlScroll>
   );
   if (!loaded || loaded.key !== key) return <SearchSkeleton />;
   if (loaded.error)
