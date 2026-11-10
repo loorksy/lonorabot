@@ -7,6 +7,7 @@ import { TradingGoals } from "../components/goals/TradingGoals";
 import { useChatPrefs } from "../conversation/prefs";
 import { useAgentSheet } from "../conversation/sheets/AgentSheet";
 import { useWatchesSheet } from "../conversation/sheets/WatchesSheet";
+import { useAgentLiveState } from "../lib/agent-live-state";
 import type { Agent, Resource } from "../lib/api";
 import { GroupSettings } from "../pages/GroupPanel";
 import { Knowledge } from "../pages/Knowledge";
@@ -65,6 +66,8 @@ export function useChatMenu({
   );
   const watchesSheet = useWatchesSheet();
   const trading = Boolean(agent && (agent.trading_account_id || agent.template === "trading"));
+  // A task that needs the owner (review, resume) is reachable from ⋮ for any agent.
+  const hasTasks = (useAgentLiveState(agent?.id).state?.tasks ?? []).length > 0;
   // The sheet keeps the body it was opened with: the chart an answer asks for goes in here.
   const openChart = useCallback(
     (chartId?: string) => {
@@ -119,7 +122,7 @@ export function useChatMenu({
                 onClick={() => openPage("info", "fwd")}
               />
               <MenuRow icon="chart" label={<Trans>Chart</Trans>} onClick={() => openChart()} />
-              {agent && (trading || prefs.agentStatus) && (
+              {agent && (trading || prefs.agentStatus || hasTasks) && (
                 <MenuRow
                   icon="shield"
                   label={<Trans>Status and safety</Trans>}
@@ -212,6 +215,7 @@ export function useChatMenu({
       refresh,
       openChart,
       prefs.agentStatus,
+      hasTasks,
       statusSheet,
       trading,
       watchesSheet,

@@ -256,7 +256,7 @@ function AgentSheetBody({
   const closing = exits ? ` · ${t`closing allowed`}` : "";
   return (
     <>
-      <div className="sf-head">
+      <div className="sf-head" data-testid="agent-live-state" data-state={state?.state}>
         <AgentAvatar agent={agent} />
         <div>
           <strong>{agent.name}</strong>
@@ -320,6 +320,64 @@ function AgentSheetBody({
               <Trans>Show the request</Trans>
             </button>
           )}
+        </>
+      )}
+      {(state?.tasks ?? []).length > 0 && (
+        <>
+          <h3>
+            <Trans>Tasks</Trans>
+          </h3>
+          <div className="group">
+            {(state?.tasks ?? []).map((task) => (
+              <div key={task.id} className="row" data-task-id={task.id}>
+                <Icon name="task" />
+                <span className="body">
+                  <strong dir="auto">{task.title}</strong>
+                  <small>
+                    {task.retry_at
+                      ? `${t`Retry scheduled`} · ${new Date(task.retry_at).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}`
+                      : task.recovery === "reconcile"
+                        ? t`Waiting for reconciliation`
+                        : task.status === "failed"
+                          ? t`Task needs review`
+                          : agentStatusLine(state as AgentLiveState, i18n.locale)}
+                  </small>
+                </span>
+                {(["resume", "pause", "cancel"] as const).map(
+                  (action) =>
+                    task[`can_${action}`] && (
+                      <button
+                        key={action}
+                        type="button"
+                        className={`btn sm${action === "resume" ? " primary" : ""}`}
+                        disabled={busy}
+                        onClick={() =>
+                          void run(
+                            () =>
+                              api.post("/tasks/control", {
+                                task_id: task.id,
+                                action,
+                                expected_version: task.version,
+                              }),
+                            action === "resume"
+                              ? t`Task resumed`
+                              : action === "pause"
+                                ? t`Task paused`
+                                : t`Task cancelled`,
+                          )
+                        }
+                      >
+                        {action === "pause"
+                          ? t`Pause`
+                          : action === "resume"
+                            ? t`Resume`
+                            : t`Cancel`}
+                      </button>
+                    ),
+                )}
+              </div>
+            ))}
+          </div>
         </>
       )}
       {readiness && (

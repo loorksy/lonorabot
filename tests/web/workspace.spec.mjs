@@ -187,11 +187,14 @@ test("recoverable task failure shows authoritative review and resumes the same R
     encoding: "utf8",
   });
   await page.goto(`/app/${agent.id}`);
-  const live = page.getByTestId("agent-live-state");
+  // A task that needs the owner opens from ⋮ «الحالة والأمان» (the AgentSheet).
+  await page.getByRole("button", { name: "Chat menu", exact: true }).click();
+  await page.getByRole("button", { name: "Status and safety", exact: true }).click();
+  const live = page.locator("#dialog").getByTestId("agent-live-state");
   await expect(live).toHaveAttribute("data-state", "action_required");
-  await live.locator("summary").click();
-  await expect(live.getByText("Task needs review", { exact: true })).toBeVisible();
-  await live.getByRole("button", { name: "Resume", exact: true }).click();
+  const row = page.locator(`#dialog [data-task-id="${task.id}"]`);
+  await expect(row.getByText("Task needs review", { exact: true })).toBeVisible();
+  await row.getByRole("button", { name: "Resume", exact: true }).click();
   await expect
     .poll(async () => (await (await context.request.get(`/api/tasks/${task.id}`)).json()).status)
     .toBe("queued");
@@ -219,7 +222,7 @@ test("send, cancel and reload retain one real transcript", async ({ page, contex
   const cancelled = page.waitForResponse((response) =>
     response.url().endsWith(`/api/runs/${receipt.run_ids[0]}/cancel`),
   );
-  await page.getByRole("button", { name: "Stop", exact: true }).click();
+  await page.getByRole("button", { name: "Stop the reply", exact: true }).click();
   expect((await cancelled).ok()).toBeTruthy();
   await expect
     .poll(

@@ -190,6 +190,15 @@ export function TradeApprovalCard({
                   <span>{resultReason(result)}</span>
                 </>
               )}
+              {/* The broker's own receipt fields, as it returned them. */}
+              {Object.entries(result.details ?? {})
+                .filter(([key]) => RECEIPT_FIELDS.includes(key))
+                .map(([key, value]) => (
+                  <span key={key}>
+                    {" · "}
+                    <b className="ltr">{String(value)}</b>
+                  </span>
+                ))}
             </span>
           </div>
         ))}
@@ -290,6 +299,18 @@ export function TradeApprovalCard({
     </div>
   );
 }
+
+const RECEIPT_FIELDS = [
+  "price",
+  "execution_price",
+  "order_id",
+  "deal_id",
+  "position_id",
+  "numeric_code",
+  "string_code",
+  "message",
+  "description",
+];
 
 export function TradeApprovals({
   threadId,
