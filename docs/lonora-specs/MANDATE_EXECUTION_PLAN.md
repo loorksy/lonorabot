@@ -608,6 +608,7 @@ Verification on the final code tree (`2c5092c`; the documentation commit that fo
 - **Reference UI for `apps/web`** from `docs/ui-reference/Lonora-Desktop-37.html`, in six phases, one PR each (see «Reference UI» below and `docs/ui-reference/CAPABILITY_MAP.md`).
 - **Agent computer and domain scope** (D5–D7). Each agent gets a persistent isolated environment: a terminal, controlled internet through the SSRF-safe proxy, long jobs, Lonora tools callable from code, and server-injected credentials that the agent never sees, including OAuth connections. It gets no interactive browser, no hosting and no inbound ports, and broker or financial hosts are refused. A domain-scope rule sits in the protected core, with a permanent refusal test set.
 - **More brokers** as adapters behind the single executor, starting with Alpaca (paper trading for safe tests), then Interactive Brokers.
+  - Alpaca paper adapter: branch `trading/alpaca-adapter` (`docs/broker-alpaca.md`). Paper host only, live refused; verified on a local fake server. The live paper check waits for network access and an owner paper key pair.
 
 ## Reference UI
 
