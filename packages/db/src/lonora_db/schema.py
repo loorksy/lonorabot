@@ -248,6 +248,7 @@ class MessageRow(Base):
         UniqueConstraint("thread_id", "client_nonce"),
         Index("ln_message_sequence_page", "thread_id", "seq"),
         CheckConstraint("role IN ('user','assistant','system','tool')"),
+        CheckConstraint("origin IN ('owner','ui_submit','ui_follow_up')", name="ln_message_origin"),
     )
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     thread_id: Mapped[str] = mapped_column(
@@ -262,6 +263,12 @@ class MessageRow(Base):
     reply_to: Mapped[str | None] = mapped_column(String(36))
     attachment_ids: Mapped[list[str]] = mapped_column(JSON, default=list)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    # Who wrote it (GENUI_PLAN §8.4): ``owner``, ``ui_submit`` (a card's send, text composed
+    # by the server) or ``ui_follow_up`` (a v1 follow-up tap). Only ``owner`` is the owner's
+    # own words for any owner-words check.
+    origin: Mapped[str] = mapped_column(String(16), default="owner", server_default="owner")
+    ui_submit: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    ui_state: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
 
 
 class ThreadPrefsRow(Base):

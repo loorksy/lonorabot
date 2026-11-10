@@ -4,7 +4,7 @@ from lonora_contracts.domain import Contract
 from lonora_contracts.routines import RoutineCreate
 from lonora_core.user_error import LonoraError
 from lonora_db.owner_actions import lock_owner_actions
-from lonora_db.routines import create_routine, owned_routine, routine_data
+from lonora_db.routines import create_routine, mark_routine_taint, owned_routine, routine_data
 from lonora_db.runs import locked_run_thread, require_lease
 from lonora_db.schema import RoutineRow
 from lonora_db.supervision import control_work, refuse_held, supervises
@@ -24,7 +24,7 @@ class RoutineToggle(Contract):
 
 async def create(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     async with context.db.sessions() as session, session.begin():
-        await locked_run_thread(session, context.lease)
+        run, _thread = await locked_run_thread(session, context.lease)
         row = await create_routine(
             session,
             context.owner_id,
@@ -32,6 +32,10 @@ async def create(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             RoutineCreate.model_validate(args),
             context.resource_id,
         )
+        if run.model_metadata.get("ui_submit_origin"):
+            # A routine a card's send created wakes tainted (GENUI_PLAN §8.5), written by
+            # the server from the Run, never a model argument.
+            await mark_routine_taint(session, row.id, run.model_metadata["ui_submit_origin"])
         return routine_data(row)
 
 

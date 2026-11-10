@@ -136,6 +136,10 @@ async def create(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
                 "task_id": run.model_metadata["task_id"],
                 "task_run_id": run.id,
             }
+        if run.model_metadata.get("ui_submit_origin"):
+            # A watch a card's send created keeps the taint for its wake Runs; written by
+            # the server from the Run, never a model argument (GENUI_PLAN §8.5).
+            row.state = {**row.state, "ui_submit_origin": run.model_metadata["ui_submit_origin"]}
         return resource_data(row)
 
 

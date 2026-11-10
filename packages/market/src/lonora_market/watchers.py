@@ -709,6 +709,11 @@ async def check_watch(
                                 "symbol": config.symbol,
                                 "observation": observation,
                                 **metadata,
+                                **(
+                                    {"ui_submit_origin": row.state["ui_submit_origin"]}
+                                    if row.state.get("ui_submit_origin")
+                                    else {}
+                                ),
                             },
                         ),
                     )

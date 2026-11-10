@@ -26,6 +26,7 @@ from lonora_contracts.trading import UNRESOLVED_STATUSES
 from lonora_contracts.trading_restrictions import AgentRestrictionRequest, RestrictionListQuery
 from lonora_core.user_error import LonoraError
 from lonora_db.agent_binding import agent_binding, fixed_market
+from lonora_db.owner_words import owner_typed_message
 from lonora_db.runs import require_lease
 from lonora_db.schema import (
     AgentRow,
@@ -105,23 +106,14 @@ async def owner_message_id(session: AsyncSession, run: RunRow) -> str | None:
     """
     if run.trigger not in OWNER_TRIGGERS:
         return None
-    row = await session.execute(
-        select(MessageRow.id, MessageRow.seq)
-        .where(
-            MessageRow.thread_id == run.thread_id,
-            MessageRow.role == "user",
-            MessageRow.seq <= run.input_seq,
-        )
-        .order_by(MessageRow.seq.desc())
-        .limit(1)
-    )
-    found = row.first()
+    # Only the owner's typed words: a card's send or a follow-up tap never stands for the
+    # owner, and a Run a card submission started has none (GENUI_PLAN §8.4).
+    found = await owner_typed_message(session, run)
     if found is None:
         return None
-    identifier, seq = found
-    if await external_content_seen(session, run, int(seq)):
+    if await external_content_seen(session, run, int(found.seq)):
         return None
-    return str(identifier)
+    return str(found.id)
 
 
 async def other_agents(session: AsyncSession, context: ToolContext) -> list[str]:

@@ -138,6 +138,8 @@ async def owner_asked_full(session: AsyncSession, run: RunRow, message_id: str) 
         select(MessageRow.content).where(
             MessageRow.thread_id == run.thread_id,
             MessageRow.role == "user",
+            # The owner's own words only: never a card's send or a follow-up tap.
+            MessageRow.origin == "owner",
             or_(MessageRow.id == message_id, MessageRow.id.in_(added)),
         )
     )

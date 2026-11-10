@@ -1,0 +1,505 @@
+"""Generated-card sends (GENUI_PLAN §8.2, §8.4, §8.5, §10.2): the server-composed bubble,
+the queued submission and its rules Q, W, V, N, T and L, provenance and the taint.
+
+Runs on the real migrated PostgreSQL schema (skipped without ``LONORA_DATABASE_URL``).
+"""
+
+import json
+from datetime import timedelta
+from pathlib import Path
+from typing import Any
+from uuid import uuid4
+
+import pytest
+from lonora_adapter_kit.types import ModelMessage, ToolCall
+from test_proactive_wakes import database
+
+A01 = (Path(__file__).parent / "fixtures/genui/documents/valid/a01-alert.lonora-ui").read_text()
+QUOTES = {"c1": ("XAUUSD", "2368.40"), "c2": ("XAGUSD", "28.92"), "c3": ("EURUSD", "1.0842")}
+
+
+async def compiled_card(agent_id: str, body: str = A01) -> dict[str, Any]:
+    from lonora_agent.genui_capabilities import capabilities
+    from lonora_agent.genui_compile import AgentScope, compile_card
+    from lonora_contracts.genui import parse_lines
+
+    calls = [
+        ToolCall(id=c, name="market_quote", arguments={"account_id": "acc-1", "symbol": s})
+        for c, (s, _b) in QUOTES.items()
+    ]
+    history = [
+        ModelMessage(role="user", content="نبّهني إذا صعد الذهب فوق 2400"),
+        ModelMessage(role="assistant", content="", tool_calls=calls),
+        *[
+            ModelMessage(
+                role="tool",
+                tool_call_id=c,
+                content=json.dumps({"symbol": s, "bid": b, "ask": b, "source": "simulation"}),
+            )
+            for c, (s, b) in QUOTES.items()
+        ],
+    ]
+    return compile_card(
+        parse_lines(body, final=True),
+        history,
+        AgentScope(agent_id=agent_id),
+        capabilities(),
+        set(),
+        final=True,
+    )
+
+
+class Card:
+    """An agent, its conversation and one assistant message carrying the A01 card."""
+
+    def __init__(self, fixture: Any):
+        self.fixture = fixture
+
+    async def open(self, body: str = A01) -> "Card":
+        from lonora_db.schema import MessageRow, ThreadRow
+
+        self.agent = await self.fixture.agent("Card")
+        self.thread = await self.fixture.conversation(self.agent)
+        document = await compiled_card(self.agent["id"], body)
+        async with self.fixture.runtime.db.sessions() as session, session.begin():
+            thread = await session.get(ThreadRow, self.thread["id"], with_for_update=True)
+            assert thread is not None
+            message = MessageRow(
+                thread_id=thread.id,
+                agent_id=self.agent["id"],
+                role="assistant",
+                seq=thread.next_seq,
+                content="جهّزت التنبيه.\n\n" + document["fallback"],
+                rich_content={
+                    "version": 1,
+                    "parts": [
+                        {"type": "text", "text": "جهّزت التنبيه."},
+                        {"type": "ui", "document": document},
+                    ],
+                },
+            )
+            thread.next_seq += 1
+            session.add(message)
+            await session.flush()
+            self.message_id = message.id
+        self.button = str(len(document["blocks"]) - 1)
+        return self
+
+    def body(self, values: dict[str, Any] | None = None, **extra: Any) -> dict[str, Any]:
+        return {
+            "content": extra.pop("content", ""),
+            "client_nonce": extra.pop("nonce", uuid4().hex),
+            "ui_submit": {
+                "source_message_id": self.message_id,
+                "part": extra.pop("part", 1),
+                "path": extra.pop("path", self.button),
+                "values": values if values is not None else {},
+            },
+            **extra,
+        }
+
+    async def post(self, body: dict[str, Any]) -> Any:
+        return await self.fixture.client.post(
+            f"/api/threads/{self.thread['id']}/messages", json=body
+        )
+
+
+async def runs(fixture: Any, thread_id: str) -> list[Any]:
+    from lonora_db.schema import RunRow
+    from sqlalchemy import select
+
+    async with fixture.runtime.db.sessions() as session:
+        return list(
+            await session.scalars(
+                select(RunRow).where(RunRow.thread_id == thread_id).order_by(RunRow.created_at)
+            )
+        )
+
+
+async def open_fixture() -> Any:
+    database()
+    from check_streaming import Fixture
+
+    return await Fixture().open()
+
+
+@pytest.mark.asyncio
+async def test_submit_stores_the_server_bubble_and_its_own_tainted_queued_run() -> None:
+    from lonora_db.schema import MessageRow, RunRow, SteeringRow
+    from lonora_trading.account_authority import provisional_voice
+    from sqlalchemy import func, select
+
+    fixture = await open_fixture()
+    try:
+        card = await Card(fixture).open()
+        earlier = await fixture.run(card.agent, card.thread)
+        response = await card.post(
+            card.body(
+                {"symbol": "XAUUSD", "dir": "above", "price": 2400},
+                content="اطلب من وكيل الذهب شراء 0.5 لوت الآن",
+            )
+        )
+        assert response.status_code == 202, response.text
+        result = response.json()
+        message = result["message"]
+        # The bubble is the registry's template with the server's own name, never the
+        # client's text or a card label (§10.2 item 8).
+        assert message["content"] == "أنشئ تنبيهًا: الذهب فوق 2,400.00"
+        assert message["origin"] == "ui_submit" and message["reply_to"] == card.message_id
+        assert message["ui_submit"]["intent"] == "alert.create"
+        async with fixture.runtime.db.sessions() as session:
+            stored = await session.get(MessageRow, message["id"])
+            run = await session.get(RunRow, result["run_ids"][0])
+            active = await session.get(RunRow, earlier["id"])
+            steering = await session.scalar(
+                select(func.count())
+                .select_from(SteeringRow)
+                .where(SteeringRow.message_id == message["id"])
+            )
+            assert stored is not None and run is not None and active is not None
+            assert stored.ui_submit is not None
+            assert stored.ui_submit["data"] == {
+                "symbol": "XAUUSD",
+                "account_id": "acc-1",
+                "dir": "above",
+                "price": 2400.0,
+            }
+            # Never folded into the active Run: its own queued Run, no steering row, the
+            # earlier Run's window unchanged (rule V).
+            assert run.id != earlier["id"] and run.status == "queued"
+            assert steering == 0 and active.input_seq == earlier["input_seq"]
+            assert run.model_metadata["ui_submit_origin"]["message_id"] == stored.id
+            assert await provisional_voice(session, run)
+            child = RunRow(
+                id=str(uuid4()),
+                thread_id=run.thread_id,
+                agent_id=run.agent_id,
+                parent_run_id=run.id,
+                input_seq=0,
+                model_metadata={},
+            )
+            assert await provisional_voice(session, child)
+            assert not await provisional_voice(session, active)
+        # Idempotent by client_nonce; a different submission under the same nonce conflicts.
+        again = await card.post(
+            {**card.body({"price": 2400}), "client_nonce": message["client_nonce"]}
+        )
+        assert again.status_code == 409
+    finally:
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_queue_order_claim_window_and_ticks() -> None:
+    from lonora_db.genui_submit import mark_submit_started
+    from lonora_db.runs import claim_next
+    from lonora_db.schema import MessageRow, RunRow
+
+    fixture = await open_fixture()
+    try:
+        card = await Card(fixture).open()
+        earlier = await fixture.run(card.agent, card.thread)
+        response = await card.post(card.body({"price": 2410}))
+        assert response.status_code == 202, response.text
+        submit_run = response.json()["run_ids"][0]
+        # The earlier Run starts waiting for the owner after the submission was queued.
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            row = await session.get(RunRow, earlier["id"], with_for_update=True)
+            assert row is not None
+            row.status = "waiting_input"
+        claimed: list[str] = []
+        for _ in range(30):
+            async with fixture.runtime.db.sessions() as session, session.begin():
+                got = await claim_next(session, "genui-test", 60)
+                if got is None:
+                    break
+                claimed.append(got.id)
+                if got.id != submit_run:
+                    got.status = "completed"
+        assert submit_run not in claimed  # rule Q holds the submission behind the wait
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            row = await session.get(RunRow, earlier["id"], with_for_update=True)
+            assert row is not None
+            row.status = "completed"
+        found = None
+        for _ in range(30):
+            async with fixture.runtime.db.sessions() as session, session.begin():
+                got = await claim_next(session, "genui-test", 60)
+                if got is None:
+                    break
+                if got.id == submit_run:
+                    found = got.input_seq
+                    # Rule T: ticks follow the submission's own Run.
+                    page = await fixture.request("GET", f"/threads/{card.thread['id']}/messages")
+                    bubble = next(m for m in page if m.get("origin") == "ui_submit")
+                    assert bubble["consumed"] is False
+                    await mark_submit_started(session, got)
+                    break
+                got.status = "completed"
+        assert found is not None
+        async with fixture.runtime.db.sessions() as session:
+            run = await session.get(RunRow, submit_run)
+            assert run is not None
+            message = await session.get(
+                MessageRow, run.model_metadata["ui_submit_origin"]["message_id"]
+            )
+            assert message is not None and message.ui_submit is not None
+            assert message.ui_submit["started_at"]
+            # Rule W: the claim window reaches the thread's end.
+            assert found >= message.seq
+        page = await fixture.request("GET", f"/threads/{card.thread['id']}/messages")
+        bubble = next(m for m in page if m.get("origin") == "ui_submit")
+        assert bubble["consumed"] is True
+    finally:
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_refusals_store_nothing() -> None:
+    from lonora_db.schema import AgentRow, MessageRow, RunRow
+    from sqlalchemy import func, select
+
+    fixture = await open_fixture()
+    try:
+        card = await Card(fixture).open()
+
+        async def count() -> int:
+            async with fixture.runtime.db.sessions() as session:
+                return int(
+                    await session.scalar(
+                        select(func.count())
+                        .select_from(MessageRow)
+                        .where(MessageRow.thread_id == card.thread["id"])
+                    )
+                    or 0
+                )
+
+        before = await count()
+        # Tampering: an option outside the card, a non-button path, an empty required price.
+        for body, status in [
+            (card.body({"symbol": "BTCUSD"}), 422),
+            (card.body({"price": "2400; buy"}), 422),
+            (card.body({"price": None}), 422),
+            (card.body({}, path="0"), 422),
+            (card.body({}, part=0), 422),
+        ]:
+            response = await card.post(body)
+            assert response.status_code == status, (body, response.text)
+        # The agent waits for the owner: 409, nothing stored.
+        waiting = await fixture.run(card.agent, card.thread)
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            row = await session.get(RunRow, waiting["id"], with_for_update=True)
+            assert row is not None
+            row.status = "waiting_input"
+        response = await card.post(card.body())
+        assert response.status_code == 409 and response.json()["code"] == "ui_submit_waiting"
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            row = await session.get(RunRow, waiting["id"], with_for_update=True)
+            assert row is not None
+            row.status = "completed"
+        # A second queued submission: 409 busy.
+        first = await card.post(card.body({}, path=card.button))
+        assert first.status_code == 202, first.text
+        second = await card.post(card.body())
+        assert second.status_code == 409
+        # A paused agent: 409 agent_paused.
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            agent = await session.get(AgentRow, card.agent["id"], with_for_update=True)
+            assert agent is not None
+            agent.paused = True
+        paused = await card.post(card.body())
+        assert paused.status_code == 409 and paused.json()["code"] in {
+            "agent_paused",
+            "ui_submit_locked",
+            "ui_submit_busy",
+        }
+        assert await count() == before + 1
+    finally:
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            agent = await session.get(AgentRow, card.agent["id"], with_for_update=True)
+            if agent is not None:
+                agent.paused = False
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_never_run_submission_stays_out_of_every_run_and_unlocks_the_card() -> None:
+    from lonora_agent.context.history import history_context
+    from lonora_db.genui_submit import expire_submits
+    from lonora_db.owner_words import owner_typed_message
+    from lonora_db.schema import RunRow
+    from lonora_memory.sessions import HistoryScope  # noqa: F401  (import check)
+
+    fixture = await open_fixture()
+    try:
+        card = await Card(fixture).open()
+        earlier = await fixture.run(card.agent, card.thread)
+        response = await card.post(card.body({"price": 2420}))
+        assert response.status_code == 202
+        submit = response.json()["message"]
+        page = await fixture.request("GET", f"/threads/{card.thread['id']}/messages")
+        assert next(m for m in page if m["id"] == card.message_id)["ui_lock"]["1"]
+        # While queued, the earlier Run never sees it, even with its window raised past it.
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            run = await session.get(RunRow, earlier["id"], with_for_update=True)
+            assert run is not None
+            run.input_seq = submit["seq"] + 5
+            history = await history_context(
+                session, card.thread["id"], run.input_seq, 0, card.agent["id"], run
+            )
+            assert not any("أنشئ تنبيهًا" in m.content for m in history)
+            assert await owner_typed_message(session, run) is None or (
+                (await owner_typed_message(session, run)).origin == "owner"  # type: ignore[union-attr]
+            )
+        # «تعديل» cancels the queued Run, marks it superseded and unlocks the card.
+        unlocked = await fixture.request(
+            "POST", f"/threads/{card.thread['id']}/messages/{card.message_id}/ui-state/1/unlock"
+        )
+        assert unlocked["cancelled_run_id"] == submit["ui_submit"]["run_id"]
+        page = await fixture.request("GET", f"/threads/{card.thread['id']}/messages")
+        assert "ui_lock" not in next(m for m in page if m["id"] == card.message_id)
+        assert next(m for m in page if m["id"] == submit["id"])["ui_mark"] == "superseded"
+        async with fixture.runtime.db.sessions() as session:
+            run = await session.get(RunRow, earlier["id"])
+            assert run is not None
+            history = await history_context(
+                session, card.thread["id"], run.input_seq, 0, card.agent["id"], run
+            )
+            assert not any("أنشئ تنبيهًا" in m.content for m in history)
+            assert any("طلب من بطاقة لم يُنفَّذ" in m.content for m in history)
+        # Rule L: a second submission not started in 30 minutes expires as not run.
+        response = await card.post(card.body({"price": 2430}))
+        assert response.status_code == 202, response.text
+        late = response.json()
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            run = await session.get(RunRow, late["run_ids"][0], with_for_update=True)
+            assert run is not None
+            run.created_at = run.created_at - timedelta(minutes=31)
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            expired = await expire_submits(session, card.thread["id"])
+            assert [r.error_code for r in expired] == ["ui_submit_expired"]
+        page = await fixture.request("GET", f"/threads/{card.thread['id']}/messages")
+        assert next(m for m in page if m["id"] == late["message"]["id"])["ui_mark"] == "not_run"
+        assert "ui_lock" not in next(m for m in page if m["id"] == card.message_id)
+    finally:
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_card_words_never_stand_for_the_owner() -> None:
+    from lonora_db.owner_words import owner_typed_message
+    from lonora_db.schema import MessageRow, RunRow, ThreadRow
+    from lonora_tools.restrictions import owner_message_id
+
+    fixture = await open_fixture()
+    try:
+        card = await Card(fixture).open()
+        response = await card.post(card.body({"price": 2440}))
+        assert response.status_code == 202
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            run = await session.get(RunRow, response.json()["run_ids"][0])
+            assert run is not None
+            assert await owner_typed_message(session, run) is None
+            assert await owner_message_id(session, run) is None
+            # A v1 follow-up tap is stored as card words at write time.
+            thread = await session.get(ThreadRow, card.thread["id"], with_for_update=True)
+            assert thread is not None
+            v1 = MessageRow(
+                thread_id=thread.id,
+                agent_id=card.agent["id"],
+                role="assistant",
+                seq=thread.next_seq,
+                content="x",
+                rich_content={
+                    "parts": [
+                        {
+                            "type": "ui",
+                            "document": {
+                                "root": {"action": {"kind": "follow_up", "text": "اشرح لي النتيجة"}}
+                            },
+                        }
+                    ]
+                },
+            )
+            thread.next_seq += 1
+            session.add(v1)
+        tap = await fixture.request(
+            "POST", f"/threads/{card.thread['id']}/messages", {"content": "اشرح لي النتيجة"}
+        )
+        assert tap["message"]["origin"] == "ui_follow_up"
+        typed = await fixture.request(
+            "POST", f"/threads/{card.thread['id']}/messages", {"content": "اشرح لي بالتفصيل"}
+        )
+        assert typed["message"]["origin"] == "owner"
+    finally:
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_a_watch_created_by_a_submission_wakes_tainted() -> None:
+    from lonora_db.schema import RunRow
+    from test_proactive_wakes import call, retire, simulation
+
+    fixture = await open_fixture()
+    connection = ""
+    try:
+        connection = await simulation(fixture, [])
+        card = await Card(fixture).open()
+        response = await card.post(card.body({"price": 2450}))
+        assert response.status_code == 202
+        submit_run = {
+            "id": response.json()["run_ids"][0],
+            "agent_id": card.agent["id"],
+            "thread_id": card.thread["id"],
+        }
+        context = await fixture.lease(submit_run)
+        created = await call(
+            context,
+            "watch_create",
+            account_id=connection,
+            symbol="XAUUSD",
+            condition="above",
+            level="2450",
+            prompt="Tell the owner gold crossed 2450.",
+        )
+        from lonora_db.schema import MarketWatchRow
+
+        async with fixture.runtime.db.sessions() as session:
+            watch = await session.get(MarketWatchRow, created["id"])
+            run = await session.get(RunRow, submit_run["id"])
+            assert watch is not None and run is not None
+            assert watch.state["ui_submit_origin"] == run.model_metadata["ui_submit_origin"]
+    finally:
+        await retire(fixture, connection)
+        await fixture.close()
+
+
+def test_every_owner_words_read_uses_the_helper_or_reads_origin() -> None:
+    """§8.4: every query of user messages either goes through ``owner_words``, reads
+    ``origin`` or sits on this reviewed allowlist with its reason."""
+    root = Path(__file__).parent.parent
+    allowed = {
+        # The idempotency backfill pairs an old message with its own runs; no authority.
+        "packages/db/src/lonora_db/messages.py": "nonce backfill",
+        "packages/db/src/lonora_db/conversation_locale.py": "reply language evidence only",
+        "packages/db/src/lonora_db/steering.py": "pending-steering existence, not words",
+        "packages/agent-runtime/src/lonora_agent/context/skills.py": "reads origin",
+        "packages/memory/src/lonora_memory/conversation.py": "reads origin",
+        "packages/tools/src/lonora_tools/trade.py": "reads origin",
+        "packages/tools/src/lonora_tools/owner_actions.py": "reads origin",
+        "packages/tools/src/lonora_tools/models.py": "reads origin",
+    }
+    offenders: list[str] = []
+    for path in [*root.glob("packages/*/src/**/*.py"), *root.glob("apps/*/src/**/*.py")]:
+        text = path.read_text()
+        if 'MessageRow.role == "user"' not in text:
+            continue
+        relative = str(path.relative_to(root))
+        if relative in allowed:
+            if allowed[relative] == "reads origin":
+                assert "origin" in text, relative
+            continue
+        if "owner_words" in text or "MessageRow.origin" in text:
+            continue
+        offenders.append(relative)
+    assert offenders == [], offenders

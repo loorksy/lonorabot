@@ -6,8 +6,10 @@ from typing import Any
 from fastapi import APIRouter, Depends, Query, Request
 from lonora_auth.identity import OwnerIdentity
 from lonora_contracts.domain import MessageCreate
+from lonora_db.genui_submit import decorate, expire_submits, unlock_card
 from lonora_db.messages import history, history_around, message_data, send_message
 from lonora_db.thread_prefs import consumed, consumed_seq, hidden_floor, steered_message_ids
+from lonora_db.transactions import owned_thread
 
 from ..middleware.auth import require_owner, runtime
 
@@ -26,14 +28,18 @@ async def messages(
 ) -> list[dict[str, Any]]:
     """The owner's view of the history: nothing before the «مسح» cursor; ``around`` centres
     the page on one message (a search hit); owner messages carry ``consumed``."""
-    async with runtime(request).db.sessions() as session:
+    async with runtime(request).db.sessions() as session, session.begin():
         floor = await hidden_floor(session, owner.id, thread_id)
+        # Rule L, settled lazily on read: a submission not started in 30 minutes expires.
+        await owned_thread(session, owner.id, thread_id)
+        await expire_submits(session, thread_id)
         rows = (
             await history_around(session, owner.id, thread_id, around, limit, floor=floor)
             if around is not None
             else await history(session, owner.id, thread_id, limit, before, floor=floor)
         )
         items = [message_data(row) for row in rows]
+        await decorate(session, thread_id, list(rows), items)
         started = await consumed_seq(session, thread_id)
         steered = await steered_message_ids(
             session, [item["id"] for item in items if item["role"] == "user"]
@@ -41,6 +47,21 @@ async def messages(
         for item in items:
             item["consumed"] = consumed(item, started, steered)
         return items
+
+
+@router.post("/threads/{thread_id}/messages/{message_id}/ui-state/{part}/unlock")
+async def unlock(
+    request: Request,
+    thread_id: str,
+    message_id: str,
+    part: int,
+    owner: OwnerIdentity = Depends(require_owner),
+) -> dict[str, Any]:
+    """«تعديل»: unlock a sent card; a submission whose Run has not started is cancelled in
+    the same transaction and marked superseded (GENUI_PLAN §8.2 rule N, Q21)."""
+    async with runtime(request).db.sessions() as session, session.begin():
+        thread = await owned_thread(session, owner.id, thread_id, lock=True)
+        return await unlock_card(session, owner.id, thread, message_id, part)
 
 
 @router.post("/threads/{thread_id}/messages", status_code=202)

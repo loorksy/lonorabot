@@ -7,6 +7,7 @@ from lonora_core.run_state import assert_transition
 from lonora_core.user_error import LonoraError
 from sqlalchemy import and_, exists, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from .events import emit
 from .generated_artifacts import link_generated_artifacts, resolve_reply_artifacts
@@ -77,19 +78,26 @@ def run_data(row: RunRow) -> dict[str, Any]:
     }
 
 
-def inherited_authority(starter: RunRow | None) -> dict[str, str]:
+def inherited_authority(starter: RunRow | None) -> dict[str, Any]:
     """Run metadata that carries an observe-only Run's narrowing into work it starts.
 
     A Task or ticket started from an observe-only wake runs observe-only too, so
     neither it nor anything it delegates can send a broker mutation. Watches,
     routines and Goals are the Agent's own later work and are not narrowed.
+    A Task or ticket a generated card's send started carries that send's taint, so it
+    can never spend a signed grant (GENUI_PLAN §8.5).
     """
-    if starter is None or starter.model_metadata.get("authority") != "observe_only":
+    if starter is None:
         return {}
-    return {
-        "authority": "observe_only",
-        "authority_run_id": str(starter.model_metadata.get("authority_run_id") or starter.id),
-    }
+    inherited: dict[str, Any] = {}
+    if starter.model_metadata.get("ui_submit_origin"):
+        inherited["ui_submit_origin"] = starter.model_metadata["ui_submit_origin"]
+    if starter.model_metadata.get("authority") == "observe_only":
+        inherited["authority"] = "observe_only"
+        inherited["authority_run_id"] = str(
+            starter.model_metadata.get("authority_run_id") or starter.id
+        )
+    return inherited
 
 
 async def create_run(
@@ -159,6 +167,10 @@ async def claim_next(
     session: AsyncSession, worker_id: str, lease_seconds: int, lane: str | None = None
 ) -> RunRow | None:
     now = utcnow()
+    from .genui_submit import expire_submits
+
+    # Rule L: a card submission not started 30 minutes after it was sent is cancelled.
+    await expire_submits(session)
     eligible = or_(
         RunRow.status == "queued",
         and_(
@@ -172,6 +184,23 @@ async def claim_next(
     # service. ISO UTC values are written only by the runtime under its fence.
     retry_at = RunRow.execution_state["environment"]["retry"]["not_before"].as_string()
     eligible = and_(eligible, or_(retry_at.is_(None), retry_at <= now.isoformat()))
+    # Rule Q: a card submission's Run starts only after every earlier Run of its agent in
+    # the thread has ended, so it never overtakes work in retry backoff, an open question
+    # or an approved trade waiting for its execution (GENUI_PLAN §8.2).
+    earlier = aliased(RunRow)
+    behind = exists(
+        select(earlier.id).where(
+            earlier.thread_id == RunRow.thread_id,
+            earlier.agent_id == RunRow.agent_id,
+            earlier.id != RunRow.id,
+            earlier.created_at < RunRow.created_at,
+            earlier.status.not_in(["completed", "failed", "cancelled"]),
+        )
+    )
+    eligible = and_(
+        eligible,
+        or_(RunRow.model_metadata["ui_submit_origin"].as_string().is_(None), ~behind),
+    )
     if lane == "conversation":
         eligible = and_(
             eligible,
@@ -218,7 +247,9 @@ async def claim_next(
     # Consecutive crash recoveries; a claim from the queue means the last attempt ended
     # cleanly (completed a step, waited, or was released on drain).
     row.recovery_count = row.recovery_count + 1 if recovered else 0
-    if thread.group_id and not row.execution_state:
+    if (thread.group_id or row.model_metadata.get("ui_submit_origin")) and not row.execution_state:
+        # Rule W: a submission's Run reads the reply of the work it waited behind; its own
+        # message is read by id (``ui_submit_origin.message_id``), never by this window.
         row.input_seq = max(row.input_seq, thread.next_seq - 1)
     row.status = "leased"
     row.lease_owner = worker_id

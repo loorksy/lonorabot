@@ -47,7 +47,9 @@ def context(agent: _Agent | None = None) -> ToolContext:
     )
 
 
-def messages(quotes: dict[str, tuple[str, str]] = QUOTES, account: str = "acc-1") -> list[ModelMessage]:
+def messages(
+    quotes: dict[str, tuple[str, str]] = QUOTES, account: str = "acc-1"
+) -> list[ModelMessage]:
     calls = [
         ToolCall(id=call, name="market_quote", arguments={"account_id": account, "symbol": symbol})
         for call, (symbol, _bid) in quotes.items()
@@ -182,7 +184,9 @@ async def test_denied_or_unlisted_primary_send_falls_back(intent: str) -> None:
 
 @pytest.mark.asyncio
 async def test_secondary_refused_button_is_dropped_never_shown_disabled() -> None:
-    extra = '{"type":"Button","label":"افتح","action":{"do":"open","url":"https://evil.example/x"}}\n'
+    extra = (
+        '{"type":"Button","label":"افتح","action":{"do":"open","url":"https://evil.example/x"}}\n'
+    )
     body = A01.replace('{"why"', extra + '{"why"')
     projection, projector = await project(reply(body))
     card = cast(dict[str, Any], projection.rich_until())["parts"][1]["document"]
@@ -192,7 +196,9 @@ async def test_secondary_refused_button_is_dropped_never_shown_disabled() -> Non
 
 @pytest.mark.asyncio
 async def test_tampered_send_data_cannot_carry_server_set_or_extra_fields() -> None:
-    body = A01.replace('"data":{"symbol":"$symbol"', '"data":{"account_id":"other","symbol":"$symbol"')
+    body = A01.replace(
+        '"data":{"symbol":"$symbol"', '"data":{"account_id":"other","symbol":"$symbol"'
+    )
     projection, _ = await project(reply(body))
     assert all(p["type"] == "text" for p in (projection.rich_until() or {"parts": []})["parts"])
 

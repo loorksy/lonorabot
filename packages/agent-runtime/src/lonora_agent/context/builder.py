@@ -10,6 +10,7 @@ from lonora_contracts.runs import WORK_TRIGGERS
 from lonora_core.user_error import LonoraError
 from lonora_db.agent_binding import binding_context
 from lonora_db.agent_creation import agent_origin, agent_written_instructions
+from lonora_db.genui_submit import submission_seq
 from lonora_db.runs import require_lease
 from lonora_db.schema import AgentRow, ThreadRow
 from lonora_db.trading_goals import goal_read_threads
@@ -136,12 +137,12 @@ async def build_context(
             )
         memory = await timed("memory", read_memory_context(session, context.owner_id, agent.id))
         scratchpad = await timed("scratchpad", scratchpad_context(session, agent.id))
-        quoted = await timed("reply", reply_context(session, thread.id, run.input_seq))
+        # A card submission's own message is read by id, not by its widened window (rule W).
+        focus = await submission_seq(session, run) or run.input_seq
+        quoted = await timed("reply", reply_context(session, thread.id, focus))
         attachments, images = await timed(
             "attachments",
-            attachment_parts(
-                session, context.owner_id, thread.id, run.input_seq, context.artifact_root
-            ),
+            attachment_parts(session, context.owner_id, thread.id, focus, context.artifact_root),
         )
         gap = await timed(
             "history_gap", history_gap(session, thread.id, run.input_seq, thread.summary_seq)
@@ -164,7 +165,7 @@ async def build_context(
         ] + await timed(
             "history",
             history_context(
-                session, thread.id, run.input_seq, thread.summary_seq, context.agent_id
+                session, thread.id, run.input_seq, thread.summary_seq, context.agent_id, run
             ),
         )
         # New peer requests already exist as attributed messages in the canonical history.

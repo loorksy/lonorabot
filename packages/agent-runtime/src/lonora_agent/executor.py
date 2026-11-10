@@ -7,6 +7,7 @@ from lonora_contracts.domain import utcnow
 from lonora_core.user_error import LonoraError
 from lonora_db.events import emit
 from lonora_db.generated_artifacts import link_generated_artifacts, resolve_reply_artifacts
+from lonora_db.genui_submit import mark_submit_started
 from lonora_db.rich_response import validated_rich_content
 from lonora_db.runs import (
     complete_run,
@@ -104,6 +105,8 @@ async def execute_run(
             row = await require_lease(session, context.lease, lock=True)
             row.status = "running"
             row.updated_at = utcnow()
+            # Rules N and T: a card submission records that its Run started.
+            await mark_submit_started(session, row)
             emit(
                 session,
                 context.owner_id,

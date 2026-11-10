@@ -82,15 +82,36 @@ class InputAnswer(Contract):
     choice_id: str = Field(min_length=1, max_length=64)
 
 
+class UiSubmit(Contract):
+    """A generated card's send (GENUI_PLAN §8.2): the card message, its part, the button's
+    node path and the card's current values. The server computes the intent's data and
+    composes the owner's bubble; a client's ``content`` is ignored."""
+
+    source_message_id: str = Field(min_length=1, max_length=36)
+    part: int = Field(ge=0, le=24)
+    path: str = Field(pattern=r"^[0-9]{1,2}(?:\.[0-9]{1,2}){0,4}$")
+    values: dict[str, Any] = Field(default_factory=dict[str, Any])
+
+
 class MessageCreate(Contract):
     input_answer: InputAnswer | None = None
+    ui_submit: UiSubmit | None = None
     collaboration_session_id: str | None = Field(default=None, max_length=36)
     mention_agent_ids: list[str] = Field(default_factory=list[str], max_length=16)
     mention_all: bool = False
-    content: str = Field(min_length=1, max_length=30000)
+    content: str = Field(default="", max_length=30000)
     client_nonce: str = Field(default_factory=new_id, min_length=1, max_length=80)
     reply_to: str | None = None
     attachment_ids: list[str] = Field(default_factory=list[str], max_length=10)
+
+    @model_validator(mode="after")
+    def text_or_card(self) -> "MessageCreate":
+        # A card submission carries no text of its own: the server writes the bubble.
+        if self.ui_submit is None and not self.content:
+            raise ValueError("message_content_required")
+        if self.ui_submit is not None and (self.input_answer or self.attachment_ids):
+            raise ValueError("ui_submit_invalid")
+        return self
 
 
 class ResourceInput(Contract):

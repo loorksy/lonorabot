@@ -40,13 +40,19 @@ GRANT_TERM_REFUSALS = frozenset(
 
 
 async def provisional_voice(session: AsyncSession, run: RunRow) -> bool:
-    """A provisional handoff and its descendants cannot spend standing authority."""
+    """A provisional handoff and its descendants cannot spend standing authority, and
+    neither can a Run a generated card's send started, anything it starts (peer and
+    subagent Runs through ``parent_run_id``) or the wake Run of a watch, routine or ticket
+    it created (``ui_submit_origin`` copied by the server; GENUI_PLAN §8.5): their trades
+    become approval cards."""
     seen: set[str] = set()
     for _ in range(16):
         if run.id in seen:
             raise LonoraError("goal_run_ancestry_invalid", 409)
         seen.add(run.id)
         if run.model_metadata.get("voice_handoff", {}).get("finalized") is False:
+            return True
+        if run.model_metadata.get("ui_submit_origin"):
             return True
         if not run.parent_run_id:
             return False

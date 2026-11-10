@@ -1,6 +1,8 @@
 from lonora_adapter_kit.types import ModelMessage
 from lonora_contracts.model_routing import Capability
 from lonora_core.user_error import LonoraError
+from lonora_db.genui_submit import NEVER_RAN_NOTE, never_ran, submit_status
+from lonora_db.owner_words import submit_hidden
 from lonora_db.runs import locked_run_thread, require_lease
 from lonora_db.schema import MessageRow, RunRow, ThreadRow
 from lonora_db.transactions import owned_thread
@@ -113,9 +115,18 @@ async def compact_history(context: ToolContext, *, settled: bool = False) -> Non
             budget = MAXIMUM_CONTEXT_CHARS - len(COMPACTION_PROMPT) - 128
             through = prior_seq
             for row in rows:
+                role, content = row.role, row.content
+                if row.origin in {"ui_submit", "ui_follow_up"}:
+                    role = "owner_via_card"
+                if row.origin == "ui_submit" and await submit_hidden(session, row, None):
+                    # The summary is shared by every later Run: a submission whose Run has
+                    # not ended waits outside it, one that never ran is only a note.
+                    if not never_ran(row.ui_submit, await submit_status(session, row)):
+                        break
+                    content = "[" + NEVER_RAN_NOTE + "]"
                 block = (
-                    f"<message seq='{row.seq}' role='{row.role}' agent_id='{row.agent_id or ''}'>\n"
-                    + row.content
+                    f"<message seq='{row.seq}' role='{role}' agent_id='{row.agent_id or ''}'>\n"
+                    + content
                     + "\n</message>\n"
                 )
                 if len(input_text) + len(block) > budget:
