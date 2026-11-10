@@ -10,8 +10,7 @@ from lonora_agent.reply_gates import (
     claims_effect,
     code_deliverable,
     code_requested,
-    entry_refusal,
-    limit_notice,
+    request_refusal,
     requested_tools,
     stop_requested,
 )
@@ -73,26 +72,26 @@ def test_other_requests_are_not_stop_requests(text: str) -> None:
 @pytest.mark.parametrize("action", ["buy", "sell", "buy_limit", "sell_stop", "modify_order"])
 def test_no_entry_can_answer_a_stop_request(action: str) -> None:
     messages = [owner("أوقف الصفقات الجديدة اليوم")]
-    refused = entry_refusal(messages, call("trade_execute", action=action, symbol="EURUSD"))
+    refused = request_refusal(messages, call("trade_execute", action=action, symbol="EURUSD"))
     assert refused is not None
     assert refused["ok"] is False and refused["executed"] is False
     assert refused["code"] == "owner_stop_request_no_entry"
     assert "trade_restriction_create" in refused["message"]
     # A goal step may be an entry too: it does not run as the answer either.
-    assert entry_refusal(messages, call("goal_step_execute", goal_id="g")) is not None
+    assert request_refusal(messages, call("goal_step_execute", goal_id="g")) is not None
 
 
 @pytest.mark.parametrize("action", ["close_position", "modify_position", "cancel_order"])
 def test_closing_and_protecting_stay_possible_under_a_stop_request(action: str) -> None:
     messages = [owner("stop trading now")]
-    assert entry_refusal(messages, call("trade_execute", action=action)) is None
-    assert entry_refusal(messages, call("trade_close_positions")) is None
+    assert request_refusal(messages, call("trade_execute", action=action)) is None
+    assert request_refusal(messages, call("trade_close_positions")) is None
 
 
 @pytest.mark.parametrize("text", ["استأنف التداول", "استئناف التداول", "resume trading"])
 def test_a_resume_request_is_never_answered_with_an_entry(text: str) -> None:
     # G0 I07: «استأنف التداول» became a BUY 0.01 XAUUSD proposal.
-    refused = entry_refusal([owner(text)], call("trade_execute", action="buy", symbol="XAUUSD"))
+    refused = request_refusal([owner(text)], call("trade_execute", action="buy", symbol="XAUUSD"))
     assert refused is not None and refused["code"] == "owner_control_request_no_entry"
     assert "owner_action_propose" in refused["message"]
 
@@ -100,11 +99,11 @@ def test_a_resume_request_is_never_answered_with_an_entry(text: str) -> None:
 def test_only_the_latest_owner_message_counts() -> None:
     entry = call("trade_execute", action="buy", symbol="EURUSD")
     earlier = [owner("أوقف التداول"), ModelMessage(role="assistant", content="تم"), owner("اشتر")]
-    assert entry_refusal(earlier, entry) is None
+    assert request_refusal(earlier, entry) is None
     # A runtime notice or a tool observation is not the owner's word.
     notice = ModelMessage(role="user", context_origin="tool_observation", content="stop trading")
-    assert entry_refusal([owner("اشتر يورو"), notice], entry) is None
-    assert entry_refusal([owner("أوقف التداول"), notice], entry) is not None
+    assert request_refusal([owner("اشتر يورو"), notice], entry) is None
+    assert request_refusal([owner("أوقف التداول"), notice], entry) is not None
 
 
 @pytest.mark.parametrize(
@@ -196,10 +195,15 @@ def test_a_cancellation_claim_needs_a_cancelling_tool() -> None:
 
 def test_a_limit_the_owner_adopts_is_not_a_memory_note() -> None:
     # G0 I10: «اعتمد 1% كحد أقصى لكل صفقة» became memory_write and «تم حفظه».
-    assert limit_notice([owner("اعتمد 1% كحد أقصى لكل صفقة")], "memory_write")
-    assert limit_notice([owner("set my max risk per trade to 1%")], "memory_write")
-    assert limit_notice([owner("اعتمد 1% كحد أقصى لكل صفقة")], "account_read") is None
-    assert limit_notice([owner("تذكر أنني أفضّل الردود المختصرة")], "memory_write") is None
+    note = call("memory_write", operations=[])
+    for text in ("اعتمد 1% كحد أقصى لكل صفقة", "set my max risk per trade to 1%"):
+        refused = request_refusal([owner(text)], note)
+        assert refused and refused["code"] == "owner_limit_request_not_memory"
+        assert "set_account_limits" in refused["message"]
+    assert request_refusal([owner("اعتمد 1% كحد أقصى لكل صفقة")], call("account_read")) is None
+    # Remembering a preference stays a memory note.
+    for text in ("تذكر أنني أفضّل الردود المختصرة", "remember my max risk is 1%", "خليها 2450"):
+        assert request_refusal([owner(text)], note) is None
 
 
 def test_a_reply_without_a_claim_passes_untouched() -> None:

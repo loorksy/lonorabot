@@ -1,7 +1,7 @@
 """Deterministic reply guards keyed on the owner's own words and this request's results.
 
-- ``entry_refusal``: a request to stop, pause or resume trading is never answered with a new
-  entry. The call is refused before its handler runs, so no approval card appears, and
+- ``request_refusal``: a request to stop, pause or resume trading is never answered with a
+  new entry, nor a limit to adopt with a memory note. The call is refused before its handler runs, so no approval card appears, and
   the result names the owner controls that do answer it.
 - ``claim_gate``: a final reply may say an action happened only when a successful
   effect result in this request supports it. One repair turn, then an honest line.
@@ -97,8 +97,18 @@ def requested_tools(messages: list[ModelMessage]) -> list[str]:
     return names
 
 
-def entry_refusal(messages: list[ModelMessage], call: ToolCall) -> dict[str, Any] | None:
-    """The refused result of a new entry proposed in reply to a stop, pause or resume request."""
+def request_refusal(messages: list[ModelMessage], call: ToolCall) -> dict[str, Any] | None:
+    """The refused result of a call that cannot answer the owner's control request:
+    a new entry for a stop, pause or resume, a memory note for a limit to adopt."""
+    if call.name == "memory_write" and _LIMIT_SET.search(_normalized(owner_words(messages))):
+        return {
+            "ok": False,
+            "code": "owner_limit_request_not_memory",
+            "executed": False,
+            "message": "The owner asked to adopt a limit; memory enforces nothing and was not "
+            "changed. Propose it with owner_action_propose kind set_account_limits (through "
+            "tool_call) and say the card is waiting for the owner's tap.",
+        }
     entry = call.name == "goal_step_execute" or (
         call.name == "trade_execute" and call.arguments.get("action") in ENTRY_ACTIONS
     )
@@ -249,23 +259,12 @@ def claim_gate(
     )
 
 
-_LIMIT_REQUEST = re.compile(
-    r"حد\s*(?:ال)?اقصي|الحد\s|حدود\s|"
-    r"\b(?:max(?:imum)?|limit|cap)\b.*\b(?:risk|loss|lots?|per\s+trade|daily)\b|"
-    r"\b(?:risk|loss)\b.*\b(?:max(?:imum)?|limit|cap)\b"
+# Adopting or setting a limit, not remembering one (G0 I10: «اعتمد 1% كحد أقصى لكل صفقة»).
+_LIMIT_SET = re.compile(
+    r"(?:اعتمد|ثبت|ضع|حط|خلي|اجعل|حدد|عين|فعل)\S*\s.*(?:حد\s*(?:ال)?اقصي|الحد\s|حدود|مخاطره)|"
+    r"\b(?:set|make|adopt|apply|use|put)\b.*\b(?:max(?:imum)?|limit|cap)\b|"
+    r"\b(?:max(?:imum)?|limit|cap)\b.*\bto\s+\d"
 )
-LIMIT_NOTICE = (
-    "Memory enforces nothing. The owner asked to adopt a limit: propose it with "
-    "owner_action_propose kind set_account_limits (through tool_call) and say the card is "
-    "waiting for the owner's tap; do not say the limit is in force."
-)
-
-
-def limit_notice(messages: list[ModelMessage], tool: str) -> str | None:
-    """Guidance for a memory note written where the owner asked for a limit (G0 I10)."""
-    if tool != "memory_write" or not _LIMIT_REQUEST.search(_normalized(owner_words(messages))):
-        return None
-    return LIMIT_NOTICE
 
 
 _CODE_REQUEST = re.compile(
