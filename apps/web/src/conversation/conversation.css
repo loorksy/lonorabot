@@ -4658,6 +4658,8 @@ button.oa-line-body:focus-visible {
 /* ---- Lonora's frame for the reference chat: the reference scrolls main itself; here the
    conversation keeps its own scroller with main's paddings (reference 77-96, 327, 600). */
 .chat-scroll {
+  /* The conversation pins and restores its own scroll: no browser anchoring. */
+  overflow-anchor: none;
   flex: 1;
   min-height: 0;
   display: flex;
