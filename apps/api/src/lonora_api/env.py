@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     bootstrap_token: SecretStr = Field(min_length=24)
     session_seconds: int = Field(default=86400, ge=300, le=2592000)
     cookie_secure: bool = True
+    # POSTs per minute per client host to each sign-in, onboarding and enrollment route.
+    auth_rate_limit_per_minute: int = Field(default=10, ge=1, le=100000)
     allowed_origin: str = "http://localhost:8000"
     passkey_android_fingerprints: list[str] = Field(default_factory=list[str])
     passkey_android_package: str = "ai.lonora.mobile"

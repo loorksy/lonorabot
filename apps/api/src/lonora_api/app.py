@@ -114,7 +114,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         expose_headers=["X-Request-Id", "Server-Timing"],
     )
     app.add_middleware(BodyLimitMiddleware)
-    app.add_middleware(RateLimitMiddleware)
+    app.add_middleware(RateLimitMiddleware, limit=configuration.auth_rate_limit_per_minute)
     app.add_middleware(RequestIdMiddleware)
     install_errors(app)
     app.include_router(health_router)
