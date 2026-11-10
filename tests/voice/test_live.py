@@ -791,3 +791,73 @@ async def test_dead_unadmitted_allocation_expires_but_remote_call_requires_closu
         row.payload = {**row.payload, "status": "closed"}
     async with runtime.db.sessions() as session:
         assert not await blocking_voice_call(session, workspace["owner"])
+
+
+@pytest.mark.asyncio
+async def test_a_spoken_correction_withdraws_the_approvals_of_its_retries(
+    workspace: dict[str, Any],
+) -> None:
+    """M2(a), load-bearing: a run that re-asks the spoken request (a retry, a renewal) is
+    outside the delegation's own run list; the correction still withdraws its approval,
+    because it carries the same voice provenance (delegation_runs)."""
+    voice = await resident(workspace)
+    await voice.update(
+        {
+            "type": "session.input_transcript.delta",
+            "event_id": "speech-buy",
+            "start_ms": 0,
+            "end_ms": 600,
+            "delta": "Buy gold.",
+        }
+    )
+    await voice.update(
+        {
+            "type": "session.delegation.created",
+            "offset_ms": 1200,
+            "delegation": {"id": "delegation-c", "target": "client"},
+        }
+    )
+    await voice.delegate()
+    async with workspace["runtime"].db.sessions() as session, session.begin():
+        first = (
+            await session.scalars(select(RunRow).where(RunRow.thread_id == workspace["thread"]))
+        ).one()
+        handoff = first.model_metadata["voice_handoff"]
+        assert handoff["delegation_id"] == "delegation-c"
+        # The request's retry: a new run with the same provenance, its own approval card.
+        retry = RunRow(
+            agent_id=workspace["agent"],
+            thread_id=workspace["thread"],
+            status="waiting_input",
+            model_metadata={"retry_of": first.id, "voice_handoff": handoff},
+        )
+        session.add(retry)
+        await session.flush()
+        approval_id = str(uuid4())
+        session.add(
+            TradeApprovalRow(
+                id=approval_id,
+                owner_id=workspace["owner"],
+                agent_id=workspace["agent"],
+                thread_id=workspace["thread"],
+                run_id=retry.id,
+                call_id="retry-approval",
+                requests=[{"action": "buy", "symbol": "XAUUSD", "volume": "0.1"}],
+                results=[],
+                status="pending",
+            )
+        )
+    # The owner corrects the spoken request.
+    await voice.update(
+        {
+            "type": "session.input_transcript.delta",
+            "event_id": "speech-correction",
+            "start_ms": 650,
+            "end_ms": 1150,
+            "delta": " No, only analyze it.",
+        }
+    )
+    await voice.delegate()
+    async with workspace["runtime"].db.sessions() as session:
+        approval = await session.get(TradeApprovalRow, approval_id)
+        assert approval is not None and approval.status == "cancelled"
