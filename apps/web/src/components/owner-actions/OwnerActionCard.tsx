@@ -234,7 +234,8 @@ export function OwnerActionCard({
       <DecisionLine
         row={row}
         kind={kind}
-        choice={spec.options.find((option) => option.choice && option.initial)?.label}
+        // A signed grant names Full delegation (the core spec's line for the signed terms).
+        choice={spec.lines.find((line) => line === text.delegationFull)}
         text={spec.outcome ?? spec.title}
         onRenew={onRenew}
         onLatest={onLatest}

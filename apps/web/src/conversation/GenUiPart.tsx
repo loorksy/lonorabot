@@ -12,7 +12,11 @@ export const hasGenUi = (message: Message) => partsOf(message).some((part) => pa
 export function GenUiPart({ message, live }: { message: Message; live: boolean }) {
   const ctx = useConversation();
   return (
-    <div className="ui-lead" data-live={live || undefined}>
+    <div
+      className="ui-lead"
+      data-live={live || undefined}
+      data-visual-previous={ctx.previousVisualIds.get(message.id)}
+    >
       <RichResponse
         content={message.rich_content}
         fallback={message.content}

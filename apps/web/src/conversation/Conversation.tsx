@@ -263,8 +263,10 @@ export function Conversation({
     () =>
       new Map(
         runs.flatMap((run) => {
-          const stream = streamForRun(run, streams[run.id]);
-          return stream?.message_id ? [[stream.message_id, `preview:${run.id}`] as const] : [];
+          // The run's committed stream names the message even while a local copy of the
+          // same generation (seeded before the commit) does not.
+          const id = run.stream?.message_id ?? streamForRun(run, streams[run.id])?.message_id;
+          return id ? [[id, `preview:${run.id}`] as const] : [];
         }),
       ),
     [runs, streams],

@@ -4779,3 +4779,16 @@ span.no-trade {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* ---- reference 622: touch devices use the long press, not the hover buttons */
+@media (hover: none) {
+  .msg-more,
+  .msg-react {
+    display: none;
+  }
+  .bubble {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+}
