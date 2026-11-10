@@ -100,6 +100,9 @@ async def operation_event(session: AsyncSession, row: TradingJournalRow) -> None
             "verification_status": state["verification_status"],
             "awaiting_broker_confirmation": state["awaiting_broker_confirmation"],
             "resolution_source": resolution.get("source"),
+            # The conversation anchor (presentation only) of the operation's order line.
+            "thread_id": row.thread_id,
+            "timeline_seq": row.timeline_seq,
             "transition_id": ":".join(
                 (row.status, str(state["verification_status"]), row.updated_at.isoformat())
             ),

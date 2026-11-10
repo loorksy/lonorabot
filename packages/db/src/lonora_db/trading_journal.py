@@ -12,7 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .schema import TradingJournalRow
+from .schema import RunRow, ThreadRow, TradingJournalRow
 
 # Facts the execution boundary recorded itself: never replaced by a broker receipt.
 # execution_evidence: planned/before-send snapshots; risk_assessment: the monetary limit
@@ -55,17 +55,38 @@ async def reserve_operation(
     return row, created is not None
 
 
+async def anchor_operation(session: AsyncSession, row: TradingJournalRow, run: RunRow) -> None:
+    """Place a fresh operation in the conversation of the Run that requested it.
+
+    Presentation metadata only, written once beside the reservation: the visible thread
+    (a subagent's origin conversation, else the Run's own) and its next message seq, as
+    ``ln_trade_approvals.timeline_seq``. Nothing in execution or authority reads it.
+    """
+    if row.thread_id is not None:
+        return
+    origin = run.model_metadata.get("origin_thread_id")
+    thread = await session.get(
+        ThreadRow, origin if isinstance(origin, str) and origin else run.thread_id
+    )
+    if thread is None or thread.owner_id != row.owner_id:
+        return
+    row.thread_id, row.timeline_seq = thread.id, thread.next_seq
+
+
 async def journal_entries(
     session: AsyncSession,
     owner_id: str,
     account_id: str | None = None,
     execution_mode: str = "live",
+    thread_id: str | None = None,
 ) -> list[TradingJournalRow]:
     query = select(TradingJournalRow).where(
         TradingJournalRow.owner_id == owner_id, TradingJournalRow.execution_mode == execution_mode
     )
     if account_id:
         query = query.where(TradingJournalRow.account_id == account_id)
+    if thread_id:
+        query = query.where(TradingJournalRow.thread_id == thread_id)
     return list(
         (
             await session.scalars(query.order_by(TradingJournalRow.updated_at.desc()).limit(200))
