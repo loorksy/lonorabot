@@ -81,7 +81,7 @@ compose() {
     docker compose "${envs[@]}" "${files[@]}" "$@"
 }
 
-current_image() { sed -n 's/^LONORA_IMAGE=//p' "$STATE/image.env" 2>/dev/null | tail -n 1; }
+current_image() { [[ -f "$STATE/image.env" ]] || return 0; sed -n 's/^LONORA_IMAGE=//p' "$STATE/image.env" | tail -n 1; }
 pin_image() {
     printf 'LONORA_IMAGE=%s\n' "$1" >"$STATE/image.env.part"
     mv -f "$STATE/image.env.part" "$STATE/image.env"
@@ -222,7 +222,7 @@ check_archive() {
     done < <(tar -tzf "$1")
 }
 manifest_field() { sed -n "s/.*\"$2\": \"\([^\"]*\)\".*/\1/p" "$1/b/manifest.json"; }
-newest_backup() { ls -1t "$BACKUPS"/lonora-*.tar.gpg 2>/dev/null | head -n 1; }
+newest_backup() { ls -1t "$BACKUPS"/lonora-*.tar.gpg 2>/dev/null | head -n 1 || true; }
 
 # --- restore -------------------------------------------------------------------------
 restore_database() { # $1: dump file. API and Gateway must already be stopped.
@@ -308,7 +308,7 @@ cmd_restore_test() {
     local image="${LONORA_RESTORE_TEST_IMAGE:-}" wanted=(.env)
     if tar -tzf "$work/b/config.tar.gz" | grep -qx 'state/image.env'; then wanted+=(state/image.env); fi
     tar -C "$work/b" -xzf "$work/b/config.tar.gz" "${wanted[@]}"
-    if [[ -z "$image" ]]; then image="$(sed -n 's/^LONORA_IMAGE=//p' "$work/b/state/image.env" 2>/dev/null | tail -n 1)"; fi
+    if [[ -z "$image" ]]; then image="$(sed -n 's/^LONORA_IMAGE=//p' "$work/b/state/image.env" 2>/dev/null | tail -n 1 || true)"; fi
     if [[ -z "$image" ]]; then image="$(current_image)"; fi
     [[ -n "$image" ]] || die 'No image to test with: set LONORA_RESTORE_TEST_IMAGE.'
     local db_password; db_password="$(head -c 18 /dev/urandom | base64 | tr '+/' 'xy')"
@@ -385,7 +385,7 @@ install_bundle() {
     done < <(cd "$bundle" && find . -type f -print0)
 }
 
-marker_get() { sed -n "s/^$1=//p" "$MARKER" 2>/dev/null | tail -n 1; }
+marker_get() { [[ -f "$MARKER" ]] || return 0; sed -n "s/^$1=//p" "$MARKER" | tail -n 1; }
 marker_set() { # key value, rewritten atomically
     { grep -v "^$1=" "$MARKER" 2>/dev/null || true; printf '%s=%s\n' "$1" "$2"; } >"$MARKER.part"
     mv -f "$MARKER.part" "$MARKER"
