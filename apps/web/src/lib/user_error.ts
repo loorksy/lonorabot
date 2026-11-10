@@ -33,6 +33,8 @@ export function userError(error: unknown) {
       return t`At most two other agents can join one message.`;
     case "risk_currency_required":
       return t`Amount limits are in the account currency: enter it to save.`;
+    case "trading_day_timezone_invalid":
+      return t`Choose a valid time zone for the trading day.`;
     case "input_answer_invalid":
       return t`Choose an available answer.`;
     case "input_answer_expired":
