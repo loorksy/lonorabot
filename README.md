@@ -53,7 +53,9 @@ bash scripts/migrate.sh
 
 يشمل البناء Ruff وPyright وBiome وأنواع حزم Web/Expo وبناء Web وتصدير Expo للمنصات الثلاث. اختبارات CI الوظيفية تستخدم PostgreSQL ونماذج اختبار صريحة، وليست دليلًا على اتصال حسابات مزود أو وسيط حقيقية.
 
-ملفات الإنتاج في `infra/compose/docker-compose.prod.yml`. بعد ضبط المجال العام وكلمات المرور والمفاتيح الخاصة:
+التثبيت على خادم إنتاج، والتحديث بأمر `lonora update` مع الرجوع التلقائي، والنسخ الاحتياطية المشفرة واختبار استعادتها: راجع [docs/operations.md](docs/operations.md).
+
+ملفات الإنتاج في `infra/compose/docker-compose.prod.yml`. للبناء من المصدر على الخادم بعد ضبط المجال العام وكلمات المرور والمفاتيح الخاصة:
 
 ```sh
 bash infra/compose/deploy-main.sh --build
