@@ -6,14 +6,13 @@ from lonora_contracts.routines import RoutineCreate
 from lonora_contracts.runs import RunRequest
 from lonora_core.cron import next_occurrence
 from lonora_core.user_error import LonoraError
-from sqlalchemy import Select, select
+from sqlalchemy import Select, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .runs import create_run
 from .schema import AgentRow, RoutineRow, ThreadRow, TradingGoalRow
 from .trading_goals import owned_goal, planned_step
 from .transactions import owned_agent, owned_thread
-
 
 ONE_SHOT_RETRY = timedelta(minutes=5)
 
@@ -100,6 +99,9 @@ def due_query(now: datetime) -> Select[RoutineRow]:
             RoutineRow.enabled.is_(True),
             RoutineRow.next_run_at <= now,
             AgentRow.paused.is_(False),
+            # A one-shot that already fired never fires again until its run_at is changed,
+            # whoever switches it back on (owner, the agent's routine_toggle, a supervisor).
+            or_(RoutineRow.run_at.is_(None), RoutineRow.last_run_at.is_(None)),
         )
         .order_by(RoutineRow.next_run_at)
     )
@@ -201,15 +203,15 @@ async def enqueue_routine(session: AsyncSession, row: RoutineRow, now: datetime)
             "goal_step_not_found",
         }:
             raise
-    row.last_run_at = now
     if row.run_at is not None:
         if enqueued:
             # A one-shot routine fires once and then stays off until the owner reschedules it.
-            row.enabled = False
+            row.enabled, row.last_run_at = False, now
         else:
             # Not run (its goal is paused): it stays scheduled and is tried again later.
             row.next_run_at = now + ONE_SHOT_RETRY
         return enqueued
+    row.last_run_at = now
     request = RoutineCreate(
         prompt=row.prompt,
         interval_seconds=row.interval_seconds,

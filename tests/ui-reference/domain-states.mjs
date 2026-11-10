@@ -12,18 +12,24 @@ import { execFileSync } from "node:child_process";
 import { join } from "node:path";
 
 export function domainStates({ ROOT, env, seed, refRun, visible, pause }) {
-  const extra = JSON.parse(
-    execFileSync(
-      join(ROOT, ".venv/bin/python"),
-      [join(ROOT, "tests/ui-reference/seed_domain.py")],
-      {
-        cwd: ROOT,
-        env,
-        input: JSON.stringify({ agents: seed.agents, threads: seed.threads }),
-        encoding: "utf8",
-      },
-    ),
-  );
+  /* Seeded once, lazily, before the first domain state's app side: these states run last, so
+     the earlier phases' states see the database exactly as seed_reference.py left it. */
+  let extra = null;
+  const ensure = () => {
+    extra ??= JSON.parse(
+      execFileSync(
+        join(ROOT, ".venv/bin/python"),
+        [join(ROOT, "tests/ui-reference/seed_domain.py")],
+        {
+          cwd: ROOT,
+          env,
+          input: JSON.stringify({ agents: seed.agents, threads: seed.threads }),
+          encoding: "utf8",
+        },
+      ),
+    );
+    return extra;
+  };
   const agent = (name) => seed.agents[name];
   const to = (route, args) => (page) => refRun(page, ([r, a]) => go(r, a), [route, args]);
   const goalOnResearch = (page) =>
@@ -31,7 +37,7 @@ export function domainStates({ ROOT, env, seed, refRun, visible, pause }) {
       S.goals = S.goals.map((g) => ({ ...g, agent: "research" }));
       save();
     });
-  return [
+  const states = [
     {
       name: "updates",
       ref: async (page) => {
@@ -62,7 +68,7 @@ export function domainStates({ ROOT, env, seed, refRun, visible, pause }) {
     {
       name: "task-page",
       ref: to("task", { item: "t1", agent: "gold" }),
-      appPath: () => `/app/tasks/${extra.task}`,
+      appPath: () => `/app/tasks/${ensure().task}`,
       app: async () => {},
     },
     { name: "new-task", ref: to("new-task", {}), appPath: "/app/new-task", app: async () => {} },
@@ -124,7 +130,7 @@ export function domainStates({ ROOT, env, seed, refRun, visible, pause }) {
     {
       name: "skill-page",
       ref: to("skill", { item: "k1", agent: "lonora" }),
-      appPath: () => `/app/skills/${extra.skill}`,
+      appPath: () => `/app/skills/${ensure().skill}`,
       app: async () => {},
     },
     {
@@ -134,7 +140,7 @@ export function domainStates({ ROOT, env, seed, refRun, visible, pause }) {
         await pause(page, 300);
         await refRun(page, () => handle("skill-history"));
       },
-      appPath: () => `/app/skills/${extra.skill}`,
+      appPath: () => `/app/skills/${ensure().skill}`,
       app: async (page) => {
         await pause(page, 300);
         await visible(page, "#app main form .btn.full").click();
@@ -180,6 +186,13 @@ export function domainStates({ ROOT, env, seed, refRun, visible, pause }) {
       app: async () => {},
     },
   ];
+  return states.map((state) => ({
+    ...state,
+    appSetup: async (a, memo) => {
+      ensure();
+      if (state.appSetup) await state.appSetup(a, memo);
+    },
+  }));
 }
 
 /** The reference's own class names on these pages, probed on both sides. */

@@ -13,9 +13,9 @@ const goalState = (status: string) =>
   status === "completed"
     ? t({ message: "Completed", context: "goal" })
     : status === "cancelled"
-      ? t({ message: "Cancelled", context: "task status" })
+      ? t({ message: "Cancelled", context: "goal" })
       : status === "paused"
-        ? t({ message: "Paused", context: "task status" })
+        ? t({ message: "Paused", context: "goal" })
         : t({ message: "Active", context: "goal" });
 
 const Missing = ({ error }: { error: unknown }) =>
@@ -52,10 +52,10 @@ export function GoalsPage() {
           ? (plans.data ?? []).map((goal) => (
               <Row
                 key={goal.id}
-                icon={goal.status === "completed" ? "check" : "target"}
-                title={<bdi>{goal.title}</bdi>}
-                sub={goal.objective ? <bdi>{goal.objective}</bdi> : undefined}
-                value={goalState(goal.status)}
+                icon={goal.state.status === "completed" ? "check" : "target"}
+                title={<bdi>{goal.payload.title ?? ""}</bdi>}
+                sub={goal.payload.objective ? <bdi>{goal.payload.objective}</bdi> : undefined}
+                value={goalState(String(goal.state.status ?? "active"))}
                 onClick={() => openPlan(goal)}
               />
             ))

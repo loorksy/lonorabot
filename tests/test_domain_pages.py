@@ -105,7 +105,7 @@ async def test_routines_keep_a_title_and_a_one_shot_fires_once():
         again = await fixture.request(
             "PUT",
             f"/routines/{created['id']}",
-            {"title": "موجز", "prompt": "Prepare the brief", "cron": "0 9 * * *"},
+            {"title": "موجز", "prompt": "Prepare the brief", "cron": "0 9 * * *", "enabled": True},
         )
         assert again["title"] == "موجز" and again["run_at"] is None and again["enabled"]
     finally:
@@ -329,13 +329,15 @@ async def test_seen_all_keeps_action_items_and_activity_comes_from_events():
     from check_streaming import Fixture
     from lonora_contracts.domain import utcnow
     from lonora_db.schema import AttentionRow
+    from sqlalchemy import select
 
     fixture = await Fixture().open()
     try:
         agent = await fixture.agent("Notifier")
         thread = await fixture.conversation(agent)
         async with fixture.runtime.db.sessions() as session, session.begin():
-            for index, importance in enumerate(["informational", "important_change", "critical"]):
+            kinds = ["informational", "important_change", "critical", "action_required"]
+            for index, importance in enumerate(kinds):
                 session.add(
                     AttentionRow(
                         owner_id=fixture.owner,
@@ -349,13 +351,20 @@ async def test_seen_all_keeps_action_items_and_activity_comes_from_events():
                     )
                 )
         seen = await fixture.request("POST", "/attention/seen-all")
-        assert seen == {"seen": 2}
-        open_items = [
-            row
-            for row in cast(list[Any], await fixture.request("GET", "/attention"))
-            if row["agent_id"] == agent["id"]
-        ]
-        assert [row["importance"] for row in open_items] == ["critical"]
+        assert seen["seen"] >= 2  # owner-wide; this fixture's rows are checked below
+        async with fixture.runtime.db.sessions() as session:
+            rows = (
+                await session.scalars(
+                    select(AttentionRow).where(AttentionRow.agent_id == agent["id"])
+                )
+            ).all()
+        status = {row.importance: row.status for row in rows}
+        assert status == {
+            "informational": "seen",
+            "important_change": "seen",
+            "critical": "pending",
+            "action_required": "pending",
+        }
         task = await fixture.request(
             "POST",
             f"/tasks?agent_id={agent['id']}&thread_id={thread['id']}",
@@ -396,17 +405,42 @@ async def test_agent_text_files_upload_and_edit_but_other_files_do_not():
         assert text["agent_id"] == agent["id"]
         listed = cast(list[Any], await fixture.request("GET", f"/artifacts?agent_id={agent['id']}"))
         assert [row["id"] for row in listed] == [text["id"]]
+        stale, _ = await status_of(
+            fixture,
+            "PUT",
+            f"/artifacts/{text['id']}/text",
+            {"expected_version": 9, "name": "plan.md", "content": "x"},
+        )
+        assert stale == 409
         saved = await fixture.request(
-            "PUT", f"/artifacts/{text['id']}/text", {"name": "plan.md", "content": "second"}
+            "PUT",
+            f"/artifacts/{text['id']}/text",
+            {"expected_version": text["version"], "name": "plan.md", "content": "second"},
         )
         assert saved["payload"]["name"] == "plan.md" and saved["payload"]["size"] == 6
+        from lonora_db.schema import EventRow
+        from sqlalchemy import select
+
+        async with fixture.runtime.db.sessions() as session:
+            kinds = (
+                await session.scalars(
+                    select(EventRow.kind).where(
+                        EventRow.owner_id == fixture.owner,
+                        EventRow.payload["id"].as_string() == text["id"],
+                    )
+                )
+            ).all()
+        assert "artifacts.updated" in kinds
         body = await fixture.client.get(f"/api/artifacts/{text['id']}/file")
         assert body.text == "second"
         image = await fixture.client.post(
             "/api/artifacts/upload", files={"file": ("a.png", b"\x89PNG", "image/png")}
         )
         code, problem = await status_of(
-            fixture, "PUT", f"/artifacts/{image.json()['id']}/text", {"name": "a", "content": "x"}
+            fixture,
+            "PUT",
+            f"/artifacts/{image.json()['id']}/text",
+            {"expected_version": 1, "name": "a", "content": "x"},
         )
         assert code == 409 and problem["code"] == "artifact_not_text"
     finally:
@@ -417,7 +451,7 @@ async def test_agent_text_files_upload_and_edit_but_other_files_do_not():
 async def test_completing_a_task_with_no_active_run_cancels_its_trade_approvals():
     database()
     from check_streaming import Fixture
-    from lonora_db.schema import RunRow, TradeApprovalRow
+    from lonora_db.schema import RunRow, TicketRow, TradeApprovalRow
 
     fixture = await Fixture().open()
     try:
@@ -433,6 +467,10 @@ async def test_completing_a_task_with_no_active_run_cancels_its_trade_approvals(
             run = await session.get(RunRow, run_id, with_for_update=True)
             assert run is not None
             run.status = "failed"
+            ticket = await session.get(TicketRow, task["id"], with_for_update=True)
+            assert ticket is not None
+            # The failed-Task path (retry review), not only the idle one.
+            ticket.state = {**ticket.state, "task": {**ticket.state["task"], "status": "failed"}}
             for status in ("pending", "approved"):
                 session.add(
                     TradeApprovalRow(
@@ -530,14 +568,181 @@ async def test_text_edit_never_deletes_outside_its_folder_and_untyped_text_is_te
             },
         )
         saved = await fixture.request(
-            "PUT", f"/artifacts/{moved['id']}/text", {"name": "plan.md", "content": "# new"}
+            "PUT",
+            f"/artifacts/{moved['id']}/text",
+            {"expected_version": moved["version"], "name": "plan.md", "content": "# new"},
         )
         assert saved["payload"]["key"].startswith(row["id"] + "/")
         assert victim.read_bytes() == b"keep me"
         again = await fixture.request(
-            "PUT", f"/artifacts/{row['id']}/text", {"name": "plan.md", "content": "# newer"}
+            "PUT",
+            f"/artifacts/{row['id']}/text",
+            {"expected_version": saved["version"], "name": "plan.md", "content": "# newer"},
         )
         assert not confined_path(root, saved["payload"]["key"]).exists()
         assert confined_path(root, again["payload"]["key"]).read_bytes() == b"# newer"
+    finally:
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_activity_reaches_an_old_action_behind_many_filtered_events():
+    database()
+    from check_streaming import Fixture
+    from lonora_db.schema import EventRow
+
+    fixture = await Fixture().open()
+    try:
+        agent = await fixture.agent("Busy")
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            session.add(
+                EventRow(
+                    owner_id=fixture.owner,
+                    agent_id=agent["id"],
+                    kind="task.updated",
+                    payload={"id": "old-task", "status": "completed"},
+                )
+            )
+            await session.flush()
+            for index in range(1700):
+                session.add(
+                    EventRow(
+                        owner_id=fixture.owner,
+                        agent_id=agent["id"],
+                        kind="task.updated",
+                        payload={"id": f"noise-{index}", "status": "running"},
+                    )
+                )
+        feed = await fixture.request("GET", "/activity?limit=5")
+        mine = [row for row in feed["items"] if row["agent_id"] == agent["id"]]
+        assert mine[0]["code"] == "task_completed"
+        # A full page always carries a cursor to the next one.
+        page = await fixture.request("GET", "/activity?limit=1")
+        assert len(page["items"]) == 1 and page["next_before"] == int(page["items"][0]["id"])
+    finally:
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_the_agent_context_carries_its_own_goals_and_links_as_untrusted_data():
+    database()
+    from check_streaming import Fixture
+    from lonora_agent.context.memory import read_memory_context
+
+    fixture = await Fixture().open()
+    try:
+        mine, other = await fixture.agent("Reader"), await fixture.agent("Other")
+        await fixture.request(
+            "POST",
+            "/agent-goals",
+            {"agent_id": mine["id"], "payload": {"title": "تعلم السوق", "description": "x" * 900}},
+        )
+        await fixture.request(
+            "POST",
+            "/knowledge-links",
+            {"agent_id": mine["id"], "payload": {"title": "Docs", "url": "https://example.com"}},
+        )
+        await fixture.request(
+            "POST",
+            "/knowledge-links",
+            {"agent_id": other["id"], "payload": {"title": "Elsewhere", "url": "https://x.test"}},
+        )
+        async with fixture.runtime.db.sessions() as session:
+            sections = await read_memory_context(session, fixture.owner, mine["id"])
+            others = await read_memory_context(session, fixture.owner, other["id"])
+        section = next(item for item in sections if item.name == "owner_knowledge")
+        assert section.trust == "owner_attributed_untrusted"
+        assert "https://example.com" in section.body and "Elsewhere" not in section.body
+        assert "x" * 401 not in section.body
+        assert "grant no tools" in section.body
+        body = next(item for item in others if item.name == "owner_knowledge").body
+        assert "Elsewhere" in body and "Docs" not in body
+    finally:
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_routine_updates_keep_unsent_fields_and_a_fired_one_shot_never_refires():
+    database()
+    from check_streaming import Fixture
+    from lonora_contracts.domain import utcnow
+    from lonora_db.routines import due_routines, enqueue_routine
+    from lonora_db.schema import RoutineRow
+
+    fixture = await Fixture().open()
+    try:
+        agent = await fixture.agent("Keeper")
+        at = (utcnow() + timedelta(hours=1)).replace(microsecond=0)
+        once = await fixture.request(
+            "POST",
+            f"/routines/{agent['id']}",
+            {"title": "Brief", "prompt": "Brief me", "run_at": at.isoformat()},
+        )
+        # A toggle-only body keeps the title and the one-shot schedule.
+        off = await fixture.request("PUT", f"/routines/{once['id']}", {"enabled": False})
+        assert off["title"] == "Brief" and off["run_at"] == once["run_at"] and not off["enabled"]
+        on = await fixture.request("PUT", f"/routines/{once['id']}", {"enabled": True})
+        assert on["enabled"] and on["cron"] is None and on["interval_seconds"] is None
+        # Sending one schedule replaces the other.
+        daily = await fixture.request("PUT", f"/routines/{once['id']}", {"cron": "0 9 * * *"})
+        assert daily["run_at"] is None and daily["title"] == "Brief"
+        back = await fixture.request("PUT", f"/routines/{once['id']}", {"run_at": at.isoformat()})
+        assert back["cron"] is None and back["run_at"] == once["run_at"]
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            row = await session.get(RoutineRow, once["id"], with_for_update=True)
+            assert row is not None
+            assert await enqueue_routine(session, row, at + timedelta(seconds=1))
+            assert row.enabled is False
+            # The agent's toggle or a supervisor's resume sets enabled directly.
+            row.enabled = True
+            row.next_run_at = utcnow() - timedelta(minutes=1)
+        async with fixture.runtime.db.sessions() as session:
+            assert once["id"] not in [identifier for identifier, _ in await due_routines(session)]
+        # Enabling through the owner's route refuses a run_at that has passed.
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            row = await session.get(RoutineRow, once["id"], with_for_update=True)
+            assert row is not None
+            row.run_at = utcnow() - timedelta(hours=1)
+            row.enabled = False
+        code, body = await status_of(fixture, "PUT", f"/routines/{once['id']}", {"enabled": True})
+        assert code == 422 and body["code"] == "run_at_past"
+    finally:
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_an_added_note_appears_in_the_activity_log():
+    database()
+    from check_streaming import Fixture
+    from lonora_memory import semantic
+
+    fixture = await Fixture().open()
+    try:
+        agent = await fixture.agent("Noter")
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            from lonora_db.transactions import SettingsRepository
+
+            await SettingsRepository().put(
+                session, "semantic_memory", {"enabled": True, "model": "fixture-embedding"}
+            )
+
+        async def embed(*_: Any) -> list[float]:
+            return [0.1, 0.2]
+
+        original = semantic.embed_text
+        semantic.embed_text = embed  # type: ignore[assignment]
+        try:
+            await semantic.index_note(
+                fixture.runtime.db, cast(Any, None), fixture.owner, agent["id"], "A note", "Guide"
+            )
+        finally:
+            semantic.embed_text = original
+            async with fixture.runtime.db.sessions() as session, session.begin():
+                from lonora_db.transactions import SettingsRepository
+
+                await SettingsRepository().put(session, "semantic_memory", {"enabled": False})
+        feed = await fixture.request("GET", "/activity?limit=20")
+        codes = [row["code"] for row in feed["items"] if row["agent_id"] == agent["id"]]
+        assert "knowledge_added" in codes
     finally:
         await fixture.close()

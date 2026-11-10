@@ -115,6 +115,16 @@ async def index_note(
                 },
             )
             session.add(row)
+            from lonora_db.events import emit
+
+            # «أُضيفت معرفة» in the owner's activity log (GET /api/activity).
+            emit(
+                session,
+                owner_id,
+                "knowledge_notes.created",
+                agent_id=agent_id,
+                payload={"id": document_id},
+            )
         elif title is not None and row.payload.get("title") != title:
             # The owner's name for the note in «المعرفة»; recall reads the text only.
             row.payload = {**row.payload, "title": title}

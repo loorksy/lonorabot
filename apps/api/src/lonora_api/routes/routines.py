@@ -4,9 +4,11 @@ from fastapi import APIRouter, Depends, Request
 from lonora_auth.identity import OwnerIdentity
 from lonora_automation.delivery import routine_history
 from lonora_automation.service import RoutineService
-from lonora_contracts.routines import RoutineCreate
+from lonora_contracts.routines import RoutineCreate, RoutineUpdate
+from lonora_core.user_error import LonoraError
 from lonora_db.routines import owned_routine, routine_data
 from lonora_db.schema import RoutineRow
+from pydantic import ValidationError
 from sqlalchemy import select
 
 from ..middleware.auth import require_owner, runtime
@@ -42,10 +44,16 @@ async def create(
 async def update(
     request: Request,
     routine_id: str,
-    body: RoutineCreate,
+    body: RoutineUpdate,
     owner: OwnerIdentity = Depends(require_owner),
 ) -> dict[str, Any]:
-    return await RoutineService(runtime(request).db).configure(owner.id, routine_id, body)
+    """A partial edit: what the body leaves out keeps its stored value."""
+    try:
+        return await RoutineService(runtime(request).db).configure(owner.id, routine_id, body)
+    except ValidationError as error:
+        # The merged routine breaks a schedule rule (run_at_past, one_schedule_required, …).
+        message = str(error.errors()[0].get("msg", "invalid_request"))
+        raise LonoraError(message.removeprefix("Value error, "), 422) from None
 
 
 @router.delete("/{routine_id}")

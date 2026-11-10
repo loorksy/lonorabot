@@ -10,7 +10,7 @@ the clients label. The subject is the agent's name, or the task's or skill's own
 
 from typing import Any, cast
 
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .schema import AgentRow, EventRow, SkillRow, TicketRow
@@ -30,10 +30,10 @@ DIRECT: dict[str, str] = {
     "watch.confirmed": "watch_triggered",
     "agent_goals.created": "goal_created",
     "knowledge_links.created": "knowledge_added",
+    "knowledge_notes.created": "knowledge_added",
 }
 TASK_STATUS = {"completed": "task_completed", "cancelled": "task_cancelled"}
 APPROVAL_STATUS = {"approved": "approval_approved", "rejected": "approval_rejected"}
-KINDS = [*DIRECT, "task.updated", "trading.approval.updated"]
 
 
 def activity_code(event: EventRow) -> str | None:
@@ -55,32 +55,32 @@ def skill_title(payload: dict[str, Any]) -> str:
 async def activity(
     session: AsyncSession, owner_id: str, *, limit: int = 50, before: int | None = None
 ) -> dict[str, Any]:
+    # Every filter is in SQL, so a page is never emptied by events it does not show.
+    status = EventRow.payload["status"].as_string()
+    query = select(EventRow).where(
+        EventRow.owner_id == owner_id,
+        or_(
+            EventRow.kind.in_(list(DIRECT)),
+            and_(EventRow.kind == "task.updated", status.in_(list(TASK_STATUS))),
+            and_(EventRow.kind == "trading.approval.updated", status.in_(list(APPROVAL_STATUS))),
+        ),
+    )
+    if before is not None:
+        query = query.where(EventRow.cursor < before)
+    page = list((await session.scalars(query.order_by(EventRow.cursor.desc()).limit(limit))).all())
     entries: list[tuple[EventRow, str]] = []
-    cursor = before
     seen_tasks: set[tuple[str, str]] = set()
-    # Status events repeat (every save of a Task emits one); scan in pages until full.
-    for _ in range(8):
-        query = select(EventRow).where(EventRow.owner_id == owner_id, EventRow.kind.in_(KINDS))
-        if cursor is not None:
-            query = query.where(EventRow.cursor < cursor)
-        page = list(
-            (await session.scalars(query.order_by(EventRow.cursor.desc()).limit(200))).all()
-        )
-        for event in page:
-            code = activity_code(event)
-            if code is None:
+    for event in page:
+        code = activity_code(event)
+        if code is None:
+            continue
+        if event.kind == "task.updated":
+            # A finished Task saved again repeats its status: one line per Task and outcome.
+            identity = (str(event.payload.get("id")), code)
+            if identity in seen_tasks:
                 continue
-            if code.startswith("task_") and event.kind == "task.updated":
-                identity = (str(event.payload.get("id")), code)
-                if identity in seen_tasks:
-                    continue
-                seen_tasks.add(identity)
-            entries.append((event, code))
-            if len(entries) >= limit:
-                break
-        if len(entries) >= limit or len(page) < 200:
-            break
-        cursor = page[-1].cursor
+            seen_tasks.add(identity)
+        entries.append((event, code))
     agent_ids = {event.agent_id for event, _ in entries if event.agent_id}
     task_ids = {str(event.payload.get("id")) for event, code in entries if code.startswith("task_")}
     skill_ids = {
@@ -136,5 +136,6 @@ async def activity(
         )
     return {
         "items": items,
-        "next_before": int(items[-1]["id"]) if len(items) >= limit else None,
+        # A full page continues from its last scanned event, shown or not.
+        "next_before": page[-1].cursor if len(page) >= limit else None,
     }

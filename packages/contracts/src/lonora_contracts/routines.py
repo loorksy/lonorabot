@@ -30,9 +30,27 @@ class RoutineCreate(Contract):
             if self.run_at.tzinfo is None:
                 raise ValueError("run_at_timezone_required")
             self.run_at = self.run_at.astimezone(UTC)
-            # A minute of grace for the form's clock; earlier would fire at once.
-            if self.run_at < datetime.now(UTC) - timedelta(minutes=1):
+            # A minute of grace for the form's clock; an enabled earlier time would fire at
+            # once. Switching a fired one-shot off stays possible.
+            if self.enabled and self.run_at < datetime.now(UTC) - timedelta(minutes=1):
                 raise ValueError("run_at_past")
         if self.title is not None:
             self.title = self.title.strip() or None
         return self
+
+
+SCHEDULE_FIELDS = ("interval_seconds", "cron", "run_at")
+
+
+class RoutineUpdate(Contract):
+    """A partial owner edit: fields left out keep their stored value. Sending one schedule
+    (interval_seconds, cron or run_at) replaces the other two; the merged routine is checked
+    as a RoutineCreate."""
+
+    title: str | None = Field(default=None, max_length=160)
+    prompt: str | None = Field(default=None, min_length=1, max_length=8000)
+    interval_seconds: int | None = Field(default=None, ge=60, le=31536000)
+    cron: str | None = None
+    run_at: datetime | None = None
+    timezone: str | None = None
+    enabled: bool | None = None

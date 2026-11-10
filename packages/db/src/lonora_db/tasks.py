@@ -571,6 +571,12 @@ async def complete_task(
     if state.status in {"completed", "cancelled"}:
         raise LonoraError("task_terminal", 409)
     if state.status == "failed" or not await active_task_run(session, row):
+        from .supervision import owner_takes_over
+
+        # The owner's decision wins over a supervisor's hold, as with the owner's cancel.
+        await owner_takes_over(
+            session, owner_id, "task", row.id, paused=False, agent_id=row.agent_id
+        )
         row = await get_task(session, owner_id, task_id, lock=True)
         if row.version != expected_version:
             raise LonoraError("version_conflict", 409)

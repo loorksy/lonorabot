@@ -210,7 +210,10 @@ function Hit({
       open = () =>
         skill
           ? nav.go(`/app/skills/${encodeURIComponent(item.id)}`)
-          : nav.go(`/app/knowledge?agent=${encodeURIComponent(item.agent_id ?? "")}`);
+          : // A memory hit opens the memory editor, which holds that text; a note «المعرفة».
+            nav.go(
+              `/app/${item.kind === "memory" ? "memory" : "knowledge"}?agent=${encodeURIComponent(item.agent_id ?? "")}`,
+            );
     }
   }
   return (

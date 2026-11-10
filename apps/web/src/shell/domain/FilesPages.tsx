@@ -238,7 +238,7 @@ export function FileEditPage() {
           }
           setBusy(true);
           try {
-            if (existing) await domainApi.saveText(existing.row.id, name, content);
+            if (existing) await domainApi.saveText(existing.row, name, content);
             else
               await domainApi.uploadFile(
                 new File([content], name, { type: "text/plain" }),

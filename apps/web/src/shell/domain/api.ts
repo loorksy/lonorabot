@@ -34,15 +34,10 @@ export type TaskInput = {
   due_at?: string | null;
   completion_criteria?: string;
 };
-/** A trading goal (a plan under the agent's grant), as much of it as «الأهداف» lists. */
-export type TradingGoalView = {
-  id: string;
-  agent_id: string;
-  thread_id: string | null;
-  title: string;
-  objective?: string;
-  status: string;
-  symbol?: string;
+/** A trading goal (a plan under the agent's grant), as `GET /api/trading/goals` returns it:
+    the plan in `payload`, its progress in `state`. */
+export type TradingGoalView = Resource<{ title?: string; objective?: string; symbol?: string }> & {
+  state: { status?: string };
 };
 export type ArtifactPayload = { name: string; size: number; media_type: string; key?: string };
 
@@ -129,8 +124,12 @@ export const domainApi = {
     return request<Resource<ArtifactPayload>>("/artifacts/upload", { method: "POST", body: data });
   },
   /** «تحرير الملف» for a text file (Q36). */
-  saveText: (id: string, name: string, content: string) =>
-    api.put<Resource<ArtifactPayload>>(`/artifacts/${id}/text`, { name, content }),
+  saveText: (row: Resource<ArtifactPayload>, name: string, content: string) =>
+    api.put<Resource<ArtifactPayload>>(`/artifacts/${row.id}/text`, {
+      expected_version: row.version,
+      name,
+      content,
+    }),
   deleteFile: (id: string) => api.delete<{ deleted: boolean }>(`/artifacts/${id}`),
 
   activity: (before?: number) =>

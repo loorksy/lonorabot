@@ -684,6 +684,7 @@ export const labels = {
   routineSchedule: ["الجدولة", "Schedule"],
   interval: ["فترة زمنية", "Interval"],
   cron: ["تعبير Cron", "Cron expression"],
+  once: ["مرة واحدة", "Once"],
   minutes: ["كل · دقائق", "Every · minutes"],
   timezone: ["المنطقة الزمنية", "Timezone"],
   createRoutine: ["إنشاء مهمة مجدولة", "Create routine"],

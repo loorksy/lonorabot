@@ -209,16 +209,25 @@ export function TaskPage() {
         >
           <Trans>View conversation</Trans>
         </button>
-        {(task.can_pause || task.can_resume) && (
+        {/* Each button sends its own action: a task held for the owner can be both. */}
+        {task.can_pause && (
           <button
             type="button"
             className="btn outline"
             disabled={busy}
-            onClick={() =>
-              void act(() => domainApi.controlTask(task, task.can_resume ? "resume" : "pause"))
-            }
+            onClick={() => void act(() => domainApi.controlTask(task, "pause"))}
           >
-            {task.can_resume ? <Trans>Resume</Trans> : <Trans context="task">Pause</Trans>}
+            <Trans context="task">Pause</Trans>
+          </button>
+        )}
+        {task.can_resume && (
+          <button
+            type="button"
+            className="btn outline"
+            disabled={busy}
+            onClick={() => void act(() => domainApi.controlTask(task, "resume"))}
+          >
+            <Trans>Resume</Trans>
           </button>
         )}
       </div>
@@ -264,7 +273,7 @@ export function NewTaskPage() {
     <div className="domain-page">
       <FormPage
         name="task"
-        submit={<Trans>Create task</Trans>}
+        submit={<Trans context="submit">Create task</Trans>}
         busy={busy}
         onSubmit={async (form) => {
           const agentId = text(form, "agent");

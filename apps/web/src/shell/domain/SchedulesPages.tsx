@@ -16,7 +16,65 @@ import { Empty, Field, FormPage, SelectField, Toggle, text, ValueRow } from "./u
 
 type Repeat = "daily" | "workdays" | "weekly";
 type Kind = "repeat" | "once" | "condition";
-type WatchPayload = { symbol?: string; condition?: string; level?: string; prompt?: string };
+type WatchPayload = {
+  symbol?: string;
+  condition?: string;
+  level?: string;
+  prompt?: string;
+  enabled?: boolean;
+  expires_at?: string | null;
+};
+type WatchRow = Resource<WatchPayload> & { state?: { code?: string; lifecycle?: string } };
+/** A cancelled or expired watch is no longer a schedule; a paused one keeps its switch off. */
+const listedWatch = (row: WatchRow) =>
+  !!row.payload.prompt &&
+  row.state?.code !== "watch_cancelled" &&
+  row.state?.lifecycle !== "expired" &&
+  !(row.payload.expires_at && new Date(row.payload.expires_at).getTime() <= Date.now());
+const until = (row: WatchRow) =>
+  row.payload.expires_at
+    ? new Date(row.payload.expires_at).toLocaleString("en-GB", {
+        day: "2-digit",
+        month: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : t`No expiry`;
+
+/** «تأكيد الحذف» (the reference's confirm-delete sheet) before a destructive action. */
+export function useConfirm() {
+  const sheets = useSheets();
+  const toast = useToast();
+  return (question: string, action: string, run: () => Promise<void>) =>
+    sheets.open({
+      id: "confirm-delete",
+      title: t`Confirm deletion`,
+      body: (
+        <>
+          <p>{question}</p>
+          <div className="actions">
+            <button type="button" className="btn" onClick={() => sheets.close()}>
+              <Trans>Cancel</Trans>
+            </button>
+            <button
+              type="button"
+              className="btn danger"
+              onClick={async () => {
+                try {
+                  await run();
+                  sheets.close();
+                } catch (cause) {
+                  toast(userError(cause), { type: "error" });
+                }
+              }}
+            >
+              {action}
+            </button>
+          </div>
+        </>
+      ),
+    });
+}
 const zone = () => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const hhmm = (h: number, m: number) =>
   `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
@@ -63,7 +121,7 @@ const conditionText = (payload: WatchPayload) =>
 /** The schedule details sheet: «التكرار», «الوقت», «القناة», «حذف الجدول». */
 export function useScheduleDetails(onDeleted: () => void) {
   const sheets = useSheets();
-  const toast = useToast();
+  const confirm = useConfirm();
   return (routine: Routine) => {
     const facts = scheduleFacts(routine);
     sheets.open({
@@ -81,15 +139,12 @@ export function useScheduleDetails(onDeleted: () => void) {
           <button
             type="button"
             className="btn full danger"
-            onClick={async () => {
-              try {
+            onClick={() =>
+              confirm(t`Delete this schedule?`, t`Delete`, async () => {
                 await domainApi.deleteRoutine(routine.id);
-                sheets.close();
                 onDeleted();
-              } catch (cause) {
-                toast(userError(cause), { type: "error" });
-              }
-            }}
+              })
+            }
           >
             <Trans>Delete schedule</Trans>
           </button>
@@ -99,22 +154,71 @@ export function useScheduleDetails(onDeleted: () => void) {
   };
 }
 
+/** A conditional schedule's sheet: its condition, «حتى», and «إيقاف المراقبة». */
+function useWatchDetails(onChanged: () => void) {
+  const sheets = useSheets();
+  const confirm = useConfirm();
+  return (watch: WatchRow) =>
+    sheets.open({
+      id: "watch-details",
+      title: <bdi>{watch.payload.prompt}</bdi>,
+      label: watch.payload.prompt ?? "",
+      body: (
+        <>
+          <ValueRow
+            label={t({ message: "Condition", context: "watch" })}
+            value={<span className="ltr">{conditionText(watch.payload)}</span>}
+          />
+          <ValueRow label={t`Until`} value={<span className="ltr">{until(watch)}</span>} />
+          <ValueRow
+            label={t({ message: "Channel", context: "schedule details" })}
+            value={t`In the app`}
+          />
+          <button
+            type="button"
+            className="btn full danger"
+            onClick={() =>
+              confirm(t`Stop this watch?`, t`Stop the watch`, async () => {
+                await api.post(`/watches/${watch.id}/control`, { action: "cancel" });
+                onChanged();
+              })
+            }
+          >
+            <Trans>Stop the watch</Trans>
+          </button>
+        </>
+      ),
+    });
+}
+
 /** «scheduleList»: the routines (and the agent's conditional watches) with their switches. */
 export function ScheduleList({ agentId }: { agentId?: string }) {
   const toast = useToast();
   const routines = useLoad(() => domainApi.routines(agentId), `routines:${agentId ?? "*"}`);
   const watches = useLoad(
-    agentId
-      ? () => api.get<Resource<WatchPayload>[]>(`/watches?agent_id=${encodeURIComponent(agentId)}`)
-      : null,
+    agentId ? () => api.get<WatchRow[]>(`/watches?agent_id=${encodeURIComponent(agentId)}`) : null,
     `watches:${agentId ?? "-"}`,
   );
   const details = useScheduleDetails(routines.reload);
+  const watchDetails = useWatchDetails(() => watches.reload());
   if (routines.loading && !routines.data) return <SkRows count={3} />;
   if (routines.error != null && !routines.data)
     return <p role="alert">{userError(routines.error)}</p>;
   const rows = (routines.data ?? []).filter((routine) => !routine.goal_id);
-  const conditional = (watches.data ?? []).filter((row) => row.payload.prompt);
+  const conditional = (watches.data ?? []).filter(listedWatch);
+  const watchToggle = async (watch: WatchRow, on: boolean) => {
+    watches.set((list) =>
+      list?.map((row) =>
+        row.id === watch.id ? { ...row, payload: { ...row.payload, enabled: on } } : row,
+      ),
+    );
+    try {
+      await api.post(`/watches/${watch.id}/control`, { action: on ? "resume" : "pause" });
+    } catch (cause) {
+      toast(userError(cause), { type: "error" });
+    }
+    watches.reload();
+  };
   if (!rows.length && !conditional.length) return <Empty>{t`No scheduled tasks.`}</Empty>;
   const toggle = async (routine: Routine, enabled: boolean) => {
     routines.set((list) => list?.map((row) => (row.id === routine.id ? { ...row, enabled } : row)));
@@ -159,15 +263,21 @@ export function ScheduleList({ agentId }: { agentId?: string }) {
       {conditional.map((watch) => (
         <div className="row" key={watch.id}>
           <Icon name="radar" />
-          <span className="body">
+          <button type="button" className="body as-button" onClick={() => watchDetails(watch)}>
             <strong>
               <bdi>{watch.payload.prompt}</bdi>
             </strong>
             <small>
               {t({ message: "When a condition is met", context: "schedule type" })} ·{" "}
-              <span className="ltr">{conditionText(watch.payload)}</span>
+              <span className="ltr">{conditionText(watch.payload)}</span> ·{" "}
+              <span className="ltr">{until(watch)}</span>
             </small>
-          </span>
+          </button>
+          <Toggle
+            on={watch.payload.enabled !== false}
+            label={t`Enable ${watch.payload.prompt ?? ""}`}
+            onChange={(next) => void watchToggle(watch, next)}
+          />
         </div>
       ))}
     </div>

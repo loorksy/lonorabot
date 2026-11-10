@@ -2,6 +2,7 @@
 /* UI phase 4b, the domain pages, end to end through the owner's own controls: every screen
    reads and writes the real API (nothing intercepted), and what it shows comes back after a
    reload. «تحديد كمكتملة» stops work without approving anything; skills restore with undo. */
+import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { test as base, expect } from "@playwright/test";
 
@@ -211,4 +212,108 @@ test("skills: create, edit, version history, restore and undo", async ({ page, o
   await toggle.click();
   await expect(page.locator("#toast")).toContainText("Skill disabled");
   expect((await call("GET", `/skills/${skill.id}`)).payload.enabled).toBe(false);
+});
+
+test("goals: a trading agent lists its plans with their titles and a cancelled plan reads «ملغى»", async ({
+  page,
+  context,
+}) => {
+  const data = JSON.parse(
+    execFileSync(".venv/bin/python", ["tests/check_chart_browser.py"], {
+      input: JSON.stringify({ action: "init" }),
+      encoding: "utf8",
+    }),
+  );
+  const headers = {
+    "X-CSRF-Token": data.cookies.find((cookie) => cookie.name === "lonora_csrf").value,
+  };
+  let agent;
+  try {
+    await context.addCookies(
+      data.cookies.map((cookie) => ({
+        ...cookie,
+        url: test.info().project.use.baseURL,
+        httpOnly: cookie.name === "lonora_session",
+        sameSite: "Strict",
+      })),
+    );
+    await context.addInitScript(() => localStorage.setItem("lonora.locale", "ar"));
+    const created = await context.request.post("/api/agents", {
+      headers,
+      data: {
+        name: `Plans ${randomUUID().slice(0, 8)}`,
+        trading_account_id: data.account,
+        trading_symbol: data.symbol,
+      },
+    });
+    expect(created.status()).toBe(201);
+    agent = await created.json();
+    const thread = await (
+      await context.request.post(`/api/agents/${agent.id}/conversation`, { headers, data: {} })
+    ).json();
+    const plan = async (title) => {
+      const response = await context.request.post("/api/trading/goals", {
+        headers,
+        data: {
+          agent_id: agent.id,
+          thread_id: thread.id,
+          title,
+          objective: "Review the evidence first.",
+          account_id: data.account,
+          symbol: data.symbol,
+          steps: [{ id: "review", title: "Read broker evidence", kind: "analysis" }],
+        },
+      });
+      expect(response.status()).toBe(201);
+      return response.json();
+    };
+    await plan("Open plan");
+    const cancelled = await plan("Cancelled plan");
+    const control = await context.request.post(`/api/trading/goals/${cancelled.id}/control`, {
+      headers,
+      data: { version: cancelled.version, action: "cancel" },
+    });
+    expect(control.ok()).toBeTruthy();
+    await page.goto(`/app/goals?agent=${agent.id}`);
+    await expect(page.getByRole("button", { name: /Open plan/ })).toContainText("نشط");
+    await expect(page.getByRole("button", { name: /Cancelled plan/ })).toContainText("ملغى");
+  } finally {
+    if (agent) await context.request.delete(`/api/agents/${agent.id}`, { headers });
+    execFileSync(".venv/bin/python", ["tests/check_chart_browser.py"], {
+      input: JSON.stringify({ ...data, action: "cleanup" }),
+      encoding: "utf8",
+    });
+  }
+});
+
+test("task page: a task held for the owner offers pause and resume, each sending its own action", async ({
+  page,
+  owner,
+}) => {
+  const { agent, prefix, call } = owner;
+  const thread = await call("POST", `/agents/${agent.id}/conversation`, {});
+  const task = await call("POST", `/tasks?agent_id=${agent.id}&thread_id=${thread.id}`, {
+    title: `${prefix} held`,
+  });
+  // The server's projection for a run waiting on the owner (waiting_input): both controls.
+  await page.route(`**/api/tasks/${task.id}`, async (route) => {
+    const response = await route.fetch();
+    const body = await response.json();
+    await route.fulfill({
+      response,
+      json: { ...body, status: "waiting", can_pause: true, can_resume: true },
+    });
+  });
+  const sent = [];
+  await page.route("**/api/tasks/control", async (route) => {
+    sent.push(route.request().postDataJSON().action);
+    await route.fulfill({
+      json: { ...task, status: "paused", can_pause: false, can_resume: true },
+    });
+  });
+  await page.goto(`/app/tasks/${task.id}`);
+  await page.getByRole("button", { name: "Pause", exact: true }).click();
+  await expect.poll(() => sent).toEqual(["pause"]);
+  await page.getByRole("button", { name: "Resume", exact: true }).click();
+  await expect.poll(() => sent).toEqual(["pause", "resume"]);
 });

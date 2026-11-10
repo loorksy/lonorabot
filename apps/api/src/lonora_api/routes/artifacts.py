@@ -8,6 +8,7 @@ from lonora_contracts.domain import Contract, new_id, utcnow
 from lonora_core.attachments import check_size, safe_filename
 from lonora_core.user_error import LonoraError
 from lonora_db.artifacts import ArtifactRepository
+from lonora_db.events import emit
 from lonora_db.transactions import resource_data
 from lonora_security.runtime_storage import confined_path
 from pydantic import Field
@@ -85,6 +86,7 @@ def is_text(media_type: str, name: str = "") -> bool:
 
 
 class TextContent(Contract):
+    expected_version: int = Field(ge=1)
     name: str = Field(min_length=1, max_length=160)
     content: str = Field(max_length=MAX_TEXT_BYTES)
 
@@ -110,6 +112,8 @@ async def save_text(
     folder = artifact_id + "/"
     async with rt.db.sessions() as session, session.begin():
         row = await ArtifactRepository().get(session, owner.id, artifact_id, lock=True)
+        if row.version != body.expected_version:
+            raise LonoraError("version_conflict", 409)
         if not is_text(str(row.payload.get("media_type", "")), str(row.payload.get("name", ""))):
             raise LonoraError("artifact_not_text", 409)
         previous = str(row.payload.get("key", ""))
@@ -129,6 +133,14 @@ async def save_text(
         }
         row.version += 1
         row.updated_at = utcnow()
+        emit(
+            session,
+            owner.id,
+            "artifacts.updated",
+            agent_id=row.agent_id,
+            thread_id=row.thread_id,
+            payload={"id": row.id, "version": row.version},
+        )
         saved = resource_data(row)
     if previous != key and previous.startswith(folder) and ".." not in previous.split("/"):
         confined_path(rt.settings.artifact_root, previous).unlink(missing_ok=True)

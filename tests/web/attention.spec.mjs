@@ -39,23 +39,19 @@ test("durable notification is shared across views and stays read after reload", 
   await expect(page).toHaveURL(new RegExp(`/app/${fixture.agent.id}\\?thread=`));
   await page.goto("/app/updates");
   await expect(uncertain.locator(".dot")).toHaveCount(0);
-  // «تحديد الكل كمقروء» keeps critical and action-required items unread (Q4).
-  const before = await (await context.request.get("/api/attention")).json();
-  const open = (rows) => rows.filter((row) => row.id === fixture.notification.id);
-  const markAll = page.getByRole("button", { name: "Mark all as read", exact: true });
-  const keptUnread = ["critical", "action_required"].includes(fixture.notification.importance);
-  // The fixture's own alert is still unread here, so the bulk action is offered.
-  await expect(markAll).toBeVisible();
-  {
-    const seenAll = page.waitForResponse((response) =>
-      response.url().endsWith("/api/attention/seen-all"),
-    );
-    await markAll.click();
-    expect((await seenAll).ok()).toBeTruthy();
-  }
-  const after = await (await context.request.get("/api/attention")).json();
-  if (keptUnread) expect(open(after)).toEqual(open(before));
-  else expect(open(after)).toEqual([]);
+  // «تحديد الكل كمقروء»: the plain update is read, the critical stop stays unread (Q4).
+  const info = page.locator(`[data-attention-id="${fixture.informational.id}"]`);
+  await expect(info.locator(".dot")).toHaveCount(1);
+  const seenAll = page.waitForResponse((response) =>
+    response.url().endsWith("/api/attention/seen-all"),
+  );
+  await page.getByRole("button", { name: "Mark all as read", exact: true }).click();
+  expect((await seenAll).ok()).toBeTruthy();
+  await expect(info.locator(".dot")).toHaveCount(0);
+  await expect(alert.locator(".dot")).toHaveCount(1);
+  const open = (await (await context.request.get("/api/attention")).json()).map((row) => row.id);
+  expect(open).toContain(fixture.notification.id);
+  expect(open).not.toContain(fixture.informational.id);
   await page.reload();
   await expect(uncertain.locator(".dot")).toHaveCount(0);
   const controls = await (await context.request.get("/api/trading/controls")).json();

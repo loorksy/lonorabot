@@ -84,13 +84,15 @@ export default function RoutineScreen() {
                   textAlign: rtl ? "right" : "left",
                 }}
               >
-                {agents.find((agent) => agent.id === row.agent_id)?.name}
+                {row.title || agents.find((agent) => agent.id === row.agent_id)?.name}
               </Text>
               <Text style={{ color: colors.foreground, textAlign: rtl ? "right" : "left" }}>
-                {row.prompt}
+                {row.title ? agents.find((agent) => agent.id === row.agent_id)?.name : row.prompt}
               </Text>
               <Text selectable style={{ color: colors.secondary }}>
-                {row.cron ?? `${row.interval_seconds}s`} · {row.timezone}
+                {row.run_at
+                  ? `${t("once")} · ${new Date(row.run_at).toLocaleString()}`
+                  : `${row.cron ?? `${row.interval_seconds}s`} · ${row.timezone}`}
               </Text>
               <Text style={{ color: colors.secondary }}>
                 {t(row.enabled ? "enabled" : "paused")} · {t("nextRun")}:{" "}
@@ -135,7 +137,10 @@ function RoutineForm({
   const [agent, setAgent] = useState(routine?.agent_id ?? initialAgent ?? agents[0]?.id ?? "");
   const [prompt, setPrompt] = useState(routine?.prompt ?? "");
   const [enabled, setEnabled] = useState(routine?.enabled ?? true);
-  const [mode, setMode] = useState<"interval" | "cron">(routine?.cron ? "cron" : "interval");
+  // A one-shot («مرة واحدة») stays one: its time is kept, never turned into an interval.
+  const [mode, setMode] = useState<"interval" | "cron" | "once">(
+    routine?.run_at ? "once" : routine?.cron ? "cron" : "interval",
+  );
   const [minutes, setMinutes] = useState(String((routine?.interval_seconds ?? 3600) / 60));
   const [cron, setCron] = useState(routine?.cron ?? "0 9 * * 1-5");
   const [timezone, setTimezone] = useState(
@@ -147,13 +152,14 @@ function RoutineForm({
     setBusy(true);
     setError(null);
     try {
-      const input = {
-        prompt: prompt.trim(),
-        interval_seconds: mode === "interval" ? Number(minutes) * 60 : null,
-        cron: mode === "cron" ? cron : null,
-        timezone,
-        enabled,
-      };
+      const schedule =
+        mode === "once"
+          ? {}
+          : {
+              interval_seconds: mode === "interval" ? Number(minutes) * 60 : null,
+              cron: mode === "cron" ? cron : null,
+            };
+      const input = { prompt: prompt.trim(), ...schedule, timezone, enabled };
       if (routine) await routines.update(routine, input);
       else await routines.create(agent, input);
       await onSaved();
@@ -198,7 +204,11 @@ function RoutineForm({
         />
         <Button label={t("cron")} secondary={mode !== "cron"} onPress={() => setMode("cron")} />
       </View>
-      {mode === "interval" ? (
+      {mode === "once" ? (
+        <Text style={{ color: colors.secondary, textAlign: rtl ? "right" : "left" }}>
+          {t("once")} · {routine?.run_at ? new Date(routine.run_at).toLocaleString() : ""}
+        </Text>
+      ) : mode === "interval" ? (
         <Field
           label={t("minutes")}
           value={minutes}
