@@ -50,6 +50,8 @@ export type Shape =
       anchor: "start" | "end";
       /** The text's anchor x: its start always inside the plot. */
       tx: number;
+      /** The text's baseline: above the dot, or below it near the plot's top. */
+      ty: number;
     };
 export type Pane = {
   label: string;
@@ -206,7 +208,7 @@ export function layout(input: {
         const x = item.time != null ? (timeX(item.time) ?? right - 4) : right - 4;
         // Without a price the note sits a line below the top, its glyphs inside the clip.
         const y = item.price != null ? Y(num(item.price)) : top + fs * 2;
-        shapes.push({ kind: "note", x, y, text, tone: "agent", anchor: "end", tx: x });
+        shapes.push({ kind: "note", x, y, text, tone: "agent", anchor: "end", tx: x, ty: y });
         break;
       }
       case "price_zone": {
@@ -337,6 +339,12 @@ export function layout(input: {
         shape.anchor = "end";
         shape.tx = left + 3 + width;
       }
+      // The text sits above the dot (baseline 0.6 fs up, glyphs about 0.8 fs above that);
+      // near the top of the plot it goes below the dot so its glyphs stay inside the clip.
+      // A note off the range keeps its place and is cut like other drawings.
+      shape.ty = shape.y - fs * 0.6;
+      if (shape.y >= top && shape.y <= bottom && shape.ty - fs * 0.8 < top)
+        shape.ty = Math.min(shape.y + fs * 1.4, bottom - fs * 0.2);
     }
   }
   // Indicator values align to the scene's candles by time.

@@ -1261,10 +1261,10 @@ msgctxt "schedule details"
 msgid "Channel"
 msgstr "Channel"
 
-#: src/shell/agent/ChartSheet.tsx:487
-#: src/shell/agent/ChartSheet.tsx:490
-#: src/shell/agent/ChartSheet.tsx:496
-#: src/shell/agent/ChartSheet.tsx:496
+#: src/shell/agent/ChartSheet.tsx:498
+#: src/shell/agent/ChartSheet.tsx:501
+#: src/shell/agent/ChartSheet.tsx:507
+#: src/shell/agent/ChartSheet.tsx:507
 #: src/shell/ChatMenu.tsx:96
 msgid "Chart"
 msgstr "Chart"
@@ -3699,7 +3699,7 @@ msgstr "No candle history was found for this symbol and timeframe."
 msgid "No candles available for this instrument and timeframe."
 msgstr "No candles available for this instrument and timeframe."
 
-#: src/shell/agent/ChartSheet.tsx:409
+#: src/shell/agent/ChartSheet.tsx:420
 msgid "No candles for this timeframe yet."
 msgstr "No candles for this timeframe yet."
 
@@ -6316,7 +6316,7 @@ msgstr "This broker account is already connected. Use the existing connection."
 msgid "This broker connection is disabled."
 msgstr "This broker connection is disabled."
 
-#: src/shell/agent/ChartSheet.tsx:457
+#: src/shell/agent/ChartSheet.tsx:468
 msgid "This chart is no longer available."
 msgstr "This chart is no longer available."
 
@@ -6324,7 +6324,7 @@ msgstr "This chart is no longer available."
 #~ msgid "This conversation could not be resumed. Start a new conversation."
 #~ msgstr "This conversation could not be resumed. Start a new conversation."
 
-#: src/shell/agent/ChartSheet.tsx:459
+#: src/shell/agent/ChartSheet.tsx:470
 msgid "This conversation has no pair to chart. Ask the agent for a chart, or open the market."
 msgstr "This conversation has no pair to chart. Ask the agent for a chart, or open the market."
 

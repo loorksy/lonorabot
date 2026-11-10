@@ -603,6 +603,10 @@ test("a streamed scene update re-reads only that scene; a chart moved off the pa
   expect(created.ok()).toBeTruthy();
   const chart = await created.json();
   await page.goto(`/app/${data.trader.id}`);
+  // The menu takes the agent the workspace shows: wait for the trader, not the first paint.
+  await expect(
+    page.getByRole("region", { name: "Workspace" }).getByRole("button", { name: data.trader.name }),
+  ).toBeVisible();
   await page.getByRole("button", { name: "Chat menu", exact: true }).click();
   await page.locator("#dialog").getByRole("button", { name: "Chart", exact: true }).click();
   const body = page.locator("#dialog .chart-body");
@@ -632,9 +636,64 @@ test("a streamed scene update re-reads only that scene; a chart moved off the pa
   await page.waitForTimeout(1500);
   expect(lists).toEqual([]);
   expect(candles).toEqual([]);
+  // A scene for this agent's chart the sheet has not listed: exactly one re-list.
+  const relist = page.waitForRequest(
+    (request) => request.method() === "GET" && new URL(request.url()).pathname === "/api/charts",
+  );
+  fixture({
+    action: "chart_events",
+    events: [{ id: crypto.randomUUID(), agent_id: data.trader.id }],
+  });
+  await relist;
+  await page.waitForTimeout(1500);
+  expect(lists.length).toBe(1);
+  await expect(body).toHaveAttribute("data-chart-id", chart.id);
   fixture({ action: "move_chart", chart: chart.id, to: "EURUSD" });
   await expect(body).not.toHaveAttribute("data-chart-id", /.+/);
-  expect(lists.length).toBe(1);
+  expect(lists.length).toBe(2);
+  await page.request.delete(`/api/charts/${chart.id}`, { headers: { "X-CSRF-Token": csrf } });
+});
+
+test("after a failed chart list, the agent's next scene update lists again", async ({ page }) => {
+  const csrf = data.cookies.find((cookie) => cookie.name === "lonora_csrf").value;
+  const created = await page.request.post("/api/charts", {
+    headers: { "X-CSRF-Token": csrf },
+    data: {
+      agent_id: data.trader.id,
+      thread_id: null,
+      payload: {
+        account_id: data.account,
+        symbol: data.symbol,
+        timeframe: "15m",
+        indicators: [],
+        annotations: [],
+      },
+    },
+  });
+  expect(created.ok()).toBeTruthy();
+  const chart = await created.json();
+  // The sheet's first list fails once; every later request reaches the server.
+  let failed = false;
+  await page.route(
+    (url) => url.pathname === "/api/charts" && url.searchParams.has("agent_id"),
+    (route) => {
+      if (failed) return route.continue();
+      failed = true;
+      return route.fulfill({ status: 503, json: { detail: "unavailable" } });
+    },
+  );
+  await page.goto(`/app/${data.trader.id}`);
+  await expect(
+    page.getByRole("region", { name: "Workspace" }).getByRole("button", { name: data.trader.name }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Chat menu", exact: true }).click();
+  await page.locator("#dialog").getByRole("button", { name: "Chart", exact: true }).click();
+  const body = page.locator("#dialog .chart-body");
+  await expect(body).toBeVisible();
+  await expect.poll(() => failed).toBe(true);
+  await expect(body).not.toHaveAttribute("data-chart-id", /.+/);
+  fixture({ action: "chart_events", events: [{ id: chart.id, agent_id: data.trader.id }] });
+  await expect(body).toHaveAttribute("data-chart-id", chart.id);
   await page.request.delete(`/api/charts/${chart.id}`, { headers: { "X-CSRF-Token": csrf } });
 });
 

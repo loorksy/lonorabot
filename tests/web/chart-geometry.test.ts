@@ -215,7 +215,7 @@ test("labels of drawings older than the window stay inside the plot", () => {
   assert.ok(early.kind === "note" && early.anchor === "start" && early.x >= g.plot.x);
   // The text's baseline sits 0.6 fs above the dot; its glyphs rise about 0.8 fs above that.
   assert.ok(unpriced.kind === "note");
-  assert.ok(unpriced.y - g.fs * 0.6 - g.fs * 0.8 >= g.plot.y, "glyph tops in the clip");
+  assert.ok(unpriced.ty - g.fs * 0.8 >= g.plot.y, "glyph tops in the clip");
 });
 
 /** Where a note's text starts, on the same width estimate as the layout. */
@@ -288,4 +288,21 @@ test("four oscillators on a phone: each pane keeps its height, never inverted, t
     "every oscillator is drawn or counted",
   );
   assert.ok(g.bottom - g.top >= (g.VH - g.top) * 0.35, "the candles keep their share");
+});
+
+test("an in-range note at the top of a phone plot keeps its text inside the plot", () => {
+  const g = layout({
+    ...base,
+    width: 330,
+    height: 170,
+    annotations: [{ type: "note", time: at(20), price: 143, text: "Top" }],
+    indicators: [{ name: "rsi", period: 14, series: { value: bars.map((_, i) => 40 + i) } }],
+    indicatorTimes: bars.map((b) => b.t),
+  });
+  const note = g.shapes.find((shape) => shape.kind === "note");
+  assert.ok(note?.kind === "note");
+  assert.ok(note.y >= g.plot.y && note.y - g.fs * 1.4 < g.plot.y, "in range, near the top");
+  // Glyphs rise about 0.8 fs above the baseline and descend about 0.2 fs below it.
+  assert.ok(note.ty - g.fs * 0.8 >= g.plot.y, `text top ${note.ty - g.fs * 0.8}`);
+  assert.ok(note.ty + g.fs * 0.2 <= g.plot.y + g.plot.h, "text bottom");
 });

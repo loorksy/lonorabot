@@ -1261,10 +1261,10 @@ msgctxt "schedule details"
 msgid "Channel"
 msgstr "القناة"
 
-#: src/shell/agent/ChartSheet.tsx:487
-#: src/shell/agent/ChartSheet.tsx:490
-#: src/shell/agent/ChartSheet.tsx:496
-#: src/shell/agent/ChartSheet.tsx:496
+#: src/shell/agent/ChartSheet.tsx:498
+#: src/shell/agent/ChartSheet.tsx:501
+#: src/shell/agent/ChartSheet.tsx:507
+#: src/shell/agent/ChartSheet.tsx:507
 #: src/shell/ChatMenu.tsx:96
 msgid "Chart"
 msgstr "الشارت"
@@ -3699,7 +3699,7 @@ msgstr "لم يتم العثور على شموع تاريخية لهذا الر�
 msgid "No candles available for this instrument and timeframe."
 msgstr "لا تتوفر شموع لهذه الأداة والفترة الزمنية."
 
-#: src/shell/agent/ChartSheet.tsx:409
+#: src/shell/agent/ChartSheet.tsx:420
 msgid "No candles for this timeframe yet."
 msgstr "لا توجد شموع لهذا الإطار الزمني بعد."
 
@@ -6316,7 +6316,7 @@ msgstr "حساب الوسيط مرتبط بالفعل. استخدم الاتصا
 msgid "This broker connection is disabled."
 msgstr "اتصال الوسيط هذا معطّل."
 
-#: src/shell/agent/ChartSheet.tsx:457
+#: src/shell/agent/ChartSheet.tsx:468
 msgid "This chart is no longer available."
 msgstr "لم يعد هذا الشارت متاحًا."
 
@@ -6324,7 +6324,7 @@ msgstr "لم يعد هذا الشارت متاحًا."
 #~ msgid "This conversation could not be resumed. Start a new conversation."
 #~ msgstr "تعذّر استئناف هذه المحادثة. ابدأ محادثة جديدة."
 
-#: src/shell/agent/ChartSheet.tsx:459
+#: src/shell/agent/ChartSheet.tsx:470
 msgid "This conversation has no pair to chart. Ask the agent for a chart, or open the market."
 msgstr "لا يوجد زوج لهذه المحادثة لعرضه. اطلب شارتًا من الوكيل أو افتح السوق."
 

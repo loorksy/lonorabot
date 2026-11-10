@@ -210,7 +210,7 @@ export function CandleChart({
                 {shape.text && (
                   <text
                     x={f(shape.tx)}
-                    y={f(shape.y - fs * 0.6)}
+                    y={f(shape.ty)}
                     textAnchor={shape.anchor}
                     style={{ fill: TONE[shape.tone] }}
                     fontSize={fs}
@@ -300,12 +300,13 @@ export function ChartSheetBody({
   // The chart named stays; otherwise the newest of the agent's charts on this pair
   // (chart_open always makes a new chart, even on the same pair). Re-listed only on the agent's
   // own chart events: a chart created or deleted, a listed chart updated (chart_set_symbol can
-  // move it off this pair), or a scene for a chart this sheet has not listed, counted only for
-  // events after the list was sent; never on every streamed scene update.
+  // move it off this pair), or a scene for a chart this sheet has not listed (after a failed
+  // list, any of the agent's scenes), counted only for events after the list was sent; never
+  // on every streamed scene update.
   const [listed, setListed] = useState<{ ids: ReadonlySet<string>; at: number } | null>(null);
   const latest = useRef(0);
   latest.current = events.at(-1)?.cursor ?? 0;
-  const chartEvents = events
+  const candidate = events
     .filter((event) => {
       if (agentId && event.agent_id !== agentId) return false;
       const id = typeof event.payload?.id === "string" ? event.payload.id : null;
@@ -321,6 +322,11 @@ export function ChartSheetBody({
       );
     })
     .at(-1)?.cursor;
+  // The trigger only moves forward: an event that stops counting once the list is back
+  // (its cursor is now at or before `listed.at`) never sends a second list.
+  const trigger = useRef<number | undefined>(undefined);
+  if (candidate != null && candidate > (trigger.current ?? 0)) trigger.current = candidate;
+  const chartEvents = trigger.current;
   useEffect(() => {
     void chartEvents;
     if (chartId) return;
@@ -337,7 +343,12 @@ export function ChartSheetBody({
         setChosen(mine?.id ?? null);
         if (!mine) setScene(null);
       })
-      .catch(() => live && setChosen(null));
+      .catch(() => {
+        if (!live) return;
+        // Nothing listed: the agent's next scene update counts as unknown and lists again.
+        setListed({ ids: new Set(), at });
+        setChosen(null);
+      });
     return () => {
       live = false;
     };
