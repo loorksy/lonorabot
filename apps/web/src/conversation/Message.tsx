@@ -468,7 +468,13 @@ export function Message({
           onPointerDown={
             interactive
               ? (event) => {
-                  if (event.button > 0 || (event.target as HTMLElement).closest("button,a,input"))
+                  // Long-press and swipe-to-reply are touch and pen gestures: a mouse has the
+                  // right-click menu and the chevron, and a held click must not open a menu.
+                  if (
+                    event.pointerType === "mouse" ||
+                    event.button > 0 ||
+                    (event.target as HTMLElement).closest("button,a,input")
+                  )
                     return;
                   const target = event.currentTarget;
                   press.current = {

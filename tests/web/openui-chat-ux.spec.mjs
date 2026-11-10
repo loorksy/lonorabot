@@ -306,3 +306,29 @@ test("M10: older history keeps paging page after page, and a failed read does no
   expect(befores.length).toBeGreaterThanOrEqual(3);
   await expect(page.locator("[data-message-id='ux-message-1']")).toHaveCount(1);
 });
+
+test("S2: long-press opens the message menu by touch, never by a held mouse button", async ({
+  page,
+  conversation,
+}) => {
+  await page.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
+  await page.route(`**/api/threads/${conversation.thread.id}/messages*`, (route) =>
+    route.request().method() === "GET"
+      ? route.fulfill({ json: [message(conversation, 1, "assistant", "Hold me")] })
+      : route.continue(),
+  );
+  await page.goto(`/app/${conversation.agent.id}`);
+  const bubble = page.locator("[data-message-id='ux-message-1'] .bubble");
+  await expect(bubble).toBeVisible();
+  const hold = async (pointerType) => {
+    const box = await bubble.boundingBox();
+    const at = { clientX: box.x + 20, clientY: box.y + box.height / 2, pointerId: 7, pointerType };
+    await bubble.dispatchEvent("pointerdown", { ...at, button: 0, buttons: 1, isPrimary: true });
+    await page.waitForTimeout(700);
+    await bubble.dispatchEvent("pointerup", { ...at, button: 0, buttons: 0, isPrimary: true });
+  };
+  await hold("mouse");
+  await expect(page.getByRole("menu")).toHaveCount(0);
+  await hold("touch");
+  await expect(page.getByRole("menu")).toBeVisible();
+});
