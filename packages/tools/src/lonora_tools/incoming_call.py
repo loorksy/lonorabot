@@ -36,6 +36,14 @@ ACTIVITY_NOTE = (
     "your reply in this conversation; that reply is the record the owner reads."
 )
 
+# The owner's delivery rules for this Agent (Q47) kept the alert in Activity only.
+AGENT_RULE_NOTES = {
+    "agent_in_app_off": "The owner turned off in-app alerts from this Agent, so no "
+    "notification was shown. Say it once in your reply in this conversation.",
+    "agent_daily_limit": "This Agent reached the daily alert limit the owner set, so no "
+    "notification was shown. Say it once in your reply; urgent alerts still show.",
+}
+
 
 async def notify(context: ToolContext, arguments: dict[str, Any]) -> dict[str, Any]:
     async with context.db.sessions() as session, session.begin():
@@ -49,7 +57,14 @@ async def notify(context: ToolContext, arguments: dict[str, Any]) -> dict[str, A
             OwnerNotifyRequest.model_validate(arguments),
             run_id=run.id,
         )
-        note = ACTIVITY_NOTE if result["status"] == "activity_only" else NOTIFY_NOTE
+        status = result["status"]
+        note = (
+            ACTIVITY_NOTE
+            if status == "activity_only"
+            else AGENT_RULE_NOTES[status]
+            if status in AGENT_RULE_NOTES
+            else NOTIFY_NOTE
+        )
         return {**result, "note": note, "execution_authorized": False}
 
 

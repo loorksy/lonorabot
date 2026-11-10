@@ -125,7 +125,6 @@ export type Journal = {
 };
 export type TradingControls = { enabled: boolean; emergency_stop: boolean };
 export type TradeApproval = {
-  execution_mode?: "live" | "shadow";
   timeline_seq?: number | null;
   id: string;
   run_id: string;

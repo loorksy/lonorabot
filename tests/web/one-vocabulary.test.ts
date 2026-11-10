@@ -157,13 +157,6 @@ test("activity rows say what the agent does from registry metadata, never a raw 
     ["skill_package_create", "memory", "change", "Working on a skill", "يعمل على مهارة"],
     ["skills_list", "memory", "read", "Reviewing skills", "يراجع المهارات"],
     ["memory_write", "memory", "change", "Saving to memory", "يحفظ في الذاكرة"],
-    [
-      "market_shadow_execute",
-      "intelligence",
-      "change",
-      "Placing a virtual trade",
-      "ينفّذ صفقة افتراضية",
-    ],
     ["market_decision_record", "intelligence", "change", "Recording analysis", "يسجّل التحليل"],
     ["model_request", "intelligence", "change", "Changing its model", "يغيّر نموذجه"],
     ["model_list", "intelligence", "read", "Checking its models", "يراجع نماذجه"],

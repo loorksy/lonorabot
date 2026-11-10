@@ -46,15 +46,19 @@ def bounded_profile(content: str) -> tuple[str, bool]:
     return (tail[newline + 1 :] if 0 <= newline < len(tail) - 1 else tail), True
 
 
+def _clock(minute: int) -> str:
+    return f"{minute // 60:02d}:{minute % 60:02d}"
+
+
 async def owner_preferences_section(session: AsyncSession, owner_id: str) -> ContextSection:
     row = await read_owner_profile(session, owner_id)
     preferences = await owner_preferences(session, owner_id)
     profile, truncated = bounded_profile(row.content if row else "")
     quiet = (
         None
-        if preferences["quiet_start_hour"] is None
-        else f"{preferences['quiet_start_hour']}:00-{preferences['quiet_end_hour']}:00 "
-        f"{preferences['timezone']}"
+        if preferences["quiet_start_minute"] is None
+        else f"{_clock(preferences['quiet_start_minute'])}-"
+        f"{_clock(preferences['quiet_end_minute'])} {preferences['timezone']}"
     )
     body: dict[str, object] = {
         "profile": profile,
@@ -63,6 +67,10 @@ async def owner_preferences_section(session: AsyncSession, owner_id: str) -> Con
         "quiet_hours": quiet,
         "delivery": preferences["delivery"],
     }
+    # «الاسم» / «طريقة المخاطبة» of the owner form: how agents name and address the owner.
+    for key in ("name", "address"):
+        if preferences.get(key):
+            body[key] = preferences[key]
     if truncated:
         body["older_lines_omitted"] = (
             "The profile is over its size limit; summarize it with memory_write (USER.md)."

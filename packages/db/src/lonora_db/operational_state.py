@@ -90,7 +90,6 @@ async def protected_operational_state(
                 select(TradingJournalRow)
                 .where(
                     TradingJournalRow.owner_id == owner_id,
-                    TradingJournalRow.execution_mode == "live",
                     condition,
                 )
                 .order_by(TradingJournalRow.updated_at.desc())

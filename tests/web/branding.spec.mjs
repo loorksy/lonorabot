@@ -9,9 +9,12 @@ test("site icons and install manifest serve real brand images rather than the SP
     "href",
     "/favicon.svg",
   );
-  const logo = page.locator("img.brand-mark");
-  await expect(logo).toBeVisible();
-  expect(await logo.evaluate((image) => image.complete && image.naturalWidth > 0)).toBeTruthy();
+  // The #auth layer draws the reference's logo mark inline (phase 5); the brand image file is
+  // still served for the manifest and the mobile app.
+  await expect(page.locator("#auth .logo-mark").first()).toBeVisible();
+  const logo = await context.request.get("/brand/logo.svg");
+  expect(logo.ok()).toBeTruthy();
+  expect(logo.headers()["content-type"]).toContain("image/svg+xml");
   const manifestResponse = await context.request.get("/site.webmanifest");
   expect(manifestResponse.ok()).toBeTruthy();
   const manifest = await manifestResponse.json();

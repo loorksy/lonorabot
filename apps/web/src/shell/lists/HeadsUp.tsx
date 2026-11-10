@@ -16,6 +16,7 @@ import { useClient } from "../../providers/ClientProvider";
 import { useShellData } from "../data";
 import { useNavigation } from "../navigation";
 import { recoveryPath } from "../routes";
+import { NOTIFY_DEFAULTS, type NotifyPrefs, readDevicePref } from "../settings/device-prefs";
 import { suppressClicks } from "../sheets/SheetHost";
 import { chatPath } from "./ChatList";
 import { useLists } from "./state";
@@ -70,9 +71,39 @@ function useQuietHours() {
   return quiet;
 }
 
+/** Agents whose «رسائل داخل التطبيق» rule is off (GET /agents/notifications). */
+function useInAppOff() {
+  const { revision } = useClient();
+  const [off, setOff] = useState(() => new Set<string>());
+  useEffect(() => {
+    void revision;
+    let live = true;
+    api
+      .get<Record<string, { in_app: boolean }>>("/agents/notifications")
+      .then((rules) => {
+        if (live)
+          setOff(
+            new Set(
+              Object.entries(rules)
+                .filter(([, rule]) => !rule.in_app)
+                .map(([id]) => id),
+            ),
+          );
+      })
+      .catch((error) => {
+        if (!isRequestCancelled(error)) console.warn("delivery_rules_unavailable", error);
+      });
+    return () => {
+      live = false;
+    };
+  }, [revision]);
+  return off;
+}
+
 export function HeadsUp({ currentThreadId }: { currentThreadId?: string }) {
   const { events } = useClient();
   const quiet = useQuietHours();
+  const offAgents = useInAppOff();
   const data = useShellData();
   const lists = useLists();
   const attention = useAttention();
@@ -91,13 +122,27 @@ export function HeadsUp({ currentThreadId }: { currentThreadId?: string }) {
     current: currentThreadId,
     labels,
     quiet,
+    off: offAgents,
   });
-  live.current = { rows: lists.rows, agents: data.agents, current: currentThreadId, labels, quiet };
+  live.current = {
+    rows: lists.rows,
+    agents: data.agents,
+    current: currentThreadId,
+    labels,
+    quiet,
+    off: offAgents,
+  };
   const show = useCallback((row: ChatRow, text: string, path?: string) => {
+    const prefs = readDevicePref<NotifyPrefs>("notify", NOTIFY_DEFAULTS);
     serial.current += 1;
-    setBanner({ row, text, serial: serial.current, path });
+    setBanner({
+      row,
+      text: prefs.preview ? text : t`New message`,
+      serial: serial.current,
+      path,
+    });
     setPhase("in");
-    tone();
+    if (prefs.sound) tone();
   }, []);
   useEffect(() => {
     const fresh = events.filter((event) => event.cursor > cursor.current);
@@ -108,8 +153,10 @@ export function HeadsUp({ currentThreadId }: { currentThreadId?: string }) {
     }
     if (!fresh.length) return;
     cursor.current = Math.max(...fresh.map((event) => event.cursor));
-    const { rows, agents, current, quiet } = live.current;
+    const { rows, agents, current, quiet, off } = live.current;
     if (inQuietHours(quiet, new Date())) return;
+    // «إشعارات داخل التطبيق» off on this device: no message banners (urgent items still show).
+    if (!readDevicePref<NotifyPrefs>("notify", NOTIFY_DEFAULTS).inApp) return;
     for (const event of fresh) {
       const payload = event.payload as Record<string, unknown>;
       if (event.kind !== "message.created" || payload.role !== "assistant") continue;
@@ -117,6 +164,8 @@ export function HeadsUp({ currentThreadId }: { currentThreadId?: string }) {
       if (Date.parse(String(payload.created_at ?? "")) < mounted.current - 5000) continue;
       const row = rows.find((candidate) => candidate.threadId === event.thread_id);
       if (!row || !headsUpAllowed(row.entry)) continue;
+      // The agent's own rule «رسائل داخل التطبيق» (Q47).
+      if (typeof payload.agent_id === "string" && off.has(payload.agent_id)) continue;
       const content = typeof payload.content === "string" ? payload.content.trim() : "";
       const speaker =
         row.kind === "group"

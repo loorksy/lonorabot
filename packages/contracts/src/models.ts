@@ -1,3 +1,5 @@
+import type { UsageDay } from "./usage";
+
 export type Provider = "openai" | "anthropic" | "deepseek" | "zai" | "openrouter";
 export type Capability =
   | "conversation"
@@ -55,6 +57,8 @@ export type ModelUsage = {
   input_tokens: number;
   output_tokens: number;
   cached_tokens: number;
+  /** USD at list price; null when the model has no list price. */
+  cost_usd: number | null;
 };
 /** Model usage of one agent over a period; a view, never a cap (owner decision D4). */
 export type AgentUsage = {
@@ -65,9 +69,20 @@ export type AgentUsage = {
   output_tokens: number;
   cached_tokens: number;
   last_used_at: string | null;
+  /** USD at list price of the priced requests; `unpriced_requests` have no known cost. */
+  cost_usd: number;
+  unpriced_requests: number;
   models: ModelUsage[];
 };
-export type AgentUsageReport = { days: number; since: string; agents: AgentUsage[] };
+/** GET /usage/agents; with `bucket=day`, `since` is local midnight and `buckets` one per day. */
+export type AgentUsageReport = {
+  days: number;
+  since: string;
+  agents: AgentUsage[];
+  bucket?: "day";
+  timezone?: string;
+  buckets?: UsageDay[];
+};
 /** Everything an agent's model card shows (GET /agents/{id}/model/summary). */
 export type AgentModelSummary = {
   record: AgentModelRecord;
@@ -75,7 +90,10 @@ export type AgentModelSummary = {
   allowed: ModelLabel[];
   available: Array<{ provider: Provider; model: string; name: string }>;
   connected_providers: Provider[];
-  usage: Omit<AgentUsage, "agent_id" | "agent_name" | "last_used_at"> & { days: number };
+  usage: Omit<
+    AgentUsage,
+    "agent_id" | "agent_name" | "last_used_at" | "cost_usd" | "unpriced_requests"
+  > & { days: number };
 };
 /** The owner's allowed models: the global routes and backups, plus additions. */
 export type AllowedModels = { routed: Selection[]; added: Selection[] };

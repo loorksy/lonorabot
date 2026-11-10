@@ -423,6 +423,71 @@ const STATES = [
     appPath: "/app/missing/page",
     app: async () => {},
   },
+  // UI phase 5: settings, usage, the lock and the auth screens (pixel % is a report only: the
+  // reference's demo data and its «حول» row, plans and data actions are not in the app, Q48-Q54).
+  {
+    name: "settings-root",
+    ref: (page) => refRun(page, () => go("settings")),
+    appPath: "/app/settings",
+    app: async () => {},
+  },
+  {
+    name: "settings-owner",
+    ref: (page) => refRun(page, () => go("owner")),
+    appPath: "/app/owner",
+    app: async () => {},
+  },
+  {
+    name: "settings-notify",
+    ref: (page) => refRun(page, () => go("notify-settings")),
+    appPath: "/app/notify-settings",
+    app: async () => {},
+  },
+  {
+    name: "settings-integrations",
+    ref: (page) => refRun(page, () => go("integrations")),
+    appPath: "/app/integrations",
+    app: async () => {},
+  },
+  {
+    name: "settings-privacy",
+    ref: (page) => refRun(page, () => go("privacy")),
+    appPath: "/app/privacy",
+    app: async () => {},
+  },
+  {
+    name: "settings-storage",
+    ref: (page) => refRun(page, () => go("storage")),
+    appPath: "/app/storage",
+    app: async () => {},
+  },
+  {
+    name: "settings-a11y",
+    ref: (page) => refRun(page, () => go("accessibility")),
+    appPath: "/app/accessibility",
+    app: async () => {},
+  },
+  {
+    name: "usage",
+    ref: (page) => refRun(page, () => go("usage")),
+    appPath: "/app/usage",
+    app: async () => {},
+    wait: 900,
+  },
+  {
+    name: "broker-form",
+    ref: (page) => refRun(page, () => go("broker")),
+    appPath: "/app/broker",
+    app: async () => {},
+  },
+  {
+    name: "lock",
+    ref: (page) => refRun(page, () => lockOpen("set")),
+    appPath: "/app/privacy",
+    app: async (page) => {
+      await page.getByRole("switch").first().click();
+    },
+  },
   // Phase 4a: the agent pages (agents.page, agent.page.*, agent.identity.form, group.*,
   // trades.page, recovery.page). Each opens straight on its route on both sides.
   {
@@ -535,6 +600,23 @@ const STATES = [
 /* ------------------------------------------------------------------ probes */
 /* The app reuses the reference's class names: the same selectors, measured on both sides. */
 const PROBES = [
+  ".prefs-row",
+  ".lang-select",
+  ".theme-switch",
+  ".signout .row",
+  ".reach-opt",
+  ".reach-times input",
+  ".switch",
+  ".u-hero",
+  ".u-figure",
+  ".u-kpi",
+  ".u-rank-row",
+  ".u-bars",
+  ".store-hero",
+  ".store-bar",
+  ".pf-log .row",
+  ".lk-key",
+  ".lk-dots i",
   ".topbar",
   ".topbar header",
   ".topbar h1",

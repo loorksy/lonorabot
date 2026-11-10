@@ -46,11 +46,14 @@ test("«إدارة الوكلاء» opens the agents page from the new-chat shee
   const fixture = seed({ action: "init" });
   await signIn(context, fixture);
   await page.goto("/app");
-  await page.locator('.desktop-list button[aria-label="New chat"]').click();
-  const sheet = page.locator("#dialog");
   // The personal agent's role line is the reference's «مساعدك الشخصي» until it has one.
   const agents = await (await context.request.get("/api/agents")).json();
   const personal = agents.find((agent) => agent.role === "personal");
+  // The sheet lists the agents the shell has loaded: wait for them before opening it.
+  if (personal)
+    await expect(page.locator(".desktop-list").getByText(personal.name).first()).toBeVisible();
+  await page.locator('.desktop-list button[aria-label="New chat"]').click();
+  const sheet = page.locator("#dialog");
   if (personal && !personal.title && !personal.description)
     await expect(sheet.locator(`[data-new-chat-agent="${personal.id}"]`)).toContainText(
       "Your personal assistant",

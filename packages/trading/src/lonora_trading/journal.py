@@ -2,7 +2,6 @@ from copy import deepcopy
 from typing import Any, cast
 
 from lonora_contracts.execution_quality import ExecutionPolicy, ExecutionSnapshot
-from lonora_contracts.shadow import ExecutionMode
 from lonora_contracts.trading import TradeRequest
 from lonora_contracts.trading_goal import GoalExecution
 from lonora_db.schema import TradingJournalRow
@@ -35,7 +34,6 @@ def execution_evidence(
     snapshot: ExecutionSnapshot,
     request: TradeRequest,
     *,
-    mode: ExecutionMode,
     phase: str,
     goal: GoalExecution | None = None,
     policy: ExecutionPolicy | None = None,
@@ -47,18 +45,15 @@ def execution_evidence(
         # Retain the actual management target even on very large accounts.
         values = sorted(data[name], key=lambda item: (item["id"] != target, item["id"]))
         data[name] = values[:100]
-        if mode == "shadow" and name == "positions":
-            data[name] = [{**item, "profit": None} for item in data[name]]
     return {
         "schema_version": 1,
         "logic_version": "execution-boundary-v1",
         "phase": phase,
-        "execution_mode": mode,
         "snapshot": data,
         "counts": counts,
         "truncated": any(count > 100 for count in counts.values()),
         "account_source": "broker_adapter",
-        "target_source": "virtual_book" if mode == "shadow" else "broker_adapter",
+        "target_source": "broker_adapter",
         "policy": policy.model_dump(mode="json") if policy else None,
         "goal": goal.model_dump(mode="json") if goal else None,
         "thesis_id": request.thesis_id,
@@ -133,7 +128,6 @@ def record_excerpt(row: TradingJournalRow, *, symbol: str | None = None) -> dict
     return {
         "operation_id": row.operation_id,
         "account_id": row.account_id,
-        "execution_mode": row.execution_mode,
         "request": row.request,
         "result": result,
         "submitted_at": row.submitted_at.isoformat() if row.submitted_at else None,
