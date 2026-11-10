@@ -582,9 +582,8 @@ the Debian mirror is unreachable, `LONORA_TEST_SKIP_APT=1` drops the Chromium/fo
 ### What was verified, and what still needs a real host
 
 Verified with real images, a local registry (real digests), PostgreSQL 16 and Caddy 2.10, on
-Docker 29.1.3 and Compose 2.40.3: all 22 lifecycle checks passed (`LONORA_TEST_SKIP_APT=1`). The
-fresh-start steps 2, 4 and 5 were also run here against volumes named like the old ones: both
-archives were complete, and the new install came up with `/ready` passing and an empty database.
+Docker 29.1.3 and Compose 2.40.3: all 22 lifecycle checks passed (`LONORA_TEST_SKIP_APT=1`).
+The fresh-start archive steps in «Your current server: start fresh» are not part of those 22 checks.
 
 `build-from-source.sh` was run here on the checkout (`--cpus 1 --memory 2g`): the BuildKit container
 ran with a CPU quota of 100000 and a 2 GiB memory limit on the host network, the registry listened on
