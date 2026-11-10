@@ -4,6 +4,7 @@ import test from "node:test";
 import type { AgentWatchSummary } from "@lonora/contracts";
 import { watchCondition } from "../../packages/core/src/agent-status";
 import { environment, evaluate, renderTemplate } from "../../packages/core/src/genui/expr";
+import { parseCardNumber } from "../../packages/core/src/genui/input";
 
 type Vectors = {
   values: Record<string, unknown>;
@@ -67,4 +68,31 @@ test("the server's watch names equal watchCondition's words (shared vectors)", (
       JSON.stringify(item.watch),
     );
   }
+});
+
+test("a card's number field reads grouped and Arabic numbers, never a prefix (M7)", () => {
+  const cases: [string, number | null | undefined][] = [
+    ["2400", 2400],
+    ["2,400", 2400],
+    ["2،400", 2400],
+    ["2 400", 2400],
+    ["2 400", 2400],
+    ["2,400.50", 2400.5],
+    ["٢٤٠٠", 2400],
+    ["٢٬٤٠٠٫٥", 2400.5],
+    ["۲۴۰۰", 2400],
+    ["1,234,567", 1234567],
+    ["-12.5", -12.5],
+    ["", null],
+    ["  ", null],
+    // Partial or malformed input is never a number: the card's send stays disabled.
+    ["2,", undefined],
+    ["2,4", undefined],
+    ["2,4000", undefined],
+    [",400", undefined],
+    ["2..4", undefined],
+    ["abc", undefined],
+    ["1e999", undefined],
+  ];
+  for (const [text, expected] of cases) assert.equal(parseCardNumber(text), expected, text);
 });

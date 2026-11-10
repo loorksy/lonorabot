@@ -5,6 +5,7 @@ from typing import Any
 
 from lonora_contracts.domain import Contract, utcnow
 from lonora_contracts.market_watch import Watch
+from lonora_db.genui_taint import taint_row_from
 from lonora_db.market_watches import (
     MarketWatchRepository,
     WatchAction,
@@ -136,10 +137,8 @@ async def create(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
                 "task_id": run.model_metadata["task_id"],
                 "task_run_id": run.id,
             }
-        if run.model_metadata.get("ui_submit_origin"):
-            # A watch a card's send created keeps the taint for its wake Runs; written by
-            # the server from the Run, never a model argument (GENUI_PLAN §8.5).
-            row.state = {**row.state, "ui_submit_origin": run.model_metadata["ui_submit_origin"]}
+        # A watch tainted work created wakes tainted (GENUI_PLAN §8.5).
+        await taint_row_from(session, run, "watch", row.id)
         return resource_data(row)
 
 
@@ -178,6 +177,8 @@ async def steer(context: ToolContext, watch_id: str, action: WatchAction) -> dic
             agent_id=context.agent_id,
             owner_message=await owner_message_id(session, run) is not None,
         )
+        # Tainted work that resumes or steers a watch taints it (GENUI_PLAN §8.5).
+        await taint_row_from(session, run, "watch", row.id)
         return {
             **resource_data(row),
             "undo": "watch_resume" if action != "resume" else "watch_pause",
@@ -199,7 +200,7 @@ async def resume(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
 async def update(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     params = WatchUpdate.model_validate(args)
     async with context.db.sessions() as session, session.begin():
-        await require_lease(session, context.lease, lock=True)
+        run = await require_lease(session, context.lease, lock=True)
         row = await update_watch(
             session,
             context.owner_id,
@@ -209,6 +210,7 @@ async def update(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             clear_expiry=params.clear_expiry,
             level=params.level,
         )
+        await taint_row_from(session, run, "watch", row.id)
         return resource_data(row)
 
 

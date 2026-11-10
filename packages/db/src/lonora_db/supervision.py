@@ -49,6 +49,7 @@ from .schema import (
     AgentRow,
     MarketWatchRow,
     RoutineRow,
+    RunRow,
     SupervisionGrantRow,
     SupervisionHoldRow,
     TicketRow,
@@ -725,6 +726,14 @@ async def control_work(
             result["stays_cancelled_by_the_agent"] = True
         else:
             await _apply(session, owner_id, agent.id, kind, item, "resume")
+            # Tainted work that revives another agent's work taints it (GENUI_PLAN §8.5).
+            from .genui_taint import taint_row_from
+
+            actor_run = await session.get(RunRow, run_id) if run_id else None
+            if kind == "task":
+                await taint_row_from(session, actor_run, "ticket", item)
+            elif kind == "routine" or kind == "watch":
+                await taint_row_from(session, actor_run, kind, item)
     record_intervention(
         session,
         owner_id,

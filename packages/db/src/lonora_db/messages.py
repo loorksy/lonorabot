@@ -221,16 +221,8 @@ async def send_message(
         # A card's send: its own queued Run, never folded into an active one (§8.2).
         from .genui_submit import submit_card, submit_receipt
 
+        # ``create_run`` emitted ``run.queued``.
         message, run = await submit_card(session, owner_id, thread, request)
-        emit(
-            session,
-            owner_id,
-            "run.queued",
-            thread_id=thread_id,
-            agent_id=run.agent_id,
-            run_id=run.id,
-            payload={"run": run_data(run)},
-        )
         session.add(submit_receipt(message, run, request))
         emit(
             session, owner_id, "message.created", thread_id=thread_id, payload=message_data(message)

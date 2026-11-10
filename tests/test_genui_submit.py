@@ -462,13 +462,14 @@ async def test_a_watch_created_by_a_submission_wakes_tainted() -> None:
             level="2450",
             prompt="Tell the owner gold crossed 2450.",
         )
-        from lonora_db.schema import MarketWatchRow
+        from lonora_db.genui_taint import row_taint
 
         async with fixture.runtime.db.sessions() as session:
-            watch = await session.get(MarketWatchRow, created["id"])
             run = await session.get(RunRow, submit_run["id"])
-            assert watch is not None and run is not None
-            assert watch.state["ui_submit_origin"] == run.model_metadata["ui_submit_origin"]
+            assert run is not None
+            # The ledger keeps the taint; the watch's own state holds no copy to rewrite.
+            taint = await row_taint(session, "watch", created["id"])
+            assert taint == run.model_metadata["ui_submit_origin"]
     finally:
         await retire(fixture, connection)
         await fixture.close()

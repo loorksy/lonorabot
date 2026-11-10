@@ -89,9 +89,12 @@ def inherited_authority(starter: RunRow | None) -> dict[str, Any]:
     """
     if starter is None:
         return {}
+    from .genui_taint import TAINT, own_taint
+
     inherited: dict[str, Any] = {}
-    if starter.model_metadata.get("ui_submit_origin"):
-        inherited["ui_submit_origin"] = starter.model_metadata["ui_submit_origin"]
+    taint = own_taint(starter)
+    if taint is not None:
+        inherited[TAINT] = taint
     if starter.model_metadata.get("authority") == "observe_only":
         inherited["authority"] = "observe_only"
         inherited["authority_run_id"] = str(
@@ -142,9 +145,16 @@ async def create_run(
                 "skill_selection",
                 "skill_authority",
                 "skill_execution_image",
+                # Only ``submit_card`` marks a card submission's own Run.
+                "ui_submit_origin",
             }
         },
     )
+    from .genui_taint import TAINT, inherited_taint
+
+    taint = await inherited_taint(session, request.metadata, request.parent_run_id)
+    if taint is not None:
+        row.model_metadata = {**row.model_metadata, TAINT: taint}
     if agent.execution_mode == "shadow":
         row.model_metadata = {**row.model_metadata, "execution_mode": "shadow"}
     if run_id:

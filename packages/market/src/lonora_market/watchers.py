@@ -685,6 +685,15 @@ async def check_watch(
                     state["code"] = "task_terminal"
                     row.state = state
                     return triggered
+                if task_run is not None:
+                    # A tainted watch resumes its Task tainted (GENUI_PLAN §8.5); a new
+                    # watch Run reads the watch's taint itself in ``create_run``.
+                    from lonora_db.genui_taint import mark_row, row_taint
+
+                    taint = await row_taint(session, "watch", row.id)
+                    task_id = task_run.model_metadata.get("task_id")
+                    if taint is not None and isinstance(task_id, str):
+                        await mark_row(session, "ticket", task_id, taint)
                 run = (
                     None
                     if task_run_id
@@ -709,11 +718,6 @@ async def check_watch(
                                 "symbol": config.symbol,
                                 "observation": observation,
                                 **metadata,
-                                **(
-                                    {"ui_submit_origin": row.state["ui_submit_origin"]}
-                                    if row.state.get("ui_submit_origin")
-                                    else {}
-                                ),
                             },
                         ),
                     )

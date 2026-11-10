@@ -9,7 +9,7 @@ import {
   cardLock,
   environment,
   evaluate,
-  parseVisualNumberDraft,
+  parseCardNumber,
   renderTemplate,
   sendBlocked,
 } from "@lonora/core";
@@ -40,6 +40,7 @@ type Ctx = {
   invalid: string | null;
   pick: (key: string, value: unknown, also?: Values) => void;
   type: (key: string, value: unknown) => void;
+  unreadable: (key: string, bad: boolean) => void;
   act: (block: UiBlock, path: string) => void;
   checkRequired: () => boolean;
   sendOff: boolean;
@@ -280,8 +281,11 @@ function NumberField({
   // Only an outside change (an option's `also`, a reset) replaces the owner's draft.
   // biome-ignore lint/correctness/useExhaustiveDependencies: the draft is the local echo
   useEffect(() => {
-    const parsed = parseVisualNumberDraft(draft);
-    if (parsed !== (value ?? null)) setDraft(value == null ? "" : String(value));
+    const parsed = parseCardNumber(draft);
+    if (parsed !== (value ?? null)) {
+      setDraft(value == null ? "" : String(value));
+      ctx.unreadable(key, false);
+    }
   }, [value]);
   return (
     <div className="ux-field" {...common}>
@@ -304,7 +308,10 @@ function NumberField({
           disabled={ctx.frozen || ctx.locked}
           onChange={(event) => {
             setDraft(event.target.value);
-            const parsed = parseVisualNumberDraft(event.target.value);
+            // An unreadable draft («2,4») is never sent as a prefix value: it holds the
+            // card's send until it reads as a number (review M7).
+            const parsed = parseCardNumber(event.target.value);
+            ctx.unreadable(key, parsed === undefined);
             if (parsed !== undefined) ctx.type(key, parsed);
           }}
           onKeyDown={(event) => {
@@ -372,6 +379,7 @@ export default function UiCard({
   const [values, setValues] = useState<Values>(() => ({ ...doc.state, ...(saved ?? {}) }));
   const [whyOpen, setWhyOpen] = useState(false);
   const [invalid, setInvalid] = useState<string | null>(null);
+  const [unreadable, setUnreadable] = useState<ReadonlySet<string>>(() => new Set());
   const [notice, setNotice] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [sentHere, setSentHere] = useState<string | null>(null);
@@ -411,7 +419,8 @@ export default function UiCard({
       hour: "2-digit",
       minute: "2-digit",
     });
-    return text.replace(/^(الآن|now)\b/i, `${t`Last updated`} ${time}`);
+    // JavaScript's \b is ASCII-only, so «الآن» is matched up to a space or the end.
+    return text.replace(/^(الآن|now)(?=\s|$)/iu, `${t`Last updated`} ${time}`);
   };
 
   /** The reference's `uxMissing`: the first visible required input left empty. */
@@ -427,7 +436,7 @@ export default function UiCard({
   }
 
   async function send(block: UiBlock, path: string) {
-    if (!checkRequired() || sending) return;
+    if (!checkRequired() || sending || unreadable.size > 0) return;
     setSending(true);
     setNotice(null);
     const nonce = crypto.randomUUID();
@@ -455,7 +464,7 @@ export default function UiCard({
     locked,
     frozen: building || !committed || sending,
     invalid,
-    sendOff: Boolean(blocked),
+    sendOff: Boolean(blocked) || unreadable.size > 0,
     newest: building ? doc.blocks.length - 1 : -1,
     stale,
     pick(key, value, also) {
@@ -467,6 +476,15 @@ export default function UiCard({
     type(key, value) {
       setValues((old) => ({ ...old, [key]: value }));
       if (invalid === key) setInvalid(null);
+    },
+    unreadable(key, bad) {
+      setUnreadable((old) => {
+        if (old.has(key) === bad) return old;
+        const next = new Set(old);
+        if (bad) next.add(key);
+        else next.delete(key);
+        return next;
+      });
     },
     checkRequired: () => checkRequired(),
     act(block, path) {

@@ -10,7 +10,7 @@ from sqlalchemy import Select, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .runs import create_run
-from .schema import AgentRow, EffectReceiptRow, RoutineRow, ThreadRow, TradingGoalRow
+from .schema import AgentRow, RoutineRow, ThreadRow, TradingGoalRow
 from .trading_goals import owned_goal, planned_step
 from .transactions import owned_agent, owned_thread
 
@@ -35,23 +35,6 @@ def routine_data(row: RoutineRow) -> dict[str, Any]:
         "enabled": row.enabled,
         "next_run_at": row.next_run_at.isoformat(),
     }
-
-
-def _taint_key(routine_id: str) -> str:
-    return "ui_submit_origin:routine:" + routine_id
-
-
-async def mark_routine_taint(
-    session: AsyncSession, routine_id: str, origin: dict[str, Any]
-) -> None:
-    """Record that a card's send created this routine; its wake Runs carry the taint."""
-    if await session.get(EffectReceiptRow, _taint_key(routine_id)) is None:
-        session.add(EffectReceiptRow(key=_taint_key(routine_id), result=origin))
-
-
-async def routine_taint(session: AsyncSession, routine_id: str) -> dict[str, Any]:
-    receipt = await session.get(EffectReceiptRow, _taint_key(routine_id))
-    return {"ui_submit_origin": receipt.result} if receipt is not None else {}
 
 
 async def create_routine(
@@ -200,7 +183,6 @@ async def enqueue_routine(session: AsyncSession, row: RoutineRow, now: datetime)
                 metadata={
                     "routine_id": row.id,
                     **({"goal_id": row.goal_id, "step_id": row.step_id} if row.goal_id else {}),
-                    **(await routine_taint(session, row.id)),
                 },
             ),
         )

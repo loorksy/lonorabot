@@ -197,6 +197,10 @@ async def create_task(
         row.id = task_id
     session.add(row)
     await session.flush()
+    from .genui_taint import taint_row_from
+
+    # A Task tainted work started is tainted for good, and so is every Run it starts.
+    await taint_row_from(session, starter, "ticket", row.id)
     run = await create_run(
         session,
         owner_id,

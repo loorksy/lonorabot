@@ -109,7 +109,13 @@ test("A01: the alert card streams, computes, sends and locks in the conversation
     // The condition is already met: the warn note replaces the distance.
     await price.fill("2300");
     await expect(alert.getByText("الشرط متحقق الآن؛ سيصلك التنبيه فور إنشائه.")).toBeVisible();
-    await price.fill("2400");
+    // Typed key by key as the owner does: «2,4» is no number yet, so the send stays
+    // disabled and no prefix (2) is ever sent; «2,400» reads as 2400 (review M7).
+    await price.fill("");
+    await price.pressSequentially("2,4");
+    await expect(send).toBeDisabled();
+    await price.pressSequentially("00");
+    await expect(send).toBeEnabled();
     const posted = page.waitForResponse(
       (response) =>
         response.request().method() === "POST" &&

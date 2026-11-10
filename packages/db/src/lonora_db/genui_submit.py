@@ -38,6 +38,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .agent_state import watch_summary
 from .conversation_locale import conversation_locale
 from .events import emit
+from .genui_taint import SUBMIT
 from .owner_words import TERMINAL, ui_submit_origin
 from .schema import (
     AgentRow,
@@ -376,18 +377,25 @@ async def submit_card(
     thread.next_seq += 1
     session.add(message)
     await session.flush()
-    run = RunRow(
-        thread_id=thread.id,
-        agent_id=agent_id,
-        input_seq=message.seq,
-        trigger="group" if thread.group_id else "user",
-        model_metadata={
-            "ui_submit_origin": {"message_id": message.id, "intent": intent_name},
-            **({"execution_mode": "shadow"} if agent.execution_mode == "shadow" else {}),
-        },
+    from lonora_contracts.runs import RunRequest
+
+    from .runs import create_run
+
+    # Through ``create_run``: the thread, group-membership and pause checks of every Run.
+    run = await create_run(
+        session,
+        owner_id,
+        RunRequest(
+            thread_id=thread.id,
+            agent_id=agent_id,
+            trigger="group" if thread.group_id else "user",
+        ),
     )
-    session.add(run)
-    await session.flush()
+    # Only this Run is a submission (the queue rules read it); it is also the taint's root.
+    run.model_metadata = {
+        **run.model_metadata,
+        SUBMIT: {"message_id": message.id, "intent": intent_name},
+    }
     # The values the owner sent stay with the card, so a reload on any device shows them.
     ui_state = dict(source.ui_state or {})
     saved = dict(ui_state.get("parts", {}))
@@ -455,17 +463,17 @@ async def expire_submits(session: AsyncSession, thread_id: str | None = None) ->
     """Rule L: a submission not started 30 minutes after it was sent is cancelled
     (``ui_submit_expired``), settled lazily at claim and on read, with no countdown."""
     query = select(RunRow).where(
-        RunRow.status.in_(["queued"]),
+        RunRow.status == "queued",
         RunRow.created_at <= utcnow() - SUBMIT_LIFETIME,
+        # Only submissions (the marker, never the taint) that have not started.
+        RunRow.model_metadata[SUBMIT].as_string().is_not(None),
+        RunRow.model_metadata["ui_submit_started"].as_string().is_(None),
     )
     if thread_id is not None:
         query = query.where(RunRow.thread_id == thread_id)
     expired: list[RunRow] = []
-    for run in await session.scalars(query.limit(50).with_for_update(skip_locked=True)):
-        if not run.model_metadata.get("ui_submit_origin") or run.model_metadata.get(
-            "ui_submit_started"
-        ):
-            continue
+    query = query.order_by(RunRow.created_at).limit(50).with_for_update(skip_locked=True)
+    for run in await session.scalars(query):
         run.status = "cancelled"
         run.error_code = "ui_submit_expired"
         run.updated_at = utcnow()
