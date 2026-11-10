@@ -27,9 +27,9 @@ function TestResult({ state }: { state: TestState }) {
 const field = (form: HTMLFormElement, name: string) =>
   ((form.elements.namedItem(name) as HTMLInputElement | null)?.value ?? "").trim();
 
-/** The server's trading providers in display order, with the fields each one takes (the shape of
- * GET /api/trading/providers). Until that route lands (track T9) this is a local copy of the two
- * adapters main has; swapping it for the route is this one function. */
+/** The server's trading adapters in display order, with the fields each one takes (Q52): MetaApi
+ * and «تجريبي» (the simulation provider). A local definition: the server has no provider
+ * catalog route. */
 export type BrokerField = {
   name: string;
   kind: "text" | "password";
@@ -64,9 +64,7 @@ const brokerName = (provider: string) =>
     ? t`Demo account`
     : provider === "metaapi"
       ? "MetaApi (MetaTrader)"
-      : provider === "alpaca"
-        ? "Alpaca"
-        : provider;
+      : provider;
 const fieldLabel = (field: BrokerField) =>
   field.name === "account_id"
     ? t`Account number`
