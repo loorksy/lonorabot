@@ -27,28 +27,84 @@ function TestResult({ state }: { state: TestState }) {
 const field = (form: HTMLFormElement, name: string) =>
   ((form.elements.namedItem(name) as HTMLInputElement | null)?.value ?? "").trim();
 
+/** The server's trading providers in display order, with the fields each one takes (the shape of
+ * GET /api/trading/providers). Until that route lands (track T9) this is a local copy of the two
+ * adapters main has; swapping it for the route is this one function. */
+export type BrokerField = {
+  name: string;
+  kind: "text" | "password";
+  required: boolean;
+  secret: boolean;
+};
+export type BrokerProvider = {
+  provider: string;
+  environment: "paper" | "live" | "simulation";
+  fields: BrokerField[];
+};
+export function brokerProviders(): Promise<BrokerProvider[]> {
+  return Promise.resolve([
+    {
+      provider: "metaapi",
+      environment: "live",
+      fields: [
+        { name: "account_id", kind: "text", required: true, secret: false },
+        { name: "api_key", kind: "password", required: true, secret: true },
+        { name: "region", kind: "text", required: false, secret: false },
+      ],
+    },
+    {
+      provider: "simulation",
+      environment: "simulation",
+      fields: [{ name: "account_id", kind: "text", required: true, secret: false }],
+    },
+  ]);
+}
+const brokerName = (provider: string) =>
+  provider === "simulation"
+    ? t`Demo account`
+    : provider === "metaapi"
+      ? "MetaApi (MetaTrader)"
+      : provider === "alpaca"
+        ? "Alpaca"
+        : provider;
+const fieldLabel = (field: BrokerField) =>
+  field.name === "account_id"
+    ? t`Account number`
+    : field.name === "region"
+      ? t`Region`
+      : field.secret
+        ? t`Access token — stored encrypted, never shown again`
+        : field.name;
+
 /* «ربط حساب تداول» (brokerFormPage 8701-8703) with the server's fields (Q52): the broker is an adapter
-   the server has (MetaApi) or «تجريبي», the simulation provider; account id, the MetaApi token
-   (stored encrypted, never shown again) and region. «اختبار الاتصال» is a real read-only round
-   trip that stores nothing. */
+   the server has, or «تجريبي», the simulation provider; secrets are stored encrypted and never
+   shown again. «اختبار الاتصال» is a real read-only round trip that stores nothing. */
 export function BrokerFormPage() {
   const nav = useNavigation();
   const toast = useToast();
-  const [provider, setProvider] = useState<"" | "metaapi" | "simulation">("");
+  const catalog = useLoad(brokerProviders, []);
+  const [provider, setProvider] = useState("");
   const [test, setTest] = useState<TestState>(null);
   const [busy, setBusy] = useState(false);
+  const entry = catalog.value?.find((item) => item.provider === provider);
   const body = (form: HTMLFormElement) => ({
     provider,
-    account_id: field(form, "number"),
-    region: provider === "metaapi" ? field(form, "region") || null : null,
     enabled: true,
-    ...(provider === "metaapi" ? { api_key: field(form, "token") || null } : {}),
+    ...Object.fromEntries(
+      (entry?.fields ?? []).map((item) => [item.name, field(form, item.name) || null]),
+    ),
   });
   const valid = (form: HTMLFormElement) => {
-    if (!provider) return toast(t`Choose the broker`, { type: "warn" }), false;
-    if (!field(form, "number")) return toast(t`Enter the account number`, { type: "warn" }), false;
-    if (provider === "metaapi" && !field(form, "token"))
-      return toast(t`Enter the access token`, { type: "warn" }), false;
+    if (!entry) return toast(t`Choose the broker`, { type: "warn" }), false;
+    const missing = entry.fields.find((item) => item.required && !field(form, item.name));
+    if (missing)
+      return (
+        toast(
+          missing.name === "account_id" ? t`Enter the account number` : t`Enter the access token`,
+          { type: "warn" },
+        ),
+        false
+      );
     return true;
   };
   const submit = async (event: FormEvent<HTMLFormElement>) => {
@@ -78,53 +134,38 @@ export function BrokerFormPage() {
           required
           value={provider}
           onChange={(event) => {
-            setProvider(event.target.value as typeof provider);
+            setProvider(event.target.value);
             setTest(null);
           }}
         >
           <option value="">{t`Choose the broker`}</option>
-          <option value="metaapi">MetaApi (MetaTrader)</option>
-          <option value="simulation">{t`Demo account`}</option>
+          {(catalog.value ?? []).map((item) => (
+            <option key={item.provider} value={item.provider}>
+              {brokerName(item.provider)}
+            </option>
+          ))}
         </select>
       </label>
-      {provider && (
-        <ValueRow label={t`Account type`} value={provider === "simulation" ? t`Demo` : t`Real`} />
-      )}
-      <label className="field">
-        <span>
-          <Trans>Account number</Trans>
-        </span>
-        <input
-          name="number"
-          required
-          dir="ltr"
-          maxLength={120}
-          autoComplete="off"
-          placeholder={t`e.g. 7310`}
+      {entry && (
+        <ValueRow
+          label={t`Account type`}
+          value={entry.environment === "live" ? t`Real` : t`Demo`}
         />
-      </label>
-      {provider === "metaapi" && (
-        <>
-          <label className="field">
-            <span>
-              <Trans>Access token — stored encrypted, never shown again</Trans>
-            </span>
-            <input name="token" type="password" dir="ltr" autoComplete="off" required />
-          </label>
-          <label className="field">
-            <span>
-              <Trans>Region</Trans>
-            </span>
-            <input
-              name="region"
-              dir="ltr"
-              maxLength={80}
-              placeholder="new-york"
-              autoComplete="off"
-            />
-          </label>
-        </>
       )}
+      {entry?.fields.map((item) => (
+        <label className="field" key={`${provider}:${item.name}`}>
+          <span>{fieldLabel(item)}</span>
+          <input
+            name={item.name}
+            type={item.kind === "password" ? "password" : "text"}
+            required={item.required}
+            dir="ltr"
+            maxLength={item.secret ? 4096 : 120}
+            autoComplete="off"
+            placeholder={item.name === "account_id" ? t`e.g. 7310` : undefined}
+          />
+        </label>
+      ))}
       <TestResult state={test} />
       <button
         type="button"

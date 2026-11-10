@@ -6,6 +6,8 @@ MCP server is initialised and lists its tools (reviewed like the trust preview),
 account reports its identity. None of them grants or widens any authority.
 """
 
+import asyncio
+from collections.abc import Awaitable
 from typing import Any
 
 from fastapi import APIRouter, Depends, Request
@@ -26,6 +28,16 @@ from pydantic import Field
 from ..middleware.auth import require_owner, runtime
 
 router = APIRouter()
+# One bounded round trip: a test never hangs the form. The values are never logged or echoed.
+TIMEOUT_SECONDS = 20
+
+
+async def bounded[T](call: Awaitable[T]) -> T:
+    try:
+        async with asyncio.timeout(TIMEOUT_SECONDS):
+            return await call
+    except TimeoutError:
+        raise LonoraError("connection_test_timeout", 504) from None
 
 
 @router.post("/providers/{provider}/test")
@@ -34,7 +46,7 @@ async def dry_run_provider(
 ) -> dict[str, Any]:
     adapter = model_adapter(provider, body.api_key)
     try:
-        models = await adapter.discover()
+        models = await bounded(adapter.discover())
     finally:
         await adapter.close()
     return {"ok": True, "models": [model.id for model in models][:200]}
@@ -51,8 +63,9 @@ class McpTest(Contract):
 async def dry_run_mcp(body: McpTest, owner: OwnerIdentity = Depends(require_owner)) -> dict[str, Any]:
     server = McpConnector(HttpMcpTransport(body.url, body.token or None))
     try:
-        await server.initialize()
-        reviewed = review_tools(await server.tools())
+        # The listing handshake only (initialize, tools/list): no tool is called.
+        await bounded(server.initialize())
+        reviewed = review_tools(await bounded(server.tools()))
     finally:
         await server.close()
     return {
@@ -82,7 +95,8 @@ async def dry_run_broker(
         return {"ok": True, "provider": "simulation"}
     if not body.api_key:
         raise LonoraError("broker_secret_required", 409)
-    identity = await verified_identity(config, body.api_key)
+    # Provisioning metadata only: no trading RPC is opened and no order path exists here.
+    identity = await bounded(verified_identity(config, body.api_key))
     return {
         "ok": True,
         "provider": config.provider,

@@ -13,7 +13,7 @@ import {
 import { createPortal } from "react-dom";
 import { LogoMark } from "../LogoMark";
 import { useToast } from "../Toast";
-import { checkPin, readLock, setPin, verifyBiometric } from "./lock-state";
+import { checkPin, readLock, setPin, verifyBiometric, writeLock } from "./lock-state";
 
 /* The #lock layer (reference lockOpen/lockRender/lockKey, 6070-6103): 4 dots, an LTR keypad, the
    biometric key when enrolled, 5 wrong codes → a 30 s cool-down. It covers the app when Lonora
@@ -110,12 +110,14 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
         return;
       }
       if (await checkPin(current.entry)) {
+        writeLock({ tries: 0, until: 0 });
         setState(null);
         return;
       }
       vibrate([10, 40, 10]);
       const tries = current.tries + 1;
       const locked = tries >= 5;
+      writeLock({ tries: locked ? 0 : tries, until: locked ? Date.now() + 30_000 : 0 });
       setState({
         ...current,
         entry: "",
@@ -141,6 +143,7 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
         verifyBiometric(id).then(
           (ok) => {
             if (ok) {
+              writeLock({ tries: 0, until: 0 });
               setState(null);
               toast(t`Unlocked`, { type: "success" });
             } else setState({ ...current, msg: t`Enter the lock code`, bad: true });

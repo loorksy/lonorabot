@@ -4,7 +4,9 @@ import { readDevicePref, writeDevicePref } from "./device-prefs";
    a WebAuthn platform credential (fingerprint or face) that requires user verification. The lock
    is device-local, like the reference: the code is kept as a salted SHA-256 digest, never as
    digits; the credential id is all that is kept of the biometric key. It guards this browser's
-   view of Lonora; it is not a sign-in and grants nothing. */
+   view of Lonora; it is not server authentication, grants nothing and never replaces the
+   passkey that signs a widening. The code is hashed with PBKDF2-SHA-256 (a slow hash) and
+   wrong tries are counted here, so a reload does not reset the cool-down. */
 export type LockPrefs = {
   on: boolean;
   salt: string;
@@ -13,6 +15,9 @@ export type LockPrefs = {
   credential: string | null;
   /** Seconds away from the app before it locks again: 0 · 60 · 900. */
   after: 0 | 60 | 900;
+  /** Wrong codes since the last unlock, and the end of the cool-down (ms since epoch). */
+  tries: number;
+  until: number;
 };
 export const LOCK_DEFAULTS: LockPrefs = {
   on: false,
@@ -20,6 +25,8 @@ export const LOCK_DEFAULTS: LockPrefs = {
   digest: "",
   credential: null,
   after: 60,
+  tries: 0,
+  until: 0,
 };
 export const readLock = () => readDevicePref<LockPrefs>("lock", LOCK_DEFAULTS);
 export const writeLock = (patch: Partial<LockPrefs>) =>
@@ -36,13 +43,21 @@ const fromB64url = (text: string) => {
 };
 const random = (size: number) => crypto.getRandomValues(new Uint8Array(size));
 
+const ITERATIONS = 210_000;
 export async function pinDigest(pin: string, salt: string) {
-  const data = new TextEncoder().encode(`${salt}:${pin}`);
-  return b64url(await crypto.subtle.digest("SHA-256", data));
+  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(pin), "PBKDF2", false, [
+    "deriveBits",
+  ]);
+  const bits = await crypto.subtle.deriveBits(
+    { name: "PBKDF2", hash: "SHA-256", salt: fromB64url(salt), iterations: ITERATIONS },
+    key,
+    256,
+  );
+  return b64url(bits);
 }
 export async function setPin(pin: string) {
   const salt = b64url(random(16));
-  writeLock({ on: true, salt, digest: await pinDigest(pin, salt) });
+  writeLock({ on: true, salt, digest: await pinDigest(pin, salt), tries: 0, until: 0 });
 }
 export async function checkPin(pin: string) {
   const lock = readLock();

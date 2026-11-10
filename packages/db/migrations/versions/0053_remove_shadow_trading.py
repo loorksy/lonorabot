@@ -3,8 +3,11 @@
 A former Shadow agent becomes an ordinary agent, so before its mode disappears it is
 made safe: it must not wake up holding live authority it was never meant to use.
 
-- Every pending or active signed grant of a Shadow agent is revoked, and the grant's
-  account-management Task is cancelled (as ``stop_management_task`` does).
+- Every pending or active signed grant of a Shadow agent is revoked the way
+  ``lonora_db.account_authority.revoke`` revokes one: the status becomes ``revoked`` (the
+  envelope row stays), the grant's account-management Task is cancelled, the agent's
+  permission revision moves on, and an ``account_authority.updated`` event records it,
+  attributed to the system with the reason ``shadow_trading_removed``.
 - Its stored trading level becomes "No trading" (``analysis``), the lowest rung: the
   owner raises it again explicitly if they want this agent to trade. Its non-executable
   customization draft is kept. A missing level row is written explicitly.
@@ -12,19 +15,20 @@ made safe: it must not wake up holding live authority it was never meant to use.
   code ``shadow_trading_removed``; a finished one stays as history. Without this, a
   paused virtual plan could be resumed as a live one.
 - Pending or approved Shadow approval cards are cancelled.
-- Virtual journal receipts (``execution_mode = 'shadow'``) are deleted: no broker ever
-  saw them, and once the column is gone every live-only reader (risk limits,
-  reconciliation, obligations, performance) would otherwise count them as live.
-- ``ln_shadow_trades`` and both ``execution_mode`` columns are dropped.
+- Nothing is erased. Virtual journal receipts (``execution_mode = 'shadow'``) move to
+  ``ln_trading_journal_shadow_retired`` (no broker ever saw them; left in place, every
+  live-only reader would count them as live once the column is gone), the virtual book
+  ``ln_shadow_trades`` is renamed ``ln_shadow_trades_retired``, and the former Shadow agents
+  are listed in ``ln_shadow_agents_retired``. Nothing reads these tables.
+- Both ``execution_mode`` columns are dropped.
 
 Runs a Shadow agent started keep ``execution_mode: shadow`` in their metadata, and the
 executor still refuses any trade for such a Run, so an in-flight virtual Run never sends.
 
-The downgrade is structural: the columns come back with every row at ``live`` (safe,
-since the former Shadow agents now hold no grant and the "No trading" level) and an
-empty ``ln_shadow_trades``. Deleted virtual receipts and positions do not come back.
-
-Chained to 0045 by the author; the lead re-chains it at merge.
+The downgrade puts the structure and the retired data back: the columns return at
+``live``, the listed agents return to ``shadow``, the virtual receipts return to the
+journal and the virtual book to ``ln_shadow_trades``. Revoked grants stay revoked and the
+levels stay at "No trading": a downgrade never widens authority.
 """
 
 import json
@@ -108,6 +112,28 @@ def settle_agent(connection: sa.Connection, owner_id: str, agent_id: str, now: d
             {"id": grant.id, "now": now},
         )
         cancel_management_task(connection, grant.id, owner_id, agent_id, now)
+        connection.execute(
+            sa.text(
+                "INSERT INTO ln_events (owner_id, kind, agent_id, payload, created_at)"
+                " VALUES (:owner, 'account_authority.updated', :agent,"
+                " CAST(:payload AS JSON), :now)"
+            ),
+            {
+                "owner": owner_id,
+                "agent": agent_id,
+                "now": now,
+                "payload": dump(
+                    {
+                        "id": grant.id,
+                        "agent_id": agent_id,
+                        "status": "revoked",
+                        "previous_status": grant.status,
+                        "author": "system",
+                        "reason": "shadow_trading_removed",
+                    }
+                ),
+            },
+        )
     key = permission_key(owner_id, agent_id)
     stored = connection.execute(
         sa.text("SELECT payload FROM ln_settings WHERE key = :key"), {"key": key}
@@ -163,9 +189,22 @@ def settle_goals(connection: sa.Connection, now: datetime) -> None:
 def upgrade() -> None:
     connection = op.get_bind()
     now = datetime.now(UTC)
+    op.create_table(
+        "ln_shadow_agents_retired",
+        sa.Column("agent_id", sa.String(36), primary_key=True),
+        sa.Column("owner_id", sa.String(36), nullable=False),
+        sa.Column("retired_at", sa.DateTime(timezone=True), nullable=False),
+    )
     for agent in connection.execute(
         sa.text("SELECT id, owner_id FROM ln_agents WHERE execution_mode = 'shadow' ORDER BY id")
     ).all():
+        connection.execute(
+            sa.text(
+                "INSERT INTO ln_shadow_agents_retired (agent_id, owner_id, retired_at)"
+                " VALUES (:agent, :owner, :now)"
+            ),
+            {"agent": str(agent.id), "owner": str(agent.owner_id), "now": now},
+        )
         settle_agent(connection, str(agent.owner_id), str(agent.id), now)
     settle_goals(connection, now)
     connection.execute(
@@ -176,8 +215,15 @@ def upgrade() -> None:
         ),
         {"now": now},
     )
+    # Moved, not erased: the virtual receipts keep every column, execution_mode included.
+    connection.execute(
+        sa.text(
+            "CREATE TABLE ln_trading_journal_shadow_retired AS"
+            " SELECT * FROM ln_trading_journal WHERE execution_mode = 'shadow'"
+        )
+    )
     connection.execute(sa.text("DELETE FROM ln_trading_journal WHERE execution_mode = 'shadow'"))
-    op.drop_table("ln_shadow_trades")
+    op.rename_table("ln_shadow_trades", "ln_shadow_trades_retired")
     op.drop_index("ix_ln_trading_journal_execution_mode", table_name="ln_trading_journal")
     for table in TABLES:
         op.drop_constraint(table + "_execution_mode", table, type_="check")
@@ -195,27 +241,24 @@ def downgrade() -> None:
     op.create_index(
         "ix_ln_trading_journal_execution_mode", "ln_trading_journal", ["execution_mode"]
     )
-    op.create_table(
-        "ln_shadow_trades",
-        sa.Column("id", sa.String(36), primary_key=True),
-        sa.Column(
-            "owner_id",
-            sa.String(),
-            sa.ForeignKey("ln_owners.id", ondelete="CASCADE"),
-            nullable=False,
-        ),
-        sa.Column("agent_id", sa.String(36), sa.ForeignKey("ln_agents.id", ondelete="CASCADE")),
-        sa.Column("thread_id", sa.String(36), sa.ForeignKey("ln_threads.id", ondelete="CASCADE")),
-        sa.Column("payload", sa.JSON(), nullable=False),
-        sa.Column("state", sa.JSON(), nullable=False),
-        sa.Column("version", sa.Integer(), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
-        sa.Column("account_id", sa.String(120), nullable=False),
-        sa.Column("symbol", sa.String(80), nullable=False),
-        sa.Column("status", sa.String(16), nullable=False),
-        sa.Column("decision_id", sa.String(36)),
-        sa.Column("thesis_id", sa.String(36)),
+    op.rename_table("ln_shadow_trades_retired", "ln_shadow_trades")
+    connection = op.get_bind()
+    connection.execute(
+        sa.text(
+            "UPDATE ln_agents SET execution_mode = 'shadow'"
+            " WHERE id IN (SELECT agent_id FROM ln_shadow_agents_retired)"
+        )
     )
-    for column in ("owner_id", "account_id", "symbol", "status"):
-        op.create_index("ix_ln_shadow_trades_" + column, "ln_shadow_trades", [column])
+    names = [
+        column["name"]
+        for column in sa.inspect(connection).get_columns("ln_trading_journal_shadow_retired")
+    ]
+    listed = ", ".join(names)
+    connection.execute(
+        sa.text(
+            f"INSERT INTO ln_trading_journal ({listed})"
+            f" SELECT {listed} FROM ln_trading_journal_shadow_retired"
+        )
+    )
+    op.drop_table("ln_trading_journal_shadow_retired")
+    op.drop_table("ln_shadow_agents_retired")

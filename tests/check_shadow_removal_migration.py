@@ -219,7 +219,23 @@ async def verify_upgraded(connection: AsyncConnection, ids: dict[str, str]) -> N
         {"a": ids["shadow"], "b": ids["unset"]},
     )
     assert active == 0, active
-    print("PASS a former Shadow agent ends with no active or pending grant")
+    revoked = set(
+        (
+            await connection.execute(
+                text(
+                    "SELECT CAST(payload AS JSONB) ->> 'id' FROM ln_events"
+                    " WHERE kind = 'account_authority.updated' AND agent_id = :a"
+                    " AND CAST(payload AS JSONB) ->> 'reason' = 'shadow_trading_removed'"
+                    " AND CAST(payload AS JSONB) ->> 'status' = 'revoked'"
+                ),
+                {"a": ids["shadow"]},
+            )
+        ).scalars()
+    )
+    assert revoked == {ids["shadow_active"], ids["shadow_pending"]}, revoked
+    print(
+        "PASS a former Shadow agent ends with no active or pending grant, each revocation recorded"
+    )
 
     async def level(agent: str) -> dict[str, Any]:
         value = await connection.scalar(
@@ -273,6 +289,19 @@ async def verify_upgraded(connection: AsyncConnection, ids: dict[str, str]) -> N
         ).scalars()
     )
     assert ids["journal_live"] in journal and ids["journal_shadow"] not in journal, journal
+    retired = set(
+        (
+            await connection.execute(
+                text("SELECT operation_id FROM ln_trading_journal_shadow_retired")
+            )
+        ).scalars()
+    )
+    assert ids["journal_shadow"] in retired, retired
+    assert await connection.scalar(text("SELECT count(*) FROM ln_shadow_trades_retired")) >= 1
+    listed = set(
+        (await connection.execute(text("SELECT agent_id FROM ln_shadow_agents_retired"))).scalars()
+    )
+    assert {ids["shadow"], ids["unset"]} <= listed and ids["live"] not in listed, listed
     approvals = dict(
         (
             await connection.execute(
@@ -285,7 +314,9 @@ async def verify_upgraded(connection: AsyncConnection, ids: dict[str, str]) -> N
     assert "execution_mode" not in await columns(connection, "ln_agents")
     assert "execution_mode" not in await columns(connection, "ln_trading_journal")
     assert "ln_shadow_trades" not in await tables(connection)
-    print("PASS virtual receipts, the virtual book and both execution_mode columns are gone")
+    print(
+        "PASS virtual receipts and the virtual book are retired, not erased; both columns are gone"
+    )
 
 
 async def main() -> None:
@@ -306,16 +337,40 @@ async def main() -> None:
             assert "execution_mode" in await columns(connection, "ln_agents")
             assert "execution_mode" in await columns(connection, "ln_trading_journal")
             assert "ln_shadow_trades" in await tables(connection)
-            modes = set(
+            modes = dict(
                 (
-                    await connection.execute(text("SELECT DISTINCT execution_mode FROM ln_agents"))
-                ).scalars()
+                    await connection.execute(
+                        text("SELECT id, execution_mode FROM ln_agents WHERE id IN (:a, :b, :c)"),
+                        {"a": ids["shadow"], "b": ids["unset"], "c": ids["live"]},
+                    )
+                ).all()
             )
-            assert modes <= {"live"}, modes
-            assert await connection.scalar(text("SELECT count(*) FROM ln_shadow_trades")) == 0
+            assert modes == {ids["shadow"]: "shadow", ids["unset"]: "shadow", ids["live"]: "live"}
+            journal = dict(
+                (
+                    await connection.execute(
+                        text(
+                            "SELECT operation_id, execution_mode FROM ln_trading_journal"
+                            " WHERE operation_id IN (:s, :l)"
+                        ),
+                        {"s": ids["journal_shadow"], "l": ids["journal_live"]},
+                    )
+                ).all()
+            )
+            assert journal == {ids["journal_shadow"]: "shadow", ids["journal_live"]: "live"}
+            assert await connection.scalar(text("SELECT count(*) FROM ln_shadow_trades")) >= 1
+            assert "ln_trading_journal_shadow_retired" not in await tables(connection)
+            grants = await connection.scalar(
+                text(
+                    "SELECT count(*) FROM ln_account_authorities WHERE agent_id = :a"
+                    " AND status IN ('pending','active')"
+                ),
+                {"a": ids["shadow"]},
+            )
+            assert grants == 0, grants
         await engine.dispose()
         await asyncio.to_thread(alembic, "upgrade", "heads")
-        print("PASS the downgrade restores the columns at 'live' and an empty virtual book")
+        print("PASS the downgrade restores the retired data; the revoked grants stay revoked")
         async with engine.begin() as connection:
             # Leave no fixture identity behind for a later check on the same database.
             for agent in ("shadow", "unset", "live"):

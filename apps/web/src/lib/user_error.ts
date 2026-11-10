@@ -149,6 +149,10 @@ export function userError(error: unknown) {
       return t`This operation already has a settled outcome. Reload the journal.`;
     case "broker_account_not_found":
       return t`Broker account not found.`;
+    case "connection_test_timeout":
+      return t`The test did not get an answer in time. Nothing was saved.`;
+    case "broker_secret_required":
+      return t`Enter the access token.`;
     case "broker_account_already_connected":
       return t`This broker account is already connected. Use the existing connection.`;
     case "broker_identity_unavailable":
