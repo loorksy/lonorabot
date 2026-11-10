@@ -82,15 +82,45 @@ class InputAnswer(Contract):
     choice_id: str = Field(min_length=1, max_length=64)
 
 
+class VoiceNote(Contract):
+    artifact_id: str = Field(min_length=1, max_length=36)
+    duration: float = Field(gt=0, le=120, allow_inf_nan=False)
+    peaks: list[int] = Field(min_length=44, max_length=44)
+
+    @model_validator(mode="after")
+    def bounded_peaks(self) -> "VoiceNote":
+        if any(peak < 0 or peak > 100 for peak in self.peaks):
+            raise ValueError("voice_peaks_invalid")
+        return self
+
+
 class MessageCreate(Contract):
     input_answer: InputAnswer | None = None
     collaboration_session_id: str | None = Field(default=None, max_length=36)
     mention_agent_ids: list[str] = Field(default_factory=list[str], max_length=16)
     mention_all: bool = False
-    content: str = Field(min_length=1, max_length=30000)
+    content: str = Field(default="", max_length=30000)
     client_nonce: str = Field(default_factory=new_id, min_length=1, max_length=80)
     reply_to: str | None = None
     attachment_ids: list[str] = Field(default_factory=list[str], max_length=10)
+    # An owner voice note: the audio artifact uploaded to this thread. The server
+    # transcribes it into the message content before the Agent is asked to answer.
+    voice: VoiceNote | None = None
+
+    @model_validator(mode="after")
+    def content_or_voice(self) -> "MessageCreate":
+        if self.voice is None and not self.content:
+            raise ValueError("message_content_required")
+        if self.voice is not None and (
+            self.content
+            or self.input_answer
+            or self.attachment_ids
+            or self.mention_agent_ids
+            or self.mention_all
+            or self.collaboration_session_id
+        ):
+            raise ValueError("voice_note_invalid")
+        return self
 
 
 class ResourceInput(Contract):
