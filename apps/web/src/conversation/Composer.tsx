@@ -167,7 +167,7 @@ export function Composer({
     if (reply) field.current?.focus({ preventScroll: true });
   }, [reply]);
   useEffect(() => {
-    if (fine()) field.current?.focus({ preventScroll: true });
+    if (fine() && innerWidth > 767) field.current?.focus({ preventScroll: true });
   }, []);
 
   /* ---- 28px → min(164px, 34vh); the slot height pads the messages */
