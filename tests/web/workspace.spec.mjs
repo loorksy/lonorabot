@@ -302,7 +302,7 @@ test("ticket modal and profile creation remain usable under StrictMode and Back"
   await expect(page.locator(".settings-nav")).toBeVisible();
   await page.goBack();
   await expect(page.locator(".settings-nav")).toHaveCount(0);
-  await expect(page).toHaveURL(new RegExp(`/app/${teammate.id}$`));
+  await expect(page).toHaveURL(new RegExp(`/app/agent/${teammate.id}$`));
 });
 
 test("New task from the welcome pane opens a ticket dialog that can be saved", async ({
