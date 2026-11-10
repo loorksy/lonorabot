@@ -122,7 +122,7 @@ async function context(side, theme) {
     );
     await ctx.addInitScript(
       ([themeValue]) => {
-        localStorage.setItem("lonora.theme", JSON.stringify(themeValue));
+        localStorage.setItem("lonora.theme", themeValue); // the app stores the raw string
         localStorage.setItem("lonora.locale", "ar");
       },
       [theme],
@@ -305,7 +305,8 @@ const STATES = [
     name: "agents",
     ref: (page) => refRun(page, () => go("agents")),
     appPath: "/agents",
-    appReady: "role=navigation",
+    appReady: "body",
+    appSettle: 2500,
     app: async () => {},
   },
   {
@@ -318,6 +319,8 @@ const STATES = [
         go("agent-type", { item: null });
       }),
     appPath: "/new",
+    appReady: "body",
+    appSettle: 2500,
     app: async () => {},
   },
 ];
@@ -403,7 +406,7 @@ async function capture(state, side, theme) {
       if (state.appSetup) await state.appSetup(a, memo);
       await page.goto(BASE + (state.appPath ?? "/"));
       await page.waitForSelector(state.appReady ?? "[data-key]", { timeout: 15000 });
-      await pause(page, 800);
+      await pause(page, state.appSettle ?? 800);
       await state.app(page, ctx);
       await pause(page, state.wait ?? 600);
     }
