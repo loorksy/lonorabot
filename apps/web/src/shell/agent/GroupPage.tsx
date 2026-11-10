@@ -42,6 +42,7 @@ export function GroupPage({ groupId }: { groupId: string }) {
   const data = useShellData();
   const nav = useNavigation();
   const sheets = useSheets();
+  const toast = useToast();
   const group = data.groups.find((row) => row.id === groupId);
   if (!group)
     return data.groupsLoading ? (
@@ -111,7 +112,14 @@ export function GroupPage({ groupId }: { groupId: string }) {
             sheets.open({
               id: "group-member",
               title: t`Add an agent`,
-              body: <AddMembers group={group} candidates={outside} onDone={() => sheets.close()} />,
+              body: (
+                <AddMembers
+                  group={group}
+                  candidates={outside}
+                  onDone={() => sheets.close()}
+                  onError={(failure) => toast(userError(failure), { type: "error" })}
+                />
+              ),
             })
           }
         >
@@ -138,13 +146,15 @@ function AddMembers({
   group,
   candidates,
   onDone,
+  onError,
 }: {
   group: Resource;
   candidates: Agent[];
   onDone: () => void;
+  /** Sheets render outside the toast provider: the page reports for them. */
+  onError: (failure: unknown) => void;
 }) {
   const data = useShellData();
-  const toast = useToast();
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
   const room = 12 - memberIds(group).length;
@@ -159,7 +169,7 @@ function AddMembers({
       data.refresh();
       onDone();
     } catch (failure) {
-      toast(userError(failure), { type: "error" });
+      onError(failure);
       setBusy(false);
     }
   };

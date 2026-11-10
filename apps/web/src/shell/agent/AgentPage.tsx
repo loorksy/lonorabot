@@ -131,7 +131,12 @@ function AgentPageBody({ agent }: { agent: Agent }) {
   const [busy, setBusy] = useState(false);
   const level = permissions.value?.effective_level ?? "analysis";
   const accounts = connections.value ?? [];
-  const supervisor = supervision.value?.supervised_by[0]?.supervisor;
+  // Lonora supervises every agent by default: the line names a chosen supervisor first.
+  const personalId = data.agents.find((row) => row.role === "personal")?.id;
+  const supervisors = supervision.value?.supervised_by ?? [];
+  const supervisor = (
+    supervisors.find((grant) => grant.supervisor.id !== personalId) ?? supervisors[0]
+  )?.supervisor;
   const go = (path: string) => nav.go(path);
   const q = `?agent=${encodeURIComponent(agent.id)}`;
 
@@ -459,6 +464,7 @@ function SupervisionSection({
         <SupervisionPicker
           agent={agent}
           candidates={candidates}
+          onError={(failure) => toast(userError(failure), { type: "error" })}
           onSaved={() => {
             sheets.close();
             onChange();
@@ -521,12 +527,14 @@ function SupervisionPicker({
   agent,
   candidates,
   onSaved,
+  onError,
 }: {
   agent: Agent;
   candidates: Agent[];
   onSaved: () => void;
+  /** Sheets render outside the toast provider: the page reports for them. */
+  onError: (failure: unknown) => void;
 }) {
-  const toast = useToast();
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
   const save = async () => {
@@ -537,7 +545,7 @@ function SupervisionPicker({
         await api.post("/supervision", { supervisor_id: agent.id, supervised_id: id });
       onSaved();
     } catch (failure) {
-      toast(userError(failure), { type: "error" });
+      onError(failure);
       setBusy(false);
     }
   };

@@ -15,6 +15,7 @@ function fixture(data) {
 }
 let data = null;
 const deletes = [];
+const errors = [];
 test.beforeEach(async ({ page, context }) => {
   data = fixture({ action: "init" });
   data.groups = [];
@@ -27,6 +28,10 @@ test.beforeEach(async ({ page, context }) => {
     })),
   );
   await context.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
+  page.on("pageerror", (error) => {
+    console.log("pageerror:", error.message);
+    errors.push(error.message);
+  });
   page.on("request", (request) => {
     const path = new URL(request.url()).pathname;
     if (request.method() === "DELETE" && /^\/api\/(agents|groups)\//.test(path)) deletes.push(path);
@@ -34,6 +39,7 @@ test.beforeEach(async ({ page, context }) => {
 });
 test.afterEach(() => {
   expect(deletes).toEqual([]);
+  expect(errors.splice(0)).toEqual([]);
   if (data) fixture({ ...data, action: "cleanup" });
   data = null;
 });
@@ -70,7 +76,7 @@ test("the trading agent's page: level, trading and safety, watches, and the on/o
   // «الهوية والنموذج» opens the form with the pair from the account's own symbols.
   await main.getByRole("button", { name: "Identity and model", exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/app/identity/${data.trader.id}$`));
-  await expect(main.getByLabel("Pair", { exact: true })).toHaveValue(data.symbol);
+  await expect(main.getByRole("combobox", { name: "Pair", exact: true })).toHaveValue(data.symbol);
   const save = page.waitForRequest(
     (request) =>
       request.method() === "PATCH" && request.url().endsWith(`/api/agents/${data.trader.id}`),
@@ -142,7 +148,8 @@ test("the call button follows Q58 when no voice provider is configured", async (
   await page.goto(`/app/agent/${data.trader.id}`);
   const call = page.locator("main .hero-actions").getByRole("button", { name: "Call" });
   await expect(call).toHaveAttribute("aria-disabled", "true");
-  await call.click();
+  // Shown dimmed but still tappable: the tap explains why and where to set it up.
+  await call.click({ force: true });
   const sheet = page.locator("#dialog");
   await expect(sheet).toContainText("Calls are not set up");
   await sheet.getByRole("button", { name: "Open voice settings", exact: true }).click();
@@ -203,7 +210,9 @@ test("the group page and «مجموعة جديدة» with purpose and coordinato
   await main.getByLabel("Purpose", { exact: true }).fill("Second desk");
   await main.getByRole("switch", { name: data.trader.name }).check();
   await main.getByRole("switch", { name: data.research.name }).check();
-  await main.getByLabel("Coordinator", { exact: true }).selectOption(data.research.id);
+  await main
+    .getByRole("combobox", { name: "Coordinator", exact: true })
+    .selectOption(data.research.id);
   const create = page.waitForResponse(
     (response) => new URL(response.url()).pathname === "/api/groups/create",
   );
