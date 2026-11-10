@@ -85,7 +85,7 @@ from .model_recovery import (
     record_success,
 )
 from .model_runtime import model_turn
-from .reply_gates import owner_words, unconfirmed_line
+from .reply_gates import owner_words, report_line
 from .runtime_notices import (
     NO_ANSWER,
     append_notice,
@@ -301,9 +301,10 @@ async def finish_turn(
                 rich_content=state.get("rich_content"),
             )
         )
-        # No repair turn can follow this tool-less report: an unsupported claim of
-        # the owner's requested action gets its honest line here.
-        line = unconfirmed_line(state, messages, text, effect_names(registry))
+        # No repair turn can follow this tool-less report: a claim the repair turn
+        # already asked to correct, still unsupported, gets its honest line here. An
+        # accurate limit report gets none; the limit stop is its effect.
+        line = report_line(state, messages, text, effect_names(registry))
         if line:
             text = append_line(state, messages, text, line)
         state["limit_exit"] = {"reason": reason, "text": text}

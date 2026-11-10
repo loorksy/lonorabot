@@ -2,17 +2,18 @@
 always run, and a claimed action needs a successful result of its kind in the request."""
 
 from dataclasses import replace
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
 from lonora_adapter_kit.types import ModelMessage, ModelReply, ToolCall
 from lonora_agent.executor import execute_run
 from lonora_agent.model_runtime import model_turn
-from lonora_agent.reply_gates import CLAIM_NUDGE, record_owner_request
-from lonora_agent.tool_block import goal_step_action
+from lonora_agent.reply_gates import CLAIM_NUDGE, GoalTradeIntent, record_owner_request
+from lonora_agent.tool_block import goal_step_trade
 from lonora_agent.tool_exposure import ensure_exposure
 from lonora_contracts.model_routing import Capability, ModelSelection
-from lonora_db.schema import EventRow, MessageRow
+from lonora_db.schema import EffectReceiptRow, EventRow, MessageRow
 from lonora_tools.base import Tool
 from lonora_tools.context import ToolContext
 from lonora_tools.loader import load_tools
@@ -178,7 +179,89 @@ async def test_the_repair_turn_can_still_close_but_not_open(
 async def test_a_missing_goal_step_is_left_to_its_handler(task_db: Fixture) -> None:
     context = await conversation_run(task_db, state_for("أوقف التداول"))
     step = ToolCall(id="step", name="goal_step_execute", arguments={"goal_id": "missing"})
-    assert await goal_step_action(context, step) is None
+    assert await goal_step_trade(context, step) is None
+
+
+@pytest.mark.asyncio
+async def test_a_replayed_goal_step_keeps_its_frozen_step(
+    task_db: Fixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The goal moved on to an entry step; the replayed call froze the close step.
+    goal = SimpleNamespace(
+        payload={
+            "steps": [
+                {
+                    "id": "close",
+                    "title": "Close",
+                    "kind": "trade",
+                    "trade": {
+                        "account_id": "a",
+                        "action": "close_position",
+                        "symbol": "EURUSD",
+                        "position_id": "p1",
+                    },
+                },
+                {
+                    "id": "enter",
+                    "title": "Enter",
+                    "kind": "trade",
+                    "trade": {
+                        "account_id": "a",
+                        "action": "buy",
+                        "symbol": "EURUSD",
+                        "volume": "0.1",
+                    },
+                },
+                {
+                    "id": "unprotect",
+                    "title": "Clear SL",
+                    "kind": "trade",
+                    "trade": {
+                        "account_id": "a",
+                        "action": "modify_position",
+                        "symbol": "EURUSD",
+                        "position_id": "p1",
+                        "clear_stop_loss": True,
+                    },
+                },
+            ]
+        },
+        state={"current_step": "enter"},
+    )
+
+    async def found(*_: Any, **__: Any) -> Any:
+        return goal
+
+    monkeypatch.setattr("lonora_agent.tool_block.owned_goal", found)
+    context = await conversation_run(task_db, state_for("أوقف التداول"))
+    step = ToolCall(id="replayed", name="goal_step_execute", arguments={"goal_id": "g"})
+    fresh = await goal_step_trade(context, step)
+    assert fresh is not None and fresh.action == "buy"
+    async with context.db.sessions() as session, session.begin():
+        session.add(
+            EffectReceiptRow(
+                key="goal-step-call:" + context.for_call("replayed").resource_id,
+                result={"intent": "x", "step_id": "close"},
+            )
+        )
+    frozen = await goal_step_trade(context, step)
+    assert frozen is not None and frozen.action == "close_position"
+    cleared = ToolCall(
+        id="cleared", name="goal_step_execute", arguments={"goal_id": "g", "step_id": "unprotect"}
+    )
+    assert await goal_step_trade(context, cleared) == GoalTradeIntent("modify_position", True)
+
+
+@pytest.mark.asyncio
+async def test_an_accurate_limit_report_gets_no_line(
+    task_db: Fixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    context = await conversation_run(task_db, state_for("ألغِ التنبيه"))
+    model = Script(ModelReply(text="توقفت عند حد الجولات؛ تم إيقاف العمل هنا."))
+    monkeypatch.setattr("lonora_agent.tool_loop.model_turn", model)
+    await execute_run(context, ToolRegistry([]), 120, 1)
+    run = await saved_run(context)
+    assert run.result == "توقفت عند حد الجولات؛ تم إيقاف العمل هنا."
 
 
 @pytest.mark.asyncio

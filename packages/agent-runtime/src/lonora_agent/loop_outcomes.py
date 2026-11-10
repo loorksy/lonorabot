@@ -11,7 +11,7 @@ from lonora_db.tasks import OWNER_ATTENTION
 from lonora_tools.context import ToolContext
 
 from .environment import environment_state
-from .reply_gates import claim_gate
+from .reply_gates import appended_parts, claim_gate
 from .runtime_notices import (
     append_notice,
     attention_message,
@@ -161,7 +161,7 @@ def append_line(state: dict[str, Any], messages: list[ModelMessage], text: str, 
         if isinstance(parts, list):
             state["rich_content"] = {
                 **cast(dict[str, Any], rich),
-                "parts": [*cast(list[Any], parts), {"type": "text", "text": line}],
+                "parts": appended_parts(cast(list[Any], parts), line),
             }
     if messages and messages[-1].role == "assistant":
         messages[-1] = messages[-1].model_copy(
