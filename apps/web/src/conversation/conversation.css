@@ -2343,7 +2343,16 @@ body.dropping .drop-zone {
 .sheet-photo-box:not(.ld) {
   background: linear-gradient(90deg, var(--fill) 25%, var(--fill-2) 50%, var(--fill) 75%);
   background-size: 300% 100%;
-  animation: sk 1.3s ease-in-out infinite;
+  /* The reference's sk (background-position); the shell's own sk moves elements. */
+  animation: sk-photo 1.3s ease-in-out infinite;
+}
+@keyframes sk-photo {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: 0 0;
+  }
 }
 .img-msg:not(.busy):not(.ld) img,
 .sheet-photo-box:not(.ld) img {

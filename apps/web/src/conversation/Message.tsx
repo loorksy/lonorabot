@@ -179,6 +179,11 @@ function Attachments({ ids, caption }: { ids: string[]; caption?: ReactNode }) {
             src={`/api/artifacts/${encodeURIComponent(id)}/file?preview=true`}
             alt=""
             decoding="async"
+            // The shimmer stops once the photo has downloaded (reference .ld).
+            ref={(node) => {
+              if (node?.complete && node.naturalWidth) node.parentElement?.classList.add("ld");
+            }}
+            onLoad={(event) => event.currentTarget.parentElement?.classList.add("ld")}
             width={Number(artifact?.payload.width) || 4}
             height={Number(artifact?.payload.height) || 3}
           />

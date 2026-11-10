@@ -475,6 +475,10 @@ export function Conversation({
               className="sheet-photo"
               src={`/api/artifacts/${encodeURIComponent(artifact.id)}/file?preview=true`}
               alt={t`From the conversation`}
+              ref={(node) => {
+                if (node?.complete && node.naturalWidth) node.parentElement?.classList.add("ld");
+              }}
+              onLoad={(event) => event.currentTarget.parentElement?.classList.add("ld")}
             />
           </div>
         ),

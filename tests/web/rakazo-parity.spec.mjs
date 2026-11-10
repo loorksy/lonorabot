@@ -92,11 +92,14 @@ test("conversation shows safe generated SVG, cloud chart side panel and persiste
     await page.screenshot({ path: ".runtime/rakazo-parity/web-chat-chart.png", fullPage: true });
     await page.keyboard.press("Escape");
     await expect(panel).not.toHaveAttribute("open", "");
-    await page.getByRole("button", { name: "Preview analysis.svg", exact: true }).click();
-    const preview = page.getByRole("dialog", { name: "analysis.svg", exact: true });
-    await expect(preview.locator("img")).toBeVisible();
+    // The reference names a photo generically («صورة، اضغط لعرضها»): open it by its file.
+    await page.locator(`.img-msg[data-artifact-id='${data.artifact}']`).click();
+    // The reference's photo sheet: the image itself, never a frame.
+    const preview = page.locator("#dialog");
+    await expect(preview.locator(".sheet-photo-box.ld img")).toBeVisible();
     await expect(preview.locator("iframe")).toHaveCount(0);
-    await preview.getByRole("button", { name: "Close", exact: true }).click();
+    await page.keyboard.press("Escape");
+    await expect(page.locator("#app")).not.toHaveAttribute("inert", "");
     await page.locator(".composer textarea").fill("**Keep these characters** https://example.com");
     await page.locator(".composer .send").click();
     const literal = page.getByTestId("transcript").locator(".msg.mine .bubble .text");
