@@ -482,6 +482,15 @@ test("S15: on a phone the history picker sits under the header, not beneath it",
     { x: select.x + select.width / 2, y: select.y + select.height / 2 },
   );
   expect(hit).toBe(true);
+
+  // Item 26: on a desktop the solid header already clears it: the phone's header margin
+  // never applies there, so the gap is not doubled.
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await expect(picker).toBeVisible();
+  const desk = await page.locator(".chat-head").boundingBox();
+  const deskBox = await picker.boundingBox();
+  expect(deskBox.y).toBeGreaterThanOrEqual(desk.y + desk.height - 1);
+  expect(await picker.evaluate((element) => getComputedStyle(element).marginTop)).toBe("0px");
 });
 
 test("R1/R2: the order sheet draws the executor's own rows: blocked before sending, the broker's reason", async ({
