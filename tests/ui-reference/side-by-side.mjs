@@ -41,6 +41,7 @@ import { mkdirSync, openSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { DOMAIN_PROBES, domainStates } from "./domain-states.mjs";
 
 const require = createRequire(import.meta.url);
 const { chromium } = require("@playwright/test");
@@ -448,6 +449,8 @@ const STATES = [
     app: (page) => scrollTo(page, "end"),
   },
 ];
+// UI phase 4b: the domain pages (seeded by seed_domain.py).
+STATES.push(...domainStates({ ROOT, env, seed, refRun, visible, pause }));
 
 /* ------------------------------------------------------------------ probes */
 /* The app reuses the reference's class names: the same selectors, measured on both sides. */
@@ -570,7 +573,7 @@ async function probe(page, side) {
       }
       return out;
     },
-    [[...PROBES, ...rowProbes(side)], PROPS],
+    [[...PROBES, ...DOMAIN_PROBES, ...rowProbes(side)], PROPS],
   );
 }
 function probeDiff(ref, app) {

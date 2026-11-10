@@ -238,34 +238,31 @@ test("send, cancel and reload retain one real transcript", async ({ page, contex
   expect(messages.filter((row) => row.content === message)).toHaveLength(1);
 });
 
-test("ticket modal and profile creation remain usable under StrictMode and Back", async ({
+test("task form, task page and profile creation remain usable under StrictMode and Back", async ({
   page,
   workspace,
 }) => {
-  const { agent, prefix, post, remember } = workspace;
-  const board = remember("boards", await post("/boards", { payload: { title: prefix } }));
+  const { agent, prefix, remember } = workspace;
+  // /app/board is an alias of the reference's المهام tab; «إنشاء مهمة» is its own page.
   await page.goto("/app/board");
-  await page.getByRole("button", { name: "New ticket", exact: true }).click();
-  let dialog = page.getByRole("dialog", { name: "New ticket", exact: true });
-  await expect(dialog).toBeVisible();
-  await dialog.getByLabel("Task", { exact: true }).fill(`${prefix} task`);
-  await dialog.getByLabel("Board", { exact: true }).selectOption(board.id);
-  await dialog.getByLabel("Agent", { exact: true }).selectOption(agent.id);
-  const saved = page.waitForResponse(
-    (response) => response.url().endsWith("/api/tickets") && response.request().method() === "POST",
-  );
-  await dialog.getByRole("button", { name: "Save", exact: true }).click();
-  const ticket = remember("tickets", await (await saved).json());
-  await page.getByTestId(`board-card-${ticket.id}`).click();
-  dialog = page.getByRole("dialog", { name: "Task details", exact: true });
-  await expect(dialog).toBeVisible();
-  await page.keyboard.press("Escape");
-  await expect(dialog).toHaveCount(0);
-  await page.getByTestId(`board-card-${ticket.id}`).click();
-  await page.goBack();
-  await expect(dialog).toHaveCount(0);
-  // /app/board is an alias of the reference's المهام tab.
   await expect(page).toHaveURL(/\/app\/tasks$/);
+  await page.goto(`/app/new-task?agent=${agent.id}`);
+  const taskForm = page.locator('form[data-form="task"]');
+  await taskForm.getByLabel("Task title", { exact: true }).fill(`${prefix} task`);
+  await expect(taskForm.getByLabel("Responsible agent", { exact: true })).toHaveValue(agent.id);
+  await taskForm.getByLabel("Completion criterion", { exact: true }).fill("A summary in the chat");
+  const saved = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === "/api/tasks" && response.request().method() === "POST",
+  );
+  await taskForm.getByRole("button", { name: "Create task", exact: true }).click();
+  const task = remember("tickets", await (await saved).json());
+  expect(task.completion_criteria).toBe("A summary in the chat");
+  expect(task.due_at).toBeTruthy();
+  await expect(page).toHaveURL(new RegExp(`/app/tasks/${task.id}$`));
+  await expect(page.locator("main h2")).toHaveText(`${prefix} task`);
+  await page.goBack();
+  await expect(page).not.toHaveURL(/\/app\/new-task/);
   await page.goto(`/app/${agent.id}`);
   await page.getByRole("button", { name: "Agent info", exact: true }).click();
   await expect(page.locator("#dialog")).toHaveAttribute("open", "");
@@ -304,34 +301,26 @@ test("ticket modal and profile creation remain usable under StrictMode and Back"
   await expect(page).toHaveURL(new RegExp(`/app/${teammate.id}$`));
 });
 
-test("New task from the welcome pane opens a ticket dialog that can be saved", async ({
+test("New task from the welcome pane opens the task form that saves a durable task", async ({
   page,
   workspace,
 }) => {
-  const { agent, prefix, post, remember } = workspace;
-  remember("boards", await post("/boards", { payload: { title: prefix } }));
-  // The boards arrive after the dialog would open: it must still know its board.
-  await page.route("**/api/boards", async (route) => {
-    await new Promise((resolve) => setTimeout(resolve, 600));
-    await route.continue();
-  });
+  const { agent, prefix, remember } = workspace;
   await page.goto("/app");
   await page.getByRole("button", { name: "New task", exact: true }).click();
-  await expect(page).toHaveURL(/\/app\/tasks$/);
-  const dialog = page.getByRole("dialog", { name: "New ticket", exact: true });
-  await expect(dialog).toBeVisible();
-  await dialog.getByLabel("Task", { exact: true }).fill(`${prefix} task`);
-  await dialog.getByLabel("Agent", { exact: true }).selectOption(agent.id);
-  // The Board is left as shown: choosing the option already shown fires no change event.
-  const shown = await dialog.getByLabel("Board", { exact: true }).inputValue();
-  const save = dialog.getByRole("button", { name: "Save", exact: true });
-  await expect(save).toBeEnabled();
+  await expect(page).toHaveURL(/\/app\/new-task$/);
+  const form = page.locator('form[data-form="task"]');
+  await form.getByLabel("Task title", { exact: true }).fill(`${prefix} task`);
+  await form.getByLabel("Responsible agent", { exact: true }).selectOption(agent.id);
   const saved = page.waitForResponse(
-    (response) => response.url().endsWith("/api/tickets") && response.request().method() === "POST",
+    (response) =>
+      new URL(response.url()).pathname === "/api/tasks" && response.request().method() === "POST",
   );
-  await save.click();
-  const ticket = remember("tickets", await (await saved).json());
-  expect(ticket.payload.board_id).toBe(shown);
+  await form.getByRole("button", { name: "Create task", exact: true }).click();
+  const task = remember("tickets", await (await saved).json());
+  expect(task.agent_id).toBe(agent.id);
+  await page.goto("/app/tasks");
+  await expect(page.getByRole("button", { name: new RegExp(`${prefix} task`) })).toBeVisible();
 });
 
 test("tablet and Arabic phone layouts preserve navigation and unknown-route recovery", async ({
@@ -660,7 +649,7 @@ test("financial approval buttons persist decisions and display broker receipts a
   }
 });
 
-test("cancelled durable task stays cancelled on the board after reload and has no generic edit/run bypass", async ({
+test("cancelled durable task stays cancelled after reload and offers no completion or edit bypass", async ({
   page,
   workspace,
 }) => {
@@ -678,23 +667,18 @@ test("cancelled durable task stays cancelled on the board after reload and has n
     expected_version: task.version,
   });
   expect(stopped.status).toBe("cancelled");
-  await page.goto("/app/board");
-  await page
-    .getByRole("combobox", { name: "Board", exact: true })
-    .selectOption(details.payload.board_id);
-  const column = page
-    .locator(".workspace-board-column")
-    .filter({ has: page.getByRole("heading", { name: /Cancelled/ }) });
-  await expect(column.getByTestId(`board-card-${task.id}`)).toBeVisible();
+  await page.goto("/app/tasks");
+  await page.getByRole("tab", { name: "Completed", exact: true }).click();
+  const row = page.getByRole("button", { name: new RegExp(`${prefix} cancelled durable work`) });
+  await expect(row).toContainText("Cancelled");
   await page.reload();
-  await page
-    .getByRole("combobox", { name: "Board", exact: true })
-    .selectOption(details.payload.board_id);
-  await page.getByTestId(`board-card-${task.id}`).click();
-  const dialog = page.getByRole("dialog");
-  await expect(dialog.getByRole("status")).toHaveText("Cancelled");
-  await expect(dialog.getByRole("button", { name: "Save", exact: true })).toHaveCount(0);
-  await expect(dialog.getByRole("button", { name: "Run task", exact: true })).toHaveCount(0);
+  await page.getByRole("tab", { name: "Completed", exact: true }).click();
+  await row.click();
+  await expect(page).toHaveURL(new RegExp(`/app/tasks/${task.id}$`));
+  await expect(page.locator("main .badge")).toHaveText("Cancelled");
+  await expect(page.getByRole("button", { name: "Mark as completed", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Save", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Run task", exact: true })).toHaveCount(0);
 });
 
 test("agents are never deleted from the UI (Q1) and Personal Agent keeps its gold role badge", async ({

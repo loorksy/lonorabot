@@ -8,7 +8,7 @@ triggered, a goal or knowledge entry added) and names them with a stable ``code`
 the clients label. The subject is the agent's name, or the task's or skill's own name.
 """
 
-from typing import Any
+from typing import Any, cast
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -45,6 +45,11 @@ def activity_code(event: EventRow) -> str | None:
     if event.kind == "trading.approval.updated":
         return APPROVAL_STATUS.get(status)
     return None
+
+
+def skill_title(payload: dict[str, Any]) -> str:
+    manifest = cast(dict[str, Any], payload.get("manifest") or {})
+    return str(manifest.get("title") or payload.get("name", ""))
 
 
 async def activity(
@@ -101,7 +106,7 @@ async def activity(
     )
     skills = (
         {
-            row.id: str(row.payload.get("name", ""))
+            row.id: skill_title(row.payload)
             for row in await session.scalars(
                 select(SkillRow).where(SkillRow.owner_id == owner_id, SkillRow.id.in_(skill_ids))
             )

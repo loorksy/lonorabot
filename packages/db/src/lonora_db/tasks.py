@@ -348,6 +348,7 @@ async def snapshot(session: AsyncSession, row: TicketRow) -> dict[str, Any]:
         "id": row.id,
         "agent_id": row.agent_id,
         "title": row.payload["title"],
+        "description": row.payload.get("description", ""),
         "version": row.version,
         **state.model_dump(mode="json"),
         "status": status,

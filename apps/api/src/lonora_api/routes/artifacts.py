@@ -4,12 +4,13 @@ from typing import Any
 from fastapi import Depends, File, Form, Request, UploadFile
 from fastapi.responses import FileResponse
 from lonora_auth.identity import OwnerIdentity
-from lonora_contracts.domain import new_id
+from lonora_contracts.domain import Contract, new_id, utcnow
 from lonora_core.attachments import check_size, safe_filename
 from lonora_core.user_error import LonoraError
 from lonora_db.artifacts import ArtifactRepository
 from lonora_db.transactions import resource_data
 from lonora_security.runtime_storage import confined_path
+from pydantic import Field
 
 from ..middleware.auth import require_owner, runtime
 from . import resource_router
@@ -22,6 +23,7 @@ async def upload(
     request: Request,
     file: UploadFile = File(),
     thread_id: str | None = Form(default=None),
+    agent_id: str | None = Form(default=None),
     owner: OwnerIdentity = Depends(require_owner),
 ) -> dict[str, Any]:
     rt = runtime(request)
@@ -45,10 +47,60 @@ async def upload(
                     "media_type": file.content_type or "application/octet-stream",
                     "sha256": hashlib.sha256(content).hexdigest(),
                 },
+                agent_id=agent_id,
                 thread_id=thread_id,
                 resource_id=artifact_id,
             )
         )
+
+
+TEXT_TYPES = {"application/json", "application/xml", "application/x-ndjson"}
+MAX_TEXT_BYTES = 600_000
+
+
+def is_text(media_type: str) -> bool:
+    return media_type.split(";")[0].strip() in TEXT_TYPES or media_type.startswith("text/")
+
+
+class TextContent(Contract):
+    name: str = Field(min_length=1, max_length=160)
+    content: str = Field(max_length=MAX_TEXT_BYTES)
+
+
+@router.put("/{artifact_id}/text")
+async def save_text(
+    request: Request,
+    artifact_id: str,
+    body: TextContent,
+    owner: OwnerIdentity = Depends(require_owner),
+) -> dict[str, Any]:
+    """«تحرير الملف» (Q36): the owner rewrites a text file; other files are not editable."""
+    rt = runtime(request)
+    name = safe_filename(body.name)
+    content = body.content.encode()
+    if len(content) > MAX_TEXT_BYTES:
+        raise LonoraError("attachment_too_large", 413)
+    async with rt.db.sessions() as session, session.begin():
+        row = await ArtifactRepository().get(session, owner.id, artifact_id, lock=True)
+        if not is_text(str(row.payload.get("media_type", ""))):
+            raise LonoraError("artifact_not_text", 409)
+        key = artifact_id + "/" + name
+        path = confined_path(rt.settings.artifact_root, key)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(content)
+        if key != row.payload.get("key"):
+            old = confined_path(rt.settings.artifact_root, str(row.payload["key"]))
+            old.unlink(missing_ok=True)
+        row.payload = {
+            **row.payload,
+            "name": name,
+            "key": key,
+            "size": len(content),
+            "sha256": hashlib.sha256(content).hexdigest(),
+        }
+        row.version += 1
+        row.updated_at = utcnow()
+        return resource_data(row)
 
 
 @router.get("/{artifact_id}/file")

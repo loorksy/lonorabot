@@ -209,7 +209,7 @@ function Hit({
         owner && owner !== item.title ? <span className="search-hit-meta">{owner}</span> : null;
       open = () =>
         skill
-          ? nav.go("/app/settings?tab=capabilities")
+          ? nav.go(`/app/skills/${encodeURIComponent(item.id)}`)
           : nav.go(`/app/knowledge?agent=${encodeURIComponent(item.agent_id ?? "")}`);
     }
   }

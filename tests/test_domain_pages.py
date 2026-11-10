@@ -376,3 +376,38 @@ async def test_seen_all_keeps_action_items_and_activity_comes_from_events():
         assert int(older["items"][0]["id"]) < int(mine[0]["id"])
     finally:
         await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_agent_text_files_upload_and_edit_but_other_files_do_not():
+    database()
+    from check_streaming import Fixture
+
+    fixture = await Fixture().open()
+    try:
+        agent = await fixture.agent("Filer")
+        uploaded = await fixture.client.post(
+            "/api/artifacts/upload",
+            files={"file": ("note.txt", b"first", "text/plain")},
+            data={"agent_id": agent["id"]},
+        )
+        assert uploaded.status_code == 201
+        text = uploaded.json()
+        assert text["agent_id"] == agent["id"]
+        listed = cast(list[Any], await fixture.request("GET", f"/artifacts?agent_id={agent['id']}"))
+        assert [row["id"] for row in listed] == [text["id"]]
+        saved = await fixture.request(
+            "PUT", f"/artifacts/{text['id']}/text", {"name": "plan.md", "content": "second"}
+        )
+        assert saved["payload"]["name"] == "plan.md" and saved["payload"]["size"] == 6
+        body = await fixture.client.get(f"/api/artifacts/{text['id']}/file")
+        assert body.text == "second"
+        image = await fixture.client.post(
+            "/api/artifacts/upload", files={"file": ("a.png", b"\x89PNG", "image/png")}
+        )
+        code, problem = await status_of(
+            fixture, "PUT", f"/artifacts/{image.json()['id']}/text", {"name": "a", "content": "x"}
+        )
+        assert code == 409 and problem["code"] == "artifact_not_text"
+    finally:
+        await fixture.close()
