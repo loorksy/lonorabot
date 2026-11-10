@@ -3,12 +3,14 @@ from typing import Any
 from lonora_contracts.domain import MessageCreate
 from lonora_core.group_mentions import mentions
 from lonora_core.message_replies import require_same_thread
-from lonora_core.run_state import is_conversational
+from lonora_core.run_state import TERMINAL, is_conversational
 from lonora_core.user_error import LonoraError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from .cancellation import cancel_run
 from .events import emit
+from .reactions import reactions_by_message
 from .rich_response import server_rich_content
 from .runs import run_data
 from .schema import (
@@ -41,8 +43,13 @@ async def voice_artifact(
         raise LonoraError("voice_artifact_invalid", 422)
     return artifact
 
+# A direct chat's @mention invites at most this many guests per message (Q29).
+MAX_DIRECT_GUESTS = 2
+
 
 def message_data(row: MessageRow) -> dict[str, Any]:
+    """One message as clients read it. ``reactions`` and ``superseded_by`` are empty here
+    (a new message has neither); ``messages_data`` fills them for a page."""
     return {
         "id": row.id,
         "thread_id": row.thread_id,
@@ -56,7 +63,32 @@ def message_data(row: MessageRow) -> dict[str, Any]:
         "attachment_ids": row.attachment_ids,
         "created_at": row.created_at.isoformat(),
         "client_nonce": row.client_nonce,
+        "suggested_reply": row.suggested_reply,
+        "edited_from": row.edited_from,
+        "superseded_by": None,
+        "reactions": [],
     }
+
+
+async def messages_data(session: AsyncSession, rows: list[MessageRow]) -> list[dict[str, Any]]:
+    """A page of messages with their reactions and ``superseded_by`` (the newer message
+    whose ``edited_from`` is this one), each batch-loaded in one query."""
+    ids = [row.id for row in rows]
+    reactions = await reactions_by_message(session, ids)
+    superseded: dict[str, str] = {}
+    if ids:
+        superseded = {
+            original: newer
+            for newer, original in await session.execute(
+                select(MessageRow.id, MessageRow.edited_from).where(MessageRow.edited_from.in_(ids))
+            )
+            if original
+        }
+    items = [message_data(row) for row in rows]
+    for item in items:
+        item["reactions"] = reactions.get(item["id"], [])
+        item["superseded_by"] = superseded.get(item["id"])
+    return items
 
 
 async def history(
@@ -188,7 +220,7 @@ async def send_message(
             receipt = EffectReceiptRow(key="message:" + existing.id, result={"run_ids": run_ids})
             session.add(receipt)
         return {
-            "message": message_data(existing),
+            "message": (await messages_data(session, [existing]))[0],
             "run_ids": receipt.result.get("run_ids", []),
             "runs": await acknowledged_runs(session, receipt.result.get("run_ids", [])),
             "deduplicated": True,
@@ -238,10 +270,24 @@ async def send_message(
             or request.collaboration_session_id
             or request.attachment_ids
             or (request.reply_to and request.reply_to != answer_question["message_id"])
+            or request.edited_from
         ):
             raise LonoraError("input_answer_invalid", 422)
     for mentioned_id in request.mention_agent_ids:
         await owned_agent(session, owner_id, mentioned_id)
+    # A direct chat's @mention invites other agents as guests (Q29): they join the chat's
+    # current collaboration session, or start one, and answer under their own name.
+    guest_ids = (
+        [
+            identifier
+            for identifier in dict.fromkeys(request.mention_agent_ids)
+            if identifier != thread.agent_id
+        ]
+        if thread.agent_id
+        else []
+    )
+    if len(guest_ids) > MAX_DIRECT_GUESTS:
+        raise LonoraError("collaboration_guest_limit", 422)
     collaboration = None
     if request.mention_all or request.collaboration_session_id:
         from .collaboration import CollaborationRepository, current_session
@@ -257,6 +303,14 @@ async def send_message(
             raise LonoraError("collaboration_thread_mismatch", 409)
         if collaboration is None:
             raise LonoraError("collaboration_session_required", 409)
+    elif guest_ids:
+        from .collaboration import current_session
+
+        # Guests join the chat's open session while it has room for another round;
+        # otherwise the invitation starts a new one.
+        current = await current_session(session, owner_id, thread_id)
+        if current is not None and len(current.state.get("rounds", [])) < 8:
+            collaboration = current
     reply = None
     if request.reply_to:
         reply = await session.get(MessageRow, request.reply_to)
@@ -277,6 +331,8 @@ async def send_message(
                 "transcript_status": "pending",
             }
         )
+    if request.edited_from:
+        await supersede(session, owner_id, thread_id, request.edited_from)
     message = MessageRow(
         thread_id=thread_id,
         seq=thread.next_seq,
@@ -460,15 +516,17 @@ async def admit_runs(
     if thread.agent_id and (request.mention_agent_ids or request.mention_all):
         from .collaboration import invite
 
-        participant_ids = list(request.mention_agent_ids)
-        if collaboration:
+        participant_ids = [i for i in request.mention_agent_ids if i != thread.agent_id]
+        if collaboration and (request.mention_all or request.collaboration_session_id):
             participant_ids.extend(
                 p["agent_id"] for p in collaboration.state.get("participants", [])
             )
+        # A paused guest is not invited; the chat's own agent still answers.
         participant_ids = [
             identifier
             for identifier in dict.fromkeys(participant_ids)
             if identifier != thread.agent_id
+            and not (await owned_agent(session, owner_id, identifier)).paused
         ]
         if participant_ids and run_ids:
             host_run = await session.get(RunRow, run_ids[0])
@@ -484,3 +542,47 @@ async def admit_runs(
                 session_id=collaboration.id if collaboration else None,
             )
     return run_ids
+
+
+async def supersede(
+    session: AsyncSession, owner_id: str, thread_id: str, original_id: str
+) -> MessageRow:
+    """Edit and resend (Q21), inside the admission transaction that holds the thread lock.
+
+    The original must be the owner's own plain text message in this thread (no
+    attachments, voice transcript or input answer) that was not edited before. Its still
+    active conversational runs are cancelled through the ordinary cancellation path; the
+    new message is then admitted normally and carries ``edited_from``. Nothing is deleted.
+    """
+    from .thread_prefs import hidden_floor
+
+    original = await session.get(MessageRow, original_id)
+    if (
+        original is None
+        or original.thread_id != thread_id
+        or original.seq <= await hidden_floor(session, owner_id, thread_id)
+    ):
+        raise LonoraError("message_not_found", 404)
+    receipt = await session.get(EffectReceiptRow, "message:" + original.id)
+    if (
+        original.role != "user"
+        or original.attachment_ids
+        or (original.client_nonce or "").startswith("voice:")
+        or (receipt is not None and receipt.result.get("input_answer"))
+    ):
+        raise LonoraError("message_not_editable", 409)
+    if await session.scalar(select(MessageRow.id).where(MessageRow.edited_from == original.id)):
+        raise LonoraError("message_already_edited", 409)
+    active = list(
+        await session.scalars(
+            select(RunRow.id).where(
+                RunRow.thread_id == thread_id,
+                RunRow.trigger.in_(["user", "group"]),
+                RunRow.input_seq == original.seq,
+                RunRow.status.not_in(TERMINAL),
+            )
+        )
+    )
+    for run_id in active:
+        await cancel_run(session, owner_id, run_id)
+    return original

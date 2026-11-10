@@ -2,7 +2,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, Request
 from lonora_auth.identity import OwnerIdentity
-from lonora_contracts.domain import ThreadCreate
+from lonora_contracts.domain import ThreadCreate, ThreadOptions
 from lonora_contracts.thread_prefs import (
     ReadCursor,
     ThreadPrefsBulkUpdate,
@@ -21,7 +21,7 @@ from lonora_db.thread_prefs import (
     update_prefs,
     update_prefs_bulk,
 )
-from lonora_db.threads import create_thread, list_threads, thread_data
+from lonora_db.threads import create_thread, list_threads, set_thread_options, thread_data
 from lonora_db.transactions import owned_thread
 
 from ..middleware.auth import require_owner, runtime
@@ -111,6 +111,18 @@ async def delete(
         await prepare_delete(session, owner.id, thread_id=thread_id)
         await session.delete(thread)
     return {"deleted": True}
+
+
+@router.put("/{thread_id}/options")
+async def options(
+    request: Request,
+    thread_id: str,
+    body: ThreadOptions,
+    owner: OwnerIdentity = Depends(require_owner),
+) -> dict[str, Any]:
+    """Per-chat options (Q33): ``web_search`` makes the agent gather sources first."""
+    async with runtime(request).db.sessions() as session, session.begin():
+        return thread_data(await set_thread_options(session, owner.id, thread_id, body))
 
 
 @router.post("/{thread_id}/read")

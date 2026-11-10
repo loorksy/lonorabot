@@ -23,6 +23,7 @@ from .progress import progress
 from .public_stream import PublicStream
 from .skills.system_policy import apply_operating_policy
 from .stream_publication import StreamPublication
+from .suggested_reply import split_suggested_reply, suggestion_stream_prefix
 from .visual_response import VisualReplyProjector, visual_observation_catalog
 
 
@@ -113,7 +114,7 @@ async def model_turn(
 
         async def publish(raw: str) -> None:
             nonlocal last_rich, first_publication_ms
-            projection = await compiler.project(raw, partial=True)
+            projection = await compiler.project(suggestion_stream_prefix(raw), partial=True)
             before = len(admission.sent)
             # Completed components are independent boundaries, including images
             # whose backward-compatible text alternative may be only a newline.
@@ -179,6 +180,14 @@ async def model_turn(
     # Providers cannot inject compiled display data. Only this request's output
     # can be compiled against its actual observations and owned resources.
     reply = reply.model_copy(update={"rich_content": None})
+    # The optional trailing suggestion never stays in the answer text (Q23).
+    answer_text, suggested_reply = split_suggested_reply(reply.text)
+    if answer_text != reply.text:
+        before = answer_text.rstrip()
+        # Keep whitespace the stream already published, so the final text extends it.
+        if answer_text.startswith(streaming.sent) and len(streaming.sent) > len(before):
+            before = answer_text[: len(streaming.sent)]
+        reply = reply.model_copy(update={"text": before})
     if resolve_calls is not None and reply.tool_calls:
         reply = reply.model_copy(update={"tool_calls": resolve_calls(reply.tool_calls)})
     await save_usage(
@@ -199,6 +208,9 @@ async def model_turn(
     # The gates read every proposed target, including a bridge call that did
     # not resolve (it fails without dispatching) and calls in a tool-less turn.
     proposed = set[str]().union(*(proposed_names(call) for call in reply.tool_calls))
+    if reply.tool_calls or unverified or proposed:
+        # A suggestion belongs to a final conversational answer only.
+        suggested_reply = None
     if proposed & FINANCIAL_CALLS:
         # Proposed mutations have no broker outcome yet. Keep their execution
         # once, but do not publish premature success beside the proposal.
@@ -223,8 +235,14 @@ async def model_turn(
     protected = redact_private_reply(answer, public_ids=public_ids)
     privacy_redacted = protected != answer or projection.privacy_redacted
     reply = reply.model_copy(update={"text": protected, "rich_content": rich_content})
+    if rich_content is not None and any(
+        part.get("type") == "ui" for part in rich_content.get("parts", [])
+    ):
+        # Never after a card or a generated interface.
+        suggested_reply = None
     reply.provider_metadata = {
         **reply.provider_metadata,
+        "suggested_reply": suggested_reply if reply.text.strip() else None,
         "runtime_capability": capability.value,
         "image_observations": image_diagnostics,
         "public_rewrite": False,

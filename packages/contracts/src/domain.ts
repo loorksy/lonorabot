@@ -28,13 +28,24 @@ export type Agent = {
   trading_symbol?: string | null;
   created_at: string;
 };
+/** Per-chat options the agent reads (Q33). */
+export type ThreadOptions = { web_search: boolean };
 export type Thread = {
   id: string;
   agent_id: string | null;
   group_id: string | null;
   title: string;
+  /** Per-chat options; `web_search` defaults to false. */
+  options?: ThreadOptions;
   created_at: string;
 };
+/** The six quick reactions (Q28), in the reference's order. Mirrors Python REACTION_EMOJIS. */
+export const REACTION_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🙏"] as const;
+export type ReactionEmoji = (typeof REACTION_EMOJIS)[number];
+/** One reaction: `reactor` is "owner" or the reacting agent's id; one per reactor and message. */
+export type MessageReaction = { reactor: string; emoji: ReactionEmoji; created_at: string };
+/** The answer of PUT/DELETE /api/threads/{t}/messages/{m}/reactions. */
+export type MessageReactions = { message_id: string; reactions: MessageReaction[] };
 export type InputAnswer = { run_id: string; question_id: string; choice_id: string };
 /** A recorded voice note: the audio artifact uploaded to the thread, duration and 44 peaks. */
 export type VoiceNote = { artifact_id: string; duration: number; peaks: number[] };
@@ -48,6 +59,8 @@ export type MessageCreate = {
   mention_all?: boolean;
   collaboration_session_id?: string | null;
   input_answer?: InputAnswer | null;
+  /** Edit and resend (Q21): the owner's own text message this one replaces. */
+  edited_from?: string | null;
   voice?: VoiceNote | null;
 };
 export type Message = {
@@ -64,6 +77,15 @@ export type Message = {
   content: string;
   reply_to: string | null;
   attachment_ids: string[];
+  /** Quick reactions on this message (Q26); empty when none. The server always sends the four
+   * WP-D fields below; they are optional only for client-built (optimistic) messages. */
+  reactions?: MessageReaction[];
+  /** The agent's optional next-reply suggestion (<= 60 characters) on a conversational answer (Q23). */
+  suggested_reply?: string | null;
+  /** Edit and resend (Q21): the original owner message this one replaces. */
+  edited_from?: string | null;
+  /** The newer message whose `edited_from` is this one: render this one as superseded. */
+  superseded_by?: string | null;
   created_at: string;
 };
 export type Resource<T = Payload> = {

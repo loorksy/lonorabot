@@ -103,6 +103,8 @@ class MessageCreate(Contract):
     client_nonce: str = Field(default_factory=new_id, min_length=1, max_length=80)
     reply_to: str | None = None
     attachment_ids: list[str] = Field(default_factory=list[str], max_length=10)
+    # Edit and resend (Q21): the owner's text message this one replaces.
+    edited_from: str | None = Field(default=None, max_length=36)
     # An owner voice note: the audio artifact uploaded to this thread. The server
     # transcribes it into the message content before the Agent is asked to answer.
     voice: VoiceNote | None = None
@@ -118,9 +120,17 @@ class MessageCreate(Contract):
             or self.mention_agent_ids
             or self.mention_all
             or self.collaboration_session_id
+            or self.edited_from
         ):
             raise ValueError("voice_note_invalid")
         return self
+
+
+class ThreadOptions(Contract):
+    """Per-chat options the agent reads (Q33): ``web_search`` makes it gather sources with
+    the web_search tool before answering."""
+
+    web_search: bool = False
 
 
 class ResourceInput(Contract):
