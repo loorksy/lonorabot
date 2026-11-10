@@ -1,4 +1,7 @@
-"""Per-agent delivery rules (owner decision Q47).
+"""The owner's name and form of address (WP-H) and per-agent delivery rules (Q47).
+
+``ln_owner_profile`` gains ``name`` and ``address`` («الاسم», «طريقة المخاطبة» of the
+owner form); they are part of the attributed preferences change log.
 
 ``ln_agent_delivery_rules`` holds, per owner and agent, whether the agent's own alerts
 show in the app, whether it may ring the owner, and a daily alert limit. No row means
@@ -10,13 +13,15 @@ column; stored whole-hour policies keep working.
 import sqlalchemy as sa
 from alembic import op
 
-revision = "0051_agent_delivery_rules"
+revision = "0051_owner_identity_and_delivery"
 down_revision = "0045_chat_lists"
 branch_labels = None
 depends_on = None
 
 
 def upgrade() -> None:
+    op.add_column("ln_owner_profile", sa.Column("name", sa.String(80), nullable=True))
+    op.add_column("ln_owner_profile", sa.Column("address", sa.String(80), nullable=True))
     op.create_table(
         "ln_agent_delivery_rules",
         sa.Column(
@@ -44,3 +49,5 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.drop_table("ln_agent_delivery_rules")
+    op.drop_column("ln_owner_profile", "address")
+    op.drop_column("ln_owner_profile", "name")

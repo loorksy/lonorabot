@@ -453,6 +453,9 @@ class OwnerProfileRow(Base):
     version: Mapped[int] = mapped_column(Integer, default=1)
     # None follows the language of the owner's latest message.
     reply_language: Mapped[str | None] = mapped_column(String(8))
+    # «الاسم» and «طريقة المخاطبة» of the owner form (WP-H); None until the owner sets them.
+    name: Mapped[str | None] = mapped_column(String(80))
+    address: Mapped[str | None] = mapped_column(String(80))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 

@@ -96,6 +96,8 @@ const labels = {
 } as const satisfies Record<string, Text>;
 
 const fields: Readonly<Record<string, Text>> = {
+  name: { en: "Name", ar: "الاسم" },
+  address: { en: "Form of address", ar: "طريقة المخاطبة" },
   reply_language: { en: "Reply language", ar: "لغة الردود" },
   reach_me: { en: "How to reach you", ar: "كيف نتواصل معك" },
   quiet_hours: { en: "Quiet hours", ar: "أوقات الهدوء" },

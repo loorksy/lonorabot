@@ -67,6 +67,10 @@ async def owner_preferences_section(session: AsyncSession, owner_id: str) -> Con
         "quiet_hours": quiet,
         "delivery": preferences["delivery"],
     }
+    # «الاسم» / «طريقة المخاطبة» of the owner form: how agents name and address the owner.
+    for key in ("name", "address"):
+        if preferences.get(key):
+            body[key] = preferences[key]
     if truncated:
         body["older_lines_omitted"] = (
             "The profile is over its size limit; summarize it with memory_write (USER.md)."

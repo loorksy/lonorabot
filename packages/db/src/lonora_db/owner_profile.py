@@ -43,6 +43,8 @@ def owner_profile_data(row: OwnerProfileRow | None) -> dict[str, Any]:
         "content": row.content if row else "",
         "version": row.version if row else 1,
         "reply_language": row.reply_language if row else None,
+        "name": row.name if row else None,
+        "address": row.address if row else None,
         "updated_at": row.updated_at.isoformat() if row else None,
         "chars": len(row.content) if row else 0,
         "limit": OWNER_PROFILE_CHAR_LIMIT,
@@ -196,10 +198,20 @@ async def enrolled_devices(session: AsyncSession, owner_id: str) -> list[DeviceC
     )
 
 
-def preferences_snapshot(policy: IncomingCallPolicy, reply_language: str | None) -> str:
+def preferences_snapshot(
+    policy: IncomingCallPolicy,
+    reply_language: str | None,
+    name: str | None = None,
+    address: str | None = None,
+) -> str:
     """Canonical text of the structured preferences, as a revision stores it."""
     return json.dumps(
-        {"reply_language": reply_language, "reach_me": policy.model_dump(mode="json")},
+        {
+            "reply_language": reply_language,
+            "reach_me": policy.model_dump(mode="json"),
+            "name": name,
+            "address": address,
+        },
         sort_keys=True,
         ensure_ascii=False,
     )
@@ -221,6 +233,8 @@ def _quiet(policy: dict[str, Any]) -> str | None:
 
 
 PREFERENCE_FIELDS: tuple[tuple[str, Callable[[dict[str, Any]], Any]], ...] = (
+    ("name", lambda value: value.get("name")),
+    ("address", lambda value: value.get("address")),
     ("reply_language", lambda value: value.get("reply_language")),
     ("reach_me", lambda value: value.get("reach_me", {}).get("channel")),
     ("quiet_hours", lambda value: _quiet(value.get("reach_me", {}))),
@@ -250,6 +264,8 @@ async def save_owner_preferences(
     *,
     policy: IncomingCallPolicy | None = None,
     reply_language: ReplyLanguage | None | Literal["keep"] = "keep",
+    name: str | None | Literal["keep"] = "keep",
+    address: str | None | Literal["keep"] = "keep",
     author: Author,
     author_agent_id: str | None = None,
     source_message_id: str | None = None,
@@ -260,20 +276,23 @@ async def save_owner_preferences(
     await reach_me_lock(session, owner_id)
     current = await reach_me_policy(session, owner_id, fresh=True)
     row = await locked_owner_profile(session, owner_id)
-    before = preferences_snapshot(current, row.reply_language)
+    before = preferences_snapshot(current, row.reply_language, row.name, row.address)
     target = policy or current
     if policy is not None and policy.enabled:
         # Only a changed reach-me needs a valid device; a language change never fails on it.
         await verified_device(session, owner_id, policy.device_id or "")
     language = row.reply_language if reply_language == "keep" else reply_language
-    after = preferences_snapshot(target, language)
+    new_name = row.name if name == "keep" else (name or "").strip() or None
+    new_address = row.address if address == "keep" else (address or "").strip() or None
+    after = preferences_snapshot(target, language, new_name, new_address)
     if after == before:
-        return {**preferences_data(target, language), "changed": False}
+        return {**preferences_data(target, language, row), "changed": False}
     if policy is not None:
         await SettingsRepository().put(
             session, REACH_ME_KEY + owner_id, policy.model_dump(mode="json")
         )
     row.reply_language = language
+    row.name, row.address = new_name, new_address
     row.updated_at = utcnow()
     revision = await record_revision(
         session,
@@ -302,11 +321,15 @@ async def save_owner_preferences(
             "fields": [item["field"] for item in preference_changes(before, after)],
         },
     )
-    return {**preferences_data(target, language), "changed": True}
+    return {**preferences_data(target, language, row), "changed": True}
 
 
-def preferences_data(policy: IncomingCallPolicy, reply_language: str | None) -> dict[str, Any]:
+def preferences_data(
+    policy: IncomingCallPolicy, reply_language: str | None, row: OwnerProfileRow | None = None
+) -> dict[str, Any]:
     return {
+        "name": row.name if row else None,
+        "address": row.address if row else None,
         "reply_language": reply_language,
         "reach_me": policy.channel,
         "quiet_start_hour": policy.quiet_start_hour,
@@ -325,7 +348,7 @@ def preferences_data(policy: IncomingCallPolicy, reply_language: str | None) -> 
 async def owner_preferences(session: AsyncSession, owner_id: str) -> dict[str, Any]:
     row = await read_owner_profile(session, owner_id)
     return preferences_data(
-        await reach_me_policy(session, owner_id), row.reply_language if row else None
+        await reach_me_policy(session, owner_id), row.reply_language if row else None, row
     )
 
 
@@ -340,6 +363,16 @@ def _undo_text(before: str, after: str) -> ProfileTransform:
         return content, {}
 
     return undo
+
+
+def undone_identity(revision: MemoryRevisionRow) -> dict[str, str | None]:
+    """The name / form of address one change set, back to what it was before."""
+    try:
+        old: dict[str, Any] = json.loads(revision.previous_content)
+        new: dict[str, Any] = json.loads(revision.content)
+    except ValueError:
+        raise LonoraError("memory_revision_invalid", 409) from None
+    return {key: old.get(key) for key in ("name", "address") if old.get(key) != new.get(key)}
 
 
 def undone_preferences(
@@ -427,11 +460,14 @@ async def revert_revision(
     await reach_me_lock(session, owner_id)
     current = await reach_me_policy(session, owner_id, fresh=True)
     policy, language = undone_preferences(revision, current)
+    identity = undone_identity(revision)
     return await save_owner_preferences(
         session,
         owner_id,
         policy=policy,
         reply_language=language,
+        name=identity.get("name", "keep"),
+        address=identity.get("address", "keep"),
         author="owner",
         reverted_revision_id=revision.id,
     )

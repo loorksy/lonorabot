@@ -42,10 +42,14 @@ class OwnerProfileUpdate(Contract):
 
 
 class OwnerPreferencesUpdate(Contract):
-    """The owner's own reach-me preference and reply language, saved as one change."""
+    """The owner's own preferences, saved as one change: the reach-me policy and reply
+    language, and «الاسم» / «طريقة المخاطبة» (WP-H). A field left out stays as it is,
+    except reply_language beside a reach_me (the clients that always send both)."""
 
     reply_language: Literal["ar", "en"] | None = None
-    reach_me: IncomingCallPolicy
+    reach_me: IncomingCallPolicy | None = None
+    name: str | None = Field(default=None, max_length=80)
+    address: str | None = Field(default=None, max_length=80)
 
 
 class RevisionRevert(Contract):
@@ -127,11 +131,16 @@ async def write_preferences(
     request: Request, body: OwnerPreferencesUpdate, owner: OwnerIdentity = Depends(require_owner)
 ) -> dict[str, Any]:
     async with runtime(request).db.sessions() as session, session.begin():
+        fields = body.model_fields_set
         await save_owner_preferences(
             session,
             owner.id,
             policy=body.reach_me,
-            reply_language=body.reply_language,
+            reply_language=body.reply_language
+            if "reply_language" in fields or body.reach_me is not None
+            else "keep",
+            name=body.name if "name" in fields else "keep",
+            address=body.address if "address" in fields else "keep",
             author="owner",
         )
     return await profile_payload(request, owner.id)
