@@ -10,6 +10,11 @@
 #                   this installation can run beside another one (default: lonora).
 #   --behind-proxy  An existing reverse proxy (e.g. traefik) owns 80/443: run Caddy in
 #                   plain HTTP on this loopback address:port only. Nothing binds 80/443.
+#   --env-from FILE Reuse settings and secrets from an earlier installation's .env: only the
+#                   keys this version knows (ENV_FROM_KEYS below) are copied; the database
+#                   password is always new. Names are listed, values are never printed.
+#   --overlay FILE  Add a Compose overlay from the bundle (repeatable), e.g.
+#                   infra/analysis/compose.workspace.yml for the analysis workspace host.
 #
 # Get this file without a checkout:
 #   docker run --rm --entrypoint cat ghcr.io/loorksy/lonorabot:main /app/deploy/infra/compose/install.sh >install.sh
@@ -20,16 +25,26 @@
 set -euo pipefail
 umask 077
 
-home=/opt/lonora domain="" version=main systemd=true project=lonora proxy_listen=""
+home=/opt/lonora domain="" version=main systemd=true project=lonora proxy_listen="" env_from="" overlays=""
+# Keys --env-from may copy. Everything else (database password, image, artifact root, LiveKit,
+# overlays, project, ports) is set by this installer or not used by this version.
+ENV_FROM_KEYS=" LONORA_DOMAIN LONORA_ENCRYPTION_KEY LONORA_BOOTSTRAP_TOKEN LONORA_WEBHOOK_SECRET
+ LONORA_PASSKEY_ANDROID_FINGERPRINTS LONORA_PASSKEY_ANDROID_PACKAGE LONORA_PASSKEY_IOS_APP_IDS
+ LONORA_MAXIMUM_SUBAGENTS LONORA_MAXIMUM_TOOL_ROUNDS LONORA_RUN_LEASE_SECONDS LONORA_WORKER_POLL_SECONDS
+ LONORA_SESSION_SECONDS LONORA_LOG_LEVEL LONORA_MCP_DECLARATIONS LONORA_MCP_OWNER_TRUST
+ LONORA_OPENAI_API_KEY LONORA_ANTHROPIC_API_KEY LONORA_DEEPSEEK_API_KEY LONORA_ZAI_API_KEY LONORA_OPENROUTER_API_KEY "
 min_ram_mb="${LONORA_MIN_FREE_RAM_MB:-2560}" min_disk_gb="${LONORA_MIN_FREE_DISK_GB:-10}"
 repo="${LONORA_IMAGE_REPO:-ghcr.io/loorksy/lonorabot}"
+domain_given=false
 while (($#)); do
     case "$1" in
-        --domain) domain="${2:?}"; shift 2 ;;
+        --domain) domain="${2:?}"; domain_given=true; shift 2 ;;
         --version) version="${2:?}"; shift 2 ;;
         --home) home="${2:?}"; shift 2 ;;
         --project) project="${2:?}"; shift 2 ;;
         --behind-proxy) proxy_listen="${2:?}"; shift 2 ;;
+        --env-from) env_from="${2:?}"; shift 2 ;;
+        --overlay) overlays+="${overlays:+ }${2:?}"; shift 2 ;;
         --min-free-ram-mb) min_ram_mb="${2:?}"; shift 2 ;;
         --min-free-disk-gb) min_disk_gb="${2:?}"; shift 2 ;;
         --no-systemd) systemd=false; shift ;;
@@ -42,7 +57,12 @@ die() { printf 'install: %s\n' "$*" >&2; exit 1; }
 [[ "$EUID" -eq 0 || -n "${LONORA_INSTALL_ALLOW_NON_ROOT:-}" ]] || die 'Run as root (sudo).'
 command -v docker >/dev/null || die 'Docker is required: https://docs.docker.com/engine/install/'
 docker compose version >/dev/null 2>&1 || die 'The Docker Compose plugin is required (package docker-compose-plugin).'
-[[ -n "$domain" ]] || die '--domain is required.'
+if [[ -n "$env_from" ]]; then
+    [[ -r "$env_from" && -f "$env_from" ]] || die "--env-from $env_from is not a readable file."
+    env_from="$(readlink -f "$env_from")"
+    if [[ -z "$domain" ]]; then domain="$(sed -n 's/^LONORA_DOMAIN=//p' "$env_from" | tail -n 1 | tr -d "\"'")"; fi
+fi
+[[ -n "$domain" ]] || die '--domain is required (or a LONORA_DOMAIN in --env-from).'
 
 # --- preflight: read only; refuse before anything is created -------------------------
 problems=0
@@ -88,6 +108,15 @@ else
         if port_in_use "$port"; then check false "port $port is in use (use --behind-proxy if a reverse proxy owns it)"; else check true "port $port is free"; fi
     done
 fi
+for overlay in $overlays; do
+    case "$overlay" in
+        infra/research/compose.research.yml) check true "overlay $overlay (adds about 1.1 GB)" ;;
+        infra/analysis/compose.workspace.yml)
+            if [[ -S /run/lonora-analysis/host.sock ]]; then check true "overlay $overlay: workspace host socket /run/lonora-analysis/host.sock is up"
+            else check false "overlay $overlay needs the workspace host running (/run/lonora-analysis/host.sock is missing; docs/operations.md, \"Analysis workspace host\")"; fi ;;
+        *) check false "overlay $overlay is not one of the bundled overlays" ;;
+    esac
+done
 ram_mb=$(($(sed -n 's/^MemAvailable: *\([0-9]*\) kB/\1/p' /proc/meminfo) / 1024))
 if ((ram_mb >= min_ram_mb)); then check true "available memory ${ram_mb} MB (need ${min_ram_mb} MB)"; else check false "available memory ${ram_mb} MB, below ${min_ram_mb} MB (the stack is limited to about 2.3 GB)"; fi
 disk_dir="$(existing_dir "$home")"
@@ -136,7 +165,7 @@ LONORA_ENCRYPTION_KEY=$(random 32 | tr '+/' '-_')
 LONORA_BOOTSTRAP_TOKEN=$(random 32 | tr '+/' '-_' | tr -d '=')
 LONORA_WEBHOOK_SECRET=$(random 32 | tr '+/' '-_' | tr -d '=')
 # Optional overlays, space separated, e.g. infra/research/compose.research.yml (adds ~1.1 GB)
-LONORA_COMPOSE_OVERLAYS=
+LONORA_COMPOSE_OVERLAYS=$overlays
 # Resource limits (defaults shown; about 2.3 GB in all):
 # LONORA_DB_MEMORY=512m LONORA_DB_CPUS=0.5 LONORA_API_MEMORY=896m LONORA_API_CPUS=0.75
 # LONORA_GATEWAY_MEMORY=768m LONORA_GATEWAY_CPUS=0.75 LONORA_CADDY_MEMORY=96m LONORA_CADDY_CPUS=0.25
@@ -146,6 +175,23 @@ LONORA_ANTHROPIC_API_KEY=
 EOF
 chmod 600 .env
 say "Created $home/.env with freshly generated secrets."
+if [[ -n "$env_from" ]]; then
+    # Copy the known keys over the generated values; never print a value.
+    copied="" ignored="" line name value
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        [[ "$line" =~ ^[[:space:]]*(#|$) ]] && continue
+        name="${line%%=*}"; value="${line#*=}"
+        [[ "$line" == *=* && "$name" =~ ^[A-Z][A-Z0-9_]*$ ]] || { ignored+=" (an unreadable line)"; continue; }
+        if [[ "$ENV_FROM_KEYS" != *" $name "* || ( "$name" == LONORA_DOMAIN && "$domain_given" == true ) ]]; then ignored+=" $name"; continue; fi
+        [[ "$value" != *[[:cntrl:]]* ]] || die "--env-from: $name has a control character; nothing more was changed."
+        { grep -v "^$name=" .env || true; printf '%s=%s\n' "$name" "$value"; } >.env.next
+        mv -f .env.next .env
+        copied+=" $name"
+    done <"$env_from"
+    chmod 600 .env
+    say "From $env_from copied:${copied:- nothing}"
+    say "Not copied (set here, or not used by this version):${ignored:- nothing}"
+fi
 if [[ ! -f backup.key && -z "${LONORA_BACKUP_KEY:-}" ]]; then
     random 48 >backup.key
     chmod 600 backup.key

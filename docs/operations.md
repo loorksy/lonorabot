@@ -21,6 +21,8 @@
 - **الخادم الحالي (VPS) — تثبيت جنبًا إلى جنب:** على خادمك يعمل traefik على المنفذين 80 و443 ومعه مشاريع أخرى وLonora القديم. التثبيت الجديد لا يلمس أيًّا منها: يُثبَّت باسم مشروع مستقل ومجلد مستقل، ويستمع على عنوان داخلي واحد فقط، مثلًا:
   `sudo bash install.sh --home /opt/lonora2 --project lonora2 --behind-proxy 127.0.0.1:18030 --domain <اسم تجريبي> --version <الإصدار>`
   يفحص المثبّت قبل أي تغيير: أن المنفذ غير مستخدم، وأن المجلد فارغ من أي تثبيت، وأن اسم المشروع غير مستخدم، وأن الذاكرة والمساحة كافيتان، ويطبع ما وجده ويرفض إن فشل أي فحص. لكل خدمة حدّ للذاكرة والمعالج (نحو 2.3 غيغابايت للمجموع)، وخدمات البحث والمتصفح معطلة افتراضيًا.
+- **إعادة استخدام الأسرار الحالية:** الخيار `--env-from /opt/lonora/.env` ينسخ من ملف الإعدادات القديم المفاتيح التي يعرفها الإصدار الجديد فقط (مفتاح التشفير الذي تُفك به مفاتيح المزودين والوسيط المحفوظة، وسر الـ webhook، وبصمات passkey لتطبيق أندرويد، والنطاق، وإعدادات الضبط)، ويطبع أسماءها فقط دون أي قيمة، ويُنشئ كلمة مرور جديدة لقاعدة البيانات الجديدة، ويتجاهل الباقي (LiveKit وIMAGE وARTIFACT_ROOT وغيرها) ويذكر أسماءها.
+- **مضيف مساحة التحليل:** الخدمة `lonora-analysis.service` على الخادم تبقى كما هي؛ يربطها التثبيت الجديد بالخيار `--overlay infra/analysis/compose.workspace.yml`، ويرفض المثبّت إن لم يكن مقبسها `/run/lonora-analysis/host.sock` قائمًا.
 - **التحويل لاحقًا (قرارك أنت ومتى تشاء):** أولًا تجرّب النسخة الجديدة على اسم تجريبي (مثل `next.lonora.lork.cloud`) عبر ملف traefik جديد `lonora-next.yml`. عند التحويل تغيّر سطرًا واحدًا فقط في `lonora.yml` (العنوان `http://127.0.0.1:18010` يصبح `http://127.0.0.1:18030`)، ثم توقف النسخة القديمة دون حذف شيء. تنبيه: ملف معطوب في مجلد traefik قد يعطّل كل المواقع على الخادم، لذا اكتب الملف باسم مؤقت وتحقق منه ثم انقله إلى مكانه. المثبّت لا يكتب في مجلد traefik أبدًا. الخطوات في قسمي «Side by side» و«Switch over later» أدناه.
 - **البناء على الخادم:** ما دام GitHub Actions متوقفًا، يبني الأمر `infra/compose/build-from-source.sh` الصورة على الخادم بحدود معالج وذاكرة، ويضعها في سجل محلي على `127.0.0.1` فقط، ثم يتم التثبيت أو التحديث منها كالمعتاد.
 
@@ -73,8 +75,24 @@ sudo bash install.sh --domain lonora.example.com --version main
 `--version` takes a tag (`main`, `v0.3.0`), an exact `repo@sha256:…` reference, or an image built on
 the server (`127.0.0.1:5055/lonora:v0.3.0`, see «Build from source on the server»). Other options:
 `--home DIR` (default `/opt/lonora`), `--project NAME` (default `lonora`), `--behind-proxy
-127.0.0.1:PORT` (see «Side by side»), `--min-free-ram-mb` (default 2560), `--min-free-disk-gb`
-(default 10), `--no-systemd`.
+127.0.0.1:PORT` (see «Side by side»), `--env-from FILE`, `--overlay FILE` (repeatable),
+`--min-free-ram-mb` (default 2560), `--min-free-disk-gb` (default 10), `--no-systemd`.
+
+`--env-from /opt/lonora/.env` reuses settings and secrets from an earlier installation. It copies
+only keys this version knows — `LONORA_ENCRYPTION_KEY` (provider and broker keys saved in a database
+are encrypted with it), `LONORA_BOOTSTRAP_TOKEN`, `LONORA_WEBHOOK_SECRET`,
+`LONORA_PASSKEY_ANDROID_FINGERPRINTS` / `_PACKAGE` / `LONORA_PASSKEY_IOS_APP_IDS` (tied to the app's
+signing keys), `LONORA_DOMAIN` (unless `--domain` is given), the tuning keys
+(`LONORA_MAXIMUM_SUBAGENTS`, `LONORA_MAXIMUM_TOOL_ROUNDS`, `LONORA_RUN_LEASE_SECONDS`,
+`LONORA_WORKER_POLL_SECONDS`, `LONORA_SESSION_SECONDS`, `LONORA_LOG_LEVEL`), the MCP declarations and
+provider API keys. The database password is always new (a fresh database). Everything else —
+`LONORA_POSTGRES_PASSWORD`, `LONORA_IMAGE`, `LONORA_ARTIFACT_ROOT`, `LONORA_LIVEKIT_*` and any other
+key — is not copied. It prints the copied and the ignored key **names**, never a value, and the new
+`.env` is mode 600.
+
+`--overlay` adds a bundled overlay at install time (`infra/research/compose.research.yml`,
+`infra/analysis/compose.workspace.yml`); the preflight refuses the workspace overlay while its host
+socket is missing.
 
 First a **preflight**, which changes nothing and prints each finding as `ok` or `FAIL`: the home
 directory holds no installation; no `<project>_database` volume and no container of the project
@@ -187,6 +205,22 @@ python3 -c 'import sys, yaml; yaml.safe_load(open(sys.argv[1]))' .lonora-next.ym
 (Without PyYAML, `docker run --rm -v "$PWD":/d mikefarah/yq:4 e . /d/.lonora-next.yml.tmp` checks it
 the same way.) Check the entry point names (`websecure` above) against the existing files in that
 directory and use the same ones.
+
+### Analysis workspace host
+
+The analysis workspace (agents running analysis code in isolated containers) needs a trusted host
+service, `lonora-analysis.service` (a venv in `/opt/lonora-analysis`, socket
+`/run/lonora-analysis/host.sock`; `docs/analytical-workspace.md`). It is a host-level control plane
+with Docker access, so the installer neither installs nor upgrades it. On the owner's VPS it already
+runs for the old stack, and the new installation uses the same socket:
+
+1. Check it runs: `systemctl status lonora-analysis` and `test -S /run/lonora-analysis/host.sock`.
+2. Install with `--overlay infra/analysis/compose.workspace.yml`, or on an existing installation add
+   `infra/analysis/compose.workspace.yml` to `LONORA_COMPOSE_OVERLAYS` in `.env` and run
+   `sudo lonora start`. The overlay mounts only the socket directory, read-only, into the API and the
+   Gateway (group 10001), with `LONORA_WORKSPACE_SOCKET` set; it never mounts the Docker socket.
+3. When the old stack is deleted, leave the service running: the new installation uses it.
+   Upgrading the service itself follows `docs/analytical-workspace.md` (its reviewed venv and image ID).
 
 ## Switch over later
 
@@ -453,8 +487,8 @@ can be deleted. Until then they are the only way back to the old system.
 machine. It uses the projects `lonora` and `lonora2`, their volume names, ports 80/443 and
 `127.0.0.1:18010`/`18030`, so it refuses to run where either project exists. It checks:
 
-1. install: digest pinned, secrets mode 600, bundle modes, refusal of its own home and of a
-   leftover `lonora_database` volume next to a new home;
+1. install: digest pinned, secrets mode 600, bundle modes, refusal of its own home (naming
+   `sudo lonora start`) and of a leftover `lonora_database` volume next to a new home;
 2. no secret and no legacy deployment path in the image's bundle or `release.json`;
 3. seed an owner account and an artifact;
 4. backup: not a readable tar; the decrypted copy holds the dump and `.env`, the file neither;
@@ -463,29 +497,38 @@ machine. It uses the projects `lonora` and `lonora2`, their volume names, ports 
 7. a failing and a truncating `pg_dump`: the update aborts before pinning, the live database untouched;
 8. refusals: a concurrent operation, no pin, a tag (not digest) pin, an image without a manifest;
 9. update: API gated before the Gateway, script replaced atomically, writes open again after;
-10. a broken update: writes answered `503 «يجري التحديث»` during it, rolled back from the pre-update
-    backup, earlier rows kept;
+10. a broken update: `503 «يجري التحديث»` while API and Gateway are stopped, writes open while the new
+    Gateway runs, rolled back from the pre-update backup, earlier rows kept;
 11. the same with `pg_restore` failing after `DROP DATABASE`: the rollback stops at phase
     `restoring` with a working command, and `lonora rollback` retries and completes;
 12. an update killed mid-way: marker kept, `start` refused, the next update rolls back and completes;
 13. restore from another directory with the database stopped, of the oldest backup while rotation
-    would delete it: safety backup, file kept, older schema migrated up;
+    would delete it: read-only (503, no Gateway) during its safety backup, file kept, older schema
+    migrated up; then a restore failing after `DROP DATABASE`: the printed command resumes without a
+    second safety backup while `update` refuses; `KEEP=1` keeps a held backup and `KEEP=0` is refused;
 14. a restriction written during the gate: held; `--keep-data` with the same digest stays held, a
-    bad tag changes nothing, a fixed version updates forward keeping the restriction;
+    bad tag changes nothing, another failing version returns to the hold, a fixed version updates
+    forward keeping the restriction;
 15. a trading-journal row written during the gate: held; backups during the hold keep its backup;
     `rollback` still holds; `rollback --force` restores;
 16. disaster recovery: a newer backup refused on an older image; `--with-config` restores the
     secrets and keeps the new database password;
-17. side by side: beside a running dummy project named `lonora` (its volumes, network `lonora-net`,
-    a service on `127.0.0.1:18010`), the preflight refuses the taken project, a used port, a public
-    address, and too little memory or disk, creating nothing; then `lonora2` installs in proxy mode,
-    publishes only `127.0.0.1:18030` (`/health` 200 through it), carries the memory and CPU limits,
-    updates, backs up and passes a restore test — and the old project's container IDs, start times,
-    volumes and network are identical before, during and after, also after `lonora2` is removed;
-18. no secret (encryption key, backup key, database passwords, bootstrap token, webhook secret) in
-    any log the test wrote or in `state/history.log`.
+17. side by side, with `--env-from` an old `.env` (known keys copied, a fresh database password,
+    names listed, no value printed): beside a running dummy project named `lonora` (its volumes,
+    network `lonora-net`, a service on `127.0.0.1:18010`), the preflight refuses the taken project, a
+    used port, a public address, and too little memory or disk, creating nothing; then `lonora2`
+    installs in proxy mode, publishes only `127.0.0.1:18030` (`/health` 200 through it), carries the
+    memory and CPU limits, updates, backs up and passes a restore test — and the old project's
+    container IDs, start times, volumes and network are identical before, during and after;
+18. no secret (encryption keys, backup key, database passwords, bootstrap token, webhook secrets,
+    the old `.env`'s values) in any log the test wrote or in `state/history.log`.
 
-`REPO` must hold the tags `old`, `v1`, `v2`, `v4-good`, `v3-broken` and `v3-fixed`. Build them with
+Also: an install with no schema yet is brought up by `update` of the pinned version and by the named
+`sudo lonora start` (1b); a rollback whose `/ready` fails leaves writes open and the next
+`lonora rollback` completes (10c); 503 is asserted while API and Gateway are stopped and writes are
+open while the new Gateway runs (10). 21 checks in all.
+
+`REPO` must hold the tags `old`, `v1`, `v2`, `v4-good`, `v3-broken`, `v3-broken2` and `v3-fixed`. Build them with
 `tests/ops/build_test_images.sh REPO`, into any registry you control:
 
 ```sh
@@ -495,11 +538,12 @@ bash tests/ops/lifecycle_test.sh localhost:5000/lonora
 ```
 
 It builds `old` from main at `80e195f` (the last commit before this tooling, override with
-`OLD_SHA`), `v1` and `v2` from the checkout with different `LONORA_VERSION`, and three probe images
+`OLD_SHA`), `v1` and `v2` from the checkout with different `LONORA_VERSION`, and four probe images
 on top of `v2` from `tests/ops/fixtures`: `v4-good` (+ `9998_good_probe`), `v3-broken` (+ 9998 and
-`9999_broken_probe`, with a Gateway that never starts) and `v3-fixed` (the same migrations, working).
-The probes chain onto `v2`'s migration head at build time and exist only inside those test images.
-It pushes all six and prints their digests (also written to `.runtime/ops-test-images.txt`). Where
+`9999_broken_probe`, with a Gateway that never starts), `v3-broken2` (`v3-broken` under another
+version) and `v3-fixed` (the same migrations, working). The probes chain onto `v2`'s migration head
+at build time and exist only inside those test images. It pushes all seven and prints their digests
+(also written to `.runtime/ops-test-images.txt`). Where
 the Debian mirror is unreachable, `LONORA_TEST_SKIP_APT=1` drops the Chromium/fonts line;
 `LONORA_BUILD_CA_FILE` and `LONORA_BUILD_NETWORK=host` help behind a TLS-intercepting proxy on
 `127.0.0.1`. The runs reported here used all three.
@@ -507,7 +551,7 @@ the Debian mirror is unreachable, `LONORA_TEST_SKIP_APT=1` drops the Chromium/fo
 ### What was verified, and what still needs a real host
 
 Verified in a development container with Docker 29.9 and Compose 5.6, real images, a real local
-registry (real digests), PostgreSQL 16 and Caddy 2.10: all 18 lifecycle checks passed. The
+registry (real digests), PostgreSQL 16 and Caddy 2.10: all 21 lifecycle checks passed. The
 fresh-start steps 2, 4 and 5 were also run here against volumes named like the old ones: both
 archives were complete, and the new install came up with `/ready` passing and an empty database.
 

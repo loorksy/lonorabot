@@ -5,11 +5,12 @@
 #   bash tests/ops/lifecycle_test.sh REPO
 #
 # REPO is a registry repository holding these tags; tests/ops/build_test_images.sh REPO
-# builds and pushes all six:
+# builds and pushes all seven:
 #   old        an image built from a commit before this tooling (no bundle, no manifest)
 #   v1, v2     two builds of this tree with different LONORA_VERSION build args
 #   v4-good    v2 + a working migration (9998_good_probe)
 #   v3-broken  v4-good + a schema-changing migration (9999) and a Gateway that never starts
+#   v3-broken2 the same as v3-broken under another version (a second failing release)
 #   v3-fixed   v3-broken's migrations with a working Gateway
 # It uses the Compose projects "lonora" and "lonora2", their volume names, ports 80/443 and
 # 127.0.0.1:18010/18030, so it refuses to run where either project exists. Use a
@@ -96,6 +97,13 @@ db_wrapper() { # $1 binary in the db container, $2 shell body that runs before t
     dc exec -T db sh -c "mv /usr/local/bin/$1 /usr/local/bin/$1.real && printf '#!/bin/sh\n%s\nexec /usr/local/bin/$1.real \"\$@\"\n' '$2' >/usr/local/bin/$1 && chmod 755 /usr/local/bin/$1"
 }
 db_unwrap() { dc exec -T db sh -c "mv -f /usr/local/bin/$1.real /usr/local/bin/$1"; }
+FAIL_RESTORE_ONCE='case "$*" in *"-d lonora"*) if [ -f /tmp/fail-once ]; then rm -f /tmp/fail-once; cat >/dev/null; exit 1; fi;; esac'
+run_printed() { # $1 log: run the "sudo lonora ..." command it printed, as root here
+    local line; line="$(grep -o 'sudo lonora [^;)]*--replace[^;)]*' "$1" | tail -n 1 | sed 's/^sudo lonora //')"
+    [[ -n "$line" ]] || return 1
+    # shellcheck disable=SC2086
+    lonora $line
+}
 
 # 1. Install with no toolchain beyond Docker and gpg.
 install_fresh v1
@@ -110,11 +118,23 @@ webhook="$(sed -n 's/^LONORA_WEBHOOK_SECRET=//p' "$home/.env")"
 new_password=""
 if LONORA_INSTALL_ALLOW_NON_ROOT=1 bash "$root/infra/compose/install.sh" --home "$home" --domain localhost --version v1 --no-systemd >"$work/reinstall.log" 2>&1; then fail 'installer ran over an installation'; fi
 grep -q 'already holds an installation' "$work/reinstall.log" || fail 'reinstall refusal message'
+grep -q 'sudo lonora start' "$work/reinstall.log" || fail 'reinstall refusal names sudo lonora start'
 if LONORA_INSTALL_ALLOW_NON_ROOT=1 bash "$root/infra/compose/install.sh" --home "$work/other" --domain localhost --version v1 --no-systemd >"$work/othervolume.log" 2>&1; then fail 'installer reused the existing lonora_database volume'; fi
 grep -q 'lonora_database already exists' "$work/othervolume.log" || fail 'volume guard message'
 grep -q 'Preflight failed' "$work/othervolume.log" || fail 'preflight verdict'
 [[ ! -e "$work/other/.env" ]] || fail 'volume guard wrote a second installation'
-ok 'install: digest pinned, /ready, secrets 600, bundle modes 644/755; refuses its own home and a leftover lonora_database volume'
+ok 'install: digest pinned, /ready, secrets 600, bundle modes 644/755; refuses its own home (naming start) and a leftover lonora_database volume'
+
+# 1b. An install that stopped before its first migration: the named commands bring it up.
+dc stop gateway api >/dev/null 2>&1
+dc exec -T db psql -U lonora -d postgres -qc 'DROP DATABASE lonora WITH (FORCE)' -c 'CREATE DATABASE lonora OWNER lonora' >/dev/null
+lonora update v1 >"$work/empty-update.log" 2>&1 || { show "$work/empty-update.log"; fail 'update of the pinned version on an empty database'; }
+grep -q 'already pinned; starting it behind the health gates' "$work/empty-update.log" || fail 'empty database: update hands over to the gated start'
+dc stop gateway api >/dev/null 2>&1
+lonora start >"$work/empty-start.log" 2>&1 || { show "$work/empty-start.log"; fail 'start'; }
+[[ "$(revision)" == "$base_head" ]] || fail 'empty database migrated'
+ready || fail 'ready after start'
+ok 'no schema yet: update of the pinned version and the named sudo lonora start both migrate, start and reach /ready'
 
 # 2. The image's deployment bundle and release manifest carry no secrets.
 container="$(docker create "$repo:v1")"
@@ -236,12 +256,18 @@ ok 'update v2: backup first, migrate step, API then Gateway, /ready, digest pinn
 # 10. A failing update with no owner or money writes rolls back image and schema; while it
 # runs, Caddy refuses writes with the maintenance answer.
 dc exec -T db psql -U lonora -d lonora -qc "CREATE TABLE ops_probe (note text); INSERT INTO ops_probe VALUES ('before-update')" >/dev/null
+db_wrapper pg_restore 'sleep 6'
 lonora update v3-broken >"$work/broken.log" 2>&1 &
 updater=$!
-wait_phase gateway "$updater" || { show "$work/broken.log"; fail 'broken update ended before the gateway phase'; }
+wait_phase backup "$updater" || { show "$work/broken.log"; fail 'broken update ended before the backup phase'; }
 code="$(post_status)"
-[[ "$code" == 503 ]] || fail "write during the update answered $code, not 503"
+[[ "$code" == 503 ]] || fail "write while API and Gateway are stopped answered $code, not 503"
 grep -q 'يجري التحديث' "$work/post.body" || fail 'maintenance answer text'
+if gateway_running; then fail 'a Gateway runs while maintenance is on'; fi
+wait_phase gateway "$updater" || { show "$work/broken.log"; fail 'broken update ended before the gateway phase'; }
+db_unwrap pg_restore
+code="$(post_status)"
+[[ "$code" != 503 ]] || fail 'owner writes refused while the new Gateway runs'
 status=0; wait "$updater" || status=$?
 [[ "$status" == 1 ]] || { show "$work/broken.log"; fail "broken update exit status $status"; }
 grep -q 'Rolling back (/ready health gate)' "$work/broken.log" || { show "$work/broken.log"; fail 'failure point'; }
@@ -253,14 +279,34 @@ grep -q 'Rolled back to' "$work/broken.log" || { show "$work/broken.log"; fail '
 [[ ! -e "$home/maintenance/on" ]] || fail 'maintenance left on after the rollback'
 ready || fail 'ready after rollback'
 no_leftovers rollback
-ok 'broken update: writes answered 503 «يجري التحديث» during it; restored from the pre-update backup (no downgrade), earlier rows kept'
+ok 'broken update: 503 «يجري التحديث» while API and Gateway are stopped, writes open while the new Gateway runs; restored from the pre-update backup, earlier rows kept'
+
+# 10c. A rollback whose /ready fails leaves writes open and names the next step; the next
+# lonora rollback completes. (The marker and bundle are set up to roll back to an image
+# whose Gateway never starts.)
+mkdir -p "$work/badroll/state"
+cp -r "$home/infra" "$work/badroll/"
+printf 'LONORA_IMAGE=%s\n' "$(digest_of v3-broken)" >"$work/badroll/state/image.env"
+tar -C "$work/badroll" -czf "$home/state/rollback-bundle.tar.gz" infra state/image.env
+printf 'previous=%s\ntarget=x\nstarted=%s\nphase=install\n' "$(digest_of v3-broken)" "$(date -u +%FT%TZ)" >"$home/state/update-in-progress"
+status=0; LONORA_READY_TIMEOUT=20 lonora rollback >"$work/badroll.log" 2>&1 || status=$?
+[[ "$status" == 1 ]] || { show "$work/badroll.log"; fail "failed-/ready rollback exit $status"; }
+grep -q 'ROLLBACK did not reach /ready' "$work/badroll.log" && grep -q 'sudo lonora rollback' "$work/badroll.log" || fail 'failed rollback names the next step'
+[[ ! -e "$home/maintenance/on" ]] || fail 'maintenance left on after a rollback that did not reach /ready'
+[[ "$(post_status)" != 503 ]] || fail 'writes refused after a rollback that did not reach /ready'
+printf 'LONORA_IMAGE=%s\n' "$(digest_of v2)" >"$work/badroll/state/image.env"
+tar -C "$work/badroll" -czf "$home/state/rollback-bundle.tar.gz" infra state/image.env
+lonora rollback >"$work/badroll2.log" 2>&1 || { show "$work/badroll2.log"; fail 'rollback after fixing the cause'; }
+[[ "$(pinned)" == "$(digest_of v2)" ]] || fail 'pin after the second rollback'
+ready || fail 'ready after the second rollback'
+ok 'rollback that does not reach /ready: writes stay open (no 503), next step named; the next lonora rollback completes'
 
 # 10b. The rollback's restore fails after DROP DATABASE: it stops with a command that
 # works, and that command retries the restore.
 lonora update v3-broken >"$work/broken2.log" 2>&1 &
 updater=$!
 wait_phase gateway "$updater" || { show "$work/broken2.log"; fail 'second broken update ended early'; }
-db_wrapper pg_restore 'if [ -f /tmp/fail-once ]; then rm -f /tmp/fail-once; cat >/dev/null; exit 1; fi'
+db_wrapper pg_restore "$FAIL_RESTORE_ONCE"
 dc exec -T db touch /tmp/fail-once
 status=0; wait "$updater" || status=$?
 [[ "$status" == 1 ]] || { show "$work/broken2.log"; fail "incomplete rollback exit status $status"; }
@@ -296,7 +342,15 @@ ok 'interrupted update (killed in the API phase): marker kept, start refused, ne
 dc exec -T api sh -c 'rm /app/.runtime/artifacts/probe.txt'
 dc stop db >/dev/null 2>&1
 count="$(backups)"
-(cd / && LONORA_BACKUP_KEEP="$count" "$home/infra/compose/lonora" restore "backups/$(basename "$b1")" --replace) >"$work/restore.log" 2>&1 || { show "$work/restore.log"; fail restore; }
+dc start db >/dev/null 2>&1; db_wrapper pg_restore 'sleep 4'; dc stop db >/dev/null 2>&1
+(cd / && LONORA_BACKUP_KEEP="$count" "$home/infra/compose/lonora" restore "backups/$(basename "$b1")" --replace) >"$work/restore.log" 2>&1 &
+restorer=$!
+until [[ -e "$home/maintenance/on" ]]; do kill -0 "$restorer" 2>/dev/null || { show "$work/restore.log"; fail 'restore ended before maintenance'; }; sleep 0.3; done
+sleep 2
+[[ "$(post_status)" == 503 ]] || fail 'write during the restore was not refused'
+if gateway_running; then fail 'Gateway running during the restore safety backup'; fi
+wait "$restorer" || { show "$work/restore.log"; fail restore; }
+db_unwrap pg_restore
 grep -q 'Backing up the current state first' "$work/restore.log" || fail 'restore safety backup with the db stopped'
 [[ -f "$b1" ]] || fail 'rotation deleted the backup being restored'
 [[ "$(revision)" == 9998_good_probe ]] || fail 'restored base-head backup migrated to 9998'
@@ -305,7 +359,32 @@ dc exec -T api cat /app/.runtime/artifacts/probe.txt | grep -q lifecycle-probe |
 if lonora restore "$b1" >/dev/null 2>&1; then fail 'restore without --replace accepted'; fi
 ready || fail 'ready after restore'
 no_leftovers restore
-ok 'restore (relative path from /, db stopped, oldest of KEEP): db started, safety backup, file not rotated, migrated to the image head'
+ok 'restore (relative path from /, db stopped, oldest of KEEP): db started, read-only (503, no Gateway) during the safety backup, file not rotated, migrated to the image head'
+
+# 13b. A restore that fails after DROP DATABASE: the printed rerun finishes it, without a
+# second safety backup; update and start refuse until it is finished.
+db_wrapper pg_restore "$FAIL_RESTORE_ONCE"
+dc exec -T db touch /tmp/fail-once
+if lonora restore "$b1" --replace >"$work/restore-fail.log" 2>&1; then fail 'restore with a failing pg_restore succeeded'; fi
+grep -q 'Restoring the database failed' "$work/restore-fail.log" || { show "$work/restore-fail.log"; fail 'restore failure message'; }
+[[ -f "$home/state/restore-in-progress" ]] || fail 'restore marker kept'
+lonora status 2>&1 | grep -q 'RESTORE NOT FINISHED' || fail 'status shows the unfinished restore'
+if lonora update v4-good >"$work/restore-blocks.log" 2>&1; then fail 'update ran over an unfinished restore'; fi
+grep -q 'A restore stopped part-way' "$work/restore-blocks.log" || fail 'update names the unfinished restore'
+count="$(backups)"
+run_printed "$work/restore-fail.log" >"$work/restore-rerun.log" 2>&1 || { show "$work/restore-rerun.log"; fail 'the printed restore command'; }
+db_unwrap pg_restore
+grep -q 'Resuming the restore that stopped part-way' "$work/restore-rerun.log" || fail 'rerun resumed'
+[[ "$(backups)" == "$count" ]] || fail 'rerun took a second safety backup'
+[[ ! -e "$home/state/restore-in-progress" && "$(owners)" == 1 && "$(revision)" == 9998_good_probe ]] || fail 'state after the rerun'
+ready || fail 'ready after the rerun'
+# KEEP never deletes a backup a held state needs.
+printf 'backup=%s\n' "$b1" >"$home/state/held-update"
+LONORA_BACKUP_KEEP=1 lonora backup >"$work/keep1.log" 2>&1 && LONORA_BACKUP_KEEP=1 lonora backup >>"$work/keep1.log" 2>&1 || { show "$work/keep1.log"; fail 'KEEP=1 backups'; }
+[[ -f "$b1" ]] || fail 'KEEP=1 deleted the held backup'
+rm -f "$home/state/held-update"
+if LONORA_BACKUP_KEEP=0 lonora backup >/dev/null 2>&1; then fail 'KEEP=0 accepted'; fi
+ok 'restore failing after DROP: marker kept, update refused, the printed command resumes without a second safety backup; KEEP=1 keeps a held backup; KEEP=0 refused'
 
 # 11. An owner-control write while the new version runs holds the rollback; --keep-data
 # with the same digest or a bad tag keeps it held; a fixed version updates forward.
@@ -328,13 +407,20 @@ if gateway_running; then fail 'keep-data same digest: gateway stopped again'; fi
 if lonora update no-such-tag --keep-data >"$work/keep-bad.log" 2>&1; then fail 'keep-data with a bad tag succeeded'; fi
 grep -q 'Cannot pull' "$work/keep-bad.log" || fail 'bad tag message'
 [[ "$(phase)" == hold && -f "$home/state/rollback-bundle.tar.gz" && ! -e "$home/state/held-update" ]] || fail 'bad tag: hold intact'
+# (b2) another failing version: the forward update returns to the hold
+status=0; lonora update v3-broken2 --keep-data >"$work/keep-broken2.log" 2>&1 || status=$?
+[[ "$status" == 2 ]] || { show "$work/keep-broken2.log"; fail "forward update to a failing version exit $status"; }
+grep -q 'Returning to the held state' "$work/keep-broken2.log" || fail 'back to hold message'
+[[ "$(phase)" == hold && ! -e "$home/state/held-update" && "$(pinned)" == "$(digest_of v3-broken)" ]] || fail 'back to hold: state'
+if gateway_running; then fail 'back to hold: gateway stopped'; fi
+[[ "$(sql "SELECT count(*) FROM ln_trading_restrictions WHERE id='r-during-gate'")" == 1 ]] || fail 'back to hold kept the restriction'
 # (c) a fixed version: forward update keeps the data, closes the hold
 lonora update v3-fixed --keep-data >"$work/keep-fixed.log" 2>&1 || { show "$work/keep-fixed.log"; fail 'keep-data forward update'; }
 [[ "$(pinned)" == "$(digest_of v3-fixed)" && "$(revision)" == 9999_broken_probe ]] || fail 'forward update state'
 [[ "$(sql "SELECT count(*) FROM ln_trading_restrictions WHERE id='r-during-gate'")" == 1 ]] || fail 'forward update kept the restriction'
 [[ ! -e "$home/state/update-in-progress" && ! -e "$home/state/held-update" && ! -e "$home/maintenance/on" ]] || fail 'forward update closed the hold'
 ready || fail 'ready after forward update'
-ok 'restriction written during the gate: held; --keep-data same digest stays held, bad tag changes nothing, fixed version updates forward keeping it'
+ok 'restriction written during the gate: held; --keep-data same digest stays held, bad tag changes nothing, another failing version returns to the hold, fixed version updates forward keeping it'
 
 # 11b. A trading-journal write holds too; timer backups during the hold never rotate its
 # backup away; rollback without --force still holds; --force restores on request.
@@ -420,7 +506,28 @@ grep -q 'available memory .* below 99999999 MB' "$work/pre-ram.log" || fail 'pre
 if side --behind-proxy 127.0.0.1:18030 --min-free-disk-gb 999999 --version v1 >"$work/pre-disk.log" 2>&1; then fail 'installed below the disk minimum'; fi
 grep -q 'free disk .* below 999999 GB' "$work/pre-disk.log" || fail 'preflight: disk'
 [[ ! -e "$home" ]] || fail 'a refused preflight created the home directory'
-side --behind-proxy 127.0.0.1:18030 --version v1 >"$work/side-install.log" 2>&1 || { show "$work/side-install.log"; fail 'side-by-side install'; }
+old_key="$(head -c 32 /dev/urandom | base64 | tr '+/' '-_')"
+{
+    printf 'LONORA_ARTIFACT_ROOT=/old/artifacts\nLONORA_BOOTSTRAP_TOKEN=old-bootstrap-token-0123456789abcdef\n'
+    printf 'LONORA_DOMAIN=lonora.example.org\nLONORA_ENCRYPTION_KEY=%s\nLONORA_IMAGE=old-image:tag\n' "$old_key"
+    printf 'LONORA_LIVEKIT_API_KEY=livekit-key-value-123\nLONORA_LIVEKIT_API_SECRET=livekit-secret-value-456\nLONORA_LIVEKIT_NODE_IP=10.0.0.9\n'
+    printf 'LONORA_MAXIMUM_SUBAGENTS=3\nLONORA_MAXIMUM_TOOL_ROUNDS=20\nLONORA_PASSKEY_ANDROID_FINGERPRINTS=[]\n'
+    printf 'LONORA_POSTGRES_PASSWORD=old-postgres-password-789\nLONORA_RUN_LEASE_SECONDS=90\n'
+    printf 'LONORA_WEBHOOK_SECRET=old-webhook-secret-abcdef123\nLONORA_WORKER_POLL_SECONDS=1.0\n'
+} >"$work/old.env"
+chmod 600 "$work/old.env"
+side --behind-proxy 127.0.0.1:18030 --env-from "$work/old.env" --version v1 >"$work/side-install.log" 2>&1 || { show "$work/side-install.log"; fail 'side-by-side install'; }
+val() { sed -n "s/^$1=//p" "$home/.env" | tail -n 1; }
+[[ "$(val LONORA_ENCRYPTION_KEY)" == "$old_key" && "$(val LONORA_BOOTSTRAP_TOKEN)" == old-bootstrap-token-0123456789abcdef && "$(val LONORA_WEBHOOK_SECRET)" == old-webhook-secret-abcdef123 ]] || fail 'env-from: secrets copied'
+[[ "$(val LONORA_MAXIMUM_SUBAGENTS)" == 3 && "$(val LONORA_RUN_LEASE_SECONDS)" == 90 && "$(val LONORA_PASSKEY_ANDROID_FINGERPRINTS)" == '[]' ]] || fail 'env-from: tuning and passkey keys copied'
+[[ -n "$(val LONORA_POSTGRES_PASSWORD)" && "$(val LONORA_POSTGRES_PASSWORD)" != old-postgres-password-789 ]] || fail 'env-from: a fresh database password'
+[[ "$(val LONORA_DOMAIN)" == localhost ]] || fail 'env-from: --domain wins'
+if grep -qE '^LONORA_(LIVEKIT|IMAGE|ARTIFACT_ROOT)' "$home/.env"; then fail 'env-from copied an unknown key'; fi
+[[ "$(stat -c %a "$home/.env")" == 600 ]] || fail 'env-from: .env mode'
+grep -q 'copied:.*LONORA_ENCRYPTION_KEY.*LONORA_WEBHOOK_SECRET' "$work/side-install.log" && grep -q 'Not copied.*LONORA_LIVEKIT_API_KEY.*LONORA_POSTGRES_PASSWORD' "$work/side-install.log" || { show "$work/side-install.log"; fail 'env-from lists names'; }
+for secret in "$old_key" old-bootstrap-token-0123456789abcdef old-webhook-secret-abcdef123 livekit-key-value-123 livekit-secret-value-456 old-postgres-password-789; do
+    if grep -qF -- "$secret" "$work/side-install.log"; then fail 'env-from printed a value'; fi
+done
 grep -q 'ok    port 18030 is free' "$work/side-install.log" || fail 'preflight printed what it found'
 [[ "$(docker port lonora2-caddy-1 | tr '\n' ' ')" == "8080/tcp -> 127.0.0.1:18030 " ]] || fail "caddy publishes only 127.0.0.1:18030 ($(docker port lonora2-caddy-1 | tr '\n' ' '))"
 if docker ps --filter label=com.docker.compose.project=lonora2 --format '{{.Ports}}' | grep -qE ':(80|443)->'; then fail 'proxy mode binds 80/443'; fi
@@ -438,10 +545,10 @@ diff -q "$work/dummy.before" "$work/dummy.after" >/dev/null || { diff "$work/dum
 wipe
 snapshot >"$work/dummy.end"
 diff -q "$work/dummy.before" "$work/dummy.end" >/dev/null || fail 'removing the new project changed the old one'
-ok "side by side: preflight refuses the taken project, a used port, a public address, low memory and disk; lonora2 in proxy mode on 127.0.0.1:18030 only (limits ${total} MB), updated, backed up, restore-tested; old project lonora untouched"
+ok "side by side (with --env-from: known keys copied, fresh DB password, names listed, no values printed): preflight refuses the taken project, a used port, a public address, low memory and disk; lonora2 in proxy mode on 127.0.0.1:18030 only (limits ${total} MB), updated, backed up, restore-tested; old project lonora untouched"
 
 # 18. No secret in anything the tooling printed or logged.
-for secret in "$key" "$backup_key" "$first_password" "$new_password" "$bootstrap" "$webhook"; do
+for secret in "$key" "$backup_key" "$first_password" "$new_password" "$bootstrap" "$webhook" "$old_key" old-webhook-secret-abcdef123 livekit-secret-value-456 old-postgres-password-789; do
     [[ -n "$secret" ]] || continue
     leak="$(grep -lF -- "$secret" "$work"/*.log 2>/dev/null | head -n 1 || true)"
     [[ -z "$leak" ]] || fail "a secret appears in $leak"
