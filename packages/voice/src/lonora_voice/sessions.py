@@ -6,8 +6,9 @@ from typing import Any
 from lonora_adapters.voice.realtime import OpenAILiveAdapter
 from lonora_contracts.voice import VoiceSessionCreate
 from lonora_core.user_error import LonoraError
+from lonora_db.call_log import log_call
 from lonora_db.client import Database
-from lonora_db.schema import EffectReceiptRow, VoiceSessionRow
+from lonora_db.schema import EffectReceiptRow, ResourceRow, VoiceSessionRow
 from lonora_db.transactions import owned_agent, owned_thread
 from lonora_db.voice import VoiceSessionRepository
 from lonora_providers.credentials import ProviderCredentials
@@ -209,6 +210,23 @@ async def end_voice_session(db: Database, owner_id: str, session_id: str) -> Non
         if row.payload.get("status") not in {"closed", "failed"}:
             row.payload = {**row.payload, "status": "closing"}
             row.version += 1
+        await log_voice_call(session, row)
+
+
+async def log_voice_call(session: AsyncSession, row: ResourceRow) -> None:
+    """The ended call's bubble, once; a call that never connected leaves none."""
+    connected_at = row.state.get("connected_at")
+    if row.payload.get("mode") != "gpt_live" or not row.agent_id or connected_at is None:
+        return
+    await log_call(
+        session,
+        row.owner_id,
+        row.agent_id,
+        row.id,
+        direction="outgoing",
+        duration_seconds=round(time.time() - float(connected_at)),
+        missed=False,
+    )
 
 
 async def voice_session_data(db: Database, owner_id: str, session_id: str) -> dict[str, Any]:
