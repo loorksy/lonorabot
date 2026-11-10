@@ -208,9 +208,10 @@ cmd_restore_test() {
     if [[ -z "$image" ]]; then image="$(sed -n 's/^LONORA_IMAGE=//p' "$WORK/b/state/image.env" 2>/dev/null | tail -n 1)"; fi
     if [[ -z "$image" ]]; then image="$(current_image)"; fi
     [[ -n "$image" ]] || die 'No image to test with: set LONORA_RESTORE_TEST_IMAGE.'
+    local db_password; db_password="$(head -c 18 /dev/urandom | base64 | tr '+/' 'xy')"
     {
         grep -E '^(LONORA_ENCRYPTION_KEY|LONORA_BOOTSTRAP_TOKEN)=' "$WORK/b/.env"
-        printf 'LONORA_DATABASE_URL=postgresql+asyncpg://lonora:restoretest@db:5432/lonora\n'
+        printf 'LONORA_DATABASE_URL=postgresql+asyncpg://lonora:%s@db:5432/lonora\n' "$db_password"
         printf 'LONORA_COOKIE_SECURE=false\nLONORA_ALLOWED_ORIGIN=http://localhost:8000\nLONORA_MIGRATE_ON_START=false\n'
     } >"$WORK/app.env"
     rm -f "$WORK/b/.env"
@@ -224,7 +225,7 @@ cmd_restore_test() {
     trap 'teardown; cleanup' EXIT
     docker network create --internal "$net" >/dev/null
     docker run -d --name "$db" --network "$net" --network-alias db -e POSTGRES_DB=lonora -e POSTGRES_USER=lonora \
-        -e POSTGRES_PASSWORD=restoretest "$POSTGRES_IMAGE" >/dev/null
+        --env-file <(printf 'POSTGRES_PASSWORD=%s\n' "$db_password") "$POSTGRES_IMAGE" >/dev/null
     local deadline=$((SECONDS + 60))
     until docker exec "$db" pg_isready -U lonora -d lonora -q 2>/dev/null && docker exec "$db" psql -U lonora -d lonora -qtAc 'SELECT 1' >/dev/null 2>&1; do
         ((SECONDS < deadline)) || die 'Test database did not start.'

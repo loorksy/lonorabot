@@ -36,8 +36,20 @@ LONORA_INSTALL_ALLOW_NON_ROOT=1 bash "$root/infra/compose/install.sh" --home "$h
 [[ "$(pinned)" == "$(digest_of v1)" ]] || fail 'install pins the v1 digest'
 [[ "$(stat -c %a "$home/.env")" == 600 && "$(stat -c %a "$home/backup.key")" == 600 ]] || fail 'secret file modes'
 key="$(sed -n 's/^LONORA_ENCRYPTION_KEY=//p' "$home/.env")"
-grep -rqF -- "$key" "$work/install.log" && fail 'installer printed a secret'
+backup_key="$(cat "$home/backup.key")"
+for secret in "$key" "$backup_key" "$(sed -n 's/^LONORA_POSTGRES_PASSWORD=//p' "$home/.env")"; do
+    grep -rqF -- "$secret" "$work/install.log" && fail 'installer printed a secret'
+done
 ok 'install: pinned digest, /ready, secrets 600 and not printed'
+
+# The image's deployment bundle and release manifest carry no secrets.
+container="$(docker create "$repo:v1")"
+docker cp -q "$container:/app/deploy" "$work/bundle" && docker cp -q "$container:/app/release.json" "$work/bundle/"
+docker rm "$container" >/dev/null
+[[ -z "$(find "$work/bundle" \( -name '.env' -o -name '*.key' -o -name '*.pem' -o -name 'image.env' \) -print)" ]] || fail 'bundle holds a secret file'
+grep -rqE -- '(PASSWORD|SECRET|TOKEN|_KEY)=[A-Za-z0-9_+/-]{8,}' "$work/bundle" && fail 'bundle holds a secret value'
+for secret in "$key" "$backup_key"; do grep -rqF -- "$secret" "$work/bundle" && fail 'bundle holds an install secret'; done
+ok 'image bundle and release.json: no secret files or values'
 
 # 2. Seed real state: the owner account and one artifact file.
 dc exec -T api python -c "import json,os,urllib.request
@@ -56,6 +68,7 @@ grep -qaF -- "$key" "$backup" && fail 'backup holds the encryption key in clear'
 grep -qa 'PGDMP' "$backup" && fail 'backup holds a clear database dump'
 grep -qaF -- 'lifecycle-probe' "$backup" && fail 'backup holds clear artifacts'
 grep -rqF -- "$key" "$work/backup.log" && fail 'backup printed a secret'
+grep -rqF -- "$backup_key" "$work/backup.log" && fail 'backup printed the backup key'
 ok 'backup: encrypted, mode 600, no clear secrets or data'
 
 # 4. Restore test into a throwaway isolated stack.
@@ -86,7 +99,7 @@ grep -q 'no release manifest' "$work/old.log" || fail 'manifest refusal message'
 ok 'update refuses an image without a release manifest'
 
 # 8. A failing update rolls back automatically, including the schema.
-dc exec -T api sh -c 'echo after-backup >/app/.runtime/artifacts/later.txt'
+dc exec -T db psql -U lonora -d lonora -qc "CREATE TABLE ops_probe (note text); INSERT INTO ops_probe VALUES ('before-update')" >/dev/null
 if lonora update v3-broken >"$work/broken.log" 2>&1; then fail 'broken update reported success'; fi
 grep -q 'Update failed at: /ready health gate' "$work/broken.log" || { tail -30 "$work/broken.log"; fail 'failure point'; }
 grep -q 'Rolled back to' "$work/broken.log" || { tail -30 "$work/broken.log"; fail 'rollback message'; }
@@ -94,6 +107,7 @@ grep -q 'Rolled back to' "$work/broken.log" || { tail -30 "$work/broken.log"; fa
 [[ "$(sql "SELECT version_num FROM lonora_v2_alembic")" == 0045_chat_lists ]] || fail 'rollback restores the schema revision'
 [[ "$(sql "SELECT to_regclass('ln_broken_probe') IS NULL")" == t ]] || fail 'rollback removed the broken migration table'
 [[ "$(owners)" == 1 ]] || fail 'data kept across rollback'
+[[ "$(sql "SELECT string_agg(note, ',') FROM ops_probe")" == before-update ]] || fail 'rows written before the update survive the rollback'
 "$home/infra/compose/lonora" status >"$work/status.log" 2>&1
 grep -q '/ready: ok' "$work/status.log" || fail 'ready after rollback'
 ok 'broken update: migrated, failed /ready, rolled back image + schema, /ready ok'

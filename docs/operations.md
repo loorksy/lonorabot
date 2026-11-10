@@ -5,7 +5,7 @@
 - **التثبيت:** خادم جديد يحتاج Docker وgpg فقط، دون Python أو Node أو نسخة من الكود. الأمر `sudo bash install.sh --domain نطاقك` ينزّل الصورة، يثبّت بصمتها (digest)، ينشئ الأسرار ومفتاح النسخ الاحتياطي بصلاحيات 600 دون طباعتها، ويشغّل Lonora ثم ينتظر حتى تنجح `/ready`.
 - **التحديث:** `sudo lonora update <الإصدار>` يثبّت بصمة الصورة الجديدة، يوقف API وGateway، يأخذ نسخة احتياطية مشفرة أولاً، يشغّل الترحيلات خطوةً مستقلة، ثم ينتظر `/ready`. إذا فشلت أي خطوة يعود تلقائيًا إلى الإصدار السابق ويستعيد قاعدة البيانات من النسخة التي أُخذت قبل التحديث.
 - **النسخ الاحتياطي:** نسخة يومية مشفرة (AES-256 عبر gpg) تشمل قاعدة البيانات والمرفقات وملف الإعدادات والإصدار المثبّت وملفات تحديثات التطبيق. يُحتفظ بآخر 14 نسخة.
-- **المفتاح:** الملف `/opt/lonora/backup.key`. **انسخه إلى مكان آمن خارج الخادم.** بدونه لا يمكن استعادة أي نسخة، ولا يمكن لأحد قراءة النسخ بدونه.
+- **المفتاح:** الملف `/opt/lonora/backup.key` (صلاحية 600، لا يُطبع ولا يُسجَّل أبدًا). **إذا ضاع هذا المفتاح تصبح كل النسخ الاحتياطية غير قابلة للقراءة نهائيًا، ولا توجد أي طريقة لاسترجاعها.** احفظ نسخة منه خارج الخادم، مثلًا في مدير كلمات المرور، وفي مكان منفصل عن النسخ الاحتياطية نفسها.
 - **اختبار الاستعادة:** `sudo lonora restore-test` يستعيد أحدث نسخة في بيئة مؤقتة معزولة عن الإنترنت (بلا مفاتيح مزودين أو وسيط، فلا تداول ولا اتصال خارجي)، ويتأكد أن التطبيق يعمل عليها، ثم يحذفها. شغّله مرة شهريًا على الأقل.
 - **الاستعادة الفعلية:** `sudo lonora restore <ملف> --replace` تستبدل البيانات الحالية بالنسخة.
 - **الخادم الحالي (VPS):** لم يُلمس. نقله إلى هذا النظام خطوة يدوية موصوفة في قسم «Moving the existing server» أدناه.
@@ -83,8 +83,12 @@ What happens, in order:
 6. Migrations run as their own step (`migrate` service).
 7. All services start and the update waits for `/ready` (default 240 s, `LONORA_READY_TIMEOUT`).
 8. **If step 5, 6, 7 or the health gate fails**, `lonora` rolls back by itself: the old deployment
-   files and pin come back, the database is restored from the backup of step 4 (this undoes any
-   migration), services start and `/ready` is checked again. It then says clearly that the update
+   files and pin come back, the database is **restored from the backup of step 4** — dropped and
+   recreated from that dump, not migrated down. An Alembic downgrade after the new version has
+   written rows can lose or corrupt data; restoring the pre-update backup cannot. Because API and
+   Gateway were stopped before that backup, nothing the owner did is lost, and nothing the failed
+   version wrote (including a half-applied migration) survives. Services start and `/ready` is
+   checked again. It then says clearly that the update
    was not applied. If even the rollback cannot reach `/ready`, it prints the backup file to
    restore by hand.
 
@@ -106,6 +110,9 @@ One file per backup, `backups/lonora-<time>.tar.gpg`, mode 600. It is a single g
 - `config.tar.gz` — `.env` (which holds the key that decrypts saved provider and broker
   credentials), the pinned image, the deployment files, and the mobile APK/OTA releases;
 - `manifest.json` — time, image and migration revision; `SHA256SUMS` for every member.
+
+**If the key is lost, every backup is unreadable for good** — there is no recovery, by design.
+Keep a copy off the server (a password manager is fine), separate from where backups are stored.
 
 The key comes from `LONORA_BACKUP_KEY` in the environment if set, otherwise from
 `backup.key` (or `LONORA_BACKUP_KEY_FILE`). It is handed to gpg on a file descriptor; it never
@@ -190,7 +197,14 @@ To adopt it, at a quiet time:
    local tag instead and keep that image on the server until the first update succeeded — it is what a
    rollback returns to.
 4. `sudo infra/compose/lonora backup`, then `sudo infra/compose/lonora restore-test`.
-5. `sudo infra/compose/lonora update <version>`. The lifecycle test below includes exactly this
+5. The first update, exactly: `cd /opt/lonora && sudo infra/compose/lonora update <version>`. It
+   resolves the version to a digest, reads its release manifest, stops API and Gateway, takes the
+   encrypted backup, copies the new deployment files from the image into `infra/` (this replaces the
+   checked-out ones; your differences live in the overlay from step 1), pins the digest in
+   `state/image.env`, runs `migrate` as its own container, starts everything and waits for `/ready`,
+   rolling back on failure. From then on **the API no longer migrates when it starts**
+   (`LONORA_MIGRATE_ON_START=false` in the canonical Compose file): migrations run only through
+   `lonora update`, `lonora start` or `deploy-main.sh`. The lifecycle test below includes exactly this
    adoption path (an installation running an image from before this tooling).
 6. Install the backup timer: `sudo install -m 644 infra/systemd/lonora-backup.* /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl enable --now lonora-backup.timer`.
 
@@ -216,8 +230,12 @@ registry (real digests), PostgreSQL 16: all 10 lifecycle checks passed.
 
 Still to be checked on a real server:
 
-- The test images were built without the Chromium and font packages (the development container
-  cannot reach the Debian package mirror). The production image build itself was not run here.
+- The test images were built from the real `Dockerfile` with only the Chromium and font `apt-get`
+  line removed (the development container cannot reach the Debian package mirror). That line stays
+  in the production `Dockerfile` unchanged: Chromium drives the server chart renderer (TradingView
+  image capture, `LONORA_CHART_BROWSER_EXECUTABLE=/usr/bin/chromium`) and the fonts render chart text.
+  `/ready` does not depend on them, which is why the lifecycle passed without them; chart capture was
+  not exercised here. The full production image build itself was not run here.
 - Caddy obtaining a real certificate for a public domain (the test used `localhost`).
 - The systemd backup timer (installed with `--no-systemd` in the test).
 - Pulling from `ghcr.io` (the test used a local registry), and the CI publish workflow, which
