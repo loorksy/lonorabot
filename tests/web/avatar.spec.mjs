@@ -177,6 +177,8 @@ test("liquid engine renders all states and releases shared animation/listeners",
   await idle.scrollIntoViewIfNeeded();
   await first.scrollIntoViewIfNeeded();
   await page.emulateMedia({ reducedMotion: "reduce" });
+  // The media-query change event and the poster frame it draws land asynchronously.
+  await page.evaluate(() => new Promise((resolve) => setTimeout(resolve, 150)));
   const still = await first.getAttribute("d");
   await page.evaluate(() => new Promise((resolve) => setTimeout(resolve, 100)));
   expect(await first.getAttribute("d")).toBe(still);
