@@ -84,7 +84,7 @@ export function domainStates({ ROOT, env, seed, refRun, visible, pause }) {
     {
       name: "schedules",
       ref: to("schedules", { agent: "lonora" }),
-      appPath: () => `/app/schedules?agent=${agent("lonora")}`,
+      appPath: () => `/app/routines?agent=${agent("lonora")}`,
       app: async () => {},
     },
     {
@@ -94,7 +94,7 @@ export function domainStates({ ROOT, env, seed, refRun, visible, pause }) {
         await pause(page, 300);
         await visible(page, "#app main .row .body").click();
       },
-      appPath: () => `/app/schedules?agent=${agent("lonora")}`,
+      appPath: () => `/app/routines?agent=${agent("lonora")}`,
       app: (page) => visible(page, "#app main .row .body").click(),
     },
     {
@@ -144,7 +144,7 @@ export function domainStates({ ROOT, env, seed, refRun, visible, pause }) {
     {
       name: "files",
       ref: to("files", { agent: "lonora" }),
-      appPath: () => `/app/files?agent=${agent("lonora")}`,
+      appPath: () => `/app/artifacts?agent=${agent("lonora")}`,
       app: async () => {},
     },
     {
@@ -154,7 +154,7 @@ export function domainStates({ ROOT, env, seed, refRun, visible, pause }) {
         await pause(page, 300);
         await visible(page, "#app main .group .row").click();
       },
-      appPath: () => `/app/files?agent=${agent("lonora")}`,
+      appPath: () => `/app/artifacts?agent=${agent("lonora")}`,
       app: (page) => visible(page, "#app main .group .row").click(),
       wait: 1100,
     },

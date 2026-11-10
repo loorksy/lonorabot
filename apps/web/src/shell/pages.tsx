@@ -10,7 +10,6 @@ import { Artifacts } from "../pages/Artifacts";
 import { GroupCreatePanel } from "../pages/GroupPanel";
 import { Knowledge } from "../pages/Knowledge";
 import { OwnerProfileSection } from "../pages/OwnerProfileSection";
-import { Routines } from "../pages/Routines";
 import type { SettingsTab } from "../pages/settings-sidebar";
 import { AgentCreatePanel } from "../pages/shell/bot-panel";
 import { ThreadViewport } from "../pages/shell/chat-context";
@@ -77,7 +76,7 @@ export function pageTitle(page: Page): string {
     case "trading":
       return t`Trades`;
     case "routines":
-      return t`Routines`;
+      return t`Scheduled tasks`;
     case "knowledge":
       return t`Knowledge`;
     case "knowledge-edit":
@@ -88,8 +87,6 @@ export function pageTitle(page: Page): string {
       return t`Goals`;
     case "new-goal":
       return t`Edit goal`;
-    case "schedules":
-      return t`Scheduled tasks`;
     case "new-schedule":
       return t`Schedule a task`;
     case "task":
@@ -102,8 +99,6 @@ export function pageTitle(page: Page): string {
       return t`Edit skill`;
     case "new-skill":
       return t({ message: "Create a skill", context: "page title" });
-    case "files":
-      return t`Files`;
     case "file-edit":
       return t`Edit file`;
     case "activity":
@@ -207,14 +202,8 @@ export function DetailPages({
   return (
     <Suspense fallback={<Loading />}>
       <Routes>
-        <Route
-          path="/app/artifacts"
-          element={
-            <Legacy>
-              <Artifacts />
-            </Legacy>
-          }
-        />
+        {/* «الملفات»: an agent's (?agent=) or the workspace's text files (Q36). */}
+        <Route path="/app/artifacts" element={<FilesPage />} />
         <Route
           path="/app/artifacts/:artifactId"
           element={
@@ -241,14 +230,8 @@ export function DetailPages({
             </Legacy>
           }
         />
-        <Route
-          path="/app/routines"
-          element={
-            <Legacy>
-              <Routines agents={data.agents} />
-            </Legacy>
-          }
-        />
+        {/* «المهام المجدولة»: one agent's (?agent=) schedules. */}
+        <Route path="/app/routines" element={<SchedulesPage />} />
         <Route path="/app/knowledge" element={<KnowledgePage />} />
         <Route path="/app/knowledge-edit" element={<KnowledgeEditPage key={location.key} />} />
         {/* The memory editor and the skills catalog keep their screen until their pages arrive. */}
@@ -262,14 +245,12 @@ export function DetailPages({
         />
         <Route path="/app/goals" element={<GoalsPage />} />
         <Route path="/app/new-goal" element={<GoalEditPage key={location.key} />} />
-        <Route path="/app/schedules" element={<SchedulesPage />} />
         <Route path="/app/new-schedule" element={<NewSchedulePage key={location.key} />} />
         <Route path="/app/tasks/:taskId" element={<TaskPage />} />
         <Route path="/app/new-task" element={<NewTaskPage key={location.key} />} />
         <Route path="/app/skills" element={<SkillsPage />} />
         <Route path="/app/skills/:skillId" element={<SkillPage />} />
         <Route path="/app/new-skill" element={<SkillPage create key={location.key} />} />
-        <Route path="/app/files" element={<FilesPage />} />
         <Route path="/app/file-edit" element={<FileEditPage key={location.key} />} />
         <Route path="/app/activity" element={<ActivityPage />} />
         <Route

@@ -498,35 +498,26 @@ test("knowledge and recurring trading work use durable API edits", async ({
   const version = await (await editedSkill).json();
   expect(version.version).toBe(skill.version + 1);
   expect(version.payload.content).toContain("economic calendar");
-  await page.goto("/app/routines");
-  await page.getByRole("button", { name: "Create routine", exact: true }).click();
-  let dialog = page.getByRole("dialog", { name: "Create routine", exact: true });
-  await dialog.getByRole("combobox", { name: "Agent", exact: true }).selectOption(agent.id);
-  await dialog.getByLabel("Task", { exact: true }).fill(`${prefix} scheduled market review`);
-  await dialog.getByLabel("Every · minutes", { exact: true }).fill("17");
-  await dialog.getByLabel("Timezone", { exact: true }).fill("UTC");
+  // «جدولة مهمة» and «المهام المجدولة» (UI phase 4b) on the agent's routines.
+  await page.goto(`/app/new-schedule?agent=${agent.id}`);
+  const schedule = page.locator('form[data-form="schedule"]');
+  await schedule.getByLabel("Task", { exact: true }).fill(`${prefix} scheduled market review`);
+  await schedule.getByLabel("Repeat", { exact: true }).selectOption("daily");
+  await schedule.getByLabel("Time", { exact: true }).fill("08:17");
   const createdRoutine = page.waitForResponse(
     (response) =>
       response.url().endsWith(`/api/routines/${agent.id}`) &&
       response.request().method() === "POST",
   );
-  await dialog.getByRole("button", { name: "Save", exact: true }).click();
+  await schedule.getByRole("button", { name: "Save schedule", exact: true }).click();
   const routine = remember("routines", await (await createdRoutine).json());
-  expect(routine.interval_seconds).toBe(1020);
-  const row = page.getByTestId(`routine-row-${routine.id}`);
-  await row.getByRole("button", { name: "Edit", exact: true }).click();
-  dialog = page.getByRole("dialog", { name: "Edit routine", exact: true });
-  await dialog
-    .getByLabel("Task", { exact: true })
-    .fill(`${prefix} revised scheduled market review`);
-  const updatedRoutine = page.waitForResponse(
-    (response) =>
-      response.url().endsWith(`/api/routines/${routine.id}`) &&
-      response.request().method() === "PUT",
-  );
-  await dialog.getByRole("button", { name: "Save", exact: true }).click();
-  expect((await (await updatedRoutine).json()).prompt).toContain("revised");
-  await row.getByRole("button", { name: "Pause", exact: true }).click();
+  expect(routine).toMatchObject({ title: `${prefix} scheduled market review`, cron: "17 8 * * *" });
+  await expect(page).toHaveURL(new RegExp(`/app/routines\\?agent=${agent.id}`));
+  const toggle = page.getByRole("switch", {
+    name: `Enable ${prefix} scheduled market review`,
+    exact: true,
+  });
+  await toggle.click();
   await expect
     .poll(
       async () =>
@@ -535,8 +526,6 @@ test("knowledge and recurring trading work use durable API edits", async ({
         )?.enabled,
     )
     .toBe(false);
-  await row.locator("summary", { hasText: "Execution history" }).click();
-  await expect(row.getByText("No executions yet", { exact: true })).toBeVisible();
   await page.goto(`/app/${agent.id}?settings=trading`);
   await expect(page).toHaveURL(/\/app\/settings\?tab=trading$/);
   await expect(page.locator(".settings-nav button.selected")).toHaveText("Trading");

@@ -236,7 +236,7 @@ export function FileEditPage() {
                 new File([content], name, { type: "text/plain" }),
                 agent?.id,
               );
-            nav.go(`/app/files${agent ? `?agent=${agent.id}` : ""}`, { replace: true });
+            nav.go(`/app/artifacts${agent ? `?agent=${agent.id}` : ""}`, { replace: true });
           } catch (cause) {
             toast(userError(cause), { type: "error" });
           } finally {

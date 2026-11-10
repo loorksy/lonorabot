@@ -34,7 +34,13 @@ const test = base.extend({
       responsibility: "Keeps notes",
     });
     await context.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
-    await use({ agent, prefix, call });
+    try {
+      await use({ agent, prefix, call });
+    } finally {
+      // Test cleanup only (the UI never deletes agents): a run's agent creation is capped
+      // on active agents, so a fixture agent left behind would fail later specs.
+      await context.request.delete(`/api/agents/${agent.id}`, { headers });
+    }
   },
 });
 
@@ -105,7 +111,7 @@ test("schedules: a titled daily routine and a one-shot, with the switch", async 
   const once = await (await created).json();
   expect(once.run_at).toBeTruthy();
   expect(once.cron).toBeNull();
-  await page.goto(`/app/schedules?agent=${agent.id}`);
+  await page.goto(`/app/routines?agent=${agent.id}`);
   const toggle = page.getByRole("switch", { name: `Enable ${prefix} brief`, exact: true });
   await expect(toggle).toHaveAttribute("aria-checked", "true");
   const put = saved(page, "PUT", new RegExp(`^/api/routines/${daily.id}$`));

@@ -277,7 +277,7 @@ export function NewSchedulePage() {
               });
             }
             toast(t`Schedule saved`, { type: "success" });
-            nav.go(`/app/schedules?agent=${agentId}`, { replace: true });
+            nav.go(`/app/routines?agent=${agentId}`, { replace: true });
           } catch (cause) {
             toast(userError(cause), { type: "error" });
           } finally {
