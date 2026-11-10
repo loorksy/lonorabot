@@ -76,6 +76,23 @@ async def setup(_: dict[str, Any]) -> dict[str, Any]:
                 }
             },
         )
+        # A verified broker identity, as a real connection has after its first read: with
+        # several accounts the server names this one in the alert's bubble (§8.3).
+        from lonora_db.schema import BrokerSessionRow
+
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            row = await session.get(BrokerSessionRow, connection, with_for_update=True)
+            assert row is not None
+            row.state = {
+                **row.state,
+                "broker_identity": {
+                    "broker": "Simulation",
+                    "login": str(uuid4().int % 10**8),
+                    "server": "Demo",
+                    "platform": "mt5",
+                    "connection_version": row.version,
+                },
+            }
         return {
             "agent": agent,
             "thread": thread,

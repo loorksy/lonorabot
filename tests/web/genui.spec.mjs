@@ -122,7 +122,8 @@ test("A01: the alert card streams, computes, sends and locks in the conversation
     expect(body.content).toBe("");
     expect(body.ui_submit.values).toMatchObject({ symbol: "XAUUSD", dir: "above", price: 2400 });
     // The server's bubble, quoting the card; the card locks.
-    await expect(page.getByText("أنشئ تنبيهًا: الذهب فوق 2,400.00")).toBeVisible();
+    // With several accounts in the database the server appends « · <account>» (§8.3).
+    await expect(page.getByText(/^أنشئ تنبيهًا: الذهب فوق 2,400\.00( · Simulation · \d+ · Demo)?$/)).toBeVisible();
     await expect(page.locator(".ux-quote").getByText("تنبيه سعر")).toBeVisible();
     await expect(alert).toHaveClass(/is-sent/);
     await expect(alert.getByText(/أُرسل إلى/)).toBeVisible();
