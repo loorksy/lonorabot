@@ -272,6 +272,7 @@ async def test_actual_context_builder_resolver_and_fenced_diagnostics(
         purpose="conversation",
         context_summary="",
         summary_seq=0,
+        options={},
     )
     run = SimpleNamespace(
         id="run",
