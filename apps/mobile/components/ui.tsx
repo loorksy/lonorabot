@@ -14,22 +14,33 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useSession } from "../lib/session";
 
-export const colors = {
-  background: appearance.dark.background,
-  foreground: appearance.dark.foreground,
-  muted: appearance.dark.muted,
-  secondary: appearance.dark["muted-foreground"],
-  border: appearance.dark.border,
-  accent: appearance.dark.accent,
-  chatUser: appearance.dark["chat-user"],
-  error: appearance.dark.destructive,
-  primary: appearance.dark.primary,
-  primaryForeground: appearance.dark["primary-foreground"],
-  success: appearance.dark.success,
-  warning: appearance.dark.warning,
-  overlay: appearance.dark.overlay,
-  link: appearance.dark.link,
+const palette = (mode: "dark" | "light") => ({
+  background: appearance[mode].background as string,
+  foreground: appearance[mode].foreground as string,
+  muted: appearance[mode].muted as string,
+  secondary: appearance[mode]["muted-foreground"] as string,
+  border: appearance[mode].border as string,
+  accent: appearance[mode].accent as string,
+  chatUser: appearance[mode]["chat-user"] as string,
+  error: appearance[mode].destructive as string,
+  primary: appearance[mode].primary as string,
+  primaryForeground: appearance[mode]["primary-foreground"] as string,
+  success: appearance[mode].success as string,
+  warning: appearance[mode].warning as string,
+  overlay: appearance[mode].overlay as string,
+  link: appearance[mode].link as string,
+});
+/** The screens outside the reference shell read this palette; it follows the theme (applyLegacyTheme). */
+export const colors = palette("dark");
+const refreshers = new Set<() => void>();
+export const onLegacyTheme = (refresh: () => void) => {
+  refreshers.add(refresh);
 };
+export function applyLegacyTheme(mode: "dark" | "light") {
+  Object.assign(colors, palette(mode));
+  Object.assign(styles, makeStyles());
+  for (const refresh of refreshers) refresh();
+}
 export function Screen({ children }: { children: ReactNode }) {
   return (
     <SafeAreaView style={styles.screen} edges={["top", "bottom"]}>
@@ -122,44 +133,46 @@ export function Loading() {
     </View>
   );
 }
-export const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.background },
-  header: {
-    alignItems: "center",
-    gap: 12,
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 14,
-  },
-  title: { flex: 1, color: colors.foreground, fontSize: 26, fontWeight: "700" },
-  label: { color: colors.secondary, fontSize: 14 },
-  input: {
-    minHeight: 48,
-    borderRadius: 12,
-    backgroundColor: colors.muted,
-    color: colors.foreground,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 16,
-  },
-  button: {
-    minHeight: 44,
-    minWidth: 44,
-    paddingHorizontal: 15,
-    paddingVertical: 11,
-    borderRadius: 22,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.primary,
-  },
-  secondaryButton: { backgroundColor: colors.accent },
-  buttonLabel: { color: colors.background, fontWeight: "600", fontSize: 14 },
-  error: { color: colors.error, paddingHorizontal: 20, paddingVertical: 8, textAlign: "center" },
-  center: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.background,
-  },
-  card: { borderRadius: 14, padding: 18, backgroundColor: colors.muted, gap: 12 },
-});
+const makeStyles = () =>
+  StyleSheet.create({
+    screen: { flex: 1, backgroundColor: colors.background },
+    header: {
+      alignItems: "center",
+      gap: 12,
+      paddingHorizontal: 16,
+      paddingTop: 8,
+      paddingBottom: 14,
+    },
+    title: { flex: 1, color: colors.foreground, fontSize: 26, fontWeight: "700" },
+    label: { color: colors.secondary, fontSize: 14 },
+    input: {
+      minHeight: 48,
+      borderRadius: 12,
+      backgroundColor: colors.muted,
+      color: colors.foreground,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      fontSize: 16,
+    },
+    button: {
+      minHeight: 44,
+      minWidth: 44,
+      paddingHorizontal: 15,
+      paddingVertical: 11,
+      borderRadius: 22,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: colors.primary,
+    },
+    secondaryButton: { backgroundColor: colors.accent },
+    buttonLabel: { color: colors.background, fontWeight: "600", fontSize: 14 },
+    error: { color: colors.error, paddingHorizontal: 20, paddingVertical: 8, textAlign: "center" },
+    center: {
+      flex: 1,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: colors.background,
+    },
+    card: { borderRadius: 14, padding: 18, backgroundColor: colors.muted, gap: 12 },
+  });
+export const styles = makeStyles();

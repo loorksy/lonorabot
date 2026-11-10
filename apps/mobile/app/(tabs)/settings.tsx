@@ -1,18 +1,33 @@
 import { Redirect, useRouter } from "expo-router";
 import { ScrollView, Text, View } from "react-native";
-import { SettingsGroup, SettingsRow } from "../components/settings-group";
-import { SheetHeader } from "../components/sheet-header";
-import { colors, Loading, Screen } from "../components/ui";
-import { useSession } from "../lib/session";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { SettingsGroup, SettingsRow } from "../../components/settings-group";
+import { colors, Loading } from "../../components/ui";
+import { useSession } from "../../lib/session";
+import { useTheme } from "../../lib/theme";
 export default function Settings() {
-  const { ready, owner, t } = useSession();
+  const { ready, owner, t, rtl } = useSession();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const { mode, setMode } = useTheme();
   if (!ready) return <Loading />;
   if (!owner) return <Redirect href="/sign-in" />;
   return (
-    <Screen>
-      <SheetHeader title={t("settings")} />
-      <ScrollView contentContainerStyle={{ padding: 20, gap: 24 }}>
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
+      <Text
+        accessibilityRole="header"
+        style={{
+          color: colors.foreground,
+          fontSize: 28,
+          fontWeight: "700",
+          paddingHorizontal: 20,
+          paddingTop: insets.top + 14,
+          textAlign: rtl ? "right" : "left",
+        }}
+      >
+        {t("settings")}
+      </Text>
+      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 130, gap: 24 }}>
         <View style={{ alignItems: "center", gap: 8, paddingVertical: 16 }}>
           <View
             style={{
@@ -46,9 +61,15 @@ export default function Settings() {
           <SettingsRow title={t("voice")} icon="activity" onPress={() => router.push("/voice")} />
         </SettingsGroup>
         <SettingsGroup>
+          <SettingsRow
+            title={t("sh_appearance")}
+            value={mode === "dark" ? t("sh_dark") : t("sh_light")}
+            icon="settings"
+            onPress={() => setMode(mode === "dark" ? "light" : "dark")}
+          />
           <SettingsRow title={t("server")} icon="globe" onPress={() => router.push("/server")} />
         </SettingsGroup>
       </ScrollView>
-    </Screen>
+    </View>
   );
 }

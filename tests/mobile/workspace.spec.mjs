@@ -49,18 +49,20 @@ test("Expo profile, routines, groups and authenticated artifacts use the persist
     await page.getByRole("button", { name: "تسجيل الدخول", exact: true }).click();
     headers = { "X-CSRF-Token": (await (await loggedIn).json()).csrf };
     broker = await brokerFixture(context, headers);
-    await expect(page.getByRole("button", { name: "إنشاء", exact: true })).toBeVisible();
-    await page.getByRole("button", { name: "ابحث عن وكيل أو مجموعة", exact: true }).click();
-    await expect(
-      page.getByRole("textbox", { name: "ابحث عن وكيل أو مجموعة", exact: true }),
-    ).toBeVisible();
+    await expect(page.getByRole("button", { name: "محادثة جديدة", exact: true })).toBeVisible();
+    await expect(page.getByRole("searchbox", { name: "بحث في Lonora", exact: true })).toBeVisible();
     expect(await page.evaluate(() => JSON.stringify(localStorage))).not.toMatch(
       /Bearer|"token"|"session"/,
     );
-    await page.getByRole("button", { name: "إنشاء", exact: true }).click();
-    await page.getByRole("menu").getByRole("button", { name: "وكيل جديد", exact: true }).click();
-    await page.getByLabel("الاسم", { exact: true }).fill(prefix);
-    await page.getByLabel("الدور", { exact: true }).fill("Portfolio review");
+    await page.getByRole("button", { name: "محادثة جديدة", exact: true }).click();
+    await page
+      .getByRole("dialog")
+      .getByRole("button", { name: /^وكيل جديد/ })
+      .click();
+    // Owner decision Q9: a template first, then the agent's name and description and its pair.
+    await page.getByTestId("template-trading").click();
+    await page.getByRole("button", { name: "التالي", exact: true }).click();
+    await page.getByLabel("اسم الوكيل", { exact: true }).fill(prefix);
     await page
       .getByLabel("الوصف", { exact: true })
       .fill("Monitor positions and summarize market data.");
@@ -70,13 +72,12 @@ test("Expo profile, routines, groups and authenticated artifacts use the persist
     await page.getByRole("button", { name: broker.symbol, exact: true }).click();
     const created = page.waitForResponse(
       (response) =>
-        response.url().endsWith("/api/agents") && response.request().method() === "POST",
+        response.url().endsWith("/api/agents/create") && response.request().method() === "POST",
     );
-    await page.getByRole("button", { name: "إنشاء", exact: true }).click();
+    await page.getByRole("button", { name: "إنشاء الوكيل", exact: true }).click();
     const agent = await (await created).json();
     owned.agents.add(agent.id);
-    expect(agent.title).toBe("Portfolio review");
-    expect(agent.description).toContain("market data");
+    expect(agent.template).toBe("trading");
     await expect(page.getByLabel("اكتب رسالة…", { exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "اتصل بالوكيل", exact: true })).toBeVisible();
     const threadUrl = page.url();

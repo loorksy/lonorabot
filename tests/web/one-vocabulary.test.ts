@@ -77,7 +77,7 @@ test("Web and Mobile read operation and approval labels from the one shared tabl
   for (const file of [
     "apps/web/src/pages/ActivityList.tsx",
     "apps/mobile/app/thread.tsx",
-    "apps/mobile/app/index.tsx",
+    "apps/mobile/app/(tabs)/tasks.tsx",
     "apps/mobile/components/WorkingIndicator.tsx",
   ]) {
     assert.match(read(file), /runStatusText\(/, file);
