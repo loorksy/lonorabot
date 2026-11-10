@@ -34,13 +34,15 @@ if ! command -v gpg >/dev/null; then
     if command -v apt-get >/dev/null && [[ "$EUID" -eq 0 ]]; then apt-get install -y -q gnupg >/dev/null; else die 'gpg is required (package gnupg).'; fi
 fi
 
-[[ ! -f "$home/state/image.env" ]] || die "$home already has an installation. Update it with: lonora update <version>"
+[[ ! -f "$home/state/image.env" ]] || die "$home already has an installation. To update it, or to start it again on the same version: sudo lonora update <version>"
 if docker volume inspect lonora_database >/dev/null 2>&1; then
     die 'A Docker volume lonora_database already exists, so the new install would reuse old data. Archive and remove it first (docs/operations.md, "start fresh").'
 fi
 mkdir -p "$home"; chmod 750 "$home"; cd "$home"
 mkdir -p state backups .runtime/releases/android .runtime/releases/ota
 chmod 700 state backups
+# Caddy reads the maintenance flag (`lonora` creates maintenance/on during updates).
+mkdir -p maintenance && chmod 755 maintenance
 # The API (uid 10001) reads OTA releases and the APK through a read-only mount.
 chmod 755 .runtime .runtime/releases .runtime/releases/android .runtime/releases/ota
 

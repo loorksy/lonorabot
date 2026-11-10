@@ -6,6 +6,20 @@
         Referrer-Policy "same-origin"
         Permissions-Policy "microphone=(self), camera=()"
     }
+    # While `lonora` updates, rolls back or restores, the flag file exists and every write
+    # is refused, so no owner control can change while the database is being decided.
+    @maintenance {
+        file {
+            root /maintenance
+            try_files /on
+        }
+        not method GET HEAD OPTIONS
+    }
+    handle @maintenance {
+        header Content-Type "application/json; charset=utf-8"
+        header Retry-After "120"
+        respond `{"error":"maintenance","message":"يجري التحديث، حاول بعد دقائق. An update is in progress; try again in a few minutes."}` 503
+    }
     @event_stream path /api/events/stream
     handle @event_stream {
         reverse_proxy api:8000 {

@@ -71,7 +71,7 @@ services:
     ports: ["80:80", "443:443"]
     environment:
       LONORA_DOMAIN: ${LONORA_DOMAIN:?set public domain}
-    volumes: ["./Caddyfile.prod:/etc/caddy/Caddyfile:ro", "caddy-data:/data", "caddy-config:/config"]
+    volumes: ["./Caddyfile.prod:/etc/caddy/Caddyfile:ro", "../../maintenance:/maintenance:ro", "caddy-data:/data", "caddy-config:/config"]
     depends_on: [api]
 volumes:
   database:

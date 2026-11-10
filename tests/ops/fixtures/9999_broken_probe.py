@@ -1,11 +1,10 @@
-"""Test-only revision: changes the schema so a rollback must restore the database."""
+"""Test-only revision on top of 9998: changes the schema so a rollback must restore it."""
 
 import sqlalchemy as sa
 from alembic import op
 
 revision = "9999_broken_probe"
-# build_test_images.sh replaces the placeholder with the base image's migration head.
-down_revision = "__BASE_HEAD__"
+down_revision = "9998_good_probe"
 branch_labels = None
 depends_on = None
 
