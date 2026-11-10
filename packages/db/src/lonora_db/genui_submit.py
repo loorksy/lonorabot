@@ -216,8 +216,11 @@ async def _identity_names(
         if len(accounts) > 1:
             from .owner_actions import account_facts
 
-            row = next((a for a in accounts if a.id == data.get("account_id")), None)
-            label = account_facts(row, str(data.get("account_id"))).get("label")
+            # Read the card's own account directly: the list above is bounded.
+            account_id = str(data.get("account_id"))
+            row = await session.get(BrokerSessionRow, account_id)
+            owned = row if row is not None and row.owner_id == owner_id else None
+            label = account_facts(owned, account_id).get("label")
             if not label:
                 # The bubble must name the account and cannot (§8.3, account).
                 raise LonoraError("ui_submit_account_unnamed", 409)

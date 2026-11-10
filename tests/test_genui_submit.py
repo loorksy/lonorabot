@@ -503,3 +503,45 @@ def test_every_owner_words_read_uses_the_helper_or_reads_origin() -> None:
             continue
         offenders.append(relative)
     assert offenders == [], offenders
+
+
+@pytest.mark.asyncio
+async def test_the_cards_account_is_named_beyond_the_bounded_account_list() -> None:
+    """With more enabled accounts than ``enabled_accounts`` returns, the card's own
+    account is still read and named; an unnamed one is still refused."""
+    from lonora_core.user_error import LonoraError
+    from lonora_db.genui_submit import _identity_names
+    from lonora_db.schema import BrokerSessionRow
+    from test_proactive_wakes import retire, simulation
+
+    fixture = await open_fixture()
+    connections: list[str] = []
+    try:
+        connections += [await simulation(fixture, []) for _ in range(10)]
+        last = connections[-1]
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            row = await session.get(BrokerSessionRow, last, with_for_update=True)
+            assert row is not None
+            owner_id = row.owner_id
+            row.state = {
+                **row.state,
+                "broker_identity": {
+                    "broker": "Simulation",
+                    "login": "12345678",
+                    "server": "Demo",
+                    "connection_version": row.version,
+                },
+            }
+        async with fixture.runtime.db.sessions() as session:
+            names = await _identity_names(
+                session, owner_id, {}, "alert.create", {"account_id": last}
+            )
+            assert names["account_id"] == "Simulation · 12345678 · Demo"
+            with pytest.raises(LonoraError) as refused:
+                await _identity_names(
+                    session, owner_id, {}, "alert.create", {"account_id": connections[0]}
+                )
+            assert refused.value.code == "ui_submit_account_unnamed"
+    finally:
+        await retire(fixture, *connections)
+        await fixture.close()
