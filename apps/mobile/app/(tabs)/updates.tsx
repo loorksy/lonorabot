@@ -32,7 +32,14 @@ export default function Updates() {
       </Text>
       <ScrollView contentContainerStyle={{ paddingBottom: 130 }}>
         {/* The attention inbox keeps its own (dark) palette until phase 4 re-skins it. */}
-        <View style={{ margin: 16, borderRadius: 16, overflow: "hidden", backgroundColor: colors.background }}>
+        <View
+          style={{
+            margin: 16,
+            borderRadius: 16,
+            overflow: "hidden",
+            backgroundColor: colors.background,
+          }}
+        >
           <AttentionInbox
             items={data.attention}
             agents={data.agents}

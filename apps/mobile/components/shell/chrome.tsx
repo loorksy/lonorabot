@@ -92,7 +92,7 @@ export function ChatsHeader({
       {!expanded ? (
         <Text
           accessibilityRole="header"
-          style={{ color: c.text, fontSize: 28, fontWeight: "700", flexShrink: 0 }}
+          style={{ color: c.text, fontSize: 20, fontWeight: "700", flexShrink: 0 }}
         >
           Lonora
         </Text>
@@ -153,7 +153,16 @@ export function ChatsHeader({
           </Pressable>
         ) : null}
       </View>
-      {!expanded ? <CircleButton icon="plus" label={t("sh_newChat")} onPress={onNewChat} /> : null}
+      {!expanded ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t("sh_newChat")}
+          onPress={onNewChat}
+          style={{ width: 42, height: 42, alignItems: "center", justifyContent: "center" }}
+        >
+          <Icon name="plus" size={22} color={c.text} />
+        </Pressable>
+      ) : null}
     </View>
   );
 }

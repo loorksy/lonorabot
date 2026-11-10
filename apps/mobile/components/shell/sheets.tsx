@@ -118,7 +118,7 @@ export function SheetProvider({ children }: { children: ReactNode }) {
               style={{
                 height: panelHeight,
                 maxHeight: height - insets.top - 12,
-                backgroundColor: c.surface,
+                backgroundColor: c.bg,
                 borderTopLeftRadius: radius.lg,
                 borderTopRightRadius: radius.lg,
                 borderWidth: 1,
