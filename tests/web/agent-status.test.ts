@@ -280,3 +280,10 @@ test("«حسم» opens the operation's own resolve card, and the order sheet off
   assert.match(conversation, /card\.facts\.operation\?\.operation_id === journalRow\.operation_id/);
   assert.match(conversation, /<OrderSheetBody\s+row=\{journalRow\}\s+onResolve=/);
 });
+
+test("the quota card follows Q22: no spend cap to raise, the provider's own quota", async () => {
+  const { readFileSync } = await import("node:fs");
+  const cards = readFileSync("apps/web/src/conversation/Cards.tsx", "utf8");
+  assert.doesNotMatch(cards, /Edit the limit`|Raise the limit|usage limit/);
+  assert.match(cards, /family === "quota" \? t`View usage`/);
+});

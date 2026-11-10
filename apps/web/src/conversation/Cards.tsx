@@ -66,21 +66,21 @@ export function AgentErrorCard({
   }, [until]);
   const left = until ? Math.max(0, Math.ceil((until - now) / 1000)) : 0;
   const title = {
-    quota: t`You reached the usage limit`,
+    quota: t`The model provider's quota ran out`,
     rate: t`Too many requests in a short time`,
     timeout: t`The reply timed out`,
     model: t`The model is not available right now`,
     other: t`The agent could not reply`,
   }[family];
   const text = {
-    quota: t`The agent stopped replying because the provider refused for quota. Raise the limit or wait for it to reset.`,
+    // Q22 (D4): Lonora sets no spend cap; the refusal is the provider's own quota.
+    quota: t`The model provider refused the request for quota on its account. Add credit with the provider, choose another model, or retry once it resets.`,
     rate: t`Many requests were sent within a minute. Wait a little, then try again.`,
     timeout: t`The reply did not arrive in time; the connection may be weak.`,
     model: t`The model provider could not be reached. Try another model or retry shortly.`,
     other: userError({ code: run.error_code }),
   }[family];
-  const fix =
-    family === "quota" ? t`Edit the limit` : family === "model" ? t`Change the model` : null;
+  const fix = family === "quota" ? t`View usage` : family === "model" ? t`Change the model` : null;
   return (
     <div className="err-card" role="alert" data-failure={family}>
       <div className="err-top">
