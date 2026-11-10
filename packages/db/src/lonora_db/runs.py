@@ -278,6 +278,30 @@ async def checkpoint(session: AsyncSession, lease: Lease, state: dict[str, Any])
     row.updated_at = utcnow()
 
 
+async def suggested_reply(
+    session: AsyncSession,
+    row: RunRow,
+    metadata: dict[str, Any],
+    rich_content: dict[str, Any] | None,
+) -> str | None:
+    """The agent's suggestion for the owner's next reply (Q23), kept only on a
+    conversational answer to the owner: never with a generated interface, and never when
+    this Run raised a card (owner action, trade approval or question)."""
+    from .schema import OwnerActionRow, TradeApprovalRow
+
+    value = metadata.get("suggested_reply")
+    if not isinstance(value, str) or not value.strip() or len(value.strip()) > 60:
+        return None
+    if row.trigger not in {"user", "group"} or row.execution_state.get("input_requests"):
+        return None
+    if rich_content and any(part.get("type") == "ui" for part in rich_content.get("parts", [])):
+        return None
+    for card in (OwnerActionRow, TradeApprovalRow):
+        if await session.scalar(select(card.id).where(card.run_id == row.id).limit(1)):
+            return None
+    return value.strip()
+
+
 async def complete_run(
     session: AsyncSession, lease: Lease, answer: str, metadata: dict[str, Any]
 ) -> bool:
@@ -305,6 +329,7 @@ async def complete_run(
             seq=thread.next_seq,
             content=answer,
             rich_content=rich_content,
+            suggested_reply=await suggested_reply(session, row, metadata, rich_content),
         )
         thread.next_seq += 1
         session.add(message)
