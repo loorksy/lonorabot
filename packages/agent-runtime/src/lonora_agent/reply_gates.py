@@ -243,8 +243,10 @@ class ClaimVerdict:
 
 CLAIM_NUDGE = (
     "Your reply says an action was carried out, but no tool in this request completed it, "
-    "so it did not happen. Do not claim it. Either do it now with the right tool, or tell "
-    "the owner plainly what has not been done and ask if something is missing. Owner "
+    "so it did not happen. This check is Lonora's, not the owner's, and the owner has not "
+    "read your draft: write the reply afresh, with no apology and no mention of this check. "
+    "Either do it now with the right tool, or tell the owner plainly what has not been "
+    "done and ask if something is missing. Owner "
     "controls are tools reached with tool_call when not native: a pause or no new trades "
     "is trade_restriction_create; resuming trading, lifting a pause, limits and authority "
     "are owner_action_propose cards that only the owner's tap applies (a card waits only "
