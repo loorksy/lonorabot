@@ -34,6 +34,7 @@ def _normalized(text: str) -> str:
     """Arabic without diacritics or tatweel, one alef, yaa and haa form; lower-case Latin."""
     text = re.sub(r"[ً-ٰٟـ]", "", text)
     text = re.sub(r"[أإآٱ]", "ا", text).replace("ى", "ي").replace("ة", "ه")
+    text = re.sub(r"[ؤئ]", "ء", text)
     return text.lower()
 
 
@@ -59,7 +60,7 @@ _STOP = [
 
 
 _RESUME = [
-    re.compile(r"(?:استانف|استئناف|شغل|تشغيل|فعل|تفعيل|رجع|ارجاع)\S*\s+(?:ال)?تداول"),
+    re.compile(r"(?:استانف|استءناف|شغل|تشغيل|فعل|تفعيل|رجع|ارجاع)\S*\s+(?:ال)?تداول"),
     re.compile(r"\b(?:resume|unpause|restart|re-?enable|turn\s+on)\b\W+(?:\w+\W+){0,2}?trading\b"),
 ]
 
@@ -72,6 +73,28 @@ def stop_requested(text: str) -> bool:
 def resume_requested(text: str) -> bool:
     plain = _normalized(text)
     return any(pattern.search(plain) for pattern in _RESUME)
+
+
+_CANCEL_REQUEST = re.compile(r"\bالغ(?:ي|اء)?\b|\bاحذف|\bامسح|\b(?:cancel|delete|remove)\b")
+_MODEL_REQUEST = re.compile(r"نموذج|موديل|\b(?:model|llm)\b")
+
+
+def requested_tools(messages: list[ModelMessage]) -> list[str]:
+    """Owner-control tools the owner's words call for, offered natively for this Run.
+
+    Presentation only: they join the promoted set within its budget, and execution
+    still validates every call (G0: the model reached for the native trade tool).
+    """
+    words = owner_words(messages)
+    plain = _normalized(words)
+    names: list[str] = []
+    if stop_requested(words):
+        names.append("trade_restriction_create")
+    if _CANCEL_REQUEST.search(plain):
+        names += ["watch_list", "watch_cancel"]
+    if _MODEL_REQUEST.search(plain):
+        names += ["model_list", "model_request"]
+    return names
 
 
 def entry_refusal(messages: list[ModelMessage], call: ToolCall) -> dict[str, Any] | None:
@@ -118,7 +141,7 @@ _CLAIMS = [
     # «تم.» standing alone, or «تم» with the effect it names.
     re.compile(
         _START + r"تم+(?:\s*(?:[.!،,✅]|$)|\s+(?:ال)?(?:حفظ|الغاء|تعديل|ضبط|تفعيل|"
-        r"ايقاف|استئناف|انشاء|جدوله|اعتماد|تحديد|تسجيل|ارسال|حذف|تغيير))"
+        r"ايقاف|استءناف|انشاء|جدوله|اعتماد|تحديد|تسجيل|ارسال|حذف|تغيير))"
     ),
     re.compile(_START + r"(?:[وف])?(?:لقد\s+|قد\s+)?(?:" + _AR_CLAIM_VERBS + r")(?:ه|ها|هم)?\b"),
     re.compile(_START + r"(?:done|all set)\b"),

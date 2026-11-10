@@ -22,6 +22,8 @@ from lonora_tools.base import EXPOSURE_PROFILES, ExposureProfile, ToolScope
 from lonora_tools.context import ToolContext
 from lonora_tools.registry import BRIDGE_TOOLS, ToolRegistry
 
+from .reply_gates import requested_tools
+
 log = logging.getLogger("lonora.tool_loop")
 
 EXPOSURE_VERSION = 1
@@ -95,8 +97,13 @@ async def ensure_exposure(
         supervising = bool(await supervised_ids(session, context.owner_id, context.agent_id))
     profiles = run_profiles(agent, task_run, supervises=supervising)
     unavailable = await registry.availability(context)
+    # The owner-control tools this request names come first, then remembered ones.
+    requested = requested_tools(messages)
     native, promoted = registry.exposure(
-        profiles, scope=scope, remembered=remembered, unavailable=unavailable
+        profiles,
+        scope=scope,
+        remembered=[*requested, *(name for name in remembered if name not in requested)],
+        unavailable=unavailable,
     )
     # A checkpoint from an earlier release keeps every schema it already showed.
     kept = {

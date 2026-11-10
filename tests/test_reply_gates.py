@@ -12,6 +12,7 @@ from lonora_agent.reply_gates import (
     code_requested,
     entry_refusal,
     limit_notice,
+    requested_tools,
     stop_requested,
 )
 from lonora_agent.stop_gates import reset_stop_gate
@@ -225,3 +226,20 @@ def test_a_short_block_that_explains_stays_allowed() -> None:
     assert not code_deliverable(messages, "The idea:\n```pine\nfast = ta.sma(close, 9)\n```")
     # Without the owner asking for code, a long block is not judged here.
     assert not code_deliverable([owner("اشرح لي RSI")], MQL5)
+
+
+def test_the_owners_words_bring_the_control_tool_into_the_run() -> None:
+    assert requested_tools([owner("أوقف الصفقات الجديدة اليوم")]) == ["trade_restriction_create"]
+    assert requested_tools([owner("ألغِ التنبيه")]) == ["watch_list", "watch_cancel"]
+    assert requested_tools([owner("اختر لي نموذج الذكاء المناسب لوكيل الذهب")]) == [
+        "model_list",
+        "model_request",
+    ]
+    assert requested_tools([owner("حلل الذهب حتى الغد")]) == []
+
+
+def test_hamza_forms_of_a_claim_are_recognised() -> None:
+    # Probe: «تم إلغاؤه» after watch_create.
+    created = [owner("ألغِ التنبيه"), *result("watch_create", {"ok": True})]
+    assert claims_effect("تم إلغاؤه.")
+    assert not claim_gate({}, created, "تم إلغاؤه.", EFFECTS | {"watch_create"}).passed
