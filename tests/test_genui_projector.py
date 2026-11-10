@@ -238,3 +238,28 @@ async def test_over_budget_blocks_fold_but_the_send_stays_last() -> None:
     blocks = cast(dict[str, Any], projection.rich_until())["parts"][1]["document"]["blocks"]
     assert [b["type"] for b in blocks][-3:] == ["More", "Delivery", "Button"]
     assert any(d["code"] == "budget_folded" for d in projector.diagnostics)
+
+
+def test_v2_prompt_block_is_bounded_generated_and_off_by_default(monkeypatch) -> None:
+    from lonora_agent.genui_capabilities import capabilities
+    from lonora_agent.skills.visual_policy import (
+        MAX_GENUI_GUIDANCE_CHARS,
+        VISUAL_END,
+        VISUAL_MARKER,
+        native_visual_policy,
+    )
+
+    monkeypatch.delenv("LONORA_GENUI_V2", raising=False)
+    assert "<lonora_generative_ui>" not in native_visual_policy()
+    monkeypatch.setenv("LONORA_GENUI_V2", "1")
+    block = native_visual_policy()
+    assert block.startswith(VISUAL_MARKER) and block.endswith(VISUAL_END)
+    assert len(block) <= MAX_GENUI_GUIDANCE_CHARS
+    for part in ("<lonora_answer_shape>", "<lonora_ui_rules>", "alert.create", "XAUUSD الذهب"):
+        assert part in block
+    assert "{vocabulary}" not in block and native_visual_policy() == block
+    assert capabilities().block() == (
+        "<lonora_ui_capabilities>\nintents: ask, alert.create, alert.off\ndelivery: app\n"
+        "go: market, tasks, usage, chat-prefs, files, agents\n"
+        "timezone: UTC · language: ar\n</lonora_ui_capabilities>"
+    )

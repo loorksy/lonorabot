@@ -22,6 +22,7 @@ from .context.team import refresh_routing_context
 from .progress import progress
 from .public_stream import PublicStream
 from .skills.system_policy import apply_operating_policy
+from .skills.visual_policy import genui_v2_enabled
 from .stream_publication import StreamPublication
 from .visual_response import VisualReplyProjector, visual_observation_catalog
 
@@ -75,6 +76,16 @@ async def model_turn(
     if observations:
         request_messages.append(
             ModelMessage(role="system", context_origin="runtime_context", content=observations)
+        )
+    if genui_v2_enabled():
+        # Per request, after the cached prefix: only the intents, channels and routes that
+        # exist (GENUI_PLAN §3.6); the compiler checks every card against the same values.
+        request_messages.append(
+            ModelMessage(
+                role="system",
+                context_origin="runtime_context",
+                content=VisualReplyProjector(context, messages).capabilities.block(),
+            )
         )
     if context_view is not None:
         # Pruned results and summarized spans are omitted before images resolve.

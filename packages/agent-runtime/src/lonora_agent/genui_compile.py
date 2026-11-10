@@ -375,6 +375,15 @@ def compile_card(
         if item.name == "market_symbols" and isinstance(result.get("symbols"), list):
             verified |= {s for s in cast(list[Any], result["symbols"]) if isinstance(s, str)}
 
+    watch_ids: set[str] = set()
+    for item in evidence.values():
+        if item.name.startswith("watch_") and not _failed(item.result):
+            if isinstance(item.record.get("id"), str):
+                watch_ids.add(item.record["id"])
+            for watch in cast(list[Any], item.record.get("watches") or []):
+                entry = cast(dict[str, Any], watch) if isinstance(watch, dict) else {}
+                if isinstance(entry.get("id"), str):
+                    watch_ids.add(entry["id"])
     blocks = [dict(block) for block in card.blocks]
     sends: list[dict[str, Any]] = []
     urls = _owner_urls(messages, evidence) if final else set[str]()
@@ -409,11 +418,15 @@ def compile_card(
                     ):
                         refused = True
                     else:
-                        for value in cast(dict[str, Any], action.get("data", {})).values():
-                            if isinstance(value, str) and not (
-                                re.fullmatch(r"\$[A-Za-z][A-Za-z0-9_]*", value)
-                                and value[1:] in state | calc
-                            ):
+                        types = {f.name: f.type for f in registry.fields}
+                        for name, value in cast(dict[str, Any], action.get("data", {})).items():
+                            if isinstance(value, str) and value.startswith("$"):
+                                # A state key or a calc name, evaluated by the server.
+                                refused |= value[1:] not in state | calc
+                            elif types.get(name) == "watch":
+                                # A watch id is a literal from this turn's evidence.
+                                refused |= value not in watch_ids
+                            elif types.get(name) in {"instrument", "account"}:
                                 refused = True
                         if not refused:
                             lock = action.get("lock", registry.lock)
