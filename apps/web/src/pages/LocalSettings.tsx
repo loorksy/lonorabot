@@ -1,11 +1,13 @@
 import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
+import { setChatPref, useChatPrefs } from "../conversation/prefs";
 import { useTheme } from "../hooks/useTheme";
 import { activateLocale, i18n } from "../i18n/config";
 import { useClient } from "../providers/ClientProvider";
 export function LocalSettings() {
   const { theme, setTheme } = useTheme();
   const { owner, connected } = useClient();
+  const prefs = useChatPrefs();
   return (
     <section className="card">
       <h2>
@@ -36,6 +38,35 @@ export function LocalSettings() {
             <Trans>Light</Trans>
           </option>
         </select>
+      </label>
+      {/* Q35: «حالة الوكيل التفصيلية» is a per-device preference, off by default. */}
+      <label className="check">
+        <input
+          type="checkbox"
+          role="switch"
+          checked={prefs.agentStatus}
+          onChange={(event) => setChatPref("agentStatus", event.target.checked)}
+        />
+        <span>
+          <Trans>Detailed agent status</Trans>
+          <small>
+            <Trans>
+              Under the agent's name: analysing, searching, watching, waiting for the broker,
+              waiting for your decision, paused, unconfirmed operation.
+            </Trans>
+          </small>
+        </span>
+      </label>
+      <label className="check">
+        <input
+          type="checkbox"
+          role="switch"
+          checked={prefs.enterSend}
+          onChange={(event) => setChatPref("enterSend", event.target.checked)}
+        />
+        <span>
+          <Trans>Send with Enter</Trans>
+        </span>
       </label>
       <p>
         <bdi>{owner.email}</bdi>

@@ -144,6 +144,16 @@ export function Conversation({
   const [jump, setJump] = useState<string | null>(null);
   const [actionError, setActionError] = useState<unknown>();
 
+  // «عرض الطلب» in the AgentSheet: bring that card into view.
+  useEffect(() => {
+    const listener = (event: Event) => {
+      const id = (event as CustomEvent<{ id: string }>).detail?.id;
+      if (id) setJump(`${id}#${Date.now()}`);
+    };
+    window.addEventListener("lonora:jump", listener);
+    return () => window.removeEventListener("lonora:jump", listener);
+  }, []);
+
   /* ---- side data: files, order lines, the collaboration session */
   useEffect(() => {
     void revision;
@@ -309,7 +319,19 @@ export function Conversation({
         (row) => row.reactor !== "owner",
       );
       setReactions((old) =>
-        new Map(old).set(message.id, emoji ? [...before, { reactor: "owner", emoji }] : before),
+        new Map(old).set(
+          message.id,
+          emoji
+            ? [
+                ...before,
+                {
+                  reactor: "owner",
+                  emoji: emoji as MessageReaction["emoji"],
+                  created_at: new Date().toISOString(),
+                },
+              ]
+            : before,
+        ),
       );
       try {
         const result = emoji

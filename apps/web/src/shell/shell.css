@@ -293,10 +293,11 @@ main.page-enter {
 /* The conversation body keeps its own scroller and composer (phase 3 owns their internals). */
 #app > main.chat-main,
 .desktop-content > main.chat-main {
+  position: relative;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  padding: var(--top-h, 60px) 0 0;
+  padding: 0;
 }
 main.chat-main > .legacy-surface {
   flex: 1;

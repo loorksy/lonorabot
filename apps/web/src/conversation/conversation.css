@@ -4654,3 +4654,41 @@ button.oa-line-body:focus-visible {
   width: 12px;
   height: 12px;
 }
+
+/* ---- Lonora's frame for the reference chat: the reference scrolls main itself; here the
+   conversation keeps its own scroller with main's paddings (reference 77-96, 327, 600). */
+.chat-scroll {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: calc(var(--top-h, 60px) + 4px) 12px calc(var(--bottom-h, 96px) + 24px);
+  overscroll-behavior-y: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+.desktop-content > main.chat-main .chat-scroll {
+  padding-inline: clamp(16px, 4vw, 56px);
+}
+/* reference 130: the small button the cards use */
+.btn.sm {
+  min-height: 36px;
+  padding: 6px 14px;
+}
+/* Q21: the original of an edited message collapses as superseded */
+.msg.superseded .bubble {
+  opacity: 0.62;
+}
+.msg.superseded .bubble .text,
+.msg.superseded .bubble .md {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+  overflow: hidden;
+}
+/* «لا يتداول» (Q19) is the dashed badge, not a button */
+span.no-trade {
+  cursor: default;
+}

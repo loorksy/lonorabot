@@ -1,30 +1,15 @@
-import type { VisualAction } from "@lonora/contracts";
+import { type MessageReaction, REACTION_EMOJIS, type VisualAction } from "@lonora/contracts";
 import { createContext, useContext } from "react";
 import type { Agent, Message, Resource } from "../lib/api";
 
 /** The six fixed quick reactions (Q28). */
-export const REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🙏"] as const;
+export const REACTIONS = REACTION_EMOJIS;
 
-export type MessageReaction = { reactor: string; emoji: string; created_at?: string };
-export type VoicePart = {
-  type: "voice";
-  artifact_id: string;
-  duration: number;
-  peaks: number[];
-  transcript_status?: "pending" | "done" | "failed";
-};
-export type CallPart = {
-  type: "call";
-  direction: "outgoing" | "incoming";
-  duration_seconds: number;
-  missed: boolean;
-};
+export type { CallPart, VoicePart } from "@lonora/contracts";
+export type { MessageReaction };
 /** Message fields phase 3 adds on the server (WP-D, WP-E), read defensively. */
 export type ConversationMessage = Message & {
-  reactions?: MessageReaction[];
-  suggested_reply?: string | null;
-  edited_from?: string | null;
-  superseded_by?: string | null;
+  /** The generative-UI submit origin (T1, GENUI_PLAN §8.4). */
   origin?: string | null;
 };
 
@@ -32,10 +17,7 @@ export function partsOf(message: Message): Array<{ type: string } & Record<strin
   const parts = (message.rich_content as { parts?: unknown } | null | undefined)?.parts;
   return Array.isArray(parts) ? (parts as Array<{ type: string } & Record<string, unknown>>) : [];
 }
-export const voicePart = (message: Message) =>
-  partsOf(message).find((part) => part.type === "voice") as VoicePart | undefined;
-export const callPart = (message: Message) =>
-  partsOf(message).find((part) => part.type === "call") as CallPart | undefined;
+export { callPart, voicePart } from "@lonora/core";
 
 /** HH:mm in Latin digits, as the reference's meta row. */
 export const clock = (iso: string | Date) =>
