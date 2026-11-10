@@ -19,7 +19,8 @@ from typing import Any, cast
 
 from lonora_adapter_kit.types import ModelMessage, ToolCall
 
-from .runtime_notices import is_owner_message, prefers_arabic
+from .context.financial_result import FINANCIAL_CALLS
+from .runtime_notices import is_owner_message, is_runtime_notice, prefers_arabic
 
 _STATE_KEY = "effect_claim_gate"
 # Entries and pending-entry edits: the class a no_new_entries restriction refuses.
@@ -65,8 +66,15 @@ _RESUME = [
 ]
 
 
+# "Don't stop trading" / «لا توقف الصفقات» negate the stop verb itself.
+_NEGATED_STOP = re.compile(
+    r"\b(?:don'?t|do\s+not|never)\s+(?:stop|pause|halt|suspend|freeze)\b|"
+    r"(?:^|\s)(?:لا|ما|لن|مو)\s+\S*(?:وقف|علق|جمد)\S*"
+)
+
+
 def stop_requested(text: str) -> bool:
-    plain = _normalized(text)
+    plain = _NEGATED_STOP.sub(" ", _normalized(text))
     return any(pattern.search(plain) for pattern in _STOP)
 
 
@@ -97,9 +105,29 @@ def requested_tools(messages: list[ModelMessage]) -> list[str]:
     return names
 
 
+def _in_claim_repair(messages: list[ModelMessage]) -> bool:
+    """Whether the claim gate's repair notice was given in the current owner request."""
+    for message in reversed(messages):
+        if is_owner_message(message):
+            return False
+        if is_runtime_notice(message) and '"kind": "effect_claim_check"' in message.content:
+            return True
+    return False
+
+
 def request_refusal(messages: list[ModelMessage], call: ToolCall) -> dict[str, Any] | None:
     """The refused result of a call that cannot answer the owner's control request:
-    a new entry for a stop, pause or resume, a memory note for a limit to adopt."""
+    a new entry for a stop, pause or resume, a memory note for a limit to adopt, a
+    financial call in the claim gate's repair turn."""
+    if call.name in FINANCIAL_CALLS and _in_claim_repair(messages):
+        return {
+            "ok": False,
+            "code": "claim_repair_no_financial_call",
+            "executed": False,
+            "message": "This turn only corrects a reply that claimed an action; it cannot "
+            "place, change or close a trade, and nothing was sent. Tell the owner plainly "
+            "what has not been done.",
+        }
     if call.name == "memory_write" and _LIMIT_SET.search(_normalized(owner_words(messages))):
         return {
             "ok": False,
@@ -273,12 +301,13 @@ def claim_gate(
     if type(attempts) is not int or attempts < 1:
         state[_STATE_KEY] = 1
         return ClaimVerdict(nudge=CLAIM_NUDGE)
+    # Another effect may have succeeded, so the line says only that the claim is unconfirmed.
     return ClaimVerdict(
-        replacement="لم يُنفَّذ أي تغيير في هذا الرد، فما طلبته لم يحدث بعد. أخبرني إن أردت "
-        "أن أحاول مرة أخرى."
+        replacement="ما ذكرتُ أنه تم لم يؤكده أي إجراء في هذا الرد، فهو لم يحدث بعد. أخبرني "
+        "إن أردت أن أحاول مرة أخرى."
         if prefers_arabic(messages)
-        else "Nothing was changed in this reply, so what you asked for has not happened "
-        "yet. Tell me if you want me to try again."
+        else "What I said was done is not confirmed by any action in this reply, so it has "
+        "not happened yet. Tell me if you want me to try again."
     )
 
 

@@ -14,7 +14,10 @@ from lonora_agent.reply_gates import (
     requested_tools,
     stop_requested,
 )
+from lonora_agent.runtime_notices import notice_message
 from lonora_agent.stop_gates import reset_stop_gate
+from lonora_tools.base import ExposureProfile, ToolScope
+from lonora_tools.loader import load_tools
 
 EFFECTS = frozenset({"memory_write", "watch_cancel", "trade_restriction_create"})
 
@@ -151,7 +154,7 @@ def test_an_unsupported_claim_gets_one_repair_then_an_honest_line() -> None:
     second = claim_gate(state, messages, "تم، ألغيت التنبيه.", EFFECTS)
     assert second.nudge is None and second.replacement is not None
     assert not claims_effect(second.replacement)
-    assert "لم" in second.replacement
+    assert "لم يحدث" in second.replacement
     # New owner input starts a new bounded epoch.
     reset_stop_gate(state)
     assert claim_gate(state, messages, "ألغيت التنبيه.", EFFECTS).nudge
@@ -160,7 +163,7 @@ def test_an_unsupported_claim_gets_one_repair_then_an_honest_line() -> None:
 def test_english_owner_gets_the_honest_line_in_english() -> None:
     state: dict[str, Any] = {"effect_claim_gate": 1}
     verdict = claim_gate(state, [owner("Please cancel my gold alert")], "Done.", EFFECTS)
-    assert verdict.replacement and verdict.replacement.startswith("Nothing")
+    assert verdict.replacement and verdict.replacement.startswith("What I said")
 
 
 def test_a_successful_effect_in_this_request_supports_the_claim() -> None:
@@ -262,3 +265,61 @@ def test_a_waiting_card_needs_a_proposed_card() -> None:
         assert not claim_gate({}, nothing, text, effects).passed
     proposed = [owner("استأنف التداول"), *result("owner_action_propose", {"ok": True})]
     assert claim_gate({}, proposed, "بطاقة استئناف التداول بانتظار لمستك.", effects).passed
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["لا توقف الصفقات", "ما أوقفت التداول، كمّل", "don't stop trading", "never pause trading"],
+)
+def test_a_negated_stop_is_not_a_stop_request(text: str) -> None:
+    assert not stop_requested(text)
+
+
+def test_a_false_positive_fails_safe() -> None:
+    # A question about the words reads as a stop request: it can only refuse an entry,
+    # and the refusal says nothing was sent; it never claims a restriction exists.
+    messages = [owner("ماذا يعني أوقف الصفقات؟")]
+    refused = request_refusal(messages, call("trade_execute", action="buy", symbol="XAUUSD"))
+    assert refused and "nothing was sent" in refused["message"]
+    assert "created" not in refused["message"] and "recorded" not in refused["message"]
+    assert request_refusal(messages, call("trade_execute", action="close_position")) is None
+    assert request_refusal(messages, call("trade_close_positions")) is None
+
+
+@pytest.mark.parametrize("name", ["trade_execute", "trade_close_positions", "goal_step_execute"])
+def test_the_claim_repair_round_cannot_reach_a_financial_tool(name: str) -> None:
+    messages = [owner("اشتر الذهب"), ModelMessage(role="assistant", content="اشتريت الذهب.")]
+    assert request_refusal(messages, call(name, action="close_position")) is None
+    state: dict[str, Any] = {}
+    verdict = claim_gate(state, messages, "قمت بالشراء.", EFFECTS)
+    assert verdict.nudge
+    messages.append(notice_message("effect_claim_check", verdict.nudge))
+    refused = request_refusal(messages, call(name, action="close_position"))
+    assert refused and refused["code"] == "claim_repair_no_financial_call"
+    # Other tools stay available to do the work honestly.
+    assert request_refusal(messages, call("watch_cancel")) is None
+
+
+def test_the_honest_line_does_not_say_nothing_happened() -> None:
+    # A successful effect of another kind may exist (J05: watch_create, then «تم الإلغاء»).
+    created = [owner("ألغِ التنبيه"), *result("watch_create", {"ok": True})]
+    state: dict[str, Any] = {"effect_claim_gate": 1}
+    line = claim_gate(state, created, "تم الإلغاء.", EFFECTS | {"watch_create"}).replacement
+    assert line and "لم يؤكده" in line and "أي تغيير" not in line
+
+
+@pytest.mark.parametrize("scope", ["full", "observe_only", "helper"])
+def test_promoted_control_tools_are_never_financial_and_keep_scope(scope: ToolScope) -> None:
+    registry = load_tools()
+    words = ["أوقف الصفقات الجديدة اليوم", "ألغِ التنبيه", "اختر نموذج الذكاء لوكيل الذهب"]
+    sets: list[list[ExposureProfile]] = [["core", "market", "coordination"], ["core", "market"]]
+    for profiles in sets:
+        base, _ = registry.exposure(profiles, scope=scope)
+        for text in words:
+            remembered = requested_tools([owner(text)])
+            native, _ = registry.exposure(profiles, scope=scope, remembered=remembered)
+            added = set(native) - set(base)
+            assert all(not registry.tools[name].financial for name in added)
+            assert all(registry.tools[name].permitted(scope) for name in added)
+            if scope != "helper":
+                assert added == set(remembered)

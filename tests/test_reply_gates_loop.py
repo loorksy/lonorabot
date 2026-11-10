@@ -91,7 +91,7 @@ async def test_an_unsupported_claim_is_repaired_once_then_replaced(
     second, _ = model.requests[1]
     assert CLAIM_NUDGE.split(",")[0] in second[-1].content
     assert run.status == "completed"
-    assert run.result is not None and run.result.startswith("لم يُنفَّذ أي تغيير")
+    assert run.result is not None and run.result.startswith("ما ذكرتُ أنه تم")
 
 
 @pytest.mark.asyncio
