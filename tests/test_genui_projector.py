@@ -322,3 +322,24 @@ async def test_observed_without_any_fact_drops_the_mode_not_the_card() -> None:
     projection, projector = await project("Here is the path:\n```lonora-ui\n" + body + "\n```\n")
     card = cast(dict[str, Any], projection.rich_until())["parts"][1]["document"]
     assert "mode" not in card and any(d["code"] == "mode_checked" for d in projector.diagnostics)
+
+
+@pytest.mark.asyncio
+async def test_a_typed_market_value_makes_the_card_fall_back() -> None:
+    # A receipt that types the silver quote it read, instead of citing it with @Fact.
+    body = A01.replace(
+        '{"type":"Text","tone":"muted"',
+        '{"type":"KeyValue","rows":[["Now","28.92"]]}\n{"type":"Text","tone":"muted"',
+    )
+    projection, projector = await project(reply(body))
+    assert all(p["type"] == "text" for p in (projection.rich_until() or {"parts": []})["parts"])
+    assert any(d["code"] == "card_fallback_typed_fact" for d in projector.diagnostics)
+    # The owner's own 2400 is theirs to show.
+    owned = A01.replace(
+        '{"type":"Text","tone":"muted"',
+        '{"type":"KeyValue","rows":[["Target","2400"]]}\n{"type":"Text","tone":"muted"',
+    )
+    projection, _ = await project(reply(owned))
+    assert projection.rich_until() and any(
+        p["type"] == "ui" for p in projection.rich_until()["parts"]
+    )

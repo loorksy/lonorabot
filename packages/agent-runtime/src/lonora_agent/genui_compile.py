@@ -14,6 +14,7 @@ import json
 import math
 import re
 from dataclasses import dataclass
+from decimal import Decimal, InvalidOperation
 from typing import Any, cast
 
 from lonora_adapter_kit.types import ModelMessage
@@ -197,6 +198,66 @@ def resolve_pointer(data: Any, path: str) -> tuple[Any, str | None]:
     if isinstance(data, dict | list):
         return _bounded(data, 0, [0]), observed
     return _scalar(data), observed
+
+
+NUMBER = re.compile(r"\d[\d,]*(?:\.\d+)?")
+FACT_TOOLS = re.compile(r"^(?:market_|account_|list_accounts$|trade_record_history$)")
+
+
+def _numbers(value: Any) -> set[Decimal]:
+    found: set[Decimal] = set()
+    if isinstance(value, bool) or value is None:
+        return found
+    if isinstance(value, int | float):
+        if math.isfinite(value):
+            found.add(Decimal(str(value)).normalize())
+    elif isinstance(value, str):
+        for token in NUMBER.findall(value):
+            try:
+                found.add(Decimal(token.replace(",", "")).normalize())
+            except InvalidOperation:
+                continue
+    elif isinstance(value, list):
+        for item in cast(list[Any], value):
+            found |= _numbers(item)
+    elif isinstance(value, dict):
+        for item in cast(dict[str, Any], value).values():
+            found |= _numbers(item)
+    return found
+
+
+def _significant(number: Decimal) -> bool:
+    return (number != number.to_integral_value() and abs(number) >= 1) or abs(number) >= 1000
+
+
+def typed_fact_numbers(
+    head: dict[str, Any],
+    blocks: list[dict[str, Any]],
+    state: dict[str, Any],
+    evidence: dict[str, Evidence],
+    owner: str,
+) -> list[str]:
+    """Market or account values read this turn that the card types as literals instead of
+    citing through @Fact (rule 2); numbers the owner typed are theirs to show."""
+    read: set[Decimal] = set()
+    for item in evidence.values():
+        if FACT_TOOLS.match(item.name) and not _failed(item.result):
+            read |= {n for n in _numbers(item.result) if _significant(n)}
+    said = _numbers(owner)
+    literals: list[Any] = [head.get("title"), head.get("sub"), list(state.values())]
+    for _path, node in walk(blocks):
+        for key in ("text", "label", "hint", "sub", "value", "rows", "title"):
+            value = node.get(key)
+            if isinstance(value, str):
+                value = re.sub(r"\{[^{}]*\}", " ", value)
+            elif isinstance(value, list):
+                value = [
+                    re.sub(r"\{[^{}]*\}", " ", c) if isinstance(c, str) else c
+                    for row in cast(list[Any], value)
+                    for c in (cast(list[Any], row) if isinstance(row, list) else [row])
+                ]
+            literals.append(value)
+    return sorted(str(n) for n in _numbers(literals) if n in read and n not in said)
 
 
 def _call_account(item: Evidence, bound_account: str | None) -> str | None:
@@ -535,6 +596,18 @@ def compile_card(
             if holds:
                 blocks.insert(index, {"type": "Delivery", "channels": list(capabilities.delivery)})
                 break
+
+    # Rule 2: a market or account value read this turn is shown only through @Fact.
+    owner = next(
+        (
+            m.content
+            for m in reversed(messages)
+            if m.role == "user" and m.context_origin == "conversation"
+        ),
+        "",
+    )
+    if typed_fact_numbers(head, blocks, state, evidence, owner):
+        raise CardError("card_fallback_typed_fact")
 
     # Privacy over every display string, rendered at the initial state.
     env = environment(state, calc, {k: f["value"] for k, f in facts.items()})

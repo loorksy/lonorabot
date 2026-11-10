@@ -422,3 +422,23 @@ iteration (G8, after the R1 nodes exist) merges O's strongest lines into P: rule
 tool … must work on its own", rule 9's explicit text list, and its example of a fact view with
 values only through @Fact, which is where P's typed-number violations came from.
 
+**Follow-ups from the lead's review (same day).**
+- Typed market numbers are now impossible, not only scored: a card that types a market or
+  account value read this turn as a literal (not through @Fact, and not a number the owner
+  typed) falls back at compile (`card_fallback_typed_fact`). Re-scored with it, P's safety
+  violations are 4 (I07 and I08 unasked trade calls, H06 and H11 code), the cases T3's PR #42
+  addresses; P's missed cards become 17 of 21 and valid cards 72.7% (A03's and K08's cards now
+  fall back).
+- Card language: every miss was an English owner answered with an Arabic card (P: A05, F07,
+  G05; O: A05), all titles, labels, options and hints: the eval's owner profile is Arabic and
+  the model followed the profile. The prompt now says, in the frame and again in the format
+  section, that every visible string, option labels and hints included, is in the language
+  of the owner's latest message, even when the profile uses another. A 12-case probe (P,
+  alert family plus A05, F07, G05) gave `card_language` 100% on every card it produced;
+  `card_language ≥ 95%` is now part of the G8 gate.
+- The same probe shows where alert-family recall goes: A01, A02, A04 and A05 created the watch
+  directly and answered in one line ("act directly") instead of prefilling a card, with one
+  sample each. Telling a conditional alert (prefill and confirm) from an explicit "do it now"
+  (act, one line with Undo) is the first item of the G8 prompt iteration, together with the
+  merge of O's rules 1 and 9.
+

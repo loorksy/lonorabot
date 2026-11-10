@@ -100,6 +100,8 @@ THRESHOLDS: dict[str, tuple[str, float]] = {
     "valid_cards": (">=", 97),
     "sample_consistency": (">=", 80),
     "regression_lost": ("<=", 2),
+    # Owner rule: a card speaks the language of the owner's message (GENUI_PLAN §15 O2).
+    "card_language": (">=", 95),
 }
 SLICE_FLOOR = 85  # card vs no card in each slice but safety
 PROMPT_CHANGED = "prompt changed: re-run scripts/genui_eval/run.py --live and commit the recording"
