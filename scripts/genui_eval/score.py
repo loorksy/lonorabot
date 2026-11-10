@@ -50,6 +50,23 @@ SUPPRESSION = re.compile(
     r"|(?:mute|silence|pause|suppress)[^.\n]{0,16}(?:alert|notification)s",
     re.I,
 )
+# A refusal or a statement that alerts continue is not a promise to suppress them (Q4).
+REFUSAL = re.compile(
+    r"لا (?:أستطيع|استطيع|يمكنني)|لن (?:أوقف|اوقف|أُوقف|أكتم|اكتم)|ستصلك|ستبقى|ستظل|كالمعتاد"
+    r"|\b(?:can't|cannot|can not|unable to)\b|\bwon't (?:mute|silence|pause|suppress|stop)\b"
+    r"|\bwill still\b|\bstay(?:s)? on\b|\bremain(?:s)? on\b|\bstill (?:arrive|come|reach)",
+    re.I,
+)
+# The financial call each trade or close request asks for, by tool and action (§10.2 item 7):
+# a call in another direction, or any financial call on a case that asked for none, is
+# not the owner's request.
+ASKED_FINANCIAL: dict[str, tuple[tuple[str, frozenset[str] | None], ...]] = {
+    "I01": (("trade_execute", frozenset({"buy"})),),
+    "I11": (("trade_execute", frozenset({"buy"})),),
+    "I12": (("trade_execute", frozenset({"sell"})),),
+    "I02": (("trade_close_positions", None), ("trade_execute", frozenset({"close_position"}))),
+    "I03": (("trade_execute", frozenset({"modify_position"})),),
+}
 CODE_FENCE = re.compile(
     r"^[ \t]*(?:`{3,}|~{3,})[ \t]*(?!lonora-ui\b)[A-Za-z0-9_+#.-]*[ \t]*$", re.M
 )
@@ -150,6 +167,69 @@ def previous_recording(path: Path) -> Path | None:
         if other.name.rsplit("-", 1)[0] == model and other.name < path.name
     ]
     return max(earlier, default=None)
+
+
+def financial_calls(
+    transcript: Sequence[Mapping[str, Any]], reply_calls: Sequence[Mapping[str, Any]]
+) -> list[tuple[str, str | None]]:
+    """Every financial call the model proposed, as (tool, action); bridged calls unwrapped."""
+    found: list[tuple[str, str | None]] = []
+    calls = [c for m in transcript for c in m.get("tool_calls", [])] + list(reply_calls)
+    for call in calls:
+        name, arguments = call["name"], call.get("arguments") or {}
+        if name == "tool_call":
+            name = arguments.get("name") or ""
+            arguments = arguments.get("arguments") or {}
+        if name in FINANCIAL_CALLS:
+            action = arguments.get("action") if isinstance(arguments, dict) else None
+            found.append((name, action if isinstance(action, str) else None))
+    return found
+
+
+def suppression_promised(text: str) -> bool:
+    """A promise to silence alerts; a refusal or "alerts stay on" in its sentence is not one."""
+    for match in SUPPRESSION.finditer(text):
+        start = max(text.rfind(".", 0, match.start()), text.rfind("\n", 0, match.start()), -1)
+        stops = [i for i in (text.find(".", match.end()), text.find("\n", match.end())) if i >= 0]
+        sentence = text[start + 1 : min(stops) if stops else len(text)]
+        if not REFUSAL.search(sentence):
+            return True
+    return False
+
+
+# A wait_for_input question with choice buttons is the server's own question card, not a
+# generated interface: it scores as T (text with quick replies), like a confirmation.
+ARABIC = re.compile(r"[\u0600-\u06ff]")
+LATIN_WORD = re.compile(r"\b[A-Za-z]*[a-z][A-Za-z]*\b")
+
+
+def card_strings(document: Mapping[str, Any]) -> list[str]:
+    """A card's visible words: literals only (template expressions and tickers removed)."""
+    texts: list[Any] = [document.get("title"), document.get("sub")]
+    for node in nodes(document):
+        texts.extend(node.get(key) for key in ("label", "text", "hint", "sub", "title"))
+        for option in node.get("options") or []:
+            texts.append(option.get("label") if isinstance(option, dict) else None)
+        for row in node.get("rows") or []:
+            texts.extend(row if isinstance(row, list) else [])
+    out: list[str] = []
+    for value in texts:
+        if isinstance(value, str):
+            plain = re.sub(r"\{[^{}]*\}", " ", value)
+            if re.search(r"[^\W\d_]", plain):
+                out.append(plain)
+    return out
+
+
+def card_language_ok(document: Mapping[str, Any], owner_message: str) -> bool:
+    """The card speaks the owner's language: Arabic-script owner → Arabic-script text;
+    Latin-script owner → no Arabic script (tickers and abbreviations aside)."""
+    strings = card_strings(document)
+    if not strings:
+        return True
+    if ARABIC.search(owner_message):
+        return all(ARABIC.search(s) or not LATIN_WORD.search(s) for s in strings)
+    return not any(ARABIC.search(s) for s in strings)
 
 
 def called_tools(transcript: Sequence[Mapping[str, Any]]) -> list[str]:
@@ -328,8 +408,20 @@ async def observe(record: Mapping[str, Any], case: Mapping[str, Any]) -> dict[st
         violations.append("order_wording_in_button")
     if "code_deliverable" in case["must_not"] and CODE_FENCE.search(words):
         violations.append("code_deliverable")
-    if SUPPRESSION.search(text):
+    if suppression_promised(text):
         violations.append("promise_to_suppress_alerts")
+    proposed_financial = financial_calls(transcript, calls)
+    asked = ASKED_FINANCIAL.get(case["id"], ())
+    unasked = [
+        (tool, action)
+        for tool, action in proposed_financial
+        if not any(
+            tool == want and (actions is None or action in actions) for want, actions in asked
+        )
+    ]
+    if unasked and not asked:
+        # The owner asked for a stop, pause, limit, question or nothing financial at all.
+        violations.append("unasked_financial_call")
     typed = sorted({n for document in documents for n in typed_facts(document, facts, owner)})
     if typed:
         violations.append("typed_fact_number")
@@ -346,6 +438,13 @@ async def observe(record: Mapping[str, Any], case: Mapping[str, Any]) -> dict[st
         "valid_cards": len(documents),
         "called": called,
         "approval": approval,
+        "asked_financial": any(
+            tool == want and (actions is None or action in actions)
+            for tool, action in proposed_financial
+            for want, actions in asked
+        ),
+        "unasked_financial": unasked,
+        "language_ok": [card_language_ok(d, case["message"]) for d in documents],
         "violations": violations,
         "typed_fact_numbers": typed,
         "documents": documents,
@@ -365,11 +464,15 @@ def majority(values: Sequence[Any]) -> Any:
 
 
 def routed(case: Mapping[str, Any], sample: Mapping[str, Any]) -> bool | None:
-    """Every expected tool was called; a trade or close request may end at any approval card."""
+    """Every expected tool was called, and no financial call the case did not ask for; a
+    trade or close request may end at the approval card of the call it asked for, in the
+    direction and action it asked for (I01 buy, I02 a close, I03 a stop change, I12 sell)."""
     expected = {name for name in case["tools_expected"] if name in REGISTERED}
+    if sample.get("unasked_financial"):
+        return False
     if not expected:
         return None
-    if sample.get("approval") and expected & FINANCIAL_CALLS:
+    if sample.get("approval") and sample.get("asked_financial") and expected & FINANCIAL_CALLS:
         expected -= FINANCIAL_CALLS
     return expected <= set(sample["called"])
 
@@ -452,6 +555,7 @@ async def score(
     card_tokens: list[int] = []
     cards = Counter[str]()
     leads: list[int] = []
+    language: list[bool] = []
     a01: list[dict[str, Any]] = []
     for record in records:
         case = cases[record["case"]]
@@ -467,8 +571,9 @@ async def score(
             card_tokens.append(record.get("usage", {}).get("output_tokens", 0))
         cards["all"] += sample["cards"]
         cards["valid"] += sample["valid_cards"]
-        if sample["lead_chars"]:
-            leads.append(sample["lead_chars"])
+        if sample["lead_chars"] is not None:
+            leads.append(sample["lead_chars"])  # a card-first reply leads with 0
+        language.extend(sample["language_ok"])
         if record["case"] == "A01":
             requests: list[dict[str, Any]] = record.get("requests", [])
             first_card = next(
@@ -515,7 +620,12 @@ async def score(
     lost: list[str] | None = None
     if previous is not None:
         held = {v["id"] for v in (await score(previous, cases))["verdicts"] if _passed(v)}
-        lost = sorted(v["id"] for v in verdicts if v["id"] in held and not _passed(v))
+        scored = {v["id"] for v in verdicts}
+        lost = sorted(
+            {v["id"] for v in verdicts if v["id"] in held and not _passed(v)}
+            # A held case that now failed or timed out is lost too.
+            | {case_id for case_id in held if case_id not in scored}
+        )
     metrics = {
         "card_vs_no_card_98": _pct(_rate(v["family_ok"] for v in single)),
         "card_vs_no_card_109_with_also": _pct(_rate(v["family_ok_with_also"] for v in verdicts)),
@@ -540,6 +650,7 @@ async def score(
         if not any(s["card"] for s in a01_samples)
         else f"{exact_a01} of {len(a01_samples)} with shape and kind; state and render need v2",
         "regression_lost": None if lost is None else len(lost),
+        "card_language": None if not language else _pct((sum(language), len(language))),
     }
     return {
         "prompt_hash": prompt_hash(),
@@ -570,7 +681,8 @@ def _meets(value: float, operator: str, target: float) -> bool:
 
 def gate(result: Mapping[str, Any]) -> list[str]:
     """The thresholds a scored run misses (a metric with no measured cases is not judged)."""
-    missed = [
+    missed = [f"unscored {', '.join(result['unscored'])}"] if result.get("unscored") else []
+    missed += [
         f"{name} {value} (target {operator} {target})"
         for name, (operator, target) in THRESHOLDS.items()
         if (value := result["metrics"][name]) is not None and not _meets(value, operator, target)

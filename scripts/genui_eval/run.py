@@ -278,7 +278,15 @@ def scrub(record: dict[str, Any], identities: Mapping[str, str]) -> dict[str, An
     if not names:
         return record
     pattern = re.compile("|".join(map(re.escape, sorted(names, key=len, reverse=True))))
-    return json.loads(pattern.sub(lambda match: names[match[0]], text))
+    text = pattern.sub(lambda match: names[match[0]], text)
+    # A trade request's operation_id is new on every run (TradeRequest's default).
+    operations: dict[str, str] = {}
+    text = re.sub(
+        r'(\\?"operation_id\\?":\s*\\?")([^"\\]+)',
+        lambda m: m[1] + operations.setdefault(m[2], f"operation_{len(operations) + 1}"),
+        text,
+    )
+    return json.loads(text)
 
 
 def output_path(model: str, *, baseline: bool, partial: bool, now: datetime) -> Path:

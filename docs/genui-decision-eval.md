@@ -346,8 +346,9 @@ F08, G01, H03, H12, J01, J02, J03, J04, J07, J08, J12.
   its own waiting prompt, not as a `lonora-ui` card, so the scorer counts them as T. §3.2 does
   not say whether such a question counts toward a shape. Nothing above counts it.
 - **Route, 10 of 39.** The 29 failures:
-  - 10 asked a `wait_for_input` question instead of acting: A02, A03, A07, A08, A11, I04, I05,
-    J06, J09 and K09.
+  - 9 asked a `wait_for_input` question instead of acting: A02, A03, A07, A08, A11, I04, J06,
+    J09 and K09. (An earlier version of this list also named I05, which did not stop at a
+    question; corrected after the lead's check of the scorer.)
   - 7 said they had acted without calling the tool: I07, I10, J01, J02, J05, J15 and J16. I10
     wrote a memory note instead of proposing a limit.
   - 6 skipped or swapped the expected read. A01 and A04 created the watch without
