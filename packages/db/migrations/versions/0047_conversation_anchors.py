@@ -13,7 +13,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "0047_conversation_anchors"
-down_revision = "0045_chat_lists"
+down_revision = "0046_conversation_conveniences"
 branch_labels = None
 depends_on = None
 
