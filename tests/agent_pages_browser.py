@@ -14,7 +14,9 @@ from typing import Any
 from uuid import uuid4
 
 from check_streaming import Fixture
+from lonora_db.schema import TradingJournalRow
 from lonora_gateway.attention import attention_tick
+from sqlalchemy import delete
 
 SYMBOL = "XAUUSD"
 
@@ -60,6 +62,44 @@ def snapshot() -> dict[str, Any]:
             }
         },
     }
+
+
+def agent_operations(owner: str, account: str, agent: str) -> list[TradingJournalRow]:
+    """Settled operations of the trading agent, one per order-log state the page names."""
+    now = datetime.now(UTC)
+
+    def row(
+        minutes: int, status: str, request: dict[str, Any], details: dict[str, Any]
+    ) -> TradingJournalRow:
+        return TradingJournalRow(
+            operation_id=f"agent-pages-{uuid4()}",
+            owner_id=owner,
+            account_id=account,
+            request_hash="0" * 64,
+            request={"account_id": account, "symbol": SYMBOL, **request},
+            status=status,
+            result={"details": {"execution": {"agent_id": agent}, **details}},
+            submitted_at=now - timedelta(minutes=minutes),
+            updated_at=now - timedelta(minutes=minutes),
+        )
+
+    verified = {"verification": {"status": "verified"}}
+    return [
+        row(
+            40,
+            "confirmed",
+            {"action": "buy", "volume": "0.3"},
+            {**verified, "price": "211.00", "volume": "0.3"},
+        ),
+        row(
+            30,
+            "confirmed",
+            {"action": "sell_limit", "volume": "0.5", "price": "215"},
+            {**verified, "price": "215.00", "volume": "0.2"},
+        ),
+        row(20, "failed", {"action": "buy_stop", "volume": "0.1", "price": "220"}, {}),
+        row(10, "resolved", {"action": "close_position", "position_id": "p-1"}, {}),
+    ]
 
 
 def cookies(fixture: Fixture) -> list[dict[str, str]]:
@@ -126,7 +166,33 @@ async def action(data: dict[str, Any]) -> dict[str, Any]:
                 },
             )
             assert opened["status"] == "confirmed", opened
+            async with fixture.runtime.db.sessions() as session, session.begin():
+                operations = agent_operations(fixture.owner, chart["account"], trader["id"])
+                operations[-1].result = {
+                    "details": {
+                        **operations[-1].result["details"],
+                        "resolution": {"source": "owner", "outcome": "not_executed"},
+                    }
+                }
+                session.add_all(operations)
+            watch = await fixture.request(
+                "POST",
+                "/watches",
+                {
+                    "agent_id": trader["id"],
+                    "payload": {
+                        "kind": "price",
+                        "account_id": chart["account"],
+                        "symbol": SYMBOL,
+                        "condition": "below",
+                        "level": "200",
+                        "prompt": "Tell me when gold dips.",
+                        "expires_at": (datetime.now(UTC) + timedelta(hours=3)).isoformat(),
+                    },
+                },
+            )
             return {
+                "watch": watch["id"],
                 "cookies": cookies(fixture),
                 "account": chart["account"],
                 "symbol": chart["symbol"],
@@ -142,8 +208,15 @@ async def action(data: dict[str, Any]) -> dict[str, Any]:
         try:
             for group in data.get("groups", []) + [data["group"]["id"]]:
                 await fixture.client.delete(f"/api/groups/{group}")
-            for agent in (data["trader"]["id"], data["research"]["id"]):
+            await fixture.client.delete(f"/api/watches/{data['watch']}")
+            for agent in (data["trader"]["id"], data["research"]["id"], *data.get("agents", [])):
                 await fixture.client.delete(f"/api/agents/{agent}")
+            async with fixture.runtime.db.sessions() as session, session.begin():
+                await session.execute(
+                    delete(TradingJournalRow).where(
+                        TradingJournalRow.operation_id.like("agent-pages-%")
+                    )
+                )
             await fixture.request("PUT", "/trading/controls", data["controls"])
             await fixture.client.delete(f"/api/trading/connections/{data['account']}")
             # The brake toggled for the owner's position raised attention; settle it so the

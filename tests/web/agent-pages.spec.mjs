@@ -19,6 +19,7 @@ const errors = [];
 test.beforeEach(async ({ page, context }) => {
   data = fixture({ action: "init" });
   data.groups = [];
+  data.agents = [];
   await context.addCookies(
     data.cookies.map((cookie) => ({
       ...cookie,
@@ -53,7 +54,7 @@ test("the trading agent's page: level, trading and safety, watches, and the on/o
   await expect(main.locator(".hero .badge")).toHaveText("Ask me");
   await expect(main).toContainText("Trading and safety");
   await expect(main).toContainText("Ask me on every order");
-  await expect(main).toContainText("No watches.");
+  await expect(main.locator(".wt-row")).toContainText(`${data.symbol} below 200`);
   // Q1, Q44: the agent page never offers to delete the agent.
   await expect(main.getByRole("button", { name: /delete|remove the agent/i })).toHaveCount(0);
   for (const row of [
@@ -166,7 +167,17 @@ test("trades: the owner's own close goes through the executor; the order log sho
   const card = main.locator("[data-position-id]").first();
   await expect(card).toContainText(data.symbol);
   await expect(card).toContainText("0.1");
-  await expect(main).toContainText("Order log");
+  // The agent's operations under the reference's names, with the broker's evidence.
+  const row = (state) => main.locator(`.od-row[data-order-state="${state}"]`);
+  await expect(row("filled")).toContainText(`Buy 0.3 ${data.symbol}`);
+  await expect(row("filled")).toContainText("At market price");
+  await expect(row("filled")).toContainText("211.00");
+  await expect(row("partial")).toContainText("0.2 / 0.5");
+  await expect(row("partial")).toContainText("Partly filled");
+  await expect(row("partial")).toContainText("Limit order");
+  await expect(row("rejected")).toContainText("Stop order");
+  await expect(row("cancelled")).toContainText("Close the trade");
+  const position = await card.getAttribute("data-position-id");
   await card.getByRole("button", { name: "Close the trade", exact: true }).click();
   const execute = page.waitForRequest(
     (request) =>
@@ -181,6 +192,7 @@ test("trades: the owner's own close goes through the executor; the order log sho
     action: "close_position",
     account_id: data.account,
     symbol: data.symbol,
+    position_id: position,
   });
   expect(typeof body.operation_id).toBe("string");
   await expect(main.locator("[data-position-id]")).toHaveCount(0);
@@ -229,4 +241,62 @@ test("the group page and «مجموعة جديدة» with purpose and coordinato
     member_ids: [data.trader.id, data.research.id],
   });
   await expect(page).toHaveURL(new RegExp(`/app/group/${group.id}$`));
+});
+
+test("watches: pause, resume and cancel with undo, each through the watch's control route", async ({
+  page,
+}) => {
+  await page.goto(`/app/agent/${data.trader.id}`);
+  const main = page.locator("main");
+  const watch = main.locator(".wt-row");
+  const control = () =>
+    page.waitForRequest(
+      (request) =>
+        request.method() === "POST" &&
+        new URL(request.url()).pathname === `/api/watches/${data.watch}/control`,
+    );
+  let sent = control();
+  await watch.getByRole("button", { name: "Pause for now", exact: true }).click();
+  expect((await sent).postDataJSON()).toEqual({ action: "pause" });
+  await expect(watch).toContainText("Paused for now");
+  sent = control();
+  await watch.getByRole("button", { name: "Resume", exact: true }).click();
+  expect((await sent).postDataJSON()).toEqual({ action: "resume" });
+  await expect(watch).not.toContainText("Paused for now");
+  sent = control();
+  await watch.getByRole("button", { name: "Cancel", exact: true }).click();
+  expect((await sent).postDataJSON()).toEqual({ action: "cancel" });
+  await expect(main.locator(".wt-row")).toHaveCount(0);
+  sent = control();
+  await page.locator("#toast").getByRole("button", { name: "Undo" }).click();
+  expect((await sent).postDataJSON()).toEqual({ action: "resume" });
+  await expect(main.locator(".wt-row")).toHaveCount(1);
+});
+
+test("«وكيل جديد»: the supervision switch sends the agents it supervises; the model stays automatic", async ({
+  page,
+}) => {
+  await page.goto("/app/new-agent");
+  const main = page.locator("main");
+  await main.getByRole("radio", { name: /^Research agent/ }).check();
+  await main.getByRole("switch", { name: "Supervise other agents", exact: true }).click();
+  await main.getByRole("button", { name: "Next", exact: true }).click();
+  await expect(main.getByRole("combobox", { name: "Model", exact: true })).toHaveValue("");
+  await main
+    .getByLabel("Agent name", { exact: true })
+    .fill(`Watcher ${data.trader.id.slice(0, 6)}`);
+  await main.getByLabel("Description", { exact: true }).fill("Keeps an eye on the desk");
+  await main.getByRole("switch", { name: data.trader.name }).check();
+  const creation = page.waitForResponse(
+    (response) => new URL(response.url()).pathname === "/api/agents/create",
+  );
+  await main.getByRole("button", { name: "Create the agent", exact: true }).click();
+  const response = await creation;
+  const agent = await response.json();
+  data.agents.push(agent.id);
+  const body = response.request().postDataJSON();
+  expect(body).toMatchObject({ template: "research", supervises: [data.trader.id] });
+  expect(body).not.toHaveProperty("model");
+  await expect(page).toHaveURL(new RegExp(`/app/agent/${agent.id}$`));
+  await expect(main.locator(".row", { hasText: data.trader.name })).toBeVisible();
 });

@@ -61,6 +61,7 @@ CHECKS = (
     "check_account_recovery.py",
     "check_execution_recovery.py",
     "check_trading_restrictions.py",
+    "check_owner_trades.py",
     "check_decision_replay.py",
     "check_review_findings.py",
     "check_delegated_scope.py",

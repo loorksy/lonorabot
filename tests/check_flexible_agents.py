@@ -289,7 +289,7 @@ async def main() -> None:
             {
                 "scope_mode": "flexible",
                 "trading_account_id": second,
-                "trading_symbol": "XAUUSDm",
+                "trading_symbol": "EURUSDm",
                 "expected_scope_revision": 2,
             },
         )
@@ -303,7 +303,9 @@ async def main() -> None:
             "trade_execute",
             {
                 "account_id": second,
-                "symbol": "XAUUSDm",
+                # The GRANTED symbol on the new account: a grant that wrongly followed the
+                # agent's account would execute this one.
+                "symbol": "EURUSDm",
                 "action": "buy",
                 "volume": "0.1",
                 "stop_loss": "90",
@@ -317,7 +319,7 @@ async def main() -> None:
             f"/trading/approvals/{asked_second['approval_id']}/decision",
             {"decision": "reject"},
         )
-        print("PASS an account switch keeps the grant on its own account; the new one asks")
+        print("PASS an account switch keeps the grant on its own account; its symbol there asks")
         async with f.runtime.db.sessions() as session:
             persisted = await session.get(AgentRow, fixed["id"])
             assert persisted and "<flexible_agent_scope>" in binding_context(persisted)

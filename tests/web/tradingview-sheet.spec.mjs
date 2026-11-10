@@ -36,6 +36,11 @@ test("chart sheet expands, dismisses with Escape and restores focus (Q37: the re
     await expect(sheet.getByRole("tab", { name: "15m" })).toHaveAttribute("aria-selected", "true");
     const candles = sheet.locator("svg.chart rect");
     await expect(candles.first()).toBeVisible();
+    // The chart's RSI(14) is an oscillator: its own labelled pane, never the price scale.
+    const pane = sheet.locator('svg.chart [data-overlay="pane"]');
+    await expect(pane).toContainText("RSI 14");
+    expect(await pane.locator("polyline").count()).toBeGreaterThan(0);
+    expect(await sheet.locator('svg.chart [data-overlay="indicator"]').count()).toBe(0);
     const initial = await sheet.boundingBox();
     expect(initial.height).toBeLessThan(800);
     await sheet.getByRole("button", { name: "Full screen", exact: true }).click();
