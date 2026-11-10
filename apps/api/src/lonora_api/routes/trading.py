@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, Request
 from lonora_adapters.storage.secret_store import EncryptedSecretStore
 from lonora_auth.identity import OwnerIdentity
 from lonora_contracts.broker import BrokerConnection
-from lonora_contracts.domain import Contract
+from lonora_contracts.domain import Contract, utcnow
 from lonora_contracts.trading import (
     TERMINAL_STATUSES,
     OperationResolution,
@@ -12,6 +12,7 @@ from lonora_contracts.trading import (
     TradeResult,
     TradingControl,
 )
+from lonora_core.user_error import LonoraError
 from lonora_db.broker_sessions import BrokerSessionRepository
 from lonora_db.obligations import prepare_delete
 from lonora_db.trading_journal import journal_entries
@@ -170,11 +171,25 @@ async def approvals(
     request: Request, thread_id: str, owner: OwnerIdentity = Depends(require_owner)
 ) -> list[dict[str, Any]]:
     from lonora_db.schema import TradeApprovalRow, TradingJournalRow
-    from lonora_db.trade_approvals import approval_data
+    from lonora_db.trade_approvals import approval_data, settle_if_expired
     from lonora_db.transactions import owned_thread
     from sqlalchemy import select
 
-    async with runtime(request).db.sessions() as session:
+    db = runtime(request).db
+    async with db.sessions() as session, session.begin():
+        # Lazily settled: a pending card past its expiry becomes expired (with its event).
+        await owned_thread(session, owner.id, thread_id)
+        overdue = await session.scalars(
+            select(TradeApprovalRow.id).where(
+                TradeApprovalRow.owner_id == owner.id,
+                TradeApprovalRow.thread_id == thread_id,
+                TradeApprovalRow.status == "pending",
+                TradeApprovalRow.expires_at <= utcnow(),
+            )
+        )
+        for identifier in list(overdue):
+            await settle_if_expired(session, owner.id, identifier)
+    async with db.sessions() as session:
         await owned_thread(session, owner.id, thread_id)
         rows = await session.scalars(
             select(TradeApprovalRow)
@@ -217,7 +232,27 @@ async def approval_decision(
     body: ApprovalDecision,
     owner: OwnerIdentity = Depends(require_owner),
 ) -> dict[str, Any]:
-    from lonora_db.trade_approvals import decide
+    from lonora_db.trade_approvals import decide, settle_if_expired
+
+    db = runtime(request).db
+    async with db.sessions() as session, session.begin():
+        # Settled (and committed) first, so the refusal below leaves the card expired.
+        expired = await settle_if_expired(session, owner.id, approval_id)
+    if expired:
+        raise LonoraError("trade_approval_expired", 409)
+    async with db.sessions() as session, session.begin():
+        return await decide(session, owner.id, approval_id, body.decision)
+
+
+@router.post("/approvals/{approval_id}/renew")
+async def approval_renew(
+    request: Request, approval_id: str, owner: OwnerIdentity = Depends(require_owner)
+) -> dict[str, Any]:
+    """«طلب جديد» on an expired approval: the agent is asked again in the same
+    conversation (a run with a fixed server note). It creates no approval itself: the
+    agent re-validates and raises a new card through the normal path."""
+    from lonora_db.runs import run_data
+    from lonora_db.trade_approvals import renew_approval
 
     async with runtime(request).db.sessions() as session, session.begin():
-        return await decide(session, owner.id, approval_id, body.decision)
+        return run_data(await renew_approval(session, owner.id, approval_id))

@@ -272,6 +272,8 @@ def test_agents_can_only_propose_and_the_decision_is_an_owner_session_route() ->
         "/owner-actions",
         "/owner-actions/{card_id}/challenge",
         "/owner-actions/{card_id}/decision",
+        # «طلب جديد»: a fresh card for an expired one; it decides nothing.
+        "/owner-actions/{card_id}/renew",
     }
     for route in routes:
         assert any(item.call is require_owner for item in route.dependant.dependencies), route

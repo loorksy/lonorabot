@@ -35,6 +35,7 @@ the passkey never signs a choice the owner's screen did not show.
 """
 
 from dataclasses import dataclass
+from datetime import timedelta
 from typing import Any, Literal
 
 from fastapi import APIRouter, Body, Depends, Request
@@ -63,6 +64,7 @@ from lonora_db.authority_lock import authority_lock
 from lonora_db.capability_cards import connected_result, review_writes
 from lonora_db.integrations import subscribe_feed
 from lonora_db.model_cards import confirm_model_card, supersede_agent_model_cards
+from lonora_db.notice_cards import undo_watch_change
 from lonora_db.owner_actions import (
     account_policy,
     agent_names,
@@ -84,6 +86,7 @@ from lonora_db.owner_actions import (
     raise_created_card,
     raise_review_card,
     raise_supervision_card,
+    renew_card,
     review_card_wanted,
     settle,
     stale_reason,
@@ -91,7 +94,7 @@ from lonora_db.owner_actions import (
     thread_cards,
     widens,
 )
-from lonora_db.schema import AgentRow, McpConnectionRow, OwnerActionRow
+from lonora_db.schema import AgentRow, McpConnectionRow, OwnerActionRow, TradingJournalRow
 from lonora_db.supervision import (
     grant_supervision,
     owned_grant,
@@ -100,7 +103,7 @@ from lonora_db.supervision import (
 )
 from lonora_db.threads import conversation_thread
 from lonora_db.trading_readiness import risk_limit_frame
-from lonora_db.trading_restrictions import revoke_restriction
+from lonora_db.trading_restrictions import create_restriction, revoke_restriction
 from lonora_db.transactions import owned_thread
 from lonora_db.trusted_sources import trust_source
 from lonora_session.idempotency import stable_id
@@ -111,6 +114,7 @@ from lonora_trading.owner_controls import (
     require_account_currency,
     store_execution_policy,
 )
+from lonora_trading.risk_limits import trading_day_start
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..device_metadata import native_origins
@@ -187,6 +191,16 @@ async def decision(
         row = await owned_card(session, owner.id, card_id, lock=True)
         await decide(session, rt, owner, row, body, review)
         return await owner_action_data(session, row)
+
+
+@router.post("/{card_id}/renew")
+async def renew(
+    request: Request, card_id: str, owner: OwnerIdentity = Depends(require_owner)
+) -> dict[str, Any]:
+    """«طلب جديد»: a fresh card for an expired one whose record still needs a decision
+    (``owner_action_not_renewable`` otherwise). It decides nothing."""
+    async with runtime(request).db.sessions() as session, session.begin():
+        return await owner_action_data(session, await renew_card(session, owner.id, card_id))
 
 
 async def grant_challenge(
@@ -320,6 +334,8 @@ async def decide(
     if body.decision == "choose":
         await choose(session, owner, row, body)
         return
+    if body.pause_new_today and row.kind != "resolve_operation":
+        raise LonoraError("owner_action_pause_unsupported", 422)
     desired = "confirmed" if body.decision == "confirm" else "cancelled"
     if row.status != "pending":
         # Idempotent per card: the same decision again answers from the record.
@@ -380,6 +396,10 @@ async def decide(
             },
         )
         result = {"outcome": body.outcome}
+        if body.pause_new_today:
+            # «أوقف الصفقات الجديدة اليوم» (Q11): the owner's own pause on the account
+            # until the trading day ends there. It only narrows; one tap lifts it.
+            result["restriction_id"] = await pause_new_today(session, owner, row)
     elif row.kind in MODEL_CARD_KINDS:
         result = await confirm_model_card(session, row)
     elif row.kind == "grant_authority":
@@ -407,6 +427,9 @@ async def decide(
         result = {"restored": await restore_supervision(session, owner, row)}
     elif row.kind == "supervision_paused":
         result = {"resumed": await owner_resumes(session, owner.id, row.payload["hold_id"])}
+    elif row.kind == "watch_changed":
+        # Undo: the expiry the watch had before the agent extended it (owner only).
+        result = await undo_watch_change(session, owner.id, row.payload)
     elif row.kind == "trust_source":
         result = await trust_from_card(session, rt, owner, row, body)
     elif row.kind == "connect_credential":
@@ -498,6 +521,27 @@ async def decide(
         # The agent that asked continues the work that needed this source (or checks a
         # server whose tools could not be reviewed).
         await continue_after_card(session, row)
+
+
+async def pause_new_today(session: AsyncSession, owner: OwnerIdentity, row: OwnerActionRow) -> str:
+    """No new entries by any agent on the operation's account until the end of the
+    account's trading day (its ``trading_day_timezone``); once per card."""
+    operation = await session.get(TradingJournalRow, row.payload["operation_id"])
+    assert operation is not None  # The attestation above read it.
+    zone = (await account_policy(session, owner.id, operation.account_id)).risk
+    day_end = trading_day_start(utcnow(), zone.trading_day_timezone) + timedelta(days=1)
+    restriction = await create_restriction(
+        session,
+        owner.id,
+        account_id=operation.account_id,
+        action_class="no_new_entries",
+        source="owner_ui",
+        created_by_agent_id=None,
+        valid_until=day_end,
+        reason="Paused new trades for today from an uncertain trade's card",
+        restriction_id=stable_id(row.id, "pause-new-today"),
+    )
+    return restriction.id
 
 
 async def choose(
