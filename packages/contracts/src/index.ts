@@ -16,4 +16,5 @@ export type * from "./search";
 export type * from "./skills";
 export type * from "./supervision";
 export type * from "./trading";
+export type * from "./usage";
 export type * from "./visual-response";
