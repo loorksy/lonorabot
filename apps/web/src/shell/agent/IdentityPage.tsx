@@ -2,7 +2,7 @@ import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
 import type { AgentModelSummary } from "@lonora/contracts";
 import { Icon } from "@lonora/ui-web";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AgentAvatar } from "../../components/ai/AgentAvatar";
 import { type Agent, api, type Resource } from "../../lib/api";
 import { readSymbols } from "../../lib/market";
@@ -13,7 +13,7 @@ import { SkPage, SkRows } from "../Skeleton";
 import { NotFoundPage } from "../StatePage";
 import { useToast } from "../Toast";
 import { useAvatarSheet } from "./AvatarSheet";
-import { accountLabel, isTrader, useRead } from "./shared";
+import { accountLabel, isTrader, usePageAgent, useRead } from "./shared";
 import "./agent.css";
 
 const modelKey = (item: { provider: string; model: string }) => `${item.provider}:${item.model}`;
@@ -24,9 +24,9 @@ const modelKey = (item: { provider: string; model: string }) => `${item.provider
    widens a grant) and PUT /api/agents/{id}/model. */
 export function IdentityPage({ agentId }: { agentId: string }) {
   const data = useShellData();
-  const agent = data.agents.find((row) => row.id === agentId);
+  const { agent, missing } = usePageAgent(agentId, data.agents, data.agentsLoading);
   if (!agent)
-    return data.agentsLoading ? (
+    return !missing ? (
       <SkPage>
         <SkRows count={4} />
       </SkPage>
@@ -50,6 +50,10 @@ function IdentityForm({ agent }: { agent: Agent }) {
   const [account, setAccount] = useState(agent.trading_account_id ?? "");
   const [symbol, setSymbol] = useState(agent.trading_symbol ?? "");
   const [symbols, setSymbols] = useState<string[] | null>(null);
+  // Only the owner's own pick changes the market: never a default, never a re-pick.
+  const [marketEdited, setMarketEdited] = useState(false);
+  const edited = useRef(false);
+  edited.current = marketEdited;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>();
   const [tried, setTried] = useState(false);
@@ -59,10 +63,6 @@ function IdentityForm({ agent }: { agent: Agent }) {
       ? modelKey(model.value.record.preference.primary)
       : "";
   const modelValue = choice ?? savedModel;
-  // An agent with no account yet starts on the first one, as the reference does.
-  useEffect(() => {
-    if (trader && !account && accounts[0]) setAccount(accounts[0].id);
-  }, [trader, account, accounts]);
   useEffect(() => {
     if (!trader || !account) return;
     let live = true;
@@ -71,7 +71,9 @@ function IdentityForm({ agent }: { agent: Agent }) {
       .then((list) => {
         if (!live) return;
         setSymbols(list);
-        setSymbol((old) => (list.includes(old) ? old : (list[0] ?? "")));
+        // A new account the owner picked starts on its first symbol; the saved pair is kept
+        // as it is even when this account no longer lists it.
+        if (edited.current) setSymbol((old) => (list.includes(old) ? old : (list[0] ?? "")));
       })
       .catch((failure: unknown) => {
         if (live) {
@@ -85,6 +87,7 @@ function IdentityForm({ agent }: { agent: Agent }) {
   }, [trader, account]);
   const marketChanged =
     trader &&
+    marketEdited &&
     Boolean(account && symbol) &&
     (account !== (agent.trading_account_id ?? "") || symbol !== (agent.trading_symbol ?? ""));
   const changed =
@@ -208,7 +211,7 @@ function IdentityForm({ agent }: { agent: Agent }) {
       {trader ? (
         accounts.length ? (
           <>
-            {accounts.length > 1 ? (
+            {accounts.length > 1 || !account ? (
               <label className="field">
                 <span>
                   <Trans>Trading account</Trans>
@@ -216,8 +219,12 @@ function IdentityForm({ agent }: { agent: Agent }) {
                 <select
                   name="account"
                   value={account}
-                  onChange={(event) => setAccount(event.target.value)}
+                  onChange={(event) => {
+                    setMarketEdited(true);
+                    setAccount(event.target.value);
+                  }}
                 >
+                  {!account && <option value="">{t`Choose an account`}</option>}
                   {accounts.map((row) => (
                     <option key={row.id} value={row.id}>
                       {accountLabel(accounts, row.id)}
@@ -237,7 +244,7 @@ function IdentityForm({ agent }: { agent: Agent }) {
                 </div>
               </div>
             )}
-            {symbols === null ? (
+            {!account ? null : symbols === null ? (
               <p className="acct-fetch">
                 <Icon name="refresh" />
                 <span>
@@ -256,13 +263,19 @@ function IdentityForm({ agent }: { agent: Agent }) {
                     name="symbol"
                     required
                     value={symbol}
-                    onChange={(event) => setSymbol(event.target.value)}
+                    onChange={(event) => {
+                      setMarketEdited(true);
+                      setSymbol(event.target.value);
+                    }}
                   >
-                    {symbols.map((item) => (
-                      <option key={item} value={item}>
-                        {item}
-                      </option>
-                    ))}
+                    {/* The saved pair stays selectable even when the account no longer lists it. */}
+                    {(symbol && !symbols.includes(symbol) ? [symbol, ...symbols] : symbols).map(
+                      (item) => (
+                        <option key={item} value={item}>
+                          {item}
+                        </option>
+                      ),
+                    )}
                   </select>
                 </label>
                 <p className="field-note">
@@ -279,8 +292,9 @@ function IdentityForm({ agent }: { agent: Agent }) {
             {marketChanged && (
               <p className="note" role="status">
                 <Trans>
-                  A signed grant stays on its own account and pair: on the new one, every order is
-                  shown to you before it is sent.
+                  Changing the market makes this agent's account and pair a flexible default. A
+                  signed grant stays on its own account and pair: outside it, every order is shown
+                  to you for approval before it is sent.
                 </Trans>
               </p>
             )}

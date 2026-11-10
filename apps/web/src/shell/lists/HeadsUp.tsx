@@ -15,6 +15,7 @@ import { useAttention } from "../../providers/AttentionProvider";
 import { useClient } from "../../providers/ClientProvider";
 import { useShellData } from "../data";
 import { useNavigation } from "../navigation";
+import { recoveryPath } from "../routes";
 import { suppressClicks } from "../sheets/SheetHost";
 import { chatPath } from "./ChatList";
 import { useLists } from "./state";
@@ -24,7 +25,8 @@ import { RowAvatar } from "./ThreadRow";
    swipe up hides it. Mute, archive and the owner's quiet hours suppress it and its tone
    (owner decision Q4, the reach-me policy); a critical or action_required attention item
    always shows. */
-type Banner = { row: ChatRow; text: string; serial: number };
+/** `path`: where a tap goes when it is not the row's chat (a broker outage → recovery). */
+type Banner = { row: ChatRow; text: string; serial: number; path?: string };
 
 let audio: AudioContext | null = null;
 function tone() {
@@ -91,9 +93,9 @@ export function HeadsUp({ currentThreadId }: { currentThreadId?: string }) {
     quiet,
   });
   live.current = { rows: lists.rows, agents: data.agents, current: currentThreadId, labels, quiet };
-  const show = useCallback((row: ChatRow, text: string) => {
+  const show = useCallback((row: ChatRow, text: string, path?: string) => {
     serial.current += 1;
-    setBanner({ row, text, serial: serial.current });
+    setBanner({ row, text, serial: serial.current, path });
     setPhase("in");
     tone();
   }, []);
@@ -135,7 +137,12 @@ export function HeadsUp({ currentThreadId }: { currentThreadId?: string }) {
         ? rowKey("group", item.parameters.group_id)
         : rowKey("agent", item.agent_id);
       const row = rows.find((candidate) => candidate.key === key);
-      if (row) show(row, item.parameters.summary || labels[item.code]);
+      if (row)
+        show(
+          row,
+          item.parameters.summary || labels[item.code],
+          item.code === "broker_degraded" ? recoveryPath(item.parameters.account_id) : undefined,
+        );
     }
   }, [attention.items, show]);
   const [entered, setEntered] = useState(0);
@@ -157,7 +164,7 @@ export function HeadsUp({ currentThreadId }: { currentThreadId?: string }) {
   if (!banner) return null;
   const open = () => {
     setPhase("out");
-    nav.go(chatPath(banner.row));
+    nav.go(banner.path ?? chatPath(banner.row));
   };
   return (
     <div

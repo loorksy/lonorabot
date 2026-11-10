@@ -80,3 +80,12 @@ export function watchCondition(payload: Record<string, unknown>) {
 
 export const clockTime = (iso: string) =>
   new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
+
+/** The agent of an agent page: from the shell's list, or read directly while the list has
+ * not caught up (a freshly created agent, a deep link). `missing` once the server says so. */
+export function usePageAgent(agentId: string, agents: Agent[], listLoading: boolean) {
+  const listed = agents.find((row) => row.id === agentId);
+  const direct = useRead<Agent>(listed ? null : `/agents/${encodeURIComponent(agentId)}`);
+  const agent = listed ?? direct.value;
+  return { agent, missing: !agent && !listLoading && direct.error != null };
+}

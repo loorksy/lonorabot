@@ -19,6 +19,7 @@ import { NotFoundPage } from "../StatePage";
 import { useSheets } from "../sheets/SheetHost";
 import { useToast } from "../Toast";
 import { useAvatarSheet } from "./AvatarSheet";
+import { scoped } from "./scope";
 import {
   accountLabel,
   clockTime,
@@ -26,6 +27,7 @@ import {
   isTrader,
   levelIcon,
   levelLabel,
+  usePageAgent,
   useRead,
   watchCondition,
 } from "./shared";
@@ -93,9 +95,9 @@ function modeLine(
    /permissions, the readiness and watches from /state, supervision from /supervision. */
 export function AgentPage({ agentId }: { agentId: string }) {
   const data = useShellData();
-  const agent = data.agents.find((row) => row.id === agentId);
+  const { agent, missing } = usePageAgent(agentId, data.agents, data.agentsLoading);
   if (!agent)
-    return data.agentsLoading ? (
+    return !missing ? (
       <SkPage>
         <SkRows count={6} />
       </SkPage>
@@ -146,7 +148,7 @@ function AgentPageBody({ agent }: { agent: Agent }) {
       sheets.open({
         id: "voice-missing",
         title: t`Calls are not set up`,
-        body: (
+        body: scoped(
           <>
             <p className="muted">
               <Trans>Calling an agent needs a voice provider. Add one in the voice settings.</Trans>
@@ -161,7 +163,7 @@ function AgentPageBody({ agent }: { agent: Agent }) {
             >
               <Trans>Open voice settings</Trans>
             </button>
-          </>
+          </>,
         ),
       });
       return;
@@ -309,7 +311,12 @@ function AgentPageBody({ agent }: { agent: Agent }) {
               <>
                 <NavRow
                   icon="shield"
-                  label={modeLine(live?.trading_readiness, level)}
+                  // Never a calmer line than the server's: nothing until it has answered.
+                  label={
+                    live?.trading_readiness || permissions.value
+                      ? modeLine(live?.trading_readiness, level)
+                      : t`Loading…`
+                  }
                   sub={<Trans>Trading · New trades · Restrictions · Account limits</Trans>}
                   // chat.agent-sheet is the composer's (phase 3): the conversation opens it.
                   onClick={() => go(`/app/${agent.id}?sheet=agent`)}
@@ -329,6 +336,10 @@ function AgentPageBody({ agent }: { agent: Agent }) {
                   />
                 )}
               </>
+            ) : connections.error != null ? (
+              <p role="alert">{userError(connections.error)}</p>
+            ) : !connections.value ? (
+              <SkRows count={1} />
             ) : (
               <NavRow
                 icon="eye"
@@ -347,7 +358,13 @@ function AgentPageBody({ agent }: { agent: Agent }) {
           <h3>
             <Trans>Watches</Trans>
           </h3>
-          {shownWatches.length ? (
+          {watches.error != null ? (
+            <p role="alert">{userError(watches.error)}</p>
+          ) : !watches.value ? (
+            <SkPage>
+              <SkRows count={1} />
+            </SkPage>
+          ) : shownWatches.length ? (
             <div className="group">
               {shownWatches.map((watch) => {
                 const paused = watch.state?.code === "watch_paused";
@@ -403,6 +420,7 @@ function AgentPageBody({ agent }: { agent: Agent }) {
         <SupervisionSection
           agent={agent}
           view={supervision.value}
+          error={supervision.error}
           onChange={() => {
             supervision.reload();
             refresh();
@@ -434,16 +452,32 @@ function AgentPageBody({ agent }: { agent: Agent }) {
 function SupervisionSection({
   agent,
   view,
+  error,
   onChange,
 }: {
   agent: Agent;
   view: SupervisionView | undefined;
+  error: unknown;
   onChange: () => void;
 }) {
   const data = useShellData();
   const sheets = useSheets();
   const toast = useToast();
-  if (!view) return null;
+  if (!view)
+    return (
+      <>
+        <h3>
+          <Trans>Supervises</Trans>
+        </h3>
+        {error != null ? (
+          <p role="alert">{userError(error)}</p>
+        ) : (
+          <SkPage>
+            <SkRows count={1} />
+          </SkPage>
+        )}
+      </>
+    );
   const supervised = new Set(view.supervises.map((grant) => grant.supervised.id));
   const candidates = data.agents.filter(
     (row) => row.id !== agent.id && row.role !== "delegated" && !supervised.has(row.id),
@@ -460,7 +494,7 @@ function SupervisionSection({
     sheets.open({
       id: "sup",
       title: t`Supervision · ${agent.name}`,
-      body: (
+      body: scoped(
         <SupervisionPicker
           agent={agent}
           candidates={candidates}
@@ -469,7 +503,7 @@ function SupervisionSection({
             sheets.close();
             onChange();
           }}
-        />
+        />,
       ),
     });
   return (

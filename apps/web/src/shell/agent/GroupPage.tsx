@@ -12,6 +12,7 @@ import { SkPage, SkRows } from "../Skeleton";
 import { NotFoundPage } from "../StatePage";
 import { useSheets } from "../sheets/SheetHost";
 import { useToast } from "../Toast";
+import { scoped } from "./scope";
 import "./agent.css";
 
 export const agentsWord = (count: number) =>
@@ -112,13 +113,13 @@ export function GroupPage({ groupId }: { groupId: string }) {
             sheets.open({
               id: "group-member",
               title: t`Add an agent`,
-              body: (
+              body: scoped(
                 <AddMembers
                   group={group}
                   candidates={outside}
                   onDone={() => sheets.close()}
                   onError={(failure) => toast(userError(failure), { type: "error" })}
-                />
+                />,
               ),
             })
           }

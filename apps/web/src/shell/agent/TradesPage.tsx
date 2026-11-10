@@ -13,7 +13,8 @@ import { SkPage, SkRows } from "../Skeleton";
 import { NotFoundPage } from "../StatePage";
 import { useSheets } from "../sheets/SheetHost";
 import { ORDER_TONE, type OrderState, orderFill, orderState } from "./order-state";
-import { accountLabel, clockTime, useRead } from "./shared";
+import { scoped } from "./scope";
+import { accountLabel, clockTime, usePageAgent, useRead } from "./shared";
 import "./agent.css";
 
 const STATE_ICON: Record<OrderState, "check" | "close" | "minus" | "alert" | "hourglass"> = {
@@ -84,9 +85,9 @@ function orderWording(action: string): { title: string; kind: string } {
    the single executor under the global brake (Q30) — then «سجل الأوامر» from the journal. */
 export function TradesPage({ agentId }: { agentId: string }) {
   const data = useShellData();
-  const agent = data.agents.find((row) => row.id === agentId);
+  const { agent, missing } = usePageAgent(agentId, data.agents, data.agentsLoading);
   if (!agent)
-    return data.agentsLoading ? (
+    return !missing ? (
       <SkPage>
         <SkRows count={4} />
       </SkPage>
@@ -270,7 +271,7 @@ function PositionCard({
     sheets.open({
       id: "trade-edit",
       title: t`Edit stop and target`,
-      body: (
+      body: scoped(
         <ModifyForm
           position={position}
           onSubmit={(stop, target) => {
@@ -292,14 +293,14 @@ function PositionCard({
             setLast({ action: "modify", ticket });
             void modify.run(ticket, request);
           }}
-        />
+        />,
       ),
     });
   const openClose = () =>
     sheets.open({
       id: "trade-close",
       title: t`Close the trade`,
-      body: (
+      body: scoped(
         <>
           <p>
             <Trans>
@@ -327,7 +328,7 @@ function PositionCard({
               <Trans>Close the trade</Trans>
             </button>
           </div>
-        </>
+        </>,
       ),
     });
   return (

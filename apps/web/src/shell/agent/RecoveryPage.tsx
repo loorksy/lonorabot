@@ -8,6 +8,7 @@ import { userError } from "../../lib/user_error";
 import { SkPage, SkRows } from "../Skeleton";
 import { useSheets } from "../sheets/SheetHost";
 import { useToast } from "../Toast";
+import { scoped } from "./scope";
 import { accountLabel, useRead } from "./shared";
 import "./agent.css";
 
@@ -84,7 +85,7 @@ export function RecoveryPage() {
     sheets.open({
       id: "recovery-details",
       title: t`State details`,
-      body: (
+      body: scoped(
         <>
           {down.map((row) => {
             const state = recoveryOf(row);
@@ -125,7 +126,7 @@ export function RecoveryPage() {
               </div>
             );
           })}
-        </>
+        </>,
       ),
     });
   return (

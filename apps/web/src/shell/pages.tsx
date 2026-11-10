@@ -21,6 +21,7 @@ import { AgentPage } from "./agent/AgentPage";
 import { GroupPage, NewGroupPage } from "./agent/GroupPage";
 import { IdentityPage } from "./agent/IdentityPage";
 import { RecoveryPage } from "./agent/RecoveryPage";
+import { scoped } from "./agent/scope";
 import { TradesPage } from "./agent/TradesPage";
 import { useShellData } from "./data";
 import { Lab } from "./Lab";
@@ -215,7 +216,7 @@ export function DetailPages({
         <Route path="/app/identity/:id" element={<ItemPage page="identity" />} />
         <Route path="/app/trades/:id" element={<ItemPage page="trades" />} />
         <Route path="/app/group/:id" element={<ItemPage page="group" />} />
-        <Route path="/app/recovery" element={<RecoveryPage />} />
+        <Route path="/app/recovery" element={scoped(<RecoveryPage />)} />
         <Route
           path="/app/market"
           element={
@@ -250,24 +251,24 @@ export function DetailPages({
         />
         <Route
           path="/app/new-agent"
-          element={
+          element={scoped(
             <AgentCreatePanel
               onCreated={(row) => {
                 data.refresh();
                 nav.go(`/app/agent/${row.id}`, { replace: true });
               }}
-            />
-          }
+            />,
+          )}
         />
         <Route
           path="/app/new-group"
-          element={
+          element={scoped(
             <NewGroupPage
               key={location.key}
               initialMembers={draft.members}
               initialName={draft.name}
-            />
-          }
+            />,
+          )}
         />
         <Route
           path="/app/owner"
@@ -296,10 +297,10 @@ export function DetailPages({
 /** The pages of one agent or group, keyed by it so a new item starts fresh. */
 function ItemPage({ page }: { page: "agent" | "identity" | "trades" | "group" }) {
   const { id = "" } = useParams();
-  if (page === "agent") return <AgentPage key={id} agentId={id} />;
-  if (page === "identity") return <IdentityPage key={id} agentId={id} />;
-  if (page === "trades") return <TradesPage key={id} agentId={id} />;
-  return <GroupPage key={id} groupId={id} />;
+  if (page === "agent") return scoped(<AgentPage key={id} agentId={id} />);
+  if (page === "identity") return scoped(<IdentityPage key={id} agentId={id} />);
+  if (page === "trades") return scoped(<TradesPage key={id} agentId={id} />);
+  return scoped(<GroupPage key={id} groupId={id} />);
 }
 
 /* The conversation body: the existing message list and composer, mounted as they are. */

@@ -9,6 +9,7 @@ import { userError } from "../../lib/user_error";
 import { useShellData } from "../data";
 import { useSheets } from "../sheets/SheetHost";
 import { useToast } from "../Toast";
+import { scoped } from "./scope";
 
 /** The reference's seven swatches, taken from Lonora's palette. */
 const SWATCHES = AVATAR_COLORS.slice(0, 7);
@@ -147,7 +148,7 @@ export function useAvatarSheet() {
         id: "avatar",
         title,
         label: title,
-        body: (
+        body: scoped(
           <AvatarEditor
             identity={agent?.id ?? "new"}
             name={agent?.name ?? draft?.name ?? ""}
@@ -165,7 +166,7 @@ export function useAvatarSheet() {
               sheets.close();
               toast(t`Avatar saved`, { type: "success" });
             }}
-          />
+          />,
         ),
       });
     },

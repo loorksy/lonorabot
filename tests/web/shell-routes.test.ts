@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { parseRoute } from "../../apps/web/src/shell/routes";
+import { parseRoute, recoveryPath } from "../../apps/web/src/shell/routes";
 
 test("inherited object names are not route aliases", () => {
   for (const name of ["constructor", "toString", "hasOwnProperty", "__proto__"])
@@ -18,4 +18,9 @@ test("the agent, identity, trades and group pages carry their item", () => {
   for (const bare of ["/app/agent", "/app/identity", "/app/trades", "/app/group"])
     assert.deepEqual(parseRoute(bare), { kind: "not-found" });
   assert.deepEqual(parseRoute("/app/recovery/x"), { kind: "not-found" });
+});
+
+test("a broker outage opens the recovery page for its account", () => {
+  assert.equal(recoveryPath("acct 1"), "/app/recovery?account=acct%201");
+  assert.equal(recoveryPath(undefined), "/app/recovery");
 });

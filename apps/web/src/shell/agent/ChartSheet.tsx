@@ -9,6 +9,7 @@ import { useClient } from "../../providers/ClientProvider";
 import { SkPage } from "../Skeleton";
 import { useSheets } from "../sheets/SheetHost";
 import { layout } from "./chart-geometry";
+import { scoped } from "./scope";
 import "./agent.css";
 
 const FRAMES = ["5m", "15m", "1h", "4h"] as const;
@@ -451,19 +452,21 @@ export function useChartSheet() {
         expand: true,
         title,
         label: pair ? `${t`Chart`} ${pair.symbol}` : t`Chart`,
-        body: pair ? (
-          <ChartSheetBody
-            key={`${pair.accountId}:${pair.symbol}`}
-            accountId={pair.accountId}
-            symbol={pair.symbol}
-            agentId={options.agentId}
-          />
-        ) : (
-          <ChartById
-            chartId={options.chartId}
-            agentId={options.agentId}
-            threadId={options.threadId}
-          />
+        body: scoped(
+          pair ? (
+            <ChartSheetBody
+              key={`${pair.accountId}:${pair.symbol}`}
+              accountId={pair.accountId}
+              symbol={pair.symbol}
+              agentId={options.agentId}
+            />
+          ) : (
+            <ChartById
+              chartId={options.chartId}
+              agentId={options.agentId}
+              threadId={options.threadId}
+            />
+          ),
         ),
       });
     },

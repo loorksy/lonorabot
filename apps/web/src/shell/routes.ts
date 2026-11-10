@@ -82,3 +82,9 @@ export const isRoot = (route: ShellRoute): route is { kind: "root"; root: Root }
   route.kind === "root";
 export const isConversation = (route: ShellRoute) =>
   route.kind === "chat" || route.kind === "group";
+
+/** The recovery page (recovery.page) for a broker outage, scoped to its account. */
+export const recoveryPath = (account: unknown) =>
+  typeof account === "string" && account
+    ? `/app/recovery?account=${encodeURIComponent(account)}`
+    : "/app/recovery";
