@@ -74,7 +74,10 @@ export function useScheduleDetails(onDeleted: () => void) {
         <>
           <ValueRow label={t`Repeat`} value={facts.repeat} />
           <ValueRow label={t`Time`} value={<span className="ltr">{facts.time}</span>} />
-          <ValueRow label={t`Channel`} value={t`In the app`} />
+          <ValueRow
+            label={t({ message: "Channel", context: "schedule details" })}
+            value={t`In the app`}
+          />
           <button
             type="button"
             className="btn full danger"

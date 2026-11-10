@@ -315,7 +315,7 @@ msgstr "Advanced"
 #: src/pages/shell/message-cards.tsx:264
 #: src/pages/shell/message-cards.tsx:267
 #: src/pages/shell/message-cards.tsx:334
-#: src/shell/domain/SchedulesPages.tsx:285
+#: src/shell/domain/SchedulesPages.tsx:287
 #: src/shell/domain/TasksPages.tsx:197
 msgid "Agent"
 msgstr "Agent"
@@ -376,7 +376,7 @@ msgstr "Agents"
 msgid "Agents and groups"
 msgstr "Agents and groups"
 
-#: src/shell/domain/SchedulesPages.tsx:311
+#: src/shell/domain/SchedulesPages.tsx:313
 msgid "Alert channel"
 msgstr "Alert channel"
 
@@ -847,7 +847,11 @@ msgid "Changing mode pauses active trading goals. Live trading still requires ex
 msgstr "Changing mode pauses active trading goals. Live trading still requires existing approvals and safety controls."
 
 #: src/components/charts/ChartAnnotations.tsx:73
+msgid "Channel"
+msgstr "Channel"
+
 #: src/shell/domain/SchedulesPages.tsx:77
+msgctxt "schedule details"
 msgid "Channel"
 msgstr "Channel"
 
@@ -1012,7 +1016,7 @@ msgstr "Choose GPT-Live 1 or GPT-Live 1 mini as the global voice model."
 msgid "Choose supported global speech models in Settings."
 msgstr "Choose supported global speech models in Settings."
 
-#: src/shell/domain/SchedulesPages.tsx:254
+#: src/shell/domain/SchedulesPages.tsx:256
 msgid "Choose the task's date."
 msgstr "Choose the task's date."
 
@@ -1150,7 +1154,7 @@ msgstr "Completion criterion"
 msgid "Condition"
 msgstr "Condition"
 
-#: src/shell/domain/SchedulesPages.tsx:309
+#: src/shell/domain/SchedulesPages.tsx:311
 msgid "Condition — for the conditional alert"
 msgstr "Condition — for the conditional alert"
 
@@ -1405,7 +1409,7 @@ msgid "Customize avatar"
 msgstr "Customize avatar"
 
 #: src/shell/domain/SchedulesPages.tsx:39
-#: src/shell/domain/SchedulesPages.tsx:302
+#: src/shell/domain/SchedulesPages.tsx:304
 msgctxt "schedule repeat"
 msgid "Daily"
 msgstr "Daily"
@@ -1414,7 +1418,7 @@ msgstr "Daily"
 msgid "Dark"
 msgstr "Dark"
 
-#: src/shell/domain/SchedulesPages.tsx:307
+#: src/shell/domain/SchedulesPages.tsx:309
 msgid "Date"
 msgstr "Date"
 
@@ -2045,7 +2049,7 @@ msgid "In progress"
 msgstr "In progress"
 
 #: src/shell/domain/SchedulesPages.tsx:77
-#: src/shell/domain/SchedulesPages.tsx:311
+#: src/shell/domain/SchedulesPages.tsx:313
 msgid "In the app"
 msgstr "In the app"
 
@@ -2895,7 +2899,7 @@ msgid "OK"
 msgstr "OK"
 
 #: src/shell/domain/SchedulesPages.tsx:29
-#: src/shell/domain/SchedulesPages.tsx:217
+#: src/shell/domain/SchedulesPages.tsx:219
 msgctxt "schedule type"
 msgid "Once"
 msgstr "Once"
@@ -3328,7 +3332,7 @@ msgid "Record resolution"
 msgstr "Record resolution"
 
 #: src/shell/domain/SchedulesPages.tsx:34
-#: src/shell/domain/SchedulesPages.tsx:216
+#: src/shell/domain/SchedulesPages.tsx:218
 msgctxt "schedule type"
 msgid "Recurring"
 msgstr "Recurring"
@@ -3401,7 +3405,7 @@ msgid "Removed from favourites"
 msgstr "Removed from favourites"
 
 #: src/shell/domain/SchedulesPages.tsx:75
-#: src/shell/domain/SchedulesPages.tsx:299
+#: src/shell/domain/SchedulesPages.tsx:301
 msgid "Repeat"
 msgstr "Repeat"
 
@@ -3613,7 +3617,7 @@ msgstr "Save members"
 msgid "Save memory"
 msgstr "Save memory"
 
-#: src/shell/domain/SchedulesPages.tsx:230
+#: src/shell/domain/SchedulesPages.tsx:232
 msgid "Save schedule"
 msgstr "Save schedule"
 
@@ -3668,11 +3672,11 @@ msgstr "Schedule a task"
 msgid "Schedule recurring work for your agents."
 msgstr "Schedule recurring work for your agents."
 
-#: src/shell/domain/SchedulesPages.tsx:274
+#: src/shell/domain/SchedulesPages.tsx:276
 msgid "Schedule saved"
 msgstr "Schedule saved"
 
-#: src/shell/domain/SchedulesPages.tsx:292
+#: src/shell/domain/SchedulesPages.tsx:294
 msgid "Schedule type"
 msgstr "Schedule type"
 
@@ -4224,7 +4228,7 @@ msgstr "Tap the lock icon next to the site address."
 #: src/pages/Board.tsx:382
 #: src/pages/RoutineEditor.tsx:75
 #: src/pages/RoutineEditor.tsx:77
-#: src/shell/domain/SchedulesPages.tsx:283
+#: src/shell/domain/SchedulesPages.tsx:285
 msgid "Task"
 msgstr "Task"
 
@@ -4675,7 +4679,7 @@ msgid "Tick size"
 msgstr "Tick size"
 
 #: src/shell/domain/SchedulesPages.tsx:76
-#: src/shell/domain/SchedulesPages.tsx:308
+#: src/shell/domain/SchedulesPages.tsx:310
 msgid "Time"
 msgstr "Time"
 
@@ -5068,7 +5072,7 @@ msgid "Web search"
 msgstr "Web search"
 
 #: src/shell/domain/SchedulesPages.tsx:42
-#: src/shell/domain/SchedulesPages.tsx:304
+#: src/shell/domain/SchedulesPages.tsx:306
 msgctxt "schedule repeat"
 msgid "Weekly"
 msgstr "Weekly"
@@ -5098,7 +5102,7 @@ msgstr "What should this agent know about its work?"
 #~ msgstr "What this agent is for"
 
 #: src/shell/domain/SchedulesPages.tsx:164
-#: src/shell/domain/SchedulesPages.tsx:219
+#: src/shell/domain/SchedulesPages.tsx:221
 msgctxt "schedule type"
 msgid "When a condition is met"
 msgstr "When a condition is met"
@@ -5112,7 +5116,7 @@ msgid "Work stopped after repeated interruptions"
 msgstr "Work stopped after repeated interruptions"
 
 #: src/shell/domain/SchedulesPages.tsx:41
-#: src/shell/domain/SchedulesPages.tsx:303
+#: src/shell/domain/SchedulesPages.tsx:305
 msgctxt "schedule repeat"
 msgid "Workdays"
 msgstr "Workdays"
@@ -5142,7 +5146,7 @@ msgstr "Workspace files"
 msgid "Worried"
 msgstr "Worried"
 
-#: src/shell/domain/SchedulesPages.tsx:240
+#: src/shell/domain/SchedulesPages.tsx:242
 msgid "Write the alert condition."
 msgstr "Write the alert condition."
 
