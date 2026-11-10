@@ -7,8 +7,6 @@ from typing import Any, cast
 
 from lonora_adapter_kit.types import ModelMessage, ToolCall
 from lonora_core.user_error import LonoraError
-from lonora_db.schema import EffectReceiptRow
-from lonora_db.trading_goals import owned_goal, planned_step
 from lonora_session.idempotency import request_hash
 from lonora_tools.base import Tool, ToolScope
 from lonora_tools.context import ToolContext
@@ -32,7 +30,6 @@ from .loop_outcomes import (
     rich_metadata,
 )
 from .progress import progress
-from .reply_gates import GoalTradeIntent, request_refusal
 from .runtime_notices import attach_notice
 from .skills.access import admitted_view_ids
 from .tool_batch import Segment, gather_bounded, next_segment
@@ -279,31 +276,6 @@ async def result_content(context: ToolContext, call: ToolCall, result: dict[str,
     return json.dumps(summary, ensure_ascii=False)
 
 
-async def goal_step_trade(context: ToolContext, call: ToolCall) -> GoalTradeIntent | None:
-    """The trade of the goal step a goal_step_execute would run, if it trades.
-
-    A replayed call keeps the step its receipt froze, as the handler does, not the
-    goal's current step.
-    """
-    if call.name != "goal_step_execute" or not isinstance(call.arguments.get("goal_id"), str):
-        return None
-    try:
-        async with context.db.sessions() as session:
-            goal = await owned_goal(session, context.owner_id, call.arguments["goal_id"])
-            receipt = await session.get(
-                EffectReceiptRow,
-                "goal-step-call:" + context.for_call(call.id).resource_id,
-            )
-            frozen = receipt.result.get("step_id") if receipt is not None else None
-            step = planned_step(goal, frozen or call.arguments.get("step_id"))
-    except LonoraError:
-        # The handler reports the same failure; nothing here runs it.
-        return None
-    if step.trade is None:
-        return None
-    return GoalTradeIntent(step.trade.action, step.trade.clear_stop_loss)
-
-
 async def run_and_record_segment(
     context: ToolContext,
     registry: ToolRegistry,
@@ -321,21 +293,7 @@ async def run_and_record_segment(
     the outcome that ends this pass; ``None`` means the block continues.
     """
     segment = next_segment(pending, registry.tools)
-    # Effects run alone; a call that cannot answer the owner's control request is refused.
-    first = segment.calls[0]
-    refusal = (
-        request_refusal(state, first, goal=await goal_step_trade(context, first))
-        if segment.kind == "serial"
-        else None
-    )
-    if refusal:
-        call = segment.calls[0]
-        await progress(
-            context, "tool.started", started_payload(call, registry.tools.get(call.name))
-        )
-        results = [refusal]
-    else:
-        results = await execute_segment(context, registry, state, segment, scope, save)
+    results = await execute_segment(context, registry, state, segment, scope, save)
     for index, (call, result) in enumerate(zip(segment.calls, results, strict=True)):
         tool = registry.tools.get(call.name)
         guarded = result.get("code") == "guardrail_blocked" and result.get("executed") is False

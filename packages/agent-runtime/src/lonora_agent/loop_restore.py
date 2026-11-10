@@ -18,7 +18,6 @@ from .continuation import slice_limit
 from .environment import environment_state
 from .model_recovery import reset_streak
 from .recovery import restore_execution
-from .reply_gates import record_owner_request
 from .runtime_notices import append_notice, resumed_notice
 from .skills.snapshot import read_snapshot
 from .stop_gates import reset_stop_gate
@@ -26,6 +25,7 @@ from .tool_block import supersede_wait_siblings
 from .tool_exposure import ensure_exposure
 from .tool_guardrails import reset_guardrails
 from .tool_intent import start_budget_epoch
+from .uncertain_outcome import record_request_start
 
 
 async def restore_checkpoint(
@@ -54,8 +54,8 @@ async def restore_checkpoint(
     if not messages:
         messages = await build_context(context, registry)
         state["instruction_skill_ids"] = await selected_skill_ids(context)
-    # The owner's own words for the reply guards, before the exposure reads them.
-    record_owner_request(state, run.trigger, messages)
+    # Whether the owner started this Run, for the uncertain-outcome line.
+    record_request_start(state, run.trigger, messages)
     # Chosen once per Run and frozen in the checkpoint: the native tools array
     # is identical on every model turn, so discovery never invalidates the
     # reusable prompt prefix. Exposure is presentation, never authority.

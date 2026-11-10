@@ -67,7 +67,6 @@ def reset_stop_gate(state: dict[str, Any]) -> None:
     """Only real external wake/owner input starts another bounded review epoch."""
     state.pop(_STATE_KEY, None)
     state.pop(_COMPLETION_KEY, None)
-    state.pop("effect_claim_gate", None)
 
 
 def _steps_nudge(steps: Sequence[tuple[str, str]]) -> str:

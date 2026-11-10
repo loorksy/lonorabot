@@ -63,7 +63,6 @@ from .continuation import MAXIMUM_SLICES, schedule_task_continuation, slice_limi
 from .environment import ToolRetryScheduled, environment_state, retry_pending
 from .loop_outcomes import (
     LoopOutcome,
-    append_line,
     attention_outcome,
     external_wait_outcome,
     final_answer,
@@ -85,7 +84,6 @@ from .model_recovery import (
     record_success,
 )
 from .model_runtime import model_turn
-from .reply_gates import owner_words, report_line
 from .runtime_notices import (
     NO_ANSWER,
     append_notice,
@@ -108,6 +106,7 @@ from .tool_block import (
 from .tool_exposure import inventory, native_definitions
 from .tool_guardrails import halt_reason
 from .tool_intent import start_budget_epoch
+from .uncertain_outcome import append_uncertain_line
 
 log = logging.getLogger("lonora.tool_loop")
 
@@ -220,11 +219,6 @@ async def recovery_profile(context: ToolContext, task_run: bool) -> BackoffProfi
     return WORK if trigger in WORK_TRIGGERS else CONVERSATION
 
 
-def effect_names(registry: ToolRegistry) -> frozenset[str]:
-    """Tools whose successful result can support a reply saying something was done."""
-    return frozenset(name for name, tool in registry.tools.items() if not tool.read_only)
-
-
 async def finish_turn(
     context: ToolContext,
     registry: ToolRegistry,
@@ -274,7 +268,6 @@ async def finish_turn(
                 turn_capability,
                 resolve_calls=registry.resolve_calls,
                 context_view=view,
-                owner_request=owner_words(state),
             )
         except LonoraError as error:
             if error.code in FENCE_CODES:
@@ -301,12 +294,8 @@ async def finish_turn(
                 rich_content=state.get("rich_content"),
             )
         )
-        # No repair turn can follow this tool-less report: a claim the repair turn
-        # already asked to correct, still unsupported, gets its honest line here. An
-        # accurate limit report gets none; the limit stop is its effect.
-        line = report_line(state, messages, text, effect_names(registry))
-        if line:
-            text = append_line(state, messages, text, line)
+        # The round-limit and guardrail report gets the uncertain-outcome line too.
+        text = append_uncertain_line(state, messages, text)
         state["limit_exit"] = {"reason": reason, "text": text}
         await save()
     if task_run:
@@ -350,8 +339,6 @@ async def execute_tool_loop(
 
     async def save() -> None:
         await persist(context, state, messages, pending)
-
-    effect_tools = effect_names(registry)
 
     async def refresh_after_steering() -> None:
         updated_skills = await refresh_skill_context(
@@ -525,7 +512,6 @@ async def execute_tool_loop(
                 policy_tools=policy_tools,
                 context_view=view,
                 input_scale=input_scale(state),
-                owner_request=owner_words(state),
             )
         except LonoraError as error:
             if error.code in FENCE_CODES:
@@ -618,7 +604,7 @@ async def execute_tool_loop(
                 else "silent",
             },
             save,
-            effect_tools=effect_tools,
+            outcome_line=True,
         )
         if outcome is not None:
             return outcome
