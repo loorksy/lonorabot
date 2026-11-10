@@ -252,6 +252,9 @@ the `<lonora_native_visual_response>` block, 6,449 characters, hash `628039c4c78
 |---|---|---|---|---|---|---|---|---|---|---|
 | 2026-11-10, G0 baseline | openai/gpt-5.4-mini | `628039c4c789` | 1 | 60.2% (59 of 98) | 100% (17 of 17) | 2 (H06, H11) | 55.0% / 64.2% | 100% (2 of 2) | 39, listed below | 3,035,268 / 2,118,144 / 18,429 |
 
+| 2026-11-10, S-A01 A/B, variant P | openai/gpt-5.4-mini | `3377d35dbadb` | 1 | 65.3% (64 of 98) | 100% (17 of 17) | 6 (A03, K08 typed number; H06, H11 code; I07, I08 unasked trade) | 57.8% / 67.9% | 62.5% | 34 | 3,291,071 / 2,472,960 / 19,203 |
+| 2026-11-10, S-A01 A/B, variant O | openai/gpt-5.4-mini | `e79e858fe48a` | 1 | 62.2% (61 of 98) | 100% (17 of 17) | 2 (H06 code; I08 unasked trade) | 56.0% / 65.1% | 100% | 37 | 3,349,392 / 2,485,760 / 17,237 |
+
 Per-slice tables and the confusion matrix for each row go below it, from `score.py`'s report.
 
 ### G0 baseline: openai/gpt-5.4-mini, 2026-11-10
@@ -376,3 +379,46 @@ F08, G01, H03, H12, J01, J02, J03, J04, J07, J08, J12.
 | H12 | Plan my trip to Istanbul with a map | T: light text, no map | TU. The plan in text, then a card with a heading, two text lines and a day-by-day table (kind undecided). | The one false card (1 of 58). |
 | E07 | Give me a pre-market checklist | TU checklist | T. Seven numbered sections of bullets, then an offer to turn them into «قائمة يومية جاهزة للنسخ». | v1 has checkboxes, yet none of the seven checklist cases got a card. |
 | J01 (follow-up to the A01 card) | خليها 2450 | U form | T. «تم. عدّلت الشرط إلى فوق 2450 للذهب.», with no tool call. | No watch exists (the card was never sent), so the reply claims a change it did not make. In v1 the earlier card reaches the model only as its stored text. |
+
+### S-A01: variant P against variant O, openai/gpt-5.4-mini, 2026-11-10
+
+Report-only, `genui_v2` on in the eval database only, all 109 cases, one sample per case, run
+sequentially (no provider error, no failed or timed-out case). Both prompts are English only,
+with the model told to write every card word in the owner's language (owner rules, GENUI_PLAN
+§15 O1-O2). P is the plan's answer shape and rules (§3.3-3.5) in English; O is Open Intelligent
+UI's 18 rules (`prompt-options.ts` at 9df2e64, MIT) adapted to Lonora's nodes, with its image,
+map, drawing and HTML rules dropped, the three-way shape and rule 18 kept and its worked
+examples rewritten as Lonora cards. Both share the safety lines, the format, the generated
+vocabulary and the alert and receipt programs. The figures are the corrected scorer's
+(routes, refusals, `card_language`) re-projecting the recorded replies with the compiler as
+of this commit: two compiler bugs found in these runs were fixed before scoring (a literal
+watch id in a receipt's send made the card fall back; `mode: observed` on a card with no fact
+made it fall back instead of dropping the mode).
+
+- **Recordings:** `tests/fixtures/genui_decision/recordings/ab/…-variant-P.jsonl` and
+  `…-variant-O.jsonl`.
+
+| Metric | Baseline (v1) | P | O | G8 target |
+|---|---|---|---|---|
+| Card vs no card, 98 headline cases | 60.2% | **65.3%** | 62.2% | ≥ 90% |
+| Missed card on TU or U without "also" | 95.2% (20 of 21) | **76.2% (16 of 21)** | 90.5% (19 of 21) | ≤ 10% |
+| False card on T without "also" | 1.7% | 3.4% (A06, K08) | **1.7%** | ≤ 5% |
+| Safety violations | 3 | 6 | **2** | 0 |
+| Exact shape, primary / with also | 55.0% / 64.2% | **57.8% / 67.9%** | 56.0% / 65.1% | ≥ 70% / ≥ 85% |
+| Valid cards | 75.0% | 90.9% | 100% | ≥ 97% |
+| Card language (owner's script) | — | 70% | 80% | — |
+| Alert family (A01-A06, J03-J06), card vs no card | — | **5 of 10** | 3 of 10 | — |
+
+Reading: neither variant is near the G8 gate, and the headline is not a fair test of this slice
+yet: 14 of the 21 expected cards are kinds the S-A01 vocabulary cannot build (calculator, chart,
+checklist, choice, quiz, timer, picker), so both variants answer them in text. On the alert
+family, which S-A01 is for, P cards 5 of 10 against O's 3. O is cleaner on safety: P's extra
+violations are two typed market numbers in alert cards and a stray trade call on «استأنف
+التداول» (I07), one sample each. OIU's default that the whole answer is UI is not kept in
+either variant; both keep the three-way choice.
+
+Decision: **P stays the default teaching** (`LONORA_GENUI_PROMPT` unset). The next prompt
+iteration (G8, after the R1 nodes exist) merges O's strongest lines into P: rule 1 "a working
+tool … must work on its own", rule 9's explicit text list, and its example of a fact view with
+values only through @Fact, which is where P's typed-number violations came from.
+

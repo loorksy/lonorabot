@@ -230,19 +230,17 @@ class AgentScope:
 
 
 def _data_keys(action: dict[str, Any], state: dict[str, Any], calc: dict[str, Any]) -> set[str]:
-    """State keys a send's data reads (directly or through calc)."""
+    """State keys a send's data reads, directly or through calc (a literal reads nothing)."""
     keys: set[str] = set()
-    pending = [value for value in cast(dict[str, Any], action.get("data", {})).values()]
+    data = cast(dict[str, Any], action.get("data", {}))
+    pending: list[str] = [v for v in data.values() if isinstance(v, str) and v.startswith("$")]
     seen: set[str] = set()
     while pending:
-        value = pending.pop()
-        if not isinstance(value, str):
-            continue
-        read, _functions, _names, _facts = references(value)
+        read, _functions, _names, _facts = references(pending.pop())
         for key in read:
             if key in state:
                 keys.add(key)
-            elif key in calc and key not in seen:
+            elif key in calc and key not in seen and isinstance(calc[key], str):
                 seen.add(key)
                 pending.append(calc[key])
     return keys
@@ -348,7 +346,12 @@ def compile_card(
         }
     if facts and all(fact["value"] is None for fact in facts.values()):
         raise CardError("card_fallback")
-    if head.get("mode") == "observed" and not any(f["value"] is not None for f in facts.values()):
+    if head.get("mode") == "observed" and not facts:
+        # No fact declared: the card shows no market or account number, so it is never
+        # labelled observed (§9.4, mode_checked).
+        head.pop("mode")
+        diagnostics.add("mode_checked", None, "head")
+    elif head.get("mode") == "observed" and not any(f["value"] is not None for f in facts.values()):
         raise CardError("card_fallback")
     currency: str | None = None
     if account is not None:

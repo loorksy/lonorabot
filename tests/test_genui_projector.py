@@ -263,7 +263,7 @@ def test_v2_prompt_block_is_bounded_generated_and_off_by_default(monkeypatch) ->
         assert part in block
     # English only (owner rule): no Arabic outside the instrument names the compiler matches.
     names = block.index("Instrument names")
-    rest = block[: names] + block[block.index("\n", names) :]
+    rest = block[:names] + block[block.index("\n", names) :]
     assert not re.search("[\u0600-\u06ff]", rest)
     monkeypatch.setenv("LONORA_GENUI_PROMPT", "O")
     other = native_visual_policy()
@@ -276,3 +276,49 @@ def test_v2_prompt_block_is_bounded_generated_and_off_by_default(monkeypatch) ->
         "go: market, tasks, usage, files, agents\n"
         "timezone: UTC · language: ar\n</lonora_ui_capabilities>"
     )
+
+
+@pytest.mark.asyncio
+async def test_a_receipt_with_a_literal_watch_id_compiles() -> None:
+    history = messages()
+    history.insert(
+        2,
+        ModelMessage(
+            role="assistant",
+            content="",
+            tool_calls=[ToolCall(id="w1", name="watch_create", arguments={"symbol": "XAUUSD"})],
+        ),
+    )
+    history.insert(
+        3,
+        ModelMessage(
+            role="tool", tool_call_id="w1", content='{"id":"47a32ccd-c721-5382-b3b1-9ba4d335db1e"}'
+        ),
+    )
+    body = "\n".join(
+        [
+            '{"v":2,"kind":"receipt","title":"Alert active","icon":"check"}',
+            '{"type":"KeyValue","rows":[["Asset","Gold"]]}',
+            '{"type":"Button","label":"Stop alert","action":{"do":"send","intent":"alert.off","data":{"watch_id":"47a32ccd-c721-5382-b3b1-9ba4d335db1e"}}}',
+            '{"why":"w","fallback":"f"}',
+        ]
+    )
+    projection, _ = await project(
+        "The alert is active.\n```lonora-ui\n" + body + "\n```\n", history=history
+    )
+    card = cast(dict[str, Any], projection.rich_until())["parts"][1]["document"]
+    assert card["blocks"][1]["action"]["data"]["watch_id"].startswith("47a32ccd")
+
+
+@pytest.mark.asyncio
+async def test_observed_without_any_fact_drops_the_mode_not_the_card() -> None:
+    body = "\n".join(
+        [
+            '{"v":2,"kind":"diagram","title":"How it works","icon":"nodes","mode":"observed"}',
+            '{"type":"Note","text":"Your request starts here."}',
+            '{"why":"w","fallback":"f"}',
+        ]
+    )
+    projection, projector = await project("Here is the path:\n```lonora-ui\n" + body + "\n```\n")
+    card = cast(dict[str, Any], projection.rich_until())["parts"][1]["document"]
+    assert "mode" not in card and any(d["code"] == "mode_checked" for d in projector.diagnostics)
