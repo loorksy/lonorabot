@@ -11,18 +11,20 @@
 #   v4-good    v2 + a working migration (9998_good_probe)
 #   v3-broken  v4-good + a schema-changing migration (9999) and a Gateway that never starts
 #   v3-fixed   v3-broken's migrations with a working Gateway
-# It uses the Compose project name "lonora", its volume names and ports 80/443, so it
-# refuses to run where a Lonora installation exists. Use a disposable machine.
+# It uses the Compose projects "lonora" and "lonora2", their volume names, ports 80/443 and
+# 127.0.0.1:18010/18030, so it refuses to run where either project exists. Use a
+# disposable machine.
 set -euo pipefail
 repo="${1:?Usage: lifecycle_test.sh REPO}"
 root="$(cd "$(dirname "$0")/../.." && pwd)"
 
 # Never run next to a real installation: it would share its project and volumes.
-if docker volume inspect lonora_database >/dev/null 2>&1 || [[ -e /opt/lonora/state ]] ||
-    [[ -n "$(docker ps -aq --filter label=com.docker.compose.project=lonora)" ]]; then
-    echo 'Refusing to run: this host has a Lonora installation (volume lonora_database, /opt/lonora/state or project containers).' >&2
-    exit 1
-fi
+for name in lonora lonora2; do
+    if docker volume inspect "${name}_database" >/dev/null 2>&1 || [[ -n "$(docker ps -aq --filter "label=com.docker.compose.project=$name")" ]]; then
+        echo "Refusing to run: this host has Compose project $name (containers or ${name}_database)." >&2
+        exit 1
+    fi
+done
 
 work="$(mktemp -d)"
 home="$work/home"
@@ -35,7 +37,12 @@ ok() { passed=$((passed + 1)); printf 'PASS %s\n' "$*"; }
 fail() { printf 'FAIL %s\n' "$*" >&2; exit 1; }
 show() { tail -30 "$1" >&2; }
 lonora() { "$home/infra/compose/lonora" "$@"; }
-dc() { (cd "$home" && docker compose --env-file .env --env-file state/image.env -f infra/compose/docker-compose.prod.yml "$@"); }
+dc() { # the installation's own Compose view: its project name and mode overlay
+    local mode=direct
+    if grep -q '^LONORA_PROXY_LISTEN=.' "$home/.env"; then mode=proxy; fi
+    (cd "$home" && docker compose -p "$(sed -n 's/^LONORA_PROJECT=//p' .env)" --env-file .env --env-file state/image.env \
+        -f infra/compose/docker-compose.prod.yml -f "infra/compose/mode-$mode.yml" "$@")
+}
 sql() { dc exec -T db psql -U lonora -d lonora -tAc "$1" | tr -d '[:space:]'; }
 revision() { sql 'SELECT version_num FROM lonora_v2_alembic'; }
 pinned() { sed -n 's/^LONORA_IMAGE=//p' "$home/state/image.env"; }
@@ -75,7 +82,8 @@ install_fresh() { # $1 version
 wipe() { dc down -v --remove-orphans >/dev/null 2>&1 || true; rm -rf "$home"; }
 teardown() {
     if [[ -f "$home/.env" ]]; then dc down -v --remove-orphans >/dev/null 2>&1 || true; fi
-    rm -f /usr/local/bin/lonora
+    rm -f /usr/local/bin/lonora /usr/local/bin/lonora-lonora2
+    docker compose -p lonora -f "$work/dummy/compose.yml" down -v >/dev/null 2>&1 || true
     rm -rf "$work"
 }
 trap teardown EXIT
@@ -98,9 +106,10 @@ bootstrap="$(sed -n 's/^LONORA_BOOTSTRAP_TOKEN=//p' "$home/.env")"
 webhook="$(sed -n 's/^LONORA_WEBHOOK_SECRET=//p' "$home/.env")"
 new_password=""
 if LONORA_INSTALL_ALLOW_NON_ROOT=1 bash "$root/infra/compose/install.sh" --home "$home" --domain localhost --version v1 --no-systemd >"$work/reinstall.log" 2>&1; then fail 'installer ran over an installation'; fi
-grep -q 'already has an installation' "$work/reinstall.log" || fail 'reinstall refusal message'
+grep -q 'already holds an installation' "$work/reinstall.log" || fail 'reinstall refusal message'
 if LONORA_INSTALL_ALLOW_NON_ROOT=1 bash "$root/infra/compose/install.sh" --home "$work/other" --domain localhost --version v1 --no-systemd >"$work/othervolume.log" 2>&1; then fail 'installer reused the existing lonora_database volume'; fi
 grep -q 'lonora_database already exists' "$work/othervolume.log" || fail 'volume guard message'
+grep -q 'Preflight failed' "$work/othervolume.log" || fail 'preflight verdict'
 [[ ! -e "$work/other/.env" ]] || fail 'volume guard wrote a second installation'
 ok 'install: digest pinned, /ready, secrets 600, bundle modes 644/755; refuses its own home and a leftover lonora_database volume'
 
@@ -369,7 +378,66 @@ ready || fail 'ready after DR'
 cp "$home/state/history.log" "$work/history-2.log" 2>/dev/null || true
 ok 'disaster recovery: newer backup refused on an older image; --with-config restores secrets, keeps the new DB password, /ready'
 
-# 15. No secret in anything the tooling printed or logged.
+# 17. Side by side, as on a shared host: a running project named "lonora" (old install:
+# its volumes, network lonora-net, a service on 127.0.0.1:18010) and a new installation
+# in proxy mode under project lonora2 on 127.0.0.1:18030. The preflight refuses unsafe
+# choices; the new install, its update, backup and restore test leave the old one alone.
+wipe
+mkdir -p "$work/dummy"
+cat >"$work/dummy/compose.yml" <<'DUMMY'
+services:
+  api:
+    image: postgres:16-alpine
+    environment: {POSTGRES_PASSWORD: dummy}
+    ports: ["127.0.0.1:18010:5432"]
+    volumes: ["database:/var/lib/postgresql/data", "artifacts:/srv/artifacts"]
+    networks: [lonora-net]
+volumes: {database: {}, artifacts: {}}
+networks: {lonora-net: {name: lonora-net}}
+DUMMY
+docker compose -p lonora -f "$work/dummy/compose.yml" up -d --wait >/dev/null 2>&1 || fail 'dummy old project start'
+snapshot() {
+    docker ps -aq --no-trunc --filter label=com.docker.compose.project=lonora | sort
+    docker volume ls -q --filter label=com.docker.compose.project=lonora | sort
+    docker network ls -q --no-trunc --filter name=lonora-net | sort
+    local ids; mapfile -t ids < <(docker ps -aq --filter label=com.docker.compose.project=lonora)
+    docker inspect -f '{{.State.Status}} {{.State.StartedAt}}' "${ids[@]}"
+}
+snapshot >"$work/dummy.before"
+home="$work/home2"
+side() { LONORA_INSTALL_ALLOW_NON_ROOT=1 bash "$root/infra/compose/install.sh" --home "$home" --domain localhost --project lonora2 --no-systemd "$@"; }
+if LONORA_INSTALL_ALLOW_NON_ROOT=1 bash "$root/infra/compose/install.sh" --home "$home" --domain localhost --behind-proxy 127.0.0.1:18030 --version v1 --no-systemd >"$work/pre-project.log" 2>&1; then fail 'installed into the existing project lonora'; fi
+grep -q 'lonora_database already exists' "$work/pre-project.log" && grep -q "of Compose project 'lonora' already exist" "$work/pre-project.log" || { show "$work/pre-project.log"; fail 'preflight: existing project'; }
+if side --behind-proxy 127.0.0.1:18010 --version v1 >"$work/pre-port.log" 2>&1; then fail 'installed on a port in use'; fi
+grep -q 'port 18010 is in use' "$work/pre-port.log" || { show "$work/pre-port.log"; fail 'preflight: port in use'; }
+if side --behind-proxy 0.0.0.0:18030 --version v1 >"$work/pre-public.log" 2>&1; then fail 'installed on a public address'; fi
+grep -q 'must be a loopback address' "$work/pre-public.log" || fail 'preflight: loopback only'
+if side --behind-proxy 127.0.0.1:18030 --min-free-ram-mb 99999999 --version v1 >"$work/pre-ram.log" 2>&1; then fail 'installed below the memory minimum'; fi
+grep -q 'available memory .* below 99999999 MB' "$work/pre-ram.log" || fail 'preflight: memory'
+if side --behind-proxy 127.0.0.1:18030 --min-free-disk-gb 999999 --version v1 >"$work/pre-disk.log" 2>&1; then fail 'installed below the disk minimum'; fi
+grep -q 'free disk .* below 999999 GB' "$work/pre-disk.log" || fail 'preflight: disk'
+[[ ! -e "$home" ]] || fail 'a refused preflight created the home directory'
+side --behind-proxy 127.0.0.1:18030 --version v1 >"$work/side-install.log" 2>&1 || { show "$work/side-install.log"; fail 'side-by-side install'; }
+grep -q 'ok    port 18030 is free' "$work/side-install.log" || fail 'preflight printed what it found'
+[[ "$(docker port lonora2-caddy-1 | tr '\n' ' ')" == "8080/tcp -> 127.0.0.1:18030 " ]] || fail "caddy publishes only 127.0.0.1:18030 ($(docker port lonora2-caddy-1 | tr '\n' ' '))"
+if docker ps --filter label=com.docker.compose.project=lonora2 --format '{{.Ports}}' | grep -qE ':(80|443)->'; then fail 'proxy mode binds 80/443'; fi
+[[ "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:18030/health)" == 200 ]] || fail 'health through the loopback entry'
+[[ "$(docker inspect -f '{{.HostConfig.Memory}} {{.HostConfig.NanoCpus}}' lonora2-api-1)" == "939524096 750000000" ]] || fail "api limits: $(docker inspect -f '{{.HostConfig.Memory}} {{.HostConfig.NanoCpus}}' lonora2-api-1)"
+mapfile -t side_ids < <(docker ps -q --filter label=com.docker.compose.project=lonora2)
+total="$(docker inspect -f '{{.HostConfig.Memory}}' "${side_ids[@]}" | awk '{s+=$1} END {print int(s/1048576)}')"
+((total > 0 && total <= 2560)) || fail "stack memory limit ${total} MB"
+[[ -n "$(docker volume ls -q --filter name=^lonora2_database$)" ]] || fail 'volumes prefixed with the project'
+lonora update v2 >"$work/side-update.log" 2>&1 || { show "$work/side-update.log"; fail 'side-by-side update'; }
+lonora backup >"$work/side-backup.log" 2>&1 || { show "$work/side-backup.log"; fail 'side-by-side backup'; }
+lonora restore-test >"$work/side-rt.log" 2>&1 || { show "$work/side-rt.log"; fail 'side-by-side restore-test'; }
+snapshot >"$work/dummy.after"
+diff -q "$work/dummy.before" "$work/dummy.after" >/dev/null || { diff "$work/dummy.before" "$work/dummy.after" >&2; fail 'the old project changed'; }
+wipe
+snapshot >"$work/dummy.end"
+diff -q "$work/dummy.before" "$work/dummy.end" >/dev/null || fail 'removing the new project changed the old one'
+ok "side by side: preflight refuses the taken project, a used port, a public address, low memory and disk; lonora2 in proxy mode on 127.0.0.1:18030 only (limits ${total} MB), updated, backed up, restore-tested; old project lonora untouched"
+
+# 18. No secret in anything the tooling printed or logged.
 for secret in "$key" "$backup_key" "$first_password" "$new_password" "$bootstrap" "$webhook"; do
     [[ -n "$secret" ]] || continue
     leak="$(grep -lF -- "$secret" "$work"/*.log 2>/dev/null | head -n 1 || true)"

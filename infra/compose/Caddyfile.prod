@@ -1,4 +1,10 @@
-{$LONORA_DOMAIN} {
+{
+    servers {
+        trusted_proxies static {$LONORA_TRUSTED_PROXIES:127.0.0.1/32}
+    }
+}
+
+{$LONORA_SITE_ADDRESS} {
     encode zstd gzip
     header {
         Strict-Transport-Security "max-age=31536000"

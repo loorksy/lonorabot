@@ -3,23 +3,35 @@
 # no Python, Node, pnpm or source checkout. Everything else comes from the server image.
 #
 #   sudo bash install.sh --domain lonora.example.com [--version v0.3.0] [--home /opt/lonora]
+#                        [--project lonora] [--behind-proxy 127.0.0.1:18030]
+#                        [--min-free-ram-mb 2560] [--min-free-disk-gb 10] [--no-systemd]
+#
+#   --project       Compose project name: prefixes every container, volume and network, so
+#                   this installation can run beside another one (default: lonora).
+#   --behind-proxy  An existing reverse proxy (e.g. traefik) owns 80/443: run Caddy in
+#                   plain HTTP on this loopback address:port only. Nothing binds 80/443.
 #
 # Get this file without a checkout:
 #   docker run --rm --entrypoint cat ghcr.io/loorksy/lonorabot:main /app/deploy/infra/compose/install.sh >install.sh
 #
-# For a new installation only: it refuses a directory that already has one (use
-# `lonora update` there), and existing .env and backup.key are never replaced.
-# Secrets are generated on this host, written with mode 600 and never printed.
+# For a new installation only. A preflight checks the home directory, this project's
+# containers and volumes, the ports, free memory and free disk, prints what it found, and
+# refuses before changing anything. Secrets are generated here, mode 600, never printed.
 set -euo pipefail
 umask 077
 
-home=/opt/lonora domain="" version=main systemd=true
+home=/opt/lonora domain="" version=main systemd=true project=lonora proxy_listen=""
+min_ram_mb="${LONORA_MIN_FREE_RAM_MB:-2560}" min_disk_gb="${LONORA_MIN_FREE_DISK_GB:-10}"
 repo="${LONORA_IMAGE_REPO:-ghcr.io/loorksy/lonorabot}"
 while (($#)); do
     case "$1" in
         --domain) domain="${2:?}"; shift 2 ;;
         --version) version="${2:?}"; shift 2 ;;
         --home) home="${2:?}"; shift 2 ;;
+        --project) project="${2:?}"; shift 2 ;;
+        --behind-proxy) proxy_listen="${2:?}"; shift 2 ;;
+        --min-free-ram-mb) min_ram_mb="${2:?}"; shift 2 ;;
+        --min-free-disk-gb) min_disk_gb="${2:?}"; shift 2 ;;
         --no-systemd) systemd=false; shift ;;
         *) echo "Unknown option $1" >&2; exit 2 ;;
     esac
@@ -30,14 +42,65 @@ die() { printf 'install: %s\n' "$*" >&2; exit 1; }
 [[ "$EUID" -eq 0 || -n "${LONORA_INSTALL_ALLOW_NON_ROOT:-}" ]] || die 'Run as root (sudo).'
 command -v docker >/dev/null || die 'Docker is required: https://docs.docker.com/engine/install/'
 docker compose version >/dev/null 2>&1 || die 'The Docker Compose plugin is required (package docker-compose-plugin).'
+[[ -n "$domain" ]] || die '--domain is required.'
+
+# --- preflight: read only; refuse before anything is created -------------------------
+problems=0
+check() { # $1 true|false, $2 message
+    if "$1"; then say "  ok    $2"; else say "  FAIL  $2"; problems=$((problems + 1)); fi
+}
+port_in_use() { # $1 port: any listener on the host, or a container publishing it
+    if command -v ss >/dev/null && [[ -n "$(ss -Hltn "( sport = :$1 )" 2>/dev/null)" ]]; then return 0; fi
+    if docker ps --format '{{.Ports}}' | tr ',' '\n' | grep -qE ":$1->"; then return 0; fi
+    (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null
+}
+existing_dir() { local dir="$1"; while [[ ! -d "$dir" ]]; do dir="$(dirname "$dir")"; done; printf '%s\n' "$dir"; }
+
+say "Preflight for project '$project' in $home (nothing is changed unless every check passes):"
+if [[ "$project" =~ ^[a-z0-9][a-z0-9_-]*$ ]]; then check true "project name '$project'"; else check false "project name '$project' (use lowercase letters, digits, - or _)"; fi
+if [[ -e "$home/state/image.env" || -e "$home/.env" || -e "$home/infra" ]]; then
+    check false "$home already holds an installation (to update it, or start it again on the same version: sudo lonora update <version>)"
+else
+    check true "$home holds no installation"
+fi
+if docker volume inspect "${project}_database" >/dev/null 2>&1; then
+    check false "Docker volume ${project}_database already exists; a new install would reuse its data (archive and remove it, or choose another --project)"
+else
+    check true "no ${project}_database volume"
+fi
+others="$(docker ps -aq --filter "label=com.docker.compose.project=$project" | wc -l)"
+if ((others > 0)); then check false "$others container(s) of Compose project '$project' already exist"; else check true "no containers of project '$project'"; fi
+if [[ -n "$proxy_listen" ]]; then
+    if [[ "$proxy_listen" =~ ^127\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}:([0-9]{1,5})$ ]]; then
+        port="${BASH_REMATCH[1]}"
+        if port_in_use "$port"; then check false "port $port is in use (behind-proxy $proxy_listen)"; else check true "port $port is free (behind-proxy $proxy_listen, loopback only)"; fi
+    else
+        check false "--behind-proxy $proxy_listen must be a loopback address:port, e.g. 127.0.0.1:18030"
+    fi
+else
+    for port in 80 443; do
+        if port_in_use "$port"; then check false "port $port is in use (use --behind-proxy if a reverse proxy owns it)"; else check true "port $port is free"; fi
+    done
+fi
+ram_mb=$(($(sed -n 's/^MemAvailable: *\([0-9]*\) kB/\1/p' /proc/meminfo) / 1024))
+if ((ram_mb >= min_ram_mb)); then check true "available memory ${ram_mb} MB (need ${min_ram_mb} MB)"; else check false "available memory ${ram_mb} MB, below ${min_ram_mb} MB (the stack is limited to about 2.3 GB)"; fi
+disk_dir="$(existing_dir "$home")"
+disk_gb=$(($(df -Pm "$disk_dir" | awk 'NR==2 {print $4}') / 1024))
+if ((disk_gb >= min_disk_gb)); then check true "free disk ${disk_gb} GB at $disk_dir (need ${min_disk_gb} GB)"; else check false "free disk ${disk_gb} GB at $disk_dir, below ${min_disk_gb} GB"; fi
+((problems == 0)) || die "Preflight failed ($problems problem(s)); nothing was changed."
+
 if ! command -v gpg >/dev/null; then
     if command -v apt-get >/dev/null && [[ "$EUID" -eq 0 ]]; then apt-get install -y -q gnupg >/dev/null; else die 'gpg is required (package gnupg).'; fi
 fi
 
-[[ ! -f "$home/state/image.env" ]] || die "$home already has an installation. To update it, or to start it again on the same version: sudo lonora update <version>"
-if docker volume inspect lonora_database >/dev/null 2>&1; then
-    die 'A Docker volume lonora_database already exists, so the new install would reuse old data. Archive and remove it first (docs/operations.md, "start fresh").'
+# --- install ----------------------------------------------------------------------------
+if [[ "$version" == *@sha256:* || "$version" == */* ]]; then ref="$version"; else ref="$repo:$version"; fi
+say "Pulling $ref"
+docker pull -q "$ref" >/dev/null || die "Cannot pull $ref; nothing was changed."
+if [[ "$ref" == *@sha256:* ]]; then pinned="$ref"; else
+    pinned="$(docker image inspect --format '{{range .RepoDigests}}{{println .}}{{end}}' "$ref" | grep -m1 "^${ref%:*}@sha256:")" || die "$ref has no registry digest."
 fi
+
 mkdir -p "$home"; chmod 750 "$home"; cd "$home"
 mkdir -p state backups .runtime/releases/android .runtime/releases/ota
 chmod 700 state backups
@@ -46,12 +109,6 @@ mkdir -p maintenance && chmod 755 maintenance
 # The API (uid 10001) reads OTA releases and the APK through a read-only mount.
 chmod 755 .runtime .runtime/releases .runtime/releases/android .runtime/releases/ota
 
-if [[ "$version" == *@sha256:* || "$version" == */* ]]; then ref="$version"; else ref="$repo:$version"; fi
-say "Pulling $ref"
-docker pull -q "$ref" >/dev/null
-if [[ "$ref" == *@sha256:* ]]; then pinned="$ref"; else
-    pinned="$(docker image inspect --format '{{range .RepoDigests}}{{println .}}{{end}}' "$ref" | grep -m1 "^${ref%:*}@sha256:")" || die "$ref has no registry digest."
-fi
 bundle="$(mktemp -d "$home/.bundle.XXXXXX")"
 trap 'rm -rf "$bundle"' EXIT
 container="$(docker create "$pinned")"
@@ -62,51 +119,61 @@ docker cp -q "$container:/app/deploy/." "$bundle" && docker rm "$container" >/de
 cp -a "$bundle/." .
 
 random() { head -c "$1" /dev/urandom | base64 | tr -d '\n'; }
-if [[ ! -f .env ]]; then
-    [[ -n "$domain" ]] || die '--domain is required for a new installation.'
-    cat >.env <<EOF
+cat >.env <<EOF
 # Lonora production configuration. Generated by install.sh; keep private (mode 600).
 LONORA_DOMAIN=$domain
+LONORA_PROJECT=$project
+# Empty: Caddy on 80/443 (direct). Set: Caddy on this loopback address behind a reverse proxy.
+LONORA_PROXY_LISTEN=$proxy_listen
 LONORA_POSTGRES_PASSWORD=$(random 24 | tr '+/' 'xy' | tr -d '=')
 LONORA_ENCRYPTION_KEY=$(random 32 | tr '+/' '-_')
 LONORA_BOOTSTRAP_TOKEN=$(random 32 | tr '+/' '-_' | tr -d '=')
 LONORA_WEBHOOK_SECRET=$(random 32 | tr '+/' '-_' | tr -d '=')
-# Optional overlays, space separated, e.g. infra/research/compose.research.yml
+# Optional overlays, space separated, e.g. infra/research/compose.research.yml (adds ~1.1 GB)
 LONORA_COMPOSE_OVERLAYS=
+# Resource limits (defaults shown; about 2.3 GB in all):
+# LONORA_DB_MEMORY=512m LONORA_DB_CPUS=0.5 LONORA_API_MEMORY=896m LONORA_API_CPUS=0.75
+# LONORA_GATEWAY_MEMORY=768m LONORA_GATEWAY_CPUS=0.75 LONORA_CADDY_MEMORY=96m LONORA_CADDY_CPUS=0.25
 # Optional provider keys; the owner can also save encrypted keys in the Web settings.
 LONORA_OPENAI_API_KEY=
 LONORA_ANTHROPIC_API_KEY=
 EOF
-    chmod 600 .env
-    say "Created $home/.env with freshly generated secrets."
-else
-    say "Keeping the existing $home/.env."
-fi
+chmod 600 .env
+say "Created $home/.env with freshly generated secrets."
 if [[ ! -f backup.key && -z "${LONORA_BACKUP_KEY:-}" ]]; then
     random 48 >backup.key
     chmod 600 backup.key
     say "Created the backup encryption key $home/backup.key."
 fi
-
 printf 'LONORA_IMAGE=%s\n' "$pinned" >state/image.env
-ln -sf "$home/infra/compose/lonora" /usr/local/bin/lonora 2>/dev/null || true
+
+# The command: /usr/local/bin/lonora unless another installation already owns that name.
+link=/usr/local/bin/lonora
+if [[ -e "$link" || -L "$link" ]] && [[ "$(readlink -f "$link")" != "$home/infra/compose/lonora" ]]; then link="/usr/local/bin/lonora-$project"; fi
+ln -sfn "$home/infra/compose/lonora" "$link" 2>/dev/null && say "Command: $link" || link="$home/infra/compose/lonora"
 
 if "$systemd" && command -v systemctl >/dev/null; then
-    sed "s#/opt/lonora#$home#g" infra/systemd/lonora-backup.service >/etc/systemd/system/lonora-backup.service
-    cp infra/systemd/lonora-backup.timer /etc/systemd/system/lonora-backup.timer
-    chmod 644 /etc/systemd/system/lonora-backup.service /etc/systemd/system/lonora-backup.timer
+    unit="$project-backup"
+    sed -e "s#/opt/lonora#$home#g" -e "s#Lonora encrypted backup#Lonora ($project) encrypted backup#" infra/systemd/lonora-backup.service >"/etc/systemd/system/$unit.service"
+    sed -e "s#lonora-backup.service#$unit.service#g" infra/systemd/lonora-backup.timer >"/etc/systemd/system/$unit.timer"
+    chmod 644 "/etc/systemd/system/$unit.service" "/etc/systemd/system/$unit.timer"
     systemctl daemon-reload
-    systemctl enable --now lonora-backup.timer
-    say 'Daily encrypted backups enabled (lonora-backup.timer).'
+    systemctl enable --now "$unit.timer"
+    say "Daily encrypted backups enabled ($unit.timer)."
 fi
 
 "$home/infra/compose/lonora" start
+if [[ -n "$proxy_listen" ]]; then
+    entry="Point your reverse proxy for $domain at http://$proxy_listen (docs/operations.md, \"Side by side\")."
+else
+    entry="Open https://$domain."
+fi
 cat <<EOF
 
-Lonora is installed in $home and pinned to $pinned.
+Lonora is installed in $home (project $project) and pinned to $pinned.
 Next steps:
   1. Copy $home/backup.key to a safe place OFF this server. Without it, no backup can be restored.
-  2. Open https://\$LONORA_DOMAIN and create the owner account. The one-time bootstrap token is
-     in $home/.env (sudo grep LONORA_BOOTSTRAP_TOKEN $home/.env); it is not shown here on purpose.
-  3. Updates: sudo lonora update <version>. Backups: sudo lonora backup / lonora restore-test.
+  2. $entry Create the owner account with the one-time bootstrap token in
+     $home/.env (sudo grep LONORA_BOOTSTRAP_TOKEN $home/.env); it is not shown here on purpose.
+  3. Updates: sudo $link update <version>. Backups: sudo $link backup / restore-test.
 EOF

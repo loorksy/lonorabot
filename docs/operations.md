@@ -15,17 +15,27 @@
 - **اختبار الاستعادة:** `sudo lonora restore-test` يستعيد أحدث نسخة في بيئة مؤقتة. تنبيه صريح: قاعدة البيانات المستعادة تحتوي مفاتيح المزودين والوسيط المحفوظة فيها، ومفتاح فكّ تشفيرها يُمرَّر إلى البيئة المؤقتة حتى يعمل التطبيق. ما يمنعها من الاتصال بأي مزود أو وسيط هو الشبكة الداخلية بلا أي مخرج، ويتحقق الأمر من ذلك قبل تشغيل Gateway ويتوقف إن وجد مخرجًا. ثم يحذف كل شيء. شغّله مرة شهريًا على الأقل.
 - **الاستعادة الفعلية:** `sudo lonora restore /opt/lonora/backups/<ملف> --replace` تأخذ نسخة احتياطية من الوضع الحالي أولًا، ثم تستبدل البيانات وتشغّل الترحيلات. إذا توقفت في منتصفها: أعد الأمر نفسه.
 - **بعد كارثة (خادم جديد):** ثبّت خادمًا جديدًا بالمثبّت، ثم `sudo install -m 600 <مفتاحك> /opt/lonora/backup.key`، ثم `sudo lonora restore <ملف> --replace --with-config`. هذا يعيد الأسرار والنطاق، ويحتفظ بكلمة مرور قاعدة البيانات الجديدة وبملفات النشر من الصورة.
-- **الخادم الحالي (VPS):** لم يُلمس. المسار المعتمد بداية جديدة بقاعدة بيانات فارغة: تُحفظ نسخة كاملة من التثبيت القديم وتُنحّى جانبًا، ثم يُثبَّت النظام الجديد. الخطوات في قسم «Your current server: start fresh» أدناه.
+- **الخادم الحالي (VPS) — تثبيت جنبًا إلى جنب:** على خادمك يعمل traefik على المنفذين 80 و443 ومعه مشاريع أخرى وLonora القديم. التثبيت الجديد لا يلمس أيًّا منها: يُثبَّت باسم مشروع مستقل ومجلد مستقل، ويستمع على عنوان داخلي واحد فقط، مثلًا:
+  `sudo bash install.sh --home /opt/lonora2 --project lonora2 --behind-proxy 127.0.0.1:18030 --domain <اسم تجريبي> --version <الإصدار>`
+  يفحص المثبّت قبل أي تغيير: أن المنفذ غير مستخدم، وأن المجلد فارغ من أي تثبيت، وأن اسم المشروع غير مستخدم، وأن الذاكرة والمساحة كافيتان، ويطبع ما وجده ويرفض إن فشل أي فحص. لكل خدمة حدّ للذاكرة والمعالج (نحو 2.3 غيغابايت للمجموع)، وخدمات البحث والمتصفح معطلة افتراضيًا.
+- **التحويل لاحقًا (قرارك أنت ومتى تشاء):** بعد التأكد من النسخة الجديدة، تعدّل أنت إعداد traefik ليشير نطاقك إلى `http://127.0.0.1:18030`، ثم توقف النسخة القديمة. الخطوات في قسم «Switch over later» أدناه. لا شيء من ذلك يحدث تلقائيًا.
+- **البناء على الخادم:** ما دام GitHub Actions متوقفًا، يبني الأمر `infra/compose/build-from-source.sh` الصورة على الخادم بحدود معالج وذاكرة، ويضعها في سجل محلي على `127.0.0.1` فقط، ثم يتم التثبيت أو التحديث منها كالمعتاد.
 
 ## The pieces
 
 | Piece | Where | What it does |
 |---|---|---|
 | Deployment definition | `infra/compose/docker-compose.prod.yml` | The one production stack: PostgreSQL, API, Gateway, Caddy (HTTPS), plus a `migrate` service that runs only when asked. |
-| Optional overlays | `infra/research/compose.research.yml`, `infra/analysis/compose.workspace.yml` | Listed in `LONORA_COMPOSE_OVERLAYS` in `.env` (space separated). `lonora` always adds them. |
+| Mode | `infra/compose/mode-direct.yml` or `mode-proxy.yml` | Direct: Caddy owns 80/443 and gets the certificate. Proxy (`LONORA_PROXY_LISTEN` set): Caddy listens in plain HTTP on one loopback address behind an existing reverse proxy; nothing binds 80/443. |
+| Optional overlays | `infra/research/compose.research.yml` (search and browser, ~1.1 GB, off by default), `infra/analysis/compose.workspace.yml` | Listed in `LONORA_COMPOSE_OVERLAYS` in `.env` (space separated). `lonora` always adds them. |
+| Source build | `infra/compose/build-from-source.sh` | Builds the image on the server into a loopback-only registry, when no published image exists. |
 | `lonora` command | `infra/compose/lonora` (linked as `/usr/local/bin/lonora`) | status, start, update, rollback, backup, restore, restore-test, logs. |
 | Installer | `infra/compose/install.sh` | Sets up a new server. |
 | Release manifest | `/app/release.json` inside every server image | Version, commit, migration head, minimum client version. |
+
+The Compose project name (`LONORA_PROJECT` in `.env`, `--project` at install, default `lonora`)
+prefixes every container, volume and network, so one installation never touches another's.
+Every service has a memory and CPU limit (below).
 
 All of these files ship **inside the server image** under `/app/deploy`. The installer and
 `lonora update` copy them from the image to the server, so the server never needs a source
@@ -57,26 +67,132 @@ docker run --rm --entrypoint cat ghcr.io/loorksy/lonorabot:main \
 sudo bash install.sh --domain lonora.example.com --version main
 ```
 
-`--version` takes a tag (`main`, `v0.3.0`) or an exact `repo@sha256:…` reference. The installer:
+`--version` takes a tag (`main`, `v0.3.0`), an exact `repo@sha256:…` reference, or an image built on
+the server (`127.0.0.1:5055/lonora:v0.3.0`, see «Build from source on the server»). Other options:
+`--home DIR` (default `/opt/lonora`), `--project NAME` (default `lonora`), `--behind-proxy
+127.0.0.1:PORT` (see «Side by side»), `--min-free-ram-mb` (default 2560), `--min-free-disk-gb`
+(default 10), `--no-systemd`.
+
+First a **preflight**, which changes nothing and prints each finding as `ok` or `FAIL`: the home
+directory holds no installation; no `<project>_database` volume and no container of the project
+exist; the ports are free (80 and 443, or the `--behind-proxy` port, which must be on a 127.x
+address); available memory and free disk are above the minimums. Any `FAIL` stops it with
+"Preflight failed; nothing was changed". Then the installer:
 
 1. pulls the image and pins its digest in `state/image.env`;
 2. copies the deployment files out of the image, with explicit modes;
 3. creates `.env` with a fresh database password, encryption key, bootstrap token and
    webhook secret, and `backup.key` — all mode 600, never printed;
-4. enables the daily backup timer (`lonora-backup.timer`, 03:00);
+4. enables the daily backup timer (`<project>-backup.timer`, 03:00);
 5. runs `lonora start`: database, migrations, services, and waits for `/ready`.
 
-It is for new installations only. It refuses a directory that already has one (there,
-`sudo lonora update <version>` updates it, or starts it again behind the health gates when the
-version is the one already pinned), and it refuses when a Docker volume `lonora_database` already
-exists, because the new install would silently reuse that old data.
+It is for new installations only: on an existing one, `sudo lonora update <version>` updates it, or
+starts it again behind the health gates when the version is the one already pinned. The command is
+linked as `/usr/local/bin/lonora`, or `/usr/local/bin/lonora-<project>` when that name already
+belongs to another installation.
 
 Then:
 
 - copy `/opt/lonora/backup.key` somewhere safe that is not this server (a password manager is fine);
 - open `https://your-domain` and create the owner account with the bootstrap token from
   `sudo grep LONORA_BOOTSTRAP_TOKEN /opt/lonora/.env`;
-- for host hardening (firewall, unattended security updates) run `sudo bash /opt/lonora/infra/compose/harden-host.sh --apply`.
+- for host hardening (firewall, unattended security updates) run `sudo bash /opt/lonora/infra/compose/harden-host.sh --apply`
+  — only on a server that runs nothing else: it changes the firewall.
+
+### Resource limits
+
+Every service has a memory and CPU limit, overridable in `.env`:
+
+| Service | Memory | CPUs | Variables |
+|---|---|---|---|
+| db | 512m | 0.5 | `LONORA_DB_MEMORY`, `LONORA_DB_CPUS` |
+| api (includes the chart renderer) | 896m | 0.75 | `LONORA_API_MEMORY`, `LONORA_API_CPUS` |
+| gateway | 768m | 0.75 | `LONORA_GATEWAY_MEMORY`, `LONORA_GATEWAY_CPUS` |
+| caddy | 96m | 0.25 | `LONORA_CADDY_MEMORY`, `LONORA_CADDY_CPUS` |
+| migrate (runs only during updates) | 512m | 0.5 | `LONORA_MIGRATE_MEMORY`, `LONORA_MIGRATE_CPUS` |
+
+The running stack is limited to about 2.3 GB and 2.25 CPUs, so it fits a 2-vCPU host next to other
+projects. The optional search and browser services (`infra/research/compose.research.yml`) add
+384m + 768m and are off unless listed in `LONORA_COMPOSE_OVERLAYS`; leave them off on a shared host.
+After changing a limit: `sudo lonora start`.
+
+## Side by side with an existing reverse proxy
+
+On a host where another reverse proxy (for example traefik) already owns ports 80 and 443 and other
+projects run — including an older Lonora — install the new one beside them, under its own project
+name and directory, behind that proxy:
+
+```sh
+sudo bash install.sh --home /opt/lonora2 --project lonora2 \
+  --behind-proxy 127.0.0.1:18030 --domain new.example.com --version <version>
+```
+
+What this does and does not do:
+
+- Caddy listens in plain HTTP on `127.0.0.1:18030` only; nothing binds 80 or 443, and nothing is
+  reachable from outside except through your proxy. Caddy still applies the maintenance gate.
+- Every container, volume and network is named `lonora2-…` / `lonora2_…`; the timer is
+  `lonora2-backup.timer`. Nothing of another project is read, changed, stopped or restarted. The
+  preflight refuses a port, project, volume or directory that is already taken.
+- The installer never edits the reverse proxy. Pointing it at the new entry is your step.
+
+A traefik file-provider route for it (put it in traefik's dynamic configuration directory; traefik
+reloads it by itself):
+
+```yaml
+http:
+  routers:
+    lonora2:
+      rule: "Host(`new.example.com`)"
+      entryPoints: ["websecure"]
+      service: lonora2
+      tls:
+        certResolver: letsencrypt      # the resolver name your traefik already uses
+  services:
+    lonora2:
+      loadBalancer:
+        servers:
+          - url: "http://127.0.0.1:18030"
+```
+
+`--domain` must be the public name the proxy serves for this installation: it sets the allowed
+origin and secure cookies. Use a separate test name (like `new.example.com`) while the old one keeps
+the main name.
+
+## Switch over later
+
+Only the owner does this, and only when they decide to; nothing here happens automatically.
+
+1. Check the new installation on its test name: sign in, `sudo lonora status` shows `/ready: ok`,
+   `sudo lonora backup` and `sudo lonora restore-test` pass.
+2. Set the main name on the new installation: edit `LONORA_DOMAIN=` in `/opt/lonora2/.env`, then
+   `sudo lonora start`. (Passkeys registered on the test name must be registered again on the main name.)
+3. In traefik, point the router for the main name at the new service: change its `service:` to
+   `lonora2` (or its rule to `Host(\`main.example.com\`)`). Traefik applies it on its own.
+4. Stop the old stack, without deleting anything: `cd /opt/lonora && docker compose --env-file .env -f <its compose file> stop`.
+   Its data stays in its volumes; archive it later as in «Your current server: start fresh» steps 2–4
+   if you want the space back.
+5. To go back: point the router at the old service again and start the old stack
+   (`docker compose … start`).
+
+## Build from source on the server
+
+While no published image exists (for example while GitHub Actions is unavailable), build one on the
+server from a checkout:
+
+```sh
+git clone https://github.com/loorksy/lonorabot /srv/lonorabot && cd /srv/lonorabot && git checkout <commit>
+sudo bash infra/compose/build-from-source.sh --source /srv/lonorabot --project lonora2 --version v0.3.0
+sudo bash install.sh … --project lonora2 --version 127.0.0.1:5055/lonora:v0.3.0     # new install
+sudo lonora update 127.0.0.1:5055/lonora:v0.3.0                                      # update
+```
+
+The script starts a registry container (`lonora2-registry`, volume `lonora2_registry`) that listens on
+`127.0.0.1:5055` only (`--registry-port`), builds in a dedicated BuildKit container capped at
+`--cpus` (default 1) and `--memory` (default 2g), under `nice` and `ionice`, pushes the image there
+and prints its digest. Install and update then pin that digest exactly as with a published image,
+including backups and automatic rollback. The registry keeps every built version, so a rollback can
+always pull the previous one. Needs `git` and the Docker buildx plugin.
 
 ## Update
 
@@ -243,9 +359,14 @@ manifest of the running image.
 
 The owner decided the new system starts from an empty database: no agents or data are carried
 over, and there is no in-place adoption of the old installation. Nothing in this change touched the
-live VPS. Do this at a quiet time, as root, on the server. The new stack uses the same Compose
-project name (`lonora`) and volume names as the old one, so the old volumes must be archived and
-then removed — otherwise the new install would reuse them (the installer refuses in that case).
+live VPS. On the owner's VPS, which shares the host with other projects behind traefik, use
+«Side by side» above: the new installation starts empty under its own project name and the old one
+keeps running until the owner switches over.
+
+The steps below are for a server where the new installation should take the old one's place and
+name (`lonora`) directly. The new stack then uses the same Compose project name and volume names as
+the old one, so the old volumes must be archived and then removed — otherwise the new install would
+reuse them (the preflight refuses in that case).
 
 1. Stop the old install (use the Compose file it actually runs with):
    `cd /opt/lonora && docker compose --env-file .env -f <its compose file> stop`
@@ -279,8 +400,8 @@ can be deleted. Until then they are the only way back to the old system.
 ## Testing
 
 `tests/ops/lifecycle_test.sh REPO` runs the whole lifecycle against real Docker on a disposable
-machine. It uses the project name `lonora`, its volume names and ports 80/443, so it refuses to run
-where a Lonora installation exists. It checks:
+machine. It uses the projects `lonora` and `lonora2`, their volume names, ports 80/443 and
+`127.0.0.1:18010`/`18030`, so it refuses to run where either project exists. It checks:
 
 1. install: digest pinned, secrets mode 600, bundle modes, refusal of its own home and of a
    leftover `lonora_database` volume next to a new home;
@@ -305,7 +426,13 @@ where a Lonora installation exists. It checks:
     `rollback` still holds; `rollback --force` restores;
 16. disaster recovery: a newer backup refused on an older image; `--with-config` restores the
     secrets and keeps the new database password;
-17. no secret (encryption key, backup key, database passwords, bootstrap token, webhook secret) in
+17. side by side: beside a running dummy project named `lonora` (its volumes, network `lonora-net`,
+    a service on `127.0.0.1:18010`), the preflight refuses the taken project, a used port, a public
+    address, and too little memory or disk, creating nothing; then `lonora2` installs in proxy mode,
+    publishes only `127.0.0.1:18030` (`/health` 200 through it), carries the memory and CPU limits,
+    updates, backs up and passes a restore test — and the old project's container IDs, start times,
+    volumes and network are identical before, during and after, also after `lonora2` is removed;
+18. no secret (encryption key, backup key, database passwords, bootstrap token, webhook secret) in
     any log the test wrote or in `state/history.log`.
 
 `REPO` must hold the tags `old`, `v1`, `v2`, `v4-good`, `v3-broken` and `v3-fixed`. Build them with
@@ -330,7 +457,7 @@ the Debian mirror is unreachable, `LONORA_TEST_SKIP_APT=1` drops the Chromium/fo
 ### What was verified, and what still needs a real host
 
 Verified in a development container with Docker 29.9 and Compose 5.6, real images, a real local
-registry (real digests), PostgreSQL 16 and Caddy 2.10: all 17 lifecycle checks passed. The
+registry (real digests), PostgreSQL 16 and Caddy 2.10: all 18 lifecycle checks passed. The
 fresh-start steps 2, 4 and 5 were also run here against volumes named like the old ones: both
 archives were complete, and the new install came up with `/ready` passing and an empty database.
 

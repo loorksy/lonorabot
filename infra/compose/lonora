@@ -92,15 +92,19 @@ env_value() {
     sed -n "s/^$1=//p" .env | tail -n 1 | sed -e 's/^"\(.*\)"$/\1/' -e "s/^'\(.*\)'\$/\1/"
 }
 
+# This installation's Compose project (containers, volumes and networks are prefixed with
+# it) and its mode: proxy (LONORA_PROXY_LISTEN set) or direct (Caddy on 80/443).
+project() { local name; name="$(env_value LONORA_PROJECT)"; printf '%s\n' "${name:-lonora}"; }
+mode_file() { if [[ -n "$(env_value LONORA_PROXY_LISTEN)" ]]; then echo infra/compose/mode-proxy.yml; else echo infra/compose/mode-direct.yml; fi; }
 compose() {
-    local files=(-f "$COMPOSE_FILE_MAIN") overlay
+    local files=(-f "$COMPOSE_FILE_MAIN" -f "$(mode_file)") overlay
     for overlay in $(env_value LONORA_COMPOSE_OVERLAYS); do
         [[ -f "$overlay" ]] || die "Overlay $overlay (LONORA_COMPOSE_OVERLAYS) is missing."
         files+=(-f "$overlay")
     done
     local envs=(--env-file .env)
     if [[ -f "$STATE/image.env" ]]; then envs+=(--env-file "$STATE/image.env"); fi
-    docker compose "${envs[@]}" "${files[@]}" "$@"
+    docker compose -p "$(project)" "${envs[@]}" "${files[@]}" "$@"
 }
 
 current_image() { [[ -f "$STATE/image.env" ]] || return 0; sed -n 's/^LONORA_IMAGE=//p' "$STATE/image.env" | tail -n 1; }
@@ -114,6 +118,7 @@ require_tools() {
     for tool in docker gpg flock tar sha256sum; do command -v "$tool" >/dev/null || die "$tool is required."; done
     docker compose version >/dev/null 2>&1 || die 'The Docker Compose plugin is required.'
     [[ -f .env ]] || die "No .env in $LONORA_HOME. Run the installer first."
+    [[ "$(project)" =~ ^[a-z0-9][a-z0-9_-]*$ ]] || die "LONORA_PROJECT must be lowercase letters, digits, - or _."
     if [[ -n "$(env_value LONORA_HOST_DATABASE_URL)" ]]; then
         die 'LONORA_HOST_DATABASE_URL is set: backups, restores, updates and rollbacks work only with the bundled database.'
     fi
@@ -382,7 +387,7 @@ cmd_restore_test() {
     } >"$work/app.env"
     printf 'POSTGRES_DB=lonora\nPOSTGRES_USER=lonora\nPOSTGRES_PASSWORD=%s\n' "$db_password" >"$work/db.env"
     rm -f "$work/b/.env"
-    RT_NAME="lonora-restoretest-$$"
+    RT_NAME="$(project)-restoretest-$$"
     trap 'docker rm -f -v "$RT_NAME-gateway" "$RT_NAME-api" "$RT_NAME-db" >/dev/null 2>&1 || true; docker network rm "$RT_NAME" >/dev/null 2>&1 || true; cleanup' EXIT
     local net="$RT_NAME" db="$RT_NAME-db" api="$RT_NAME-api" gw="$RT_NAME-gateway" status=1
     docker network create --internal "$net" >/dev/null
@@ -710,7 +715,7 @@ cmd_start() {
 
 cmd_status() {
     require_tools
-    say "Home: $LONORA_HOME"
+    say "Home: $LONORA_HOME (project $(project), $(basename "$(mode_file)" .yml))"
     say "Pinned image: $(current_image)"
     if [[ -n "$(current_image)" ]]; then image_file "$(current_image)" /app/release.json 2>/dev/null || say 'Pinned image has no release manifest.'; fi
     if [[ -f "$MARKER" ]]; then
