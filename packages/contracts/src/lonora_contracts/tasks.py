@@ -1,5 +1,6 @@
 """Durable logical work, independent from its leased execution attempts."""
 
+from datetime import datetime
 from typing import Literal
 
 from pydantic import Field, model_validator
@@ -45,6 +46,12 @@ class TaskCreate(Contract):
     )
     steps: list[TaskStep] = Field(default_factory=list[TaskStep], max_length=50)
     retry_policy: TaskRetryPolicy = Field(default_factory=TaskRetryPolicy)
+    due_at: datetime | None = Field(
+        default=None, description="When the owner expects the work done. A target, not a trigger."
+    )
+    completion_criteria: str = Field(
+        default="", max_length=2000, description="What counts as done, in the owner's words."
+    )
 
     @model_validator(mode="after")
     def unique_steps(self) -> "TaskCreate":
@@ -64,12 +71,14 @@ class TaskState(Contract):
     waiting_reason: str | None = None
     steps: list[TaskStep] = Field(default_factory=list[TaskStep], max_length=50)
     plan_revision: int = 1
-    control_requested: Literal["pause", "cancel"] | None = None
+    control_requested: Literal["pause", "cancel", "complete"] | None = None
     instruction: str = Field(default="", max_length=8000)
     last_checkpoint_at: str | None = None
     attempt: int = Field(default=1, ge=1)
     retry_policy: TaskRetryPolicy = Field(default_factory=TaskRetryPolicy)
     failure: TaskFailure | None = None
+    due_at: str | None = None
+    completion_criteria: str = Field(default="", max_length=2000)
 
 
 class TaskInspect(Contract):
@@ -82,6 +91,12 @@ class TaskControl(Contract):
     expected_version: int = Field(ge=1)
     instruction: str = Field(default="", max_length=8000)
     steps: list[TaskStep] | None = Field(default=None, max_length=50)
+
+
+class TaskComplete(Contract):
+    """The owner declares a Task done («تحديد كمكتملة»): its work stops, nothing is approved."""
+
+    expected_version: int = Field(ge=1)
 
 
 class TaskStepUpdate(Contract):
