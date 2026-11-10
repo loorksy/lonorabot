@@ -2,8 +2,8 @@
 
 Every create, update and restore of a skill writes its validated payload under the
 skill's resource ``version``; «سجل الإصدارات» lists them and «الرجوع إلى الإصدار N»
-saves an older payload as a new version. Existing skills get their current payload as
-their first history row. The downgrade drops the history; the skills stay as they are.
+saves an older payload as a new version. Fresh start (owner rule): no backfill of existing
+skills. The downgrade drops the history; the skills stay as they are.
 """
 
 import sqlalchemy as sa
@@ -26,12 +26,6 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["skill_id"], ["ln_skills.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["owner_id"], ["ln_owners.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("skill_id", "version"),
-    )
-    op.execute(
-        sa.text(
-            "INSERT INTO ln_skill_versions (skill_id, version, owner_id, payload, created_at) "
-            "SELECT id, version, owner_id, payload, updated_at FROM ln_skills"
-        )
     )
 
 
