@@ -25,6 +25,16 @@
 /* The card's own element reset at one element's specificity (§2.4): the reference's element
    defaults (Desktop-37:62-72, 147-151), plus explicit values for every property the legacy
    rules set (styles.css:87-200), so a card looks the same wherever it is mounted. */
+/* The card starts from the reference's body text and border colour, never the bubble's. */
+:where(.ux) {
+  font: 400 var(--fs-md) / 1.6 var(--font);
+  color: var(--text);
+}
+:where(.ux) *,
+:where(.ux) ::before,
+:where(.ux) ::after {
+  border-color: currentColor;
+}
 :where(.ux) button {
   display: inline-block;
   align-items: normal;
@@ -520,6 +530,11 @@
 /* The delivery row is read-only: no hover (§4.4). */
 .ux-pick[aria-disabled="true"] {
   cursor: default;
+}
+
+/* Desktop-37:130 .btn.sm, scoped: the shell has no .btn.sm (it has .btn.small). */
+.ux .btn.sm {
+  padding: 6px 14px;
 }
 
 /* ---- Lonora additions, built from the same tokens ---- */

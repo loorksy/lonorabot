@@ -30,6 +30,9 @@ class _Session:
     async def get(self, model: Any, identity: str) -> Any:
         return self.agent
 
+    async def scalars(self, statement: Any) -> list[Any]:
+        return []  # one account: no other enabled connection
+
 
 class _Db:
     def __init__(self, agent: _Agent | None = None):

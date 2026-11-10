@@ -212,11 +212,7 @@ async def _identity_names(
             raise LonoraError("ui_submit_data_invalid", 422)
         names["watch_id"] = watch_name(watch_summary(watch), "ar")
     if intent == "alert.create":
-        accounts = list(
-            await session.scalars(
-                select(BrokerSessionRow).where(BrokerSessionRow.owner_id == owner_id).limit(8)
-            )
-        )
+        accounts = await enabled_accounts(session, owner_id)
         if len(accounts) > 1:
             from .owner_actions import account_facts
 
@@ -227,6 +223,22 @@ async def _identity_names(
                 raise LonoraError("ui_submit_account_unnamed", 409)
             names["account_id"] = str(label)
     return names
+
+
+async def enabled_accounts(session: AsyncSession, owner_id: str) -> list[BrokerSessionRow]:
+    """The owner's enabled trading accounts (connections), at most 8 read."""
+    rows = await session.scalars(
+        select(BrokerSessionRow).where(BrokerSessionRow.owner_id == owner_id).limit(32)
+    )
+    return [row for row in rows if row.payload.get("enabled", True)][:8]
+
+
+async def account_label(session: AsyncSession, account_id: str) -> str | None:
+    from .owner_actions import account_facts
+
+    row = await session.get(BrokerSessionRow, account_id)
+    label = account_facts(row, account_id).get("label") if row is not None else None
+    return str(label) if label else None
 
 
 async def queued_submit(session: AsyncSession, thread_id: str, agent_id: str) -> RunRow | None:

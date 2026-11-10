@@ -16,6 +16,7 @@ from lonora_contracts.genui import CardError, is_v2_start, parse_lines
 from lonora_contracts.visual_response import MAX_VISUAL_BYTES, RichContent, VisualDocument
 from lonora_contracts.visual_values import EXTENDED_ARITY, evaluate_extended_visual_op
 from lonora_core.public_reply import public_reply_violation, redact_private_reply
+from lonora_db.genui_submit import account_label, enabled_accounts
 from lonora_db.schema import AgentRow, ArtifactRow, CloudChartRow
 from lonora_tools.context import ToolContext
 from pydantic import ValidationError
@@ -596,9 +597,15 @@ class VisualReplyProjector:
             scope = AgentScope(agent_id=self.context.agent_id)
             async with self.context.db.sessions() as session:
                 agent = await session.get(AgentRow, self.context.agent_id)
-            if agent is not None:
-                scope.bound_account = agent.trading_account_id
-                scope.bound_symbol = agent.trading_symbol
+                if agent is not None:
+                    scope.bound_account = agent.trading_account_id
+                    scope.bound_symbol = agent.trading_symbol
+                    accounts = await enabled_accounts(session, self.context.owner_id)
+                    scope.several_accounts = len(accounts) > 1
+                    if scope.several_accounts:
+                        scope.unnamed_accounts = frozenset(
+                            [row.id for row in accounts if not await account_label(session, row.id)]
+                        )
             self.scope = scope
         return self.scope
 

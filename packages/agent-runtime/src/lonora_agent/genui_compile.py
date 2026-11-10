@@ -223,6 +223,10 @@ class AgentScope:
     agent_id: str = ""
     bound_account: str | None = None
     bound_symbol: str | None = None
+    # More than one enabled account: an alert's bubble must name its account (§8.3), so
+    # an account without a verified broker label is listed here as unnamed.
+    several_accounts: bool = False
+    unnamed_accounts: frozenset[str] = frozenset()
 
 
 def _data_keys(action: dict[str, Any], state: dict[str, Any], calc: dict[str, str]) -> set[str]:
@@ -462,6 +466,8 @@ def compile_card(
     alert_card = any(node["action"]["intent"] == "alert.create" for node in sends)
     if instrument_keys and account is None and final:
         raise CardError("card_fallback_account")
+    if alert_card and scope.several_accounts and account in scope.unnamed_accounts:
+        raise CardError("card_fallback_account_unnamed")
     for path, node in walk(blocks):
         if node["type"] not in {"Segmented", "Select"} or node.get("bind") not in instrument_keys:
             continue
