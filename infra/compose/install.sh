@@ -7,7 +7,8 @@
 # Get this file without a checkout:
 #   docker run --rm --entrypoint cat ghcr.io/loorksy/lonorabot:main /app/deploy/infra/compose/install.sh >install.sh
 #
-# Safe to run again: existing .env, backup.key, data and volumes are kept, never replaced.
+# For a new installation only: it refuses a directory that already has one (use
+# `lonora update` there), and existing .env and backup.key are never replaced.
 # Secrets are generated on this host, written with mode 600 and never printed.
 set -euo pipefail
 umask 077
@@ -33,6 +34,10 @@ if ! command -v gpg >/dev/null; then
     if command -v apt-get >/dev/null && [[ "$EUID" -eq 0 ]]; then apt-get install -y -q gnupg >/dev/null; else die 'gpg is required (package gnupg).'; fi
 fi
 
+[[ ! -f "$home/state/image.env" ]] || die "$home already has an installation. Update it with: lonora update <version>"
+if docker volume inspect lonora_database >/dev/null 2>&1; then
+    die 'A Docker volume lonora_database already exists, so the new install would reuse old data. Archive and remove it first (docs/operations.md, "start fresh").'
+fi
 mkdir -p "$home"; chmod 750 "$home"; cd "$home"
 mkdir -p state backups .runtime/releases/android .runtime/releases/ota
 chmod 700 state backups
@@ -45,9 +50,14 @@ docker pull -q "$ref" >/dev/null
 if [[ "$ref" == *@sha256:* ]]; then pinned="$ref"; else
     pinned="$(docker image inspect --format '{{range .RepoDigests}}{{println .}}{{end}}' "$ref" | grep -m1 "^${ref%:*}@sha256:")" || die "$ref has no registry digest."
 fi
+bundle="$(mktemp -d "$home/.bundle.XXXXXX")"
+trap 'rm -rf "$bundle"' EXIT
 container="$(docker create "$pinned")"
-docker cp -q "$container:/app/deploy/." . && docker rm "$container" >/dev/null
-[[ -x infra/compose/lonora ]] || die "$pinned carries no deployment bundle."
+docker cp -q "$container:/app/deploy/." "$bundle" && docker rm "$container" >/dev/null
+[[ -x "$bundle/infra/compose/lonora" ]] || die "$pinned carries no deployment bundle."
+# Explicit modes: containers read the mounted Caddyfile and overlays as other users.
+(cd "$bundle" && find . -mindepth 1 -type d -exec chmod 755 {} + && find . -type f -perm -u+x -exec chmod 755 {} + && find . -type f ! -perm -u+x -exec chmod 644 {} +)
+cp -a "$bundle/." .
 
 random() { head -c "$1" /dev/urandom | base64 | tr -d '\n'; }
 if [[ ! -f .env ]]; then
@@ -76,7 +86,7 @@ if [[ ! -f backup.key && -z "${LONORA_BACKUP_KEY:-}" ]]; then
     say "Created the backup encryption key $home/backup.key."
 fi
 
-[[ -f state/image.env ]] || printf 'LONORA_IMAGE=%s\n' "$pinned" >state/image.env
+printf 'LONORA_IMAGE=%s\n' "$pinned" >state/image.env
 ln -sf "$home/infra/compose/lonora" /usr/local/bin/lonora 2>/dev/null || true
 
 if "$systemd" && command -v systemctl >/dev/null; then
