@@ -23,6 +23,10 @@ MAX_EXPRESSION_CHARS = 400
 MAX_EXPRESSION_DEPTH = 12
 MAX_PARSE_NESTING = 160
 BLOCKED = frozenset({"__proto__", "prototype", "constructor"})
+# Output bounds (review S1), equal in ``functions.ts``/``expr.ts``: no intermediate text
+# may exceed MAX_TEXT code points and no list MAX_ITEMS items, so no expression can expand.
+MAX_TEXT = 2000
+MAX_ITEMS = 201
 TOKEN = re.compile(
     r"\s*(?:(?P<num>\d+(?:\.\d+)?)|'(?P<sq>[^']*)'|\"(?P<dq>[^\"]*)\"|\$(?P<var>[A-Za-z_][A-Za-z0-9_]*)"
     r"|@(?P<fn>[A-Za-z][A-Za-z0-9]*)|(?P<id>[A-Za-z_][A-Za-z0-9_]*)"
@@ -360,10 +364,19 @@ def _compare(op: str, left: Any, right: Any) -> bool:
     return {"<": a < b, "<=": a <= b, ">": a > b, ">=": a >= b}[op]
 
 
+def bounded(result: Any) -> Any:
+    """Every function result and concatenation stays within the output bounds."""
+    if isinstance(result, str) and len(result) > MAX_TEXT:
+        raise ExpressionError("genui_expression_too_large")
+    if isinstance(result, list) and len(cast(list[Any], result)) > MAX_ITEMS:
+        raise ExpressionError("genui_expression_too_large")
+    return cast(Any, result)
+
+
 def _binary(op: str, left: Any, right: Any) -> Any:
     if op == "+":
         if isinstance(left, str) or isinstance(right, str):
-            return show(left) + show(right)
+            return bounded(show(left) + show(right))
         return to_number(left or 0) + to_number(right or 0)
     if op in {"-", "*", "/", "%"}:
         a, b = to_number(left), to_number(right)
@@ -455,7 +468,7 @@ def evaluate_node(node: Node, env: Env) -> Any:
         if node[1] == "Fact":
             key = evaluate_node(node[2][0], env) if node[2] else None
             return env.facts.get(key) if isinstance(key, str) else None
-        return function(*[evaluate_node(arg, env) for arg in node[2]])
+        return bounded(function(*[evaluate_node(arg, env) for arg in node[2]]))
     raise ExpressionError("genui_expression_invalid")
 
 

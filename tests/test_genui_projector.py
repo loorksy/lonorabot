@@ -343,3 +343,105 @@ async def test_a_typed_market_value_makes_the_card_fall_back() -> None:
     assert projection.rich_until() and any(
         p["type"] == "ui" for p in projection.rich_until()["parts"]
     )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "edit",
+    [
+        # A templated head title assembles a private id only when rendered.
+        lambda body: body.replace('"title":"تنبيه سعر"', '"title":"{$tid}"').replace(
+            '"calc":{', '"calc":{"tid":"\'0f1e2d3c-4b5a-6978\'+\'-8a9b-0c1d2e3f4a5b\'",'
+        ),
+        # So does a templated sub.
+        lambda body: body.replace('"sub":"يصلك عند تحقق الشرط"', '"sub":"{$tid}"').replace(
+            '"calc":{', '"calc":{"tid":"\'0f1e2d3c-4b5a-6978\'+\'-8a9b-0c1d2e3f4a5b\'",'
+        ),
+        # A plain-string option label is rendered too.
+        lambda body: body.replace(
+            '{"type":"Text","tone":"muted"',
+            '{"type":"Segmented","bind":"pick","label":"x","options":'
+            '["0f1e2d3c-4b5a-6978-8a9b-0c1d2e3f4a5b"]}\n{"type":"Text","tone":"muted"',
+        ),
+        # A value an option's `also` selects is rendered as the client shows it.
+        lambda body: body.replace(
+            '"also":{"price":null}}', '"also":{"price":null,"tag":"0f1e2d3c-4b5a-6978"}}', 1
+        ).replace(
+            '{"type":"Text","tone":"muted"',
+            '{"type":"Note","text":"{$tag + \'-8a9b-0c1d2e3f4a5b\'}"}\n'
+            '{"type":"Text","tone":"muted"',
+        ),
+    ],
+)
+async def test_the_privacy_guard_reads_rendered_strings(edit) -> None:
+    """S2: the client renders templates and scalar labels, so the guard does too."""
+    projection, projector = await project(reply(edit(A01)))
+    assert all(p["type"] == "text" for p in (projection.rich_until() or {"parts": []})["parts"])
+    assert any(d["code"] == "card_fallback_private" for d in projector.diagnostics), [
+        d["code"] for d in projector.diagnostics
+    ]
+
+
+@pytest.mark.asyncio
+async def test_the_card_takes_its_currency_from_account_read() -> None:
+    """E1: ``account_read`` nests the account under ``account``; money on the card is
+    labelled with that account's currency."""
+    history = messages()
+    history.insert(
+        1,
+        ModelMessage(
+            role="assistant",
+            content="",
+            tool_calls=[ToolCall(id="a1", name="account_read", arguments={"account_id": "acc-1"})],
+        ),
+    )
+    history.insert(
+        2,
+        ModelMessage(
+            role="tool",
+            tool_call_id="a1",
+            content=json.dumps(
+                {"account": {"account_id": "acc-1", "currency": "EUR", "balance": "10000"}}
+            ),
+        ),
+    )
+    projection, _ = await project(reply(), history=history)
+    rich = projection.rich_until()
+    assert rich is not None
+    assert rich["parts"][-1]["document"]["currency"] == "EUR"
+
+
+async def _stopped(blocks: int, phase: str = "cancelled") -> dict[str, Any] | None:
+    """A Run whose stream holds a card still building, settled by Stop or failure."""
+    from lonora_db.schema import RunRow
+    from lonora_db.streaming import STREAM_KEY, settle_stream, stream_data
+
+    lines = A01.strip().split("\n")
+    partial = LEAD + "```lonora-ui\n" + "\n".join(lines[: 2 + blocks]) + "\n"
+    projection, _ = await project(partial, partial=True)
+    rich = projection.rich_until()
+    assert rich is not None and rich["parts"][-1].get("building")
+    row = RunRow(model_metadata={STREAM_KEY: {"phase": "streaming", "rich_content": rich}})
+    settle_stream(row, phase)
+    stream = stream_data(row)
+    return stream.get("rich_content") if stream else None
+
+
+@pytest.mark.asyncio
+async def test_stop_mid_build_stores_the_built_blocks_with_cut() -> None:
+    """E2: Stop keeps the blocks built so far, marked ``cut``; never a building skeleton."""
+    rich = await _stopped(3)
+    assert rich is not None
+    part = rich["parts"][-1]
+    assert part["type"] == "ui" and part["cut"] == 3 and not part.get("building")
+    assert len(part["document"]["blocks"]) == 3
+
+
+@pytest.mark.asyncio
+async def test_stop_before_any_block_shows_the_fallback_and_failure_never_builds() -> None:
+    """E2: ``cut = 0`` hides the card and shows its fallback; a failed turn's card is
+    its fallback too (it was not the owner's Stop)."""
+    for rich in (await _stopped(0), await _stopped(3, "failed")):
+        assert rich is not None
+        assert [p["type"] for p in rich["parts"]] == ["text", "text"]
+        assert not any(p.get("building") for p in rich["parts"])

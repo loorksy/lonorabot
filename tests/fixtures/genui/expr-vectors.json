@@ -479,6 +479,38 @@
   {
    "src": "@Join(['a','b'],'-')",
    "expected": "a-b"
+  },
+  {
+   "src": "@Join(@Range(0,200), @Join(@Range(0,200), @Join(@Range(0,200), 'xxxxxxxxxx')))",
+   "expected": null
+  },
+  {
+   "src": "@Len(@Join(@Range(0,200), '-'))",
+   "expected": 693
+  },
+  {
+   "src": "@Len(@Join(@Range(0,150), 'xxxxx'))",
+   "expected": 1093
+  },
+  {
+   "src": "@Join(@Range(0,150), 'xxxxx') + @Join(@Range(0,150), 'xxxxx')",
+   "expected": null
+  },
+  {
+   "src": "@Len(@Join(@Range(0,150), 'xxxxx') + 'ab')",
+   "expected": 1095
+  },
+  {
+   "src": "@Range(0,200)[200]",
+   "expected": 200
+  },
+  {
+   "src": "@Range(0,201)",
+   "expected": null
+  },
+  {
+   "src": "@Len(@Join([@Join(@Range(0,150),'xxxxx'), @Join(@Range(0,150),'xxxxx')], ''))",
+   "expected": 0
   }
  ]
 }

@@ -12,9 +12,9 @@ import math
 from collections.abc import Callable
 from typing import Any, cast
 
-from .genui_expr import is_number, loose_equal, normal, show, truthy
+from .genui_expr import MAX_ITEMS, MAX_TEXT, is_number, loose_equal, normal, show, truthy
 
-MAX_RANGE = 201
+MAX_RANGE = MAX_ITEMS
 MAX_LIST = 100
 
 
@@ -181,7 +181,14 @@ def _includes(values: Any, target: Any) -> Any:
 def _join(values: Any, separator: Any = "، ") -> Any:
     if not isinstance(values, list) or not isinstance(separator, str):
         return None
-    return separator.join("" if item is None else show(item) for item in cast(list[Any], values))
+    items = cast(list[Any], values)
+    if len(items) > MAX_ITEMS:
+        return None
+    parts = ["" if item is None else show(item) for item in items]
+    # Measured before it is built, so a nested Join never expands (review S1).
+    if sum(map(len, parts)) + len(separator) * max(len(parts) - 1, 0) > MAX_TEXT:
+        return None
+    return separator.join(parts)
 
 
 def ar_count(number: float) -> str:

@@ -418,11 +418,18 @@ def compile_card(
     if account is not None:
         for item in evidence.values():
             if (
-                item.name in {"account_read", "account_performance_series"}
-                and _call_account(item, scope.bound_account) == account
-                and isinstance(item.record.get("currency"), str)
+                item.name not in {"account_read", "account_performance_series"}
+                or _call_account(item, scope.bound_account) != account
             ):
-                currency = item.record["currency"]
+                continue
+            # ``account_read`` nests the account under ``account`` (review E1).
+            nested: Any = item.record.get("account")
+            found: Any = (
+                cast(dict[str, Any], nested).get("currency") if isinstance(nested, dict) else None
+            )
+            found = found if isinstance(found, str) else item.record.get("currency")
+            if isinstance(found, str):
+                currency = found
                 break
         if head.get("currency") not in {None, currency}:
             diagnostics.add("prop_dropped", None, "head", "currency")
@@ -609,19 +616,43 @@ def compile_card(
     if typed_fact_numbers(head, blocks, state, evidence, owner):
         raise CardError("card_fallback_typed_fact")
 
-    # Privacy over every display string, rendered at the initial state.
-    env = environment(state, calc, {k: f["value"] for k, f in facts.items()})
-    strings: list[str] = [head["title"], head.get("sub") or ""]
+    # Privacy over every display string as the client renders it (review S2): templated
+    # head text and plain-string option labels included, at the initial state and at each
+    # state an option selects (its value and its ``also``).
+    fact_values = {k: f["value"] for k, f in facts.items()}
+    env = environment(state, calc, fact_values)
+
+    def rendered(at: Any) -> list[str]:
+        out = [render_template(head["title"], at), render_template(head.get("sub") or "", at)]
+        for _path, node in walk(blocks):
+            for name in ("label", "text", "hint", "sub", "value", "title", "suffix", "prefix"):
+                if isinstance(node.get(name), str):
+                    out.append(render_template(node[name], at))
+            for option in cast(list[Any], node.get("options", [])):
+                label = (
+                    cast(dict[str, Any], option).get("label")
+                    if isinstance(option, dict)
+                    else option
+                )
+                if isinstance(label, str):
+                    out.append(render_template(label, at))
+            for row in node.get("rows", []):
+                out.extend(render_template(c, at) for c in row if isinstance(c, str))
+        return out
+
+    states: list[dict[str, Any]] = [state]
     for _path, node in walk(blocks):
-        for name in ("label", "text", "hint", "sub", "value", "title", "suffix", "prefix"):
-            if isinstance(node.get(name), str):
-                strings.append(render_template(node[name], env))
+        bind = node.get("bind")
         for option in cast(list[Any], node.get("options", [])):
-            label = cast(dict[str, Any], option).get("label") if isinstance(option, dict) else None
-            if isinstance(label, str):
-                strings.append(render_template(label, env))
-        for row in node.get("rows", []):
-            strings.extend(render_template(c, env) for c in row if isinstance(c, str))
+            if not isinstance(bind, str) or not isinstance(option, dict):
+                continue
+            item = cast(dict[str, Any], option)
+            also: Any = item.get("also")
+            extra = cast(dict[str, Any], also) if isinstance(also, dict) else {}
+            states.append({**state, bind: item.get("value"), **extra})
+    strings: list[str] = []
+    for at in states[:24]:
+        strings.extend(rendered(environment(at, calc, fact_values)))
     strings.extend(str(v) for v in state.values() if isinstance(v, str))
     for text in strings:
         if public_reply_violation(text, public_ids=public_ids):
@@ -688,9 +719,12 @@ def compile_card(
         why = DEFAULT_WHY.get(head["kind"], DEFAULT_WHY["form"])
         diagnostics.add("why_default")
     fallback = card.fallback
-    if final and not fallback:
+    if not fallback:
+        # A partial card carries the fallback of what is built so far, so a turn that
+        # stops or fails mid-build always has text to stand in for it (review E2).
         fallback = generated_fallback(head, blocks, env)
-        diagnostics.add("fallback_generated")
+        if final:
+            diagnostics.add("fallback_generated")
     document: dict[str, Any] = {
         **head,
         "facts": facts,

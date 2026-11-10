@@ -4,11 +4,19 @@
  * executed as JavaScript: expressions are parsed into a small AST and walked.
  */
 import { FUNCTIONS, type GenuiFunction } from "./functions";
+import { MAX_ITEMS, MAX_TEXT, textSize } from "./limits";
 
 export const MAX_EXPRESSION_CHARS = 400;
 export const MAX_EXPRESSION_DEPTH = 12;
 const MAX_PARSE_NESTING = 160;
 const BLOCKED = new Set(["__proto__", "prototype", "constructor"]);
+function bounded(value: unknown): unknown {
+  if (typeof value === "string" && textSize(value) > MAX_TEXT)
+    throw new ExpressionError("genui_expression_too_large");
+  if (Array.isArray(value) && value.length > MAX_ITEMS)
+    throw new ExpressionError("genui_expression_too_large");
+  return value;
+}
 
 export type Node =
   | readonly ["c", unknown]
@@ -296,7 +304,8 @@ function compare(op: string, left: unknown, right: unknown): boolean {
 
 function binary(op: string, left: unknown, right: unknown): unknown {
   if (op === "+") {
-    if (typeof left === "string" || typeof right === "string") return show(left) + show(right);
+    if (typeof left === "string" || typeof right === "string")
+      return bounded(show(left) + show(right));
     return toNumber(left || 0) + toNumber(right || 0);
   }
   if (op === "-" || op === "*" || op === "/" || op === "%") {
@@ -387,7 +396,7 @@ export function evaluateNode(node: Node, env: Env): unknown {
       if (node[1] === "Random" && !env.context?.allowRandom) {
         throw new ExpressionError("genui_random_outside_set");
       }
-      return fn(env.context ?? {}, ...node[2].map((arg) => evaluateNode(arg, env)));
+      return bounded(fn(env.context ?? {}, ...node[2].map((arg) => evaluateNode(arg, env))));
     }
   }
 }

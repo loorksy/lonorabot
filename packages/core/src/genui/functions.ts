@@ -5,11 +5,12 @@
  */
 import type { FormatContext } from "./expr";
 import { groupNumber, looseEqual, show, truthy } from "./expr";
+import { MAX_ITEMS, MAX_TEXT, textSize } from "./limits";
 
 export type GenuiFunction = (context: FormatContext, ...args: unknown[]) => unknown;
 
 export const DASH = "—";
-const MAX_RANGE = 201;
+const MAX_RANGE = MAX_ITEMS;
 const MAX_LIST = 100;
 
 const num = (value: unknown): number | null =>
@@ -223,10 +224,16 @@ export const FUNCTIONS: Record<string, GenuiFunction> = {
   },
   Includes: (_c, values, target) =>
     Array.isArray(values) ? values.some((item) => show(item) === show(target)) : false,
-  Join: (_c, values, separator = "، ") =>
-    Array.isArray(values) && typeof separator === "string"
-      ? values.map((item) => (item == null ? "" : show(item))).join(separator)
-      : null,
+  Join: (_c, values, separator = "، ") => {
+    if (!Array.isArray(values) || typeof separator !== "string" || values.length > MAX_ITEMS)
+      return null;
+    const parts = values.map((item) => (item == null ? "" : show(item)));
+    // Measured before it is built, so a nested Join never expands (review S1).
+    const size =
+      parts.reduce((total, part) => total + textSize(part), 0) +
+      textSize(separator) * Math.max(parts.length - 1, 0);
+    return size > MAX_TEXT ? null : parts.join(separator);
+  },
   Plural: (_c, count, one = "", two = "", few = "", many = "", zero = "") => {
     const number = num(count);
     if (number === null) return null;

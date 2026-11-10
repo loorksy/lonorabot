@@ -518,6 +518,8 @@ export default function UiCard({
   }
 
   const title = renderTemplate(doc.title, env);
+  // Stopped before any block was built: no card, its fallback text (review E2).
+  if (part.cut === 0) return <p className="ux-fallback">{doc.fallback}</p>;
   const showFoot = !building && (locked || doc.why || part.cut !== undefined);
   const sources = Object.values(doc.facts).filter((fact) => fact.value !== null);
   return (
